@@ -12,7 +12,10 @@ const failureTerminalStatuses = new Set(["failed", "undelivered", "canceled"]);
 const TWILIO_MAX_CHARS = 1600;
 
 // Split long messages into chunks, preferring to break at paragraph/sentence boundaries
-export function splitMessage(text: string, maxChars = TWILIO_MAX_CHARS): string[] {
+export function splitMessage(
+  text: string,
+  maxChars = TWILIO_MAX_CHARS,
+): string[] {
   if (text.length <= maxChars) {
     return [text];
   }

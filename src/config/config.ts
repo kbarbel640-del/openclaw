@@ -22,6 +22,8 @@ export type SessionConfig = {
   sessionIntro?: string;
   typingIntervalSeconds?: number;
   heartbeatMinutes?: number;
+  heartbeatPreHook?: string[];
+  heartbeatPreHookTimeoutSeconds?: number;
 };
 
 export type LoggingConfig = {
@@ -102,6 +104,8 @@ const ReplySchema = z
         sendSystemOnce: z.boolean().optional(),
         sessionIntro: z.string().optional(),
         typingIntervalSeconds: z.number().int().positive().optional(),
+        heartbeatPreHook: z.array(z.string()).optional(),
+        heartbeatPreHookTimeoutSeconds: z.number().int().positive().optional(),
       })
       .optional(),
     heartbeatMinutes: z.number().int().nonnegative().optional(),

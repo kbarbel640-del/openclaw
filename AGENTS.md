@@ -107,11 +107,14 @@ src/
 ## Build, Test, and Development Commands
 - Install deps: `pnpm install`
 - Run CLI in dev: `pnpm warelay ...` (tsx entry) or `pnpm dev` for `src/index.ts`
-- Type-check/build: `pnpm build` (tsc)
+- Type-check/build: `bun run build` (tsc)
+- **Relink globally after code changes**: `bun run build && bun link`
 - Lint/format: `pnpm lint` (biome check), `pnpm format` (biome format)
 - Fix lint/format: `pnpm lint:fix`, `pnpm format:fix`
 - Tests: `pnpm test` (vitest); coverage: `pnpm test:coverage`
 - Node requirement: >=22.0.0
+
+> **Important**: Always use `bun` for building and linking. After modifying source code, run `bun run build && bun link` to rebuild and update the global `warelay` command.
 
 ## Key Dependencies
 | Package | Purpose |

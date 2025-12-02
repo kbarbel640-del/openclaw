@@ -1,9 +1,4 @@
 // Import test-helpers FIRST to set up mocks before other imports
-import {
-  resetBaileysMocks,
-  resetLoadConfigMock,
-  setLoadConfigMock,
-} from "./test-helpers.js";
 
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
@@ -11,10 +6,9 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
 import type { WarelayConfig } from "../config/config.js";
-import * as commandQueue from "../process/command-queue.js";
 import { resetLogger, setLoggerOverride } from "../logging.js";
+import * as commandQueue from "../process/command-queue.js";
 import {
   HEARTBEAT_PROMPT,
   HEARTBEAT_TOKEN,
@@ -25,6 +19,11 @@ import {
   stripHeartbeatToken,
 } from "./auto-reply.js";
 import type { sendMessageWeb } from "./outbound.js";
+import {
+  resetBaileysMocks,
+  resetLoadConfigMock,
+  setLoadConfigMock,
+} from "./test-helpers.js";
 
 const makeSessionStore = async (
   entries: Record<string, unknown> = {},
@@ -533,9 +532,7 @@ describe("web auto-reply", () => {
     const storePath = path.join(tmpDir, "sessions.json");
     await fs.writeFile(storePath, JSON.stringify({}));
 
-    const queueSpy = vi
-      .spyOn(commandQueue, "getQueueSize")
-      .mockReturnValue(2);
+    const queueSpy = vi.spyOn(commandQueue, "getQueueSize").mockReturnValue(2);
     const replyResolver = vi.fn();
     const listenerFactory = vi.fn(async () => {
       const onClose = new Promise<void>(() => {

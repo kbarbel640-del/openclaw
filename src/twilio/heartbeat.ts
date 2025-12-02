@@ -1,4 +1,9 @@
+import {
+  buildHeartbeatPrompt,
+  runHeartbeatPreHook,
+} from "../auto-reply/heartbeat-prehook.js";
 import { getReplyFromConfig } from "../auto-reply/reply.js";
+import { loadConfig, type WarelayConfig } from "../config/config.js";
 import { danger, success } from "../globals.js";
 import { logInfo } from "../logger.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
@@ -14,6 +19,8 @@ export async function runTwilioHeartbeatOnce(opts: {
   replyResolver?: ReplyResolver;
   overrideBody?: string;
   dryRun?: boolean;
+  skipPreHook?: boolean;
+  cfg?: WarelayConfig;
 }) {
   const {
     to,
@@ -21,8 +28,10 @@ export async function runTwilioHeartbeatOnce(opts: {
     runtime = defaultRuntime,
     overrideBody,
     dryRun = false,
+    skipPreHook = false,
   } = opts;
   const replyResolver = opts.replyResolver ?? getReplyFromConfig;
+  const cfg = opts.cfg ?? loadConfig();
 
   if (overrideBody && overrideBody.trim().length === 0) {
     throw new Error("Override body must be non-empty when provided.");
@@ -42,9 +51,25 @@ export async function runTwilioHeartbeatOnce(opts: {
       return;
     }
 
+    // Run pre-hook unless skipped
+    let heartbeatPrompt = HEARTBEAT_PROMPT;
+    if (!skipPreHook) {
+      const preHookResult = await runHeartbeatPreHook(cfg);
+      if (preHookResult.error) {
+        logInfo(
+          `Pre-hook failed: ${preHookResult.error} (continuing)`,
+          runtime,
+        );
+      }
+      heartbeatPrompt = buildHeartbeatPrompt(
+        HEARTBEAT_PROMPT,
+        preHookResult.context,
+      );
+    }
+
     const replyResult = await replyResolver(
       {
-        Body: HEARTBEAT_PROMPT,
+        Body: heartbeatPrompt,
         From: to,
         To: to,
         MessageSid: undefined,

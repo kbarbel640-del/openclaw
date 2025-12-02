@@ -1,3 +1,7 @@
+import {
+  buildHeartbeatPrompt,
+  runHeartbeatPreHook,
+} from "../auto-reply/heartbeat-prehook.js";
 import { getReplyFromConfig } from "../auto-reply/reply.js";
 import type { ReplyPayload } from "../auto-reply/types.js";
 import { waitForever } from "../cli/wait.js";
@@ -12,13 +16,13 @@ import {
 import { danger, info, isVerbose, logVerbose, success } from "../globals.js";
 import { logInfo } from "../logger.js";
 import { getChildLogger } from "../logging.js";
+import { getQueueSize } from "../process/command-queue.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { normalizeE164 } from "../utils.js";
 import { monitorWebInbox } from "./inbound.js";
 import { sendViaIpc, startIpcServer, stopIpcServer } from "./ipc.js";
 import { loadWebMedia } from "./media.js";
 import { sendMessageWeb } from "./outbound.js";
-import { getQueueSize } from "../process/command-queue.js";
 import {
   computeBackoff,
   newConnectionId,
@@ -105,6 +109,7 @@ export async function runWebHeartbeatOnce(opts: {
   sessionId?: string;
   overrideBody?: string;
   dryRun?: boolean;
+  skipPreHook?: boolean;
 }) {
   const {
     cfg: cfgOverride,
@@ -113,6 +118,7 @@ export async function runWebHeartbeatOnce(opts: {
     sessionId,
     overrideBody,
     dryRun = false,
+    skipPreHook = false,
   } = opts;
   const _runtime = opts.runtime ?? defaultRuntime;
   const replyResolver = opts.replyResolver ?? getReplyFromConfig;
@@ -181,9 +187,39 @@ export async function runWebHeartbeatOnce(opts: {
       return;
     }
 
+    // Run pre-hook unless skipped or overrideBody provided
+    let heartbeatPrompt = HEARTBEAT_PROMPT;
+    if (!skipPreHook) {
+      const preHookResult = await runHeartbeatPreHook(cfg);
+      if (preHookResult.error) {
+        heartbeatLogger.warn(
+          {
+            to,
+            error: preHookResult.error,
+            durationMs: preHookResult.durationMs,
+            timedOut: preHookResult.timedOut,
+          },
+          "heartbeat pre-hook failed (continuing with basic heartbeat)",
+        );
+      } else if (preHookResult.context) {
+        heartbeatLogger.info(
+          {
+            to,
+            contextLength: preHookResult.context.length,
+            durationMs: preHookResult.durationMs,
+          },
+          "heartbeat pre-hook succeeded",
+        );
+      }
+      heartbeatPrompt = buildHeartbeatPrompt(
+        HEARTBEAT_PROMPT,
+        preHookResult.context,
+      );
+    }
+
     const replyResult = await replyResolver(
       {
-        Body: HEARTBEAT_PROMPT,
+        Body: heartbeatPrompt,
         From: to,
         To: to,
         MessageSid: sessionId ?? sessionSnapshot.entry?.sessionId,
@@ -647,7 +683,11 @@ export async function monitorWebProvider(
         }
         // Apply response prefix if configured (skip for HEARTBEAT_OK to preserve exact match)
         const responsePrefix = cfg.inbound?.responsePrefix;
-        if (responsePrefix && replyResult.text && replyResult.text.trim() !== HEARTBEAT_TOKEN) {
+        if (
+          responsePrefix &&
+          replyResult.text &&
+          replyResult.text.trim() !== HEARTBEAT_TOKEN
+        ) {
           // Only add prefix if not already present
           if (!replyResult.text.startsWith(responsePrefix)) {
             replyResult.text = `${responsePrefix} ${replyResult.text}`;
@@ -711,7 +751,12 @@ export async function monitorWebProvider(
           mediaBuffer = media.buffer;
           mediaType = media.contentType;
         }
-        const result = await listener.sendMessage(to, message, mediaBuffer, mediaType);
+        const result = await listener.sendMessage(
+          to,
+          message,
+          mediaBuffer,
+          mediaType,
+        );
         // Add to echo detection so we don't process our own message
         if (message) {
           recentlySent.add(message);
@@ -720,7 +765,10 @@ export async function monitorWebProvider(
             if (firstKey) recentlySent.delete(firstKey);
           }
         }
-        logInfo(`📤 IPC send to ${to}: ${message.substring(0, 50)}...`, runtime);
+        logInfo(
+          `📤 IPC send to ${to}: ${message.substring(0, 50)}...`,
+          runtime,
+        );
         // Show typing indicator after send so user knows more may be coming
         try {
           await listener.sendComposingTo(to);
@@ -764,7 +812,10 @@ export async function monitorWebProvider(
 
         // Warn if no messages in 30+ minutes
         if (minutesSinceLastMessage && minutesSinceLastMessage > 30) {
-          heartbeatLogger.warn(logData, "⚠️ web relay heartbeat - no messages in 30+ minutes");
+          heartbeatLogger.warn(
+            logData,
+            "⚠️ web relay heartbeat - no messages in 30+ minutes",
+          );
         } else {
           heartbeatLogger.info(logData, "web relay heartbeat");
         }
@@ -775,7 +826,9 @@ export async function monitorWebProvider(
         if (lastMessageAt) {
           const timeSinceLastMessage = Date.now() - lastMessageAt;
           if (timeSinceLastMessage > MESSAGE_TIMEOUT_MS) {
-            const minutesSinceLastMessage = Math.floor(timeSinceLastMessage / 60000);
+            const minutesSinceLastMessage = Math.floor(
+              timeSinceLastMessage / 60000,
+            );
             heartbeatLogger.warn(
               {
                 connectionId,
@@ -876,9 +929,37 @@ export async function monitorWebProvider(
             "reply heartbeat start",
           );
         }
+
+        // Run pre-hook to gather context
+        const preHookResult = await runHeartbeatPreHook(cfg);
+        if (preHookResult.error) {
+          heartbeatLogger.warn(
+            {
+              connectionId,
+              error: preHookResult.error,
+              durationMs: preHookResult.durationMs,
+              timedOut: preHookResult.timedOut,
+            },
+            "heartbeat pre-hook failed (continuing with basic heartbeat)",
+          );
+        } else if (preHookResult.context) {
+          heartbeatLogger.info(
+            {
+              connectionId,
+              contextLength: preHookResult.context.length,
+              durationMs: preHookResult.durationMs,
+            },
+            "heartbeat pre-hook succeeded",
+          );
+        }
+        const heartbeatPrompt = buildHeartbeatPrompt(
+          HEARTBEAT_PROMPT,
+          preHookResult.context,
+        );
+
         const replyResult = await (replyResolver ?? getReplyFromConfig)(
           {
-            Body: HEARTBEAT_PROMPT,
+            Body: heartbeatPrompt,
             From: lastInboundMsg.from,
             To: lastInboundMsg.to,
             MessageSid: snapshot.entry?.sessionId,
@@ -930,7 +1011,11 @@ export async function monitorWebProvider(
         // Apply response prefix if configured (same as regular messages)
         let finalText = stripped.text;
         const responsePrefix = cfg.inbound?.responsePrefix;
-        if (responsePrefix && finalText && !finalText.startsWith(responsePrefix)) {
+        if (
+          responsePrefix &&
+          finalText &&
+          !finalText.startsWith(responsePrefix)
+        ) {
           finalText = `${responsePrefix} ${finalText}`;
         }
 

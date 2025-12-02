@@ -260,7 +260,9 @@ export async function runCommandReply(
         `Command auto-reply exited with code ${code ?? "unknown"} (signal: ${signal ?? "none"})`,
       );
       // Include any partial output or stderr in error message
-      const partialOut = trimmed ? `\n\nOutput: ${trimmed.slice(0, 500)}${trimmed.length > 500 ? "..." : ""}` : "";
+      const partialOut = trimmed
+        ? `\n\nOutput: ${trimmed.slice(0, 500)}${trimmed.length > 500 ? "..." : ""}`
+        : "";
       const errorText = `⚠️ Command exited with code ${code ?? "unknown"}${signal ? ` (${signal})` : ""}${partialOut}`;
       return {
         payload: { text: errorText },
