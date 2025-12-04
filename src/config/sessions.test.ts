@@ -18,8 +18,8 @@ describe("sessions", () => {
   });
 
   it("keeps group chats distinct", () => {
-    expect(
-      deriveSessionKey("per-sender", { From: "[redacted-email]" }),
-    ).toBe("group:[redacted-email]");
+    expect(deriveSessionKey("per-sender", { From: "[redacted-email]" })).toBe(
+      "group:[redacted-email]",
+    );
   });
 });
