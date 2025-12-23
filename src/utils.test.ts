@@ -69,6 +69,18 @@ describe("normalizeE164 & toWhatsappJid", () => {
       "[redacted-email]",
     );
   });
+
+  it("preserves existing JIDs", () => {
+    expect(toWhatsappJid("[redacted-email]")).toBe(
+      "[redacted-email]",
+    );
+    expect(toWhatsappJid("whatsapp:[redacted-email]")).toBe(
+      "[redacted-email]",
+    );
+    expect(toWhatsappJid("[redacted-email]")).toBe(
+      "[redacted-email]",
+    );
+  });
 });
 
 describe("jidToE164", () => {

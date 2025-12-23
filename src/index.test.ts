@@ -15,6 +15,12 @@ describe("toWhatsappJid", () => {
   it("converts E164 to jid", () => {
     expect(toWhatsappJid("+1 555 555 0123")).toBe("[redacted-email]");
   });
+
+  it("keeps group JIDs intact", () => {
+    expect(toWhatsappJid("[redacted-email]")).toBe(
+      "[redacted-email]",
+    );
+  });
 });
 
 describe("assertProvider", () => {
