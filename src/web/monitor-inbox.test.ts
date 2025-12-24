@@ -109,10 +109,9 @@ describe("web monitor inbox", () => {
       "composing",
       "[redacted-email]",
     );
-    expect(sock.sendMessage).toHaveBeenCalledWith(
-      "[redacted-email]",
-      { text: "pong" },
-    );
+    expect(sock.sendMessage).toHaveBeenCalledWith("[redacted-email]", {
+      text: "pong",
+    });
 
     await listener.close();
   });
@@ -192,10 +191,9 @@ describe("web monitor inbox", () => {
         replyToSender: "+111",
       }),
     );
-    expect(sock.sendMessage).toHaveBeenCalledWith(
-      "[redacted-email]",
-      { text: "pong" },
-    );
+    expect(sock.sendMessage).toHaveBeenCalledWith("[redacted-email]", {
+      text: "pong",
+    });
 
     await listener.close();
   });
