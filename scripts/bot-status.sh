@@ -114,7 +114,7 @@ if [ -n "$TOKEN" ]; then
     if [ -n "$proxy" ]; then
         proxy_args=(--proxy "$proxy")
     fi
-    response=$(curl -s --max-time 5 "${proxy_args[@]}" "https://api.telegram.org/bot${TOKEN}/getMe" 2>/dev/null || echo "error")
+    response=$(curl -q -s --max-time 5 "${proxy_args[@]}" "https://api.telegram.org/bot${TOKEN}/getMe" 2>/dev/null || echo "error")
     if echo "$response" | grep -q '"ok":true'; then
         bot_name=$(echo "$response" | grep -o '"username":"[^"]*"' | cut -d'"' -f4)
         echo -e "  Bot API:  $(status_icon ok) CONNECTED (@$bot_name)"
@@ -133,7 +133,7 @@ if [ -z "$API_KEY" ]; then
     API_KEY=$(grep ANTHROPIC_API_KEY /home/almaz/.clawdis/secrets.env 2>/dev/null | cut -d= -f2- || echo "")
 fi
 if [ -n "$API_KEY" ]; then
-    response=$(curl -s --max-time 5 -H "x-api-key: $API_KEY" "https://api.z.ai/api/anthropic/v1/models" 2>/dev/null || echo "error")
+    response=$(curl -q -s --max-time 5 -H "x-api-key: $API_KEY" "https://api.z.ai/api/anthropic/v1/models" 2>/dev/null || echo "error")
     if echo "$response" | grep -q '"data"'; then
         echo -e "  API:      $(status_icon ok) CONNECTED"
     else

@@ -126,14 +126,13 @@ check_telegram_api() {
         if [ -n "$proxy" ]; then
             proxy_args=(--proxy "$proxy")
         fi
-        local response=$(curl -s --max-time 5 "${proxy_args[@]}" "https://api.telegram.org/bot${token}/getMe" 2>/dev/null || echo "error")
+        local response=$(curl -q -s --max-time 5 "${proxy_args[@]}" "https://api.telegram.org/bot${token}/getMe" 2>/dev/null || echo "error")
         if echo "$response" | grep -q '"ok":true'; then
             CHECKS["telegram_api"]="ok"
             return 0
         else
-            CHECKS["telegram_api"]="fail"
-            OVERALL_HEALTHY=false
-            return 1
+            CHECKS["telegram_api"]="warn"
+            return 0
         fi
     else
         CHECKS["telegram_api"]="skip"

@@ -144,7 +144,7 @@ check_telegram() {
     fi
 
     # Check pending updates
-    pending=$(curl -s --max-time 10 "${proxy_args[@]}" "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo" 2>/dev/null | grep -o '"pending_update_count":[0-9]*' | cut -d: -f2)
+    pending=$(curl -q -s --max-time 10 "${proxy_args[@]}" "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo" 2>/dev/null | grep -o '"pending_update_count":[0-9]*' | cut -d: -f2)
 
     if [ "${pending:-0}" -gt 10 ]; then
         log "WARNING: $pending pending Telegram updates - bot may be stuck"
@@ -205,15 +205,17 @@ main() {
         reason="network health check failed (proxy issue)"
     fi
 
-    # Check 3: Telegram API health (pending updates)
+    # Check 3: Telegram API health (pending updates) - warn only
+    local telegram_ok=true
     if ! check_telegram; then
-        needs_restart=true
-        reason="Telegram health check failed (stuck updates)"
+        telegram_ok=false
     fi
 
     if [ "$needs_restart" = false ]; then
-        # Healthy - just log periodically (every hour)
-        if [ "$(date +%M)" = "00" ]; then
+        if [ "$telegram_ok" = false ]; then
+            log "WARNING: Telegram API check failed (no restart triggered)"
+        elif [ "$(date +%M)" = "00" ]; then
+            # Healthy - just log periodically (every hour)
             log "Health check: OK (process, network, telegram all healthy)"
         fi
     else
