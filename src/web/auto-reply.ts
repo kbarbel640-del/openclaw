@@ -1275,8 +1275,12 @@ export async function monitorWebProvider(
           }
         } else {
           // Direct chat mention filtering
+          // Skip filtering for audio messages - they'll be transcribed first
+          // Skip filtering for same-phone mode - user messaging themselves always expects response
+          const isAudioMessage = msg.mediaType?.startsWith("audio");
+          const isSamePhone = msg.from && msg.to && msg.from === msg.to;
           const directChatCfg = cfg.routing?.directChat;
-          if (directChatCfg?.requireMention) {
+          if (directChatCfg?.requireMention && !isAudioMessage && !isSamePhone) {
             const directMentionPatterns = directChatCfg.mentionPatterns ?? [];
             const directMentionRegexes = directMentionPatterns
               .map((p) => {

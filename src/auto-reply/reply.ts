@@ -333,6 +333,24 @@ export async function getReplyFromConfig(
       ctx.Body = transcribed.text;
       ctx.Transcript = transcribed.text;
       logVerbose("Replaced Body with audio transcript for reply flow");
+
+      // Check for mention in transcribed audio (directChat filtering)
+      // Skip mention check for same-phone mode (user messaging themselves always expects response)
+      const isSamePhone = ctx.From && ctx.To && ctx.From === ctx.To;
+      const directChatCfg = cfg.routing?.directChat;
+      const isDirectChat = !ctx.From?.includes("@g.us") && !ctx.From?.startsWith("group:");
+      if (isDirectChat && directChatCfg?.requireMention && !isSamePhone) {
+        const patterns = directChatCfg.mentionPatterns ?? [];
+        const regexes = patterns
+          .map((p) => { try { return new RegExp(p, "i"); } catch { return null; } })
+          .filter((r): r is RegExp => Boolean(r));
+        const textClean = transcribed.text.toLowerCase();
+        const wasMentioned = regexes.some((re) => re.test(textClean));
+        if (!wasMentioned) {
+          logVerbose(`Audio transcript ignored (no mention detected): ${transcribed.text}`);
+          return undefined;
+        }
+      }
     }
   }
 
