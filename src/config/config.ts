@@ -637,26 +637,36 @@ const HooksGmailSchema = z
   .optional();
 
 const DEEP_RESEARCH_OUTPUT_LANGUAGES = ["ru", "en", "auto"] as const;
-export const DEFAULT_DEEP_RESEARCH_CLI_PATH = path.join(
-  os.homedir(),
-  "TOOLS",
-  "gemini_deep_research",
-  "gdr.sh",
-);
-// Defaults align with docs; override via config or env as needed.
 const DEEP_RESEARCH_DEFAULTS = {
   enabled: true,
   dryRun: true,
-  cliPath: DEFAULT_DEEP_RESEARCH_CLI_PATH,
   outputLanguage: "auto" as const,
-};
+} as const;
+
+function resolveHomeDir(): string {
+  try {
+    return os.userInfo().homedir;
+  } catch {
+    return os.homedir();
+  }
+}
+
+export function getDefaultDeepResearchCliPath(): string {
+  const homeDir = resolveHomeDir();
+  return path.join(
+    homeDir,
+    "TOOLS",
+    "gemini_deep_research",
+    "gdr.sh",
+  );
+}
 
 // Deep Research configuration schema
 const deepResearchSchema = z
   .object({
     enabled: z.boolean().default(DEEP_RESEARCH_DEFAULTS.enabled),
     dryRun: z.boolean().default(DEEP_RESEARCH_DEFAULTS.dryRun), // true during dev!
-    cliPath: z.string().default(DEEP_RESEARCH_DEFAULTS.cliPath),
+    cliPath: z.string().default(() => getDefaultDeepResearchCliPath()),
     outputLanguage: z
       .enum(DEEP_RESEARCH_OUTPUT_LANGUAGES)
       .default(DEEP_RESEARCH_DEFAULTS.outputLanguage),
@@ -1070,7 +1080,7 @@ function applyDeepResearchEnvOverrides(config: ClawdisConfig): ClawdisConfig {
   const deepResearch: DeepResearchConfig = {
     enabled: config.deepResearch?.enabled ?? DEEP_RESEARCH_DEFAULTS.enabled,
     dryRun: config.deepResearch?.dryRun ?? DEEP_RESEARCH_DEFAULTS.dryRun,
-    cliPath: config.deepResearch?.cliPath ?? DEEP_RESEARCH_DEFAULTS.cliPath,
+    cliPath: config.deepResearch?.cliPath ?? getDefaultDeepResearchCliPath(),
     outputLanguage:
       config.deepResearch?.outputLanguage ??
       DEEP_RESEARCH_DEFAULTS.outputLanguage,
