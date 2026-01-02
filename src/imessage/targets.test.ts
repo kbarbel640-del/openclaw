@@ -27,9 +27,7 @@ describe("imessage targets", () => {
     expect(normalizeIMessageHandle("[redacted-email]")).toBe(
       "[redacted-email]",
     );
-    expect(normalizeIMessageHandle(" +1 (555) 222-3333 ")).toBe(
-      "+15552223333",
-    );
+    expect(normalizeIMessageHandle(" +1 (555) 222-3333 ")).toBe("+15552223333");
   });
 
   it("checks allowFrom against chat_id", () => {
