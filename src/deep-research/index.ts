@@ -7,7 +7,15 @@ export {
   normalizeDeepResearchTopic,
   MAX_DEEP_RESEARCH_TOPIC_LENGTH,
 } from "./topic.js";
-export { messages, type DeepResearchResult } from "./messages.js";
+export {
+  normalizeDeepResearchTopicWithLlm,
+  type TopicNormalizeResult,
+} from "./topic-normalize.js";
+export {
+  messages,
+  type DeepResearchResult,
+  type DeepResearchProgressStage,
+} from "./messages.js";
 export {
   createExecuteButton,
   createRetryButton,
@@ -26,3 +34,4 @@ export {
   truncateForTelegram,
   type DeliveryContext,
 } from "./deliver.js";
+export { generateGapQuestions } from "./gap-questions.js";

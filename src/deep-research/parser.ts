@@ -6,10 +6,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import {
-  DEFAULT_DEEP_RESEARCH_CLI_PATH,
-  loadConfig,
-} from "../config/config.js";
+import { getDefaultDeepResearchCliPath, loadConfig } from "../config/config.js";
 import type { DeepResearchResult } from "./messages.js";
 
 interface ResultJson {
@@ -41,7 +38,7 @@ export async function parseResultJson(
       basePath ??
       dirname(
         loadConfig().deepResearch?.cliPath ??
-          DEFAULT_DEEP_RESEARCH_CLI_PATH,
+          getDefaultDeepResearchCliPath(),
       );
 
     // Resolve path

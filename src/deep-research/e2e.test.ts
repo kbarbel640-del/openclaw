@@ -122,17 +122,17 @@ describe("Deep Research E2E (dry-run)", () => {
       "депресерч на тему",
       "депресерч про",
       "сделай дип рисерч",
-      "дип рисерч",
-      "deep research",
-      "deepresearch",
+      "сделать дип рисерч",
       "do deep research",
       "run deep research",
       "start deep research",
+      "conduct deep research",
+      "perform deep research",
       "сделай deep research",
       "сделать deep research",
       "запусти deep research",
-      "депресерч",
-      "дипресерч",
+      "сделай дипресерч",
+      "сделать дипресерч",
     ];
 
     patterns.forEach((pattern) => {

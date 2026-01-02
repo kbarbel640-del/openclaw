@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import { access, constants, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { DEFAULT_DEEP_RESEARCH_CLI_PATH, loadConfig } from "../config/config.js";
+import { getDefaultDeepResearchCliPath, loadConfig } from "../config/config.js";
 import { normalizeDeepResearchTopic } from "./topic.js";
 
 export interface ExecuteOptions {
@@ -15,7 +15,14 @@ export interface ExecuteOptions {
   dryRun?: boolean;
   outputLanguage?: "ru" | "en" | "auto";
   timeoutMs?: number;
+  onEvent?: (event: ExecuteEvent) => void;
 }
+
+export type ExecuteEvent = {
+  run_id?: string;
+  event?: string;
+  [key: string]: unknown;
+};
 
 export interface ExecuteResult {
   success: boolean;
@@ -75,7 +82,8 @@ export async function executeDeepResearch(
   options: ExecuteOptions,
 ): Promise<ExecuteResult> {
   const cfg = loadConfig();
-  const cliPath = cfg.deepResearch?.cliPath ?? DEFAULT_DEEP_RESEARCH_CLI_PATH;
+  const cliPath =
+    cfg.deepResearch?.cliPath ?? getDefaultDeepResearchCliPath();
   const dryRun = options.dryRun ?? cfg.deepResearch?.dryRun ?? true;
   const outputLanguage =
     options.outputLanguage ?? cfg.deepResearch?.outputLanguage ?? "auto";
@@ -180,11 +188,16 @@ export async function executeDeepResearch(
         const trimmed = line.trim();
         if (!trimmed) continue;
         try {
-          const event = JSON.parse(trimmed) as {
-            run_id?: string;
-            event?: string;
+          const event = JSON.parse(trimmed) as ExecuteEvent & {
             result?: string;
           };
+          if (options.onEvent) {
+            try {
+              options.onEvent(event);
+            } catch {
+              // ignore status update failures
+            }
+          }
           if (event.run_id) {
             runId = event.run_id;
           }
