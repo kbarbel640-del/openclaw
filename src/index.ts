@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// MUST be first import - wraps fetch before Anthropic SDK loads
+import "./infra/fetch-intercept-bootstrap.js";
+
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
