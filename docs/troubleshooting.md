@@ -27,6 +27,12 @@ The agent was interrupted mid-response.
 cat ~/.clawdis/clawdis.json | jq '.routing.allowFrom'
 ```
 
+> **Important:** WhatsApp numbers must include the `+` prefix (E.164 format).
+> - ✅ `"+436649137379"`
+> - ❌ `"436649137379"`
+>
+> Telegram IDs are numeric strings without `+`.
+
 **Check 2:** For group chats, is mention required?
 ```bash
 # The message must contain a pattern from mentionPatterns
