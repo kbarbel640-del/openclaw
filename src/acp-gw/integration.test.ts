@@ -6,7 +6,7 @@
  */
 
 import { createServer, type AddressInfo } from "node:net";
-import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, expect, it, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { GatewayClient } from "../gateway/client.js";
 import { startGatewayServer } from "../gateway/server.js";
 import { AcpGwAgent } from "./translator.js";
@@ -225,6 +225,281 @@ describe("acp-gw integration", () => {
       });
 
       expect(result).toEqual({});
+
+      gateway.stop();
+    });
+  });
+
+  describe("full lifecycle", () => {
+    it("initializes, creates session, and handles events", async () => {
+      const { connection, updates } = createMockConnection();
+      
+      const gateway = new GatewayClient({
+        url: gatewayUrl,
+        clientName: "test",
+        clientVersion: "1.0.0",
+        mode: "acp",
+        onEvent: (evt) => {
+          agent?.handleGatewayEvent(evt);
+        },
+      });
+
+      let agent: AcpGwAgent;
+
+      await new Promise<void>((resolve) => {
+        gateway.opts.onHelloOk = () => resolve();
+        gateway.start();
+      });
+
+      agent = new AcpGwAgent(connection, gateway, { verbose: false });
+      agent.start();
+
+      // Initialize
+      const initResult = await agent.initialize({
+        protocolVersion: 1,
+        clientCapabilities: {},
+        clientInfo: { name: "integration-test", version: "1.0" },
+      });
+      expect(initResult.protocolVersion).toBe(1);
+
+      // Create session
+      const session = await agent.newSession({
+        cwd: "/tmp/integration-test",
+        mcpServers: [],
+      });
+      expect(session.sessionId).toBeDefined();
+
+      // Verify session can be retrieved
+      const { getSession } = await import("./session.js");
+      const retrievedSession = getSession(session.sessionId);
+      expect(retrievedSession).toBeDefined();
+      expect(retrievedSession?.cwd).toBe("/tmp/integration-test");
+
+      gateway.stop();
+    });
+
+    it("handles setSessionMode", async () => {
+      const { connection } = createMockConnection();
+      
+      const gateway = new GatewayClient({
+        url: gatewayUrl,
+        clientName: "test",
+        clientVersion: "1.0.0",
+        mode: "acp",
+      });
+
+      await new Promise<void>((resolve) => {
+        gateway.opts.onHelloOk = () => resolve();
+        gateway.start();
+      });
+
+      const agent = new AcpGwAgent(connection, gateway, { verbose: false });
+      agent.start();
+
+      await agent.initialize({
+        protocolVersion: 1,
+        clientCapabilities: {},
+        clientInfo: { name: "test", version: "1.0" },
+      });
+
+      const session = await agent.newSession({
+        cwd: "/tmp/test",
+        mcpServers: [],
+      });
+
+      // setSessionMode should not throw
+      const result = await agent.setSessionMode({
+        sessionId: session.sessionId,
+        modeId: "high",
+      });
+      expect(result).toEqual({});
+
+      gateway.stop();
+    });
+
+    it("handles cancel on non-running session", async () => {
+      const { connection } = createMockConnection();
+      
+      const gateway = new GatewayClient({
+        url: gatewayUrl,
+        clientName: "test",
+        clientVersion: "1.0.0",
+        mode: "acp",
+      });
+
+      await new Promise<void>((resolve) => {
+        gateway.opts.onHelloOk = () => resolve();
+        gateway.start();
+      });
+
+      const agent = new AcpGwAgent(connection, gateway, { verbose: false });
+      agent.start();
+
+      await agent.initialize({
+        protocolVersion: 1,
+        clientCapabilities: {},
+        clientInfo: { name: "test", version: "1.0" },
+      });
+
+      const session = await agent.newSession({
+        cwd: "/tmp/test",
+        mcpServers: [],
+      });
+
+      // Cancel should not throw even if no prompt is running
+      await agent.cancel({ sessionId: session.sessionId });
+
+      gateway.stop();
+    });
+  });
+
+  describe("verbose mode", () => {
+    it("logs to stderr when verbose is enabled", async () => {
+      const { connection } = createMockConnection();
+      const stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      
+      const gateway = new GatewayClient({
+        url: gatewayUrl,
+        clientName: "test",
+        clientVersion: "1.0.0",
+        mode: "acp",
+      });
+
+      await new Promise<void>((resolve) => {
+        gateway.opts.onHelloOk = () => resolve();
+        gateway.start();
+      });
+
+      const agent = new AcpGwAgent(connection, gateway, { verbose: true });
+      agent.start();
+
+      await agent.initialize({
+        protocolVersion: 1,
+        clientCapabilities: {},
+        clientInfo: { name: "test", version: "1.0" },
+      });
+
+      expect(stderrWrite).toHaveBeenCalled();
+      
+      stderrWrite.mockRestore();
+      gateway.stop();
+    });
+  });
+
+  describe("gateway reconnection", () => {
+    it("updateGateway changes gateway reference", async () => {
+      const { connection } = createMockConnection();
+      
+      const gateway1 = new GatewayClient({
+        url: gatewayUrl,
+        clientName: "test",
+        clientVersion: "1.0.0",
+        mode: "acp",
+      });
+
+      await new Promise<void>((resolve) => {
+        gateway1.opts.onHelloOk = () => resolve();
+        gateway1.start();
+      });
+
+      const agent = new AcpGwAgent(connection, gateway1, { verbose: false });
+      agent.start();
+
+      // Create a second gateway
+      const gateway2 = new GatewayClient({
+        url: gatewayUrl,
+        clientName: "test2",
+        clientVersion: "1.0.0",
+        mode: "acp",
+      });
+
+      await new Promise<void>((resolve) => {
+        gateway2.opts.onHelloOk = () => resolve();
+        gateway2.start();
+      });
+
+      // Update to new gateway
+      agent.updateGateway(gateway2);
+      
+      // Verify reconnect handler works
+      agent.handleGatewayReconnect();
+      expect((agent as any).connected).toBe(true);
+
+      gateway1.stop();
+      gateway2.stop();
+    });
+  });
+
+  describe("error handling", () => {
+    it("loadSession throws not implemented", async () => {
+      const { connection } = createMockConnection();
+      
+      const gateway = new GatewayClient({
+        url: gatewayUrl,
+        clientName: "test",
+        clientVersion: "1.0.0",
+        mode: "acp",
+      });
+
+      await new Promise<void>((resolve) => {
+        gateway.opts.onHelloOk = () => resolve();
+        gateway.start();
+      });
+
+      const agent = new AcpGwAgent(connection, gateway, { verbose: false });
+
+      await expect(agent.loadSession({ sessionId: "test" }))
+        .rejects.toThrow("Session loading not implemented");
+
+      gateway.stop();
+    });
+
+    it("prompt throws for unknown session", async () => {
+      const { connection } = createMockConnection();
+      
+      const gateway = new GatewayClient({
+        url: gatewayUrl,
+        clientName: "test",
+        clientVersion: "1.0.0",
+        mode: "acp",
+      });
+
+      await new Promise<void>((resolve) => {
+        gateway.opts.onHelloOk = () => resolve();
+        gateway.start();
+      });
+
+      const agent = new AcpGwAgent(connection, gateway, { verbose: false });
+
+      await expect(agent.prompt({
+        sessionId: "nonexistent",
+        prompt: [{ type: "text", text: "hello" }],
+      })).rejects.toThrow("Session nonexistent not found");
+
+      gateway.stop();
+    });
+
+    it("setSessionMode throws for unknown session", async () => {
+      const { connection } = createMockConnection();
+      
+      const gateway = new GatewayClient({
+        url: gatewayUrl,
+        clientName: "test",
+        clientVersion: "1.0.0",
+        mode: "acp",
+      });
+
+      await new Promise<void>((resolve) => {
+        gateway.opts.onHelloOk = () => resolve();
+        gateway.start();
+      });
+
+      const agent = new AcpGwAgent(connection, gateway, { verbose: false });
+
+      await expect(agent.setSessionMode({
+        sessionId: "nonexistent",
+        modeId: "high",
+      })).rejects.toThrow("Session nonexistent not found");
 
       gateway.stop();
     });
