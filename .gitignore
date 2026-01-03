@@ -66,6 +66,7 @@ load-*.mjs
 reproduce-*.mjs
 
 # Documentation drafts
+CHANGES.md
 *-SUMMARY.md
 *-fix-summary.md
 investigation.md
