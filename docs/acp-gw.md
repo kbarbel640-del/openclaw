@@ -98,7 +98,16 @@ For now, configure any needed MCP servers in your Clawdis config file instead of
 
 ### Session Persistence
 
-Sessions are currently stored in-memory only. If acp-gw restarts, all sessions are lost. The Gateway maintains conversation history, but acp-gw won't be able to resume sessions by ID.
+Sessions are now persisted to disk by default at `~/.clawdis/acp-gw-sessions.json`. This allows resuming sessions after acp-gw restart — the Gateway maintains conversation history, and acp-gw can look up sessions by ID.
+
+To customize or disable:
+```bash
+# Custom path
+clawd-acp-gw --session-store /path/to/sessions.json
+
+# Disable persistence (in-memory only)
+clawd-acp-gw --no-session-store
+```
 
 ## Debugging
 
@@ -156,6 +165,8 @@ Options:
   --gateway-url <url>      Gateway WebSocket URL (default: ws://127.0.0.1:18789)
   --gateway-token <token>  Gateway auth token
   --gateway-password <pw>  Gateway auth password
+  --session-store <path>   Session persistence file (default: ~/.clawdis/acp-gw-sessions.json)
+  --no-session-store       Disable session persistence
   --verbose, -v            Enable verbose logging to stderr
   --help, -h               Show this help message
 ```

@@ -1,16 +1,24 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
   createSession,
   getSession,
+  getAllSessions,
   deleteSession,
   setActiveRun,
   getSessionByRunId,
   clearActiveRun,
   cancelActiveRun,
+  clearAllSessions,
+  initSessionStore,
 } from "./session.js";
 
 describe("acp-gw session manager", () => {
-  // Note: Sessions persist across tests, so we use unique assertions
+  beforeEach(() => {
+    clearAllSessions();
+  });
 
   describe("createSession", () => {
     it("creates a session with unique ID", () => {
@@ -39,6 +47,21 @@ describe("acp-gw session manager", () => {
 
     it("returns undefined for unknown ID", () => {
       expect(getSession("nonexistent-id")).toBeUndefined();
+    });
+  });
+
+  describe("getAllSessions", () => {
+    it("returns all sessions", () => {
+      createSession("/path1");
+      createSession("/path2");
+      createSession("/path3");
+      
+      const all = getAllSessions();
+      expect(all.length).toBe(3);
+    });
+
+    it("returns empty array when no sessions", () => {
+      expect(getAllSessions()).toEqual([]);
     });
   });
 
@@ -119,6 +142,67 @@ describe("acp-gw session manager", () => {
     it("cancelActiveRun returns false if no active run", () => {
       const session = createSession("/run/no-cancel");
       expect(cancelActiveRun(session.sessionId)).toBe(false);
+    });
+  });
+
+  describe("persistence", () => {
+    let tempDir: string;
+    let storePath: string;
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "acp-gw-test-"));
+      storePath = path.join(tempDir, "sessions.json");
+      clearAllSessions();
+    });
+
+    afterEach(() => {
+      clearAllSessions();
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true });
+      }
+    });
+
+    it("saves sessions to file", () => {
+      initSessionStore(storePath);
+      createSession("/persist/1");
+      createSession("/persist/2");
+
+      expect(fs.existsSync(storePath)).toBe(true);
+      const data = JSON.parse(fs.readFileSync(storePath, "utf8"));
+      expect(data.length).toBe(2);
+    });
+
+    it("loads sessions from file", () => {
+      // Create sessions with first store instance
+      initSessionStore(storePath);
+      const s1 = createSession("/load/1");
+      const s2 = createSession("/load/2");
+      const id1 = s1.sessionId;
+      const id2 = s2.sessionId;
+
+      // Verify file was written
+      expect(fs.existsSync(storePath)).toBe(true);
+
+      // Re-initialize from disk (simulates restart - this clears in-memory and reloads)
+      initSessionStore(storePath);
+
+      // Sessions should be restored
+      expect(getSession(id1)).toBeDefined();
+      expect(getSession(id2)).toBeDefined();
+      expect(getSession(id1)?.cwd).toBe("/load/1");
+      expect(getSession(id2)?.cwd).toBe("/load/2");
+    });
+
+    it("handles missing store file gracefully", () => {
+      const missingPath = path.join(tempDir, "missing.json");
+      expect(() => initSessionStore(missingPath)).not.toThrow();
+      expect(getAllSessions()).toEqual([]);
+    });
+
+    it("handles corrupted store file gracefully", () => {
+      fs.writeFileSync(storePath, "not valid json{{{");
+      expect(() => initSessionStore(storePath)).not.toThrow();
+      expect(getAllSessions()).toEqual([]);
     });
   });
 });

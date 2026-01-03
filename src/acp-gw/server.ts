@@ -14,10 +14,12 @@ import { Readable, Writable } from "node:stream";
 import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
 
 import { GatewayClient } from "../gateway/client.js";
+import { initSessionStore } from "./session.js";
 import { AcpGwAgent } from "./translator.js";
 import type { AcpGwOptions } from "./types.js";
 
 const DEFAULT_GATEWAY_URL = "ws://127.0.0.1:18789";
+const DEFAULT_SESSION_STORE = "~/.clawdis/acp-gw-sessions.json";
 const RECONNECT_DELAY_MS = 2000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -28,6 +30,25 @@ export function serveAcpGw(opts: AcpGwOptions = {}): void {
   const log = opts.verbose
     ? (msg: string) => process.stderr.write(`[acp-gw] ${msg}\n`)
     : () => {};
+
+  // Initialize session persistence
+  function resolveStorePath(p: string): string {
+    if (p.startsWith("~")) {
+      return p.replace("~", process.env.HOME ?? "");
+    }
+    return p;
+  }
+
+  // Empty string means disabled, undefined means use default
+  const storePath = opts.sessionStorePath === ""
+    ? null
+    : resolveStorePath(opts.sessionStorePath ?? DEFAULT_SESSION_STORE);
+  if (storePath) {
+    initSessionStore(storePath);
+    log(`session store: ${storePath}`);
+  } else {
+    log("session persistence disabled");
+  }
 
   const gatewayUrl = opts.gatewayUrl ?? DEFAULT_GATEWAY_URL;
   log(`connecting to gateway: ${gatewayUrl}`);
@@ -129,6 +150,10 @@ function parseArgs(args: string[]): AcpGwOptions {
       opts.gatewayPassword = args[++i];
     } else if (arg === "--verbose" || arg === "-v") {
       opts.verbose = true;
+    } else if (arg === "--session-store" && args[i + 1]) {
+      opts.sessionStorePath = args[++i];
+    } else if (arg === "--no-session-store") {
+      opts.sessionStorePath = "";
     } else if (arg === "--cwd" && args[i + 1]) {
       // Ignored for compatibility (cwd comes from session/new)
       i++;
@@ -141,6 +166,8 @@ Options:
   --gateway-url <url>      Gateway WebSocket URL (default: ws://127.0.0.1:18789)
   --gateway-token <token>  Gateway auth token
   --gateway-password <pw>  Gateway auth password
+  --session-store <path>   Session persistence file (default: ~/.clawdis/acp-gw-sessions.json)
+  --no-session-store       Disable session persistence
   --verbose, -v            Enable verbose logging to stderr
   --help, -h               Show this help message
 
@@ -148,6 +175,7 @@ Examples:
   clawd-acp-gw
   clawd-acp-gw --gateway-url wss://remote:18789 --gateway-token secret
   clawd-acp-gw --verbose
+  clawd-acp-gw --no-session-store
 `);
       process.exit(0);
     }

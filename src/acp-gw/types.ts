@@ -35,6 +35,18 @@ export type AcpGwOptions = {
   gatewayPassword?: string;
   /** Enable verbose logging to stderr */
   verbose?: boolean;
+  /** Path to persist sessions (default: none, in-memory only) */
+  sessionStorePath?: string;
+};
+
+/**
+ * Serializable session data for persistence.
+ */
+export type PersistedSession = {
+  sessionId: string;
+  sessionKey: string;
+  cwd: string;
+  createdAt: number;
 };
 
 /**
