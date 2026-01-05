@@ -81,6 +81,8 @@ const ReplyToModeSchema = z.union([
   z.literal("all"),
 ]);
 
+const GroupPolicySchema = z.enum(["open", "disabled", "allowlist"]);
+
 const QueueModeBySurfaceSchema = z
   .object({
     whatsapp: QueueModeSchema.optional(),
@@ -592,11 +594,8 @@ export const ClawdbotSchema = z.object({
   whatsapp: z
     .object({
       allowFrom: z.array(z.string()).optional(),
+      groupPolicy: GroupPolicySchema.default("open").optional(),
       textChunkLimit: z.number().int().positive().optional(),
-      groupPolicy: z
-        .enum(["open", "disabled", "allowlist"])
-        .default("open")
-        .optional(),
       groups: z
         .record(
           z.string(),
@@ -626,10 +625,7 @@ export const ClawdbotSchema = z.object({
         )
         .optional(),
       allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
-      groupPolicy: z
-        .enum(["open", "disabled", "allowlist"])
-        .default("open")
-        .optional(),
+      groupPolicy: GroupPolicySchema.default("open").optional(),
       textChunkLimit: z.number().int().positive().optional(),
       mediaMaxMb: z.number().positive().optional(),
       proxy: z.string().optional(),
