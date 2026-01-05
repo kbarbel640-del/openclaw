@@ -1,6 +1,8 @@
 ---
 name: homeassistant
 description: Control Home Assistant - smart plugs, lights, scenes, automations.
+homepage: https://www.home-assistant.io/
+metadata: {"clawdis":{"emoji":"🏠","requires":{"bins":["curl"],"env":["HA_TOKEN"]},"primaryEnv":"HA_TOKEN"}}
 ---
 
 # Home Assistant
@@ -8,15 +10,17 @@ description: Control Home Assistant - smart plugs, lights, scenes, automations.
 Control smart home devices via Home Assistant API.
 
 ## Setup
-- **HA_URL**: `http://192.168.4.84:8123`
-- **HA_TOKEN**: Long-lived access token (saved in clawdis.json)
+
+Set environment variables:
+- `HA_URL`: Your Home Assistant URL (e.g., `http://192.168.1.100:8123`)
+- `HA_TOKEN`: Long-lived access token (create in HA → Profile → Long-Lived Access Tokens)
 
 ## Quick Commands
 
 ### List entities by domain
 ```bash
 curl -s "$HA_URL/api/states" -H "Authorization: Bearer $HA_TOKEN" | \
-  python3 -c "import sys,json; [print(s['entity_id']) for s in json.load(sys.stdin) if s['entity_id'].startswith('switch.')]"
+  jq -r '.[] | select(.entity_id | startswith("switch.")) | .entity_id'
 ```
 
 ### Turn on/off
@@ -32,6 +36,15 @@ curl -s -X POST "$HA_URL/api/services/switch/turn_off" \
   -H "Authorization: Bearer $HA_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"entity_id": "switch.office_lamp"}'
+```
+
+### Control lights
+```bash
+# Turn on with brightness
+curl -s -X POST "$HA_URL/api/services/light/turn_on" \
+  -H "Authorization: Bearer $HA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"entity_id": "light.living_room", "brightness_pct": 80}'
 ```
 
 ### Trigger scene
@@ -55,16 +68,19 @@ curl -s -X POST "$HA_URL/api/services/{domain}/{service}" \
 curl -s "$HA_URL/api/states/{entity_id}" -H "Authorization: Bearer $HA_TOKEN"
 ```
 
-## Entity Counts
-- switches: 161 (smart plugs)
-- lights: 47
-- scenes: 71
-- media_player: 62
-- automations: 12
-- sensors: 538
+## Entity Domains
+
+- `switch.*` — Smart plugs, generic switches
+- `light.*` — Lights (Hue, LIFX, etc.)
+- `scene.*` — Pre-configured scenes
+- `automation.*` — Automations
+- `climate.*` — Thermostats
+- `cover.*` — Blinds, garage doors
+- `media_player.*` — TVs, speakers
+- `sensor.*` — Temperature, humidity, etc.
 
 ## Notes
-- Use `switch.*` for smart plugs
-- Use `light.*` for lights (Hue, etc.)
-- Use `scene.*` for pre-configured scenes
-- Use `automation.*` to trigger automations
+
+- API returns JSON by default
+- Long-lived tokens don't expire — store securely
+- Test entity IDs with the list command first
