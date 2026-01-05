@@ -1,0 +1,80 @@
+{
+  "overall_status": "IN_PROGRESS",
+  "started_at": "2026-01-05T10:00:00Z",
+  "completed_at": null,
+  "current_card": "01",
+  "agent_session_id": "session_1736086800",
+  "cards": {
+    "01": {
+      "status": "pending",
+      "title": "TTS Configuration",
+      "sp": 2,
+      "started_at": null,
+      "completed_at": null,
+      "execution_time_seconds": null,
+      "error": null
+    },
+    "02": {
+      "status": "pending",
+      "title": "MiniMax TTS Client",
+      "sp": 3,
+      "started_at": null,
+      "completed_at": null,
+      "execution_time_seconds": null,
+      "error": null
+    },
+    "03": {
+      "status": "pending",
+      "title": "TTS Provider with Config",
+      "sp": 2,
+      "started_at": null,
+      "completed_at": null,
+      "execution_time_seconds": null,
+      "error": null
+    },
+    "04": {
+      "status": "pending",
+      "title": "TTS Button Factory",
+      "sp": 2,
+      "started_at": null,
+      "completed_at": null,
+      "execution_time_seconds": null,
+      "error": null
+    },
+    "05": {
+      "status": "pending",
+      "title": "TTS Callback Handler",
+      "sp": 2,
+      "started_at": null,
+      "completed_at": null,
+      "execution_time_seconds": null,
+      "error": null
+    },
+    "06": {
+      "status": "pending",
+      "title": "Web Search Integration",
+      "sp": 2,
+      "started_at": null,
+      "completed_at": null,
+      "execution_time_seconds": null,
+      "error": null
+    },
+    "07": {
+      "status": "pending",
+      "title": "E2E Tests & Polish",
+      "sp": 2,
+      "started_at": null,
+      "completed_at": null,
+      "execution_time_seconds": null,
+      "error": null
+    }
+  },
+  "execution_log": [
+    {
+      "timestamp": "2026-01-05T10:00:00Z",
+      "level": "INFO",
+      "message": "SDD package created, ready for implementation",
+      "card": null
+    }
+  ]
+}
