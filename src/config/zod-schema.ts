@@ -578,6 +578,10 @@ export const ClawdbotSchema = z.object({
         )
         .optional(),
       allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
+      groupPolicy: z
+        .enum(["open", "disabled", "allowlist"])
+        .default("open")
+        .optional(),
       textChunkLimit: z.number().int().positive().optional(),
       mediaMaxMb: z.number().positive().optional(),
       proxy: z.string().optional(),
