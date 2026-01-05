@@ -138,6 +138,8 @@ export type TelegramConfig = {
   webhookUrl?: string;
   webhookSecret?: string;
   webhookPath?: string;
+  /** Enable automatic LLM-based message categorization. Default: false. */
+  autoCategorize?: boolean;
 };
 
 export type DiscordConfig = {
@@ -829,6 +831,7 @@ const ClawdisSchema = z.object({
       webhookUrl: z.string().optional(),
       webhookSecret: z.string().optional(),
       webhookPath: z.string().optional(),
+      autoCategorize: z.boolean().optional(),
     })
     .optional(),
   discord: z
@@ -998,15 +1001,19 @@ export function loadConfig(): ClawdisConfig {
   const configPath = CONFIG_PATH_CLAWDIS;
   try {
     if (!fs.existsSync(configPath)) {
-      return applyWebSearchEnvOverrides(
-        applyDeepResearchEnvOverrides(applyIdentityDefaults({})),
+      return applyTelegramEnvOverrides(
+        applyWebSearchEnvOverrides(
+          applyDeepResearchEnvOverrides(applyIdentityDefaults({})),
+        ),
       );
     }
     const raw = fs.readFileSync(configPath, "utf-8");
     const parsed = JSON5.parse(raw);
     if (typeof parsed !== "object" || parsed === null) {
-      return applyWebSearchEnvOverrides(
-        applyDeepResearchEnvOverrides(applyIdentityDefaults({})),
+      return applyTelegramEnvOverrides(
+        applyWebSearchEnvOverrides(
+          applyDeepResearchEnvOverrides(applyIdentityDefaults({})),
+        ),
       );
     }
     const validated = ClawdisSchema.safeParse(parsed);
@@ -1019,15 +1026,19 @@ export function loadConfig(): ClawdisConfig {
         applyDeepResearchEnvOverrides(applyIdentityDefaults({})),
       );
     }
-    return applyWebSearchEnvOverrides(
-      applyDeepResearchEnvOverrides(
-        applyIdentityDefaults(validated.data as ClawdisConfig),
+    return applyTelegramEnvOverrides(
+      applyWebSearchEnvOverrides(
+        applyDeepResearchEnvOverrides(
+          applyIdentityDefaults(validated.data as ClawdisConfig),
+        ),
       ),
     );
   } catch (err) {
     console.error(`Failed to read config at ${configPath}`, err);
-    return applyWebSearchEnvOverrides(
-      applyDeepResearchEnvOverrides(applyIdentityDefaults({})),
+    return applyTelegramEnvOverrides(
+      applyWebSearchEnvOverrides(
+        applyDeepResearchEnvOverrides(applyIdentityDefaults({})),
+      ),
     );
   }
 }
@@ -1215,11 +1226,42 @@ function applyWebSearchEnvOverrides(config: ClawdisConfig): ClawdisConfig {
   };
 }
 
+function applyTelegramEnvOverrides(config: ClawdisConfig): ClawdisConfig {
+  const autoCategorize = process.env.TELEGRAM_AUTO_CATEGORIZE_ENABLED;
+  const hasAutoCategorize = autoCategorize !== undefined;
+
+  if (!hasAutoCategorize) return config;
+
+  const telegram: TelegramConfig = {
+    enabled: config.telegram?.enabled ?? true,
+    botToken: config.telegram?.botToken,
+    requireMention: config.telegram?.requireMention,
+    allowFrom: config.telegram?.allowFrom,
+    mediaMaxMb: config.telegram?.mediaMaxMb,
+    proxy: config.telegram?.proxy,
+    webhookUrl: config.telegram?.webhookUrl,
+    webhookSecret: config.telegram?.webhookSecret,
+    webhookPath: config.telegram?.webhookPath,
+    autoCategorize: config.telegram?.autoCategorize ?? false,
+  };
+
+  if (hasAutoCategorize) {
+    telegram.autoCategorize = autoCategorize === "true";
+  }
+
+  return {
+    ...config,
+    telegram,
+  };
+}
+
 export async function readConfigFileSnapshot(): Promise<ConfigFileSnapshot> {
   const configPath = CONFIG_PATH_CLAWDIS;
   const exists = fs.existsSync(configPath);
   if (!exists) {
-    const config = applyDeepResearchEnvOverrides(applyTalkApiKey({}));
+    const config = applyTelegramEnvOverrides(
+      applyDeepResearchEnvOverrides(applyTalkApiKey({})),
+    );
     return {
       path: configPath,
       exists: false,
@@ -1267,7 +1309,9 @@ export async function readConfigFileSnapshot(): Promise<ConfigFileSnapshot> {
       raw,
       parsed: parsedRes.parsed,
       valid: true,
-      config: applyDeepResearchEnvOverrides(applyTalkApiKey(validated.config)),
+      config: applyTelegramEnvOverrides(
+        applyDeepResearchEnvOverrides(applyTalkApiKey(validated.config)),
+      ),
       issues: [],
     };
   } catch (err) {
