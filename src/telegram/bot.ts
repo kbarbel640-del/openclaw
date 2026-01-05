@@ -225,8 +225,10 @@ export function createTelegramBot(opts: TelegramBotOptions) {
         return;
       }
 
+      // Only use automatic LLM-based categorization if enabled in config
       if (
-        await handleCategorizedMessage(
+        cfg.telegram?.autoCategorize &&
+        (await handleCategorizedMessage(
           ctx,
           cfg,
           chatId,
@@ -234,7 +236,7 @@ export function createTelegramBot(opts: TelegramBotOptions) {
           transcript,
           logger,
           audioStatus,
-        )
+        ))
       ) {
         return;
       }
