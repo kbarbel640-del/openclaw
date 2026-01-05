@@ -228,7 +228,33 @@ export function createTelegramBot(opts: TelegramBotOptions) {
         );
       }
 
-      let blockSendChain: Promise<void> = Promise.resolve();
+      let replySendChain: Promise<void> = Promise.resolve();
+      const sendToolResult = (payload: ReplyPayload) => {
+        if (
+          !payload?.text &&
+          !payload?.mediaUrl &&
+          !(payload?.mediaUrls?.length ?? 0)
+        ) {
+          return;
+        }
+        replySendChain = replySendChain
+          .then(async () => {
+            await deliverReplies({
+              replies: [payload],
+              chatId: String(chatId),
+              token: opts.token,
+              runtime,
+              bot,
+              replyToMode,
+              textLimit,
+            });
+          })
+          .catch((err) => {
+            runtime.error?.(
+              danger(`telegram tool update failed: ${String(err)}`),
+            );
+          });
+      };
       const sendBlockReply = (payload: ReplyPayload) => {
         if (
           !payload?.text &&
@@ -237,7 +263,7 @@ export function createTelegramBot(opts: TelegramBotOptions) {
         ) {
           return;
         }
-        blockSendChain = blockSendChain
+        replySendChain = replySendChain
           .then(async () => {
             await deliverReplies({
               replies: [payload],
@@ -258,7 +284,11 @@ export function createTelegramBot(opts: TelegramBotOptions) {
 
       const replyResult = await getReplyFromConfig(
         ctxPayload,
-        { onReplyStart: sendTyping, onBlockReply: sendBlockReply },
+        {
+          onReplyStart: sendTyping,
+          onToolResult: sendToolResult,
+          onBlockReply: sendBlockReply,
+        },
         cfg,
       );
       const replies = replyResult
@@ -266,7 +296,7 @@ export function createTelegramBot(opts: TelegramBotOptions) {
           ? replyResult
           : [replyResult]
         : [];
-      await blockSendChain;
+      await replySendChain;
       if (replies.length === 0) return;
 
       await deliverReplies({
