@@ -47,7 +47,6 @@ docs/sdd/
 ```
 docs/sdd/web-search-via-gemini-cli/
 docs/sdd/auto-archive-conversations/
-docs/sdd/brave-search-integration/
 ```
 
 ---
@@ -81,7 +80,6 @@ cat > project-analysis.md << 'EOF'
 
 ## Existing Patterns
 - Deep research structure in src/deep-research/
-- Skills system patterns in skills/brave-search/
 - Zod config patterns in src/config/config.ts
 ...
 EOF
@@ -358,7 +356,6 @@ find docs/sdd -mindepth 1 -maxdepth 1 -type d -exec test -f {}/README.md \; -pri
 # ✅ GOOD
 docs/sdd/web-search-via-gemini-cli/
 docs/sdd/auto-archive-conversations/
-docs/sdd/brave-search-integration/
 
 # ❌ BAD
 docs/sdd/WebSearch/
@@ -385,7 +382,6 @@ gaps_analysis.md
 # ✅ GOOD
 web-search-via-gemini-cli
 auto-archive-old-conversations
-brave-search-skill-integration
 
 # ❌ BAD
 search

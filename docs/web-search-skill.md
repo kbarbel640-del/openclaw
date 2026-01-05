@@ -1,68 +1,85 @@
-# Web Search with Gemini Skill
-
-This document describes the `web-search` skill, a lightweight and efficient research tool integrated into the Clawdis project.
+# Web Search - Unified Implementation
 
 ## Overview
 
-The `web-search` skill provides a rapid way to perform "Deep Research" using the standard Gemini CLI. Unlike the `/deep` slash command which uses an autonomous agentic API, `web-search` uses prompt engineering and standard tool-calling to produce high-quality, multi-perspective summaries.
-
-## Key Components
-
-1.  **Wrapper Script**: `scripts/web_search_with_gemini.sh`
-    - Handles argument parsing (model, output format).
-    - Injects the specialized reasoning tail from an external prompt file.
-    - Executes the `gemini` CLI with the combined prompt.
-
-2.  **Externalized Prompt**: `prompts/web-search-tail.yaml`
-    - Contains the **Ultrathink** reasoning logic.
-    - Enforces strict Russian language output with emojis.
-    - Sets `thinking_level: 'high'` for maximum depth.
-
-3.  **Skill Registry**: `skills/web-search-with-gemini/SKILL.md`
-    - Documents the skill for the system.
-    - Defines metadata like emojis and installation requirements.
-
-4.  **Integration**: `package.json`
-    - Adds `pnpm web-search` as a convenient entry point.
+The web search functionality in Clawdis now uses a **Single Source of Truth (SSOT)** approach:
+- Both `/web` slash command and Pi agent use the **same underlying CLI**
+- Visual marker `🌐 Результат поиска:` indicates web search results
+- No tool execution streaming (clean Telegram UI)
 
 ## Architecture
 
-The skill follows a synchronous request-response flow:
-
-```mermaid
-graph LR
-    A[User Query] --> B[web_search_with_gemini.sh]
-    B --> C[Load YAML Prompt]
-    C --> D[gemini CLI]
-    D --> E[gemini-3-flash-preview]
-    E --> F[Web Search Tool]
-    F --> G[Multi-perspective Synthesis]
-    G --> H[Russian JSON/Text Output]
+### Unified Flow
 ```
+User Request
+    ↓
+(Telegram: /web command OR Pi agent with web_search tool)
+    ↓
+google_web CLI (google-web-cli.sh)
+    ↓
+web-search-by-Gemini.sh
+    ↓
+gemini CLI with web search
+    ↓
+Results with 🌐 marker
+```
+
+### Two Entry Points, One Implementation
+
+1. **Telegram `/web` Command** (`src/telegram/bot.ts`)
+   - Path: `runWebSearch()` → `executeWebSearch()` → `google_web` CLI
+
+2. **Pi Agent `web_search` Tool** (`src/agents/pi-tools.ts`)
+   - Path: `createWebSearchTool()` → `google_web` CLI
+
+Both use the **same CLI**, ensuring consistent behavior.
+
+## Key Files
+
+- **`google-web-cli.sh`** - Main CLI wrapper (handles both entry points)
+- **`src/web-search/executor.ts`** - TypeScript wrapper for /web command
+- **`src/agents/pi-tools.ts`** - Pi agent tool definition
+- **`/home/almaz/TOOLS/web_search_by_gemini/web-search-by-Gemini.sh`** - Gemini CLI wrapper
 
 ## Usage
 
-You can run the skill directly via `pnpm`:
-
-```bash
-pnpm web-search "What is the future of nuclear fusion?"
+### Via Telegram Bot
+```
+User: /web 2666 novel
+Bot: 🌐 Результат поиска: [результат]
 ```
 
-### Options
-- `--model <id>`: Use a different Gemini model (default: `gemini-3-flash-preview`).
-- `--output-format <format>`: Set output to `json`, `text`, etc. (default: `json`).
+### Via Pi Agent (automatic)
+```
+User: google 2666 for me
+Agent: [auto-uses web_search tool]
+Bot: 🌐 Результат поиска: [результат]
+```
 
-## Comparison with `/deep` (Slash Command)
+### Direct CLI
+```bash
+cd /home/almaz/zoo_flow/clawdis
+./google_web "погода в Москве"
+```
 
-| Feature | `web-search` (Skill) | `/deep` (Slash Command) |
-| :--- | :--- | :--- |
-| **Model** | `gemini-3-flash-preview` | `deep-research-pro-preview-12-2025` |
-| **API** | Standard Tool Calling | Agentic "Interactions" API |
-| **Speed** | 15-45 seconds | 5-20 minutes |
-| **Use Case** | Quick, high-quality summaries | Exhaustive, autonomous reports |
+## Features
 
-For a detailed technical comparison, see the [Pipeline Comparison Page](http://212.28.182.235:8080/deep-vs-web-pipeline-comparison/comparison.html).
+✅ **Unified Implementation** - One code path for all web searches  
+✅ **Visual Markers** - Always shows `🌐 Результат поиска:`  
+✅ **No Streaming** - Clean UI, no tool execution updates  
+✅ **Russian Results** - Always returns Russian language content  
+✅ **Error Handling** - Graceful error messages in Russian  
+
+## Configuration
+
+Environment variables in `.env`:
+```bash
+GEMINI_CLI_PATH="/home/almaz/TOOLS/web_search_by_gemini/web-search-by-Gemini.sh"
+WEB_SEARCH_TIMEOUT="30"
+```
 
 ## Maintenance
 
-To update the reasoning logic or change the output persona, modify `prompts/web-search-tail.yaml`. This ensures that the prompt logic is kept separate from the execution script.
+- Modify system prompt in `src/agents/system-prompt.ts` to adjust when Pi agent uses web search
+- Modify `google-web-cli.sh` to change CLI behavior
+- Modify `src/web-search/messages.ts` to adjust user-facing messages

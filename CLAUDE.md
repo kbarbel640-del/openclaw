@@ -18,7 +18,7 @@ AI agents have access to powerful web search tools that can query current inform
 
 #### 1. `google_web` (Primary Tool)
 
-**Unified CLI for both Gemini and Brave search backends.**
+**CLI for Gemini web searches.**
 
 **Location:** `/home/almaz/zoo_flow/clawdis/google_web`
 
@@ -28,7 +28,6 @@ AI agents have access to powerful web search tools that can query current inform
 google_web "погода в Москве"
 
 # With options
-google_web --backend brave "latest AI news"
 google_web --format text "python tutorial"
 google_web --dry-run "query"
 google_web --help
@@ -38,42 +37,15 @@ google_web --help
 ```json
 {
   "session_id": "abc-123",
-  "response": "Search results in Russian (Gemini) or English (Brave)",
+  "response": "Search results in Russian",
   "stats": { "models": { ... } }
 }
 ```
 
 **Environment Variables:**
 ```bash
-export GOOGLE_WEB_BACKEND="gemini"    # or "brave"
-export BRAVE_API_KEY="your_key_here"  # Required for Brave
 export WEB_SEARCH_TIMEOUT="30"        # seconds
 ```
-
-#### 2. `brave-search` Skill (Alternative/Backup)
-
-**Lightweight web search using Brave API.**
-
-**Location:** `/home/almaz/zoo_flow/clawdis/skills/brave-search/scripts/search.mjs`
-
-**Usage:**
-```bash
-# Direct usage
-./skills/brave-search/scripts/search.mjs "search query"
-
-# Within Clawdis
-clawdis run brave-search --message "search query"
-
-# From agent code
-await braveSearch("python tutorial");
-```
-
-**Requirements:**
-- `BRAVE_API_KEY` environment variable
-- Node.js
-- Install API key from: https://brave.com/search/api
-
----
 
 ### 🤖 When to Use Web Search
 
@@ -203,9 +175,7 @@ try {
 
 **Fallback Order:**
 1. Primary: `google_web` with Gemini backend
-2. Secondary: `google_web` with Brave backend
-3. Tertiary: `brave-search` skill
-4. Final: Inform user search is unavailable
+2. Final: Inform user search is unavailable
 
 ---
 
@@ -255,29 +225,11 @@ return `${weatherData.response}\n\n💡 Recommendation: ${recommendation}`
 - Russian queries
 - Natural language summaries
 - Complex reasoning about search results
-- When Brave API unavailable
 
 **Tradeoffs:**
 - Slower (5-10s typical)
 - Less structured output
 - Gemini API quota limits
-
-#### Brave Backend
-**Best for:**
-- English queries
-- Structured data needs
-- Speed critical (1-2s typical)
-- Multiple result types (web, news)
-
-**Tradeoffs:**
-- Requires paid API key
-- English results primarily
-- Less natural language
-
-**Selection logic:**
-```bash
-const backend = detectLanguage(query) === 'russian' ? 'gemini' : 'brave';
-```
 
 ---
 
@@ -292,13 +244,10 @@ const backend = detectLanguage(query) === 'russian' ? 'gemini' : 'brave';
 ```bash
 google_web              # Main CLI wrapper (symlink)
 google-web-cli.sh       # Full script
-skills/brave-search/scripts/search.mjs  # Brave skill
 ```
 
 **Configuration:**
 - `.env` file in project root
-- `GOOGLE_WEB_BACKEND` = gemini or brave
-- `BRAVE_API_KEY` = your API key
 - `WEB_SEARCH_TIMEOUT` = timeout in seconds
 
 ---
@@ -306,13 +255,9 @@ skills/brave-search/scripts/search.mjs  # Brave skill
 ### 🚀 Quick Test
 
 ```bash
-# Test Gemini backend
+# Test web search
 cd /home/almaz/zoo_flow/clawdis
 ./google_web --dry-run "тестовый запрос"
-
-# Test Brave backend (requires API key)
-export BRAVE_API_KEY="your-key-here"
-./google_web --backend brave --dry-run "test query"
 
 # See help
 ./google_web --help
@@ -358,7 +303,7 @@ Expected output for `--dry-run`:
 ## 🎓 Best Practices Summary
 
 1. **Be Proactive:** Don't wait for explicit "search" keywords if context suggests need
-2. **Be Fast:** Use Brave for speed, Gemini for depth
+2. **Be Fast:** Use Gemini for efficient web searches
 3. **Be Clear:** Always mark search results visually (🌐)
 4. **Be Safe:** Handle errors gracefully with fallbacks
 5. **Be Smart:** Extract and synthesize, don't just dump results
