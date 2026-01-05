@@ -176,6 +176,25 @@ export async function monitorWebInbox(options: {
       const isSamePhone = from === selfE164;
       const isSelfChat = isSelfChatMode(selfE164, configuredAllowFrom);
 
+      // Group policy filtering: controls how group messages are handled
+      const groupPolicy = cfg.whatsapp?.groupPolicy ?? "open";
+      if (group && groupPolicy === "disabled") {
+        logVerbose(`Blocked group message (groupPolicy: disabled)`);
+        continue;
+      }
+      if (group && groupPolicy === "allowlist") {
+        const allowedList = allowFrom?.map(normalizeE164) ?? [];
+        const senderAllowed =
+          allowFrom?.includes("*") ||
+          (senderE164 && allowedList.includes(senderE164));
+        if (!senderAllowed) {
+          logVerbose(
+            `Blocked group message from ${senderE164 ?? "unknown"} (groupPolicy: allowlist, sender not in allowFrom)`,
+          );
+          continue;
+        }
+      }
+
       const allowlistEnabled =
         !group && Array.isArray(allowFrom) && allowFrom.length > 0;
       if (!isSamePhone && allowlistEnabled) {
