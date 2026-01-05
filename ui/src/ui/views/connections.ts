@@ -379,6 +379,19 @@ function renderProvider(
                   })}
                 placeholder="123456789, @team"
               />
+              <small>Direct chat IDs (whitelist for DMs)</small>
+            </label>
+            <label class="field">
+              <span>Allow from groups</span>
+              <input
+                .value=${props.telegramForm.allowFromGroups}
+                @input=${(e: Event) =>
+                  props.onTelegramChange({
+                    allowFromGroups: (e.target as HTMLInputElement).value,
+                  })}
+                placeholder="-123456789"
+              />
+              <small>Group chat IDs (whitelist for groups)</small>
             </label>
             <label class="field">
               <span>Proxy</span>

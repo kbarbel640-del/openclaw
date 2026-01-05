@@ -122,6 +122,11 @@ export function applyConfigSnapshot(state: ConfigState, snapshot: ConfigSnapshot
     : typeof telegram.allowFrom === "string"
       ? telegram.allowFrom
       : "";
+  const allowFromGroups = Array.isArray(telegram.allowFromGroups)
+    ? toList(telegram.allowFromGroups)
+    : typeof telegram.allowFromGroups === "string"
+      ? telegram.allowFromGroups
+      : "";
 
   state.telegramForm = {
     token: typeof telegram.botToken === "string" ? telegram.botToken : "",
@@ -130,6 +135,7 @@ export function applyConfigSnapshot(state: ConfigState, snapshot: ConfigSnapshot
         ? telegramDefaultGroup.requireMention
         : true,
     allowFrom,
+    allowFromGroups,
     proxy: typeof telegram.proxy === "string" ? telegram.proxy : "",
     webhookUrl: typeof telegram.webhookUrl === "string" ? telegram.webhookUrl : "",
     webhookSecret:

@@ -2,6 +2,7 @@ export type TelegramForm = {
   token: string;
   requireMention: boolean;
   allowFrom: string;
+  allowFromGroups: string;
   proxy: string;
   webhookUrl: string;
   webhookSecret: string;

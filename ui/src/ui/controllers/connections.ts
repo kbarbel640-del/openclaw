@@ -210,6 +210,9 @@ export async function saveTelegramConfig(state: ConnectionsState) {
     const allowFrom = parseList(state.telegramForm.allowFrom);
     if (allowFrom.length > 0) telegram.allowFrom = allowFrom;
     else delete telegram.allowFrom;
+    const allowFromGroups = parseList(state.telegramForm.allowFromGroups);
+    if (allowFromGroups.length > 0) telegram.allowFromGroups = allowFromGroups;
+    else delete telegram.allowFromGroups;
     const proxy = state.telegramForm.proxy.trim();
     if (proxy) telegram.proxy = proxy;
     else delete telegram.proxy;
