@@ -192,6 +192,21 @@
         "kick": { "label": "kick", "detailKeys": ["guildId", "userId"] },
         "ban": { "label": "ban", "detailKeys": ["guildId", "userId"] }
       }
+    },
+    "remember": {
+      "emoji": "🧠",
+      "title": "Remember",
+      "detailKeys": ["content", "type", "importance"]
+    },
+    "memory_consolidate": {
+      "emoji": "📚",
+      "title": "Consolidate Memory",
+      "detailKeys": []
+    },
+    "memory_recall": {
+      "emoji": "🔍",
+      "title": "Recall Memory",
+      "detailKeys": ["query", "scope", "limit"]
     }
   }
 }

@@ -430,8 +430,10 @@ export async function compactEmbeddedPiSession(params: {
               config: params.config,
             });
 
-        const bootstrapFiles =
-          await loadWorkspaceBootstrapFiles(resolvedWorkspace);
+        const bootstrapFiles = await loadWorkspaceBootstrapFiles(
+          resolvedWorkspace,
+          { sessionKey: params.sessionKey ?? params.sessionId },
+        );
         const contextFiles = buildBootstrapContextFiles(bootstrapFiles);
         const promptSkills = resolvePromptSkills(skillsSnapshot, skillEntries);
         const tools = createClawdbotCodingTools({
@@ -719,8 +721,10 @@ export async function runEmbeddedPiAgent(params: {
                 config: params.config,
               });
 
-          const bootstrapFiles =
-            await loadWorkspaceBootstrapFiles(resolvedWorkspace);
+          const bootstrapFiles = await loadWorkspaceBootstrapFiles(
+            resolvedWorkspace,
+            { sessionKey: params.sessionKey ?? params.sessionId },
+          );
           const contextFiles = buildBootstrapContextFiles(bootstrapFiles);
           const promptSkills = resolvePromptSkills(
             skillsSnapshot,

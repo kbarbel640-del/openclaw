@@ -50,11 +50,45 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 When you need to remember something from the past, use `qmd` instead of grepping files:
 ```bash
 qmd query "what happened at Christmas"   # Semantic search with reranking
-qmd search "specific phrase"              # BM25 keyword search  
+qmd search "specific phrase"              # BM25 keyword search
 qmd vsearch "conceptual question"         # Pure vector similarity
 ```
 Index your memory folder: `qmd index memory/`
 Vectors + BM25 + reranking finds things even with different wording.
+
+### 🔄 Cross-Session Memory (remember tool)
+
+When you or your human says "remember this", use the `remember` tool to queue it for consolidation:
+
+```typescript
+// The remember tool writes to ~/clawd/memory/inbox/
+remember({
+  content: "User prefers JWT with refresh tokens for auth",
+  type: "decision",        // fact | decision | task | insight
+  importance: "persistent" // ephemeral | persistent
+})
+```
+
+**How it works:**
+1. Memories get written to `~/clawd/memory/inbox/` as markdown files
+2. Every 30 minutes, a consolidation job processes the inbox:
+   - **Ephemeral** memories → daily log (`memory/YYYY-MM-DD.md`)
+   - **Persistent** memories → daily log + `memory.md`
+3. Processed files are archived to `memory/archive/YYYY-MM-DD/`
+
+**Types:**
+- `fact`: A piece of information or knowledge
+- `decision`: A choice or conclusion that was made
+- `task`: Something to do or follow up on
+- `insight`: An observation or realization
+
+**Importance:**
+- `ephemeral`: Daily context, routine notes (default)
+- `persistent`: Long-term preferences, important decisions, durable facts
+
+This works across ALL sessions (main DM, Telegram groups, cron jobs). Every session feeds back to the central memory, making the main assistant the "brain" that knows everything.
+
+**Manual consolidation:** You can also trigger `memory_consolidate` tool manually if needed.
 
 ## Safety
 

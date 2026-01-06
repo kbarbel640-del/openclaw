@@ -589,6 +589,28 @@ export type CanvasHostConfig = {
   liveReload?: boolean;
 };
 
+export type MemoryFragmentType = "fact" | "decision" | "task" | "insight";
+export type MemoryFragmentImportance = "ephemeral" | "persistent";
+
+export type MemoryConfig = {
+  /** If false, disable memory tools. Default: true. */
+  enabled?: boolean;
+  /**
+   * Central memory workspace (independent of agent.workspace).
+   * Default: ~/clawd
+   */
+  workspace?: string;
+  /** Consolidation cron interval (duration string). Default: "30m". */
+  consolidateEvery?: string;
+  /** Archive retention in days (0 = keep forever). Default: 30. */
+  archiveRetentionDays?: number;
+  /**
+   * Max memory.md size as percentage of context window (1-50). Default: 10.
+   * 10% of 200K tokens ≈ 80KB. For conversation-heavy sessions, 20-50% is fine.
+   */
+  maxContextPercent?: number;
+};
+
 export type TalkConfig = {
   /** Default ElevenLabs voice ID for Talk mode. */
   voiceId?: string;
@@ -990,6 +1012,7 @@ export type ClawdbotConfig = {
   canvasHost?: CanvasHostConfig;
   talk?: TalkConfig;
   gateway?: GatewayConfig;
+  memory?: MemoryConfig;
 };
 
 export type ConfigValidationIssue = {

@@ -23,6 +23,7 @@ export const DEFAULT_TOOLS_FILENAME = "TOOLS.md";
 export const DEFAULT_IDENTITY_FILENAME = "IDENTITY.md";
 export const DEFAULT_USER_FILENAME = "USER.md";
 export const DEFAULT_BOOTSTRAP_FILENAME = "BOOTSTRAP.md";
+export const DEFAULT_MEMORY_FILENAME = "memory.md";
 
 const DEFAULT_AGENTS_TEMPLATE = `# AGENTS.md - Clawdbot Workspace
 
@@ -174,7 +175,9 @@ export type WorkspaceBootstrapFileName =
   | typeof DEFAULT_TOOLS_FILENAME
   | typeof DEFAULT_IDENTITY_FILENAME
   | typeof DEFAULT_USER_FILENAME
-  | typeof DEFAULT_BOOTSTRAP_FILENAME;
+  | typeof DEFAULT_BOOTSTRAP_FILENAME
+  | typeof DEFAULT_MEMORY_FILENAME
+  | string; // For dynamic daily memory files like "memory/2026-01-06.md"
 
 export type WorkspaceBootstrapFile = {
   name: WorkspaceBootstrapFileName;
@@ -265,14 +268,45 @@ export async function ensureAgentWorkspace(params?: {
   };
 }
 
+/**
+ * Get today's and yesterday's dates in YYYY-MM-DD format.
+ */
+function getRecentDates(): string[] {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const format = (d: Date) => d.toISOString().split("T")[0];
+  return [format(today), format(yesterday)];
+}
+
 export async function loadWorkspaceBootstrapFiles(
   dir: string,
+  options?: {
+    /** Load memory files (memory.md + daily logs). Default: true */
+    includeMemory?: boolean;
+    /**
+     * Session key for memory isolation. If it contains "group" or starts with
+     * a provider prefix like "telegram:", memory loading is skipped unless
+     * this is the main session.
+     */
+    sessionKey?: string;
+  },
 ): Promise<WorkspaceBootstrapFile[]> {
   const resolvedDir = resolveUserPath(dir);
+
+  // Memory isolation: skip memory loading for group sessions
+  const sessionKey = options?.sessionKey ?? "";
+  const isGroupSession =
+    sessionKey.includes("group") ||
+    sessionKey.includes("room") ||
+    (sessionKey.includes(":") && !sessionKey.startsWith("main"));
+  const includeMemory = options?.includeMemory !== false && !isGroupSession;
 
   const entries: Array<{
     name: WorkspaceBootstrapFileName;
     filePath: string;
+    optional?: boolean;
   }> = [
     {
       name: DEFAULT_AGENTS_FILENAME,
@@ -300,6 +334,29 @@ export async function loadWorkspaceBootstrapFiles(
     },
   ];
 
+  // Add memory files if enabled
+  if (includeMemory) {
+    // Long-term memory
+    entries.push({
+      name: DEFAULT_MEMORY_FILENAME,
+      filePath: path.join(resolvedDir, DEFAULT_MEMORY_FILENAME),
+      optional: true,
+    });
+
+    // Daily memory logs (today + yesterday)
+    const [today, yesterday] = getRecentDates();
+    entries.push({
+      name: `memory/${today}.md`,
+      filePath: path.join(resolvedDir, "memory", `${today}.md`),
+      optional: true,
+    });
+    entries.push({
+      name: `memory/${yesterday}.md`,
+      filePath: path.join(resolvedDir, "memory", `${yesterday}.md`),
+      optional: true,
+    });
+  }
+
   const result: WorkspaceBootstrapFile[] = [];
   for (const entry of entries) {
     try {
@@ -311,7 +368,10 @@ export async function loadWorkspaceBootstrapFiles(
         missing: false,
       });
     } catch {
-      result.push({ name: entry.name, path: entry.filePath, missing: true });
+      // Skip optional files that don't exist (no [MISSING] marker)
+      if (!entry.optional) {
+        result.push({ name: entry.name, path: entry.filePath, missing: true });
+      }
     }
   }
   return result;

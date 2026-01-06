@@ -17,6 +17,9 @@ import {
   type ProcessToolDefaults,
 } from "./bash-tools.js";
 import { createClawdbotTools } from "./clawdbot-tools.js";
+import { createMemoryConsolidateTool } from "./tools/memory-consolidate.js";
+import { createMemoryRecallTool } from "./tools/memory-recall-tool.js";
+import { createRememberTool } from "./tools/remember-tool.js";
 import type { SandboxContext, SandboxToolPolicy } from "./sandbox.js";
 import { assertSandboxPath } from "./sandbox-paths.js";
 import { sanitizeToolResultImages } from "./tool-images.js";
@@ -559,6 +562,22 @@ export function createClawdbotCodingTools(options?: {
       sandboxed: !!sandbox,
       config: options?.config,
     }),
+    // Memory tools - available in all sessions
+    ...(options?.config?.memory?.enabled !== false
+      ? [
+          createRememberTool({
+            sessionKey: options?.sessionKey ?? "main",
+            memoryWorkspace: options?.config?.memory?.workspace,
+          }),
+          createMemoryConsolidateTool({
+            memoryWorkspace: options?.config?.memory?.workspace,
+            maxContextPercent: options?.config?.memory?.maxContextPercent,
+          }),
+          createMemoryRecallTool({
+            memoryWorkspace: options?.config?.memory?.workspace,
+          }),
+        ]
+      : []),
   ];
   const allowDiscord = shouldIncludeDiscordTool(options?.surface);
   const allowSlack = shouldIncludeSlackTool(options?.surface);

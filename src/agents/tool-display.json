@@ -231,6 +231,21 @@
         "memberInfo": { "label": "member", "detailKeys": ["userId"] },
         "emojiList": { "label": "emoji list" }
       }
+    },
+    "remember": {
+      "emoji": "🧠",
+      "title": "Remember",
+      "detailKeys": ["content", "type", "importance"]
+    },
+    "memory_consolidate": {
+      "emoji": "📚",
+      "title": "Consolidate Memory",
+      "detailKeys": []
+    },
+    "memory_recall": {
+      "emoji": "🔍",
+      "title": "Recall Memory",
+      "detailKeys": ["query", "scope", "limit"]
     }
   }
 }

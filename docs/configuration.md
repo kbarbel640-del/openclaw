@@ -1337,6 +1337,58 @@ Template placeholders are expanded in `routing.transcribeAudio.command` (and any
 | `{{SenderE164}}` | Sender phone number (best effort) |
 | `{{Surface}}` | Surface hint (whatsapp|telegram|discord|imessage|webchat|…) |
 
+## Memory (Cross-Session Consolidation)
+
+The memory system enables all sessions (main DM, Telegram groups, cron jobs) to write memories that get consolidated into a central location.
+
+```json5
+{
+  memory: {
+    enabled: true,           // Enable memory tools (default: true)
+    workspace: "~/clawd",    // Central memory location (independent of agent.workspace)
+    consolidateEvery: "30m", // Consolidation interval
+    archiveRetentionDays: 30 // How long to keep archived fragments (0 = forever)
+  }
+}
+```
+
+### How it works
+
+1. **Remember tool** - Available in all sessions. When user/agent says "remember this", writes to `~/clawd/memory/inbox/`:
+   ```typescript
+   remember({
+     content: "User prefers dark mode",
+     type: "decision",        // fact | decision | task | insight
+     importance: "persistent" // ephemeral | persistent
+   })
+   ```
+
+2. **Consolidation** - Runs every 30 minutes (via cron job):
+   - Ephemeral → daily log only (`memory/YYYY-MM-DD.md`)
+   - Persistent → daily log + `memory.md`
+   - Archives processed files to `memory/archive/YYYY-MM-DD/`
+
+3. **Directory structure**:
+   ```
+   ~/clawd/
+   ├── memory/
+   │   ├── inbox/           # Pending fragments
+   │   ├── archive/         # Processed fragments by date
+   │   └── YYYY-MM-DD.md    # Daily logs
+   └── memory.md            # Long-term persistent memory
+   ```
+
+### Setting up the consolidation cron job
+
+```bash
+clawdbot cron add \
+  --name "memory-consolidate" \
+  --cron "*/30 * * * *" \
+  --session isolated \
+  --wake now \
+  --message "Run memory_consolidate tool to process the inbox."
+```
+
 ## Cron (Gateway scheduler)
 
 Cron is a Gateway-owned scheduler for wakeups and scheduled jobs. See [Cron + wakeups](./cron.md) for the full RFC and CLI examples.

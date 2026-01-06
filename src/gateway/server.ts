@@ -38,6 +38,10 @@ import { appendCronRunLog, resolveCronRunLogPath } from "../cron/run-log.js";
 import { CronService } from "../cron/service.js";
 import { resolveCronStorePath } from "../cron/store.js";
 import type { CronJob } from "../cron/types.js";
+import {
+  buildMemoryConsolidateCronJob,
+  MEMORY_CONSOLIDATE_CRON_ID,
+} from "../agents/tools/memory-consolidate.js";
 import { startGmailWatcher, stopGmailWatcher } from "../hooks/gmail-watcher.js";
 import {
   clearAgentRunContext,
@@ -1182,6 +1186,26 @@ export async function startGatewayServer(
 
   void cron
     .start()
+    .then(async () => {
+      // Ensure memory consolidation cron job exists if configured
+      const consolidateEvery = cfgAtStart.memory?.consolidateEvery;
+      if (cfgAtStart.memory?.enabled !== false && consolidateEvery) {
+        const jobSpec = buildMemoryConsolidateCronJob(consolidateEvery);
+        if (jobSpec) {
+          const jobs = await cron.list({ includeDisabled: true });
+          const existing = jobs.find((j) => j.name === "Memory consolidation");
+          if (!existing) {
+            await cron.add({
+              ...jobSpec,
+              enabled: true,
+            });
+            logCron.info(
+              `cron: added memory consolidation job (${consolidateEvery})`,
+            );
+          }
+        }
+      }
+    })
     .catch((err) => logCron.error(`failed to start: ${String(err)}`));
 
   wss.on("connection", (socket, upgradeReq) => {
@@ -1665,6 +1689,28 @@ export async function startGatewayServer(
       cronStorePath = next.storePath;
       void cron
         .start()
+        .then(async () => {
+          // Ensure memory consolidation cron job exists if configured
+          const consolidateEvery = nextConfig.memory?.consolidateEvery;
+          if (nextConfig.memory?.enabled !== false && consolidateEvery) {
+            const jobSpec = buildMemoryConsolidateCronJob(consolidateEvery);
+            if (jobSpec) {
+              const jobs = await cron.list({ includeDisabled: true });
+              const existing = jobs.find(
+                (j) => j.name === "Memory consolidation",
+              );
+              if (!existing) {
+                await cron.add({
+                  ...jobSpec,
+                  enabled: true,
+                });
+                logCron.info(
+                  `cron: added memory consolidation job (${consolidateEvery})`,
+                );
+              }
+            }
+          }
+        })
         .catch((err) => logCron.error(`failed to start: ${String(err)}`));
     }
 
