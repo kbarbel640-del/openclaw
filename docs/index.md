@@ -181,6 +181,7 @@ Example:
 ## Core Contributors
 
 - **Maxim Vovshin** (@Hyaxia, [redacted-email]) — Blogwatcher skill
+- **Nacho Iacovino** (@nachoiacovino, [redacted-email]) — Location parsing (Telegram + WhatsApp)
 
 ## License
 
