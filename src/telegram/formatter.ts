@@ -33,6 +33,10 @@ const ALLOWED_EMOJI = new Set([
   "➡", "⬅",
   // Symbols (with and without variation selector)
   "✂", "✂︎",
+  // Error symbol
+  "❌",
+  // Web search results
+  "🌐",
 ]);
 
 // Comprehensive emoji regex - covers all Unicode emoji ranges

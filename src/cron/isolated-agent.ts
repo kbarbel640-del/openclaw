@@ -26,6 +26,7 @@ import {
 } from "../config/sessions.js";
 import { normalizeE164 } from "../utils.js";
 import type { CronJob } from "./types.js";
+import { executeWebSearch } from "../web-search/executor.js";
 
 export type RunCronAgentTurnResult = {
   status: "ok" | "error" | "skipped";
@@ -150,6 +151,34 @@ export async function runCronIsolatedAgentTurn(params: {
   sessionKey: string;
   lane?: string;
 }): Promise<RunCronAgentTurnResult> {
+  // Handle /web command directly (bypasses LLM parsing)
+  const WEB_COMMAND_RE = /^\/web\s+(.+)$/s;
+  const webMatch = WEB_COMMAND_RE.exec(params.message.trim());
+  if (webMatch) {
+    const query = webMatch[1]?.trim();
+    if (query) {
+      console.log(`[isolated-agent] Handling /web command with query: "${query}"`);
+      try {
+        const searchResult = await executeWebSearch(query, { timeoutMs: 90000 });
+        if (searchResult.success && searchResult.result) {
+          return {
+            status: "ok",
+            summary: `🌐 ${searchResult.result.response}`,
+          };
+        }
+        return {
+          status: "error",
+          summary: searchResult.error ?? "Web search failed",
+        };
+      } catch (error) {
+        return {
+          status: "error",
+          summary: `Web search error: ${String(error)}`,
+        };
+      }
+    }
+  }
+
   const agentCfg = params.cfg.agent;
   const workspaceDirRaw =
     params.cfg.agent?.workspace ?? DEFAULT_AGENT_WORKSPACE_DIR;

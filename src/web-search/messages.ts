@@ -45,7 +45,7 @@ export const messages: WebSearchMessages = {
    * Deliver search results with visual distinction
    */
   resultDelivery: (result: WebSearchResult) => {
-    const message = `○ Результат поиска:\n\n${result.response}`;
+    const message = `🌐 Результат поиска:\n\n${result.response}`;
     return formatTelegramMessage(message);
   },
 
@@ -55,7 +55,7 @@ export const messages: WebSearchMessages = {
   error: (error: string, sessionId?: string) => {
     const errorText = error.length > 200 ? `${error.slice(0, 200)}...` : error;
     const sessionInfo = sessionId ? `\nSearch ID: ${sessionId}` : "";
-    const message = `✂︎ Ошибка поиска:\n\n${errorText}${sessionInfo}`;
+    const message = `❌ Ошибка поиска:\n\n${errorText}${sessionInfo}`;
     return formatTelegramMessage(message);
   },
 
@@ -70,7 +70,7 @@ export const messages: WebSearchMessages = {
    * CLI not found error with configuration hint
    */
   cliNotFound: (path: string) => {
-    const message = `✂︎ Ошибка поиска:\n\nCLI not found at ${path}\nПроверьте настройки webSearch.cliPath в конфигурации`;
+    const message = `❌ Ошибка поиска:\n\nCLI not found at ${path}\nПроверьте настройки webSearch.cliPath в конфигурации`;
     return formatTelegramMessage(message);
   }
 };

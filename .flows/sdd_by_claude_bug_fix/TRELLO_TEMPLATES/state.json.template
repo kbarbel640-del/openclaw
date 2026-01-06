@@ -1,0 +1,46 @@
+{
+  "bug_id": "{BUG_ID}",
+  "overall_status": "IN_PROGRESS",
+  "tdd_phase": "RED",
+  "started_at": "{DATE}T{TIME}Z",
+  "completed_at": null,
+  "current_card": "01",
+  "cards": {
+    "01": {
+      "status": "pending",
+      "title": "Regression Test (TDD RED)",
+      "tdd_phase": "RED",
+      "started_at": null,
+      "completed_at": null,
+      "test_result": null,
+      "error": null
+    },
+    "02": {
+      "status": "pending",
+      "title": "Implement Fix (TDD GREEN)",
+      "tdd_phase": "GREEN",
+      "started_at": null,
+      "completed_at": null,
+      "test_result": null,
+      "error": null
+    },
+    "03": {
+      "status": "pending",
+      "title": "Verify & PR",
+      "tdd_phase": "VERIFY",
+      "started_at": null,
+      "completed_at": null,
+      "pr_url": null,
+      "error": null
+    }
+  },
+  "execution_log": [
+    {
+      "timestamp": "{DATE}T{TIME}Z",
+      "level": "INFO",
+      "message": "Bug fix initialized",
+      "card": null,
+      "tdd_phase": null
+    }
+  ]
+}

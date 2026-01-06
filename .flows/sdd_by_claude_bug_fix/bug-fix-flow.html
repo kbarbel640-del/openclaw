@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bug Fix Flow - Исправление Багов по Методологии TDD</title>
+    <style>
+        :root {
+            --bg-dark: #0f0f23;
+            --bg-card: #1a1a2e;
+            --accent-red: #ff6b6b;
+            --accent-green: #51cf66;
+            --accent-blue: #339af0;
+            --accent-yellow: #ffd43b;
+            --accent-purple: #9775fa;
+            --text-main: #e0e0e0;
+            --text-dim: #888;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 20px;
+            margin-bottom: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '🐛';
+            position: absolute;
+            font-size: 200px;
+            opacity: 0.05;
+            right: -50px;
+            top: -50px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, var(--accent-red), var(--accent-yellow));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            font-size: 1.2em;
+        }
+
+        /* Pipeline Section */
+        .pipeline-section {
+            margin-bottom: 50px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 5px;
+            height: 30px;
+            background: var(--accent-blue);
+            border-radius: 3px;
+        }
+
+        /* Pipeline SVG */
+        .pipeline-container {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+            overflow-x: auto;
+        }
+
+        .pipeline-svg {
+            width: 100%;
+            min-width: 900px;
+            height: 400px;
+        }
+
+        /* Phase cards */
+        .phases-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 50px;
+        }
+
+        .phase-card {
+            background: var(--bg-card);
+            border-radius: 15px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .phase-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-blue);
+        }
+
+        .phase-card.active {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 20px rgba(81, 207, 102, 0.2);
+        }
+
+        .phase-number {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 3em;
+            font-weight: bold;
+            opacity: 0.1;
+        }
+
+        .phase-icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+
+        .phase-title {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            color: var(--accent-yellow);
+        }
+
+        .phase-desc {
+            color: var(--text-dim);
+            font-size: 0.95em;
+        }
+
+        /* TDD Section */
+        .tdd-section {
+            background: linear-gradient(135deg, #2d1b1b 0%, #1a1a2e 100%);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .tdd-flow {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin: 30px 0;
+        }
+
+        .tdd-step {
+            background: var(--bg-card);
+            border-radius: 50%;
+            width: 150px;
+            height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .tdd-step.red {
+            border: 3px solid var(--accent-red);
+        }
+
+        .tdd-step.green {
+            border: 3px solid var(--accent-green);
+        }
+
+        .tdd-step.verify {
+            border: 3px solid var(--accent-blue);
+        }
+
+        .tdd-step:hover {
+            transform: scale(1.1);
+        }
+
+        .tdd-step.active {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(81, 207, 102, 0.4); }
+            50% { box-shadow: 0 0 0 15px rgba(81, 207, 102, 0); }
+        }
+
+        .tdd-arrow {
+            font-size: 2em;
+            color: var(--text-dim);
+        }
+
+        .tdd-step-icon {
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .tdd-step-label {
+            font-weight: bold;
+        }
+
+        /* Command Section */
+        .command-section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .command-box {
+            background: #0d0d1a;
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            margin: 20px 0;
+            position: relative;
+            overflow-x: auto;
+        }
+
+        .command-box code {
+            color: var(--accent-green);
+        }
+
+        .command-box .comment {
+            color: var(--text-dim);
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--accent-blue);
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent-purple);
+        }
+
+        /* Output Structure */
+        .output-section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .file-tree {
+            font-family: 'Fira Code', monospace;
+            background: #0d0d1a;
+            border-radius: 10px;
+            padding: 25px;
+            line-height: 1.8;
+        }
+
+        .file-tree .folder {
+            color: var(--accent-yellow);
+        }
+
+        .file-tree .file {
+            color: var(--accent-blue);
+        }
+
+        .file-tree .important {
+            color: var(--accent-green);
+        }
+
+        /* Interactive Demo */
+        .demo-section {
+            background: linear-gradient(135deg, #1b2d1b 0%, #1a1a2e 100%);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .demo-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .demo-btn {
+            background: var(--bg-card);
+            border: 2px solid var(--accent-purple);
+            color: var(--text-main);
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1em;
+        }
+
+        .demo-btn:hover {
+            background: var(--accent-purple);
+            transform: translateY(-2px);
+        }
+
+        .demo-btn.active {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+        }
+
+        .demo-output {
+            background: #0d0d1a;
+            border-radius: 10px;
+            padding: 25px;
+            font-family: monospace;
+            min-height: 200px;
+            white-space: pre-wrap;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-dim);
+            border-top: 1px solid #333;
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.8em; }
+            .pipeline-container { padding: 20px; }
+            .tdd-step { width: 100px; height: 100px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🐛 Bug Fix Flow</h1>
+            <p>Исправление багов по методологии TDD</p>
+            <p style="margin-top: 10px; font-size: 0.9em; color: var(--accent-yellow);">
+                Превращаем баг-репорты в проверенные исправления
+            </p>
+        </header>
+
+        <!-- Main Pipeline SVG -->
+        <section class="pipeline-section">
+            <h2 class="section-title">Главный Пайплайн</h2>
+            <div class="pipeline-container">
+                <svg class="pipeline-svg" viewBox="0 0 900 350">
+                    <!-- Background -->
+                    <defs>
+                        <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" style="stop-color:#339af0"/>
+                            <stop offset="100%" style="stop-color:#9775fa"/>
+                        </linearGradient>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                            <feMerge>
+                                <feMergeNode in="coloredBlur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+
+                    <!-- Phase 1: Bug Report -->
+                    <g class="phase-group" id="phase1" onclick="showPhaseDetails(1)">
+                        <rect x="30" y="80" width="140" height="100" rx="15" fill="#1a1a2e" stroke="#ff6b6b" stroke-width="2"/>
+                        <text x="100" y="120" text-anchor="middle" fill="#ff6b6b" font-size="24">📋</text>
+                        <text x="100" y="150" text-anchor="middle" fill="#e0e0e0" font-size="12" font-weight="bold">Баг-Репорт</text>
+                        <text x="100" y="168" text-anchor="middle" fill="#888" font-size="10">Фаза 1</text>
+                    </g>
+
+                    <!-- Arrow 1 -->
+                    <path d="M 175 130 L 210 130" stroke="url(#arrowGrad)" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+
+                    <!-- Phase 2: Reproduction -->
+                    <g class="phase-group" id="phase2" onclick="showPhaseDetails(2)">
+                        <rect x="210" y="80" width="140" height="100" rx="15" fill="#1a1a2e" stroke="#ffd43b" stroke-width="2"/>
+                        <text x="280" y="120" text-anchor="middle" fill="#ffd43b" font-size="24">🔄</text>
+                        <text x="280" y="150" text-anchor="middle" fill="#e0e0e0" font-size="12" font-weight="bold">Воспроизведение</text>
+                        <text x="280" y="168" text-anchor="middle" fill="#888" font-size="10">ARC Протокол</text>
+                    </g>
+
+                    <!-- Arrow 2 -->
+                    <path d="M 355 130 L 390 130" stroke="url(#arrowGrad)" stroke-width="3" fill="none"/>
+
+                    <!-- Phase 3: Root Cause -->
+                    <g class="phase-group" id="phase3" onclick="showPhaseDetails(3)">
+                        <rect x="390" y="80" width="140" height="100" rx="15" fill="#1a1a2e" stroke="#9775fa" stroke-width="2"/>
+                        <text x="460" y="120" text-anchor="middle" fill="#9775fa" font-size="24">🔍</text>
+                        <text x="460" y="150" text-anchor="middle" fill="#e0e0e0" font-size="12" font-weight="bold">Root Cause</text>
+                        <text x="460" y="168" text-anchor="middle" fill="#888" font-size="10">Анализ причины</text>
+                    </g>
+
+                    <!-- Arrow 3 -->
+                    <path d="M 535 130 L 570 130" stroke="url(#arrowGrad)" stroke-width="3" fill="none"/>
+
+                    <!-- Phase 4: Fix Strategy -->
+                    <g class="phase-group" id="phase4" onclick="showPhaseDetails(4)">
+                        <rect x="570" y="80" width="140" height="100" rx="15" fill="#1a1a2e" stroke="#339af0" stroke-width="2"/>
+                        <text x="640" y="120" text-anchor="middle" fill="#339af0" font-size="24">📝</text>
+                        <text x="640" y="150" text-anchor="middle" fill="#e0e0e0" font-size="12" font-weight="bold">Стратегия</text>
+                        <text x="640" y="168" text-anchor="middle" fill="#888" font-size="10">План фикса</text>
+                    </g>
+
+                    <!-- Arrow 4 -->
+                    <path d="M 715 130 L 750 130" stroke="url(#arrowGrad)" stroke-width="3" fill="none"/>
+
+                    <!-- Phase 5: Output -->
+                    <g class="phase-group" id="phase5" onclick="showPhaseDetails(5)">
+                        <rect x="750" y="80" width="140" height="100" rx="15" fill="#1a1a2e" stroke="#51cf66" stroke-width="2"/>
+                        <text x="820" y="120" text-anchor="middle" fill="#51cf66" font-size="24">✅</text>
+                        <text x="820" y="150" text-anchor="middle" fill="#e0e0e0" font-size="12" font-weight="bold">Результат</text>
+                        <text x="820" y="168" text-anchor="middle" fill="#888" font-size="10">SDD + Карточки</text>
+                    </g>
+
+                    <!-- TDD Cards below -->
+                    <text x="450" y="230" text-anchor="middle" fill="#ffd43b" font-size="14" font-weight="bold">TDD Карточки:</text>
+
+                    <!-- Card 01: RED -->
+                    <g onclick="showTDDPhase('red')">
+                        <rect x="220" y="250" width="120" height="70" rx="10" fill="#2d1b1b" stroke="#ff6b6b" stroke-width="2"/>
+                        <text x="280" y="280" text-anchor="middle" fill="#ff6b6b" font-size="16">🔴 RED</text>
+                        <text x="280" y="300" text-anchor="middle" fill="#888" font-size="10">Тест падает</text>
+                    </g>
+
+                    <!-- Arrow -->
+                    <path d="M 345 285 L 380 285" stroke="#51cf66" stroke-width="2" fill="none"/>
+
+                    <!-- Card 02: GREEN -->
+                    <g onclick="showTDDPhase('green')">
+                        <rect x="390" y="250" width="120" height="70" rx="10" fill="#1b2d1b" stroke="#51cf66" stroke-width="2"/>
+                        <text x="450" y="280" text-anchor="middle" fill="#51cf66" font-size="16">🟢 GREEN</text>
+                        <text x="450" y="300" text-anchor="middle" fill="#888" font-size="10">Фикс работает</text>
+                    </g>
+
+                    <!-- Arrow -->
+                    <path d="M 515 285 L 550 285" stroke="#339af0" stroke-width="2" fill="none"/>
+
+                    <!-- Card 03: VERIFY -->
+                    <g onclick="showTDDPhase('verify')">
+                        <rect x="560" y="250" width="120" height="70" rx="10" fill="#1b1b2d" stroke="#339af0" stroke-width="2"/>
+                        <text x="620" y="280" text-anchor="middle" fill="#339af0" font-size="16">✅ VERIFY</text>
+                        <text x="620" y="300" text-anchor="middle" fill="#888" font-size="10">PR готов</text>
+                    </g>
+                </svg>
+            </div>
+        </section>
+
+        <!-- Phases Details -->
+        <section class="phases-section">
+            <h2 class="section-title">5 Фаз Исправления Бага</h2>
+            <div class="phases-grid">
+                <div class="phase-card" onclick="showPhaseDetails(1)">
+                    <span class="phase-number">1</span>
+                    <div class="phase-icon">📋</div>
+                    <h3 class="phase-title">Баг-Репорт</h3>
+                    <p class="phase-desc">
+                        Собираем информацию о баге: что должно происходить,
+                        что происходит на самом деле, шаги воспроизведения.
+                    </p>
+                </div>
+
+                <div class="phase-card" onclick="showPhaseDetails(2)">
+                    <span class="phase-number">2</span>
+                    <div class="phase-icon">🔄</div>
+                    <h3 class="phase-title">Воспроизведение</h3>
+                    <p class="phase-desc">
+                        Создаём автоматический скрипт (ARC), который
+                        воспроизводит баг. Без воспроизведения - нет фикса!
+                    </p>
+                </div>
+
+                <div class="phase-card" onclick="showPhaseDetails(3)">
+                    <span class="phase-number">3</span>
+                    <div class="phase-icon">🔍</div>
+                    <h3 class="phase-title">Root Cause</h3>
+                    <p class="phase-desc">
+                        Находим настоящую причину бага. Анализируем слой за слоем,
+                        пока не найдём точное место проблемы.
+                    </p>
+                </div>
+
+                <div class="phase-card" onclick="showPhaseDetails(4)">
+                    <span class="phase-number">4</span>
+                    <div class="phase-icon">📝</div>
+                    <h3 class="phase-title">Стратегия Фикса</h3>
+                    <p class="phase-desc">
+                        Планируем исправление: какой тест написать,
+                        что поменять в коде, как проверить.
+                    </p>
+                </div>
+
+                <div class="phase-card" onclick="showPhaseDetails(5)">
+                    <span class="phase-number">5</span>
+                    <div class="phase-icon">✅</div>
+                    <h3 class="phase-title">Результат</h3>
+                    <p class="phase-desc">
+                        Генерируем SDD документы и Trello карточки.
+                        Всё готово для выполнения AI агентом.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TDD Section -->
+        <section class="tdd-section">
+            <h2 class="section-title" style="color: var(--accent-green);">TDD Цикл для Багфиксов</h2>
+            <p style="text-align: center; margin-bottom: 20px; color: var(--text-dim);">
+                Каждый фикс следует циклу: Тест → Фикс → Проверка
+            </p>
+
+            <div class="tdd-flow">
+                <div class="tdd-step red" onclick="showTDDPhase('red')">
+                    <span class="tdd-step-icon">🔴</span>
+                    <span class="tdd-step-label">RED</span>
+                    <span style="font-size: 0.7em;">Тест падает</span>
+                </div>
+
+                <span class="tdd-arrow">→</span>
+
+                <div class="tdd-step green" onclick="showTDDPhase('green')">
+                    <span class="tdd-step-icon">🟢</span>
+                    <span class="tdd-step-label">GREEN</span>
+                    <span style="font-size: 0.7em;">Тест проходит</span>
+                </div>
+
+                <span class="tdd-arrow">→</span>
+
+                <div class="tdd-step verify" onclick="showTDDPhase('verify')">
+                    <span class="tdd-step-icon">✅</span>
+                    <span class="tdd-step-label">VERIFY</span>
+                    <span style="font-size: 0.7em;">Всё готово</span>
+                </div>
+            </div>
+
+            <div id="tdd-details" style="background: var(--bg-card); border-radius: 15px; padding: 25px; margin-top: 20px;">
+                <p style="text-align: center; color: var(--text-dim);">
+                    👆 Нажмите на этап для подробностей
+                </p>
+            </div>
+        </section>
+
+        <!-- Command Section -->
+        <section class="command-section">
+            <h2 class="section-title">Как Запустить?</h2>
+            <p style="margin-bottom: 20px;">
+                Одна команда создаёт всю документацию:
+            </p>
+
+            <div class="command-box">
+                <button class="copy-btn" onclick="copyCommand()">📋 Копировать</button>
+                <code id="main-command"><span class="comment"># Генерация Bug Fix SDD</span>
+./generate-bug-fix.sh --bug-report bugs/my-bug.md
+
+<span class="comment"># С валидацией</span>
+./generate-bug-fix.sh --bug-report bugs/my-bug.md --validate
+
+<span class="comment"># Превью (без создания файлов)</span>
+./generate-bug-fix.sh --bug-report bugs/my-bug.md --dry-run</code>
+            </div>
+
+            <div style="background: #1b2d1b; border-radius: 10px; padding: 20px; margin-top: 20px;">
+                <h3 style="color: var(--accent-green); margin-bottom: 10px;">💡 Результат:</h3>
+                <p>Создаётся папка <code style="color: var(--accent-yellow);">docs/sdd/bug-fix-BUG-2026-01-06-001/</code> со всеми документами и карточками.</p>
+            </div>
+        </section>
+
+        <!-- Output Structure -->
+        <section class="output-section">
+            <h2 class="section-title">Структура Результата</h2>
+            <p style="margin-bottom: 20px;">
+                Генератор создаёт полный набор документов:
+            </p>
+
+            <div class="file-tree">
+<span class="folder">docs/sdd/bug-fix-BUG-2026-01-06-001/</span>
+├── <span class="important">README.md</span>              <span class="comment"># Точка входа</span>
+├── <span class="file">bug-report.md</span>          <span class="comment"># Описание бага</span>
+├── <span class="file">reproduction-case.md</span>   <span class="comment"># ARC скрипт</span>
+├── <span class="file">root-cause-analysis.md</span> <span class="comment"># Анализ причины</span>
+├── <span class="file">fix-strategy.md</span>        <span class="comment"># План фикса</span>
+├── <span class="file">fix-verification.md</span>    <span class="comment"># Чеклист проверки</span>
+└── <span class="folder">trello-cards/</span>
+    ├── <span class="important">KICKOFF.md</span>             <span class="comment"># Старт для AI агента</span>
+    ├── <span class="file">BOARD.md</span>               <span class="comment"># Обзор карточек</span>
+    ├── <span class="file">state.json</span>             <span class="comment"># Прогресс</span>
+    ├── <span class="important">01-regression-test.md</span> <span class="comment"># 🔴 TDD RED</span>
+    ├── <span class="important">02-implement-fix.md</span>   <span class="comment"># 🟢 TDD GREEN</span>
+    └── <span class="important">03-verify-fix.md</span>      <span class="comment"># ✅ Проверка + PR</span>
+            </div>
+        </section>
+
+        <!-- Interactive Demo -->
+        <section class="demo-section">
+            <h2 class="section-title" style="color: var(--accent-purple);">Интерактивная Демонстрация</h2>
+            <p style="text-align: center; margin-bottom: 20px;">
+                Выберите этап для просмотра примера вывода:
+            </p>
+
+            <div class="demo-controls">
+                <button class="demo-btn" onclick="showDemo('report')">📋 Баг-Репорт</button>
+                <button class="demo-btn" onclick="showDemo('arc')">🔄 ARC Скрипт</button>
+                <button class="demo-btn" onclick="showDemo('test')">🔴 Тест (RED)</button>
+                <button class="demo-btn" onclick="showDemo('fix')">🟢 Фикс (GREEN)</button>
+                <button class="demo-btn" onclick="showDemo('pr')">✅ PR Команда</button>
+            </div>
+
+            <div class="demo-output" id="demo-output">
+Выберите этап выше для просмотра примера...
+            </div>
+        </section>
+
+        <!-- Quick Reference -->
+        <section class="command-section">
+            <h2 class="section-title">Краткий Справочник</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                <div style="background: #2d1b1b; border-radius: 10px; padding: 20px; border-left: 4px solid var(--accent-red);">
+                    <h3 style="color: var(--accent-red);">🚫 НЕ делай</h3>
+                    <ul style="margin-top: 10px; color: var(--text-dim);">
+                        <li>Фикс без воспроизведения</li>
+                        <li>Фикс без теста</li>
+                        <li>Рефакторинг попутно</li>
+                        <li>Догадки о причине</li>
+                    </ul>
+                </div>
+
+                <div style="background: #1b2d1b; border-radius: 10px; padding: 20px; border-left: 4px solid var(--accent-green);">
+                    <h3 style="color: var(--accent-green);">✅ Делай</h3>
+                    <ul style="margin-top: 10px; color: var(--text-dim);">
+                        <li>Сначала воспроизведи</li>
+                        <li>Напиши тест ДО фикса</li>
+                        <li>Минимальные изменения</li>
+                        <li>Доказательства причины</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>🐛 Bug Fix Flow v1.0 | SDD by Claude</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">
+                Создано с ❤️ для качественного исправления багов
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Demo content
+        const demoContent = {
+            report: `# Bug Report: BUG-2026-01-06-001
+
+## Summary
+Приложение падает при клике на "Сохранить"
+
+## Expected Behavior
+Пользователь видит сообщение "Сохранено успешно"
+
+## Actual Behavior
+TypeError: Cannot read property 'id' of null
+at UserService.ts:42
+
+## Reproduction Steps
+1. Открыть страницу профиля
+2. Изменить имя
+3. Нажать "Сохранить"
+4. ❌ Приложение падает
+
+## Severity: P1-HIGH`,
+
+            arc: `#!/bin/bash
+# reproduce-BUG-2026-01-06-001.sh
+
+echo "=== Воспроизведение бага ==="
+
+# Настройка
+npm run dev &
+sleep 5
+
+# Триггер бага
+curl -X POST http://localhost:3000/api/user/save \\
+  -H "Content-Type: application/json" \\
+  -d '{"name": "Test"}' \\
+  2>&1 | tee /tmp/bug-output.log
+
+# Проверка
+if grep -q "Cannot read property" /tmp/bug-output.log; then
+    echo "❌ БАГ ВОСПРОИЗВЕДЁН"
+    exit 1
+else
+    echo "✅ Баг НЕ воспроизводится"
+    exit 0
+fi`,
+
+            test: `// tests/user.test.ts
+
+describe('BUG-2026-01-06-001: Save crashes', () => {
+
+  it('should handle missing user gracefully', () => {
+    // Arrange - условия бага
+    const userId = null  // Пользователь не найден
+
+    // Act - вызываем проблемный код
+    const result = saveUser(userId, { name: 'Test' })
+
+    // Assert - ожидаем корректное поведение
+    expect(result).toEqual({ error: 'User not found' })
+
+    // Явно: НЕ должно падать
+    expect(() => saveUser(userId, { name: 'Test' }))
+      .not.toThrow()
+  })
+
+})
+
+// Этот тест ПАДАЕТ до фикса ✅`,
+
+            fix: `// src/services/UserService.ts
+
+// БЫЛО (баг):
+function saveUser(userId, data) {
+  const user = findUser(userId)
+  user.name = data.name  // 💥 Падает если user = null
+  return save(user)
+}
+
+// СТАЛО (фикс):
+function saveUser(userId, data) {
+  const user = findUser(userId)
+
+  // ✅ Проверка на null
+  if (!user) {
+    return { error: 'User not found' }
+  }
+
+  user.name = data.name
+  return save(user)
+}`,
+
+            pr: `# Создание Pull Request
+
+gh pr create \\
+  --title "fix: BUG-2026-01-06-001 - Save crashes on null user" \\
+  --body "## Bug Fix
+
+**Bug ID:** BUG-2026-01-06-001
+**Severity:** P1-HIGH
+
+### Root Cause
+Функция saveUser не проверяла user на null
+
+### Fix
+Добавлена проверка: if (!user) return error
+
+### Testing
+- [x] Regression test добавлен
+- [x] Все тесты проходят
+- [x] Reproduce скрипт подтверждает фикс
+
+---
+🐛 Generated with Bug Fix Flow"
+
+# Результат:
+# ✅ PR создан: https://github.com/org/repo/pull/123`
+        };
+
+        // Show demo content
+        function showDemo(type) {
+            const output = document.getElementById('demo-output');
+            output.textContent = demoContent[type];
+
+            // Update button states
+            document.querySelectorAll('.demo-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // Show phase details
+        function showPhaseDetails(phase) {
+            const details = {
+                1: '📋 Фаза 1: Собираем полную информацию о баге - что сломано, как воспроизвести, какие ошибки.',
+                2: '🔄 Фаза 2: Создаём скрипт ARC, который автоматически воспроизводит баг. Без него не двигаемся!',
+                3: '🔍 Фаза 3: Анализируем слой за слоем, пока не найдём точную строку кода с проблемой.',
+                4: '📝 Фаза 4: Планируем фикс - какой тест написать, какой код поменять, как проверить.',
+                5: '✅ Фаза 5: Генерируем документы и карточки. AI агент может начинать работу!'
+            };
+
+            alert(details[phase]);
+        }
+
+        // Show TDD phase details
+        function showTDDPhase(phase) {
+            const details = document.getElementById('tdd-details');
+            const content = {
+                red: `<h3 style="color: var(--accent-red);">🔴 RED - Пишем падающий тест</h3>
+                      <p style="margin-top: 10px;">Сначала пишем тест, который <strong>проваливается</strong>.
+                      Этот тест доказывает, что баг существует.</p>
+                      <p style="margin-top: 10px; color: var(--text-dim);">
+                      Карточка: <code>01-regression-test.md</code></p>`,
+                green: `<h3 style="color: var(--accent-green);">🟢 GREEN - Минимальный фикс</h3>
+                        <p style="margin-top: 10px;">Пишем <strong>минимальный код</strong>, чтобы тест прошёл.
+                        Никакого рефакторинга - только фикс!</p>
+                        <p style="margin-top: 10px; color: var(--text-dim);">
+                        Карточка: <code>02-implement-fix.md</code></p>`,
+                verify: `<h3 style="color: var(--accent-blue);">✅ VERIFY - Полная проверка</h3>
+                         <p style="margin-top: 10px;">Запускаем <strong>все тесты</strong>, проверяем что
+                         баг больше не воспроизводится, создаём PR.</p>
+                         <p style="margin-top: 10px; color: var(--text-dim);">
+                         Карточка: <code>03-verify-fix.md</code></p>`
+            };
+
+            details.innerHTML = content[phase];
+
+            // Update step states
+            document.querySelectorAll('.tdd-step').forEach(step => {
+                step.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+        }
+
+        // Copy command
+        function copyCommand() {
+            const command = './generate-bug-fix.sh --bug-report bugs/my-bug.md';
+            navigator.clipboard.writeText(command).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = '✅ Скопировано!';
+                setTimeout(() => btn.textContent = '📋 Копировать', 2000);
+            });
+        }
+
+        // Add hover effects to SVG elements
+        document.querySelectorAll('.phase-group').forEach(group => {
+            group.style.cursor = 'pointer';
+            group.addEventListener('mouseenter', () => {
+                group.querySelector('rect').style.filter = 'url(#glow)';
+            });
+            group.addEventListener('mouseleave', () => {
+                group.querySelector('rect').style.filter = 'none';
+            });
+        });
+    </script>
+</body>
+</html>

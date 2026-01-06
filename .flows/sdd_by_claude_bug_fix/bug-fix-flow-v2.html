@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bug Fix Flow v2 | TDD Pipeline</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-glass: rgba(255, 255, 255, 0.05);
+            --border-glass: rgba(255, 255, 255, 0.1);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-muted: rgba(255, 255, 255, 0.4);
+            --accent-red: #ff4757;
+            --accent-green: #2ed573;
+            --accent-blue: #3742fa;
+            --accent-purple: #a855f7;
+            --accent-orange: #ff6b35;
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --shadow-glow: 0 0 60px rgba(167, 139, 250, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background Effects */
+        .bg-effects {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.3;
+        }
+
+        .bg-orb-1 {
+            width: 600px;
+            height: 600px;
+            background: var(--accent-purple);
+            top: -200px;
+            right: -200px;
+        }
+
+        .bg-orb-2 {
+            width: 400px;
+            height: 400px;
+            background: var(--accent-blue);
+            bottom: -100px;
+            left: -100px;
+        }
+
+        .bg-orb-3 {
+            width: 300px;
+            height: 300px;
+            background: var(--accent-red);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        header {
+            padding: 4rem 0 3rem;
+            text-align: center;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.7) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+            font-weight: 400;
+        }
+
+        /* TDD Cycle Visualization */
+        .tdd-cycle {
+            padding: 4rem 0;
+        }
+
+        .tdd-cycle h2 {
+            text-align: center;
+            font-size: 1rem;
+            font-weight: 500;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 3rem;
+        }
+
+        .cycle-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0;
+            position: relative;
+        }
+
+        .cycle-ring {
+            width: 400px;
+            height: 400px;
+            position: relative;
+        }
+
+        .cycle-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .cycle-node {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+        }
+
+        .cycle-node:hover {
+            transform: scale(1.1);
+        }
+
+        .cycle-node.red {
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(255, 71, 87, 0.2) 0%, rgba(255, 71, 87, 0.1) 100%);
+            border: 2px solid var(--accent-red);
+            box-shadow: 0 0 40px rgba(255, 71, 87, 0.3);
+        }
+
+        .cycle-node.red:hover {
+            transform: translateX(-50%) scale(1.1);
+        }
+
+        .cycle-node.green {
+            bottom: 30px;
+            right: 0;
+            background: linear-gradient(135deg, rgba(46, 213, 115, 0.2) 0%, rgba(46, 213, 115, 0.1) 100%);
+            border: 2px solid var(--accent-green);
+            box-shadow: 0 0 40px rgba(46, 213, 115, 0.3);
+        }
+
+        .cycle-node.verify {
+            bottom: 30px;
+            left: 0;
+            background: linear-gradient(135deg, rgba(55, 66, 250, 0.2) 0%, rgba(55, 66, 250, 0.1) 100%);
+            border: 2px solid var(--accent-blue);
+            box-shadow: 0 0 40px rgba(55, 66, 250, 0.3);
+        }
+
+        .cycle-node-icon {
+            font-size: 2rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .cycle-node-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+
+        .cycle-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .cycle-center-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .cycle-center-sub {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        /* Pipeline Timeline */
+        .pipeline {
+            padding: 5rem 0;
+        }
+
+        .pipeline h2 {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .pipeline-subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 4rem;
+        }
+
+        .timeline {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 2rem 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 80px;
+            left: 10%;
+            right: 10%;
+            height: 2px;
+            background: linear-gradient(90deg,
+                var(--accent-red) 0%,
+                var(--accent-orange) 25%,
+                var(--accent-purple) 50%,
+                var(--accent-blue) 75%,
+                var(--accent-green) 100%
+            );
+        }
+
+        .timeline-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            padding: 0 1rem;
+        }
+
+        .timeline-number {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            position: relative;
+            z-index: 2;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-item:nth-child(1) .timeline-number {
+            background: linear-gradient(135deg, var(--accent-red), #ff6b81);
+            box-shadow: 0 10px 30px rgba(255, 71, 87, 0.4);
+        }
+
+        .timeline-item:nth-child(2) .timeline-number {
+            background: linear-gradient(135deg, var(--accent-orange), #ffa502);
+            box-shadow: 0 10px 30px rgba(255, 107, 53, 0.4);
+        }
+
+        .timeline-item:nth-child(3) .timeline-number {
+            background: linear-gradient(135deg, var(--accent-purple), #c084fc);
+            box-shadow: 0 10px 30px rgba(168, 85, 247, 0.4);
+        }
+
+        .timeline-item:nth-child(4) .timeline-number {
+            background: linear-gradient(135deg, var(--accent-blue), #6366f1);
+            box-shadow: 0 10px 30px rgba(55, 66, 250, 0.4);
+        }
+
+        .timeline-item:nth-child(5) .timeline-number {
+            background: linear-gradient(135deg, var(--accent-green), #34d399);
+            box-shadow: 0 10px 30px rgba(46, 213, 115, 0.4);
+        }
+
+        .timeline-item:hover .timeline-number {
+            transform: scale(1.15);
+        }
+
+        .timeline-card {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 200px;
+            backdrop-filter: blur(20px);
+            transition: all 0.3s ease;
+        }
+
+        .timeline-item:hover .timeline-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-5px);
+        }
+
+        .timeline-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .timeline-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Cards Grid */
+        .cards-section {
+            padding: 5rem 0;
+        }
+
+        .cards-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+
+        .card {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(20px);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .card:nth-child(1)::before {
+            background: var(--gradient-2);
+        }
+
+        .card:nth-child(2)::before {
+            background: linear-gradient(90deg, var(--accent-green), #34d399);
+        }
+
+        .card:nth-child(3)::before {
+            background: var(--gradient-3);
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .card-phase {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+        }
+
+        .card:nth-child(1) .card-phase {
+            background: rgba(255, 71, 87, 0.15);
+            color: var(--accent-red);
+        }
+
+        .card:nth-child(2) .card-phase {
+            background: rgba(46, 213, 115, 0.15);
+            color: var(--accent-green);
+        }
+
+        .card:nth-child(3) .card-phase {
+            background: rgba(55, 66, 250, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .card-list {
+            list-style: none;
+        }
+
+        .card-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+
+        .card-list li::before {
+            content: '→';
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        /* Complexity Matrix */
+        .matrix-section {
+            padding: 5rem 0;
+        }
+
+        .matrix-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+        }
+
+        .matrix {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            overflow: hidden;
+            backdrop-filter: blur(20px);
+        }
+
+        .matrix-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .matrix-header-cell {
+            padding: 1.25rem 1.5rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .matrix-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            border-bottom: 1px solid var(--border-glass);
+            transition: all 0.2s ease;
+        }
+
+        .matrix-row:last-child {
+            border-bottom: none;
+        }
+
+        .matrix-row:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .matrix-cell {
+            padding: 1.25rem 1.5rem;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .matrix-cell:first-child {
+            font-weight: 500;
+        }
+
+        .matrix-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-low {
+            background: rgba(46, 213, 115, 0.15);
+            color: var(--accent-green);
+        }
+
+        .badge-medium {
+            background: rgba(255, 165, 2, 0.15);
+            color: #ffa502;
+        }
+
+        .badge-high {
+            background: rgba(255, 71, 87, 0.15);
+            color: var(--accent-red);
+        }
+
+        /* Command Section */
+        .command-section {
+            padding: 5rem 0;
+        }
+
+        .command-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+        }
+
+        .command-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            overflow: hidden;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .command-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .command-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .command-dot.red { background: #ff5f57; }
+        .command-dot.yellow { background: #febc2e; }
+        .command-dot.green { background: #28c840; }
+
+        .command-title {
+            margin-left: 1rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .command-body {
+            padding: 1.5rem;
+        }
+
+        .command-line {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .command-prompt {
+            color: var(--accent-green);
+        }
+
+        .command-text {
+            color: var(--text-primary);
+        }
+
+        .command-flag {
+            color: var(--accent-purple);
+        }
+
+        .command-value {
+            color: var(--accent-orange);
+        }
+
+        .command-comment {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Output Structure */
+        .output-section {
+            padding: 5rem 0;
+        }
+
+        .output-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+        }
+
+        .file-tree {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 600px;
+            margin: 0 auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            backdrop-filter: blur(20px);
+        }
+
+        .tree-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.4rem 0;
+            color: var(--text-secondary);
+        }
+
+        .tree-item.folder {
+            color: var(--accent-blue);
+            font-weight: 500;
+        }
+
+        .tree-item.file {
+            padding-left: 1.5rem;
+        }
+
+        .tree-icon {
+            width: 16px;
+            text-align: center;
+        }
+
+        /* Principles */
+        .principles {
+            padding: 5rem 0;
+        }
+
+        .principles h2 {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+        }
+
+        .principles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .principle {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(20px);
+            transition: all 0.3s ease;
+        }
+
+        .principle:hover {
+            background: rgba(255, 255, 255, 0.06);
+            transform: translateY(-3px);
+        }
+
+        .principle-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .principle-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .principle-desc {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        footer {
+            padding: 3rem 0;
+            text-align: center;
+            border-top: 1px solid var(--border-glass);
+            margin-top: 3rem;
+        }
+
+        .footer-version {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .timeline {
+                flex-wrap: wrap;
+                gap: 2rem;
+            }
+
+            .timeline::before {
+                display: none;
+            }
+
+            .timeline-item {
+                flex: 0 0 calc(50% - 1rem);
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .matrix-header,
+            .matrix-row {
+                grid-template-columns: 1fr;
+            }
+
+            .matrix-header-cell:not(:first-child),
+            .matrix-row .matrix-cell:not(:first-child) {
+                display: none;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 0 1rem;
+            }
+
+            .timeline-item {
+                flex: 0 0 100%;
+            }
+
+            .cycle-ring {
+                width: 300px;
+                height: 300px;
+            }
+
+            .cycle-node {
+                width: 90px;
+                height: 90px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-effects">
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="badge">
+                <span class="badge-dot"></span>
+                Bug Fix Flow v2.0
+            </div>
+            <h1>TDD Bug Fix Pipeline</h1>
+            <p class="subtitle">Трансформируем баг-репорты в проверенные исправления с регрессионными тестами</p>
+        </header>
+
+        <!-- TDD Cycle -->
+        <section class="tdd-cycle">
+            <h2>Методология TDD</h2>
+            <div class="cycle-container">
+                <div class="cycle-ring">
+                    <svg class="cycle-svg" viewBox="0 0 400 400">
+                        <defs>
+                            <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                                <path d="M0,0 L0,6 L9,3 z" fill="rgba(255,255,255,0.3)"/>
+                            </marker>
+                        </defs>
+                        <!-- Circular arrows -->
+                        <path d="M200,80 Q320,80 320,200" stroke="rgba(255,71,87,0.4)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+                        <path d="M320,200 Q320,320 200,320" stroke="rgba(46,213,115,0.4)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+                        <path d="M200,320 Q80,320 80,200 Q80,80 200,80" stroke="rgba(55,66,250,0.4)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+                    </svg>
+
+                    <div class="cycle-node red">
+                        <span class="cycle-node-icon">🔴</span>
+                        <span class="cycle-node-label">RED</span>
+                    </div>
+
+                    <div class="cycle-node green">
+                        <span class="cycle-node-icon">🟢</span>
+                        <span class="cycle-node-label">GREEN</span>
+                    </div>
+
+                    <div class="cycle-node verify">
+                        <span class="cycle-node-icon">✅</span>
+                        <span class="cycle-node-label">VERIFY</span>
+                    </div>
+
+                    <div class="cycle-center">
+                        <div class="cycle-center-title">TDD</div>
+                        <div class="cycle-center-sub">Bug Fix Cycle</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pipeline -->
+        <section class="pipeline">
+            <h2>Пайплайн исправления</h2>
+            <p class="pipeline-subtitle">От баг-репорта до Pull Request за 5 фаз</p>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-number">01</div>
+                    <div class="timeline-card">
+                        <div class="timeline-title">Баг-репорт</div>
+                        <div class="timeline-desc">Сбор информации: шаги воспроизведения, ожидаемое и фактическое поведение</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-number">02</div>
+                    <div class="timeline-card">
+                        <div class="timeline-title">Воспроизведение</div>
+                        <div class="timeline-desc">ARC протокол: автоматизированный скрипт воспроизведения бага</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-number">03</div>
+                    <div class="timeline-card">
+                        <div class="timeline-title">Root Cause</div>
+                        <div class="timeline-desc">Послойный анализ: UI → Logic → Data → Integration</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-number">04</div>
+                    <div class="timeline-card">
+                        <div class="timeline-title">Стратегия</div>
+                        <div class="timeline-desc">Планирование фикса и регрессионного теста</div>
+                    </div>
+                </div>
+
+                <div class="timeline-item">
+                    <div class="timeline-number">05</div>
+                    <div class="timeline-card">
+                        <div class="timeline-title">Выходные данные</div>
+                        <div class="timeline-desc">Trello карточки, документация, PR</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TDD Cards -->
+        <section class="cards-section">
+            <h2>TDD Карточки</h2>
+
+            <div class="cards-grid">
+                <div class="card">
+                    <span class="card-phase">🔴 RED Phase</span>
+                    <h3 class="card-title">01. Регрессионный тест</h3>
+                    <ul class="card-list">
+                        <li>Написать тест, который фейлится</li>
+                        <li>Тест должен ловить именно этот баг</li>
+                        <li>Проверить: тест красный</li>
+                        <li>Зафиксировать ожидаемое поведение</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <span class="card-phase">🟢 GREEN Phase</span>
+                    <h3 class="card-title">02. Реализация фикса</h3>
+                    <ul class="card-list">
+                        <li>Минимальный код для прохождения теста</li>
+                        <li>Никаких "улучшений" по пути</li>
+                        <li>Проверить: тест зелёный</li>
+                        <li>Существующие тесты не сломаны</li>
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <span class="card-phase">✅ VERIFY Phase</span>
+                    <h3 class="card-title">03. Верификация</h3>
+                    <ul class="card-list">
+                        <li>Полный тестовый прогон</li>
+                        <li>Ручная проверка ARC</li>
+                        <li>Code review checklist</li>
+                        <li>Создание Pull Request</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Complexity Matrix -->
+        <section class="matrix-section">
+            <h2>Матрица сложности</h2>
+
+            <div class="matrix">
+                <div class="matrix-header">
+                    <div class="matrix-header-cell">Тип бага</div>
+                    <div class="matrix-header-cell">Карточки</div>
+                    <div class="matrix-header-cell">Story Points</div>
+                    <div class="matrix-header-cell">Сложность</div>
+                </div>
+
+                <div class="matrix-row">
+                    <div class="matrix-cell">Простой фикс (1 файл)</div>
+                    <div class="matrix-cell">3</div>
+                    <div class="matrix-cell">3-5</div>
+                    <div class="matrix-cell"><span class="matrix-badge badge-low">Low</span></div>
+                </div>
+
+                <div class="matrix-row">
+                    <div class="matrix-cell">Multi-file баг</div>
+                    <div class="matrix-cell">4-5</div>
+                    <div class="matrix-cell">6-10</div>
+                    <div class="matrix-cell"><span class="matrix-badge badge-medium">Medium</span></div>
+                </div>
+
+                <div class="matrix-row">
+                    <div class="matrix-cell">Интеграционный баг</div>
+                    <div class="matrix-cell">5-6</div>
+                    <div class="matrix-cell">10-15</div>
+                    <div class="matrix-cell"><span class="matrix-badge badge-medium">Medium</span></div>
+                </div>
+
+                <div class="matrix-row">
+                    <div class="matrix-cell">Комплексный баг</div>
+                    <div class="matrix-cell">6-7</div>
+                    <div class="matrix-cell">15-20</div>
+                    <div class="matrix-cell"><span class="matrix-badge badge-high">High</span></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Command -->
+        <section class="command-section">
+            <h2>Запуск генератора</h2>
+
+            <div class="command-box">
+                <div class="command-header">
+                    <span class="command-dot red"></span>
+                    <span class="command-dot yellow"></span>
+                    <span class="command-dot green"></span>
+                    <span class="command-title">terminal</span>
+                </div>
+                <div class="command-body">
+                    <div class="command-line">
+                        <span class="command-prompt">$</span>
+                        <span class="command-text">./generate-bug-fix.sh</span>
+                        <span class="command-flag">--bug-report</span>
+                        <span class="command-value">bugs/login-crash.md</span>
+                    </div>
+                    <div class="command-line">
+                        <span class="command-prompt">$</span>
+                        <span class="command-text">./generate-bug-fix.sh</span>
+                        <span class="command-flag">--bug-report</span>
+                        <span class="command-value">bugs/api-error.md</span>
+                        <span class="command-flag">--validate</span>
+                    </div>
+                    <div class="command-line">
+                        <span class="command-prompt">$</span>
+                        <span class="command-text">./generate-bug-fix.sh</span>
+                        <span class="command-flag">--dry-run</span>
+                        <span class="command-comment"># preview without creating</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Output Structure -->
+        <section class="output-section">
+            <h2>Структура выхода</h2>
+
+            <div class="file-tree">
+                <div class="tree-item folder">
+                    <span class="tree-icon">📁</span>
+                    bug-fix-{BUG_ID}/
+                </div>
+                <div class="tree-item file">
+                    <span class="tree-icon">📄</span>
+                    README.md
+                </div>
+                <div class="tree-item file">
+                    <span class="tree-icon">🐛</span>
+                    bug-report.md
+                </div>
+                <div class="tree-item file">
+                    <span class="tree-icon">🔄</span>
+                    reproduction-case.md
+                </div>
+                <div class="tree-item file">
+                    <span class="tree-icon">🔍</span>
+                    root-cause-analysis.md
+                </div>
+                <div class="tree-item file">
+                    <span class="tree-icon">📋</span>
+                    fix-strategy.md
+                </div>
+                <div class="tree-item file">
+                    <span class="tree-icon">✅</span>
+                    fix-verification.md
+                </div>
+                <div class="tree-item folder">
+                    <span class="tree-icon">📁</span>
+                    trello-cards/
+                </div>
+                <div class="tree-item file" style="padding-left: 3rem;">
+                    <span class="tree-icon">🚀</span>
+                    KICKOFF.md
+                </div>
+                <div class="tree-item file" style="padding-left: 3rem;">
+                    <span class="tree-icon">🔴</span>
+                    01-regression-test.md
+                </div>
+                <div class="tree-item file" style="padding-left: 3rem;">
+                    <span class="tree-icon">🟢</span>
+                    02-implement-fix.md
+                </div>
+                <div class="tree-item file" style="padding-left: 3rem;">
+                    <span class="tree-icon">✅</span>
+                    03-verify-fix.md
+                </div>
+            </div>
+        </section>
+
+        <!-- Principles -->
+        <section class="principles">
+            <h2>Ключевые принципы</h2>
+
+            <div class="principles-grid">
+                <div class="principle">
+                    <div class="principle-icon">🔄</div>
+                    <h3 class="principle-title">ARC Protocol</h3>
+                    <p class="principle-desc">Без воспроизведения — нет фикса. Автоматизированный скрипт обязателен.</p>
+                </div>
+
+                <div class="principle">
+                    <div class="principle-icon">🔍</div>
+                    <h3 class="principle-title">Root Cause First</h3>
+                    <p class="principle-desc">Диагностика перед лечением. 90%+ уверенность в причине.</p>
+                </div>
+
+                <div class="principle">
+                    <div class="principle-icon">🧪</div>
+                    <h3 class="principle-title">Test Before Fix</h3>
+                    <p class="principle-desc">Сначала тест, потом код. Красный → Зелёный → Верификация.</p>
+                </div>
+
+                <div class="principle">
+                    <div class="principle-icon">✂️</div>
+                    <h3 class="principle-title">Minimal Change</h3>
+                    <p class="principle-desc">Только то, что сломано. Никаких рефакторингов "по пути".</p>
+                </div>
+
+                <div class="principle">
+                    <div class="principle-icon">🛡️</div>
+                    <h3 class="principle-title">Regression Guard</h3>
+                    <p class="principle-desc">Каждый фикс = постоянный тест. Баг не вернётся.</p>
+                </div>
+
+                <div class="principle">
+                    <div class="principle-icon">📊</div>
+                    <h3 class="principle-title">Evidence Based</h3>
+                    <p class="principle-desc">Все выводы подтверждены. Логи, скриншоты, метрики.</p>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p class="footer-version">Bug Fix Flow v2.0 | TDD Methodology | 2026</p>
+        </footer>
+    </div>
+
+    <script>
+        // Interactive hover effects
+        document.querySelectorAll('.cycle-node').forEach(node => {
+            node.addEventListener('mouseenter', () => {
+                node.style.zIndex = '10';
+            });
+            node.addEventListener('mouseleave', () => {
+                node.style.zIndex = '1';
+            });
+        });
+
+        // Scroll reveal
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('section').forEach(section => {
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(30px)';
+            section.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(section);
+        });
+    </script>
+</body>
+</html>

@@ -100,16 +100,18 @@ export async function executeWebSearch(
     let errorMessage = `❌ Поиск не удался: ${errorStr}`;
     
     // Make error messages more user-friendly
-    if (errorStr.includes('timeout')) {
+    if (errorStr.includes('timeout') || errorStr.includes('ETIMEDOUT') || errorStr.includes('timed out')) {
       errorMessage = '⏱️ Поиск занял слишком много времени';
-    } else if (errorStr.includes('not found')) {
-      errorMessage = '❌ Gemini CLI не найден. Проверьте установку.';
+    } else if (errorStr.includes('not found') || errorStr.includes('exit code 10')) {
+      errorMessage = '❌ Gemini CLI не найден или не настроен';
     } else if (errorStr.includes('too short')) {
       errorMessage = '❌ Запрос слишком короткий';
     } else if (errorStr.includes('too long')) {
       errorMessage = '❌ Запрос слишком длинный (макс. 2000 символов)';
-    } else if (errorStr.includes('Command failed')) {
-      errorMessage = '❌ Ошибка при выполнении поиска';
+    } else if (errorStr.includes('Command failed') || errorStr.includes('Command was killed')) {
+      errorMessage = '⏱️ Поиск был прерван (превышено время ожидания или ошибка выполнения)';
+    } else if (errorStr.includes('exit code 124')) {
+      errorMessage = '⏱️ Поиск превысил 90 секунд (слишком сложный запрос)';
     }
     
     return {

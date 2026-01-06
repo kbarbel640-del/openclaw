@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDD Flow - Спецификация Новых Фич</title>
+    <style>
+        :root {
+            --bg-dark: #0f0f23;
+            --bg-card: #1a1a2e;
+            --accent-red: #ff6b6b;
+            --accent-green: #51cf66;
+            --accent-blue: #339af0;
+            --accent-yellow: #ffd43b;
+            --accent-purple: #9775fa;
+            --accent-cyan: #22b8cf;
+            --accent-orange: #ff922b;
+            --text-main: #e0e0e0;
+            --text-dim: #888;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+            border-radius: 20px;
+            margin-bottom: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '🚀';
+            position: absolute;
+            font-size: 200px;
+            opacity: 0.05;
+            right: -50px;
+            top: -50px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            font-size: 1.2em;
+        }
+
+        .header .tagline {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: var(--accent-cyan);
+        }
+
+        /* Section Title */
+        .section-title {
+            font-size: 1.8em;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 5px;
+            height: 30px;
+            background: var(--accent-blue);
+            border-radius: 3px;
+        }
+
+        /* Pipeline Container */
+        .pipeline-container {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 40px;
+            overflow-x: auto;
+        }
+
+        .pipeline-svg {
+            width: 100%;
+            min-width: 900px;
+            height: 300px;
+        }
+
+        /* Phases Grid */
+        .phases-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 50px;
+        }
+
+        .phase-card {
+            background: var(--bg-card);
+            border-radius: 15px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .phase-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-blue);
+        }
+
+        .phase-card.active {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 20px rgba(81, 207, 102, 0.2);
+        }
+
+        .phase-number {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 3em;
+            font-weight: bold;
+            opacity: 0.1;
+        }
+
+        .phase-icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+        }
+
+        .phase-title {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            color: var(--accent-cyan);
+        }
+
+        .phase-desc {
+            color: var(--text-dim);
+            font-size: 0.95em;
+        }
+
+        /* Complexity Section */
+        .complexity-section {
+            background: linear-gradient(135deg, #1b1b2d 0%, #1a1a2e 100%);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .complexity-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .complexity-table th,
+        .complexity-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        .complexity-table th {
+            color: var(--accent-yellow);
+            font-weight: bold;
+        }
+
+        .complexity-table tr:hover {
+            background: rgba(51, 154, 240, 0.1);
+        }
+
+        .score-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .score-low { background: var(--accent-green); color: #000; }
+        .score-medium { background: var(--accent-yellow); color: #000; }
+        .score-high { background: var(--accent-orange); color: #000; }
+        .score-very-high { background: var(--accent-red); color: #fff; }
+
+        /* Cards Sprint Section */
+        .sprint-section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .sprint-visual {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin: 30px 0;
+        }
+
+        .sprint-card {
+            background: #0d0d1a;
+            border: 2px solid var(--accent-purple);
+            border-radius: 10px;
+            padding: 15px 20px;
+            text-align: center;
+            min-width: 80px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .sprint-card:hover {
+            transform: scale(1.1);
+            border-color: var(--accent-green);
+        }
+
+        .sprint-card.active {
+            background: var(--accent-purple);
+            color: #fff;
+        }
+
+        .sprint-card-num {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        .sprint-card-sp {
+            font-size: 0.8em;
+            color: var(--text-dim);
+        }
+
+        /* Command Section */
+        .command-section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .command-box {
+            background: #0d0d1a;
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            margin: 20px 0;
+            position: relative;
+            overflow-x: auto;
+        }
+
+        .command-box code {
+            color: var(--accent-green);
+        }
+
+        .command-box .comment {
+            color: var(--text-dim);
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--accent-blue);
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: var(--accent-purple);
+        }
+
+        /* Output Structure */
+        .output-section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .file-tree {
+            font-family: 'Fira Code', monospace;
+            background: #0d0d1a;
+            border-radius: 10px;
+            padding: 25px;
+            line-height: 1.8;
+        }
+
+        .file-tree .folder {
+            color: var(--accent-yellow);
+        }
+
+        .file-tree .file {
+            color: var(--accent-blue);
+        }
+
+        .file-tree .important {
+            color: var(--accent-green);
+        }
+
+        .file-tree .comment {
+            color: var(--text-dim);
+        }
+
+        /* Principles Section */
+        .principles-section {
+            background: linear-gradient(135deg, #1b2d1b 0%, #1a1a2e 100%);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .principles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .principle-item {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .principle-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .principle-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .principle-title {
+            color: var(--accent-green);
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .principle-desc {
+            color: var(--text-dim);
+            font-size: 0.9em;
+        }
+
+        /* Interactive Demo */
+        .demo-section {
+            background: linear-gradient(135deg, #2d1b2d 0%, #1a1a2e 100%);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .demo-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 30px 0;
+            flex-wrap: wrap;
+        }
+
+        .demo-btn {
+            background: var(--bg-card);
+            border: 2px solid var(--accent-purple);
+            color: var(--text-main);
+            padding: 15px 30px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1em;
+        }
+
+        .demo-btn:hover {
+            background: var(--accent-purple);
+            transform: translateY(-2px);
+        }
+
+        .demo-btn.active {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+
+        .demo-output {
+            background: #0d0d1a;
+            border-radius: 10px;
+            padding: 25px;
+            font-family: monospace;
+            min-height: 200px;
+            white-space: pre-wrap;
+        }
+
+        /* Gap Interview Section */
+        .gap-section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 50px;
+        }
+
+        .gap-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .gap-category {
+            background: #0d0d1a;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            border-left: 4px solid var(--accent-purple);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .gap-category:hover {
+            border-left-color: var(--accent-green);
+            transform: translateX(5px);
+        }
+
+        .gap-category-icon {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+
+        .gap-category-name {
+            font-size: 0.9em;
+            color: var(--text-dim);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-dim);
+            border-top: 1px solid #333;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(51, 154, 240, 0.4); }
+            50% { box-shadow: 0 0 0 15px rgba(51, 154, 240, 0); }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.8em; }
+            .pipeline-container { padding: 20px; }
+            .complexity-table { font-size: 0.9em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🚀 SDD Flow</h1>
+            <p>Spec-Driven Development для Новых Фич</p>
+            <p class="tagline">
+                Превращаем сырые требования в готовые к исполнению Trello карточки
+            </p>
+        </header>
+
+        <!-- Main Pipeline SVG -->
+        <section class="pipeline-section">
+            <h2 class="section-title">Главный Пайплайн</h2>
+            <div class="pipeline-container">
+                <svg class="pipeline-svg" viewBox="0 0 900 250">
+                    <!-- Definitions -->
+                    <defs>
+                        <linearGradient id="flowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" style="stop-color:#339af0"/>
+                            <stop offset="50%" style="stop-color:#9775fa"/>
+                            <stop offset="100%" style="stop-color:#51cf66"/>
+                        </linearGradient>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                            <feMerge>
+                                <feMergeNode in="coloredBlur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+
+                    <!-- Flow Line -->
+                    <path d="M 100 125 L 800 125" stroke="url(#flowGrad)" stroke-width="4" fill="none" stroke-dasharray="10,5"/>
+
+                    <!-- Phase 1: Input -->
+                    <g class="phase-group" onclick="showPhaseDetails(1)" style="cursor:pointer">
+                        <circle cx="100" cy="125" r="50" fill="#1a1a2e" stroke="#ff6b6b" stroke-width="3"/>
+                        <text x="100" y="115" text-anchor="middle" fill="#ff6b6b" font-size="24">📝</text>
+                        <text x="100" y="140" text-anchor="middle" fill="#e0e0e0" font-size="11" font-weight="bold">INPUT</text>
+                        <text x="100" y="195" text-anchor="middle" fill="#888" font-size="10">Сырые требования</text>
+                    </g>
+
+                    <!-- Phase 2: Context -->
+                    <g class="phase-group" onclick="showPhaseDetails(2)" style="cursor:pointer">
+                        <circle cx="333" cy="125" r="50" fill="#1a1a2e" stroke="#ffd43b" stroke-width="3"/>
+                        <text x="333" y="115" text-anchor="middle" fill="#ffd43b" font-size="24">🔍</text>
+                        <text x="333" y="140" text-anchor="middle" fill="#e0e0e0" font-size="11" font-weight="bold">CONTEXT</text>
+                        <text x="333" y="195" text-anchor="middle" fill="#888" font-size="10">Анализ проекта</text>
+                    </g>
+
+                    <!-- Phase 3: Gaps -->
+                    <g class="phase-group" onclick="showPhaseDetails(3)" style="cursor:pointer">
+                        <circle cx="566" cy="125" r="50" fill="#1a1a2e" stroke="#9775fa" stroke-width="3"/>
+                        <text x="566" y="115" text-anchor="middle" fill="#9775fa" font-size="24">❓</text>
+                        <text x="566" y="140" text-anchor="middle" fill="#e0e0e0" font-size="11" font-weight="bold">GAPS</text>
+                        <text x="566" y="195" text-anchor="middle" fill="#888" font-size="10">Заполнение пробелов</text>
+                    </g>
+
+                    <!-- Phase 4: Output -->
+                    <g class="phase-group" onclick="showPhaseDetails(4)" style="cursor:pointer">
+                        <circle cx="800" cy="125" r="50" fill="#1a1a2e" stroke="#51cf66" stroke-width="3"/>
+                        <text x="800" y="115" text-anchor="middle" fill="#51cf66" font-size="24">📦</text>
+                        <text x="800" y="140" text-anchor="middle" fill="#e0e0e0" font-size="11" font-weight="bold">OUTPUT</text>
+                        <text x="800" y="195" text-anchor="middle" fill="#888" font-size="10">SDD + Карточки</text>
+                    </g>
+
+                    <!-- Arrows -->
+                    <polygon points="195,125 180,115 180,135" fill="#ffd43b"/>
+                    <polygon points="428,125 413,115 413,135" fill="#9775fa"/>
+                    <polygon points="661,125 646,115 646,135" fill="#51cf66"/>
+                </svg>
+            </div>
+        </section>
+
+        <!-- Phases Details -->
+        <section class="phases-section">
+            <h2 class="section-title">4 Фазы Создания Спецификации</h2>
+            <div class="phases-grid">
+                <div class="phase-card" onclick="showPhaseDetails(1)">
+                    <span class="phase-number">1</span>
+                    <div class="phase-icon">📝</div>
+                    <h3 class="phase-title">INPUT - Сбор Требований</h3>
+                    <p class="phase-desc">
+                        Получаем сырые требования от пользователя.
+                        Валидируем базовую информацию: цели, пользователи, ограничения.
+                    </p>
+                </div>
+
+                <div class="phase-card" onclick="showPhaseDetails(2)">
+                    <span class="phase-number">2</span>
+                    <div class="phase-icon">🔍</div>
+                    <h3 class="phase-title">CONTEXT - Анализ Проекта</h3>
+                    <p class="phase-desc">
+                        Изучаем существующий код, паттерны, конвенции.
+                        Находим похожие фичи для переиспользования.
+                    </p>
+                </div>
+
+                <div class="phase-card" onclick="showPhaseDetails(3)">
+                    <span class="phase-number">3</span>
+                    <div class="phase-icon">❓</div>
+                    <h3 class="phase-title">GAPS - Заполнение Пробелов</h3>
+                    <p class="phase-desc">
+                        Находим неясности и конфликты. Задаём вопросы.
+                        Консультируемся с AI. Достигаем 95%+ уверенности.
+                    </p>
+                </div>
+
+                <div class="phase-card" onclick="showPhaseDetails(4)">
+                    <span class="phase-number">4</span>
+                    <div class="phase-icon">📦</div>
+                    <h3 class="phase-title">OUTPUT - Генерация SDD</h3>
+                    <p class="phase-desc">
+                        Создаём полный пакет документов и исполняемые
+                        Trello карточки. Готово для AI агента!
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Complexity Assessment -->
+        <section class="complexity-section">
+            <h2 class="section-title" style="color: var(--accent-yellow);">Оценка Сложности</h2>
+            <p style="margin-bottom: 20px;">
+                Количество карточек определяется автоматически на основе сложности фичи:
+            </p>
+
+            <table class="complexity-table">
+                <thead>
+                    <tr>
+                        <th>Фактор</th>
+                        <th>Баллы</th>
+                        <th>Пример</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Новая таблица в БД</td>
+                        <td><span class="score-badge score-medium">+2</span></td>
+                        <td>Добавление users table</td>
+                    </tr>
+                    <tr>
+                        <td>Новый API endpoint</td>
+                        <td><span class="score-badge score-low">+1</span></td>
+                        <td>GET /api/users</td>
+                    </tr>
+                    <tr>
+                        <td>Внешняя интеграция</td>
+                        <td><span class="score-badge score-high">+4</span></td>
+                        <td>Stripe, Telegram API</td>
+                    </tr>
+                    <tr>
+                        <td>Новый UI компонент</td>
+                        <td><span class="score-badge score-medium">+2</span></td>
+                        <td>Dashboard widget</td>
+                    </tr>
+                    <tr>
+                        <td>Real-time функции</td>
+                        <td><span class="score-badge score-high">+3</span></td>
+                        <td>WebSocket, SSE</td>
+                    </tr>
+                    <tr>
+                        <td>Только существующие паттерны</td>
+                        <td><span class="score-badge score-low">-3</span></td>
+                        <td>Копирование подхода</td>
+                    </tr>
+                    <tr>
+                        <td>Только конфигурация</td>
+                        <td><span class="score-badge score-low">-4</span></td>
+                        <td>Добавить флаг</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                <div style="background: #0d0d1a; border-radius: 10px; padding: 20px; text-align: center;">
+                    <div style="font-size: 2em; color: var(--accent-green);">&lt;5</div>
+                    <div style="color: var(--text-dim);">1-4 карточки</div>
+                    <div style="font-size: 0.8em; color: var(--accent-green);">Простая фича</div>
+                </div>
+                <div style="background: #0d0d1a; border-radius: 10px; padding: 20px; text-align: center;">
+                    <div style="font-size: 2em; color: var(--accent-yellow);">5-10</div>
+                    <div style="color: var(--text-dim);">5-8 карточек</div>
+                    <div style="font-size: 0.8em; color: var(--accent-yellow);">Стандартная</div>
+                </div>
+                <div style="background: #0d0d1a; border-radius: 10px; padding: 20px; text-align: center;">
+                    <div style="font-size: 2em; color: var(--accent-orange);">11-20</div>
+                    <div style="color: var(--text-dim);">9-14 карточек</div>
+                    <div style="font-size: 0.8em; color: var(--accent-orange);">Сложная</div>
+                </div>
+                <div style="background: #0d0d1a; border-radius: 10px; padding: 20px; text-align: center;">
+                    <div style="font-size: 2em; color: var(--accent-red);">&gt;20</div>
+                    <div style="color: var(--text-dim);">Разбить на фазы</div>
+                    <div style="font-size: 0.8em; color: var(--accent-red);">Очень сложная</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sprint Cards Visualization -->
+        <section class="sprint-section">
+            <h2 class="section-title">Пример: 12 Карточек для Фичи</h2>
+            <p style="margin-bottom: 10px; color: var(--text-dim);">
+                Каждая карточка = 1-4 Story Points. Линейное выполнение: 01 → 02 → ... → 12
+            </p>
+
+            <div class="sprint-visual">
+                <div class="sprint-card" onclick="showCardDetails(1)">
+                    <div class="sprint-card-num">01</div>
+                    <div class="sprint-card-sp">Config</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(2)">
+                    <div class="sprint-card-num">02</div>
+                    <div class="sprint-card-sp">Detection</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(3)">
+                    <div class="sprint-card-num">03</div>
+                    <div class="sprint-card-sp">Tests</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(4)">
+                    <div class="sprint-card-num">04</div>
+                    <div class="sprint-card-sp">Hook</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(5)">
+                    <div class="sprint-card-num">05</div>
+                    <div class="sprint-card-sp">Ack</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(6)">
+                    <div class="sprint-card-num">06</div>
+                    <div class="sprint-card-sp">Button</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(7)">
+                    <div class="sprint-card-num">07</div>
+                    <div class="sprint-card-sp">Executor</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(8)">
+                    <div class="sprint-card-num">08</div>
+                    <div class="sprint-card-sp">Parser</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(9)">
+                    <div class="sprint-card-num">09</div>
+                    <div class="sprint-card-sp">Delivery</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(10)">
+                    <div class="sprint-card-num">10</div>
+                    <div class="sprint-card-sp">Wire</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(11)">
+                    <div class="sprint-card-num">11</div>
+                    <div class="sprint-card-sp">Errors</div>
+                </div>
+                <div class="sprint-card" onclick="showCardDetails(12)">
+                    <div class="sprint-card-num">12</div>
+                    <div class="sprint-card-sp">E2E</div>
+                </div>
+            </div>
+
+            <div id="card-details" style="background: #0d0d1a; border-radius: 10px; padding: 20px; margin-top: 20px;">
+                <p style="text-align: center; color: var(--text-dim);">
+                    👆 Нажмите на карточку для просмотра деталей
+                </p>
+            </div>
+        </section>
+
+        <!-- Command Section -->
+        <section class="command-section">
+            <h2 class="section-title">Как Запустить?</h2>
+            <p style="margin-bottom: 20px;">
+                Одна команда создаёт полную спецификацию:
+            </p>
+
+            <div class="command-box">
+                <button class="copy-btn" onclick="copyCommand()">📋 Копировать</button>
+                <code id="main-command"><span class="comment"># Генерация SDD из требований</span>
+./generate-sdd.sh --requirements features/my-feature.md
+
+<span class="comment"># С валидацией</span>
+./generate-sdd.sh --requirements features/my-feature.md --validate
+
+<span class="comment"># Превью (без создания файлов)</span>
+./generate-sdd.sh --requirements features/my-feature.md --dry-run
+
+<span class="comment"># С Git Workflow</span>
+./generate-sdd.sh --requirements features/my-feature.md --git-workflow</code>
+            </div>
+
+            <div style="background: #1b2d1b; border-radius: 10px; padding: 20px; margin-top: 20px;">
+                <h3 style="color: var(--accent-green); margin-bottom: 10px;">💡 Результат:</h3>
+                <p>Создаётся папка <code style="color: var(--accent-yellow);">docs/sdd/my-feature-sdd/</code> со всеми документами и карточками.</p>
+            </div>
+        </section>
+
+        <!-- Output Structure -->
+        <section class="output-section">
+            <h2 class="section-title">Структура Результата</h2>
+            <p style="margin-bottom: 20px;">
+                Генератор создаёт полный набор документов:
+            </p>
+
+            <div class="file-tree">
+<span class="folder">docs/sdd/my-feature-sdd/</span>
+├── <span class="important">README.md</span>              <span class="comment"># Точка входа</span>
+├── <span class="file">requirements.md</span>        <span class="comment"># Функциональные требования</span>
+├── <span class="file">ui-flow.md</span>             <span class="comment"># Путь пользователя</span>
+├── <span class="file">gaps.md</span>                <span class="comment"># Решения по вопросам</span>
+├── <span class="file">domain-spec.md</span>         <span class="comment"># Спецификация домена (опц.)</span>
+├── <span class="file">manual-e2e-test.md</span>     <span class="comment"># Чеклист тестирования</span>
+└── <span class="folder">trello-cards/</span>
+    ├── <span class="important">KICKOFF.md</span>             <span class="comment"># Старт для AI агента</span>
+    ├── <span class="file">BOARD.md</span>               <span class="comment"># Обзор всех карточек</span>
+    ├── <span class="file">AGENT_PROTOCOL.md</span>      <span class="comment"># Протокол обновления</span>
+    ├── <span class="file">state.json</span>             <span class="comment"># Прогресс выполнения</span>
+    ├── <span class="file">progress.md</span>            <span class="comment"># Визуальный прогресс</span>
+    ├── <span class="important">01-config.md</span>           <span class="comment"># Первая карточка</span>
+    ├── <span class="file">02-detection.md</span>        <span class="comment"># ...</span>
+    ├── <span class="file">...</span>
+    └── <span class="important">12-e2e-test.md</span>         <span class="comment"># Последняя карточка</span>
+            </div>
+        </section>
+
+        <!-- Gap Interview Section -->
+        <section class="gap-section">
+            <h2 class="section-title">Gap Interview - Заполнение Пробелов</h2>
+            <p style="margin-bottom: 20px;">
+                Для каждого GAP задаём структурированные вопросы по категориям:
+            </p>
+
+            <div class="gap-categories">
+                <div class="gap-category" onclick="showGapCategory('users')">
+                    <div class="gap-category-icon">👥</div>
+                    <div class="gap-category-name">Пользователи</div>
+                </div>
+                <div class="gap-category" onclick="showGapCategory('scope')">
+                    <div class="gap-category-icon">📐</div>
+                    <div class="gap-category-name">Scope</div>
+                </div>
+                <div class="gap-category" onclick="showGapCategory('flows')">
+                    <div class="gap-category-icon">🔄</div>
+                    <div class="gap-category-name">Потоки</div>
+                </div>
+                <div class="gap-category" onclick="showGapCategory('data')">
+                    <div class="gap-category-icon">💾</div>
+                    <div class="gap-category-name">Данные</div>
+                </div>
+                <div class="gap-category" onclick="showGapCategory('integrations')">
+                    <div class="gap-category-icon">🔌</div>
+                    <div class="gap-category-name">Интеграции</div>
+                </div>
+                <div class="gap-category" onclick="showGapCategory('nfr')">
+                    <div class="gap-category-icon">⚡</div>
+                    <div class="gap-category-name">NFR</div>
+                </div>
+                <div class="gap-category" onclick="showGapCategory('constraints')">
+                    <div class="gap-category-icon">🚧</div>
+                    <div class="gap-category-name">Ограничения</div>
+                </div>
+                <div class="gap-category" onclick="showGapCategory('risks')">
+                    <div class="gap-category-icon">⚠️</div>
+                    <div class="gap-category-name">Риски</div>
+                </div>
+            </div>
+
+            <div id="gap-details" style="background: #0d0d1a; border-radius: 10px; padding: 20px; margin-top: 20px;">
+                <p style="text-align: center; color: var(--text-dim);">
+                    👆 Нажмите на категорию для примеров вопросов
+                </p>
+            </div>
+        </section>
+
+        <!-- Principles Section -->
+        <section class="principles-section">
+            <h2 class="section-title" style="color: var(--accent-green);">Ключевые Принципы</h2>
+
+            <div class="principles-grid">
+                <div class="principle-item">
+                    <div class="principle-icon">🚫</div>
+                    <div class="principle-title">Без плейсхолдеров</div>
+                    <div class="principle-desc">Все поля заполнены</div>
+                </div>
+                <div class="principle-item">
+                    <div class="principle-icon">❓</div>
+                    <div class="principle-title">Без догадок</div>
+                    <div class="principle-desc">Уточняем всё</div>
+                </div>
+                <div class="principle-item">
+                    <div class="principle-icon">✂️</div>
+                    <div class="principle-title">KISS</div>
+                    <div class="principle-desc">Max 4 SP на карточку</div>
+                </div>
+                <div class="principle-item">
+                    <div class="principle-icon">📏</div>
+                    <div class="principle-title">Линейность</div>
+                    <div class="principle-desc">01 → 02 → ... → N</div>
+                </div>
+                <div class="principle-item">
+                    <div class="principle-icon">📦</div>
+                    <div class="principle-title">Self-contained</div>
+                    <div class="principle-desc">Полный контекст в карточке</div>
+                </div>
+                <div class="principle-item">
+                    <div class="principle-icon">🎯</div>
+                    <div class="principle-title">95% Confidence</div>
+                    <div class="principle-desc">По каждому GAP</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Demo -->
+        <section class="demo-section">
+            <h2 class="section-title" style="color: var(--accent-purple);">Интерактивная Демонстрация</h2>
+            <p style="text-align: center; margin-bottom: 20px;">
+                Выберите этап для просмотра примера:
+            </p>
+
+            <div class="demo-controls">
+                <button class="demo-btn" onclick="showDemo('requirements')">📝 Требования</button>
+                <button class="demo-btn" onclick="showDemo('gap')">❓ GAP Вопрос</button>
+                <button class="demo-btn" onclick="showDemo('card')">📋 Карточка</button>
+                <button class="demo-btn" onclick="showDemo('kickoff')">🚀 KICKOFF</button>
+            </div>
+
+            <div class="demo-output" id="demo-output">
+Выберите этап выше для просмотра примера...
+            </div>
+        </section>
+
+        <!-- Quick Reference -->
+        <section class="command-section">
+            <h2 class="section-title">Краткий Справочник</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                <div style="background: #2d1b1b; border-radius: 10px; padding: 20px; border-left: 4px solid var(--accent-red);">
+                    <h3 style="color: var(--accent-red);">🚫 НЕ делай</h3>
+                    <ul style="margin-top: 10px; color: var(--text-dim);">
+                        <li>Пропускать Gap Interview</li>
+                        <li>Оставлять {PLACEHOLDER}</li>
+                        <li>Догадки без подтверждения</li>
+                        <li>Карточки больше 4 SP</li>
+                        <li>Забывать про PR</li>
+                    </ul>
+                </div>
+
+                <div style="background: #1b2d1b; border-radius: 10px; padding: 20px; border-left: 4px solid var(--accent-green);">
+                    <h3 style="color: var(--accent-green);">✅ Делай</h3>
+                    <ul style="margin-top: 10px; color: var(--text-dim);">
+                        <li>Анализируй существующий код</li>
+                        <li>Задавай вопросы пользователю</li>
+                        <li>Достигай 95% уверенности</li>
+                        <li>Разбивай на мелкие карточки</li>
+                        <li>Создавай PR в конце</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>🚀 SDD Flow v1.0 | by Codex</p>
+            <p style="margin-top: 10px; font-size: 0.9em;">
+                Spec-Driven Development для качественных фич
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Demo content
+        const demoContent = {
+            requirements: `# Feature: Auto-Archive Old Conversations
+
+## Summary
+Автоматически архивировать старые разговоры через Telegram бота.
+
+## Goals
+1. Пользователь может запустить архивацию командой
+2. Бот показывает прогресс
+3. Результат сохраняется в файл
+
+## Success Criteria
+- Архивация запускается по ключевому слову
+- Прогресс обновляется каждые 30 секунд
+- Файл сохраняется в нужную папку
+
+## Non-Goals (out of scope)
+- Discord интеграция
+- Автоматическая архивация по расписанию`,
+
+            gap: `### GAP-001: Ключевые слова для детекции
+
+**Категория:** Detection & Triggering
+**Приоритет:** HIGH
+
+**Вопрос:**
+Какие точные ключевые слова должны активировать архивацию?
+
+**Контекст:**
+- Текущие паттерны: "deep research", "глубокое исследование"
+- Telegram mentions case-insensitive
+
+**Варианты:**
+A) "archive", "архив", "архивация"
+B) "save conversations", "сохранить чаты"
+C) Комбинация A + B
+
+**AI Рекомендация (96% confidence):**
+Вариант A - соответствует существующим паттернам
+
+**Решение пользователя:** A
+**Дата:** 2026-01-06`,
+
+            card: `# Card 01: Auto-Archive - Config Schema
+
+| Field | Value |
+|-------|-------|
+| **ID** | ARCHIVE-01 |
+| **Story Points** | 2 |
+| **Depends On** | - |
+
+## User Story
+> As a developer, I want config schema
+> so that archive settings are validated.
+
+## Instructions
+
+### Step 1: Read existing config
+\`\`\`bash
+cat src/config/config.ts | head -100
+\`\`\`
+
+### Step 2: Add archive schema
+\`\`\`typescript
+const archiveSchema = z.object({
+  enabled: z.boolean().default(true),
+  dryRun: z.boolean().default(true),
+  outputPath: z.string().default('./archives'),
+})
+\`\`\`
+
+## Acceptance Criteria
+- [ ] Schema added to config.ts
+- [ ] Type check passes: pnpm type-check
+- [ ] Tests pass: pnpm test`,
+
+            kickoff: `# Auto-Archive Implementation - AI Agent Kickoff
+
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║   🤖 AI AGENT INSTRUCTION                                 ║
+║                                                           ║
+║   Execute ALL 12 cards below in LINEAR order.             ║
+║   Update state.json after EACH card.                      ║
+║   Do NOT stop until all cards are "completed".            ║
+║                                                           ║
+║   START NOW. First action: Read state.json                ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+
+## Mission
+Implement auto-archive feature by executing 12 cards.
+
+## Files
+| File | Action |
+|------|--------|
+| BOARD.md | Read at start |
+| state.json | Update each card |
+| 01-config.md | Execute first |
+| 12-e2e.md | Execute last |
+
+## Getting Started
+\`\`\`bash
+cd trello-cards
+cat BOARD.md
+cat state.json
+# Start with 01-config.md
+\`\`\``
+        };
+
+        const cardDetails = {
+            1: { title: 'Config Schema', sp: 2, desc: 'Добавление Zod схемы конфигурации' },
+            2: { title: 'Detection Module', sp: 3, desc: 'Модуль определения ключевых слов' },
+            3: { title: 'Detection Tests', sp: 2, desc: 'Unit тесты для детекции' },
+            4: { title: 'Telegram Hook', sp: 3, desc: 'Интеграция с Telegram ботом' },
+            5: { title: 'Acknowledgment', sp: 2, desc: 'Сообщение подтверждения' },
+            6: { title: 'Inline Button', sp: 3, desc: 'Кнопка запуска архивации' },
+            7: { title: 'Executor', sp: 3, desc: 'Исполнитель архивации' },
+            8: { title: 'Result Parser', sp: 2, desc: 'Парсер результатов' },
+            9: { title: 'Result Delivery', sp: 2, desc: 'Отправка результатов' },
+            10: { title: 'Wire Pipeline', sp: 3, desc: 'Связь всех компонентов' },
+            11: { title: 'Error Handling', sp: 3, desc: 'Обработка ошибок' },
+            12: { title: 'E2E Test', sp: 2, desc: 'End-to-end тестирование' }
+        };
+
+        const gapQuestions = {
+            users: 'Кто использует фичу? Какие роли? Какие уровни доступа?',
+            scope: 'Что входит в scope? Что явно НЕ входит?',
+            flows: 'Топ-3 user journey? Точки входа и выхода?',
+            data: 'Какие данные создаются/читаются? Источники? Retention?',
+            integrations: 'Какие внешние системы/API? Требования к авторизации?',
+            nfr: 'Performance SLA? Reliability? Security? Localization?',
+            constraints: 'Ограничения платформы? Лицензии? Деплоймент?',
+            risks: 'Технические риски? Бизнес риски? Mitigation?'
+        };
+
+        // Show demo content
+        function showDemo(type) {
+            const output = document.getElementById('demo-output');
+            output.textContent = demoContent[type];
+
+            document.querySelectorAll('.demo-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // Show card details
+        function showCardDetails(num) {
+            const card = cardDetails[num];
+            const details = document.getElementById('card-details');
+            details.innerHTML = `
+                <h3 style="color: var(--accent-cyan);">Card ${String(num).padStart(2, '0')}: ${card.title}</h3>
+                <p style="margin-top: 10px;">
+                    <strong>Story Points:</strong> ${card.sp} SP<br>
+                    <strong>Описание:</strong> ${card.desc}
+                </p>
+            `;
+
+            document.querySelectorAll('.sprint-card').forEach(c => c.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+        }
+
+        // Show gap category questions
+        function showGapCategory(category) {
+            const details = document.getElementById('gap-details');
+            const questions = gapQuestions[category];
+            details.innerHTML = `
+                <h3 style="color: var(--accent-purple);">Примеры вопросов:</h3>
+                <p style="margin-top: 10px; color: var(--text-main);">${questions}</p>
+            `;
+
+            document.querySelectorAll('.gap-category').forEach(c => {
+                c.style.borderLeftColor = 'var(--accent-purple)';
+            });
+            event.currentTarget.style.borderLeftColor = 'var(--accent-green)';
+        }
+
+        // Show phase details
+        function showPhaseDetails(phase) {
+            const details = {
+                1: '📝 Фаза 1 INPUT: Собираем сырые требования. Валидируем: проблема, пользователи, цели, дедлайн, ограничения.',
+                2: '🔍 Фаза 2 CONTEXT: Анализируем проект - README, config, src/, docs/. Находим существующие паттерны.',
+                3: '❓ Фаза 3 GAPS: Заполняем все пробелы. Достигаем 95%+ уверенности по каждому вопросу.',
+                4: '📦 Фаза 4 OUTPUT: Генерируем SDD документы и исполняемые Trello карточки. Готово для AI агента!'
+            };
+            alert(details[phase]);
+        }
+
+        // Copy command
+        function copyCommand() {
+            const command = './generate-sdd.sh --requirements features/my-feature.md';
+            navigator.clipboard.writeText(command).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = '✅ Скопировано!';
+                setTimeout(() => btn.textContent = '📋 Копировать', 2000);
+            });
+        }
+    </script>
+</body>
+</html>

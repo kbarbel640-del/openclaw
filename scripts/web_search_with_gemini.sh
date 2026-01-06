@@ -3,9 +3,23 @@
 # Ensure fnm/node PATH is available for gemini CLI
 export PATH="/home/almaz/.local/share/fnm/node-versions/v22.21.1/installation/bin:$PATH"
 
+# Enable error handling
+set -e  # Exit on error
+set -o pipefail  # Catch errors in pipelines
+
 # Default values
 MODEL="gemini-3-flash-preview"
 OUTPUT_FORMAT="json"
+SCRIPT_TIMEOUT=90  # Script-level timeout as safety net
+
+# Debug logging (only if DEBUG env var is set)
+[ -n "$DEBUG" ] && echo "[DEBUG] Script started with query" >&2
+
+# Pre-flight check: Verify gemini CLI is accessible and configured
+gemini --version >/dev/null 2>&1 || {
+  echo "Error: gemini CLI not found or not configured" >&2
+  exit 10
+}
 
 # Parse arguments
 QUERY=""
@@ -63,5 +77,16 @@ fi
 FULL_PROMPT="$QUERY $TAIL"
 
 # Execute gemini CLI using positional argument (one-shot mode)
-# IMPORTANT: Use "prompt" not -p to avoid interactive mode
-exec gemini "$FULL_PROMPT" -m "$MODEL" --output-format "$OUTPUT_FORMAT"
+# IMPORTANT: Use positional args, not -p to avoid interactive mode
+# Use timeout to prevent hanging
+timeout $SCRIPT_TIMEOUT gemini "$FULL_PROMPT" -m "$MODEL" --output-format "$OUTPUT_FORMAT" 2>&1
+EXIT_CODE=$?
+
+# Handle timeout and errors
+if [ $EXIT_CODE -eq 124 ]; then
+  echo "Error: Search timed out after ${SCRIPT_TIMEOUT} seconds" >&2
+  exit 124
+elif [ $EXIT_CODE -ne 0 ]; then
+  echo "Error: gemini CLI failed with exit code $EXIT_CODE" >&2
+  exit $EXIT_CODE
+fi

@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feature Flow v2 | SDD Pipeline</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f0f14;
+            --bg-secondary: #16161d;
+            --bg-card: rgba(255, 255, 255, 0.02);
+            --bg-glass: rgba(255, 255, 255, 0.04);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-muted: rgba(255, 255, 255, 0.4);
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-violet: #8b5cf6;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --gradient-main: linear-gradient(135deg, #06b6d4 0%, #8b5cf6 50%, #f43f5e 100%);
+            --gradient-card: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Animated background grid */
+        .bg-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-glow {
+            position: fixed;
+            width: 800px;
+            height: 800px;
+            border-radius: 50%;
+            filter: blur(150px);
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-glow-1 {
+            top: -400px;
+            left: -200px;
+            background: var(--accent-cyan);
+        }
+
+        .bg-glow-2 {
+            bottom: -400px;
+            right: -200px;
+            background: var(--accent-violet);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        header {
+            padding: 5rem 0 4rem;
+            text-align: center;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--gradient-main);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .logo-text {
+            font-size: 0.875rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        h1 {
+            font-size: clamp(3rem, 7vw, 5rem);
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+        }
+
+        h1 span {
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 650px;
+            margin: 0 auto 2rem;
+        }
+
+        .header-stats {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        /* Flow Visualization - Horizontal Cards */
+        .flow-section {
+            padding: 4rem 0;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .section-tag {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--accent-cyan);
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        /* Horizontal Flow */
+        .flow-horizontal {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding: 2rem 0;
+            scroll-snap-type: x mandatory;
+        }
+
+        .flow-card {
+            flex: 0 0 320px;
+            scroll-snap-align: start;
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .flow-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--card-accent);
+        }
+
+        .flow-card:hover {
+            transform: translateY(-8px);
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .flow-card:nth-child(1) { --card-accent: var(--accent-cyan); }
+        .flow-card:nth-child(2) { --card-accent: var(--accent-emerald); }
+        .flow-card:nth-child(3) { --card-accent: var(--accent-amber); }
+        .flow-card:nth-child(4) { --card-accent: var(--accent-violet); }
+
+        .flow-number {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            font-size: 3rem;
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.05);
+            line-height: 1;
+        }
+
+        .flow-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--card-accent), transparent);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .flow-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .flow-desc {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+
+        .flow-features {
+            list-style: none;
+        }
+
+        .flow-features li {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .flow-features li::before {
+            content: '';
+            width: 4px;
+            height: 4px;
+            background: var(--card-accent);
+            border-radius: 50%;
+        }
+
+        /* Arrow connectors */
+        .flow-arrow {
+            flex: 0 0 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+        }
+
+        /* Gap Interview Section */
+        .gaps-section {
+            padding: 5rem 0;
+        }
+
+        .gaps-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        .gap-item {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+
+        .gap-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            transform: scale(1.02);
+        }
+
+        .gap-icon {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .gap-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .gap-count {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Complexity Calculator */
+        .calc-section {
+            padding: 5rem 0;
+        }
+
+        .calc-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .calc-factors {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 2rem;
+        }
+
+        .calc-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+        }
+
+        .factor {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .factor:last-child {
+            border-bottom: none;
+        }
+
+        .factor-name {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .factor-range {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .factor-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border-glass);
+            transition: all 0.2s ease;
+        }
+
+        .factor-dot.active {
+            background: var(--accent-cyan);
+            box-shadow: 0 0 10px var(--accent-cyan);
+        }
+
+        .calc-result {
+            background: var(--gradient-card);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .result-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 1rem;
+        }
+
+        .result-value {
+            font-size: 5rem;
+            font-weight: 800;
+            background: var(--gradient-main);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+        }
+
+        .result-unit {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .result-cards {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-glass);
+            width: 100%;
+        }
+
+        .cards-preview {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .card-mini {
+            width: 32px;
+            height: 40px;
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        /* Sprint Visualization */
+        .sprint-section {
+            padding: 5rem 0;
+        }
+
+        .sprint-board {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .sprint-card {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            padding: 1rem;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .sprint-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .sprint-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+
+        .sprint-card-id {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            background: rgba(6, 182, 212, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .sprint-card-sp {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+
+        .sprint-card-title {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* Terminal Command */
+        .command-section {
+            padding: 5rem 0;
+        }
+
+        .terminal {
+            background: #0d0d0d;
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            overflow: hidden;
+            max-width: 900px;
+            margin: 0 auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .terminal-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-btn.close { background: #ff5f57; }
+        .terminal-btn.minimize { background: #febc2e; }
+        .terminal-btn.maximize { background: #28c840; }
+
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .terminal-body {
+            padding: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+        }
+
+        .terminal-line {
+            margin-bottom: 0.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .terminal-prompt {
+            color: var(--accent-emerald);
+        }
+
+        .terminal-cmd {
+            color: var(--text-primary);
+        }
+
+        .terminal-flag {
+            color: var(--accent-violet);
+        }
+
+        .terminal-value {
+            color: var(--accent-amber);
+        }
+
+        .terminal-output {
+            color: var(--text-muted);
+            padding-left: 1rem;
+            border-left: 2px solid var(--border-glass);
+            margin: 0.5rem 0;
+        }
+
+        /* Output Tree */
+        .output-section {
+            padding: 5rem 0;
+        }
+
+        .tree-container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            padding: 2rem;
+        }
+
+        .tree-root {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .tree-folder {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            font-weight: 500;
+            color: var(--accent-cyan);
+        }
+
+        .tree-file {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.35rem 0;
+            padding-left: 1.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .tree-file.nested {
+            padding-left: 3rem;
+        }
+
+        .tree-icon {
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Principles Section */
+        .principles-section {
+            padding: 5rem 0;
+        }
+
+        .principles-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .principle-item {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .principle-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateY(-4px);
+        }
+
+        .principle-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .principle-emoji {
+            font-size: 1.25rem;
+        }
+
+        .principle-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .principle-text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Footer */
+        footer {
+            padding: 3rem 0;
+            text-align: center;
+            border-top: 1px solid var(--border-glass);
+            margin-top: 3rem;
+        }
+
+        .footer-text {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .calc-container {
+                grid-template-columns: 1fr;
+            }
+
+            .gaps-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .principles-list {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 0 1rem;
+            }
+
+            .flow-horizontal {
+                flex-direction: column;
+            }
+
+            .flow-card {
+                flex: 0 0 auto;
+            }
+
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+
+            .header-stats {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .gaps-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">⚡</div>
+                <span class="logo-text">Feature Flow v2</span>
+            </div>
+            <h1>Spec-Driven<br><span>Development</span></h1>
+            <p class="subtitle">Трансформируем требования в структурированные спецификации и Trello карточки для AI агентов</p>
+
+            <div class="header-stats">
+                <div class="stat">
+                    <div class="stat-value">4</div>
+                    <div class="stat-label">Фазы</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">95%</div>
+                    <div class="stat-label">Точность</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">50</div>
+                    <div class="stat-label">Макс. карточек</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Flow Section -->
+        <section class="flow-section">
+            <div class="section-header">
+                <span class="section-tag">Pipeline</span>
+                <h2 class="section-title">Поток разработки</h2>
+            </div>
+
+            <div class="flow-horizontal">
+                <div class="flow-card">
+                    <span class="flow-number">01</span>
+                    <div class="flow-icon">📥</div>
+                    <h3 class="flow-title">INPUT</h3>
+                    <p class="flow-desc">Сбор и структурирование первоначальных требований</p>
+                    <ul class="flow-features">
+                        <li>Пользовательская история</li>
+                        <li>Acceptance Criteria</li>
+                        <li>Технические ограничения</li>
+                        <li>Приоритет и дедлайн</li>
+                    </ul>
+                </div>
+
+                <div class="flow-arrow">→</div>
+
+                <div class="flow-card">
+                    <span class="flow-number">02</span>
+                    <div class="flow-icon">🔍</div>
+                    <h3 class="flow-title">CONTEXT</h3>
+                    <p class="flow-desc">Анализ существующей архитектуры и зависимостей</p>
+                    <ul class="flow-features">
+                        <li>Codebase анализ</li>
+                        <li>Existing patterns</li>
+                        <li>API интеграции</li>
+                        <li>Tech stack</li>
+                    </ul>
+                </div>
+
+                <div class="flow-arrow">→</div>
+
+                <div class="flow-card">
+                    <span class="flow-number">03</span>
+                    <div class="flow-icon">❓</div>
+                    <h3 class="flow-title">GAPS</h3>
+                    <p class="flow-desc">Интервью для закрытия пробелов в требованиях</p>
+                    <ul class="flow-features">
+                        <li>Gap Interview Protocol</li>
+                        <li>8 категорий вопросов</li>
+                        <li>95%+ уверенность</li>
+                        <li>Все gaps закрыты</li>
+                    </ul>
+                </div>
+
+                <div class="flow-arrow">→</div>
+
+                <div class="flow-card">
+                    <span class="flow-number">04</span>
+                    <div class="flow-icon">📤</div>
+                    <h3 class="flow-title">OUTPUT</h3>
+                    <p class="flow-desc">Генерация документации и Trello карточек</p>
+                    <ul class="flow-features">
+                        <li>SDD документация</li>
+                        <li>Trello карточки</li>
+                        <li>KICKOFF для агентов</li>
+                        <li>State tracking</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Gaps Interview -->
+        <section class="gaps-section">
+            <div class="section-header">
+                <span class="section-tag">Gap Interview</span>
+                <h2 class="section-title">8 Категорий вопросов</h2>
+            </div>
+
+            <div class="gaps-grid">
+                <div class="gap-item">
+                    <div class="gap-icon">🔐</div>
+                    <h3 class="gap-title">Security</h3>
+                    <div class="gap-count">Auth, Encryption, RBAC</div>
+                </div>
+                <div class="gap-item">
+                    <div class="gap-icon">⚠️</div>
+                    <h3 class="gap-title">Errors</h3>
+                    <div class="gap-count">Edge cases, Fallbacks</div>
+                </div>
+                <div class="gap-item">
+                    <div class="gap-icon">⚡</div>
+                    <h3 class="gap-title">Performance</h3>
+                    <div class="gap-count">Limits, Timeouts</div>
+                </div>
+                <div class="gap-item">
+                    <div class="gap-icon">🔗</div>
+                    <h3 class="gap-title">Integration</h3>
+                    <div class="gap-count">APIs, Dependencies</div>
+                </div>
+                <div class="gap-item">
+                    <div class="gap-icon">💾</div>
+                    <h3 class="gap-title">Data</h3>
+                    <div class="gap-count">Storage, Migration</div>
+                </div>
+                <div class="gap-item">
+                    <div class="gap-icon">🎨</div>
+                    <h3 class="gap-title">UI/UX</h3>
+                    <div class="gap-count">Layout, States</div>
+                </div>
+                <div class="gap-item">
+                    <div class="gap-icon">🧪</div>
+                    <h3 class="gap-title">Testing</h3>
+                    <div class="gap-count">Coverage, Types</div>
+                </div>
+                <div class="gap-item">
+                    <div class="gap-icon">🚀</div>
+                    <h3 class="gap-title">Deploy</h3>
+                    <div class="gap-count">Env, Rollback</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Complexity Calculator -->
+        <section class="calc-section">
+            <div class="section-header">
+                <span class="section-tag">Calculator</span>
+                <h2 class="section-title">Расчёт сложности</h2>
+            </div>
+
+            <div class="calc-container">
+                <div class="calc-factors">
+                    <h3 class="calc-title">Факторы оценки</h3>
+
+                    <div class="factor">
+                        <span class="factor-name">Кол-во файлов</span>
+                        <div class="factor-range">
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot"></span>
+                            <span class="factor-dot"></span>
+                        </div>
+                    </div>
+
+                    <div class="factor">
+                        <span class="factor-name">Новый UI</span>
+                        <div class="factor-range">
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot"></span>
+                            <span class="factor-dot"></span>
+                            <span class="factor-dot"></span>
+                        </div>
+                    </div>
+
+                    <div class="factor">
+                        <span class="factor-name">API интеграция</span>
+                        <div class="factor-range">
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot"></span>
+                        </div>
+                    </div>
+
+                    <div class="factor">
+                        <span class="factor-name">Миграция данных</span>
+                        <div class="factor-range">
+                            <span class="factor-dot"></span>
+                            <span class="factor-dot"></span>
+                            <span class="factor-dot"></span>
+                            <span class="factor-dot"></span>
+                            <span class="factor-dot"></span>
+                        </div>
+                    </div>
+
+                    <div class="factor">
+                        <span class="factor-name">Тестирование</span>
+                        <div class="factor-range">
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot active"></span>
+                            <span class="factor-dot"></span>
+                            <span class="factor-dot"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="calc-result">
+                    <span class="result-label">Оценка сложности</span>
+                    <span class="result-value">12</span>
+                    <span class="result-unit">карточек</span>
+
+                    <div class="result-cards">
+                        <div class="cards-preview">
+                            <div class="card-mini">01</div>
+                            <div class="card-mini">02</div>
+                            <div class="card-mini">03</div>
+                            <div class="card-mini">04</div>
+                            <div class="card-mini">05</div>
+                            <div class="card-mini">06</div>
+                            <div class="card-mini">07</div>
+                            <div class="card-mini">08</div>
+                            <div class="card-mini">09</div>
+                            <div class="card-mini">10</div>
+                            <div class="card-mini">11</div>
+                            <div class="card-mini">12</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sprint Cards Preview -->
+        <section class="sprint-section">
+            <div class="section-header">
+                <span class="section-tag">Sprint Board</span>
+                <h2 class="section-title">Пример карточек</h2>
+            </div>
+
+            <div class="sprint-board">
+                <div class="sprint-card">
+                    <div class="sprint-card-header">
+                        <span class="sprint-card-id">CARD-01</span>
+                        <span class="sprint-card-sp">2 SP</span>
+                    </div>
+                    <div class="sprint-card-title">Создать схему БД</div>
+                </div>
+                <div class="sprint-card">
+                    <div class="sprint-card-header">
+                        <span class="sprint-card-id">CARD-02</span>
+                        <span class="sprint-card-sp">3 SP</span>
+                    </div>
+                    <div class="sprint-card-title">API эндпоинты</div>
+                </div>
+                <div class="sprint-card">
+                    <div class="sprint-card-header">
+                        <span class="sprint-card-id">CARD-03</span>
+                        <span class="sprint-card-sp">2 SP</span>
+                    </div>
+                    <div class="sprint-card-title">Валидация данных</div>
+                </div>
+                <div class="sprint-card">
+                    <div class="sprint-card-header">
+                        <span class="sprint-card-id">CARD-04</span>
+                        <span class="sprint-card-sp">4 SP</span>
+                    </div>
+                    <div class="sprint-card-title">UI компоненты</div>
+                </div>
+                <div class="sprint-card">
+                    <div class="sprint-card-header">
+                        <span class="sprint-card-id">CARD-05</span>
+                        <span class="sprint-card-sp">3 SP</span>
+                    </div>
+                    <div class="sprint-card-title">Интеграция API</div>
+                </div>
+                <div class="sprint-card">
+                    <div class="sprint-card-header">
+                        <span class="sprint-card-id">CARD-06</span>
+                        <span class="sprint-card-sp">2 SP</span>
+                    </div>
+                    <div class="sprint-card-title">Unit тесты</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Terminal Command -->
+        <section class="command-section">
+            <div class="section-header">
+                <span class="section-tag">CLI</span>
+                <h2 class="section-title">Запуск генератора</h2>
+            </div>
+
+            <div class="terminal">
+                <div class="terminal-header">
+                    <span class="terminal-btn close"></span>
+                    <span class="terminal-btn minimize"></span>
+                    <span class="terminal-btn maximize"></span>
+                    <span class="terminal-title">~/zoo_flow/clawdis</span>
+                </div>
+                <div class="terminal-body">
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">$</span>
+                        <span class="terminal-cmd">./generate-sdd.sh</span>
+                        <span class="terminal-flag">--requirements</span>
+                        <span class="terminal-value">requirements/new-feature.md</span>
+                    </div>
+                    <div class="terminal-output">
+                        ✓ Requirements loaded<br>
+                        ✓ Context analyzed<br>
+                        ✓ Gaps identified (3 questions)<br>
+                        ✓ SDD generated: docs/sdd/feature-auth/
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">$</span>
+                        <span class="terminal-cmd">./generate-sdd.sh</span>
+                        <span class="terminal-flag">--dry-run</span>
+                    </div>
+                    <div class="terminal-line">
+                        <span class="terminal-prompt">$</span>
+                        <span class="terminal-cmd">./generate-sdd.sh</span>
+                        <span class="terminal-flag">--validate</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Output Structure -->
+        <section class="output-section">
+            <div class="section-header">
+                <span class="section-tag">Output</span>
+                <h2 class="section-title">Структура выхода</h2>
+            </div>
+
+            <div class="tree-container">
+                <div class="tree-root">
+                    <div class="tree-folder">
+                        <span class="tree-icon">📁</span>
+                        docs/sdd/{feature-name}/
+                    </div>
+                    <div class="tree-file">
+                        <span class="tree-icon">📄</span>
+                        README.md
+                    </div>
+                    <div class="tree-file">
+                        <span class="tree-icon">📋</span>
+                        requirements.md
+                    </div>
+                    <div class="tree-file">
+                        <span class="tree-icon">🔍</span>
+                        context.md
+                    </div>
+                    <div class="tree-file">
+                        <span class="tree-icon">❓</span>
+                        gaps.md
+                    </div>
+                    <div class="tree-file">
+                        <span class="tree-icon">🎨</span>
+                        ui-flow.md
+                    </div>
+                    <div class="tree-folder">
+                        <span class="tree-icon">📁</span>
+                        trello-cards/
+                    </div>
+                    <div class="tree-file nested">
+                        <span class="tree-icon">🚀</span>
+                        KICKOFF.md
+                    </div>
+                    <div class="tree-file nested">
+                        <span class="tree-icon">📊</span>
+                        BOARD.md
+                    </div>
+                    <div class="tree-file nested">
+                        <span class="tree-icon">⚙️</span>
+                        state.json
+                    </div>
+                    <div class="tree-file nested">
+                        <span class="tree-icon">📝</span>
+                        card-01.md ... card-NN.md
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Principles -->
+        <section class="principles-section">
+            <div class="section-header">
+                <span class="section-tag">Principles</span>
+                <h2 class="section-title">Ключевые принципы</h2>
+            </div>
+
+            <div class="principles-list">
+                <div class="principle-item">
+                    <div class="principle-header">
+                        <span class="principle-emoji">🎯</span>
+                        <span class="principle-name">95% Confidence</span>
+                    </div>
+                    <p class="principle-text">Все gaps закрыты с уверенностью 95%+. Никаких допущений.</p>
+                </div>
+
+                <div class="principle-item">
+                    <div class="principle-header">
+                        <span class="principle-emoji">📏</span>
+                        <span class="principle-name">Max 4 SP</span>
+                    </div>
+                    <p class="principle-text">Каждая карточка ≤ 4 Story Points. Крупные задачи разбиваются.</p>
+                </div>
+
+                <div class="principle-item">
+                    <div class="principle-header">
+                        <span class="principle-emoji">🔗</span>
+                        <span class="principle-name">Linear Execution</span>
+                    </div>
+                    <p class="principle-text">Карточки выполняются строго по порядку: 01 → 02 → ... → N</p>
+                </div>
+
+                <div class="principle-item">
+                    <div class="principle-header">
+                        <span class="principle-emoji">📝</span>
+                        <span class="principle-name">State Tracking</span>
+                    </div>
+                    <p class="principle-text">state.json обновляется после каждой карточки.</p>
+                </div>
+
+                <div class="principle-item">
+                    <div class="principle-header">
+                        <span class="principle-emoji">🤖</span>
+                        <span class="principle-name">Agent Friendly</span>
+                    </div>
+                    <p class="principle-text">KICKOFF.md — единая точка входа для AI агентов.</p>
+                </div>
+
+                <div class="principle-item">
+                    <div class="principle-header">
+                        <span class="principle-emoji">✅</span>
+                        <span class="principle-name">Verification</span>
+                    </div>
+                    <p class="principle-text">Каждая карточка имеет Acceptance Criteria.</p>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p class="footer-text">Feature Flow v2.0 | Spec-Driven Development | 2026</p>
+        </footer>
+    </div>
+
+    <script>
+        // Scroll reveal animation
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('section').forEach(section => {
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(40px)';
+            section.style.transition = 'opacity 0.7s ease, transform 0.7s ease';
+            observer.observe(section);
+        });
+
+        // Interactive factor dots
+        document.querySelectorAll('.factor').forEach(factor => {
+            const dots = factor.querySelectorAll('.factor-dot');
+            dots.forEach((dot, index) => {
+                dot.addEventListener('click', () => {
+                    dots.forEach((d, i) => {
+                        d.classList.toggle('active', i <= index);
+                    });
+                    updateResult();
+                });
+            });
+        });
+
+        function updateResult() {
+            const factors = document.querySelectorAll('.factor');
+            let total = 0;
+            factors.forEach(factor => {
+                const active = factor.querySelectorAll('.factor-dot.active').length;
+                total += active * 2;
+            });
+            total = Math.max(3, Math.min(50, total + 2));
+            document.querySelector('.result-value').textContent = total;
+
+            // Update mini cards
+            const preview = document.querySelector('.cards-preview');
+            preview.innerHTML = '';
+            for (let i = 1; i <= Math.min(total, 15); i++) {
+                const card = document.createElement('div');
+                card.className = 'card-mini';
+                card.textContent = i.toString().padStart(2, '0');
+                preview.appendChild(card);
+            }
+            if (total > 15) {
+                const more = document.createElement('div');
+                more.className = 'card-mini';
+                more.textContent = '...';
+                preview.appendChild(more);
+            }
+        }
+    </script>
+</body>
+</html>
