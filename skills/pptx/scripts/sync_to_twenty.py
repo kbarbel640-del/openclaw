@@ -5,7 +5,7 @@ Sync parsed PPTX community data to Twenty CRM
 Usage:
     pptx_parser.py parse-community file.pptx | sync_to_twenty.py
     sync_to_twenty.py --file community_data.json
-    sync_to_twenty.py --community "Carleton-Willard" --update-only
+    sync_to_twenty.py --dry-run < community_data.json
 """
 
 import argparse
@@ -19,7 +19,7 @@ import requests
 
 
 class TwentyCRM:
-    """Twenty CRM API client"""
+    """Twenty CRM API client for One Point Partners"""
     
     def __init__(self, api_url: str, api_token: str):
         self.api_url = api_url.rstrip("/")
@@ -38,56 +38,87 @@ class TwentyCRM:
         
         return resp.json() if resp.text else {}
     
-    def search_companies(self, name: str) -> list:
-        """Search for companies by name"""
-        # Twenty REST API filter syntax
-        resp = self._request("GET", f"companies?filter[name][like]=%{name}%")
-        return resp.get("data", {}).get("companies", [])
+    # === Engagements ===
     
-    def get_company(self, company_id: str) -> dict:
-        """Get company by ID"""
-        resp = self._request("GET", f"companies/{company_id}")
-        return resp.get("data", {}).get("company", {})
+    def search_engagements(self, name: str) -> list:
+        """Search for engagements by name"""
+        resp = self._request("GET", "engagements")
+        engagements = resp.get("data", {}).get("engagements", [])
+        # Filter by name (case-insensitive partial match)
+        name_lower = name.lower()
+        return [e for e in engagements if name_lower in e.get("name", "").lower()]
     
-    def create_company(self, data: dict) -> dict:
-        """Create a new company"""
-        resp = self._request("POST", "companies", data)
-        return resp.get("data", {}).get("createCompany", {})
+    def update_engagement(self, engagement_id: str, data: dict) -> dict:
+        """Update existing engagement"""
+        resp = self._request("PATCH", f"engagements/{engagement_id}", data)
+        return resp.get("data", {}).get("updateEngagement", {})
     
-    def update_company(self, company_id: str, data: dict) -> dict:
-        """Update existing company"""
-        resp = self._request("PATCH", f"companies/{company_id}", data)
-        return resp.get("data", {}).get("updateCompany", {})
+    # === Communities ===
     
-    def search_people(self, name: str = None, email: str = None) -> list:
-        """Search for people"""
-        filters = []
-        if name:
-            filters.append(f"filter[name][like]=%{name}%")
+    def search_communities(self, name: str) -> list:
+        """Search for communities by name"""
+        resp = self._request("GET", "communities")
+        communities = resp.get("data", {}).get("communities", [])
+        name_lower = name.lower()
+        return [c for c in communities if name_lower in c.get("name", "").lower()]
+    
+    # === Workspace Members ===
+    
+    def get_workspace_members(self) -> list:
+        """Get all workspace members"""
+        resp = self._request("GET", "workspaceMembers")
+        return resp.get("data", {}).get("workspaceMembers", [])
+    
+    def find_member_by_name(self, first_name: str) -> Optional[str]:
+        """Find workspace member ID by first name"""
+        members = self.get_workspace_members()
+        for m in members:
+            if m.get("name", {}).get("firstName", "").lower() == first_name.lower():
+                return m.get("id")
+        return None
+    
+    # === People ===
+    
+    def search_people(self, email: str = None) -> list:
+        """Search for people by email"""
+        resp = self._request("GET", "people")
+        people = resp.get("data", {}).get("people", [])
         if email:
-            filters.append(f"filter[email][eq]={email}")
-        
-        query = "&".join(filters) if filters else ""
-        resp = self._request("GET", f"people?{query}")
-        return resp.get("data", {}).get("people", [])
+            return [p for p in people if p.get("emails", {}).get("primaryEmail") == email]
+        return people
     
-    def create_person(self, data: dict) -> dict:
+    def create_person(self, first_name: str, last_name: str, email: str, job_title: str = "") -> dict:
         """Create a new person/contact"""
+        data = {
+            "name": {"firstName": first_name, "lastName": last_name},
+            "emails": {"primaryEmail": email},
+            "jobTitle": job_title
+        }
         resp = self._request("POST", "people", data)
         return resp.get("data", {}).get("createPerson", {})
     
-    def create_note(self, body: str, target_id: str = None, target_type: str = None) -> dict:
-        """Create a note, optionally linked to a target"""
-        data = {"body": body}
-        if target_id and target_type:
-            # Twenty uses activityTargets to link notes
-            data["activityTargets"] = [{
-                "targetObjectNameSingular": target_type,
-                "targetObjectRecordId": target_id
-            }]
-        
+    # === Notes ===
+    
+    def create_note(self, title: str, markdown: str) -> dict:
+        """Create a note with markdown content"""
+        data = {
+            "title": title,
+            "bodyV2": {
+                "blocknote": "",  # Auto-generated by Twenty
+                "markdown": markdown
+            }
+        }
         resp = self._request("POST", "notes", data)
         return resp.get("data", {}).get("createNote", {})
+    
+    def link_note_to_engagement(self, note_id: str, engagement_id: str) -> dict:
+        """Link a note to an engagement via noteTargets"""
+        data = {
+            "noteId": note_id,
+            "engagementId": engagement_id
+        }
+        resp = self._request("POST", "noteTargets", data)
+        return resp.get("data", {}).get("createNoteTarget", {})
 
 
 def sync_community_to_twenty(community_data: dict, crm: TwentyCRM, dry_run: bool = False) -> dict:
@@ -95,15 +126,15 @@ def sync_community_to_twenty(community_data: dict, crm: TwentyCRM, dry_run: bool
     Sync parsed community data to Twenty CRM
     
     Creates/updates:
-    - Company record for the community
+    - Engagement record (links manager, community)
     - People records for contacts
-    - Notes for market analysis, goals, etc.
+    - Notes for team, goals, market analysis, etc.
     """
     results = {
-        "company": None,
+        "engagement": None,
         "contacts_created": [],
-        "contacts_updated": [],
         "notes_created": [],
+        "notes_linked": [],
         "errors": []
     }
     
@@ -114,32 +145,47 @@ def sync_community_to_twenty(community_data: dict, crm: TwentyCRM, dry_run: bool
         print(json.dumps(community_data, indent=2))
         return results
     
-    # 1. Find or create company
-    print(f"Searching for company: {community_name}")
-    existing = crm.search_companies(community_name)
+    # 1. Find engagement
+    print(f"Searching for engagement: {community_name}")
+    engagements = crm.search_engagements(community_name)
     
-    company_data = {
-        "name": community_name,
-        "address": community_data.get("address", ""),
-        "domainName": "",  # Could extract from email domains
-    }
-    
-    if existing:
-        company_id = existing[0].get("id")
-        print(f"Found existing company: {company_id}")
-        company = crm.update_company(company_id, company_data)
-        results["company"] = {"id": company_id, "action": "updated"}
-    else:
-        print(f"Creating new company: {community_name}")
-        company = crm.create_company(company_data)
-        company_id = company.get("id")
-        results["company"] = {"id": company_id, "action": "created"}
-    
-    if not company_id:
-        results["errors"].append("Failed to create/find company")
+    if not engagements:
+        results["errors"].append(f"No engagement found for: {community_name}")
+        print(f"ERROR: No engagement found. Create one in Twenty first.")
         return results
     
-    # 2. Create/update contacts
+    engagement = engagements[0]
+    engagement_id = engagement.get("id")
+    print(f"Found engagement: {engagement_id}")
+    results["engagement"] = {"id": engagement_id, "name": engagement.get("name")}
+    
+    # 2. Find community record
+    communities = crm.search_communities(community_name)
+    community_id = communities[0].get("id") if communities else None
+    
+    # 3. Find engagement manager from parsed team
+    manager_id = None
+    team = community_data.get("one_point_team", [])
+    for member in team:
+        if "manager" in member.get("role", "").lower():
+            manager_id = crm.find_member_by_name(member.get("name", ""))
+            if manager_id:
+                print(f"Found manager: {member.get('name')} ({manager_id})")
+                break
+    
+    # 4. Update engagement with links
+    update_data = {}
+    if manager_id:
+        update_data["managerId"] = manager_id
+    if community_id:
+        update_data["communityId"] = community_id
+    
+    if update_data:
+        print(f"Updating engagement with: {update_data}")
+        crm.update_engagement(engagement_id, update_data)
+        results["engagement"]["updated"] = update_data
+    
+    # 5. Create contacts
     for contact in community_data.get("contacts", []):
         email = contact.get("email")
         name = contact.get("name", "")
@@ -148,96 +194,111 @@ def sync_community_to_twenty(community_data: dict, crm: TwentyCRM, dry_run: bool
         if not email:
             continue
         
-        # Check if person exists
-        existing_people = crm.search_people(email=email)
+        # Check if exists
+        existing = crm.search_people(email=email)
+        if existing:
+            print(f"Contact exists: {email}")
+            continue
         
-        person_data = {
-            "email": email,
-            "name": name,
-            "jobTitle": title,
-            "companyId": company_id
-        }
+        # Parse name
+        name_parts = name.split(" ", 1)
+        first_name = name_parts[0] if name_parts else "Unknown"
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
         
-        if existing_people:
-            print(f"Contact already exists: {email}")
-            results["contacts_updated"].append({"email": email, "name": name})
-        else:
+        try:
             print(f"Creating contact: {name} ({email})")
-            try:
-                crm.create_person(person_data)
-                results["contacts_created"].append({"email": email, "name": name})
-            except Exception as e:
-                results["errors"].append(f"Failed to create {email}: {str(e)}")
+            person = crm.create_person(first_name, last_name, email, title)
+            results["contacts_created"].append({"name": name, "email": email, "id": person.get("id")})
+        except Exception as e:
+            results["errors"].append(f"Failed to create {email}: {str(e)}")
     
-    # 3. Create notes for various sections
+    # 6. Create notes
     notes_to_create = []
+    short_name = community_name.split()[0] if community_name else "Community"  # e.g., "Carleton" or "CWV"
     
     # One Point Team note
-    team = community_data.get("one_point_team", [])
     if team:
-        team_lines = ["## One Point Team\n"]
+        team_md = "# One Point Team\n\n"
         for member in team:
-            team_lines.append(f"- **{member.get('name', '')}**: {member.get('role', '')}")
-        notes_to_create.append(("One Point Team", "\n".join(team_lines)))
+            team_md += f"- **{member.get('name', '')}**: {member.get('role', '')}\n"
+        team_md += f"\n*Auto-imported from Reference Guide PPTX on {datetime.now().strftime('%Y-%m-%d')}*"
+        notes_to_create.append((f"{short_name}: One Point Team", team_md))
     
     # Goals note
     goals = community_data.get("goals", [])
     if goals:
-        goals_text = "## Client Goals\n\n" + "\n\n".join(goals)
-        notes_to_create.append(("Client Goals", goals_text))
+        goals_md = "# Client Goals\n\n"
+        for goal in goals[:10]:  # Limit
+            goals_md += f"- {goal}\n"
+        goals_md += f"\n*Auto-imported from Reference Guide PPTX*"
+        notes_to_create.append((f"{short_name}: Client Goals", goals_md))
     
     # Market Analysis note
     market = community_data.get("market_analysis", {})
     demand = market.get("demand_summary", [])
     if demand:
-        market_text = "## Market Analysis\n\n" + "\n\n---\n\n".join(demand[:5])  # Limit to first 5
-        notes_to_create.append(("Market Analysis Summary", market_text))
+        market_md = "# Market Analysis\n\n"
+        for item in demand[:5]:
+            market_md += f"- {item[:200]}...\n" if len(item) > 200 else f"- {item}\n"
+        market_md += f"\n*Auto-imported from Reference Guide PPTX*"
+        notes_to_create.append((f"{short_name}: Market Analysis", market_md))
     
     # Development note
     dev = community_data.get("development", {})
-    dev_parts = []
-    if dev.get("vulnerabilities"):
-        dev_parts.append("### Vulnerabilities\n" + "\n".join(dev["vulnerabilities"][:2]))
-    if dev.get("opportunities"):
-        dev_parts.append("### Opportunities\n" + "\n".join(dev["opportunities"][:2]))
-    if dev.get("objectives"):
-        dev_parts.append("### Objectives\n" + "\n".join(dev["objectives"][:2]))
-    if dev_parts:
-        dev_text = "## Development Analysis\n\n" + "\n\n".join(dev_parts)
-        notes_to_create.append(("Development Analysis", dev_text))
+    if dev.get("vulnerabilities") or dev.get("opportunities"):
+        dev_md = "# Development Analysis\n\n"
+        if dev.get("vulnerabilities"):
+            dev_md += "## Vulnerabilities\n"
+            for v in dev["vulnerabilities"][:3]:
+                dev_md += f"- {v[:150]}...\n" if len(v) > 150 else f"- {v}\n"
+        if dev.get("opportunities"):
+            dev_md += "\n## Opportunities\n"
+            for o in dev["opportunities"][:3]:
+                dev_md += f"- {o[:150]}...\n" if len(o) > 150 else f"- {o}\n"
+        dev_md += f"\n*Auto-imported from Reference Guide PPTX*"
+        notes_to_create.append((f"{short_name}: Development Analysis", dev_md))
     
-    # Presentations log note
+    # Presentations Log note
     presentations = community_data.get("presentations", [])
     if presentations:
-        pres_lines = ["## Presentations Log\n"]
+        pres_md = "# Presentations Log\n\n"
         for p in presentations:
-            pres_lines.append(f"- {p.get('date', 'Unknown date')} (Slide {p.get('slide', '?')})")
-        notes_to_create.append(("Presentations Log", "\n".join(pres_lines)))
+            pres_md += f"- **{p.get('date', 'Unknown')}** (Slide {p.get('slide', '?')})\n"
+        pres_md += f"\n*Auto-imported from Reference Guide PPTX*"
+        notes_to_create.append((f"{short_name}: Presentations Log", pres_md))
     
     # Next Steps note
     next_steps = community_data.get("next_steps", [])
     if next_steps:
-        steps_text = "## Next Steps\n\n" + "\n\n".join(next_steps)
-        notes_to_create.append(("Next Steps", steps_text))
+        steps_md = "# Next Steps\n\n"
+        for step in next_steps[:5]:
+            steps_md += f"- {step}\n"
+        steps_md += f"\n*Auto-imported from Reference Guide PPTX*"
+        notes_to_create.append((f"{short_name}: Next Steps", steps_md))
     
-    # Create all notes
-    for note_title, note_body in notes_to_create:
-        full_body = f"# {community_name}: {note_title}\n\n{note_body}\n\n---\n*Auto-imported from PPTX on {datetime.now().strftime('%Y-%m-%d %H:%M')}*"
+    # Create and link notes
+    for title, markdown in notes_to_create:
         try:
-            print(f"Creating note: {note_title}")
-            crm.create_note(full_body, target_id=company_id, target_type="company")
-            results["notes_created"].append(note_title)
+            print(f"Creating note: {title}")
+            note = crm.create_note(title, markdown)
+            note_id = note.get("id")
+            results["notes_created"].append({"title": title, "id": note_id})
+            
+            # Link to engagement
+            if note_id:
+                crm.link_note_to_engagement(note_id, engagement_id)
+                results["notes_linked"].append(note_id)
+                print(f"  → Linked to engagement")
         except Exception as e:
-            results["errors"].append(f"Failed to create note '{note_title}': {str(e)}")
+            results["errors"].append(f"Failed to create note '{title}': {str(e)}")
     
     return results
 
 
 def main():
     parser = argparse.ArgumentParser(description="Sync community data to Twenty CRM")
-    parser.add_argument("--file", help="JSON file with community data")
-    parser.add_argument("--dry-run", action="store_true", help="Don't actually create records")
-    parser.add_argument("--community", help="Filter to specific community name")
+    parser.add_argument("--file", "-f", help="JSON file with community data (or use stdin)")
+    parser.add_argument("--dry-run", "-n", action="store_true", help="Don't actually create records")
     
     args = parser.parse_args()
     
@@ -247,6 +308,7 @@ def main():
     
     if not api_url or not api_token:
         print("Error: TWENTY_API_URL and TWENTY_API_TOKEN required", file=sys.stderr)
+        print("Set these environment variables or configure in clawdis.json", file=sys.stderr)
         sys.exit(1)
     
     # Load data from file or stdin
@@ -255,11 +317,6 @@ def main():
             data = json.load(f)
     else:
         data = json.load(sys.stdin)
-    
-    # Filter if requested
-    if args.community and data.get("name") != args.community:
-        print(f"Skipping: {data.get('name')} (filter: {args.community})")
-        return
     
     # Initialize CRM client
     crm = TwentyCRM(api_url, api_token)
@@ -272,6 +329,10 @@ def main():
     print("SYNC RESULTS")
     print("=" * 50)
     print(json.dumps(results, indent=2))
+    
+    # Exit with error if there were problems
+    if results["errors"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
