@@ -1045,6 +1045,57 @@ describe("web auto-reply", () => {
     resetLoadConfigMock();
   });
 
+  it("blocks group messages when whatsapp groups is set without a wildcard", async () => {
+    const sendMedia = vi.fn();
+    const reply = vi.fn().mockResolvedValue(undefined);
+    const sendComposing = vi.fn();
+    const resolver = vi.fn().mockResolvedValue({ text: "ok" });
+
+    setLoadConfigMock(() => ({
+      whatsapp: {
+        allowFrom: ["*"],
+        groups: { "[redacted-email]": { requireMention: false } },
+      },
+      routing: { groupChat: { mentionPatterns: ["@clawd"] } },
+    }));
+
+    let capturedOnMessage:
+      | ((msg: import("./inbound.js").WebInboundMessage) => Promise<void>)
+      | undefined;
+    const listenerFactory = async (opts: {
+      onMessage: (
+        msg: import("./inbound.js").WebInboundMessage,
+      ) => Promise<void>;
+    }) => {
+      capturedOnMessage = opts.onMessage;
+      return { close: vi.fn() };
+    };
+
+    await monitorWebProvider(false, listenerFactory, false, resolver);
+    expect(capturedOnMessage).toBeDefined();
+
+    await capturedOnMessage?.({
+      body: "@clawd hello",
+      from: "[redacted-email]",
+      conversationId: "[redacted-email]",
+      chatId: "[redacted-email]",
+      chatType: "group",
+      to: "+2",
+      id: "g-allowlist-block",
+      senderE164: "+111",
+      senderName: "Alice",
+      mentionedJids: ["[redacted-email]"],
+      selfE164: "+999",
+      selfJid: "[redacted-email]",
+      sendComposing,
+      reply,
+      sendMedia,
+    });
+
+    expect(resolver).not.toHaveBeenCalled();
+    resetLoadConfigMock();
+  });
+
   it("honors per-group mention overrides when conversationId uses session key", async () => {
     const sendMedia = vi.fn();
     const reply = vi.fn().mockResolvedValue(undefined);
