@@ -188,6 +188,7 @@ Ack reactions are controlled globally via `messages.ackReaction` +
 - DMs share the `main` session (like WhatsApp/Telegram).
 - Channels map to `slack:channel:<channelId>` sessions.
 - Slash commands use `slack:slash:<userId>` sessions.
+- Native command registration is controlled by `commands.native`; text commands require standalone `/...` messages and can be disabled with `commands.text: false`. Use `commands.useAccessGroups: false` to bypass access-group checks for commands.
 
 ## Group policy
 - `slack.groupPolicy` controls channel handling (`open|disabled|allowlist`).

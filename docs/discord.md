@@ -25,11 +25,12 @@ Status: ready for DM and guild text channels via the official Discord bot gatewa
 6. Guild channels: use `channel:<channelId>` for delivery. Mentions are required by default and can be set per guild or per channel.
 7. Optional DM control: set `discord.dm.enabled = false` to ignore all DMs, or `discord.dm.allowFrom` to allow specific users (ids or names). Use `discord.dm.groupEnabled` + `discord.dm.groupChannels` to allow group DMs.
 8. Optional guild rules: set `discord.guilds` keyed by guild id (preferred) or slug, with per-channel rules.
-9. Optional slash commands: enable `discord.slashCommand` to accept user-installed app commands (ephemeral replies). Slash invocations respect the same DM/guild allowlists.
-10. Optional guild context history: set `discord.historyLimit` (default 20) to include the last N guild messages as context when replying to a mention. Set `0` to disable.
-11. Reactions: the agent can trigger reactions via the `discord` tool (gated by `discord.actions.*`).
+9. Optional native commands: set `commands.native: true` to register native commands in Discord. Text commands are controlled by `commands.text` and must be sent as standalone `/...` messages. Use `commands.useAccessGroups: false` to bypass access-group checks for commands.
+10. Optional native commands: set `commands.native: true` to register native commands in Discord.
+11. Optional guild context history: set `discord.historyLimit` (default 20) to include the last N guild messages as context when replying to a mention. Set `0` to disable.
+12. Reactions: the agent can trigger reactions via the `discord` tool (gated by `discord.actions.*`).
     - The `discord` tool is only exposed when the current surface is Discord.
-12. Slash commands use isolated session keys (`${sessionPrefix}:${userId}`) rather than the shared `main` session.
+13. Native commands use isolated session keys (`discord:slash:${userId}`) rather than the shared `main` session.
 
 Note: Discord does not provide a simple username → id lookup without extra guild context, so prefer ids or `<@id>` mentions for DM delivery targets.
 Note: Slugs are lowercase with spaces replaced by `-`. Channel names are slugged without the leading `#`.
@@ -59,7 +60,7 @@ In your app: **OAuth2** → **URL Generator**
 
 **Scopes**
 - ✅ `bot`
-- ✅ `applications.commands` (only if you want slash commands; otherwise leave unchecked)
+- ✅ `applications.commands` (required for native commands)
 
 **Bot Permissions** (minimal baseline)
 - ✅ View Channels
@@ -175,12 +176,6 @@ Notes:
       moderation: false
     },
     replyToMode: "off",
-    slashCommand: {
-      enabled: true,
-      name: "clawd",
-      sessionPrefix: "discord:slash",
-      ephemeral: true
-    },
     dm: {
       enabled: true,
       allowFrom: ["123456789012345678", "steipete"],
@@ -219,7 +214,6 @@ Ack reactions are controlled globally via `messages.ackReaction` +
 - `guilds.<id>.channels`: channel rules (keys are channel slugs or ids).
 - `guilds.<id>.requireMention`: per-guild mention requirement (overridable per channel).
 - `guilds.<id>.reactionNotifications`: reaction system event mode (`off`, `own`, `all`, `allowlist`).
-- `slashCommand`: optional config for user-installed slash commands (ephemeral responses).
 - `mediaMaxMb`: clamp inbound media saved to disk.
 - `historyLimit`: number of recent guild messages to include as context when replying to a mention (default 20, `0` disables).
 - `actions`: per-action tool gates; omit to allow all (set `false` to disable).
@@ -273,11 +267,9 @@ Allowlist matching notes:
 - Use `*` to allow any sender/channel.
 - When `guilds.<id>.channels` is present, channels not listed are denied by default.
 
-Slash command notes:
-- Register a chat input command in Discord with at least one string option (e.g., `prompt`).
-- The first non-empty string option is treated as the prompt.
-- Slash commands honor the same allowlists as DMs/guild messages (`discord.dm.allowFrom`, `discord.guilds`, per-channel rules).
-- Clawdbot will auto-register `/clawd` (or the configured name) if it doesn't already exist.
+Native command notes:
+- The registered commands mirror Clawdbot’s chat commands.
+- Native commands honor the same allowlists as DMs/guild messages (`discord.dm.allowFrom`, `discord.guilds`, per-channel rules).
 
 ## Tool actions
 The agent can call `discord` with actions like:

@@ -27,6 +27,7 @@ import { normalizeE164 } from "../../utils.js";
 import { resolveHeartbeatSeconds } from "../../web/reconnect.js";
 import { getWebAuthAgeMs, webAuthExists } from "../../web/session.js";
 import { resolveCommandAuthorization } from "../command-auth.js";
+import { shouldHandleTextCommands } from "../commands-registry.js";
 import {
   normalizeGroupActivation,
   parseActivationCommand,
@@ -207,8 +208,13 @@ export async function handleCommands(params: {
   const sendPolicyCommand = parseSendPolicyCommand(
     command.commandBodyNormalized,
   );
+  const allowTextCommands = shouldHandleTextCommands({
+    cfg,
+    surface: command.surface,
+    commandSource: ctx.CommandSource,
+  });
 
-  if (activationCommand.hasCommand) {
+  if (allowTextCommands && activationCommand.hasCommand) {
     if (!isGroup) {
       return {
         shouldContinue: false,
@@ -255,7 +261,7 @@ export async function handleCommands(params: {
     };
   }
 
-  if (sendPolicyCommand.hasCommand) {
+  if (allowTextCommands && sendPolicyCommand.hasCommand) {
     if (!command.isAuthorizedSender) {
       logVerbose(
         `Ignoring /send from unauthorized sender: ${command.senderE164 || "<unknown>"}`,
@@ -292,10 +298,7 @@ export async function handleCommands(params: {
     };
   }
 
-  if (
-    command.commandBodyNormalized === "/restart" ||
-    command.commandBodyNormalized.startsWith("/restart ")
-  ) {
+  if (allowTextCommands && command.commandBodyNormalized === "/restart") {
     if (!command.isAuthorizedSender) {
       logVerbose(
         `Ignoring /restart from unauthorized sender: ${command.senderE164 || "<unknown>"}`,
@@ -311,10 +314,8 @@ export async function handleCommands(params: {
     };
   }
 
-  const helpRequested =
-    command.commandBodyNormalized === "/help" ||
-    /(?:^|\s)\/help(?=$|\s|:)\b/i.test(command.commandBodyNormalized);
-  if (helpRequested) {
+  const helpRequested = command.commandBodyNormalized === "/help";
+  if (allowTextCommands && helpRequested) {
     if (!command.isAuthorizedSender) {
       logVerbose(
         `Ignoring /help from unauthorized sender: ${command.senderE164 || "<unknown>"}`,
@@ -326,9 +327,8 @@ export async function handleCommands(params: {
 
   const statusRequested =
     directives.hasStatusDirective ||
-    command.commandBodyNormalized === "/status" ||
-    command.commandBodyNormalized.startsWith("/status ");
-  if (statusRequested) {
+    command.commandBodyNormalized === "/status";
+  if (allowTextCommands && statusRequested) {
     if (!command.isAuthorizedSender) {
       logVerbose(
         `Ignoring /status from unauthorized sender: ${command.senderE164 || "<unknown>"}`,
@@ -451,7 +451,7 @@ export async function handleCommands(params: {
   }
 
   const abortRequested = isAbortTrigger(command.rawBodyNormalized);
-  if (abortRequested) {
+  if (allowTextCommands && abortRequested) {
     if (sessionEntry && sessionStore && sessionKey) {
       sessionEntry.abortedLastRun = true;
       sessionEntry.updatedAt = Date.now();

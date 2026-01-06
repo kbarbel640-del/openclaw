@@ -27,6 +27,7 @@ export type MsgContext = {
   Surface?: string;
   WasMentioned?: boolean;
   CommandAuthorized?: boolean;
+  CommandSource?: "text" | "native";
 };
 
 export type TemplateContext = MsgContext & {

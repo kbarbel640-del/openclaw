@@ -112,7 +112,7 @@ Policy-based blocking by surface/chat type (not per session id).
 
 Runtime override (per session entry):
 - `sendPolicy: "allow" | "deny"` (unset = inherit config)
-- Settable via `sessions.patch` or owner-only `/send on|off|inherit`.
+- Settable via `sessions.patch` or owner-only `/send on|off|inherit` (standalone message).
 
 Enforcement points:
 - `chat.send` / `agent` (gateway)
