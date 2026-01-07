@@ -44,6 +44,7 @@ import { registerUnhandledRejectionHandler } from "../infra/unhandled-rejections
 import { createSubsystemLogger, getChildLogger } from "../logging.js";
 import { toLocationContext } from "../providers/location.js";
 import { resolveAgentRoute } from "../routing/resolve-route.js";
+import { parseAgentSessionKey } from "../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { isSelfChatMode, jidToE164, normalizeE164 } from "../utils.js";
 import { resolveWhatsAppAccount } from "./accounts.js";
@@ -458,7 +459,11 @@ function getSessionRecipients(cfg: ReturnType<typeof loadConfig>) {
     key.includes(":group:") ||
     key.includes(":channel:") ||
     key.includes("@g.us");
-  const isCronKey = (key: string) => key.startsWith("cron:");
+  const isCronKey = (key: string) => {
+    const parsed = parseAgentSessionKey(key);
+    const rawKey = parsed?.rest ?? key;
+    return rawKey.startsWith("cron:");
+  };
 
   const recipients = Object.entries(store)
     .filter(([key]) => key !== "global" && key !== "unknown")

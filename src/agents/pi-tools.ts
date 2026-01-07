@@ -338,6 +338,7 @@ const DEFAULT_SUBAGENT_TOOL_DENY = [
   "sessions_list",
   "sessions_history",
   "sessions_send",
+  "sessions_wait",
   "sessions_spawn",
 ];
 

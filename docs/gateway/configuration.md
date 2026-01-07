@@ -890,6 +890,24 @@ Example:
 execute in parallel across sessions. Each session is still serialized (one run
 per session key at a time). Default: 1.
 
+`agent.subagents` configures defaults for `sessions_spawn`:
+- `maxConcurrent`: max concurrent sub-agent runs (lane `subagent`, default 1)
+- `model`: default sub-agent model override (`provider/model`)
+- `tools`: allow/deny tool policy for sub-agents (deny wins)
+
+Example:
+```json5
+{
+  agent: {
+    subagents: {
+      maxConcurrent: 2,
+      model: "zai/glm-4.7",
+      tools: { deny: ["gateway", "cron"] }
+    }
+  }
+}
+```
+
 ### `agent.sandbox`
 
 Optional **Docker sandboxing** for the embedded agent. Intended for non-main

@@ -1,4 +1,5 @@
 import type { ClawdbotConfig } from "../../config/config.js";
+import { parseAgentSessionKey } from "../../routing/session-key.js";
 
 export type SessionKind = "main" | "group" | "cron" | "hook" | "node" | "other";
 
@@ -39,7 +40,8 @@ export function classifySessionKind(params: {
   alias: string;
   mainKey: string;
 }): SessionKind {
-  const key = params.key;
+  const parsed = parseAgentSessionKey(params.key);
+  const key = parsed?.rest ?? params.key;
   if (key === params.alias || key === params.mainKey) return "main";
   if (key.startsWith("cron:")) return "cron";
   if (key.startsWith("hook:")) return "hook";
@@ -71,7 +73,9 @@ export function deriveProvider(params: {
   if (provider) return provider;
   const lastProvider = normalizeKey(params.lastProvider ?? undefined);
   if (lastProvider) return lastProvider;
-  const parts = params.key.split(":").filter(Boolean);
+  const parsed = parseAgentSessionKey(params.key);
+  const rawKey = parsed?.rest ?? params.key;
+  const parts = rawKey.split(":").filter(Boolean);
   if (parts.length >= 3 && (parts[1] === "group" || parts[1] === "channel")) {
     return parts[0];
   }

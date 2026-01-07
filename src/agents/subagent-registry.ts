@@ -3,6 +3,8 @@ import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
 import { runSubagentAnnounceFlow } from "./subagent-announce.js";
 
+export type SubagentRunStatus = running | ok | error | timeout;
+
 export type SubagentRunRecord = {
   runId: string;
   childSessionKey: string;
@@ -14,6 +16,8 @@ export type SubagentRunRecord = {
   createdAt: number;
   startedAt?: number;
   endedAt?: number;
+  lastStatus?: SubagentRunStatus;
+  lastCheckedAt?: number;
   archiveAtMs?: number;
   announceHandled: boolean;
 };
@@ -83,6 +87,7 @@ function ensureListener() {
         ? (evt.data.endedAt as number)
         : Date.now();
     entry.endedAt = endedAt;
+    entry.lastStatus = phase === "error" ? "error" : "ok";
     if (!beginSubagentAnnounce(evt.runId)) {
       if (entry.cleanup === "delete") {
         subagentRuns.delete(evt.runId);
@@ -116,6 +121,22 @@ export function beginSubagentAnnounce(runId: string) {
   return true;
 }
 
+export function getSubagentRun(runId: string) {
+  return subagentRuns.get(runId);
+}
+
+export function updateSubagentRun(
+  runId: string,
+  update: Partial<SubagentRunRecord>,
+) {
+  if (!runId) return undefined;
+  const existing = subagentRuns.get(runId);
+  if (!existing) return undefined;
+  const next = { ...existing, ...update };
+  subagentRuns.set(runId, next);
+  return next;
+}
+
 export function registerSubagentRun(params: {
   runId: string;
   childSessionKey: string;
@@ -138,6 +159,7 @@ export function registerSubagentRun(params: {
     cleanup: params.cleanup,
     createdAt: now,
     startedAt: now,
+    lastStatus: "running",
     archiveAtMs,
     announceHandled: false,
   });
@@ -162,6 +184,7 @@ async function probeImmediateCompletion(runId: string) {
     if (typeof wait.startedAt === "number") entry.startedAt = wait.startedAt;
     if (typeof wait.endedAt === "number") entry.endedAt = wait.endedAt;
     if (!entry.endedAt) entry.endedAt = Date.now();
+    entry.lastStatus = wait.status === "error" ? "error" : "ok";
     if (!beginSubagentAnnounce(runId)) return;
     void runSubagentAnnounceFlow({
       childSessionKey: entry.childSessionKey,

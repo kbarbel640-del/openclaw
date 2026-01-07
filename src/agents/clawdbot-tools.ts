@@ -8,9 +8,11 @@ import { createGatewayTool } from "./tools/gateway-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
 import { createNodesTool } from "./tools/nodes-tool.js";
 import { createSessionsHistoryTool } from "./tools/sessions-history-tool.js";
+import { createSessionsAbortTool } from "./tools/sessions-abort-tool.js";
 import { createSessionsListTool } from "./tools/sessions-list-tool.js";
 import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
+import { createSessionsWaitTool } from "./tools/sessions-wait-tool.js";
 import { createSlackTool } from "./tools/slack-tool.js";
 import { createTelegramTool } from "./tools/telegram-tool.js";
 import { createWhatsAppTool } from "./tools/whatsapp-tool.js";
@@ -45,11 +47,13 @@ export function createClawdbotTools(options?: {
       agentSessionKey: options?.agentSessionKey,
       sandboxed: options?.sandboxed,
     }),
+    createSessionsAbortTool(),
     createSessionsSendTool({
       agentSessionKey: options?.agentSessionKey,
       agentProvider: options?.agentProvider,
       sandboxed: options?.sandboxed,
     }),
+    createSessionsWaitTool(),
     createSessionsSpawnTool({
       agentSessionKey: options?.agentSessionKey,
       agentProvider: options?.agentProvider,

@@ -12,6 +12,7 @@ Goal: small, hard-to-misuse tool set so agents can list sessions, fetch history,
 - `sessions_list`
 - `sessions_history`
 - `sessions_send`
+- `sessions_wait`
 - `sessions_spawn`
 
 ## Key Model
@@ -87,6 +88,21 @@ Behavior:
   - Any other reply is sent to the target provider.
   - Announce step includes the original request + round‑1 reply + latest ping‑pong reply.
 
+## sessions_wait
+Check a spawned sub-agent run and return progress.
+
+Parameters:
+- `runId` (required)
+- `timeoutSeconds?` (default 5; 0 = no wait)
+- `includeMessages?` (default true)
+- `messageLimit?` (default 5; max 20)
+
+Behavior:
+- Uses the in-memory sub-agent registry to map `runId` → session.
+- Waits up to `timeoutSeconds` via gateway `agent.wait`.
+- Returns `status: "running"` when the run is still in progress.
+- Includes latest assistant reply (and recent messages if `includeMessages`).
+
 ## Provider Field
 - For groups, `provider` is the provider recorded on the session entry.
 - For direct chats, `provider` maps from `lastProvider`.
@@ -127,11 +143,11 @@ Parameters:
 - `task` (required)
 - `label?` (optional; used for logs/UI)
 - `model?` (optional; overrides the sub-agent model; invalid values error)
-- `timeoutSeconds?` (optional; omit for long-running jobs; if set, Clawdbot aborts the sub-agent when the timeout elapses)
-- `cleanup?` (`delete|keep`, default `keep`)
+- `timeoutSeconds?` (default 0; 0 = fire-and-forget; if set, Clawdbot aborts the sub-agent when the timeout elapses)
+- `cleanup?` (`delete|keep`, default `keep` when `timeoutSeconds` is 0, otherwise `delete`)
 
 Behavior:
-- Starts a new `agent:<id>:subagent:<uuid>` session with `deliver: false`.
+- Starts a new `agent:<agentId>:subagent:<uuid>` session with `deliver: false`.
 - Sub-agents default to the full tool set **minus session tools** (configurable via `agent.subagents.tools`).
 - Sub-agents are not allowed to call `sessions_spawn` (no sub-agent → sub-agent spawning).
 - After completion (or best-effort wait), Clawdbot runs a sub-agent **announce step** and posts the result to the requester chat provider.

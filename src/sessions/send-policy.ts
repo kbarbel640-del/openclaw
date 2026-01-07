@@ -1,5 +1,6 @@
 import type { ClawdbotConfig } from "../config/config.js";
 import type { SessionChatType, SessionEntry } from "../config/sessions.js";
+import { parseAgentSessionKey } from "../routing/session-key.js";
 
 export type SessionSendPolicyDecision = "allow" | "deny";
 
@@ -46,15 +47,17 @@ export function resolveSendPolicy(params: {
   const policy = params.cfg.session?.sendPolicy;
   if (!policy) return "allow";
 
+  const sessionKey = params.sessionKey ?? "";
+  const parsedKey = parseAgentSessionKey(sessionKey);
+  const keyForMatch = parsedKey?.rest ?? sessionKey;
   const provider =
     normalizeMatchValue(params.provider) ??
     normalizeMatchValue(params.entry?.provider) ??
     normalizeMatchValue(params.entry?.lastProvider) ??
-    deriveProviderFromKey(params.sessionKey);
+    deriveProviderFromKey(keyForMatch);
   const chatType =
     normalizeMatchValue(params.chatType ?? params.entry?.chatType) ??
-    normalizeMatchValue(deriveChatTypeFromKey(params.sessionKey));
-  const sessionKey = params.sessionKey ?? "";
+    normalizeMatchValue(deriveChatTypeFromKey(keyForMatch));
 
   let allowedMatch = false;
   for (const rule of policy.rules ?? []) {
@@ -67,7 +70,11 @@ export function resolveSendPolicy(params: {
 
     if (matchProvider && matchProvider !== provider) continue;
     if (matchChatType && matchChatType !== chatType) continue;
-    if (matchPrefix && !sessionKey.startsWith(matchPrefix)) continue;
+    if (matchPrefix) {
+      const matches =
+        sessionKey.startsWith(matchPrefix) || keyForMatch.startsWith(matchPrefix);
+      if (!matches) continue;
+    }
     if (action === "deny") return "deny";
     allowedMatch = true;
   }

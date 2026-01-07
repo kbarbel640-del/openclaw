@@ -150,7 +150,7 @@ Core actions:
 Notes:
 - Use `delayMs` (defaults to 2000) to avoid interrupting an in-flight reply.
 
-### `sessions_list` / `sessions_history` / `sessions_send` / `sessions_spawn`
+### `sessions_list` / `sessions_history` / `sessions_send` / `sessions_spawn` / `sessions_wait`
 List sessions, inspect transcript history, or send to another session.
 
 Core parameters:
@@ -158,6 +158,7 @@ Core parameters:
 - `sessions_history`: `sessionKey`, `limit?`, `includeTools?`
 - `sessions_send`: `sessionKey`, `message`, `timeoutSeconds?` (0 = fire-and-forget)
 - `sessions_spawn`: `task`, `label?`, `model?`, `timeoutSeconds?`, `cleanup?`
+- `sessions_wait`: `runId`, `timeoutSeconds?`
 
 Notes:
 - `main` is the canonical direct-chat key; global/unknown are hidden.
@@ -166,6 +167,8 @@ Notes:
 - `sessions_spawn` starts a sub-agent run and posts an announce reply back to the requester chat.
 - `sessions_send` runs a reply‑back ping‑pong (reply `REPLY_SKIP` to stop; max turns via `session.agentToAgent.maxPingPongTurns`, 0–5).
 - After the ping‑pong, the target agent runs an **announce step**; reply `ANNOUNCE_SKIP` to suppress the announcement.
+- `sessions_spawn` starts a sub-agent run; use `timeoutSeconds: 0` + `cleanup: "keep"` for non-blocking work.
+- `sessions_wait` polls a sub-agent `runId` (use with `sessions_history` to read output).
 
 ### `discord`
 Send Discord reactions, stickers, or polls.

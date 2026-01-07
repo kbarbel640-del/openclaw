@@ -165,10 +165,20 @@
       "title": "Session Send",
       "detailKeys": ["sessionKey", "timeoutSeconds"]
     },
+    "sessions_wait": {
+      "emoji": "⏱️",
+      "title": "Session Wait",
+      "detailKeys": ["runId", "timeoutSeconds"]
+    },
     "sessions_spawn": {
       "emoji": "🧑‍🔧",
       "title": "Sub-agent",
       "detailKeys": ["label", "timeoutSeconds", "cleanup"]
+    },
+    "sessions_abort": {
+      "emoji": "🛑",
+      "title": "Session Abort",
+      "detailKeys": ["runId", "sessionKey", "cleanup"]
     },
     "whatsapp_login": {
       "emoji": "🟢",

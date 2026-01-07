@@ -7,7 +7,7 @@ read_when:
 
 # Sub-agents
 
-Sub-agents are background agent runs spawned from an existing agent run. They run in their own session (`agent:<id>:subagent:<uuid>`) and, when finished, **announce** their result back to the requester chat provider.
+Sub-agents are background agent runs spawned from an existing agent run. They run in their own session (`agent:<agentId>:subagent:<uuid>`) and, when finished, **announce** their result back to the requester chat provider.
 
 Primary goals:
 - Parallelize “research / long task / slow tool” work without blocking the main run.
@@ -24,9 +24,9 @@ Use `sessions_spawn`:
 Tool params:
 - `task` (required)
 - `label?` (optional)
-- `model?` (optional; overrides the sub-agent model; invalid values are skipped and the sub-agent runs on the default model with a warning in the tool result)
-- `timeoutSeconds?` (optional; omit for long-running jobs; when set, Clawdbot waits up to N seconds and aborts the sub-agent if it is still running)
-- `cleanup?` (`delete|keep`, default `keep`)
+- `model?` (optional; overrides the sub-agent model; invalid values error)
+- `timeoutSeconds?` (default `0`; `0` = fire-and-forget; when set, Clawdbot waits up to N seconds and aborts the sub-agent if it is still running)
+- `cleanup?` (`delete|keep`, default `keep` when `timeoutSeconds` is 0, otherwise `delete`)
 
 Auto-archive:
 - Sub-agent sessions are automatically archived after `agent.subagents.archiveAfterMinutes` (default: 60).
@@ -54,6 +54,7 @@ By default, sub-agents get **all tools except session tools**:
 - `sessions_list`
 - `sessions_history`
 - `sessions_send`
+- `sessions_wait`
 - `sessions_spawn`
 
 Override via config:
@@ -84,3 +85,9 @@ Sub-agents use a dedicated in-process queue lane:
 
 - Sub-agent announce is **best-effort**. If the gateway restarts, pending “announce back” work is lost.
 - Sub-agents still share the same gateway process resources; treat `maxConcurrent` as a safety valve.
+
+
+## Checking Status
+
+Use `sessions_wait` with the `runId` returned by `sessions_spawn` to get status
+and the latest sub-agent messages without blocking the main run.

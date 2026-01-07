@@ -90,6 +90,7 @@ import {
 import { setCommandLaneConcurrency } from "../process/command-queue.js";
 import { runOnboardingWizard } from "../wizard/onboarding.js";
 import type { WizardSession } from "../wizard/session.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import {
   assertGatewayAuthConfigured,
   authorizeGatewayConnect,
@@ -700,12 +701,13 @@ export async function startGatewayServer(
       requestHeartbeatNow,
       runIsolatedAgentJob: async ({ job, message }) => {
         const runtimeConfig = loadConfig();
+        const agentId = normalizeAgentId(runtimeConfig.routing?.defaultAgentId);
         return await runCronIsolatedAgentTurn({
           cfg: runtimeConfig,
           deps,
           job,
           message,
-          sessionKey: `cron:${job.id}`,
+          sessionKey: `agent:${agentId}:cron:${job.id}`,
           lane: "cron",
         });
       },

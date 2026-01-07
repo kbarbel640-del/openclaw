@@ -52,15 +52,17 @@ export function createSessionsSpawnTool(opts?: {
       const task = readStringParam(params, "task", { required: true });
       const label = typeof params.label === "string" ? params.label.trim() : "";
       const model = readStringParam(params, "model");
-      const cleanup =
-        params.cleanup === "keep" || params.cleanup === "delete"
-          ? (params.cleanup as "keep" | "delete")
-          : "keep";
       const timeoutSeconds =
         typeof params.timeoutSeconds === "number" &&
         Number.isFinite(params.timeoutSeconds)
           ? Math.max(0, Math.floor(params.timeoutSeconds))
           : 0;
+      const cleanup =
+        params.cleanup === "keep" || params.cleanup === "delete"
+          ? (params.cleanup as "keep" | "delete")
+          : timeoutSeconds === 0
+            ? "keep"
+            : "delete";
       const timeoutMs = timeoutSeconds * 1000;
       let modelWarning: string | undefined;
       let modelApplied = false;

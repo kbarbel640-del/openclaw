@@ -44,6 +44,7 @@ import {
 import { registerAgentRunContext } from "../infra/agent-events.js";
 import { resolveTelegramToken } from "../telegram/token.js";
 import { normalizeE164 } from "../utils.js";
+import { parseAgentSessionKey } from "../routing/session-key.js";
 import type { CronJob } from "./types.js";
 
 export type RunCronAgentTurnResult = {
@@ -174,9 +175,20 @@ function resolveCronSession(params: {
     1,
   );
   const idleMs = idleMinutes * 60_000;
-  const storePath = resolveStorePath(sessionCfg?.store);
+  const agentId = resolveAgentIdFromSessionKey(params.sessionKey);
+  const storePath = resolveStorePath(sessionCfg?.store, { agentId });
   const store = loadSessionStore(storePath);
-  const entry = store[params.sessionKey];
+  const parsed = parseAgentSessionKey(params.sessionKey);
+  const legacyKey = parsed?.rest;
+  const canonicalEntry = store[params.sessionKey];
+  const legacyEntry = legacyKey ? store[legacyKey] : undefined;
+  let entry = canonicalEntry ?? legacyEntry;
+  if (legacyKey && legacyEntry) {
+    if (!canonicalEntry) {
+      store[params.sessionKey] = legacyEntry;
+    }
+    delete store[legacyKey];
+  }
   const fresh = entry && params.nowMs - entry.updatedAt <= idleMs;
   const sessionId = fresh ? entry.sessionId : crypto.randomUUID();
   const systemSent = fresh ? Boolean(entry.systemSent) : false;
@@ -304,8 +316,10 @@ export async function runCronIsolatedAgentTurn(params: {
   let fallbackProvider = provider;
   let fallbackModel = model;
   try {
+    const sessionAgentId = resolveAgentIdFromSessionKey(params.sessionKey);
     const sessionFile = resolveSessionTranscriptPath(
       cronSession.sessionEntry.sessionId,
+      sessionAgentId,
     );
     registerAgentRunContext(cronSession.sessionEntry.sessionId, {
       sessionKey: params.sessionKey,

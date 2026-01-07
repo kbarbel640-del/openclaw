@@ -76,8 +76,10 @@ export const agentHandlers: GatewayRequestHandlers = {
         loadSessionEntry(requestedSessionKey);
       cfgForAgent = cfg;
       const now = Date.now();
+
       const sessionId = entry?.sessionId ?? randomUUID();
       const nextEntry: SessionEntry = {
+
         sessionId,
         updatedAt: now,
         thinkingLevel: entry?.thinkingLevel,
@@ -85,11 +87,12 @@ export const agentHandlers: GatewayRequestHandlers = {
         reasoningLevel: entry?.reasoningLevel,
         systemSent: entry?.systemSent,
         sendPolicy: entry?.sendPolicy,
+        providerOverride: entry?.providerOverride,
+        modelOverride: entry?.modelOverride,
+        authProfileOverride: entry?.authProfileOverride,
         skillsSnapshot: entry?.skillsSnapshot,
         lastProvider: entry?.lastProvider,
         lastTo: entry?.lastTo,
-        modelOverride: entry?.modelOverride,
-        providerOverride: entry?.providerOverride,
       };
       sessionEntry = nextEntry;
       const sendPolicy = resolveSendPolicy({

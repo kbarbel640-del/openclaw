@@ -45,6 +45,8 @@ export function buildAgentSystemPromptAppend(params: {
     sessions_list: "List sessions with filters and last messages",
     sessions_history: "Fetch message history for a session",
     sessions_send: "Send a message into another session",
+    sessions_spawn: "Spawn a background sub-agent run (use for long tasks)",
+    sessions_wait: "Check status of a spawned sub-agent run",
     image: "Analyze an image with the configured image model",
     discord: "Send Discord reactions/messages and manage threads",
     slack: "Send Slack messages and manage channels",
@@ -70,6 +72,8 @@ export function buildAgentSystemPromptAppend(params: {
     "sessions_list",
     "sessions_history",
     "sessions_send",
+    "sessions_spawn",
+    "sessions_wait",
     "image",
     "discord",
     "slack",
@@ -81,6 +85,8 @@ export function buildAgentSystemPromptAppend(params: {
     .map((tool) => tool.trim().toLowerCase())
     .filter(Boolean);
   const availableTools = new Set(normalizedTools);
+  const hasSessionsSpawn = availableTools.has("sessions_spawn");
+  const hasSessionsWait = availableTools.has("sessions_wait");
   const extraTools = Array.from(
     new Set(normalizedTools.filter((tool) => !toolOrder.includes(tool))),
   );
@@ -124,6 +130,17 @@ export function buildAgentSystemPromptAppend(params: {
   const heartbeatPromptLine = heartbeatPrompt
     ? `Heartbeat prompt: ${heartbeatPrompt}`
     : "Heartbeat prompt: (configured)";
+  const longTaskLines = hasSessionsSpawn
+    ? [
+        "## Long Tasks",
+        "For work that may take more than ~1 minute (browser automation, multi-step workflows, batch updates), spawn a sub-agent.",
+        "Use sessions_spawn with timeoutSeconds: 0 and cleanup: \"keep\".",
+        hasSessionsWait
+          ? "Respond immediately with the runId and a short status; use sessions_wait to check progress when asked."
+          : "Respond immediately with the runId and a short status; use sessions_list/sessions_history to check progress when asked.",
+        "",
+      ]
+    : [];
   const runtimeInfo = params.runtimeInfo;
   const runtimeLines: string[] = [];
   if (runtimeInfo?.host) runtimeLines.push(`Host: ${runtimeInfo.host}`);
@@ -211,6 +228,7 @@ export function buildAgentSystemPromptAppend(params: {
     "Never send streaming/partial replies to external messaging surfaces; only final replies should be delivered there.",
     "Clawdbot handles message transport automatically; respond normally and your reply will be delivered to the current chat.",
     "",
+    ...longTaskLines,
     userTimezone || userTime ? "## Time" : "",
     userTimezone ? `User timezone: ${userTimezone}` : "",
     userTime ? `Current user time: ${userTime}` : "",
