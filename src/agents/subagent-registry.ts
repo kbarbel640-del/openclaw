@@ -3,7 +3,7 @@ import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
 import { runSubagentAnnounceFlow } from "./subagent-announce.js";
 
-export type SubagentRunStatus = running | ok | error | timeout;
+export type SubagentRunStatus = "running" | "ok" | "error" | "timeout";
 
 export type SubagentRunRecord = {
   runId: string;

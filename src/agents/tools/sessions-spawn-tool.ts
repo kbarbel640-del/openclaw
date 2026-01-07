@@ -51,7 +51,7 @@ export function createSessionsSpawnTool(opts?: {
       const params = args as Record<string, unknown>;
       const task = readStringParam(params, "task", { required: true });
       const label = typeof params.label === "string" ? params.label.trim() : "";
-      const model = readStringParam(params, "model");
+      const requestedModel = readStringParam(params, "model");
       const timeoutSeconds =
         typeof params.timeoutSeconds === "number" &&
         Number.isFinite(params.timeoutSeconds)
@@ -68,6 +68,11 @@ export function createSessionsSpawnTool(opts?: {
       let modelApplied = false;
 
       const cfg = loadConfig();
+      const configuredModel =
+        typeof cfg.agent?.subagents?.model === "string"
+          ? cfg.agent.subagents.model.trim()
+          : "";
+      const model = requestedModel ?? (configuredModel || undefined);
       const { mainKey, alias } = resolveMainSessionAlias(cfg);
       const requesterSessionKey = opts?.agentSessionKey;
       if (
