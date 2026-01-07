@@ -238,6 +238,8 @@ export type TelegramConfig = {
   /** If false, do not start the Telegram provider. Default: true. */
   enabled?: boolean;
   botToken?: string;
+  /** Alias for botToken (for convenience). */
+  token?: string;
   /** Path to file containing bot token (for secret managers like agenix) */
   tokenFile?: string;
   /** Control reply threading when reply tags are present (off|first|all). */

@@ -296,4 +296,115 @@ describe("runHeartbeatOnce", () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it("passes telegram token from config to sendTelegram", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-hb-"));
+    const storePath = path.join(tmpDir, "sessions.json");
+    const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
+    try {
+      await fs.writeFile(
+        storePath,
+        JSON.stringify(
+          {
+            main: {
+              sessionId: "sid",
+              updatedAt: Date.now(),
+              lastProvider: "telegram",
+              lastTo: "123456",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const cfg: ClawdbotConfig = {
+        agent: {
+          heartbeat: { every: "5m", target: "telegram", to: "123456" },
+        },
+        telegram: { botToken: "test-bot-token-123" },
+        session: { store: storePath },
+      };
+
+      replySpy.mockResolvedValue({ text: "Hello from heartbeat" });
+      const sendTelegram = vi.fn().mockResolvedValue({
+        messageId: "m1",
+        chatId: "123456",
+      });
+
+      await runHeartbeatOnce({
+        cfg,
+        deps: {
+          sendTelegram,
+          getQueueSize: () => 0,
+          nowMs: () => 0,
+        },
+      });
+
+      expect(sendTelegram).toHaveBeenCalledTimes(1);
+      expect(sendTelegram).toHaveBeenCalledWith(
+        "123456",
+        "Hello from heartbeat",
+        expect.objectContaining({ token: "test-bot-token-123" }),
+      );
+    } finally {
+      replySpy.mockRestore();
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("supports telegram.token alias for botToken", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-hb-"));
+    const storePath = path.join(tmpDir, "sessions.json");
+    const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
+    try {
+      await fs.writeFile(
+        storePath,
+        JSON.stringify(
+          {
+            main: {
+              sessionId: "sid",
+              updatedAt: Date.now(),
+              lastProvider: "telegram",
+              lastTo: "123456",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const cfg: ClawdbotConfig = {
+        agent: {
+          heartbeat: { every: "5m", target: "telegram", to: "123456" },
+        },
+        telegram: { token: "alias-token-456" },
+        session: { store: storePath },
+      };
+
+      replySpy.mockResolvedValue({ text: "Hello via alias" });
+      const sendTelegram = vi.fn().mockResolvedValue({
+        messageId: "m1",
+        chatId: "123456",
+      });
+
+      await runHeartbeatOnce({
+        cfg,
+        deps: {
+          sendTelegram,
+          getQueueSize: () => 0,
+          nowMs: () => 0,
+        },
+      });
+
+      expect(sendTelegram).toHaveBeenCalledWith(
+        "123456",
+        "Hello via alias",
+        expect.objectContaining({ token: "alias-token-456" }),
+      );
+    } finally {
+      replySpy.mockRestore();
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

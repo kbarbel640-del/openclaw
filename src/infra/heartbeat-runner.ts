@@ -26,6 +26,7 @@ import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { sendMessageSignal } from "../signal/send.js";
 import { sendMessageSlack } from "../slack/send.js";
 import { sendMessageTelegram } from "../telegram/send.js";
+import { resolveTelegramToken } from "../telegram/token.js";
 import { normalizeE164 } from "../utils.js";
 import { getActiveWebListener } from "../web/active-listener.js";
 import { sendMessageWhatsApp } from "../web/outbound.js";
@@ -321,6 +322,7 @@ async function deliverHeartbeatReply(params: {
   text: string;
   mediaUrls: string[];
   textLimit: number;
+  telegramToken?: string;
   deps: Required<
     Pick<
       HeartbeatDeps,
@@ -333,7 +335,8 @@ async function deliverHeartbeatReply(params: {
     >
   >;
 }) {
-  const { provider, to, text, mediaUrls, deps, textLimit } = params;
+  const { provider, to, text, mediaUrls, deps, textLimit, telegramToken } =
+    params;
   if (provider === "whatsapp") {
     if (mediaUrls.length === 0) {
       for (const chunk of chunkText(text, textLimit)) {
@@ -385,7 +388,10 @@ async function deliverHeartbeatReply(params: {
   if (provider === "telegram") {
     if (mediaUrls.length === 0) {
       for (const chunk of chunkText(text, textLimit)) {
-        await deps.sendTelegram(to, chunk, { verbose: false });
+        await deps.sendTelegram(to, chunk, {
+          verbose: false,
+          token: telegramToken,
+        });
       }
       return;
     }
@@ -393,7 +399,11 @@ async function deliverHeartbeatReply(params: {
     for (const url of mediaUrls) {
       const caption = first ? text : "";
       first = false;
-      await deps.sendTelegram(to, caption, { verbose: false, mediaUrl: url });
+      await deps.sendTelegram(to, caption, {
+        verbose: false,
+        mediaUrl: url,
+        token: telegramToken,
+      });
     }
     return;
   }
@@ -550,12 +560,17 @@ export async function runHeartbeatOnce(opts: {
       sendIMessage: opts.deps?.sendIMessage ?? sendMessageIMessage,
     };
     const textLimit = resolveTextChunkLimit(cfg, delivery.provider);
+    const telegramToken =
+      delivery.provider === "telegram"
+        ? resolveTelegramToken(cfg).token || undefined
+        : undefined;
     await deliverHeartbeatReply({
       provider: delivery.provider,
       to: delivery.to,
       text: normalized.text,
       mediaUrls,
       textLimit,
+      telegramToken,
       deps,
     });
 

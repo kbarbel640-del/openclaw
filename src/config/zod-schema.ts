@@ -753,6 +753,7 @@ export const ClawdbotSchema = z.object({
       enabled: z.boolean().optional(),
       dmPolicy: DmPolicySchema.optional().default("pairing"),
       botToken: z.string().optional(),
+      token: z.string().optional(),
       tokenFile: z.string().optional(),
       replyToMode: ReplyToModeSchema.optional(),
       groups: z

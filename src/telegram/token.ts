@@ -41,7 +41,7 @@ export function resolveTelegramToken(
     return { token: "", source: "none" };
   }
 
-  const configToken = cfg?.telegram?.botToken?.trim();
+  const configToken = (cfg?.telegram?.botToken ?? cfg?.telegram?.token)?.trim();
   if (configToken) {
     return { token: configToken, source: "config" };
   }
