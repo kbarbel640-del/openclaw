@@ -44,7 +44,7 @@ The wizard starts with **QuickStart** (defaults) vs **Advanced** (full control).
 - Model/auth (OpenAI Code (Codex) subscription OAuth, Anthropic API key (recommended) or `claude setup-token`, plus MiniMax/GLM/Moonshot options)
 - Workspace location + bootstrap files
 - Gateway settings (port/bind/auth/tailscale)
-- Providers (Telegram, WhatsApp, Discord, Signal)
+- Providers (Telegram, WhatsApp, Discord, Signal, Matrix)
 - Daemon install (LaunchAgent / systemd user unit)
 - Health check
 - Skills (recommended)
@@ -109,6 +109,7 @@ Tip: `--json` does **not** imply non-interactive mode. Use `--non-interactive` (
    - WhatsApp: optional QR login.
    - Telegram: bot token.
    - Discord: bot token.
+   - Matrix: homeserver + access token (Node-only for E2EE).
    - Signal: optional `signal-cli` install + account config.
    - iMessage: local `imsg` CLI path + DB access.
   - DM security: default is pairing. First DM sends a code; approve via `clawdbot pairing approve <channel> <code>` or use allowlists.
@@ -119,7 +120,7 @@ Tip: `--json` does **not** imply non-interactive mode. Use `--non-interactive` (
    - Linux (and Windows via WSL2): systemd user unit
      - Wizard attempts to enable lingering via `loginctl enable-linger <user>` so the Gateway stays up after logout.
      - May prompt for sudo (writes `/var/lib/systemd/linger`); it tries without sudo first.
-   - **Runtime selection:** Node (recommended; required for WhatsApp/Telegram). Bun is **not recommended**.
+   - **Runtime selection:** Node (recommended; required for WhatsApp/Telegram + Matrix E2EE). Bun is **not recommended**.
 
 7) **Health check**
    - Starts the Gateway (if needed) and runs `clawdbot health`.
@@ -289,5 +290,5 @@ Sessions are stored under `~/.clawdbot/agents/<agentId>/sessions/`.
 
 - macOS app onboarding: [Onboarding](/start/onboarding)
 - Config reference: [Gateway configuration](/gateway/configuration)
-- Providers: [WhatsApp](/channels/whatsapp), [Telegram](/channels/telegram), [Discord](/channels/discord), [Signal](/channels/signal), [iMessage](/channels/imessage)
+- Providers: [WhatsApp](/channels/whatsapp), [Telegram](/channels/telegram), [Discord](/channels/discord), [Signal](/channels/signal), [iMessage](/channels/imessage), [Matrix](/channels/matrix)
 - Skills: [Skills](/tools/skills), [Skills config](/tools/skills-config)

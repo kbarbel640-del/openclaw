@@ -85,6 +85,14 @@ describe("resolveOutboundTarget", () => {
     }
   });
 
+  it("rejects matrix with missing target", () => {
+    const res = resolveOutboundTarget({ provider: "matrix", to: " " });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error.message).toContain("Matrix");
+    }
+  });
+
   it("rejects webchat delivery", () => {
     const res = resolveOutboundTarget({ channel: "webchat", to: "x" });
     expect(res.ok).toBe(false);

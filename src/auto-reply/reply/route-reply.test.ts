@@ -6,6 +6,7 @@ import { SILENT_REPLY_TOKEN } from "../tokens.js";
 const mocks = vi.hoisted(() => ({
   sendMessageDiscord: vi.fn(async () => ({ messageId: "m1", channelId: "c1" })),
   sendMessageIMessage: vi.fn(async () => ({ messageId: "ok" })),
+  sendMessageMatrix: vi.fn(async () => ({ messageId: "mx1", roomId: "r1" })),
   sendMessageMSTeams: vi.fn(async () => ({
     messageId: "m1",
     conversationId: "c1",
@@ -21,6 +22,9 @@ vi.mock("../../discord/send.js", () => ({
 }));
 vi.mock("../../imessage/send.js", () => ({
   sendMessageIMessage: mocks.sendMessageIMessage,
+}));
+vi.mock("../../matrix/send.js", () => ({
+  sendMessageMatrix: mocks.sendMessageMatrix,
 }));
 vi.mock("../../msteams/send.js", () => ({
   sendMessageMSTeams: mocks.sendMessageMSTeams,
@@ -166,6 +170,24 @@ describe("routeReply", () => {
       "telegram:123",
       "hi",
       expect.objectContaining({ replyToMessageId: 123 }),
+    );
+  });
+
+  it("passes thread id to Matrix sends", async () => {
+    mocks.sendMessageMatrix.mockClear();
+    await routeReply({
+      payload: { text: "hi", replyToId: "$evt" },
+      channel: "matrix",
+      to: "room:!room",
+      threadId: "$thread",
+      cfg: {} as never,
+    });
+    expect(mocks.sendMessageMatrix).toHaveBeenCalledWith(
+      "room:!room",
+      "hi",
+      expect.objectContaining({ replyToId: "$evt", threadId: "$thread" }),
+    );
+  });
     );
   });
 

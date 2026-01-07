@@ -54,6 +54,7 @@ const GROUP_LABELS: Record<string, string> = {
   browser: "Browser",
   talk: "Talk",
   channels: "Messaging Channels",
+  matrix: "Matrix",
   skills: "Skills",
   plugins: "Plugins",
   discovery: "Discovery",
@@ -78,6 +79,7 @@ const GROUP_ORDER: Record<string, number> = {
   browser: 130,
   talk: 140,
   channels: 150,
+  matrix: 155,
   skills: 200,
   plugins: 205,
   discovery: 210,
@@ -188,6 +190,26 @@ const FIELD_LABELS: Record<string, string> = {
   "channels.discord.maxLinesPerMessage": "Discord Max Lines Per Message",
   "channels.slack.dm.policy": "Slack DM Policy",
   "channels.slack.allowBots": "Slack Allow Bot Messages",
+  "matrix": "Matrix",
+  "matrix.homeserver": "Matrix Homeserver",
+  "matrix.userId": "Matrix User ID",
+  "matrix.accessToken": "Matrix Access Token",
+  "matrix.password": "Matrix Password",
+  "matrix.deviceId": "Matrix Device ID",
+  "matrix.deviceName": "Matrix Device Name",
+  "matrix.encryption": "Matrix Encryption",
+  "matrix.autoJoin": "Matrix Auto-Join",
+  "matrix.autoJoinAllowlist": "Matrix Auto-Join Allowlist",
+  "matrix.groupPolicy": "Matrix Group Policy",
+  "matrix.allowlistOnly": "Matrix Allowlist Only",
+  "matrix.textChunkLimit": "Matrix Text Chunk Limit",
+  "matrix.mediaMaxMb": "Matrix Media Max (MB)",
+  "matrix.replyToMode": "Matrix Reply-To Mode",
+  "matrix.threadReplies": "Matrix Thread Replies",
+  "matrix.initialSyncLimit": "Matrix Initial Sync Limit",
+  "matrix.dm.policy": "Matrix DM Policy",
+  "matrix.dm.allowFrom": "Matrix DM Allowlist",
+  "matrix.rooms": "Matrix Rooms",
   "channels.discord.token": "Discord Bot Token",
   "channels.slack.botToken": "Slack Bot Token",
   "channels.slack.appToken": "Slack App Token",
@@ -355,6 +377,10 @@ const FIELD_HELP: Record<string, string> = {
     "Soft max line count per Discord message (default: 17).",
   "channels.slack.dm.policy":
     'Direct message access control ("pairing" recommended). "open" requires channels.slack.dm.allowFrom=["*"].',
+  "matrix.dm.policy":
+    'Direct message access control ("pairing" recommended). "open" requires matrix.dm.allowFrom=["*"].',
+  "matrix.allowlistOnly":
+    "Force allowlists for Matrix rooms + DMs (overrides open/pairing defaults).",
 };
 
 const FIELD_PLACEHOLDERS: Record<string, string> = {

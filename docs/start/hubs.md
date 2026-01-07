@@ -69,6 +69,7 @@ Use these hubs to discover every page, including deep dives and reference docs t
 - [Signal](/channels/signal)
 - [iMessage](/channels/imessage)
 - [Location parsing](/channels/location)
+- [Matrix](/channels/matrix)
 - [WebChat](/web/webchat)
 - [Webhooks](/automation/webhook)
 - [Gmail Pub/Sub](/automation/gmail-pubsub)

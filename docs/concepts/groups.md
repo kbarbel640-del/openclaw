@@ -1,11 +1,11 @@
 ---
-summary: "Group chat behavior across surfaces (WhatsApp/Telegram/Discord/Slack/Signal/iMessage/Microsoft Teams)"
+summary: "Group chat behavior across surfaces (WhatsApp/Telegram/Discord/Slack/Signal/iMessage/Matrix/Microsoft Teams)"
 read_when:
   - Changing group chat behavior or mention gating
 ---
 # Groups
 
-Clawdbot treats group chats consistently across surfaces: WhatsApp, Telegram, Discord, Slack, Signal, iMessage, Microsoft Teams.
+Clawdbot treats group chats consistently across surfaces: WhatsApp, Telegram, Discord, Slack, Signal, iMessage, Matrix, Microsoft Teams.
 
 ## Beginner intro (2 minutes)
 Clawdbot “lives” on your own messaging accounts. There is no separate WhatsApp bot user.
@@ -86,6 +86,10 @@ Control how group/room messages are handled per channel:
       groupPolicy: "allowlist",
       channels: { "#general": { allow: true } }
     }
+  },
+  matrix: {
+    groupPolicy: "allowlist",
+    rooms: { "!roomid:example": { allow: true } }
   }
 }
 ```
@@ -101,7 +105,8 @@ Notes:
 - WhatsApp/Telegram/Signal/iMessage/Microsoft Teams: use `groupAllowFrom` (fallback: explicit `allowFrom`).
 - Discord: allowlist uses `channels.discord.guilds.<id>.channels`.
 - Slack: allowlist uses `channels.slack.channels`.
-- Group DMs are controlled separately (`channels.discord.dm.*`, `channels.slack.dm.*`).
+- Matrix: allowlist uses `matrix.rooms`.
+- Group DMs are controlled separately (`channels.discord.dm.*`, `channels.slack.dm.*`, `matrix.dm.*`).
 - Telegram allowlist can match user IDs (`"123456789"`, `"telegram:123456789"`, `"tg:123456789"`) or usernames (`"@alice"` or `"alice"`); prefixes are case-insensitive.
 - Default is `groupPolicy: "allowlist"`; if your group allowlist is empty, group messages are blocked.
 
@@ -135,6 +140,12 @@ Group messages require a mention unless overridden per group. Defaults live per 
       }
     }
   },
+  matrix: {
+    rooms: {
+      "*": { requireMention: true },
+      "!roomid:example": { requireMention: false }
+    }
+  },
   agents: {
     list: [
       {
@@ -158,7 +169,7 @@ Notes:
 - Group history context is wrapped uniformly across channels; use `messages.groupChat.historyLimit` for the global default and `channels.<channel>.historyLimit` (or `channels.<channel>.accounts.*.historyLimit`) for overrides. Set `0` to disable.
 
 ## Group allowlists
-When `channels.whatsapp.groups`, `channels.telegram.groups`, or `channels.imessage.groups` is configured, the keys act as a group allowlist. Use `"*"` to allow all groups while still setting default mention behavior.
+When `channels.whatsapp.groups`, `channels.telegram.groups`, `channels.imessage.groups`, or `matrix.rooms` is configured, the keys act as a group allowlist. Use `"*"` to allow all groups while still setting default mention behavior.
 
 Common intents (copy/paste):
 
@@ -228,6 +239,11 @@ The agent system prompt includes a group intro on the first turn of a new group 
 - Prefer `chat_id:<id>` when routing or allowlisting.
 - List chats: `imsg chats --limit 20`.
 - Group replies always go back to the same `chat_id`.
+
+## Matrix specifics
+- Prefer room ids (`!roomid:server`) in allowlists and delivery targets.
+- DMs are detected from `m.direct` only; rooms not flagged there are treated as group rooms.
+- Thread replies stay in-thread when the inbound message is threaded (`matrix.threadReplies`).
 
 ## WhatsApp specifics
 See [Group messages](/concepts/group-messages) for WhatsApp-only behavior (history injection, mention handling details).

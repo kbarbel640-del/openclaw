@@ -126,6 +126,14 @@
       "destination": "/channels/discord"
     },
     {
+      "source": "/providers/matrix",
+      "destination": "/channels/matrix"
+    },
+    {
+      "source": "/providers/matrix/",
+      "destination": "/channels/matrix"
+    },
+    {
       "source": "/providers/grammy",
       "destination": "/channels/grammy"
     },
@@ -388,6 +396,14 @@
     {
       "source": "/location",
       "destination": "/channels/location"
+    },
+    {
+      "source": "/matrix",
+      "destination": "/channels/matrix"
+    },
+    {
+      "source": "/matrix/",
+      "destination": "/channels/matrix"
     },
     {
       "source": "/location-command",
@@ -841,6 +857,7 @@
           "channels/grammy",
           "channels/discord",
           "channels/slack",
+          "channels/matrix",
           "channels/signal",
           "channels/imessage",
           "channels/msteams",

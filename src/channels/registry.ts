@@ -5,6 +5,7 @@ export const CHAT_CHANNEL_ORDER = [
   "whatsapp",
   "discord",
   "slack",
+  "matrix",
   "signal",
   "imessage",
   "msteams",
@@ -68,6 +69,14 @@ const CHAT_CHANNEL_META: Record<ChatChannelId, ChatChannelMeta> = {
     docsPath: "/channels/slack",
     docsLabel: "slack",
     blurb: "supported (Socket Mode).",
+  },
+  matrix: {
+    id: "matrix",
+    label: "Matrix",
+    selectionLabel: "Matrix (Client-Server)",
+    docsPath: "/matrix",
+    docsLabel: "matrix",
+    blurb: "Matrix user access token (client-server API).",
   },
   signal: {
     id: "signal",
