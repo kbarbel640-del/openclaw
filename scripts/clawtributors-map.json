@@ -1,0 +1,40 @@
+{
+  "ensureLogins": [
+    "jdrhyne",
+    "manmal"
+  ],
+  "displayName": {
+    "jdrhyne": "Jonathan D. Rhyne (DJ-D)"
+  },
+  "nameToLogin": {
+    "azade": "azade-c",
+    "eng. juan combetto": "omniwired",
+    "mariano belinky": "mbelinky",
+    "kit": "kitze",
+    "vasanth rao naik sabavat": "vsabavat",
+    "tobias bischoff": "tobiasbischoff",
+    "tu nombre real": "nachx639",
+    "william stock": "wstock",
+    "abhisekbasu1": "AbhisekBasu1",
+    "manuelhettich": "manuelhettich",
+    "iamadig": "Iamadig",
+    "django navarro": "djangonavarro220",
+    "erik": "erikpr1994",
+    "jonathan d. rhyne": "jdrhyne",
+    "jonathan rhyne": "jdrhyne",
+    "manuel maly": "manmal",
+    "manuel mali": "manmal"
+  },
+  "emailToLogin": {
+    "[redacted-email]": "manmal",
+    "[redacted-email]": "omniwired",
+    "[redacted-email]": "mbelinky",
+    "[redacted-email]": "vsabavat",
+    "[redacted-email]": "nachx639",
+    "[redacted-email]": "wstock",
+    "[redacted-email]": "RandyVentures",
+    "[redacted-email]": "VACInc",
+    "[redacted-email]": "djangonavarro220",
+    "[redacted-email]": "erikpr1994"
+  }
+}
