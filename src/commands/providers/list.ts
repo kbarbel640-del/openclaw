@@ -20,6 +20,7 @@ import {
   type ChatProviderId,
   listChatProviders,
 } from "../../providers/registry.js";
+import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../../runtime.js";
 import {
   listSignalAccountIds,
@@ -102,6 +103,7 @@ export async function providersListCommand(
     telegram: listTelegramAccountIds(cfg),
     discord: listDiscordAccountIds(cfg),
     slack: listSlackAccountIds(cfg),
+    rocketchat: [DEFAULT_ACCOUNT_ID],
     signal: listSignalAccountIds(cfg),
     imessage: listIMessageAccountIds(cfg),
   };
@@ -170,6 +172,46 @@ export async function providersListCommand(
         account.enabled,
       )}`;
     },
+    rocketchat: async (accountId) => {
+      const baseUrlConfig = cfg.rocketchat?.baseUrl?.trim() || "";
+      const baseUrlEnv = process.env.ROCKETCHAT_BASE_URL?.trim() || "";
+      const authTokenConfig = cfg.rocketchat?.authToken?.trim() || "";
+      const authTokenEnv = process.env.ROCKETCHAT_AUTH_TOKEN?.trim() || "";
+      const userIdConfig = cfg.rocketchat?.userId?.trim() || "";
+      const userIdEnv = process.env.ROCKETCHAT_USER_ID?.trim() || "";
+      const webhookToken = cfg.rocketchat?.webhook?.token?.trim() || "";
+      const configured = Boolean(
+        cfg.rocketchat?.enabled !== false &&
+          (baseUrlEnv || baseUrlConfig) &&
+          (authTokenEnv || authTokenConfig) &&
+          (userIdEnv || userIdConfig) &&
+          webhookToken,
+      );
+      const label = formatProviderAccountLabel({
+        provider: "rocketchat",
+        accountId,
+        name: cfg.rocketchat?.name,
+        providerStyle: theme.accent,
+        accountStyle: theme.heading,
+      });
+      const baseUrlSource = baseUrlEnv ? "env" : baseUrlConfig ? "config" : "";
+      const authTokenSource = authTokenEnv
+        ? "env"
+        : authTokenConfig
+          ? "config"
+          : "";
+      const userIdSource = userIdEnv ? "env" : userIdConfig ? "config" : "";
+      const webhookSource = webhookToken ? "config" : "";
+      return `- ${label}: ${formatConfigured(configured)}, ${formatSource(
+        "baseUrl",
+        baseUrlSource,
+      )}, ${formatSource("auth", authTokenSource)}, ${formatSource(
+        "user",
+        userIdSource,
+      )}, ${formatSource("webhook", webhookSource)}, ${formatEnabled(
+        cfg.rocketchat?.enabled !== false,
+      )}`;
+    },
     signal: async (accountId) => {
       const account = resolveSignalAccount({ cfg, accountId });
       const label = formatProviderAccountLabel({
@@ -215,6 +257,7 @@ export async function providersListCommand(
         telegram: accountIdsByProvider.telegram,
         discord: accountIdsByProvider.discord,
         slack: accountIdsByProvider.slack,
+        rocketchat: accountIdsByProvider.rocketchat,
         signal: accountIdsByProvider.signal,
         imessage: accountIdsByProvider.imessage,
       },

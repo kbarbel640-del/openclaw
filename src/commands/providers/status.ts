@@ -14,6 +14,7 @@ import {
 } from "../../imessage/accounts.js";
 import { formatAge } from "../../infra/provider-summary.js";
 import { listChatProviders } from "../../providers/registry.js";
+import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../../runtime.js";
 import {
   listSignalAccountIds,
@@ -134,6 +135,11 @@ export function formatGatewayProvidersStatusLines(
     slack: Array.isArray(payload.slackAccounts)
       ? (payload.slackAccounts as Array<Record<string, unknown>>)
       : undefined,
+    rocketchat: Array.isArray(payload.rocketchatAccounts)
+      ? (payload.rocketchatAccounts as Array<Record<string, unknown>>)
+      : payload.rocketchat
+        ? ([payload.rocketchat] as Array<Record<string, unknown>>)
+        : undefined,
     signal: Array.isArray(payload.signalAccounts)
       ? (payload.signalAccounts as Array<Record<string, unknown>>)
       : undefined,
@@ -269,6 +275,38 @@ async function formatConfigProvidersStatusLines(
         appTokenSource: account.appTokenSource,
       };
     }),
+    rocketchat: (() => {
+      const baseUrlConfig = cfg.rocketchat?.baseUrl?.trim() || "";
+      const baseUrlEnv = process.env.ROCKETCHAT_BASE_URL?.trim() || "";
+      const authTokenConfig = cfg.rocketchat?.authToken?.trim() || "";
+      const authTokenEnv = process.env.ROCKETCHAT_AUTH_TOKEN?.trim() || "";
+      const userIdConfig = cfg.rocketchat?.userId?.trim() || "";
+      const userIdEnv = process.env.ROCKETCHAT_USER_ID?.trim() || "";
+      const webhookToken = cfg.rocketchat?.webhook?.token?.trim() || "";
+      const configured = Boolean(
+        cfg.rocketchat?.enabled !== false &&
+          (baseUrlEnv || baseUrlConfig) &&
+          (authTokenEnv || authTokenConfig) &&
+          (userIdEnv || userIdConfig) &&
+          webhookToken,
+      );
+      const baseUrl = baseUrlEnv || baseUrlConfig;
+      const authTokenSource = authTokenEnv
+        ? "env"
+        : authTokenConfig
+          ? "config"
+          : "";
+      return [
+        {
+          accountId: DEFAULT_ACCOUNT_ID,
+          name: cfg.rocketchat?.name,
+          enabled: cfg.rocketchat?.enabled !== false,
+          configured,
+          tokenSource: authTokenSource,
+          baseUrl,
+        },
+      ];
+    })(),
     signal: listSignalAccountIds(cfg).map((accountId) => {
       const account = resolveSignalAccount({ cfg, accountId });
       return {

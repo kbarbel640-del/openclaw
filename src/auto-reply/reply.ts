@@ -35,6 +35,7 @@ import {
   listChatCommands,
   shouldHandleTextCommands,
 } from "./commands-registry.js";
+import { buildInboundMediaNote } from "./media-note.js";
 import { getAbortMemory } from "./reply/abort.js";
 import { runReplyAgent } from "./reply/agent-runner.js";
 import { resolveBlockStreamingChunking } from "./reply/block-streaming.js";
@@ -490,6 +491,10 @@ export async function getReplyFromConfig(
       model,
       initialModelLabel,
       formatModelSwitchEvent,
+      currentThinkLevel: resolvedThinkLevel,
+      currentVerboseLevel: resolvedVerboseLevel,
+      currentReasoningLevel: resolvedReasoningLevel,
+      currentElevatedLevel: resolvedElevatedLevel,
     });
     typing.cleanup();
     return directiveReply;
@@ -700,9 +705,7 @@ export async function getReplyFromConfig(
         .filter(Boolean)
         .join("\n\n")
     : [threadStarterNote, prefixedBodyBase].filter(Boolean).join("\n\n");
-  const mediaNote = ctx.MediaPath?.length
-    ? `[media attached: ${ctx.MediaPath}${ctx.MediaType ? ` (${ctx.MediaType})` : ""}${ctx.MediaUrl ? ` | ${ctx.MediaUrl}` : ""}]`
-    : undefined;
+  const mediaNote = buildInboundMediaNote(ctx);
   const mediaReplyHint = mediaNote
     ? "To send an image back, add a line like: MEDIA:https://example.com/image.jpg (no spaces). Keep caption in the text body."
     : undefined;

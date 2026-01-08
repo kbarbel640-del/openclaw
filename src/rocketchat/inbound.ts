@@ -23,16 +23,15 @@ import { resolveThreadSessionKeys } from "../routing/session-key.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { fetchRocketChatRoomInfo, resolveRocketChatAuth } from "./client.js";
 import {
-  normalizeOutgoingPayload,
+  type NormalizedPayload,
   normalizeRoomType,
+  type RoomType,
   resolveRoomAllowed,
   resolveRoomConfig,
   resolveShouldRequireMention,
   resolveUserAllowed,
   resolveWasMentioned,
   stripTriggerWord,
-  type NormalizedPayload,
-  type RoomType,
 } from "./inbound-utils.js";
 import { sendMessageRocketChat } from "./send.js";
 
@@ -210,14 +209,17 @@ export async function handleRocketChatMessage(params: {
           });
           if (created) {
             try {
-              await sendMessageRocketChat(`room:${roomId}`, [
-                "Clawdbot: access not configured.",
-                "",
-                `Pairing code: ${code}`,
-                "",
-                "Ask the bot owner to approve with:",
-                "clawdbot pairing approve --provider rocketchat <code>",
-              ].join("\n"));
+              await sendMessageRocketChat(
+                `room:${roomId}`,
+                [
+                  "Clawdbot: access not configured.",
+                  "",
+                  `Pairing code: ${code}`,
+                  "",
+                  "Ask the bot owner to approve with:",
+                  "clawdbot pairing approve --provider rocketchat <code>",
+                ].join("\n"),
+              );
             } catch (err) {
               logVerbose(
                 `rocketchat pairing reply failed for ${userId}: ${String(err)}`,

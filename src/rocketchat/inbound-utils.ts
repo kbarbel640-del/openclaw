@@ -1,5 +1,5 @@
-import type { ClawdbotConfig } from "../config/config.js";
 import { matchesMentionPatterns } from "../auto-reply/reply/mentions.js";
+import type { ClawdbotConfig } from "../config/config.js";
 
 export type RoomType = "direct" | "room" | "unknown";
 
@@ -152,8 +152,9 @@ export function resolveRoomAllowed(params: {
     roomId: params.roomId,
     roomName: params.roomName,
   });
-  const allowConfig =
-    resolved?.enabled === false || resolved?.allow === false ? false : true;
+  const allowConfig = !(
+    resolved?.enabled === false || resolved?.allow === false
+  );
   if (groupPolicy === "disabled") return null;
   if (!allowConfig) return null;
   if (groupPolicy === "allowlist" && !resolved) return null;
@@ -200,7 +201,10 @@ export function resolveWasMentioned(params: {
   if (params.triggerWord?.trim()) return true;
   const cleaned = params.text ?? "";
   const botUsername = params.botUsername?.trim();
-  if (botUsername && cleaned.toLowerCase().includes(`@${botUsername.toLowerCase()}`)) {
+  if (
+    botUsername &&
+    cleaned.toLowerCase().includes(`@${botUsername.toLowerCase()}`)
+  ) {
     return true;
   }
   return matchesMentionPatterns(cleaned, params.mentionRegexes);

@@ -239,7 +239,7 @@ export async function monitorSignalProvider(
     cfg,
     accountId: opts.accountId,
   });
-  const textLimit = resolveTextChunkLimit(cfg, "signal", accountInfo.accountId);
+  const textLimit = resolveTextChunkLimit(cfg, "signal");
   const baseUrl = opts.baseUrl?.trim() || accountInfo.baseUrl;
   const account = opts.account?.trim() || accountInfo.config.account?.trim();
   const dmPolicy = accountInfo.config.dmPolicy ?? "pairing";

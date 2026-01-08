@@ -1,8 +1,15 @@
 import { loadConfig } from "../config/config.js";
-import type { ClawdbotConfig } from "../config/types.js";
+import type {
+  ClawdbotConfig,
+  RocketChatAccountConfig,
+} from "../config/types.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import type { RetryConfig } from "../infra/retry.js";
 import { resolveRetryConfig, retryAsync } from "../infra/retry.js";
+import {
+  DEFAULT_ACCOUNT_ID,
+  normalizeAccountId,
+} from "../routing/session-key.js";
 
 export type RocketChatAuth = {
   baseUrl: string;
@@ -108,6 +115,7 @@ function normalizeBaseUrl(raw: string): string {
 
 export function resolveRocketChatAuth(params?: {
   cfg?: ClawdbotConfig;
+  accountId?: string;
   baseUrl?: string;
   authToken?: string;
   userId?: string;
@@ -115,32 +123,49 @@ export function resolveRocketChatAuth(params?: {
 }): RocketChatAuth {
   const cfg = params?.cfg ?? loadConfig();
   const env = params?.env ?? process.env;
+  const accountId = normalizeAccountId(params?.accountId);
+  const allowEnv = accountId === DEFAULT_ACCOUNT_ID;
+  const configLabel =
+    accountId === DEFAULT_ACCOUNT_ID
+      ? "rocketchat"
+      : `rocketchat.accounts.${accountId}`;
+  const { accounts: _ignored, ...base } = (cfg.rocketchat ??
+    {}) as RocketChatAccountConfig & { accounts?: unknown };
+  const accountConfig =
+    accountId === DEFAULT_ACCOUNT_ID
+      ? cfg.rocketchat?.accounts?.[DEFAULT_ACCOUNT_ID]
+      : cfg.rocketchat?.accounts?.[accountId];
+  const merged = { ...base, ...accountConfig };
   const baseUrl =
     params?.baseUrl?.trim() ||
-    env.ROCKETCHAT_BASE_URL?.trim() ||
-    cfg.rocketchat?.baseUrl?.trim() ||
+    merged.baseUrl?.trim() ||
+    (allowEnv ? env.ROCKETCHAT_BASE_URL?.trim() : undefined) ||
     "";
   const authToken =
     params?.authToken?.trim() ||
-    env.ROCKETCHAT_AUTH_TOKEN?.trim() ||
-    cfg.rocketchat?.authToken?.trim() ||
+    merged.authToken?.trim() ||
+    (allowEnv ? env.ROCKETCHAT_AUTH_TOKEN?.trim() : undefined) ||
     "";
   const userId =
     params?.userId?.trim() ||
-    env.ROCKETCHAT_USER_ID?.trim() ||
-    cfg.rocketchat?.userId?.trim() ||
+    merged.userId?.trim() ||
+    (allowEnv ? env.ROCKETCHAT_USER_ID?.trim() : undefined) ||
     "";
   if (!baseUrl) {
-    throw new Error("Rocket.Chat baseUrl is required (rocketchat.baseUrl)");
+    throw new Error(`Rocket.Chat baseUrl is required (${configLabel}.baseUrl)`);
   }
   if (!authToken) {
     throw new Error(
-      "Rocket.Chat authToken is required (rocketchat.authToken or ROCKETCHAT_AUTH_TOKEN)",
+      `Rocket.Chat authToken is required (${configLabel}.authToken${
+        allowEnv ? " or ROCKETCHAT_AUTH_TOKEN" : ""
+      })`,
     );
   }
   if (!userId) {
     throw new Error(
-      "Rocket.Chat userId is required (rocketchat.userId or ROCKETCHAT_USER_ID)",
+      `Rocket.Chat userId is required (${configLabel}.userId${
+        allowEnv ? " or ROCKETCHAT_USER_ID" : ""
+      })`,
     );
   }
   return {
@@ -253,16 +278,13 @@ export async function requestRocketChatJsonWithRetry<T>(
   opts: RocketChatRequestOptions,
 ): Promise<T> {
   const retry = resolveRetryConfig(DEFAULT_RETRY, opts.retry);
-  return retryAsync(
-    () => requestRocketChatJson<T>(auth, opts),
-    {
-      ...retry,
-      label: opts.path,
-      shouldRetry: (err) => isRetryableError(err),
-      retryAfterMs: (err) =>
-        err instanceof RocketChatHttpError ? err.retryAfterMs : undefined,
-    },
-  );
+  return retryAsync(() => requestRocketChatJson<T>(auth, opts), {
+    ...retry,
+    label: opts.path,
+    shouldRetry: (err) => isRetryableError(err),
+    retryAfterMs: (err) =>
+      err instanceof RocketChatHttpError ? err.retryAfterMs : undefined,
+  });
 }
 
 export async function fetchRocketChatMe(
@@ -284,33 +306,27 @@ export async function fetchRocketChatRoomInfo(
   auth: RocketChatAuth,
   params: { roomId?: string; roomName?: string; timeoutMs?: number },
 ): Promise<RocketChatRoomInfoResult> {
-  return requestRocketChatJsonWithRetry<RocketChatRoomInfoResult>(
-    auth,
-    {
-      method: "GET",
-      path: "/api/v1/rooms.info",
-      query: {
-        roomId: params.roomId,
-        roomName: params.roomName,
-      },
-      timeoutMs: params.timeoutMs,
+  return requestRocketChatJsonWithRetry<RocketChatRoomInfoResult>(auth, {
+    method: "GET",
+    path: "/api/v1/rooms.info",
+    query: {
+      roomId: params.roomId,
+      roomName: params.roomName,
     },
-  );
+    timeoutMs: params.timeoutMs,
+  });
 }
 
 export async function createRocketChatDm(
   auth: RocketChatAuth,
   params: { username: string; timeoutMs?: number },
 ): Promise<RocketChatDmCreateResult> {
-  return requestRocketChatJsonWithRetry<RocketChatDmCreateResult>(
-    auth,
-    {
-      method: "POST",
-      path: "/api/v1/dm.create",
-      body: { username: params.username },
-      timeoutMs: params.timeoutMs,
-    },
-  );
+  return requestRocketChatJsonWithRetry<RocketChatDmCreateResult>(auth, {
+    method: "POST",
+    path: "/api/v1/dm.create",
+    body: { username: params.username },
+    timeoutMs: params.timeoutMs,
+  });
 }
 
 export async function postRocketChatMessage(
@@ -337,16 +353,13 @@ export async function postRocketChatMessage(
   if (params.alias) body.alias = params.alias;
   if (params.avatar) body.avatar = params.avatar;
   if (params.emoji) body.emoji = params.emoji;
-  return requestRocketChatJsonWithRetry<RocketChatPostMessageResult>(
-    auth,
-    {
-      method: "POST",
-      path: "/api/v1/chat.postMessage",
-      body,
-      timeoutMs: params.timeoutMs,
-      retry: params.retry,
-    },
-  );
+  return requestRocketChatJsonWithRetry<RocketChatPostMessageResult>(auth, {
+    method: "POST",
+    path: "/api/v1/chat.postMessage",
+    body,
+    timeoutMs: params.timeoutMs,
+    retry: params.retry,
+  });
 }
 
 export async function uploadRocketChatRoomMedia(
@@ -373,10 +386,7 @@ export async function uploadRocketChatRoomMedia(
   form.append("msg", params.caption ?? "");
 
   try {
-    const url = buildUrl(
-      auth.baseUrl,
-      `/api/v1/rooms.media/${params.roomId}`,
-    );
+    const url = buildUrl(auth.baseUrl, `/api/v1/rooms.media/${params.roomId}`);
     const res = await fetch(url, {
       method: "POST",
       headers: {

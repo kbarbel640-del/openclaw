@@ -42,7 +42,7 @@ export type FollowupRun = {
   originatingTo?: string;
   /** Provider account id (multi-account). */
   originatingAccountId?: string;
-  /** Provider thread id (number or string). */
+  /** Telegram forum topic thread id or provider thread id. */
   originatingThreadId?: number | string;
   run: {
     agentId: string;
@@ -50,6 +50,7 @@ export type FollowupRun = {
     sessionId: string;
     sessionKey?: string;
     messageProvider?: string;
+    agentAccountId?: string;
     sessionFile: string;
     workspaceDir: string;
     config: ClawdbotConfig;

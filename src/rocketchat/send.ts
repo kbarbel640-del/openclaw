@@ -4,8 +4,8 @@ import {
 } from "../auto-reply/chunk.js";
 import { loadConfig } from "../config/config.js";
 import type { ClawdbotConfig } from "../config/types.js";
-import type { RetryConfig } from "../infra/retry.js";
 import { formatErrorMessage } from "../infra/errors.js";
+import type { RetryConfig } from "../infra/retry.js";
 import { loadWebMedia } from "../web/media.js";
 import {
   createRocketChatDm,
@@ -19,6 +19,7 @@ export type RocketChatSendOpts = {
   baseUrl?: string;
   authToken?: string;
   userId?: string;
+  accountId?: string;
   mediaUrl?: string;
   threadId?: string;
   tshow?: boolean;
@@ -113,6 +114,7 @@ export async function sendMessageRocketChat(
   const cfg = loadConfig();
   const auth = resolveRocketChatAuth({
     cfg,
+    accountId: opts.accountId,
     baseUrl: opts.baseUrl,
     authToken: opts.authToken,
     userId: opts.userId,
@@ -138,12 +140,16 @@ export async function sendMessageRocketChat(
       retry,
     });
     const messageId = res.message?._id ?? "unknown";
-    const roomId = res.message?.rid ?? (target.kind === "room" ? target.roomId : "unknown");
+    const roomId =
+      res.message?.rid ?? (target.kind === "room" ? target.roomId : "unknown");
     return { messageId, roomId };
   };
 
   if (!opts.mediaUrl) {
-    let last: RocketChatSendResult = { messageId: "unknown", roomId: "unknown" };
+    let last: RocketChatSendResult = {
+      messageId: "unknown",
+      roomId: "unknown",
+    };
     for (const chunk of chunks.length ? chunks : [""]) {
       const clean = chunk.trim();
       if (!clean) continue;

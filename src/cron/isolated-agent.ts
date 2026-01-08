@@ -591,9 +591,13 @@ export async function runCronIsolatedAgentTurn(params: {
             for (const url of mediaList) {
               const caption = first ? (payload.text ?? "") : "";
               first = false;
-              await params.deps.sendMessageRocketChat(rocketchatTarget, caption, {
-                mediaUrl: url,
-              });
+              await params.deps.sendMessageRocketChat(
+                rocketchatTarget,
+                caption,
+                {
+                  mediaUrl: url,
+                },
+              );
             }
           }
         }

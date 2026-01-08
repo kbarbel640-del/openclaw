@@ -606,15 +606,15 @@ export async function agentCommand(
         bestEffort: bestEffortDeliver,
         onError: (err) => logDeliveryError(err),
         onPayload: logPayload,
-          deps: {
-            sendWhatsApp: deps.sendMessageWhatsApp,
-            sendTelegram: deps.sendMessageTelegram,
-            sendDiscord: deps.sendMessageDiscord,
-            sendSlack: deps.sendMessageSlack,
-            sendRocketChat: deps.sendMessageRocketChat,
-            sendSignal: deps.sendMessageSignal,
-            sendIMessage: deps.sendMessageIMessage,
-          },
+        deps: {
+          sendWhatsApp: deps.sendMessageWhatsApp,
+          sendTelegram: deps.sendMessageTelegram,
+          sendDiscord: deps.sendMessageDiscord,
+          sendSlack: deps.sendMessageSlack,
+          sendRocketChat: deps.sendMessageRocketChat,
+          sendSignal: deps.sendMessageSignal,
+          sendIMessage: deps.sendMessageIMessage,
+        },
       });
     }
   }

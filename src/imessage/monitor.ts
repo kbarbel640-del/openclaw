@@ -134,11 +134,7 @@ export async function monitorIMessageProvider(
     accountId: opts.accountId,
   });
   const imessageCfg = accountInfo.config;
-  const textLimit = resolveTextChunkLimit(
-    cfg,
-    "imessage",
-    accountInfo.accountId,
-  );
+  const textLimit = resolveTextChunkLimit(cfg, "imessage");
   const allowFrom = normalizeAllowList(opts.allowFrom ?? imessageCfg.allowFrom);
   const groupAllowFrom = normalizeAllowList(
     opts.groupAllowFrom ??

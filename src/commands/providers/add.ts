@@ -87,13 +87,16 @@ export async function providersAddCommand(
                 : provider === "slack"
                   ? (nextConfig.slack?.accounts?.[accountId]?.name ??
                     nextConfig.slack?.name)
-                  : provider === "signal"
-                    ? (nextConfig.signal?.accounts?.[accountId]?.name ??
-                      nextConfig.signal?.name)
-                    : provider === "imessage"
-                      ? (nextConfig.imessage?.accounts?.[accountId]?.name ??
-                        nextConfig.imessage?.name)
-                      : undefined;
+                  : provider === "rocketchat"
+                    ? (nextConfig.rocketchat?.accounts?.[accountId]?.name ??
+                      nextConfig.rocketchat?.name)
+                    : provider === "signal"
+                      ? (nextConfig.signal?.accounts?.[accountId]?.name ??
+                        nextConfig.signal?.name)
+                      : provider === "imessage"
+                        ? (nextConfig.imessage?.accounts?.[accountId]?.name ??
+                          nextConfig.imessage?.name)
+                        : undefined;
         const name = await prompter.text({
           message: `${provider} account name (${accountId})`,
           initialValue: existingName,

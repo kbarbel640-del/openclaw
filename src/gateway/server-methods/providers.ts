@@ -6,6 +6,7 @@ import {
 } from "../../config/config.js";
 import { type DiscordProbe, probeDiscord } from "../../discord/probe.js";
 import { type IMessageProbe, probeIMessage } from "../../imessage/probe.js";
+import { probeRocketChat } from "../../rocketchat/probe.js";
 import { probeSignal, type SignalProbe } from "../../signal/probe.js";
 import { probeSlack, type SlackProbe } from "../../slack/probe.js";
 import {
@@ -14,7 +15,6 @@ import {
 } from "../../slack/token.js";
 import { probeTelegram, type TelegramProbe } from "../../telegram/probe.js";
 import { resolveTelegramToken } from "../../telegram/token.js";
-import { probeRocketChat } from "../../rocketchat/probe.js";
 import {
   listEnabledWhatsAppAccounts,
   resolveDefaultWhatsAppAccountId,
@@ -144,7 +144,8 @@ export const providersHandlers: GatewayRequestHandlers = {
     const rocketchatAuthTokenConfig = rocketchatEnabled
       ? rocketchatCfg?.authToken?.trim() || ""
       : "";
-    const rocketchatAuthToken = rocketchatAuthTokenEnv || rocketchatAuthTokenConfig;
+    const rocketchatAuthToken =
+      rocketchatAuthTokenEnv || rocketchatAuthTokenConfig;
     const rocketchatAuthTokenSource = rocketchatAuthTokenEnv
       ? "env"
       : rocketchatAuthTokenConfig
@@ -174,7 +175,9 @@ export const providersHandlers: GatewayRequestHandlers = {
           rocketchatUserId &&
           rocketchatWebhookToken,
       );
-    let rocketchatProbe: Awaited<ReturnType<typeof probeRocketChat>> | undefined;
+    let rocketchatProbe:
+      | Awaited<ReturnType<typeof probeRocketChat>>
+      | undefined;
     let rocketchatLastProbeAt: number | null = null;
     if (probe && rocketchatConfigured) {
       rocketchatProbe = await probeRocketChat(

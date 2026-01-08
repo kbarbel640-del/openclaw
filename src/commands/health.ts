@@ -1,9 +1,10 @@
+import { withProgress } from "../cli/progress.js";
 import { loadConfig } from "../config/config.js";
 import { loadSessionStore, resolveStorePath } from "../config/sessions.js";
 import { type DiscordProbe, probeDiscord } from "../discord/probe.js";
-import { type RocketChatProbe, probeRocketChat } from "../rocketchat/probe.js";
-import { callGateway } from "../gateway/call.js";
+import { buildGatewayConnectionDetails, callGateway } from "../gateway/call.js";
 import { info } from "../globals.js";
+import { probeRocketChat, type RocketChatProbe } from "../rocketchat/probe.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { probeTelegram, type TelegramProbe } from "../telegram/probe.js";
 import { resolveTelegramToken } from "../telegram/token.js";
@@ -98,16 +99,16 @@ export async function getHealthSnapshot(
 
   const rocketchatEnabled = cfg.rocketchat?.enabled !== false;
   const rocketchatBaseUrl =
-    process.env.ROCKETCHAT_BASE_URL?.trim() ||
     cfg.rocketchat?.baseUrl?.trim() ||
+    process.env.ROCKETCHAT_BASE_URL?.trim() ||
     "";
   const rocketchatAuthToken =
-    process.env.ROCKETCHAT_AUTH_TOKEN?.trim() ||
     cfg.rocketchat?.authToken?.trim() ||
+    process.env.ROCKETCHAT_AUTH_TOKEN?.trim() ||
     "";
   const rocketchatUserId =
-    process.env.ROCKETCHAT_USER_ID?.trim() ||
     cfg.rocketchat?.userId?.trim() ||
+    process.env.ROCKETCHAT_USER_ID?.trim() ||
     "";
   const rocketchatWebhookToken = cfg.rocketchat?.webhook?.token?.trim() || "";
   const rocketchatConfigured =
@@ -148,24 +149,39 @@ export async function getHealthSnapshot(
 }
 
 export async function healthCommand(
-  opts: { json?: boolean; timeoutMs?: number },
+  opts: { json?: boolean; timeoutMs?: number; verbose?: boolean },
   runtime: RuntimeEnv,
 ) {
   // Always query the running gateway; do not open a direct Baileys socket here.
-  const summary = await callGateway<HealthSummary>({
-    method: "health",
-    timeoutMs: opts.timeoutMs,
-  });
+  const summary = await withProgress(
+    {
+      label: "Checking gateway health…",
+      indeterminate: true,
+      enabled: opts.json !== true,
+    },
+    async () =>
+      await callGateway<HealthSummary>({
+        method: "health",
+        timeoutMs: opts.timeoutMs,
+      }),
+  );
   // Gateway reachability defines success; provider issues are reported but not fatal here.
   const fatal = false;
 
   if (opts.json) {
     runtime.log(JSON.stringify(summary, null, 2));
   } else {
+    if (opts.verbose) {
+      const details = buildGatewayConnectionDetails();
+      runtime.log(info("Gateway connection:"));
+      for (const line of details.message.split("\n")) {
+        runtime.log(`  ${line}`);
+      }
+    }
     runtime.log(
       summary.web.linked
         ? `Web: linked (auth age ${summary.web.authAgeMs ? `${Math.round(summary.web.authAgeMs / 60000)}m` : "unknown"})`
-        : "Web: not linked (run clawdbot login)",
+        : "Web: not linked (run clawdbot providers login)",
     );
     if (summary.web.linked) {
       const cfg = loadConfig();
@@ -202,6 +218,15 @@ export async function healthCommand(
         : `Discord: failed (${summary.discord.probe?.status ?? "unknown"})${summary.discord.probe?.error ? ` - ${summary.discord.probe.error}` : ""}`
       : "Discord: not configured";
     runtime.log(discordLabel);
+
+    const rocketchatLabel = summary.rocketchat.configured
+      ? summary.rocketchat.probe?.ok
+        ? info(
+            `Rocket.Chat: ok${summary.rocketchat.probe.user?.username ? ` (@${summary.rocketchat.probe.user.username})` : ""} (${summary.rocketchat.probe.elapsedMs}ms)`,
+          )
+        : `Rocket.Chat: failed (${summary.rocketchat.probe?.status ?? "unknown"})${summary.rocketchat.probe?.error ? ` - ${summary.rocketchat.probe.error}` : ""}`
+      : "Rocket.Chat: not configured";
+    runtime.log(rocketchatLabel);
 
     runtime.log(info(`Heartbeat interval: ${summary.heartbeatSeconds}s`));
     runtime.log(

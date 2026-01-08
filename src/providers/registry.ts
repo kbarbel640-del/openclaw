@@ -3,6 +3,7 @@ export const CHAT_PROVIDER_ORDER = [
   "whatsapp",
   "discord",
   "slack",
+  "rocketchat",
   "signal",
   "imessage",
 ] as const;
@@ -52,6 +53,14 @@ const CHAT_PROVIDER_META: Record<ChatProviderId, ChatProviderMeta> = {
     docsLabel: "slack",
     blurb: "supported (Socket Mode).",
   },
+  rocketchat: {
+    id: "rocketchat",
+    label: "Rocket.Chat",
+    selectionLabel: "Rocket.Chat (Webhook + REST)",
+    docsPath: "/providers/rocketchat",
+    docsLabel: "providers/rocketchat",
+    blurb: "self-hosted via outgoing webhooks + bot REST token.",
+  },
   signal: {
     id: "signal",
     label: "Signal",
@@ -73,6 +82,7 @@ const CHAT_PROVIDER_META: Record<ChatProviderId, ChatProviderMeta> = {
 
 const CHAT_PROVIDER_ALIASES: Record<string, ChatProviderId> = {
   imsg: "imessage",
+  "rocket.chat": "rocketchat",
 };
 
 const WEBSITE_URL = "https://clawd.bot";

@@ -27,9 +27,9 @@ export type RouteReplyParams = {
   to: string;
   /** Provider account id (multi-account). */
   accountId?: string;
-  /** Provider thread id (number). */
+  /** Telegram message thread id (forum topics). */
   threadId?: number;
-  /** Provider thread id (string). */
+  /** Provider-specific thread id (non-numeric). */
   providerThreadId?: string;
   /** Config for provider-specific settings. */
   cfg: ClawdbotConfig;
@@ -55,7 +55,8 @@ export type RouteReplyResult = {
 export async function routeReply(
   params: RouteReplyParams,
 ): Promise<RouteReplyResult> {
-  const { payload, channel, to, accountId, threadId, providerThreadId } = params;
+  const { payload, channel, to, accountId, threadId, providerThreadId } =
+    params;
 
   // Debug: `pnpm test src/auto-reply/reply/route-reply.test.ts`
   const text = payload.text ?? "";
@@ -78,9 +79,17 @@ export async function routeReply(
     const { text, mediaUrl } = params;
     switch (channel) {
       case "telegram": {
+        const replyToMessageId = replyToId
+          ? Number.parseInt(replyToId, 10)
+          : undefined;
+        const resolvedReplyToMessageId = Number.isFinite(replyToMessageId)
+          ? replyToMessageId
+          : undefined;
         const result = await sendMessageTelegram(to, text, {
           mediaUrl,
           messageThreadId: threadId,
+          replyToMessageId: resolvedReplyToMessageId,
+          accountId,
         });
         return { ok: true, messageId: result.messageId };
       }
@@ -89,16 +98,7 @@ export async function routeReply(
         const result = await sendMessageSlack(to, text, {
           mediaUrl,
           threadTs: replyToId,
-        });
-        return { ok: true, messageId: result.messageId };
-      }
-
-      case "rocketchat": {
-        const thread =
-          providerThreadId ?? (typeof replyToId === "string" ? replyToId : undefined);
-        const result = await sendMessageRocketChat(to, text, {
-          mediaUrl,
-          threadId: thread,
+          accountId,
         });
         return { ok: true, messageId: result.messageId };
       }
@@ -107,17 +107,33 @@ export async function routeReply(
         const result = await sendMessageDiscord(to, text, {
           mediaUrl,
           replyTo: replyToId,
+          accountId,
+        });
+        return { ok: true, messageId: result.messageId };
+      }
+
+      case "rocketchat": {
+        const result = await sendMessageRocketChat(to, text, {
+          mediaUrl,
+          threadId: providerThreadId,
+          accountId,
         });
         return { ok: true, messageId: result.messageId };
       }
 
       case "signal": {
-        const result = await sendMessageSignal(to, text, { mediaUrl });
+        const result = await sendMessageSignal(to, text, {
+          mediaUrl,
+          accountId,
+        });
         return { ok: true, messageId: result.messageId };
       }
 
       case "imessage": {
-        const result = await sendMessageIMessage(to, text, { mediaUrl });
+        const result = await sendMessageIMessage(to, text, {
+          mediaUrl,
+          accountId,
+        });
         return { ok: true, messageId: result.messageId };
       }
 
@@ -179,6 +195,7 @@ export function isRoutableChannel(
   | "telegram"
   | "slack"
   | "discord"
+  | "rocketchat"
   | "signal"
   | "imessage"
   | "whatsapp" {

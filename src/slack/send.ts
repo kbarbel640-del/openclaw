@@ -167,7 +167,7 @@ export async function sendMessageSlack(
   const client = opts.client ?? new WebClient(token);
   const recipient = parseRecipient(to);
   const { channelId } = await resolveChannelId(client, recipient);
-  const textLimit = resolveTextChunkLimit(cfg, "slack", account.accountId);
+  const textLimit = resolveTextChunkLimit(cfg, "slack");
   const chunkLimit = Math.min(textLimit, SLACK_TEXT_LIMIT);
   const chunks = chunkMarkdownText(trimmedMessage, chunkLimit);
   const mediaMaxBytes =

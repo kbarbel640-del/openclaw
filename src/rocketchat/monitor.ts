@@ -1,11 +1,11 @@
-import { createServer } from "node:http";
 import crypto from "node:crypto";
+import { createServer } from "node:http";
 
 import { buildMentionRegexes } from "../auto-reply/reply/mentions.js";
 import { loadConfig } from "../config/config.js";
+import { readJsonBody } from "../gateway/hooks.js";
 import { danger } from "../globals.js";
 import type { RuntimeEnv } from "../runtime.js";
-import { readJsonBody } from "../gateway/hooks.js";
 import { handleRocketChatMessage } from "./inbound.js";
 import { normalizeOutgoingPayload } from "./inbound-utils.js";
 
@@ -51,7 +51,8 @@ export async function monitorRocketChatProvider(opts: {
   const rawPath = rcCfg.webhook?.path?.trim() || DEFAULT_WEBHOOK_PATH;
   const path = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
   const maxBodyBytes =
-    typeof rcCfg.webhook?.maxBodyBytes === "number" && rcCfg.webhook.maxBodyBytes > 0
+    typeof rcCfg.webhook?.maxBodyBytes === "number" &&
+    rcCfg.webhook.maxBodyBytes > 0
       ? rcCfg.webhook.maxBodyBytes
       : DEFAULT_MAX_BODY_BYTES;
 
@@ -86,7 +87,10 @@ export async function monitorRocketChatProvider(opts: {
         res.end();
         return;
       }
-      const headerAuth = typeof req.headers.authorization === "string" ? req.headers.authorization.trim() : "";
+      const headerAuth =
+        typeof req.headers.authorization === "string"
+          ? req.headers.authorization.trim()
+          : "";
       const headerToken = headerAuth.toLowerCase().startsWith("bearer ")
         ? headerAuth.slice(7).trim()
         : "";
@@ -116,7 +120,9 @@ export async function monitorRocketChatProvider(opts: {
   });
 
   await new Promise<void>((resolve) => server.listen(port, host, resolve));
-  runtime.log?.(`rocketchat webhook listening on http://${host}:${port}${path}`);
+  runtime.log?.(
+    `rocketchat webhook listening on http://${host}:${port}${path}`,
+  );
 
   const shutdown = () => {
     server.close();

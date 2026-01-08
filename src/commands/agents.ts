@@ -512,6 +512,35 @@ async function buildProviderStatusIndex(
     });
   }
 
+  const rocketchatBaseUrl =
+    cfg.rocketchat?.baseUrl?.trim() ||
+    process.env.ROCKETCHAT_BASE_URL?.trim() ||
+    "";
+  const rocketchatAuthToken =
+    cfg.rocketchat?.authToken?.trim() ||
+    process.env.ROCKETCHAT_AUTH_TOKEN?.trim() ||
+    "";
+  const rocketchatUserId =
+    cfg.rocketchat?.userId?.trim() ||
+    process.env.ROCKETCHAT_USER_ID?.trim() ||
+    "";
+  const rocketchatWebhookToken = cfg.rocketchat?.webhook?.token?.trim() || "";
+  const rocketchatConfigured = Boolean(
+    cfg.rocketchat?.enabled !== false &&
+      rocketchatBaseUrl &&
+      rocketchatAuthToken &&
+      rocketchatUserId &&
+      rocketchatWebhookToken,
+  );
+  map.set(providerAccountKey("rocketchat", DEFAULT_ACCOUNT_ID), {
+    provider: "rocketchat",
+    accountId: DEFAULT_ACCOUNT_ID,
+    name: cfg.rocketchat?.name,
+    state: rocketchatConfigured ? "configured" : "not configured",
+    enabled: cfg.rocketchat?.enabled !== false,
+    configured: rocketchatConfigured,
+  });
+
   for (const accountId of listSignalAccountIds(cfg)) {
     const account = resolveSignalAccount({ cfg, accountId });
     map.set(providerAccountKey("signal", accountId), {
@@ -552,6 +581,8 @@ function resolveDefaultAccountId(
       return resolveDefaultDiscordAccountId(cfg) || DEFAULT_ACCOUNT_ID;
     case "slack":
       return resolveDefaultSlackAccountId(cfg) || DEFAULT_ACCOUNT_ID;
+    case "rocketchat":
+      return DEFAULT_ACCOUNT_ID;
     case "signal":
       return resolveDefaultSignalAccountId(cfg) || DEFAULT_ACCOUNT_ID;
     case "imessage":

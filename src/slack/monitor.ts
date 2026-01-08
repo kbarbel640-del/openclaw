@@ -507,7 +507,7 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
   const slashCommand = resolveSlackSlashCommandConfig(
     opts.slashCommand ?? slackCfg.slashCommand,
   );
-  const textLimit = resolveTextChunkLimit(cfg, "slack", account.accountId);
+  const textLimit = resolveTextChunkLimit(cfg, "slack");
   const mentionRegexes = buildMentionRegexes(cfg);
   const ackReaction = (cfg.messages?.ackReaction ?? "").trim();
   const ackReactionScope = cfg.messages?.ackReactionScope ?? "group-mentions";

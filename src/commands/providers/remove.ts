@@ -38,6 +38,8 @@ function listAccountIds(cfg: ClawdbotConfig, provider: ChatProvider): string[] {
       return listDiscordAccountIds(cfg);
     case "slack":
       return listSlackAccountIds(cfg);
+    case "rocketchat":
+      return [DEFAULT_ACCOUNT_ID];
     case "signal":
       return listSignalAccountIds(cfg);
     case "imessage":
