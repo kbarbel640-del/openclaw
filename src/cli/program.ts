@@ -43,6 +43,7 @@ import { registerNodesCli } from "./nodes-cli.js";
 import { registerPairingCli } from "./pairing-cli.js";
 import { forceFreePort } from "./ports.js";
 import { registerProvidersCli } from "./providers-cli.js";
+import { registerSkillsCli } from "./skills-cli.js";
 import { registerTelegramCli } from "./telegram-cli.js";
 import { registerTuiCli } from "./tui-cli.js";
 
@@ -639,6 +640,7 @@ Examples:
   registerHooksCli(program);
   registerPairingCli(program);
   registerProvidersCli(program);
+  registerSkillsCli(program);
   registerTelegramCli(program);
 
   program
