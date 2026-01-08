@@ -35,7 +35,7 @@ Directives (`/think`, `/verbose`, `/reasoning`, `/elevated`) are parsed even whe
 
 Text + native (when enabled):
 - `/help`
-- `/status`
+- `/status` (alias: `/usage`)
 - `/cost on|off` (toggle per-response usage line)
 - `/stop`
 - `/restart`
