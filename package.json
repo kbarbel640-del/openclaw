@@ -158,6 +158,7 @@
     "discord-api-types": "^0.38.37",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "fake-indexeddb": "^6.2.5",
     "file-type": "^21.3.0",
     "grammy": "^1.39.2",
     "jiti": "^2.6.1",
