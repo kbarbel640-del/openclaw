@@ -48,6 +48,7 @@ const makeDeps = (overrides: Partial<CliDeps> = {}): CliDeps => ({
   sendMessageSlack: vi.fn(),
   sendMessageSignal: vi.fn(),
   sendMessageIMessage: vi.fn(),
+  sendMessageMSTeams: vi.fn(),
   ...overrides,
 });
 

@@ -1772,6 +1772,13 @@ export async function startGatewayServer(
             startIMessageProvider,
           );
         }
+        if (plan.restartProviders.has("msteams")) {
+          await restartProvider(
+            "msteams",
+            stopMSTeamsProvider,
+            startMSTeamsProvider,
+          );
+        }
       }
     }
 

@@ -41,7 +41,8 @@ export async function sendCommand(
     provider === "discord" ||
     provider === "slack" ||
     provider === "signal" ||
-    provider === "imessage"
+    provider === "imessage" ||
+    provider === "msteams"
   ) {
     const resolvedTarget = resolveOutboundTarget({
       provider,
@@ -50,8 +51,15 @@ export async function sendCommand(
     if (!resolvedTarget.ok) {
       throw resolvedTarget.error;
     }
+    const cfg = loadConfig();
+    const sendMSTeamsAdapter = async (
+      to: string,
+      text: string,
+      o?: { mediaUrl?: string },
+    ) => deps.sendMessageMSTeams({ cfg, to, text, mediaUrl: o?.mediaUrl });
+
     const results = await deliverOutboundPayloads({
-      cfg: loadConfig(),
+      cfg,
       provider,
       to: resolvedTarget.to,
       payloads: [{ text: opts.message, mediaUrl: opts.media }],
@@ -62,6 +70,7 @@ export async function sendCommand(
         sendSlack: deps.sendMessageSlack,
         sendSignal: deps.sendMessageSignal,
         sendIMessage: deps.sendMessageIMessage,
+        sendMSTeams: sendMSTeamsAdapter,
       },
     });
     const last = results.at(-1);
