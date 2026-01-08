@@ -12,21 +12,18 @@ Complete backup solution for Clawdbot including all workspaces, agents, and sand
 
 The script creates a comprehensive backup in `~/.backup/clawdbot/<timestamp>/`:
 
-### Core State (120M)
+### Core State
 - `~/.clawdbot/` - Complete state directory including:
   - Agent configurations
   - Session history (all agents)
-  - Sandbox workspaces (6 sandboxes)
+  - Sandbox workspaces
   - Credentials
   - Logs
   - Cron jobs
   - Browser state
 
 ### Workspaces
-All configured agent workspaces are backed up with their original directory names:
-- `clawd/` - Main agent workspace
-- `clawd-family/` - Family agent workspace
-- `clawd-cyberheld-alfred/` - Alfred agent workspace
+All configured agent workspaces are backed up with their original directory names.
 
 The script automatically discovers workspaces by parsing `routing.agents.*.workspace` in your config.
 
@@ -37,10 +34,10 @@ If Docker is running, the script will also export all `clawdbot-*` Docker volume
 
 ```
 ~/.backup/clawdbot/20260108125916/
-├── .clawdbot/                    # Complete state (120M)
-├── clawd/                        # Main workspace (3.1M)
-├── clawd-family/                 # Family workspace (28K)
-├── clawd-cyberheld-alfred/       # Alfred workspace (2.3M)
+├── .clawdbot/                    # Complete state
+├── clawd/                        # Workspace 1
+├── clawd-agent2/                 # Workspace 2
+├── clawd-agent3/                 # Workspace 3
 └── docker-volumes/               # Docker volumes (if available)
     └── clawdbot-sandbox.tar.gz
 ```
@@ -71,27 +68,27 @@ rsync -a ~/.backup/clawdbot/<timestamp>/clawd/ ~/clawd/
 ```
 📦 Creating complete Clawdbot backup...
 Timestamp: 20260108125916
-Target: /Users/pascal/.backup/clawdbot/20260108125916
+Target: /Users/user/.backup/clawdbot/20260108125916
 
 === Core State Directory ===
-📁 Backing up: /Users/pascal/.clawdbot
+📁 Backing up: /Users/user/.clawdbot
   ✅ 120M - .clawdbot (complete)
 
 === Workspace Directories ===
 📁 clawd
-   Source: /Users/pascal/clawd
-   ✅ 3,1M (114 files)
-📁 clawd-family
-   Source: /Users/pascal/clawd-family
+   Source: /Users/user/clawd
+   ✅ 3.1M (114 files)
+📁 clawd-agent2
+   Source: /Users/user/clawd-agent2
    ✅  28K (7 files)
-📁 clawd-cyberheld-alfred
-   Source: /Users/pascal/clawd-cyberheld-alfred
-   ✅ 2,3M (24 files)
+📁 clawd-agent3
+   Source: /Users/user/clawd-agent3
+   ✅ 2.3M (24 files)
 
 === Agent Summary ===
-🤖 alfred: 2 sessions → /Users/pascal/clawd-cyberheld-alfred
-🤖 family: 2 sessions → /Users/pascal/clawd-family
-🤖 main: 47 sessions → /Users/pascal/clawd
+🤖 agent1: 47 sessions → /Users/user/clawd
+🤖 agent2: 2 sessions → /Users/user/clawd-agent2
+🤖 agent3: 2 sessions → /Users/user/clawd-agent3
 
 === Sandbox Summary ===
 🐳 6 sandbox workspace(s) (included in .clawdbot backup)
@@ -100,9 +97,9 @@ Target: /Users/pascal/.backup/clawdbot/20260108125916
 
 📊 Backup Structure:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  clawd/                                  3,1M (114 files)
-  clawd-cyberheld-alfred/                 2,3M (24 files)
-  clawd-family/                            28K (7 files)
+  clawd/                                  3.1M (114 files)
+  clawd-agent2/                            28K (7 files)
+  clawd-agent3/                           2.3M (24 files)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Total: 125M
 ```
