@@ -89,6 +89,10 @@ It also warns if your configured model is unknown or missing auth.
 
 Bun is supported for faster TypeScript execution, but **WhatsApp requires Node** in this ecosystem. The wizard lets you pick the runtime; choose **Node** if you use WhatsApp.
 
+### Is there a dedicated sandboxing doc?
+
+Yes. See [Sandboxing](/gateway/sandboxing). For Docker-specific setup (full gateway in Docker or sandbox images), see [Docker](/install/docker).
+
 ## Where things live on disk
 
 ### Where does Clawdbot store its data?
@@ -109,6 +113,26 @@ Everything lives under `$CLAWDBOT_STATE_DIR` (default: `~/.clawdbot`):
 Legacy single‑agent path: `~/.clawdbot/agent/*` (migrated by `clawdbot doctor`).
 
 Your **workspace** (AGENTS.md, memory files, skills, etc.) is separate and configured via `agent.workspace` (default: `~/clawd`).
+
+### Can agents work outside the workspace?
+
+Yes. The workspace is the **default cwd** and memory anchor, not a hard sandbox.
+Relative paths resolve inside the workspace, but absolute paths can access other
+host locations unless sandboxing is enabled. If you need isolation, use
+[`agent.sandbox`](/gateway/sandboxing) or per‑agent sandbox settings. If you
+want a repo to be the default working directory, point that agent’s
+`workspace` to the repo root. The Clawdbot repo is just source code; keep the
+workspace separate unless you intentionally want the agent to work inside it.
+
+Example (repo as default cwd):
+
+```json5
+{
+  agent: {
+    workspace: "~/Projects/my-repo"
+  }
+}
+```
 
 ### I’m in remote mode — where is the session store?
 
@@ -180,6 +204,19 @@ Clawdbot reads env vars from the parent process (shell, launchd/systemd, CI, etc
 - a global fallback `.env` from `~/.clawdbot/.env` (aka `$CLAWDBOT_STATE_DIR/.env`)
 
 Neither `.env` file overrides existing env vars.
+
+You can also define inline env vars in config (applied only if missing from the process env):
+
+```json5
+{
+  env: {
+    OPENROUTER_API_KEY: "sk-or-...",
+    vars: { GROQ_API_KEY: "gsk-..." }
+  }
+}
+```
+
+See [/environment](/environment) for full precedence and sources.
 
 ### “I started the Gateway via a daemon and my env vars disappeared.” What now?
 
@@ -329,7 +366,7 @@ It means the system attempted to use the auth profile ID `anthropic:default`, bu
 - **Make sure you’re editing the correct agent**
   - Multi‑agent setups mean there can be multiple `auth-profiles.json` files.
 - **Sanity‑check model/auth status**
-  - Use `/model status` to see configured models and whether providers are authenticated.
+  - Use `clawdbot models status` to see configured models and whether providers are authenticated.
 
 ### Why did it also try Google Gemini and fail?
 
@@ -503,7 +540,7 @@ Start the Gateway with `--verbose` to get more console detail. Then inspect the 
 
 ### My skill generated an image/PDF, but nothing was sent
 
-Outbound attachments from the agent must include a `MEDIA:<path-or-url>` line (on its own line). See [Clawd setup](/start/clawd) and [Agent send](/tools/agent-send).
+Outbound attachments from the agent must include a `MEDIA:<path-or-url>` line (on its own line). See [Clawdbot assistant setup](/start/clawd) and [Agent send](/tools/agent-send).
 
 CLI sending:
 

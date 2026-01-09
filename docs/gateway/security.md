@@ -95,6 +95,14 @@ This is social engineering 101. Create distrust, encourage snooping.
 
 ## Configuration Hardening (examples)
 
+### 0) File permissions
+
+Keep config + state private on the gateway host:
+- `~/.clawdbot/clawdbot.json`: `600` (user read/write only)
+- `~/.clawdbot`: `700` (user only)
+
+`clawdbot doctor` can warn and offer to tighten these permissions.
+
 ### 1) DMs: pairing by default
 
 ```json5
@@ -138,10 +146,12 @@ We may add a single `readOnlyMode` flag later to simplify this configuration.
 
 ## Sandboxing (recommended)
 
+Dedicated doc: [Sandboxing](/gateway/sandboxing)
+
 Two complementary approaches:
 
 - **Run the full Gateway in Docker** (container boundary): [Docker](/install/docker)
-- **Tool sandbox** (`agent.sandbox`, host gateway + Docker-isolated tools): [Configuration](/gateway/configuration)
+- **Tool sandbox** (`agent.sandbox`, host gateway + Docker-isolated tools): [Sandboxing](/gateway/sandboxing)
 
 Note: to prevent cross-agent access, keep `sandbox.scope` at `"agent"` (default)
 or `"session"` for stricter per-session isolation. `scope: "shared"` uses a
@@ -152,7 +162,7 @@ Also consider agent workspace access inside the sandbox:
 - `workspaceAccess: "ro"` mounts the agent workspace read-only at `/agent` (disables `write`/`edit`)
 - `workspaceAccess: "rw"` mounts the agent workspace read/write at `/workspace`
 
-Important: `agent.elevated` is an explicit escape hatch that runs bash on the host. Keep `agent.elevated.allowFrom` tight and don’t enable it for strangers.
+Important: `agent.elevated` is a **global**, sender-based escape hatch that runs bash on the host. Keep `agent.elevated.allowFrom` tight and don’t enable it for strangers. See [Elevated Mode](/tools/elevated).
 
 ## Per-agent access profiles (multi-agent)
 
