@@ -1,6 +1,11 @@
 import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
 import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
+import { listProviderPlugins } from "../providers/plugins/index.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
+
+const MESSAGE_PROVIDER_OPTIONS = listProviderPlugins()
+  .map((plugin) => plugin.id)
+  .join("|");
 
 export function buildAgentSystemPrompt(params: {
   workspaceDir: string;
@@ -308,13 +313,13 @@ export function buildAgentSystemPrompt(params: {
     "- Reply in current session → automatically routes to the source provider (Signal, Telegram, etc.)",
     "- Cross-session messaging → use sessions_send(sessionKey, message)",
     "- Never use bash/curl for provider messaging; Clawdbot handles all routing internally.",
-    availableTools.has("message")
+      availableTools.has("message")
       ? [
           "",
           "### message tool",
           "- Use `message` for proactive sends + provider actions (polls, reactions, etc.).",
           "- For `action=send`, include `to` and `message`.",
-          "- If multiple providers are configured, pass `provider` (whatsapp|telegram|discord|slack|signal|imessage|msteams).",
+          `- If multiple providers are configured, pass \`provider\` (${MESSAGE_PROVIDER_OPTIONS}).`,
           telegramInlineButtonsEnabled
             ? "- Telegram: inline buttons supported. Use `action=send` with `buttons=[[{text,callback_data}]]` (callback_data routes back as a user message)."
             : runtimeProvider === "telegram"
