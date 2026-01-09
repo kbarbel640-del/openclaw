@@ -33,6 +33,7 @@ disabled_rules:
   - indentation_width
   - identifier_name
   - explicit_self
+  - redundant_self
   - file_header
   - todo
 

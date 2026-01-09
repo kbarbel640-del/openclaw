@@ -31,6 +31,7 @@ struct SettingsTab: View {
     @AppStorage("bridge.manual.enabled") private var manualBridgeEnabled: Bool = false
     @AppStorage("bridge.manual.host") private var manualBridgeHost: String = ""
     @AppStorage("bridge.manual.port") private var manualBridgePort: Int = 18790
+    @AppStorage("bridge.manual.token") private var manualBridgeToken: String = ""
     @AppStorage("bridge.discovery.debugLogs") private var discoveryDebugLogsEnabled: Bool = false
     @AppStorage("canvas.debugStatusEnabled") private var canvasDebugStatusEnabled: Bool = false
     @State private var connectStatus = ConnectStatusStore()
@@ -119,6 +120,10 @@ struct SettingsTab: View {
 
                         TextField("Port", value: self.$manualBridgePort, format: .number)
                             .keyboardType(.numberPad)
+
+                        SecureField("Token", text: self.$manualBridgeToken)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
 
                         Button {
                             Task { await self.connectManual() }
@@ -464,12 +469,19 @@ struct SettingsTab: View {
 
         do {
             let statusStore = self.connectStatus
-            let existing = KeychainStore.loadString(
-                service: "com.clawdbot.bridge",
-                account: self.keychainAccount())
-            let existingToken = (existing?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ?
-                existing :
-                nil
+            // Use manual token if provided, otherwise try keychain
+            let manualToken = self.manualBridgeToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            let existingToken: String?
+            if !manualToken.isEmpty {
+                existingToken = manualToken
+            } else {
+                let existing = KeychainStore.loadString(
+                    service: "com.clawdbot.bridge",
+                    account: self.keychainAccount())
+                existingToken = (existing?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ?
+                    existing :
+                    nil
+            }
 
             let hello = BridgeHello(
                 nodeId: self.instanceId,

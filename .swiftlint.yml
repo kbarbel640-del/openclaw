@@ -51,6 +51,7 @@ opt_in_rules:
 disabled_rules:
   # SwiftFormat handles these
   - trailing_whitespace
+  - redundant_self
   - trailing_newline
   - trailing_comma
   - vertical_whitespace

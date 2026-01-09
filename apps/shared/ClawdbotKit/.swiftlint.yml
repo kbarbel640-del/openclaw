@@ -1,0 +1,17 @@
+# SwiftLint for ClawdbotKit
+included:
+  - Sources
+
+excluded:
+  - .build
+  - DerivedData
+  - "**/.swiftpm"
+
+disabled_rules:
+  - redundant_self
+  - trailing_whitespace
+  - trailing_newline
+  - identifier_name
+  - todo
+
+reporter: "xcode"

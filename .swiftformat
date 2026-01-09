@@ -2,8 +2,8 @@
 
 --swiftversion 6.2
 
-# Self handling
---self insert
+# Self handling - disabled to avoid lint conflicts
+--disable redundantSelf
 --selfrequired
 
 # Imports / extensions
