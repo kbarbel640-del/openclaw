@@ -172,6 +172,26 @@ export function createTelegramBot(opts: TelegramBotOptions) {
 
   const mediaGroupBuffer = new Map<string, MediaGroupEntry>();
 
+  // Message deduplication - prevents reprocessing messages after restarts/reconnects
+  const seenMessages = new Map<string, number>();
+  const isMessageSeen = (chatId: number, messageId: number): boolean => {
+    const key = `${chatId}:${messageId}`;
+    if (seenMessages.has(key)) return true;
+    seenMessages.set(key, Date.now());
+    // Cleanup old entries to prevent memory growth
+    if (seenMessages.size > 500) {
+      const cutoff = Date.now() - 60_000;
+      for (const [entry, seenAt] of seenMessages) {
+        if (seenAt < cutoff || seenMessages.size > 450) {
+          seenMessages.delete(entry);
+        } else {
+          break;
+        }
+      }
+    }
+    return false;
+  };
+
   const cfg = opts.config ?? loadConfig();
   const account = resolveTelegramAccount({
     cfg,
@@ -995,6 +1015,12 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     try {
       const msg = ctx.message;
       if (!msg) return;
+
+      // Skip duplicate messages (can happen after restarts/reconnects)
+      if (isMessageSeen(msg.chat.id, msg.message_id)) {
+        logVerbose(`Skipping duplicate telegram message ${msg.chat.id}:${msg.message_id}`);
+        return;
+      }
 
       const chatId = msg.chat.id;
       const isGroup =
