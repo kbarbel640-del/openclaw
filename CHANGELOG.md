@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Discord: reject ambiguous bare numeric IDs in DM sends with clear guidance on `user:<id>` vs `channel:<id>` prefixes (fixes "Unknown Channel" error when DMing by user ID).
 - macOS: add node bridge heartbeat pings to detect half-open sockets and reconnect cleanly. (#572) — thanks @ngutman
 - Node bridge: harden keepalive + heartbeat handling (TCP keepalive, better disconnects, and keepalive config tests). (#577) — thanks @steipete
 - Control UI: improve mobile responsiveness. (#558) — thanks @carlulsoe
