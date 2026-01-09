@@ -51,6 +51,24 @@ Routing picks **one agent** for each inbound message:
 
 The matched agent determines which workspace and session store are used.
 
+## Broadcast groups (run multiple agents)
+
+Broadcast groups let you run **multiple agents** for the same peer **when Clawdbot would normally reply** (for example: in WhatsApp groups, after mention/activation gating).
+
+Config:
+
+```json5
+{
+  broadcast: {
+    strategy: "parallel",
+    "[redacted-email]": ["alfred", "baerbel"],
+    "+15555550123": ["support", "logger"]
+  }
+}
+```
+
+See: [Broadcast Groups](/broadcast-groups).
+
 ## Config overview
 
 - `agents.list`: named agent definitions (workspace, model, etc.).
