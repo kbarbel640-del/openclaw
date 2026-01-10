@@ -294,7 +294,7 @@ Mario asking for find ~
 
 ## Reporting Security Issues
 
-Found a vulnerability in CLAWDBOT? Please report responsibly:
+Found a vulnerability in Clawdbot? Please report responsibly:
 
 1. Email: [redacted-email]
 2. Don't post publicly until fixed
