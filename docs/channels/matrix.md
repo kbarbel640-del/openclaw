@@ -23,10 +23,11 @@ Status: Node-only with E2EE enabled by default (Rust crypto).
 Matrix uses the official `matrix-js-sdk` with Rust crypto. That means:
 
 - **Node-only** runtime (Bun is unsupported for Matrix).
-- E2EE is **on by default** (`matrix.encryption=true`).
-- The wizard asks whether to enable E2EE; if enabled, it will prompt for `matrix.deviceId`.
-- If you join encrypted rooms, verify the Clawdbot device in your Matrix client so it can decrypt messages.
-- Crypto state is persisted to `~/.clawdbot/matrix-crypto/` using a user-specific IndexedDB database. This ensures device keys survive restarts when using a fixed `matrix.deviceId`.
+- E2EE is **off by default** (`matrix.encryption=false`). Set `matrix.encryption: true` to enable.
+- For **verified encryption** (no warning icons), also set `matrix.recoveryKey` to your 4x4 recovery key from Element's security settings.
+- The wizard asks whether to enable E2EE; if enabled, it will prompt for `matrix.deviceId` and `matrix.recoveryKey`.
+- Crypto state is persisted to `~/.clawdbot/matrix-crypto/` using a user-specific IndexedDB database.
+- Password login credentials are cached to `~/.clawdbot/credentials/matrix/` for reuse across restarts.
 
 ## Access tokens (recommended)
 

@@ -11,6 +11,7 @@ export type MatrixResolvedConfig = {
   deviceId?: string;
   deviceName?: string;
   encryption: boolean;
+  recoveryKey?: string;
   initialSyncLimit?: number;
 };
 
@@ -21,6 +22,7 @@ export type MatrixAuth = {
   deviceId?: string;
   deviceName?: string;
   encryption: boolean;
+  recoveryKey?: string;
   initialSyncLimit?: number;
 };
 
@@ -51,7 +53,7 @@ function clean(value?: string): string {
 
 export function resolveMatrixConfig(
   cfg: ClawdbotConfig = loadConfig(),
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env
 ): MatrixResolvedConfig {
   const matrix = cfg.matrix ?? {};
   const homeserver = clean(env.MATRIX_HOMESERVER) || clean(matrix.homeserver);
@@ -63,7 +65,9 @@ export function resolveMatrixConfig(
   const deviceId = clean(env.MATRIX_DEVICE_ID) || clean(matrix.deviceId);
   const deviceName =
     clean(env.MATRIX_DEVICE_NAME) || clean(matrix.deviceName) || undefined;
-  const encryption = matrix.encryption !== false;
+  const recoveryKey =
+    clean(env.MATRIX_RECOVERY_KEY) || clean(matrix.recoveryKey) || undefined;
+  const encryption = matrix.encryption === true;
   const initialSyncLimit =
     typeof matrix.initialSyncLimit === "number"
       ? Math.max(0, Math.floor(matrix.initialSyncLimit))
@@ -76,6 +80,7 @@ export function resolveMatrixConfig(
     deviceId: deviceId || undefined,
     deviceName,
     encryption,
+    recoveryKey,
     initialSyncLimit,
   };
 }
@@ -93,6 +98,8 @@ export async function resolveMatrixAuth(params?: {
   if (!resolved.userId) {
     throw new Error("Matrix userId is required (matrix.userId)");
   }
+
+  // If access token is provided in config, use it directly
   if (resolved.accessToken) {
     return {
       homeserver: resolved.homeserver,
@@ -101,12 +108,45 @@ export async function resolveMatrixAuth(params?: {
       deviceId: resolved.deviceId,
       deviceName: resolved.deviceName,
       encryption: resolved.encryption,
+      recoveryKey: resolved.recoveryKey,
       initialSyncLimit: resolved.initialSyncLimit,
     };
   }
+
+  // Try to load cached credentials from previous password login
+  const {
+    loadMatrixCredentials,
+    saveMatrixCredentials,
+    credentialsMatchConfig,
+    touchMatrixCredentials,
+  } = await import("./credentials.js");
+
+  const cached = loadMatrixCredentials(env);
+  if (
+    cached &&
+    credentialsMatchConfig(cached, {
+      homeserver: resolved.homeserver,
+      userId: resolved.userId,
+    })
+  ) {
+    // Update lastUsedAt timestamp
+    touchMatrixCredentials(env);
+    return {
+      homeserver: cached.homeserver,
+      userId: cached.userId,
+      accessToken: cached.accessToken,
+      deviceId: cached.deviceId,
+      deviceName: resolved.deviceName,
+      encryption: resolved.encryption,
+      recoveryKey: resolved.recoveryKey,
+      initialSyncLimit: resolved.initialSyncLimit,
+    };
+  }
+
+  // No cached credentials or config changed - need password login
   if (!resolved.password) {
     throw new Error(
-      "Matrix access token or password is required (matrix.accessToken or matrix.password)",
+      "Matrix access token or password is required (matrix.accessToken or matrix.password)"
     );
   }
 
@@ -118,22 +158,36 @@ export async function resolveMatrixAuth(params?: {
     type: "m.login.password",
     identifier: { type: "m.id.user", user: resolved.userId },
     password: resolved.password,
-    device_id: resolved.deviceId,
+    device_id: resolved.deviceId ?? cached?.deviceId,
     initial_device_display_name: resolved.deviceName ?? "Clawdbot Gateway",
   });
   const accessToken = login.access_token?.trim();
   if (!accessToken) {
     throw new Error("Matrix login did not return an access token");
   }
-  return {
+
+  const auth: MatrixAuth = {
     homeserver: resolved.homeserver,
     userId: login.user_id ?? resolved.userId,
     accessToken,
     deviceId: login.device_id ?? resolved.deviceId,
     deviceName: resolved.deviceName,
     encryption: resolved.encryption,
+    recoveryKey: resolved.recoveryKey,
     initialSyncLimit: resolved.initialSyncLimit,
   };
+
+  // Save credentials for future restarts
+  if (auth.deviceId) {
+    saveMatrixCredentials({
+      homeserver: auth.homeserver,
+      userId: auth.userId,
+      accessToken: auth.accessToken,
+      deviceId: auth.deviceId,
+    });
+  }
+
+  return auth;
 }
 
 export async function createMatrixClient(params: {
@@ -176,7 +230,12 @@ async function createSharedMatrixClient(params: {
     deviceId: params.auth.deviceId,
     localTimeoutMs: params.timeoutMs,
   });
-  await ensureMatrixCrypto(client, params.auth.encryption, params.auth.userId);
+  await ensureMatrixCrypto(
+    client,
+    params.auth.encryption,
+    params.auth.userId,
+    params.auth.recoveryKey
+  );
   return { client, key: buildSharedClientKey(params.auth), started: false };
 }
 
@@ -215,7 +274,7 @@ export async function resolveSharedMatrixClient(
     timeoutMs?: number;
     auth?: MatrixAuth;
     startClient?: boolean;
-  } = {},
+  } = {}
 ): Promise<MatrixClient> {
   const auth =
     params.auth ??
@@ -272,14 +331,17 @@ export async function ensureMatrixCrypto(
   client: MatrixClient,
   enabled: boolean,
   userId?: string,
+  recoveryKey?: string
 ): Promise<void> {
   if (!enabled) return;
   if (client.getCrypto()) return;
 
   // Set up fake-indexeddb for Node.js to enable persistent crypto storage
-  const { setupNodeIndexedDB, sanitizeUserIdForPrefix } = await import(
-    "./crypto-store.js"
-  );
+  const {
+    setupNodeIndexedDB,
+    sanitizeUserIdForPrefix,
+    bootstrapMatrixCrossSigning,
+  } = await import("./crypto-store.js");
   await setupNodeIndexedDB();
 
   // Use a user-specific database prefix to avoid conflicts between accounts
@@ -291,6 +353,20 @@ export async function ensureMatrixCrypto(
     useIndexedDB: true,
     cryptoDatabasePrefix: prefix,
   });
+
+  // If a recovery key is provided, bootstrap cross-signing for verified E2EE
+  if (recoveryKey?.trim()) {
+    try {
+      await bootstrapMatrixCrossSigning(client, recoveryKey.trim());
+    } catch (err) {
+      // Log but don't fail - encryption still works, just not verified
+      console.error(
+        `Matrix cross-signing bootstrap failed (E2EE still works, but unverified): ${String(
+          err
+        )}`
+      );
+    }
+  }
 }
 
 export async function waitForMatrixSync(params: {

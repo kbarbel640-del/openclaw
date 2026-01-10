@@ -709,8 +709,10 @@ export type MatrixConfig = {
   storePath?: string;
   /** Optional store path for crypto state. */
   cryptoStorePath?: string;
-  /** Enable end-to-end encryption (default: true). */
+  /** Enable end-to-end encryption (default: false until recovery key configured). */
   encryption?: boolean;
+  /** Recovery key for cross-signing verification (4x4 key from Element security settings). */
+  recoveryKey?: string;
   /** Auto-join room invites (always|allowlist|off). Default: always. */
   autoJoin?: "always" | "allowlist" | "off";
   /** Room allowlist for auto-join when autoJoin=allowlist. */

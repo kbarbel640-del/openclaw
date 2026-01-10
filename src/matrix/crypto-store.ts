@@ -11,7 +11,7 @@ let indexedDBSetup = false;
  */
 export function resolveMatrixCryptoDir(
   env: NodeJS.ProcessEnv = process.env,
-  stateDir: string = resolveStateDir(env, os.homedir),
+  stateDir: string = resolveStateDir(env, os.homedir)
 ): string {
   const override = env.CLAWDBOT_MATRIX_CRYPTO_DIR?.trim();
   if (override) {
@@ -29,7 +29,7 @@ export function resolveMatrixCryptoDir(
  * Ensure the crypto directory exists.
  */
 export function ensureMatrixCryptoDir(
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env
 ): string {
   const dir = resolveMatrixCryptoDir(env);
   fs.mkdirSync(dir, { recursive: true });
@@ -52,7 +52,7 @@ export function sanitizeUserIdForPrefix(userId: string): string {
  * The crypto store will be persisted to ~/.clawdbot/matrix-crypto/.
  */
 export async function setupNodeIndexedDB(
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
   if (indexedDBSetup) return;
 
@@ -86,4 +86,54 @@ export function isNodeIndexedDBSetup(): boolean {
  */
 export function resetNodeIndexedDBSetup(): void {
   indexedDBSetup = false;
+}
+
+/**
+ * Bootstrap cross-signing using a recovery key.
+ * This verifies the device by fetching cross-signing keys from SSSS.
+ *
+ * @param client - The Matrix client (already initialized with crypto)
+ * @param recoveryKey - The 4x4 recovery key from Element security settings
+ */
+export async function bootstrapMatrixCrossSigning(
+  client: import("matrix-js-sdk").MatrixClient,
+  recoveryKey: string
+): Promise<void> {
+  const crypto = client.getCrypto();
+  if (!crypto) {
+    throw new Error("Crypto not initialized - call initRustCrypto first");
+  }
+
+  // Import the recovery key decoder
+  const { decodeRecoveryKey } = await import(
+    "matrix-js-sdk/lib/crypto-api/recovery-key.js"
+  );
+
+  // Decode the recovery key to raw bytes
+  const recoveryKeyBytes = decodeRecoveryKey(recoveryKey);
+
+  // Check cross-signing status
+  const crossSigningStatus = await crypto.getCrossSigningStatus();
+
+  // If we don't have the private keys cached, we need to fetch them from SSSS
+  if (!crossSigningStatus.privateKeysCachedLocally.masterKey) {
+    // Bootstrap secret storage to fetch keys from SSSS using the recovery key
+    // The getSecretStorageKey callback will be called to provide the key
+    await crypto.bootstrapSecretStorage({
+      createSecretStorageKey: async () => {
+        // Return the existing recovery key (don't create new one)
+        return {
+          privateKey: recoveryKeyBytes,
+          encodedPrivateKey: recoveryKey,
+          keyInfo: {},
+        };
+      },
+    });
+  }
+
+  // Bootstrap cross-signing - this will sign our device if needed
+  await crypto.bootstrapCrossSigning({
+    // We don't need auth for password login scenarios
+    // (the device is already authenticated)
+  });
 }

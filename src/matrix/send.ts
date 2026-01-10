@@ -74,12 +74,12 @@ function normalizeTarget(raw: string): string {
 
 async function resolveDirectRoomId(
   client: MatrixClient,
-  userId: string,
+  userId: string
 ): Promise<string> {
   const trimmed = userId.trim();
   if (!trimmed.startsWith("@")) {
     throw new Error(
-      `Matrix user IDs must be fully qualified (got "${trimmed}")`,
+      `Matrix user IDs must be fully qualified (got "${trimmed}")`
     );
   }
   const directEvent = client.getAccountData(EventType.Direct);
@@ -92,13 +92,13 @@ async function resolveDirectRoomId(
   const serverList = Array.isArray(server?.[trimmed]) ? server[trimmed] : [];
   if (serverList.length > 0) return serverList[0];
   throw new Error(
-    `No m.direct room found for ${trimmed}. Open a DM first so Matrix can set m.direct.`,
+    `No m.direct room found for ${trimmed}. Open a DM first so Matrix can set m.direct.`
   );
 }
 
 export async function resolveMatrixRoomId(
   client: MatrixClient,
-  raw: string,
+  raw: string
 ): Promise<string> {
   const target = normalizeTarget(raw);
   const lowered = target.toLowerCase();
@@ -158,7 +158,7 @@ function buildMediaContent(params: {
 
 function buildTextContent(
   body: string,
-  relation?: MatrixReplyRelation,
+  relation?: MatrixReplyRelation
 ): RoomMessageEventContent {
   const content: MatrixMessageContent = relation
     ? {
@@ -176,7 +176,7 @@ function buildTextContent(
 
 function applyMatrixFormatting(
   content: MatrixMessageContent,
-  body: string,
+  body: string
 ): void {
   const formatted = markdownToMatrixHtml(body ?? "");
   if (!formatted) return;
@@ -186,7 +186,7 @@ function applyMatrixFormatting(
 
 async function isMatrixRoomEncrypted(
   client: MatrixClient,
-  roomId: string,
+  roomId: string
 ): Promise<boolean> {
   const crypto = client.getCrypto();
   if (crypto && "isEncryptionEnabledInRoom" in crypto) {
@@ -204,7 +204,7 @@ async function isMatrixRoomEncrypted(
 }
 
 function buildReplyRelation(
-  replyToId?: string,
+  replyToId?: string
 ): MatrixReplyRelation | undefined {
   const trimmed = replyToId?.trim();
   if (!trimmed) return undefined;
@@ -218,7 +218,7 @@ async function uploadFile(
     contentType?: string;
     filename?: string;
     includeFilename?: boolean;
-  },
+  }
 ): Promise<string> {
   const upload = await client.uploadContent(file as MatrixUploadContent, {
     type: params.contentType,
@@ -251,7 +251,12 @@ async function resolveMatrixClient(opts: {
     deviceId: auth.deviceId,
     localTimeoutMs: opts.timeoutMs,
   });
-  await ensureMatrixCrypto(client, auth.encryption, auth.userId);
+  await ensureMatrixCrypto(
+    client,
+    auth.encryption,
+    auth.userId,
+    auth.recoveryKey
+  );
   await client.startClient({
     initialSyncLimit: 0,
     lazyLoadMembers: true,
@@ -264,7 +269,7 @@ async function resolveMatrixClient(opts: {
 export async function sendMessageMatrix(
   to: string,
   message: string,
-  opts: MatrixSendOpts = {},
+  opts: MatrixSendOpts = {}
 ): Promise<MatrixSendResult> {
   const trimmedMessage = message?.trim() ?? "";
   if (!trimmedMessage && !opts.mediaUrl) {
@@ -282,7 +287,7 @@ export async function sendMessageMatrix(
     if (opts.mediaUrl) {
       if (encryptedRoom && !client.getCrypto()) {
         throw new Error(
-          "Matrix encryption is disabled; enable matrix.encryption to send media in encrypted rooms.",
+          "Matrix encryption is disabled; enable matrix.encryption to send media in encrypted rooms."
         );
       }
     }
@@ -310,7 +315,7 @@ export async function sendMessageMatrix(
             contentType: "application/octet-stream",
             filename: media.fileName,
             includeFilename: false,
-          },
+          }
         );
         file = {
           ...encrypted.info,
@@ -370,7 +375,7 @@ export async function sendTypingMatrix(
   roomId: string,
   typing: boolean,
   timeoutMs?: number,
-  client?: MatrixClient,
+  client?: MatrixClient
 ): Promise<void> {
   const { client: resolved, stopOnDone } = await resolveMatrixClient({
     client,
@@ -391,7 +396,7 @@ export async function reactMatrixMessage(
   roomId: string,
   messageId: string,
   emoji: string,
-  client?: MatrixClient,
+  client?: MatrixClient
 ): Promise<void> {
   if (!emoji.trim()) {
     throw new Error("Matrix reaction requires an emoji");
@@ -424,7 +429,7 @@ export type MatrixPollSendResult = {
 export async function sendPollMatrix(
   to: string,
   poll: PollInput,
-  opts: MatrixSendOpts & { content?: string } = {},
+  opts: MatrixSendOpts & { content?: string } = {}
 ): Promise<MatrixPollSendResult> {
   if (!poll.question?.trim()) {
     throw new Error("Matrix poll requires a question");
@@ -450,7 +455,7 @@ export async function sendPollMatrix(
     const response = await client.sendEvent(
       roomId,
       M_POLL_START as EventType.RoomMessage,
-      pollContent as unknown as RoomMessageEventContent,
+      pollContent as unknown as RoomMessageEventContent
     );
 
     return {
