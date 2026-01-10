@@ -580,6 +580,11 @@ describe("trigger handling", () => {
       );
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       expect(text).toContain("Elevated mode disabled.");
+
+      const store = loadSessionStore(cfg.session.store);
+      expect(store["agent:main:whatsapp:group:[redacted-email]"]?.elevatedLevel).toBe(
+        "off",
+      );
     });
   });
 
