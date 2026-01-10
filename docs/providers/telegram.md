@@ -131,11 +131,9 @@ Send in the group:
 
 Forward any message from the group to `@userinfobot` or `@getidsbot` on Telegram to see the chat ID (negative number like `-1001234567890`).
 
-**Tip:** To get your own user ID and other personal information, simply send any message (e.g., `/start`) directly to `@userinfobot`. The bot will respond with your user ID, username, language settings, and more - useful for configuring allowlists or debugging access control.
+**Tip:** For your own user ID, DM `@userinfobot` with `/start`. Useful for allowlists or debugging access control.
 
-![@userinfobot example](../assets/telegram/userinfobot-example.png)
-
-**Privacy note:** `@userinfobot` is a third-party bot. When you contact it, you're sharing your Telegram information with that bot operator. Alternatively, you can find user/chat IDs in your gateway logs (`clawdbot logs`) or use Telegram's own developer tools.
+**Privacy note:** `@userinfobot` is a third-party bot. If you prefer, use gateway logs (`clawdbot logs`) or Telegram developer tools to find user/chat IDs.
 
 ## Topics (forum supergroups)
 Telegram forum topics include a `message_thread_id` per message. Clawdbot:
