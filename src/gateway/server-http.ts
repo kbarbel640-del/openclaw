@@ -8,6 +8,7 @@ import type { WebSocketServer } from "ws";
 import { handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
 import type { CanvasHostHandler } from "../canvas-host/server.js";
 import type { createSubsystemLogger } from "../logging.js";
+import { handleApiRequest } from "./api.js";
 import { handleControlUiHttpRequest } from "./control-ui.js";
 import {
   extractHookToken,
@@ -219,6 +220,7 @@ export function createGatewayHttpServer(opts: {
 
     void (async () => {
       if (await handleHooksRequest(req, res)) return;
+      if (await handleApiRequest(req, res)) return;
       if (canvasHost) {
         if (await handleA2uiHttpRequest(req, res)) return;
         if (await canvasHost.handleHttpRequest(req, res)) return;
