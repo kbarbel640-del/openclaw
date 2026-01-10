@@ -1,9 +1,10 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { AssistantMessage, UserMessage } from "@mariozechner/pi-ai";
 import type {
+  AssistantMessage,
   ImageContent,
   TextContent,
   ToolResultMessage,
+  UserMessage,
 } from "@mariozechner/pi-ai";
 import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 

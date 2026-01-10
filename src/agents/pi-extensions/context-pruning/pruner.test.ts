@@ -1,6 +1,6 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import type { AssistantMessage, UserMessage } from "@mariozechner/pi-ai";
+import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -77,8 +77,10 @@ describe("condenseUserMessage", () => {
     const msg: UserMessage = makeUser(`First sentence. ${"x".repeat(500)}`);
     const result = condenseUserMessage(msg, 100);
     expect(result).not.toBeNull();
-    expect(result!.content).toContain("[Message condensed]");
-    expect((result!.content as string).length).toBeLessThan(msg.content.length);
+    expect(result?.content).toContain("[Message condensed]");
+    expect((result?.content as string | undefined)?.length ?? 0).toBeLessThan(
+      msg.content.length,
+    );
   });
 
   it("preserves images in array content", () => {
@@ -88,7 +90,7 @@ describe("condenseUserMessage", () => {
     ]);
     const result = condenseUserMessage(msg, 100);
     expect(result).not.toBeNull();
-    const content = result!.content as Array<{ type: string }>;
+    const content = result?.content as Array<{ type: string }>;
     const hasImage = content.some((b) => b.type === "image");
     expect(hasImage).toBe(true);
   });
@@ -113,7 +115,7 @@ describe("condenseAssistantMessage", () => {
     ]);
     const result = condenseAssistantMessage(msg, 200);
     expect(result).not.toBeNull();
-    const text = result!.content.find(
+    const text = result?.content.find(
       (b) => b.type === "text" && b.text.includes("[Response condensed]"),
     );
     expect(text).toBeTruthy();
@@ -131,7 +133,7 @@ describe("condenseAssistantMessage", () => {
     ]);
     const result = condenseAssistantMessage(msg, 200);
     expect(result).not.toBeNull();
-    const hasToolCall = result!.content.some((b) => b.type === "toolCall");
+    const hasToolCall = result?.content.some((b) => b.type === "toolCall");
     expect(hasToolCall).toBe(true);
   });
 
@@ -142,7 +144,7 @@ describe("condenseAssistantMessage", () => {
     ]);
     const result = condenseAssistantMessage(msg, 150);
     expect(result).not.toBeNull();
-    const thinking = result!.content.find((b) => b.type === "thinking") as
+    const thinking = result?.content.find((b) => b.type === "thinking") as
       | { type: "thinking"; thinking: string }
       | undefined;
     if (thinking) {
