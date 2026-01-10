@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+# Keep fork-specific CLAUDE.md during upstream merges
+CLAUDE.md merge=ours
