@@ -248,7 +248,7 @@ Controls how WhatsApp direct chats (DMs) are handled:
 - `"open"`: allow all inbound DMs (**requires** `whatsapp.allowFrom` to include `"*"`)
 - `"disabled"`: ignore all inbound DMs
 
-Pairing codes expire after 1 hour; the bot only sends a pairing code when a new request is created.
+Pairing codes expire after 1 hour; the bot only sends a pairing code when a new request is created. Pending DM pairing requests are capped at **3 per provider** by default.
 
 Pairing approvals:
 - `clawdbot pairing list --provider whatsapp`
@@ -265,7 +265,8 @@ For groups, use `whatsapp.groupPolicy` + `whatsapp.groupAllowFrom`.
   whatsapp: {
     dmPolicy: "pairing", // pairing | allowlist | open | disabled
     allowFrom: ["+15555550123", "+447700900123"],
-    textChunkLimit: 4000 // optional outbound chunk size (chars)
+    textChunkLimit: 4000, // optional outbound chunk size (chars)
+    mediaMaxMb: 50 // optional inbound media cap (MB)
   }
 }
 ```
@@ -508,7 +509,7 @@ Read-only tools + read-only workspace:
           workspaceAccess: "ro"
         },
         tools: {
-          allow: ["read", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn"],
+          allow: ["read", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status"],
           deny: ["write", "edit", "bash", "process", "browser"]
         }
       }
@@ -531,7 +532,7 @@ No filesystem access (messaging/session tools enabled):
           workspaceAccess: "none"
         },
         tools: {
-          allow: ["sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "whatsapp", "telegram", "slack", "discord", "gateway"],
+          allow: ["sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status", "whatsapp", "telegram", "slack", "discord", "gateway"],
           deny: ["read", "write", "edit", "bash", "process", "browser", "canvas", "nodes", "cron", "gateway", "image"]
         }
       }
@@ -674,7 +675,7 @@ Multi-account support lives under `telegram.accounts` (see the multi-account sec
       }
     },
     replyToMode: "first",                 // off | first | all
-    streamMode: "partial",               // off | partial | block (draft streaming)
+    streamMode: "partial",               // off | partial | block (draft streaming; separate from block streaming)
     actions: { reactions: true, sendMessage: true }, // tool action gates (false disables)
     mediaMaxMb: 5,
     retry: {                             // outbound retry policy
@@ -764,7 +765,7 @@ Multi-account support lives under `discord.accounts` (see the multi-account sect
 }
 ```
 
-Clawdbot starts Discord only when a `discord` config section exists. The token is resolved from `DISCORD_BOT_TOKEN` or `discord.token` (unless `discord.enabled` is `false`). Use `user:<id>` (DM) or `channel:<id>` (guild channel) when specifying delivery targets for cron/CLI commands.
+Clawdbot starts Discord only when a `discord` config section exists. The token is resolved from `DISCORD_BOT_TOKEN` or `discord.token` (unless `discord.enabled` is `false`). Use `user:<id>` (DM) or `channel:<id>` (guild channel) when specifying delivery targets for cron/CLI commands; bare numeric IDs are ambiguous and rejected.
 Guild slugs are lowercase with spaces replaced by `-`; channel keys use the slugged channel name (no leading `#`). Prefer guild ids as keys to avoid rename ambiguity.
 Reaction notification modes:
 - `off`: no reaction events.
@@ -845,6 +846,26 @@ Slack action groups (gate `slack` tool actions):
 | pins | enabled | Pin/unpin/list |
 | memberInfo | enabled | Member info |
 | emojiList | enabled | Custom emoji list |
+
+### `signal` (signal-cli)
+
+Signal reactions can emit system events (shared reaction tooling):
+
+```json5
+{
+  signal: {
+    reactionNotifications: "own", // off | own | all | allowlist
+    reactionAllowlist: ["+15551234567", "uuid:123e4567-e89b-12d3-a456-426614174000"]
+  }
+}
+```
+
+Reaction notification modes:
+- `off`: no reaction events.
+- `own`: reactions on the bot's own messages (default).
+- `all`: all reactions on all messages.
+- `allowlist`: reactions from `signal.reactionAllowlist` on all messages (empty list disables).
+
 ### `imessage` (imsg CLI)
 
 Clawdbot spawns `imsg rpc` (JSON-RPC over stdio). No daemon or port required.
@@ -920,12 +941,12 @@ message envelopes). If unset, Clawdbot uses the host timezone at runtime.
 ### `messages`
 
 Controls inbound/outbound prefixes and optional ack reactions.
+See [Messages](/concepts/messages) for queueing, sessions, and streaming context.
 
 ```json5
 {
   messages: {
-    messagePrefix: "[clawdbot]",
-    responsePrefix: "🦞",
+    responsePrefix: "🦞", // or "auto"
     ackReaction: "👀",
     ackReactionScope: "group-mentions"
   }
@@ -935,13 +956,14 @@ Controls inbound/outbound prefixes and optional ack reactions.
 `responsePrefix` is applied to **all outbound replies** (tool summaries, block
 streaming, final replies) across providers unless already present.
 
-If `messages.responsePrefix` is unset and the routed agent has `identity.name`
-set, Clawdbot defaults the prefix to `[{identity.name}]`.
+If `messages.responsePrefix` is unset, no prefix is applied by default.
+Set it to `"auto"` to derive `[{identity.name}]` for the routed agent (when set).
 
-If `messages.messagePrefix` is unset, the default stays **unchanged**:
-`"[clawdbot]"` when `whatsapp.allowFrom` is empty, otherwise `""` (no prefix).
-When using `"[clawdbot]"`, Clawdbot will instead use `[{identity.name}]` when
-the routed agent has `identity.name` set.
+WhatsApp inbound prefix is configured via `whatsapp.messagePrefix` (deprecated:
+`messages.messagePrefix`). Default stays **unchanged**: `"[clawdbot]"` when
+`whatsapp.allowFrom` is empty, otherwise `""` (no prefix). When using
+`"[clawdbot]"`, Clawdbot will instead use `[{identity.name}]` when the routed
+agent has `identity.name` set.
 
 `ackReaction` sends a best-effort emoji reaction to acknowledge inbound messages
 on providers that support reactions (Slack/Discord/Telegram). Defaults to the
@@ -1141,7 +1163,9 @@ Example (adaptive tuned):
 See [/concepts/session-pruning](/concepts/session-pruning) for behavior details.
 
 Block streaming:
-- `agents.defaults.blockStreamingDefault`: `"on"`/`"off"` (default on).
+- `agents.defaults.blockStreamingDefault`: `"on"`/`"off"` (default off).
+- Provider overrides: `*.blockStreaming` (and per-account variants) to force block streaming on/off.
+  Non-Telegram providers require an explicit `*.blockStreaming: true` to enable block replies.
 - `agents.defaults.blockStreamingBreak`: `"text_end"` or `"message_end"` (default: text_end).
 - `agents.defaults.blockStreamingChunk`: soft chunking for streamed blocks. Defaults to
   800–1200 chars, prefers paragraph breaks (`\n\n`), then newlines, then sentences.
@@ -1151,6 +1175,13 @@ Block streaming:
     agents: { defaults: { blockStreamingChunk: { minChars: 800, maxChars: 1200 } } }
   }
   ```
+- `agents.defaults.blockStreamingCoalesce`: merge streamed blocks before sending.
+  Defaults to `{ idleMs: 1000 }` and inherits `minChars` from `blockStreamingChunk`
+  with `maxChars` capped to the provider text limit. Signal/Slack/Discord default
+  to `minChars: 1500` unless overridden.
+  Provider overrides: `whatsapp.blockStreamingCoalesce`, `telegram.blockStreamingCoalesce`,
+  `discord.blockStreamingCoalesce`, `slack.blockStreamingCoalesce`, `signal.blockStreamingCoalesce`,
+  `imessage.blockStreamingCoalesce`, `msteams.blockStreamingCoalesce` (and per-account variants).
 See [/concepts/streaming](/concepts/streaming) for behavior + chunking details.
 
 Typing indicators:
@@ -1225,8 +1256,24 @@ Example:
 }
 ```
 
+Per-agent override (further restrict):
+```json5
+{
+  agents: {
+    list: [
+      {
+        id: "family",
+        tools: {
+          elevated: { enabled: false }
+        }
+      }
+    ]
+  }
+}
+```
+
 Notes:
-- `tools.elevated` is **global** (not per-agent). Availability is based on sender allowlists.
+- `tools.elevated` is the global baseline. `agents.list[].tools.elevated` can only further restrict (both must allow).
 - `/elevated on|off` stores state per session key; inline directives apply to a single message.
 - Elevated `bash` runs on the host and bypasses sandboxing.
 - Tool policy still applies; if `bash` is denied, elevated cannot be used.
@@ -1250,7 +1297,7 @@ Defaults (if enabled):
   - `"ro"`: keep the sandbox workspace at `/workspace`, and mount the agent workspace read-only at `/agent` (disables `write`/`edit`)
   - `"rw"`: mount the agent workspace read/write at `/workspace`
 - auto-prune: idle > 24h OR age > 7d
-- tool policy: allow only `bash`, `process`, `read`, `write`, `edit`, `sessions_list`, `sessions_history`, `sessions_send`, `sessions_spawn` (deny wins)
+- tool policy: allow only `bash`, `process`, `read`, `write`, `edit`, `sessions_list`, `sessions_history`, `sessions_send`, `sessions_spawn`, `session_status` (deny wins)
   - configure via `tools.sandbox.tools`, override per-agent via `agents.list[].tools.sandbox.tools`
 - optional sandboxed browser (Chromium + CDP, noVNC observer)
 - hardening knobs: `network`, `user`, `pidsLimit`, `memory`, `cpus`, `ulimits`, `seccompProfile`, `apparmorProfile`
@@ -1315,7 +1362,7 @@ Legacy: `perSession` is still supported (`true` → `scope: "session"`,
   tools: {
     sandbox: {
       tools: {
-        allow: ["bash", "process", "read", "write", "edit", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn"],
+        allow: ["bash", "process", "read", "write", "edit", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status"],
         deny: ["browser", "canvas", "nodes", "cron", "discord", "gateway"]
       }
     }
@@ -1383,6 +1430,47 @@ Select the model via `agents.defaults.model.primary` (provider/model).
             input: ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
             contextWindow: 128000,
+            maxTokens: 32000
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+### OpenCode Zen (multi-model proxy)
+
+OpenCode Zen is an OpenAI-compatible proxy at `https://opencode.ai/zen/v1`. Get an API key at https://opencode.ai/auth and set `OPENCODE_ZEN_API_KEY`.
+
+Notes:
+- Model refs use `opencode-zen/<modelId>` (example: `opencode-zen/claude-opus-4-5`).
+- If you enable an allowlist via `agents.defaults.models`, add each model you plan to use.
+- Shortcut: `clawdbot onboard --auth-choice opencode-zen`.
+
+```json5
+{
+  agents: {
+    defaults: {
+      model: { primary: "opencode-zen/claude-opus-4-5" },
+      models: { "opencode-zen/claude-opus-4-5": { alias: "Opus" } }
+    }
+  },
+  models: {
+    mode: "merge",
+    providers: {
+      "opencode-zen": {
+        baseUrl: "https://opencode.ai/zen/v1",
+        apiKey: "${OPENCODE_ZEN_API_KEY}",
+        api: "openai-completions",
+        models: [
+          {
+            id: "claude-opus-4-5",
+            name: "Claude Opus 4.5",
+            reasoning: true,
+            input: ["text", "image"],
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            contextWindow: 200000,
             maxTokens: 32000
           }
         ]
@@ -1463,6 +1551,67 @@ Notes:
 - LM Studio must have the model loaded and the local server enabled (default URL above).
 - Responses API enables clean reasoning/output separation; WhatsApp sees only final text.
 - Adjust `contextWindow`/`maxTokens` if your LM Studio context length differs.
+
+### MiniMax API (platform.minimax.io)
+
+Use MiniMax's Anthropic-compatible API directly without LM Studio:
+
+```json5
+{
+  agent: {
+    model: { primary: "minimax/MiniMax-M2.1" },
+    models: {
+      "anthropic/claude-opus-4-5": { alias: "Opus" },
+      "minimax/MiniMax-M2.1": { alias: "Minimax" }
+    }
+  },
+  models: {
+    mode: "merge",
+    providers: {
+      minimax: {
+        baseUrl: "https://api.minimax.io/anthropic",
+        apiKey: "${MINIMAX_API_KEY}",
+        api: "anthropic-messages",
+        models: [
+          {
+            id: "MiniMax-M2.1",
+            name: "MiniMax M2.1",
+            reasoning: false,
+            input: ["text"],
+            // Pricing: MiniMax doesn't publish public rates. Override in models.json for accurate costs.
+            cost: { input: 15, output: 60, cacheRead: 2, cacheWrite: 10 },
+            contextWindow: 200000,
+            maxTokens: 8192
+          },
+          {
+            id: "MiniMax-M2.1-lightning",
+            name: "MiniMax M2.1 Lightning",
+            reasoning: false,
+            input: ["text"],
+            cost: { input: 15, output: 60, cacheRead: 2, cacheWrite: 10 },
+            contextWindow: 200000,
+            maxTokens: 8192
+          },
+          {
+            id: "MiniMax-M2",
+            name: "MiniMax M2",
+            reasoning: true,
+            input: ["text"],
+            cost: { input: 15, output: 60, cacheRead: 2, cacheWrite: 10 },
+            contextWindow: 200000,
+            maxTokens: 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+Notes:
+- Set `MINIMAX_API_KEY` environment variable or use `clawdbot onboard --auth-choice minimax-api`
+- Available models: `MiniMax-M2.1` (default), `MiniMax-M2.1-lightning` (~100 tps), `MiniMax-M2` (reasoning)
+- Pricing is a placeholder; MiniMax doesn't publish public rates. Override in `models.json` for accurate cost tracking.
 
 Notes:
 - Supported APIs: `openai-completions`, `openai-responses`, `anthropic-messages`,
@@ -1816,10 +1965,24 @@ Gmail helper config (used by `clawdbot hooks gmail setup` / `run`):
       renewEveryMinutes: 720,
       serve: { bind: "127.0.0.1", port: 8788, path: "/" },
       tailscale: { mode: "funnel", path: "/gmail-pubsub" },
+
+      // Optional: use a cheaper model for Gmail hook processing
+      // Falls back to agents.defaults.model.fallbacks, then primary, on auth/rate-limit/timeout
+      model: "openrouter/meta-llama/llama-3.3-70b-instruct:free",
+      // Optional: default thinking level for Gmail hooks
+      thinking: "off",
     }
   }
 }
 ```
+
+Model override for Gmail hooks:
+- `hooks.gmail.model` specifies a model to use for Gmail hook processing (defaults to session primary).
+- Accepts `provider/model` refs or aliases from `agents.defaults.models`.
+- Falls back to `agents.defaults.model.fallbacks`, then `agents.defaults.model.primary`, on auth/rate-limit/timeouts.
+- If `agents.defaults.models` is set, include the hooks model in the allowlist.
+- At startup, warns if the configured model is not in the model catalog or allowlist.
+- `hooks.gmail.thinking` sets the default thinking level for Gmail hooks and is overridden by per-hook `thinking`.
 
 Gateway auto-start:
 - If `hooks.enabled=true` and `hooks.gmail.account` is set, the Gateway starts

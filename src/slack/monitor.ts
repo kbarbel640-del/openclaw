@@ -29,7 +29,7 @@ import {
 } from "../auto-reply/reply/mentions.js";
 import { createReplyDispatcherWithTyping } from "../auto-reply/reply/reply-dispatcher.js";
 import { getReplyFromConfig } from "../auto-reply/reply.js";
-import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
+import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import type { ReplyPayload } from "../auto-reply/types.js";
 import type {
   ClawdbotConfig,
@@ -53,7 +53,10 @@ import {
   upsertProviderPairingRequest,
 } from "../pairing/pairing-store.js";
 import { resolveAgentRoute } from "../routing/resolve-route.js";
-import { resolveThreadSessionKeys } from "../routing/session-key.js";
+import {
+  normalizeMainKey,
+  resolveThreadSessionKeys,
+} from "../routing/session-key.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { resolveSlackAccount } from "./accounts.js";
 import { reactSlackMessage } from "./actions.js";
@@ -427,7 +430,7 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
   });
   const sessionCfg = cfg.session;
   const sessionScope = sessionCfg?.scope ?? "per-sender";
-  const mainKey = (sessionCfg?.mainKey ?? "main").trim() || "main";
+  const mainKey = normalizeMainKey(sessionCfg?.mainKey);
 
   const resolveSlackSystemEventSessionKey = (params: {
     channelId?: string | null;
@@ -1069,11 +1072,17 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
       );
     }
 
-    const { replyThreadTs, statusThreadTs } = resolveSlackThreadTargets({
+    // Use helper for status thread; compute baseThreadTs for "first" mode support
+    const { statusThreadTs } = resolveSlackThreadTargets({
       message,
       replyToMode,
     });
+    const messageTs = message.ts ?? message.event_ts;
+    const incomingThreadTs = message.thread_ts;
     let didSetStatus = false;
+    // Shared mutable ref for tracking if a reply was sent (used by both
+    // auto-reply path and tool path for "first" threading mode).
+    const hasRepliedRef = { value: false };
     const onReplyStart = async () => {
       didSetStatus = true;
       await setSlackThreadStatus({
@@ -1087,6 +1096,12 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
         responsePrefix: resolveEffectiveMessagesConfig(cfg, route.agentId)
           .responsePrefix,
         deliver: async (payload) => {
+          const effectiveThreadTs = resolveSlackThreadTs({
+            replyToMode,
+            incomingThreadTs,
+            messageTs,
+            hasReplied: hasRepliedRef.value,
+          });
           await deliverReplies({
             replies: [payload],
             target: replyTarget,
@@ -1094,8 +1109,9 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
             accountId: account.accountId,
             runtime,
             textLimit,
-            replyThreadTs,
+            replyThreadTs: effectiveThreadTs,
           });
+          hasRepliedRef.value = true;
         },
         onError: (err, info) => {
           runtime.error?.(
@@ -1116,7 +1132,15 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
       ctx: ctxPayload,
       cfg,
       dispatcher,
-      replyOptions: { ...replyOptions, skillFilter: channelConfig?.skills },
+      replyOptions: {
+        ...replyOptions,
+        skillFilter: channelConfig?.skills,
+        hasRepliedRef,
+        disableBlockStreaming:
+          typeof account.config.blockStreaming === "boolean"
+            ? !account.config.blockStreaming
+            : undefined,
+      },
     });
     markDispatchIdle();
     if (didSetStatus) {
@@ -1910,7 +1934,8 @@ async function deliverReplies(params: {
     if (mediaList.length === 0) {
       for (const chunk of chunkMarkdownText(text, chunkLimit)) {
         const trimmed = chunk.trim();
-        if (!trimmed || trimmed === SILENT_REPLY_TOKEN) continue;
+        if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN))
+          continue;
         await sendMessageSlack(params.target, trimmed, {
           token: params.token,
           threadTs,
@@ -1951,6 +1976,33 @@ export function isSlackRoomAllowedByPolicy(params: {
   return channelAllowed;
 }
 
+/**
+ * Compute effective threadTs for a Slack reply based on replyToMode.
+ * - "off": stay in thread if already in one, otherwise main channel
+ * - "first": first reply goes to thread, subsequent replies to main channel
+ * - "all": all replies go to thread
+ */
+export function resolveSlackThreadTs(params: {
+  replyToMode: "off" | "first" | "all";
+  incomingThreadTs: string | undefined;
+  messageTs: string | undefined;
+  hasReplied: boolean;
+}): string | undefined {
+  const { replyToMode, incomingThreadTs, messageTs, hasReplied } = params;
+  if (incomingThreadTs) return incomingThreadTs;
+  if (!messageTs) return undefined;
+  if (replyToMode === "all") {
+    // All replies go to thread
+    return messageTs;
+  }
+  if (replyToMode === "first") {
+    // "first": only first reply goes to thread
+    return hasReplied ? undefined : messageTs;
+  }
+  // "off": never start a thread
+  return undefined;
+}
+
 async function deliverSlackSlashReplies(params: {
   replies: ReplyPayload[];
   respond: SlackRespondFn;
@@ -1962,7 +2014,9 @@ async function deliverSlackSlashReplies(params: {
   for (const payload of params.replies) {
     const textRaw = payload.text?.trim() ?? "";
     const text =
-      textRaw && textRaw !== SILENT_REPLY_TOKEN ? textRaw : undefined;
+      textRaw && !isSilentReplyText(textRaw, SILENT_REPLY_TOKEN)
+        ? textRaw
+        : undefined;
     const mediaList =
       payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
     const combined = [

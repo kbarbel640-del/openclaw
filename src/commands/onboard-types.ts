@@ -16,6 +16,8 @@ export type AuthChoice =
   | "gemini-api-key"
   | "minimax-cloud"
   | "minimax"
+  | "minimax-api"
+  | "opencode-zen"
   | "skip";
 export type GatewayAuthChoice = "off" | "token" | "password";
 export type ResetScope = "config" | "config+creds+sessions" | "full";
@@ -26,6 +28,7 @@ export type ProviderChoice = ChatProviderId;
 
 export type OnboardOptions = {
   mode?: OnboardMode;
+  flow?: "quickstart" | "advanced";
   workspace?: string;
   nonInteractive?: boolean;
   authChoice?: AuthChoice;
@@ -41,6 +44,7 @@ export type OnboardOptions = {
   openaiApiKey?: string;
   geminiApiKey?: string;
   minimaxApiKey?: string;
+  opencodeZenApiKey?: string;
   gatewayPort?: number;
   gatewayBind?: GatewayBind;
   gatewayAuth?: GatewayAuthChoice;
@@ -50,8 +54,10 @@ export type OnboardOptions = {
   tailscaleResetOnExit?: boolean;
   installDaemon?: boolean;
   daemonRuntime?: GatewayDaemonRuntime;
+  skipProviders?: boolean;
   skipSkills?: boolean;
   skipHealth?: boolean;
+  skipUi?: boolean;
   nodeManager?: NodeManagerChoice;
   remoteUrl?: string;
   remoteToken?: string;

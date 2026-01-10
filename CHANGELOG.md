@@ -2,18 +2,47 @@
 
 ## Unreleased
 
+- Agents: gate heartbeat prompt to default agent sessions (including non-agent session keys). (#630) — thanks @adam91holt
+- Agent: fast abort on /stop and cancel tool calls between tool boundaries. (#617)
+- Models/Auth: add OpenCode Zen (multi-model proxy) onboarding. (#623) — thanks @magimetal
+- WhatsApp: refactor vCard parsing helper and improve empty contact card summaries. (#624) — thanks @steipete
+- WhatsApp: include phone numbers when multiple contacts are shared. (#625) — thanks @mahmoudashraf93
+- Agents: warn on small context windows (<32k) and block unusable ones (<16k). — thanks @steipete
+- Pairing: cap pending DM pairing requests at 3 per provider and avoid pairing replies for outbound DMs. — thanks @steipete
+- macOS: replace relay smoke test with version check in packaging script. (#615) — thanks @YuriNachos
+- macOS: avoid clearing Launch at Login during app initialization. (#607) — thanks @wes-davis
+- Onboarding: skip systemd checks/daemon installs when systemd user services are unavailable; add onboarding flags to skip flow steps and stabilize Docker E2E. (#573) — thanks @steipete
+- Onboarding: QuickStart provider picker uses single-select to avoid accidental Telegram token prompts when choosing WhatsApp. (#485) — thanks @frankstallone
 - macOS: add node bridge heartbeat pings to detect half-open sockets and reconnect cleanly. (#572) — thanks @ngutman
 - Node bridge: harden keepalive + heartbeat handling (TCP keepalive, better disconnects, and keepalive config tests). (#577) — thanks @steipete
 - Control UI: improve mobile responsiveness. (#558) — thanks @carlulsoe
+- Control UI: persist per-session verbose off and hide tool cards unless verbose is on. (#262) — thanks @steipete
+- Gateway: centralize verbose overrides and gate tool stream events at the server. (#262) — thanks @steipete
 - CLI: add `sandbox list` and `sandbox recreate` commands for managing Docker sandbox containers after image/config updates. (#563) — thanks @pasogott
+- Sandbox: allow `session_status` tool in sandboxed sessions by default. — thanks @steipete
+- CLI: add `clawdbot config --section <name>` to jump straight into a wizard section (repeatable).
+- Docs: add Hetzner Docker VPS guide. (#556) — thanks @Iamadig
+- Docs: link Hetzner guide from install + platforms docs. (#592) — thanks @steipete
 - Providers: add Microsoft Teams provider with polling, attachments, and CLI send support. (#404) — thanks @onutc
 - Slack: honor reply tags + replyToMode while keeping threaded replies in-thread. (#574) — thanks @bolismauro
+- Slack: configurable reply threading (`slack.replyToMode`) + proper mrkdwn formatting for outbound messages. (#464) — thanks @austinm911
 - Discord: avoid category parent overrides for channel allowlists and refactor thread context helpers. (#588) — thanks @steipete
 - Discord: fix forum thread starters and cache channel lookups for thread context. (#585) — thanks @thewilloftheshadow
+- Discord: log gateway disconnect/reconnect events at info and add verbose gateway metrics. (#595) — thanks @steipete
 - Commands: accept /models as an alias for /model.
 - Commands: add `/usage` as an alias for `/status`. (#492) — thanks @lc0rp
+- Models/Auth: add MiniMax Anthropic-compatible API onboarding (minimax-api). (#590) — thanks @mneves75
+- Models: centralize model override validation + hooks Gmail warnings in doctor. (#602) — thanks @steipete
+- Agents: avoid base-to-string error stringification in model fallback. (#604) — thanks @steipete
+- Agents: `sessions_spawn` inherits the requester's provider for child runs (avoid WhatsApp fallback). (#528) — thanks @rlmestre
+- Agents: sub-agent context now injects only AGENTS.md + TOOLS.md (omits identity/user/soul/heartbeat/bootstrap). — thanks @steipete
+- Gateway/CLI: harden agent provider routing + validation (Slack/MS Teams + aliases). (follow-up #528) — thanks @steipete
+- Agents: treat billing/insufficient-credits errors as failover-worthy so model fallbacks kick in. (#486) — thanks @steipete
+- Auth: default billing disable backoff to 5h (doubling, 24h cap) and surface disabled/cooldown profiles in `models list` + doctor. (#486) — thanks @steipete
 - Commands: harden slash command registry and list text-only commands in `/commands`.
 - Models/Auth: show per-agent auth candidates in `/model status`, and add `clawdbot models auth order {get,set,clear}` (per-agent auth rotation overrides). — thanks @steipete
+- Telegram: keep streamMode draft-only; avoid forcing block streaming. (#619) — thanks @rubyrunsstuff
+- Telegram: add `[[audio_as_voice]]` tag support for voice notes with streaming-safe delivery. (#490) — thanks @jarvis-medmatic
 - Debugging: add raw model stream logging flags and document gateway watch mode.
 - Gateway: decode dns-sd escaped UTF-8 in discovery output and show scan progress immediately. — thanks @steipete
 - Agent: add claude-cli/opus-4.5 runner via Claude CLI with resume support (tools disabled).
@@ -22,30 +51,53 @@
 - Hooks: default hook agent delivery to true. (#533) — thanks @mcinteerj
 - Hooks: normalize hook agent providers (aliases + msteams support).
 - WhatsApp: route queued replies to the original sender instead of the bot's own number. (#534) — thanks @mcinteerj
+- WhatsApp: improve "no active web listener" errors (include account + relink hint). (#612) — thanks @YuriNachos
+- WhatsApp: add broadcast groups for multi-agent replies. (#547) — thanks @pasogott
+- WhatsApp: resolve @lid inbound senders via auth-dir mapping fallback + shared resolver. (#365)
+- WhatsApp: treat shared contact cards as inbound messages (prefer vCard FN). (#622) — thanks @mahmoudashraf93
+- iMessage: isolate group-ish threads by chat_id. (#535) — thanks @mdahmann
 - Models: add OAuth expiry checks in doctor, expanded `models status` auth output (missing auth + `--check` exit codes). (#538) — thanks @latitudeki5223
 - Deps: bump Pi to 0.40.0 and drop pi-ai patch (upstream 429 fix). (#543) — thanks @mcinteerj
+- Agent: skip empty error assistant messages when rebuilding session context to avoid tool-chain corruption. (#561) — thanks @mukhtharcm
 - Security: per-agent mention patterns and group elevated directives now require explicit mention to avoid cross-agent toggles.
 - Config: support inline env vars in config (`env.*` / `env.vars`) and document env precedence.
+- Config: write `clawdbot.json` atomically (temp file + replace) and keep a best-effort `.bak` backup.
 - Agent: enable adaptive context pruning by default for tool-result trimming.
+- Agent: drop empty error assistant messages when sanitizing session history. (#591) — thanks @steipete
+- Agent: inject eligible skills list into the system prompt so bundled skills load from their actual locations. (#551) — thanks @gabriel-trigo
 - Doctor: check config/state permissions and offer to tighten them. — thanks @steipete
 - Doctor/Daemon: audit supervisor configs, add --repair/--force flows, surface service config audits in daemon status, and document user vs system services. — thanks @steipete
 - Doctor: repair gateway service entrypoint when switching between npm and git installs; add Docker e2e coverage. — thanks @steipete
 - Daemon: align generated systemd unit with docs for network-online + restart delay. (#479) — thanks @azade-c
 - Daemon: add KillMode=process to systemd units to avoid podman restart hangs. (#541) — thanks @ogulcancelik
+- WhatsApp: make inbound media size cap configurable (default 50 MB). (#505) — thanks @koala73
 - Doctor: run legacy state migrations in non-interactive mode without prompts.
 - Cron: parse Telegram topic targets for isolated delivery. (#478) — thanks @nachoiacovino
+- Cron: enqueue main-session system events under the resolved main session key. (#510)
+- Mobile: centralize main session key normalization for iOS/Android runtime helpers. — thanks @steipete
+- Chat UI: stop pinning hardcoded `main` session in the recent list; prefer active session if missing. — thanks @steipete
 - Outbound: default Telegram account selection for config-only tokens; remove heartbeat-specific accountId handling. (follow-up #516) — thanks @YuriNachos
 - Cron: allow Telegram delivery targets with topic/thread IDs (e.g. `-100…:topic:123`). (#474) — thanks @mitschabaude-bot
 - Heartbeat: resolve Telegram account IDs from config-only tokens; cron tool accepts canonical `jobId` and legacy `id` for job actions. (#516) — thanks @YuriNachos
 - Discord: stop provider when gateway reconnects are exhausted and surface errors. (#514) — thanks @joshp123
 - Agents: strip empty assistant text blocks from session history to avoid Claude API 400s. (#210)
 - Agents: scrub unsupported JSON Schema keywords from tool schemas for Cloud Code Assist API compatibility. (#567) — thanks @erikpr1994
+- Agents: sanitize Cloud Code Assist tool call IDs and detect format/quota errors for failover. (#544) — thanks @jeffersonwarrior
+- Agents: simplify session tool schemas for Gemini compatibility. (#599) — thanks @mcinteerj
+- Agents: require `raw` for gateway `config.apply` tool calls while keeping schema 2020-12 compatible. (#566) — thanks @sircrumpet
+- Agents: add `session_status` agent tool for `/status`-equivalent status (incl. usage/cost) + per-session model overrides. — thanks @steipete
 - Auto-reply: preserve block reply ordering with timeout fallback for streaming. (#503) — thanks @joshp123
 - Auto-reply: block reply ordering fix (duplicate PR superseded by #503). (#483) — thanks @AbhisekBasu1
 - Auto-reply: avoid splitting outbound chunks inside parentheses. (#499) — thanks @philipp-spiess
 - Auto-reply: preserve spacing when stripping inline directives. (#539) — thanks @joshp123
 - Auto-reply: relax reply tag parsing to allow whitespace. (#560) — thanks @mcinteerj
+- Auto-reply: add per-provider block streaming toggles and coalesce streamed blocks to reduce line spam. (#536) — thanks @mcinteerj
+- Auto-reply: suppress `<think>` leakage in block streaming and emit `/reasoning` as a separate `Reasoning:` message. (#614) — thanks @zknicker
+- Auto-reply: default block streaming off for non-Telegram providers unless explicitly enabled, and avoid splitting on forced flushes below max.
+- Auto-reply: raise default coalesce minChars for Signal/Slack/Discord and clarify streaming vs draft streaming in docs.
+- Auto-reply: default block streaming coalesce idle to 1s to reduce tiny chunks. — thanks @steipete
 - Auto-reply: fix /status usage summary filtering for the active provider.
+- Auto-reply: deduplicate followup queue entries using message id/routing to avoid duplicate replies. (#600) — thanks @samratjha96
 - Status: show provider prefix in /status model display. (#506) — thanks @mcinteerj
 - Status: compact /status with session token usage + estimated cost, add `/cost` per-response usage lines (tokens-only for OAuth).
 - Status: show active auth profile and key snippet in /status.
@@ -59,15 +111,20 @@
 - Control UI: add Docs link, remove chat composer divider, and add New session button.
 - Control UI: link sessions list to chat view. (#471) — thanks @HazAT
 - Sessions: support session `label` in store/list/UI and allow `sessions_send` lookup by label. (#570) — thanks @azade-c
+- Sessions: clarify `sessions_send` delivery semantics, log announce failures, and enforce Discord request timeouts. (#507) — thanks @steipete
 - Control UI: show/patch per-session reasoning level and render extracted reasoning in chat.
 - Control UI: queue outgoing chat messages, add Enter-to-send, and show queued items. (#527) — thanks @YuriNachos
+- Control UI: refactor chat layout with tool sidebar, grouped messages, and nav improvements. (#475) — thanks @rahthakor
 - Control UI: drop explicit `ui:install` step; `ui:build` now auto-installs UI deps (docs + update flow).
 - Telegram: retry long-polling conflicts with backoff to avoid fatal exits.
 - Telegram: fix grammY fetch type mismatch when injecting `fetch`. (#512) — thanks @YuriNachos
+- Telegram: add inline keyboard buttons (capability-gated) and route callback query payloads as messages. (#491) — thanks @azade-c
 - WhatsApp: resolve @lid JIDs via Baileys mapping to unblock inbound messages. (#415)
 - Pairing: replies now include sender ids for Discord/Slack/Signal/iMessage/WhatsApp; pairing list labels them explicitly.
 - Messages: default inbound/outbound prefixes from the routed agent’s `identity.name` when set. (#578) — thanks @p6l-richard
 - Signal: accept UUID-only senders for pairing/allowlists/routing when sourceNumber is missing. (#523) — thanks @neist
+- Signal: ignore reaction-only messages so they don't surface as unknown media. (#616) — thanks @neist
+- Signal: add reaction notifications with allowlist support. — thanks @steipete
 - Agent system prompt: avoid automatic self-updates unless explicitly requested.
 - Onboarding: tighten QuickStart hint copy for configuring later.
 - Onboarding: set Gemini 3 Pro as the default model for Gemini API key auth. (#489) — thanks @jonasjancarik
@@ -93,6 +150,7 @@
 - Docs: expand parameter descriptions for agent/wake hooks. (#532) — thanks @mcinteerj
 - Docs: add community showcase entries from Discord. (#476) — thanks @gupsammy
 - TUI: refresh status bar after think/verbose/reasoning changes. (#519) — thanks @jdrhyne
+- TUI: stop overriding agent timeout so config defaults apply; warn on invalid `--timeout-ms`. (#549)
 - Status: show Verbose/Elevated only when enabled.
 - Status: filter usage summary to the active model provider.
 - Status: map model providers to usage sources so unrelated usage doesn’t appear.
@@ -120,6 +178,11 @@
 - Gateway/CLI: allow dev profile (`clawdbot --dev`) to auto-create the dev config + workspace. — thanks @steipete
 - Dev templates: ship C-3PO dev workspace defaults as docs templates and use them for dev bootstrap. — thanks @steipete
 - Config: fix Minimax hosted onboarding to write `agents.defaults` and allow `msteams` as a heartbeat target. — thanks @steipete
+- Discord: add channel/category management actions (create/edit/move/delete + category removal). (#487) - thanks @NicholasSpisak
+- Docs: split CLI install commands into separate code blocks. (#601) — thanks @martinpucik
+- WhatsApp: record outbound provider activity using the active account id. (#537) — thanks @Nachx639
+- Discord: add gateway HELLO timeout to detect zombie connections. (#608) — thanks @NicholasSpisak
+- Docker: cache dependency layer for faster rebuilds. (#605) — thanks @zknicker
 
 ## 2026.1.8
 

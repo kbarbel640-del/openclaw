@@ -32,9 +32,11 @@ import {
 import { stripHeartbeatToken } from "../heartbeat.js";
 import type { OriginatingChannelType, TemplateContext } from "../templating.js";
 import { normalizeVerboseLevel, type VerboseLevel } from "../thinking.js";
-import { SILENT_REPLY_TOKEN } from "../tokens.js";
+import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../tokens.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { extractAudioTag } from "./audio-tags.js";
+import { createBlockReplyPipeline } from "./block-reply-pipeline.js";
+import { resolveBlockStreamingCoalescing } from "./block-streaming.js";
 import { createFollowupRunner } from "./followup-runner.js";
 import {
   enqueueFollowupRun,
@@ -59,6 +61,50 @@ import { createTypingSignaler } from "./typing-mode.js";
 
 const BUN_FETCH_SOCKET_ERROR_RE = /socket connection was closed unexpectedly/i;
 const BLOCK_REPLY_SEND_TIMEOUT_MS = 15_000;
+
+/**
+ * Build Slack-specific threading context for tool auto-injection.
+ * Returns undefined values for non-Slack providers.
+ */
+function buildSlackThreadingContext(params: {
+  sessionCtx: TemplateContext;
+  config: { slack?: { replyToMode?: "off" | "first" | "all" } } | undefined;
+  hasRepliedRef: { value: boolean } | undefined;
+}): {
+  currentChannelId: string | undefined;
+  currentThreadTs: string | undefined;
+  replyToMode: "off" | "first" | "all" | undefined;
+  hasRepliedRef: { value: boolean } | undefined;
+} {
+  const { sessionCtx, config, hasRepliedRef } = params;
+  const isSlack = sessionCtx.Provider?.toLowerCase() === "slack";
+  if (!isSlack) {
+    return {
+      currentChannelId: undefined,
+      currentThreadTs: undefined,
+      replyToMode: undefined,
+      hasRepliedRef: undefined,
+    };
+  }
+
+  // If we're already inside a thread, never jump replies out of it (even in
+  // replyToMode="off"/"first"). This keeps tool calls consistent with the
+  // auto-reply path.
+  const configuredReplyToMode = config?.slack?.replyToMode ?? "off";
+  const effectiveReplyToMode = sessionCtx.ThreadLabel
+    ? ("all" as const)
+    : configuredReplyToMode;
+
+  return {
+    // Extract channel from "channel:C123" format
+    currentChannelId: sessionCtx.To?.startsWith("channel:")
+      ? sessionCtx.To.slice("channel:".length)
+      : undefined,
+    currentThreadTs: sessionCtx.ReplyToId,
+    replyToMode: effectiveReplyToMode,
+    hasRepliedRef,
+  };
+}
 
 const isBunFetchSocketError = (message?: string) =>
   Boolean(message && BUN_FETCH_SOCKET_ERROR_RE.test(message));
@@ -130,23 +176,6 @@ const appendUsageLine = (
   const updated = payloads.slice();
   updated[index] = next;
   return updated;
-};
-
-const withTimeout = async <T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  timeoutError: Error,
-): Promise<T> => {
-  if (!timeoutMs || timeoutMs <= 0) return promise;
-  let timer: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(timeoutError), timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
 };
 
 export async function runReplyAgent(params: {
@@ -228,29 +257,17 @@ export async function runReplyAgent(params: {
     return resolvedVerboseLevel === "on";
   };
 
-  const streamedPayloadKeys = new Set<string>();
-  const pendingStreamedPayloadKeys = new Set<string>();
-  const pendingBlockTasks = new Set<Promise<void>>();
   const pendingToolTasks = new Set<Promise<void>>();
-  let blockReplyChain: Promise<void> = Promise.resolve();
-  let blockReplyAborted = false;
-  let didLogBlockReplyAbort = false;
-  let didStreamBlockReply = false;
   const blockReplyTimeoutMs =
     opts?.blockReplyTimeoutMs ?? BLOCK_REPLY_SEND_TIMEOUT_MS;
-  const buildPayloadKey = (payload: ReplyPayload) => {
-    const text = payload.text?.trim() ?? "";
-    const mediaList = payload.mediaUrls?.length
-      ? payload.mediaUrls
-      : payload.mediaUrl
-        ? [payload.mediaUrl]
-        : [];
-    return JSON.stringify({
-      text,
-      mediaList,
-      replyToId: payload.replyToId ?? null,
-    });
-  };
+
+  // Buffer audio blocks to apply [[audio_as_voice]] tag that may come later
+  const bufferedAudioBlocks: ReplyPayload[] = [];
+  let seenAudioAsVoice = false;
+
+  const AUDIO_EXTENSIONS = /\.(opus|mp3|m4a|wav|ogg|aac|flac)$/i;
+  const hasAudioMedia = (urls?: string[]): boolean =>
+    Boolean(urls?.some((u) => AUDIO_EXTENSIONS.test(u)));
   const replyToChannel =
     sessionCtx.OriginatingChannel ??
     ((sessionCtx.Surface ?? sessionCtx.Provider)?.toLowerCase() as
@@ -265,6 +282,23 @@ export async function runReplyAgent(params: {
     replyToChannel,
   );
   const cfg = followupRun.run.config;
+  const blockReplyCoalescing =
+    blockStreamingEnabled && opts?.onBlockReply
+      ? resolveBlockStreamingCoalescing(
+          cfg,
+          sessionCtx.Provider,
+          sessionCtx.AccountId,
+          blockReplyChunking,
+        )
+      : undefined;
+  const blockReplyPipeline =
+    blockStreamingEnabled && opts?.onBlockReply
+      ? createBlockReplyPipeline({
+          onBlockReply: opts.onBlockReply,
+          timeoutMs: blockReplyTimeoutMs,
+          coalescing: blockReplyCoalescing,
+        })
+      : null;
 
   if (shouldSteer && isStreaming) {
     const steered = queueEmbeddedPiMessage(
@@ -320,7 +354,10 @@ export async function runReplyAgent(params: {
   try {
     const runId = crypto.randomUUID();
     if (sessionKey) {
-      registerAgentRunContext(runId, { sessionKey });
+      registerAgentRunContext(runId, {
+        sessionKey,
+        verboseLevel: resolvedVerboseLevel,
+      });
     }
     let runResult: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
     let fallbackProvider = followupRun.run.provider;
@@ -393,6 +430,12 @@ export async function runReplyAgent(params: {
             messageProvider:
               sessionCtx.Provider?.trim().toLowerCase() || undefined,
             agentAccountId: sessionCtx.AccountId,
+            // Slack threading context for tool auto-injection
+            ...buildSlackThreadingContext({
+              sessionCtx,
+              config: followupRun.run.config,
+              hasRepliedRef: opts?.hasRepliedRef,
+            }),
             sessionFile: followupRun.run.sessionFile,
             workspaceDir: followupRun.run.workspaceDir,
             agentDir: followupRun.run.agentDir,
@@ -497,29 +540,37 @@ export async function runReplyAgent(params: {
                       },
                       sessionCtx.MessageSid,
                     );
-                    if (!isRenderablePayload(taggedPayload)) return;
+                    // Let through payloads with audioAsVoice flag even if empty (need to track it)
+                    if (
+                      !isRenderablePayload(taggedPayload) &&
+                      !payload.audioAsVoice
+                    )
+                      return;
                     const audioTagResult = extractAudioTag(taggedPayload.text);
                     const cleaned = audioTagResult.cleaned || undefined;
                     const hasMedia =
                       Boolean(taggedPayload.mediaUrl) ||
                       (taggedPayload.mediaUrls?.length ?? 0) > 0;
-                    if (!cleaned && !hasMedia) return;
-                    if (cleaned?.trim() === SILENT_REPLY_TOKEN && !hasMedia)
+                    // Skip empty payloads unless they have audioAsVoice flag (need to track it)
+                    if (!cleaned && !hasMedia && !payload.audioAsVoice) return;
+                    if (
+                      isSilentReplyText(cleaned, SILENT_REPLY_TOKEN) &&
+                      !hasMedia
+                    )
                       return;
+
+                    // Track if we've seen [[audio_as_voice]] from payload or text extraction
+                    if (payload.audioAsVoice || audioTagResult.audioAsVoice) {
+                      seenAudioAsVoice = true;
+                    }
+
                     const blockPayload: ReplyPayload = applyReplyToMode({
                       ...taggedPayload,
                       text: cleaned,
-                      audioAsVoice: audioTagResult.audioAsVoice,
+                      audioAsVoice:
+                        audioTagResult.audioAsVoice || payload.audioAsVoice,
                     });
-                    const payloadKey = buildPayloadKey(blockPayload);
-                    if (
-                      streamedPayloadKeys.has(payloadKey) ||
-                      pendingStreamedPayloadKeys.has(payloadKey)
-                    ) {
-                      return;
-                    }
-                    if (blockReplyAborted) return;
-                    pendingStreamedPayloadKeys.add(payloadKey);
+
                     void typingSignals
                       .signalTextDelta(taggedPayload.text)
                       .catch((err) => {
@@ -527,50 +578,15 @@ export async function runReplyAgent(params: {
                           `block reply typing signal failed: ${String(err)}`,
                         );
                       });
-                    const timeoutError = new Error(
-                      `block reply delivery timed out after ${blockReplyTimeoutMs}ms`,
-                    );
-                    const abortController = new AbortController();
-                    blockReplyChain = blockReplyChain
-                      .then(async () => {
-                        if (blockReplyAborted) return false;
-                        await withTimeout(
-                          opts.onBlockReply?.(blockPayload, {
-                            abortSignal: abortController.signal,
-                            timeoutMs: blockReplyTimeoutMs,
-                          }) ?? Promise.resolve(),
-                          blockReplyTimeoutMs,
-                          timeoutError,
-                        );
-                        return true;
-                      })
-                      .then((didSend) => {
-                        if (!didSend) return;
-                        streamedPayloadKeys.add(payloadKey);
-                        didStreamBlockReply = true;
-                      })
-                      .catch((err) => {
-                        if (err === timeoutError) {
-                          abortController.abort();
-                          blockReplyAborted = true;
-                          if (!didLogBlockReplyAbort) {
-                            didLogBlockReplyAbort = true;
-                            logVerbose(
-                              `block reply delivery timed out after ${blockReplyTimeoutMs}ms; skipping remaining block replies to preserve ordering`,
-                            );
-                          }
-                          return;
-                        }
-                        logVerbose(
-                          `block reply delivery failed: ${String(err)}`,
-                        );
-                      })
-                      .finally(() => {
-                        pendingStreamedPayloadKeys.delete(payloadKey);
-                      });
-                    const task = blockReplyChain;
-                    pendingBlockTasks.add(task);
-                    void task.finally(() => pendingBlockTasks.delete(task));
+
+                    // Buffer audio blocks to apply [[audio_as_voice]] that may come later
+                    const isAudioBlock = hasAudioMedia(taggedPayload.mediaUrls);
+                    if (isAudioBlock) {
+                      bufferedAudioBlocks.push(blockPayload);
+                      return; // Don't send immediately - wait for potential [[audio_as_voice]] tag
+                    }
+
+                    blockReplyPipeline?.enqueue(blockPayload);
                   }
                 : undefined,
             shouldEmitToolResult,
@@ -684,12 +700,25 @@ export async function runReplyAgent(params: {
     }
 
     const payloadArray = runResult.payloads ?? [];
-    if (pendingBlockTasks.size > 0) {
-      await Promise.allSettled(pendingBlockTasks);
+
+    if (bufferedAudioBlocks.length > 0 && blockReplyPipeline) {
+      for (const audioPayload of bufferedAudioBlocks) {
+        const finalPayload = seenAudioAsVoice
+          ? { ...audioPayload, audioAsVoice: true }
+          : audioPayload;
+        blockReplyPipeline.enqueue(finalPayload);
+      }
+      bufferedAudioBlocks.length = 0;
+    }
+
+    if (blockReplyPipeline) {
+      await blockReplyPipeline.flush({ force: true });
+      blockReplyPipeline.stop();
     }
     if (pendingToolTasks.size > 0) {
       await Promise.allSettled(pendingToolTasks);
     }
+
     // Drain any late tool/block deliveries before deciding there's "nothing to send".
     // Otherwise, a late typing trigger (e.g. from a tool callback) can outlive the run and
     // keep the typing indicator stuck.
@@ -736,7 +765,9 @@ export async function runReplyAgent(params: {
     // Drop final payloads only when block streaming succeeded end-to-end.
     // If streaming aborted (e.g., timeout), fall back to final payloads.
     const shouldDropFinalPayloads =
-      blockStreamingEnabled && didStreamBlockReply && !blockReplyAborted;
+      blockStreamingEnabled &&
+      Boolean(blockReplyPipeline?.didStream()) &&
+      !blockReplyPipeline?.isAborted();
     const messagingToolSentTexts = runResult.messagingToolSentTexts ?? [];
     const messagingToolSentTargets = runResult.messagingToolSentTargets ?? [];
     const suppressMessagingToolReplies = shouldSuppressMessagingToolReplies({
@@ -753,7 +784,7 @@ export async function runReplyAgent(params: {
       ? []
       : blockStreamingEnabled
         ? dedupedPayloads.filter(
-            (payload) => !streamedPayloadKeys.has(buildPayloadKey(payload)),
+            (payload) => !blockReplyPipeline?.hasSentPayload(payload),
           )
         : dedupedPayloads;
     const replyPayloads = suppressMessagingToolReplies ? [] : filteredPayloads;
@@ -762,7 +793,8 @@ export async function runReplyAgent(params: {
 
     const shouldSignalTyping = replyPayloads.some((payload) => {
       const trimmed = payload.text?.trim();
-      if (trimmed && trimmed !== SILENT_REPLY_TOKEN) return true;
+      if (trimmed && !isSilentReplyText(trimmed, SILENT_REPLY_TOKEN))
+        return true;
       if (payload.mediaUrl) return true;
       if (payload.mediaUrls && payload.mediaUrls.length > 0) return true;
       return false;
@@ -886,6 +918,7 @@ export async function runReplyAgent(params: {
       finalPayloads.length === 1 ? finalPayloads[0] : finalPayloads,
     );
   } finally {
+    blockReplyPipeline?.stop();
     typing.markRunComplete();
   }
 }

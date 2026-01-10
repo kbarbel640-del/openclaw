@@ -83,15 +83,37 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("update.run");
   });
 
-  it("includes skills guidance with workspace path", () => {
+  it("includes skills guidance when skills prompt is present", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/clawd",
+      skillsPrompt:
+        "<available_skills>\n  <skill>\n    <name>demo</name>\n  </skill>\n</available_skills>",
     });
 
     expect(prompt).toContain("## Skills");
     expect(prompt).toContain(
-      "Use `read` to load from /tmp/clawd/skills/<name>/SKILL.md",
+      "Use `read` to load the SKILL.md at the location listed for that skill.",
     );
+  });
+
+  it("appends available skills when provided", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/clawd",
+      skillsPrompt:
+        "<available_skills>\n  <skill>\n    <name>demo</name>\n  </skill>\n</available_skills>",
+    });
+
+    expect(prompt).toContain("<available_skills>");
+    expect(prompt).toContain("<name>demo</name>");
+  });
+
+  it("omits skills section when no skills prompt is provided", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/clawd",
+    });
+
+    expect(prompt).not.toContain("## Skills");
+    expect(prompt).not.toContain("<available_skills>");
   });
 
   it("renders project context files when provided", () => {
@@ -108,5 +130,28 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("Alpha");
     expect(prompt).toContain("## IDENTITY.md");
     expect(prompt).toContain("Bravo");
+  });
+
+  it("summarizes the message tool when available", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/clawd",
+      toolNames: ["message"],
+    });
+
+    expect(prompt).toContain("message: Send messages and provider actions");
+    expect(prompt).toContain("### message tool");
+  });
+
+  it("includes runtime provider capabilities when present", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/clawd",
+      runtimeInfo: {
+        provider: "telegram",
+        capabilities: ["inlineButtons"],
+      },
+    });
+
+    expect(prompt).toContain("provider=telegram");
+    expect(prompt).toContain("capabilities=inlineButtons");
   });
 });

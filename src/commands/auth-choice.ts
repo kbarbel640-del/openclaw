@@ -36,14 +36,19 @@ import {
 } from "./google-gemini-model-default.js";
 import {
   applyAuthProfileConfig,
+  applyMinimaxApiConfig,
+  applyMinimaxApiProviderConfig,
   applyMinimaxConfig,
   applyMinimaxHostedConfig,
   applyMinimaxHostedProviderConfig,
   applyMinimaxProviderConfig,
+  applyOpencodeZenConfig,
+  applyOpencodeZenProviderConfig,
   MINIMAX_HOSTED_MODEL_REF,
   setAnthropicApiKey,
   setGeminiApiKey,
   setMinimaxApiKey,
+  setOpencodeZenApiKey,
   writeOAuthCredentials,
 } from "./onboard-auth.js";
 import { openUrl } from "./onboard-helpers.js";
@@ -52,6 +57,7 @@ import {
   applyOpenAICodexModelDefault,
   OPENAI_CODEX_DEFAULT_MODEL,
 } from "./openai-codex-model-default.js";
+import { OPENCODE_ZEN_DEFAULT_MODEL } from "./opencode-zen-model-default.js";
 
 export async function warnIfModelConfigLooksOff(
   config: ClawdbotConfig,
@@ -628,6 +634,54 @@ export async function applyAuthChoice(params: {
       nextConfig = applyMinimaxProviderConfig(nextConfig);
       agentModelOverride = "lmstudio/minimax-m2.1-gs32";
       await noteAgentModel("lmstudio/minimax-m2.1-gs32");
+    }
+  } else if (params.authChoice === "minimax-api") {
+    const key = await params.prompter.text({
+      message: "Enter MiniMax API key",
+      validate: (value) => (value?.trim() ? undefined : "Required"),
+    });
+    await setMinimaxApiKey(String(key).trim(), params.agentDir);
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "minimax:default",
+      provider: "minimax",
+      mode: "api_key",
+    });
+    if (params.setDefaultModel) {
+      nextConfig = applyMinimaxApiConfig(nextConfig);
+    } else {
+      nextConfig = applyMinimaxApiProviderConfig(nextConfig);
+      agentModelOverride = "minimax/MiniMax-M2.1";
+      await noteAgentModel("minimax/MiniMax-M2.1");
+    }
+  } else if (params.authChoice === "opencode-zen") {
+    await params.prompter.note(
+      [
+        "OpenCode Zen provides access to Claude, GPT, Gemini, and more models.",
+        "Get your API key at: https://opencode.ai/auth",
+        "Requires an active OpenCode Zen subscription.",
+      ].join("\n"),
+      "OpenCode Zen",
+    );
+    const key = await params.prompter.text({
+      message: "Enter OpenCode Zen API key",
+      validate: (value) => (value?.trim() ? undefined : "Required"),
+    });
+    await setOpencodeZenApiKey(String(key).trim(), params.agentDir);
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "opencode-zen:default",
+      provider: "opencode-zen",
+      mode: "api_key",
+    });
+    if (params.setDefaultModel) {
+      nextConfig = applyOpencodeZenConfig(nextConfig);
+      await params.prompter.note(
+        `Default model set to ${OPENCODE_ZEN_DEFAULT_MODEL}`,
+        "Model configured",
+      );
+    } else {
+      nextConfig = applyOpencodeZenProviderConfig(nextConfig);
+      agentModelOverride = OPENCODE_ZEN_DEFAULT_MODEL;
+      await noteAgentModel(OPENCODE_ZEN_DEFAULT_MODEL);
     }
   }
 

@@ -1,6 +1,7 @@
 import {
   resolveAgentDir,
   resolveDefaultAgentId,
+  resolveSessionAgentId,
 } from "../../agents/agent-scope.js";
 import {
   ensureAuthProfileStore,
@@ -26,7 +27,6 @@ import {
   unsetConfigOverride,
 } from "../../config/runtime-overrides.js";
 import {
-  resolveAgentIdFromSessionKey,
   resolveSessionFilePath,
   type SessionEntry,
   type SessionScope,
@@ -111,7 +111,7 @@ export async function buildStatusReply(params: {
   cfg: ClawdbotConfig;
   command: CommandContext;
   sessionEntry?: SessionEntry;
-  sessionKey?: string;
+  sessionKey: string;
   sessionScope?: SessionScope;
   provider: string;
   model: string;
@@ -148,7 +148,7 @@ export async function buildStatusReply(params: {
     return undefined;
   }
   const statusAgentId = sessionKey
-    ? resolveAgentIdFromSessionKey(sessionKey)
+    ? resolveSessionAgentId({ sessionKey, config: cfg })
     : resolveDefaultAgentId(cfg);
   const statusAgentDir = resolveAgentDir(cfg, statusAgentId);
   let usageLine: string | null = null;
@@ -390,7 +390,7 @@ export async function handleCommands(params: {
   directives: InlineDirectives;
   sessionEntry?: SessionEntry;
   sessionStore?: Record<string, SessionEntry>;
-  sessionKey?: string;
+  sessionKey: string;
   storePath?: string;
   sessionScope?: SessionScope;
   workspaceDir: string;
@@ -815,7 +815,7 @@ export async function handleCommands(params: {
     const line = reason
       ? `${compactLabel}: ${reason} • ${contextSummary}`
       : `${compactLabel} • ${contextSummary}`;
-    enqueueSystemEvent(line);
+    enqueueSystemEvent(line, { sessionKey });
     return { shouldContinue: false, reply: { text: `⚙️ ${line}` } };
   }
 

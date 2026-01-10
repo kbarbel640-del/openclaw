@@ -97,6 +97,12 @@ const GroupPolicySchema = z.enum(["open", "disabled", "allowlist"]);
 
 const DmPolicySchema = z.enum(["pairing", "allowlist", "open", "disabled"]);
 
+const BlockStreamingCoalesceSchema = z.object({
+  minChars: z.number().int().positive().optional(),
+  maxChars: z.number().int().positive().optional(),
+  idleMs: z.number().int().nonnegative().optional(),
+});
+
 const normalizeAllowFrom = (values?: Array<string | number>): string[] =>
   (values ?? []).map((v) => String(v).trim()).filter(Boolean);
 
@@ -181,6 +187,7 @@ const TelegramGroupSchema = z.object({
 
 const TelegramAccountSchemaBase = z.object({
   name: z.string().optional(),
+  capabilities: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),
   dmPolicy: DmPolicySchema.optional().default("pairing"),
   botToken: z.string().optional(),
@@ -191,6 +198,8 @@ const TelegramAccountSchemaBase = z.object({
   groupAllowFrom: z.array(z.union([z.string(), z.number()])).optional(),
   groupPolicy: GroupPolicySchema.optional().default("open"),
   textChunkLimit: z.number().int().positive().optional(),
+  blockStreaming: z.boolean().optional(),
+  blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
   streamMode: z.enum(["off", "partial", "block"]).optional().default("partial"),
   mediaMaxMb: z.number().positive().optional(),
   retry: RetryConfigSchema,
@@ -271,10 +280,13 @@ const DiscordGuildSchema = z.object({
 
 const DiscordAccountSchema = z.object({
   name: z.string().optional(),
+  capabilities: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),
   token: z.string().optional(),
   groupPolicy: GroupPolicySchema.optional().default("open"),
   textChunkLimit: z.number().int().positive().optional(),
+  blockStreaming: z.boolean().optional(),
+  blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
   maxLinesPerMessage: z.number().int().positive().optional(),
   mediaMaxMb: z.number().positive().optional(),
   historyLimit: z.number().int().min(0).optional(),
@@ -338,12 +350,15 @@ const SlackChannelSchema = z.object({
 
 const SlackAccountSchema = z.object({
   name: z.string().optional(),
+  capabilities: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),
   botToken: z.string().optional(),
   appToken: z.string().optional(),
   allowBots: z.boolean().optional(),
   groupPolicy: GroupPolicySchema.optional().default("open"),
   textChunkLimit: z.number().int().positive().optional(),
+  blockStreaming: z.boolean().optional(),
+  blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
   mediaMaxMb: z.number().positive().optional(),
   reactionNotifications: z.enum(["off", "own", "all", "allowlist"]).optional(),
   reactionAllowlist: z.array(z.union([z.string(), z.number()])).optional(),
@@ -378,6 +393,7 @@ const SlackConfigSchema = SlackAccountSchema.extend({
 
 const SignalAccountSchemaBase = z.object({
   name: z.string().optional(),
+  capabilities: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),
   account: z.string().optional(),
   httpUrl: z.string().optional(),
@@ -394,7 +410,11 @@ const SignalAccountSchemaBase = z.object({
   groupAllowFrom: z.array(z.union([z.string(), z.number()])).optional(),
   groupPolicy: GroupPolicySchema.optional().default("open"),
   textChunkLimit: z.number().int().positive().optional(),
+  blockStreaming: z.boolean().optional(),
+  blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
   mediaMaxMb: z.number().int().positive().optional(),
+  reactionNotifications: z.enum(["off", "own", "all", "allowlist"]).optional(),
+  reactionAllowlist: z.array(z.union([z.string(), z.number()])).optional(),
 });
 
 const SignalAccountSchema = SignalAccountSchemaBase.superRefine(
@@ -424,6 +444,7 @@ const SignalConfigSchema = SignalAccountSchemaBase.extend({
 
 const IMessageAccountSchemaBase = z.object({
   name: z.string().optional(),
+  capabilities: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),
   cliPath: z.string().optional(),
   dbPath: z.string().optional(),
@@ -438,6 +459,8 @@ const IMessageAccountSchemaBase = z.object({
   includeAttachments: z.boolean().optional(),
   mediaMaxMb: z.number().int().positive().optional(),
   textChunkLimit: z.number().int().positive().optional(),
+  blockStreaming: z.boolean().optional(),
+  blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
   groups: z
     .record(
       z.string(),
@@ -490,6 +513,7 @@ const MSTeamsTeamSchema = z.object({
 const MSTeamsConfigSchema = z
   .object({
     enabled: z.boolean().optional(),
+    capabilities: z.array(z.string()).optional(),
     appId: z.string().optional(),
     appPassword: z.string().optional(),
     tenantId: z.string().optional(),
@@ -502,6 +526,7 @@ const MSTeamsConfigSchema = z
     dmPolicy: DmPolicySchema.optional().default("pairing"),
     allowFrom: z.array(z.string()).optional(),
     textChunkLimit: z.number().int().positive().optional(),
+    blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     mediaAllowHosts: z.array(z.string()).optional(),
     requireMention: z.boolean().optional(),
     replyStyle: MSTeamsReplyStyleSchema.optional(),
@@ -726,6 +751,12 @@ const AgentToolsSchema = z
   .object({
     allow: z.array(z.string()).optional(),
     deny: z.array(z.string()).optional(),
+    elevated: z
+      .object({
+        enabled: z.boolean().optional(),
+        allowFrom: ElevatedAllowFromSchema,
+      })
+      .optional(),
     sandbox: z
       .object({
         tools: ToolPolicySchema,
@@ -819,6 +850,15 @@ const BindingsSchema = z
   )
   .optional();
 
+const BroadcastStrategySchema = z.enum(["parallel", "sequential"]);
+
+const BroadcastSchema = z
+  .object({
+    strategy: BroadcastStrategySchema.optional(),
+  })
+  .catchall(z.array(z.string()))
+  .optional();
+
 const AudioSchema = z
   .object({
     transcription: TranscribeAudioSchema,
@@ -893,6 +933,16 @@ const HooksGmailSchema = z
           .optional(),
         path: z.string().optional(),
       })
+      .optional(),
+    model: z.string().optional(),
+    thinking: z
+      .union([
+        z.literal("off"),
+        z.literal("minimal"),
+        z.literal("low"),
+        z.literal("medium"),
+        z.literal("high"),
+      ])
       .optional(),
   })
   .optional();
@@ -989,6 +1039,7 @@ const AgentDefaultsSchema = z
           .optional(),
       })
       .optional(),
+    blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     timeoutSeconds: z.number().int().positive().optional(),
     mediaMaxMb: z.number().positive().optional(),
     typingIntervalSeconds: z.number().int().positive().optional(),
@@ -1036,380 +1087,433 @@ const AgentDefaultsSchema = z
   })
   .optional();
 
-export const ClawdbotSchema = z.object({
-  env: z
-    .object({
-      shellEnv: z
-        .object({
-          enabled: z.boolean().optional(),
-          timeoutMs: z.number().int().nonnegative().optional(),
-        })
-        .optional(),
-      vars: z.record(z.string(), z.string()).optional(),
-    })
-    .catchall(z.string())
-    .optional(),
-  wizard: z
-    .object({
-      lastRunAt: z.string().optional(),
-      lastRunVersion: z.string().optional(),
-      lastRunCommit: z.string().optional(),
-      lastRunCommand: z.string().optional(),
-      lastRunMode: z
-        .union([z.literal("local"), z.literal("remote")])
-        .optional(),
-    })
-    .optional(),
-  logging: z
-    .object({
-      level: z
-        .union([
-          z.literal("silent"),
-          z.literal("fatal"),
-          z.literal("error"),
-          z.literal("warn"),
-          z.literal("info"),
-          z.literal("debug"),
-          z.literal("trace"),
-        ])
-        .optional(),
-      file: z.string().optional(),
-      consoleLevel: z
-        .union([
-          z.literal("silent"),
-          z.literal("fatal"),
-          z.literal("error"),
-          z.literal("warn"),
-          z.literal("info"),
-          z.literal("debug"),
-          z.literal("trace"),
-        ])
-        .optional(),
-      consoleStyle: z
-        .union([z.literal("pretty"), z.literal("compact"), z.literal("json")])
-        .optional(),
-      redactSensitive: z
-        .union([z.literal("off"), z.literal("tools")])
-        .optional(),
-      redactPatterns: z.array(z.string()).optional(),
-    })
-    .optional(),
-  browser: z
-    .object({
-      enabled: z.boolean().optional(),
-      controlUrl: z.string().optional(),
-      cdpUrl: z.string().optional(),
-      color: z.string().optional(),
-      executablePath: z.string().optional(),
-      headless: z.boolean().optional(),
-      noSandbox: z.boolean().optional(),
-      attachOnly: z.boolean().optional(),
-      defaultProfile: z.string().optional(),
-      profiles: z
-        .record(
-          z
-            .string()
-            .regex(
-              /^[a-z0-9-]+$/,
-              "Profile names must be alphanumeric with hyphens only",
-            ),
-          z
-            .object({
-              cdpPort: z.number().int().min(1).max(65535).optional(),
-              cdpUrl: z.string().optional(),
-              color: HexColorSchema,
-            })
-            .refine((value) => value.cdpPort || value.cdpUrl, {
-              message: "Profile must set cdpPort or cdpUrl",
+export const ClawdbotSchema = z
+  .object({
+    env: z
+      .object({
+        shellEnv: z
+          .object({
+            enabled: z.boolean().optional(),
+            timeoutMs: z.number().int().nonnegative().optional(),
+          })
+          .optional(),
+        vars: z.record(z.string(), z.string()).optional(),
+      })
+      .catchall(z.string())
+      .optional(),
+    wizard: z
+      .object({
+        lastRunAt: z.string().optional(),
+        lastRunVersion: z.string().optional(),
+        lastRunCommit: z.string().optional(),
+        lastRunCommand: z.string().optional(),
+        lastRunMode: z
+          .union([z.literal("local"), z.literal("remote")])
+          .optional(),
+      })
+      .optional(),
+    logging: z
+      .object({
+        level: z
+          .union([
+            z.literal("silent"),
+            z.literal("fatal"),
+            z.literal("error"),
+            z.literal("warn"),
+            z.literal("info"),
+            z.literal("debug"),
+            z.literal("trace"),
+          ])
+          .optional(),
+        file: z.string().optional(),
+        consoleLevel: z
+          .union([
+            z.literal("silent"),
+            z.literal("fatal"),
+            z.literal("error"),
+            z.literal("warn"),
+            z.literal("info"),
+            z.literal("debug"),
+            z.literal("trace"),
+          ])
+          .optional(),
+        consoleStyle: z
+          .union([z.literal("pretty"), z.literal("compact"), z.literal("json")])
+          .optional(),
+        redactSensitive: z
+          .union([z.literal("off"), z.literal("tools")])
+          .optional(),
+        redactPatterns: z.array(z.string()).optional(),
+      })
+      .optional(),
+    browser: z
+      .object({
+        enabled: z.boolean().optional(),
+        controlUrl: z.string().optional(),
+        cdpUrl: z.string().optional(),
+        color: z.string().optional(),
+        executablePath: z.string().optional(),
+        headless: z.boolean().optional(),
+        noSandbox: z.boolean().optional(),
+        attachOnly: z.boolean().optional(),
+        defaultProfile: z.string().optional(),
+        profiles: z
+          .record(
+            z
+              .string()
+              .regex(
+                /^[a-z0-9-]+$/,
+                "Profile names must be alphanumeric with hyphens only",
+              ),
+            z
+              .object({
+                cdpPort: z.number().int().min(1).max(65535).optional(),
+                cdpUrl: z.string().optional(),
+                color: HexColorSchema,
+              })
+              .refine((value) => value.cdpPort || value.cdpUrl, {
+                message: "Profile must set cdpPort or cdpUrl",
+              }),
+          )
+          .optional(),
+      })
+      .optional(),
+    ui: z
+      .object({
+        seamColor: HexColorSchema.optional(),
+      })
+      .optional(),
+    auth: z
+      .object({
+        profiles: z
+          .record(
+            z.string(),
+            z.object({
+              provider: z.string(),
+              mode: z.union([
+                z.literal("api_key"),
+                z.literal("oauth"),
+                z.literal("token"),
+              ]),
+              email: z.string().optional(),
             }),
-        )
-        .optional(),
-    })
-    .optional(),
-  ui: z
-    .object({
-      seamColor: HexColorSchema.optional(),
-    })
-    .optional(),
-  auth: z
-    .object({
-      profiles: z
-        .record(
-          z.string(),
-          z.object({
-            provider: z.string(),
-            mode: z.union([
-              z.literal("api_key"),
-              z.literal("oauth"),
-              z.literal("token"),
-            ]),
-            email: z.string().optional(),
-          }),
-        )
-        .optional(),
-      order: z.record(z.string(), z.array(z.string())).optional(),
-    })
-    .optional(),
-  models: ModelsConfigSchema,
-  agents: AgentsSchema,
-  tools: ToolsSchema,
-  bindings: BindingsSchema,
-  audio: AudioSchema,
-  messages: MessagesSchema,
-  commands: CommandsSchema,
-  session: SessionSchema,
-  cron: z
-    .object({
-      enabled: z.boolean().optional(),
-      store: z.string().optional(),
-      maxConcurrentRuns: z.number().int().positive().optional(),
-    })
-    .optional(),
-  hooks: z
-    .object({
-      enabled: z.boolean().optional(),
-      path: z.string().optional(),
-      token: z.string().optional(),
-      maxBodyBytes: z.number().int().positive().optional(),
-      presets: z.array(z.string()).optional(),
-      transformsDir: z.string().optional(),
-      mappings: z.array(HookMappingSchema).optional(),
-      gmail: HooksGmailSchema,
-    })
-    .optional(),
-  web: z
-    .object({
-      enabled: z.boolean().optional(),
-      heartbeatSeconds: z.number().int().positive().optional(),
-      reconnect: z
-        .object({
-          initialMs: z.number().positive().optional(),
-          maxMs: z.number().positive().optional(),
-          factor: z.number().positive().optional(),
-          jitter: z.number().min(0).max(1).optional(),
-          maxAttempts: z.number().int().min(0).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  whatsapp: z
-    .object({
-      accounts: z
-        .record(
-          z.string(),
-          z
-            .object({
-              name: z.string().optional(),
-              enabled: z.boolean().optional(),
-              /** Override auth directory for this WhatsApp account (Baileys multi-file auth state). */
-              authDir: z.string().optional(),
-              dmPolicy: DmPolicySchema.optional().default("pairing"),
-              selfChatMode: z.boolean().optional(),
-              allowFrom: z.array(z.string()).optional(),
-              groupAllowFrom: z.array(z.string()).optional(),
-              groupPolicy: GroupPolicySchema.optional().default("open"),
-              textChunkLimit: z.number().int().positive().optional(),
-              groups: z
-                .record(
-                  z.string(),
-                  z
-                    .object({
-                      requireMention: z.boolean().optional(),
-                    })
-                    .optional(),
-                )
-                .optional(),
-            })
-            .superRefine((value, ctx) => {
-              if (value.dmPolicy !== "open") return;
-              const allow = (value.allowFrom ?? [])
-                .map((v) => String(v).trim())
-                .filter(Boolean);
-              if (allow.includes("*")) return;
-              ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ["allowFrom"],
-                message:
-                  'whatsapp.accounts.*.dmPolicy="open" requires allowFrom to include "*"',
-              });
-            })
-            .optional(),
-        )
-        .optional(),
-      dmPolicy: DmPolicySchema.optional().default("pairing"),
-      selfChatMode: z.boolean().optional(),
-      allowFrom: z.array(z.string()).optional(),
-      groupAllowFrom: z.array(z.string()).optional(),
-      groupPolicy: GroupPolicySchema.optional().default("open"),
-      textChunkLimit: z.number().int().positive().optional(),
-      actions: z
-        .object({
-          reactions: z.boolean().optional(),
-        })
-        .optional(),
-      groups: z
-        .record(
-          z.string(),
-          z
-            .object({
-              requireMention: z.boolean().optional(),
-            })
-            .optional(),
-        )
-        .optional(),
-    })
-    .superRefine((value, ctx) => {
-      if (value.dmPolicy !== "open") return;
-      const allow = (value.allowFrom ?? [])
-        .map((v) => String(v).trim())
-        .filter(Boolean);
-      if (allow.includes("*")) return;
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["allowFrom"],
-        message:
-          'whatsapp.dmPolicy="open" requires whatsapp.allowFrom to include "*"',
-      });
-    })
-    .optional(),
-  telegram: TelegramConfigSchema.optional(),
-  discord: DiscordConfigSchema.optional(),
-  slack: SlackConfigSchema.optional(),
-  signal: SignalConfigSchema.optional(),
-  imessage: IMessageConfigSchema.optional(),
-  msteams: MSTeamsConfigSchema.optional(),
-  bridge: z
-    .object({
-      enabled: z.boolean().optional(),
-      port: z.number().int().positive().optional(),
-      bind: z
-        .union([
-          z.literal("auto"),
-          z.literal("lan"),
-          z.literal("tailnet"),
-          z.literal("loopback"),
-        ])
-        .optional(),
-    })
-    .optional(),
-  discovery: z
-    .object({
-      wideArea: z
-        .object({
-          enabled: z.boolean().optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  canvasHost: z
-    .object({
-      enabled: z.boolean().optional(),
-      root: z.string().optional(),
-      port: z.number().int().positive().optional(),
-      liveReload: z.boolean().optional(),
-    })
-    .optional(),
-  talk: z
-    .object({
-      voiceId: z.string().optional(),
-      voiceAliases: z.record(z.string(), z.string()).optional(),
-      modelId: z.string().optional(),
-      outputFormat: z.string().optional(),
-      apiKey: z.string().optional(),
-      interruptOnSpeech: z.boolean().optional(),
-    })
-    .optional(),
-  gateway: z
-    .object({
-      port: z.number().int().positive().optional(),
-      mode: z.union([z.literal("local"), z.literal("remote")]).optional(),
-      bind: z
-        .union([
-          z.literal("auto"),
-          z.literal("lan"),
-          z.literal("tailnet"),
-          z.literal("loopback"),
-        ])
-        .optional(),
-      controlUi: z
-        .object({
-          enabled: z.boolean().optional(),
-          basePath: z.string().optional(),
-        })
-        .optional(),
-      auth: z
-        .object({
-          mode: z.union([z.literal("token"), z.literal("password")]).optional(),
-          token: z.string().optional(),
-          password: z.string().optional(),
-          allowTailscale: z.boolean().optional(),
-        })
-        .optional(),
-      tailscale: z
-        .object({
-          mode: z
-            .union([z.literal("off"), z.literal("serve"), z.literal("funnel")])
-            .optional(),
-          resetOnExit: z.boolean().optional(),
-        })
-        .optional(),
-      remote: z
-        .object({
-          url: z.string().optional(),
-          token: z.string().optional(),
-          password: z.string().optional(),
-          sshTarget: z.string().optional(),
-          sshIdentity: z.string().optional(),
-        })
-        .optional(),
-      reload: z
-        .object({
-          mode: z
-            .union([
-              z.literal("off"),
-              z.literal("restart"),
-              z.literal("hot"),
-              z.literal("hybrid"),
-            ])
-            .optional(),
-          debounceMs: z.number().int().min(0).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  skills: z
-    .object({
-      allowBundled: z.array(z.string()).optional(),
-      load: z
-        .object({
-          extraDirs: z.array(z.string()).optional(),
-        })
-        .optional(),
-      install: z
-        .object({
-          preferBrew: z.boolean().optional(),
-          nodeManager: z
-            .union([
-              z.literal("npm"),
-              z.literal("pnpm"),
-              z.literal("yarn"),
-              z.literal("bun"),
-            ])
-            .optional(),
-        })
-        .optional(),
-      entries: z
-        .record(
-          z.string(),
-          z
-            .object({
-              enabled: z.boolean().optional(),
-              apiKey: z.string().optional(),
-              env: z.record(z.string(), z.string()).optional(),
-            })
-            .passthrough(),
-        )
-        .optional(),
-    })
-    .optional(),
-});
+          )
+          .optional(),
+        order: z.record(z.string(), z.array(z.string())).optional(),
+        cooldowns: z
+          .object({
+            billingBackoffHours: z.number().positive().optional(),
+            billingBackoffHoursByProvider: z
+              .record(z.string(), z.number().positive())
+              .optional(),
+            billingMaxHours: z.number().positive().optional(),
+            failureWindowHours: z.number().positive().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    models: ModelsConfigSchema,
+    agents: AgentsSchema,
+    tools: ToolsSchema,
+    bindings: BindingsSchema,
+    broadcast: BroadcastSchema,
+    audio: AudioSchema,
+    messages: MessagesSchema,
+    commands: CommandsSchema,
+    session: SessionSchema,
+    cron: z
+      .object({
+        enabled: z.boolean().optional(),
+        store: z.string().optional(),
+        maxConcurrentRuns: z.number().int().positive().optional(),
+      })
+      .optional(),
+    hooks: z
+      .object({
+        enabled: z.boolean().optional(),
+        path: z.string().optional(),
+        token: z.string().optional(),
+        maxBodyBytes: z.number().int().positive().optional(),
+        presets: z.array(z.string()).optional(),
+        transformsDir: z.string().optional(),
+        mappings: z.array(HookMappingSchema).optional(),
+        gmail: HooksGmailSchema,
+      })
+      .optional(),
+    web: z
+      .object({
+        enabled: z.boolean().optional(),
+        heartbeatSeconds: z.number().int().positive().optional(),
+        reconnect: z
+          .object({
+            initialMs: z.number().positive().optional(),
+            maxMs: z.number().positive().optional(),
+            factor: z.number().positive().optional(),
+            jitter: z.number().min(0).max(1).optional(),
+            maxAttempts: z.number().int().min(0).optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    whatsapp: z
+      .object({
+        accounts: z
+          .record(
+            z.string(),
+            z
+              .object({
+                name: z.string().optional(),
+                capabilities: z.array(z.string()).optional(),
+                enabled: z.boolean().optional(),
+                messagePrefix: z.string().optional(),
+                /** Override auth directory for this WhatsApp account (Baileys multi-file auth state). */
+                authDir: z.string().optional(),
+                dmPolicy: DmPolicySchema.optional().default("pairing"),
+                selfChatMode: z.boolean().optional(),
+                allowFrom: z.array(z.string()).optional(),
+                groupAllowFrom: z.array(z.string()).optional(),
+                groupPolicy: GroupPolicySchema.optional().default("open"),
+                textChunkLimit: z.number().int().positive().optional(),
+                mediaMaxMb: z.number().int().positive().optional(),
+                blockStreaming: z.boolean().optional(),
+                blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
+                groups: z
+                  .record(
+                    z.string(),
+                    z
+                      .object({
+                        requireMention: z.boolean().optional(),
+                      })
+                      .optional(),
+                  )
+                  .optional(),
+              })
+              .superRefine((value, ctx) => {
+                if (value.dmPolicy !== "open") return;
+                const allow = (value.allowFrom ?? [])
+                  .map((v) => String(v).trim())
+                  .filter(Boolean);
+                if (allow.includes("*")) return;
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  path: ["allowFrom"],
+                  message:
+                    'whatsapp.accounts.*.dmPolicy="open" requires allowFrom to include "*"',
+                });
+              })
+              .optional(),
+          )
+          .optional(),
+        capabilities: z.array(z.string()).optional(),
+        dmPolicy: DmPolicySchema.optional().default("pairing"),
+        messagePrefix: z.string().optional(),
+        selfChatMode: z.boolean().optional(),
+        allowFrom: z.array(z.string()).optional(),
+        groupAllowFrom: z.array(z.string()).optional(),
+        groupPolicy: GroupPolicySchema.optional().default("open"),
+        textChunkLimit: z.number().int().positive().optional(),
+        mediaMaxMb: z.number().int().positive().optional().default(50),
+        blockStreaming: z.boolean().optional(),
+        blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
+        actions: z
+          .object({
+            reactions: z.boolean().optional(),
+            sendMessage: z.boolean().optional(),
+            polls: z.boolean().optional(),
+          })
+          .optional(),
+        groups: z
+          .record(
+            z.string(),
+            z
+              .object({
+                requireMention: z.boolean().optional(),
+              })
+              .optional(),
+          )
+          .optional(),
+      })
+      .superRefine((value, ctx) => {
+        if (value.dmPolicy !== "open") return;
+        const allow = (value.allowFrom ?? [])
+          .map((v) => String(v).trim())
+          .filter(Boolean);
+        if (allow.includes("*")) return;
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["allowFrom"],
+          message:
+            'whatsapp.dmPolicy="open" requires whatsapp.allowFrom to include "*"',
+        });
+      })
+      .optional(),
+    telegram: TelegramConfigSchema.optional(),
+    discord: DiscordConfigSchema.optional(),
+    slack: SlackConfigSchema.optional(),
+    signal: SignalConfigSchema.optional(),
+    imessage: IMessageConfigSchema.optional(),
+    msteams: MSTeamsConfigSchema.optional(),
+    bridge: z
+      .object({
+        enabled: z.boolean().optional(),
+        port: z.number().int().positive().optional(),
+        bind: z
+          .union([
+            z.literal("auto"),
+            z.literal("lan"),
+            z.literal("tailnet"),
+            z.literal("loopback"),
+          ])
+          .optional(),
+      })
+      .optional(),
+    discovery: z
+      .object({
+        wideArea: z
+          .object({
+            enabled: z.boolean().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    canvasHost: z
+      .object({
+        enabled: z.boolean().optional(),
+        root: z.string().optional(),
+        port: z.number().int().positive().optional(),
+        liveReload: z.boolean().optional(),
+      })
+      .optional(),
+    talk: z
+      .object({
+        voiceId: z.string().optional(),
+        voiceAliases: z.record(z.string(), z.string()).optional(),
+        modelId: z.string().optional(),
+        outputFormat: z.string().optional(),
+        apiKey: z.string().optional(),
+        interruptOnSpeech: z.boolean().optional(),
+      })
+      .optional(),
+    gateway: z
+      .object({
+        port: z.number().int().positive().optional(),
+        mode: z.union([z.literal("local"), z.literal("remote")]).optional(),
+        bind: z
+          .union([
+            z.literal("auto"),
+            z.literal("lan"),
+            z.literal("tailnet"),
+            z.literal("loopback"),
+          ])
+          .optional(),
+        controlUi: z
+          .object({
+            enabled: z.boolean().optional(),
+            basePath: z.string().optional(),
+          })
+          .optional(),
+        auth: z
+          .object({
+            mode: z
+              .union([z.literal("token"), z.literal("password")])
+              .optional(),
+            token: z.string().optional(),
+            password: z.string().optional(),
+            allowTailscale: z.boolean().optional(),
+          })
+          .optional(),
+        tailscale: z
+          .object({
+            mode: z
+              .union([
+                z.literal("off"),
+                z.literal("serve"),
+                z.literal("funnel"),
+              ])
+              .optional(),
+            resetOnExit: z.boolean().optional(),
+          })
+          .optional(),
+        remote: z
+          .object({
+            url: z.string().optional(),
+            token: z.string().optional(),
+            password: z.string().optional(),
+            sshTarget: z.string().optional(),
+            sshIdentity: z.string().optional(),
+          })
+          .optional(),
+        reload: z
+          .object({
+            mode: z
+              .union([
+                z.literal("off"),
+                z.literal("restart"),
+                z.literal("hot"),
+                z.literal("hybrid"),
+              ])
+              .optional(),
+            debounceMs: z.number().int().min(0).optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    skills: z
+      .object({
+        allowBundled: z.array(z.string()).optional(),
+        load: z
+          .object({
+            extraDirs: z.array(z.string()).optional(),
+          })
+          .optional(),
+        install: z
+          .object({
+            preferBrew: z.boolean().optional(),
+            nodeManager: z
+              .union([
+                z.literal("npm"),
+                z.literal("pnpm"),
+                z.literal("yarn"),
+                z.literal("bun"),
+              ])
+              .optional(),
+          })
+          .optional(),
+        entries: z
+          .record(
+            z.string(),
+            z
+              .object({
+                enabled: z.boolean().optional(),
+                apiKey: z.string().optional(),
+                env: z.record(z.string(), z.string()).optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .superRefine((cfg, ctx) => {
+    const agents = cfg.agents?.list ?? [];
+    if (agents.length === 0) return;
+    const agentIds = new Set(agents.map((agent) => agent.id));
+
+    const broadcast = cfg.broadcast;
+    if (!broadcast) return;
+
+    for (const [peerId, ids] of Object.entries(broadcast)) {
+      if (peerId === "strategy") continue;
+      if (!Array.isArray(ids)) continue;
+      for (let idx = 0; idx < ids.length; idx += 1) {
+        const agentId = ids[idx];
+        if (!agentIds.has(agentId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["broadcast", peerId, idx],
+            message: `Unknown agent id "${agentId}" (not in agents.list).`,
+          });
+        }
+      }
+    }
+  });

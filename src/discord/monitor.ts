@@ -68,6 +68,7 @@ import { truncateUtf16Safe } from "../utils.js";
 import { loadWebMedia } from "../web/media.js";
 import { resolveDiscordAccount } from "./accounts.js";
 import { chunkDiscordText } from "./chunk.js";
+import { attachDiscordGatewayLogging } from "./gateway-logging.js";
 import {
   getDiscordGatewayEmitter,
   waitForDiscordGatewayStop,
@@ -499,12 +500,31 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
 
   const gateway = client.getPlugin<GatewayPlugin>("gateway");
   const gatewayEmitter = getDiscordGatewayEmitter(gateway);
-  const onGatewayWarning = (warning: unknown) => {
-    logVerbose(`discord gateway warning: ${String(warning)}`);
+  const stopGatewayLogging = attachDiscordGatewayLogging({
+    emitter: gatewayEmitter,
+    runtime,
+  });
+  // Timeout to detect zombie connections where HELLO is never received.
+  const HELLO_TIMEOUT_MS = 30000;
+  let helloTimeoutId: ReturnType<typeof setTimeout> | undefined;
+  const onGatewayDebug = (msg: unknown) => {
+    const message = String(msg);
+    if (!message.includes("WebSocket connection opened")) return;
+    if (helloTimeoutId) clearTimeout(helloTimeoutId);
+    helloTimeoutId = setTimeout(() => {
+      if (!gateway?.isConnected) {
+        runtime.log?.(
+          danger(
+            `[discord] connection stalled: no HELLO received within ${HELLO_TIMEOUT_MS}ms, forcing reconnect`,
+          ),
+        );
+        gateway?.disconnect();
+        gateway?.connect(false);
+      }
+      helloTimeoutId = undefined;
+    }, HELLO_TIMEOUT_MS);
   };
-  if (shouldLogVerbose()) {
-    gatewayEmitter?.on("warning", onGatewayWarning);
-  }
+  gatewayEmitter?.on("debug", onGatewayDebug);
   try {
     await waitForDiscordGatewayStop({
       gateway: gateway
@@ -526,7 +546,10 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       },
     });
   } finally {
-    gatewayEmitter?.removeListener("warning", onGatewayWarning);
+    stopGatewayLogging();
+    stopGatewayLogging();
+    if (helloTimeoutId) clearTimeout(helloTimeoutId);
+    gatewayEmitter?.removeListener("debug", onGatewayDebug);
   }
 }
 
@@ -1150,7 +1173,14 @@ export function createDiscordMessageHandler(params: {
         ctx: ctxPayload,
         cfg,
         dispatcher,
-        replyOptions: { ...replyOptions, skillFilter: channelConfig?.skills },
+        replyOptions: {
+          ...replyOptions,
+          skillFilter: channelConfig?.skills,
+          disableBlockStreaming:
+            typeof discordConfig?.blockStreaming === "boolean"
+              ? !discordConfig.blockStreaming
+              : undefined,
+        },
       });
       markDispatchIdle();
       if (!queuedFinal) {

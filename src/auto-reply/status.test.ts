@@ -69,8 +69,8 @@ describe("buildStatusMessage", () => {
     expect(normalized).toContain("updated 10m ago");
     expect(normalized).toContain("Runtime: direct");
     expect(normalized).toContain("Think: medium");
-    expect(normalized).toContain("Verbose: off");
-    expect(normalized).toContain("Elevated: on");
+    expect(normalized).not.toContain("verbose");
+    expect(normalized).toContain("elevated");
     expect(normalized).toContain("Queue: collect");
   });
 
@@ -86,8 +86,8 @@ describe("buildStatusMessage", () => {
       queue: { mode: "collect", depth: 0 },
     });
 
-    expect(text).toContain("Verbose: on");
-    expect(text).toContain("Elevated: on");
+    expect(text).toContain("verbose");
+    expect(text).toContain("elevated");
   });
 
   it("prefers model overrides over last-run model", () => {

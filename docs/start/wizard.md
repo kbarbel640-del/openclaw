@@ -77,8 +77,11 @@ Tip: `--json` does **not** imply non-interactive mode. Use `--non-interactive` (
    - **OpenAI Codex OAuth**: browser flow; paste the `code#state`.
      - Sets `agents.defaults.model` to `openai-codex/gpt-5.2` when model is unset or `openai/*`.
    - **OpenAI API key**: uses `OPENAI_API_KEY` if present or prompts for a key, then saves it to `~/.clawdbot/.env` so launchd can read it.
+   - **OpenCode Zen (multi-model proxy)**: prompts for `OPENCODE_ZEN_API_KEY` (get it at https://opencode.ai/auth).
    - **API key**: stores the key for you.
-   - **Minimax M2.1 (LM Studio)**: config is auto‑written for the LM Studio endpoint.
+   - **MiniMax M2.1 (minimax.io)**: config is auto‑written for the OpenAI-compatible `/v1` endpoint.
+   - **MiniMax API (platform.minimax.io)**: config is auto‑written for the Anthropic-compatible `/anthropic` endpoint.
+   - **MiniMax M2.1 (LM Studio)**: config is auto‑written for the LM Studio endpoint.
    - **Skip**: no auth configured yet.
    - Wizard runs a model check and warns if the configured model is unknown or missing auth.
   - OAuth credentials live in `~/.clawdbot/credentials/oauth.json`; auth profiles live in `~/.clawdbot/agents/<agentId>/agent/auth-profiles.json` (API keys + OAuth).
@@ -179,6 +182,17 @@ clawdbot onboard --non-interactive \
   --mode local \
   --auth-choice gemini-api-key \
   --gemini-api-key "$GEMINI_API_KEY" \
+  --gateway-port 18789 \
+  --gateway-bind loopback
+```
+
+OpenCode Zen example:
+
+```bash
+clawdbot onboard --non-interactive \
+  --mode local \
+  --auth-choice opencode-zen \
+  --opencode-zen-api-key "$OPENCODE_ZEN_API_KEY" \
   --gateway-port 18789 \
   --gateway-bind loopback
 ```
