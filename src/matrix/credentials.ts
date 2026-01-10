@@ -26,7 +26,7 @@ const CREDENTIALS_FILENAME = "credentials.json";
  */
 export function resolveMatrixCredentialsDir(
   env: NodeJS.ProcessEnv = process.env,
-  stateDir: string = resolveStateDir(env, os.homedir)
+  stateDir: string = resolveStateDir(env, os.homedir),
 ): string {
   return path.join(stateDir, "credentials", "matrix");
 }
@@ -35,7 +35,7 @@ export function resolveMatrixCredentialsDir(
  * Resolve the Matrix credentials file path.
  */
 export function resolveMatrixCredentialsPath(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
 ): string {
   const dir = resolveMatrixCredentialsDir(env);
   return path.join(dir, CREDENTIALS_FILENAME);
@@ -45,7 +45,7 @@ export function resolveMatrixCredentialsPath(
  * Load stored Matrix credentials if they exist.
  */
 export function loadMatrixCredentials(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
 ): MatrixStoredCredentials | null {
   const credPath = resolveMatrixCredentialsPath(env);
   try {
@@ -72,7 +72,7 @@ export function loadMatrixCredentials(
  */
 export function saveMatrixCredentials(
   credentials: Omit<MatrixStoredCredentials, "createdAt" | "lastUsedAt">,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
 ): void {
   const dir = resolveMatrixCredentialsDir(env);
   fs.mkdirSync(dir, { recursive: true });
@@ -96,7 +96,7 @@ export function saveMatrixCredentials(
  * Update the lastUsedAt timestamp for existing credentials.
  */
 export function touchMatrixCredentials(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
 ): void {
   const existing = loadMatrixCredentials(env);
   if (!existing) return;
@@ -111,7 +111,7 @@ export function touchMatrixCredentials(
  * Call this when credentials are invalid or user wants to re-authenticate.
  */
 export function clearMatrixCredentials(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
 ): void {
   const credPath = resolveMatrixCredentialsPath(env);
   try {
@@ -129,7 +129,7 @@ export function clearMatrixCredentials(
  */
 export function credentialsMatchConfig(
   stored: MatrixStoredCredentials,
-  config: { homeserver: string; userId: string }
+  config: { homeserver: string; userId: string },
 ): boolean {
   return (
     stored.homeserver === config.homeserver && stored.userId === config.userId

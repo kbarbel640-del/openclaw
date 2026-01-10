@@ -53,7 +53,7 @@ function clean(value?: string): string {
 
 export function resolveMatrixConfig(
   cfg: ClawdbotConfig = loadConfig(),
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
 ): MatrixResolvedConfig {
   const matrix = cfg.matrix ?? {};
   const homeserver = clean(env.MATRIX_HOMESERVER) || clean(matrix.homeserver);
@@ -146,7 +146,7 @@ export async function resolveMatrixAuth(params?: {
   // No cached credentials or config changed - need password login
   if (!resolved.password) {
     throw new Error(
-      "Matrix access token or password is required (matrix.accessToken or matrix.password)"
+      "Matrix access token or password is required (matrix.accessToken or matrix.password)",
     );
   }
 
@@ -234,7 +234,7 @@ async function createSharedMatrixClient(params: {
     client,
     params.auth.encryption,
     params.auth.userId,
-    params.auth.recoveryKey
+    params.auth.recoveryKey,
   );
   return { client, key: buildSharedClientKey(params.auth), started: false };
 }
@@ -274,7 +274,7 @@ export async function resolveSharedMatrixClient(
     timeoutMs?: number;
     auth?: MatrixAuth;
     startClient?: boolean;
-  } = {}
+  } = {},
 ): Promise<MatrixClient> {
   const auth =
     params.auth ??
@@ -331,7 +331,7 @@ export async function ensureMatrixCrypto(
   client: MatrixClient,
   enabled: boolean,
   userId?: string,
-  recoveryKey?: string
+  recoveryKey?: string,
 ): Promise<void> {
   if (!enabled) return;
   if (client.getCrypto()) return;
@@ -362,8 +362,8 @@ export async function ensureMatrixCrypto(
       // Log but don't fail - encryption still works, just not verified
       console.error(
         `Matrix cross-signing bootstrap failed (E2EE still works, but unverified): ${String(
-          err
-        )}`
+          err,
+        )}`,
       );
     }
   }

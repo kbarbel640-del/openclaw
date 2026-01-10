@@ -42,6 +42,7 @@ export function formatOutboundDeliverySummary(
 
   if ("chatId" in result) return `${base} (chat ${result.chatId})`;
   if ("channelId" in result) return `${base} (channel ${result.channelId})`;
+  if ("roomId" in result) return `${base} (room ${result.roomId})`;
   if ("conversationId" in result)
     return `${base} (conversation ${result.conversationId})`;
   return base;

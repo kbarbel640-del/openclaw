@@ -67,7 +67,7 @@ function ensureNodeRuntime() {
 }
 
 async function resolveActionClient(
-  opts: MatrixActionClientOpts = {}
+  opts: MatrixActionClientOpts = {},
 ): Promise<MatrixActionClient> {
   ensureNodeRuntime();
   if (opts.client) return { client: opts.client, stopOnDone: false };
@@ -93,7 +93,7 @@ async function resolveActionClient(
     client,
     auth.encryption,
     auth.userId,
-    auth.recoveryKey
+    auth.recoveryKey,
   );
   await client.startClient({
     initialSyncLimit: 0,
@@ -136,13 +136,13 @@ function summarizeMatrixEvent(event: MatrixEvent): MatrixMessageSummary {
 
 async function readPinnedEvents(
   client: MatrixClient,
-  roomId: string
+  roomId: string,
 ): Promise<string[]> {
   try {
     const content = (await client.getStateEvent(
       roomId,
       EventType.RoomPinnedEvents,
-      ""
+      "",
     )) as RoomPinnedEventsEventContent;
     const pinned = content.pinned;
     return pinned.filter((id) => id.trim().length > 0);
@@ -159,7 +159,7 @@ async function readPinnedEvents(
 async function fetchEventSummary(
   client: MatrixClient,
   roomId: string,
-  eventId: string
+  eventId: string,
 ): Promise<MatrixMessageSummary | null> {
   const raw = await client.fetchRoomEvent(roomId, eventId);
   const mapper = client.getEventMapper();
@@ -176,7 +176,7 @@ export async function sendMatrixMessage(
     mediaUrl?: string;
     replyToId?: string;
     threadId?: string;
-  } = {}
+  } = {},
 ) {
   return await sendMessageMatrix(to, content, {
     mediaUrl: opts.mediaUrl,
@@ -191,7 +191,7 @@ export async function editMatrixMessage(
   roomId: string,
   messageId: string,
   content: string,
-  opts: MatrixActionClientOpts = {}
+  opts: MatrixActionClientOpts = {},
 ) {
   const trimmed = content.trim();
   if (!trimmed) throw new Error("Matrix edit requires content");
@@ -221,7 +221,7 @@ export async function editMatrixMessage(
 export async function deleteMatrixMessage(
   roomId: string,
   messageId: string,
-  opts: MatrixActionClientOpts & { reason?: string } = {}
+  opts: MatrixActionClientOpts & { reason?: string } = {},
 ) {
   const { client, stopOnDone } = await resolveActionClient(opts);
   try {
@@ -240,7 +240,7 @@ export async function readMatrixMessages(
     limit?: number;
     before?: string;
     after?: string;
-  } = {}
+  } = {},
 ): Promise<{
   messages: MatrixMessageSummary[];
   nextBatch?: string | null;
@@ -259,12 +259,12 @@ export async function readMatrixMessages(
       resolvedRoom,
       token,
       limit,
-      dir
+      dir,
     );
     const mapper = client.getEventMapper();
     const events = res.chunk.map(mapper);
     await Promise.all(
-      events.map((event) => client.decryptEventIfNeeded(event))
+      events.map((event) => client.decryptEventIfNeeded(event)),
     );
     const messages = events
       .filter((event) => event.getType() === EventType.RoomMessage)
@@ -283,7 +283,7 @@ export async function readMatrixMessages(
 export async function listMatrixReactions(
   roomId: string,
   messageId: string,
-  opts: MatrixActionClientOpts & { limit?: number } = {}
+  opts: MatrixActionClientOpts & { limit?: number } = {},
 ): Promise<MatrixReactionSummary[]> {
   const { client, stopOnDone } = await resolveActionClient(opts);
   try {
@@ -297,7 +297,7 @@ export async function listMatrixReactions(
       messageId,
       RelationType.Annotation,
       EventType.Reaction,
-      { dir: Direction.Backward, limit }
+      { dir: Direction.Backward, limit },
     );
     const summaries = new Map<string, MatrixReactionSummary>();
     for (const event of res.events) {
@@ -325,7 +325,7 @@ export async function listMatrixReactions(
 export async function removeMatrixReactions(
   roomId: string,
   messageId: string,
-  opts: MatrixActionClientOpts & { emoji?: string } = {}
+  opts: MatrixActionClientOpts & { emoji?: string } = {},
 ): Promise<{ removed: number }> {
   const { client, stopOnDone } = await resolveActionClient(opts);
   try {
@@ -335,7 +335,7 @@ export async function removeMatrixReactions(
       messageId,
       RelationType.Annotation,
       EventType.Reaction,
-      { dir: Direction.Backward, limit: 200 }
+      { dir: Direction.Backward, limit: 200 },
     );
     const userId = client.getUserId();
     if (!userId) return { removed: 0 };
@@ -351,7 +351,7 @@ export async function removeMatrixReactions(
       .filter((id): id is string => Boolean(id));
     if (toRemove.length === 0) return { removed: 0 };
     await Promise.all(
-      toRemove.map((id) => client.redactEvent(resolvedRoom, id))
+      toRemove.map((id) => client.redactEvent(resolvedRoom, id)),
     );
     return { removed: toRemove.length };
   } finally {
@@ -362,7 +362,7 @@ export async function removeMatrixReactions(
 export async function pinMatrixMessage(
   roomId: string,
   messageId: string,
-  opts: MatrixActionClientOpts = {}
+  opts: MatrixActionClientOpts = {},
 ): Promise<{ pinned: string[] }> {
   const { client, stopOnDone } = await resolveActionClient(opts);
   try {
@@ -375,7 +375,7 @@ export async function pinMatrixMessage(
     await client.sendStateEvent(
       resolvedRoom,
       EventType.RoomPinnedEvents,
-      payload
+      payload,
     );
     return { pinned: next };
   } finally {
@@ -386,7 +386,7 @@ export async function pinMatrixMessage(
 export async function unpinMatrixMessage(
   roomId: string,
   messageId: string,
-  opts: MatrixActionClientOpts = {}
+  opts: MatrixActionClientOpts = {},
 ): Promise<{ pinned: string[] }> {
   const { client, stopOnDone } = await resolveActionClient(opts);
   try {
@@ -397,7 +397,7 @@ export async function unpinMatrixMessage(
     await client.sendStateEvent(
       resolvedRoom,
       EventType.RoomPinnedEvents,
-      payload
+      payload,
     );
     return { pinned: next };
   } finally {
@@ -407,7 +407,7 @@ export async function unpinMatrixMessage(
 
 export async function listMatrixPins(
   roomId: string,
-  opts: MatrixActionClientOpts = {}
+  opts: MatrixActionClientOpts = {},
 ): Promise<{ pinned: string[]; events: MatrixMessageSummary[] }> {
   const { client, stopOnDone } = await resolveActionClient(opts);
   try {
@@ -421,7 +421,7 @@ export async function listMatrixPins(
           } catch {
             return null;
           }
-        })
+        }),
       )
     ).filter((event): event is MatrixMessageSummary => Boolean(event));
     return { pinned, events };
@@ -432,7 +432,7 @@ export async function listMatrixPins(
 
 export async function getMatrixMemberInfo(
   userId: string,
-  opts: MatrixActionClientOpts & { roomId?: string } = {}
+  opts: MatrixActionClientOpts & { roomId?: string } = {},
 ) {
   const { client, stopOnDone } = await resolveActionClient(opts);
   try {
@@ -460,7 +460,7 @@ export async function getMatrixMemberInfo(
 
 export async function getMatrixRoomInfo(
   roomId: string,
-  opts: MatrixActionClientOpts = {}
+  opts: MatrixActionClientOpts = {},
 ) {
   const { client, stopOnDone } = await resolveActionClient(opts);
   try {
@@ -468,7 +468,7 @@ export async function getMatrixRoomInfo(
     const room = client.getRoom(resolvedRoom);
     const topicEvent = room?.currentState.getStateEvents(
       EventType.RoomTopic,
-      ""
+      "",
     );
     const topicContent = topicEvent?.getContent<RoomTopicEventContent>();
     const topic =
