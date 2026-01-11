@@ -40,6 +40,14 @@
     "icloud-findmy": {
       "version": "1.0.0",
       "installedAt": 1767826270493
+    },
+    "anylist": {
+      "version": "0.1.0",
+      "installedAt": 1768168566093
+    },
+    "paprika": {
+      "version": "0.1.0",
+      "installedAt": 1768168572757
     }
   }
 }
