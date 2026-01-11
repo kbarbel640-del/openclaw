@@ -30,7 +30,7 @@ if [[ -z "$BRANCHES" ]]; then
 fi
 
 for branch in $BRANCHES; do
-  id="${branch#$HOTFIX_PREFIX}"
+  id="${branch#"$HOTFIX_PREFIX"}"
   FIX_TIP=$(git rev-parse "$branch")
 
   # Skip if already in target
@@ -62,21 +62,26 @@ for branch in $BRANCHES; do
 
   # Cherry-pick commits
   COMMITS=$(git rev-list --reverse "$MERGE_BASE".."$branch")
-  SUCCESS=true
 
   for commit in $COMMITS; do
     if ! git cherry-pick --no-commit "$commit" 2>/dev/null; then
-      echo "   ❌ conflict at $(git rev-parse --short $commit)"
+      SHORT_SHA=$(git rev-parse --short "$commit")
+      echo ""
+      echo "   ❌ CONFLICT at $SHORT_SHA"
+      echo ""
+      echo "   To resolve manually:"
+      echo "     1. cd $(pwd)"
+      echo "     2. git cherry-pick $commit"
+      echo "     3. Resolve conflicts, then: git add -A && git cherry-pick --continue"
+      echo "     4. Re-run build-release.sh"
+      echo ""
       git cherry-pick --abort 2>/dev/null || true
-      SUCCESS=false
-      break
+      exit 1
     fi
   done
 
-  if $SUCCESS; then
-    git commit -m "hotfix: apply $id ($COMMIT_COUNT commits)"
-    echo "   ✅ applied"
-  fi
+  git commit -m "hotfix: apply $id ($COMMIT_COUNT commits)"
+  echo "   ✅ applied"
 done
 
 echo ""

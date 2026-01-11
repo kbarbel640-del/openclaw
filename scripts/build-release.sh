@@ -81,10 +81,11 @@ echo ""
 echo "✅ Build complete!"
 echo ""
 
-# Update latest symlink
+# Update latest symlink (use relative path for portability)
 echo "🔗 Updating 'latest' symlink..."
-ln -sfn "$WORKTREE_DIR" "$LATEST_LINK"
-echo "   $LATEST_LINK -> $WORKTREE_DIR"
+mkdir -p "$(dirname "$LATEST_LINK")"
+ln -sfn "../.worktrees/$VERSION" "$LATEST_LINK"
+echo "   $LATEST_LINK -> ../.worktrees/$VERSION"
 echo ""
 
 echo "Build location: $WORKTREE_DIR/dist/Clawdbot.app"
