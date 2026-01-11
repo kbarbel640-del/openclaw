@@ -1,12 +1,18 @@
 import chalk from "chalk";
 import type { Command } from "commander";
 import {
+  resolveAgentWorkspaceDir,
+  resolveDefaultAgentId,
+} from "../agents/agent-scope.js";
+import {
   buildWorkspaceSkillStatus,
   type SkillStatusEntry,
   type SkillStatusReport,
 } from "../agents/skills-status.js";
 import { loadConfig } from "../config/config.js";
 import { defaultRuntime } from "../runtime.js";
+import { formatDocsLink } from "../terminal/links.js";
+import { theme } from "../terminal/theme.js";
 
 export type SkillsListOptions = {
   json?: boolean;
@@ -348,7 +354,15 @@ export function formatSkillsCheck(
 export function registerSkillsCli(program: Command) {
   const skills = program
     .command("skills")
-    .description("List and inspect available skills");
+    .description("List and inspect available skills")
+    .addHelpText(
+      "after",
+      () =>
+        `\n${theme.muted("Docs:")} ${formatDocsLink(
+          "/skills",
+          "docs.clawd.bot/skills",
+        )}\n`,
+    );
 
   skills
     .command("list")
@@ -363,7 +377,10 @@ export function registerSkillsCli(program: Command) {
     .action(async (opts) => {
       try {
         const config = loadConfig();
-        const workspaceDir = config.agent?.workspace ?? process.cwd();
+        const workspaceDir = resolveAgentWorkspaceDir(
+          config,
+          resolveDefaultAgentId(config),
+        );
         const report = buildWorkspaceSkillStatus(workspaceDir, { config });
         console.log(formatSkillsList(report, opts));
       } catch (err) {
@@ -380,7 +397,10 @@ export function registerSkillsCli(program: Command) {
     .action(async (name, opts) => {
       try {
         const config = loadConfig();
-        const workspaceDir = config.agent?.workspace ?? process.cwd();
+        const workspaceDir = resolveAgentWorkspaceDir(
+          config,
+          resolveDefaultAgentId(config),
+        );
         const report = buildWorkspaceSkillStatus(workspaceDir, { config });
         console.log(formatSkillInfo(report, name, opts));
       } catch (err) {
@@ -396,7 +416,10 @@ export function registerSkillsCli(program: Command) {
     .action(async (opts) => {
       try {
         const config = loadConfig();
-        const workspaceDir = config.agent?.workspace ?? process.cwd();
+        const workspaceDir = resolveAgentWorkspaceDir(
+          config,
+          resolveDefaultAgentId(config),
+        );
         const report = buildWorkspaceSkillStatus(workspaceDir, { config });
         console.log(formatSkillsCheck(report, opts));
       } catch (err) {
@@ -409,7 +432,10 @@ export function registerSkillsCli(program: Command) {
   skills.action(async () => {
     try {
       const config = loadConfig();
-      const workspaceDir = config.agent?.workspace ?? process.cwd();
+      const workspaceDir = resolveAgentWorkspaceDir(
+        config,
+        resolveDefaultAgentId(config),
+      );
       const report = buildWorkspaceSkillStatus(workspaceDir, { config });
       console.log(formatSkillsList(report, {}));
     } catch (err) {

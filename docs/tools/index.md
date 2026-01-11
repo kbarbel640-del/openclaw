@@ -13,16 +13,12 @@ and the agent should rely on them directly.
 
 ## Disabling tools
 
-You can globally allow/deny tools via `agent.tools` in `clawdbot.json`
+You can globally allow/deny tools via `tools.allow` / `tools.deny` in `clawdbot.json`
 (deny wins). This prevents disallowed tools from being sent to providers.
 
 ```json5
 {
-  agent: {
-    tools: {
-      deny: ["browser"]
-    }
-  }
+  tools: { deny: ["browser"] }
 }
 ```
 
@@ -43,7 +39,7 @@ Notes:
 - Returns `status: "running"` with a `sessionId` when backgrounded.
 - Use `process` to poll/log/write/kill/clear background sessions.
 - If `process` is disallowed, `bash` runs synchronously and ignores `yieldMs`/`background`.
-- `elevated` is gated by `agent.elevated` (global sender allowlist) and runs on the host.
+- `elevated` is gated by `tools.elevated` plus any `agents.list[].tools.elevated` override (both must allow) and runs on the host.
 - `elevated` only changes behavior when the agent is sandboxed (otherwise it’s a no-op).
 
 ### `process`
@@ -145,15 +141,15 @@ Core parameters:
 - `maxBytesMb` (optional size cap)
 
 Notes:
-- Only available when `agent.imageModel` is configured (primary or fallbacks).
+- Only available when `agents.defaults.imageModel` is configured (primary or fallbacks).
 - Uses the image model directly (independent of the main chat model).
 
 ### `message`
-Send messages and provider actions across Discord/Slack/Telegram/WhatsApp/Signal/iMessage.
+Send messages and provider actions across Discord/Slack/Telegram/WhatsApp/Signal/iMessage/MS Teams.
 
 Core actions:
 - `send` (text + optional media)
-- `poll` (WhatsApp/Discord polls)
+- `poll` (WhatsApp/Discord/MS Teams polls)
 - `react` / `reactions` / `read` / `edit` / `delete`
 - `pin` / `unpin` / `list-pins`
 - `permissions`
@@ -170,7 +166,7 @@ Core actions:
 
 Notes:
 - `send` routes WhatsApp via the Gateway; other providers go direct.
-- `poll` uses the Gateway for WhatsApp and direct Discord API for Discord.
+- `poll` uses the Gateway for WhatsApp and MS Teams; Discord polls go direct.
 
 ### `cron`
 Manage Gateway cron jobs and wakeups.
@@ -197,7 +193,7 @@ Notes:
 - Use `delayMs` (defaults to 2000) to avoid interrupting an in-flight reply.
 - `restart` is disabled by default; enable with `commands.restart: true`.
 
-### `sessions_list` / `sessions_history` / `sessions_send` / `sessions_spawn`
+### `sessions_list` / `sessions_history` / `sessions_send` / `sessions_spawn` / `session_status`
 List sessions, inspect transcript history, or send to another session.
 
 Core parameters:
@@ -205,11 +201,13 @@ Core parameters:
 - `sessions_history`: `sessionKey`, `limit?`, `includeTools?`
 - `sessions_send`: `sessionKey`, `message`, `timeoutSeconds?` (0 = fire-and-forget)
 - `sessions_spawn`: `task`, `label?`, `agentId?`, `model?`, `runTimeoutSeconds?`, `cleanup?`
+- `session_status`: `sessionKey?` (default current), `model?` (`default` clears override)
 
 Notes:
 - `main` is the canonical direct-chat key; global/unknown are hidden.
 - `messageLimit > 0` fetches last N messages per session (tool messages filtered).
 - `sessions_send` waits for final completion when `timeoutSeconds > 0`.
+- Delivery/announce happens after completion and is best-effort; `status: "ok"` confirms the agent run finished, not that the announce was delivered.
 - `sessions_spawn` starts a sub-agent run and posts an announce reply back to the requester chat.
 - `sessions_spawn` is non-blocking and returns `status: "accepted"` immediately.
 - `sessions_send` runs a reply‑back ping‑pong (reply `REPLY_SKIP` to stop; max turns via `session.agentToAgent.maxPingPongTurns`, 0–5).
@@ -219,7 +217,7 @@ Notes:
 List agent ids that the current session may target with `sessions_spawn`.
 
 Notes:
-- Result is restricted to per-agent allowlists (`routing.agents.<agentId>.subagents.allowAgents`).
+- Result is restricted to per-agent allowlists (`agents.list[].subagents.allowAgents`).
 - When `["*"]` is configured, the tool includes all configured agents and marks `allowAny: true`.
 
 ## Parameters (common)

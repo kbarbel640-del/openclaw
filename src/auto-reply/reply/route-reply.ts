@@ -7,6 +7,8 @@
  * across multiple providers.
  */
 
+import { resolveSessionAgentId } from "../../agents/agent-scope.js";
+import { resolveEffectiveMessagesConfig } from "../../agents/identity.js";
 import type { ClawdbotConfig } from "../../config/config.js";
 import { sendMessageDiscord } from "../../discord/send.js";
 import { sendMessageIMessage } from "../../imessage/send.js";
@@ -17,6 +19,7 @@ import { sendMessageTelegram } from "../../telegram/send.js";
 import { sendMessageWhatsApp } from "../../web/outbound.js";
 import type { OriginatingChannelType } from "../templating.js";
 import type { ReplyPayload } from "../types.js";
+import { normalizeReplyPayload } from "./normalize-reply.js";
 
 export type RouteReplyParams = {
   /** The reply payload to send. */
@@ -25,6 +28,8 @@ export type RouteReplyParams = {
   channel: OriginatingChannelType;
   /** The destination chat/channel/user ID. */
   to: string;
+  /** Session key for deriving agent identity defaults (multi-agent). */
+  sessionKey?: string;
   /** Provider account id (multi-account). */
   accountId?: string;
   /** Telegram message thread id (forum topics). */
@@ -59,13 +64,29 @@ export async function routeReply(
     params;
 
   // Debug: `pnpm test src/auto-reply/reply/route-reply.test.ts`
-  const text = payload.text ?? "";
-  const mediaUrls = (payload.mediaUrls?.filter(Boolean) ?? []).length
-    ? (payload.mediaUrls?.filter(Boolean) as string[])
-    : payload.mediaUrl
-      ? [payload.mediaUrl]
+  const responsePrefix = params.sessionKey
+    ? resolveEffectiveMessagesConfig(
+        cfg,
+        resolveSessionAgentId({
+          sessionKey: params.sessionKey,
+          config: cfg,
+        }),
+      ).responsePrefix
+    : cfg.messages?.responsePrefix === "auto"
+      ? undefined
+      : cfg.messages?.responsePrefix;
+  const normalized = normalizeReplyPayload(payload, {
+    responsePrefix,
+  });
+  if (!normalized) return { ok: true };
+
+  const text = normalized.text ?? "";
+  const mediaUrls = (normalized.mediaUrls?.filter(Boolean) ?? []).length
+    ? (normalized.mediaUrls?.filter(Boolean) as string[])
+    : normalized.mediaUrl
+      ? [normalized.mediaUrl]
       : [];
-  const replyToId = payload.replyToId;
+  const replyToId = normalized.replyToId;
 
   // Skip empty replies.
   if (!text.trim() && mediaUrls.length === 0) {

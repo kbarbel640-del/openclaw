@@ -7,6 +7,10 @@ alert lines and updates a local state file.
 
 This avoids needing OAuth (orders) or parsing emails.
 
+Output contract:
+- If no changes: prints exactly `HEARTBEAT_OK`
+- If changes: prints one or more alert lines
+
 Exit codes:
 - 0: success
 - 2: missing required env vars
@@ -20,8 +24,8 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-
-import httpx
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 ETSY_API_BASE = "https://openapi.etsy.com/v3"
 
@@ -48,10 +52,25 @@ def _required_env(name: str) -> str:
 
 def fetch_shop(shop_id: str, api_key: str) -> dict:
     url = f"{ETSY_API_BASE}/application/shops/{shop_id}"
-    headers = {"x-api-key": api_key, "Accept": "application/json"}
-    response = httpx.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.json()
+    req = Request(
+        url,
+        headers={
+            "x-api-key": api_key,
+            "Accept": "application/json",
+            "User-Agent": "clawd/etsy-sales-monitor",
+        },
+        method="GET",
+    )
+
+    try:
+        with urlopen(req, timeout=30) as resp:
+            body = resp.read().decode("utf-8")
+            return json.loads(body)
+    except HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+        raise RuntimeError(f"Etsy API HTTP {e.code}: {body}") from e
+    except URLError as e:
+        raise RuntimeError(f"Etsy API error: {e}") from e
 
 
 def load_state(path: Path) -> dict:
@@ -96,7 +115,7 @@ def main() -> int:
             missing.append(str(e))
             continue
 
-        data = fetch_shop(shop_id=shop_id, api_key=api_key)
+        data = fetch_shop(shop_id=str(shop_id), api_key=api_key)
         current[shop.label] = {
             "shop_id": str(shop_id),
             "shop_name": data.get("shop_name"),
@@ -110,7 +129,6 @@ def main() -> int:
         )
         return 2
 
-    # First run or explicit init: store counts, don't alert.
     if args.init or not state:
         save_state(state_path, current)
         print("HEARTBEAT_OK")
@@ -128,7 +146,9 @@ def main() -> int:
 
         if delta > 0:
             shop_name = info.get("shop_name") or label
-            alerts.append(f"🛒 {label} ({shop_name}) New sale(s): +{delta} (total {new_count})")
+            alerts.append(
+                f"🛒 {label} ({shop_name}) New sale(s): +{delta} (total {new_count})"
+            )
 
     save_state(state_path, next_state)
 

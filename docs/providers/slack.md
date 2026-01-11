@@ -5,6 +5,22 @@ read_when: "Setting up Slack or debugging Slack socket mode"
 
 # Slack (socket mode)
 
+## Quick setup (beginner)
+1) Create a Slack app and enable **Socket Mode**.
+2) Create an **App Token** (`xapp-...`) and **Bot Token** (`xoxb-...`).
+3) Set tokens for Clawdbot and start the gateway.
+
+Minimal config:
+```json5
+{
+  slack: {
+    enabled: true,
+    appToken: "xapp-...",
+    botToken: "xoxb-..."
+  }
+}
+```
+
 ## Setup
 1) Create a Slack app (From scratch) in https://api.slack.com/apps.
 2) **Socket Mode** → toggle on. Then go to **Basic Information** → **App-Level Tokens** → **Generate Token and Scopes** with scope `connections:write`. Copy the **App Token** (`xapp-...`).
@@ -23,6 +39,28 @@ read_when: "Setting up Slack or debugging Slack socket mode"
 Use the manifest below so scopes and events stay in sync.
 
 Multi-account support: use `slack.accounts` with per-account tokens and optional `name`. See [`gateway/configuration`](/gateway/configuration#telegramaccounts--discordaccounts--slackaccounts--signalaccounts--imessageaccounts) for the shared pattern.
+
+## Clawdbot config (minimal)
+
+Set tokens via env vars (recommended):
+- `SLACK_APP_TOKEN=xapp-...`
+- `SLACK_BOT_TOKEN=xoxb-...`
+
+Or via config:
+
+```json5
+{
+  slack: {
+    enabled: true,
+    appToken: "xapp-...",
+    botToken: "xoxb-..."
+  }
+}
+```
+
+## History context
+- `slack.historyLimit` (or `slack.accounts.*.historyLimit`) controls how many recent channel/group messages are wrapped into the prompt.
+- Falls back to `messages.groupChat.historyLimit`. Set `0` to disable (default 50).
 
 ## Manifest (optional)
 Use this Slack app manifest to create the app quickly (adjust the name/command if you want).
@@ -192,30 +230,39 @@ Tokens can also be supplied via env vars:
 - `SLACK_APP_TOKEN`
 
 Ack reactions are controlled globally via `messages.ackReaction` +
-`messages.ackReactionScope`.
+`messages.ackReactionScope`. Use `messages.removeAckAfterReply` to clear the
+ack reaction after the bot replies.
 
 ## Limits
 - Outbound text is chunked to `slack.textChunkLimit` (default 4000).
 - Media uploads are capped by `slack.mediaMaxMb` (default 20).
 
 ## Reply threading
-Slack supports optional threaded replies via tags:
-- `[[reply_to_current]]` — reply to the triggering message.
-- `[[reply_to:<id>]]` — reply to a specific message id.
+By default, Clawdbot replies in the main channel. Use `slack.replyToMode` to control automatic threading:
 
-Controlled by `slack.replyToMode`:
-- `off` (default), `first`, `all`.
+| Mode | Behavior |
+| --- | --- |
+| `off` | **Default.** Reply in main channel. Only thread if the triggering message was already in a thread. |
+| `first` | First reply goes to thread (under the triggering message), subsequent replies go to main channel. Useful for keeping context visible while avoiding thread clutter. |
+| `all` | All replies go to thread. Keeps conversations contained but may reduce visibility. |
+
+The mode applies to both auto-replies and agent tool calls (`slack sendMessage`).
+
+### Manual threading tags
+For fine-grained control, use these tags in agent responses:
+- `[[reply_to_current]]` — reply to the triggering message (start/continue thread).
+- `[[reply_to:<id>]]` — reply to a specific message id.
 
 ## Sessions + routing
 - DMs share the `main` session (like WhatsApp/Telegram).
-- Channels map to `slack:channel:<channelId>` sessions.
-- Slash commands use `slack:slash:<userId>` sessions.
+- Channels map to `agent:<agentId>:slack:channel:<channelId>` sessions.
+- Slash commands use `agent:<agentId>:slack:slash:<userId>` sessions (prefix configurable via `slack.slashCommand.sessionPrefix`).
 - Native command registration is controlled by `commands.native`; text commands require standalone `/...` messages and can be disabled with `commands.text: false`. Slack slash commands are managed in the Slack app and are not removed automatically. Use `commands.useAccessGroups: false` to bypass access-group checks for commands.
 - Full command list + config: [Slash commands](/tools/slash-commands)
 
 ## DM security (pairing)
 - Default: `slack.dm.policy="pairing"` — unknown DM senders get a pairing code (expires after 1 hour).
-- Approve via: `clawdbot pairing approve --provider slack <code>`.
+- Approve via: `clawdbot pairing approve slack <code>`.
 - To allow anyone: set `slack.dm.policy="open"` and `slack.dm.allowFrom=["*"]`.
 
 ## Group policy
@@ -248,8 +295,8 @@ Slack tool actions can be gated with `slack.actions.*`:
 | emojiList | enabled | Custom emoji list |
 
 ## Notes
-- Mention gating is controlled via `slack.channels` (set `requireMention` to `true`); `routing.groupChat.mentionPatterns` also count as mentions.
-- Multi-agent override: `routing.agents.<agentId>.mentionPatterns` takes precedence.
+- Mention gating is controlled via `slack.channels` (set `requireMention` to `true`); `agents.list[].groupChat.mentionPatterns` (or `messages.groupChat.mentionPatterns`) also count as mentions.
+- Multi-agent override: set per-agent patterns on `agents.list[].groupChat.mentionPatterns`.
 - Reaction notifications follow `slack.reactionNotifications` (use `reactionAllowlist` with mode `allowlist`).
 - Bot-authored messages are ignored by default; enable via `slack.allowBots` or `slack.channels.<id>.allowBots`.
 - For the Slack tool, reaction removal semantics are in [/tools/reactions](/tools/reactions).

@@ -1,41 +1,13 @@
 import fs from "node:fs/promises";
-import os from "node:os";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
+
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
-  const base = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-config-"));
-  const previousHome = process.env.HOME;
-  const previousUserProfile = process.env.USERPROFILE;
-  const previousHomeDrive = process.env.HOMEDRIVE;
-  const previousHomePath = process.env.HOMEPATH;
-  process.env.HOME = base;
-  process.env.USERPROFILE = base;
-  if (process.platform === "win32") {
-    const parsed = path.parse(base);
-    process.env.HOMEDRIVE = parsed.root.replace(/\\$/, "");
-    process.env.HOMEPATH = base.slice(Math.max(parsed.root.length - 1, 0));
-  }
-  try {
-    return await fn(base);
-  } finally {
-    process.env.HOME = previousHome;
-    process.env.USERPROFILE = previousUserProfile;
-    if (process.platform === "win32") {
-      if (previousHomeDrive === undefined) {
-        delete process.env.HOMEDRIVE;
-      } else {
-        process.env.HOMEDRIVE = previousHomeDrive;
-      }
-      if (previousHomePath === undefined) {
-        delete process.env.HOMEPATH;
-      } else {
-        process.env.HOMEPATH = previousHomePath;
-      }
-    }
-    await fs.rm(base, { recursive: true, force: true });
-  }
+  return withTempHomeBase(fn, { prefix: "clawdbot-config-" });
 }
 
 /**
@@ -80,7 +52,7 @@ describe("config identity defaults", () => {
     process.env.HOME = previousHome;
   });
 
-  it("derives mentionPatterns when identity is set", async () => {
+  it("does not derive mentionPatterns when identity is set", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".clawdbot");
       await fs.mkdir(configDir, { recursive: true });
@@ -88,9 +60,19 @@ describe("config identity defaults", () => {
         path.join(configDir, "clawdbot.json"),
         JSON.stringify(
           {
-            identity: { name: "Samantha", theme: "helpful sloth", emoji: "🦥" },
+            agents: {
+              list: [
+                {
+                  id: "main",
+                  identity: {
+                    name: "Samantha",
+                    theme: "helpful sloth",
+                    emoji: "🦥",
+                  },
+                },
+              ],
+            },
             messages: {},
-            routing: {},
           },
           null,
           2,
@@ -103,13 +85,11 @@ describe("config identity defaults", () => {
       const cfg = loadConfig();
 
       expect(cfg.messages?.responsePrefix).toBeUndefined();
-      expect(cfg.routing?.groupChat?.mentionPatterns).toEqual([
-        "\\b@?Samantha\\b",
-      ]);
+      expect(cfg.messages?.groupChat?.mentionPatterns).toBeUndefined();
     });
   });
 
-  it("defaults ackReaction to identity emoji", async () => {
+  it("defaults ackReactionScope without setting ackReaction", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".clawdbot");
       await fs.mkdir(configDir, { recursive: true });
@@ -117,7 +97,18 @@ describe("config identity defaults", () => {
         path.join(configDir, "clawdbot.json"),
         JSON.stringify(
           {
-            identity: { name: "Samantha", theme: "helpful sloth", emoji: "🦥" },
+            agents: {
+              list: [
+                {
+                  id: "main",
+                  identity: {
+                    name: "Samantha",
+                    theme: "helpful sloth",
+                    emoji: "🦥",
+                  },
+                },
+              ],
+            },
             messages: {},
           },
           null,
@@ -130,12 +121,12 @@ describe("config identity defaults", () => {
       const { loadConfig } = await import("./config.js");
       const cfg = loadConfig();
 
-      expect(cfg.messages?.ackReaction).toBe("🦥");
+      expect(cfg.messages?.ackReaction).toBeUndefined();
       expect(cfg.messages?.ackReactionScope).toBe("group-mentions");
     });
   });
 
-  it("defaults ackReaction to 👀 when identity is missing", async () => {
+  it("keeps ackReaction unset when identity is missing", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".clawdbot");
       await fs.mkdir(configDir, { recursive: true });
@@ -155,7 +146,7 @@ describe("config identity defaults", () => {
       const { loadConfig } = await import("./config.js");
       const cfg = loadConfig();
 
-      expect(cfg.messages?.ackReaction).toBe("👀");
+      expect(cfg.messages?.ackReaction).toBeUndefined();
       expect(cfg.messages?.ackReactionScope).toBe("group-mentions");
     });
   });
@@ -168,16 +159,21 @@ describe("config identity defaults", () => {
         path.join(configDir, "clawdbot.json"),
         JSON.stringify(
           {
-            identity: {
-              name: "Samantha Sloth",
-              theme: "space lobster",
-              emoji: "🦞",
+            agents: {
+              list: [
+                {
+                  id: "main",
+                  identity: {
+                    name: "Samantha Sloth",
+                    theme: "space lobster",
+                    emoji: "🦞",
+                  },
+                  groupChat: { mentionPatterns: ["@clawd"] },
+                },
+              ],
             },
             messages: {
               responsePrefix: "✅",
-            },
-            routing: {
-              groupChat: { mentionPatterns: ["@clawd"] },
             },
           },
           null,
@@ -191,7 +187,9 @@ describe("config identity defaults", () => {
       const cfg = loadConfig();
 
       expect(cfg.messages?.responsePrefix).toBe("✅");
-      expect(cfg.routing?.groupChat?.mentionPatterns).toEqual(["@clawd"]);
+      expect(cfg.agents?.list?.[0]?.groupChat?.mentionPatterns).toEqual([
+        "@clawd",
+      ]);
     });
   });
 
@@ -209,7 +207,6 @@ describe("config identity defaults", () => {
               // legacy field should be ignored (moved to providers)
               textChunkLimit: 9999,
             },
-            routing: {},
             whatsapp: { allowFrom: ["+15555550123"], textChunkLimit: 4444 },
             telegram: { enabled: true, textChunkLimit: 3333 },
             discord: {
@@ -243,6 +240,57 @@ describe("config identity defaults", () => {
     });
   });
 
+  it("accepts blank model provider apiKey values", async () => {
+    await withTempHome(async (home) => {
+      const configDir = path.join(home, ".clawdbot");
+      await fs.mkdir(configDir, { recursive: true });
+      await fs.writeFile(
+        path.join(configDir, "clawdbot.json"),
+        JSON.stringify(
+          {
+            models: {
+              mode: "merge",
+              providers: {
+                minimax: {
+                  baseUrl: "https://api.minimax.io/anthropic",
+                  apiKey: "",
+                  api: "anthropic-messages",
+                  models: [
+                    {
+                      id: "MiniMax-M2.1",
+                      name: "MiniMax M2.1",
+                      reasoning: false,
+                      input: ["text"],
+                      cost: {
+                        input: 0,
+                        output: 0,
+                        cacheRead: 0,
+                        cacheWrite: 0,
+                      },
+                      contextWindow: 200000,
+                      maxTokens: 8192,
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
+
+      vi.resetModules();
+      const { loadConfig } = await import("./config.js");
+      const cfg = loadConfig();
+
+      expect(cfg.models?.providers?.minimax?.baseUrl).toBe(
+        "https://api.minimax.io/anthropic",
+      );
+    });
+  });
+
   it("respects empty responsePrefix to disable identity defaults", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".clawdbot");
@@ -251,9 +299,19 @@ describe("config identity defaults", () => {
         path.join(configDir, "clawdbot.json"),
         JSON.stringify(
           {
-            identity: { name: "Samantha", theme: "helpful sloth", emoji: "🦥" },
+            agents: {
+              list: [
+                {
+                  id: "main",
+                  identity: {
+                    name: "Samantha",
+                    theme: "helpful sloth",
+                    emoji: "🦥",
+                  },
+                },
+              ],
+            },
             messages: { responsePrefix: "" },
-            routing: {},
           },
           null,
           2,
@@ -277,9 +335,7 @@ describe("config identity defaults", () => {
         path.join(configDir, "clawdbot.json"),
         JSON.stringify(
           {
-            identity: { name: "Samantha", theme: "helpful sloth", emoji: "🦥" },
             messages: {},
-            routing: {},
           },
           null,
           2,
@@ -292,10 +348,8 @@ describe("config identity defaults", () => {
       const cfg = loadConfig();
 
       expect(cfg.messages?.responsePrefix).toBeUndefined();
-      expect(cfg.routing?.groupChat?.mentionPatterns).toEqual([
-        "\\b@?Samantha\\b",
-      ]);
-      expect(cfg.agent).toBeUndefined();
+      expect(cfg.messages?.groupChat?.mentionPatterns).toBeUndefined();
+      expect(cfg.agents).toBeUndefined();
       expect(cfg.session).toBeUndefined();
     });
   });
@@ -308,9 +362,19 @@ describe("config identity defaults", () => {
         path.join(configDir, "clawdbot.json"),
         JSON.stringify(
           {
-            identity: { name: "Clawd", theme: "space lobster", emoji: "🦞" },
+            agents: {
+              list: [
+                {
+                  id: "main",
+                  identity: {
+                    name: "Clawd",
+                    theme: "space lobster",
+                    emoji: "🦞",
+                  },
+                },
+              ],
+            },
             messages: {},
-            routing: {},
           },
           null,
           2,
@@ -411,7 +475,7 @@ describe("config pruning defaults", () => {
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
         path.join(configDir, "clawdbot.json"),
-        JSON.stringify({ agent: {} }, null, 2),
+        JSON.stringify({ agents: { defaults: {} } }, null, 2),
         "utf-8",
       );
 
@@ -419,7 +483,7 @@ describe("config pruning defaults", () => {
       const { loadConfig } = await import("./config.js");
       const cfg = loadConfig();
 
-      expect(cfg.agent?.contextPruning?.mode).toBe("adaptive");
+      expect(cfg.agents?.defaults?.contextPruning?.mode).toBe("adaptive");
     });
   });
 
@@ -429,7 +493,11 @@ describe("config pruning defaults", () => {
       await fs.mkdir(configDir, { recursive: true });
       await fs.writeFile(
         path.join(configDir, "clawdbot.json"),
-        JSON.stringify({ agent: { contextPruning: { mode: "off" } } }, null, 2),
+        JSON.stringify(
+          { agents: { defaults: { contextPruning: { mode: "off" } } } },
+          null,
+          2,
+        ),
         "utf-8",
       );
 
@@ -437,7 +505,7 @@ describe("config pruning defaults", () => {
       const { loadConfig } = await import("./config.js");
       const cfg = loadConfig();
 
-      expect(cfg.agent?.contextPruning?.mode).toBe("off");
+      expect(cfg.agents?.defaults?.contextPruning?.mode).toBe("off");
     });
   });
 });
@@ -791,6 +859,41 @@ describe("talk.voiceAliases", () => {
   });
 });
 
+describe("broadcast", () => {
+  it("accepts a broadcast peer map with strategy", async () => {
+    vi.resetModules();
+    const { validateConfigObject } = await import("./config.js");
+    const res = validateConfigObject({
+      agents: {
+        list: [{ id: "alfred" }, { id: "baerbel" }],
+      },
+      broadcast: {
+        strategy: "parallel",
+        "120363403215116621@g.us": ["alfred", "baerbel"],
+      },
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("rejects invalid broadcast strategy", async () => {
+    vi.resetModules();
+    const { validateConfigObject } = await import("./config.js");
+    const res = validateConfigObject({
+      broadcast: { strategy: "nope" },
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("rejects non-array broadcast entries", async () => {
+    vi.resetModules();
+    const { validateConfigObject } = await import("./config.js");
+    const res = validateConfigObject({
+      broadcast: { "120363403215116621@g.us": 123 },
+    });
+    expect(res.ok).toBe(false);
+  });
+});
+
 describe("legacy config detection", () => {
   it("rejects routing.allowFrom", async () => {
     vi.resetModules();
@@ -848,6 +951,133 @@ describe("legacy config detection", () => {
     expect(res.config?.telegram?.groups?.["*"]?.requireMention).toBe(false);
     expect(res.config?.imessage?.groups?.["*"]?.requireMention).toBe(false);
     expect(res.config?.routing?.groupChat?.requireMention).toBeUndefined();
+  });
+
+  it("migrates routing.groupChat.mentionPatterns to messages.groupChat.mentionPatterns", async () => {
+    vi.resetModules();
+    const { migrateLegacyConfig } = await import("./config.js");
+    const res = migrateLegacyConfig({
+      routing: { groupChat: { mentionPatterns: ["@clawd"] } },
+    });
+    expect(res.changes).toContain(
+      "Moved routing.groupChat.mentionPatterns → messages.groupChat.mentionPatterns.",
+    );
+    expect(res.config?.messages?.groupChat?.mentionPatterns).toEqual([
+      "@clawd",
+    ]);
+    expect(res.config?.routing?.groupChat?.mentionPatterns).toBeUndefined();
+  });
+
+  it("migrates routing agentToAgent/queue/transcribeAudio to tools/messages/audio", async () => {
+    vi.resetModules();
+    const { migrateLegacyConfig } = await import("./config.js");
+    const res = migrateLegacyConfig({
+      routing: {
+        agentToAgent: { enabled: true, allow: ["main"] },
+        queue: { mode: "queue", cap: 3 },
+        transcribeAudio: {
+          command: ["whisper", "--model", "base"],
+          timeoutSeconds: 2,
+        },
+      },
+    });
+    expect(res.changes).toContain(
+      "Moved routing.agentToAgent → tools.agentToAgent.",
+    );
+    expect(res.changes).toContain("Moved routing.queue → messages.queue.");
+    expect(res.changes).toContain(
+      "Moved routing.transcribeAudio → tools.audio.transcription.",
+    );
+    expect(res.config?.tools?.agentToAgent).toEqual({
+      enabled: true,
+      allow: ["main"],
+    });
+    expect(res.config?.messages?.queue).toEqual({
+      mode: "queue",
+      cap: 3,
+    });
+    expect(res.config?.tools?.audio?.transcription).toEqual({
+      args: ["--model", "base"],
+      timeoutSeconds: 2,
+    });
+    expect(res.config?.routing).toBeUndefined();
+  });
+
+  it("migrates agent config into agents.defaults and tools", async () => {
+    vi.resetModules();
+    const { migrateLegacyConfig } = await import("./config.js");
+    const res = migrateLegacyConfig({
+      agent: {
+        model: "openai/gpt-5.2",
+        tools: { allow: ["sessions.list"], deny: ["danger"] },
+        elevated: { enabled: true, allowFrom: { discord: ["user:1"] } },
+        bash: { timeoutSec: 12 },
+        sandbox: { tools: { allow: ["browser.open"] } },
+        subagents: { tools: { deny: ["sandbox"] } },
+      },
+    });
+    expect(res.changes).toContain("Moved agent.tools.allow → tools.allow.");
+    expect(res.changes).toContain("Moved agent.tools.deny → tools.deny.");
+    expect(res.changes).toContain("Moved agent.elevated → tools.elevated.");
+    expect(res.changes).toContain("Moved agent.bash → tools.bash.");
+    expect(res.changes).toContain(
+      "Moved agent.sandbox.tools → tools.sandbox.tools.",
+    );
+    expect(res.changes).toContain(
+      "Moved agent.subagents.tools → tools.subagents.tools.",
+    );
+    expect(res.changes).toContain("Moved agent → agents.defaults.");
+    expect(res.config?.agents?.defaults?.model).toEqual({
+      primary: "openai/gpt-5.2",
+      fallbacks: [],
+    });
+    expect(res.config?.tools?.allow).toEqual(["sessions.list"]);
+    expect(res.config?.tools?.deny).toEqual(["danger"]);
+    expect(res.config?.tools?.elevated).toEqual({
+      enabled: true,
+      allowFrom: { discord: ["user:1"] },
+    });
+    expect(res.config?.tools?.bash).toEqual({ timeoutSec: 12 });
+    expect(res.config?.tools?.sandbox?.tools).toEqual({
+      allow: ["browser.open"],
+    });
+    expect(res.config?.tools?.subagents?.tools).toEqual({
+      deny: ["sandbox"],
+    });
+    expect((res.config as { agent?: unknown }).agent).toBeUndefined();
+  });
+
+  it("accepts per-agent tools.elevated overrides", async () => {
+    vi.resetModules();
+    const { validateConfigObject } = await import("./config.js");
+    const res = validateConfigObject({
+      tools: {
+        elevated: {
+          allowFrom: { whatsapp: ["+15555550123"] },
+        },
+      },
+      agents: {
+        list: [
+          {
+            id: "work",
+            workspace: "~/clawd-work",
+            tools: {
+              elevated: {
+                enabled: false,
+                allowFrom: { whatsapp: ["+15555550123"] },
+              },
+            },
+          },
+        ],
+      },
+    });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.config?.agents?.list?.[0]?.tools?.elevated).toEqual({
+        enabled: false,
+        allowFrom: { whatsapp: ["+15555550123"] },
+      });
+    }
   });
 
   it("rejects telegram.requireMention", async () => {
@@ -998,6 +1228,34 @@ describe("legacy config detection", () => {
     }
   });
 
+  it("accepts historyLimit overrides per provider and account", async () => {
+    vi.resetModules();
+    const { validateConfigObject } = await import("./config.js");
+    const res = validateConfigObject({
+      messages: { groupChat: { historyLimit: 12 } },
+      whatsapp: { historyLimit: 9, accounts: { work: { historyLimit: 4 } } },
+      telegram: { historyLimit: 8, accounts: { ops: { historyLimit: 3 } } },
+      slack: { historyLimit: 7, accounts: { ops: { historyLimit: 2 } } },
+      signal: { historyLimit: 6 },
+      imessage: { historyLimit: 5 },
+      msteams: { historyLimit: 4 },
+      discord: { historyLimit: 3 },
+    });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.config.whatsapp?.historyLimit).toBe(9);
+      expect(res.config.whatsapp?.accounts?.work?.historyLimit).toBe(4);
+      expect(res.config.telegram?.historyLimit).toBe(8);
+      expect(res.config.telegram?.accounts?.ops?.historyLimit).toBe(3);
+      expect(res.config.slack?.historyLimit).toBe(7);
+      expect(res.config.slack?.accounts?.ops?.historyLimit).toBe(2);
+      expect(res.config.signal?.historyLimit).toBe(6);
+      expect(res.config.imessage?.historyLimit).toBe(5);
+      expect(res.config.msteams?.historyLimit).toBe(4);
+      expect(res.config.discord?.historyLimit).toBe(3);
+    }
+  });
+
   it('rejects imessage.dmPolicy="open" without allowFrom "*"', async () => {
     vi.resetModules();
     const { validateConfigObject } = await import("./config.js");
@@ -1032,6 +1290,44 @@ describe("legacy config detection", () => {
     }
   });
 
+  it("rejects unsafe executable config values", async () => {
+    vi.resetModules();
+    const { validateConfigObject } = await import("./config.js");
+    const res = validateConfigObject({
+      imessage: { cliPath: "imsg; rm -rf /" },
+      tools: { audio: { transcription: { args: ["--model", "base"] } } },
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.issues.some((i) => i.path === "imessage.cliPath")).toBe(true);
+    }
+  });
+
+  it("accepts tools audio transcription without cli", async () => {
+    vi.resetModules();
+    const { validateConfigObject } = await import("./config.js");
+    const res = validateConfigObject({
+      tools: { audio: { transcription: { args: ["--model", "base"] } } },
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("accepts path-like executable values with spaces", async () => {
+    vi.resetModules();
+    const { validateConfigObject } = await import("./config.js");
+    const res = validateConfigObject({
+      imessage: { cliPath: "/Applications/Imsg Tools/imsg" },
+      tools: {
+        audio: {
+          transcription: {
+            args: ["--model"],
+          },
+        },
+      },
+    });
+    expect(res.ok).toBe(true);
+  });
+
   it('rejects discord.dm.policy="open" without allowFrom "*"', async () => {
     vi.resetModules();
     const { validateConfigObject } = await import("./config.js");
@@ -1064,7 +1360,7 @@ describe("legacy config detection", () => {
     });
     expect(res.ok).toBe(false);
     if (!res.ok) {
-      expect(res.issues[0]?.path).toBe("agent.model");
+      expect(res.issues.some((i) => i.path === "agent.model")).toBe(true);
     }
   });
 
@@ -1095,22 +1391,25 @@ describe("legacy config detection", () => {
       },
     });
 
-    expect(res.config?.agent?.model?.primary).toBe("anthropic/claude-opus-4-5");
-    expect(res.config?.agent?.model?.fallbacks).toEqual([
+    expect(res.config?.agents?.defaults?.model?.primary).toBe(
+      "anthropic/claude-opus-4-5",
+    );
+    expect(res.config?.agents?.defaults?.model?.fallbacks).toEqual([
       "openai/gpt-4.1-mini",
     ]);
-    expect(res.config?.agent?.imageModel?.primary).toBe("openai/gpt-4.1-mini");
-    expect(res.config?.agent?.imageModel?.fallbacks).toEqual([
+    expect(res.config?.agents?.defaults?.imageModel?.primary).toBe(
+      "openai/gpt-4.1-mini",
+    );
+    expect(res.config?.agents?.defaults?.imageModel?.fallbacks).toEqual([
       "anthropic/claude-opus-4-5",
     ]);
     expect(
-      res.config?.agent?.models?.["anthropic/claude-opus-4-5"],
+      res.config?.agents?.defaults?.models?.["anthropic/claude-opus-4-5"],
     ).toMatchObject({ alias: "Opus" });
-    expect(res.config?.agent?.models?.["openai/gpt-4.1-mini"]).toBeTruthy();
-    expect(res.config?.agent?.allowedModels).toBeUndefined();
-    expect(res.config?.agent?.modelAliases).toBeUndefined();
-    expect(res.config?.agent?.modelFallbacks).toBeUndefined();
-    expect(res.config?.agent?.imageModelFallbacks).toBeUndefined();
+    expect(
+      res.config?.agents?.defaults?.models?.["openai/gpt-4.1-mini"],
+    ).toBeTruthy();
+    expect(res.config?.agent).toBeUndefined();
   });
 
   it("surfaces legacy issues in snapshot", async () => {
@@ -1135,21 +1434,21 @@ describe("legacy config detection", () => {
 });
 
 describe("multi-agent agentDir validation", () => {
-  it("rejects shared routing.agents.*.agentDir", async () => {
+  it("rejects shared agents.list agentDir", async () => {
     vi.resetModules();
     const { validateConfigObject } = await import("./config.js");
-    const shared = path.join(os.tmpdir(), "clawdbot-shared-agentdir");
+    const shared = path.join(tmpdir(), "clawdbot-shared-agentdir");
     const res = validateConfigObject({
-      routing: {
-        agents: {
-          a: { agentDir: shared },
-          b: { agentDir: shared },
-        },
+      agents: {
+        list: [
+          { id: "a", agentDir: shared },
+          { id: "b", agentDir: shared },
+        ],
       },
     });
     expect(res.ok).toBe(false);
     if (!res.ok) {
-      expect(res.issues.some((i) => i.path === "routing.agents")).toBe(true);
+      expect(res.issues.some((i) => i.path === "agents.list")).toBe(true);
       expect(res.issues[0]?.message).toContain("Duplicate agentDir");
     }
   });
@@ -1162,13 +1461,13 @@ describe("multi-agent agentDir validation", () => {
         path.join(configDir, "clawdbot.json"),
         JSON.stringify(
           {
-            routing: {
-              agents: {
-                a: { agentDir: "~/.clawdbot/agents/shared/agent" },
-                b: { agentDir: "~/.clawdbot/agents/shared/agent" },
-              },
-              bindings: [{ agentId: "a", match: { provider: "telegram" } }],
+            agents: {
+              list: [
+                { id: "a", agentDir: "~/.clawdbot/agents/shared/agent" },
+                { id: "b", agentDir: "~/.clawdbot/agents/shared/agent" },
+              ],
             },
+            bindings: [{ agentId: "a", match: { provider: "telegram" } }],
           },
           null,
           2,

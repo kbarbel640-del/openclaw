@@ -1,14 +1,9 @@
-import { note as clackNote } from "@clack/prompts";
-
 import type { ClawdbotConfig } from "../config/config.js";
 import { readProviderAllowFromStore } from "../pairing/pairing-store.js";
 import { readTelegramAllowFromStore } from "../telegram/pairing-store.js";
 import { resolveTelegramToken } from "../telegram/token.js";
-import { stylePromptTitle } from "../terminal/prompt-style.js";
+import { note } from "../terminal/note.js";
 import { normalizeE164 } from "../utils.js";
-
-const note = (message: string, title?: string) =>
-  clackNote(message, stylePromptTitle(title));
 
 export async function noteSecurityWarnings(cfg: ClawdbotConfig) {
   const warnings: string[] = [];
@@ -115,7 +110,7 @@ export async function noteSecurityWarnings(cfg: ClawdbotConfig) {
         `- Telegram DMs: locked (telegram.dmPolicy="${dmPolicy}") with no allowlist; unknown senders will be blocked / get a pairing code.`,
       );
       warnings.push(
-        `  Approve via: clawdbot pairing list --provider telegram / clawdbot pairing approve --provider telegram <code>`,
+        `  Approve via: clawdbot pairing list telegram / clawdbot pairing approve telegram <code>`,
       );
     }
 
@@ -137,7 +132,7 @@ export async function noteSecurityWarnings(cfg: ClawdbotConfig) {
       allowFrom: cfg.discord?.dm?.allowFrom ?? [],
       allowFromPath: "discord.dm.",
       approveHint:
-        "Approve via: clawdbot pairing list --provider discord / clawdbot pairing approve --provider discord <code>",
+        "Approve via: clawdbot pairing list discord / clawdbot pairing approve discord <code>",
       normalizeEntry: (raw) =>
         raw.replace(/^(discord|user):/i, "").replace(/^<@!?(\d+)>$/, "$1"),
     });
@@ -151,7 +146,7 @@ export async function noteSecurityWarnings(cfg: ClawdbotConfig) {
       allowFrom: cfg.slack?.dm?.allowFrom ?? [],
       allowFromPath: "slack.dm.",
       approveHint:
-        "Approve via: clawdbot pairing list --provider slack / clawdbot pairing approve --provider slack <code>",
+        "Approve via: clawdbot pairing list slack / clawdbot pairing approve slack <code>",
       normalizeEntry: (raw) => raw.replace(/^(slack|user):/i, ""),
     });
   }
@@ -164,7 +159,7 @@ export async function noteSecurityWarnings(cfg: ClawdbotConfig) {
       allowFrom: cfg.signal?.allowFrom ?? [],
       allowFromPath: "signal.",
       approveHint:
-        "Approve via: clawdbot pairing list --provider signal / clawdbot pairing approve --provider signal <code>",
+        "Approve via: clawdbot pairing list signal / clawdbot pairing approve signal <code>",
       normalizeEntry: (raw) =>
         normalizeE164(raw.replace(/^signal:/i, "").trim()),
     });
@@ -178,7 +173,7 @@ export async function noteSecurityWarnings(cfg: ClawdbotConfig) {
       allowFrom: cfg.imessage?.allowFrom ?? [],
       allowFromPath: "imessage.",
       approveHint:
-        "Approve via: clawdbot pairing list --provider imessage / clawdbot pairing approve --provider imessage <code>",
+        "Approve via: clawdbot pairing list imessage / clawdbot pairing approve imessage <code>",
     });
   }
 
@@ -190,7 +185,7 @@ export async function noteSecurityWarnings(cfg: ClawdbotConfig) {
       allowFrom: cfg.whatsapp?.allowFrom ?? [],
       allowFromPath: "whatsapp.",
       approveHint:
-        "Approve via: clawdbot pairing list --provider whatsapp / clawdbot pairing approve --provider whatsapp <code>",
+        "Approve via: clawdbot pairing list whatsapp / clawdbot pairing approve whatsapp <code>",
       normalizeEntry: (raw) => normalizeE164(raw),
     });
   }

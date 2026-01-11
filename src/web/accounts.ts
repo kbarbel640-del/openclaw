@@ -15,6 +15,7 @@ export type ResolvedWhatsAppAccount = {
   accountId: string;
   name?: string;
   enabled: boolean;
+  messagePrefix?: string;
   authDir: string;
   isLegacyAuthDir: boolean;
   selfChatMode?: boolean;
@@ -23,6 +24,9 @@ export type ResolvedWhatsAppAccount = {
   groupPolicy?: GroupPolicy;
   dmPolicy?: DmPolicy;
   textChunkLimit?: number;
+  mediaMaxMb?: number;
+  blockStreaming?: boolean;
+  ackReaction?: WhatsAppAccountConfig["ackReaction"];
   groups?: WhatsAppAccountConfig["groups"];
 };
 
@@ -109,6 +113,10 @@ export function resolveWhatsAppAccount(params: {
     accountId,
     name: accountCfg?.name?.trim() || undefined,
     enabled,
+    messagePrefix:
+      accountCfg?.messagePrefix ??
+      params.cfg.whatsapp?.messagePrefix ??
+      params.cfg.messages?.messagePrefix,
     authDir,
     isLegacyAuthDir: isLegacy,
     selfChatMode: accountCfg?.selfChatMode ?? params.cfg.whatsapp?.selfChatMode,
@@ -119,6 +127,10 @@ export function resolveWhatsAppAccount(params: {
     groupPolicy: accountCfg?.groupPolicy ?? params.cfg.whatsapp?.groupPolicy,
     textChunkLimit:
       accountCfg?.textChunkLimit ?? params.cfg.whatsapp?.textChunkLimit,
+    mediaMaxMb: accountCfg?.mediaMaxMb ?? params.cfg.whatsapp?.mediaMaxMb,
+    blockStreaming:
+      accountCfg?.blockStreaming ?? params.cfg.whatsapp?.blockStreaming,
+    ackReaction: accountCfg?.ackReaction ?? params.cfg.whatsapp?.ackReaction,
     groups: accountCfg?.groups ?? params.cfg.whatsapp?.groups,
   };
 }

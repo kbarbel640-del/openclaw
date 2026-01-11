@@ -9,6 +9,7 @@ import {
   CODEX_CLI_PROFILE_ID,
   ensureAuthProfileStore,
   listProfilesForProvider,
+  resolveAuthProfileOrder,
   upsertAuthProfile,
 } from "../agents/auth-profiles.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../agents/defaults.js";
@@ -36,11 +37,27 @@ import {
 } from "./google-gemini-model-default.js";
 import {
   applyAuthProfileConfig,
+  applyMinimaxApiConfig,
+  applyMinimaxApiProviderConfig,
   applyMinimaxConfig,
+  applyMinimaxHostedConfig,
+  applyMinimaxHostedProviderConfig,
   applyMinimaxProviderConfig,
+  applyOpencodeZenConfig,
+  applyOpencodeZenProviderConfig,
+  applyOpenrouterConfig,
+  applyOpenrouterProviderConfig,
+  applyZaiConfig,
+  MINIMAX_HOSTED_MODEL_REF,
+  OPENROUTER_DEFAULT_MODEL_REF,
   setAnthropicApiKey,
   setGeminiApiKey,
+  setMinimaxApiKey,
+  setOpencodeZenApiKey,
+  setOpenrouterApiKey,
+  setZaiApiKey,
   writeOAuthCredentials,
+  ZAI_DEFAULT_MODEL_REF,
 } from "./onboard-auth.js";
 import { openUrl } from "./onboard-helpers.js";
 import type { AuthChoice } from "./onboard-types.js";
@@ -48,6 +65,7 @@ import {
   applyOpenAICodexModelDefault,
   OPENAI_CODEX_DEFAULT_MODEL,
 } from "./openai-codex-model-default.js";
+import { OPENCODE_ZEN_DEFAULT_MODEL } from "./opencode-zen-model-default.js";
 
 export async function warnIfModelConfigLooksOff(
   config: ClawdbotConfig,
@@ -61,13 +79,16 @@ export async function warnIfModelConfigLooksOff(
     agentModelOverride && agentModelOverride.length > 0
       ? {
           ...config,
-          agent: {
-            ...config.agent,
-            model: {
-              ...(typeof config.agent?.model === "object"
-                ? config.agent.model
-                : undefined),
-              primary: agentModelOverride,
+          agents: {
+            ...config.agents,
+            defaults: {
+              ...config.agents?.defaults,
+              model: {
+                ...(typeof config.agents?.defaults?.model === "object"
+                  ? config.agents.defaults.model
+                  : undefined),
+                primary: agentModelOverride,
+              },
             },
           },
         }
@@ -88,7 +109,7 @@ export async function warnIfModelConfigLooksOff(
     );
     if (!known) {
       warnings.push(
-        `Model not found: ${ref.provider}/${ref.model}. Update agent.model or run /models list.`,
+        `Model not found: ${ref.provider}/${ref.model}. Update agents.defaults.model or run /models list.`,
       );
     }
   }
@@ -107,7 +128,7 @@ export async function warnIfModelConfigLooksOff(
     const hasCodex = listProfilesForProvider(store, "openai-codex").length > 0;
     if (hasCodex) {
       warnings.push(
-        `Detected OpenAI Codex OAuth. Consider setting agent.model to ${OPENAI_CODEX_DEFAULT_MODEL}.`,
+        `Detected OpenAI Codex OAuth. Consider setting agents.defaults.model to ${OPENAI_CODEX_DEFAULT_MODEL}.`,
       );
     }
   }
@@ -209,7 +230,68 @@ export async function applyAuthChoice(params: {
       provider: "anthropic",
       mode: "token",
     });
-  } else if (params.authChoice === "token" || params.authChoice === "oauth") {
+  } else if (
+    params.authChoice === "setup-token" ||
+    params.authChoice === "oauth"
+  ) {
+    await params.prompter.note(
+      [
+        "This will run `claude setup-token` to create a long-lived Anthropic token.",
+        "Requires an interactive TTY and a Claude Pro/Max subscription.",
+      ].join("\n"),
+      "Anthropic setup-token",
+    );
+
+    if (!process.stdin.isTTY) {
+      await params.prompter.note(
+        "`claude setup-token` requires an interactive TTY.",
+        "Anthropic setup-token",
+      );
+      return { config: nextConfig, agentModelOverride };
+    }
+
+    const proceed = await params.prompter.confirm({
+      message: "Run `claude setup-token` now?",
+      initialValue: true,
+    });
+    if (!proceed) return { config: nextConfig, agentModelOverride };
+
+    const res = await (async () => {
+      const { spawnSync } = await import("node:child_process");
+      return spawnSync("claude", ["setup-token"], { stdio: "inherit" });
+    })();
+    if (res.error) {
+      await params.prompter.note(
+        `Failed to run claude: ${String(res.error)}`,
+        "Anthropic setup-token",
+      );
+      return { config: nextConfig, agentModelOverride };
+    }
+    if (typeof res.status === "number" && res.status !== 0) {
+      await params.prompter.note(
+        `claude setup-token failed (exit ${res.status})`,
+        "Anthropic setup-token",
+      );
+      return { config: nextConfig, agentModelOverride };
+    }
+
+    const store = ensureAuthProfileStore(params.agentDir, {
+      allowKeychainPrompt: true,
+    });
+    if (!store.profiles[CLAUDE_CLI_PROFILE_ID]) {
+      await params.prompter.note(
+        `No Claude CLI credentials found after setup-token. Expected ${CLAUDE_CLI_PROFILE_ID}.`,
+        "Anthropic setup-token",
+      );
+      return { config: nextConfig, agentModelOverride };
+    }
+
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: CLAUDE_CLI_PROFILE_ID,
+      provider: "anthropic",
+      mode: "token",
+    });
+  } else if (params.authChoice === "token") {
     const provider = (await params.prompter.select({
       message: "Token provider",
       options: [{ value: "anthropic", label: "Anthropic (only supported)" }],
@@ -289,6 +371,77 @@ export async function applyAuthChoice(params: {
       `Saved OPENAI_API_KEY to ${result.path} for launchd compatibility.`,
       "OpenAI API key",
     );
+  } else if (params.authChoice === "openrouter-api-key") {
+    const store = ensureAuthProfileStore(params.agentDir, {
+      allowKeychainPrompt: false,
+    });
+    const profileOrder = resolveAuthProfileOrder({
+      cfg: nextConfig,
+      store,
+      provider: "openrouter",
+    });
+    const existingProfileId = profileOrder.find((profileId) =>
+      Boolean(store.profiles[profileId]),
+    );
+    const existingCred = existingProfileId
+      ? store.profiles[existingProfileId]
+      : undefined;
+    let profileId = "openrouter:default";
+    let mode: "api_key" | "oauth" | "token" = "api_key";
+    let hasCredential = false;
+
+    if (existingProfileId && existingCred?.type) {
+      profileId = existingProfileId;
+      mode =
+        existingCred.type === "oauth"
+          ? "oauth"
+          : existingCred.type === "token"
+            ? "token"
+            : "api_key";
+      hasCredential = true;
+    }
+
+    if (!hasCredential) {
+      const envKey = resolveEnvApiKey("openrouter");
+      if (envKey) {
+        const useExisting = await params.prompter.confirm({
+          message: `Use existing OPENROUTER_API_KEY (${envKey.source})?`,
+          initialValue: true,
+        });
+        if (useExisting) {
+          await setOpenrouterApiKey(envKey.apiKey, params.agentDir);
+          hasCredential = true;
+        }
+      }
+    }
+
+    if (!hasCredential) {
+      const key = await params.prompter.text({
+        message: "Enter OpenRouter API key",
+        validate: (value) => (value?.trim() ? undefined : "Required"),
+      });
+      await setOpenrouterApiKey(String(key).trim(), params.agentDir);
+      hasCredential = true;
+    }
+
+    if (hasCredential) {
+      nextConfig = applyAuthProfileConfig(nextConfig, {
+        profileId,
+        provider: "openrouter",
+        mode,
+      });
+    }
+    if (params.setDefaultModel) {
+      nextConfig = applyOpenrouterConfig(nextConfig);
+      await params.prompter.note(
+        `Default model set to ${OPENROUTER_DEFAULT_MODEL_REF}`,
+        "Model configured",
+      );
+    } else {
+      nextConfig = applyOpenrouterProviderConfig(nextConfig);
+      agentModelOverride = OPENROUTER_DEFAULT_MODEL_REF;
+      await noteAgentModel(OPENROUTER_DEFAULT_MODEL_REF);
+    }
   } else if (params.authChoice === "openai-codex") {
     const isRemote = isRemoteEnvironment();
     await params.prompter.note(
@@ -450,30 +603,36 @@ export async function applyAuthChoice(params: {
         const modelKey = "google-antigravity/claude-opus-4-5-thinking";
         nextConfig = {
           ...nextConfig,
-          agent: {
-            ...nextConfig.agent,
-            models: {
-              ...nextConfig.agent?.models,
-              [modelKey]: nextConfig.agent?.models?.[modelKey] ?? {},
+          agents: {
+            ...nextConfig.agents,
+            defaults: {
+              ...nextConfig.agents?.defaults,
+              models: {
+                ...nextConfig.agents?.defaults?.models,
+                [modelKey]:
+                  nextConfig.agents?.defaults?.models?.[modelKey] ?? {},
+              },
             },
           },
         };
         if (params.setDefaultModel) {
+          const existingModel = nextConfig.agents?.defaults?.model;
           nextConfig = {
             ...nextConfig,
-            agent: {
-              ...nextConfig.agent,
-              model: {
-                ...(nextConfig.agent?.model &&
-                "fallbacks" in
-                  (nextConfig.agent.model as Record<string, unknown>)
-                  ? {
-                      fallbacks: (
-                        nextConfig.agent.model as { fallbacks?: string[] }
-                      ).fallbacks,
-                    }
-                  : undefined),
-                primary: modelKey,
+            agents: {
+              ...nextConfig.agents,
+              defaults: {
+                ...nextConfig.agents?.defaults,
+                model: {
+                  ...(existingModel &&
+                  "fallbacks" in (existingModel as Record<string, unknown>)
+                    ? {
+                        fallbacks: (existingModel as { fallbacks?: string[] })
+                          .fallbacks,
+                      }
+                    : undefined),
+                  primary: modelKey,
+                },
               },
             },
           };
@@ -518,6 +677,45 @@ export async function applyAuthChoice(params: {
       agentModelOverride = GOOGLE_GEMINI_DEFAULT_MODEL;
       await noteAgentModel(GOOGLE_GEMINI_DEFAULT_MODEL);
     }
+  } else if (params.authChoice === "zai-api-key") {
+    const key = await params.prompter.text({
+      message: "Enter Z.AI API key",
+      validate: (value) => (value?.trim() ? undefined : "Required"),
+    });
+    await setZaiApiKey(String(key).trim(), params.agentDir);
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "zai:default",
+      provider: "zai",
+      mode: "api_key",
+    });
+    if (params.setDefaultModel) {
+      nextConfig = applyZaiConfig(nextConfig);
+      await params.prompter.note(
+        `Default model set to ${ZAI_DEFAULT_MODEL_REF}`,
+        "Model configured",
+      );
+    } else {
+      nextConfig = {
+        ...nextConfig,
+        agents: {
+          ...nextConfig.agents,
+          defaults: {
+            ...nextConfig.agents?.defaults,
+            models: {
+              ...nextConfig.agents?.defaults?.models,
+              [ZAI_DEFAULT_MODEL_REF]: {
+                ...nextConfig.agents?.defaults?.models?.[ZAI_DEFAULT_MODEL_REF],
+                alias:
+                  nextConfig.agents?.defaults?.models?.[ZAI_DEFAULT_MODEL_REF]
+                    ?.alias ?? "GLM",
+              },
+            },
+          },
+        },
+      };
+      agentModelOverride = ZAI_DEFAULT_MODEL_REF;
+      await noteAgentModel(ZAI_DEFAULT_MODEL_REF);
+    }
   } else if (params.authChoice === "apiKey") {
     const key = await params.prompter.text({
       message: "Enter Anthropic API key",
@@ -529,6 +727,24 @@ export async function applyAuthChoice(params: {
       provider: "anthropic",
       mode: "api_key",
     });
+  } else if (params.authChoice === "minimax-cloud") {
+    const key = await params.prompter.text({
+      message: "Enter MiniMax API key",
+      validate: (value) => (value?.trim() ? undefined : "Required"),
+    });
+    await setMinimaxApiKey(String(key).trim(), params.agentDir);
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "minimax:default",
+      provider: "minimax",
+      mode: "api_key",
+    });
+    if (params.setDefaultModel) {
+      nextConfig = applyMinimaxHostedConfig(nextConfig);
+    } else {
+      nextConfig = applyMinimaxHostedProviderConfig(nextConfig);
+      agentModelOverride = MINIMAX_HOSTED_MODEL_REF;
+      await noteAgentModel(MINIMAX_HOSTED_MODEL_REF);
+    }
   } else if (params.authChoice === "minimax") {
     if (params.setDefaultModel) {
       nextConfig = applyMinimaxConfig(nextConfig);
@@ -537,7 +753,90 @@ export async function applyAuthChoice(params: {
       agentModelOverride = "lmstudio/minimax-m2.1-gs32";
       await noteAgentModel("lmstudio/minimax-m2.1-gs32");
     }
+  } else if (params.authChoice === "minimax-api") {
+    const key = await params.prompter.text({
+      message: "Enter MiniMax API key",
+      validate: (value) => (value?.trim() ? undefined : "Required"),
+    });
+    await setMinimaxApiKey(String(key).trim(), params.agentDir);
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "minimax:default",
+      provider: "minimax",
+      mode: "api_key",
+    });
+    if (params.setDefaultModel) {
+      nextConfig = applyMinimaxApiConfig(nextConfig);
+    } else {
+      nextConfig = applyMinimaxApiProviderConfig(nextConfig);
+      agentModelOverride = "minimax/MiniMax-M2.1";
+      await noteAgentModel("minimax/MiniMax-M2.1");
+    }
+  } else if (params.authChoice === "opencode-zen") {
+    await params.prompter.note(
+      [
+        "OpenCode Zen provides access to Claude, GPT, Gemini, and more models.",
+        "Get your API key at: https://opencode.ai/auth",
+        "Requires an active OpenCode Zen subscription.",
+      ].join("\n"),
+      "OpenCode Zen",
+    );
+    const key = await params.prompter.text({
+      message: "Enter OpenCode Zen API key",
+      validate: (value) => (value?.trim() ? undefined : "Required"),
+    });
+    await setOpencodeZenApiKey(String(key).trim(), params.agentDir);
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "opencode:default",
+      provider: "opencode",
+      mode: "api_key",
+    });
+    if (params.setDefaultModel) {
+      nextConfig = applyOpencodeZenConfig(nextConfig);
+      await params.prompter.note(
+        `Default model set to ${OPENCODE_ZEN_DEFAULT_MODEL}`,
+        "Model configured",
+      );
+    } else {
+      nextConfig = applyOpencodeZenProviderConfig(nextConfig);
+      agentModelOverride = OPENCODE_ZEN_DEFAULT_MODEL;
+      await noteAgentModel(OPENCODE_ZEN_DEFAULT_MODEL);
+    }
   }
 
   return { config: nextConfig, agentModelOverride };
+}
+
+export function resolvePreferredProviderForAuthChoice(
+  choice: AuthChoice,
+): string | undefined {
+  switch (choice) {
+    case "oauth":
+    case "setup-token":
+    case "claude-cli":
+    case "token":
+    case "apiKey":
+      return "anthropic";
+    case "openai-codex":
+    case "codex-cli":
+      return "openai-codex";
+    case "openai-api-key":
+      return "openai";
+    case "openrouter-api-key":
+      return "openrouter";
+    case "gemini-api-key":
+      return "google";
+    case "zai-api-key":
+      return "zai";
+    case "antigravity":
+      return "google-antigravity";
+    case "minimax-cloud":
+    case "minimax-api":
+      return "minimax";
+    case "minimax":
+      return "lmstudio";
+    case "opencode-zen":
+      return "opencode";
+    default:
+      return undefined;
+  }
 }

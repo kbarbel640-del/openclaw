@@ -1,0 +1,9 @@
+[project]
+name = "sharepoint"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "msal>=1.24.0",
+    "httpx>=0.25.0",
+    "rich>=13.0.0",
+]

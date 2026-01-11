@@ -1,4 +1,5 @@
 import AppKit
+import ClawdbotDiscovery
 import ClawdbotIPC
 import ClawdbotKit
 import CoreLocation
@@ -12,7 +13,8 @@ struct GeneralSettings: View {
     @AppStorage(locationPreciseKey) private var locationPreciseEnabled: Bool = true
     private let healthStore = HealthStore.shared
     private let gatewayManager = GatewayProcessManager.shared
-    @State private var gatewayDiscovery = GatewayDiscoveryModel()
+    @State private var gatewayDiscovery = GatewayDiscoveryModel(
+        localDisplayName: InstanceIdentity.displayName)
     @State private var isInstallingCLI = false
     @State private var cliStatus: String?
     @State private var cliInstalled = false
@@ -28,10 +30,22 @@ struct GeneralSettings: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
                 if !self.state.onboardingSeen {
-                    Text("Complete onboarding to finish setup")
-                        .font(.callout.weight(.semibold))
-                        .foregroundColor(.accentColor)
-                        .padding(.bottom, 2)
+                    Button {
+                        DebugActions.restartOnboarding()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Label("Complete onboarding to finish setup", systemImage: "arrow.counterclockwise")
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 2)
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -150,13 +164,18 @@ struct GeneralSettings: View {
 
     private func requestLocationAuthorization(mode: ClawdbotLocationMode) async -> Bool {
         guard mode != .off else { return true }
+        guard CLLocationManager.locationServicesEnabled() else {
+            await MainActor.run { LocationPermissionHelper.openSettings() }
+            return false
+        }
+
         let status = CLLocationManager().authorizationStatus
-        // Note: macOS only supports authorizedAlways, not authorizedWhenInUse (iOS only)
-        if status == .authorizedAlways {
+        let requireAlways = mode == .always
+        if PermissionManager.isLocationAuthorized(status: status, requireAlways: requireAlways) {
             return true
         }
-        let updated = await LocationPermissionRequester.shared.request(always: mode == .always)
-        return updated == .authorizedAlways
+        let updated = await LocationPermissionRequester.shared.request(always: requireAlways)
+        return PermissionManager.isLocationAuthorized(status: updated, requireAlways: requireAlways)
     }
 
     private var connectionSection: some View {
@@ -185,6 +204,11 @@ struct GeneralSettings: View {
                 if !self.isNixMode {
                     self.gatewayInstallerCard
                 }
+                SettingsToggleRow(
+                    title: "Attach only",
+                    subtitle: "Use this when the gateway runs externally; the mac app will only attach " +
+                        "to an already-running gateway and won't start one locally.",
+                    binding: self.$state.attachExistingGatewayOnly)
                 TailscaleIntegrationSection(
                     connectionMode: self.state.connectionMode,
                     isPaused: self.state.isPaused)

@@ -38,7 +38,7 @@ Clawdbot’s stance:
 
 All current DM-capable providers support a DM policy (`dmPolicy` or `*.dm.policy`) that gates inbound DMs **before** the message is processed:
 
-- `pairing` (default): unknown senders receive a short pairing code and the bot ignores their message until approved. Codes expire after 1 hour; repeated DMs won’t resend a code until a new request is created.
+- `pairing` (default): unknown senders receive a short pairing code and the bot ignores their message until approved. Codes expire after 1 hour; repeated DMs won’t resend a code until a new request is created. Pending requests are capped at **3 per provider** by default.
 - `allowlist`: unknown senders are blocked (no pairing handshake).
 - `open`: allow anyone to DM (public). **Requires** the provider allowlist to include `"*"` (explicit opt-in).
 - `disabled`: ignore inbound DMs entirely.
@@ -46,8 +46,8 @@ All current DM-capable providers support a DM policy (`dmPolicy` or `*.dm.policy
 Approve via CLI:
 
 ```bash
-clawdbot pairing list --provider <provider>
-clawdbot pairing approve --provider <provider> <code>
+clawdbot pairing list <provider>
+clawdbot pairing approve <provider> <code>
 ```
 
 Details + files on disk: [Pairing](/start/pairing)
@@ -110,6 +110,31 @@ Keep config + state private on the gateway host:
 
 `clawdbot doctor` can warn and offer to tighten these permissions.
 
+### 0.5) Lock down the Gateway WebSocket (local auth)
+
+Gateway auth is **only** enforced when you set `gateway.auth`. If it’s unset,
+loopback WS clients are unauthenticated — any local process can connect and call
+`config.apply`.
+
+The onboarding wizard now generates a token by default (even for loopback) so
+local clients must authenticate. If you skip the wizard or remove auth, you’re
+back to open loopback.
+
+Set a token so **all** WS clients must authenticate:
+
+```json5
+{
+  gateway: {
+    auth: { mode: "token", token: "your-token" }
+  }
+}
+```
+
+Doctor can generate one for you: `clawdbot doctor --generate-gateway-token`.
+
+Note: `gateway.remote.token` is **only** for remote CLI calls; it does not
+protect local WS access.
+
 ### 1) DMs: pairing by default
 
 ```json5
@@ -127,10 +152,13 @@ Keep config + state private on the gateway host:
       "*": { "requireMention": true }
     }
   },
-  "routing": {
-    "groupChat": {
-      "mentionPatterns": ["@clawd", "@mybot"]
-    }
+  "agents": {
+    "list": [
+      {
+        "id": "main",
+        "groupChat": { "mentionPatterns": ["@clawd", "@mybot"] }
+      }
+    ]
   }
 }
 ```
@@ -146,7 +174,7 @@ Consider running your AI on a separate phone number from your personal one:
 ### 4. Read-Only Mode (Today, via sandbox + tools)
 
 You can already build a read-only profile by combining:
-- `sandbox.workspaceAccess: "ro"` (or `"none"` for no workspace access)
+- `agents.defaults.sandbox.workspaceAccess: "ro"` (or `"none"` for no workspace access)
 - tool allow/deny lists that block `write`, `edit`, `bash`, `process`, etc.
 
 We may add a single `readOnlyMode` flag later to simplify this configuration.
@@ -158,18 +186,27 @@ Dedicated doc: [Sandboxing](/gateway/sandboxing)
 Two complementary approaches:
 
 - **Run the full Gateway in Docker** (container boundary): [Docker](/install/docker)
-- **Tool sandbox** (`agent.sandbox`, host gateway + Docker-isolated tools): [Sandboxing](/gateway/sandboxing)
+- **Tool sandbox** (`agents.defaults.sandbox`, host gateway + Docker-isolated tools): [Sandboxing](/gateway/sandboxing)
 
-Note: to prevent cross-agent access, keep `sandbox.scope` at `"agent"` (default)
+Note: to prevent cross-agent access, keep `agents.defaults.sandbox.scope` at `"agent"` (default)
 or `"session"` for stricter per-session isolation. `scope: "shared"` uses a
 single container/workspace.
 
 Also consider agent workspace access inside the sandbox:
-- `agent.sandbox.workspaceAccess: "none"` (default) keeps the agent workspace off-limits; tools run against a sandbox workspace under `~/.clawdbot/sandboxes`
-- `workspaceAccess: "ro"` mounts the agent workspace read-only at `/agent` (disables `write`/`edit`)
-- `workspaceAccess: "rw"` mounts the agent workspace read/write at `/workspace`
+- `agents.defaults.sandbox.workspaceAccess: "none"` (default) keeps the agent workspace off-limits; tools run against a sandbox workspace under `~/.clawdbot/sandboxes`
+- `agents.defaults.sandbox.workspaceAccess: "ro"` mounts the agent workspace read-only at `/agent` (disables `write`/`edit`)
+- `agents.defaults.sandbox.workspaceAccess: "rw"` mounts the agent workspace read/write at `/workspace`
 
-Important: `agent.elevated` is a **global**, sender-based escape hatch that runs bash on the host. Keep `agent.elevated.allowFrom` tight and don’t enable it for strangers. See [Elevated Mode](/tools/elevated).
+Important: `tools.elevated` is the global baseline escape hatch that runs bash on the host. Keep `tools.elevated.allowFrom` tight and don’t enable it for strangers. You can further restrict elevated per agent via `agents.list[].tools.elevated`. See [Elevated Mode](/tools/elevated).
+
+## Browser control risks
+
+Enabling browser control gives the model the ability to drive a real browser.
+If that browser profile already contains logged-in sessions, the model can
+access those accounts and data. Treat browser profiles as **sensitive state**:
+- Prefer a dedicated profile for the agent (the default `clawd` profile).
+- Avoid pointing the agent at your personal daily-driver profile.
+- Keep host browser control disabled for sandboxed agents unless you trust them.
 
 ## Per-agent access profiles (multi-agent)
 
@@ -187,13 +224,14 @@ Common use cases:
 
 ```json5
 {
-  routing: {
-    agents: {
-      personal: {
+  agents: {
+    list: [
+      {
+        id: "personal",
         workspace: "~/clawd-personal",
         sandbox: { mode: "off" }
       }
-    }
+    ]
   }
 }
 ```
@@ -202,9 +240,10 @@ Common use cases:
 
 ```json5
 {
-  routing: {
-    agents: {
-      family: {
+  agents: {
+    list: [
+      {
+        id: "family",
         workspace: "~/clawd-family",
         sandbox: {
           mode: "all",
@@ -216,7 +255,7 @@ Common use cases:
           deny: ["write", "edit", "bash", "process", "browser"]
         }
       }
-    }
+    ]
   }
 }
 ```
@@ -225,9 +264,10 @@ Common use cases:
 
 ```json5
 {
-  routing: {
-    agents: {
-      public: {
+  agents: {
+    list: [
+      {
+        id: "public",
         workspace: "~/clawd-public",
         sandbox: {
           mode: "all",
@@ -235,11 +275,11 @@ Common use cases:
           workspaceAccess: "none"
         },
         tools: {
-          allow: ["sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "whatsapp", "telegram", "slack", "discord", "gateway"],
+          allow: ["sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status", "whatsapp", "telegram", "slack", "discord", "gateway"],
           deny: ["read", "write", "edit", "bash", "process", "browser", "canvas", "nodes", "cron", "gateway", "image"]
         }
       }
-    }
+    ]
   }
 }
 ```
@@ -288,7 +328,7 @@ Mario asking for find ~
 
 ## Reporting Security Issues
 
-Found a vulnerability in CLAWDBOT? Please report responsibly:
+Found a vulnerability in Clawdbot? Please report responsibly:
 
 1. Email: security@clawd.bot
 2. Don't post publicly until fixed

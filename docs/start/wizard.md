@@ -32,16 +32,16 @@ The wizard starts with **QuickStart** (defaults) vs **Advanced** (full control).
 - Local gateway (loopback)
 - Workspace default (or existing workspace)
 - Gateway port **18789**
-- Gateway auth **Off** (loopback only)
+- Gateway auth **Token** (auto‑generated, even on loopback)
 - Tailscale exposure **Off**
-- Telegram + WhatsApp DMs default to **allowlist** (you’ll be prompted for a number)
+- Telegram + WhatsApp DMs default to **allowlist** (you’ll be prompted for your phone number)
 
 **Advanced** exposes every step (mode, workspace, gateway, providers, daemon, skills).
 
 ## What the wizard does
 
 **Local mode (default)** walks you through:
-- Model/auth (Anthropic or OpenAI Codex OAuth recommended, API key optional, Minimax M2.1 via LM Studio)
+- Model/auth (OpenAI Code (Codex) subscription OAuth, Anthropic API key (recommended) or `claude setup-token`, plus MiniMax/GLM options)
 - Workspace location + bootstrap files
 - Gateway settings (port/bind/auth/tailscale)
 - Providers (Telegram, WhatsApp, Discord, Signal)
@@ -70,15 +70,21 @@ Tip: `--json` does **not** imply non-interactive mode. Use `--non-interactive` (
      - Full reset (also removes workspace)
 
 2) **Model/Auth**
+   - **Anthropic API key (recommended)**: uses `ANTHROPIC_API_KEY` if present or prompts for a key, then saves it for daemon use.
+   - **Anthropic token (setup-token)**: run `claude setup-token` on the gateway host (the wizard can run it for you and reuse the token).
    - **Anthropic OAuth (Claude CLI)**: on macOS the wizard checks Keychain item "Claude Code-credentials" (choose "Always Allow" so launchd starts don't block); on Linux/Windows it reuses `~/.claude/.credentials.json` if present.
-- **Anthropic token (paste setup-token)**: run `claude setup-token` in your terminal, then paste the token (you can name it; blank = default).
-- **OpenAI Codex OAuth (Codex CLI)**: if `~/.codex/auth.json` exists, the wizard can reuse it.
-- **OpenAI Codex OAuth**: browser flow; paste the `code#state`.
-  - Sets `agent.model` to `openai-codex/gpt-5.2` when model is unset or `openai/*`.
-- **OpenAI API key**: uses `OPENAI_API_KEY` if present or prompts for a key, then saves it to `~/.clawdbot/.env` so launchd can read it.
-- **API key**: stores the key for you.
-   - **Minimax M2.1 (LM Studio)**: config is auto‑written for the LM Studio endpoint.
+   - **Anthropic token (paste setup-token)**: run `claude setup-token` in your terminal, then paste the token (you can name it; blank = default).
+   - **OpenAI Code (Codex) subscription (Codex CLI)**: if `~/.codex/auth.json` exists, the wizard can reuse it.
+   - **OpenAI Code (Codex) subscription (OAuth)**: browser flow; paste the `code#state`.
+     - Sets `agents.defaults.model` to `openai-codex/gpt-5.2` when model is unset or `openai/*`.
+   - **OpenAI API key**: uses `OPENAI_API_KEY` if present or prompts for a key, then saves it to `~/.clawdbot/.env` so launchd can read it.
+   - **OpenCode Zen (multi-model proxy)**: prompts for `OPENCODE_API_KEY` (or `OPENCODE_ZEN_API_KEY`, get it at https://opencode.ai/auth).
+   - **API key**: stores the key for you.
+   - **MiniMax M2.1 (minimax.io)**: config is auto‑written for the OpenAI-compatible `/v1` endpoint.
+   - **MiniMax API (platform.minimax.io)**: config is auto‑written for the Anthropic-compatible `/anthropic` endpoint.
+   - **MiniMax M2.1 (LM Studio)**: config is auto‑written for the LM Studio endpoint.
    - **Skip**: no auth configured yet.
+   - Pick a default model from detected options (or enter provider/model manually).
    - Wizard runs a model check and warns if the configured model is unknown or missing auth.
   - OAuth credentials live in `~/.clawdbot/credentials/oauth.json`; auth profiles live in `~/.clawdbot/agents/<agentId>/agent/auth-profiles.json` (API keys + OAuth).
    - More detail: [/concepts/oauth](/concepts/oauth)
@@ -86,12 +92,13 @@ Tip: `--json` does **not** imply non-interactive mode. Use `--non-interactive` (
 3) **Workspace**
    - Default `~/clawd` (configurable).
    - Seeds the workspace files needed for the agent bootstrap ritual.
-   - Full workspace layout + backup guide: [`docs/agent-workspace.md`](/concepts/agent-workspace)
+   - Full workspace layout + backup guide: [Agent workspace](/concepts/agent-workspace)
 
 4) **Gateway**
    - Port, bind, auth mode, tailscale exposure.
-   - Auth recommendation: keep **Off** for single-machine loopback setups. Use **Token** for multi-machine access or non-loopback binds.
-   - Non‑loopback binds require auth.
+   - Auth recommendation: keep **Token** even for loopback so local WS clients must authenticate.
+   - Disable auth only if you fully trust every local process.
+   - Non‑loopback binds still require auth.
 
 5) **Providers**
    - WhatsApp: optional QR login.
@@ -99,7 +106,7 @@ Tip: `--json` does **not** imply non-interactive mode. Use `--non-interactive` (
    - Discord: bot token.
    - Signal: optional `signal-cli` install + account config.
    - iMessage: local `imsg` CLI path + DB access.
-  - DM security: default is pairing. First DM sends a code; approve via `clawdbot pairing approve --provider <provider> <code>` or use allowlists.
+  - DM security: default is pairing. First DM sends a code; approve via `clawdbot pairing approve <provider> <code>` or use allowlists.
 
 6) **Daemon install**
    - macOS: LaunchAgent
@@ -111,7 +118,7 @@ Tip: `--json` does **not** imply non-interactive mode. Use `--non-interactive` (
 
 7) **Health check**
    - Starts the Gateway (if needed) and runs `clawdbot health`.
-   - Tip: `clawdbot status --deep` runs local provider probes without a gateway.
+   - Tip: `clawdbot status --deep` adds gateway health probes to status output (requires a reachable gateway).
 
 8) **Skills (recommended)**
    - Reads the available skills and checks requirements.
@@ -129,7 +136,7 @@ Remote mode configures a local client to connect to a Gateway elsewhere.
 
 What you’ll set:
 - Remote Gateway URL (`ws://...`)
-- Optional token
+- Token if the remote Gateway requires auth (recommended)
 
 Notes:
 - No remote installs or daemon changes are performed.
@@ -144,14 +151,14 @@ Use `clawdbot agents add <name>` to create a separate agent with its own workspa
 sessions, and auth profiles. Running without `--workspace` launches the wizard.
 
 What it sets:
-- `routing.agents.<agentId>.name`
-- `routing.agents.<agentId>.workspace`
-- `routing.agents.<agentId>.agentDir`
+- `agents.list[].name`
+- `agents.list[].workspace`
+- `agents.list[].agentDir`
 
 Notes:
 - Default workspaces follow `~/clawd-<agentId>`.
-- Add `routing.bindings` to route inbound messages (the wizard can do this).
- - Non-interactive flags: `--model`, `--agent-dir`, `--bind`, `--non-interactive`.
+- Add `bindings` to route inbound messages (the wizard can do this).
+- Non-interactive flags: `--model`, `--agent-dir`, `--bind`, `--non-interactive`.
 
 ## Non‑interactive mode
 
@@ -178,6 +185,28 @@ clawdbot onboard --non-interactive \
   --mode local \
   --auth-choice gemini-api-key \
   --gemini-api-key "$GEMINI_API_KEY" \
+  --gateway-port 18789 \
+  --gateway-bind loopback
+```
+
+Z.AI example:
+
+```bash
+clawdbot onboard --non-interactive \
+  --mode local \
+  --auth-choice zai-api-key \
+  --zai-api-key "$ZAI_API_KEY" \
+  --gateway-port 18789 \
+  --gateway-bind loopback
+```
+
+OpenCode Zen example:
+
+```bash
+clawdbot onboard --non-interactive \
+  --mode local \
+  --auth-choice opencode-zen \
+  --opencode-zen-api-key "$OPENCODE_API_KEY" \
   --gateway-port 18789 \
   --gateway-bind loopback
 ```
@@ -213,8 +242,8 @@ Notes:
 ## What the wizard writes
 
 Typical fields in `~/.clawdbot/clawdbot.json`:
-- `agent.workspace`
-- `agent.model` / `models.providers` (if Minimax chosen)
+- `agents.defaults.workspace`
+- `agents.defaults.model` / `models.providers` (if Minimax chosen)
 - `gateway.*` (mode, bind, auth, tailscale)
 - `telegram.botToken`, `discord.token`, `signal.*`, `imessage.*`
 - `skills.install.nodeManager`
@@ -224,14 +253,14 @@ Typical fields in `~/.clawdbot/clawdbot.json`:
 - `wizard.lastRunCommand`
 - `wizard.lastRunMode`
 
-`clawdbot agents add` writes `routing.agents.<agentId>` and optional `routing.bindings`.
+`clawdbot agents add` writes `agents.list[]` and optional `bindings`.
 
 WhatsApp credentials go under `~/.clawdbot/credentials/whatsapp/<accountId>/`.
 Sessions are stored under `~/.clawdbot/agents/<agentId>/sessions/`.
 
 ## Related docs
 
-- macOS app onboarding: [`docs/onboarding.md`](/start/onboarding)
-- Config reference: [`docs/configuration.md`](/gateway/configuration)
-- Providers: [`docs/whatsapp.md`](/providers/whatsapp), [`docs/telegram.md`](/providers/telegram), [`docs/discord.md`](/providers/discord), [`docs/signal.md`](/providers/signal), [`docs/imessage.md`](/providers/imessage)
-- Skills: [`docs/skills.md`](/tools/skills), [`docs/skills-config.md`](/tools/skills-config)
+- macOS app onboarding: [Onboarding](/start/onboarding)
+- Config reference: [Gateway configuration](/gateway/configuration)
+- Providers: [WhatsApp](/providers/whatsapp), [Telegram](/providers/telegram), [Discord](/providers/discord), [Signal](/providers/signal), [iMessage](/providers/imessage)
+- Skills: [Skills](/tools/skills), [Skills config](/tools/skills-config)

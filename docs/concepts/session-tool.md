@@ -15,8 +15,8 @@ Goal: small, hard-to-misuse tool set so agents can list sessions, fetch history,
 - `sessions_spawn`
 
 ## Key Model
-- Main direct chat bucket is always the literal key `"main"`.
-- Group chats use `<provider>:group:<id>` or `<provider>:channel:<id>`.
+- Main direct chat bucket is always the literal key `"main"` (resolved to the current agent’s main key).
+- Group chats use `agent:<agentId>:<provider>:group:<id>` or `agent:<agentId>:<provider>:channel:<id>` (pass the full key).
 - Cron jobs use `cron:<job.id>`.
 - Hooks use `hook:<uuid>` unless explicitly set.
 - Node bridge uses `node-<nodeId>` unless explicitly set.
@@ -76,6 +76,7 @@ Behavior:
 - `timeoutSeconds > 0`: wait up to N seconds for completion, then return `{ runId, status: "ok", reply }`.
 - If wait times out: `{ runId, status: "timeout", error }`. Run continues; call `sessions_history` later.
 - If the run fails: `{ runId, status: "error", error }`.
+- Announce delivery runs after the primary run completes and is best-effort; `status: "ok"` does not guarantee the announce was delivered.
 - Waits via gateway `agent.wait` (server-side) so reconnects don't drop the wait.
 - Agent-to-agent message context is injected for the primary run.
 - After the primary run completes, Clawdbot runs a **reply-back loop**:
@@ -132,19 +133,19 @@ Parameters:
 - `cleanup?` (`delete|keep`, default `keep`)
 
 Allowlist:
-- `routing.agents.<agentId>.subagents.allowAgents`: list of agent ids allowed via `agentId` (`["*"]` to allow any). Default: only the requester agent.
+- `agents.list[].subagents.allowAgents`: list of agent ids allowed via `agentId` (`["*"]` to allow any). Default: only the requester agent.
 
 Discovery:
 - Use `agents_list` to discover which agent ids are allowed for `sessions_spawn`.
 
 Behavior:
 - Starts a new `agent:<agentId>:subagent:<uuid>` session with `deliver: false`.
-- Sub-agents default to the full tool set **minus session tools** (configurable via `agent.subagents.tools`).
+- Sub-agents default to the full tool set **minus session tools** (configurable via `tools.subagents.tools`).
 - Sub-agents are not allowed to call `sessions_spawn` (no sub-agent → sub-agent spawning).
 - Always non-blocking: returns `{ status: "accepted", runId, childSessionKey }` immediately.
 - After completion, Clawdbot runs a sub-agent **announce step** and posts the result to the requester chat provider.
 - Reply exactly `ANNOUNCE_SKIP` during the announce step to stay silent.
-- Sub-agent sessions are auto-archived after `agent.subagents.archiveAfterMinutes` (default: 60).
+- Sub-agent sessions are auto-archived after `agents.defaults.subagents.archiveAfterMinutes` (default: 60).
 - Announce replies include a stats line (runtime, tokens, sessionKey/sessionId, transcript path, and optional cost).
 
 ## Sandbox Session Visibility
@@ -155,10 +156,12 @@ Config:
 
 ```json5
 {
-  agent: {
-    sandbox: {
-      // default: "spawned"
-      sessionToolsVisibility: "spawned" // or "all"
+  agents: {
+    defaults: {
+      sandbox: {
+        // default: "spawned"
+        sessionToolsVisibility: "spawned" // or "all"
+      }
     }
   }
 }

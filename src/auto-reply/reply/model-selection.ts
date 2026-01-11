@@ -33,7 +33,9 @@ type ModelSelectionState = {
 
 export async function createModelSelectionState(params: {
   cfg: ClawdbotConfig;
-  agentCfg: ClawdbotConfig["agent"] | undefined;
+  agentCfg:
+    | NonNullable<NonNullable<ClawdbotConfig["agents"]>["defaults"]>
+    | undefined;
   sessionEntry?: SessionEntry;
   sessionStore?: Record<string, SessionEntry>;
   sessionKey?: string;
@@ -122,7 +124,9 @@ export async function createModelSelectionState(params: {
     const { ensureAuthProfileStore } = await import(
       "../../agents/auth-profiles.js"
     );
-    const store = ensureAuthProfileStore();
+    const store = ensureAuthProfileStore(undefined, {
+      allowKeychainPrompt: false,
+    });
     const profile = store.profiles[sessionEntry.authProfileOverride];
     if (!profile || profile.provider !== provider) {
       delete sessionEntry.authProfileOverride;
@@ -201,7 +205,9 @@ export function resolveModelDirectiveSelection(params: {
 }
 
 export function resolveContextTokens(params: {
-  agentCfg: ClawdbotConfig["agent"] | undefined;
+  agentCfg:
+    | NonNullable<NonNullable<ClawdbotConfig["agents"]>["defaults"]>
+    | undefined;
   model: string;
 }): number {
   return (

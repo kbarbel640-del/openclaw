@@ -8,7 +8,7 @@ read_when:
 
 ## First run (recommended)
 
-Clawdbot uses a dedicated workspace directory for the agent. Default: `~/clawd` (configurable via `agent.workspace`).
+Clawdbot uses a dedicated workspace directory for the agent. Default: `~/clawd` (configurable via `agents.defaults.workspace`).
 
 1) Create the workspace (if it doesn’t already exist):
 
@@ -30,13 +30,11 @@ cp docs/reference/templates/TOOLS.md ~/clawd/TOOLS.md
 cp docs/reference/AGENTS.default.md ~/clawd/AGENTS.md
 ```
 
-4) Optional: choose a different workspace by setting `agent.workspace` (supports `~`):
+4) Optional: choose a different workspace by setting `agents.defaults.workspace` (supports `~`):
 
 ```json5
 {
-  agent: {
-    workspace: "~/clawd"
-  }
+  agents: { defaults: { workspace: "~/clawd" } }
 }
 ```
 
@@ -94,7 +92,7 @@ git commit -m "Add Clawd workspace"
 - **eightctl** — Control your sleep, from the terminal.
 - **imsg** — Send, read, stream iMessage & SMS.
 - **wacli** — WhatsApp CLI: sync, search, send.
-- **discord** — Discord actions: react, stickers, polls.
+- **discord** — Discord actions: react, stickers, polls. Use `user:<id>` or `channel:<id>` targets (bare numeric ids are ambiguous).
 - **gog** — Google Suite CLI: Gmail, Calendar, Drive, Contacts.
 - **spotify-player** — Terminal Spotify client to search/queue/control playback.
 - **sag** — ElevenLabs speech with mac-style say UX; streams to speakers by default.

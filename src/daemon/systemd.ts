@@ -4,14 +4,21 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { runCommandWithTimeout, runExec } from "../process/exec.js";
+import { colorize, isRich, theme } from "../terminal/theme.js";
 import {
-  GATEWAY_SYSTEMD_SERVICE_NAME,
+  formatGatewayServiceDescription,
   LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES,
+  resolveGatewaySystemdServiceName,
 } from "./constants.js";
 import { parseKeyValueOutput } from "./runtime-parse.js";
 import type { GatewayServiceRuntime } from "./service-runtime.js";
 
 const execFileAsync = promisify(execFile);
+
+const formatLine = (label: string, value: string) => {
+  const rich = isRich();
+  return `${colorize(rich, theme.muted, `${label}:`)} ${colorize(rich, theme.command, value)}`;
+};
 
 function resolveHomeDir(env: Record<string, string | undefined>): string {
   const home = env.HOME?.trim() || env.USERPROFILE?.trim();
@@ -27,10 +34,22 @@ function resolveSystemdUnitPathForName(
   return path.join(home, ".config", "systemd", "user", `${name}.service`);
 }
 
+function resolveSystemdServiceName(
+  env: Record<string, string | undefined>,
+): string {
+  const override = env.CLAWDBOT_SYSTEMD_UNIT?.trim();
+  if (override) {
+    return override.endsWith(".service")
+      ? override.slice(0, -".service".length)
+      : override;
+  }
+  return resolveGatewaySystemdServiceName(env.CLAWDBOT_PROFILE);
+}
+
 function resolveSystemdUnitPath(
   env: Record<string, string | undefined>,
 ): string {
-  return resolveSystemdUnitPathForName(env, GATEWAY_SYSTEMD_SERVICE_NAME);
+  return resolveSystemdUnitPathForName(env, resolveSystemdServiceName(env));
 }
 
 export function resolveSystemdUserUnitPath(
@@ -131,22 +150,25 @@ function renderEnvLines(
 }
 
 function buildSystemdUnit({
+  description,
   programArguments,
   workingDirectory,
   environment,
 }: {
+  description?: string;
   programArguments: string[];
   workingDirectory?: string;
   environment?: Record<string, string | undefined>;
 }): string {
   const execStart = programArguments.map(systemdEscapeArg).join(" ");
+  const descriptionLine = `Description=${description?.trim() || "Clawdbot Gateway"}`;
   const workingDirLine = workingDirectory
     ? `WorkingDirectory=${systemdEscapeArg(workingDirectory)}`
     : null;
   const envLines = renderEnvLines(environment);
   return [
     "[Unit]",
-    "Description=Clawdbot Gateway",
+    descriptionLine,
     "After=network-online.target",
     "Wants=network-online.target",
     "",
@@ -337,6 +359,19 @@ async function execSystemctl(
   }
 }
 
+export async function isSystemdUserServiceAvailable(): Promise<boolean> {
+  const res = await execSystemctl(["--user", "status"]);
+  if (res.code === 0) return true;
+  const detail = `${res.stderr} ${res.stdout}`.toLowerCase();
+  if (!detail) return false;
+  if (detail.includes("not found")) return false;
+  if (detail.includes("failed to connect")) return false;
+  if (detail.includes("not been booted")) return false;
+  if (detail.includes("no such file or directory")) return false;
+  if (detail.includes("not supported")) return false;
+  return false;
+}
+
 async function assertSystemdAvailable() {
   const res = await execSystemctl(["--user", "status"]);
   if (res.code === 0) return;
@@ -368,14 +403,21 @@ export async function installSystemdService({
 
   const unitPath = resolveSystemdUnitPath(env);
   await fs.mkdir(path.dirname(unitPath), { recursive: true });
+  const description = formatGatewayServiceDescription({
+    profile: env.CLAWDBOT_PROFILE,
+    version:
+      environment?.CLAWDBOT_SERVICE_VERSION ?? env.CLAWDBOT_SERVICE_VERSION,
+  });
   const unit = buildSystemdUnit({
+    description,
     programArguments,
     workingDirectory,
     environment,
   });
   await fs.writeFile(unitPath, unit, "utf8");
 
-  const unitName = `${GATEWAY_SYSTEMD_SERVICE_NAME}.service`;
+  const serviceName = resolveGatewaySystemdServiceName(env.CLAWDBOT_PROFILE);
+  const unitName = `${serviceName}.service`;
   const reload = await execSystemctl(["--user", "daemon-reload"]);
   if (reload.code !== 0) {
     throw new Error(
@@ -397,7 +439,7 @@ export async function installSystemdService({
     );
   }
 
-  stdout.write(`Installed systemd service: ${unitPath}\n`);
+  stdout.write(`${formatLine("Installed systemd service", unitPath)}\n`);
   return { unitPath };
 }
 
@@ -409,13 +451,14 @@ export async function uninstallSystemdService({
   stdout: NodeJS.WritableStream;
 }): Promise<void> {
   await assertSystemdAvailable();
-  const unitName = `${GATEWAY_SYSTEMD_SERVICE_NAME}.service`;
+  const serviceName = resolveGatewaySystemdServiceName(env.CLAWDBOT_PROFILE);
+  const unitName = `${serviceName}.service`;
   await execSystemctl(["--user", "disable", "--now", unitName]);
 
   const unitPath = resolveSystemdUnitPath(env);
   try {
     await fs.unlink(unitPath);
-    stdout.write(`Removed systemd service: ${unitPath}\n`);
+    stdout.write(`${formatLine("Removed systemd service", unitPath)}\n`);
   } catch {
     stdout.write(`Systemd service not found at ${unitPath}\n`);
   }
@@ -423,44 +466,58 @@ export async function uninstallSystemdService({
 
 export async function stopSystemdService({
   stdout,
+  profile,
 }: {
   stdout: NodeJS.WritableStream;
+  profile?: string;
 }): Promise<void> {
   await assertSystemdAvailable();
-  const unitName = `${GATEWAY_SYSTEMD_SERVICE_NAME}.service`;
+  const serviceName = resolveGatewaySystemdServiceName(profile);
+  const unitName = `${serviceName}.service`;
   const res = await execSystemctl(["--user", "stop", unitName]);
   if (res.code !== 0) {
     throw new Error(
       `systemctl stop failed: ${res.stderr || res.stdout}`.trim(),
     );
   }
-  stdout.write(`Stopped systemd service: ${unitName}\n`);
+  stdout.write(`${formatLine("Stopped systemd service", unitName)}\n`);
 }
 
 export async function restartSystemdService({
   stdout,
+  profile,
 }: {
   stdout: NodeJS.WritableStream;
+  profile?: string;
 }): Promise<void> {
   await assertSystemdAvailable();
-  const unitName = `${GATEWAY_SYSTEMD_SERVICE_NAME}.service`;
+  const serviceName = resolveGatewaySystemdServiceName(profile);
+  const unitName = `${serviceName}.service`;
   const res = await execSystemctl(["--user", "restart", unitName]);
   if (res.code !== 0) {
     throw new Error(
       `systemctl restart failed: ${res.stderr || res.stdout}`.trim(),
     );
   }
-  stdout.write(`Restarted systemd service: ${unitName}\n`);
+  stdout.write(`${formatLine("Restarted systemd service", unitName)}\n`);
 }
 
-export async function isSystemdServiceEnabled(): Promise<boolean> {
+export async function isSystemdServiceEnabled(
+  profile?: string,
+): Promise<boolean> {
   await assertSystemdAvailable();
-  const unitName = `${GATEWAY_SYSTEMD_SERVICE_NAME}.service`;
+  const serviceName = resolveGatewaySystemdServiceName(profile);
+  const unitName = `${serviceName}.service`;
   const res = await execSystemctl(["--user", "is-enabled", unitName]);
   return res.code === 0;
 }
 
-export async function readSystemdServiceRuntime(): Promise<GatewayServiceRuntime> {
+export async function readSystemdServiceRuntime(
+  env: Record<string, string | undefined> = process.env as Record<
+    string,
+    string | undefined
+  >,
+): Promise<GatewayServiceRuntime> {
   try {
     await assertSystemdAvailable();
   } catch (err) {
@@ -469,7 +526,8 @@ export async function readSystemdServiceRuntime(): Promise<GatewayServiceRuntime
       detail: String(err),
     };
   }
-  const unitName = `${GATEWAY_SYSTEMD_SERVICE_NAME}.service`;
+  const serviceName = resolveSystemdServiceName(env);
+  const unitName = `${serviceName}.service`;
   const res = await execSystemctl([
     "--user",
     "show",
@@ -571,7 +629,9 @@ export async function uninstallLegacySystemdUnits({
 
     try {
       await fs.unlink(unit.unitPath);
-      stdout.write(`Removed legacy systemd service: ${unit.unitPath}\n`);
+      stdout.write(
+        `${formatLine("Removed legacy systemd service", unit.unitPath)}\n`,
+      );
     } catch {
       stdout.write(`Legacy systemd unit not found at ${unit.unitPath}\n`);
     }

@@ -8,6 +8,22 @@ read_when:
 
 Status: WhatsApp Web via Baileys only. Gateway owns the session(s).
 
+## Quick setup (beginner)
+1) Use a **separate phone number** if possible (recommended).
+2) Configure WhatsApp in `~/.clawdbot/clawdbot.json`.
+3) Run `clawdbot providers login` to scan the QR code (Linked Devices).
+4) Start the gateway.
+
+Minimal config:
+```json5
+{
+  whatsapp: {
+    dmPolicy: "allowlist",
+    allowFrom: ["+15551234567"]
+  }
+}
+```
+
 ## Goals
 - Multiple WhatsApp accounts (multi-account) in one Gateway process.
 - Deterministic routing: replies return to WhatsApp, no model routing.
@@ -39,10 +55,11 @@ Use a **separate phone number** for Clawdbot. Best UX, clean routing, no self-ch
 
 **Pairing mode (optional):**
 If you want pairing instead of allowlist, set `whatsapp.dmPolicy` to `pairing`. Unknown senders get a pairing code; approve with:
-`clawdbot pairing approve --provider whatsapp <code>`
+`clawdbot pairing approve whatsapp <code>`
 
 ### Personal number (fallback)
 Quick fallback: run Clawdbot on **your own number**. Message yourself (WhatsApp “Message yourself”) for testing so you don’t spam contacts. Expect to read verification codes on your main phone during setup and experiments. **Must enable self-chat mode.**
+When the wizard asks for your personal WhatsApp number, enter the phone you will message from (the owner/sender), not the assistant number.
 
 **Sample config (personal number, self-chat):**
 ```json
@@ -57,6 +74,9 @@ Quick fallback: run Clawdbot on **your own number**. Message yourself (WhatsApp 
   }
 }
 ```
+
+Tip: set `messages.responsePrefix` explicitly if you want a consistent bot prefix
+on outbound replies.
 
 ### Number sourcing tips
 - **Local eSIM** from your country's mobile carrier (most reliable)
@@ -91,7 +111,7 @@ Quick fallback: run Clawdbot on **your own number**. Message yourself (WhatsApp 
 - Status/broadcast chats are ignored.
 - Direct chats use E.164; groups use group JID.
 - **DM policy**: `whatsapp.dmPolicy` controls direct chat access (default: `pairing`).
-  - Pairing: unknown senders get a pairing code (approve via `clawdbot pairing approve --provider whatsapp <code>`; codes expire after 1 hour).
+  - Pairing: unknown senders get a pairing code (approve via `clawdbot pairing approve whatsapp <code>`; codes expire after 1 hour).
   - Open: requires `whatsapp.allowFrom` to include `"*"`.
   - Self messages are always allowed; “self-chat mode” still requires `whatsapp.allowFrom` to include your own number.
 
@@ -99,9 +119,9 @@ Quick fallback: run Clawdbot on **your own number**. Message yourself (WhatsApp 
 If you run Clawdbot on your **personal WhatsApp number**, enable `whatsapp.selfChatMode` (see sample above).
 
 Behavior:
-- Suppresses pairing replies for **outbound DMs** (prevents spamming contacts).
+- Outbound DMs never trigger pairing replies (prevents spamming contacts).
 - Inbound unknown senders still follow `whatsapp.dmPolicy`.
-- Self-chat mode avoids auto read receipts and ignores mention JIDs.
+- Self-chat mode (allowFrom includes your number) avoids auto read receipts and ignores mention JIDs.
 - Read receipts sent for non-self-chat DMs.
 
 ## Message normalization (what the model sees)
@@ -139,6 +159,55 @@ Behavior:
 - WhatsApp Web sends standard messages (no quoted reply threading in the current gateway).
 - Reply tags are ignored on this provider.
 
+## Acknowledgment reactions (auto-react on receipt)
+
+WhatsApp can automatically send emoji reactions to incoming messages immediately upon receipt, before the bot generates a reply. This provides instant feedback to users that their message was received.
+
+**Configuration:**
+```json
+{
+  "whatsapp": {
+    "ackReaction": {
+      "emoji": "👀",
+      "direct": true,
+      "group": "mentions"
+    }
+  }
+}
+```
+
+**Options:**
+- `emoji` (string): Emoji to use for acknowledgment (e.g., "👀", "✅", "📨"). Empty or omitted = feature disabled.
+- `direct` (boolean, default: `true`): Send reactions in direct/DM chats.
+- `group` (string, default: `"mentions"`): Group chat behavior:
+  - `"always"`: React to all group messages (even without @mention)
+  - `"mentions"`: React only when bot is @mentioned
+  - `"never"`: Never react in groups
+
+**Per-account override:**
+```json
+{
+  "whatsapp": {
+    "accounts": {
+      "work": {
+        "ackReaction": {
+          "emoji": "✅",
+          "direct": false,
+          "group": "always"
+        }
+      }
+    }
+  }
+}
+```
+
+**Behavior notes:**
+- Reactions are sent **immediately** upon message receipt, before typing indicators or bot replies.
+- In groups with `requireMention: false` (activation: always), `group: "mentions"` will react to all messages (not just @mentions).
+- Fire-and-forget: reaction failures are logged but don't prevent the bot from replying.
+- Participant JID is automatically included for group reactions.
+- WhatsApp ignores `messages.ackReaction`; use `whatsapp.ackReaction` instead.
+
 ## Agent tool (reactions)
 - Tool: `whatsapp` with `react` action (`chatJid`, `messageId`, `emoji`, optional `remove`).
 - Optional: `participant` (group sender), `fromMe` (reacting to your own message), `accountId` (multi-account).
@@ -147,7 +216,8 @@ Behavior:
 
 ## Limits
 - Outbound text is chunked to `whatsapp.textChunkLimit` (default 4000).
-- Media items are capped by `agent.mediaMaxMb` (default 5 MB).
+- Inbound media saves are capped by `whatsapp.mediaMaxMb` (default 50 MB).
+- Outbound media items are capped by `agents.defaults.mediaMaxMb` (default 5 MB).
 
 ## Outbound send (text + media)
 - Uses active web listener; error if gateway not running.
@@ -162,14 +232,14 @@ Behavior:
     - Gateway: `send` params include `gifPlayback: true`
 
 ## Media limits + optimization
-- Default cap: 5 MB (per media item).
-- Override: `agent.mediaMaxMb`.
+- Default outbound cap: 5 MB (per media item).
+- Override: `agents.defaults.mediaMaxMb`.
 - Images are auto-optimized to JPEG under cap (resize + quality sweep).
 - Oversize media => error; media reply falls back to text warning.
 
 ## Heartbeats
 - **Gateway heartbeat** logs connection health (`web.heartbeatSeconds`, default 60s).
-- **Agent heartbeat** is global (`agent.heartbeat.*`) and runs in the main session.
+- **Agent heartbeat** is global (`agents.defaults.heartbeat.*`) and runs in the main session.
   - Uses the configured heartbeat prompt (default: `Read HEARTBEAT.md if exists. Consider outstanding tasks. Checkup sometimes on your human during (user local) day time.`) + `HEARTBEAT_OK` skip behavior.
   - Delivery defaults to the last used provider (or configured target).
 
@@ -181,23 +251,27 @@ Behavior:
 
 ## Config quick map
 - `whatsapp.dmPolicy` (DM policy: pairing/allowlist/open/disabled).
-- `whatsapp.selfChatMode` (same-phone setup; suppress pairing replies for outbound DMs).
+- `whatsapp.selfChatMode` (same-phone setup; bot uses your personal WhatsApp number).
 - `whatsapp.allowFrom` (DM allowlist).
+- `whatsapp.mediaMaxMb` (inbound media save cap).
+- `whatsapp.ackReaction` (auto-reaction on message receipt: `{emoji, direct, group}`).
 - `whatsapp.accounts.<accountId>.*` (per-account settings + optional `authDir`).
+- `whatsapp.accounts.<accountId>.mediaMaxMb` (per-account inbound media cap).
+- `whatsapp.accounts.<accountId>.ackReaction` (per-account ack reaction override).
 - `whatsapp.groupAllowFrom` (group sender allowlist).
 - `whatsapp.groupPolicy` (group policy).
+- `whatsapp.historyLimit` / `whatsapp.accounts.<accountId>.historyLimit` (group history context; `0` disables).
 - `whatsapp.groups` (group allowlist + mention gating defaults; use `"*"` to allow all)
 - `whatsapp.actions.reactions` (gate WhatsApp tool reactions).
-- `routing.groupChat.mentionPatterns`
-- Multi-agent override: `routing.agents.<agentId>.mentionPatterns` takes precedence.
-- `routing.groupChat.historyLimit`
-- `messages.messagePrefix` (inbound prefix)
+- `agents.list[].groupChat.mentionPatterns` (or `messages.groupChat.mentionPatterns`)
+- `messages.groupChat.historyLimit`
+- `whatsapp.messagePrefix` (inbound prefix; per-account: `whatsapp.accounts.<accountId>.messagePrefix`; deprecated: `messages.messagePrefix`)
 - `messages.responsePrefix` (outbound prefix)
-- `agent.mediaMaxMb`
-- `agent.heartbeat.every`
-- `agent.heartbeat.model` (optional override)
-- `agent.heartbeat.target`
-- `agent.heartbeat.to`
+- `agents.defaults.mediaMaxMb`
+- `agents.defaults.heartbeat.every`
+- `agents.defaults.heartbeat.model` (optional override)
+- `agents.defaults.heartbeat.target`
+- `agents.defaults.heartbeat.to`
 - `session.*` (scope, idle, store, mainKey)
 - `web.enabled` (disable provider startup when false)
 - `web.heartbeatSeconds`
@@ -206,7 +280,7 @@ Behavior:
 ## Logs + troubleshooting
 - Subsystems: `whatsapp/inbound`, `whatsapp/outbound`, `web-heartbeat`, `web-reconnect`.
 - Log file: `/tmp/clawdbot/clawdbot-YYYY-MM-DD.log` (configurable).
-- Troubleshooting guide: [`docs/troubleshooting.md`](/gateway/troubleshooting).
+- Troubleshooting guide: [Gateway troubleshooting](/gateway/troubleshooting).
 
 ## Troubleshooting (quick)
 

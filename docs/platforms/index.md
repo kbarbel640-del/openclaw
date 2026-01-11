@@ -20,6 +20,11 @@ Native companion apps for Windows are also planned; the Gateway is recommended v
 - Windows: [Windows](/platforms/windows)
 - Linux: [Linux](/platforms/linux)
 
+## VPS & hosting
+
+- Hetzner (Docker): [Hetzner](/platforms/hetzner)
+- exe.dev (VM + HTTPS proxy): [exe.dev](/platforms/exe-dev)
+
 ## Common links
 
 - Install guide: [Getting Started](/start/getting-started)
@@ -37,5 +42,5 @@ Use one of these (all supported):
 - Repair/migrate: `clawdbot doctor` (offers to install or fix the service)
 
 The service target depends on OS:
-- macOS: LaunchAgent (`com.clawdbot.gateway`)
-- Linux/WSL2: systemd user service
+- macOS: LaunchAgent (`com.clawdbot.gateway` or `com.clawdbot.<profile>`)
+- Linux/WSL2: systemd user service (`clawdbot-gateway[-<profile>].service`)

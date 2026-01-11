@@ -28,6 +28,10 @@ import {
   resolveModelCostConfig,
 } from "../utils/usage-format.js";
 import { VERSION } from "../version.js";
+import {
+  listChatCommands,
+  listChatCommandsForConfig,
+} from "./commands-registry.js";
 import type {
   ElevatedLevel,
   ReasoningLevel,
@@ -35,7 +39,9 @@ import type {
   VerboseLevel,
 } from "./thinking.js";
 
-type AgentConfig = NonNullable<ClawdbotConfig["agent"]>;
+type AgentConfig = Partial<
+  NonNullable<NonNullable<ClawdbotConfig["agents"]>["defaults"]>
+>;
 
 export const formatTokenCount = formatTokenCountShared;
 
@@ -188,7 +194,11 @@ export function buildStatusMessage(args: StatusArgs): string {
   const now = args.now ?? Date.now();
   const entry = args.sessionEntry;
   const resolved = resolveConfiguredModelRef({
-    cfg: { agent: args.agent ?? {} },
+    cfg: {
+      agents: {
+        defaults: args.agent ?? {},
+      },
+    } as ClawdbotConfig,
     defaultProvider: DEFAULT_PROVIDER,
     defaultModel: DEFAULT_MODEL,
   });
@@ -281,12 +291,14 @@ export function buildStatusMessage(args: StatusArgs): string {
 
   const queueMode = args.queue?.mode ?? "unknown";
   const queueDetails = formatQueueDetails(args.queue);
+  const verboseLabel = verboseLevel === "on" ? "verbose" : null;
+  const elevatedLabel = elevatedLevel === "on" ? "elevated" : null;
   const optionParts = [
     `Runtime: ${runtime.label}`,
     `Think: ${thinkLevel}`,
-    `Verbose: ${verboseLevel}`,
+    verboseLabel,
     reasoningLevel !== "off" ? `Reasoning: ${reasoningLevel}` : null,
-    `Elevated: ${elevatedLevel}`,
+    elevatedLabel,
   ];
   const optionsLine = optionParts.filter(Boolean).join(" · ");
   const activationParts = [
@@ -325,7 +337,7 @@ export function buildStatusMessage(args: StatusArgs): string {
   const authLabel = authLabelValue ? ` · 🔑 ${authLabelValue}` : "";
   const modelLine = `🧠 Model: ${modelLabel}${authLabel}`;
   const commit = resolveCommitHash();
-  const versionLine = `🦞 ClawdBot ${VERSION}${commit ? ` (${commit})` : ""}`;
+  const versionLine = `🦞 Clawdbot ${VERSION}${commit ? ` (${commit})` : ""}`;
   const usagePair = formatUsagePair(inputTokens, outputTokens);
   const costLine = costLabel ? `💵 Cost: ${costLabel}` : null;
   const usageCostLine =
@@ -347,10 +359,48 @@ export function buildStatusMessage(args: StatusArgs): string {
     .join("\n");
 }
 
-export function buildHelpMessage(): string {
+export function buildHelpMessage(cfg?: ClawdbotConfig): string {
+  const options = [
+    "/think <level>",
+    "/verbose on|off",
+    "/reasoning on|off",
+    "/elevated on|off",
+    "/model <id>",
+    "/cost on|off",
+  ];
+  if (cfg?.commands?.config === true) options.push("/config show");
+  if (cfg?.commands?.debug === true) options.push("/debug show");
   return [
     "ℹ️ Help",
     "Shortcuts: /new reset | /compact [instructions] | /restart relink (if enabled)",
-    "Options: /think <level> | /verbose on|off | /reasoning on|off | /elevated on|off | /model <id> | /cost on|off",
+    `Options: ${options.join(" | ")}`,
+    "More: /commands for all slash commands",
   ].join("\n");
+}
+
+export function buildCommandsMessage(cfg?: ClawdbotConfig): string {
+  const lines = ["ℹ️ Slash commands"];
+  const commands = cfg ? listChatCommandsForConfig(cfg) : listChatCommands();
+  for (const command of commands) {
+    const primary = command.nativeName
+      ? `/${command.nativeName}`
+      : command.textAliases[0]?.trim() || `/${command.key}`;
+    const seen = new Set<string>();
+    const aliases = command.textAliases
+      .map((alias) => alias.trim())
+      .filter(Boolean)
+      .filter((alias) => alias.toLowerCase() !== primary.toLowerCase())
+      .filter((alias) => {
+        const key = alias.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    const aliasLabel = aliases.length
+      ? ` (aliases: ${aliases.join(", ")})`
+      : "";
+    const scopeLabel = command.scope === "text" ? " (text-only)" : "";
+    lines.push(`${primary}${aliasLabel}${scopeLabel} - ${command.description}`);
+  }
+  return lines.join("\n");
 }

@@ -13,6 +13,7 @@ const resolveAuthProfileDisplayLabel = vi.fn(
 const resolveAuthStorePathForDisplay = vi
   .fn()
   .mockReturnValue("/tmp/clawdbot-agent/auth-profiles.json");
+const resolveProfileUnusableUntilForDisplay = vi.fn().mockReturnValue(null);
 const resolveEnvApiKey = vi.fn().mockReturnValue(undefined);
 const getCustomProviderApiKey = vi.fn().mockReturnValue(undefined);
 const discoverAuthStorage = vi.fn().mockReturnValue({});
@@ -36,6 +37,7 @@ vi.mock("../agents/auth-profiles.js", () => ({
   listProfilesForProvider,
   resolveAuthProfileDisplayLabel,
   resolveAuthStorePathForDisplay,
+  resolveProfileUnusableUntilForDisplay,
 }));
 
 vi.mock("../agents/model-auth.js", () => ({
@@ -57,7 +59,9 @@ function makeRuntime() {
 
 describe("models list/status", () => {
   it("models status resolves z.ai alias to canonical zai", async () => {
-    loadConfig.mockReturnValue({ agent: { model: "z.ai/glm-4.7" } });
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "z.ai/glm-4.7" } },
+    });
     const runtime = makeRuntime();
 
     const { modelsStatusCommand } = await import("./models/list.js");
@@ -69,7 +73,9 @@ describe("models list/status", () => {
   });
 
   it("models status plain outputs canonical zai model", async () => {
-    loadConfig.mockReturnValue({ agent: { model: "z.ai/glm-4.7" } });
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "z.ai/glm-4.7" } },
+    });
     const runtime = makeRuntime();
 
     const { modelsStatusCommand } = await import("./models/list.js");
@@ -80,7 +86,9 @@ describe("models list/status", () => {
   });
 
   it("models list outputs canonical zai key for configured z.ai model", async () => {
-    loadConfig.mockReturnValue({ agent: { model: "z.ai/glm-4.7" } });
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "z.ai/glm-4.7" } },
+    });
     const runtime = makeRuntime();
 
     const model = {
@@ -106,7 +114,9 @@ describe("models list/status", () => {
   });
 
   it("models list plain outputs canonical zai key", async () => {
-    loadConfig.mockReturnValue({ agent: { model: "z.ai/glm-4.7" } });
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "z.ai/glm-4.7" } },
+    });
     const runtime = makeRuntime();
 
     const model = {
@@ -131,7 +141,9 @@ describe("models list/status", () => {
   });
 
   it("models list provider filter normalizes z.ai alias", async () => {
-    loadConfig.mockReturnValue({ agent: { model: "z.ai/glm-4.7" } });
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "z.ai/glm-4.7" } },
+    });
     const runtime = makeRuntime();
 
     const models = [
@@ -171,7 +183,9 @@ describe("models list/status", () => {
   });
 
   it("models list provider filter normalizes Z.AI alias casing", async () => {
-    loadConfig.mockReturnValue({ agent: { model: "z.ai/glm-4.7" } });
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "z.ai/glm-4.7" } },
+    });
     const runtime = makeRuntime();
 
     const models = [
@@ -211,7 +225,9 @@ describe("models list/status", () => {
   });
 
   it("models list provider filter normalizes z-ai alias", async () => {
-    loadConfig.mockReturnValue({ agent: { model: "z.ai/glm-4.7" } });
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "z.ai/glm-4.7" } },
+    });
     const runtime = makeRuntime();
 
     const models = [
@@ -251,7 +267,9 @@ describe("models list/status", () => {
   });
 
   it("models list marks auth as unavailable when ZAI key is missing", async () => {
-    loadConfig.mockReturnValue({ agent: { model: "z.ai/glm-4.7" } });
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "z.ai/glm-4.7" } },
+    });
     const runtime = makeRuntime();
 
     const model = {

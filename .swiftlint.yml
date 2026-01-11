@@ -17,6 +17,8 @@ excluded:
   - dist
   - coverage
   - "*.playground"
+  # Generated (protocol-gen-swift.ts)
+  - apps/macos/Sources/ClawdbotProtocol/GatewayModels.swift
 
 analyzer_rules:
   - unused_declaration
@@ -51,6 +53,7 @@ opt_in_rules:
 disabled_rules:
   # SwiftFormat handles these
   - trailing_whitespace
+  - redundant_self
   - trailing_newline
   - trailing_comma
   - vertical_whitespace

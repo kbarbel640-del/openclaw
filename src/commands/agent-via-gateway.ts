@@ -7,6 +7,7 @@ import {
   resolveStorePath,
 } from "../config/sessions.js";
 import { callGateway, randomIdempotencyKey } from "../gateway/call.js";
+import { normalizeMainKey } from "../routing/session-key.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { normalizeMessageProvider } from "../utils/message-provider.js";
 import { agentCommand } from "./agent.js";
@@ -51,7 +52,7 @@ function resolveGatewaySessionKey(opts: {
 }): string | undefined {
   const sessionCfg = opts.cfg.session;
   const scope = sessionCfg?.scope ?? "per-sender";
-  const mainKey = sessionCfg?.mainKey ?? "main";
+  const mainKey = normalizeMainKey(sessionCfg?.mainKey);
   const storePath = resolveStorePath(sessionCfg?.store);
   const store = loadSessionStore(storePath);
 
@@ -80,7 +81,7 @@ function parseTimeoutSeconds(opts: {
   const raw =
     opts.timeout !== undefined
       ? Number.parseInt(String(opts.timeout), 10)
-      : (opts.cfg.agent?.timeoutSeconds ?? 600);
+      : (opts.cfg.agents?.defaults?.timeoutSeconds ?? 600);
   if (Number.isNaN(raw) || raw <= 0) {
     throw new Error("--timeout must be a positive integer (seconds)");
   }

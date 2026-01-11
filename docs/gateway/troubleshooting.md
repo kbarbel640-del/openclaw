@@ -11,6 +11,24 @@ Start with the FAQ’s [First 60 seconds](/start/faq#first-60-seconds-if-somethi
 
 Provider-specific shortcuts: [/providers/troubleshooting](/providers/troubleshooting)
 
+## Status & Diagnostics
+
+Quick triage commands (in order):
+
+| Command | What it tells you | When to use it |
+|---|---|---|
+| `clawdbot status` | Local summary: OS + update, gateway reachability/mode, daemon, agents/sessions, provider config state | First check, quick overview |
+| `clawdbot status --all` | Full local diagnosis (read-only, pasteable, safe-ish) incl. log tail | When you need to share a debug report |
+| `clawdbot status --deep` | Runs gateway health checks (incl. provider probes; requires reachable gateway) | When “configured” doesn’t mean “working” |
+| `clawdbot gateway status` | Gateway discovery + reachability (local + remote targets) | When you suspect you’re probing the wrong gateway |
+| `clawdbot providers status --probe` | Asks the running gateway for provider status (and optionally probes) | When gateway is reachable but providers misbehave |
+| `clawdbot daemon status` | Supervisor state (launchd/systemd/schtasks), runtime PID/exit, last gateway error | When the daemon “looks loaded” but nothing runs |
+| `clawdbot logs --follow` | Live logs (best signal for runtime issues) | When you need the actual failure reason |
+
+**Sharing output:** prefer `clawdbot status --all` (it redacts tokens). If you paste `clawdbot status`, consider setting `CLAWDBOT_SHOW_SECRETS=0` first (token previews).
+
+See also: [Health checks](/gateway/health) and [Logging](/logging).
+
 ## Common Issues
 
 ### Service Installed but Nothing is Running
@@ -30,8 +48,8 @@ Doctor/daemon will show runtime state (PID/last exit) and log hints.
 - Preferred: `clawdbot logs --follow`
 - File logs (always): `/tmp/clawdbot/clawdbot-YYYY-MM-DD.log` (or your configured `logging.file`)
 - macOS LaunchAgent (if installed): `$CLAWDBOT_STATE_DIR/logs/gateway.log` and `gateway.err.log`
-- Linux systemd (if installed): `journalctl --user -u clawdbot-gateway.service -n 200 --no-pager`
-- Windows: `schtasks /Query /TN "Clawdbot Gateway" /V /FO LIST`
+- Linux systemd (if installed): `journalctl --user -u clawdbot-gateway[-<profile>].service -n 200 --no-pager`
+- Windows: `schtasks /Query /TN "Clawdbot Gateway (<profile>)" /V /FO LIST`
 
 **Enable more logging:**
 - Bump file log detail (persisted JSONL):
@@ -127,12 +145,12 @@ or state drift because only one workspace is active.
 Symptoms: `pwd` or file tools show `~/.clawdbot/sandboxes/...` even though you
 expected the host workspace.
 
-**Why:** `agent.sandbox.mode: "non-main"` keys off `session.mainKey` (default `"main"`).
+**Why:** `agents.defaults.sandbox.mode: "non-main"` keys off `session.mainKey` (default `"main"`).
 Group/channel sessions use their own keys, so they are treated as non-main and
 get sandbox workspaces.
 
 **Fix options:**
-- If you want host workspaces for an agent: set `routing.agents.<id>.sandbox.mode: "off"`.
+- If you want host workspaces for an agent: set `agents.list[].sandbox.mode: "off"`.
 - If you want host workspace access inside sandbox: set `workspaceAccess: "rw"` for that agent.
 
 ### "Agent was aborted"
@@ -157,8 +175,8 @@ Look for `AllowFrom: ...` in the output.
 **Check 2:** For group chats, is mention required?
 ```bash
 # The message must match mentionPatterns or explicit mentions; defaults live in provider groups/guilds.
-# Multi-agent: `routing.agents.<agentId>.mentionPatterns` overrides global patterns.
-grep -n "routing\\|groupChat\\|mentionPatterns\\|whatsapp\\.groups\\|telegram\\.groups\\|imessage\\.groups\\|discord\\.guilds" \
+# Multi-agent: `agents.list[].groupChat.mentionPatterns` overrides global patterns.
+grep -n "agents\\|groupChat\\|mentionPatterns\\|whatsapp\\.groups\\|telegram\\.groups\\|imessage\\.groups\\|discord\\.guilds" \
   "${CLAWDBOT_CONFIG_PATH:-$HOME/.clawdbot/clawdbot.json}"
 ```
 
@@ -168,6 +186,24 @@ clawdbot logs --follow
 # or if you want quick filters:
 tail -f "$(ls -t /tmp/clawdbot/clawdbot-*.log | head -1)" | grep "blocked\\|skip\\|unauthorized"
 ```
+
+### Pairing Code Not Arriving
+
+If `dmPolicy` is `pairing`, unknown senders should receive a code and their message is ignored until approved.
+
+**Check 1:** Is a pending request already waiting?
+```bash
+clawdbot pairing list <provider>
+```
+
+Pending DM pairing requests are capped at **3 per provider** by default. If the list is full, new requests won’t generate a code until one is approved or expires.
+
+**Check 2:** Did the request get created but no reply was sent?
+```bash
+clawdbot logs --follow | grep "pairing request"
+```
+
+**Check 3:** Confirm `dmPolicy` isn’t `open`/`allowlist` for that provider.
 
 ### Image + Mention Not Working
 
@@ -254,7 +290,7 @@ grep "media\\|fetch\\|download" "$(ls -t /tmp/clawdbot/clawdbot-*.log | head -1)
 
 ### High Memory Usage
 
-CLAWDBOT keeps conversation history in memory.
+Clawdbot keeps conversation history in memory.
 
 **Fix:** Restart periodically or set session limits:
 ```json
@@ -288,7 +324,7 @@ If the gateway is supervised by launchd, killing the PID will just respawn it. S
 ```bash
 clawdbot daemon status
 clawdbot daemon stop
-# Or: launchctl bootout gui/$UID/com.clawdbot.gateway
+# Or: launchctl bootout gui/$UID/com.clawdbot.gateway (replace with com.clawdbot.<profile> if needed)
 ```
 
 **Fix 2: Port is busy (find the listener)**
@@ -304,7 +340,7 @@ kill -9 <PID> # last resort
 ```
 
 **Fix 3: Check embedded gateway**
-Ensure the gateway relay was properly bundled. Run [`./scripts/package-mac-app.sh`](https://github.com/clawdbot/clawdbot/blob/main/scripts/package-mac-app.sh) and ensure `bun` is installed.
+Ensure the gateway relay was properly bundled. Run [`./scripts/package-mac-app.sh`](https://github.com/clawdbot/clawdbot/blob/main/scripts/package-mac-app.sh) and ensure Node is available (the script downloads a bundled runtime by default).
 
 ## Debug Mode
 
@@ -324,7 +360,7 @@ clawdbot providers login --verbose
 | Log | Location |
 |-----|----------|
 | Gateway file logs (structured) | `/tmp/clawdbot/clawdbot-YYYY-MM-DD.log` (or `logging.file`) |
-| Gateway service logs (supervisor) | macOS: `$CLAWDBOT_STATE_DIR/logs/gateway.log` + `gateway.err.log` (default: `~/.clawdbot/logs/...`; profiles use `~/.clawdbot-<profile>/logs/...`)<br />Linux: `journalctl --user -u clawdbot-gateway.service -n 200 --no-pager`<br />Windows: `schtasks /Query /TN "Clawdbot Gateway" /V /FO LIST` |
+| Gateway service logs (supervisor) | macOS: `$CLAWDBOT_STATE_DIR/logs/gateway.log` + `gateway.err.log` (default: `~/.clawdbot/logs/...`; profiles use `~/.clawdbot-<profile>/logs/...`)<br />Linux: `journalctl --user -u clawdbot-gateway[-<profile>].service -n 200 --no-pager`<br />Windows: `schtasks /Query /TN "Clawdbot Gateway (<profile>)" /V /FO LIST` |
 | Session files | `$CLAWDBOT_STATE_DIR/agents/<agentId>/sessions/` |
 | Media cache | `$CLAWDBOT_STATE_DIR/media/` |
 | Credentials | `$CLAWDBOT_STATE_DIR/credentials/` |
@@ -372,7 +408,7 @@ clawdbot daemon restart           # or: clawdbot gateway
 1. Check logs first: `/tmp/clawdbot/` (default: `clawdbot-YYYY-MM-DD.log`, or your configured `logging.file`)
 2. Search existing issues on GitHub
 3. Open a new issue with:
-   - CLAWDBOT version
+   - Clawdbot version
    - Relevant log snippets
    - Steps to reproduce
    - Your config (redact secrets!)

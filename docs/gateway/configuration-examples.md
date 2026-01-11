@@ -117,10 +117,16 @@ Save to `~/.clawdbot/clawdbot.json` and you can DM the bot from that number.
         imessage: "collect",
         webchat: "collect"
       }
-    },
-    transcribeAudio: {
-      command: ["whisper", "--model", "base"],
-      timeoutSeconds: 120
+    }
+  },
+
+  // Tooling
+  tools: {
+    audio: {
+      transcription: {
+        args: ["--model", "base", "{{MediaPath}}"],
+        timeoutSeconds: 120
+      }
     }
   },
 
@@ -189,51 +195,76 @@ Save to `~/.clawdbot/clawdbot.json` and you can DM the bot from that number.
   },
 
   // Agent runtime
-  agent: {
-    workspace: "~/clawd",
-    userTimezone: "America/Chicago",
-    model: {
-      primary: "anthropic/claude-sonnet-4-5",
-      fallbacks: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"]
-    },
-    imageModel: {
-      primary: "openrouter/anthropic/claude-sonnet-4-5"
-    },
-    models: {
-      "anthropic/claude-opus-4-5": { alias: "opus" },
-      "anthropic/claude-sonnet-4-5": { alias: "sonnet" },
-      "openai/gpt-5.2": { alias: "gpt" }
-    },
-    thinkingDefault: "low",
-    verboseDefault: "off",
-    elevatedDefault: "on",
-    blockStreamingDefault: "on",
-    blockStreamingBreak: "text_end",
-    blockStreamingChunk: {
-      minChars: 800,
-      maxChars: 1200,
-      breakPreference: "paragraph"
-    },
-    timeoutSeconds: 600,
-    mediaMaxMb: 5,
-    typingIntervalSeconds: 5,
-    maxConcurrent: 3,
-    tools: {
-      allow: ["bash", "process", "read", "write", "edit"],
-      deny: ["browser", "canvas"]
-    },
+  agents: {
+    defaults: {
+      workspace: "~/clawd",
+      userTimezone: "America/Chicago",
+      model: {
+        primary: "anthropic/claude-sonnet-4-5",
+        fallbacks: ["anthropic/claude-opus-4-5", "openai/gpt-5.2"]
+      },
+      imageModel: {
+        primary: "openrouter/anthropic/claude-sonnet-4-5"
+      },
+      models: {
+        "anthropic/claude-opus-4-5": { alias: "opus" },
+        "anthropic/claude-sonnet-4-5": { alias: "sonnet" },
+        "openai/gpt-5.2": { alias: "gpt" }
+      },
+      thinkingDefault: "low",
+      verboseDefault: "off",
+      elevatedDefault: "on",
+      blockStreamingDefault: "off",
+      blockStreamingBreak: "text_end",
+      blockStreamingChunk: {
+        minChars: 800,
+        maxChars: 1200,
+        breakPreference: "paragraph"
+      },
+      blockStreamingCoalesce: {
+        idleMs: 1000
+      },
+      humanDelay: {
+        mode: "natural"
+      },
+      timeoutSeconds: 600,
+      mediaMaxMb: 5,
+      typingIntervalSeconds: 5,
+      maxConcurrent: 3,
+      heartbeat: {
+        every: "30m",
+        model: "anthropic/claude-sonnet-4-5",
+        target: "last",
+        to: "+15555550123",
+        prompt: "HEARTBEAT",
+        ackMaxChars: 30
+      },
+      sandbox: {
+        mode: "non-main",
+        perSession: true,
+        workspaceRoot: "~/.clawdbot/sandboxes",
+        docker: {
+          image: "clawdbot-sandbox:bookworm-slim",
+          workdir: "/workspace",
+          readOnlyRoot: true,
+          tmpfs: ["/tmp", "/var/tmp", "/run"],
+          network: "none",
+          user: "1000:1000"
+        },
+        browser: {
+          enabled: false
+        }
+      }
+    }
+  },
+
+  tools: {
+    allow: ["bash", "process", "read", "write", "edit"],
+    deny: ["browser", "canvas"],
     bash: {
       backgroundMs: 10000,
       timeoutSec: 1800,
       cleanupMs: 1800000
-    },
-    heartbeat: {
-      every: "30m",
-      model: "anthropic/claude-sonnet-4-5",
-      target: "last",
-      to: "+15555550123",
-      prompt: "HEARTBEAT",
-      ackMaxChars: 30
     },
     elevated: {
       enabled: true,
@@ -245,22 +276,6 @@ Save to `~/.clawdbot/clawdbot.json` and you can DM the bot from that number.
         signal: ["+15555550123"],
         imessage: ["user@example.com"],
         webchat: ["session:demo"]
-      }
-    },
-    sandbox: {
-      mode: "non-main",
-      perSession: true,
-      workspaceRoot: "~/.clawdbot/sandboxes",
-      docker: {
-        image: "clawdbot-sandbox:bookworm-slim",
-        workdir: "/workspace",
-        readOnlyRoot: true,
-        tmpfs: ["/tmp", "/var/tmp", "/run"],
-        network: "none",
-        user: "1000:1000"
-      },
-      browser: {
-        enabled: false
       }
     }
   },

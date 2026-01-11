@@ -1,10 +1,8 @@
 import path from "node:path";
 
-import { note as clackNote } from "@clack/prompts";
-
 import type { ClawdbotConfig } from "../config/config.js";
 import { resolveGatewayPort, resolveIsNixMode } from "../config/paths.js";
-import { GATEWAY_LAUNCH_AGENT_LABEL } from "../daemon/constants.js";
+import { resolveGatewayLaunchAgentLabel } from "../daemon/constants.js";
 import {
   findExtraGatewayServices,
   renderGatewayServiceCleanupHints,
@@ -22,19 +20,17 @@ import { resolveGatewayService } from "../daemon/service.js";
 import {
   auditGatewayServiceConfig,
   needsNodeRuntimeMigration,
+  SERVICE_AUDIT_CODES,
 } from "../daemon/service-audit.js";
 import { buildServiceEnvironment } from "../daemon/service-env.js";
 import type { RuntimeEnv } from "../runtime.js";
-import { stylePromptTitle } from "../terminal/prompt-style.js";
+import { note } from "../terminal/note.js";
 import {
   DEFAULT_GATEWAY_DAEMON_RUNTIME,
   GATEWAY_DAEMON_RUNTIME_OPTIONS,
   type GatewayDaemonRuntime,
 } from "./daemon-runtime.js";
 import type { DoctorOptions, DoctorPrompter } from "./doctor-prompter.js";
-
-const note = (message: string, title?: string) =>
-  clackNote(message, stylePromptTitle(title));
 
 function detectGatewayRuntime(
   programArguments: string[] | undefined,
@@ -46,6 +42,17 @@ function detectGatewayRuntime(
     if (base === "node" || base === "node.exe") return "node";
   }
   return DEFAULT_GATEWAY_DAEMON_RUNTIME;
+}
+
+function findGatewayEntrypoint(programArguments?: string[]): string | null {
+  if (!programArguments || programArguments.length === 0) return null;
+  const gatewayIndex = programArguments.indexOf("gateway");
+  if (gatewayIndex <= 0) return null;
+  return programArguments[gatewayIndex - 1] ?? null;
+}
+
+function normalizeExecutablePath(value: string): string {
+  return path.resolve(value);
 }
 
 export async function maybeMigrateLegacyGatewayService(
@@ -91,7 +98,9 @@ export async function maybeMigrateLegacyGatewayService(
   }
 
   const service = resolveGatewayService();
-  const loaded = await service.isLoaded({ env: process.env });
+  const loaded = await service.isLoaded({
+    profile: process.env.CLAWDBOT_PROFILE,
+  });
   if (loaded) {
     note(`Clawdbot ${service.label} already ${service.loadedText}.`, "Gateway");
     return;
@@ -131,7 +140,9 @@ export async function maybeMigrateLegacyGatewayService(
     port,
     token: cfg.gateway?.auth?.token ?? process.env.CLAWDBOT_GATEWAY_TOKEN,
     launchdLabel:
-      process.platform === "darwin" ? GATEWAY_LAUNCH_AGENT_LABEL : undefined,
+      process.platform === "darwin"
+        ? resolveGatewayLaunchAgentLabel(process.env.CLAWDBOT_PROFILE)
+        : undefined,
   });
   await service.install({
     env: process.env,
@@ -171,6 +182,45 @@ export async function maybeRepairGatewayServiceConfig(
     env: process.env,
     command,
   });
+  const needsNodeRuntime = needsNodeRuntimeMigration(audit.issues);
+  const systemNodePath = needsNodeRuntime
+    ? await resolveSystemNodePath(process.env)
+    : null;
+  if (needsNodeRuntime && !systemNodePath) {
+    note(
+      "System Node 22+ not found. Install via Homebrew/apt/choco and rerun doctor to migrate off Bun/version managers.",
+      "Gateway runtime",
+    );
+  }
+
+  const devMode =
+    process.argv[1]?.includes(`${path.sep}src${path.sep}`) &&
+    process.argv[1]?.endsWith(".ts");
+  const port = resolveGatewayPort(cfg, process.env);
+  const runtimeChoice = detectGatewayRuntime(command.programArguments);
+  const { programArguments, workingDirectory } =
+    await resolveGatewayProgramArguments({
+      port,
+      dev: devMode,
+      runtime: needsNodeRuntime && systemNodePath ? "node" : runtimeChoice,
+      nodePath: systemNodePath ?? undefined,
+    });
+  const expectedEntrypoint = findGatewayEntrypoint(programArguments);
+  const currentEntrypoint = findGatewayEntrypoint(command.programArguments);
+  if (
+    expectedEntrypoint &&
+    currentEntrypoint &&
+    normalizeExecutablePath(expectedEntrypoint) !==
+      normalizeExecutablePath(currentEntrypoint)
+  ) {
+    audit.issues.push({
+      code: SERVICE_AUDIT_CODES.gatewayEntrypointMismatch,
+      message: "Gateway service entrypoint does not match the current install.",
+      detail: `${currentEntrypoint} -> ${expectedEntrypoint}`,
+      level: "recommended",
+    });
+  }
+
   if (audit.issues.length === 0) return;
 
   note(
@@ -207,36 +257,14 @@ export async function maybeRepairGatewayServiceConfig(
         initialValue: true,
       });
   if (!repair) return;
-
-  const needsNodeRuntime = needsNodeRuntimeMigration(audit.issues);
-  const systemNodePath = needsNodeRuntime
-    ? await resolveSystemNodePath(process.env)
-    : null;
-  if (needsNodeRuntime && !systemNodePath) {
-    note(
-      "System Node 22+ not found. Install via Homebrew/apt/choco and rerun doctor to migrate off Bun/version managers.",
-      "Gateway runtime",
-    );
-  }
-
-  const devMode =
-    process.argv[1]?.includes(`${path.sep}src${path.sep}`) &&
-    process.argv[1]?.endsWith(".ts");
-  const port = resolveGatewayPort(cfg, process.env);
-  const runtimeChoice = detectGatewayRuntime(command.programArguments);
-  const { programArguments, workingDirectory } =
-    await resolveGatewayProgramArguments({
-      port,
-      dev: devMode,
-      runtime: needsNodeRuntime && systemNodePath ? "node" : runtimeChoice,
-      nodePath: systemNodePath ?? undefined,
-    });
   const environment = buildServiceEnvironment({
     env: process.env,
     port,
     token: cfg.gateway?.auth?.token ?? process.env.CLAWDBOT_GATEWAY_TOKEN,
     launchdLabel:
-      process.platform === "darwin" ? GATEWAY_LAUNCH_AGENT_LABEL : undefined,
+      process.platform === "darwin"
+        ? resolveGatewayLaunchAgentLabel(process.env.CLAWDBOT_PROFILE)
+        : undefined,
   });
 
   try {

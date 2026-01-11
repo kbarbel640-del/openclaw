@@ -7,30 +7,29 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 
 ## First 60 seconds if something's broken
 
-1) **Run the doctor**
+1) **Quick status (first check)**
    ```bash
-   clawdbot doctor
+   clawdbot status
    ```
-   Repairs/migrates config/state + runs health checks. See [Doctor](/gateway/doctor).
+   Fast local summary: OS + update, gateway/daemon reachability, agents/sessions, provider config + runtime issues (when gateway is reachable).
 
-2) **Daemon + port state**
+2) **Pasteable report (safe to share)**
+   ```bash
+   clawdbot status --all
+   ```
+   Read-only diagnosis with log tail (tokens redacted).
+
+3) **Daemon + port state**
    ```bash
    clawdbot daemon status
    ```
    Shows supervisor runtime vs RPC reachability, the probe target URL, and which config the daemon likely used.
 
-3) **Local probes**
+4) **Deep probes**
    ```bash
    clawdbot status --deep
    ```
-   Checks provider connectivity and local health. See [Health](/gateway/health).
-
-4) **Gateway snapshot**
-   ```bash
-   clawdbot health --json
-   clawdbot health --verbose   # shows the target URL + config path on errors
-   ```
-   Asks the running gateway for a full snapshot (WS-only). See [Health](/gateway/health).
+   Runs gateway health checks + provider probes (requires a reachable gateway). See [Health](/gateway/health).
 
 5) **Tail the latest log**
    ```bash
@@ -41,6 +40,19 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
    tail -f "$(ls -t /tmp/clawdbot/clawdbot-*.log | head -1)"
    ```
    File logs are separate from service logs; see [Logging](/logging) and [Troubleshooting](/gateway/troubleshooting).
+
+6) **Run the doctor (repairs)**
+   ```bash
+   clawdbot doctor
+   ```
+   Repairs/migrates config/state + runs health checks. See [Doctor](/gateway/doctor).
+
+7) **Gateway snapshot**
+   ```bash
+   clawdbot health --json
+   clawdbot health --verbose   # shows the target URL + config path on errors
+   ```
+   Asks the running gateway for a full snapshot (WS-only). See [Health](/gateway/health).
 
 ## What is Clawdbot?
 
@@ -88,9 +100,42 @@ Node **>= 22** is required. `pnpm` is recommended; `bun` is optional.
 
 It also warns if your configured model is unknown or missing auth.
 
+### How does Anthropic "setup-token" auth work?
+
+The wizard can run `claude setup-token` on the gateway host (or you run it yourself), then stores the token as an auth profile for the **anthropic** provider. That profile is used for model calls the same way an API key or OAuth profile would be. If you already ran `claude setup-token`, pick **Anthropic token (paste setup-token)** and paste it. More detail: [OAuth](/concepts/oauth).
+
+### How does Codex auth work?
+
+Clawdbot supports **OpenAI Code (Codex)** via OAuth or by reusing your Codex CLI login (`~/.codex/auth.json`). The wizard can import the CLI login or run the OAuth flow and will set the default model to `openai-codex/gpt-5.2` when appropriate. See [Model providers](/concepts/model-providers) and [Wizard](/start/wizard).
+
 ### Can I use Bun?
 
 Bun is supported for faster TypeScript execution, but **WhatsApp requires Node** in this ecosystem. The wizard lets you pick the runtime; choose **Node** if you use WhatsApp.
+
+### Can I switch between npm and git installs later?
+
+Yes. Install the other flavor, then run Doctor so the gateway service points at the new entrypoint.
+
+From npm → git:
+
+```bash
+git clone https://github.com/clawdbot/clawdbot.git
+cd clawdbot
+pnpm install
+pnpm build
+pnpm clawdbot doctor
+clawdbot daemon restart
+```
+
+From git → npm:
+
+```bash
+npm install -g clawdbot@latest
+clawdbot doctor
+clawdbot daemon restart
+```
+
+Doctor detects a gateway service entrypoint mismatch and offers to rewrite the service config to match the current install (use `--repair` in automation).
 
 ### Is there a dedicated sandboxing doc?
 
@@ -115,14 +160,14 @@ Everything lives under `$CLAWDBOT_STATE_DIR` (default: `~/.clawdbot`):
 
 Legacy single‑agent path: `~/.clawdbot/agent/*` (migrated by `clawdbot doctor`).
 
-Your **workspace** (AGENTS.md, memory files, skills, etc.) is separate and configured via `agent.workspace` (default: `~/clawd`).
+Your **workspace** (AGENTS.md, memory files, skills, etc.) is separate and configured via `agents.defaults.workspace` (default: `~/clawd`).
 
 ### Can agents work outside the workspace?
 
 Yes. The workspace is the **default cwd** and memory anchor, not a hard sandbox.
 Relative paths resolve inside the workspace, but absolute paths can access other
 host locations unless sandboxing is enabled. If you need isolation, use
-[`agent.sandbox`](/gateway/sandboxing) or per‑agent sandbox settings. If you
+[`agents.defaults.sandbox`](/gateway/sandboxing) or per‑agent sandbox settings. If you
 want a repo to be the default working directory, point that agent’s
 `workspace` to the repo root. The Clawdbot repo is just source code; keep the
 workspace separate unless you intentionally want the agent to work inside it.
@@ -173,12 +218,34 @@ Notes:
 - `gateway.remote.token` is for **remote CLI calls** only; it does not enable local gateway auth.
 - The Control UI authenticates via `connect.params.auth.token` (stored in app/UI settings). Avoid putting tokens in URLs.
 
+### Why do I need a token on localhost now?
+
+The wizard generates a gateway token by default (even on loopback) so **local WS clients must authenticate**. This blocks other local processes from calling the Gateway. Paste the token into the Control UI settings (or your client config) to connect.
+
+If you **really** want open loopback, remove `gateway.auth` from your config. Doctor can generate a token for you any time: `clawdbot doctor --generate-gateway-token`.
+
 ### Do I have to restart after changing config?
 
 The Gateway watches the config and supports hot‑reload:
 
 - `gateway.reload.mode: "hybrid"` (default): hot‑apply safe changes, restart for critical ones
 - `hot`, `restart`, `off` are also supported
+
+## Remote gateways + nodes
+
+### How do commands propagate between Telegram, the gateway, and nodes?
+
+Telegram messages are handled by the **gateway**. The gateway runs the agent and
+only then calls nodes over the **Bridge** when a node tool is needed:
+
+Telegram → Gateway → Agent → `node.*` → Node → Gateway → Telegram
+
+Nodes don’t see inbound provider traffic; they only receive bridge RPC calls.
+
+### Do nodes run a gateway daemon?
+
+No. Only **one gateway** should run per host. Nodes are peripherals that connect
+to the gateway (iOS/Android nodes, or macOS “node mode” in the menubar app).
 
 A full restart is required for `gateway`, `bridge`, `discovery`, and `canvasHost` changes.
 
@@ -248,6 +315,30 @@ This runs your login shell and imports only missing expected keys (never overrid
 
 Send `/new` or `/reset` as a standalone message. See [Session management](/concepts/session).
 
+### Do I need to add a “bot account” to a WhatsApp group?
+
+No. Clawdbot runs on **your own account**, so if you’re in the group, Clawdbot can see it.
+By default, anyone in that group can **mention** the bot to trigger a reply.
+
+If you want only **you** to be able to trigger group replies:
+
+```json5
+{
+  whatsapp: {
+    groupPolicy: "allowlist",
+    groupAllowFrom: ["+15551234567"]
+  }
+}
+```
+
+### Why doesn’t Clawdbot reply in a group?
+
+Two common causes:
+- Mention gating is on (default). You must @mention the bot (or match `mentionPatterns`).
+- You configured `whatsapp.groups` without `"*"` and the group isn’t allowlisted.
+
+See [Groups](/concepts/groups) and [Group messages](/concepts/group-messages).
+
 ### Do groups/threads share context with DMs?
 
 Direct chats collapse to the main session by default. Groups/channels have their own session keys, and Telegram topics / Discord threads are separate sessions. See [Groups](/concepts/groups) and [Group messages](/concepts/group-messages).
@@ -259,7 +350,7 @@ Direct chats collapse to the main session by default. Groups/channels have their
 Clawdbot’s default model is whatever you set as:
 
 ```
-agent.model.primary
+agents.defaults.model.primary
 ```
 
 Models are referenced as `provider/model` (example: `anthropic/claude-opus-4-5`). If you omit the provider, Clawdbot currently assumes `anthropic` as a temporary deprecation fallback — but you should still **explicitly** set `provider/model`.
@@ -280,9 +371,18 @@ Use the `/model` command as a standalone message:
 
 You can list available models with `/model`, `/model list`, or `/model status`.
 
+You can also force a specific auth profile for the provider (per session):
+
+```
+/model opus@anthropic:claude-cli
+/model opus@anthropic:default
+```
+
+Tip: `/model status` shows which agent is active, which `auth-profiles.json` file is being used, and which auth profile will be tried next.
+
 ### Why do I see “Model … is not allowed” and then no reply?
 
-If `agent.models` is set, it becomes the **allowlist** for `/model` and any
+If `agents.defaults.models` is set, it becomes the **allowlist** for `/model` and any
 session overrides. Choosing a model that isn’t in that list returns:
 
 ```
@@ -290,11 +390,11 @@ Model "provider/model" is not allowed. Use /model to list available models.
 ```
 
 That error is returned **instead of** a normal reply. Fix: add the model to
-`agent.models`, remove the allowlist, or pick a model from `/model list`.
+`agents.defaults.models`, remove the allowlist, or pick a model from `/model list`.
 
 ### Are opus / sonnet / gpt built‑in shortcuts?
 
-Yes. Clawdbot ships a few default shorthands (only applied when the model exists in `agent.models`):
+Yes. Clawdbot ships a few default shorthands (only applied when the model exists in `agents.defaults.models`):
 
 - `opus` → `anthropic/claude-opus-4-5`
 - `sonnet` → `anthropic/claude-sonnet-4-5`
@@ -307,7 +407,7 @@ If you set your own alias with the same name, your value wins.
 
 ### How do I define/override model shortcuts (aliases)?
 
-Aliases come from `agent.models.<modelId>.alias`. Example:
+Aliases come from `agents.defaults.models.<modelId>.alias`. Example:
 
 ```json5
 {
@@ -359,7 +459,7 @@ If you reference a provider/model but the required provider key is missing, you�
 Failover happens in two stages:
 
 1) **Auth profile rotation** within the same provider.
-2) **Model fallback** to the next model in `agent.model.fallbacks`.
+2) **Model fallback** to the next model in `agents.defaults.model.fallbacks`.
 
 Cooldowns apply to failing profiles (exponential backoff), so Clawdbot can keep responding even when a provider is rate‑limited or temporarily failing.
 
@@ -387,7 +487,7 @@ It means the system attempted to use the auth profile ID `anthropic:default`, bu
 
 If your model config includes Google Gemini as a fallback (or you switched to a Gemini shorthand), Clawdbot will try it during model fallback. If you haven’t configured Google credentials, you’ll see `No API key found for provider "google"`.
 
-Fix: either provide Google auth, or remove/avoid Google models in `agent.model.fallbacks` / aliases so fallback doesn’t route there.
+Fix: either provide Google auth, or remove/avoid Google models in `agents.defaults.model.fallbacks` / aliases so fallback doesn’t route there.
 
 ## Auth profiles: what they are and how to manage them
 
@@ -412,6 +512,30 @@ Clawdbot uses provider‑prefixed IDs like:
 ### Can I control which auth profile is tried first?
 
 Yes. Config supports optional metadata for profiles and an ordering per provider (`auth.order.<provider>`). This does **not** store secrets; it maps IDs to provider/mode and sets rotation order.
+
+Clawdbot may temporarily skip a profile if it’s in a short **cooldown** (rate limits/timeouts/auth failures) or a longer **disabled** state (billing/insufficient credits). To inspect this, run `clawdbot models status --json` and check `auth.unusableProfiles`. Tuning: `auth.cooldowns.billingBackoffHours*`.
+
+You can also set a **per-agent** order override (stored in that agent’s `auth-profiles.json`) via the CLI:
+
+```bash
+# Defaults to the configured default agent (omit --agent)
+clawdbot models auth order get --provider anthropic
+
+# Lock rotation to a single profile (only try this one)
+clawdbot models auth order set --provider anthropic anthropic:claude-cli
+
+# Or set an explicit order (fallback within provider)
+clawdbot models auth order set --provider anthropic anthropic:claude-cli anthropic:default
+
+# Clear override (fall back to config auth.order / round-robin)
+clawdbot models auth order clear --provider anthropic
+```
+
+To target a specific agent:
+
+```bash
+clawdbot models auth order set --provider anthropic --agent main anthropic:claude-cli
+```
 
 ### OAuth vs API key: what’s the difference?
 
@@ -506,10 +630,12 @@ Yes, but you must isolate:
 
 - `CLAWDBOT_CONFIG_PATH` (per‑instance config)
 - `CLAWDBOT_STATE_DIR` (per‑instance state)
-- `agent.workspace` (workspace isolation)
+- `agents.defaults.workspace` (workspace isolation)
 - `gateway.port` (unique ports)
 
 There are convenience CLI flags like `--dev` and `--profile <name>` that shift state dirs and ports.
+When using profiles, service names are suffixed (`com.clawdbot.<profile>`, `clawdbot-gateway-<profile>.service`,
+`Clawdbot Gateway (<profile>)`).
 
 ## Logging and debugging
 
@@ -531,8 +657,8 @@ clawdbot logs --follow
 
 Service/supervisor logs (when the gateway runs via launchd/systemd):
 - macOS: `$CLAWDBOT_STATE_DIR/logs/gateway.log` and `gateway.err.log` (default: `~/.clawdbot/logs/...`; profiles use `~/.clawdbot-<profile>/logs/...`)
-- Linux: `journalctl --user -u clawdbot-gateway.service -n 200 --no-pager`
-- Windows: `schtasks /Query /TN "Clawdbot Gateway" /V /FO LIST`
+- Linux: `journalctl --user -u clawdbot-gateway[-<profile>].service -n 200 --no-pager`
+- Windows: `schtasks /Query /TN "Clawdbot Gateway (<profile>)" /V /FO LIST`
 
 See [Troubleshooting](/gateway/troubleshooting#log-locations) for more.
 
@@ -573,7 +699,8 @@ Treat inbound DMs as untrusted input. Defaults are designed to reduce risk:
 
 - Default behavior on DM‑capable providers is **pairing**:
   - Unknown senders receive a pairing code; the bot does not process their message.
-  - Approve with: `clawdbot pairing approve --provider <provider> <code>`
+  - Approve with: `clawdbot pairing approve <provider> <code>`
+  - Pending requests are capped at **3 per provider**; check `clawdbot pairing list <provider>` if a code didn’t arrive.
 - Opening DMs publicly requires explicit opt‑in (`dmPolicy: "open"` and allowlist `"*"`).
 
 Run `clawdbot doctor` to surface risky DM policies.
@@ -619,7 +746,7 @@ You can add options like `debounce:2s cap:25 drop:summarize` for followup modes.
 ### “All models failed” — what should I check first?
 
 - **Credentials** present for the provider(s) being tried (auth profiles + env vars).
-- **Model routing**: confirm `agent.model.primary` and fallbacks are models you can access.
+- **Model routing**: confirm `agents.defaults.model.primary` and fallbacks are models you can access.
 - **Gateway logs** in `/tmp/clawdbot/…` for the exact provider error.
 - **`/model status`** to see current configured models + shorthands.
 
@@ -658,7 +785,7 @@ clawdbot providers login
 
 **Q: “What’s the default model for Anthropic with an API key?”**
 
-**A:** In Clawdbot, credentials and model selection are separate. Setting `ANTHROPIC_API_KEY` (or storing an Anthropic API key in auth profiles) enables authentication, but the actual default model is whatever you configure in `agent.model.primary` (for example, `anthropic/claude-sonnet-4-5` or `anthropic/claude-opus-4-5`). If you see `No credentials found for profile "anthropic:default"`, it means the Gateway couldn’t find Anthropic credentials in the expected `auth-profiles.json` for the agent that’s running.
+**A:** In Clawdbot, credentials and model selection are separate. Setting `ANTHROPIC_API_KEY` (or storing an Anthropic API key in auth profiles) enables authentication, but the actual default model is whatever you configure in `agents.defaults.model.primary` (for example, `anthropic/claude-sonnet-4-5` or `anthropic/claude-opus-4-5`). If you see `No credentials found for profile "anthropic:default"`, it means the Gateway couldn’t find Anthropic credentials in the expected `auth-profiles.json` for the agent that’s running.
 
 ---
 

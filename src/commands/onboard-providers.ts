@@ -123,7 +123,7 @@ async function noteProviderPrimer(prompter: WizardPrompter): Promise<void> {
   await prompter.note(
     [
       "DM security: default is pairing; unknown DMs get a pairing code.",
-      "Approve with: clawdbot pairing approve --provider <provider> <code>",
+      "Approve with: clawdbot pairing approve <provider> <code>",
       'Public DMs require dmPolicy="open" + allowFrom=["*"].',
       `Docs: ${formatDocsLink("/start/pairing", "start/pairing")}`,
       "",
@@ -401,7 +401,7 @@ async function maybeConfigureDmPolicies(params: {
     await prompter.note(
       [
         "Default: pairing (unknown DMs get a pairing code).",
-        `Approve: clawdbot pairing approve --provider ${params.provider} <code>`,
+        `Approve: clawdbot pairing approve ${params.provider} <code>`,
         `Public DMs: ${params.policyKey}="open" + ${params.allowFromKey} includes "*".`,
         `Docs: ${formatDocsLink("/start/pairing", "start/pairing")}`,
       ].join("\n"),
@@ -470,6 +470,65 @@ async function maybeConfigureDmPolicies(params: {
   return cfg;
 }
 
+function parseTelegramAllowFromEntries(raw: string): {
+  entries: string[];
+  hasUsernames: boolean;
+  error?: string;
+} {
+  const parts = raw
+    .split(/[\n,;]+/g)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return { entries: [], hasUsernames: false, error: "Required" };
+  }
+  const entries: string[] = [];
+  let hasUsernames = false;
+  for (const part of parts) {
+    if (part === "*") {
+      entries.push(part);
+      continue;
+    }
+    const match = part.match(/^(telegram|tg):(.+)$/i);
+    const value = match ? match[2]?.trim() : part;
+    if (!value) {
+      return {
+        entries: [],
+        hasUsernames: false,
+        error: `Invalid entry: ${part}`,
+      };
+    }
+    if (/^\d+$/.test(value)) {
+      entries.push(part);
+      continue;
+    }
+    if (value.startsWith("@")) {
+      const username = value.slice(1);
+      if (!/^[a-z0-9_]{5,32}$/i.test(username)) {
+        return {
+          entries: [],
+          hasUsernames: false,
+          error: `Invalid username: ${part}`,
+        };
+      }
+      hasUsernames = true;
+      entries.push(part);
+      continue;
+    }
+    if (/^[a-z0-9_]{5,32}$/i.test(value)) {
+      hasUsernames = true;
+      entries.push(`@${value}`);
+      continue;
+    }
+    return {
+      entries: [],
+      hasUsernames: false,
+      error: `Invalid entry: ${part}`,
+    };
+  }
+  return { entries, hasUsernames };
+}
+
 async function promptTelegramAllowFrom(params: {
   cfg: ClawdbotConfig;
   prompter: WizardPrompter;
@@ -479,22 +538,30 @@ async function promptTelegramAllowFrom(params: {
   const resolved = resolveTelegramAccount({ cfg, accountId });
   const existingAllowFrom = resolved.config.allowFrom ?? [];
   const entry = await prompter.text({
-    message: "Telegram allowFrom (user id)",
-    placeholder: "123456789",
+    message: "Telegram allowFrom (user id or @username)",
+    placeholder: "123456789, @myhandle",
     initialValue: existingAllowFrom[0]
       ? String(existingAllowFrom[0])
       : undefined,
     validate: (value) => {
       const raw = String(value ?? "").trim();
-      if (!raw) return "Required";
-      if (!/^\d+$/.test(raw)) return "Use a numeric Telegram user id";
-      return undefined;
+      const parsed = parseTelegramAllowFromEntries(raw);
+      return parsed.error;
     },
   });
-  const normalized = String(entry).trim();
+  const parsed = parseTelegramAllowFromEntries(String(entry).trim());
+  if (parsed.hasUsernames) {
+    await prompter.note(
+      [
+        "Usernames can change; numeric user IDs are more stable.",
+        "Tip: DM the bot and it will reply with your user ID (pairing message).",
+      ].join("\n"),
+      "Telegram allowFrom",
+    );
+  }
   const merged = [
     ...existingAllowFrom.map((item) => String(item).trim()).filter(Boolean),
-    normalized,
+    ...parsed.entries,
   ];
   const unique = [...new Set(merged)];
 
@@ -541,8 +608,13 @@ async function promptWhatsAppAllowFrom(
   const existingResponsePrefix = cfg.messages?.responsePrefix;
 
   if (options?.forceAllowlist) {
+    await prompter.note(
+      "We need the sender/owner number so Clawdbot can allowlist you.",
+      "WhatsApp number",
+    );
     const entry = await prompter.text({
-      message: "Your WhatsApp number (E.164)",
+      message:
+        "Your personal WhatsApp number (the phone you will message from)",
       placeholder: "+15555550123",
       initialValue: existingAllowFrom[0],
       validate: (value) => {
@@ -604,8 +676,13 @@ async function promptWhatsAppAllowFrom(
   })) as "personal" | "separate";
 
   if (phoneMode === "personal") {
+    await prompter.note(
+      "We need the sender/owner number so Clawdbot can allowlist you.",
+      "WhatsApp number",
+    );
     const entry = await prompter.text({
-      message: "Your WhatsApp number (E.164)",
+      message:
+        "Your personal WhatsApp number (the phone you will message from)",
       placeholder: "+15555550123",
       initialValue: existingAllowFrom[0],
       validate: (value) => {
@@ -862,14 +939,31 @@ export async function setupProviders(
     }
   });
 
-  const initialSelection =
-    options?.initialSelection ??
-    (options?.quickstartDefaults && !telegramConfigured ? ["telegram"] : []);
-  const selection = (await prompter.multiselect({
-    message: "Select providers",
-    options: selectionOptions,
-    initialValues: initialSelection.length ? initialSelection : undefined,
-  })) as ProviderChoice[];
+  let selection: ProviderChoice[];
+  if (options?.quickstartDefaults) {
+    const choice = (await prompter.select({
+      message: "Select provider (QuickStart)",
+      options: [
+        ...selectionOptions,
+        {
+          value: "__skip__",
+          label: "Skip for now",
+          hint: "You can add providers later via `clawdbot providers add`",
+        },
+      ],
+      initialValue:
+        options?.initialSelection?.[0] ??
+        (!telegramConfigured ? "telegram" : "whatsapp"),
+    })) as ProviderChoice | "__skip__";
+    selection = choice === "__skip__" ? [] : [choice];
+  } else {
+    const initialSelection = options?.initialSelection ?? [];
+    selection = (await prompter.multiselect({
+      message: "Select providers (Space to toggle, Enter to continue)",
+      options: selectionOptions,
+      initialValues: initialSelection.length ? initialSelection : undefined,
+    })) as ProviderChoice[];
+  }
 
   options?.onSelection?.(selection);
   const accountOverrides: Partial<Record<ProviderChoice, string>> = {

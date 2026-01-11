@@ -37,10 +37,12 @@ describe("transcribeInboundAudio", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const cfg = {
-      routing: {
-        transcribeAudio: {
-          command: ["echo", "{{MediaPath}}"],
-          timeoutSeconds: 5,
+      tools: {
+        audio: {
+          transcription: {
+            args: ["echo", "{{MediaPath}}"],
+            timeoutSeconds: 5,
+          },
         },
       },
     };
@@ -64,7 +66,7 @@ describe("transcribeInboundAudio", () => {
   it("returns undefined when no transcription command", async () => {
     const { transcribeInboundAudio } = await import("./transcription.js");
     const res = await transcribeInboundAudio(
-      { routing: {} } as never,
+      { audio: {} } as never,
       {} as never,
       runtime as never,
     );

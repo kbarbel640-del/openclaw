@@ -18,6 +18,7 @@ import {
   listProfilesForProvider,
   resolveAuthProfileDisplayLabel,
   resolveAuthStorePathForDisplay,
+  resolveProfileUnusableUntilForDisplay,
 } from "../../agents/auth-profiles.js";
 import {
   getCustomProviderApiKey,
@@ -174,15 +175,36 @@ function resolveProviderAuthOverview(params: {
   modelsPath: string;
 }): ProviderAuthOverview {
   const { provider, cfg, store } = params;
+  const now = Date.now();
   const profiles = listProfilesForProvider(store, provider);
+  const withUnusableSuffix = (base: string, profileId: string) => {
+    const unusableUntil = resolveProfileUnusableUntilForDisplay(
+      store,
+      profileId,
+    );
+    if (!unusableUntil || now >= unusableUntil) return base;
+    const stats = store.usageStats?.[profileId];
+    const kind =
+      typeof stats?.disabledUntil === "number" && now < stats.disabledUntil
+        ? `disabled${stats.disabledReason ? `:${stats.disabledReason}` : ""}`
+        : "cooldown";
+    const remaining = formatRemainingShort(unusableUntil - now);
+    return `${base} [${kind} ${remaining}]`;
+  };
   const labels = profiles.map((profileId) => {
     const profile = store.profiles[profileId];
     if (!profile) return `${profileId}=missing`;
     if (profile.type === "api_key") {
-      return `${profileId}=${maskApiKey(profile.key)}`;
+      return withUnusableSuffix(
+        `${profileId}=${maskApiKey(profile.key)}`,
+        profileId,
+      );
     }
     if (profile.type === "token") {
-      return `${profileId}=token:${maskApiKey(profile.token)}`;
+      return withUnusableSuffix(
+        `${profileId}=token:${maskApiKey(profile.token)}`,
+        profileId,
+      );
     }
     const display = resolveAuthProfileDisplayLabel({ cfg, store, profileId });
     const suffix =
@@ -191,7 +213,8 @@ function resolveProviderAuthOverview(params: {
         : display.startsWith(profileId)
           ? display.slice(profileId.length).trim()
           : `(${display})`;
-    return `${profileId}=OAuth${suffix ? ` ${suffix}` : ""}`;
+    const base = `${profileId}=OAuth${suffix ? ` ${suffix}` : ""}`;
+    return withUnusableSuffix(base, profileId);
   });
   const oauthCount = profiles.filter(
     (id) => store.profiles[id]?.type === "oauth",
@@ -290,10 +313,10 @@ const resolveConfiguredEntries = (cfg: ClawdbotConfig) => {
 
   addEntry(resolvedDefault, "default");
 
-  const modelConfig = cfg.agent?.model as
+  const modelConfig = cfg.agents?.defaults?.model as
     | { primary?: string; fallbacks?: string[] }
     | undefined;
-  const imageModelConfig = cfg.agent?.imageModel as
+  const imageModelConfig = cfg.agents?.defaults?.imageModel as
     | { primary?: string; fallbacks?: string[] }
     | undefined;
   const modelFallbacks =
@@ -333,7 +356,7 @@ const resolveConfiguredEntries = (cfg: ClawdbotConfig) => {
     addEntry(resolved.ref, `img-fallback#${idx + 1}`);
   });
 
-  for (const key of Object.keys(cfg.agent?.models ?? {})) {
+  for (const key of Object.keys(cfg.agents?.defaults?.models ?? {})) {
     const parsed = parseModelRef(String(key ?? ""), DEFAULT_PROVIDER);
     if (!parsed) continue;
     addEntry(parsed, "configured");
@@ -623,11 +646,11 @@ export async function modelsStatusCommand(
     defaultModel: DEFAULT_MODEL,
   });
 
-  const modelConfig = cfg.agent?.model as
+  const modelConfig = cfg.agents?.defaults?.model as
     | { primary?: string; fallbacks?: string[] }
     | string
     | undefined;
-  const imageConfig = cfg.agent?.imageModel as
+  const imageConfig = cfg.agents?.defaults?.imageModel as
     | { primary?: string; fallbacks?: string[] }
     | string
     | undefined;
@@ -645,14 +668,14 @@ export async function modelsStatusCommand(
       : (imageConfig?.primary?.trim() ?? "");
   const imageFallbacks =
     typeof imageConfig === "object" ? (imageConfig?.fallbacks ?? []) : [];
-  const aliases = Object.entries(cfg.agent?.models ?? {}).reduce<
+  const aliases = Object.entries(cfg.agents?.defaults?.models ?? {}).reduce<
     Record<string, string>
   >((acc, [key, entry]) => {
     const alias = entry?.alias?.trim();
     if (alias) acc[alias] = key;
     return acc;
   }, {});
-  const allowed = Object.keys(cfg.agent?.models ?? {});
+  const allowed = Object.keys(cfg.agents?.defaults?.models ?? {});
 
   const agentDir = resolveClawdbotAgentDir();
   const store = ensureAuthProfileStore();
@@ -770,6 +793,39 @@ export async function modelsStatusCommand(
     (profile) => profile.type === "oauth" || profile.type === "token",
   );
 
+  const unusableProfiles = (() => {
+    const now = Date.now();
+    const out: Array<{
+      profileId: string;
+      provider?: string;
+      kind: "cooldown" | "disabled";
+      reason?: string;
+      until: number;
+      remainingMs: number;
+    }> = [];
+    for (const profileId of Object.keys(store.usageStats ?? {})) {
+      const unusableUntil = resolveProfileUnusableUntilForDisplay(
+        store,
+        profileId,
+      );
+      if (!unusableUntil || now >= unusableUntil) continue;
+      const stats = store.usageStats?.[profileId];
+      const kind =
+        typeof stats?.disabledUntil === "number" && now < stats.disabledUntil
+          ? "disabled"
+          : "cooldown";
+      out.push({
+        profileId,
+        provider: store.profiles[profileId]?.provider,
+        kind,
+        reason: stats?.disabledReason,
+        until: unusableUntil,
+        remainingMs: unusableUntil - now,
+      });
+    }
+    return out.sort((a, b) => a.remainingMs - b.remainingMs);
+  })();
+
   const checkStatus = (() => {
     const hasExpiredOrMissing =
       oauthProfiles.some((profile) =>
@@ -805,6 +861,7 @@ export async function modelsStatusCommand(
             providersWithOAuth: providersWithOauth,
             missingProvidersInUse,
             providers: providerAuth,
+            unusableProfiles,
             oauth: {
               warnAfterMs: authHealth.warnAfterMs,
               profiles: authHealth.profiles,

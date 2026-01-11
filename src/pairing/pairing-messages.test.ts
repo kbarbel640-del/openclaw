@@ -26,7 +26,7 @@ describe("buildPairingReply", () => {
     },
     {
       provider: "whatsapp",
-      idLine: "Your WhatsApp sender id: +15550003333",
+      idLine: "Your WhatsApp phone number: +15550003333",
       code: "MNO345",
     },
   ] as const;
@@ -37,7 +37,7 @@ describe("buildPairingReply", () => {
       expect(text).toContain(testCase.idLine);
       expect(text).toContain(`Pairing code: ${testCase.code}`);
       expect(text).toContain(
-        `clawdbot pairing approve --provider ${testCase.provider} <code>`,
+        `clawdbot pairing approve ${testCase.provider} <code>`,
       );
     });
   }

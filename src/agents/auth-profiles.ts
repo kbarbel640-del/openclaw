@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -12,18 +11,20 @@ import lockfile from "proper-lockfile";
 import type { ClawdbotConfig } from "../config/config.js";
 import { resolveOAuthPath } from "../config/paths.js";
 import type { AuthProfileConfig } from "../config/types.js";
+import { loadJsonFile, saveJsonFile } from "../infra/json-file.js";
 import { createSubsystemLogger } from "../logging.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveClawdbotAgentDir } from "./agent-paths.js";
+import {
+  readClaudeCliCredentialsCached,
+  readCodexCliCredentialsCached,
+  writeClaudeCliCredentials,
+} from "./cli-credentials.js";
 import { normalizeProviderId } from "./model-selection.js";
 
 const AUTH_STORE_VERSION = 1;
 const AUTH_PROFILE_FILENAME = "auth-profiles.json";
 const LEGACY_AUTH_FILENAME = "auth.json";
-
-// External CLI credential file locations
-const CLAUDE_CLI_CREDENTIALS_RELATIVE_PATH = ".claude/.credentials.json";
-const CODEX_CLI_AUTH_RELATIVE_PATH = ".codex/auth.json";
 
 export const CLAUDE_CLI_PROFILE_ID = "anthropic:claude-cli";
 export const CODEX_CLI_PROFILE_ID = "openai-codex:codex-cli";
@@ -38,6 +39,9 @@ const AUTH_STORE_LOCK_OPTIONS = {
   },
   stale: 30_000,
 } as const;
+
+const EXTERNAL_CLI_SYNC_TTL_MS = 15 * 60 * 1000;
+const EXTERNAL_CLI_NEAR_EXPIRY_MS = 10 * 60 * 1000;
 
 const log = createSubsystemLogger("agents/auth-profiles");
 
@@ -72,16 +76,34 @@ export type AuthProfileCredential =
   | TokenCredential
   | OAuthCredential;
 
+export type AuthProfileFailureReason =
+  | "auth"
+  | "format"
+  | "rate_limit"
+  | "billing"
+  | "timeout"
+  | "unknown";
+
 /** Per-profile usage statistics for round-robin and cooldown tracking */
 export type ProfileUsageStats = {
   lastUsed?: number;
   cooldownUntil?: number;
+  disabledUntil?: number;
+  disabledReason?: AuthProfileFailureReason;
   errorCount?: number;
+  failureCounts?: Partial<Record<AuthProfileFailureReason, number>>;
+  lastFailureAt?: number;
 };
 
 export type AuthProfileStore = {
   version: number;
   profiles: Record<string, AuthProfileCredential>;
+  /**
+   * Optional per-agent preferred profile order overrides.
+   * This lets you lock/override auth rotation for a specific agent without
+   * changing the global config.
+   */
+  order?: Record<string, string[]>;
   lastGood?: Record<string, string>;
   /** Usage statistics per profile for round-robin rotation */
   usageStats?: Record<string, ProfileUsageStats>;
@@ -99,25 +121,6 @@ function resolveLegacyAuthStorePath(agentDir?: string): string {
   return path.join(resolved, LEGACY_AUTH_FILENAME);
 }
 
-function loadJsonFile(pathname: string): unknown {
-  try {
-    if (!fs.existsSync(pathname)) return undefined;
-    const raw = fs.readFileSync(pathname, "utf8");
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
-function saveJsonFile(pathname: string, data: unknown) {
-  const dir = path.dirname(pathname);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  }
-  fs.writeFileSync(pathname, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  fs.chmodSync(pathname, 0o600);
-}
-
 function ensureAuthStoreFile(pathname: string) {
   if (fs.existsSync(pathname)) return;
   const payload: AuthProfileStore = {
@@ -133,6 +136,7 @@ function syncAuthProfileStore(
 ): void {
   target.version = source.version;
   target.profiles = source.profiles;
+  target.order = source.order;
   target.lastGood = source.lastGood;
   target.usageStats = source.usageStats;
 }
@@ -216,6 +220,16 @@ async function refreshOAuthTokenWithLock(params: {
       type: "oauth",
     };
     saveAuthProfileStore(store, params.agentDir);
+
+    // Sync refreshed credentials back to Claude CLI if this is the claude-cli profile
+    // This ensures Claude Code continues to work after ClawdBot refreshes the token
+    if (
+      params.profileId === CLAUDE_CLI_PROFILE_ID &&
+      cred.provider === "anthropic"
+    ) {
+      writeClaudeCliCredentials(result.newCredentials);
+    }
+
     return result;
   } finally {
     if (release) {
@@ -270,9 +284,25 @@ function coerceAuthStore(raw: unknown): AuthProfileStore | null {
     if (!typed.provider) continue;
     normalized[key] = typed as AuthProfileCredential;
   }
+  const order =
+    record.order && typeof record.order === "object"
+      ? Object.entries(record.order as Record<string, unknown>).reduce(
+          (acc, [provider, value]) => {
+            if (!Array.isArray(value)) return acc;
+            const list = value
+              .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+              .filter(Boolean);
+            if (list.length === 0) return acc;
+            acc[provider] = list;
+            return acc;
+          },
+          {} as Record<string, string[]>,
+        )
+      : undefined;
   return {
     version: Number(record.version ?? AUTH_STORE_VERSION),
     profiles: normalized,
+    order,
     lastGood:
       record.lastGood && typeof record.lastGood === "object"
         ? (record.lastGood as Record<string, string>)
@@ -302,122 +332,6 @@ function mergeOAuthFileIntoStore(store: AuthProfileStore): boolean {
     mutated = true;
   }
   return mutated;
-}
-
-/**
- * Read Anthropic OAuth credentials from Claude CLI's keychain entry (macOS)
- * or credential file (Linux/Windows).
- *
- * On macOS, Claude Code stores credentials in keychain "Claude Code-credentials".
- * On Linux/Windows, it uses ~/.claude/.credentials.json
- */
-function readClaudeCliCredentials(options?: {
-  allowKeychainPrompt?: boolean;
-}): TokenCredential | null {
-  if (process.platform === "darwin" && options?.allowKeychainPrompt !== false) {
-    const keychainCreds = readClaudeCliKeychainCredentials();
-    if (keychainCreds) {
-      log.info("read anthropic credentials from claude cli keychain");
-      return keychainCreds;
-    }
-  }
-
-  const credPath = path.join(
-    resolveUserPath("~"),
-    CLAUDE_CLI_CREDENTIALS_RELATIVE_PATH,
-  );
-  const raw = loadJsonFile(credPath);
-  if (!raw || typeof raw !== "object") return null;
-
-  const data = raw as Record<string, unknown>;
-  const claudeOauth = data.claudeAiOauth as Record<string, unknown> | undefined;
-  if (!claudeOauth || typeof claudeOauth !== "object") return null;
-
-  const accessToken = claudeOauth.accessToken;
-  const expiresAt = claudeOauth.expiresAt;
-
-  if (typeof accessToken !== "string" || !accessToken) return null;
-  if (typeof expiresAt !== "number" || expiresAt <= 0) return null;
-
-  return {
-    type: "token",
-    provider: "anthropic",
-    token: accessToken,
-    expires: expiresAt,
-  };
-}
-
-/**
- * Read Claude Code credentials from macOS keychain.
- * Uses the `security` CLI to access keychain without native dependencies.
- */
-function readClaudeCliKeychainCredentials(): TokenCredential | null {
-  try {
-    const result = execSync(
-      'security find-generic-password -s "Claude Code-credentials" -w',
-      { encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] },
-    );
-
-    const data = JSON.parse(result.trim());
-    const claudeOauth = data?.claudeAiOauth;
-    if (!claudeOauth || typeof claudeOauth !== "object") return null;
-
-    const accessToken = claudeOauth.accessToken;
-    const expiresAt = claudeOauth.expiresAt;
-
-    if (typeof accessToken !== "string" || !accessToken) return null;
-    if (typeof expiresAt !== "number" || expiresAt <= 0) return null;
-
-    return {
-      type: "token",
-      provider: "anthropic",
-      token: accessToken,
-      expires: expiresAt,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Read OpenAI Codex OAuth credentials from Codex CLI's auth file.
- * Codex CLI stores credentials at ~/.codex/auth.json
- */
-function readCodexCliCredentials(): OAuthCredential | null {
-  const authPath = path.join(
-    resolveUserPath("~"),
-    CODEX_CLI_AUTH_RELATIVE_PATH,
-  );
-  const raw = loadJsonFile(authPath);
-  if (!raw || typeof raw !== "object") return null;
-
-  const data = raw as Record<string, unknown>;
-  const tokens = data.tokens as Record<string, unknown> | undefined;
-  if (!tokens || typeof tokens !== "object") return null;
-
-  const accessToken = tokens.access_token;
-  const refreshToken = tokens.refresh_token;
-
-  if (typeof accessToken !== "string" || !accessToken) return null;
-  if (typeof refreshToken !== "string" || !refreshToken) return null;
-
-  // Codex CLI doesn't store expiry, estimate 1 hour from file mtime or now
-  let expires: number;
-  try {
-    const stat = fs.statSync(authPath);
-    // Assume token is valid for ~1 hour from when the file was last modified
-    expires = stat.mtimeMs + 60 * 60 * 1000;
-  } catch {
-    expires = Date.now() + 60 * 60 * 1000;
-  }
-
-  return {
-    type: "oauth",
-    provider: "openai-codex" as unknown as OAuthProvider,
-    access: accessToken,
-    refresh: refreshToken,
-    expires,
-  };
 }
 
 function shallowEqualOAuthCredentials(
@@ -452,6 +366,19 @@ function shallowEqualTokenCredentials(
   );
 }
 
+function isExternalProfileFresh(
+  cred: AuthProfileCredential | undefined,
+  now: number,
+): boolean {
+  if (!cred) return false;
+  if (cred.type !== "oauth" && cred.type !== "token") return false;
+  if (cred.provider !== "anthropic" && cred.provider !== "openai-codex") {
+    return false;
+  }
+  if (typeof cred.expires !== "number") return true;
+  return cred.expires > now + EXTERNAL_CLI_NEAR_EXPIRY_MS;
+}
+
 /**
  * Sync OAuth credentials from external CLI tools (Claude CLI, Codex CLI) into the store.
  * This allows clawdbot to use the same credentials as these tools without requiring
@@ -466,28 +393,69 @@ function syncExternalCliCredentials(
   let mutated = false;
   const now = Date.now();
 
-  // Sync from Claude CLI
-  const claudeCreds = readClaudeCliCredentials(options);
+  // Sync from Claude CLI (supports both OAuth and Token credentials)
+  const existingClaude = store.profiles[CLAUDE_CLI_PROFILE_ID];
+  const shouldSyncClaude =
+    !existingClaude ||
+    existingClaude.provider !== "anthropic" ||
+    existingClaude.type === "token" ||
+    !isExternalProfileFresh(existingClaude, now);
+  const claudeCreds = shouldSyncClaude
+    ? readClaudeCliCredentialsCached({
+        allowKeychainPrompt: options?.allowKeychainPrompt,
+        ttlMs: EXTERNAL_CLI_SYNC_TTL_MS,
+      })
+    : null;
   if (claudeCreds) {
     const existing = store.profiles[CLAUDE_CLI_PROFILE_ID];
-    const existingToken = existing?.type === "token" ? existing : undefined;
+    const claudeCredsExpires = claudeCreds.expires ?? 0;
 
-    // Update if: no existing profile, existing is not oauth, or CLI has newer/valid token
-    const shouldUpdate =
-      !existingToken ||
-      existingToken.provider !== "anthropic" ||
-      (existingToken.expires ?? 0) <= now ||
-      ((claudeCreds.expires ?? 0) > now &&
-        (claudeCreds.expires ?? 0) > (existingToken.expires ?? 0));
+    // Determine if we should update based on credential comparison
+    let shouldUpdate = false;
+    let isEqual = false;
 
-    if (
-      shouldUpdate &&
-      !shallowEqualTokenCredentials(existingToken, claudeCreds)
-    ) {
+    if (claudeCreds.type === "oauth") {
+      const existingOAuth = existing?.type === "oauth" ? existing : undefined;
+      isEqual = shallowEqualOAuthCredentials(existingOAuth, claudeCreds);
+      // Update if: no existing profile, type changed to oauth, expired, or CLI has newer token
+      shouldUpdate =
+        !existingOAuth ||
+        existingOAuth.provider !== "anthropic" ||
+        existingOAuth.expires <= now ||
+        (claudeCredsExpires > now &&
+          claudeCredsExpires > existingOAuth.expires);
+    } else {
+      const existingToken = existing?.type === "token" ? existing : undefined;
+      isEqual = shallowEqualTokenCredentials(existingToken, claudeCreds);
+      // Update if: no existing profile, expired, or CLI has newer token
+      shouldUpdate =
+        !existingToken ||
+        existingToken.provider !== "anthropic" ||
+        (existingToken.expires ?? 0) <= now ||
+        (claudeCredsExpires > now &&
+          claudeCredsExpires > (existingToken.expires ?? 0));
+    }
+
+    // Also update if credential type changed (token -> oauth upgrade)
+    if (existing && existing.type !== claudeCreds.type) {
+      // Prefer oauth over token (enables auto-refresh)
+      if (claudeCreds.type === "oauth") {
+        shouldUpdate = true;
+        isEqual = false;
+      }
+    }
+
+    // Avoid downgrading from oauth to token-only credentials.
+    if (existing?.type === "oauth" && claudeCreds.type === "token") {
+      shouldUpdate = false;
+    }
+
+    if (shouldUpdate && !isEqual) {
       store.profiles[CLAUDE_CLI_PROFILE_ID] = claudeCreds;
       mutated = true;
       log.info("synced anthropic credentials from claude cli", {
         profileId: CLAUDE_CLI_PROFILE_ID,
+        type: claudeCreds.type,
         expires:
           typeof claudeCreds.expires === "number"
             ? new Date(claudeCreds.expires).toISOString()
@@ -497,7 +465,14 @@ function syncExternalCliCredentials(
   }
 
   // Sync from Codex CLI
-  const codexCreds = readCodexCliCredentials();
+  const existingCodex = store.profiles[CODEX_CLI_PROFILE_ID];
+  const shouldSyncCodex =
+    !existingCodex ||
+    existingCodex.provider !== ("openai-codex" as OAuthProvider) ||
+    !isExternalProfileFresh(existingCodex, now);
+  const codexCreds = shouldSyncCodex
+    ? readCodexCliCredentialsCached({ ttlMs: EXTERNAL_CLI_SYNC_TTL_MS })
+    : null;
   if (codexCreds) {
     const existing = store.profiles[CODEX_CLI_PROFILE_ID];
     const existingOAuth = existing?.type === "oauth" ? existing : undefined;
@@ -680,10 +655,45 @@ export function saveAuthProfileStore(
   const payload = {
     version: AUTH_STORE_VERSION,
     profiles: store.profiles,
+    order: store.order ?? undefined,
     lastGood: store.lastGood ?? undefined,
     usageStats: store.usageStats ?? undefined,
   } satisfies AuthProfileStore;
   saveJsonFile(authPath, payload);
+}
+
+export async function setAuthProfileOrder(params: {
+  agentDir?: string;
+  provider: string;
+  order?: string[] | null;
+}): Promise<AuthProfileStore | null> {
+  const providerKey = normalizeProviderId(params.provider);
+  const sanitized =
+    params.order && Array.isArray(params.order)
+      ? params.order.map((entry) => String(entry).trim()).filter(Boolean)
+      : [];
+
+  const deduped: string[] = [];
+  for (const entry of sanitized) {
+    if (!deduped.includes(entry)) deduped.push(entry);
+  }
+
+  return await updateAuthProfileStoreWithLock({
+    agentDir: params.agentDir,
+    updater: (store) => {
+      store.order = store.order ?? {};
+      if (deduped.length === 0) {
+        if (!store.order[providerKey]) return false;
+        delete store.order[providerKey];
+        if (Object.keys(store.order).length === 0) {
+          store.order = undefined;
+        }
+        return true;
+      }
+      store.order[providerKey] = deduped;
+      return true;
+    },
+  });
 }
 
 export function upsertAuthProfile(params: {
@@ -714,8 +724,9 @@ export function isProfileInCooldown(
   profileId: string,
 ): boolean {
   const stats = store.usageStats?.[profileId];
-  if (!stats?.cooldownUntil) return false;
-  return Date.now() < stats.cooldownUntil;
+  if (!stats) return false;
+  const unusableUntil = resolveProfileUnusableUntil(stats);
+  return unusableUntil ? Date.now() < unusableUntil : false;
 }
 
 /**
@@ -738,6 +749,9 @@ export async function markAuthProfileUsed(params: {
         lastUsed: Date.now(),
         errorCount: 0,
         cooldownUntil: undefined,
+        disabledUntil: undefined,
+        disabledReason: undefined,
+        failureCounts: undefined,
       };
       return true;
     },
@@ -754,6 +768,9 @@ export async function markAuthProfileUsed(params: {
     lastUsed: Date.now(),
     errorCount: 0,
     cooldownUntil: undefined,
+    disabledUntil: undefined,
+    disabledReason: undefined,
+    failureCounts: undefined,
   };
   saveAuthProfileStore(store, agentDir);
 }
@@ -766,34 +783,163 @@ export function calculateAuthProfileCooldownMs(errorCount: number): number {
   );
 }
 
+type ResolvedAuthCooldownConfig = {
+  billingBackoffMs: number;
+  billingMaxMs: number;
+  failureWindowMs: number;
+};
+
+function resolveAuthCooldownConfig(params: {
+  cfg?: ClawdbotConfig;
+  providerId: string;
+}): ResolvedAuthCooldownConfig {
+  const defaults = {
+    billingBackoffHours: 5,
+    billingMaxHours: 24,
+    failureWindowHours: 24,
+  } as const;
+
+  const resolveHours = (value: unknown, fallback: number) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0
+      ? value
+      : fallback;
+
+  const cooldowns = params.cfg?.auth?.cooldowns;
+  const billingOverride = (() => {
+    const map = cooldowns?.billingBackoffHoursByProvider;
+    if (!map) return undefined;
+    for (const [key, value] of Object.entries(map)) {
+      if (normalizeProviderId(key) === params.providerId) return value;
+    }
+    return undefined;
+  })();
+
+  const billingBackoffHours = resolveHours(
+    billingOverride ?? cooldowns?.billingBackoffHours,
+    defaults.billingBackoffHours,
+  );
+  const billingMaxHours = resolveHours(
+    cooldowns?.billingMaxHours,
+    defaults.billingMaxHours,
+  );
+  const failureWindowHours = resolveHours(
+    cooldowns?.failureWindowHours,
+    defaults.failureWindowHours,
+  );
+
+  return {
+    billingBackoffMs: billingBackoffHours * 60 * 60 * 1000,
+    billingMaxMs: billingMaxHours * 60 * 60 * 1000,
+    failureWindowMs: failureWindowHours * 60 * 60 * 1000,
+  };
+}
+
+function calculateAuthProfileBillingDisableMsWithConfig(params: {
+  errorCount: number;
+  baseMs: number;
+  maxMs: number;
+}): number {
+  const normalized = Math.max(1, params.errorCount);
+  const baseMs = Math.max(60_000, params.baseMs);
+  const maxMs = Math.max(baseMs, params.maxMs);
+  const exponent = Math.min(normalized - 1, 10);
+  const raw = baseMs * 2 ** exponent;
+  return Math.min(maxMs, raw);
+}
+
+function resolveProfileUnusableUntil(stats: ProfileUsageStats): number | null {
+  const values = [stats.cooldownUntil, stats.disabledUntil]
+    .filter((value): value is number => typeof value === "number")
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (values.length === 0) return null;
+  return Math.max(...values);
+}
+
+export function resolveProfileUnusableUntilForDisplay(
+  store: AuthProfileStore,
+  profileId: string,
+): number | null {
+  const stats = store.usageStats?.[profileId];
+  if (!stats) return null;
+  return resolveProfileUnusableUntil(stats);
+}
+
+function computeNextProfileUsageStats(params: {
+  existing: ProfileUsageStats;
+  now: number;
+  reason: AuthProfileFailureReason;
+  cfgResolved: ResolvedAuthCooldownConfig;
+}): ProfileUsageStats {
+  const windowMs = params.cfgResolved.failureWindowMs;
+  const windowExpired =
+    typeof params.existing.lastFailureAt === "number" &&
+    params.existing.lastFailureAt > 0 &&
+    params.now - params.existing.lastFailureAt > windowMs;
+
+  const baseErrorCount = windowExpired ? 0 : (params.existing.errorCount ?? 0);
+  const nextErrorCount = baseErrorCount + 1;
+  const failureCounts = windowExpired
+    ? {}
+    : { ...params.existing.failureCounts };
+  failureCounts[params.reason] = (failureCounts[params.reason] ?? 0) + 1;
+
+  const updatedStats: ProfileUsageStats = {
+    ...params.existing,
+    errorCount: nextErrorCount,
+    failureCounts,
+    lastFailureAt: params.now,
+  };
+
+  if (params.reason === "billing") {
+    const billingCount = failureCounts.billing ?? 1;
+    const backoffMs = calculateAuthProfileBillingDisableMsWithConfig({
+      errorCount: billingCount,
+      baseMs: params.cfgResolved.billingBackoffMs,
+      maxMs: params.cfgResolved.billingMaxMs,
+    });
+    updatedStats.disabledUntil = params.now + backoffMs;
+    updatedStats.disabledReason = "billing";
+  } else {
+    const backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);
+    updatedStats.cooldownUntil = params.now + backoffMs;
+  }
+
+  return updatedStats;
+}
+
 /**
- * Mark a profile as failed/rate-limited. Applies exponential backoff cooldown.
- * Cooldown times: 1min, 5min, 25min, max 1 hour.
- * Uses store lock to avoid overwriting concurrent usage updates.
+ * Mark a profile as failed for a specific reason. Billing failures are treated
+ * as "disabled" (longer backoff) vs the regular cooldown window.
  */
-export async function markAuthProfileCooldown(params: {
+export async function markAuthProfileFailure(params: {
   store: AuthProfileStore;
   profileId: string;
+  reason: AuthProfileFailureReason;
+  cfg?: ClawdbotConfig;
   agentDir?: string;
 }): Promise<void> {
-  const { store, profileId, agentDir } = params;
+  const { store, profileId, reason, agentDir, cfg } = params;
   const updated = await updateAuthProfileStoreWithLock({
     agentDir,
     updater: (freshStore) => {
-      if (!freshStore.profiles[profileId]) return false;
-
+      const profile = freshStore.profiles[profileId];
+      if (!profile) return false;
       freshStore.usageStats = freshStore.usageStats ?? {};
       const existing = freshStore.usageStats[profileId] ?? {};
-      const errorCount = (existing.errorCount ?? 0) + 1;
 
-      // Exponential backoff: 1min, 5min, 25min, capped at 1h
-      const backoffMs = calculateAuthProfileCooldownMs(errorCount);
+      const now = Date.now();
+      const providerKey = normalizeProviderId(profile.provider);
+      const cfgResolved = resolveAuthCooldownConfig({
+        cfg,
+        providerId: providerKey,
+      });
 
-      freshStore.usageStats[profileId] = {
-        ...existing,
-        errorCount,
-        cooldownUntil: Date.now() + backoffMs,
-      };
+      freshStore.usageStats[profileId] = computeNextProfileUsageStats({
+        existing,
+        now,
+        reason,
+        cfgResolved,
+      });
       return true;
     },
   });
@@ -805,17 +951,40 @@ export async function markAuthProfileCooldown(params: {
 
   store.usageStats = store.usageStats ?? {};
   const existing = store.usageStats[profileId] ?? {};
-  const errorCount = (existing.errorCount ?? 0) + 1;
+  const now = Date.now();
+  const providerKey = normalizeProviderId(
+    store.profiles[profileId]?.provider ?? "",
+  );
+  const cfgResolved = resolveAuthCooldownConfig({
+    cfg,
+    providerId: providerKey,
+  });
 
-  // Exponential backoff: 1min, 5min, 25min, capped at 1h
-  const backoffMs = calculateAuthProfileCooldownMs(errorCount);
-
-  store.usageStats[profileId] = {
-    ...existing,
-    errorCount,
-    cooldownUntil: Date.now() + backoffMs,
-  };
+  store.usageStats[profileId] = computeNextProfileUsageStats({
+    existing,
+    now,
+    reason,
+    cfgResolved,
+  });
   saveAuthProfileStore(store, agentDir);
+}
+
+/**
+ * Mark a profile as failed/rate-limited. Applies exponential backoff cooldown.
+ * Cooldown times: 1min, 5min, 25min, max 1 hour.
+ * Uses store lock to avoid overwriting concurrent usage updates.
+ */
+export async function markAuthProfileCooldown(params: {
+  store: AuthProfileStore;
+  profileId: string;
+  agentDir?: string;
+}): Promise<void> {
+  await markAuthProfileFailure({
+    store: params.store,
+    profileId: params.profileId,
+    reason: "unknown",
+    agentDir: params.agentDir,
+  });
 }
 
 /**
@@ -863,6 +1032,14 @@ export function resolveAuthProfileOrder(params: {
 }): string[] {
   const { cfg, store, provider, preferredProfile } = params;
   const providerKey = normalizeProviderId(provider);
+  const storedOrder = (() => {
+    const order = store.order;
+    if (!order) return undefined;
+    for (const [key, value] of Object.entries(order)) {
+      if (normalizeProviderId(key) === providerKey) return value;
+    }
+    return undefined;
+  })();
   const configuredOrder = (() => {
     const order = cfg?.auth?.order;
     if (!order) return undefined;
@@ -871,6 +1048,7 @@ export function resolveAuthProfileOrder(params: {
     }
     return undefined;
   })();
+  const explicitOrder = storedOrder ?? configuredOrder;
   const explicitProfiles = cfg?.auth?.profiles
     ? Object.entries(cfg.auth.profiles)
         .filter(
@@ -880,7 +1058,7 @@ export function resolveAuthProfileOrder(params: {
         .map(([profileId]) => profileId)
     : [];
   const baseOrder =
-    configuredOrder ??
+    explicitOrder ??
     (explicitProfiles.length > 0
       ? explicitProfiles
       : listProfilesForProvider(store, providerKey));
@@ -895,16 +1073,45 @@ export function resolveAuthProfileOrder(params: {
     if (!deduped.includes(entry)) deduped.push(entry);
   }
 
-  // If user specified explicit order in config, respect it exactly
-  if (configuredOrder && configuredOrder.length > 0) {
+  // If user specified explicit order (store override or config), respect it
+  // exactly, but still apply cooldown sorting to avoid repeatedly selecting
+  // known-bad/rate-limited keys as the first candidate.
+  if (explicitOrder && explicitOrder.length > 0) {
+    // ...but still respect cooldown tracking to avoid repeatedly selecting a
+    // known-bad/rate-limited key as the first candidate.
+    const now = Date.now();
+    const available: string[] = [];
+    const inCooldown: Array<{ profileId: string; cooldownUntil: number }> = [];
+
+    for (const profileId of deduped) {
+      const cooldownUntil =
+        resolveProfileUnusableUntil(store.usageStats?.[profileId] ?? {}) ?? 0;
+      if (
+        typeof cooldownUntil === "number" &&
+        Number.isFinite(cooldownUntil) &&
+        cooldownUntil > 0 &&
+        now < cooldownUntil
+      ) {
+        inCooldown.push({ profileId, cooldownUntil });
+      } else {
+        available.push(profileId);
+      }
+    }
+
+    const cooldownSorted = inCooldown
+      .sort((a, b) => a.cooldownUntil - b.cooldownUntil)
+      .map((entry) => entry.profileId);
+
+    const ordered = [...available, ...cooldownSorted];
+
     // Still put preferredProfile first if specified
-    if (preferredProfile && deduped.includes(preferredProfile)) {
+    if (preferredProfile && ordered.includes(preferredProfile)) {
       return [
         preferredProfile,
-        ...deduped.filter((e) => e !== preferredProfile),
+        ...ordered.filter((e) => e !== preferredProfile),
       ];
     }
-    return deduped;
+    return ordered;
   }
 
   // Otherwise, use round-robin: sort by lastUsed (oldest first)
@@ -962,7 +1169,8 @@ function orderProfilesByMode(
   const cooldownSorted = inCooldown
     .map((profileId) => ({
       profileId,
-      cooldownUntil: store.usageStats?.[profileId]?.cooldownUntil ?? now,
+      cooldownUntil:
+        resolveProfileUnusableUntil(store.usageStats?.[profileId] ?? {}) ?? now,
     }))
     .sort((a, b) => a.cooldownUntil - b.cooldownUntil)
     .map((entry) => entry.profileId);
@@ -1092,8 +1300,8 @@ export async function markAuthProfileGood(params: {
   saveAuthProfileStore(store, agentDir);
 }
 
-export function resolveAuthStorePathForDisplay(): string {
-  const pathname = resolveAuthStorePath();
+export function resolveAuthStorePathForDisplay(agentDir?: string): string {
+  const pathname = resolveAuthStorePath(agentDir);
   return pathname.startsWith("~") ? pathname : resolveUserPath(pathname);
 }
 

@@ -47,7 +47,6 @@ Sources/Voice/VoiceWakePreferences.swift
 ../shared/ClawdbotKit/Sources/ClawdbotKit/CanvasCommandParams.swift
 ../shared/ClawdbotKit/Sources/ClawdbotKit/CanvasCommands.swift
 ../shared/ClawdbotKit/Sources/ClawdbotKit/Capabilities.swift
-../shared/ClawdbotKit/Sources/ClawdbotKit/ClawdbotKitResources.swift
 ../shared/ClawdbotKit/Sources/ClawdbotKit/DeepLinks.swift
 ../shared/ClawdbotKit/Sources/ClawdbotKit/JPEGTranscoder.swift
 ../shared/ClawdbotKit/Sources/ClawdbotKit/NodeError.swift
@@ -55,6 +54,5 @@ Sources/Voice/VoiceWakePreferences.swift
 ../shared/ClawdbotKit/Sources/ClawdbotKit/StoragePaths.swift
 ../shared/ClawdbotKit/Sources/ClawdbotKit/SystemCommands.swift
 ../shared/ClawdbotKit/Sources/ClawdbotKit/TalkDirective.swift
-../../Swabble/Sources/SwabbleKit/WakeWordGate.swift
 Sources/Voice/TalkModeManager.swift
 Sources/Voice/TalkOrbOverlay.swift
