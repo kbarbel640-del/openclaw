@@ -5,6 +5,10 @@
 ### Changes
 - Subagents: add config to set default sub-agent model (`agents.defaults.subagents.model` + per-agent override); still overridden by `sessions_spawn.model`.
 
+### Fixes
+- Tools/Models: MiniMax vision now uses the Coding Plan VLM endpoint (`/v1/coding_plan/vlm`) so the `image` tool works with MiniMax keys (also accepts `@/path/to/file.png`-style inputs).
+- Gateway/macOS: reduce noisy loopback WS “closed before connect” logs during tests.
+
 ## 2026.1.12-1
 
 ### Changes
@@ -33,6 +37,8 @@
 - Google: apply patched pi-ai `google-gemini-cli` function call handling (strips ids) after upgrading to pi-ai 0.43.0.
 - Auto-reply: elevated/reasoning toggles now enqueue system events so the model sees the mode change immediately.
 - Tools: keep `image` available in sandbox and fail over when image models return empty output (fixes “(no text returned)”).
+- Discord: add per-channel `autoThread` to auto-create threads for top-level messages. (#800) — thanks @davidguttman.
+- Onboarding: TUI defaults to `deliver: false` to avoid cross-provider auto-delivery leaks; onboarding spawns the TUI with explicit `deliver: false`. (#791 — thanks @roshanasingh4)
 
 ## 2026.1.11
 
