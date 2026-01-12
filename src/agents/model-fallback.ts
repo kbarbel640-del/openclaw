@@ -1,5 +1,9 @@
 import type { ClawdbotConfig } from "../config/config.js";
-import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
+import {
+  DEFAULT_MODEL,
+  DEFAULT_MODEL_FALLBACKS,
+  DEFAULT_PROVIDER,
+} from "./defaults.js";
 import {
   coerceToFailoverError,
   describeFailoverError,
@@ -163,8 +167,12 @@ function resolveFallbackCandidates(params: {
       | { fallbacks?: string[] }
       | string
       | undefined;
-    if (model && typeof model === "object") return model.fallbacks ?? [];
-    return [];
+    if (model && typeof model === "object") {
+      // User has explicit model config - respect their fallbacks setting (even if empty)
+      return model.fallbacks ?? [];
+    }
+    // No model config at all - use built-in fallbacks (Opus → Sonnet → Haiku)
+    return [...DEFAULT_MODEL_FALLBACKS];
   })();
 
   for (const raw of modelFallbacks) {

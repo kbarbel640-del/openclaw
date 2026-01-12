@@ -102,6 +102,28 @@ describe("runWithModelFallback", () => {
     expect(run.mock.calls[1]?.[1]).toBe("claude-haiku-3-5");
   });
 
+  it("uses default fallbacks when no model config exists", async () => {
+    // No agents.defaults.model config at all → should use DEFAULT_MODEL_FALLBACKS
+    const cfg = {} as ClawdbotConfig;
+    const run = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("nope"), { status: 429 }))
+      .mockResolvedValueOnce("ok");
+
+    const result = await runWithModelFallback({
+      cfg,
+      provider: "anthropic",
+      model: "claude-opus-4-5",
+      run,
+    });
+
+    expect(result.result).toBe("ok");
+    expect(run).toHaveBeenCalledTimes(2);
+    // Should fallback to first default: claude-sonnet-4-5
+    expect(result.provider).toBe("anthropic");
+    expect(result.model).toBe("claude-sonnet-4-5");
+  });
+
   it("appends the configured primary as a last fallback", async () => {
     const cfg = makeCfg({
       agents: {
