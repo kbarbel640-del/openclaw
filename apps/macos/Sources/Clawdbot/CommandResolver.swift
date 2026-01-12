@@ -387,10 +387,6 @@ enum CommandResolver {
             cliPath: cliPath)
     }
 
-    static var attachExistingGatewayOnly: Bool {
-        UserDefaults.standard.bool(forKey: attachExistingGatewayOnlyKey)
-    }
-
     static func connectionModeIsRemote(defaults: UserDefaults = .standard) -> Bool {
         self.connectionSettings(defaults: defaults).mode == .remote
     }

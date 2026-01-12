@@ -1302,6 +1302,7 @@ public struct SkillsUpdateParams: Codable, Sendable {
 
 public struct CronJob: Codable, Sendable {
     public let id: String
+    public let agentid: String?
     public let name: String
     public let description: String?
     public let enabled: Bool
@@ -1316,6 +1317,7 @@ public struct CronJob: Codable, Sendable {
 
     public init(
         id: String,
+        agentid: String?,
         name: String,
         description: String?,
         enabled: Bool,
@@ -1329,6 +1331,7 @@ public struct CronJob: Codable, Sendable {
         state: [String: AnyCodable]
     ) {
         self.id = id
+        self.agentid = agentid
         self.name = name
         self.description = description
         self.enabled = enabled
@@ -1343,6 +1346,7 @@ public struct CronJob: Codable, Sendable {
     }
     private enum CodingKeys: String, CodingKey {
         case id
+        case agentid = "agentId"
         case name
         case description
         case enabled
@@ -1375,6 +1379,7 @@ public struct CronStatusParams: Codable, Sendable {
 
 public struct CronAddParams: Codable, Sendable {
     public let name: String
+    public let agentid: AnyCodable?
     public let description: String?
     public let enabled: Bool?
     public let schedule: AnyCodable
@@ -1385,6 +1390,7 @@ public struct CronAddParams: Codable, Sendable {
 
     public init(
         name: String,
+        agentid: AnyCodable?,
         description: String?,
         enabled: Bool?,
         schedule: AnyCodable,
@@ -1394,6 +1400,7 @@ public struct CronAddParams: Codable, Sendable {
         isolation: [String: AnyCodable]?
     ) {
         self.name = name
+        self.agentid = agentid
         self.description = description
         self.enabled = enabled
         self.schedule = schedule
@@ -1404,6 +1411,7 @@ public struct CronAddParams: Codable, Sendable {
     }
     private enum CodingKeys: String, CodingKey {
         case name
+        case agentid = "agentId"
         case description
         case enabled
         case schedule

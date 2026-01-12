@@ -1,10 +1,24 @@
-# Voice Call Plugin
+# @clawdbot/voice-call
 
-Twilio-backed outbound voice calls (with a log-only fallback for dev).
+Official Voice Call plugin for **Clawdbot**.
+
+- Provider: **Twilio** (real outbound calls)
+- Dev fallback: `log` (no network)
+
+Docs: `https://docs.clawd.bot/plugins/voice-call`
+Plugin system: `https://docs.clawd.bot/plugin`
 
 ## Install (local dev)
 
-Option 1: copy into your global extensions folder:
+### Option A: install via Clawdbot (recommended)
+
+```bash
+clawdbot plugins install @clawdbot/voice-call
+```
+
+Restart the Gateway afterwards.
+
+### Option B: copy into your global extensions folder (dev)
 
 ```bash
 mkdir -p ~/.clawdbot/extensions
@@ -12,13 +26,13 @@ cp -R extensions/voice-call ~/.clawdbot/extensions/voice-call
 cd ~/.clawdbot/extensions/voice-call && pnpm install
 ```
 
-Option 2: add via config:
+### Option C: add via config (custom path)
 
 ```json5
 {
   plugins: {
-    load: { paths: ["/absolute/path/to/extensions/voice-call"] },
-    entries: { "voice-call": { enabled: true } }
+    load: { paths: ["/absolute/path/to/voice-call/index.ts"] },
+    entries: { "voice-call": { enabled: true, config: { provider: "log" } } }
   }
 }
 ```
@@ -47,6 +61,15 @@ Dev fallback (no network):
 ```json5
 { provider: "log" }
 ```
+
+## Twilio credentials (quick notes)
+
+You’ll need a Twilio account, your **Account SID**, your **Auth Token**, and a Twilio **Voice-capable** phone number to use as `from`.
+
+- Signup: `https://www.twilio.com/`
+- Console: `https://console.twilio.com/`
+
+Full setup guide: `https://docs.clawd.bot/plugins/voice-call`
 
 ## CLI
 

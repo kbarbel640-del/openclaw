@@ -276,7 +276,7 @@ struct MenuContent: View {
                     Label("Send Test Notification", systemImage: "bell")
                 }
                 Divider()
-                if self.state.connectionMode == .local, !AppStateStore.attachExistingGatewayOnly {
+                if self.state.connectionMode == .local {
                     Button {
                         DebugActions.restartGateway()
                     } label: {

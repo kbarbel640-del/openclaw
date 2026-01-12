@@ -1,8 +1,18 @@
 # AGENTS.md - Your Workspace
 
-This folder is home. Treat it that way.
+## Project Structure & Module Organization
+- Source code: `src/` (CLI wiring in `src/cli`, commands in `src/commands`, web provider in `src/provider-web.ts`, infra in `src/infra`, media pipeline in `src/media`).
+- Tests: colocated `*.test.ts`.
+- Docs: `docs/` (images, queue, Pi config). Built output lives in `dist/`.
+- Installers served from `https://clawd.bot/*`: live in the sibling repo `../clawd.bot` (`public/install.sh`, `public/install-cli.sh`, `public/install.ps1`).
 
-## First Run
+## Docs Linking (Mintlify)
+- Docs are hosted on Mintlify (docs.clawd.bot).
+- Internal doc links in `docs/**/*.md`: root-relative, no `.md`/`.mdx` (example: `[Config](/configuration)`).
+- Section cross-references: use anchors on root-relative paths (example: `[Hooks](/configuration#hooks)`).
+- When Peter asks for links, reply with full `https://docs.clawd.bot/...` URLs (not root-relative).
+- README (GitHub): keep absolute docs URLs (`https://docs.clawd.bot/...`) so links work on GitHub.
+- Docs content must be generic: no personal device names/hostnames/paths; use placeholders like `user@gateway-host` and “gateway host”.
 
 If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out who you are, then delete it. You won't need it again.
 
@@ -17,10 +27,11 @@ Don't ask permission. Just do it.
 
 ## Memory
 
-You wake up fresh each session. These files are your continuity:
-- **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed)
-- **Long-term:** `memory.md` for durable facts, preferences, open loops
-- **People info:** Save to **ppl.gift CRM** (not just local files!) so David can see it
+## Security & Configuration Tips
+- Web provider stores creds at `~/.clawdbot/credentials/`; rerun `clawdbot login` if logged out.
+- Pi sessions live under `~/.clawdbot/sessions/` by default; the base directory is not configurable.
+- Environment variables: see `~/.profile`.
+- Never commit or publish real phone numbers, videos, or live configuration values. Use obviously fake placeholders in docs, tests, and examples.
 
 Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
 

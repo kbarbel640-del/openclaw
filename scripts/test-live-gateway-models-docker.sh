@@ -19,10 +19,6 @@ echo "==> Run gateway live model tests (profile keys)"
 docker run --rm -t \
   --entrypoint bash \
   -e HOME=/home/node \
-  -e CLAWDBOT_LIVE_TEST=1 \
-  -e CLAWDBOT_LIVE_GATEWAY=1 \
-  -e CLAWDBOT_LIVE_GATEWAY_ALL_MODELS=1 \
-  -e CLAWDBOT_LIVE_GATEWAY_MODELS="${CLAWDBOT_LIVE_GATEWAY_MODELS:-all}" \
   -v "$CONFIG_DIR":/home/node/.clawdbot \
   -v "$WORKSPACE_DIR":/home/node/clawd \
   "${PROFILE_MOUNT[@]}" \
