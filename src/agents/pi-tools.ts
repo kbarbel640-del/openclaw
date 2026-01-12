@@ -457,6 +457,63 @@ function createWhatsAppLoginTool(): AnyAgentTool {
   };
 }
 
+// Patch the tool schema to allow Claude-style parameters (file_path, old_string, new_string)
+// without failing validation. We make the original parameters optional and add the aliases.
+function patchToolSchemaForClaudeCompatibility(
+  tool: AnyAgentTool,
+): AnyAgentTool {
+  const schema =
+    tool.parameters && typeof tool.parameters === "object"
+      ? (tool.parameters as Record<string, unknown>)
+      : undefined;
+
+  if (!schema || !schema.properties || typeof schema.properties !== "object") {
+    return tool;
+  }
+
+  const properties = { ...(schema.properties as Record<string, unknown>) };
+  const required = Array.isArray(schema.required)
+    ? [...(schema.required as string[])]
+    : [];
+  let changed = false;
+
+  // Helper to alias a property
+  const aliasProperty = (
+    original: string,
+    alias: string,
+    type: string = "string",
+  ) => {
+    if (original in properties) {
+      // Add alias if missing
+      if (!(alias in properties)) {
+        properties[alias] = { type };
+        changed = true;
+      }
+      // Make original optional in required list
+      const idx = required.indexOf(original);
+      if (idx !== -1) {
+        required.splice(idx, 1);
+        changed = true;
+      }
+    }
+  };
+
+  aliasProperty("path", "file_path");
+  aliasProperty("oldText", "old_string");
+  aliasProperty("newText", "new_string");
+
+  if (!changed) return tool;
+
+  return {
+    ...tool,
+    parameters: {
+      ...schema,
+      properties,
+      required,
+    },
+  };
+}
+
 // Normalize tool parameters from Claude Code conventions to pi-coding-agent conventions.
 // Claude Code uses file_path/old_string/new_string while pi-coding-agent uses path/oldText/newText.
 // This prevents models trained on Claude Code from getting stuck in tool-call loops.
@@ -486,8 +543,9 @@ function normalizeToolParams(
 
 // Generic wrapper to normalize parameters for any tool
 function wrapToolParamNormalization(tool: AnyAgentTool): AnyAgentTool {
+  const patched = patchToolSchemaForClaudeCompatibility(tool);
   return {
-    ...tool,
+    ...patched,
     execute: async (toolCallId, params, signal, onUpdate) => {
       const normalized = normalizeToolParams(params);
       return tool.execute(toolCallId, normalized ?? params, signal, onUpdate);
@@ -496,8 +554,9 @@ function wrapToolParamNormalization(tool: AnyAgentTool): AnyAgentTool {
 }
 
 function createClawdbotReadTool(base: AnyAgentTool): AnyAgentTool {
+  const patched = patchToolSchemaForClaudeCompatibility(base);
   return {
-    ...base,
+    ...patched,
     execute: async (toolCallId, params, signal) => {
       const normalized = normalizeToolParams(params);
       const result = (await base.execute(
