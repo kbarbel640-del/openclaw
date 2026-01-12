@@ -15,6 +15,7 @@ const LOADERS: Record<ProviderId, OutboundLoader> = {
   signal: async () => (await import("./signal.js")).signalOutbound,
   imessage: async () => (await import("./imessage.js")).imessageOutbound,
   msteams: async () => (await import("./msteams.js")).msteamsOutbound,
+  googlechat: async () => (await import("./googlechat.js")).googlechatOutbound,
 };
 
 const cache = new Map<ProviderId, ProviderOutboundAdapter>();

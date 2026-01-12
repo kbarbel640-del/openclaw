@@ -14,6 +14,7 @@ const LOADERS: Record<ProviderId, PluginLoader> = {
   signal: async () => (await import("./signal.js")).signalPlugin,
   imessage: async () => (await import("./imessage.js")).imessagePlugin,
   msteams: async () => (await import("./msteams.js")).msteamsPlugin,
+  googlechat: async () => (await import("./googlechat.js")).googlechatPlugin,
 };
 
 const cache = new Map<ProviderId, ProviderPlugin>();

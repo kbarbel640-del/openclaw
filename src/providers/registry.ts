@@ -8,6 +8,7 @@ export const CHAT_PROVIDER_ORDER = [
   "signal",
   "imessage",
   "msteams",
+  "googlechat",
 ] as const;
 
 export type ChatProviderId = (typeof CHAT_PROVIDER_ORDER)[number];
@@ -94,11 +95,20 @@ const CHAT_PROVIDER_META: Record<ChatProviderId, ChatProviderMeta> = {
     docsLabel: "msteams",
     blurb: "supported (Bot Framework).",
   },
+  googlechat: {
+    id: "googlechat",
+    label: "Google Chat",
+    selectionLabel: "Google Chat (Pub/Sub)",
+    docsPath: "/googlechat",
+    docsLabel: "googlechat",
+    blurb: "Google Workspace only; uses Pub/Sub for firewall-friendly operation.",
+  },
 };
 
 export const CHAT_PROVIDER_ALIASES: Record<string, ChatProviderId> = {
   imsg: "imessage",
   teams: "msteams",
+  gchat: "googlechat",
 };
 
 const normalizeProviderKey = (raw?: string | null): string | undefined => {

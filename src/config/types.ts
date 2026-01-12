@@ -746,6 +746,40 @@ export type MSTeamsTeamConfig = {
   channels?: Record<string, MSTeamsChannelConfig>;
 };
 
+export type GoogleChatAccountConfig = {
+  /** Optional display name for this account (used in CLI/UI lists). */
+  name?: string;
+  /** If false, do not start this Google Chat account. Default: true. */
+  enabled?: boolean;
+  /** Google Cloud Project ID. */
+  projectId?: string;
+  /** Pub/Sub subscription name (full path: projects/.../subscriptions/...). */
+  subscriptionName?: string;
+  /** Path to service account credentials JSON file. */
+  credentialsPath?: string;
+  /** Direct message access policy (default: pairing). */
+  dmPolicy?: DmPolicy;
+  /** Allowlist for DM senders (email addresses). */
+  allowFrom?: string[];
+  /** Group/space access policy (default: disabled). */
+  spacePolicy?: GroupPolicy;
+  /** Allowlist for spaces (space IDs). */
+  allowSpaces?: string[];
+  /** Max space messages to keep as history context (0 disables). */
+  historyLimit?: number;
+  /** Max DM turns to keep as history context. */
+  dmHistoryLimit?: number;
+  /** Outbound text chunk size (chars). Default: 4000. */
+  textChunkLimit?: number;
+  /** Outbound message prefix. */
+  messagePrefix?: string;
+};
+
+export type GoogleChatConfig = {
+  /** Optional per-account Google Chat configuration (multi-account). */
+  accounts?: Record<string, GoogleChatAccountConfig>;
+} & GoogleChatAccountConfig;
+
 export type MSTeamsConfig = {
   /** If false, do not start the MS Teams provider. Default: true. */
   enabled?: boolean;
@@ -1655,6 +1689,7 @@ export type ClawdbotConfig = {
   signal?: SignalConfig;
   imessage?: IMessageConfig;
   msteams?: MSTeamsConfig;
+  googlechat?: GoogleChatConfig;
   cron?: CronConfig;
   hooks?: HooksConfig;
   bridge?: BridgeConfig;

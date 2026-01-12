@@ -4,6 +4,7 @@ import {
   normalizeChatProviderId,
 } from "../registry.js";
 import { discordPlugin } from "./discord.js";
+import { googlechatPlugin } from "./googlechat.js";
 import { imessagePlugin } from "./imessage.js";
 import { msteamsPlugin } from "./msteams.js";
 import { signalPlugin } from "./signal.js";
@@ -31,6 +32,7 @@ function resolveProviders(): ProviderPlugin[] {
     signalPlugin,
     imessagePlugin,
     msteamsPlugin,
+    googlechatPlugin,
   ];
 }
 
@@ -57,6 +59,7 @@ export function normalizeProviderId(raw?: string | null): ProviderId | null {
 
 export {
   discordPlugin,
+  googlechatPlugin,
   imessagePlugin,
   msteamsPlugin,
   signalPlugin,

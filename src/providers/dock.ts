@@ -1,5 +1,6 @@
 import type { ClawdbotConfig } from "../config/config.js";
 import { resolveDiscordAccount } from "../discord/accounts.js";
+import { resolveGoogleChatAccount } from "../googlechat/accounts.js";
 import { resolveIMessageAccount } from "../imessage/accounts.js";
 import { resolveSignalAccount } from "../signal/accounts.js";
 import { resolveSlackAccount } from "../slack/accounts.js";
@@ -279,6 +280,26 @@ const DOCKS: Record<ProviderId, ProviderDock> = {
     config: {
       resolveAllowFrom: ({ cfg }) => cfg.msteams?.allowFrom ?? [],
       formatAllowFrom: ({ allowFrom }) => formatLower(allowFrom),
+    },
+  },
+  googlechat: {
+    id: "googlechat",
+    capabilities: {
+      chatTypes: ["direct", "group", "thread"],
+      threads: true,
+      media: true,
+    },
+    outbound: { textChunkLimit: 4000 },
+    config: {
+      resolveAllowFrom: ({ cfg, accountId }) =>
+        resolveGoogleChatAccount({ cfg, accountId }).config.allowFrom ?? [],
+      formatAllowFrom: ({ allowFrom }) =>
+        allowFrom
+          .map((entry) => String(entry).trim().toLowerCase())
+          .filter(Boolean),
+    },
+    threading: {
+      resolveReplyToMode: () => "first",
     },
   },
 };
