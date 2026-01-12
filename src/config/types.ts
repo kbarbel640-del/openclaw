@@ -972,7 +972,7 @@ export type QueueConfig = {
 export type AgentToolsConfig = {
   allow?: string[];
   deny?: string[];
-  /** Per-agent elevated bash gate (can only further restrict global tools.elevated). */
+  /** Per-agent elevated exec gate (can only further restrict global tools.elevated). */
   elevated?: {
     /** Enable or disable elevated mode for this agent (default: true). */
     enabled?: boolean;
@@ -1003,14 +1003,33 @@ export type ToolsConfig = {
     /** Allowlist of agent ids or patterns (implementation-defined). */
     allow?: string[];
   };
-  /** Elevated bash permissions for the host machine. */
+  /** Elevated exec permissions for the host machine. */
   elevated?: {
     /** Enable or disable elevated mode (default: true). */
     enabled?: boolean;
     /** Approved senders for /elevated (per-provider allowlists). */
     allowFrom?: AgentElevatedAllowFromConfig;
   };
-  /** Bash tool defaults. */
+  /** Exec tool defaults. */
+  exec?: {
+    /** Default time (ms) before an exec command auto-backgrounds. */
+    backgroundMs?: number;
+    /** Default timeout (seconds) before auto-killing exec commands. */
+    timeoutSec?: number;
+    /** How long to keep finished sessions in memory (ms). */
+    cleanupMs?: number;
+    /** apply_patch subtool configuration (experimental). */
+    applyPatch?: {
+      /** Enable apply_patch for OpenAI models (default: false). */
+      enabled?: boolean;
+      /**
+       * Optional allowlist of model ids that can use apply_patch.
+       * Accepts either raw ids (e.g. "gpt-5.2") or full ids (e.g. "openai/gpt-5.2").
+       */
+      allowModels?: string[];
+    };
+  };
+  /** @deprecated Use tools.exec. */
   bash?: {
     /** Default time (ms) before a bash command auto-backgrounds. */
     backgroundMs?: number;

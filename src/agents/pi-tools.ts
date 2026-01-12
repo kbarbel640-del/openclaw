@@ -14,10 +14,11 @@ import {
   resolveAgentConfig,
   resolveAgentIdFromSessionKey,
 } from "./agent-scope.js";
+import { createApplyPatchTool } from "./apply-patch.js";
 import {
-  type BashToolDefaults,
-  createBashTool,
+  createExecTool,
   createProcessTool,
+  type ExecToolDefaults,
   type ProcessToolDefaults,
 } from "./bash-tools.js";
 import { createClawdbotTools } from "./clawdbot-tools.js";
@@ -290,9 +291,48 @@ function cleanToolSchemaForGemini(schema: Record<string, unknown>): unknown {
   return cleanSchemaForGemini(schema);
 }
 
+const TOOL_NAME_ALIASES: Record<string, string> = {
+  bash: "exec",
+  "apply-patch": "apply_patch",
+};
+
+function normalizeToolName(name: string) {
+  const normalized = name.trim().toLowerCase();
+  return TOOL_NAME_ALIASES[normalized] ?? normalized;
+}
+
 function normalizeToolNames(list?: string[]) {
   if (!list) return [];
-  return list.map((entry) => entry.trim().toLowerCase()).filter(Boolean);
+  return list.map(normalizeToolName).filter(Boolean);
+}
+
+function isOpenAIProvider(provider?: string) {
+  const normalized = provider?.trim().toLowerCase();
+  return normalized === "openai" || normalized === "openai-codex";
+}
+
+function isApplyPatchAllowedForModel(params: {
+  modelProvider?: string;
+  modelId?: string;
+  allowModels?: string[];
+}) {
+  const allowModels = Array.isArray(params.allowModels)
+    ? params.allowModels
+    : [];
+  if (allowModels.length === 0) return true;
+  const modelId = params.modelId?.trim();
+  if (!modelId) return false;
+  const normalizedModelId = modelId.toLowerCase();
+  const provider = params.modelProvider?.trim().toLowerCase();
+  const normalizedFull =
+    provider && !normalizedModelId.includes("/")
+      ? `${provider}/${normalizedModelId}`
+      : normalizedModelId;
+  return allowModels.some((entry) => {
+    const normalized = entry.trim().toLowerCase();
+    if (!normalized) return false;
+    return normalized === normalizedModelId || normalized === normalizedFull;
+  });
 }
 
 const DEFAULT_SUBAGENT_TOOL_DENY = [
@@ -312,20 +352,30 @@ function resolveSubagentToolPolicy(cfg?: ClawdbotConfig): SandboxToolPolicy {
   return { allow, deny };
 }
 
+function isToolAllowedByPolicyName(
+  name: string,
+  policy?: SandboxToolPolicy,
+): boolean {
+  if (!policy) return true;
+  const deny = new Set(normalizeToolNames(policy.deny));
+  const allowRaw = normalizeToolNames(policy.allow);
+  const allow = allowRaw.length > 0 ? new Set(allowRaw) : null;
+  const normalized = normalizeToolName(name);
+  if (deny.has(normalized)) return false;
+  if (allow) {
+    if (allow.has(normalized)) return true;
+    if (normalized === "apply_patch" && allow.has("exec")) return true;
+    return false;
+  }
+  return true;
+}
+
 function filterToolsByPolicy(
   tools: AnyAgentTool[],
   policy?: SandboxToolPolicy,
 ) {
   if (!policy) return tools;
-  const deny = new Set(normalizeToolNames(policy.deny));
-  const allowRaw = normalizeToolNames(policy.allow);
-  const allow = allowRaw.length > 0 ? new Set(allowRaw) : null;
-  return tools.filter((tool) => {
-    const name = tool.name.toLowerCase();
-    if (deny.has(name)) return false;
-    if (allow) return allow.has(name);
-    return true;
-  });
+  return tools.filter((tool) => isToolAllowedByPolicyName(tool.name, policy));
 }
 
 function resolveEffectiveToolPolicy(params: {
@@ -350,14 +400,7 @@ function resolveEffectiveToolPolicy(params: {
 }
 
 function isToolAllowedByPolicy(name: string, policy?: SandboxToolPolicy) {
-  if (!policy) return true;
-  const deny = new Set(normalizeToolNames(policy.deny));
-  const allowRaw = normalizeToolNames(policy.allow);
-  const allow = allowRaw.length > 0 ? new Set(allowRaw) : null;
-  const normalized = name.trim().toLowerCase();
-  if (deny.has(normalized)) return false;
-  if (allow) return allow.has(normalized);
-  return true;
+  return isToolAllowedByPolicyName(name, policy);
 }
 
 function isToolAllowedByPolicies(
@@ -467,7 +510,7 @@ function wrapToolWithAbortSignal(
 }
 
 export function createClawdbotCodingTools(options?: {
-  bash?: BashToolDefaults & ProcessToolDefaults;
+  exec?: ExecToolDefaults & ProcessToolDefaults;
   messageProvider?: string;
   agentAccountId?: string;
   sandbox?: SandboxContext | null;
@@ -481,6 +524,8 @@ export function createClawdbotCodingTools(options?: {
    * Example: "anthropic", "openai", "google", "openai-codex".
    */
   modelProvider?: string;
+  /** Model id for the current provider (used for model-specific tool gating). */
+  modelId?: string;
   /**
    * Auth mode for the current provider. We only need this for Anthropic OAuth
    * tool-name blocking quirks.
@@ -495,14 +540,14 @@ export function createClawdbotCodingTools(options?: {
   /** Mutable ref to track if a reply was sent (for "first" mode). */
   hasRepliedRef?: { value: boolean };
 }): AnyAgentTool[] {
-  const bashToolName = "bash";
+  const execToolName = "exec";
   const sandbox = options?.sandbox?.enabled ? options.sandbox : undefined;
   const { agentId, policy: effectiveToolsPolicy } = resolveEffectiveToolPolicy({
     config: options?.config,
     sessionKey: options?.sessionKey,
   });
   const scopeKey =
-    options?.bash?.scopeKey ?? (agentId ? `agent:${agentId}` : undefined);
+    options?.exec?.scopeKey ?? (agentId ? `agent:${agentId}` : undefined);
   const subagentPolicy =
     isSubagentSessionKey(options?.sessionKey) && options?.sessionKey
       ? resolveSubagentToolPolicy(options.config)
@@ -515,6 +560,15 @@ export function createClawdbotCodingTools(options?: {
   const sandboxRoot = sandbox?.workspaceDir;
   const allowWorkspaceWrites = sandbox?.workspaceAccess !== "ro";
   const workspaceRoot = options?.workspaceDir ?? process.cwd();
+  const applyPatchConfig = options?.config?.tools?.exec?.applyPatch;
+  const applyPatchEnabled =
+    !!applyPatchConfig?.enabled &&
+    isOpenAIProvider(options?.modelProvider) &&
+    isApplyPatchAllowedForModel({
+      modelProvider: options?.modelProvider,
+      modelId: options?.modelId,
+      allowModels: applyPatchConfig?.allowModels,
+    });
 
   const base = (codingTools as unknown as AnyAgentTool[]).flatMap((tool) => {
     if (tool.name === readTool.name) {
@@ -524,7 +578,7 @@ export function createClawdbotCodingTools(options?: {
       const freshReadTool = createReadTool(workspaceRoot);
       return [createClawdbotReadTool(freshReadTool)];
     }
-    if (tool.name === bashToolName) return [];
+    if (tool.name === "bash" || tool.name === execToolName) return [];
     if (tool.name === "write") {
       if (sandboxRoot) return [];
       return [createWriteTool(workspaceRoot)];
@@ -535,8 +589,8 @@ export function createClawdbotCodingTools(options?: {
     }
     return [tool as AnyAgentTool];
   });
-  const bashTool = createBashTool({
-    ...options?.bash,
+  const execTool = createExecTool({
+    ...options?.exec,
     cwd: options?.workspaceDir,
     allowBackground,
     scopeKey,
@@ -550,9 +604,17 @@ export function createClawdbotCodingTools(options?: {
       : undefined,
   });
   const processTool = createProcessTool({
-    cleanupMs: options?.bash?.cleanupMs,
+    cleanupMs: options?.exec?.cleanupMs,
     scopeKey,
   });
+  const applyPatchTool =
+    !applyPatchEnabled || (sandboxRoot && !allowWorkspaceWrites)
+      ? null
+      : createApplyPatchTool({
+          cwd: sandboxRoot ?? workspaceRoot,
+          sandboxRoot:
+            sandboxRoot && allowWorkspaceWrites ? sandboxRoot : undefined,
+        });
   const tools: AnyAgentTool[] = [
     ...base,
     ...(sandboxRoot
@@ -563,7 +625,8 @@ export function createClawdbotCodingTools(options?: {
           ]
         : []
       : []),
-    bashTool as unknown as AnyAgentTool,
+    ...(applyPatchTool ? [applyPatchTool as unknown as AnyAgentTool] : []),
+    execTool as unknown as AnyAgentTool,
     processTool as unknown as AnyAgentTool,
     // Provider docking: include provider-defined agent tools (login, etc.).
     ...listProviderAgentTools({ cfg: options?.config }),
