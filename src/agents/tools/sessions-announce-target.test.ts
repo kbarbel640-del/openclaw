@@ -17,7 +17,7 @@ describe("resolveAnnounceTarget", () => {
       sessionKey: "agent:main:discord:group:dev",
       displayKey: "agent:main:discord:group:dev",
     });
-    expect(target).toEqual({ provider: "discord", to: "channel:dev" });
+    expect(target).toEqual({ channel: "discord", to: "channel:dev" });
     expect(callGatewayMock).not.toHaveBeenCalled();
   });
 
@@ -26,7 +26,7 @@ describe("resolveAnnounceTarget", () => {
       sessions: [
         {
           key: "agent:main:whatsapp:group:[redacted-email]",
-          lastProvider: "whatsapp",
+          lastChannel: "whatsapp",
           lastTo: "[redacted-email]",
           lastAccountId: "work",
         },
@@ -38,7 +38,7 @@ describe("resolveAnnounceTarget", () => {
       displayKey: "agent:main:whatsapp:group:[redacted-email]",
     });
     expect(target).toEqual({
-      provider: "whatsapp",
+      channel: "whatsapp",
       to: "[redacted-email]",
       accountId: "work",
     });
