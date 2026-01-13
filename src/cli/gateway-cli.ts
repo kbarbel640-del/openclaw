@@ -423,8 +423,11 @@ async function runGatewayLoop(params: {
   let restartResolver: (() => void) | null = null;
 
   const cleanupSignals = () => {
+    // @ts-expect-error - process.removeListener type mismatch
     process.removeListener("SIGTERM", onSigterm);
+    // @ts-expect-error - process.removeListener type mismatch
     process.removeListener("SIGINT", onSigint);
+    // @ts-expect-error - process.removeListener type mismatch
     process.removeListener("SIGUSR1", onSigusr1);
   };
 
@@ -480,8 +483,11 @@ async function runGatewayLoop(params: {
     request("restart", "SIGUSR1");
   };
 
+  // @ts-expect-error - process.on type mismatch
   process.on("SIGTERM", onSigterm);
+  // @ts-expect-error - process.on type mismatch
   process.on("SIGINT", onSigint);
+  // @ts-expect-error - process.on type mismatch
   process.on("SIGUSR1", onSigusr1);
 
   try {

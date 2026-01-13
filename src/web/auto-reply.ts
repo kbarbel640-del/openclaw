@@ -979,6 +979,7 @@ export async function monitorWebProvider(
   const handleSigint = () => {
     sigintStop = true;
   };
+  // @ts-expect-error - process.once type mismatch with @types/node
   process.once("SIGINT", handleSigint);
 
   let reconnectAttempts = 0;
@@ -1901,6 +1902,7 @@ export async function monitorWebProvider(
   status.lastEventAt = Date.now();
   emitStatus();
 
+  // @ts-expect-error - process.removeListener type mismatch with @types/node
   process.removeListener("SIGINT", handleSigint);
 }
 

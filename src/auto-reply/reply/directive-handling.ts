@@ -1591,9 +1591,15 @@ export function resolveDefaultModel(params: {
   defaultModel: string;
   aliasIndex: ModelAliasIndex;
 } {
-  const agentModelOverride = params.agentId
-    ? resolveAgentConfig(params.cfg, params.agentId)?.model?.trim()
+  const resolvedModel = params.agentId
+    ? resolveAgentConfig(params.cfg, params.agentId)?.model
     : undefined;
+  const agentModelOverride =
+    typeof resolvedModel === "string"
+      ? resolvedModel.trim()
+      : typeof resolvedModel === "object" && resolvedModel?.primary
+        ? resolvedModel.primary.trim()
+        : undefined;
   const cfg =
     agentModelOverride && agentModelOverride.length > 0
       ? {

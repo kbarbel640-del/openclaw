@@ -70,6 +70,7 @@ async function main() {
 
   installUnhandledRejectionHandler();
 
+  // @ts-expect-error - process.on type mismatch with @types/node
   process.on("uncaughtException", (error) => {
     console.error(
       "[clawdbot] Uncaught exception:",

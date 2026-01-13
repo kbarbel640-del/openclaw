@@ -68,9 +68,15 @@ export async function warnIfModelConfigLooksOff(
   prompter: WizardPrompter,
   options?: { agentId?: string; agentDir?: string },
 ) {
-  const agentModelOverride = options?.agentId
-    ? resolveAgentConfig(config, options.agentId)?.model?.trim()
+  const resolvedModel = options?.agentId
+    ? resolveAgentConfig(config, options.agentId)?.model
     : undefined;
+  const agentModelOverride =
+    typeof resolvedModel === "string"
+      ? resolvedModel.trim()
+      : typeof resolvedModel === "object" && resolvedModel?.primary
+        ? resolvedModel.primary.trim()
+        : undefined;
   const configWithModel =
     agentModelOverride && agentModelOverride.length > 0
       ? {

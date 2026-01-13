@@ -349,7 +349,9 @@ export async function runGmailService(opts: GmailRunOptions) {
     child.kill("SIGTERM");
   };
 
+  // @ts-expect-error - process.on type mismatch with @types/node
   process.on("SIGINT", shutdown);
+  // @ts-expect-error - process.on type mismatch with @types/node
   process.on("SIGTERM", shutdown);
 
   child.on("exit", () => {
