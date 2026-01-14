@@ -88,13 +88,10 @@ export function buildAgentSystemPrompt(params: {
     "canvas",
     "nodes",
     "cron",
-    "message",
     "gateway",
     "agents_list",
     "sessions_list",
     "sessions_history",
-    "sessions_send",
-    "session_status",
     "image",
   ];
 

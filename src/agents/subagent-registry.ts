@@ -1,7 +1,7 @@
 import { loadConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
-import { runSubagentAnnounceFlow } from "./subagent-announce.js";
+import { runSubagentCleanup } from "./subagent-announce.js";
 import {
   loadSubagentRegistryFromDisk,
   saveSubagentRegistryToDisk,
@@ -50,23 +50,13 @@ function resumeSubagentRun(runId: string) {
 
   if (typeof entry.endedAt === "number" && entry.endedAt > 0) {
     if (!beginSubagentAnnounce(runId)) return;
-    const announce = runSubagentAnnounceFlow({
+    // Subagent uses report_back tool to send results, so we just do cleanup
+    void runSubagentCleanup({
       childSessionKey: entry.childSessionKey,
-      childRunId: entry.runId,
-      requesterSessionKey: entry.requesterSessionKey,
-      requesterChannel: entry.requesterChannel,
-      requesterTo: entry.requesterTo,
-      requesterDisplayKey: entry.requesterDisplayKey,
-      task: entry.task,
-      timeoutMs: 30_000,
       cleanup: entry.cleanup,
-      waitForCompletion: false,
-      startedAt: entry.startedAt,
-      endedAt: entry.endedAt,
       label: entry.label,
-    });
-    void announce.then((didAnnounce) => {
-      finalizeSubagentAnnounce(runId, entry.cleanup, didAnnounce);
+    }).then(() => {
+      finalizeSubagentAnnounce(runId, entry.cleanup, true);
     });
     resumedRuns.add(runId);
     return;
@@ -187,23 +177,13 @@ function ensureListener() {
     if (!beginSubagentAnnounce(evt.runId)) {
       return;
     }
-    const announce = runSubagentAnnounceFlow({
+    // Subagent uses report_back tool to send results, so we just do cleanup
+    void runSubagentCleanup({
       childSessionKey: entry.childSessionKey,
-      childRunId: entry.runId,
-      requesterSessionKey: entry.requesterSessionKey,
-      requesterChannel: entry.requesterChannel,
-      requesterTo: entry.requesterTo,
-      requesterDisplayKey: entry.requesterDisplayKey,
-      task: entry.task,
-      timeoutMs: 30_000,
       cleanup: entry.cleanup,
-      waitForCompletion: false,
-      startedAt: entry.startedAt,
-      endedAt: entry.endedAt,
       label: entry.label,
-    });
-    void announce.then((didAnnounce) => {
-      finalizeSubagentAnnounce(evt.runId, entry.cleanup, didAnnounce);
+    }).then(() => {
+      finalizeSubagentAnnounce(evt.runId, entry.cleanup, true);
     });
   });
 }
@@ -307,23 +287,13 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
     }
     if (mutated) persistSubagentRuns();
     if (!beginSubagentAnnounce(runId)) return;
-    const announce = runSubagentAnnounceFlow({
+    // Subagent uses report_back tool to send results, so we just do cleanup
+    void runSubagentCleanup({
       childSessionKey: entry.childSessionKey,
-      childRunId: entry.runId,
-      requesterSessionKey: entry.requesterSessionKey,
-      requesterChannel: entry.requesterChannel,
-      requesterTo: entry.requesterTo,
-      requesterDisplayKey: entry.requesterDisplayKey,
-      task: entry.task,
-      timeoutMs: 30_000,
       cleanup: entry.cleanup,
-      waitForCompletion: false,
-      startedAt: entry.startedAt,
-      endedAt: entry.endedAt,
       label: entry.label,
-    });
-    void announce.then((didAnnounce) => {
-      finalizeSubagentAnnounce(runId, entry.cleanup, didAnnounce);
+    }).then(() => {
+      finalizeSubagentAnnounce(runId, entry.cleanup, true);
     });
   } catch {
     // ignore

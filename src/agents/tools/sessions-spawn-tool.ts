@@ -1,7 +1,9 @@
 import crypto from "node:crypto";
+import os from "node:os";
 
 import { Type } from "@sinclair/typebox";
 
+import type { ClawdbotConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
 import { loadSessionEntry } from "../../gateway/session-utils.js";
@@ -13,10 +15,15 @@ import {
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
 import { resolveAgentConfig } from "../agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "../lanes.js";
+import { buildBootstrapContextFiles } from "../pi-embedded-helpers/bootstrap.js";
+import type { EmbeddedContextFile } from "../pi-embedded-helpers.js";
 import { optionalStringEnum } from "../schema/typebox.js";
 import { buildSubagentSystemPrompt } from "../subagent-announce.js";
 import { registerSubagentRun } from "../subagent-registry.js";
-import { DEFAULT_AGENT_WORKSPACE_DIR } from "../workspace.js";
+import {
+  DEFAULT_AGENT_WORKSPACE_DIR,
+  loadWorkspaceBootstrapFiles,
+} from "../workspace.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
 import {
@@ -24,6 +31,48 @@ import {
   resolveInternalSessionKey,
   resolveMainSessionAlias,
 } from "./sessions-helpers.js";
+
+function resolveUserTimezone(configTimezone?: string): string {
+  if (configTimezone?.trim()) return configTimezone.trim();
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return "UTC";
+  }
+}
+
+function resolveUserTime(timezone: string): string {
+  try {
+    return new Date().toLocaleString("en-US", { timeZone: timezone });
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+function resolveBootstrapMaxChars(config?: ClawdbotConfig): number {
+  const value = config?.agents?.defaults?.bootstrapMaxChars;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  return 50_000; // Default
+}
+
+function buildModelAliasLines(config?: ClawdbotConfig): string[] {
+  const models = config?.agents?.defaults?.models ?? {};
+  const entries: Array<{ alias: string; model: string }> = [];
+  for (const [keyRaw, entryRaw] of Object.entries(models)) {
+    const model = String(keyRaw ?? "").trim();
+    if (!model) continue;
+    const alias = String(
+      (entryRaw as { alias?: string } | undefined)?.alias ?? "",
+    ).trim();
+    if (!alias) continue;
+    entries.push({ alias, model });
+  }
+  return entries
+    .sort((a, b) => a.alias.localeCompare(b.alias))
+    .map((entry) => `- ${entry.alias}: ${entry.model}`);
+}
 
 const SessionsSpawnToolSchema = Type.Object({
   task: Type.String(),
@@ -51,6 +100,12 @@ export function createSessionsSpawnTool(opts?: {
   agentSessionKey?: string;
   agentChannel?: GatewayMessageChannel;
   sandboxed?: boolean;
+  /** Tool names available to subagents (for system prompt documentation) */
+  toolNames?: string[];
+  /** Tool summaries for custom tools */
+  toolSummaries?: Record<string, string>;
+  /** Config reference for context building */
+  config?: ClawdbotConfig;
 }): AnyAgentTool {
   return {
     label: "Sessions",
@@ -177,6 +232,31 @@ export function createSessionsSpawnTool(opts?: {
           modelWarning = messageText;
         }
       }
+      // Load workspace context files for subagent (all files, not filtered)
+      const bootstrapFiles = await loadWorkspaceBootstrapFiles(
+        DEFAULT_AGENT_WORKSPACE_DIR,
+      );
+      const contextFiles: EmbeddedContextFile[] = buildBootstrapContextFiles(
+        bootstrapFiles,
+        { maxChars: resolveBootstrapMaxChars(cfg) },
+      );
+
+      // Build runtime info
+      const userTimezone = resolveUserTimezone(
+        cfg.agents?.defaults?.userTimezone,
+      );
+      const userTime = resolveUserTime(userTimezone);
+      const modelAliasLines = buildModelAliasLines(cfg);
+
+      const runtimeInfo = {
+        host: os.hostname(),
+        os: os.platform(),
+        arch: os.arch(),
+        node: process.version,
+        model: resolvedModel,
+        channel: opts?.agentChannel,
+      };
+
       const childSystemPrompt = buildSubagentSystemPrompt({
         requesterSessionKey,
         requesterChannel: opts?.agentChannel,
@@ -184,6 +264,14 @@ export function createSessionsSpawnTool(opts?: {
         label: label || undefined,
         task,
         workspaceDir: DEFAULT_AGENT_WORKSPACE_DIR,
+        // Extended context (like main agent)
+        toolNames: opts?.toolNames,
+        toolSummaries: opts?.toolSummaries,
+        contextFiles,
+        modelAliasLines,
+        userTimezone,
+        userTime,
+        runtimeInfo,
       });
 
       const childIdem = crypto.randomUUID();

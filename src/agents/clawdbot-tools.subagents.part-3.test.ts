@@ -37,16 +37,17 @@ describe("clawdbot-tools: subagents", () => {
     };
   });
 
-  it("sessions_spawn resolves main announce target from sessions.list", async () => {
+  // Note: Subagents now use the report_back tool to announce results,
+  // so there's no secondary "announce step" agent call or send. The lifecycle
+  // handler only does cleanup (label patching + optional session deletion).
+  it("sessions_spawn runs cleanup on lifecycle end for main session requester", async () => {
     resetSubagentRegistryForTests();
     callGatewayMock.mockReset();
     const calls: Array<{ method?: string; params?: unknown }> = [];
     let agentCallCount = 0;
-    let sendParams: { to?: string; channel?: string; message?: string } = {};
     let childRunId: string | undefined;
     let childSessionKey: string | undefined;
     const waitCalls: Array<{ runId?: string; timeoutMs?: number }> = [];
-    const sessionLastAssistantText = new Map<string, string>();
 
     callGatewayMock.mockImplementation(async (opts: unknown) => {
       const request = opts as { method?: string; params?: unknown };
@@ -69,15 +70,8 @@ describe("clawdbot-tools: subagents", () => {
           message?: string;
           sessionKey?: string;
         };
-        const message = params?.message ?? "";
-        const sessionKey = params?.sessionKey ?? "";
-        if (message === "Sub-agent announce step.") {
-          sessionLastAssistantText.set(sessionKey, "hello from sub");
-        } else {
-          childRunId = runId;
-          childSessionKey = sessionKey;
-          sessionLastAssistantText.set(sessionKey, "done");
-        }
+        childRunId = runId;
+        childSessionKey = params?.sessionKey ?? "";
         return {
           runId,
           status: "accepted",
@@ -89,27 +83,9 @@ describe("clawdbot-tools: subagents", () => {
           | { runId?: string; timeoutMs?: number }
           | undefined;
         waitCalls.push(params ?? {});
+        // Return timeout to let lifecycle event handle completion
         const status = params?.runId === childRunId ? "timeout" : "ok";
         return { runId: params?.runId ?? "run-1", status };
-      }
-      if (request.method === "chat.history") {
-        const params = request.params as { sessionKey?: string } | undefined;
-        const text =
-          sessionLastAssistantText.get(params?.sessionKey ?? "") ?? "";
-        return {
-          messages: [{ role: "assistant", content: [{ type: "text", text }] }],
-        };
-      }
-      if (request.method === "send") {
-        const params = request.params as
-          | { to?: string; channel?: string; message?: string }
-          | undefined;
-        sendParams = {
-          to: params?.to,
-          channel: params?.channel,
-          message: params?.message,
-        };
-        return { messageId: "m1" };
       }
       if (request.method === "sessions.delete") {
         return { ok: true };
@@ -147,12 +123,14 @@ describe("clawdbot-tools: subagents", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
+    // Verify agent.wait was called with correct timeout
     const childWait = waitCalls.find((call) => call.runId === childRunId);
     expect(childWait?.timeoutMs).toBe(1000);
-    expect(sendParams.channel).toBe("whatsapp");
-    expect(sendParams.to).toBe("+123");
-    expect(sendParams.message ?? "").toContain("hello from sub");
-    // Stats are no longer included in user-facing announce messages
+
+    // Verify only 1 agent call (the spawn, no announce step)
+    // Subagents now use report_back tool to announce results
+    const agentCalls = calls.filter((call) => call.method === "agent");
+    expect(agentCalls).toHaveLength(1);
     expect(childSessionKey?.startsWith("agent:main:subagent:")).toBe(true);
   });
   it("sessions_spawn only allows same-agent by default", async () => {

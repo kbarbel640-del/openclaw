@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-
+import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import { normalizeChannelId } from "../channels/registry.js";
 import { loadConfig } from "../config/config.js";
 import {
@@ -13,6 +13,7 @@ import {
 import { callGateway } from "../gateway/call.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../utils/message-channel.js";
 import { AGENT_LANE_NESTED } from "./lanes.js";
+import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import { readLatestAssistantReply, runAgentStep } from "./tools/agent-step.js";
 import { resolveAnnounceTarget } from "./tools/sessions-announce-target.js";
 import { isAnnounceSkip } from "./tools/sessions-send-helpers.js";
@@ -158,16 +159,121 @@ export function buildSubagentSystemPrompt(params: {
   label?: string;
   task?: string;
   workspaceDir?: string;
+  // Extended params for full context (matching main agent)
+  toolNames?: string[];
+  toolSummaries?: Record<string, string>;
+  contextFiles?: EmbeddedContextFile[];
+  modelAliasLines?: string[];
+  userTimezone?: string;
+  userTime?: string;
+  skillsPrompt?: string;
+  runtimeInfo?: {
+    host?: string;
+    os?: string;
+    arch?: string;
+    node?: string;
+    model?: string;
+    channel?: string;
+    capabilities?: string[];
+  };
 }) {
   const taskText =
     typeof params.task === "string" && params.task.trim()
       ? params.task.replace(/\s+/g, " ").trim()
       : "{{TASK_DESCRIPTION}}";
 
-  // Load soul/persona from workspace if available
-  const soulContent = loadSoulContent(params.workspaceDir);
+  // Build tool summaries section (like main agent)
+  const coreToolSummaries: Record<string, string> = {
+    read: "Read file contents",
+    write: "Create or overwrite files",
+    edit: "Make precise edits to files",
+    apply_patch: "Apply multi-file patches",
+    grep: "Search file contents for patterns",
+    find: "Find files by glob pattern",
+    ls: "List directory contents",
+    exec: "Run shell commands",
+    process: "Manage background exec sessions",
+    browser: "Control web browser",
+    canvas: "Present/eval/snapshot the Canvas",
+    nodes: "List/describe/notify/camera/screen on paired nodes",
+    agents_list: "List agent ids allowed for sessions_spawn",
+    sessions_list: "List other sessions (incl. sub-agents) with filters/last",
+    sessions_history: "Fetch history for another session/sub-agent",
+    image: "Analyze an image with the configured image model",
+    memory_search: "Search memory files for context",
+    memory_get: "Get specific lines from memory files",
+    report_back: "Report results back to main session",
+  };
 
-  const lines = [
+  const toolOrder = [
+    "read",
+    "write",
+    "edit",
+    "apply_patch",
+    "grep",
+    "find",
+    "ls",
+    "exec",
+    "process",
+    "browser",
+    "canvas",
+    "nodes",
+    "agents_list",
+    "sessions_list",
+    "sessions_history",
+    "image",
+    "memory_search",
+    "memory_get",
+    "report_back",
+  ];
+
+  const rawToolNames = (params.toolNames ?? []).map((tool) => tool.trim());
+  const canonicalToolNames = rawToolNames.filter(Boolean);
+  const canonicalByNormalized = new Map<string, string>();
+  for (const name of canonicalToolNames) {
+    const normalized = name.toLowerCase();
+    if (!canonicalByNormalized.has(normalized)) {
+      canonicalByNormalized.set(normalized, name);
+    }
+  }
+  const resolveToolName = (normalized: string) =>
+    canonicalByNormalized.get(normalized) ?? normalized;
+
+  const normalizedTools = canonicalToolNames.map((tool) => tool.toLowerCase());
+  const availableTools = new Set(normalizedTools);
+  const externalToolSummaries = new Map<string, string>();
+  for (const [key, value] of Object.entries(params.toolSummaries ?? {})) {
+    const normalized = key.trim().toLowerCase();
+    if (!normalized || !value?.trim()) continue;
+    externalToolSummaries.set(normalized, value.trim());
+  }
+  const extraTools = Array.from(
+    new Set(normalizedTools.filter((tool) => !toolOrder.includes(tool))),
+  );
+  const enabledTools = toolOrder.filter((tool) => availableTools.has(tool));
+  const toolLines = enabledTools.map((tool) => {
+    const summary = coreToolSummaries[tool] ?? externalToolSummaries.get(tool);
+    const name = resolveToolName(tool);
+    return summary ? `- ${name}: ${summary}` : `- ${name}`;
+  });
+  for (const tool of extraTools.sort()) {
+    const summary = coreToolSummaries[tool] ?? externalToolSummaries.get(tool);
+    const name = resolveToolName(tool);
+    toolLines.push(summary ? `- ${name}: ${summary}` : `- ${name}`);
+  }
+
+  const readToolName = resolveToolName("read");
+  const userTimezone = params.userTimezone?.trim();
+  const userTime = params.userTime?.trim();
+  const skillsPrompt = params.skillsPrompt?.trim();
+  const runtimeInfo = params.runtimeInfo;
+  const runtimeChannel = runtimeInfo?.channel?.trim().toLowerCase();
+  const runtimeCapabilities = (runtimeInfo?.capabilities ?? [])
+    .map((cap) => String(cap).trim())
+    .filter(Boolean);
+  const lines: (string | undefined)[] = [
+    "You are a personal assistant running inside Clawdbot as a **subagent**.",
+    "",
     "# Subagent Context",
     "",
     "You are a **subagent** spawned by the main agent for a specific task.",
@@ -177,25 +283,41 @@ export function buildSubagentSystemPrompt(params: {
     "- Complete this task and report back. That's your entire purpose.",
     "- You are NOT the main agent. Don't try to be.",
     "",
-    "## Rules",
+    "## Subagent Rules",
     "1. **Stay focused** - Do your assigned task, nothing else",
-    "2. **Report completion** - When done, summarize results clearly",
+    "2. **Report completion** - When done, use `report_back` to share results",
     "3. **Don't initiate** - No heartbeats, no proactive actions, no side quests",
     "4. **Ask the spawner** - If blocked or confused, report back rather than improvising",
     "5. **Be ephemeral** - You may be terminated after task completion. That's fine.",
     "",
-    "## What You DON'T Do",
+    "## Reporting Results",
+    "",
+    "You have a `report_back` tool to send results to the main chat.",
+    "",
+    "**Follow the task's instructions for reporting.** If the task specifies when/how to report (e.g., 'report when started', 'report progress', 'report twice'), do exactly that.",
+    "",
+    "**Default (no specific instructions):** Call `report_back` once when your task is complete.",
+    "",
+    "**For silent/internal tasks:**",
+    '- If the task says "silent", "quiet", or "internal only" but you still need to report results to the main agent (not the user), use `report_back` with `internalOnly: true`',
+    "- This injects your message into the main session transcript WITHOUT sending to messaging channels (Telegram, WhatsApp, etc.)",
+    "",
+    "**When NOT to report at all:**",
+    '- If the task explicitly says "no report" or "skip report_back" entirely',
+    "- If the task failed completely with no useful output",
+    "",
+    "**Message style:**",
+    "- Write concise, natural messages",
+    "- Match the persona from workspace files if available",
+    "",
+    "## What Subagents DON'T Do",
     "- NO user conversations (that's main agent's job)",
     "- NO external messages (email, tweets, etc.) unless explicitly tasked",
     "- NO cron jobs or persistent state",
     "- NO pretending to be the main agent",
     "- **NO using the message tool** - you don't have a recipient address; the main agent handles messaging",
-    "",
-    "## Output Format",
-    "When complete, respond with:",
-    "- **Status:** success | failed | blocked",
-    "- **Result:** [what you accomplished]",
-    "- **Notes:** [anything the main agent should know] - discuss gimme options",
+    "- **NO gateway operations** - no self-updates, config changes, or restarts",
+    "- **NO heartbeats** - main agent handles those",
     "",
     "## Session Context",
     params.label ? `- Label: ${params.label}` : undefined,
@@ -207,19 +329,141 @@ export function buildSubagentSystemPrompt(params: {
       : undefined,
     `- Your session: ${params.childSessionKey}.`,
     "",
-    "Run the task. Provide a clear final answer (plain text).",
-    'After you finish, you may be asked to produce an "announce" message to post back to the requester chat.',
   ];
 
-  // Append soul/persona guidance if available
-  if (soulContent) {
-    lines.push("");
-    lines.push("## Persona & Style (from SOUL.md)");
-    lines.push("");
-    lines.push("Match this persona when responding:");
-    lines.push("");
-    lines.push(soulContent);
+  // Tooling section (like main agent)
+  if (toolLines.length > 0) {
+    lines.push(
+      "## Tooling",
+      "Tool availability (filtered by policy):",
+      "Tool names are case-sensitive. Call tools exactly as listed.",
+      toolLines.join("\n"),
+      "TOOLS.md does not control tool availability; it is user guidance for how to use external tools.",
+      "",
+    );
   }
+
+  // Skills section (like main agent)
+  if (skillsPrompt) {
+    lines.push(
+      "## Skills",
+      `Skills provide task-specific instructions. Use \`${readToolName}\` to load the SKILL.md at the location listed for that skill.`,
+      skillsPrompt,
+      "",
+    );
+  }
+
+  // Memory recall section (like main agent)
+  if (availableTools.has("memory_search") || availableTools.has("memory_get")) {
+    lines.push(
+      "## Memory Recall",
+      "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on MEMORY.md + memory/*.md; then use memory_get to pull only the needed lines. If low confidence after search, say you checked.",
+      "",
+    );
+  }
+
+  // Model aliases (like main agent)
+  if (params.modelAliasLines && params.modelAliasLines.length > 0) {
+    lines.push(
+      "## Model Aliases",
+      "Prefer aliases when specifying model overrides; full provider/model is also accepted.",
+      params.modelAliasLines.join("\n"),
+      "",
+    );
+  }
+
+  // Workspace (like main agent)
+  lines.push(
+    "## Workspace",
+    `Your working directory is: ${params.workspaceDir ?? DEFAULT_AGENT_WORKSPACE_DIR}`,
+    "Treat this directory as the single global workspace for file operations unless explicitly instructed otherwise.",
+    "",
+  );
+
+  // User time (like main agent)
+  if (userTimezone || userTime) {
+    lines.push(
+      `Time: assume UTC unless stated. User TZ=${userTimezone ?? "unknown"}. Current user time (converted)=${userTime ?? "unknown"}.`,
+      "",
+    );
+  }
+
+  // Reply tags (like main agent)
+  lines.push(
+    "## Reply Tags",
+    "To request a native reply/quote on supported surfaces, include one tag in your reply:",
+    "- [[reply_to_current]] replies to the triggering message.",
+    "- [[reply_to:<id>]] replies to a specific message id when you have it.",
+    "Whitespace inside the tag is allowed (e.g. [[ reply_to_current ]] / [[ reply_to: 123 ]]).",
+    "Tags are stripped before sending; support depends on the current channel config.",
+    "",
+  );
+
+  // Messaging (like main agent, but note subagents shouldn't use message tool)
+  lines.push(
+    "## Messaging",
+    "- Reply in current session → automatically routes to the source channel (Signal, Telegram, etc.)",
+    "- Cross-session messaging → use sessions_send(sessionKey, message)",
+    "- Never use exec/curl for provider messaging; Clawdbot handles all routing internally.",
+    "- **As a subagent, do NOT use the message tool** - use report_back instead to communicate results.",
+    "",
+  );
+
+  // Context files (workspace files like main agent)
+  const contextFiles = params.contextFiles ?? [];
+  if (contextFiles.length > 0) {
+    lines.push(
+      "# Project Context",
+      "",
+      "The following project context files have been loaded:",
+      "",
+    );
+    for (const file of contextFiles) {
+      lines.push(`## ${file.path}`, "", file.content, "");
+    }
+  }
+
+  // Silent replies (like main agent)
+  lines.push(
+    "## Silent Replies",
+    `When you have nothing to say, respond with ONLY: ${SILENT_REPLY_TOKEN}`,
+    "",
+    "⚠️ Rules:",
+    "- It must be your ENTIRE message — nothing else",
+    `- Never append it to an actual response (never include "${SILENT_REPLY_TOKEN}" in real replies)`,
+    "- Never wrap it in markdown or code blocks",
+    "",
+    `❌ Wrong: "Here's help... ${SILENT_REPLY_TOKEN}"`,
+    `❌ Wrong: "\`${SILENT_REPLY_TOKEN}\`"`,
+    `✅ Right: ${SILENT_REPLY_TOKEN}`,
+    "",
+  );
+
+  // Runtime info (like main agent)
+  lines.push(
+    "## Runtime",
+    `Runtime: ${[
+      runtimeInfo?.host ? `host=${runtimeInfo.host}` : "",
+      runtimeInfo?.os
+        ? `os=${runtimeInfo.os}${runtimeInfo?.arch ? ` (${runtimeInfo.arch})` : ""}`
+        : runtimeInfo?.arch
+          ? `arch=${runtimeInfo.arch}`
+          : "",
+      runtimeInfo?.node ? `node=${runtimeInfo.node}` : "",
+      runtimeInfo?.model ? `model=${runtimeInfo.model}` : "",
+      runtimeChannel ? `channel=${runtimeChannel}` : "",
+      runtimeChannel
+        ? `capabilities=${
+            runtimeCapabilities.length > 0
+              ? runtimeCapabilities.join(",")
+              : "none"
+          }`
+        : "",
+      "subagent=true",
+    ]
+      .filter(Boolean)
+      .join(" | ")}`,
+  );
 
   return lines.filter((line): line is string => line !== undefined).join("\n");
 }
@@ -289,6 +533,45 @@ function buildSubagentAnnouncePrompt(params: {
   }
 
   return lines.filter((line): line is string => line !== undefined).join("\n");
+}
+
+/**
+ * Runs cleanup for a subagent session (label patching and optional deletion).
+ * This is called after subagent completion - the subagent uses report_back tool
+ * to send results, so we no longer force an announce step.
+ */
+export async function runSubagentCleanup(params: {
+  childSessionKey: string;
+  cleanup: "delete" | "keep";
+  label?: string;
+}): Promise<void> {
+  try {
+    // Patch label after all writes complete
+    if (params.label) {
+      try {
+        await callGateway({
+          method: "sessions.patch",
+          params: { key: params.childSessionKey, label: params.label },
+          timeoutMs: 10_000,
+        });
+      } catch {
+        // Best-effort
+      }
+    }
+    if (params.cleanup === "delete") {
+      try {
+        await callGateway({
+          method: "sessions.delete",
+          params: { key: params.childSessionKey, deleteTranscript: true },
+          timeoutMs: 10_000,
+        });
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    // Best-effort cleanup; ignore failures
+  }
 }
 
 export async function runSubagentAnnounceFlow(params: {

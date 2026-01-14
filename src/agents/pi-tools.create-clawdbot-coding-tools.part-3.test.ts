@@ -169,8 +169,10 @@ describe("createClawdbotCodingTools", () => {
       sessionKey: "agent:main:subagent:test",
     });
     const names = new Set(tools.map((tool) => tool.name));
-    expect(names.has("sessions_list")).toBe(false);
-    expect(names.has("sessions_history")).toBe(false);
+    // sessions_list and sessions_history are allowed (read-only)
+    expect(names.has("sessions_list")).toBe(true);
+    expect(names.has("sessions_history")).toBe(true);
+    // sessions_send and sessions_spawn are denied
     expect(names.has("sessions_send")).toBe(false);
     expect(names.has("sessions_spawn")).toBe(false);
 

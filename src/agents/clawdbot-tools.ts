@@ -1,5 +1,6 @@
 import type { ClawdbotConfig } from "../config/config.js";
 import { resolvePluginTools } from "../plugins/tools.js";
+import { isSubagentSessionKey } from "../routing/session-key.js";
 import type { GatewayMessageChannel } from "../utils/message-channel.js";
 import { resolveSessionAgentId } from "./agent-scope.js";
 import { createAgentsListTool } from "./tools/agents-list-tool.js";
@@ -15,6 +16,7 @@ import {
 } from "./tools/memory-tool.js";
 import { createMessageTool } from "./tools/message-tool.js";
 import { createNodesTool } from "./tools/nodes-tool.js";
+import { createReportBackTool } from "./tools/report-back-tool.js";
 import { createSessionStatusTool } from "./tools/session-status-tool.js";
 import { createSessionsHistoryTool } from "./tools/sessions-history-tool.js";
 import { createSessionsListTool } from "./tools/sessions-list-tool.js";
@@ -43,7 +45,10 @@ export function createClawdbotTools(options?: {
   replyToMode?: "off" | "first" | "all";
   /** Mutable ref to track if a reply was sent (for "first" mode). */
   hasRepliedRef?: { value: boolean };
+  /** Label for subagent sessions (used in report_back). */
+  subagentLabel?: string;
 }): AnyAgentTool[] {
+  const isSubagent = isSubagentSessionKey(options?.agentSessionKey);
   const imageTool = options?.agentDir?.trim()
     ? createImageTool({
         config: options?.config,
@@ -59,6 +64,8 @@ export function createClawdbotTools(options?: {
     config: options?.config,
     agentSessionKey: options?.agentSessionKey,
   });
+  // Build tools array - all tools created here, filtering done in pi-tools.ts
+  // via config-based policy (tools.subagents.tools.deny/allow)
   const tools: AnyAgentTool[] = [
     createBrowserTool({
       defaultControlUrl: options?.browserControlUrl,
@@ -100,6 +107,7 @@ export function createClawdbotTools(options?: {
       agentSessionKey: options?.agentSessionKey,
       agentChannel: options?.agentChannel,
       sandboxed: options?.sandboxed,
+      config: options?.config,
     }),
     createSessionStatusTool({
       agentSessionKey: options?.agentSessionKey,
@@ -109,6 +117,15 @@ export function createClawdbotTools(options?: {
       ? [memorySearchTool, memoryGetTool]
       : []),
     ...(imageTool ? [imageTool] : []),
+    // report_back is only available to subagent sessions
+    ...(isSubagent
+      ? [
+          createReportBackTool({
+            agentSessionKey: options?.agentSessionKey,
+            subagentLabel: options?.subagentLabel,
+          }),
+        ]
+      : []),
   ];
 
   const pluginTools = resolvePluginTools({

@@ -326,10 +326,9 @@ function isApplyPatchAllowedForModel(params: {
 }
 
 const DEFAULT_SUBAGENT_TOOL_DENY = [
-  "sessions_list",
-  "sessions_history",
-  "sessions_send",
-  "sessions_spawn",
+  "sessions_send", // Subagents shouldn't send messages to the requester (use report_back instead)
+  "sessions_spawn", // Subagents shouldn't spawn subagents (Initiates infinite loop)
+  "message", // Subagents shouldn't send messages to the requester (use report_back instead)
 ];
 
 function resolveSubagentToolPolicy(cfg?: ClawdbotConfig): SandboxToolPolicy {

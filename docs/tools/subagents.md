@@ -1,5 +1,5 @@
 ---
-summary: "Sub-agents: spawning isolated agent runs that announce results back to the requester chat"
+summary: "Sub-agents: spawning isolated agent runs that report results back to the main session"
 read_when:
   - You want background/parallel work via the agent
   - You are changing sessions_spawn or sub-agent tool policy
@@ -7,19 +7,18 @@ read_when:
 
 # Sub-agents
 
-Sub-agents are background agent runs spawned from an existing agent run. They run in their own session (`agent:<agentId>:subagent:<uuid>`) and, when finished, **announce** their result back to the requester chat channel.
+Sub-agents are background agent runs spawned from an existing agent run. They run in their own session (`agent:<agentId>:subagent:<uuid>`) and use the `report_back` tool to send results to the main session.
 
 Primary goals:
-- Parallelize “research / long task / slow tool” work without blocking the main run.
+- Parallelize "research / long task / slow tool" work without blocking the main run.
 - Keep sub-agents isolated by default (session separation + optional sandboxing).
-- Keep the tool surface hard to misuse: sub-agents do **not** get session tools by default.
 - Avoid nested fan-out: sub-agents cannot spawn sub-agents.
 
 ## Tool
 
 Use `sessions_spawn`:
 - Starts a sub-agent run (`deliver: false`, global lane: `subagent`)
-- Then runs an announce step and posts the announce reply to the requester chat channel
+- Sub-agent uses `report_back` tool to send results back when done
 - Default model: inherits the caller unless you set `agents.defaults.subagents.model` (or per-agent `agents.list[].subagents.model`); an explicit `sessions_spawn.model` still wins.
 
 Tool params:
@@ -39,30 +38,32 @@ Discovery:
 Auto-archive:
 - Sub-agent sessions are automatically archived after `agents.defaults.subagents.archiveAfterMinutes` (default: 60).
 - Archive uses `sessions.delete` and renames the transcript to `*.deleted.<timestamp>` (same folder).
-- `cleanup: "delete"` archives immediately after announce (still keeps the transcript via rename).
+- `cleanup: "delete"` archives immediately after completion (still keeps the transcript via rename).
 - Auto-archive is best-effort; pending timers are lost if the gateway restarts.
 - `runTimeoutSeconds` does **not** auto-archive; it only stops the run. The session remains until auto-archive.
 
-## Announce
+## Reporting Results
 
-Sub-agents report back via an announce step:
-- The announce step runs inside the sub-agent session (not the requester session).
-- If the sub-agent replies exactly `ANNOUNCE_SKIP`, nothing is posted.
-- Otherwise the announce reply is posted to the requester chat channel via the gateway `send` method.
+Sub-agents use `report_back` to send results to the main session:
+- Injects message into main session transcript (so main agent has context)
+- Sends to messaging channels (Telegram, WhatsApp, etc.) if main session has one
+- `internalOnly: true` injects to transcript only (no external send)
 
-Announce payloads include a stats line at the end:
-- Runtime (e.g., `runtime 5m12s`)
-- Token usage (input/output/total)
-- Estimated cost when model pricing is configured (`models.providers.*.models[].cost`)
-- `sessionKey`, `sessionId`, and transcript path (so the main agent can fetch history via `sessions_history` or inspect the file on disk)
+Behavior is task-driven:
+- Default: report once when task completes
+- Can report multiple times if task says so ("report progress")
+- Can skip if task says "no report" or task failed completely
 
 ## Tool Policy (sub-agent tools)
 
-By default, sub-agents get **all tools except session tools**:
-- `sessions_list`
-- `sessions_history`
-- `sessions_send`
-- `sessions_spawn`
+By default, sub-agents get **all tools except**:
+- `sessions_send` (use `report_back` instead)
+- `sessions_spawn` (prevents infinite loops)
+- `message` (use `report_back` instead)
+
+Sub-agents **can** use:
+- `sessions_list`, `sessions_history` (read-only)
+- `gateway`, `cron`, `browser`, file tools, etc.
 
 Override via config:
 
@@ -88,6 +89,19 @@ Override via config:
 }
 ```
 
+## Sub-agent Context
+
+Sub-agents receive the same context as the main agent:
+- Workspace files (`AGENTS.md`, `TOOLS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `MEMORY.md`)
+- Tool summaries and availability
+- Model aliases, user timezone, skills, runtime info
+
+The sub-agent system prompt adds:
+- Stay focused on assigned task
+- Use `report_back` to communicate results
+- No heartbeats or proactive actions
+- Report back if blocked or confused
+
 ## Concurrency
 
 Sub-agents use a dedicated in-process queue lane:
@@ -96,7 +110,6 @@ Sub-agents use a dedicated in-process queue lane:
 
 ## Limitations
 
-- Sub-agent announce is **best-effort**. If the gateway restarts, pending “announce back” work is lost.
-- Sub-agents still share the same gateway process resources; treat `maxConcurrent` as a safety valve.
-- `sessions_spawn` is always non-blocking: it returns `{ status: "accepted", runId, childSessionKey }` immediately.
-- Sub-agent context only injects `AGENTS.md` + `TOOLS.md` (no `SOUL.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`, or `BOOTSTRAP.md`).
+- Cleanup is **best-effort**; pending work may be lost if gateway restarts.
+- Sub-agents share gateway process resources; treat `maxConcurrent` as a safety valve.
+- `sessions_spawn` is always non-blocking: returns `{ status: "accepted", runId, childSessionKey }` immediately.
