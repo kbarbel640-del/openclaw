@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isWhatsAppGroupJid,
-  isWhatsAppUserJid,
+  isWhatsAppUserTarget,
   normalizeWhatsAppTarget,
 } from "./normalize.js";
 
@@ -45,6 +45,7 @@ describe("normalizeWhatsAppTarget", () => {
 
   it("normalizes LID JIDs to E.164", () => {
     expect(normalizeWhatsAppTarget("123456789@lid")).toBe("+123456789");
+    expect(normalizeWhatsAppTarget("123456789@LID")).toBe("+123456789");
   });
 
   it("rejects invalid targets", () => {
@@ -52,6 +53,7 @@ describe("normalizeWhatsAppTarget", () => {
     expect(normalizeWhatsAppTarget("whatsapp:")).toBeNull();
     expect(normalizeWhatsAppTarget("@g.us")).toBeNull();
     expect(normalizeWhatsAppTarget("whatsapp:group:@g.us")).toBeNull();
+    expect(normalizeWhatsAppTarget("[redacted-email]")).toBeNull();
   });
 
   it("handles repeated prefixes", () => {
@@ -60,13 +62,16 @@ describe("normalizeWhatsAppTarget", () => {
   });
 });
 
-describe("isWhatsAppUserJid", () => {
+describe("isWhatsAppUserTarget", () => {
   it("detects user JIDs with various formats", () => {
-    expect(isWhatsAppUserJid("41796666864:[redacted-email]")).toBe(true);
-    expect(isWhatsAppUserJid("[redacted-email]")).toBe(true);
-    expect(isWhatsAppUserJid("123456789@lid")).toBe(true);
-    expect(isWhatsAppUserJid("[redacted-email]")).toBe(false);
-    expect(isWhatsAppUserJid("+1555123")).toBe(false);
+    expect(isWhatsAppUserTarget("41796666864:[redacted-email]")).toBe(true);
+    expect(isWhatsAppUserTarget("[redacted-email]")).toBe(true);
+    expect(isWhatsAppUserTarget("123456789@lid")).toBe(true);
+    expect(isWhatsAppUserTarget("123456789@LID")).toBe(true);
+    expect(isWhatsAppUserTarget("123@lid:0")).toBe(false);
+    expect(isWhatsAppUserTarget("[redacted-email]")).toBe(false);
+    expect(isWhatsAppUserTarget("[redacted-email]")).toBe(false);
+    expect(isWhatsAppUserTarget("+1555123")).toBe(false);
   });
 });
 
