@@ -43,9 +43,6 @@ importers:
       '@mariozechner/pi-tui':
         specifier: ^0.45.3
         version: 0.45.3
-      '@matrix-org/matrix-sdk-crypto-wasm':
-        specifier: 15.3.0
-        version: 15.3.0
       '@microsoft/agents-hosting':
         specifier: ^1.1.1
         version: 1.1.1
@@ -1028,10 +1025,6 @@ packages:
   '@mariozechner/pi-tui@0.45.3':
     resolution: {integrity: sha512-Z/ThVu1JHLQYDR1TgZdCXlaR9rimZ5wuYUO+dy773Cz0xFOg+E6YSfPDRu7t3TErLt59v/gnBw72cIdfIXoYpw==}
     engines: {node: '>=20.0.0'}
-
-  '@matrix-org/matrix-sdk-crypto-wasm@15.3.0':
-    resolution: {integrity: sha512-QyxHvncvkl7nf+tnn92PjQ54gMNV8hMSpiukiDgNrqF6IYwgySTlcSdkPYdw8QjZJ0NR6fnVrNzMec0OohM3wA==}
-    engines: {node: '>= 18'}
 
   '@matrix-org/matrix-sdk-crypto-wasm@16.0.0':
     resolution: {integrity: sha512-c+0eu/ckG+ik62CaOFvHAulJlspw2CBKcLrWbiEQsXv4J3PC4xaaDI5VHFAl7FDU+U9Ww2DDNTieszCh4Lk0/Q==}
@@ -5238,8 +5231,6 @@ snapshots:
       get-east-asian-width: 1.4.0
       marked: 15.0.12
       mime-types: 3.0.2
-
-  '@matrix-org/matrix-sdk-crypto-wasm@15.3.0': {}
 
   '@matrix-org/matrix-sdk-crypto-wasm@16.0.0': {}
 
