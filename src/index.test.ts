@@ -17,9 +17,7 @@ describe("toWhatsappJid", () => {
   });
 
   it("keeps group JIDs intact", () => {
-    expect(toWhatsappJid("[redacted-email]")).toBe(
-      "[redacted-email]",
-    );
+    expect(toWhatsappJid("[redacted-email]")).toBe("[redacted-email]");
   });
 });
 

@@ -4,24 +4,20 @@ import { isWhatsAppGroupJid, normalizeWhatsAppTarget } from "./normalize.js";
 
 describe("normalizeWhatsAppTarget", () => {
   it("preserves group JIDs", () => {
-    expect(normalizeWhatsAppTarget("[redacted-email]")).toBe(
-      "[redacted-email]",
-    );
-    expect(normalizeWhatsAppTarget("[redacted-email]")).toBe(
-      "[redacted-email]",
-    );
+    expect(normalizeWhatsAppTarget("[redacted-email]")).toBe("[redacted-email]");
+    expect(normalizeWhatsAppTarget("[redacted-email]")).toBe("[redacted-email]");
     expect(normalizeWhatsAppTarget("whatsapp:[redacted-email]")).toBe(
       "[redacted-email]",
     );
-    expect(
-      normalizeWhatsAppTarget("whatsapp:group:[redacted-email]"),
-    ).toBe("[redacted-email]");
+    expect(normalizeWhatsAppTarget("whatsapp:group:[redacted-email]")).toBe(
+      "[redacted-email]",
+    );
     expect(normalizeWhatsAppTarget("group:[redacted-email]")).toBe(
       "[redacted-email]",
     );
-    expect(
-      normalizeWhatsAppTarget(" WhatsApp:Group:[redacted-email] "),
-    ).toBe("[redacted-email]");
+    expect(normalizeWhatsAppTarget(" WhatsApp:Group:[redacted-email] ")).toBe(
+      "[redacted-email]",
+    );
   });
 
   it("normalizes direct JIDs to E.164", () => {
@@ -46,9 +42,7 @@ describe("isWhatsAppGroupJid", () => {
     expect(isWhatsAppGroupJid("[redacted-email]")).toBe(true);
     expect(isWhatsAppGroupJid("[redacted-email]")).toBe(true);
     expect(isWhatsAppGroupJid("whatsapp:[redacted-email]")).toBe(true);
-    expect(isWhatsAppGroupJid("whatsapp:group:[redacted-email]")).toBe(
-      true,
-    );
+    expect(isWhatsAppGroupJid("whatsapp:group:[redacted-email]")).toBe(true);
     expect(isWhatsAppGroupJid("[redacted-email]")).toBe(false);
     expect(isWhatsAppGroupJid("@g.us")).toBe(false);
     expect(isWhatsAppGroupJid("[redacted-email]")).toBe(false);
