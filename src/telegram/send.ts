@@ -219,15 +219,17 @@ export async function sendMessageTelegram(
     // then send text as a separate follow-up message.
     const needsSeparateText = trimmedText.length > TELEGRAM_MAX_CAPTION_LENGTH;
     const caption = needsSeparateText ? undefined : trimmedText || undefined;
+    // When splitting, put reply_markup only on the follow-up text (the "main" content),
+    // not on the media message.
     const mediaParams = hasThreadParams
       ? {
           caption,
           ...threadParams,
-          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+          ...(!needsSeparateText && replyMarkup ? { reply_markup: replyMarkup } : {}),
         }
       : {
           caption,
-          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+          ...(!needsSeparateText && replyMarkup ? { reply_markup: replyMarkup } : {}),
         };
     let result:
       | Awaited<ReturnType<typeof api.sendPhoto>>
@@ -296,47 +298,22 @@ export async function sendMessageTelegram(
     });
 
     // If text was too long for a caption, send it as a separate follow-up message.
+    // Use plain text to match caption behavior (captions don't use HTML conversion).
     if (needsSeparateText && trimmedText) {
-      const htmlText = markdownToTelegramHtml(trimmedText);
-      const textParams = hasThreadParams
-        ? {
-            parse_mode: "HTML" as const,
-            ...threadParams,
-            ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-          }
-        : {
-            parse_mode: "HTML" as const,
-            ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-          };
+      const textParams =
+        hasThreadParams || replyMarkup
+          ? {
+              ...threadParams,
+              ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+            }
+          : undefined;
       const textRes = await request(
-        () => api.sendMessage(chatId, htmlText, textParams),
+        () =>
+          textParams
+            ? api.sendMessage(chatId, trimmedText, textParams)
+            : api.sendMessage(chatId, trimmedText),
         "message",
-      ).catch(async (err) => {
-        // Fallback to plain text if HTML parsing fails.
-        const errText = formatErrorMessage(err);
-        if (PARSE_ERR_RE.test(errText)) {
-          if (opts.verbose) {
-            console.warn(
-              `telegram HTML parse failed, retrying as plain text: ${errText}`,
-            );
-          }
-          const plainParams =
-            hasThreadParams || replyMarkup
-              ? {
-                  ...threadParams,
-                  ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
-                }
-              : undefined;
-          return await request(
-            () =>
-              plainParams
-                ? api.sendMessage(chatId, trimmedText, plainParams)
-                : api.sendMessage(chatId, trimmedText),
-            "message-plain",
-          );
-        }
-        throw err;
-      });
+      );
       // Return the text message ID as the "main" message (it's the actual content).
       return {
         messageId: String(textRes?.message_id ?? mediaMessageId),

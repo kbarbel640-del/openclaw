@@ -87,10 +87,8 @@ describe("sendMessageTelegram caption splitting", () => {
     expect(sendPhoto).toHaveBeenCalledWith(chatId, expect.anything(), {
       caption: undefined,
     });
-    // Then text sent as separate message
-    expect(sendMessage).toHaveBeenCalledWith(chatId, longText, {
-      parse_mode: "HTML",
-    });
+    // Then text sent as separate message (plain text, matching caption behavior)
+    expect(sendMessage).toHaveBeenCalledWith(chatId, longText);
     // Returns the text message ID (the "main" content)
     expect(res.messageId).toBe("71");
   });
@@ -168,11 +166,89 @@ describe("sendMessageTelegram caption splitting", () => {
       message_thread_id: 271,
       reply_to_message_id: 500,
     });
-    // Text message also includes thread params
+    // Text message also includes thread params (plain text, matching caption behavior)
     expect(sendMessage).toHaveBeenCalledWith(chatId, longText, {
-      parse_mode: "HTML",
       message_thread_id: 271,
       reply_to_message_id: 500,
     });
+  });
+
+  it("puts reply_markup only on follow-up text when splitting", async () => {
+    const chatId = "123";
+    const longText = "D".repeat(1100);
+
+    const sendPhoto = vi.fn().mockResolvedValue({
+      message_id: 75,
+      chat: { id: chatId },
+    });
+    const sendMessage = vi.fn().mockResolvedValue({
+      message_id: 76,
+      chat: { id: chatId },
+    });
+    const api = { sendPhoto, sendMessage } as unknown as {
+      sendPhoto: typeof sendPhoto;
+      sendMessage: typeof sendMessage;
+    };
+
+    loadWebMedia.mockResolvedValueOnce({
+      buffer: Buffer.from("fake-image"),
+      contentType: "image/jpeg",
+      fileName: "photo.jpg",
+    });
+
+    await sendMessageTelegram(chatId, longText, {
+      token: "tok",
+      api,
+      mediaUrl: "https://example.com/photo.jpg",
+      buttons: [[{ text: "Click me", callback_data: "action:click" }]],
+    });
+
+    // Media sent WITHOUT reply_markup
+    expect(sendPhoto).toHaveBeenCalledWith(chatId, expect.anything(), {
+      caption: undefined,
+    });
+    // Follow-up text has the reply_markup
+    expect(sendMessage).toHaveBeenCalledWith(chatId, longText, {
+      reply_markup: {
+        inline_keyboard: [[{ text: "Click me", callback_data: "action:click" }]],
+      },
+    });
+  });
+
+  it("keeps reply_markup on media when not splitting", async () => {
+    const chatId = "123";
+    const shortText = "E".repeat(100);
+
+    const sendPhoto = vi.fn().mockResolvedValue({
+      message_id: 77,
+      chat: { id: chatId },
+    });
+    const sendMessage = vi.fn();
+    const api = { sendPhoto, sendMessage } as unknown as {
+      sendPhoto: typeof sendPhoto;
+      sendMessage: typeof sendMessage;
+    };
+
+    loadWebMedia.mockResolvedValueOnce({
+      buffer: Buffer.from("fake-image"),
+      contentType: "image/jpeg",
+      fileName: "photo.jpg",
+    });
+
+    await sendMessageTelegram(chatId, shortText, {
+      token: "tok",
+      api,
+      mediaUrl: "https://example.com/photo.jpg",
+      buttons: [[{ text: "Click me", callback_data: "action:click" }]],
+    });
+
+    // Media sent WITH reply_markup when not splitting
+    expect(sendPhoto).toHaveBeenCalledWith(chatId, expect.anything(), {
+      caption: shortText,
+      reply_markup: {
+        inline_keyboard: [[{ text: "Click me", callback_data: "action:click" }]],
+      },
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });
