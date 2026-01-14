@@ -51,6 +51,19 @@ async function noteTelegramTokenHelp(prompter: WizardPrompter): Promise<void> {
   );
 }
 
+async function noteTelegramUserIdHelp(prompter: WizardPrompter): Promise<void> {
+  await prompter.note(
+    [
+      "1) Open Telegram and chat with @userinfobot",
+      "2) The bot replies with your user id",
+      "3) Paste the numeric user id here",
+      `Docs: ${formatDocsLink("/telegram")}`,
+      "Website: https://clawd.bot",
+    ].join("\n"),
+    "Telegram user id",
+  );
+}
+
 async function promptTelegramAllowFrom(params: {
   cfg: ClawdbotConfig;
   prompter: WizardPrompter;
@@ -59,6 +72,7 @@ async function promptTelegramAllowFrom(params: {
   const { cfg, prompter, accountId } = params;
   const resolved = resolveTelegramAccount({ cfg, accountId });
   const existingAllowFrom = resolved.config.allowFrom ?? [];
+  await noteTelegramUserIdHelp(prompter);
   const entry = await prompter.text({
     message: "Telegram allowFrom (user id)",
     placeholder: "123456789",
