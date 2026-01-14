@@ -168,6 +168,48 @@ describe("web auto-reply", () => {
     expect(payload.Body).toContain("@bot ping");
     expect(payload.Body).toContain("[from: Bob (+222)]");
   });
+
+  it("passes conversation id through as From for group replies", async () => {
+    const sendMedia = vi.fn();
+    const reply = vi.fn().mockResolvedValue(undefined);
+    const sendComposing = vi.fn();
+    const resolver = vi.fn().mockResolvedValue({ text: "ok" });
+
+    let capturedOnMessage:
+      | ((msg: import("./inbound.js").WebInboundMessage) => Promise<void>)
+      | undefined;
+    const listenerFactory = async (opts: {
+      onMessage: (msg: import("./inbound.js").WebInboundMessage) => Promise<void>;
+    }) => {
+      capturedOnMessage = opts.onMessage;
+      return { close: vi.fn() };
+    };
+
+    await monitorWebChannel(false, listenerFactory, false, resolver);
+    expect(capturedOnMessage).toBeDefined();
+
+    await capturedOnMessage?.({
+      body: "@bot ping",
+      from: "[redacted-email]",
+      conversationId: "[redacted-email]",
+      chatId: "[redacted-email]",
+      chatType: "group",
+      to: "+2",
+      id: "g1",
+      senderE164: "+222",
+      senderName: "Bob",
+      mentionedJids: ["[redacted-email]"],
+      selfE164: "+999",
+      selfJid: "[redacted-email]",
+      sendComposing,
+      reply,
+      sendMedia,
+    });
+
+    const payload = resolver.mock.calls[0]?.[0] as { From?: string; To?: string };
+    expect(payload.From).toBe("[redacted-email]");
+    expect(payload.To).toBe("+2");
+  });
   it("detects LID mentions using authDir mapping", async () => {
     const sendMedia = vi.fn();
     const reply = vi.fn().mockResolvedValue(undefined);
