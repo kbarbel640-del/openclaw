@@ -121,6 +121,31 @@ describe("browser tool snapshot maxChars", () => {
 
     expect(browserClientMocks.browserProfiles).toHaveBeenCalledWith("http://127.0.0.1:18791");
   });
+
+  it("passes refs mode through to browser snapshot", async () => {
+    const tool = createBrowserTool();
+    await tool.execute?.(null, { action: "snapshot", format: "ai", refs: "aria" });
+
+    expect(browserClientMocks.browserSnapshot).toHaveBeenCalledWith(
+      "http://127.0.0.1:18791",
+      expect.objectContaining({
+        format: "ai",
+        refs: "aria",
+      }),
+    );
+  });
+
+  it("defaults to host when using profile=chrome (even in sandboxed sessions)", async () => {
+    const tool = createBrowserTool({ defaultControlUrl: "http://127.0.0.1:9999" });
+    await tool.execute?.(null, { action: "snapshot", profile: "chrome", format: "ai" });
+
+    expect(browserClientMocks.browserSnapshot).toHaveBeenCalledWith(
+      "http://127.0.0.1:18791",
+      expect.objectContaining({
+        profile: "chrome",
+      }),
+    );
+  });
 });
 
 describe("browser tool snapshot labels", () => {

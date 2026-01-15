@@ -14,6 +14,7 @@ import {
   formatControlUiSshHint,
   openUrl,
   probeGatewayReachable,
+  waitForGatewayReachable,
   resolveControlUiLinks,
 } from "../commands/onboard-helpers.js";
 import type { OnboardOptions } from "../commands/onboard-types.js";
@@ -31,7 +32,7 @@ import { isSystemdUserServiceAvailable } from "../daemon/systemd.js";
 import { ensureControlUiAssetsBuilt } from "../infra/control-ui-assets.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { runTui } from "../tui/tui.js";
-import { resolveUserPath, sleep } from "../utils.js";
+import { resolveUserPath } from "../utils.js";
 import type { GatewayWizardSettings, WizardFlow } from "./onboarding.types.js";
 import type { WizardPrompter } from "./prompts.js";
 
@@ -140,11 +141,11 @@ export async function finalizeOnboardingWizard(options: FinalizeOnboardingOption
           "Gateway daemon",
           { doneMessage: "Gateway daemon restarted." },
           async (progress) => {
-          progress.update("Restarting Gateway daemon…");
-          await service.restart({
-            profile: process.env.CLAWDBOT_PROFILE,
-            stdout: process.stdout,
-          });
+            progress.update("Restarting Gateway daemon…");
+            await service.restart({
+              profile: process.env.CLAWDBOT_PROFILE,
+              stdout: process.stdout,
+            });
           },
         );
       } else if (action === "reinstall") {
@@ -152,8 +153,8 @@ export async function finalizeOnboardingWizard(options: FinalizeOnboardingOption
           "Gateway daemon",
           { doneMessage: "Gateway daemon uninstalled." },
           async (progress) => {
-          progress.update("Uninstalling Gateway daemon…");
-          await service.uninstall({ env: process.env, stdout: process.stdout });
+            progress.update("Uninstalling Gateway daemon…");
+            await service.uninstall({ env: process.env, stdout: process.stdout });
           },
         );
       }
@@ -169,47 +170,58 @@ export async function finalizeOnboardingWizard(options: FinalizeOnboardingOption
         "Gateway daemon",
         { doneMessage: "Gateway daemon installed." },
         async (progress) => {
-        progress.update("Preparing Gateway daemon…");
-        const nodePath = await resolvePreferredNodePath({
-          env: process.env,
-          runtime: daemonRuntime,
-        });
-        const { programArguments, workingDirectory } = await resolveGatewayProgramArguments({
-          port: settings.port,
-          dev: devMode,
-          runtime: daemonRuntime,
-          nodePath,
-        });
-        if (daemonRuntime === "node") {
-          const systemNode = await resolveSystemNodeInfo({ env: process.env });
-          const warning = renderSystemNodeWarning(systemNode, programArguments[0]);
-          if (warning) await prompter.note(warning, "Gateway runtime");
-        }
-        const environment = buildServiceEnvironment({
-          env: process.env,
-          port: settings.port,
-          token: settings.gatewayToken,
-          launchdLabel:
-            process.platform === "darwin"
-              ? resolveGatewayLaunchAgentLabel(process.env.CLAWDBOT_PROFILE)
-              : undefined,
-        });
+          progress.update("Preparing Gateway daemon…");
+          const nodePath = await resolvePreferredNodePath({
+            env: process.env,
+            runtime: daemonRuntime,
+          });
+          const { programArguments, workingDirectory } = await resolveGatewayProgramArguments({
+            port: settings.port,
+            dev: devMode,
+            runtime: daemonRuntime,
+            nodePath,
+          });
+          if (daemonRuntime === "node") {
+            const systemNode = await resolveSystemNodeInfo({ env: process.env });
+            const warning = renderSystemNodeWarning(systemNode, programArguments[0]);
+            if (warning) await prompter.note(warning, "Gateway runtime");
+          }
+          const environment = buildServiceEnvironment({
+            env: process.env,
+            port: settings.port,
+            token: settings.gatewayToken,
+            launchdLabel:
+              process.platform === "darwin"
+                ? resolveGatewayLaunchAgentLabel(process.env.CLAWDBOT_PROFILE)
+                : undefined,
+          });
 
-        progress.update("Installing Gateway daemon…");
-        await service.install({
-          env: process.env,
-          stdout: process.stdout,
-          programArguments,
-          workingDirectory,
-          environment,
-        });
+          progress.update("Installing Gateway daemon…");
+          await service.install({
+            env: process.env,
+            stdout: process.stdout,
+            programArguments,
+            workingDirectory,
+            environment,
+          });
         },
       );
     }
   }
 
   if (!opts.skipHealth) {
-    await sleep(1500);
+    const probeLinks = resolveControlUiLinks({
+      bind: nextConfig.gateway?.bind ?? "loopback",
+      port: settings.port,
+      customBindHost: nextConfig.gateway?.customBindHost,
+      basePath: undefined,
+    });
+    // Daemon install/restart can briefly flap the WS; wait a bit so health check doesn't false-fail.
+    await waitForGatewayReachable({
+      url: probeLinks.wsUrl,
+      token: settings.gatewayToken,
+      deadlineMs: 15_000,
+    });
     try {
       await healthCommand({ json: false, timeoutMs: 10_000 }, runtime);
     } catch (err) {
