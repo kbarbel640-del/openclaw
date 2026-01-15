@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { enqueueCommand, getQueueSize } from "./command-queue.js";
+import {
+  enqueueCommand,
+  enqueueCommandInLane,
+  getQueueSize,
+  setCommandLaneConcurrency,
+} from "./command-queue.js";
 
 describe("command queue", () => {
   it("runs tasks one at a time in order", async () => {
@@ -51,5 +56,59 @@ describe("command queue", () => {
     expect(waited).not.toBeNull();
     expect(waited as number).toBeGreaterThanOrEqual(5);
     expect(queuedAhead).toBe(0);
+  });
+
+  it("runs tasks in parallel when lane concurrency is Infinity", async () => {
+    const lane = `test-unlimited-${Date.now()}`;
+    setCommandLaneConcurrency(lane, Infinity);
+
+    let active = 0;
+    let maxActive = 0;
+    const calls: number[] = [];
+
+    const makeTask = (id: number) => async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      calls.push(id);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      active -= 1;
+      return id;
+    };
+
+    const results = await Promise.all([
+      enqueueCommandInLane(lane, makeTask(1)),
+      enqueueCommandInLane(lane, makeTask(2)),
+      enqueueCommandInLane(lane, makeTask(3)),
+    ]);
+
+    expect(results).toEqual([1, 2, 3]);
+    // All 3 should have run concurrently
+    expect(maxActive).toBe(3);
+  });
+
+  it("respects configured concurrency limit", async () => {
+    const lane = `test-limited-${Date.now()}`;
+    setCommandLaneConcurrency(lane, 2);
+
+    let active = 0;
+    let maxActive = 0;
+
+    const makeTask = (id: number) => async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      active -= 1;
+      return id;
+    };
+
+    const results = await Promise.all([
+      enqueueCommandInLane(lane, makeTask(1)),
+      enqueueCommandInLane(lane, makeTask(2)),
+      enqueueCommandInLane(lane, makeTask(3)),
+    ]);
+
+    expect(results).toEqual([1, 2, 3]);
+    // Max 2 should have run concurrently
+    expect(maxActive).toBe(2);
   });
 });
