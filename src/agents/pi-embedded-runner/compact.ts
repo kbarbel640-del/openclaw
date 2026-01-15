@@ -55,6 +55,7 @@ import { splitSdkTools } from "./tool-split.js";
 import type { EmbeddedPiCompactResult } from "./types.js";
 import {
   describeUnknownError,
+  detectUse24Hour,
   formatUserTime,
   mapThinkingLevel,
   resolveExecToolDefaults,
@@ -228,7 +229,8 @@ export async function compactEmbeddedPiSession(params: {
         const sandboxInfo = buildEmbeddedSandboxInfo(sandbox, params.bashElevated);
         const reasoningTagHint = isReasoningTagProvider(provider);
         const userTimezone = resolveUserTimezone(params.config?.agents?.defaults?.userTimezone);
-        const userTime = formatUserTime(new Date(), userTimezone);
+        const use24Hour = params.config?.agents?.defaults?.use24HourTime ?? detectUse24Hour();
+        const userTime = formatUserTime(new Date(), userTimezone, use24Hour);
         const { defaultAgentId, sessionAgentId } = resolveSessionAgentIds({
           sessionKey: params.sessionKey,
           config: params.config,
@@ -251,6 +253,7 @@ export async function compactEmbeddedPiSession(params: {
           modelAliasLines: buildModelAliasLines(params.config),
           userTimezone,
           userTime,
+          use24HourTime: use24Hour,
           contextFiles,
         });
         const systemPrompt = createSystemPromptOverride(appendPrompt);

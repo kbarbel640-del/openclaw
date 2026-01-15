@@ -29,6 +29,7 @@ export function buildEmbeddedSystemPrompt(params: {
   modelAliasLines: string[];
   userTimezone: string;
   userTime?: string;
+  use24HourTime?: boolean;
   contextFiles?: EmbeddedContextFile[];
 }): string {
   return buildAgentSystemPrompt({
@@ -47,6 +48,7 @@ export function buildEmbeddedSystemPrompt(params: {
     modelAliasLines: params.modelAliasLines,
     userTimezone: params.userTimezone,
     userTime: params.userTime,
+    use24HourTime: params.use24HourTime,
     contextFiles: params.contextFiles,
   });
 }

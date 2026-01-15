@@ -61,16 +61,41 @@ describe("buildAgentSystemPrompt", () => {
     );
   });
 
-  it("includes user time when provided", () => {
+  it("includes user time when provided (12h format)", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/clawd",
       userTimezone: "America/Chicago",
-      userTime: "Monday 2026-01-05 15:26",
+      userTime: "Monday, January 5th, 2026 — 3:26 PM",
+      use24HourTime: false,
     });
 
-    expect(prompt).toContain(
-      "Time: assume UTC unless stated. User time zone: America/Chicago. Current user time (local, 24-hour): Monday 2026-01-05 15:26 (America/Chicago).",
-    );
+    expect(prompt).toContain("## Current Date & Time");
+    expect(prompt).toContain("Monday, January 5th, 2026 — 3:26 PM (America/Chicago)");
+    expect(prompt).toContain("Time format: 12-hour");
+  });
+
+  it("includes user time when provided (24h format)", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/clawd",
+      userTimezone: "America/Chicago",
+      userTime: "Monday, January 5th, 2026 — 15:26",
+      use24HourTime: true,
+    });
+
+    expect(prompt).toContain("## Current Date & Time");
+    expect(prompt).toContain("Monday, January 5th, 2026 — 15:26 (America/Chicago)");
+    expect(prompt).toContain("Time format: 24-hour");
+  });
+
+  it("shows UTC fallback when only timezone is provided", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/clawd",
+      userTimezone: "America/Chicago",
+    });
+
+    expect(prompt).toContain("## Current Date & Time");
+    expect(prompt).toContain("Time zone: America/Chicago");
+    expect(prompt).toContain("assume UTC");
   });
 
   it("includes model alias guidance when aliases are provided", () => {
