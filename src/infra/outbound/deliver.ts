@@ -6,7 +6,7 @@ import type { ChannelOutboundAdapter } from "../../channels/plugins/types.js";
 import type { ClawdbotConfig } from "../../config/config.js";
 import type { sendMessageDiscord } from "../../discord/send.js";
 import type { sendMessageIMessage } from "../../imessage/send.js";
-import { chunkSignalText, markdownToSignalText } from "../../signal/format.js";
+import { markdownToSignalTextChunks, type SignalTextStyleRange } from "../../signal/format.js";
 import { sendMessageSignal } from "../../signal/send.js";
 import type { sendMessageSlack } from "../../slack/send.js";
 import type { sendMessageTelegram } from "../../telegram/send.js";
@@ -196,10 +196,7 @@ export async function deliverOutboundPayloads(params: {
     }
   };
 
-  const sendSignalText = async (
-    text: string,
-    styles: ReturnType<typeof markdownToSignalText>["styles"],
-  ) => {
+  const sendSignalText = async (text: string, styles: SignalTextStyleRange[]) => {
     throwIfAborted(abortSignal);
     return {
       channel: "signal" as const,
@@ -214,11 +211,13 @@ export async function deliverOutboundPayloads(params: {
 
   const sendSignalTextChunks = async (text: string) => {
     throwIfAborted(abortSignal);
-    // Format the full text first to preserve inline markdown constructs
-    const formattedFull = markdownToSignalText(text);
-    // Then chunk the formatted text with styles
-    const signalChunks =
-      textLimit === undefined ? [formattedFull] : chunkSignalText(formattedFull, textLimit);
+    let signalChunks =
+      textLimit === undefined
+        ? markdownToSignalTextChunks(text, Number.POSITIVE_INFINITY)
+        : markdownToSignalTextChunks(text, textLimit);
+    if (signalChunks.length === 0 && text) {
+      signalChunks = [{ text, styles: [] }];
+    }
     for (const chunk of signalChunks) {
       throwIfAborted(abortSignal);
       results.push(await sendSignalText(chunk.text, chunk.styles));
@@ -227,7 +226,10 @@ export async function deliverOutboundPayloads(params: {
 
   const sendSignalMedia = async (caption: string, mediaUrl: string) => {
     throwIfAborted(abortSignal);
-    const formatted = markdownToSignalText(caption);
+    const formatted = markdownToSignalTextChunks(caption, Number.POSITIVE_INFINITY)[0] ?? {
+      text: caption,
+      styles: [],
+    };
     return {
       channel: "signal" as const,
       ...(await sendSignal(to, formatted.text, {
@@ -239,7 +241,6 @@ export async function deliverOutboundPayloads(params: {
       })),
     };
   };
-
   const normalizedPayloads = normalizeOutboundPayloads(payloads);
   for (const payload of normalizedPayloads) {
     try {

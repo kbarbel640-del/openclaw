@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ClawdbotConfig } from "../../config/config.js";
-import { chunkSignalText, markdownToSignalText } from "../../signal/format.js";
-import {
-  deliverOutboundPayloads,
-  normalizeOutboundPayloads,
-} from "./deliver.js";
+import { markdownToSignalTextChunks } from "../../signal/format.js";
+import { deliverOutboundPayloads, normalizeOutboundPayloads } from "./deliver.js";
 
 describe("deliverOutboundPayloads", () => {
   it("chunks telegram markdown and passes through accountId", async () => {
@@ -26,7 +23,9 @@ describe("deliverOutboundPayloads", () => {
 
       expect(sendTelegram).toHaveBeenCalledTimes(2);
       for (const call of sendTelegram.mock.calls) {
-        expect(call[2]).toEqual(expect.objectContaining({ accountId: undefined, verbose: false }));
+        expect(call[2]).toEqual(
+          expect.objectContaining({ accountId: undefined, verbose: false, textMode: "html" }),
+        );
       }
       expect(results).toHaveLength(2);
       expect(results[0]).toMatchObject({ channel: "telegram", chatId: "c1" });
@@ -57,7 +56,7 @@ describe("deliverOutboundPayloads", () => {
     expect(sendTelegram).toHaveBeenCalledWith(
       "123",
       "hi",
-      expect.objectContaining({ accountId: "default", verbose: false }),
+      expect.objectContaining({ accountId: "default", verbose: false, textMode: "html" }),
     );
   });
 
@@ -79,33 +78,14 @@ describe("deliverOutboundPayloads", () => {
       expect.objectContaining({
         mediaUrl: "https://x.test/a.jpg",
         maxBytes: 2 * 1024 * 1024,
+        textMode: "plain",
+        textStyles: [],
       }),
     );
     expect(results[0]).toMatchObject({ channel: "signal", messageId: "s1" });
   });
 
-  it("chunks WhatsApp text and returns all results", async () => {
-    const sendWhatsApp = vi
-      .fn()
-      .mockResolvedValueOnce({ messageId: "w1", toJid: "jid" })
-      .mockResolvedValueOnce({ messageId: "w2", toJid: "jid" });
-    const cfg: ClawdbotConfig = {
-      channels: { whatsapp: { textChunkLimit: 2 } },
-    };
-
-    const results = await deliverOutboundPayloads({
-      cfg,
-      channel: "whatsapp",
-      to: "+1555",
-      payloads: [{ text: "abcd" }],
-      deps: { sendWhatsApp },
-    });
-
-    expect(sendWhatsApp).toHaveBeenCalledTimes(2);
-    expect(results.map((r) => r.messageId)).toEqual(["w1", "w2"]);
-  });
-
-  it("chunks Signal markdown using the markdown chunker", async () => {
+  it("chunks Signal markdown using the format-first chunker", async () => {
     const sendSignal = vi
       .fn()
       .mockResolvedValue({ messageId: "s1", timestamp: 123 });
@@ -113,9 +93,7 @@ describe("deliverOutboundPayloads", () => {
       channels: { signal: { textChunkLimit: 20 } },
     };
     const text = `Intro\\n\\n\`\`\`\`md\\n${"y".repeat(60)}\\n\`\`\`\\n\\nOutro`;
-    // Format the full text first, then chunk (format-first approach)
-    const formattedFull = markdownToSignalText(text);
-    const expectedChunks = chunkSignalText(formattedFull, 20);
+    const expectedChunks = markdownToSignalTextChunks(text, 20);
 
     await deliverOutboundPayloads({
       cfg,
@@ -138,6 +116,27 @@ describe("deliverOutboundPayloads", () => {
         }),
       );
     });
+  });
+
+  it("chunks WhatsApp text and returns all results", async () => {
+    const sendWhatsApp = vi
+      .fn()
+      .mockResolvedValueOnce({ messageId: "w1", toJid: "jid" })
+      .mockResolvedValueOnce({ messageId: "w2", toJid: "jid" });
+    const cfg: ClawdbotConfig = {
+      channels: { whatsapp: { textChunkLimit: 2 } },
+    };
+
+    const results = await deliverOutboundPayloads({
+      cfg,
+      channel: "whatsapp",
+      to: "+1555",
+      payloads: [{ text: "abcd" }],
+      deps: { sendWhatsApp },
+    });
+
+    expect(sendWhatsApp).toHaveBeenCalledTimes(2);
+    expect(results.map((r) => r.messageId)).toEqual(["w1", "w2"]);
   });
 
   it("uses iMessage media maxBytes from agent fallback", async () => {
