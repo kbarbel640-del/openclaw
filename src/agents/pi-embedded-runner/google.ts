@@ -12,6 +12,7 @@ import {
 import { sanitizeToolUseResultPairing } from "../session-transcript-repair.js";
 import { log } from "./logger.js";
 import { describeUnknownError } from "./utils.js";
+import { isAntigravityClaude } from "../pi-embedded-helpers/google.js";
 
 const GOOGLE_TURN_ORDERING_CUSTOM_TYPE = "google-turn-ordering-bootstrap";
 const GOOGLE_SCHEMA_UNSUPPORTED_KEYWORDS = new Set([
@@ -140,16 +141,18 @@ export function applyGoogleTurnOrderingFix(params: {
 export async function sanitizeSessionHistory(params: {
   messages: AgentMessage[];
   modelApi?: string | null;
+  modelId?: string;
   sessionManager: SessionManager;
   sessionId: string;
 }): Promise<AgentMessage[]> {
   const sanitizedImages = await sanitizeSessionMessagesImages(params.messages, "session:history", {
     sanitizeToolCallIds: isGoogleModelApi(params.modelApi),
     enforceToolCallLast: params.modelApi === "anthropic-messages",
+    preserveSignatures: params.modelApi === "google-antigravity" && isAntigravityClaude(params.modelId),
   });
   const repairedTools = sanitizeToolUseResultPairing(sanitizedImages);
-
-  const downgraded = isGoogleModelApi(params.modelApi)
+  // Downgrade Gemini history for native Gemini APIs, but NOT for Antigravity Claude
+  const downgraded = isGoogleModelApi(params.modelApi) && !isAntigravityClaude(params.modelId)
     ? downgradeGeminiHistory(repairedTools)
     : repairedTools;
 
