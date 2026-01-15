@@ -25,9 +25,17 @@ Required user token scopes (read-only by default):
 - `reactions:read`
 - `pins:read`
 - `emoji:read`
+- `search:read`
 
 If you enable user-token writes, add the write scopes you need (`chat:write`,
 `reactions:write`, `pins:write`, `files:write`).
+
+Token usage:
+- Read actions (readMessages, reactions list, listPins, emojiList, memberInfo,
+  search) prefer the user token when configured, otherwise the bot token.
+- Write actions (send/edit/delete messages, react, pin/unpin, uploads) default
+  to the bot token. If `userTokenReadOnly: false` and no bot token is present,
+  Clawdbot falls back to the user token.
 
 ## Inputs to collect
 

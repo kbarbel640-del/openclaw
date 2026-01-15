@@ -102,6 +102,13 @@ Example with userTokenReadOnly explicitly set (allow user token writes):
 }
 ```
 
+### Token usage
+- Read operations (history, reactions list, pins list, emoji list, member info,
+  search) prefer the user token when configured, otherwise the bot token.
+- Write operations (send/edit/delete messages, add/remove reactions, pin/unpin,
+  file uploads) use the bot token by default. If `userTokenReadOnly: false` and
+  no bot token is available, Clawdbot falls back to the user token.
+
 ## History context
 - `channels.slack.historyLimit` (or `channels.slack.accounts.*.historyLimit`) controls how many recent channel/group messages are wrapped into the prompt.
 - Falls back to `messages.groupChat.historyLimit`. Set `0` to disable (default 50).
@@ -171,7 +178,8 @@ user scopes if you plan to configure a user token.
         "users:read",
         "reactions:read",
         "pins:read",
-        "emoji:read"
+        "emoji:read",
+        "search:read"
       ]
     }
   },
@@ -235,6 +243,7 @@ Add these under **User Token Scopes** if you configure `channels.slack.userToken
 - `reactions:read`
 - `pins:read`
 - `emoji:read`
+- `search:read`
 
 ### Not needed today (but likely future)
 - `mpim:write` (only if we add group-DM open/DM start via `conversations.open`)
