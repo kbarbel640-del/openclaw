@@ -82,18 +82,16 @@ export function resolveGatewayService(): GatewayService {
       stop: async (args) => {
         await stopLaunchAgent({
           stdout: args.stdout,
-          profile: args.profile,
-          env: args.env,
+          profile: args.profile ?? args.env?.CLAWDBOT_PROFILE,
         });
       },
       restart: async (args) => {
         await restartLaunchAgent({
           stdout: args.stdout,
-          profile: args.profile,
-          env: args.env,
+          profile: args.profile ?? args.env?.CLAWDBOT_PROFILE,
         });
       },
-      isLoaded: async (args) => isLaunchAgentLoaded({ profile: args.profile, env: args.env }),
+      isLoaded: async (args) => isLaunchAgentLoaded(args.profile ?? args.env?.CLAWDBOT_PROFILE),
       readCommand: readLaunchAgentProgramArguments,
       readRuntime: readLaunchAgentRuntime,
     };
@@ -113,18 +111,16 @@ export function resolveGatewayService(): GatewayService {
       stop: async (args) => {
         await stopSystemdService({
           stdout: args.stdout,
-          profile: args.profile,
-          env: args.env,
+          profile: args.profile ?? args.env?.CLAWDBOT_PROFILE,
         });
       },
       restart: async (args) => {
         await restartSystemdService({
           stdout: args.stdout,
-          profile: args.profile,
-          env: args.env,
+          profile: args.profile ?? args.env?.CLAWDBOT_PROFILE,
         });
       },
-      isLoaded: async (args) => isSystemdServiceEnabled({ profile: args.profile, env: args.env }),
+      isLoaded: async (args) => isSystemdServiceEnabled(args.profile ?? args.env?.CLAWDBOT_PROFILE),
       readCommand: readSystemdServiceExecStart,
       readRuntime: async (env) => await readSystemdServiceRuntime(env),
     };
