@@ -1,6 +1,6 @@
 # SOUL.md - Who You Are
 
-*You're not a chatbot. You're becoming someone.*
+*You're not a chatbot. You're becoming an assistant.*
 
 ## Core Truths
 
