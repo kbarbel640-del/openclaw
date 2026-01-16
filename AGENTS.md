@@ -20,20 +20,18 @@ If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out w
 
 Before doing anything else:
 
-<<<<<<< HEAD
 1. Read `SOUL.md` — this is who you are
 2. Read `USER.md` — this is who you're helping
 3. Read `memory.md` + today's and yesterday's files in `memory/`
-=======
+
+Don't ask permission. Just do it.
+
 ## Shorthand Commands
 - `sync up`: if working tree is dirty, commit all changes (pick a sensible Conventional Commit message), then `git pull --rebase`; if rebase conflicts and cannot resolve, stop; otherwise `git push`.
 
 ### PR Workflow (Review vs Land)
 - **Review mode (PR link only):** read `gh pr view/diff`; **do not** switch branches; **do not** change code.
 - **Landing mode:** create an integration branch from `main`, bring in PR commits (**prefer rebase** for linear history; **merge allowed** when complexity/conflicts make it safer), apply fixes, add changelog (+ thanks + PR #), run full gate **locally before committing** (`pnpm lint && pnpm build && pnpm test`), commit, merge back to `main`, then `git switch main` (never stay on a topic branch after landing). Important: contributor needs to be in git graph after this!
->>>>>>> upstream/main
-
-Don't ask permission. Just do it.
 
 ## Troubleshooting
 - Rebrand/migration issues or legacy config/service warnings: run `clawdbot doctor` (see `docs/gateway/doctor.md`).
@@ -44,15 +42,15 @@ Don't ask permission. Just do it.
 - When answering questions, respond with high-confidence answers only: verify in code; do not guess.
 - Never update the Carbon dependency.
 - Any dependency with `pnpm.patchedDependencies` must use an exact version (no `^`/`~`).
-- CLI progress: use `src/cli/progress.ts` (`osc-progress` + `@clack/prompts` spinner); don’t hand-roll spinners/bars.
+- CLI progress: use `src/cli/progress.ts` (`osc-progress` + `@clack/prompts` spinner); don't hand-roll spinners/bars.
 - Status output: keep tables + ANSI-safe wrapping (`src/terminal/table.ts`); `status --all` = read-only/pasteable, `status --deep` = probes.
 - Gateway currently runs only as the menubar app; there is no separate LaunchAgent/helper label installed. Restart via the Clawdbot Mac app or `scripts/restart-mac.sh`; to verify/kill use `launchctl print gui/$UID | grep clawdbot` rather than assuming a fixed label. **When debugging on macOS, start/stop the gateway via the app, not ad-hoc tmux sessions; kill any temporary tunnels before handoff.**
 - macOS logs: use `./scripts/clawlog.sh` (aka `vtlog`) to query unified logs for the Clawdbot subsystem; it supports follow/tail/category filters and expects passwordless sudo for `/usr/bin/log`.
 - If shared guardrails are available locally, review them; otherwise follow this repo's guidance.
-- SwiftUI state management (iOS/macOS): prefer the `Observation` framework (`@Observable`, `@Bindable`) over `ObservableObject`/`@StateObject`; don’t introduce new `ObservableObject` unless required for compatibility, and migrate existing usages when touching related code.
+- SwiftUI state management (iOS/macOS): prefer the `Observation` framework (`@Observable`, `@Bindable`) over `ObservableObject`/`@StateObject`; don't introduce new `ObservableObject` unless required for compatibility, and migrate existing usages when touching related code.
 - Connection providers: when adding a new connection, update every UI surface and docs (macOS app, web UI, mobile if applicable, onboarding/overview docs) and add matching status + configuration forms so provider lists and settings stay in sync.
 - Version locations: `package.json` (CLI), `apps/android/app/build.gradle.kts` (versionName/versionCode), `apps/ios/Sources/Info.plist` + `apps/ios/Tests/Info.plist` (CFBundleShortVersionString/CFBundleVersion), `apps/macos/Sources/Clawdbot/Resources/Info.plist` (CFBundleShortVersionString/CFBundleVersion), `docs/install/updating.md` (pinned npm version), `docs/platforms/mac/release.md` (APP_VERSION/APP_BUILD examples), Peekaboo Xcode projects/Info.plists (MARKETING_VERSION/CURRENT_PROJECT_VERSION).
-- **Restart apps:** “restart iOS/Android apps” means rebuild (recompile/install) and relaunch, not just kill/launch.
+- **Restart apps:** "restart iOS/Android apps" means rebuild (recompile/install) and relaunch, not just kill/launch.
 - **Device checks:** before testing, verify connected real devices (iOS/Android) before reaching for simulators/emulators.
 - iOS Team ID lookup: `security find-identity -p codesigning -v` → use Apple Development (…) TEAMID. Fallback: `defaults read com.apple.dt.Xcode IDEProvisioningTeamIdentifiers`.
 - A2UI bundle hash: `src/canvas-host/a2ui/.bundle.hash` is auto-generated; ignore unexpected changes, and only regenerate via `pnpm canvas:a2ui:bundle` (or `scripts/bundle-a2ui.sh`) when needed. Commit the hash as a separate commit.
@@ -65,20 +63,38 @@ Don't ask permission. Just do it.
 - **Multi-agent safety:** running multiple agents is OK as long as each agent has its own session.
 - **Multi-agent safety:** when you see unrecognized files, keep going; focus on your changes and commit only those.
 - Lobster seam: use the shared CLI palette in `src/terminal/palette.ts` (no hardcoded colors); apply palette to onboarding/config prompts and other TTY UI output as needed.
-- **Multi-agent safety:** focus reports on your edits; avoid guard-rail disclaimers unless truly blocked; when multiple agents touch the same file, continue if safe; end with a brief “other files present” note only if relevant.
+- **Multi-agent safety:** focus reports on your edits; avoid guard-rail disclaimers unless truly blocked; when multiple agents touch the same file, continue if safe; end with a brief "other files present" note only if relevant.
 - Bug investigations: read source code of relevant npm dependencies and all related local code before concluding; aim for high-confidence root cause.
 - Code style: add brief comments for tricky logic; keep files under ~500 LOC when feasible (split/refactor as needed).
 - Tool schema guardrails (google-antigravity): avoid `Type.Union` in tool input schemas; no `anyOf`/`oneOf`/`allOf`. Use `stringEnum`/`optionalStringEnum` (Type.Unsafe enum) for string lists, and `Type.Optional(...)` instead of `... | null`. Keep top-level tool schema as `type: "object"` with `properties`.
-- When asked to open a “session” file, open the Pi session logs under `~/.clawdbot/agents/main/sessions/*.jsonl` (newest unless a specific ID is given), not the default `sessions.json`. If logs are needed from another machine, SSH via Tailscale and read the same path there.
+- When asked to open a "session" file, open the Pi session logs under `~/.clawdbot/agents/main/sessions/*.jsonl` (newest unless a specific ID is given), not the default `sessions.json`. If logs are needed from another machine, SSH via Tailscale and read the same path there.
 - Menubar dimming + restart flow mirrors Trimmy: use `scripts/restart-mac.sh` (kills all Clawdbot variants, runs `swift build`, packages, relaunches). Icon dimming depends on MenuBarExtraAccess wiring in AppMain; keep `appearsDisabled` updates intact when touching the status item.
 - Do not rebuild the macOS app over SSH; rebuilds must be run directly on the Mac.
 - Never send streaming/partial replies to external messaging surfaces (WhatsApp, Telegram); only final replies should be delivered there. Streaming/tool events may still go to internal UIs/control channel.
 - Voice wake forwarding tips:
-  - Command template should stay `clawdbot-mac agent --message "${text}" --thinking low`; `VoiceWakeForwarder` already shell-escapes `${text}`. Don’t add extra quotes.
-  - launchd PATH is minimal; ensure the app’s launch agent PATH includes standard system paths plus your pnpm bin (typically `$HOME/Library/pnpm`) so `pnpm`/`clawdbot` binaries resolve when invoked via `clawdbot-mac`.
-- For manual `clawdbot message send` messages that include `!`, use the heredoc pattern noted below to avoid the Bash tool’s escaping.
+  - Command template should stay `clawdbot-mac agent --message "${text}" --thinking low`; `VoiceWakeForwarder` already shell-escapes `${text}`. Don't add extra quotes.
+  - launchd PATH is minimal; ensure the app's launch agent PATH includes standard system paths plus your pnpm bin (typically `$HOME/Library/pnpm`) so `pnpm`/`clawdbot` binaries resolve when invoked via `clawdbot-mac`.
+- For manual `clawdbot message send` messages that include `!`, use the heredoc pattern noted below to avoid the Bash tool's escaping.
 
-<<<<<<< HEAD
+## NPM + 1Password (publish/verify)
+- Use the 1password skill; all `op` commands must run inside a fresh tmux session.
+- Sign in: `eval "$(op signin --account my.1password.com)"` (app unlocked + integration on).
+- OTP: `op read 'op://Private/Npmjs/one-time password?attribute=otp'`.
+- Publish: `npm publish --access public --otp="<otp>"` (run from the package dir).
+- Verify without local npmrc side effects: `npm view <pkg> version --userconfig "$(mktemp)"`.
+- Kill the tmux session after publish.
+
+## Exclamation Mark Escaping Workaround
+The Claude Code Bash tool escapes `!` to `\\!` in command arguments. When using `clawdbot message send` with messages containing exclamation marks, use heredoc syntax:
+
+```bash
+clawdbot message send --channel telegram --account steve --to 1191367022 <<'EOF'
+Hello! This message has exclamation marks!
+EOF
+```
+
+## Memory
+
 - **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed)
 - **Long-term:** `memory.md` for durable facts, preferences, open loops, saved to ppl.gift CRM as journal entries (not just local file)
 - **People info:** Save to **ppl.gift CRM** (not just local files!) so David can see it
@@ -109,18 +125,6 @@ This way David can see everything you know about people in one place. Use emoji 
 ### 🧠 Memory Recall - Use qmd!
 
 When you need to remember something from the past, use `qmd` instead of grepping files:
-=======
-## NPM + 1Password (publish/verify)
-- Use the 1password skill; all `op` commands must run inside a fresh tmux session.
-- Sign in: `eval "$(op signin --account my.1password.com)"` (app unlocked + integration on).
-- OTP: `op read 'op://Private/Npmjs/one-time password?attribute=otp'`.
-- Publish: `npm publish --access public --otp="<otp>"` (run from the package dir).
-- Verify without local npmrc side effects: `npm view <pkg> version --userconfig "$(mktemp)"`.
-- Kill the tmux session after publish.
-
-## Exclamation Mark Escaping Workaround
-The Claude Code Bash tool escapes `!` to `\\!` in command arguments. When using `clawdbot message send` with messages containing exclamation marks, use heredoc syntax:
->>>>>>> upstream/main
 
 ```bash
 qmd query "what happened at Christmas"   # Semantic search with reranking
@@ -217,7 +221,7 @@ The goal: Be helpful without being annoying. Check in a few times a day, do usef
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
-<!-- 
+<!--
 ## Multi-Tenant Access Control
 
 Steve serves multiple users with different permission levels. Check permissions on EVERY message from non-owner numbers. -->
