@@ -130,6 +130,9 @@ Example: two agents, only the second agent runs heartbeats.
 - `to`: optional recipient override (E.164 for WhatsApp, chat id for Telegram, etc.).
 - `prompt`: overrides the default prompt body (not merged).
 - `ackMaxChars`: max chars allowed after `HEARTBEAT_OK` before delivery.
+- `contextMode`: heartbeat context mode (`all`, `recent-messages`, `summarize-tools`).
+- `contextMaxMessages`: max messages to keep when `contextMode` is `recent-messages`.
+- `toolSummaryMaxChars`: max tool result chars before replacement when `contextMode` is `summarize-tools`.
 
 ## Delivery behavior
 

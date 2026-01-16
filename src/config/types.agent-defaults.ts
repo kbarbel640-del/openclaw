@@ -168,6 +168,17 @@ export type AgentDefaultsConfig = {
     /** Max chars allowed after HEARTBEAT_OK before delivery (default: 30). */
     ackMaxChars?: number;
     /**
+     * Heartbeat context mode.
+     * - "all": use full session context (default).
+     * - "recent-messages": keep only the last N messages.
+     * - "summarize-tools": replace large tool results with placeholders.
+     */
+    contextMode?: "all" | "recent-messages" | "summarize-tools";
+    /** Max messages to keep when contextMode = "recent-messages". */
+    contextMaxMessages?: number;
+    /** Max tool result chars before replacing with a placeholder (contextMode = "summarize-tools"). */
+    toolSummaryMaxChars?: number;
+    /**
      * When enabled, deliver the model's reasoning payload for heartbeat runs (when available)
      * as a separate message prefixed with `Reasoning:` (same as `/reasoning on`).
      *

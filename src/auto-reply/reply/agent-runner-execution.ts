@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
+import { resolveAgentConfig, resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
 import { runCliAgent } from "../../agents/cli-runner.js";
 import { getCliSessionId } from "../../agents/cli-session.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
@@ -70,6 +70,23 @@ export async function runAgentTurnWithFallback(params: {
 }): Promise<AgentRunLoopResult> {
   let didLogHeartbeatStrip = false;
   let autoCompactionCompleted = false;
+
+  const heartbeatContext = params.isHeartbeat
+    ? (() => {
+        const cfg = params.followupRun.run.config;
+        const agentId = params.followupRun.run.agentId;
+        const defaults = cfg.agents?.defaults?.heartbeat;
+        const overrides = agentId ? resolveAgentConfig(cfg, agentId)?.heartbeat : undefined;
+        if (!defaults && !overrides) return undefined;
+        const merged = defaults || overrides ? { ...defaults, ...overrides } : undefined;
+        if (!merged) return undefined;
+        return {
+          mode: merged.contextMode,
+          maxMessages: merged.contextMaxMessages,
+          toolSummaryMaxChars: merged.toolSummaryMaxChars,
+        };
+      })()
+    : undefined;
 
   const runId = crypto.randomUUID();
   if (params.sessionKey) {
@@ -193,6 +210,7 @@ export async function runAgentTurnWithFallback(params: {
           return runEmbeddedPiAgent({
             sessionId: params.followupRun.run.sessionId,
             sessionKey: params.sessionKey,
+            isHeartbeat: params.isHeartbeat,
             messageProvider: params.sessionCtx.Provider?.trim().toLowerCase() || undefined,
             agentAccountId: params.sessionCtx.AccountId,
             // Provider threading context for tool auto-injection
@@ -221,6 +239,7 @@ export async function runAgentTurnWithFallback(params: {
             runId,
             blockReplyBreak: params.resolvedBlockStreamingBreak,
             blockReplyChunking: params.blockReplyChunking,
+            heartbeatContext,
             onPartialReply: allowPartialStream
               ? async (payload) => {
                   const textForTyping = await handlePartialForTyping(payload);

@@ -9,6 +9,7 @@ import type { SkillSnapshot } from "../../skills.js";
 export type RunEmbeddedPiAgentParams = {
   sessionId: string;
   sessionKey?: string;
+  isHeartbeat?: boolean;
   messageChannel?: string;
   messageProvider?: string;
   agentAccountId?: string;
@@ -56,4 +57,9 @@ export type RunEmbeddedPiAgentParams = {
   extraSystemPrompt?: string;
   ownerNumbers?: string[];
   enforceFinalTag?: boolean;
+  heartbeatContext?: {
+    mode?: "all" | "recent-messages" | "summarize-tools";
+    maxMessages?: number;
+    toolSummaryMaxChars?: number;
+  };
 };

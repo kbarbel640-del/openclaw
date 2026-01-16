@@ -13,6 +13,15 @@ export const HeartbeatSchema = z
     every: z.string().optional(),
     model: z.string().optional(),
     includeReasoning: z.boolean().optional(),
+    contextMode: z
+      .union([
+        z.literal("all"),
+        z.literal("recent-messages"),
+        z.literal("summarize-tools"),
+      ])
+      .optional(),
+    contextMaxMessages: z.number().int().positive().optional(),
+    toolSummaryMaxChars: z.number().int().positive().optional(),
     target: z
       .union([
         z.literal("last"),

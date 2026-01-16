@@ -62,6 +62,7 @@ import { splitSdkTools } from "../tool-split.js";
 import { formatUserTime, resolveUserTimeFormat, resolveUserTimezone } from "../../date-time.js";
 import { mapThinkingLevel, resolveExecToolDefaults } from "../utils.js";
 import { resolveSandboxRuntimeStatus } from "../../sandbox/runtime-status.js";
+import { setHeartbeatContextRuntime } from "../../pi-extensions/heartbeat-context/runtime.js";
 
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 
@@ -261,6 +262,17 @@ export async function runEmbeddedAttempt(
         sessionId: params.sessionId,
         cwd: effectiveWorkspace,
       });
+
+      if (params.isHeartbeat) {
+        setHeartbeatContextRuntime(sessionManager, {
+          isHeartbeat: true,
+          mode: params.heartbeatContext?.mode,
+          maxMessages: params.heartbeatContext?.maxMessages,
+          toolSummaryMaxChars: params.heartbeatContext?.toolSummaryMaxChars,
+        });
+      } else {
+        setHeartbeatContextRuntime(sessionManager, null);
+      }
 
       const settingsManager = SettingsManager.create(effectiveWorkspace, agentDir);
       ensurePiCompactionReserveTokens({

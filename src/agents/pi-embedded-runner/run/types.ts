@@ -16,6 +16,7 @@ type ModelRegistry = ReturnType<typeof discoverModels>;
 export type EmbeddedRunAttemptParams = {
   sessionId: string;
   sessionKey?: string;
+  isHeartbeat?: boolean;
   messageChannel?: string;
   messageProvider?: string;
   agentAccountId?: string;
@@ -59,6 +60,11 @@ export type EmbeddedRunAttemptParams = {
   extraSystemPrompt?: string;
   ownerNumbers?: string[];
   enforceFinalTag?: boolean;
+  heartbeatContext?: {
+    mode?: "all" | "recent-messages" | "summarize-tools";
+    maxMessages?: number;
+    toolSummaryMaxChars?: number;
+  };
 };
 
 export type EmbeddedRunAttemptResult = {
