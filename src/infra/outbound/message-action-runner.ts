@@ -207,6 +207,7 @@ export async function runMessageAction(
     : undefined;
 
   if (action === "send") {
+<<<<<<< HEAD
     // Allow omitting `to` when agent has a bound context (e.g., replying to same conversation)
     const toParam = readStringParam(params, "to");
     const to = toParam || input.toolContext?.currentChannelId;
@@ -225,6 +226,16 @@ export async function runMessageAction(
       required: true,
       allowEmpty: true,
     });
+=======
+    const to = readStringParam(params, "to", { required: true });
+    // Allow message to be omitted when sending media-only (e.g., voice notes)
+    const mediaHint = readStringParam(params, "media", { trim: false });
+    let message =
+      readStringParam(params, "message", {
+        required: !mediaHint, // Only require message if no media hint
+        allowEmpty: true,
+      }) ?? "";
+>>>>>>> upstream/main
 
     const parsed = parseReplyDirectives(message);
     message = parsed.text;

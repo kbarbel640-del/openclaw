@@ -1675,8 +1675,13 @@ Z.AI models are available as `zai/<model>` (e.g. `zai/glm-4.7`) and require
 - `includeReasoning`: when `true`, heartbeats will also deliver the separate `Reasoning:` message when available (same shape as `/reasoning on`). Default: `false`.
 - `target`: optional delivery channel (`last`, `whatsapp`, `telegram`, `discord`, `slack`, `signal`, `imessage`, `none`). Default: `last`.
 - `to`: optional recipient override (channel-specific id, e.g. E.164 for WhatsApp, chat id for Telegram).
-- `prompt`: optional override for the heartbeat body (default: `Read HEARTBEAT.md if exists. Consider outstanding tasks. Checkup sometimes on your human during (user local) day time.`). Overrides are sent verbatim; include a `Read HEARTBEAT.md if exists` line if you still want the file read.
+- `prompt`: optional override for the heartbeat body (default: `Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.`). Overrides are sent verbatim; include a `Read HEARTBEAT.md` line if you still want the file read.
 - `ackMaxChars`: max chars allowed after `HEARTBEAT_OK` before delivery (default: 300).
+
+Per-agent heartbeats:
+- Set `agents.list[].heartbeat` to enable or override heartbeat settings for a specific agent.
+- If any agent entry defines `heartbeat`, **only those agents** run heartbeats; defaults
+  become the shared baseline for those agents.
 
 Heartbeats run full agent turns. Shorter intervals burn more tokens; be mindful
 of `every`, keep `HEARTBEAT.md` tiny, and/or choose a cheaper `model`.
@@ -2256,6 +2261,7 @@ Controls session scoping, idle expiry, reset triggers, and where the session sto
 {
   session: {
     scope: "per-sender",
+    dmScope: "main",
     idleMinutes: 60,
     resetTriggers: ["/new", "/reset"],
     // Default is already per-agent under ~/.clawdbot/agents/<agentId>/sessions/sessions.json
@@ -2280,6 +2286,10 @@ Controls session scoping, idle expiry, reset triggers, and where the session sto
 Fields:
 - `mainKey`: direct-chat bucket key (default: `"main"`). Useful when you want to “rename” the primary DM thread without changing `agentId`.
   - Sandbox note: `agents.defaults.sandbox.mode: "non-main"` uses this key to detect the main session. Any session key that does not match `mainKey` (groups/channels) is sandboxed.
+- `dmScope`: how DM sessions are grouped (default: `"main"`).
+  - `main`: all DMs share the main session for continuity.
+  - `per-peer`: isolate DMs by sender id across channels.
+  - `per-channel-peer`: isolate DMs per channel + sender (recommended for multi-user inboxes).
 - `agentToAgent.maxPingPongTurns`: max reply-back turns between requester/target (0–5, default 5).
 - `sendPolicy.default`: `allow` or `deny` fallback when no rule matches.
 - `sendPolicy.rules[]`: match by `channel`, `chatType` (`direct|group|room`), or `keyPrefix` (e.g. `cron:`). First deny wins; otherwise allow.
@@ -2371,10 +2381,10 @@ Example:
 }
 ```
 
-### `browser` (clawd-managed Chrome)
+### `browser` (clawd-managed browser)
 
-Clawdbot can start a **dedicated, isolated** Chrome/Chromium instance for clawd and expose a small loopback control server.
-Profiles can point at a **remote** Chrome via `profiles.<name>.cdpUrl`. Remote
+Clawdbot can start a **dedicated, isolated** Chrome/Brave/Edge/Chromium instance for clawd and expose a small loopback control server.
+Profiles can point at a **remote** Chromium-based browser via `profiles.<name>.cdpUrl`. Remote
 profiles are attach-only (start/stop/reset are disabled).
 
 `browser.cdpUrl` remains for legacy single-profile configs and as the base
@@ -2386,6 +2396,7 @@ Defaults:
 - CDP URL: `http://127.0.0.1:18792` (control URL + 1, legacy single-profile)
 - profile color: `#FF4500` (lobster-orange)
 - Note: the control server is started by the running gateway (Clawdbot.app menubar, or `clawdbot gateway`).
+- Auto-detect order: Chrome → Brave → Edge → Chromium → Chrome Canary.
 
 ```json5
 {
@@ -2403,7 +2414,7 @@ Defaults:
     // Advanced:
     // headless: false,
     // noSandbox: false,
-    // executablePath: "/usr/bin/chromium",
+    // executablePath: "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
     // attachOnly: false, // set true when tunneling a remote CDP to localhost
   }
 }

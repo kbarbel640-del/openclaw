@@ -181,10 +181,10 @@ actor MacNodeRuntime {
                 var height: Int
             }
             let payload = try Self.encodePayload(SnapPayload(
-                                                    format: (params.format ?? .jpg).rawValue,
-                                                    base64: res.data.base64EncodedString(),
-                                                    width: Int(res.size.width),
-                                                    height: Int(res.size.height)))
+                format: (params.format ?? .jpg).rawValue,
+                base64: res.data.base64EncodedString(),
+                width: Int(res.size.width),
+                height: Int(res.size.height)))
             return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
         case ClawdbotCameraCommand.clip.rawValue:
             let params = (try? Self.decodeParams(ClawdbotCameraClipParams.self, from: req.paramsJSON)) ??
@@ -204,10 +204,10 @@ actor MacNodeRuntime {
                 var hasAudio: Bool
             }
             let payload = try Self.encodePayload(ClipPayload(
-                                                    format: (params.format ?? .mp4).rawValue,
-                                                    base64: data.base64EncodedString(),
-                                                    durationMs: res.durationMs,
-                                                    hasAudio: res.hasAudio))
+                format: (params.format ?? .mp4).rawValue,
+                base64: data.base64EncodedString(),
+                durationMs: res.durationMs,
+                hasAudio: res.hasAudio))
             return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
         case ClawdbotCameraCommand.list.rawValue:
             let devices = await self.cameraCapture.listDevices()
@@ -312,12 +312,12 @@ actor MacNodeRuntime {
             var hasAudio: Bool
         }
         let payload = try Self.encodePayload(ScreenPayload(
-                                                format: "mp4",
-                                                base64: data.base64EncodedString(),
-                                                durationMs: params.durationMs,
-                                                fps: params.fps,
-                                                screenIndex: params.screenIndex,
-                                                hasAudio: res.hasAudio))
+            format: "mp4",
+            base64: data.base64EncodedString(),
+            durationMs: params.durationMs,
+            fps: params.fps,
+            screenIndex: params.screenIndex,
+            hasAudio: res.hasAudio))
         return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
     }
 
@@ -426,6 +426,44 @@ actor MacNodeRuntime {
             return Self.errorResponse(req, code: .invalidRequest, message: "INVALID_REQUEST: command required")
         }
 
+        let wasAllowlisted = SystemRunAllowlist.contains(command)
+        switch Self.systemRunPolicy() {
+        case .never:
+            return Self.errorResponse(
+                req,
+                code: .unavailable,
+                message: "SYSTEM_RUN_DISABLED: policy=never")
+        case .always:
+            break
+        case .ask:
+            if !wasAllowlisted {
+                let services = await self.mainActorServices()
+                let decision = await services.confirmSystemRun(
+                    command: SystemRunAllowlist.displayString(for: command),
+                    cwd: params.cwd)
+                switch decision {
+                case .allowOnce:
+                    break
+                case .allowAlways:
+                    SystemRunAllowlist.add(command)
+                case .deny:
+                    return Self.errorResponse(
+                        req,
+                        code: .unavailable,
+                        message: "SYSTEM_RUN_DENIED: user denied")
+                }
+            }
+        }
+
+        var env = params.env
+        if wasAllowlisted, let overrides = env {
+            var merged = ProcessInfo.processInfo.environment
+            for (key, value) in overrides where key != "PATH" {
+                merged[key] = value
+            }
+            env = merged
+        }
+
         if params.needsScreenRecording == true {
             let authorized = await PermissionManager
                 .status([.screenRecording])[.screenRecording] ?? false
@@ -441,7 +479,7 @@ actor MacNodeRuntime {
         let result = await ShellExecutor.runDetailed(
             command: command,
             cwd: params.cwd,
-            env: params.env,
+            env: env,
             timeout: timeoutSec)
 
         struct RunPayload: Encodable {
@@ -454,12 +492,12 @@ actor MacNodeRuntime {
         }
 
         let payload = try Self.encodePayload(RunPayload(
-                                                exitCode: result.exitCode,
-                                                timedOut: result.timedOut,
-                                                success: result.success,
-                                                stdout: result.stdout,
-                                                stderr: result.stderr,
-                                                error: result.errorMessage))
+            exitCode: result.exitCode,
+            timedOut: result.timedOut,
+            success: result.success,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            error: result.errorMessage))
         return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: payload)
     }
 
@@ -529,6 +567,10 @@ actor MacNodeRuntime {
         UserDefaults.standard.object(forKey: cameraEnabledKey) as? Bool ?? false
     }
 
+    private nonisolated static func systemRunPolicy() -> SystemRunPolicy {
+        SystemRunPolicy.load()
+    }
+
     private nonisolated static func locationMode() -> ClawdbotLocationMode {
         let raw = UserDefaults.standard.string(forKey: locationModeKey) ?? "off"
         return ClawdbotLocationMode(rawValue: raw) ?? .off
@@ -576,8 +618,8 @@ actor MacNodeRuntime {
         case .jpeg:
             let clamped = min(1.0, max(0.05, quality))
             guard let data = rep.representation(
-                    using: .jpeg,
-                    properties: [.compressionFactor: clamped])
+                using: .jpeg,
+                properties: [.compressionFactor: clamped])
             else {
                 throw NSError(domain: "Canvas", code: 24, userInfo: [
                     NSLocalizedDescriptionKey: "jpeg encode failed",
