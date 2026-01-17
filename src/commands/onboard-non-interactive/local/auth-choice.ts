@@ -335,9 +335,15 @@ export async function applyNonInteractiveAuthChoice(params: {
     authChoice === "oauth" ||
     authChoice === "chutes" ||
     authChoice === "openai-codex" ||
-    authChoice === "antigravity"
+    authChoice === "antigravity" ||
+    authChoice === "gemini-cli"
   ) {
-    const label = authChoice === "antigravity" ? "Antigravity" : "OAuth";
+    const label =
+      authChoice === "antigravity"
+        ? "Antigravity"
+        : authChoice === "gemini-cli"
+          ? "Gemini CLI"
+          : "OAuth";
     runtime.error(`${label} requires interactive mode.`);
     runtime.exit(1);
     return null;

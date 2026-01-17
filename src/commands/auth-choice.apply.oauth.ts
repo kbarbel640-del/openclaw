@@ -2,6 +2,7 @@ import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { isRemoteEnvironment, loginAntigravityVpsAware } from "./antigravity-oauth.js";
 import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import { loginChutes } from "./chutes-oauth.js";
+import { loginGeminiCliVpsAware, shouldUseManualOAuthFlow } from "./gemini-cli-oauth.js";
 import { createVpsAwareOAuthHandlers } from "./oauth-flow.js";
 import { applyAuthProfileConfig, writeOAuthCredentials } from "./onboard-auth.js";
 import { openUrl } from "./onboard-helpers.js";
@@ -188,6 +189,109 @@ export async function applyAuthChoiceOAuth(
       params.runtime.error(String(err));
       await params.prompter.note(
         "Trouble with OAuth? See https://docs.clawd.bot/start/faq",
+        "OAuth help",
+      );
+    }
+    return { config: nextConfig, agentModelOverride };
+  }
+
+  if (params.authChoice === "gemini-cli") {
+    let nextConfig = params.config;
+    let agentModelOverride: string | undefined;
+    const noteAgentModel = async (model: string) => {
+      if (!params.agentId) return;
+      await params.prompter.note(
+        `Default model set to ${model} for agent "${params.agentId}".`,
+        "Model configured",
+      );
+    };
+
+    const isRemote = shouldUseManualOAuthFlow();
+    await params.prompter.note(
+      isRemote
+        ? [
+            "You are running in a remote/VPS environment.",
+            "A URL will be shown for you to open in your LOCAL browser.",
+            "After signing in, copy the redirect URL and paste it back here.",
+          ].join("\n")
+        : [
+            "Browser will open for Google authentication.",
+            "Sign in with your Google account for Gemini CLI access.",
+            "The callback will be captured automatically on localhost:8085.",
+          ].join("\n"),
+      "Gemini CLI OAuth",
+    );
+
+    const spin = params.prompter.progress("Starting OAuth flow…");
+    let oauthCreds: OAuthCredentials | null = null;
+    try {
+      oauthCreds = await loginGeminiCliVpsAware(
+        async (url) => {
+          if (isRemote) {
+            spin.stop("OAuth URL ready");
+            params.runtime.log(`\nOpen this URL in your LOCAL browser:\n\n${url}\n`);
+          } else {
+            spin.update("Complete sign-in in browser…");
+            await openUrl(url);
+            params.runtime.log(`Open: ${url}`);
+          }
+        },
+        (msg) => spin.update(msg),
+      );
+      spin.stop("Gemini CLI OAuth complete");
+      if (oauthCreds) {
+        await writeOAuthCredentials("google-gemini-cli", oauthCreds, params.agentDir);
+        nextConfig = applyAuthProfileConfig(nextConfig, {
+          profileId: `google-gemini-cli:${oauthCreds.email ?? "gemini-cli"}`,
+          provider: "google-gemini-cli",
+          mode: "oauth",
+        });
+
+        const modelKey = "google-gemini-cli/gemini-3-pro-preview";
+        nextConfig = {
+          ...nextConfig,
+          agents: {
+            ...nextConfig.agents,
+            defaults: {
+              ...nextConfig.agents?.defaults,
+              models: {
+                ...nextConfig.agents?.defaults?.models,
+                [modelKey]: nextConfig.agents?.defaults?.models?.[modelKey] ?? {},
+              },
+            },
+          },
+        };
+
+        if (params.setDefaultModel) {
+          const existingModel = nextConfig.agents?.defaults?.model;
+          nextConfig = {
+            ...nextConfig,
+            agents: {
+              ...nextConfig.agents,
+              defaults: {
+                ...nextConfig.agents?.defaults,
+                model: {
+                  ...(existingModel && "fallbacks" in (existingModel as Record<string, unknown>)
+                    ? {
+                        fallbacks: (existingModel as { fallbacks?: string[] }).fallbacks,
+                      }
+                    : undefined),
+                  primary: modelKey,
+                },
+              },
+            },
+          };
+          await params.prompter.note(`Default model set to ${modelKey}`, "Model configured");
+        } else {
+          agentModelOverride = modelKey;
+          await noteAgentModel(modelKey);
+        }
+      }
+    } catch (err) {
+      spin.stop("Gemini CLI OAuth failed");
+      params.runtime.error(String(err));
+      await params.prompter.note(
+        "Trouble with OAuth? Ensure your Google account has Gemini CLI access.",
         "OAuth help",
       );
     }

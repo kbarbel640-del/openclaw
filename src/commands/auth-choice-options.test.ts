@@ -137,4 +137,16 @@ describe("buildAuthChoiceOptions", () => {
 
     expect(options.some((opt) => opt.value === "chutes")).toBe(true);
   });
+
+  it("includes Gemini CLI OAuth auth choice", () => {
+    const store: AuthProfileStore = { version: 1, profiles: {} };
+    const options = buildAuthChoiceOptions({
+      store,
+      includeSkip: false,
+      includeClaudeCliIfMissing: true,
+      platform: "darwin",
+    });
+
+    expect(options.some((opt) => opt.value === "gemini-cli")).toBe(true);
+  });
 });

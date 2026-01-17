@@ -83,6 +83,7 @@ Clawdbot ships with the pi‑ai catalog. These providers require **no**
 
 - Providers: `google-vertex`, `google-antigravity`, `google-gemini-cli`
 - Auth: Vertex uses gcloud ADC; Antigravity/Gemini CLI use their respective auth flows
+- Gemini CLI OAuth env: `CLAWDBOT_GEMINI_OAUTH_CLIENT_ID` + `CLAWDBOT_GEMINI_OAUTH_CLIENT_SECRET` (or `GEMINI_CLI_OAUTH_CLIENT_ID` / `GEMINI_CLI_OAUTH_CLIENT_SECRET`)
 - CLI: `clawdbot onboard --auth-choice antigravity` (others via interactive wizard)
 
 ### Z.AI (GLM)

@@ -36,6 +36,7 @@ Model note: while any model is supported, I strongly recommend **Anthropic Pro/M
 
 - Models config + CLI: [Models](https://docs.clawd.bot/concepts/models)
 - Auth profile rotation (OAuth vs API keys) + fallbacks: [Model failover](https://docs.clawd.bot/concepts/model-failover)
+- Gemini CLI OAuth requires `CLAWDBOT_GEMINI_OAUTH_CLIENT_ID` + `CLAWDBOT_GEMINI_OAUTH_CLIENT_SECRET` (or `GEMINI_CLI_OAUTH_CLIENT_ID` / `GEMINI_CLI_OAUTH_CLIENT_SECRET`) for `clawdbot onboard --auth-choice gemini-cli` and `clawdbot models auth login`.
 
 ## Install (recommended)
 

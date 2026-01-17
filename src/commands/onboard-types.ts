@@ -17,6 +17,7 @@ export type AuthChoice =
   | "synthetic-api-key"
   | "codex-cli"
   | "antigravity"
+  | "gemini-cli"
   | "apiKey"
   | "gemini-api-key"
   | "zai-api-key"
