@@ -221,25 +221,30 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         parseJson: (raw) => deps.json5.parse(raw),
       });
 
-      // Substitute ${VAR} env var references
       const substituted = resolveConfigEnvVars(resolved, deps.env);
 
       const migrated = applyLegacyMigrations(substituted);
-      const resolvedConfig = migrated.next ?? substituted;
-      warnOnConfigMiskeys(resolvedConfig, deps.logger);
-      if (typeof resolvedConfig !== "object" || resolvedConfig === null) return {};
-      const validated = ClawdbotSchema.safeParse(resolvedConfig);
+      const resolvedConfigRaw = migrated.next ?? substituted;
+      warnOnConfigMiskeys(resolvedConfigRaw, deps.logger);
+
+      if (typeof resolvedConfigRaw !== "object" || resolvedConfigRaw === null) {
+        return {} as ClawdbotConfig;
+      }
+
+      const validated = ClawdbotSchema.safeParse(resolvedConfigRaw);
       if (!validated.success) {
         deps.logger.error("Invalid config:");
         for (const iss of validated.error.issues) {
           deps.logger.error(`- ${iss.path.join(".")}: ${iss.message}`);
         }
-        return {};
+        // Return the best-effort config even if validation fails,
+        // to prevent total loss if this is used for writes/merges.
+        return resolvedConfigRaw as ClawdbotConfig;
       }
       if (migrated.next && migrated.changes.length > 0) {
         deps.logger.warn(formatLegacyMigrationLog(migrated.changes));
         try {
-          writeConfigFileSync(resolvedConfig as ClawdbotConfig);
+          writeConfigFileSync(resolvedConfigRaw as ClawdbotConfig);
         } catch (err) {
           deps.logger.warn(`Failed to write migrated config at ${configPath}: ${String(err)}`);
         }
@@ -281,6 +286,9 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         throw err;
       }
       deps.logger.error(`Failed to read config at ${configPath}`, err);
+      // If we have a partially loaded config (substituted or resolved), return that
+      // instead of {} to prevent total failure if possible.
+      // But loadConfig is synchronous and doesn't have the same context as readConfigFileSnapshot.
       return {};
     }
   }
@@ -344,7 +352,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           raw,
           parsed: parsedRes.parsed,
           valid: false,
-          config: {},
+          config: parsedRes.parsed as ClawdbotConfig, // Preserve parsed config
           hash,
           issues: [{ path: "", message }],
           legacyIssues: [],
@@ -366,7 +374,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           raw,
           parsed: parsedRes.parsed,
           valid: false,
-          config: {},
+          config: resolved as ClawdbotConfig, // Preserve resolved config
           hash,
           issues: [{ path: "", message }],
           legacyIssues: [],

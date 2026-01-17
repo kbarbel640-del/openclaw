@@ -303,7 +303,13 @@ export const configHandlers: GatewayRequestHandlers = {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, parsedRes.error));
       return;
     }
-    const validated = validateConfigObject(parsedRes.parsed);
+
+    // Safely merge with existing config to prevent wipeouts on partial applies
+    const merged = applyMergePatch(snapshot.config, parsedRes.parsed as any);
+    const migrated = applyLegacyMigrations(merged);
+    const resolved = migrated.next ?? merged;
+
+    const validated = validateConfigObject(resolved);
     if (!validated.ok) {
       respond(
         false,
