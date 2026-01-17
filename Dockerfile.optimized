@@ -1,0 +1,194 @@
+# Clawdbot Optimized Multi-Stage Dockerfile
+# Target: ~200-300MB image (down from ~1.2GB)
+# Build time: ~3-4 min with cache
+#
+# Build options:
+#   --target runtime         Use Chainguard base (smallest)
+#   --target runtime-debian  Use Debian slim base (more compatible)
+#   --target runtime-full    Include Rust image-ops + Go proxy
+
+# =============================================================================
+# Stage 0: Rust image-ops build (optional)
+# =============================================================================
+# Using nightly for edition2024 support (moxcms dependency requires Rust 1.85+ with Cargo 1.87+)
+FROM rustlang/rust:nightly-slim AS rust-builder
+
+WORKDIR /rust
+
+# Install musl for static linking
+RUN apt-get update && apt-get install -y musl-tools && rm -rf /var/lib/apt/lists/*
+RUN rustup target add x86_64-unknown-linux-musl
+
+# Copy Rust project
+COPY rust/clawdbot-image-ops/ ./
+
+# Build static binary
+RUN cargo build --release --target x86_64-unknown-linux-musl
+
+# =============================================================================
+# Stage 0b: Go proxy build (optional)
+# =============================================================================
+FROM golang:1.22-bookworm AS go-builder
+
+WORKDIR /go-app
+
+# Copy Go project
+COPY go/clawdbot-proxy/ ./
+
+# Download dependencies and generate go.sum
+RUN go mod download && go mod tidy
+
+# Build static binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o clawdbot-proxy .
+
+# =============================================================================
+# Stage 1: Dependencies (cached layer)
+# =============================================================================
+FROM node:22-bookworm-slim AS deps
+
+WORKDIR /app
+
+# Install pnpm via corepack
+RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
+
+# Copy only dependency manifests for cache efficiency
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY ui/package.json ./ui/package.json
+COPY patches/ ./patches/
+COPY scripts/ ./scripts/
+
+# Install all dependencies (including devDependencies for build)
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# =============================================================================
+# Stage 2: Build TypeScript + UI
+# =============================================================================
+FROM deps AS builder
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN pnpm build
+
+# Build UI (Vite)
+ENV CLAWDBOT_PREFER_PNPM=1
+RUN pnpm ui:install && pnpm ui:build
+
+# =============================================================================
+# Stage 3: Production dependencies only
+# =============================================================================
+FROM node:22-bookworm-slim AS prod-deps
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY patches/ ./patches/
+
+# Install production dependencies only
+# Platform-specific sharp binaries for Linux x64
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts \
+    --config.platform=linux \
+    --config.arch=x64
+
+# =============================================================================
+# Stage 4: Runtime (Chainguard Node for minimal attack surface)
+# =============================================================================
+FROM cgr.dev/chainguard/node:latest-dev AS runtime
+
+WORKDIR /app
+
+# Copy production node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules
+
+# Copy built application
+COPY --from=builder /app/dist ./dist
+
+# Copy required assets
+COPY --from=builder /app/skills ./skills
+COPY --from=builder /app/docs ./docs
+COPY --from=builder /app/extensions ./extensions
+COPY --from=builder /app/assets ./assets
+
+# Copy package.json for version info
+COPY --from=builder /app/package.json ./package.json
+
+# Set production environment
+ENV NODE_ENV=production
+ENV HOME=/home/node
+
+# Gateway and bridge ports
+EXPOSE 18789 18790
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "fetch('http://localhost:18789/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+
+# Default command: run gateway
+CMD ["node", "dist/index.js", "gateway-daemon", "--bind", "lan", "--port", "18789"]
+
+# =============================================================================
+# Alternative: Debian slim runtime (if chainguard causes issues)
+# =============================================================================
+FROM node:22-bookworm-slim AS runtime-debian
+
+WORKDIR /app
+
+# Create non-root user
+RUN groupadd --gid 1000 node || true \
+    && useradd --uid 1000 --gid node --shell /bin/bash --create-home node || true
+
+# Copy production node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules
+
+# Copy built application
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/skills ./skills
+COPY --from=builder /app/docs ./docs
+COPY --from=builder /app/extensions ./extensions
+COPY --from=builder /app/assets ./assets
+COPY --from=builder /app/package.json ./package.json
+
+# Set ownership
+RUN chown -R node:node /app
+
+USER node
+
+ENV NODE_ENV=production
+ENV HOME=/home/node
+
+EXPOSE 18789 18790
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD node -e "fetch('http://localhost:18789/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+
+CMD ["node", "dist/index.js", "gateway-daemon", "--bind", "lan", "--port", "18789"]
+
+# =============================================================================
+# Stage 5: Full runtime with Rust + Go (maximum performance)
+# =============================================================================
+FROM runtime-debian AS runtime-full
+
+USER root
+
+# Copy Rust binary for image processing
+COPY --from=rust-builder /rust/target/x86_64-unknown-linux-musl/release/clawdbot-image-ops /usr/local/bin/
+
+# Copy Go proxy for high-performance reverse proxy
+COPY --from=go-builder /go-app/clawdbot-proxy /usr/local/bin/
+
+# Set Rust as the image backend
+ENV CLAWDBOT_IMAGE_BACKEND=rust
+ENV CLAWDBOT_IMAGE_OPS_BIN=/usr/local/bin/clawdbot-image-ops
+
+USER node
+
+# Expose ports: Go proxy (18789), Node gateway (18790)
+EXPOSE 18789 18790
+
+# Start script that runs both Go proxy and Node gateway
+# For production, use supervisord or a process manager
+CMD ["node", "dist/index.js", "gateway-daemon", "--bind", "lan", "--port", "18789"]
