@@ -211,7 +211,7 @@ describe("trigger handling", () => {
       const res = await getReplyFromConfig(
         {
           Body: "/elevated on",
-          From: "group:[redacted-email]",
+          From: "whatsapp:group:[redacted-email]",
           To: "whatsapp:+2000",
           Provider: "whatsapp",
           SenderE164: "+1000",

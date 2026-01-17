@@ -9,15 +9,6 @@ describe("normalizeWhatsAppTarget", () => {
     expect(normalizeWhatsAppTarget("whatsapp:[redacted-email]")).toBe(
       "[redacted-email]",
     );
-    expect(normalizeWhatsAppTarget("whatsapp:group:[redacted-email]")).toBe(
-      "[redacted-email]",
-    );
-    expect(normalizeWhatsAppTarget("group:[redacted-email]")).toBe(
-      "[redacted-email]",
-    );
-    expect(normalizeWhatsAppTarget(" WhatsApp:Group:[redacted-email] ")).toBe(
-      "[redacted-email]",
-    );
   });
 
   it("normalizes direct JIDs to E.164", () => {
@@ -43,12 +34,15 @@ describe("normalizeWhatsAppTarget", () => {
     expect(normalizeWhatsAppTarget("whatsapp:")).toBeNull();
     expect(normalizeWhatsAppTarget("@g.us")).toBeNull();
     expect(normalizeWhatsAppTarget("whatsapp:group:@g.us")).toBeNull();
+    expect(normalizeWhatsAppTarget("whatsapp:group:[redacted-email]")).toBeNull();
+    expect(normalizeWhatsAppTarget("group:[redacted-email]")).toBeNull();
+    expect(normalizeWhatsAppTarget(" WhatsApp:Group:[redacted-email] ")).toBeNull();
     expect(normalizeWhatsAppTarget("[redacted-email]")).toBeNull();
   });
 
   it("handles repeated prefixes", () => {
     expect(normalizeWhatsAppTarget("whatsapp:whatsapp:+1555")).toBe("+1555");
-    expect(normalizeWhatsAppTarget("group:group:[redacted-email]")).toBe("[redacted-email]");
+    expect(normalizeWhatsAppTarget("group:group:[redacted-email]")).toBeNull();
   });
 });
 
@@ -70,7 +64,7 @@ describe("isWhatsAppGroupJid", () => {
     expect(isWhatsAppGroupJid("[redacted-email]")).toBe(true);
     expect(isWhatsAppGroupJid("[redacted-email]")).toBe(true);
     expect(isWhatsAppGroupJid("whatsapp:[redacted-email]")).toBe(true);
-    expect(isWhatsAppGroupJid("whatsapp:group:[redacted-email]")).toBe(true);
+    expect(isWhatsAppGroupJid("whatsapp:group:[redacted-email]")).toBe(false);
     expect(isWhatsAppGroupJid("[redacted-email]")).toBe(false);
     expect(isWhatsAppGroupJid("@g.us")).toBe(false);
     expect(isWhatsAppGroupJid("[redacted-email]")).toBe(false);

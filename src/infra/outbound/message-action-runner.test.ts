@@ -106,7 +106,7 @@ describe("runMessageAction context isolation", () => {
       action: "send",
       params: {
         channel: "whatsapp",
-        target: "group:[redacted-email]",
+        target: "[redacted-email]",
         message: "hi",
       },
       toolContext: { currentChannelId: "[redacted-email]" },

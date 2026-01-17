@@ -32,7 +32,7 @@ describe("resolveOutboundTarget", () => {
       name: "normalizes prefixed/uppercase whatsapp group targets",
       input: {
         channel: "whatsapp" as const,
-        to: " WhatsApp:Group:[redacted-email] ",
+        to: " WhatsApp:[redacted-email] ",
       },
       expected: { ok: true as const, to: "[redacted-email]" },
     },
