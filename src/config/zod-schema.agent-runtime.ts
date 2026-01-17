@@ -194,6 +194,12 @@ export const AgentToolsSchema = z
 export const MemorySearchSchema = z
   .object({
     enabled: z.boolean().optional(),
+    sources: z.array(z.union([z.literal("memory"), z.literal("sessions")])).optional(),
+    experimental: z
+      .object({
+        sessionMemory: z.boolean().optional(),
+      })
+      .optional(),
     provider: z.union([z.literal("openai"), z.literal("local")]).optional(),
     remote: z
       .object({
@@ -214,6 +220,12 @@ export const MemorySearchSchema = z
       .object({
         driver: z.literal("sqlite").optional(),
         path: z.string().optional(),
+        vector: z
+          .object({
+            enabled: z.boolean().optional(),
+            extensionPath: z.string().optional(),
+          })
+          .optional(),
       })
       .optional(),
     chunking: z

@@ -145,6 +145,13 @@ export type AgentToolsConfig = {
 export type MemorySearchConfig = {
   /** Enable vector memory search (default: true). */
   enabled?: boolean;
+  /** Sources to index and search (default: ["memory"]). */
+  sources?: Array<"memory" | "sessions">;
+  /** Experimental memory search settings. */
+  experimental?: {
+    /** Enable session transcript indexing (experimental, default: false). */
+    sessionMemory?: boolean;
+  };
   /** Embedding provider mode. */
   provider?: "openai" | "local";
   remote?: {
@@ -167,6 +174,12 @@ export type MemorySearchConfig = {
   store?: {
     driver?: "sqlite";
     path?: string;
+    vector?: {
+      /** Enable sqlite-vec extension for vector search (default: true). */
+      enabled?: boolean;
+      /** Optional override path to sqlite-vec extension (.dylib/.so/.dll). */
+      extensionPath?: string;
+    };
   };
   /** Chunking configuration. */
   chunking?: {

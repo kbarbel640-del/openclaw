@@ -168,6 +168,9 @@ const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.bootstrapMaxChars": "Bootstrap Max Chars",
   "agents.defaults.memorySearch": "Memory Search",
   "agents.defaults.memorySearch.enabled": "Enable Memory Search",
+  "agents.defaults.memorySearch.sources": "Memory Search Sources",
+  "agents.defaults.memorySearch.experimental.sessionMemory":
+    "Memory Search Session Index (Experimental)",
   "agents.defaults.memorySearch.provider": "Memory Search Provider",
   "agents.defaults.memorySearch.remote.baseUrl": "Remote Embedding Base URL",
   "agents.defaults.memorySearch.remote.apiKey": "Remote Embedding API Key",
@@ -176,6 +179,8 @@ const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.memorySearch.fallback": "Memory Search Fallback",
   "agents.defaults.memorySearch.local.modelPath": "Local Embedding Model Path",
   "agents.defaults.memorySearch.store.path": "Memory Search Index Path",
+  "agents.defaults.memorySearch.store.vector.enabled": "Memory Search Vector Index",
+  "agents.defaults.memorySearch.store.vector.extensionPath": "Memory Search Vector Extension Path",
   "agents.defaults.memorySearch.chunking.tokens": "Memory Chunk Tokens",
   "agents.defaults.memorySearch.chunking.overlap": "Memory Chunk Overlap Tokens",
   "agents.defaults.memorySearch.sync.onSessionStart": "Index on Session Start",
@@ -351,6 +356,10 @@ const FIELD_HELP: Record<string, string> = {
   "agents.defaults.models": "Configured model catalog (keys are full provider/model IDs).",
   "agents.defaults.memorySearch":
     "Vector search over MEMORY.md and memory/*.md (per-agent overrides supported).",
+  "agents.defaults.memorySearch.sources":
+    'Sources to index for memory search (default: ["memory"]; add "sessions" to include session transcripts).',
+  "agents.defaults.memorySearch.experimental.sessionMemory":
+    "Enable experimental session transcript indexing for memory search (default: false).",
   "agents.defaults.memorySearch.provider": 'Embedding provider ("openai" or "local").',
   "agents.defaults.memorySearch.remote.baseUrl":
     "Custom OpenAI-compatible base URL (e.g. for Gemini/OpenRouter proxies).",
@@ -362,7 +371,11 @@ const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.fallback":
     'Fallback to OpenAI when local embeddings fail ("openai" or "none").',
   "agents.defaults.memorySearch.store.path":
-    "SQLite index path (default: ~/.clawdbot/memory/{agentId}.sqlite).",
+    "SQLite index path (default: ~/.clawdbot/state/memory/{agentId}.sqlite).",
+  "agents.defaults.memorySearch.store.vector.enabled":
+    "Enable sqlite-vec extension for vector search (default: true).",
+  "agents.defaults.memorySearch.store.vector.extensionPath":
+    "Optional override path to sqlite-vec extension library (.dylib/.so/.dll).",
   "agents.defaults.memorySearch.sync.onSearch":
     "Lazy sync: reindex on first search after a change.",
   "agents.defaults.memorySearch.sync.watch": "Watch memory files for changes (chokidar).",

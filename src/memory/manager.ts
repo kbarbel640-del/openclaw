@@ -8,7 +8,9 @@ import { resolveAgentDir, resolveAgentWorkspaceDir } from "../agents/agent-scope
 import type { ResolvedMemorySearchConfig } from "../agents/memory-search.js";
 import { resolveMemorySearchConfig } from "../agents/memory-search.js";
 import type { ClawdbotConfig } from "../config/config.js";
+import { resolveSessionTranscriptsDirForAgent } from "../config/sessions/paths.js";
 import { createSubsystemLogger } from "../logging.js";
+import { onSessionTranscriptUpdate } from "../sessions/transcript-events.js";
 import { resolveUserPath, truncateUtf16Safe } from "../utils.js";
 import {
   createEmbeddingProvider,
@@ -23,11 +25,14 @@ import {
   hashText,
   isMemoryPath,
   listMemoryFiles,
+  type MemoryChunk,
   type MemoryFileEntry,
   normalizeRelPath,
   parseEmbedding,
 } from "./internal.js";
 import { requireNodeSqlite } from "./sqlite.js";
+
+type MemorySource = "memory" | "sessions";
 
 export type MemorySearchResult = {
   path: string;
@@ -35,6 +40,7 @@ export type MemorySearchResult = {
   endLine: number;
   score: number;
   snippet: string;
+  source: MemorySource;
 };
 
 type MemoryIndexMeta = {
@@ -42,14 +48,43 @@ type MemoryIndexMeta = {
   provider: string;
   chunkTokens: number;
   chunkOverlap: number;
+  vectorDims?: number;
+};
+
+type SessionFileEntry = {
+  path: string;
+  absPath: string;
+  mtimeMs: number;
+  size: number;
+  hash: string;
+  content: string;
+};
+
+type MemorySyncProgressUpdate = {
+  completed: number;
+  total: number;
+  label?: string;
+};
+
+type MemorySyncProgressState = {
+  completed: number;
+  total: number;
+  report: (update: MemorySyncProgressUpdate) => void;
 };
 
 const META_KEY = "memory_index_meta_v1";
 const SNIPPET_MAX_CHARS = 700;
+const VECTOR_TABLE = "chunks_vec";
+const SESSION_DIRTY_DEBOUNCE_MS = 5000;
+const EMBEDDING_BATCH_MAX_TOKENS = 8000;
+const EMBEDDING_APPROX_CHARS_PER_TOKEN = 1;
 
 const log = createSubsystemLogger("memory");
 
 const INDEX_CACHE = new Map<string, MemoryIndexManager>();
+
+const vectorToBlob = (embedding: number[]): Buffer =>
+  Buffer.from(new Float32Array(embedding).buffer);
 
 export class MemoryIndexManager {
   private readonly cacheKey: string;
@@ -61,11 +96,24 @@ export class MemoryIndexManager {
   private readonly requestedProvider: "openai" | "local";
   private readonly fallbackReason?: string;
   private readonly db: DatabaseSync;
+  private readonly sources: Set<MemorySource>;
+  private readonly vector: {
+    enabled: boolean;
+    available: boolean | null;
+    extensionPath?: string;
+    loadError?: string;
+    dims?: number;
+  };
+  private vectorReady: Promise<boolean> | null = null;
   private watcher: FSWatcher | null = null;
   private watchTimer: NodeJS.Timeout | null = null;
+  private sessionWatchTimer: NodeJS.Timeout | null = null;
+  private sessionUnsubscribe: (() => void) | null = null;
   private intervalTimer: NodeJS.Timeout | null = null;
   private closed = false;
   private dirty = false;
+  private sessionsDirty = false;
+  private sessionsDirtyFiles = new Set<string>();
   private sessionWarm = new Set<string>();
   private syncing: Promise<void> | null = null;
 
@@ -117,11 +165,25 @@ export class MemoryIndexManager {
     this.provider = params.providerResult.provider;
     this.requestedProvider = params.providerResult.requestedProvider;
     this.fallbackReason = params.providerResult.fallbackReason;
+    this.sources = new Set(params.settings.sources);
     this.db = this.openDatabase();
     this.ensureSchema();
+    this.vector = {
+      enabled: params.settings.store.vector.enabled,
+      available: null,
+      extensionPath: params.settings.store.vector.extensionPath,
+    };
+    const meta = this.readMeta();
+    if (meta?.vectorDims) {
+      this.vector.dims = meta.vectorDims;
+    }
     this.ensureWatcher();
+    this.ensureSessionListener();
     this.ensureIntervalSync();
-    this.dirty = true;
+    this.dirty = this.sources.has("memory");
+    if (this.sources.has("sessions")) {
+      this.sessionsDirty = true;
+    }
   }
 
   async warmSession(sessionKey?: string): Promise<void> {
@@ -141,13 +203,52 @@ export class MemoryIndexManager {
     },
   ): Promise<MemorySearchResult[]> {
     await this.warmSession(opts?.sessionKey);
-    if (this.settings.sync.onSearch && this.dirty) {
+    if (this.settings.sync.onSearch && (this.dirty || this.sessionsDirty)) {
       await this.sync({ reason: "search" });
     }
     const cleaned = query.trim();
     if (!cleaned) return [];
+    const minScore = opts?.minScore ?? this.settings.query.minScore;
+    const maxResults = opts?.maxResults ?? this.settings.query.maxResults;
     const queryVec = await this.provider.embedQuery(cleaned);
     if (queryVec.length === 0) return [];
+    if (await this.ensureVectorReady(queryVec.length)) {
+      const sourceFilter = this.buildSourceFilter("c");
+      const rows = this.db
+        .prepare(
+          `SELECT c.path, c.start_line, c.end_line, c.text,
+                  c.source,
+                  vec_distance_cosine(v.embedding, ?) AS dist
+             FROM ${VECTOR_TABLE} v
+             JOIN chunks c ON c.id = v.id
+            WHERE c.model = ?${sourceFilter.sql}
+            ORDER BY dist ASC
+            LIMIT ?`,
+        )
+        .all(
+          vectorToBlob(queryVec),
+          this.provider.model,
+          ...sourceFilter.params,
+          maxResults,
+        ) as Array<{
+        path: string;
+        start_line: number;
+        end_line: number;
+        text: string;
+        source: MemorySource;
+        dist: number;
+      }>;
+      return rows
+        .map((row) => ({
+          path: row.path,
+          startLine: row.start_line,
+          endLine: row.end_line,
+          score: 1 - row.dist,
+          snippet: truncateUtf16Safe(row.text, SNIPPET_MAX_CHARS),
+          source: row.source,
+        }))
+        .filter((entry) => entry.score >= minScore);
+    }
     const candidates = this.listChunks();
     const scored = candidates
       .map((chunk) => ({
@@ -155,8 +256,6 @@ export class MemoryIndexManager {
         score: cosineSimilarity(queryVec, chunk.embedding),
       }))
       .filter((entry) => Number.isFinite(entry.score));
-    const minScore = opts?.minScore ?? this.settings.query.minScore;
-    const maxResults = opts?.maxResults ?? this.settings.query.maxResults;
     return scored
       .filter((entry) => entry.score >= minScore)
       .sort((a, b) => b.score - a.score)
@@ -167,10 +266,15 @@ export class MemoryIndexManager {
         endLine: entry.chunk.endLine,
         score: entry.score,
         snippet: truncateUtf16Safe(entry.chunk.text, SNIPPET_MAX_CHARS),
+        source: entry.chunk.source,
       }));
   }
 
-  async sync(params?: { reason?: string; force?: boolean }): Promise<void> {
+  async sync(params?: {
+    reason?: string;
+    force?: boolean;
+    progress?: (update: MemorySyncProgressUpdate) => void;
+  }): Promise<void> {
     if (this.syncing) return this.syncing;
     this.syncing = this.runSync(params).finally(() => {
       this.syncing = null;
@@ -211,14 +315,57 @@ export class MemoryIndexManager {
     provider: string;
     model: string;
     requestedProvider: string;
+    sources: MemorySource[];
+    sourceCounts: Array<{ source: MemorySource; files: number; chunks: number }>;
     fallback?: { from: string; reason?: string };
+    vector?: {
+      enabled: boolean;
+      available?: boolean;
+      extensionPath?: string;
+      loadError?: string;
+      dims?: number;
+    };
   } {
-    const files = this.db.prepare(`SELECT COUNT(*) as c FROM files`).get() as {
+    const sourceFilter = this.buildSourceFilter();
+    const files = this.db
+      .prepare(`SELECT COUNT(*) as c FROM files WHERE 1=1${sourceFilter.sql}`)
+      .get(...sourceFilter.params) as {
       c: number;
     };
-    const chunks = this.db.prepare(`SELECT COUNT(*) as c FROM chunks`).get() as {
+    const chunks = this.db
+      .prepare(`SELECT COUNT(*) as c FROM chunks WHERE 1=1${sourceFilter.sql}`)
+      .get(...sourceFilter.params) as {
       c: number;
     };
+    const sourceCounts = (() => {
+      const sources = Array.from(this.sources);
+      if (sources.length === 0) return [];
+      const bySource = new Map<MemorySource, { files: number; chunks: number }>();
+      for (const source of sources) {
+        bySource.set(source, { files: 0, chunks: 0 });
+      }
+      const fileRows = this.db
+        .prepare(
+          `SELECT source, COUNT(*) as c FROM files WHERE 1=1${sourceFilter.sql} GROUP BY source`,
+        )
+        .all(...sourceFilter.params) as Array<{ source: MemorySource; c: number }>;
+      for (const row of fileRows) {
+        const entry = bySource.get(row.source) ?? { files: 0, chunks: 0 };
+        entry.files = row.c ?? 0;
+        bySource.set(row.source, entry);
+      }
+      const chunkRows = this.db
+        .prepare(
+          `SELECT source, COUNT(*) as c FROM chunks WHERE 1=1${sourceFilter.sql} GROUP BY source`,
+        )
+        .all(...sourceFilter.params) as Array<{ source: MemorySource; c: number }>;
+      for (const row of chunkRows) {
+        const entry = bySource.get(row.source) ?? { files: 0, chunks: 0 };
+        entry.chunks = row.c ?? 0;
+        bySource.set(row.source, entry);
+      }
+      return sources.map((source) => ({ source, ...bySource.get(source)! }));
+    })();
     return {
       files: files?.c ?? 0,
       chunks: chunks?.c ?? 0,
@@ -228,8 +375,32 @@ export class MemoryIndexManager {
       provider: this.provider.id,
       model: this.provider.model,
       requestedProvider: this.requestedProvider,
+      sources: Array.from(this.sources),
+      sourceCounts,
       fallback: this.fallbackReason ? { from: "local", reason: this.fallbackReason } : undefined,
+      vector: {
+        enabled: this.vector.enabled,
+        available: this.vector.available ?? undefined,
+        extensionPath: this.vector.extensionPath,
+        loadError: this.vector.loadError,
+        dims: this.vector.dims,
+      },
     };
+  }
+
+  async probeVectorAvailability(): Promise<boolean> {
+    if (!this.vector.enabled) return false;
+    return this.ensureVectorReady();
+  }
+
+  async probeEmbeddingAvailability(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      await this.provider.embedQuery("ping");
+      return { ok: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: message };
+    }
   }
 
   async close(): Promise<void> {
@@ -239,6 +410,10 @@ export class MemoryIndexManager {
       clearTimeout(this.watchTimer);
       this.watchTimer = null;
     }
+    if (this.sessionWatchTimer) {
+      clearTimeout(this.sessionWatchTimer);
+      this.sessionWatchTimer = null;
+    }
     if (this.intervalTimer) {
       clearInterval(this.intervalTimer);
       this.intervalTimer = null;
@@ -247,8 +422,92 @@ export class MemoryIndexManager {
       await this.watcher.close();
       this.watcher = null;
     }
+    if (this.sessionUnsubscribe) {
+      this.sessionUnsubscribe();
+      this.sessionUnsubscribe = null;
+    }
     this.db.close();
     INDEX_CACHE.delete(this.cacheKey);
+  }
+
+  private async ensureVectorReady(dimensions?: number): Promise<boolean> {
+    if (!this.vector.enabled) return false;
+    if (!this.vectorReady) {
+      this.vectorReady = this.loadVectorExtension();
+    }
+    const ready = await this.vectorReady;
+    if (ready && typeof dimensions === "number" && dimensions > 0) {
+      this.ensureVectorTable(dimensions);
+    }
+    return ready;
+  }
+
+  private async loadVectorExtension(): Promise<boolean> {
+    if (this.vector.available !== null) return this.vector.available;
+    if (!this.vector.enabled) {
+      this.vector.available = false;
+      return false;
+    }
+    try {
+      const sqliteVec = await import("sqlite-vec");
+      const extensionPath = this.vector.extensionPath?.trim()
+        ? resolveUserPath(this.vector.extensionPath)
+        : sqliteVec.getLoadablePath();
+      this.db.enableLoadExtension(true);
+      if (this.vector.extensionPath?.trim()) {
+        this.db.loadExtension(extensionPath);
+      } else {
+        sqliteVec.load(this.db);
+      }
+      this.vector.extensionPath = extensionPath;
+      this.vector.available = true;
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.vector.available = false;
+      this.vector.loadError = message;
+      log.warn(`sqlite-vec unavailable: ${message}`);
+      return false;
+    }
+  }
+
+  private ensureVectorTable(dimensions: number): void {
+    if (this.vector.dims === dimensions) return;
+    if (this.vector.dims && this.vector.dims !== dimensions) {
+      this.dropVectorTable();
+    }
+    this.db.exec(
+      `CREATE VIRTUAL TABLE IF NOT EXISTS ${VECTOR_TABLE} USING vec0(\n` +
+        `  id TEXT PRIMARY KEY,\n` +
+        `  embedding FLOAT[${dimensions}]\n` +
+        `)`,
+    );
+    this.vector.dims = dimensions;
+  }
+
+  private dropVectorTable(): void {
+    try {
+      this.db.exec(`DROP TABLE IF EXISTS ${VECTOR_TABLE}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.debug(`Failed to drop ${VECTOR_TABLE}: ${message}`);
+    }
+  }
+
+  private buildSourceFilter(alias?: string): { sql: string; params: MemorySource[] } {
+    const sources = Array.from(this.sources);
+    if (sources.length === 0) return { sql: "", params: [] };
+    const column = alias ? `${alias}.source` : "source";
+    const placeholders = sources.map(() => "?").join(", ");
+    return { sql: ` AND ${column} IN (${placeholders})`, params: sources };
+  }
+
+  private ensureColumn(table: "files" | "chunks", column: string, definition: string): void {
+    const rows = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+      name: string;
+    }>;
+    if (rows.some((row) => row.name === column)) return;
+    this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 
   private openDatabase(): DatabaseSync {
@@ -256,7 +515,7 @@ export class MemoryIndexManager {
     const dir = path.dirname(dbPath);
     ensureDir(dir);
     const { DatabaseSync } = requireNodeSqlite();
-    return new DatabaseSync(dbPath);
+    return new DatabaseSync(dbPath, { allowExtension: this.settings.store.vector.enabled });
   }
 
   private ensureSchema() {
@@ -269,6 +528,7 @@ export class MemoryIndexManager {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS files (
         path TEXT PRIMARY KEY,
+        source TEXT NOT NULL DEFAULT 'memory',
         hash TEXT NOT NULL,
         mtime INTEGER NOT NULL,
         size INTEGER NOT NULL
@@ -278,6 +538,7 @@ export class MemoryIndexManager {
       CREATE TABLE IF NOT EXISTS chunks (
         id TEXT PRIMARY KEY,
         path TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'memory',
         start_line INTEGER NOT NULL,
         end_line INTEGER NOT NULL,
         hash TEXT NOT NULL,
@@ -287,11 +548,14 @@ export class MemoryIndexManager {
         updated_at INTEGER NOT NULL
       );
     `);
+    this.ensureColumn("files", "source", "TEXT NOT NULL DEFAULT 'memory'");
+    this.ensureColumn("chunks", "source", "TEXT NOT NULL DEFAULT 'memory'");
     this.db.exec(`CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(path);`);
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source);`);
   }
 
   private ensureWatcher() {
-    if (!this.settings.sync.watch || this.watcher) return;
+    if (!this.sources.has("memory") || !this.settings.sync.watch || this.watcher) return;
     const watchPaths = [
       path.join(this.workspaceDir, "MEMORY.md"),
       path.join(this.workspaceDir, "memory"),
@@ -312,6 +576,33 @@ export class MemoryIndexManager {
     this.watcher.on("unlink", markDirty);
   }
 
+  private ensureSessionListener() {
+    if (!this.sources.has("sessions") || this.sessionUnsubscribe) return;
+    this.sessionUnsubscribe = onSessionTranscriptUpdate((update) => {
+      if (this.closed) return;
+      const sessionFile = update.sessionFile;
+      if (!this.isSessionFileForAgent(sessionFile)) return;
+      this.scheduleSessionDirty(sessionFile);
+    });
+  }
+
+  private scheduleSessionDirty(sessionFile: string) {
+    this.sessionsDirtyFiles.add(sessionFile);
+    if (this.sessionWatchTimer) return;
+    this.sessionWatchTimer = setTimeout(() => {
+      this.sessionWatchTimer = null;
+      this.sessionsDirty = true;
+    }, SESSION_DIRTY_DEBOUNCE_MS);
+  }
+
+  private isSessionFileForAgent(sessionFile: string): boolean {
+    if (!sessionFile) return false;
+    const sessionsDir = resolveSessionTranscriptsDirForAgent(this.agentId);
+    const resolvedFile = path.resolve(sessionFile);
+    const resolvedDir = path.resolve(sessionsDir);
+    return resolvedFile.startsWith(`${resolvedDir}${path.sep}`);
+  }
+
   private ensureIntervalSync() {
     const minutes = this.settings.sync.intervalMinutes;
     if (!minutes || minutes <= 0 || this.intervalTimer) return;
@@ -324,7 +615,7 @@ export class MemoryIndexManager {
   }
 
   private scheduleWatchSync() {
-    if (!this.settings.sync.watch) return;
+    if (!this.sources.has("memory") || !this.settings.sync.watch) return;
     if (this.watchTimer) clearTimeout(this.watchTimer);
     this.watchTimer = setTimeout(() => {
       this.watchTimer = null;
@@ -340,15 +631,22 @@ export class MemoryIndexManager {
     endLine: number;
     text: string;
     embedding: number[];
+    source: MemorySource;
   }> {
+    const sourceFilter = this.buildSourceFilter();
     const rows = this.db
-      .prepare(`SELECT path, start_line, end_line, text, embedding FROM chunks WHERE model = ?`)
-      .all(this.provider.model) as Array<{
+      .prepare(
+        `SELECT path, start_line, end_line, text, embedding, source
+           FROM chunks
+          WHERE model = ?${sourceFilter.sql}`,
+      )
+      .all(this.provider.model, ...sourceFilter.params) as Array<{
       path: string;
       start_line: number;
       end_line: number;
       text: string;
       embedding: string;
+      source: MemorySource;
     }>;
     return rows.map((row) => ({
       path: row.path,
@@ -356,10 +654,154 @@ export class MemoryIndexManager {
       endLine: row.end_line,
       text: row.text,
       embedding: parseEmbedding(row.embedding),
+      source: row.source,
     }));
   }
 
-  private async runSync(params?: { reason?: string; force?: boolean }) {
+  private shouldSyncSessions(params?: { reason?: string; force?: boolean }, needsFullReindex = false) {
+    if (!this.sources.has("sessions")) return false;
+    if (params?.force) return true;
+    const reason = params?.reason;
+    if (reason === "session-start" || reason === "watch") return false;
+    return this.sessionsDirty || needsFullReindex;
+  }
+
+  private async syncMemoryFiles(params: {
+    needsFullReindex: boolean;
+    progress?: MemorySyncProgressState;
+  }) {
+    const files = await listMemoryFiles(this.workspaceDir);
+    const fileEntries = await Promise.all(
+      files.map(async (file) => buildFileEntry(file, this.workspaceDir)),
+    );
+    const activePaths = new Set(fileEntries.map((entry) => entry.path));
+    if (params.progress) {
+      params.progress.total += fileEntries.length;
+      params.progress.report({
+        completed: params.progress.completed,
+        total: params.progress.total,
+        label: "Indexing memory files…",
+      });
+    }
+
+    for (const entry of fileEntries) {
+      const record = this.db
+        .prepare(`SELECT hash FROM files WHERE path = ? AND source = ?`)
+        .get(entry.path, "memory") as { hash: string } | undefined;
+      if (!params.needsFullReindex && record?.hash === entry.hash) {
+        if (params.progress) {
+          params.progress.completed += 1;
+          params.progress.report({
+            completed: params.progress.completed,
+            total: params.progress.total,
+          });
+        }
+        continue;
+      }
+      await this.indexFile(entry, { source: "memory" });
+      if (params.progress) {
+        params.progress.completed += 1;
+        params.progress.report({
+          completed: params.progress.completed,
+          total: params.progress.total,
+        });
+      }
+    }
+
+    const staleRows = this.db
+      .prepare(`SELECT path FROM files WHERE source = ?`)
+      .all("memory") as Array<{ path: string }>;
+    for (const stale of staleRows) {
+      if (activePaths.has(stale.path)) continue;
+      this.db.prepare(`DELETE FROM files WHERE path = ? AND source = ?`).run(stale.path, "memory");
+      this.db.prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`).run(stale.path, "memory");
+    }
+  }
+
+  private async syncSessionFiles(params: {
+    needsFullReindex: boolean;
+    progress?: MemorySyncProgressState;
+  }) {
+    const files = await this.listSessionFiles();
+    const activePaths = new Set(files.map((file) => this.sessionPathForFile(file)));
+    const indexAll = params.needsFullReindex || this.sessionsDirtyFiles.size === 0;
+    if (params.progress) {
+      params.progress.total += files.length;
+      params.progress.report({
+        completed: params.progress.completed,
+        total: params.progress.total,
+        label: "Indexing session files…",
+      });
+    }
+
+    for (const absPath of files) {
+      if (!indexAll && !this.sessionsDirtyFiles.has(absPath)) {
+        if (params.progress) {
+          params.progress.completed += 1;
+          params.progress.report({
+            completed: params.progress.completed,
+            total: params.progress.total,
+          });
+        }
+        continue;
+      }
+      const entry = await this.buildSessionEntry(absPath);
+      if (!entry) {
+        if (params.progress) {
+          params.progress.completed += 1;
+          params.progress.report({
+            completed: params.progress.completed,
+            total: params.progress.total,
+          });
+        }
+        continue;
+      }
+      const record = this.db
+        .prepare(`SELECT hash FROM files WHERE path = ? AND source = ?`)
+        .get(entry.path, "sessions") as { hash: string } | undefined;
+      if (!params.needsFullReindex && record?.hash === entry.hash) {
+        if (params.progress) {
+          params.progress.completed += 1;
+          params.progress.report({
+            completed: params.progress.completed,
+            total: params.progress.total,
+          });
+        }
+        continue;
+      }
+      await this.indexFile(entry, { source: "sessions", content: entry.content });
+      if (params.progress) {
+        params.progress.completed += 1;
+        params.progress.report({
+          completed: params.progress.completed,
+          total: params.progress.total,
+        });
+      }
+    }
+
+    const staleRows = this.db
+      .prepare(`SELECT path FROM files WHERE source = ?`)
+      .all("sessions") as Array<{ path: string }>;
+    for (const stale of staleRows) {
+      if (activePaths.has(stale.path)) continue;
+      this.db
+        .prepare(`DELETE FROM files WHERE path = ? AND source = ?`)
+        .run(stale.path, "sessions");
+      this.db
+        .prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`)
+        .run(stale.path, "sessions");
+    }
+  }
+
+  private async runSync(params?: {
+    reason?: string;
+    force?: boolean;
+    progress?: (update: MemorySyncProgressUpdate) => void;
+  }) {
+    const progress: MemorySyncProgressState | null = params?.progress
+      ? { completed: 0, total: 0, report: params.progress }
+      : null;
+    const vectorReady = await this.ensureVectorReady();
     const meta = this.readMeta();
     const needsFullReindex =
       params?.force ||
@@ -367,48 +809,49 @@ export class MemoryIndexManager {
       meta.model !== this.provider.model ||
       meta.provider !== this.provider.id ||
       meta.chunkTokens !== this.settings.chunking.tokens ||
-      meta.chunkOverlap !== this.settings.chunking.overlap;
+      meta.chunkOverlap !== this.settings.chunking.overlap ||
+      (vectorReady && !meta?.vectorDims);
     if (needsFullReindex) {
       this.resetIndex();
     }
 
-    const files = await listMemoryFiles(this.workspaceDir);
-    const fileEntries = await Promise.all(
-      files.map(async (file) => buildFileEntry(file, this.workspaceDir)),
-    );
-    const activePaths = new Set(fileEntries.map((entry) => entry.path));
+    const shouldSyncMemory =
+      this.sources.has("memory") && (params?.force || needsFullReindex || this.dirty);
+    const shouldSyncSessions = this.shouldSyncSessions(params, needsFullReindex);
 
-    for (const entry of fileEntries) {
-      const record = this.db.prepare(`SELECT hash FROM files WHERE path = ?`).get(entry.path) as
-        | { hash: string }
-        | undefined;
-      if (!needsFullReindex && record?.hash === entry.hash) {
-        continue;
-      }
-      await this.indexFile(entry);
+    if (shouldSyncMemory) {
+      await this.syncMemoryFiles({ needsFullReindex, progress: progress ?? undefined });
+      this.dirty = false;
     }
 
-    const staleRows = this.db.prepare(`SELECT path FROM files`).all() as Array<{
-      path: string;
-    }>;
-    for (const stale of staleRows) {
-      if (activePaths.has(stale.path)) continue;
-      this.db.prepare(`DELETE FROM files WHERE path = ?`).run(stale.path);
-      this.db.prepare(`DELETE FROM chunks WHERE path = ?`).run(stale.path);
+    if (shouldSyncSessions) {
+      await this.syncSessionFiles({ needsFullReindex, progress: progress ?? undefined });
+      this.sessionsDirty = false;
+      this.sessionsDirtyFiles.clear();
+    } else if (needsFullReindex && this.sources.has("sessions")) {
+      this.sessionsDirty = true;
     }
 
-    this.writeMeta({
+    const nextMeta: MemoryIndexMeta = {
       model: this.provider.model,
       provider: this.provider.id,
       chunkTokens: this.settings.chunking.tokens,
       chunkOverlap: this.settings.chunking.overlap,
-    });
-    this.dirty = false;
+    };
+    if (this.vector.available && this.vector.dims) {
+      nextMeta.vectorDims = this.vector.dims;
+    }
+    if (shouldSyncMemory || shouldSyncSessions || needsFullReindex) {
+      this.writeMeta(nextMeta);
+    }
   }
 
   private resetIndex() {
     this.db.exec(`DELETE FROM files`);
     this.db.exec(`DELETE FROM chunks`);
+    this.dropVectorTable();
+    this.vector.dims = undefined;
+    this.sessionsDirtyFiles.clear();
   }
 
   private readMeta(): MemoryIndexMeta | null {
@@ -432,22 +875,161 @@ export class MemoryIndexManager {
       .run(META_KEY, value);
   }
 
-  private async indexFile(entry: MemoryFileEntry) {
-    const content = await fs.readFile(entry.absPath, "utf-8");
+  private async listSessionFiles(): Promise<string[]> {
+    const dir = resolveSessionTranscriptsDirForAgent(this.agentId);
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      return entries
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name)
+        .filter((name) => name.endsWith(".jsonl"))
+        .map((name) => path.join(dir, name));
+    } catch {
+      return [];
+    }
+  }
+
+  private sessionPathForFile(absPath: string): string {
+    return path.join("sessions", path.basename(absPath)).replace(/\\/g, "/");
+  }
+
+  private normalizeSessionText(value: string): string {
+    return value.replace(/\s*\n+\s*/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  private extractSessionText(content: unknown): string | null {
+    if (typeof content === "string") {
+      const normalized = this.normalizeSessionText(content);
+      return normalized ? normalized : null;
+    }
+    if (!Array.isArray(content)) return null;
+    const parts: string[] = [];
+    for (const block of content) {
+      if (!block || typeof block !== "object") continue;
+      const record = block as { type?: unknown; text?: unknown };
+      if (record.type !== "text" || typeof record.text !== "string") continue;
+      const normalized = this.normalizeSessionText(record.text);
+      if (normalized) parts.push(normalized);
+    }
+    if (parts.length === 0) return null;
+    return parts.join(" ");
+  }
+
+  private async buildSessionEntry(absPath: string): Promise<SessionFileEntry | null> {
+    try {
+      const stat = await fs.stat(absPath);
+      const raw = await fs.readFile(absPath, "utf-8");
+      const lines = raw.split("\n");
+      const collected: string[] = [];
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let record: unknown;
+        try {
+          record = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (
+          !record ||
+          typeof record !== "object" ||
+          (record as { type?: unknown }).type !== "message"
+        ) {
+          continue;
+        }
+        const message = (record as { message?: unknown }).message as
+          | { role?: unknown; content?: unknown }
+          | undefined;
+        if (!message || typeof message.role !== "string") continue;
+        if (message.role !== "user" && message.role !== "assistant") continue;
+        const text = this.extractSessionText(message.content);
+        if (!text) continue;
+        const label = message.role === "user" ? "User" : "Assistant";
+        collected.push(`${label}: ${text}`);
+      }
+      const content = collected.join("\n");
+      return {
+        path: this.sessionPathForFile(absPath),
+        absPath,
+        mtimeMs: stat.mtimeMs,
+        size: stat.size,
+        hash: hashText(content),
+        content,
+      };
+    } catch (err) {
+      log.debug(`Failed reading session file ${absPath}: ${String(err)}`);
+      return null;
+    }
+  }
+
+  private estimateEmbeddingTokens(text: string): number {
+    if (!text) return 0;
+    return Math.ceil(text.length / EMBEDDING_APPROX_CHARS_PER_TOKEN);
+  }
+
+  private buildEmbeddingBatches(chunks: MemoryChunk[]): MemoryChunk[][] {
+    const batches: MemoryChunk[][] = [];
+    let current: MemoryChunk[] = [];
+    let currentTokens = 0;
+
+    for (const chunk of chunks) {
+      const estimate = this.estimateEmbeddingTokens(chunk.text);
+      const wouldExceed =
+        current.length > 0 && currentTokens + estimate > EMBEDDING_BATCH_MAX_TOKENS;
+      if (wouldExceed) {
+        batches.push(current);
+        current = [];
+        currentTokens = 0;
+      }
+      if (current.length === 0 && estimate > EMBEDDING_BATCH_MAX_TOKENS) {
+        batches.push([chunk]);
+        continue;
+      }
+      current.push(chunk);
+      currentTokens += estimate;
+    }
+
+    if (current.length > 0) {
+      batches.push(current);
+    }
+    return batches;
+  }
+
+  private async embedChunksInBatches(chunks: MemoryChunk[]): Promise<number[][]> {
+    if (chunks.length === 0) return [];
+    const batches = this.buildEmbeddingBatches(chunks);
+    const embeddings: number[][] = [];
+    for (const batch of batches) {
+      const batchEmbeddings = await this.provider.embedBatch(batch.map((chunk) => chunk.text));
+      for (let i = 0; i < batch.length; i += 1) {
+        embeddings.push(batchEmbeddings[i] ?? []);
+      }
+    }
+    return embeddings;
+  }
+
+  private async indexFile(
+    entry: MemoryFileEntry | SessionFileEntry,
+    options: { source: MemorySource; content?: string },
+  ) {
+    const content = options.content ?? (await fs.readFile(entry.absPath, "utf-8"));
     const chunks = chunkMarkdown(content, this.settings.chunking);
-    const embeddings = await this.provider.embedBatch(chunks.map((chunk) => chunk.text));
+    const embeddings = await this.embedChunksInBatches(chunks);
+    const sample = embeddings.find((embedding) => embedding.length > 0);
+    const vectorReady = sample ? await this.ensureVectorReady(sample.length) : false;
     const now = Date.now();
-    this.db.prepare(`DELETE FROM chunks WHERE path = ?`).run(entry.path);
+    this.db
+      .prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`)
+      .run(entry.path, options.source);
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       const embedding = embeddings[i] ?? [];
       const id = hashText(
-        `${entry.path}:${chunk.startLine}:${chunk.endLine}:${chunk.hash}:${this.provider.model}`,
+        `${options.source}:${entry.path}:${chunk.startLine}:${chunk.endLine}:${chunk.hash}:${this.provider.model}`,
       );
       this.db
         .prepare(
-          `INSERT INTO chunks (id, path, start_line, end_line, hash, model, text, embedding, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO chunks (id, path, source, start_line, end_line, hash, model, text, embedding, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              hash=excluded.hash,
              model=excluded.model,
@@ -458,6 +1040,7 @@ export class MemoryIndexManager {
         .run(
           id,
           entry.path,
+          options.source,
           chunk.startLine,
           chunk.endLine,
           chunk.hash,
@@ -466,12 +1049,21 @@ export class MemoryIndexManager {
           JSON.stringify(embedding),
           now,
         );
+      if (vectorReady && embedding.length > 0) {
+        this.db
+          .prepare(`INSERT OR REPLACE INTO ${VECTOR_TABLE} (id, embedding) VALUES (?, ?)`)
+          .run(id, vectorToBlob(embedding));
+      }
     }
     this.db
       .prepare(
-        `INSERT INTO files (path, hash, mtime, size) VALUES (?, ?, ?, ?)
-         ON CONFLICT(path) DO UPDATE SET hash=excluded.hash, mtime=excluded.mtime, size=excluded.size`,
+        `INSERT INTO files (path, source, hash, mtime, size) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET
+           source=excluded.source,
+           hash=excluded.hash,
+           mtime=excluded.mtime,
+           size=excluded.size`,
       )
-      .run(entry.path, entry.hash, entry.mtimeMs, entry.size);
+      .run(entry.path, options.source, entry.hash, entry.mtimeMs, entry.size);
   }
 }

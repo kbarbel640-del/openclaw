@@ -45,12 +45,27 @@ enum CLIInstaller {
         self.installedLocation() != nil
     }
 
+<<<<<<< HEAD
     static func install(statusHandler: @escaping @Sendable (String) async -> Void) async {
         let helper = self.embeddedHelperURL()
         guard FileManager.default.isExecutableFile(atPath: helper.path) else {
             await statusHandler(
                 "Embedded CLI missing in bundle; repackage via scripts/package-mac-app.sh " +
                     "(or restart-mac.sh without SKIP_GATEWAY_PACKAGE=1).")
+=======
+    static func install(statusHandler: @escaping @MainActor @Sendable (String) async -> Void) async {
+        let expected = GatewayEnvironment.expectedGatewayVersionString() ?? "latest"
+        let prefix = Self.installPrefix()
+        await statusHandler("Installing clawdbot CLI…")
+        let cmd = self.installScriptCommand(version: expected, prefix: prefix)
+        let response = await ShellExecutor.runDetailed(command: cmd, cwd: nil, env: nil, timeout: 900)
+
+        if response.success {
+            let parsed = self.parseInstallEvents(response.stdout)
+            let installedVersion = parsed.last { $0.event == "done" }?.version
+            let summary = installedVersion.map { "Installed clawdbot \($0)." } ?? "Installed clawdbot."
+            await statusHandler(summary)
+>>>>>>> upstream/main
             return
         }
 

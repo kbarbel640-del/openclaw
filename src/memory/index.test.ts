@@ -74,6 +74,42 @@ describe("memory index", () => {
     const results = await result.manager.search("alpha");
     expect(results.length).toBeGreaterThan(0);
     expect(results[0]?.path).toContain("memory/2026-01-12.md");
+    const status = result.manager.status();
+    expect(status.sourceCounts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "memory",
+          files: status.files,
+          chunks: status.chunks,
+        }),
+      ]),
+    );
+  });
+
+  it("reports vector availability after probe", async () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          workspace: workspaceDir,
+          memorySearch: {
+            provider: "openai",
+            model: "mock-embed",
+            store: { path: indexPath },
+            sync: { watch: false, onSessionStart: false, onSearch: false },
+          },
+        },
+        list: [{ id: "main", default: true }],
+      },
+    };
+    const result = await getMemorySearchManager({ cfg, agentId: "main" });
+    expect(result.manager).not.toBeNull();
+    if (!result.manager) throw new Error("manager missing");
+    manager = result.manager;
+    const available = await result.manager.probeVectorAvailability();
+    const status = result.manager.status();
+    expect(status.vector?.enabled).toBe(true);
+    expect(typeof status.vector?.available).toBe("boolean");
+    expect(status.vector?.available).toBe(available);
   });
 
   it("rejects reading non-memory paths", async () => {

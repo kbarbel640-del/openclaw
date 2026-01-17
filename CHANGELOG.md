@@ -2,10 +2,31 @@
 
 Docs: https://docs.clawd.bot
 
-## 2026.1.17 (Unreleased)
+## 2026.1.17-2 (Unreleased)
 
 ### Changes
+
+### Fixes
+
+## 2026.1.17-1
+
+### Changes
+- Telegram: enrich forwarded message context with normalized origin details + legacy fallback. (#1090) — thanks @sleontenko.
 - macOS: strip prerelease/build suffixes when parsing gateway semver patches. (#1110) — thanks @zerone0x.
+- macOS: keep CLI install pinned to the full build suffix. (#1111) — thanks @artuskg.
+- CLI: surface update availability in `clawdbot status`.
+- CLI: add `clawdbot memory status --deep/--index` probes.
+- CLI: add playful update completion quips.
+
+### Fixes
+- Doctor: avoid re-adding WhatsApp ack reaction config when only legacy auth files exist. (#1087) — thanks @YuriNachos.
+- Hooks: parse multi-line/YAML frontmatter metadata blocks (JSON5-friendly). (#1114) — thanks @sebslight.
+- CLI: add WSL2/systemd unavailable hints in daemon status/doctor output.
+- Windows: install gateway scheduled task as the current user; show friendly guidance instead of failing on access denied.
+- Status: show both usage windows with reset hints when usage data is available. (#1101) — thanks @rhjoh.
+- Memory: probe sqlite-vec availability in `clawdbot memory status`.
+- Memory: split embedding batches to avoid OpenAI token limits during indexing.
+- Telegram: preserve hidden text_link URLs by expanding entities in inbound text. (#1118) — thanks @sleontenko.
 
 ## 2026.1.16-2
 
@@ -48,6 +69,8 @@ Docs: https://docs.clawd.bot
 - Status: trim `/status` to current-provider usage only and drop the OAuth/token block.
 - Directory: unify `clawdbot directory` across channels and plugin channels.
 - UI: allow deleting sessions from the Control UI.
+- Memory: add sqlite-vec vector acceleration with CLI status details.
+- Memory: add experimental session transcript indexing for memory_search (opt-in via memorySearch.experimental.sessionMemory + sources).
 - Skills: add user-invocable skill commands and expanded skill command registration.
 - Telegram: default reaction level to minimal and enable reaction notifications by default.
 - Telegram: allow reply-chain messages to bypass mention gating in groups. (#1038) — thanks @adityashaw2.
@@ -66,6 +89,10 @@ Docs: https://docs.clawd.bot
 ### Fixes
 - macOS: drain subprocess pipes before waiting to avoid deadlocks. (#1081) — thanks @thesash.
 - Verbose: wrap tool summaries/output in markdown only for markdown-capable channels.
+- Tools: include provider/session context in elevated exec denial errors.
+- Tools: normalize exec tool alias naming in tool error logs.
+- Logging: reuse shared ANSI stripping to keep console capture lint-clean.
+- Logging: prefix nested agent output with session/run/channel context.
 - Telegram: accept tg/group/telegram prefixes + topic targets for inline button validation. (#1072) — thanks @danielz1z.
 - Telegram: split long captions into follow-up messages.
 - Config: block startup on invalid config, preserve best-effort doctor config, and keep rolling config backups. (#1083) — thanks @mukhtharcm.

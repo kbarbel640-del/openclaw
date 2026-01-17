@@ -29,6 +29,12 @@ describe("memory search config", () => {
           memorySearch: {
             provider: "openai",
             model: "text-embedding-3-small",
+            store: {
+              vector: {
+                enabled: false,
+                extensionPath: "/opt/sqlite-vec.dylib",
+              },
+            },
             chunking: { tokens: 500, overlap: 100 },
             query: { maxResults: 4, minScore: 0.2 },
           },
@@ -40,6 +46,11 @@ describe("memory search config", () => {
             memorySearch: {
               chunking: { tokens: 320 },
               query: { maxResults: 8 },
+              store: {
+                vector: {
+                  enabled: true,
+                },
+              },
             },
           },
         ],
@@ -52,6 +63,8 @@ describe("memory search config", () => {
     expect(resolved?.chunking.overlap).toBe(100);
     expect(resolved?.query.maxResults).toBe(8);
     expect(resolved?.query.minScore).toBe(0.2);
+    expect(resolved?.store.vector.enabled).toBe(true);
+    expect(resolved?.store.vector.extensionPath).toBe("/opt/sqlite-vec.dylib");
   });
 
   it("merges remote defaults with agent overrides", () => {
@@ -85,5 +98,43 @@ describe("memory search config", () => {
       apiKey: "default-key",
       headers: { "X-Default": "on" },
     });
+  });
+
+  it("gates session sources behind experimental flag", () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          memorySearch: {
+            sources: ["memory", "sessions"],
+          },
+        },
+        list: [
+          {
+            id: "main",
+            default: true,
+            memorySearch: {
+              experimental: { sessionMemory: false },
+            },
+          },
+        ],
+      },
+    };
+    const resolved = resolveMemorySearchConfig(cfg, "main");
+    expect(resolved?.sources).toEqual(["memory"]);
+  });
+
+  it("allows session sources when experimental flag is enabled", () => {
+    const cfg = {
+      agents: {
+        defaults: {
+          memorySearch: {
+            sources: ["memory", "sessions"],
+            experimental: { sessionMemory: true },
+          },
+        },
+      },
+    };
+    const resolved = resolveMemorySearchConfig(cfg, "main");
+    expect(resolved?.sources).toContain("sessions");
   });
 });

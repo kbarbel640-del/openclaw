@@ -13,7 +13,7 @@ import {
 import type { ClawdbotConfig, ReplyToMode } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { danger, logVerbose, shouldLogVerbose } from "../../globals.js";
-import { getChildLogger } from "../../logging.js";
+import { createSubsystemLogger } from "../../logging.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import { resolveDiscordAccount } from "../accounts.js";
 import { attachDiscordGatewayLogging } from "../gateway-logging.js";
@@ -27,7 +27,10 @@ import {
   registerDiscordListener,
 } from "./listeners.js";
 import { createDiscordMessageHandler } from "./message-handler.js";
-import { createDiscordNativeCommand } from "./native-command.js";
+import {
+  createDiscordCommandArgFallbackButton,
+  createDiscordNativeCommand,
+} from "./native-command.js";
 
 export type MonitorDiscordOpts = {
   token?: string;
@@ -149,6 +152,14 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     {
       commands,
       listeners: [],
+      components: [
+        createDiscordCommandArgFallbackButton({
+          cfg,
+          discordConfig: discordCfg,
+          accountId: account.accountId,
+          sessionPrefix,
+        }),
+      ],
     },
     [
       new GatewayPlugin({
@@ -167,7 +178,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     ],
   );
 
-  const logger = getChildLogger({ module: "discord-auto-reply" });
+  const logger = createSubsystemLogger("discord/monitor");
   const guildHistories = new Map<string, HistoryEntry[]>();
   let botUserId: string | undefined;
 

@@ -8,11 +8,15 @@ import { resolveAgentConfig } from "./agent-scope.js";
 
 export type ResolvedMemorySearchConfig = {
   enabled: boolean;
+  sources: Array<"memory" | "sessions">;
   provider: "openai" | "local";
   remote?: {
     baseUrl?: string;
     apiKey?: string;
     headers?: Record<string, string>;
+  };
+  experimental: {
+    sessionMemory: boolean;
   };
   fallback: "openai" | "none";
   model: string;
@@ -23,6 +27,10 @@ export type ResolvedMemorySearchConfig = {
   store: {
     driver: "sqlite";
     path: string;
+    vector: {
+      enabled: boolean;
+      extensionPath?: string;
+    };
   };
   chunking: {
     tokens: number;
@@ -47,6 +55,21 @@ const DEFAULT_CHUNK_OVERLAP = 80;
 const DEFAULT_WATCH_DEBOUNCE_MS = 1500;
 const DEFAULT_MAX_RESULTS = 6;
 const DEFAULT_MIN_SCORE = 0.35;
+const DEFAULT_SOURCES: Array<"memory" | "sessions"> = ["memory"];
+
+function normalizeSources(
+  sources: Array<"memory" | "sessions"> | undefined,
+  sessionMemoryEnabled: boolean,
+): Array<"memory" | "sessions"> {
+  const normalized = new Set<"memory" | "sessions">();
+  const input = sources?.length ? sources : DEFAULT_SOURCES;
+  for (const source of input) {
+    if (source === "memory") normalized.add("memory");
+    if (source === "sessions" && sessionMemoryEnabled) normalized.add("sessions");
+  }
+  if (normalized.size === 0) normalized.add("memory");
+  return Array.from(normalized);
+}
 
 function resolveStorePath(agentId: string, raw?: string): string {
   const stateDir = resolveStateDir(process.env, os.homedir);
@@ -62,6 +85,8 @@ function mergeConfig(
   agentId: string,
 ): ResolvedMemorySearchConfig {
   const enabled = overrides?.enabled ?? defaults?.enabled ?? true;
+  const sessionMemory =
+    overrides?.experimental?.sessionMemory ?? defaults?.experimental?.sessionMemory ?? false;
   const provider = overrides?.provider ?? defaults?.provider ?? "openai";
   const hasRemote = Boolean(defaults?.remote || overrides?.remote);
   const remote = hasRemote
@@ -77,9 +102,16 @@ function mergeConfig(
     modelPath: overrides?.local?.modelPath ?? defaults?.local?.modelPath,
     modelCacheDir: overrides?.local?.modelCacheDir ?? defaults?.local?.modelCacheDir,
   };
+  const sources = normalizeSources(overrides?.sources ?? defaults?.sources, sessionMemory);
+  const vector = {
+    enabled: overrides?.store?.vector?.enabled ?? defaults?.store?.vector?.enabled ?? true,
+    extensionPath:
+      overrides?.store?.vector?.extensionPath ?? defaults?.store?.vector?.extensionPath,
+  };
   const store = {
     driver: overrides?.store?.driver ?? defaults?.store?.driver ?? "sqlite",
     path: resolveStorePath(agentId, overrides?.store?.path ?? defaults?.store?.path),
+    vector,
   };
   const chunking = {
     tokens: overrides?.chunking?.tokens ?? defaults?.chunking?.tokens ?? DEFAULT_CHUNK_TOKENS,
@@ -104,8 +136,12 @@ function mergeConfig(
   const minScore = Math.max(0, Math.min(1, query.minScore));
   return {
     enabled,
+    sources,
     provider,
     remote,
+    experimental: {
+      sessionMemory,
+    },
     fallback,
     model,
     local,
