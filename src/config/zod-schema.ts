@@ -61,6 +61,12 @@ export const ClawdbotSchema = z
         redactPatterns: z.array(z.string()).optional(),
       })
       .optional(),
+    update: z
+      .object({
+        channel: z.union([z.literal("stable"), z.literal("beta")]).optional(),
+        checkOnStart: z.boolean().optional(),
+      })
+      .optional(),
     browser: z
       .object({
         enabled: z.boolean().optional(),

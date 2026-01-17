@@ -75,23 +75,23 @@ export async function getReplyFromConfig(
   });
   opts?.onTypingController?.(typing);
 
-  finalizeInboundContext(ctx);
+  const finalized = finalizeInboundContext(ctx);
 
   await applyMediaUnderstanding({
-    ctx,
+    ctx: finalized,
     cfg,
     agentDir,
     activeModel: { provider, model },
   });
 
-  const commandAuthorized = ctx.CommandAuthorized ?? false;
+  const commandAuthorized = finalized.CommandAuthorized;
   resolveCommandAuthorization({
-    ctx,
+    ctx: finalized,
     cfg,
     commandAuthorized,
   });
   const sessionState = await initSessionState({
-    ctx,
+    ctx: finalized,
     cfg,
     commandAuthorized,
   });
@@ -113,7 +113,7 @@ export async function getReplyFromConfig(
   } = sessionState;
 
   const directiveResult = await resolveReplyDirectives({
-    ctx,
+    ctx: finalized,
     cfg,
     agentId,
     agentDir,
