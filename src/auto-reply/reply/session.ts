@@ -25,11 +25,15 @@ import {
 import { normalizeMainKey } from "../../routing/session-key.js";
 import { resolveCommandAuthorization } from "../command-auth.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
+import { normalizeChatType } from "../../channels/chat-type.js";
 import { stripMentions, stripStructuralPrefixes } from "./mentions.js";
+import { formatInboundBodyWithSenderMeta } from "./inbound-sender-meta.js";
+import { normalizeInboundTextNewlines } from "./inbound-text.js";
 
 export type SessionInitResult = {
   sessionCtx: TemplateContext;
   sessionEntry: SessionEntry;
+  previousSessionEntry?: SessionEntry;
   sessionStore: Record<string, SessionEntry>;
   sessionKey: string;
   sessionId: string;
@@ -115,6 +119,7 @@ export async function initSessionState(params: {
   let bodyStripped: string | undefined;
   let systemSent = false;
   let abortedLastRun = false;
+  let resetTriggered = false;
 
   let persistedThinking: string | undefined;
   let persistedVerbose: string | undefined;
@@ -123,10 +128,11 @@ export async function initSessionState(params: {
   let persistedProviderOverride: string | undefined;
 
   const groupResolution = resolveGroupSessionKey(sessionCtxForState) ?? undefined;
-  const isGroup = ctx.ChatType?.trim().toLowerCase() === "group" || Boolean(groupResolution);
+  const normalizedChatType = normalizeChatType(ctx.ChatType);
+  const isGroup = normalizedChatType != null && normalizedChatType !== "direct" ? true : Boolean(groupResolution);
   // Prefer CommandBody/RawBody (clean message) for command detection; fall back
   // to Body which may contain structural context (history, sender labels).
-  const commandSource = ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "";
+  const commandSource = ctx.BodyForCommands ?? ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "";
   const triggerBodyNormalized = stripStructuralPrefixes(commandSource).trim().toLowerCase();
 
   // Use CommandBody/RawBody for reset trigger matching (clean message without structural context).
@@ -149,12 +155,14 @@ export async function initSessionState(params: {
     if (trimmedBody === trigger || strippedForReset === trigger) {
       isNewSession = true;
       bodyStripped = "";
+      resetTriggered = true;
       break;
     }
     const triggerPrefix = `${trigger} `;
     if (trimmedBody.startsWith(triggerPrefix) || strippedForReset.startsWith(triggerPrefix)) {
       isNewSession = true;
       bodyStripped = strippedForReset.slice(trigger.length).trimStart();
+      resetTriggered = true;
       break;
     }
   }
@@ -168,6 +176,7 @@ export async function initSessionState(params: {
     }
   }
   const entry = sessionStore[sessionKey];
+  const previousSessionEntry = resetTriggered && entry ? { ...entry } : undefined;
   const idleMs = idleMinutes * 60_000;
   const freshEntry = entry && Date.now() - entry.updatedAt <= idleMs;
 
@@ -300,7 +309,18 @@ export async function initSessionState(params: {
     ...ctx,
     // Keep BodyStripped aligned with Body (best default for agent prompts).
     // RawBody is reserved for command/directive parsing and may omit context.
-    BodyStripped: bodyStripped ?? ctx.Body ?? ctx.CommandBody ?? ctx.RawBody,
+    BodyStripped: formatInboundBodyWithSenderMeta({
+      ctx,
+      body: normalizeInboundTextNewlines(
+        bodyStripped ??
+          ctx.BodyForAgent ??
+          ctx.Body ??
+          ctx.CommandBody ??
+          ctx.RawBody ??
+          ctx.BodyForCommands ??
+          "",
+      ),
+    }),
     SessionId: sessionId,
     IsNewSession: isNewSession ? "true" : "false",
   };
@@ -308,6 +328,7 @@ export async function initSessionState(params: {
   return {
     sessionCtx,
     sessionEntry,
+    previousSessionEntry,
     sessionStore,
     sessionKey,
     sessionId: sessionId ?? crypto.randomUUID(),

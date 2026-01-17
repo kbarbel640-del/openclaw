@@ -5,9 +5,9 @@ import Testing
 
 @Suite(.serialized)
 @MainActor
-struct ConnectionsSettingsSmokeTests {
-    @Test func connectionsSettingsBuildsBodyWithSnapshot() {
-        let store = ConnectionsStore(isPreview: true)
+struct ChannelsSettingsSmokeTests {
+    @Test func channelsSettingsBuildsBodyWithSnapshot() {
+        let store = ChannelsStore(isPreview: true)
         store.snapshot = ChannelsStatusSnapshot(
             ts: 1_700_000_000_000,
             channelOrder: ["whatsapp", "telegram", "signal", "imessage"],
@@ -84,20 +84,13 @@ struct ConnectionsSettingsSmokeTests {
         store.whatsappLoginMessage = "Scan QR"
         store.whatsappLoginQrDataUrl =
             "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/ay7pS8AAAAASUVORK5CYII="
-        store.telegramToken = "123:abc"
-        store.telegramRequireMention = false
-        store.telegramAllowFrom = "123456789"
-        store.telegramProxy = "socks5://localhost:9050"
-        store.telegramWebhookUrl = "https://example.com/telegram"
-        store.telegramWebhookSecret = "secret"
-        store.telegramWebhookPath = "/telegram"
 
-        let view = ConnectionsSettings(store: store)
+        let view = ChannelsSettings(store: store)
         _ = view.body
     }
 
-    @Test func connectionsSettingsBuildsBodyWithoutSnapshot() {
-        let store = ConnectionsStore(isPreview: true)
+    @Test func channelsSettingsBuildsBodyWithoutSnapshot() {
+        let store = ChannelsStore(isPreview: true)
         store.snapshot = ChannelsStatusSnapshot(
             ts: 1_700_000_000_000,
             channelOrder: ["whatsapp", "telegram", "signal", "imessage"],
@@ -157,7 +150,7 @@ struct ConnectionsSettingsSmokeTests {
                 "imessage": "default",
             ])
 
-        let view = ConnectionsSettings(store: store)
+        let view = ChannelsSettings(store: store)
         _ = view.body
     }
 }

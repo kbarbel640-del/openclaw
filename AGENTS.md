@@ -18,6 +18,7 @@ If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out w
 
 ## Every Session
 
+<<<<<<< HEAD
 Before doing anything else:
 
 1. Read `SOUL.md` — this is who you are
@@ -25,6 +26,22 @@ Before doing anything else:
 3. Read `memory.md` + today's and yesterday's files in `memory/`
 
 Don't ask permission. Just do it.
+=======
+## Commit & Pull Request Guidelines
+- Create commits with `scripts/committer "<msg>" <file...>`; avoid manual `git add`/`git commit` so staging stays scoped.
+- Follow concise, action-oriented commit messages (e.g., `CLI: add verbose flag to send`).
+- Group related changes; avoid bundling unrelated refactors.
+- Changelog workflow: keep latest released version at top (no `Unreleased`); after publishing, bump version and start a new top section.
+- PRs should summarize scope, note testing performed, and mention any user-facing changes or new flags.
+- PR review flow: when given a PR link, review via `gh pr view`/`gh pr diff` and do **not** change branches.
+- PR merge flow: create a temp branch from `main`, merge the PR branch into it (prefer squash unless commit history is important; use rebase/merge when it is). Always try to merge the PR unless it’s truly difficult, then use another approach. If we squash, add the PR author as a co-contributor. Apply fixes, add changelog entry (include PR # + thanks), run full gate before the final commit, commit, merge back to `main`, delete the temp branch, and end on `main`.
+- If you review a PR and later do work on it, land via merge/squash (no direct-main commits) and always add the PR author as a co-contributor.
+- When working on a PR: add a changelog entry with the PR number and thank the contributor.
+- When working on an issue: reference the issue in the changelog entry.
+- When merging a PR: leave a PR comment that explains exactly what we did and include the SHA hashes.
+- When merging a PR from a new contributor: add their avatar to the README “Thanks to all clawtributors” thumbnail list.
+- After merging a PR: run `bun scripts/update-clawtributors.ts` if the contributor is missing, then commit the regenerated README.
+>>>>>>> upstream/main
 
 ## Shorthand Commands
 - `sync up`: if working tree is dirty, commit all changes (pick a sensible Conventional Commit message), then `git pull --rebase`; if rebase conflicts and cannot resolve, stop; otherwise `git push`.

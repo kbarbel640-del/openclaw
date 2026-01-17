@@ -29,6 +29,7 @@ export async function handleInlineActions(params: {
   cfg: ClawdbotConfig;
   agentId: string;
   sessionEntry?: SessionEntry;
+  previousSessionEntry?: SessionEntry;
   sessionStore?: Record<string, SessionEntry>;
   sessionKey: string;
   storePath?: string;
@@ -67,6 +68,7 @@ export async function handleInlineActions(params: {
     cfg,
     agentId,
     sessionEntry,
+    previousSessionEntry,
     sessionStore,
     sessionKey,
     storePath,
@@ -133,7 +135,9 @@ export async function handleInlineActions(params: {
     ].filter((entry): entry is string => Boolean(entry));
     const rewrittenBody = promptParts.join("\n\n");
     ctx.Body = rewrittenBody;
+    ctx.BodyForAgent = rewrittenBody;
     sessionCtx.Body = rewrittenBody;
+    sessionCtx.BodyForAgent = rewrittenBody;
     sessionCtx.BodyStripped = rewrittenBody;
     cleanedBody = rewrittenBody;
   }
@@ -151,6 +155,7 @@ export async function handleInlineActions(params: {
   if (inlineCommand) {
     cleanedBody = inlineCommand.cleaned;
     sessionCtx.Body = cleanedBody;
+    sessionCtx.BodyForAgent = cleanedBody;
     sessionCtx.BodyStripped = cleanedBody;
   }
 
@@ -203,6 +208,7 @@ export async function handleInlineActions(params: {
         failures: elevatedFailures,
       },
       sessionEntry,
+      previousSessionEntry,
       sessionStore,
       sessionKey,
       storePath,
@@ -265,6 +271,7 @@ export async function handleInlineActions(params: {
       failures: elevatedFailures,
     },
     sessionEntry,
+    previousSessionEntry,
     sessionStore,
     sessionKey,
     storePath,

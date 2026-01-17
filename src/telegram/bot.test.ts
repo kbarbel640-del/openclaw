@@ -9,6 +9,7 @@ import {
 import { listSkillCommandsForAgents } from "../auto-reply/skill-commands.js";
 import { resetInboundDedupe } from "../auto-reply/reply/inbound-dedupe.js";
 import * as replyModule from "../auto-reply/reply.js";
+import { expectInboundContextContract } from "../../test/helpers/inbound-contract.js";
 import { createTelegramBot, getTelegramSequentialKey } from "./bot.js";
 import { resolveTelegramFetch } from "./fetch.js";
 
@@ -583,8 +584,11 @@ describe("createTelegramBot", () => {
 
     expect(replySpy).toHaveBeenCalledTimes(1);
     const payload = replySpy.mock.calls[0][0];
+    expectInboundContextContract(payload);
     expect(payload.WasMentioned).toBe(true);
-    expect(payload.Body).toMatch(/^\[Telegram Test Group id:7 from Ada id:9 2025-01-09T00:00Z\]/);
+    expect(payload.Body).toMatch(/^\[Telegram Test Group id:7 2025-01-09T00:00Z\]/);
+    expect(payload.SenderName).toBe("Ada");
+    expect(payload.SenderId).toBe("9");
   });
 
   it("includes sender identity in group envelope headers", async () => {
@@ -623,9 +627,11 @@ describe("createTelegramBot", () => {
 
     expect(replySpy).toHaveBeenCalledTimes(1);
     const payload = replySpy.mock.calls[0][0];
-    expect(payload.Body).toMatch(
-      /^\[Telegram Ops id:42 from Ada Lovelace \(@ada\) id:99 2025-01-09T00:00Z\]/,
-    );
+    expectInboundContextContract(payload);
+    expect(payload.Body).toMatch(/^\[Telegram Ops id:42 2025-01-09T00:00Z\]/);
+    expect(payload.SenderName).toBe("Ada Lovelace");
+    expect(payload.SenderId).toBe("99");
+    expect(payload.SenderUsername).toBe("ada");
   });
 
   it("reacts to mention-gated group messages when ackReaction is enabled", async () => {

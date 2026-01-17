@@ -9,7 +9,10 @@ import {
 } from "../../../auto-reply/reply/response-prefix-template.js";
 import { resolveTextChunkLimit } from "../../../auto-reply/chunk.js";
 import { formatAgentEnvelope } from "../../../auto-reply/envelope.js";
-import { buildHistoryContext } from "../../../auto-reply/reply/history.js";
+import {
+  buildHistoryContextFromEntries,
+  type HistoryEntry,
+} from "../../../auto-reply/reply/history.js";
 import { dispatchReplyWithBufferedBlockDispatcher } from "../../../auto-reply/reply/provider-dispatcher.js";
 import type { getReplyFromConfig } from "../../../auto-reply/reply.js";
 import type { ReplyPayload } from "../../../auto-reply/types.js";
@@ -19,6 +22,7 @@ import { logVerbose, shouldLogVerbose } from "../../../globals.js";
 import type { getChildLogger } from "../../../logging.js";
 import type { resolveAgentRoute } from "../../../routing/resolve-route.js";
 import { jidToE164, normalizeE164 } from "../../../utils.js";
+import { normalizeChatType } from "../../../channels/chat-type.js";
 import { newConnectionId } from "../../reconnect.js";
 import { formatError } from "../../session.js";
 import { deliverWebReply } from "../deliver-reply.js";
@@ -77,30 +81,29 @@ export async function processMessage(params: {
   if (params.msg.chatType === "group") {
     const history = params.groupHistory ?? params.groupHistories.get(params.groupHistoryKey) ?? [];
     if (history.length > 0) {
-      const lineBreak = "\\n";
-      const historyText = history
-        .map((m) => {
-          const bodyWithId = m.id ? `${m.body}\n[message_id: ${m.id}]` : m.body;
+      const historyEntries: HistoryEntry[] = history.map((m) => ({
+        sender: m.sender,
+        body: m.body,
+        timestamp: m.timestamp,
+        messageId: m.id,
+      }));
+      combinedBody = buildHistoryContextFromEntries({
+        entries: historyEntries,
+        currentMessage: combinedBody,
+        excludeLast: false,
+        formatEntry: (entry) => {
+          const bodyWithId = entry.messageId
+            ? `${entry.body}\n[message_id: ${entry.messageId}]`
+            : entry.body;
           return formatAgentEnvelope({
             channel: "WhatsApp",
             from: conversationId,
-            timestamp: m.timestamp,
-            body: `${m.sender}: ${bodyWithId}`,
+            timestamp: entry.timestamp,
+            body: `${entry.sender}: ${bodyWithId}`,
           });
-        })
-        .join(lineBreak);
-      combinedBody = buildHistoryContext({
-        historyText,
-        currentMessage: combinedBody,
-        lineBreak,
+        },
       });
     }
-    // Always surface who sent the triggering message so the agent can address them.
-    const senderLabel =
-      params.msg.senderName && params.msg.senderE164
-        ? `${params.msg.senderName} (${params.msg.senderE164})`
-        : (params.msg.senderName ?? params.msg.senderE164 ?? "Unknown");
-    combinedBody = `${combinedBody}\\n[from: ${senderLabel}]`;
     shouldClearGroupHistory = !(params.suppressGroupHistoryClear ?? false);
   }
 
@@ -195,8 +198,10 @@ export async function processMessage(params: {
   const { queuedFinal } = await dispatchReplyWithBufferedBlockDispatcher({
     ctx: {
       Body: combinedBody,
+      BodyForAgent: combinedBody,
       RawBody: params.msg.body,
       CommandBody: params.msg.body,
+      BodyForCommands: params.msg.body,
       From: params.msg.from,
       To: params.msg.to,
       SessionKey: params.route.sessionKey,
@@ -208,7 +213,8 @@ export async function processMessage(params: {
       MediaPath: params.msg.mediaPath,
       MediaUrl: params.msg.mediaUrl,
       MediaType: params.msg.mediaType,
-      ChatType: params.msg.chatType,
+      ChatType: normalizeChatType(params.msg.chatType) ?? params.msg.chatType,
+      ConversationLabel: params.msg.chatType === "group" ? conversationId : params.msg.from,
       GroupSubject: params.msg.groupSubject,
       GroupMembers: formatGroupMembers({
         participants: params.msg.groupParticipants,

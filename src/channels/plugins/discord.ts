@@ -9,7 +9,11 @@ import {
   collectDiscordAuditChannelIds,
 } from "../../discord/audit.js";
 import { probeDiscord } from "../../discord/probe.js";
-import { sendMessageDiscord, sendPollDiscord } from "../../discord/send.js";
+import {
+  listGuildChannelsDiscord,
+  sendMessageDiscord,
+  sendPollDiscord,
+} from "../../discord/send.js";
 import { shouldLogVerbose } from "../../globals.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../../routing/session-key.js";
 import { getChatChannelMeta } from "../registry.js";
@@ -31,6 +35,7 @@ import {
 } from "./setup-helpers.js";
 import { collectDiscordStatusIssues } from "./status-issues/discord.js";
 import type { ChannelPlugin } from "./types.js";
+import { missingTargetError } from "../../infra/outbound/target-errors.js";
 
 const meta = getChatChannelMeta("discord");
 
@@ -209,6 +214,30 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
         .map((id) => ({ kind: "group", id }) as const);
       return groups;
     },
+    listGroupsLive: async ({ cfg, accountId, query, limit }) => {
+      const account = resolveDiscordAccount({ cfg, accountId });
+      const q = query?.trim().toLowerCase() || "";
+      const guildIds = Object.keys(account.config.guilds ?? {}).filter((id) => /^\d+$/.test(id));
+      const rows: Array<{ kind: "group"; id: string; name?: string; raw?: unknown }> = [];
+      for (const guildId of guildIds) {
+        const channels = await listGuildChannelsDiscord(guildId, {
+          accountId: account.accountId,
+        });
+        for (const channel of channels) {
+          const name = typeof channel.name === "string" ? channel.name : undefined;
+          if (q && name && !name.toLowerCase().includes(q)) continue;
+          rows.push({
+            kind: "group",
+            id: `channel:${channel.id}`,
+            name: name ?? undefined,
+            raw: channel,
+          });
+        }
+      }
+      const filtered = q ? rows.filter((row) => row.name?.toLowerCase().includes(q)) : rows;
+      const limited = typeof limit === "number" && limit > 0 ? filtered.slice(0, limit) : filtered;
+      return limited;
+    },
   },
   actions: discordMessageActions,
   setup: {
@@ -225,7 +254,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
         return "DISCORD_BOT_TOKEN can only be used for the default account.";
       }
       if (!input.useEnv && !input.token) {
-        return "Discord requires --token (or --use-env).";
+        return "Discord requires token (or --use-env).";
       }
       return null;
     },
@@ -286,7 +315,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount> = {
       if (!trimmed) {
         return {
           ok: false,
-          error: new Error("Delivering to Discord requires --to <channelId|user:ID|channel:ID>"),
+          error: missingTargetError("Discord", "<channelId|user:ID|channel:ID>"),
         };
       }
       return { ok: true, to: trimmed };

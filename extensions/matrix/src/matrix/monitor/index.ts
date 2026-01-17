@@ -328,20 +328,21 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
 
       const messageId = event.getId() ?? "";
       const threadRootId = resolveMatrixThreadRootId({ event, content });
-      const threadTarget = resolveMatrixThreadTarget({
-        threadReplies,
-        messageId,
-        threadRootId,
-        isThreadRoot: event.isThreadRoot,
-      });
+	      const threadTarget = resolveMatrixThreadTarget({
+	        threadReplies,
+	        messageId,
+	        threadRootId,
+	        isThreadRoot: event.isThreadRoot,
+	      });
 
-      const textWithId = `${bodyText}\n[matrix event id: ${messageId} room: ${roomId}]`;
-      const body = formatAgentEnvelope({
-        channel: "Matrix",
-        from: senderName,
-        timestamp: event.getTs() ?? undefined,
-        body: textWithId,
-      });
+	      const envelopeFrom = isDirectMessage ? senderName : (roomName ?? roomId);
+	      const textWithId = `${bodyText}\n[matrix event id: ${messageId} room: ${roomId}]`;
+	      const body = formatAgentEnvelope({
+	        channel: "Matrix",
+	        from: envelopeFrom,
+	        timestamp: event.getTs() ?? undefined,
+	        body: textWithId,
+	      });
 
       const route = resolveAgentRoute({
         cfg,
@@ -355,11 +356,16 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts = {}): Promi
       const groupSystemPrompt = roomConfigInfo.config?.systemPrompt?.trim() || undefined;
       const ctxPayload = {
         Body: body,
+        BodyForAgent: body,
+        RawBody: bodyText,
+        CommandBody: bodyText,
+        BodyForCommands: bodyText,
         From: isDirectMessage ? `matrix:${senderId}` : `matrix:channel:${roomId}`,
         To: `room:${roomId}`,
         SessionKey: route.sessionKey,
         AccountId: route.accountId,
-        ChatType: isDirectMessage ? "direct" : "room",
+        ChatType: isDirectMessage ? "direct" : "channel",
+        ConversationLabel: envelopeFrom,
         SenderName: senderName,
         SenderId: senderId,
         SenderUsername: senderId.split(":")[0]?.replace(/^@/, ""),

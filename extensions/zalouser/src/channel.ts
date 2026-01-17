@@ -16,6 +16,7 @@ import {
 import { zalouserOnboardingAdapter } from "./onboarding.js";
 import { sendMessageZalouser } from "./send.js";
 import { checkZcaInstalled, parseJsonOutput, runZca, runZcaInteractive } from "./zca.js";
+import { missingTargetError } from "../../../src/infra/outbound/target-errors.js";
 import {
   DEFAULT_ACCOUNT_ID,
   type CoreConfig,
@@ -378,7 +379,7 @@ export const zalouserPlugin: ChannelPlugin<ResolvedZalouserAccount> = {
       if (!trimmed) {
         return {
           ok: false,
-          error: new Error("Delivering to Zalouser requires --to <threadId>"),
+          error: missingTargetError("Zalouser", "<threadId>"),
         };
       }
       return { ok: true, to: trimmed };

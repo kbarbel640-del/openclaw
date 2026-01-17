@@ -19,11 +19,27 @@ import {
   isInternalMessageChannel,
   resolveGatewayMessageChannel,
 } from "../../utils/message-channel.js";
+import { normalizeAccountId } from "../../utils/account-id.js";
+import { deliveryContextFromSession } from "../../utils/delivery-context.js";
 import type { AgentCommandOpts } from "./types.js";
 
 type RunResult = Awaited<
   ReturnType<(typeof import("../../agents/pi-embedded.js"))["runEmbeddedPiAgent"]>
 >;
+
+function resolveDeliveryAccountId(params: {
+  opts: AgentCommandOpts;
+  sessionEntry?: SessionEntry;
+  targetMode: ChannelOutboundTargetMode;
+}) {
+  const sessionOrigin = deliveryContextFromSession(params.sessionEntry);
+  return (
+    normalizeAccountId(params.opts.accountId) ??
+    (params.targetMode === "implicit"
+      ? normalizeAccountId(sessionOrigin?.accountId)
+      : undefined)
+  );
+}
 
 export async function deliverAgentCommandResult(params: {
   cfg: ClawdbotConfig;
@@ -48,13 +64,14 @@ export async function deliverAgentCommandResult(params: {
 
   const targetMode: ChannelOutboundTargetMode =
     opts.deliveryTargetMode ?? (opts.to ? "explicit" : "implicit");
+  const resolvedAccountId = resolveDeliveryAccountId({ opts, sessionEntry, targetMode });
   const resolvedTarget =
     deliver && isDeliveryChannelKnown && deliveryChannel
       ? resolveOutboundTarget({
           channel: deliveryChannel,
           to: opts.to,
           cfg,
-          accountId: targetMode === "implicit" ? sessionEntry?.lastAccountId : undefined,
+          accountId: resolvedAccountId,
           mode: targetMode,
         })
       : null;
@@ -112,6 +129,7 @@ export async function deliverAgentCommandResult(params: {
         cfg,
         channel: deliveryChannel,
         to: deliveryTarget,
+        accountId: resolvedAccountId,
         payloads: deliveryPayloads,
         bestEffort: bestEffortDeliver,
         onError: (err) => logDeliveryError(err),

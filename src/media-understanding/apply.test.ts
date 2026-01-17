@@ -1,0 +1,344 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { ClawdbotConfig } from "../config/config.js";
+import type { MsgContext } from "../auto-reply/templating.js";
+import { resolveApiKeyForProvider } from "../agents/model-auth.js";
+import { fetchRemoteMedia } from "../media/fetch.js";
+
+vi.mock("../agents/model-auth.js", () => ({
+  resolveApiKeyForProvider: vi.fn(async () => ({
+    apiKey: "test-key",
+    source: "test",
+  })),
+}));
+
+vi.mock("../media/fetch.js", () => ({
+  fetchRemoteMedia: vi.fn(),
+}));
+
+vi.mock("../process/exec.js", () => ({
+  runExec: vi.fn(),
+}));
+
+async function loadApply() {
+  return await import("./apply.js");
+}
+
+describe("applyMediaUnderstanding", () => {
+  const mockedResolveApiKey = vi.mocked(resolveApiKeyForProvider);
+  const mockedFetchRemoteMedia = vi.mocked(fetchRemoteMedia);
+
+  beforeEach(() => {
+    mockedResolveApiKey.mockClear();
+    mockedFetchRemoteMedia.mockReset();
+    mockedFetchRemoteMedia.mockResolvedValue({
+      buffer: Buffer.from("audio-bytes"),
+      contentType: "audio/ogg",
+      fileName: "note.ogg",
+    });
+  });
+
+  it("sets Transcript and replaces Body when audio transcription succeeds", async () => {
+    const { applyMediaUnderstanding } = await loadApply();
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-media-"));
+    const audioPath = path.join(dir, "note.ogg");
+    await fs.writeFile(audioPath, "hello");
+
+    const ctx: MsgContext = {
+      Body: "<media:audio>",
+      MediaPath: audioPath,
+      MediaType: "audio/ogg",
+    };
+    const cfg: ClawdbotConfig = {
+      tools: {
+        media: {
+          audio: {
+            enabled: true,
+            maxBytes: 1024 * 1024,
+            models: [{ provider: "groq" }],
+          },
+        },
+      },
+    };
+
+    const result = await applyMediaUnderstanding({
+      ctx,
+      cfg,
+      providers: {
+        groq: {
+          id: "groq",
+          transcribeAudio: async () => ({ text: "transcribed text" }),
+        },
+      },
+    });
+
+    expect(result.appliedAudio).toBe(true);
+    expect(ctx.Transcript).toBe("transcribed text");
+    expect(ctx.Body).toBe("[Audio]\nTranscript:\ntranscribed text");
+    expect(ctx.CommandBody).toBe("transcribed text");
+    expect(ctx.RawBody).toBe("transcribed text");
+  });
+
+  it("handles URL-only attachments for audio transcription", async () => {
+    const { applyMediaUnderstanding } = await loadApply();
+    const ctx: MsgContext = {
+      Body: "<media:audio>",
+      MediaUrl: "https://example.com/note.ogg",
+      MediaType: "audio/ogg",
+      ChatType: "dm",
+    };
+    const cfg: ClawdbotConfig = {
+      tools: {
+        media: {
+          audio: {
+            enabled: true,
+            maxBytes: 1024 * 1024,
+            scope: {
+              default: "deny",
+              rules: [{ action: "allow", match: { chatType: "direct" } }],
+            },
+            models: [{ provider: "groq" }],
+          },
+        },
+      },
+    };
+
+    const result = await applyMediaUnderstanding({
+      ctx,
+      cfg,
+      providers: {
+        groq: {
+          id: "groq",
+          transcribeAudio: async () => ({ text: "remote transcript" }),
+        },
+      },
+    });
+
+    expect(result.appliedAudio).toBe(true);
+    expect(ctx.Transcript).toBe("remote transcript");
+    expect(ctx.Body).toBe("[Audio]\nTranscript:\nremote transcript");
+  });
+
+  it("skips audio transcription when attachment exceeds maxBytes", async () => {
+    const { applyMediaUnderstanding } = await loadApply();
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-media-"));
+    const audioPath = path.join(dir, "large.wav");
+    await fs.writeFile(audioPath, "0123456789");
+
+    const ctx: MsgContext = {
+      Body: "<media:audio>",
+      MediaPath: audioPath,
+      MediaType: "audio/wav",
+    };
+    const transcribeAudio = vi.fn(async () => ({ text: "should-not-run" }));
+    const cfg: ClawdbotConfig = {
+      tools: {
+        media: {
+          audio: {
+            enabled: true,
+            maxBytes: 4,
+            models: [{ provider: "groq" }],
+          },
+        },
+      },
+    };
+
+    const result = await applyMediaUnderstanding({
+      ctx,
+      cfg,
+      providers: { groq: { id: "groq", transcribeAudio } },
+    });
+
+    expect(result.appliedAudio).toBe(false);
+    expect(transcribeAudio).not.toHaveBeenCalled();
+    expect(ctx.Body).toBe("<media:audio>");
+  });
+
+  it("falls back to CLI model when provider fails", async () => {
+    const { applyMediaUnderstanding } = await loadApply();
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-media-"));
+    const audioPath = path.join(dir, "note.ogg");
+    await fs.writeFile(audioPath, "hello");
+
+    const ctx: MsgContext = {
+      Body: "<media:audio>",
+      MediaPath: audioPath,
+      MediaType: "audio/ogg",
+    };
+    const cfg: ClawdbotConfig = {
+      tools: {
+        media: {
+          audio: {
+            enabled: true,
+            models: [
+              { provider: "groq" },
+              {
+                type: "cli",
+                command: "whisper",
+                args: ["{{MediaPath}}"],
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const execModule = await import("../process/exec.js");
+    vi.mocked(execModule.runExec).mockResolvedValue({
+      stdout: "cli transcript\n",
+      stderr: "",
+    });
+
+    const result = await applyMediaUnderstanding({
+      ctx,
+      cfg,
+      providers: {
+        groq: {
+          id: "groq",
+          transcribeAudio: async () => {
+            throw new Error("boom");
+          },
+        },
+      },
+    });
+
+    expect(result.appliedAudio).toBe(true);
+    expect(ctx.Transcript).toBe("cli transcript");
+    expect(ctx.Body).toBe("[Audio]\nTranscript:\ncli transcript");
+  });
+
+  it("uses CLI image understanding and preserves caption for commands", async () => {
+    const { applyMediaUnderstanding } = await loadApply();
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-media-"));
+    const imagePath = path.join(dir, "photo.jpg");
+    await fs.writeFile(imagePath, "image-bytes");
+
+    const ctx: MsgContext = {
+      Body: "<media:image> show Dom",
+      MediaPath: imagePath,
+      MediaType: "image/jpeg",
+    };
+    const cfg: ClawdbotConfig = {
+      tools: {
+        media: {
+          image: {
+            enabled: true,
+            models: [
+              {
+                type: "cli",
+                command: "gemini",
+                args: ["--file", "{{MediaPath}}", "--prompt", "{{Prompt}}"],
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const execModule = await import("../process/exec.js");
+    vi.mocked(execModule.runExec).mockResolvedValue({
+      stdout: "image description\n",
+      stderr: "",
+    });
+
+    const result = await applyMediaUnderstanding({
+      ctx,
+      cfg,
+    });
+
+    expect(result.appliedImage).toBe(true);
+    expect(ctx.Body).toBe("[Image]\nUser text:\nshow Dom\nDescription:\nimage description");
+    expect(ctx.CommandBody).toBe("show Dom");
+    expect(ctx.RawBody).toBe("show Dom");
+  });
+
+  it("uses shared media models list when capability config is missing", async () => {
+    const { applyMediaUnderstanding } = await loadApply();
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-media-"));
+    const imagePath = path.join(dir, "shared.jpg");
+    await fs.writeFile(imagePath, "image-bytes");
+
+    const ctx: MsgContext = {
+      Body: "<media:image>",
+      MediaPath: imagePath,
+      MediaType: "image/jpeg",
+    };
+    const cfg: ClawdbotConfig = {
+      tools: {
+        media: {
+          models: [
+            {
+              type: "cli",
+              command: "gemini",
+              args: ["--allowed-tools", "read_file", "{{MediaPath}}"],
+              capabilities: ["image"],
+            },
+          ],
+        },
+      },
+    };
+
+    const execModule = await import("../process/exec.js");
+    vi.mocked(execModule.runExec).mockResolvedValue({
+      stdout: "shared description\n",
+      stderr: "",
+    });
+
+    const result = await applyMediaUnderstanding({
+      ctx,
+      cfg,
+    });
+
+    expect(result.appliedImage).toBe(true);
+    expect(ctx.Body).toBe("[Image]\nDescription:\nshared description");
+  });
+
+  it("handles multiple audio attachments when attachment mode is all", async () => {
+    const { applyMediaUnderstanding } = await loadApply();
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-media-"));
+    const audioPathA = path.join(dir, "note-a.ogg");
+    const audioPathB = path.join(dir, "note-b.ogg");
+    await fs.writeFile(audioPathA, "hello");
+    await fs.writeFile(audioPathB, "world");
+
+    const ctx: MsgContext = {
+      Body: "<media:audio>",
+      MediaPaths: [audioPathA, audioPathB],
+      MediaTypes: ["audio/ogg", "audio/ogg"],
+    };
+    const cfg: ClawdbotConfig = {
+      tools: {
+        media: {
+          audio: {
+            enabled: true,
+            attachments: { mode: "all", maxAttachments: 2 },
+            models: [{ provider: "groq" }],
+          },
+        },
+      },
+    };
+
+    const result = await applyMediaUnderstanding({
+      ctx,
+      cfg,
+      providers: {
+        groq: {
+          id: "groq",
+          transcribeAudio: async (req) => ({ text: req.fileName }),
+        },
+      },
+    });
+
+    expect(result.appliedAudio).toBe(true);
+    expect(ctx.Transcript).toBe("Audio 1:\nnote-a.ogg\n\nAudio 2:\nnote-b.ogg");
+    expect(ctx.Body).toBe(
+      ["[Audio 1/2]\nTranscript:\nnote-a.ogg", "[Audio 2/2]\nTranscript:\nnote-b.ogg"].join(
+        "\n\n",
+      ),
+    );
+  });
+});

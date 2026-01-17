@@ -149,11 +149,6 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         }),
     });
   }
-  if (!isDirectMessage) {
-    const name = formatDiscordUserTag(author);
-    const id = author.id;
-    combinedBody = `${combinedBody}\n[from: ${name} user id:${id}]`;
-  }
   const replyContext = resolveReplyContext(message, resolveDiscordMessageText);
   if (replyContext) {
     combinedBody = `[Replied message - for context]\n${replyContext}\n\n${combinedBody}`;
@@ -226,13 +221,16 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
 
   const ctxPayload = {
     Body: combinedBody,
+    BodyForAgent: combinedBody,
     RawBody: baseText,
     CommandBody: baseText,
+    BodyForCommands: baseText,
     From: effectiveFrom,
     To: effectiveTo,
     SessionKey: autoThreadContext?.SessionKey ?? threadKeys.sessionKey,
     AccountId: route.accountId,
-    ChatType: isDirectMessage ? "direct" : "group",
+    ChatType: isDirectMessage ? "direct" : "channel",
+    ConversationLabel: fromLabel,
     SenderName: data.member?.nickname ?? author.globalName ?? author.username,
     SenderId: author.id,
     SenderUsername: author.username,

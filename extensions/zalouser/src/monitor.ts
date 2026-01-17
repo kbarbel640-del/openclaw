@@ -170,26 +170,29 @@ async function processMessage(
     },
   });
 
-  const rawBody = content.trim();
-  const fromLabel = isGroup
-    ? `group:${chatId} from ${senderName || senderId}`
-    : senderName || `user:${senderId}`;
-  const body = deps.formatAgentEnvelope({
-    channel: "Zalo Personal",
-    from: fromLabel,
+	  const rawBody = content.trim();
+	  const fromLabel = isGroup
+	    ? `group:${chatId}`
+	    : senderName || `user:${senderId}`;
+	  const body = deps.formatAgentEnvelope({
+	    channel: "Zalo Personal",
+	    from: fromLabel,
     timestamp: timestamp ? timestamp * 1000 : undefined,
     body: rawBody,
   });
 
   const ctxPayload = {
     Body: body,
+    BodyForAgent: body,
     RawBody: rawBody,
     CommandBody: rawBody,
+    BodyForCommands: rawBody,
     From: isGroup ? `group:${chatId}` : `zalouser:${senderId}`,
     To: `zalouser:${chatId}`,
     SessionKey: route.sessionKey,
     AccountId: route.accountId,
     ChatType: isGroup ? "group" : "direct",
+    ConversationLabel: fromLabel,
     SenderName: senderName || undefined,
     SenderId: senderId,
     Provider: "zalouser",

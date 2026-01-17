@@ -102,14 +102,46 @@ const FIELD_LABELS: Record<string, string> = {
   "gateway.remote.password": "Remote Gateway Password",
   "gateway.auth.token": "Gateway Token",
   "gateway.auth.password": "Gateway Password",
-  "tools.audio.transcription.args": "Audio Transcription Args",
-  "tools.audio.transcription.timeoutSeconds": "Audio Transcription Timeout (sec)",
+  "tools.media.image.enabled": "Enable Image Understanding",
+  "tools.media.image.maxBytes": "Image Understanding Max Bytes",
+  "tools.media.image.maxChars": "Image Understanding Max Chars",
+  "tools.media.image.prompt": "Image Understanding Prompt",
+  "tools.media.image.timeoutSeconds": "Image Understanding Timeout (sec)",
+  "tools.media.image.attachments": "Image Understanding Attachment Policy",
+  "tools.media.image.models": "Image Understanding Models",
+  "tools.media.image.scope": "Image Understanding Scope",
+  "tools.media.models": "Media Understanding Shared Models",
+  "tools.media.concurrency": "Media Understanding Concurrency",
+  "tools.media.audio.enabled": "Enable Audio Understanding",
+  "tools.media.audio.maxBytes": "Audio Understanding Max Bytes",
+  "tools.media.audio.maxChars": "Audio Understanding Max Chars",
+  "tools.media.audio.prompt": "Audio Understanding Prompt",
+  "tools.media.audio.timeoutSeconds": "Audio Understanding Timeout (sec)",
+  "tools.media.audio.language": "Audio Understanding Language",
+  "tools.media.audio.attachments": "Audio Understanding Attachment Policy",
+  "tools.media.audio.models": "Audio Understanding Models",
+  "tools.media.audio.scope": "Audio Understanding Scope",
+  "tools.media.video.enabled": "Enable Video Understanding",
+  "tools.media.video.maxBytes": "Video Understanding Max Bytes",
+  "tools.media.video.maxChars": "Video Understanding Max Chars",
+  "tools.media.video.prompt": "Video Understanding Prompt",
+  "tools.media.video.timeoutSeconds": "Video Understanding Timeout (sec)",
+  "tools.media.video.attachments": "Video Understanding Attachment Policy",
+  "tools.media.video.models": "Video Understanding Models",
+  "tools.media.video.scope": "Video Understanding Scope",
   "tools.profile": "Tool Profile",
   "agents.list[].tools.profile": "Agent Tool Profile",
   "tools.byProvider": "Tool Policy by Provider",
   "agents.list[].tools.byProvider": "Agent Tool Policy by Provider",
   "tools.exec.applyPatch.enabled": "Enable apply_patch",
   "tools.exec.applyPatch.allowModels": "apply_patch Model Allowlist",
+  "tools.message.allowCrossContextSend": "Allow Cross-Context Messaging",
+  "tools.message.crossContext.allowWithinProvider": "Allow Cross-Context (Same Provider)",
+  "tools.message.crossContext.allowAcrossProviders": "Allow Cross-Context (Across Providers)",
+  "tools.message.crossContext.marker.enabled": "Cross-Context Marker",
+  "tools.message.crossContext.marker.prefix": "Cross-Context Marker Prefix",
+  "tools.message.crossContext.marker.suffix": "Cross-Context Marker Suffix",
+  "tools.message.broadcast.enabled": "Enable Message Broadcast",
   "tools.web.search.enabled": "Enable Web Search Tool",
   "tools.web.search.provider": "Web Search Provider",
   "tools.web.search.apiKey": "Brave Search API Key",
@@ -256,6 +288,19 @@ const FIELD_HELP: Record<string, string> = {
     "Experimental. Enables apply_patch for OpenAI models when allowed by tool policy.",
   "tools.exec.applyPatch.allowModels":
     'Optional allowlist of model ids (e.g. "gpt-5.2" or "openai/gpt-5.2").',
+  "tools.message.allowCrossContextSend":
+    "Legacy override: allow cross-context sends across all providers.",
+  "tools.message.crossContext.allowWithinProvider":
+    "Allow sends to other channels within the same provider (default: true).",
+  "tools.message.crossContext.allowAcrossProviders":
+    "Allow sends across different providers (default: false).",
+  "tools.message.crossContext.marker.enabled":
+    "Add a visible origin marker when sending cross-context (default: true).",
+  "tools.message.crossContext.marker.prefix":
+    'Text prefix for cross-context markers (supports "{channel}").',
+  "tools.message.crossContext.marker.suffix":
+    'Text suffix for cross-context markers (supports "{channel}").',
+  "tools.message.broadcast.enabled": "Enable broadcast action (default: true).",
   "tools.web.search.enabled": "Enable the web_search tool (requires Brave API key).",
   "tools.web.search.provider": 'Search provider (only "brave" supported today).',
   "tools.web.search.apiKey": "Brave Search API key (fallback: BRAVE_API_KEY env var).",
@@ -463,10 +508,7 @@ function isObjectSchema(schema: JsonSchemaObject): boolean {
 }
 
 function mergeObjectSchema(base: JsonSchemaObject, extension: JsonSchemaObject): JsonSchemaObject {
-  const mergedRequired = new Set<string>([
-    ...(base.required ?? []),
-    ...(extension.required ?? []),
-  ]);
+  const mergedRequired = new Set<string>([...(base.required ?? []), ...(extension.required ?? [])]);
   const merged: JsonSchemaObject = {
     ...base,
     ...extension,
@@ -598,12 +640,17 @@ function applyPluginSchemas(schema: ConfigSchema, plugins: PluginUiMetadata[]): 
 
   for (const plugin of plugins) {
     if (!plugin.configSchema) continue;
-    const entrySchema = entryBase ? cloneSchema(entryBase) : ({ type: "object" } as JsonSchemaObject);
+    const entrySchema = entryBase
+      ? cloneSchema(entryBase)
+      : ({ type: "object" } as JsonSchemaObject);
     const entryObject = asSchemaObject(entrySchema) ?? ({ type: "object" } as JsonSchemaObject);
     const baseConfigSchema = asSchemaObject(entryObject.properties?.config);
     const pluginSchema = asSchemaObject(plugin.configSchema);
     const nextConfigSchema =
-      baseConfigSchema && pluginSchema && isObjectSchema(baseConfigSchema) && isObjectSchema(pluginSchema)
+      baseConfigSchema &&
+      pluginSchema &&
+      isObjectSchema(baseConfigSchema) &&
+      isObjectSchema(pluginSchema)
         ? mergeObjectSchema(baseConfigSchema, pluginSchema)
         : cloneSchema(plugin.configSchema);
 
@@ -683,10 +730,7 @@ export function buildConfigSchema(params?: {
   const mergedHints = applySensitiveHints(
     applyChannelHints(applyPluginHints(base.uiHints, plugins), channels),
   );
-  const mergedSchema = applyChannelSchemas(
-    applyPluginSchemas(base.schema, plugins),
-    channels,
-  );
+  const mergedSchema = applyChannelSchemas(applyPluginSchemas(base.schema, plugins), channels);
   return {
     ...base,
     schema: mergedSchema,
