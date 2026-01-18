@@ -23,6 +23,7 @@ This page describes the current CLI behavior. If commands change, update this do
 - [`message`](/cli/message)
 - [`agent`](/cli/agent)
 - [`agents`](/cli/agents)
+- [`acp`](/cli/acp)
 - [`status`](/cli/status)
 - [`health`](/cli/health)
 - [`sessions`](/cli/sessions)
@@ -32,6 +33,7 @@ This page describes the current CLI behavior. If commands change, update this do
 - [`models`](/cli/models)
 - [`memory`](/cli/memory)
 - [`nodes`](/cli/nodes)
+- [`node`](/cli/node)
 - [`sandbox`](/cli/sandbox)
 - [`tui`](/cli/tui)
 - [`browser`](/cli/browser)
@@ -128,6 +130,7 @@ clawdbot [--dev] [--profile <name>] <command>
     list
     add
     delete
+  acp
   status
   health
   sessions
@@ -171,21 +174,15 @@ clawdbot [--dev] [--profile <name>] <command>
     runs
     run
   nodes
-    status
-    describe
-    list
-    pending
-    approve
-    reject
-    rename
-    invoke
-    run
-    notify
-    camera list|snap|clip
-    canvas snapshot|present|hide|navigate|eval
-    canvas a2ui push|reset
-    screen record
-    location get
+  node
+    start
+    daemon
+      status
+      install
+      uninstall
+      start
+      stop
+      restart
   browser
     status
     start
@@ -525,6 +522,11 @@ Options:
 - `--force`
 - `--json`
 
+### `acp`
+Run the ACP bridge that connects IDEs to the Gateway.
+
+See [`acp`](/cli/acp) for full options and examples.
+
 ### `status`
 Show linked session health and recent recipients.
 
@@ -541,7 +543,7 @@ Options:
 Clawdbot can surface provider usage/quota when OAuth/API creds are available.
 
 Surfaces:
-- `/status` (alias: `/usage`; adds a short usage line when available)
+- `/status` (adds a short provider usage line when available)
 - `clawdbot status --usage` (prints full provider breakdown)
 - macOS menu bar (Usage section under Context)
 
@@ -761,6 +763,20 @@ Subcommands:
 
 All `cron` commands accept `--url`, `--token`, `--timeout`, `--expect-final`.
 
+## Node host
+
+`node` runs a **headless node host** or manages it as a background service. See
+[`clawdbot node`](/cli/node).
+
+Subcommands:
+- `node start --host <gateway-host> --port 18790`
+- `node daemon status`
+- `node daemon install [--host <gateway-host>] [--port <port>] [--tls] [--tls-fingerprint <sha256>] [--node-id <id>] [--display-name <name>] [--runtime <node|bun>] [--force]`
+- `node daemon uninstall`
+- `node daemon start`
+- `node daemon stop`
+- `node daemon restart`
+
 ## Nodes
 
 `nodes` talks to the Gateway and targets paired nodes. See [/nodes](/nodes).
@@ -777,7 +793,7 @@ Subcommands:
 - `nodes reject <requestId>`
 - `nodes rename --node <id|name|ip> --name <displayName>`
 - `nodes invoke --node <id|name|ip> --command <command> [--params <json>] [--invoke-timeout <ms>] [--idempotency-key <key>]`
-- `nodes run --node <id|name|ip> [--cwd <path>] [--env KEY=VAL] [--command-timeout <ms>] [--needs-screen-recording] [--invoke-timeout <ms>] <command...>` (mac only)
+- `nodes run --node <id|name|ip> [--cwd <path>] [--env KEY=VAL] [--command-timeout <ms>] [--needs-screen-recording] [--invoke-timeout <ms>] <command...>` (mac node or headless node host)
 - `nodes notify --node <id|name|ip> [--title <text>] [--body <text>] [--sound <name>] [--priority <passive|active|timeSensitive>] [--delivery <system|overlay|auto>] [--invoke-timeout <ms>]` (mac only)
 
 Camera:

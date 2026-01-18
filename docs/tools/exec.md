@@ -30,7 +30,7 @@ Notes:
 - `host` defaults to `sandbox`.
 - `elevated` is ignored when sandboxing is off (exec already runs on the host).
 - `gateway`/`node` approvals are controlled by `~/.clawdbot/exec-approvals.json`.
-- `node` requires a paired node (macOS companion app).
+- `node` requires a paired node (companion app or headless node host).
 - If multiple nodes are available, set `exec.node` or `tools.exec.node` to select one.
 
 ## Config
@@ -41,7 +41,26 @@ Notes:
 - `tools.exec.ask` (default: `on-miss`)
 - `tools.exec.node` (default: unset)
 
-## Exec approvals (macOS app)
+Per-agent node binding (use the agent list index in config):
+
+```bash
+clawdbot config get agents.list
+clawdbot config set agents.list[0].tools.exec.node "node-id-or-name"
+```
+
+Control UI: the Nodes tab includes a small “Exec node binding” panel for the same settings.
+
+## Session overrides (`/exec`)
+
+Use `/exec` to set **per-session** defaults for `host`, `security`, `ask`, and `node`.
+Send `/exec` with no arguments to show the current values.
+
+Example:
+```
+/exec host=gateway security=allowlist ask=on-miss node=mac-1
+```
+
+## Exec approvals (companion app / node host)
 
 Sandboxed agents can require per-request approval before `exec` runs on the gateway or node host.
 See [Exec approvals](/tools/exec-approvals) for the policy, allowlist, and UI flow.

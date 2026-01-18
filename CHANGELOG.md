@@ -2,18 +2,47 @@
 
 Docs: https://docs.clawd.bot
 
+## 2026.1.18-4
+
+### Changes
+- macOS: switch PeekabooBridge integration to the tagged Swift Package Manager release (no submodule).
+- macOS: stop syncing Peekaboo as a git submodule in postinstall.
+- Swabble: use the tagged Commander Swift package release.
+- CLI: add `clawdbot acp client` interactive ACP harness for debugging.
+
+### Fixes
+- Auth profiles: keep auto-pinned preference while allowing rotation on failover; user pins stay locked. (#1138) — thanks @cheeeee.
+- macOS: avoid touching launchd in Remote over SSH so quitting the app no longer disables the remote gateway. (#1105)
 ## 2026.1.18-3
 
 ### Changes
 - Exec: add host/security/ask routing for gateway + node exec.
 - macOS: migrate exec approvals to `~/.clawdbot/exec-approvals.json` with per-agent allowlists and skill auto-allow toggle.
 - macOS: add approvals socket UI server + node exec lifecycle events.
+- Plugins: ship Discord/Slack/Telegram/Signal/WhatsApp as bundled channel plugins via the shared SDK (iMessage now bundled + opt-in).
 - Docs: refresh exec/elevated/exec-approvals docs for the new flow. https://docs.clawd.bot/tools/exec-approvals
 
 ### Fixes
 - Tools: return a companion-app-required message when node exec is requested with no paired node.
+- Tests: avoid extension imports when wiring plugin registries in unit tests.
 
 ## 2026.1.18-2
+
+### Fixes
+- Tests: stabilize plugin SDK resolution and embedded agent timeouts.
+
+## 2026.1.17-6
+
+### Changes
+- Plugins: add exclusive plugin slots with a dedicated memory slot selector.
+- Memory: ship core memory tools + CLI as the bundled `memory-core` plugin.
+- Docs: document plugin slots and memory plugin behavior.
+- Plugins: add the bundled BlueBubbles channel plugin (disabled by default).
+- Plugins: migrate bundled messaging extensions to the plugin SDK; resolve plugin-sdk imports in loader.
+- Plugins: migrate the Zalo plugin to the shared plugin SDK runtime.
+- Plugins: migrate the Zalo Personal plugin to the shared plugin SDK runtime.
+
+## 2026.1.17-5
 
 ### Changes
 - Memory: add hybrid BM25 + vector search (FTS5) with weighted merging and fallback.

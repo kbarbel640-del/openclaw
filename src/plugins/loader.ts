@@ -8,6 +8,7 @@ import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import { createSubsystemLogger } from "../logging.js";
 import { resolveUserPath } from "../utils.js";
 import { discoverClawdbotPlugins } from "./discovery.js";
+import { initializeGlobalHookRunner } from "./hook-runner-global.js";
 import { createPluginRegistry, type PluginRecord, type PluginRegistry } from "./registry.js";
 import { createPluginRuntime } from "./runtime/index.js";
 import { setActivePluginRegistry } from "./runtime.js";
@@ -44,6 +45,8 @@ type NormalizedPluginsConfig = {
 const registryCache = new Map<string, PluginRegistry>();
 
 const defaultLogger = () => createSubsystemLogger("plugins");
+
+const BUNDLED_ENABLED_BY_DEFAULT = new Set(["telegram", "whatsapp", "discord", "slack", "signal"]);
 
 const normalizeList = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
@@ -173,6 +176,9 @@ function resolveEnableState(
   if (entry?.enabled === false) {
     return { enabled: false, reason: "disabled in config" };
   }
+  if (origin === "bundled" && BUNDLED_ENABLED_BY_DEFAULT.has(id)) {
+    return { enabled: true };
+  }
   if (origin === "bundled") {
     return { enabled: false, reason: "bundled (disabled by default)" };
   }
@@ -264,12 +270,14 @@ function createPluginRecord(params: {
     enabled: params.enabled,
     status: params.enabled ? "loaded" : "disabled",
     toolNames: [],
+    hookNames: [],
     channelIds: [],
     providerIds: [],
     gatewayMethods: [],
     cliCommands: [],
     services: [],
     httpHandlers: 0,
+    hookCount: 0,
     configSchema: params.configSchema,
     configUiHints: undefined,
     configJsonSchema: undefined,
@@ -520,5 +528,6 @@ export function loadClawdbotPlugins(options: PluginLoadOptions = {}): PluginRegi
     registryCache.set(cacheKey, registry);
   }
   setActivePluginRegistry(registry, cacheKey);
+  initializeGlobalHookRunner(registry);
   return registry;
 }

@@ -1,11 +1,19 @@
 import type { Command } from "commander";
 
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
+import type { ClawdbotConfig } from "../config/config.js";
+import type { MemorySearchConfig } from "../config/types.tools.js";
 import { loadConfig } from "../config/config.js";
 import { setVerbose } from "../globals.js";
 import { withProgress, withProgressTotals } from "./progress.js";
 import { formatErrorMessage, withManager } from "./cli-utils.js";
 import { getMemorySearchManager, type MemorySearchManagerResult } from "../memory/index.js";
+import {
+  resolveMemoryCacheState,
+  resolveMemoryFtsState,
+  resolveMemoryVectorState,
+  type Tone,
+} from "../memory/status-format.js";
 import { defaultRuntime } from "../runtime.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { colorize, isRich, theme } from "../terminal/theme.js";
@@ -15,15 +23,81 @@ type MemoryCommandOptions = {
   json?: boolean;
   deep?: boolean;
   index?: boolean;
+  indexMode?: IndexMode;
+  progress?: ProgressMode;
   verbose?: boolean;
 };
 
 type MemoryManager = NonNullable<MemorySearchManagerResult["manager"]>;
+type IndexMode = "auto" | "batch" | "direct";
+type ProgressMode = "auto" | "line" | "log" | "none";
 
 function resolveAgent(cfg: ReturnType<typeof loadConfig>, agent?: string) {
   const trimmed = agent?.trim();
   if (trimmed) return trimmed;
   return resolveDefaultAgentId(cfg);
+}
+
+function resolveIndexMode(raw?: string): IndexMode {
+  if (!raw) return "auto";
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed === "batch") return "batch";
+  if (trimmed === "direct") return "direct";
+  return "auto";
+}
+
+function resolveProgressMode(raw?: string): ProgressMode {
+  if (!raw) return "auto";
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed === "line") return "line";
+  if (trimmed === "log") return "log";
+  if (trimmed === "none") return "none";
+  return "auto";
+}
+
+function applyIndexMode(cfg: ClawdbotConfig, agentId: string, mode: IndexMode): ClawdbotConfig {
+  if (mode === "auto") return cfg;
+  const enabled = mode === "batch";
+  const patchMemorySearch = (memorySearch?: MemorySearchConfig) => {
+    const remote = memorySearch?.remote;
+    const batch = remote?.batch;
+    return {
+      ...memorySearch,
+      remote: {
+        ...remote,
+        batch: {
+          ...batch,
+          enabled,
+        },
+      },
+    };
+  };
+  const nextAgents = { ...cfg.agents };
+  nextAgents.defaults = {
+    ...cfg.agents?.defaults,
+    memorySearch: patchMemorySearch(cfg.agents?.defaults?.memorySearch),
+  };
+  if (cfg.agents?.list?.length) {
+    nextAgents.list = cfg.agents.list.map((agent) =>
+      agent.id === agentId
+        ? {
+            ...agent,
+            memorySearch: patchMemorySearch(agent.memorySearch),
+          }
+        : agent,
+    );
+  }
+  return { ...cfg, agents: nextAgents };
+}
+
+function resolveProgressOptions(
+  mode: ProgressMode,
+  verbose: boolean,
+): { enabled?: boolean; fallback?: "spinner" | "line" | "log" | "none" } {
+  if (mode === "none") return { enabled: false, fallback: "none" };
+  if (mode === "line") return { fallback: "line" };
+  if (mode === "log") return { fallback: "log" };
+  return { fallback: verbose ? "line" : undefined };
 }
 
 export function registerMemoryCli(program: Command) {
@@ -43,11 +117,17 @@ export function registerMemoryCli(program: Command) {
     .option("--json", "Print JSON")
     .option("--deep", "Probe embedding provider availability")
     .option("--index", "Reindex if dirty (implies --deep)")
+    .option("--index-mode <mode>", "Index mode (auto|batch|direct) when indexing", "auto")
+    .option("--progress <mode>", "Progress output (auto|line|log|none)", "auto")
     .option("--verbose", "Verbose logging", false)
     .action(async (opts: MemoryCommandOptions) => {
       setVerbose(Boolean(opts.verbose));
-      const cfg = loadConfig();
-      const agentId = resolveAgent(cfg, opts.agent);
+      const rawCfg = loadConfig();
+      const agentId = resolveAgent(rawCfg, opts.agent);
+      const indexMode = resolveIndexMode(opts.indexMode);
+      const progressMode = resolveProgressMode(opts.progress);
+      const progressOptions = resolveProgressOptions(progressMode, Boolean(opts.verbose));
+      const cfg = applyIndexMode(rawCfg, agentId, indexMode);
       await withManager<MemoryManager>({
         getManager: () => getMemorySearchManager({ cfg, agentId }),
         onMissing: (error) => defaultRuntime.log(error ?? "Memory search disabled."),
@@ -61,20 +141,23 @@ export function registerMemoryCli(program: Command) {
             | undefined;
           let indexError: string | undefined;
           if (deep) {
-            await withProgress({ label: "Checking memory…", total: 2 }, async (progress) => {
-              progress.setLabel("Probing vector…");
-              await manager.probeVectorAvailability();
-              progress.tick();
-              progress.setLabel("Probing embeddings…");
-              embeddingProbe = await manager.probeEmbeddingAvailability();
-              progress.tick();
-            });
+            await withProgress(
+              { label: "Checking memory…", total: 2, ...progressOptions },
+              async (progress) => {
+                progress.setLabel("Probing vector…");
+                await manager.probeVectorAvailability();
+                progress.tick();
+                progress.setLabel("Probing embeddings…");
+                embeddingProbe = await manager.probeEmbeddingAvailability();
+                progress.tick();
+              },
+            );
             if (opts.index) {
               await withProgressTotals(
                 {
                   label: "Indexing memory…",
                   total: 0,
-                  fallback: opts.verbose ? "line" : undefined,
+                  ...progressOptions,
                 },
                 async (update, progress) => {
                   try {
@@ -131,6 +214,8 @@ export function registerMemoryCli(program: Command) {
           const warn = (text: string) => colorize(rich, theme.warn, text);
           const accent = (text: string) => colorize(rich, theme.accent, text);
           const label = (text: string) => muted(`${text}:`);
+          const colorForTone = (tone: Tone) =>
+            tone === "ok" ? theme.success : tone === "warn" ? theme.warn : theme.muted;
           const lines = [
             `${heading("Memory Search")} ${muted(`(${agentId})`)}`,
             `${label("Provider")} ${info(status.provider)} ${muted(
@@ -164,18 +249,9 @@ export function registerMemoryCli(program: Command) {
             lines.push(`${label("Fallback")} ${warn(status.fallback.from)}`);
           }
           if (status.vector) {
-            const vectorState = status.vector.enabled
-              ? status.vector.available
-                ? "ready"
-                : "unavailable"
-              : "disabled";
-            const vectorColor =
-              vectorState === "ready"
-                ? theme.success
-                : vectorState === "unavailable"
-                  ? theme.warn
-                  : theme.muted;
-            lines.push(`${label("Vector")} ${colorize(rich, vectorColor, vectorState)}`);
+            const vectorState = resolveMemoryVectorState(status.vector);
+            const vectorColor = colorForTone(vectorState.tone);
+            lines.push(`${label("Vector")} ${colorize(rich, vectorColor, vectorState.state)}`);
             if (status.vector.dims) {
               lines.push(`${label("Vector dims")} ${info(String(status.vector.dims))}`);
             }
@@ -187,31 +263,22 @@ export function registerMemoryCli(program: Command) {
             }
           }
           if (status.fts) {
-            const ftsState = status.fts.enabled
-              ? status.fts.available
-                ? "ready"
-                : "unavailable"
-              : "disabled";
-            const ftsColor =
-              ftsState === "ready"
-                ? theme.success
-                : ftsState === "unavailable"
-                  ? theme.warn
-                  : theme.muted;
-            lines.push(`${label("FTS")} ${colorize(rich, ftsColor, ftsState)}`);
+            const ftsState = resolveMemoryFtsState(status.fts);
+            const ftsColor = colorForTone(ftsState.tone);
+            lines.push(`${label("FTS")} ${colorize(rich, ftsColor, ftsState.state)}`);
             if (status.fts.error) {
               lines.push(`${label("FTS error")} ${warn(status.fts.error)}`);
             }
           }
           if (status.cache) {
-            const cacheState = status.cache.enabled ? "enabled" : "disabled";
-            const cacheColor = status.cache.enabled ? theme.success : theme.muted;
+            const cacheState = resolveMemoryCacheState(status.cache);
+            const cacheColor = colorForTone(cacheState.tone);
             const suffix =
               status.cache.enabled && typeof status.cache.entries === "number"
                 ? ` (${status.cache.entries} entries)`
                 : "";
             lines.push(
-              `${label("Embedding cache")} ${colorize(rich, cacheColor, cacheState)}${suffix}`,
+              `${label("Embedding cache")} ${colorize(rich, cacheColor, cacheState.state)}${suffix}`,
             );
             if (status.cache.enabled && typeof status.cache.maxEntries === "number") {
               lines.push(`${label("Cache cap")} ${info(String(status.cache.maxEntries))}`);
@@ -233,9 +300,15 @@ export function registerMemoryCli(program: Command) {
     .description("Reindex memory files")
     .option("--agent <id>", "Agent id (default: default agent)")
     .option("--force", "Force full reindex", false)
+    .option("--index-mode <mode>", "Index mode (auto|batch|direct) when indexing", "auto")
+    .option("--progress <mode>", "Progress output (auto|line|log|none)", "auto")
     .action(async (opts: MemoryCommandOptions & { force?: boolean }) => {
-      const cfg = loadConfig();
-      const agentId = resolveAgent(cfg, opts.agent);
+      const rawCfg = loadConfig();
+      const agentId = resolveAgent(rawCfg, opts.agent);
+      const indexMode = resolveIndexMode(opts.indexMode);
+      const progressMode = resolveProgressMode(opts.progress);
+      const progressOptions = resolveProgressOptions(progressMode, Boolean(opts.verbose));
+      const cfg = applyIndexMode(rawCfg, agentId, indexMode);
       await withManager<MemoryManager>({
         getManager: () => getMemorySearchManager({ cfg, agentId }),
         onMissing: (error) => defaultRuntime.log(error ?? "Memory search disabled."),
@@ -244,7 +317,31 @@ export function registerMemoryCli(program: Command) {
         close: (manager) => manager.close(),
         run: async (manager) => {
           try {
-            await manager.sync({ reason: "cli", force: opts.force });
+            if (progressMode === "none") {
+              await manager.sync({ reason: "cli", force: opts.force });
+            } else {
+              await withProgressTotals(
+                {
+                  label: "Indexing memory…",
+                  total: 0,
+                  ...progressOptions,
+                },
+                async (update, progress) => {
+                  await manager.sync({
+                    reason: "cli",
+                    force: opts.force,
+                    progress: (syncUpdate) => {
+                      update({
+                        completed: syncUpdate.completed,
+                        total: syncUpdate.total,
+                        label: syncUpdate.label,
+                      });
+                      if (syncUpdate.label) progress.setLabel(syncUpdate.label);
+                    },
+                  });
+                },
+              );
+            }
             defaultRuntime.log("Memory index updated.");
           } catch (err) {
             const message = formatErrorMessage(err);

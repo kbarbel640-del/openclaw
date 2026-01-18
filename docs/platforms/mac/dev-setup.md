@@ -15,15 +15,7 @@ Before building the app, ensure you have the following installed:
 2.  **Node.js & pnpm**: Required for the gateway and CLI components.
 3.  **Node**: Required to package the embedded gateway relay (the script can download a bundled runtime).
 
-## 1. Initialize Submodules
-
-Clawdbot depends on several submodules (like `Peekaboo`). You must initialize these recursively:
-
-```bash
-git submodule update --init --recursive
-```
-
-## 2. Install Dependencies
+## 1. Install Dependencies
 
 Install the project-wide dependencies:
 
@@ -31,7 +23,7 @@ Install the project-wide dependencies:
 pnpm install
 ```
 
-## 3. Build and Package the App
+## 2. Build and Package the App
 
 To build the macOS app and package it into `dist/Clawdbot.app`, run:
 
@@ -45,7 +37,11 @@ If you don't have an Apple Developer ID certificate, the script will automatical
 
 > **Note**: Ad-hoc signed apps may trigger security prompts. If the app crashes immediately with "Abort trap 6", see the [Troubleshooting](#troubleshooting) section.
 
+<<<<<<< HEAD
 ## 4. Install the CLI Helper
+=======
+## 3. Install the CLI
+>>>>>>> upstream/main
 
 The macOS app requires a symlink named `clawdbot` in `/usr/local/bin` or `/opt/homebrew/bin` to manage background tasks.
 
