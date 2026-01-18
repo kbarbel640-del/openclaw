@@ -78,6 +78,18 @@ export const ClawdbotSchema = z
       })
       .strict()
       .optional(),
+    security: z
+      .object({
+        secretScanning: z
+          .object({
+            mode: z.union([z.literal("off"), z.literal("redact"), z.literal("block")]).optional(),
+            maxChars: z.number().int().positive().optional(),
+            overflow: z.union([z.literal("truncate"), z.literal("block")]).optional(),
+            logSecretMatches: z.union([z.literal("off"), z.literal("redacted")]).optional(),
+          })
+          .optional(),
+      })
+      .optional(),
     browser: z
       .object({
         enabled: z.boolean().optional(),

@@ -20,6 +20,7 @@ import type {
 } from "./types.messages.js";
 import type { ModelsConfig } from "./types.models.js";
 import type { PluginsConfig } from "./types.plugins.js";
+import type { SecurityConfig } from "./types.security.js";
 import type { SkillsConfig } from "./types.skills.js";
 import type { ToolsConfig } from "./types.tools.js";
 
@@ -61,6 +62,7 @@ export type ClawdbotConfig = {
     /** Check for updates on gateway start (npm installs only). */
     checkOnStart?: boolean;
   };
+  security?: SecurityConfig;
   browser?: BrowserConfig;
   ui?: {
     /** Accent color for Clawdbot UI chrome (hex). */
