@@ -37,7 +37,7 @@ import Testing
         defaults.set(AppState.ConnectionMode.remote.rawValue, forKey: connectionModeKey)
         defaults.set("ssh  [redacted-email]", forKey: remoteTargetKey)
 
-        let settings = CommandResolver.connectionSettings(defaults: defaults)
+        let settings = CommandResolver.connectionSettings(defaults: defaults, configRoot: [:])
         #expect(settings.mode == .remote)
         #expect(settings.target == "[redacted-email]")
     }
