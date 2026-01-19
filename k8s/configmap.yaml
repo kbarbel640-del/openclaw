@@ -25,7 +25,11 @@ data:
         "defaults": {
           "workspace": "/home/node/clawd",
           "model": {
-            "primary": "anthropic/claude-opus-4-5"
+            "primary": "genai-vnpay/v_air45"
+          },
+          "models": {
+            "anthropic/claude-opus-4-5": { "alias": "Claude" },
+            "genai-vnpay/v_air45": { "alias": "VNPAY" }
           }
         }
       },
@@ -48,5 +52,26 @@ data:
         "level": "info",
         "consoleLevel": "info",
         "consoleStyle": "pretty"
+      },
+      "models": {
+        "mode": "merge",
+        "providers": {
+          "genai-vnpay": {
+            "baseUrl": "https://genai.vnpay.vn/aigateway/llm_glm_air/v1",
+            "apiKey": "${GENAI_VNPAY_API_KEY}",
+            "api": "openai-completions",
+            "models": [
+              {
+                "id": "v_air45",
+                "name": "GenAI VNPAY Air 45",
+                "reasoning": false,
+                "input": ["text"],
+                "contextWindow": 128000,
+                "maxTokens": 30000,
+                "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+              }
+            ]
+          }
+        }
       }
     }
