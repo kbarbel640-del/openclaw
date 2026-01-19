@@ -56,6 +56,5 @@ echo "$STATUS"
 # 5. Notify via Telegram (if clawdbot available and gateway running)
 CLAWDBOT="/Users/steve/Library/pnpm/clawdbot"
 if [ -x "$CLAWDBOT" ] && lsof -i :18789 >/dev/null 2>&1; then
-    nohup "$CLAWDBOT" agent --agent main --message "$STATUS" --deliver --reply-channel telegram --reply-to 1191367022 >/dev/null 2>&1 &
-    disown
+    "$CLAWDBOT" agent --agent main --message "$STATUS" --deliver --reply-channel telegram --reply-to 1191367022 2>&1 || true
 fi
