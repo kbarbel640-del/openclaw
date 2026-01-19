@@ -12,15 +12,14 @@ last_updated: "2026-01-19"
 - Overflow behavior is **independent of mode** (ignored when off):
   - **truncate** (scan up to cap, mark truncated)
   - **block** (fail closed on overflow)
-- Use **RE2** for regex safety with untrusted input.
+- Use **RE2JS** (pure JS port of RE2) for regex safety with untrusted input.
 - Keep scanner warm (compile once, minimal per-call allocations).
 
 ## Current Status
 - Core module + detectors are implemented.
 - Tests are in place (scan orchestration + entropy + regex families).
 - Runtime wiring + user-facing errors are still pending.
-- Local build caveat: developers with `pnpm` `only-built-dependencies` must allow `re2`
-  or the native module won’t build (add `re2` or remove the restriction).
+- RE2JS is pure JS, so no native build steps are required.
 
 ## Decisions (confirmed)
 - Default scan cap: **32,768 chars**.
@@ -47,7 +46,7 @@ last_updated: "2026-01-19"
     - **Known formats**: token prefixes (sk-, ghp_, xoxb-, etc.), Authorization headers, PEM blocks.
     - **Entropy detectors**: base64/hex candidates with thresholds.
     - **Heuristics**: sensitive key names + assignments / headers / JSON fields.
-  - Precompile regexes with RE2; keep pattern table as data.
+  - Precompile regexes with RE2JS; keep pattern table as data.
   - Redaction helper for producing safe previews (mask middle).
   - **Refactor existing log redaction** into this module:
     - Move shared pattern definitions + masking into `src/security/secret-scan`.

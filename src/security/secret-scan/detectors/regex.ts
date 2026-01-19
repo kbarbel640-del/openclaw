@@ -1,4 +1,4 @@
-import RE2 from "re2";
+import type { RE2JS } from "re2js";
 
 import { maskToken, redactPemBlock } from "../redact.js";
 import type { SecretScanMatch } from "../types.js";
@@ -6,9 +6,9 @@ import { formatDetectors } from "./format.js";
 import { heuristicDetectors } from "./heuristics.js";
 import { keywordDetectors } from "./keyword.js";
 import type { Redaction, RegexDetector } from "./types.js";
-import { execAll } from "./utils.js";
+import { compileRegex, execAll } from "./utils.js";
 
-type CompiledDetector = RegexDetector & { re: RE2 };
+type CompiledDetector = RegexDetector & { re: RE2JS };
 
 const REGEX_DETECTORS: RegexDetector[] = [
   ...formatDetectors,
@@ -18,7 +18,7 @@ const REGEX_DETECTORS: RegexDetector[] = [
 
 const COMPILED_DETECTORS: CompiledDetector[] = REGEX_DETECTORS.map((detector) => ({
   ...detector,
-  re: new RE2(detector.pattern, detector.flags ?? "g"),
+  re: compileRegex(detector.pattern, detector.flags ?? "g"),
 }));
 
 function addMatch(
@@ -65,10 +65,10 @@ export function addRegexDetections(
 ): void {
   for (const detector of COMPILED_DETECTORS) {
     execAll(detector.re, text, (match) => {
-      const full = match[0];
+      const full = match.text;
       if (!full) return;
-      const start = match.index ?? 0;
-      const groupText = detector.group ? match[detector.group] : undefined;
+      const start = match.index;
+      const groupText = detector.group ? (match.groups[detector.group] ?? undefined) : undefined;
       const candidate = groupText ?? full;
       if (detector.validator && !detector.validator(candidate ?? "")) return;
       addMatch(matches, redactions, seen, detector, start, full, groupText);

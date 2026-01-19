@@ -1,11 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { setupGitHooks } from "./setup-git-hooks.js";
-
-const require = createRequire(import.meta.url);
 
 function detectPackageManager(ua = process.env.npm_config_user_agent ?? "") {
   // Examples:
@@ -42,37 +39,6 @@ function ensureExecutable(targetPath) {
   }
 }
 
-function ensureRe2Binary(repoRoot) {
-  let re2PackagePath;
-  try {
-    re2PackagePath = require.resolve("re2/package.json", { paths: [repoRoot] });
-  } catch {
-    return;
-  }
-
-  const re2Dir = path.dirname(re2PackagePath);
-  const re2Binary = path.join(re2Dir, "build", "Release", "re2.node");
-  if (fs.existsSync(re2Binary)) return;
-
-  const nodeGypBin = process.platform === "win32" ? "node-gyp.cmd" : "node-gyp";
-  const nodeGypCandidates = [
-    path.join(re2Dir, "node_modules", ".bin", nodeGypBin),
-    path.join(repoRoot, "node_modules", ".bin", nodeGypBin),
-  ];
-  const nodeGypPath = nodeGypCandidates.find((candidate) => fs.existsSync(candidate)) ?? nodeGypBin;
-
-  console.log("[postinstall] re2 binary missing; rebuilding native module...");
-  const result = spawnSync(nodeGypPath, ["-j", "max", "rebuild"], {
-    cwd: re2Dir,
-    stdio: "inherit",
-  });
-
-  if (result.status !== 0 || !fs.existsSync(re2Binary)) {
-    throw new Error(
-      "[postinstall] re2 build failed. Ensure build tools are installed and rerun pnpm install.",
-    );
-  }
-}
 
 function hasGit(repoRoot) {
   const result = spawnSync("git", ["--version"], { cwd: repoRoot, stdio: "ignore" });
@@ -289,7 +255,6 @@ function main() {
 
   ensureExecutable(path.join(repoRoot, "dist", "entry.js"));
   setupGitHooks({ repoRoot });
-  ensureRe2Binary(repoRoot);
 
   if (!shouldApplyPnpmPatchedDependenciesFallback()) {
     return;
