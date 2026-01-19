@@ -37,6 +37,9 @@ let previousHome: string | undefined;
 let previousUserProfile: string | undefined;
 let previousStateDir: string | undefined;
 let previousConfigPath: string | undefined;
+let previousSkipBrowserControl: string | undefined;
+let previousSkipGmailWatcher: string | undefined;
+let previousSkipCanvasHost: string | undefined;
 let tempHome: string | undefined;
 let tempConfigRoot: string | undefined;
 
@@ -75,11 +78,17 @@ export function installGatewayTestHooks() {
     previousUserProfile = process.env.USERPROFILE;
     previousStateDir = process.env.CLAWDBOT_STATE_DIR;
     previousConfigPath = process.env.CLAWDBOT_CONFIG_PATH;
+    previousSkipBrowserControl = process.env.CLAWDBOT_SKIP_BROWSER_CONTROL_SERVER;
+    previousSkipGmailWatcher = process.env.CLAWDBOT_SKIP_GMAIL_WATCHER;
+    previousSkipCanvasHost = process.env.CLAWDBOT_SKIP_CANVAS_HOST;
     tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-gateway-home-"));
     process.env.HOME = tempHome;
     process.env.USERPROFILE = tempHome;
     process.env.CLAWDBOT_STATE_DIR = path.join(tempHome, ".clawdbot");
     delete process.env.CLAWDBOT_CONFIG_PATH;
+    process.env.CLAWDBOT_SKIP_BROWSER_CONTROL_SERVER = "1";
+    process.env.CLAWDBOT_SKIP_GMAIL_WATCHER = "1";
+    process.env.CLAWDBOT_SKIP_CANVAS_HOST = "1";
     tempConfigRoot = path.join(tempHome, ".clawdbot-test");
     setTestConfigRoot(tempConfigRoot);
     sessionStoreSaveDelayMs.value = 0;
@@ -128,6 +137,13 @@ export function installGatewayTestHooks() {
     else process.env.CLAWDBOT_STATE_DIR = previousStateDir;
     if (previousConfigPath === undefined) delete process.env.CLAWDBOT_CONFIG_PATH;
     else process.env.CLAWDBOT_CONFIG_PATH = previousConfigPath;
+    if (previousSkipBrowserControl === undefined)
+      delete process.env.CLAWDBOT_SKIP_BROWSER_CONTROL_SERVER;
+    else process.env.CLAWDBOT_SKIP_BROWSER_CONTROL_SERVER = previousSkipBrowserControl;
+    if (previousSkipGmailWatcher === undefined) delete process.env.CLAWDBOT_SKIP_GMAIL_WATCHER;
+    else process.env.CLAWDBOT_SKIP_GMAIL_WATCHER = previousSkipGmailWatcher;
+    if (previousSkipCanvasHost === undefined) delete process.env.CLAWDBOT_SKIP_CANVAS_HOST;
+    else process.env.CLAWDBOT_SKIP_CANVAS_HOST = previousSkipCanvasHost;
     if (tempHome) {
       await fs.rm(tempHome, {
         recursive: true,
@@ -247,6 +263,11 @@ export async function connectReq(
       modelIdentifier?: string;
       instanceId?: string;
     };
+    role?: string;
+    scopes?: string[];
+    caps?: string[];
+    commands?: string[];
+    permissions?: Record<string, boolean>;
   },
 ): Promise<ConnectResponse> {
   const { randomUUID } = await import("node:crypto");
@@ -265,7 +286,11 @@ export async function connectReq(
           platform: "test",
           mode: GATEWAY_CLIENT_MODES.TEST,
         },
-        caps: [],
+        caps: opts?.caps ?? [],
+        commands: opts?.commands ?? [],
+        permissions: opts?.permissions ?? undefined,
+        role: opts?.role,
+        scopes: opts?.scopes,
         auth:
           opts?.token || opts?.password
             ? {

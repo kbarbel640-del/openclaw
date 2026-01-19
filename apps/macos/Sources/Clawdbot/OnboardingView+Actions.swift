@@ -8,7 +8,7 @@ extension OnboardingView {
         self.state.connectionMode = .local
         self.preferredGatewayID = nil
         self.showAdvancedConnection = false
-        BridgeDiscoveryPreferences.setPreferredStableID(nil)
+        GatewayDiscoveryPreferences.setPreferredStableID(nil)
     }
 
     func selectUnconfiguredGateway() {
@@ -16,13 +16,13 @@ extension OnboardingView {
         self.state.connectionMode = .unconfigured
         self.preferredGatewayID = nil
         self.showAdvancedConnection = false
-        BridgeDiscoveryPreferences.setPreferredStableID(nil)
+        GatewayDiscoveryPreferences.setPreferredStableID(nil)
     }
 
     func selectRemoteGateway(_ gateway: GatewayDiscoveryModel.DiscoveredGateway) {
         Task { await self.onboardingWizard.cancelIfRunning() }
         self.preferredGatewayID = gateway.stableID
-        BridgeDiscoveryPreferences.setPreferredStableID(gateway.stableID)
+        GatewayDiscoveryPreferences.setPreferredStableID(gateway.stableID)
 
         if let host = gateway.tailnetDns ?? gateway.lanHost {
             let user = NSUserName()
@@ -35,7 +35,7 @@ extension OnboardingView {
         self.state.remoteCliPath = gateway.cliPath ?? ""
 
         self.state.connectionMode = .remote
-        MacNodeModeCoordinator.shared.setPreferredBridgeStableID(gateway.stableID)
+        MacNodeModeCoordinator.shared.setPreferredGatewayStableID(gateway.stableID)
     }
 
     func openSettings(tab: SettingsTab) {

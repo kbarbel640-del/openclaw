@@ -2,6 +2,16 @@
 
 Docs: https://docs.clawd.bot
 
+## 2026.1.19-2
+
+### Changes
+- Android: migrate node transport to the Gateway WebSocket protocol with TLS pinning support + gateway discovery naming.
+- Android: bump okhttp + dnsjava to satisfy lint dependency checks.
+- Docs: refresh Android node discovery docs for the Gateway WS service type.
+
+### Fixes
+- Tests: stabilize Windows gateway/CLI tests by skipping sidecars, normalizing argv, and extending timeouts.
+
 ## 2026.1.19-1
 
 ### Breaking
@@ -14,6 +24,7 @@ Docs: https://docs.clawd.bot
 
 ### Fixes
 - UI: enable shell mode for sync Windows spawns to avoid `pnpm ui:build` EINVAL. (#1212) — thanks @longmaba.
+- Agents: add `clawdbot agents set-identity` helper and update bootstrap guidance for multi-agent setups. (#1222) — thanks @ThePickle31.
 - Plugins: surface plugin load/register/config errors in gateway logs with plugin/source context.
 - Agents: propagate accountId into embedded runs so sub-agent announce routing honors the originating account. (#1058)
 - Compaction: include tool failure summaries in safeguard compaction to prevent retry loops. (#1084)
