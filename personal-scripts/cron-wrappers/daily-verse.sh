@@ -11,13 +11,15 @@ CLAWDBOT="/Users/steve/Library/pnpm/clawdbot"
 # Run the verse script
 OUTPUT=$(python3 /Users/steve/clawd/skills/bible/votd.py --download /tmp/votd.jpg 2>&1) || true
 
-# Send the verse text and image via agent
+# Send via agent using message tool
 if [ -n "$OUTPUT" ]; then
     if [ -f /tmp/votd.jpg ]; then
-        "$CLAWDBOT" agent --agent main --message "$OUTPUT
+        "$CLAWDBOT" agent --agent main --message "Use the message tool to send this to Telegram chat 1191367022 via account steve. Include the image /tmp/votd.jpg. Message:
 
-MEDIA:/tmp/votd.jpg" --deliver --reply-channel telegram --reply-account steve --reply-to 1191367022
+$OUTPUT" 2>&1
     else
-        "$CLAWDBOT" agent --agent main --message "$OUTPUT" --deliver --reply-channel telegram --reply-account steve --reply-to 1191367022
+        "$CLAWDBOT" agent --agent main --message "Use the message tool to send this to Telegram chat 1191367022 via account steve:
+
+$OUTPUT" 2>&1
     fi
 fi

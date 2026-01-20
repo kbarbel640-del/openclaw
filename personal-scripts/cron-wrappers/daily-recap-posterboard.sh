@@ -2,19 +2,23 @@
 # System cron wrapper for daily-recap-posterboard
 # Schedule: 5:00 PM daily (0 17 * * *)
 
-SCRIPT="/Users/steve/clawd/personal-scripts/daily-recap-steve.sh"
 # Ensure gateway is running
 source /Users/steve/clawd/personal-scripts/cron-wrappers/ensure-gateway.sh
 ensure_gateway
 
+SCRIPT="/Users/steve/clawd/personal-scripts/daily-recap-steve.sh"
 CLAWDBOT="/Users/steve/Library/pnpm/clawdbot"
 
 # Run the actual script
 OUTPUT=$("$SCRIPT" 2>&1) || true
 
-# Send output via clawdbot agent
+# Send via agent using message tool
 if [ -n "$OUTPUT" ]; then
-    "$CLAWDBOT" agent --agent main --message "$OUTPUT" --deliver --reply-channel telegram --reply-account steve --reply-to 1191367022
+    "$CLAWDBOT" agent --agent main --message "Use the message tool to send this to Telegram chat 1191367022 via account steve:
+
+$OUTPUT" 2>&1
 else
-    "$CLAWDBOT" agent --agent main --message "⚠️ daily-recap produced no output" --deliver --reply-channel telegram --reply-account steve --reply-to 1191367022
+    "$CLAWDBOT" agent --agent main --message "Use the message tool to send this to Telegram chat 1191367022 via account steve:
+
+⚠️ daily-recap produced no output" 2>&1
 fi
