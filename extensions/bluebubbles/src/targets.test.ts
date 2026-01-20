@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  looksLikeBlueBubblesTargetId,
-  normalizeBlueBubblesMessagingTarget,
-} from "./targets.js";
+import { looksLikeBlueBubblesTargetId, normalizeBlueBubblesMessagingTarget } from "./targets.js";
 
 describe("normalizeBlueBubblesMessagingTarget", () => {
   it("normalizes chat_guid targets", () => {
@@ -15,9 +12,30 @@ describe("normalizeBlueBubblesMessagingTarget", () => {
   });
 
   it("strips provider prefix and normalizes handles", () => {
-    expect(
-      normalizeBlueBubblesMessagingTarget("bluebubbles:imessage:[redacted-email]"),
-    ).toBe("imessage:[redacted-email]");
+    expect(normalizeBlueBubblesMessagingTarget("bluebubbles:imessage:[redacted-email]")).toBe(
+      "imessage:[redacted-email]",
+    );
+  });
+
+  it("extracts handle from DM chat_guid for cross-context matching", () => {
+    // DM format: service;-;handle
+    expect(normalizeBlueBubblesMessagingTarget("chat_guid:iMessage;-;+19257864429")).toBe(
+      "+19257864429",
+    );
+    expect(normalizeBlueBubblesMessagingTarget("chat_guid:SMS;-;+15551234567")).toBe(
+      "+15551234567",
+    );
+    // Email handles
+    expect(normalizeBlueBubblesMessagingTarget("chat_guid:iMessage;-;[redacted-email]")).toBe(
+      "[redacted-email]",
+    );
+  });
+
+  it("preserves group chat_guid format", () => {
+    // Group format: service;+;groupId
+    expect(normalizeBlueBubblesMessagingTarget("chat_guid:iMessage;+;chat123456789")).toBe(
+      "chat_guid:iMessage;+;chat123456789",
+    );
   });
 });
 
