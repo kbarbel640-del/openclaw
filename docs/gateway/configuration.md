@@ -1840,7 +1840,7 @@ Example:
 
 `agents.defaults.subagents` configures sub-agent defaults:
 - `model`: default model for spawned sub-agents (string or `{ primary, fallbacks }`). If omitted, sub-agents inherit the caller’s model unless overridden per agent or per call.
-- `maxConcurrent`: max concurrent sub-agent runs (default 1)
+- `maxConcurrent`: max concurrent sub-agent runs (default 8)
 - `archiveAfterMinutes`: auto-archive sub-agent sessions after N minutes (default 60; set `0` to disable)
 - Per-subagent tool policy: `tools.subagents.tools.allow` / `tools.subagents.tools.deny` (deny wins)
 
@@ -1974,7 +1974,7 @@ Notes:
 
 `agents.defaults.maxConcurrent` sets the maximum number of embedded agent runs that can
 execute in parallel across sessions. Each session is still serialized (one run
-per session key at a time). Default: 1.
+per session key at a time). Default: 4.
 
 ### `agents.defaults.sandbox`
 
@@ -2677,7 +2677,7 @@ Notes:
 
 Auth and Tailscale:
 - `gateway.auth.mode` sets the handshake requirements (`token` or `password`).
-- `gateway.auth.token` stores the shared token for token auth (used by the CLI on the same machine).
+- `gateway.auth.token` stores the shared token for token auth (used by the CLI on the same machine and as the bootstrap credential for device pairing).
 - When `gateway.auth.mode` is set, only that method is accepted (plus optional Tailscale headers).
 - `gateway.auth.password` can be set here, or via `CLAWDBOT_GATEWAY_PASSWORD` (recommended).
 - `gateway.auth.allowTailscale` allows Tailscale Serve identity headers
@@ -2686,6 +2686,9 @@ Auth and Tailscale:
   `true`, Serve requests do not need a token/password; set `false` to require
   explicit credentials. Defaults to `true` when `tailscale.mode = "serve"` and
   auth mode is not `password`.
+- After pairing, the Gateway issues **device tokens** scoped to the device role + scopes.
+  These are returned in `hello-ok.auth.deviceToken`; clients should persist and reuse them
+  instead of the shared token. Rotate/revoke via `device.token.rotate`/`device.token.revoke`.
 - `gateway.tailscale.mode: "serve"` uses Tailscale Serve (tailnet only, loopback bind).
 - `gateway.tailscale.mode: "funnel"` exposes the dashboard publicly; requires auth.
 - `gateway.tailscale.resetOnExit` resets Serve/Funnel config on shutdown.
@@ -2712,6 +2715,29 @@ macOS app behavior:
   }
 }
 ```
+
+### `gateway.nodes` (Node command allowlist)
+
+The Gateway enforces a per-platform command allowlist for `node.invoke`. Nodes must both
+**declare** a command and have it **allowed** by the Gateway to run it.
+
+Use this section to extend or deny commands:
+
+```json5
+{
+  gateway: {
+    nodes: {
+      allowCommands: ["custom.vendor.command"], // extra commands beyond defaults
+      denyCommands: ["sms.send"]      // block a command even if declared
+    }
+  }
+}
+```
+
+Notes:
+- `allowCommands` extends the built-in per-platform defaults.
+- `denyCommands` always wins (even if the node claims the command).
+- `node.invoke` rejects commands that are not declared by the node.
 
 ### `gateway.reload` (Config hot reload)
 

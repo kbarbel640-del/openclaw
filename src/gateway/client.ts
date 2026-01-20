@@ -3,7 +3,12 @@ import { WebSocket, type ClientOptions, type CertMeta } from "ws";
 import { rawDataToString } from "../infra/ws.js";
 import { logDebug, logError } from "../logger.js";
 import type { DeviceIdentity } from "../infra/device-identity.js";
-import { publicKeyRawBase64UrlFromPem, signDevicePayload } from "../infra/device-identity.js";
+import {
+  loadOrCreateDeviceIdentity,
+  publicKeyRawBase64UrlFromPem,
+  signDevicePayload,
+} from "../infra/device-identity.js";
+import { loadDeviceAuthToken, storeDeviceAuthToken } from "../infra/device-auth-store.js";
 import {
   GATEWAY_CLIENT_MODES,
   GATEWAY_CLIENT_NAMES,
@@ -67,7 +72,7 @@ export function describeGatewayCloseCode(code: number): string | undefined {
 
 export class GatewayClient {
   private ws: WebSocket | null = null;
-  private opts: GatewayClientOptions;
+  private opts: GatewayClientOptions & { deviceIdentity: DeviceIdentity };
   private pending = new Map<string, Pending>();
   private backoffMs = 1000;
   private closed = false;
@@ -78,7 +83,10 @@ export class GatewayClient {
   private tickTimer: NodeJS.Timeout | null = null;
 
   constructor(opts: GatewayClientOptions) {
-    this.opts = opts;
+    this.opts = {
+      ...opts,
+      deviceIdentity: opts.deviceIdentity ?? loadOrCreateDeviceIdentity(),
+    };
   }
 
   start() {
@@ -139,35 +147,37 @@ export class GatewayClient {
   }
 
   private sendConnect() {
+    const role = this.opts.role ?? "operator";
+    const storedToken = this.opts.deviceIdentity
+      ? loadDeviceAuthToken({ deviceId: this.opts.deviceIdentity.deviceId, role })?.token
+      : null;
+    const authToken = this.opts.token ?? storedToken ?? undefined;
     const auth =
-      this.opts.token || this.opts.password
+      authToken || this.opts.password
         ? {
-            token: this.opts.token,
+            token: authToken,
             password: this.opts.password,
           }
         : undefined;
     const signedAtMs = Date.now();
-    const role = this.opts.role ?? "operator";
     const scopes = this.opts.scopes ?? ["operator.admin"];
-    const device = (() => {
-      if (!this.opts.deviceIdentity) return undefined;
-      const payload = buildDeviceAuthPayload({
-        deviceId: this.opts.deviceIdentity.deviceId,
-        clientId: this.opts.clientName ?? GATEWAY_CLIENT_NAMES.GATEWAY_CLIENT,
-        clientMode: this.opts.mode ?? GATEWAY_CLIENT_MODES.BACKEND,
-        role,
-        scopes,
-        signedAtMs,
-        token: this.opts.token ?? null,
-      });
-      const signature = signDevicePayload(this.opts.deviceIdentity.privateKeyPem, payload);
-      return {
-        id: this.opts.deviceIdentity.deviceId,
-        publicKey: publicKeyRawBase64UrlFromPem(this.opts.deviceIdentity.publicKeyPem),
-        signature,
-        signedAt: signedAtMs,
-      };
-    })();
+    const deviceIdentity = this.opts.deviceIdentity;
+    const payload = buildDeviceAuthPayload({
+      deviceId: deviceIdentity.deviceId,
+      clientId: this.opts.clientName ?? GATEWAY_CLIENT_NAMES.GATEWAY_CLIENT,
+      clientMode: this.opts.mode ?? GATEWAY_CLIENT_MODES.BACKEND,
+      role,
+      scopes,
+      signedAtMs,
+      token: authToken ?? null,
+    });
+    const signature = signDevicePayload(deviceIdentity.privateKeyPem, payload);
+    const device = {
+      id: deviceIdentity.deviceId,
+      publicKey: publicKeyRawBase64UrlFromPem(deviceIdentity.publicKeyPem),
+      signature,
+      signedAt: signedAtMs,
+    };
     const params: ConnectParams = {
       minProtocol: this.opts.minProtocol ?? PROTOCOL_VERSION,
       maxProtocol: this.opts.maxProtocol ?? PROTOCOL_VERSION,
@@ -193,6 +203,15 @@ export class GatewayClient {
 
     void this.request<HelloOk>("connect", params)
       .then((helloOk) => {
+        const authInfo = helloOk?.auth;
+        if (authInfo?.deviceToken && this.opts.deviceIdentity) {
+          storeDeviceAuthToken({
+            deviceId: this.opts.deviceIdentity.deviceId,
+            role: authInfo.role ?? role,
+            token: authInfo.deviceToken,
+            scopes: authInfo.scopes ?? [],
+          });
+        }
         this.backoffMs = 1000;
         this.tickIntervalMs =
           typeof helloOk.policy?.tickIntervalMs === "number"

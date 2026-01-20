@@ -59,6 +59,18 @@ Gateway → Client:
 }
 ```
 
+When a device token is issued, `hello-ok` also includes:
+
+```json
+{
+  "auth": {
+    "deviceToken": "…",
+    "role": "operator",
+    "scopes": ["operator.read", "operator.write"]
+  }
+}
+```
+
 ### Node example
 
 ```json
@@ -123,6 +135,11 @@ Nodes declare capability claims at connect time:
 
 The Gateway treats these as **claims** and enforces server-side allowlists.
 
+### Node helper methods
+
+- Nodes may call `skills.bins` to fetch the current list of skill executables
+  for auto-allow checks.
+
 ## Versioning
 
 - `PROTOCOL_VERSION` lives in `src/gateway/protocol/schema.ts`.
@@ -136,6 +153,11 @@ The Gateway treats these as **claims** and enforces server-side allowlists.
 
 - If `CLAWDBOT_GATEWAY_TOKEN` (or `--token`) is set, `connect.params.auth.token`
   must match or the socket is closed.
+- After pairing, the Gateway issues a **device token** scoped to the connection
+  role + scopes. It is returned in `hello-ok.auth.deviceToken` and should be
+  persisted by the client for future connects.
+- Device tokens can be rotated/revoked via `device.token.rotate` and
+  `device.token.revoke` (requires `operator.pairing` scope).
 
 ## Device identity + pairing
 
@@ -144,6 +166,7 @@ The Gateway treats these as **claims** and enforces server-side allowlists.
 - Gateways issue tokens per device + role.
 - Pairing approvals are required for new device IDs unless local auto-approval
   is enabled.
+- All WS clients must include `device` identity during `connect` (operator + node).
 
 ## TLS + pinning
 

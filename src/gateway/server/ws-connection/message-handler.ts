@@ -9,9 +9,11 @@ import {
 } from "../../../infra/device-identity.js";
 import {
   approveDevicePairing,
+  ensureDeviceToken,
   getPairedDevice,
   requestDevicePairing,
   updatePairedDeviceMetadata,
+  verifyDeviceToken,
 } from "../../../infra/device-pairing.js";
 import { recordRemoteNodeInfo, refreshRemoteNodeBins } from "../../../infra/skills-remote.js";
 import { loadVoiceWakeConfig } from "../../../infra/voicewake.js";
@@ -24,6 +26,7 @@ import { authorizeGatewayConnect } from "../../auth.js";
 import { loadConfig } from "../../../config/config.js";
 import { buildDeviceAuthPayload } from "../../device-auth.js";
 import { isLoopbackAddress } from "../../net.js";
+import { resolveNodeCommandAllowlist } from "../../node-command-policy.js";
 import {
   type ConnectParams,
   ErrorCodes,
@@ -217,26 +220,12 @@ export function attachGatewayWsMessageHandler(params: {
           return;
         }
 
-        const authResult = await authorizeGatewayConnect({
-          auth: resolvedAuth,
-          connectAuth: connectParams.auth,
-          req: upgradeReq,
-        });
-        if (!authResult.ok) {
+        const roleRaw = connectParams.role ?? "operator";
+        const role = roleRaw === "operator" || roleRaw === "node" ? roleRaw : null;
+        if (!role) {
           setHandshakeState("failed");
-          logWsControl.warn(
-            `unauthorized conn=${connId} remote=${remoteAddr ?? "?"} client=${clientLabel} ${connectParams.client.mode} v${connectParams.client.version}`,
-          );
-          const authProvided = connectParams.auth?.token
-            ? "token"
-            : connectParams.auth?.password
-              ? "password"
-              : "none";
-          setCloseCause("unauthorized", {
-            authMode: resolvedAuth.mode,
-            authProvided,
-            authReason: authResult.reason,
-            allowTailscale: resolvedAuth.allowTailscale,
+          setCloseCause("invalid-role", {
+            role: roleRaw,
             client: connectParams.client.id,
             clientDisplayName: connectParams.client.displayName,
             mode: connectParams.client.mode,
@@ -246,24 +235,40 @@ export function attachGatewayWsMessageHandler(params: {
             type: "res",
             id: frame.id,
             ok: false,
-            error: errorShape(ErrorCodes.INVALID_REQUEST, "unauthorized"),
+            error: errorShape(ErrorCodes.INVALID_REQUEST, "invalid role"),
           });
-          close(1008, "unauthorized");
+          close(1008, "invalid role");
           return;
         }
-        const authMethod = authResult.method ?? "none";
-
-        const role = connectParams.role ?? "operator";
-        const scopes = Array.isArray(connectParams.scopes)
-          ? connectParams.scopes
-          : role === "operator"
-            ? ["operator.admin"]
-            : [];
+        const requestedScopes = Array.isArray(connectParams.scopes) ? connectParams.scopes : [];
+        const scopes =
+          requestedScopes.length > 0
+            ? requestedScopes
+            : role === "operator"
+              ? ["operator.admin"]
+              : [];
         connectParams.role = role;
         connectParams.scopes = scopes;
 
         const device = connectParams.device;
         let devicePublicKey: string | null = null;
+        if (!device) {
+          setHandshakeState("failed");
+          setCloseCause("device-required", {
+            client: connectParams.client.id,
+            clientDisplayName: connectParams.client.displayName,
+            mode: connectParams.client.mode,
+            version: connectParams.client.version,
+          });
+          send({
+            type: "res",
+            id: frame.id,
+            ok: false,
+            error: errorShape(ErrorCodes.NOT_PAIRED, "device identity required"),
+          });
+          close(1008, "device identity required");
+          return;
+        }
         if (device) {
           const derivedId = deriveDeviceIdFromPublicKey(device.publicKey);
           if (!derivedId || derivedId !== device.id) {
@@ -307,7 +312,7 @@ export function attachGatewayWsMessageHandler(params: {
             clientId: connectParams.client.id,
             clientMode: connectParams.client.mode,
             role,
-            scopes,
+            scopes: requestedScopes,
             signedAtMs: signedAt,
             token: connectParams.auth?.token ?? null,
           });
@@ -346,10 +351,57 @@ export function attachGatewayWsMessageHandler(params: {
           }
         }
 
+        const authResult = await authorizeGatewayConnect({
+          auth: resolvedAuth,
+          connectAuth: connectParams.auth,
+          req: upgradeReq,
+        });
+        let authOk = authResult.ok;
+        let authMethod = authResult.method ?? "none";
+        if (!authOk && connectParams.auth?.token) {
+          const tokenCheck = await verifyDeviceToken({
+            deviceId: device.id,
+            token: connectParams.auth.token,
+            role,
+            scopes,
+          });
+          if (tokenCheck.ok) {
+            authOk = true;
+            authMethod = "device-token";
+          }
+        }
+        if (!authOk) {
+          setHandshakeState("failed");
+          logWsControl.warn(
+            `unauthorized conn=${connId} remote=${remoteAddr ?? "?"} client=${clientLabel} ${connectParams.client.mode} v${connectParams.client.version}`,
+          );
+          const authProvided = connectParams.auth?.token
+            ? "token"
+            : connectParams.auth?.password
+              ? "password"
+              : "none";
+          setCloseCause("unauthorized", {
+            authMode: resolvedAuth.mode,
+            authProvided,
+            authReason: authResult.reason,
+            allowTailscale: resolvedAuth.allowTailscale,
+            client: connectParams.client.id,
+            clientDisplayName: connectParams.client.displayName,
+            mode: connectParams.client.mode,
+            version: connectParams.client.version,
+          });
+          send({
+            type: "res",
+            id: frame.id,
+            ok: false,
+            error: errorShape(ErrorCodes.INVALID_REQUEST, "unauthorized"),
+          });
+          close(1008, "unauthorized");
+          return;
+        }
+
         if (device && devicePublicKey) {
-          const paired = await getPairedDevice(device.id);
-          const isPaired = paired?.publicKey === devicePublicKey;
-          if (!isPaired) {
+          const requirePairing = async (reason: string, _paired?: { deviceId: string }) => {
             const pairing = await requestDevicePairing({
               deviceId: device.id,
               publicKey: devicePublicKey,
@@ -360,7 +412,7 @@ export function attachGatewayWsMessageHandler(params: {
               role,
               scopes,
               remoteIp: remoteAddr,
-              silent: isLoopbackAddress(remoteAddr) && authMethod !== "none",
+              silent: isLoopbackAddress(remoteAddr),
             });
             const context = buildRequestContext();
             if (pairing.request.silent === true) {
@@ -385,6 +437,7 @@ export function attachGatewayWsMessageHandler(params: {
               setCloseCause("pairing-required", {
                 deviceId: device.id,
                 requestId: pairing.request.requestId,
+                reason,
               });
               send({
                 type: "res",
@@ -395,9 +448,43 @@ export function attachGatewayWsMessageHandler(params: {
                 }),
               });
               close(1008, "pairing required");
-              return;
+              return false;
             }
+            return true;
+          };
+
+          const paired = await getPairedDevice(device.id);
+          const isPaired = paired?.publicKey === devicePublicKey;
+          if (!isPaired) {
+            const ok = await requirePairing("not-paired");
+            if (!ok) return;
           } else {
+            const allowedRoles = new Set(
+              Array.isArray(paired.roles) ? paired.roles : paired.role ? [paired.role] : [],
+            );
+            if (allowedRoles.size === 0) {
+              const ok = await requirePairing("role-upgrade", paired);
+              if (!ok) return;
+            } else if (!allowedRoles.has(role)) {
+              const ok = await requirePairing("role-upgrade", paired);
+              if (!ok) return;
+            }
+
+            const pairedScopes = Array.isArray(paired.scopes) ? paired.scopes : [];
+            if (scopes.length > 0) {
+              if (pairedScopes.length === 0) {
+                const ok = await requirePairing("scope-upgrade", paired);
+                if (!ok) return;
+              } else {
+                const allowedScopes = new Set(pairedScopes);
+                const missingScope = scopes.find((scope) => !allowedScopes.has(scope));
+                if (missingScope) {
+                  const ok = await requirePairing("scope-upgrade", paired);
+                  if (!ok) return;
+                }
+              }
+            }
+
             await updatePairedDeviceMetadata(device.id, {
               displayName: connectParams.client.displayName,
               platform: connectParams.client.platform,
@@ -410,10 +497,29 @@ export function attachGatewayWsMessageHandler(params: {
           }
         }
 
+        const deviceToken = device
+          ? await ensureDeviceToken({ deviceId: device.id, role, scopes })
+          : null;
+
+        if (role === "node") {
+          const cfg = loadConfig();
+          const allowlist = resolveNodeCommandAllowlist(cfg, {
+            platform: connectParams.client.platform,
+            deviceFamily: connectParams.client.deviceFamily,
+          });
+          const declared = Array.isArray(connectParams.commands) ? connectParams.commands : [];
+          const filtered = declared
+            .map((cmd) => cmd.trim())
+            .filter((cmd) => cmd.length > 0 && allowlist.has(cmd));
+          connectParams.commands = filtered;
+        }
+
         const shouldTrackPresence = !isGatewayCliClient(connectParams.client);
         const clientId = connectParams.client.id;
         const instanceId = connectParams.client.instanceId;
-        const presenceKey = shouldTrackPresence ? (instanceId ?? connId) : undefined;
+        const presenceKey = shouldTrackPresence
+          ? (connectParams.device?.id ?? instanceId ?? connId)
+          : undefined;
 
         logWs("in", "connect", {
           connId,
@@ -441,7 +547,7 @@ export function attachGatewayWsMessageHandler(params: {
             deviceFamily: connectParams.client.deviceFamily,
             modelIdentifier: connectParams.client.modelIdentifier,
             mode: connectParams.client.mode,
-            instanceId,
+            instanceId: connectParams.device?.id ?? instanceId,
             reason: "connect",
           });
           incrementPresenceVersion();
@@ -465,6 +571,14 @@ export function attachGatewayWsMessageHandler(params: {
           features: { methods: gatewayMethods, events },
           snapshot,
           canvasHostUrl,
+          auth: deviceToken
+            ? {
+                deviceToken: deviceToken.token,
+                role: deviceToken.role,
+                scopes: deviceToken.scopes,
+                issuedAtMs: deviceToken.rotatedAtMs ?? deviceToken.createdAtMs,
+              }
+            : undefined,
           policy: {
             maxPayload: MAX_PAYLOAD_BYTES,
             maxBufferedBytes: MAX_BUFFERED_BYTES,
