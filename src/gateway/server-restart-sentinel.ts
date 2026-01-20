@@ -2,7 +2,12 @@ import { resolveAnnounceTargetFromKey } from "../agents/tools/sessions-send-help
 import { normalizeChannelId } from "../channels/plugins/index.js";
 import type { CliDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
-import { resolveMainSessionKeyFromConfig } from "../config/sessions.js";
+import { loadConfig } from "../config/io.js";
+import {
+  resolveMainSessionKeyFromConfig,
+  resolveStorePath,
+  updateSessionStore,
+} from "../config/sessions.js";
 import { resolveOutboundTarget } from "../infra/outbound/targets.js";
 import {
   consumeRestartSentinel,
@@ -50,6 +55,32 @@ export async function scheduleRestartSentinelWake(params: { deps: CliDeps }) {
   if (!channel || !to) {
     enqueueSystemEvent(message, { sessionKey });
     return;
+  }
+
+  // Update session store with delivery context so subsequent agent responses route correctly
+  if (sentinelDelivery && (sentinelDelivery.channel || sentinelDelivery.to)) {
+    try {
+      const storePath = resolveStorePath(cfg.session?.store);
+      await updateSessionStore(storePath, (store) => {
+        const current = store[sessionKey];
+        if (current) {
+          store[sessionKey] = {
+            ...current,
+            deliveryContext: {
+              channel: sentinelDelivery.channel ?? current.deliveryContext?.channel,
+              to: sentinelDelivery.to ?? current.deliveryContext?.to,
+              accountId: sentinelDelivery.accountId ?? current.deliveryContext?.accountId,
+            },
+            lastChannel: sentinelDelivery.channel ?? current.lastChannel,
+            lastTo: sentinelDelivery.to ?? current.lastTo,
+            lastAccountId: sentinelDelivery.accountId ?? current.lastAccountId,
+            updatedAt: Date.now(),
+          };
+        }
+      });
+    } catch {
+      // ignore: session update is best-effort
+    }
   }
 
   const resolved = resolveOutboundTarget({
