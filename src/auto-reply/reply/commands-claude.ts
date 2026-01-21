@@ -593,13 +593,30 @@ export const handleClaudeCommand: CommandHandler = async (params, _allowTextComm
 
     // ROUTE THROUGH DYDO unless --quick flag is used
     if (!parsed.quick) {
-      // Build planning request for DyDo
+      // Extract chat context for bubble updates
+      const fromField = params.ctx.From ?? params.command.from ?? "";
+      const chatIdMatch = fromField.match(/telegram:(?:group:)?(-?\d+)/);
+      const planChatId = chatIdMatch?.[1];
+      const planThreadId =
+        typeof params.ctx.MessageThreadId === "number"
+          ? params.ctx.MessageThreadId
+          : undefined;
+      const planAccountId = params.ctx.AccountId;
+
+      // Build planning request for DyDo (with chat context for bubbles)
       const planningRequest = buildPlanningRequest({
         action: "start",
         project: projectName,
         task: parsed.prompt,
         worktree,
         quick: false,
+        chatContext: planChatId
+          ? {
+              chatId: planChatId,
+              threadId: planThreadId,
+              accountId: planAccountId,
+            }
+          : undefined,
       });
 
       // Send planning request to DyDo via gateway

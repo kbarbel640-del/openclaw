@@ -21,9 +21,31 @@
 
 import type { Bot } from "grammy";
 import type { SessionState } from "./types.js";
+import { getLatestDyDoCommand } from "./orchestrator.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 
 const log = createSubsystemLogger("claude-code/bubble");
+
+/**
+ * Takopi-style markup constants.
+ * CLEAR_MARKUP removes all buttons when session ends/cancels.
+ */
+export const CLEAR_MARKUP = { inline_keyboard: [] as never[] };
+
+/**
+ * Check if status indicates a final state (no buttons needed).
+ */
+export function isFinalStatus(status: string): boolean {
+  return status === "completed" || status === "cancelled" || status === "failed" || status === "done";
+}
+
+/**
+ * Get appropriate markup based on status.
+ * Returns CLEAR_MARKUP for final states, undefined otherwise (let caller build keyboard).
+ */
+export function getMarkupForStatus(status: string): typeof CLEAR_MARKUP | undefined {
+  return isFinalStatus(status) ? CLEAR_MARKUP : undefined;
+}
 
 /**
  * Options for creating a bubble.
@@ -71,52 +93,108 @@ export interface BubbleInstance {
 const activeBubbles = new Map<string, BubbleInstance>();
 
 /**
- * Format session state into bubble message text.
+ * Compact runtime format ("0h 5m" → "5m", "1h 30m" → "1h 30m").
+ */
+function compactRuntime(runtime: string): string {
+  if (runtime.startsWith("0h ")) {
+    return runtime.slice(3);
+  }
+  return runtime;
+}
+
+/**
+ * Format session state into bubble message text (Takopi-style).
+ *
+ * Format:
+ * ```
+ * **working** · project · 45m
+ *
+ * - 🐶 DyDo: implement auth
+ * - ▸ Reading file.ts
+ * - ✓ Wrote config.json
+ * - 💬 Claude: Done!
+ *
+ * ---
+ * ctx: project @branch
+ * `claude --resume token`
+ * ```
+ *
+ * Icons:
+ * - 🐶 = DyDo command (what DyDo sent to Claude Code)
+ * - 💬 = Claude Code message
+ * - ▸ = Active tool/action
+ * - ✓ = Completed action
  */
 export function formatBubbleMessage(state: SessionState): string {
   const lines: string[] = [];
 
-  // Header: Project name
-  lines.push(`**${state.projectName}**`);
-
-  // Status line: Runtime · Phase
-  const statusParts = [state.runtimeStr];
-  if (state.phaseStatus && state.phaseStatus !== "Running") {
-    statusParts.push(state.phaseStatus);
-  } else if (state.hasQuestion) {
-    statusParts.push("Waiting for input");
-  } else if (state.isIdle) {
-    statusParts.push("Idle");
-  } else {
-    statusParts.push("Running");
-  }
-  lines.push(statusParts.join(" · "));
-
-  // Empty line before actions
+  // Takopi-style header: "**status** · project · runtime"
+  const status = state.isIdle ? "done" : "working";
+  const runtime = compactRuntime(state.runtimeStr);
+  lines.push(`**${status}** · ${state.projectName} · ${runtime}`);
   lines.push("");
 
-  // Recent actions (last 5-7)
-  const actionsToShow = state.recentActions.slice(-7);
-  if (actionsToShow.length > 0) {
-    for (const action of actionsToShow) {
-      lines.push(`${action.icon} ${action.description}`);
+  // Try to get latest DyDo command for this session
+  const dydoCommand = state.resumeToken ? getLatestDyDoCommand(state.resumeToken) : undefined;
+
+  if (state.isIdle) {
+    // DONE STATE: Show DyDo's task and last Claude message
+    if (dydoCommand) {
+      lines.push(`🐶 ${dydoCommand}`);
+      lines.push("");
+    }
+
+    const lastMessage = state.recentActions
+      .slice()
+      .reverse()
+      .find((a) => a.icon === "💬");
+    if (lastMessage) {
+      const msg =
+        lastMessage.description.length > 800
+          ? lastMessage.description.slice(0, 800) + "..."
+          : lastMessage.description;
+      lines.push(`💬 ${msg}`);
+    } else {
+      lines.push("_(session complete)_");
     }
   } else {
-    lines.push("_Starting..._");
+    // WORKING STATE: Show DyDo's task and recent actions
+    if (dydoCommand) {
+      lines.push(`- 🐶 ${dydoCommand}`);
+    }
+
+    const actionsToShow = state.recentActions.slice(-6); // Show 6 to leave room for DyDo command
+    if (actionsToShow.length > 0) {
+      for (const action of actionsToShow) {
+        lines.push(`- ${action.icon} ${action.description}`);
+      }
+    } else if (!dydoCommand) {
+      lines.push("_(waiting for activity...)_");
+    }
   }
 
   // Question indicator
   if (state.hasQuestion && state.questionText) {
     lines.push("");
     const questionPreview = state.questionText.slice(0, 100);
-    lines.push(`**Question:** ${questionPreview}${state.questionText.length > 100 ? "..." : ""}`);
+    lines.push(`**❓ Question:** ${questionPreview}${state.questionText.length > 100 ? "..." : ""}`);
   }
+
+  // Footer: context and resume command (must run from project dir)
+  lines.push("");
+  lines.push("---");
+  // Don't duplicate branch if projectName already includes it (e.g., "juzi @experimental")
+  const ctxLine = state.projectName.includes("@")
+    ? `ctx: ${state.projectName}`
+    : `ctx: ${state.projectName} @${state.branch}`;
+  lines.push(ctxLine);
+  lines.push(`\`claude --resume ${state.resumeToken}\``);  // Full UUID required, run from project dir
 
   return lines.join("\n");
 }
 
 /**
- * Build inline keyboard for bubble.
+ * Build inline keyboard for bubble (Takopi-style lowercase labels).
  */
 export function buildBubbleKeyboard(
   resumeToken: string,
@@ -132,21 +210,28 @@ export function buildBubbleKeyboard(
   }
 
   if (state.hasQuestion) {
-    // When waiting for input, show Continue prominently
+    // When waiting for input, show answer option
     return [
       [
-        { text: "Answer", callback_data: `${prefix}:answer:${tokenPrefix}` },
-        { text: "Cancel", callback_data: `${prefix}:cancel:${tokenPrefix}` },
+        { text: "answer", callback_data: `${prefix}:answer:${tokenPrefix}` },
+        { text: "cancel", callback_data: `${prefix}:cancel:${tokenPrefix}` },
       ],
     ];
   }
 
-  // Default: Continue and Cancel
+  if (state.isIdle) {
+    // Done state: continue and cancel
+    return [
+      [
+        { text: "continue", callback_data: `${prefix}:continue:${tokenPrefix}` },
+        { text: "cancel", callback_data: `${prefix}:cancel:${tokenPrefix}` },
+      ],
+    ];
+  }
+
+  // Working state: only cancel
   return [
-    [
-      { text: "Continue", callback_data: `${prefix}:continue:${tokenPrefix}` },
-      { text: "Cancel", callback_data: `${prefix}:cancel:${tokenPrefix}` },
-    ],
+    [{ text: "cancel", callback_data: `${prefix}:cancel:${tokenPrefix}` }],
   ];
 }
 
@@ -307,7 +392,11 @@ export async function sendCompletionMessage(
   // Resume info
   lines.push("");
   lines.push("---");
-  lines.push(`ctx: ${state.projectName} @${state.branch}`);
+  // Don't duplicate branch if projectName already includes it
+  const ctxLine = state.projectName.includes("@")
+    ? `ctx: ${state.projectName}`
+    : `ctx: ${state.projectName} @${state.branch}`;
+  lines.push(ctxLine);
   lines.push(`\`claude --resume ${state.resumeToken}\``);
 
   const text = lines.join("\n");

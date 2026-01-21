@@ -100,6 +100,7 @@ export {
   updateSessionBubble,
   completeSessionBubble,
   getSessionBubble,
+  getBubbleByTokenPrefix,
   removeSessionBubble,
   forwardEventToChat,
   checkRuntimeLimit,
@@ -121,6 +122,18 @@ export {
   sendCompletionMessage,
   formatBubbleMessage,
   buildBubbleKeyboard,
+  CLEAR_MARKUP,
+  isFinalStatus,
+  getMarkupForStatus,
   type BubbleOptions,
   type BubbleInstance,
 } from "./bubble-manager.js";
+
+// Orchestrator (DyDo's AI intelligence for Claude Code)
+export {
+  generateOrchestratorResponse,
+  shouldAutoContinue,
+  logDyDoCommand,
+  getLatestDyDoCommand,
+  type OrchestratorContext,
+} from "./orchestrator.js";

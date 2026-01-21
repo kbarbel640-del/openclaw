@@ -13,6 +13,10 @@ import {
   getSessionByToken,
   cancelSessionByToken,
   getSessionState,
+  startSession,
+  getBubbleByTokenPrefix,
+  resumeSession,
+  CLEAR_MARKUP,
 } from "../agents/claude-code/index.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 
@@ -57,24 +61,23 @@ export async function handleClaudeCodeCallback(
 
   log.info(`Handling claude callback: ${action} for ${tokenPrefix}`);
 
-  // Find the session
+  // Find the session (may not exist if process exited)
   const session = getSessionByToken(tokenPrefix);
-  if (!session) {
-    await api.answerCallbackQuery(callbackId ?? "", {
-      text: "Session not found or expired",
-      show_alert: true,
-    });
-    return true;
-  }
 
   switch (action) {
     case "cancel": {
+      if (!session) {
+        await api.answerCallbackQuery(callbackId ?? "", {
+          text: "Session already ended",
+        });
+        return true;
+      }
       const success = cancelSessionByToken(tokenPrefix);
       if (success) {
         await api.answerCallbackQuery(callbackId ?? "", {
           text: "Session cancelled",
         });
-        // Update the message to show cancelled state
+        // Update the message to show cancelled state and remove buttons
         if (chatId && messageId) {
           const state = getSessionState(session);
           await api
@@ -82,7 +85,7 @@ export async function handleClaudeCodeCallback(
               chatId,
               messageId,
               `**${state.projectName}**\n${state.runtimeStr} · Cancelled`,
-              { parse_mode: "Markdown" },
+              { parse_mode: "Markdown", reply_markup: CLEAR_MARKUP },
             )
             .catch(() => {});
         }
@@ -96,25 +99,82 @@ export async function handleClaudeCodeCallback(
     }
 
     case "continue": {
-      // Send "continue" or empty input to resume the session
-      const success = sendInput(session.id, "continue");
-      if (success) {
-        await api.answerCallbackQuery(callbackId ?? "", {
-          text: "Sent continue signal",
-        });
-      } else {
-        await api.answerCallbackQuery(callbackId ?? "", {
-          text: "Session not accepting input",
-          show_alert: true,
-        });
+      // If session is running in memory, send input
+      if (session) {
+        // Reset runtime limiter if paused
+        resumeSession(session.id);
+
+        const success = sendInput(session.id, "continue");
+        if (success) {
+          await api.answerCallbackQuery(callbackId ?? "", {
+            text: "Sent continue signal",
+          });
+        } else {
+          await api.answerCallbackQuery(callbackId ?? "", {
+            text: "Session not accepting input",
+            show_alert: true,
+          });
+        }
+        return true;
       }
+
+      // Session not in memory - try to spawn new process with --resume
+      const bubbleInfo = getBubbleByTokenPrefix(tokenPrefix);
+      if (bubbleInfo) {
+        const { bubble } = bubbleInfo;
+        log.info(`Resuming session from bubble: ${bubble.resumeToken} in ${bubble.workingDir}`);
+
+        // Acknowledge immediately
+        await api.answerCallbackQuery(callbackId ?? "", {
+          text: "Resuming session...",
+        });
+
+        // Start a new session with --resume
+        const result = await startSession({
+          workingDir: bubble.workingDir,
+          resumeToken: bubble.resumeToken,
+          prompt: "continue",
+          permissionMode: "bypassPermissions",
+        });
+
+        if (result.success) {
+          // Send confirmation message
+          if (chatId) {
+            await api
+              .sendMessage(chatId, `Resumed session for **${bubble.projectName}**`, {
+                parse_mode: "Markdown",
+              })
+              .catch(() => {});
+          }
+        } else {
+          if (chatId) {
+            await api
+              .sendMessage(chatId, `Failed to resume: ${result.error}`, {
+                parse_mode: "Markdown",
+              })
+              .catch(() => {});
+          }
+        }
+        return true;
+      }
+
+      // No bubble info - can't resume
+      await api.answerCallbackQuery(callbackId ?? "", {
+        text: "Session info lost. Use CLI: claude --resume <token>",
+        show_alert: true,
+      });
       return true;
     }
 
     case "answer": {
+      if (!session) {
+        await api.answerCallbackQuery(callbackId ?? "", {
+          text: "Session ended",
+          show_alert: true,
+        });
+        return true;
+      }
       // For questions, we need to prompt the user for input
-      // This is a placeholder - in a full implementation we'd use a conversation state
-      // or Telegram's force_reply to collect the answer
       const state = getSessionState(session);
       if (state.hasQuestion && state.questionText) {
         await api.answerCallbackQuery(callbackId ?? "", {

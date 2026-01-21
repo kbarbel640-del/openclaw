@@ -22,6 +22,12 @@ export interface PlanningRequestParams {
   worktree?: string;
   /** Skip planning (--quick mode) */
   quick?: boolean;
+  /** Chat context for bubble updates */
+  chatContext?: {
+    chatId: string;
+    threadId?: number;
+    accountId?: string;
+  };
 }
 
 /**
@@ -90,67 +96,51 @@ function buildResumeRequest(params: PlanningRequestParams): string {
  * Build full planning request
  */
 function buildFullPlanningRequest(params: PlanningRequestParams): string {
-  const { project, task, worktree } = params;
+  const { project, task, worktree, chatContext } = params;
   const projectSpec = worktree ? `${project} @${worktree}` : project;
 
+  // If no task specified, ask what to do
+  if (!task) {
+    return [
+      `[Claude Code Request]`,
+      `Project: ${projectSpec}`,
+      ``,
+      `User wants to start a Claude Code session but didn't specify a task.`,
+      `Ask them what they want to work on.`,
+    ].join("\n");
+  }
+
+  // Task specified - be direct and action-oriented
   const lines = [
-    `[Claude Code Planning Request]`,
+    `[Claude Code Request]`,
     ``,
-    `Project: ${projectSpec}`,
-    `User's Task: ${task || "(not specified - ask what they want to do)"}`,
+    `**Project:** ${projectSpec}`,
+    `**Task:** ${task}`,
     ``,
-    `Please help me prepare a Claude Code session for this task.`,
+    `Start a Claude Code session for this task NOW.`,
     ``,
-    `## Your Steps`,
-    ``,
-    `### 1. Load Project Context`,
-    `Use the \`project_context\` tool to understand this project:`,
-    `\`\`\``,
-    `project_context({ action: "load", project: "${project}" })`,
-    `\`\`\``,
-    ``,
-    `If the project path isn't found, ask me for the full path.`,
-    ``,
-    `### 2. Analyze the Task`,
-    `Based on the project context, think about:`,
-    `- What files/areas will likely be involved?`,
-    `- Are there existing patterns to follow?`,
-    `- What could go wrong or need clarification?`,
-    ``,
-    `### 3. Clarify if Needed`,
-    `If the task is ambiguous or has multiple valid approaches,`,
-    `ask me to clarify. Examples:`,
-    `- "For dark mode, should I use CSS variables or styled-components?"`,
-    `- "Should authentication be JWT or session-based?"`,
-    `- "Do you want tests included?"`,
-    ``,
-    `### 4. Start Claude Code`,
-    `Once you understand the task, use \`claude_code_start\` with:`,
-    `- An enriched prompt that includes context and decisions`,
-    `- Any clarifications I provided`,
-    ``,
-    `## Example Enriched Prompt`,
-    `\`\`\``,
-    `Implement dark mode for this React application.`,
-    ``,
-    `Context:`,
-    `- Project uses CSS variables (src/styles/variables.css)`,
-    `- There's an existing ThemeContext in src/context/`,
-    `- User wants system preference detection with manual override`,
-    ``,
-    `Requirements:`,
-    `1. Add dark theme CSS variables`,
-    `2. Extend ThemeContext with isDarkMode state`,
-    `3. Add useMediaQuery for system preference`,
-    `4. Create DarkModeToggle component`,
-    `5. Persist preference to localStorage`,
-    `\`\`\``,
-    ``,
-    `## Important`,
-    `- Don't start Claude Code until you've loaded context and analyzed the task`,
-    `- If I didn't specify a task, ask me what I want to do`,
-    `- Keep your questions focused and brief`,
+    `Use \`claude_code_start\` with:`,
   ];
+
+  // Build the tool call example
+  lines.push(`\`\`\``);
+  lines.push(`claude_code_start({`);
+  lines.push(`  project: "${project}",`);
+  if (worktree) lines.push(`  worktree: "${worktree}",`);
+  lines.push(`  prompt: "${task.replace(/"/g, '\\"')}",`);
+  if (chatContext) {
+    lines.push(`  chatId: "${chatContext.chatId}",`);
+    if (chatContext.threadId) lines.push(`  threadId: ${chatContext.threadId},`);
+    if (chatContext.accountId) lines.push(`  accountId: "${chatContext.accountId}",`);
+  }
+  lines.push(`})`);
+  lines.push(`\`\`\``);
+
+  lines.push(
+    ``,
+    `If the task is ambiguous, you may ask ONE clarifying question first.`,
+    `Otherwise, just start the session with the task above.`,
+  );
 
   return lines.join("\n");
 }

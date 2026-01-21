@@ -11,8 +11,21 @@
 import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
-import { startSession, resolveProject, getGitBranch } from "../claude-code/index.js";
+import {
+  startSession,
+  resolveProject,
+  getGitBranch,
+  getSession,
+  getSessionState,
+} from "../claude-code/index.js";
+import {
+  createSessionBubble,
+  updateSessionBubble,
+  completeSessionBubble,
+  forwardEventToChat,
+} from "../claude-code/bubble-service.js";
 import type { ProjectContext } from "../claude-code/project-context.js";
+import type { SessionEvent, SessionState } from "../claude-code/types.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readStringParam } from "./common.js";
 
@@ -84,6 +97,10 @@ const ClaudeCodeStartToolSchema = Type.Object({
   resumeToken: Type.Optional(
     Type.String({ description: "Resume token for continuing existing session" }),
   ),
+  // Chat context for bubble updates (passed from planning request)
+  chatId: Type.Optional(Type.String({ description: "Telegram chat ID for bubble updates" })),
+  threadId: Type.Optional(Type.Number({ description: "Telegram thread/topic ID" })),
+  accountId: Type.Optional(Type.String({ description: "Account ID for multi-account support" })),
 });
 
 export function createClaudeCodeStartTool(options?: {
@@ -116,6 +133,11 @@ The session will run in background. You'll receive questions via conversation.`,
       const userClarifications = Array.isArray(params.userClarifications)
         ? (params.userClarifications as string[])
         : [];
+
+      // Extract chat context for bubble updates
+      const chatId = readStringParam(params, "chatId");
+      const threadId = typeof params.threadId === "number" ? params.threadId : undefined;
+      const accountId = readStringParam(params, "accountId");
 
       // Resolve project path
       let projectPath: string | undefined;
@@ -185,15 +207,40 @@ The session will run in background. You'll receive questions via conversation.`,
         // Ignore - project context is optional
       }
 
+      // Track event index for bubble updates
+      let eventIndex = 0;
+      let sessionId: string | undefined;
+      let currentResumeToken = resumeToken;
+
       try {
-        // Start the Claude Code session
+        // Start the Claude Code session with event handlers
         const result = await startSession({
           workingDir: projectPath,
           prompt,
           resumeToken,
           permissionMode: "bypassPermissions",
-          // Note: onEvent, onQuestion, onStateChange will be set up by the command handler
-          // This tool just initiates the session
+
+          // Event handler: forward to chat and update bubble
+          onEvent: async (event: SessionEvent) => {
+            if (!sessionId || !chatId) return;
+            eventIndex++;
+
+            // Forward significant events to chat
+            await forwardEventToChat({
+              sessionId,
+              event,
+              eventIndex,
+            });
+          },
+
+          // State change handler: update bubble
+          onStateChange: async (state: SessionState) => {
+            if (!sessionId || !chatId) return;
+            currentResumeToken = state.resumeToken;
+
+            // Update the bubble with new state
+            await updateSessionBubble({ sessionId, state });
+          },
         });
 
         if (!result.success) {
@@ -203,26 +250,81 @@ The session will run in background. You'll receive questions via conversation.`,
           });
         }
 
+        sessionId = result.sessionId;
+        currentResumeToken = result.resumeToken;
+
         // Store planning context for Q&A routing
-        if (result.sessionId) {
-          setSessionPlanningContext(result.sessionId, planningContext);
+        if (sessionId) {
+          setSessionPlanningContext(sessionId, planningContext);
 
           // Notify callback if provided
           if (options?.onSessionStart) {
-            options.onSessionStart(result.sessionId, planningContext);
+            options.onSessionStart(sessionId, planningContext);
+          }
+
+          // CRITICAL: Create bubble IMMEDIATELY so events have somewhere to go
+          // This follows takopi's pattern: tracker first, then events flow to it
+          if (chatId) {
+            const session = getSession(sessionId);
+            const initialState: SessionState = session
+              ? getSessionState(session)
+              : {
+                  projectName: projectName + (worktree ? ` @${worktree}` : ""),
+                  status: "running",
+                  branch: worktree || "main",
+                  resumeToken: currentResumeToken ?? sessionId,
+                  runtimeStr: "0m",
+                  runtimeSeconds: 0,
+                  phaseStatus: "Starting...",
+                  totalEvents: 0,
+                  recentActions: [],
+                  isIdle: false,
+                  hasQuestion: false,
+                  questionText: "",
+                };
+
+            await createSessionBubble({
+              sessionId,
+              chatId,
+              threadId,
+              accountId,
+              resumeToken: currentResumeToken ?? sessionId,
+              state: initialState,
+              workingDir: projectPath,
+            });
+            log.info(`[${sessionId}] Created bubble IMMEDIATELY in chat ${chatId}`);
+          }
+
+          // Now wait for session to be fully initialized and update bubble
+          let session = getSession(sessionId);
+          let waitAttempts = 0;
+          while (session && !session.resumeToken && waitAttempts < 20) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            session = getSession(sessionId);
+            waitAttempts++;
+          }
+
+          // Update bubble with complete state once available
+          if (session?.resumeToken) {
+            currentResumeToken = session.resumeToken;
+            if (chatId) {
+              const state = getSessionState(session);
+              await updateSessionBubble({ sessionId, state });
+              log.info(`[${sessionId}] Updated bubble with complete state`);
+            }
           }
         }
 
-        log.info(`Claude Code session started: ${result.sessionId}`);
+        log.info(`Claude Code session started: ${sessionId}`);
 
         return jsonResult({
           status: "ok",
-          sessionId: result.sessionId,
-          resumeToken: result.resumeToken,
+          sessionId,
+          resumeToken: currentResumeToken,
           project: projectName,
           workingDir: projectPath,
           branch: getGitBranch(projectPath),
-          message: `Claude Code session started for ${projectName}. I'll monitor progress and help if it has questions.`,
+          message: `Claude Code session started for ${projectName}. ${chatId ? "Live updates will appear in chat." : "No chat context - updates won't be visible."}`,
         });
       } catch (err) {
         log.error(`Failed to start Claude Code session: ${err}`);
