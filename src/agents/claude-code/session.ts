@@ -129,19 +129,16 @@ export async function startSession(params: ClaudeCodeSessionParams): Promise<Ses
   log.info(`Starting Claude Code session for ${projectName} in ${workingDir}`);
 
   // Build command arguments
+  // IMPORTANT: -p (print mode) is required for --output-format stream-json
+  // The prompt comes AFTER the -- separator, not as an argument to -p
   const args: string[] = [];
 
-  // Enable JSON streaming output (takopi-style) for direct session_id extraction
-  args.push("--output-format", "stream-json", "--verbose");
+  // Enable print mode and JSON streaming (takopi-style)
+  args.push("-p", "--output-format", "stream-json", "--verbose");
 
   // Resume existing session or start new
   if (params.resumeToken) {
     args.push("--resume", params.resumeToken);
-  }
-
-  // Add prompt if provided (for new sessions or continue)
-  if (params.prompt) {
-    args.push("-p", params.prompt);
   }
 
   // Model selection
@@ -155,6 +152,11 @@ export async function startSession(params: ClaudeCodeSessionParams): Promise<Ses
     args.push("--dangerously-skip-permissions");
   } else if (permissionMode === "acceptEdits") {
     args.push("--permission-mode", "acceptEdits");
+  }
+
+  // Add prompt after -- separator (required for stream-json mode)
+  if (params.prompt) {
+    args.push("--", params.prompt);
   }
 
   // Spawn Claude Code process
