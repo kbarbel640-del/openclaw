@@ -86,4 +86,55 @@ describe("CronService", () => {
     cronB.stop();
     await store.cleanup();
   });
+
+  it("prevents race condition when onTimer is called multiple times concurrently", async () => {
+    const store = await makeStorePath();
+    const enqueueSystemEvent = vi.fn();
+    const requestHeartbeatNow = vi.fn();
+    // Simulate a slow job that takes time to complete
+    const runIsolatedAgentJob = vi.fn(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+      return { status: "ok" };
+    });
+
+    const cron = new CronService({
+      storePath: store.storePath,
+      cronEnabled: true,
+      log: noopLogger,
+      enqueueSystemEvent,
+      requestHeartbeatNow,
+      runIsolatedAgentJob,
+    });
+
+    await cron.start();
+    const atMs = Date.parse("2025-12-13T00:00:01.000Z");
+    await cron.add({
+      name: "race condition test job",
+      enabled: true,
+      schedule: { kind: "at", atMs },
+      sessionTarget: "isolated",
+      wakeMode: "now",
+      payload: { kind: "agentTurn", message: "test", deliver: false },
+    });
+
+    // Advance to trigger time
+    vi.setSystemTime(new Date("2025-12-13T00:00:01.000Z"));
+
+    // Simulate race condition: multiple timer callbacks firing near-simultaneously
+    // This mimics the bug where the running guard was checked before acquiring lock
+    const timerPromises = [
+      vi.runOnlyPendingTimersAsync(),
+      vi.runOnlyPendingTimersAsync(),
+      vi.runOnlyPendingTimersAsync(),
+    ];
+
+    await Promise.all(timerPromises);
+    await cron.status();
+
+    // Job should only execute once despite multiple concurrent onTimer calls
+    expect(runIsolatedAgentJob).toHaveBeenCalledTimes(1);
+
+    cron.stop();
+    await store.cleanup();
+  });
 });

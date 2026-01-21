@@ -25,18 +25,20 @@ export function armTimer(state: CronServiceState) {
 }
 
 export async function onTimer(state: CronServiceState) {
-  if (state.running) return;
-  state.running = true;
-  try {
-    await locked(state, async () => {
+  await locked(state, async () => {
+    // Guard inside lock to prevent race condition where multiple timer
+    // callbacks could pass the check before any acquires the lock.
+    if (state.running) return;
+    state.running = true;
+    try {
       await ensureLoaded(state);
       await runDueJobs(state);
       await persist(state);
       armTimer(state);
-    });
-  } finally {
-    state.running = false;
-  }
+    } finally {
+      state.running = false;
+    }
+  });
 }
 
 export async function runDueJobs(state: CronServiceState) {
