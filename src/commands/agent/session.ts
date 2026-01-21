@@ -12,6 +12,7 @@ import {
   evaluateSessionFreshness,
   loadSessionStore,
   resolveAgentIdFromSessionKey,
+  resolveChannelResetConfig,
   resolveExplicitAgentSessionKey,
   resolveSessionResetPolicy,
   resolveSessionResetType,
@@ -19,7 +20,6 @@ import {
   resolveStorePath,
   type SessionEntry,
 } from "../../config/sessions.js";
-import { normalizeChannelId } from "../../channels/plugins/index.js";
 import { normalizeMainKey } from "../../routing/session-key.js";
 
 export type SessionResolution = {
@@ -49,7 +49,7 @@ export function resolveSessionKeyForRequest(opts: {
   const sessionCfg = opts.cfg.session;
   const scope = sessionCfg?.scope ?? "per-sender";
   const mainKey = normalizeMainKey(sessionCfg?.mainKey);
-const explicitSessionKey =
+  const explicitSessionKey =
     opts.sessionKey?.trim() ||
     resolveExplicitAgentSessionKey({
       cfg: opts.cfg,
@@ -77,7 +77,7 @@ const explicitSessionKey =
     if (foundKey) sessionKey = foundKey;
   }
 
-return { sessionKey, sessionStore, storePath };
+  return { sessionKey, sessionStore, storePath };
 }
 
 export function resolveSession(opts: {
@@ -99,20 +99,15 @@ export function resolveSession(opts: {
 
   const sessionEntry = sessionKey ? sessionStore[sessionKey] : undefined;
 
-  // Channel-specific idle override
-  const rawChannel = sessionEntry?.lastChannel ?? sessionEntry?.channel;
-  const channelKey = rawChannel?.trim()
-    ? (normalizeChannelId(rawChannel) ?? rawChannel.trim().toLowerCase())
-    : undefined;
-  const channelIdleMinutes = channelKey
-    ? sessionCfg?.channelIdleMinutes?.[channelKey]
-    : undefined;
-
   const resetType = resolveSessionResetType({ sessionKey });
+  const channelReset = resolveChannelResetConfig({
+    sessionCfg,
+    channel: sessionEntry?.lastChannel ?? sessionEntry?.channel,
+  });
   const resetPolicy = resolveSessionResetPolicy({
     sessionCfg,
     resetType,
-    idleMinutesOverride: channelIdleMinutes,
+    resetOverride: channelReset,
   });
   const fresh = sessionEntry
     ? evaluateSessionFreshness({ updatedAt: sessionEntry.updatedAt, now, policy: resetPolicy })

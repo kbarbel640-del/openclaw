@@ -11,6 +11,7 @@ import {
   evaluateSessionFreshness,
   type GroupKeyResolution,
   loadSessionStore,
+  resolveChannelResetConfig,
   resolveThreadFlag,
   resolveSessionResetPolicy,
   resolveSessionResetType,
@@ -27,7 +28,6 @@ import { normalizeMainKey } from "../../routing/session-key.js";
 import { resolveCommandAuthorization } from "../command-auth.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
 import { normalizeChatType } from "../../channels/chat-type.js";
-import { normalizeChannelId } from "../../channels/plugins/index.js";
 import { stripMentions, stripStructuralPrefixes } from "./mentions.js";
 import { formatInboundBodyWithSenderMeta } from "./inbound-sender-meta.js";
 import { normalizeInboundTextNewlines } from "./inbound-text.js";
@@ -111,15 +111,6 @@ export async function initSessionState(params: {
   const resetTriggers = sessionCfg?.resetTriggers?.length
     ? sessionCfg.resetTriggers
     : DEFAULT_RESET_TRIGGERS;
-  const rawChannel =
-    groupResolution?.channel ??
-    (ctx.OriginatingChannel as string | undefined) ??
-    ctx.Surface ??
-    ctx.Provider;
-  const channelKey = rawChannel?.trim()
-    ? (normalizeChannelId(rawChannel) ?? rawChannel.trim().toLowerCase())
-    : undefined;
-  const channelIdleMinutes = channelKey ? sessionCfg?.channelIdleMinutes?.[channelKey] : undefined;
   const sessionScope = sessionCfg?.scope ?? "per-sender";
   const storePath = resolveStorePath(sessionCfg?.store, { agentId });
 
@@ -205,10 +196,18 @@ export async function initSessionState(params: {
     parentSessionKey: ctx.ParentSessionKey,
   });
   const resetType = resolveSessionResetType({ sessionKey, isGroup, isThread });
+  const channelReset = resolveChannelResetConfig({
+    sessionCfg,
+    channel:
+      groupResolution?.channel ??
+      (ctx.OriginatingChannel as string | undefined) ??
+      ctx.Surface ??
+      ctx.Provider,
+  });
   const resetPolicy = resolveSessionResetPolicy({
     sessionCfg,
     resetType,
-    idleMinutesOverride: channelIdleMinutes,
+    resetOverride: channelReset,
   });
   const freshEntry = entry
     ? evaluateSessionFreshness({ updatedAt: entry.updatedAt, now, policy: resetPolicy }).fresh

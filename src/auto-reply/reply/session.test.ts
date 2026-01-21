@@ -437,8 +437,8 @@ describe("initSessionState reset policy", () => {
   });
 });
 
-describe("initSessionState channel idle overrides", () => {
-  it("uses channel-specific idle minutes when configured", async () => {
+describe("initSessionState channel reset overrides", () => {
+  it("uses channel-specific reset policy when configured", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "clawdbot-channel-idle-"));
     const storePath = path.join(root, "sessions.json");
     const sessionKey = "agent:main:discord:dm:123";
@@ -456,7 +456,8 @@ describe("initSessionState channel idle overrides", () => {
       session: {
         store: storePath,
         idleMinutes: 60,
-        channelIdleMinutes: { discord: 10080 },
+        resetByType: { dm: { mode: "idle", idleMinutes: 10 } },
+        resetByChannel: { discord: { mode: "idle", idleMinutes: 10080 } },
       },
     } as ClawdbotConfig;
 
