@@ -2,23 +2,38 @@
 
 Docs: https://docs.clawd.bot
 
+## 2026.1.22
+
+### Changes
+- Docs: add troubleshooting entry for gateway.mode blocking gateway start. https://docs.clawd.bot/gateway/troubleshooting
+- Onboarding: remove the run setup-token auth option (paste setup-token or reuse CLI creds instead).
+
+### Fixes
+- Doctor: warn when gateway.mode is unset with configure/config guidance.
+
 ## 2026.1.21
 
 ### Changes
 - CLI: default exec approvals to the local host, add gateway/node targeting flags, and show target details in allowlist output.
 - CLI: exec approvals mutations render tables instead of raw JSON.
 - Exec approvals: support wildcard agent allowlists (`*`) across all agents.
+- Exec approvals: allowlist matches resolved binary paths only, add safe stdin-only bins, and tighten allowlist shell parsing.
 - Nodes: expose node PATH in status/describe and bootstrap PATH for node-host execution.
 - CLI: flatten node service commands under `clawdbot node` and remove `service node` docs.
 - CLI: move gateway service commands under `clawdbot gateway` and add `gateway probe` for reachability.
 - Sessions: add per-channel reset overrides via `session.resetByChannel`. (#1353) Thanks @cash-echo-bot.
 
+### Breaking
+- **BREAKING:** Control UI now rejects insecure HTTP without device identity by default. Use HTTPS (Tailscale Serve) or set `gateway.controlUi.allowInsecureAuth: true` to allow token-only auth. https://docs.clawd.bot/web/control-ui#insecure-http
+
 ### Fixes
+- Nodes/macOS: prompt on allowlist miss for node exec approvals, persist allowlist decisions, and flatten node invoke errors. (#1394) Thanks @ngutman.
 - Gateway: keep auto bind loopback-first and add explicit tailnet binding to avoid Tailscale taking over local UI. (#1380)
 - Embedded runner: persist injected history images so attachments aren’t reloaded each turn. (#1374) Thanks @Nicell.
 - Nodes tool: include agent/node/gateway context in tool failure logs to speed approval debugging.
 - macOS: exec approvals now respect wildcard agent allowlists (`*`).
 - macOS: allow SSH agent auth when no identity file is set. (#1384) Thanks @ameno-.
+- Gateway: prevent multiple gateways from sharing the same config/state at once (singleton lock).
 - UI: remove the chat stop button and keep the composer aligned to the bottom edge.
 - Typing: start instant typing indicators at run start so DMs and mentions show immediately.
 - Configure: restrict the model allowlist picker to OAuth-compatible Anthropic models and preselect Opus 4.5.
@@ -27,6 +42,7 @@ Docs: https://docs.clawd.bot
 - Discord: honor wildcard channel configs via shared match helpers. (#1334) Thanks @pvoo.
 - BlueBubbles: resolve short message IDs safely and expose full IDs in templates. (#1387) Thanks @tyler6204.
 - Infra: preserve fetch helper methods when wrapping abort signals. (#1387)
+- macOS: default distribution packaging to universal binaries. (#1396) Thanks @JustYannicc.
 
 ## 2026.1.20
 

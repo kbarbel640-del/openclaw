@@ -16,7 +16,6 @@ import {
   resolveProfileOverride,
 } from "./directive-handling.auth.js";
 import {
-  buildModelPickerItems,
   type ModelPickerCatalogEntry,
   resolveProviderEndpointLabel,
 } from "./directive-handling.model-picker.js";
@@ -169,8 +168,9 @@ export async function maybeHandleModelDirectiveInfo(params: {
   const rawDirective = params.directives.rawModelDirective?.trim();
   const directive = rawDirective?.toLowerCase();
   const wantsStatus = directive === "status";
-  const wantsList = !rawDirective || directive === "list";
-  if (!wantsList && !wantsStatus) return undefined;
+  const wantsSummary = !rawDirective;
+  const wantsLegacyList = directive === "list";
+  if (!wantsSummary && !wantsStatus && !wantsLegacyList) return undefined;
 
   if (params.directives.rawModelProfile) {
     return { text: "Auth profile override requires a model selection." };
@@ -184,16 +184,28 @@ export async function maybeHandleModelDirectiveInfo(params: {
     allowedModelCatalog: params.allowedModelCatalog,
   });
 
-  if (wantsList) {
-    const items = buildModelPickerItems(pickerCatalog);
-    if (items.length === 0) return { text: "No models available." };
+  if (wantsLegacyList) {
+    return {
+      text: [
+        "Model listing moved.",
+        "",
+        "Use: /models (providers) or /models <provider> (models)",
+        "Switch: /model <provider/model>",
+      ].join("\n"),
+    };
+  }
+
+  if (wantsSummary) {
     const current = `${params.provider}/${params.model}`;
-    const lines: string[] = [`Current: ${current}`, "Pick: /model <#> or /model <provider/model>"];
-    for (const [idx, item] of items.entries()) {
-      lines.push(`${idx + 1}) ${item.provider}/${item.model}`);
-    }
-    lines.push("", "More: /model status");
-    return { text: lines.join("\n") };
+    return {
+      text: [
+        `Current: ${current}`,
+        "",
+        "Switch: /model <provider/model>",
+        "Browse: /models (providers) or /models <provider> (models)",
+        "More: /model status",
+      ].join("\n"),
+    };
   }
 
   const modelsPath = `${params.agentDir}/models.json`;
@@ -285,31 +297,36 @@ export function resolveModelSelectionFromDirective(params: {
   let modelSelection: ModelDirectiveSelection | undefined;
 
   if (/^[0-9]+$/.test(raw)) {
-    const pickerCatalog = buildModelPickerCatalog({
-      cfg: params.cfg,
-      defaultProvider: params.defaultProvider,
-      defaultModel: params.defaultModel,
-      aliasIndex: params.aliasIndex,
-      allowedModelCatalog: params.allowedModelCatalog,
-    });
-    const items = buildModelPickerItems(pickerCatalog);
-    const index = Number.parseInt(raw, 10) - 1;
-    const item = Number.isFinite(index) ? items[index] : undefined;
-    if (!item) {
-      return {
-        errorText: `Invalid model selection "${raw}". Use /model to list.`,
+    return {
+      errorText: [
+        "Numeric model selection is not supported in chat.",
+        "",
+        "Browse: /models or /models <provider>",
+        "Switch: /model <provider/model>",
+      ].join("\n"),
+    };
+  }
+
+  const explicit = resolveModelRefFromString({
+    raw,
+    defaultProvider: params.defaultProvider,
+    aliasIndex: params.aliasIndex,
+  });
+  if (explicit) {
+    const explicitKey = modelKey(explicit.ref.provider, explicit.ref.model);
+    if (params.allowedModelKeys.size === 0 || params.allowedModelKeys.has(explicitKey)) {
+      modelSelection = {
+        provider: explicit.ref.provider,
+        model: explicit.ref.model,
+        isDefault:
+          explicit.ref.provider === params.defaultProvider &&
+          explicit.ref.model === params.defaultModel,
+        ...(explicit.alias ? { alias: explicit.alias } : {}),
       };
     }
-    const key = `${item.provider}/${item.model}`;
-    const aliases = params.aliasIndex.byKey.get(key);
-    const alias = aliases && aliases.length > 0 ? aliases[0] : undefined;
-    modelSelection = {
-      provider: item.provider,
-      model: item.model,
-      isDefault: item.provider === params.defaultProvider && item.model === params.defaultModel,
-      ...(alias ? { alias } : {}),
-    };
-  } else {
+  }
+
+  if (!modelSelection) {
     const resolved = resolveModelDirectiveSelection({
       raw,
       defaultProvider: params.defaultProvider,
@@ -317,10 +334,49 @@ export function resolveModelSelectionFromDirective(params: {
       aliasIndex: params.aliasIndex,
       allowedModelKeys: params.allowedModelKeys,
     });
+
     if (resolved.error) {
       return { errorText: resolved.error };
     }
-    modelSelection = resolved.selection;
+
+    if (resolved.selection) {
+      const suggestion = `${resolved.selection.provider}/${resolved.selection.model}`;
+      const rawHasSlash = raw.includes("/");
+      const shouldAutoSelect = (() => {
+        if (!rawHasSlash) return true;
+        const slash = raw.indexOf("/");
+        if (slash <= 0) return true;
+        const rawProvider = normalizeProviderId(raw.slice(0, slash));
+        const rawFragment = raw
+          .slice(slash + 1)
+          .trim()
+          .toLowerCase();
+        if (!rawFragment) return false;
+        const resolvedProvider = normalizeProviderId(resolved.selection.provider);
+        if (rawProvider !== resolvedProvider) return false;
+        const resolvedModel = resolved.selection.model.toLowerCase();
+        return (
+          resolvedModel.startsWith(rawFragment) ||
+          resolvedModel.includes(rawFragment) ||
+          rawFragment.startsWith(resolvedModel)
+        );
+      })();
+
+      if (shouldAutoSelect) {
+        modelSelection = resolved.selection;
+      } else {
+        return {
+          errorText: [
+            `Unrecognized model: ${raw}`,
+            "",
+            `Did you mean: ${suggestion}`,
+            `Try: /model ${suggestion}`,
+            "",
+            "Browse: /models or /models <provider>",
+          ].join("\n"),
+        };
+      }
+    }
   }
 
   let profileOverride: string | undefined;

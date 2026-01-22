@@ -257,8 +257,10 @@ export const AgentToolsSchema = z
         ask: z.enum(["off", "on-miss", "always"]).optional(),
         node: z.string().optional(),
         pathPrepend: z.array(z.string()).optional(),
+        safeBins: z.array(z.string()).optional(),
         backgroundMs: z.number().int().positive().optional(),
         timeoutSec: z.number().int().positive().optional(),
+        approvalRunningNoticeMs: z.number().int().nonnegative().optional(),
         cleanupMs: z.number().int().positive().optional(),
         notifyOnExit: z.boolean().optional(),
         applyPatch: z
@@ -485,6 +487,7 @@ export const ToolsSchema = z
         ask: z.enum(["off", "on-miss", "always"]).optional(),
         node: z.string().optional(),
         pathPrepend: z.array(z.string()).optional(),
+        safeBins: z.array(z.string()).optional(),
         backgroundMs: z.number().int().positive().optional(),
         timeoutSec: z.number().int().positive().optional(),
         cleanupMs: z.number().int().positive().optional(),

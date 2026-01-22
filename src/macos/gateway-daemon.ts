@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import process from "node:process";
+import type { GatewayLockHandle } from "../infra/gateway-lock.js";
 
 declare const __CLAWDBOT_VERSION__: string;
 
@@ -45,6 +46,7 @@ async function main() {
     { startGatewayServer },
     { setGatewayWsLogStyle },
     { setVerbose },
+    { acquireGatewayLock, GatewayLockError },
     { consumeGatewaySigusr1RestartAuthorization, isGatewaySigusr1RestartExternallyAllowed },
     { defaultRuntime },
     { enableConsoleCapture, setConsoleTimestampPrefix },
@@ -53,10 +55,11 @@ async function main() {
     import("../gateway/server.js"),
     import("../gateway/ws-logging.js"),
     import("../globals.js"),
+    import("../infra/gateway-lock.js"),
     import("../infra/restart.js"),
     import("../runtime.js"),
     import("../logging.js"),
-  ]);
+  ] as const);
 
   enableConsoleCapture();
   setConsoleTimestampPrefix(true);
@@ -103,6 +106,7 @@ async function main() {
   if (token) process.env.CLAWDBOT_GATEWAY_TOKEN = token;
 
   let server: Awaited<ReturnType<typeof startGatewayServer>> | null = null;
+  let lock: GatewayLockHandle | null = null;
   let shuttingDown = false;
   let forceExitTimer: ReturnType<typeof setTimeout> | null = null;
   let restartResolver: (() => void) | null = null;
@@ -177,6 +181,15 @@ async function main() {
   process.on("SIGUSR1", onSigusr1);
 
   try {
+    try {
+      lock = await acquireGatewayLock();
+    } catch (err) {
+      if (err instanceof GatewayLockError) {
+        defaultRuntime.error(`Gateway start blocked: ${err.message}`);
+        process.exit(1);
+      }
+      throw err;
+    }
     // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
@@ -191,6 +204,7 @@ async function main() {
       });
     }
   } finally {
+    await (lock as GatewayLockHandle | null)?.release();
     cleanupSignals();
   }
 }

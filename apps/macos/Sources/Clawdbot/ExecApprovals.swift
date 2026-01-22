@@ -280,8 +280,10 @@ enum ExecApprovalsStore {
         let resolvedAgent = ExecApprovalsResolvedDefaults(
             security: agentEntry.security ?? wildcardEntry.security ?? resolvedDefaults.security,
             ask: agentEntry.ask ?? wildcardEntry.ask ?? resolvedDefaults.ask,
-            askFallback: agentEntry.askFallback ?? wildcardEntry.askFallback ?? resolvedDefaults.askFallback,
-            autoAllowSkills: agentEntry.autoAllowSkills ?? wildcardEntry.autoAllowSkills ?? resolvedDefaults.autoAllowSkills)
+            askFallback: agentEntry.askFallback ?? wildcardEntry.askFallback
+                ?? resolvedDefaults.askFallback,
+            autoAllowSkills: agentEntry.autoAllowSkills ?? wildcardEntry.autoAllowSkills
+                ?? resolvedDefaults.autoAllowSkills)
         let allowlist = ((wildcardEntry.allowlist ?? []) + (agentEntry.allowlist ?? []))
             .map { entry in
                 ExecAllowlistEntry(
@@ -551,6 +553,30 @@ enum ExecCommandFormatter {
         let trimmed = rawCommand?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmed.isEmpty { return trimmed }
         return self.displayString(for: argv)
+    }
+}
+
+enum ExecApprovalHelpers {
+    static func parseDecision(_ raw: String?) -> ExecApprovalDecision? {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return nil }
+        return ExecApprovalDecision(rawValue: trimmed)
+    }
+
+    static func requiresAsk(
+        ask: ExecAsk,
+        security: ExecSecurity,
+        allowlistMatch: ExecAllowlistEntry?,
+        skillAllow: Bool) -> Bool
+    {
+        if ask == .always { return true }
+        if ask == .onMiss, security == .allowlist, allowlistMatch == nil, !skillAllow { return true }
+        return false
+    }
+
+    static func allowlistPattern(command: [String], resolution: ExecCommandResolution?) -> String? {
+        let pattern = resolution?.resolvedPath ?? resolution?.rawExecutable ?? command.first ?? ""
+        return pattern.isEmpty ? nil : pattern
     }
 }
 
