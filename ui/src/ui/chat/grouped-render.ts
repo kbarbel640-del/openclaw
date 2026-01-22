@@ -158,7 +158,8 @@ function renderAvatar(
 function isAvatarUrl(value: string): boolean {
   return (
     /^https?:\/\//i.test(value) ||
-    /^data:image\//i.test(value)
+    /^data:image\//i.test(value) ||
+    value.startsWith("/avatar/")  // relative avatar endpoint URLs
   );
 }
 

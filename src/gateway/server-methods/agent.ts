@@ -38,6 +38,7 @@ import {
 import { loadSessionEntry } from "../session-utils.js";
 import { formatForLog } from "../ws-log.js";
 import { resolveAssistantIdentity } from "../assistant-identity.js";
+import { resolveAgentAvatar } from "../../agents/identity-avatar.js";
 import { waitForAgentJob } from "./agent-job.js";
 import type { GatewayRequestHandlers } from "./types.js";
 
@@ -407,7 +408,15 @@ export const agentHandlers: GatewayRequestHandlers = {
     }
     const cfg = loadConfig();
     const identity = resolveAssistantIdentity({ cfg, agentId });
-    respond(true, identity, undefined);
+    // Resolve local avatar paths to serving URLs
+    const resolved = resolveAgentAvatar(cfg, identity.agentId);
+    const avatarUrl =
+      resolved.kind === "local"
+        ? `/avatar/${identity.agentId}`
+        : resolved.kind === "remote" || resolved.kind === "data"
+          ? resolved.url
+          : identity.avatar;
+    respond(true, { ...identity, avatar: avatarUrl }, undefined);
   },
   "agent.wait": async ({ params, respond }) => {
     if (!validateAgentWaitParams(params)) {

@@ -83,6 +83,7 @@ import { loadLogs } from "./controllers/logs";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
+const AVATAR_RELATIVE_RE = /^\/avatar\//;
 
 function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   const list = state.agentsList?.agents ?? [];
@@ -95,7 +96,7 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   const identity = agent?.identity;
   const candidate = identity?.avatarUrl ?? identity?.avatar;
   if (!candidate) return undefined;
-  if (AVATAR_DATA_RE.test(candidate) || AVATAR_HTTP_RE.test(candidate)) return candidate;
+  if (AVATAR_DATA_RE.test(candidate) || AVATAR_HTTP_RE.test(candidate) || AVATAR_RELATIVE_RE.test(candidate)) return candidate;
   return identity?.avatarUrl;
 }
 

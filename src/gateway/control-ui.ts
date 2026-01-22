@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { ClawdbotConfig } from "../config/config.js";
+import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import { DEFAULT_ASSISTANT_IDENTITY, resolveAssistantIdentity } from "./assistant-identity.js";
 
 const ROOT_PREFIX = "/";
@@ -206,11 +207,37 @@ interface ServeIndexHtmlOpts {
   agentId?: string;
 }
 
+/**
+ * Resolve the avatar value to a URL suitable for injection into the Control UI.
+ * Local file avatars are converted to the avatar endpoint URL.
+ * Remote/data URLs are passed through as-is.
+ */
+function resolveAvatarForInjection(
+  config: ClawdbotConfig | undefined,
+  agentId: string,
+  basePath: string,
+): string | undefined {
+  if (!config) return undefined;
+  const resolved = resolveAgentAvatar(config, agentId);
+  switch (resolved.kind) {
+    case "local":
+      return buildAvatarUrl(basePath, agentId);
+    case "remote":
+    case "data":
+      return resolved.url;
+    default:
+      return undefined;
+  }
+}
+
 function serveIndexHtml(res: ServerResponse, indexPath: string, opts: ServeIndexHtmlOpts) {
   const { basePath, config, agentId } = opts;
   const identity = config
     ? resolveAssistantIdentity({ cfg: config, agentId })
     : DEFAULT_ASSISTANT_IDENTITY;
+  const resolvedAgentId =
+    "agentId" in identity ? (identity as { agentId: string }).agentId : (agentId ?? "main");
+  const avatarUrl = resolveAvatarForInjection(config, resolvedAgentId, basePath);
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
   const raw = fs.readFileSync(indexPath, "utf8");
@@ -218,7 +245,7 @@ function serveIndexHtml(res: ServerResponse, indexPath: string, opts: ServeIndex
     injectControlUiConfig(raw, {
       basePath,
       assistantName: identity.name,
-      assistantAvatar: identity.avatar,
+      assistantAvatar: avatarUrl ?? identity.avatar,
     }),
   );
 }
