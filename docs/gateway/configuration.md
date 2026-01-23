@@ -2449,6 +2449,61 @@ Notes:
 - Available model: `MiniMax-M2.1` (default).
 - Update pricing in `models.json` if you need exact cost tracking.
 
+### Anthropic (OAuth)
+
+Use Anthropic directly via OAuth (no API key required):
+
+```json5
+{
+  agents: {
+    defaults: {
+      model: { primary: "anthropic/claude-sonnet-4-20250514" },
+      models: {
+        "anthropic/claude-sonnet-4-20250514": { alias: "Sonnet 4" },
+        "anthropic/claude-opus-4-5": { alias: "Opus 4.5" }
+      }
+    }
+  },
+  models: {
+    mode: "merge",
+    providers: {
+      anthropic: {
+        // No apiKey required - uses OAuth for authentication
+        // Auth handled automatically by Clawdbot gateway
+        baseUrl: "https://api.anthropic.com/v1",
+        api: "anthropic-messages",
+        models: [
+          {
+            id: "claude-sonnet-4-20250514",
+            name: "Sonnet 4",
+            reasoning: false,
+            input: ["text"],
+            cost: { input: 3, output: 15 },
+            contextWindow: 200000,
+            maxTokens: 8192
+          },
+          {
+            id: "claude-opus-4-5",
+            name: "Opus 4.5",
+            reasoning: true,
+            input: ["text"],
+            cost: { input: 15, output: 75 },
+            contextWindow: 200000,
+            maxTokens: 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+Notes:
+- OAuth authentication is automatic - no API key needed
+- Requires gateway configured with Anthropic OAuth credentials
+- Available models: Sonnet 4, Opus 4.5 (add more as needed)
+- Update pricing in `models.json` if you need exact cost tracking.
+
 ### Cerebras (GLM 4.6 / 4.7)
 
 Use Cerebras via their OpenAI-compatible endpoint:
