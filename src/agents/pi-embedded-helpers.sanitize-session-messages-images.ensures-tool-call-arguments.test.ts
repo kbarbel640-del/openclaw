@@ -51,9 +51,7 @@ describe("sanitizeSessionMessagesImages ensures tool call arguments", () => {
     const input = [
       {
         role: "assistant" as const,
-        content: [
-          { type: "toolUse", id: "call_4", name: "exec", input: { command: "ls" } },
-        ],
+        content: [{ type: "toolUse", id: "call_4", name: "exec", input: { command: "ls" } }],
       },
     ];
     const out = await sanitizeSessionMessagesImages(input, "test");
