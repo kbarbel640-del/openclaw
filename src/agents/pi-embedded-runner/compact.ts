@@ -128,13 +128,6 @@ export async function compactEmbeddedPiSession(params: {
               `No API key resolved for provider "${model.provider}" (auth mode: ${apiKeyInfo.mode}).`,
             );
           }
-        } else if (model.provider === "github-copilot") {
-          const { resolveCopilotApiToken } =
-            await import("../../providers/github-copilot-token.js");
-          const copilotToken = await resolveCopilotApiToken({
-            githubToken: apiKeyInfo.apiKey,
-          });
-          authStorage.setRuntimeApiKey(model.provider, copilotToken.token);
         } else {
           authStorage.setRuntimeApiKey(model.provider, apiKeyInfo.apiKey);
         }
@@ -325,7 +318,6 @@ export async function compactEmbeddedPiSession(params: {
             agentId: sessionAgentId,
             sessionKey: params.sessionKey,
             allowSyntheticToolResults: transcriptPolicy.allowSyntheticToolResults,
-            stripFinalTags: transcriptPolicy.stripFinalTags,
           });
           trackSessionManagerAccess(params.sessionFile);
           const settingsManager = SettingsManager.create(effectiveWorkspace, agentDir);

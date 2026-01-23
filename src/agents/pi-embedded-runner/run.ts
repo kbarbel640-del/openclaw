@@ -5,6 +5,7 @@ import { resolveUserPath } from "../../utils.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
 import { resolveClawdbotAgentDir } from "../agent-paths.js";
 import {
+  isProfileInCooldown,
   markAuthProfileFailure,
   markAuthProfileGood,
   markAuthProfileUsed,
@@ -148,7 +149,11 @@ export async function runEmbeddedPiAgent(
       if (lockedProfileId && !profileOrder.includes(lockedProfileId)) {
         throw new Error(`Auth profile "${lockedProfileId}" is not configured for ${provider}.`);
       }
-      const profileCandidates = profileOrder.length > 0 ? profileOrder : [undefined];
+      const profileCandidates = lockedProfileId
+        ? [lockedProfileId]
+        : profileOrder.length > 0
+          ? profileOrder
+          : [undefined];
       let profileIndex = 0;
 
       const initialThinkLevel = params.thinkLevel ?? "off";
@@ -169,26 +174,18 @@ export async function runEmbeddedPiAgent(
 
       const applyApiKeyInfo = async (candidate?: string): Promise<void> => {
         apiKeyInfo = await resolveApiKeyForCandidate(candidate);
+        const resolvedProfileId = apiKeyInfo.profileId ?? candidate;
         if (!apiKeyInfo.apiKey) {
           if (apiKeyInfo.mode !== "aws-sdk") {
             throw new Error(
               `No API key resolved for provider "${model.provider}" (auth mode: ${apiKeyInfo.mode}).`,
             );
           }
-          lastProfileId = apiKeyInfo.profileId;
+          lastProfileId = resolvedProfileId;
           return;
         }
-        if (model.provider === "github-copilot") {
-          const { resolveCopilotApiToken } =
-            await import("../../providers/github-copilot-token.js");
-          const copilotToken = await resolveCopilotApiToken({
-            githubToken: apiKeyInfo.apiKey,
-          });
-          authStorage.setRuntimeApiKey(model.provider, copilotToken.token);
-        } else {
-          authStorage.setRuntimeApiKey(model.provider, apiKeyInfo.apiKey);
-        }
-        lastProfileId = apiKeyInfo.profileId;
+        authStorage.setRuntimeApiKey(model.provider, apiKeyInfo.apiKey);
+        lastProfileId = resolvedProfileId;
       };
 
       const advanceAuthProfile = async (): Promise<boolean> => {
@@ -196,6 +193,10 @@ export async function runEmbeddedPiAgent(
         let nextIndex = profileIndex + 1;
         while (nextIndex < profileCandidates.length) {
           const candidate = profileCandidates[nextIndex];
+          if (candidate && isProfileInCooldown(authStore, candidate)) {
+            nextIndex += 1;
+            continue;
+          }
           try {
             await applyApiKeyInfo(candidate);
             profileIndex = nextIndex;
@@ -211,7 +212,24 @@ export async function runEmbeddedPiAgent(
       };
 
       try {
-        await applyApiKeyInfo(profileCandidates[profileIndex]);
+        while (profileIndex < profileCandidates.length) {
+          const candidate = profileCandidates[profileIndex];
+          if (
+            candidate &&
+            candidate !== lockedProfileId &&
+            isProfileInCooldown(authStore, candidate)
+          ) {
+            profileIndex += 1;
+            continue;
+          }
+          await applyApiKeyInfo(profileCandidates[profileIndex]);
+          break;
+        }
+        if (profileIndex >= profileCandidates.length) {
+          throw new Error(
+            `No available auth profile for ${provider} (all in cooldown or unavailable).`,
+          );
+        }
       } catch (err) {
         if (profileCandidates[profileIndex] === lockedProfileId) throw err;
         const advanced = await advanceAuthProfile();
@@ -502,10 +520,12 @@ export async function runEmbeddedPiAgent(
               store: authStore,
               provider,
               profileId: lastProfileId,
+              agentDir: params.agentDir,
             });
             await markAuthProfileUsed({
               store: authStore,
               profileId: lastProfileId,
+              agentDir: params.agentDir,
             });
           }
           return {

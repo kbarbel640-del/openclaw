@@ -110,6 +110,14 @@
       "destination": "/providers/opencode"
     },
     {
+      "source": "/mattermost",
+      "destination": "/channels/mattermost"
+    },
+    {
+      "source": "/mattermost/",
+      "destination": "/channels/mattermost"
+    },
+    {
       "source": "/glm",
       "destination": "/providers/glm"
     },
@@ -132,14 +140,6 @@
     {
       "source": "/message/",
       "destination": "/cli/message"
-    },
-    {
-      "source": "/mattermost",
-      "destination": "/channels/mattermost"
-    },
-    {
-      "source": "/mattermost/",
-      "destination": "/channels/mattermost"
     },
     {
       "source": "/providers/discord",

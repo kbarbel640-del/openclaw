@@ -1,13 +1,21 @@
 ---
-summary: "OpenProse: .prose workflows, slash commands, state, and telemetry in Clawdbot"
+summary: "OpenProse: .prose workflows, slash commands, and state in Clawdbot"
 read_when:
   - You want to run or write .prose workflows
   - You want to enable the OpenProse plugin
-  - You need to understand telemetry or state storage
+  - You need to understand state storage
 ---
 # OpenProse
 
 OpenProse is a portable, markdown-first workflow format for orchestrating AI sessions. In Clawdbot it ships as a plugin that installs an OpenProse skill pack plus a `/prose` slash command. Programs live in `.prose` files and can spawn multiple sub-agents with explicit control flow.
+
+Official site: https://www.prose.md
+
+## What it can do
+
+- Multi-agent research + synthesis with explicit parallelism.
+- Repeatable approval-safe workflows (code review, incident triage, content pipelines).
+- Reusable `.prose` programs you can run across supported agent runtimes.
 
 ## Install + enable
 
@@ -17,13 +25,9 @@ Bundled plugins are disabled by default. Enable OpenProse:
 clawdbot plugins enable open-prose
 ```
 
-If you're using a local checkout instead of bundled:
+Restart the Gateway after enabling the plugin.
 
-```bash
-clawdbot plugins install ./extensions/open-prose
-```
-
-Restart the Gateway after enabling or installing the plugin.
+Dev/local checkout: `clawdbot plugins install ./extensions/open-prose`
 
 Related docs: [Plugins](/plugin), [Plugin manifest](/plugins/manifest), [Skills](/tools/skills).
 
@@ -41,6 +45,31 @@ Common commands:
 /prose compile <file.prose>
 /prose examples
 /prose update
+```
+
+## Example: a simple `.prose` file
+
+```prose
+# Research + synthesis with two agents running in parallel.
+
+input topic: "What should we research?"
+
+agent researcher:
+  model: sonnet
+  prompt: "You research thoroughly and cite sources."
+
+agent writer:
+  model: opus
+  prompt: "You write a concise summary."
+
+parallel:
+  findings = session: researcher
+    prompt: "Research {topic}."
+  draft = session: writer
+    prompt: "Summarize {topic}."
+
+session "Merge the findings + draft into a final answer."
+context: { findings, draft }
 ```
 
 ## File locations
@@ -94,24 +123,6 @@ OpenProse programs map to Clawdbot primitives:
 | Web fetch | `web_fetch` |
 
 If your tool allowlist blocks these tools, OpenProse programs will fail. See [Skills config](/tools/skills-config).
-
-## Telemetry
-
-OpenProse telemetry is **enabled by default** and stored in `.prose/.env`:
-
-```
-OPENPROSE_TELEMETRY=enabled
-USER_ID=...
-SESSION_ID=...
-```
-
-Disable permanently:
-
-```
-/prose run ... --no-telemetry
-```
-
-Telemetry posts are best-effort; failures do not block execution.
 
 ## Security + approvals
 

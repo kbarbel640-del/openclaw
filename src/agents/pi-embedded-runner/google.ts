@@ -250,6 +250,7 @@ export async function sanitizeSessionHistory(params: {
   sessionId: string;
   policy?: TranscriptPolicy;
 }): Promise<AgentMessage[]> {
+  // Keep docs/reference/transcript-hygiene.md in sync with any logic changes here.
   const policy =
     params.policy ??
     resolveTranscriptPolicy({
@@ -261,7 +262,6 @@ export async function sanitizeSessionHistory(params: {
     sanitizeMode: policy.sanitizeMode,
     sanitizeToolCallIds: policy.sanitizeToolCallIds,
     toolCallIdMode: policy.toolCallIdMode,
-    enforceToolCallLast: policy.enforceToolCallLast,
     preserveSignatures: policy.preserveSignatures,
     sanitizeThoughtSignatures: policy.sanitizeThoughtSignatures,
   });
