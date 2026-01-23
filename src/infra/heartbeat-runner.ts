@@ -367,11 +367,14 @@ function resolveHeartbeatReasoningPayloads(
 
 function resolveHeartbeatSender(params: {
   allowFrom: Array<string | number>;
+  deliveryTo?: string;
   lastTo?: string;
   provider?: string | null;
 }) {
-  const { allowFrom, lastTo, provider } = params;
+  const { allowFrom, deliveryTo, lastTo, provider } = params;
   const candidates = [
+    deliveryTo?.trim(),
+    provider && deliveryTo ? `${provider}:${deliveryTo}` : undefined,
     lastTo?.trim(),
     provider && lastTo ? `${provider}:${lastTo}` : undefined,
   ].filter((val): val is string => Boolean(val?.trim()));
@@ -482,6 +485,7 @@ export async function runHeartbeatOnce(opts: {
     : [];
   const sender = resolveHeartbeatSender({
     allowFrom: senderAllowFrom,
+    deliveryTo: delivery.to,
     lastTo: entry?.lastTo,
     provider: senderProvider,
   });
