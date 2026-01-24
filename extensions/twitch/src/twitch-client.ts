@@ -7,6 +7,7 @@ import type {
 	TwitchChatMessage,
 } from "./types.js";
 import { resolveTwitchToken } from "./token.js";
+import { normalizeToken } from "./utils/twitch.js";
 
 /**
  * Manages Twitch chat client connections
@@ -19,6 +20,75 @@ export class TwitchClientManager {
 	>();
 
 	constructor(private logger: ChannelLogSink) {}
+
+	/**
+	 * Create an auth provider for the account.
+	 */
+	private createAuthProvider(
+		account: TwitchAccountConfig,
+		normalizedToken: string,
+	): StaticAuthProvider | RefreshingAuthProvider {
+		if (!account.clientId) {
+			throw new Error("Missing Twitch client ID");
+		}
+
+		if (account.clientSecret) {
+			// Use RefreshingAuthProvider - can handle tokens with or without refresh tokens
+			const authProvider = new RefreshingAuthProvider({
+				clientId: account.clientId,
+				clientSecret: account.clientSecret,
+			});
+
+			// Use addUserForToken to figure out the user ID from the token
+			// This works whether we have a refresh token or not
+			authProvider
+				.addUserForToken({
+					accessToken: normalizedToken,
+					refreshToken: account.refreshToken ?? null,
+					expiresIn: account.expiresIn ?? null,
+					obtainmentTimestamp: account.obtainmentTimestamp ?? Date.now(),
+				})
+				.then((userId) => {
+					this.logger.info(
+						`[twitch] Added user ${userId} to RefreshingAuthProvider for ${account.username}`,
+					);
+				})
+				.catch((err) => {
+					this.logger.error(
+						`[twitch] Failed to add user to RefreshingAuthProvider: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				});
+
+			// Set up token refresh event listener (only fires if refreshToken is provided)
+			authProvider.onRefresh((userId, token) => {
+				this.logger.info(
+					`[twitch] Access token refreshed for user ${userId} (expires in ${token.expiresIn ? `${token.expiresIn}s` : "unknown"})`,
+				);
+			});
+
+			// Set up token refresh failure listener
+			authProvider.onRefreshFailure((userId, error) => {
+				this.logger.error(
+					`[twitch] Failed to refresh access token for user ${userId}: ${error.message}`,
+				);
+			});
+
+			const refreshStatus = account.refreshToken
+				? "automatic token refresh enabled"
+				: "token refresh disabled (no refresh token)";
+			this.logger.info(
+				`[twitch] Using RefreshingAuthProvider for ${account.username} (${refreshStatus})`,
+			);
+
+			return authProvider;
+		}
+
+		// Fall back to StaticAuthProvider for backward compatibility (no clientSecret)
+		this.logger.info(
+			`[twitch] Using StaticAuthProvider for ${account.username} (no clientSecret provided)`,
+		);
+		return new StaticAuthProvider(account.clientId, normalizedToken);
+	}
 
 	/**
 	 * Get or create a chat client for an account
@@ -46,7 +116,7 @@ export class TwitchClientManager {
 			throw new Error("Missing Twitch token");
 		}
 
-		this.logger.debug(
+		this.logger.debug?.(
 			`[twitch] Using ${tokenResolution.source} token source for ${account.username}`,
 		);
 
@@ -58,68 +128,10 @@ export class TwitchClientManager {
 		}
 
 		// Normalize token - strip oauth: prefix if present (Twurple doesn't need it)
-		const normalizedToken = tokenResolution.token.startsWith("oauth:")
-			? tokenResolution.token.slice(6)
-			: tokenResolution.token;
+		const normalizedToken = normalizeToken(tokenResolution.token);
 
-		// Use RefreshingAuthProvider if clientSecret is provided (supports optional refresh tokens)
-		let authProvider: StaticAuthProvider | RefreshingAuthProvider;
-		if (account.clientSecret) {
-			// Use RefreshingAuthProvider - can handle tokens with or without refresh tokens
-			authProvider = new RefreshingAuthProvider({
-				clientId: account.clientId,
-				clientSecret: account.clientSecret,
-			});
-
-			// Use addUserForToken to figure out the user ID from the token
-			// This works whether we have a refresh token or not
-			(authProvider as RefreshingAuthProvider)
-				.addUserForToken({
-					accessToken: normalizedToken,
-					refreshToken: account.refreshToken ?? null,
-					expiresIn: account.expiresIn ?? null,
-					obtainmentTimestamp: account.obtainmentTimestamp ?? Date.now(),
-				})
-				.then((userId) => {
-					this.logger.info(
-						`[twitch] Added user ${userId} to RefreshingAuthProvider for ${account.username}`,
-					);
-				})
-				.catch((err) => {
-					this.logger.error(
-						`[twitch] Failed to add user to RefreshingAuthProvider: ${err instanceof Error ? err.message : String(err)}`,
-					);
-				});
-
-			// Set up token refresh event listener (only fires if refreshToken is provided)
-			(authProvider as RefreshingAuthProvider).onRefresh((userId, token) => {
-				this.logger.info(
-					`[twitch] Access token refreshed for user ${userId} (expires in ${token.expiresIn ? `${token.expiresIn}s` : "unknown"})`,
-				);
-			});
-
-			// Set up token refresh failure listener
-			(authProvider as RefreshingAuthProvider).onRefreshFailure(
-				(userId, error) => {
-					this.logger.error(
-						`[twitch] Failed to refresh access token for user ${userId}: ${error.message}`,
-					);
-				},
-			);
-
-			const refreshStatus = account.refreshToken
-				? "automatic token refresh enabled"
-				: "token refresh disabled (no refresh token)";
-			this.logger.info(
-				`[twitch] Using RefreshingAuthProvider for ${account.username} (${refreshStatus})`,
-			);
-		} else {
-			// Fall back to StaticAuthProvider for backward compatibility (no clientSecret)
-			authProvider = new StaticAuthProvider(account.clientId, normalizedToken);
-			this.logger.info(
-				`[twitch] Using StaticAuthProvider for ${account.username} (no clientSecret provided)`,
-			);
-		}
+		// Create auth provider
+		const authProvider = this.createAuthProvider(account, normalizedToken);
 
 		const channel = account.channel ?? account.username;
 
@@ -147,10 +159,10 @@ export class TwitchClientManager {
 								this.logger.info(`[twitch] ${message}`);
 								break;
 							case LogLevel.DEBUG:
-								this.logger.debug(`[twitch] ${message}`);
+								this.logger.debug?.(`[twitch] ${message}`);
 								break;
 							case LogLevel.TRACE:
-								this.logger.debug(`[twitch] ${message}`);
+								this.logger.debug?.(`[twitch] ${message}`);
 								break;
 						}
 					},
@@ -257,9 +269,7 @@ export class TwitchClientManager {
 	 * Disconnect all clients
 	 */
 	async disconnectAll(): Promise<void> {
-		for (const client of this.clients.values()) {
-			client.quit();
-		}
+		this.clients.forEach((client) => client.quit());
 		this.clients.clear();
 		this.messageHandlers.clear();
 		this.logger.info("[twitch] Disconnected all clients");

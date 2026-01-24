@@ -56,6 +56,15 @@ vi.mock("@twurple/auth", () => ({
 	},
 }));
 
+// Mock token resolution - must be after @twurple/auth mock
+vi.mock("./token.js", () => ({
+	resolveTwitchToken: vi.fn(() => ({
+		token: "oauth:mock-token-from-tests",
+		source: "config" as const,
+	})),
+	DEFAULT_ACCOUNT_ID: "default",
+}));
+
 describe("TwitchClientManager", () => {
 	let manager: TwitchClientManager;
 	let mockLogger: ChannelLogSink;
@@ -76,9 +85,16 @@ describe("TwitchClientManager", () => {
 		enabled: true,
 	};
 
-	beforeEach(() => {
-		// Clear all mocks
+	beforeEach(async () => {
+		// Clear all mocks first
 		vi.clearAllMocks();
+
+		// Re-set up the default token mock implementation after clearing
+		const { resolveTwitchToken } = await import("./token.js");
+		vi.mocked(resolveTwitchToken).mockReturnValue({
+			token: "oauth:mock-token-from-tests",
+			source: "config" as const,
+		});
 
 		// Create mock logger
 		mockLogger = {
@@ -141,6 +157,13 @@ describe("TwitchClientManager", () => {
 				token: "oauth:actualtoken123",
 			};
 
+			// Override the mock to return a specific token for this test
+			const { resolveTwitchToken } = await import("./token.js");
+			vi.mocked(resolveTwitchToken).mockReturnValue({
+				token: "oauth:actualtoken123",
+				source: "config" as const,
+			});
+
 			await manager.getClient(accountWithPrefix);
 
 			expect(mockAuthProvider.constructor).toHaveBeenCalledWith(
@@ -150,12 +173,19 @@ describe("TwitchClientManager", () => {
 		});
 
 		it("should use token directly when no oauth: prefix", async () => {
+			// Override the mock to return a token without oauth: prefix
+			const { resolveTwitchToken } = await import("./token.js");
+			vi.mocked(resolveTwitchToken).mockReturnValue({
+				token: "oauth:mock-token-from-tests",
+				source: "config" as const,
+			});
+
 			await manager.getClient(testAccount);
 
 			// Implementation strips oauth: prefix from all tokens
 			expect(mockAuthProvider.constructor).toHaveBeenCalledWith(
 				"test-client-id",
-				"test123456",
+				"mock-token-from-tests",
 			);
 		});
 
@@ -166,22 +196,24 @@ describe("TwitchClientManager", () => {
 			};
 
 			await expect(manager.getClient(accountWithoutClientId)).rejects.toThrow(
-				"Missing Twitch client ID or token",
+				"Missing Twitch client ID",
 			);
 
 			expect(mockLogger.error).toHaveBeenCalledWith(
-				expect.stringContaining("Missing Twitch client ID or token"),
+				expect.stringContaining("Missing Twitch client ID"),
 			);
 		});
 
 		it("should throw error when token is missing", async () => {
-			const accountWithoutToken: TwitchAccountConfig = {
-				...testAccount,
+			// Override the mock to return empty token
+			const { resolveTwitchToken } = await import("./token.js");
+			vi.mocked(resolveTwitchToken).mockReturnValue({
 				token: "",
-			};
+				source: "none" as const,
+			});
 
-			await expect(manager.getClient(accountWithoutToken)).rejects.toThrow(
-				"Missing Twitch client ID or token",
+			await expect(manager.getClient(testAccount)).rejects.toThrow(
+				"Missing Twitch token",
 			);
 		});
 

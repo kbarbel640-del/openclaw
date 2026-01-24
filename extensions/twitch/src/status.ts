@@ -74,18 +74,19 @@ export function collectTwitchStatusIssues(
 			continue; // Skip further checks if disabled
 		}
 
+		// Check 3: Missing clientId (check if username/token present but no clientId)
+		if (account && account.username && account.token && !account.clientId) {
+			issues.push({
+				channel: "twitch",
+				accountId,
+				kind: "config",
+				message: "Twitch client ID is required",
+				fix: "Add clientId to your Twitch account configuration (from Twitch Developer Portal)",
+			});
+		}
+
 		// Checks that require account config
 		if (account && isAccountConfigured(account)) {
-			// Check 3: Missing clientId
-			if (!account.clientId) {
-				issues.push({
-					channel: "twitch",
-					accountId,
-					kind: "config",
-					message: "Twitch client ID is required",
-					fix: "Add clientId to your Twitch account configuration (from Twitch Developer Portal)",
-				});
-			}
 
 			// Check 4: Token format warning (normalized, but may indicate config issue)
 			if (account.token?.startsWith("oauth:")) {

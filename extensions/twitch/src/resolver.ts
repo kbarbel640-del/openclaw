@@ -9,6 +9,7 @@ import { ApiClient } from "@twurple/api";
 import { StaticAuthProvider } from "@twurple/auth";
 import type { ChannelResolveKind, ChannelResolveResult } from "./types.js";
 import type { ChannelLogSink, TwitchAccountConfig } from "./types.js";
+import { normalizeToken } from "./utils/twitch.js";
 
 /**
  * Normalize a Twitch username - strip @ prefix and convert to lowercase
@@ -61,9 +62,7 @@ export async function resolveTwitchTargets(
   }
 
   // Normalize token - strip oauth: prefix if present
-  const normalizedToken = account.token.startsWith("oauth:")
-    ? account.token.slice(6)
-    : account.token;
+  const normalizedToken = normalizeToken(account.token);
 
   // Create auth provider and API client
   const authProvider = new StaticAuthProvider(

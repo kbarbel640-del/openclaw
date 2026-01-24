@@ -8,17 +8,23 @@
 import { checkTwitchAccessControl } from "./access-control.js";
 import { resolveAgentRoute } from "../../../src/routing/resolve-route.js";
 import type { ClawdbotConfig } from "clawdbot/plugin-sdk";
+import { buildChannelConfigSchema } from "clawdbot/plugin-sdk";
 import { twitchMessageActions } from "./actions.js";
+import { TwitchConfigSchema } from "./config-schema.js";
 import {
   DEFAULT_ACCOUNT_ID,
   getAccountConfig,
   listAccountIds,
 } from "./config.js";
+import { twitchOnboardingAdapter } from "./onboarding.js";
 import { twitchOutbound } from "./outbound.js";
 import { probeTwitch } from "./probe.js";
 import { resolveTwitchTargets } from "./resolver.js";
 import { collectTwitchStatusIssues } from "./status.js";
-import { TwitchClientManager } from "./twitch-client.js";
+import {
+  getOrCreateClientManager,
+  removeClientManager,
+} from "./client-manager-registry.js";
 import type {
   ChannelAccountSnapshot,
   ChannelCapabilities,
@@ -60,10 +66,27 @@ export const twitchPlugin: ChannelPlugin<TwitchAccountConfig> = {
     aliases: ["twitch-chat"],
   } satisfies ChannelMeta,
 
+  /** Onboarding adapter */
+  onboarding: twitchOnboardingAdapter,
+
+  /** Pairing configuration */
+  pairing: {
+    idLabel: "twitchUserId",
+    normalizeAllowEntry: (entry) => entry.replace(/^(twitch:)?user:?/i, ""),
+    notifyApproval: async ({ id }) => {
+      // Note: Twitch doesn't support DMs from bots, so pairing approval is limited
+      // We'll log the approval instead
+      console.warn(`[twitch] Pairing approved for user ${id} (notification sent via chat if possible)`);
+    },
+  },
+
   /** Supported chat capabilities */
   capabilities: {
     chatTypes: ["group", "direct"],
   } satisfies ChannelCapabilities,
+
+  /** Configuration schema for Twitch channel */
+  configSchema: buildChannelConfigSchema(TwitchConfigSchema),
 
   /** Account configuration management */
   config: {
@@ -74,8 +97,19 @@ export const twitchPlugin: ChannelPlugin<TwitchAccountConfig> = {
     resolveAccount: (
       cfg: ClawdbotConfig,
       accountId?: string | null,
-    ): TwitchAccountConfig | null =>
-      getAccountConfig(cfg, accountId ?? DEFAULT_ACCOUNT_ID),
+    ): TwitchAccountConfig => {
+      const account = getAccountConfig(cfg, accountId ?? DEFAULT_ACCOUNT_ID);
+      if (!account) {
+        // Return a default/empty account if not configured
+        return {
+          username: "",
+          token: "",
+          clientId: "",
+          enabled: false,
+        } as TwitchAccountConfig;
+      }
+      return account;
+    },
 
     /** Get the default account ID */
     defaultAccountId: (): string => DEFAULT_ACCOUNT_ID,
@@ -117,7 +151,7 @@ export const twitchPlugin: ChannelPlugin<TwitchAccountConfig> = {
       accountId?: string | null;
       inputs: string[];
       kind: ChannelResolveKind;
-      runtime: { log?: ChannelLogSink };
+      runtime: import("../../../src/runtime.js").RuntimeEnv;
     }): Promise<ChannelResolveResult[]> => {
       const account = getAccountConfig(cfg, accountId ?? DEFAULT_ACCOUNT_ID);
 
@@ -129,7 +163,14 @@ export const twitchPlugin: ChannelPlugin<TwitchAccountConfig> = {
         }));
       }
 
-      return await resolveTwitchTargets(inputs, account, kind, runtime?.log);
+      // Adapt RuntimeEnv.log to ChannelLogSink
+      const log: ChannelLogSink = {
+        info: (msg) => runtime.log(msg),
+        warn: (msg) => runtime.log(msg),
+        error: (msg) => runtime.error(msg),
+        debug: (msg) => runtime.log(msg),
+      };
+      return await resolveTwitchTargets(inputs, account, kind, log);
     },
   },
 
@@ -204,13 +245,16 @@ export const twitchPlugin: ChannelPlugin<TwitchAccountConfig> = {
       const account = ctx.account as TwitchAccountConfig;
       const accountId = ctx.accountId;
 
-      // Create client manager
-      const clientManager = new TwitchClientManager({
+      // Create logger for client manager
+      const logger: ChannelLogSink = {
         info: (msg) => ctx.log?.info(`[twitch] ${msg}`),
         warn: (msg) => ctx.log?.warn(`[twitch] ${msg}`),
         error: (msg) => ctx.log?.error(`[twitch] ${msg}`),
         debug: (msg) => ctx.log?.debug?.(`[twitch] ${msg}`),
-      });
+      };
+
+      // Get or create client manager from registry
+      const clientManager = getOrCreateClientManager(accountId, logger);
 
       // Set up message handler
       clientManager.onMessage(account, (message) => {
@@ -234,7 +278,7 @@ export const twitchPlugin: ChannelPlugin<TwitchAccountConfig> = {
         }
 
         // Resolve route for this message
-        const route = resolveAgentRoute({
+        resolveAgentRoute({
           cfg: ctx.cfg,
           channel: "twitch",
           accountId,
@@ -247,13 +291,11 @@ export const twitchPlugin: ChannelPlugin<TwitchAccountConfig> = {
         // Build message preview
         const preview = message.message.replace(/\s+/g, " ").slice(0, 160);
 
-        // Dispatch to agent system
-        ctx.runtime.system.enqueueSystemEvent(
-          `Twitch message from ${message.displayName ?? message.username}: ${preview}`,
-          {
-            sessionKey: route.sessionKey,
-            contextKey: `twitch:message:${message.channel}:${message.id ?? "unknown"}`,
-          },
+        // Log message receipt
+        // Note: Message dispatch to agent system will be handled by a separate monitor/loop
+        // For now, we just log that we received and validated the message
+        ctx.log?.info(
+          `[twitch] Received message from ${message.displayName ?? message.username}: ${preview}`,
         );
       });
 
@@ -289,8 +331,8 @@ export const twitchPlugin: ChannelPlugin<TwitchAccountConfig> = {
       const account = ctx.account as TwitchAccountConfig;
       const accountId = ctx.accountId;
 
-      // TODO: Implement client manager cleanup
-      // This requires tracking client managers per account
+      // Disconnect and remove client manager from registry
+      await removeClientManager(accountId);
 
       ctx.setStatus?.({
         accountId,

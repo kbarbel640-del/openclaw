@@ -6,7 +6,7 @@
  */
 
 import { DEFAULT_ACCOUNT_ID, getAccountConfig } from "./config.js";
-import { TwitchClientManager } from "./twitch-client.js";
+import { getClientManager as getRegistryClientManager } from "./client-manager-registry.js";
 import type { ClawdbotConfig } from "clawdbot/plugin-sdk";
 import { stripMarkdownForTwitch } from "./utils/markdown.js";
 import {
@@ -28,100 +28,6 @@ export interface SendMessageResult {
 }
 
 /**
- * Options for sending Twitch messages.
- */
-export interface SendTwitchOptions {
-	/** Account ID to use for sending */
-	accountId?: string;
-	/** Whether to enable verbose logging */
-	verbose?: boolean;
-	/** Abort signal for cancellation */
-	signal?: AbortSignal;
-}
-
-/**
- * Client manager cache for reuse across calls.
- */
-const clientManagerCache = new Map<string, TwitchClientManager>();
-
-/**
- * Get or create a client manager for an account.
- *
- * @param accountId - The account ID
- * @param logger - Logger instance
- * @returns The client manager
- */
-function getClientManager(
-	accountId: string,
-	logger: Console,
-): TwitchClientManager {
-	if (!clientManagerCache.has(accountId)) {
-		clientManagerCache.set(
-			accountId,
-			new TwitchClientManager({
-				info: (msg) => logger.info(`[twitch] ${msg}`),
-				warn: (msg) => logger.warn(`[twitch] ${msg}`),
-				error: (msg) => logger.error(`[twitch] ${msg}`),
-				debug: (msg) => logger.debug(`[twitch] ${msg}`),
-			}),
-		);
-	}
-	const client = clientManagerCache.get(accountId);
-	if (!client) {
-		throw new Error(`Client manager not found for account: ${accountId}`);
-	}
-	return client;
-}
-
-/**
- * Send a text message to a Twitch channel.
- *
- * @param channel - The channel name (with or without # prefix)
- * @param text - The message text to send
- * @param options - Send options
- * @returns Result with message ID and status
- *
- * @example
- * const result = await sendMessageTwitch("#mychannel", "Hello Twitch!", {
- *   accountId: "default",
- * });
- */
-export async function sendMessageTwitch(
-	_channel: string,
-	_text: string,
-	options: SendTwitchOptions = {},
-): Promise<SendMessageResult> {
-	const { verbose = false, signal } = options;
-
-	// Check for abort signal
-	if (signal?.aborted) {
-		return {
-			ok: false,
-			messageId: generateMessageId(),
-			error: "Send operation aborted",
-		};
-	}
-
-	try {
-		// This would normally come from the Clawdbot config
-		// For now, we'll require the config to be passed via a different mechanism
-		// In the actual adapter, this comes from ChannelOutboundContext.cfg
-		throw new Error(
-			"sendMessageTwitch requires CoreConfig. " +
-				"Use the outbound adapter via Clawdbot's channel system instead.",
-		);
-	} catch (error) {
-		const errorMsg = error instanceof Error ? error.message : String(error);
-		if (verbose) console.error(`[twitch] Send failed: ${errorMsg}`);
-		return {
-			ok: false,
-			messageId: generateMessageId(),
-			error: errorMsg,
-		};
-	}
-}
-
-/**
  * Internal send function used by the outbound adapter.
  *
  * This function has access to the full Clawdbot config and handles
@@ -134,6 +40,16 @@ export async function sendMessageTwitch(
  * @param stripMarkdown - Whether to strip markdown (default: true)
  * @param logger - Logger instance
  * @returns Result with message ID and status
+ *
+ * @example
+ * const result = await sendMessageTwitchInternal(
+ *   "#mychannel",
+ *   "Hello Twitch!",
+ *   clawdbotConfig,
+ *   "default",
+ *   true,
+ *   console,
+ * );
  */
 export async function sendMessageTwitchInternal(
 	channel: string,
@@ -181,9 +97,17 @@ export async function sendMessageTwitchInternal(
 		};
 	}
 
+	// Get client manager from registry
+	const clientManager = getRegistryClientManager(accountId);
+	if (!clientManager) {
+		return {
+			ok: false,
+			messageId: generateMessageId(),
+			error: `Client manager not found for account: ${accountId}. Please start the Twitch gateway first.`,
+		};
+	}
+
 	try {
-		// Get client manager and send message
-		const clientManager = getClientManager(accountId, logger);
 		const result = await clientManager.sendMessage(
 			account,
 			normalizeTwitchChannel(normalizedChannel),
@@ -212,26 +136,4 @@ export async function sendMessageTwitchInternal(
 			error: errorMsg,
 		};
 	}
-}
-
-/**
- * Send media to a Twitch channel.
- *
- * Note: Twitch chat doesn't support direct media uploads. This function
- * sends the media URL as text instead.
- *
- * @param channel - The channel name
- * @param text - Optional message text to accompany the media
- * @param mediaUrl - The media URL to send
- * @param options - Send options
- * @returns Result with message ID and status
- */
-export async function sendMediaTwitch(
-	channel: string,
-	mediaUrl: string,
-	text: string = "",
-	options: SendTwitchOptions = {},
-): Promise<SendMessageResult> {
-	const combinedMessage = text ? `${text} ${mediaUrl}`.trim() : mediaUrl;
-	return sendMessageTwitch(channel, combinedMessage, options);
 }

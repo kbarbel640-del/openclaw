@@ -7,7 +7,6 @@
 
 import type { ClawdbotConfig } from "../../../src/config/config.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../../../src/routing/session-key.js";
-import type { TwitchAccountConfig } from "./types.js";
 
 export type TwitchTokenSource = "env" | "config" | "none";
 

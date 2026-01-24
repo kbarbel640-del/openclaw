@@ -79,11 +79,11 @@ async function run(): Promise<void> {
 	);
 
 	try {
-		await client.connect();
-		await client.join(channel);
+		await Promise.resolve(client.connect());
+		await Promise.resolve(client.join(channel));
 		console.log(`Connected as ${username} and joined #${channel}`);
 		if (args.message) {
-			await client.say(channel, args.message);
+			await Promise.resolve(client.say(channel, args.message));
 			console.log("Message sent.");
 		}
 	} finally {

@@ -12,6 +12,21 @@ import type {
 } from "./types.js";
 
 /**
+ * Create a tool result with error content.
+ */
+function errorResponse(error: string) {
+	return {
+		content: [
+			{
+				type: "text",
+				text: JSON.stringify({ ok: false, error }),
+			},
+		],
+		details: { ok: false },
+	};
+}
+
+/**
  * Read a string parameter from action arguments.
  *
  * @param args - Action arguments
@@ -32,7 +47,15 @@ function readStringParam(
 		return undefined;
 	}
 
-	const str = String(value);
+	// Convert value to string safely
+	let str: string;
+	if (typeof value === "string") {
+		str = value;
+	} else if (typeof value === "number" || typeof value === "boolean") {
+		str = String(value);
+	} else {
+		throw new Error(`Parameter ${key} must be a string, number, or boolean`);
+	}
 	return options.trim !== false ? str.trim() : str;
 }
 
@@ -40,6 +63,10 @@ function readStringParam(
  * Twitch message actions adapter.
  *
  * Supports the "send" action for sending messages to Twitch channels.
+ *
+ * NOTE: Currently only the "send" action is supported. The action gate pattern
+ * (configurable actions per channel) will be added in a future update. For now,
+ * the available actions are hardcoded as Twitch chat only supports sending messages.
  */
 export const twitchMessageActions: ChannelMessageActionAdapter = {
 	/**
@@ -48,11 +75,16 @@ export const twitchMessageActions: ChannelMessageActionAdapter = {
 	 * Currently supports:
 	 * - "send" - Send a message to a Twitch channel
 	 *
+	 * Future actions may include:
+	 * - "ban"/"timeout" - Moderation actions
+	 * - "announce" - Send announcements
+	 *
 	 * @param params - Parameters including config
 	 * @returns Array of available action names
 	 */
 	listActions: () => {
-		// TODO: Add action gate pattern for configurable actions
+		// Action gate pattern: In future, this will check channel config to determine
+		// which actions are enabled. For now, all Twitch channels support "send".
 		const actions = new Set<string>(["send"]);
 		return Array.from(actions);
 	},
@@ -115,93 +147,52 @@ export const twitchMessageActions: ChannelMessageActionAdapter = {
 	handleAction: async (
 		ctx: ChannelMessageActionContext,
 	): Promise<{ content: Array<{ type: string; text: string }> } | null> => {
-		if (ctx.action === "send") {
-			const message = readStringParam(ctx.params, "message", {
-				required: true,
-			});
-			const to = readStringParam(ctx.params, "to", { required: false });
-			const accountId = ctx.accountId ?? DEFAULT_ACCOUNT_ID;
-
-			const account = getAccountConfig(ctx.cfg, accountId);
-			if (!account) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: JSON.stringify({
-								ok: false,
-								error: `Account not found: ${accountId}. Available accounts: ${Object.keys(ctx.cfg.channels?.twitch?.accounts ?? {}).join(", ") || "none"}`,
-							}),
-						},
-					],
-				};
-			}
-
-			// Use the channel from account config if not specified
-			const targetChannel = to || account.channel || account.username;
-
-			if (!targetChannel) {
-				return {
-					content: [
-						{
-							type: "text",
-							text: JSON.stringify({
-								ok: false,
-								error:
-									"No channel specified and no default channel in account config",
-							}),
-						},
-					],
-				};
-			}
-
-			try {
-				if (!twitchOutbound.sendText) {
-					return {
-						content: [
-							{
-								type: "text",
-								text: JSON.stringify({
-									ok: false,
-									error: "sendText not implemented",
-								}),
-							},
-						],
-					};
-				}
-
-				const result = await twitchOutbound.sendText({
-					cfg: ctx.cfg,
-					to: targetChannel,
-					text: message ?? "",
-					accountId,
-				});
-
-				return {
-					content: [
-						{
-							type: "text",
-							text: JSON.stringify(result),
-						},
-					],
-				};
-			} catch (error) {
-				const errorMsg = error instanceof Error ? error.message : String(error);
-				return {
-					content: [
-						{
-							type: "text",
-							text: JSON.stringify({
-								ok: false,
-								error: errorMsg,
-							}),
-						},
-					],
-				};
-			}
+		if (ctx.action !== "send") {
+			return null;
 		}
 
-		// Action not supported
-		return null;
+		const message = readStringParam(ctx.params, "message", { required: true });
+		const to = readStringParam(ctx.params, "to", { required: false });
+		const accountId = ctx.accountId ?? DEFAULT_ACCOUNT_ID;
+
+		const account = getAccountConfig(ctx.cfg, accountId);
+		if (!account) {
+			return errorResponse(
+				`Account not found: ${accountId}. Available accounts: ${Object.keys(ctx.cfg.channels?.twitch?.accounts ?? {}).join(", ") || "none"}`,
+			);
+		}
+
+		// Use the channel from account config if not specified
+		const targetChannel = to || account.channel || account.username;
+
+		if (!targetChannel) {
+			return errorResponse("No channel specified and no default channel in account config");
+		}
+
+		if (!twitchOutbound.sendText) {
+			return errorResponse("sendText not implemented");
+		}
+
+		try {
+			const result = await twitchOutbound.sendText({
+				cfg: ctx.cfg,
+				to: targetChannel,
+				text: message ?? "",
+				accountId,
+			});
+
+			return {
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify(result),
+					},
+				],
+				details: { ok: true },
+			};
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			return errorResponse(errorMsg);
+		}
 	},
 };
