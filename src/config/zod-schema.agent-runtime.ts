@@ -32,6 +32,7 @@ export const HeartbeatSchema = z
         z.literal("msteams"),
         z.literal("signal"),
         z.literal("imessage"),
+        z.literal("bluebubbles"),
         z.literal("none"),
       ])
       .optional(),

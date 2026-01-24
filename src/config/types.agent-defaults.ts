@@ -177,7 +177,7 @@ export type AgentDefaultsConfig = {
     model?: string;
     /** Session key for heartbeat runs ("main" or explicit session key). */
     session?: string;
-    /** Delivery target (last|whatsapp|telegram|discord|slack|mattermost|msteams|signal|imessage|none). */
+    /** Delivery target (last|whatsapp|telegram|discord|slack|mattermost|msteams|signal|imessage|bluebubbles|none). */
     target?:
       | "last"
       | "whatsapp"
@@ -188,6 +188,7 @@ export type AgentDefaultsConfig = {
       | "msteams"
       | "signal"
       | "imessage"
+      | "bluebubbles"
       | "none";
     /** Optional delivery override (E.164 for WhatsApp, chat id for Telegram). */
     to?: string;
