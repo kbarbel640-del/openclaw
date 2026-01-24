@@ -258,6 +258,15 @@ importers:
 
   extensions/bluebubbles: {}
 
+  extensions/claude-code-planning:
+    dependencies:
+      '@sinclair/typebox':
+        specifier: 0.34.47
+        version: 0.34.47
+      yaml:
+        specifier: ^2.7.0
+        version: 2.8.2
+
   extensions/copilot-proxy: {}
 
   extensions/diagnostics-otel:
