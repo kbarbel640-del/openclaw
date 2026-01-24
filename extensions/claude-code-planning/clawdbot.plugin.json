@@ -1,7 +1,7 @@
 {
   "id": "claude-code-planning",
   "name": "Claude Code Planning",
-  "description": "AI-to-AI orchestration for Claude Code sessions with DyDo planning context, bubble integration, and AI-driven blocker detection",
+  "description": "AI-to-AI orchestration for Claude Code sessions with planning context, bubble integration, and AI-driven blocker detection",
   "version": "0.1.0",
   "configSchema": {
     "type": "object",
