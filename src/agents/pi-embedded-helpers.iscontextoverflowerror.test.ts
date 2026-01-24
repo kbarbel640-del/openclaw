@@ -42,6 +42,7 @@ describe("isContextOverflowError", () => {
 
   it("ignores unrelated errors", () => {
     expect(isContextOverflowError("rate limit exceeded")).toBe(false);
+    expect(isContextOverflowError("request size exceeds upload limit")).toBe(false);
     expect(isContextOverflowError("model not found")).toBe(false);
     expect(isContextOverflowError("authentication failed")).toBe(false);
   });
