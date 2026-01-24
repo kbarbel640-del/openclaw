@@ -52,15 +52,18 @@ Memory files are created with the following structure:
 
 **Topics**: API integration, deployment pipeline
 
-**Decisions**: 
+**Decisions**:
+
 - Use REST over GraphQL for the initial implementation
 - Deploy to staging before production
 
 **Outcomes**:
+
 - Created initial endpoint scaffolding
 - Configured CI/CD workflow
 
 **Open Items**:
+
 - Need to finalize auth strategy with the team
 ```
 
