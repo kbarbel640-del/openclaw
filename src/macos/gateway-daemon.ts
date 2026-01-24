@@ -184,9 +184,11 @@ async function main() {
       try {
         server = await startGatewayServer(port, { bind });
         // Recover orphaned bubbles after successful startup
-        void recoverOrphanedBubbles().catch((err) => {
+        try {
+          await recoverOrphanedBubbles();
+        } catch (err) {
           defaultRuntime.error(`Bubble recovery failed: ${String(err)}`);
-        });
+        }
       } catch (err) {
         cleanupSignals();
         defaultRuntime.error(`Gateway failed to start: ${String(err)}`);
