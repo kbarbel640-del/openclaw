@@ -315,6 +315,7 @@ export const ClawdbotSchema = z
           })
           .strict()
           .optional(),
+        trustedProxies: z.array(z.string()).optional(),
         auth: z
           .object({
             mode: z.union([z.literal("token"), z.literal("password")]).optional(),

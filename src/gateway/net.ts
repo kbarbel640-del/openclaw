@@ -1,6 +1,7 @@
 import net from "node:net";
 
 import { pickPrimaryTailnetIPv4, pickPrimaryTailnetIPv6 } from "../infra/tailnet.js";
+import { loadConfig } from "../config/config.js";
 
 export function isLoopbackAddress(ip: string | undefined): boolean {
   if (!ip) return false;
@@ -16,6 +17,13 @@ function normalizeIPv4MappedAddress(ip: string): string {
   return ip;
 }
 
+export function isTrustedProxyAddress(ip: string | undefined): boolean {
+  if (!ip) return false;
+  const normalized = normalizeIPv4MappedAddress(ip.trim().toLowerCase());
+  const trustedProxies = loadConfig().gateway?.trustedProxies ?? [];
+  return trustedProxies.some((proxy) => normalized === proxy.toLowerCase());
+}
+
 export function isLocalGatewayAddress(ip: string | undefined): boolean {
   if (isLoopbackAddress(ip)) return true;
   if (!ip) return false;
@@ -24,6 +32,8 @@ export function isLocalGatewayAddress(ip: string | undefined): boolean {
   if (tailnetIPv4 && normalized === tailnetIPv4.toLowerCase()) return true;
   const tailnetIPv6 = pickPrimaryTailnetIPv6();
   if (tailnetIPv6 && ip.trim().toLowerCase() === tailnetIPv6.toLowerCase()) return true;
+  // Check trusted proxies - these are treated as local for pairing auto-approval
+  if (isTrustedProxyAddress(ip)) return true;
   return false;
 }
 
