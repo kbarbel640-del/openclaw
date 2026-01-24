@@ -1701,11 +1701,7 @@ async function processMessage(
             account.config.textChunkLimit && account.config.textChunkLimit > 0
               ? account.config.textChunkLimit
               : DEFAULT_TEXT_LIMIT;
-          const chunkMode = core.channel.text.resolveChunkMode(
-            config,
-            "bluebubbles",
-            account.accountId,
-          );
+          const chunkMode = account.config.chunkMode ?? "newline";
           const tableMode = core.channel.text.resolveMarkdownTableMode({
             cfg: config,
             channel: "bluebubbles",
