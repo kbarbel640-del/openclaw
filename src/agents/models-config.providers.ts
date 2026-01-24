@@ -90,6 +90,10 @@ interface OllamaTagsResponse {
 }
 
 async function discoverOllamaModels(): Promise<ModelDefinitionConfig[]> {
+  // Skip Ollama discovery in test environments
+  if (process.env.VITEST || process.env.NODE_ENV === "test") {
+    return [];
+  }
   try {
     const response = await fetch(`${OLLAMA_API_BASE_URL}/api/tags`, {
       signal: AbortSignal.timeout(5000),
