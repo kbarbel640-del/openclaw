@@ -5,6 +5,8 @@ Docs: https://docs.clawd.bot
 ## 2026.1.23 (Unreleased)
 
 ### Changes
+- Agents: keep system prompt time zone-only and move current time to `session_status` for better cache hits.
+- Agents: remove redundant bash tool alias from tool registration/display. (#1571) Thanks @Takhoffman.
 - Browser: add node-host proxy auto-routing for remote gateways (configurable per gateway/node).
 - Plugins: add optional llm-task JSON-only tool for workflows. (#1498) Thanks @vignesh07.
 - CLI: restart the gateway by default after `clawdbot update`; add `--no-restart` to skip it.
@@ -15,8 +17,16 @@ Docs: https://docs.clawd.bot
 - Docs: clarify HEARTBEAT.md empty file skips heartbeats, missing file still runs. (#1535) Thanks @JustYannicc.
 - Markdown: add per-channel table conversion (bullets for Signal/WhatsApp, code blocks elsewhere). (#1495) Thanks @odysseus0.
 - Tlon: add Urbit channel plugin (DMs, group mentions, thread replies). (#1544) Thanks @wca4a.
+- Channels: allow per-group tool allow/deny policies across built-in + plugin channels. (#1546) Thanks @adam91holt.
+- TTS: move Telegram TTS into core with auto-replies, commands, and gateway methods. (#1559) Thanks @Glucksberg.
 
 ### Fixes
+- Gateway: compare Linux process start time to avoid PID recycling lock loops; keep locks unless stale. (#1572) Thanks @steipete.
+- Skills: gate bird Homebrew install to macOS. (#1569) Thanks @bradleypriest.
+- Slack: honor open groupPolicy for unlisted channels in message + slash gating. (#1563) Thanks @itsjaydesu.
+- Agents: show tool error fallback when the last assistant turn only invoked tools (prevents silent stops).
+- Agents: ignore IDENTITY.md template placeholders when parsing identity to avoid placeholder replies. (#1556)
+- Agents: drop orphaned OpenAI Responses reasoning blocks on model switches. (#1562) Thanks @roshanasingh4.
 - Docker: update gateway command in docker-compose and Hetzner guide. (#1514)
 - Sessions: reject array-backed session stores to prevent silent wipes. (#1469)
 - Voice wake: auto-save wake words on blur/submit across iOS/Android and align limits with macOS.
@@ -25,6 +35,7 @@ Docs: https://docs.clawd.bot
 - Tailscale: retry serve/funnel with sudo only for permission errors and keep original failure details. (#1551) Thanks @sweepies.
 - Agents: add CLI log hint to "agent failed before reply" messages. (#1550) Thanks @sweepies.
 - Discord: limit autoThread mention bypass to bot-owned threads; keep ack reactions mention-gated. (#1511) Thanks @pvoo.
+- Discord: retry rate-limited allowlist resolution + command deploy to avoid gateway crashes.
 - Gateway: accept null optional fields in exec approval requests. (#1511) Thanks @pvoo.
 - Exec: honor tools.exec ask/security defaults for elevated approvals (avoid unwanted prompts).
 - TUI: forward unknown slash commands (for example, `/context`) to the Gateway.
@@ -41,6 +52,7 @@ Docs: https://docs.clawd.bot
 - CLI: inline auth probe errors in status rows to reduce wrapping.
 - Telegram: render markdown in media captions. (#1478)
 - Agents: honor enqueue overrides for embedded runs to avoid queue deadlocks in tests.
+- Agents: trigger model fallback when auth profiles are all in cooldown or unavailable. (#1522)
 - Daemon: use platform PATH delimiters when building minimal service paths.
 - Tests: skip embedded runner ordering assertion on Windows to avoid CI timeouts.
 - Linux: include env-configured user bin roots in systemd PATH and align PATH audits. (#1512) Thanks @robbyczgw-cla.
@@ -50,7 +62,9 @@ Docs: https://docs.clawd.bot
 - Agents: treat plugin-only tool allowlists as opt-ins; keep core tools enabled. (#1467)
 - Exec approvals: persist allowlist entry ids to keep macOS allowlist rows stable. (#1521) Thanks @ngutman.
 - MS Teams (plugin): remove `.default` suffix from Graph scopes to avoid double-appending. (#1507) Thanks @Evizero.
+- MS Teams (plugin): remove `.default` suffix from Bot Framework probe scope to avoid double-appending. (#1574) Thanks @Evizero.
 - Browser: keep extension relay tabs controllable when the extension reuses a session id after switching tabs. (#1160)
+- Agents: warn and ignore tool allowlists that only reference unknown or unloaded plugin tools. (#1566)
 
 ## 2026.1.22
 

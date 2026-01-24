@@ -385,6 +385,7 @@ public struct SendParams: Codable, Sendable {
     public let to: String
     public let message: String
     public let mediaurl: String?
+    public let mediaurls: [String]?
     public let gifplayback: Bool?
     public let channel: String?
     public let accountid: String?
@@ -395,6 +396,7 @@ public struct SendParams: Codable, Sendable {
         to: String,
         message: String,
         mediaurl: String?,
+        mediaurls: [String]?,
         gifplayback: Bool?,
         channel: String?,
         accountid: String?,
@@ -404,6 +406,7 @@ public struct SendParams: Codable, Sendable {
         self.to = to
         self.message = message
         self.mediaurl = mediaurl
+        self.mediaurls = mediaurls
         self.gifplayback = gifplayback
         self.channel = channel
         self.accountid = accountid
@@ -414,6 +417,7 @@ public struct SendParams: Codable, Sendable {
         case to
         case message
         case mediaurl = "mediaUrl"
+        case mediaurls = "mediaUrls"
         case gifplayback = "gifPlayback"
         case channel
         case accountid = "accountId"
@@ -478,6 +482,9 @@ public struct AgentParams: Codable, Sendable {
     public let accountid: String?
     public let replyaccountid: String?
     public let threadid: String?
+    public let groupid: String?
+    public let groupchannel: String?
+    public let groupspace: String?
     public let timeout: Int?
     public let lane: String?
     public let extrasystemprompt: String?
@@ -500,6 +507,9 @@ public struct AgentParams: Codable, Sendable {
         accountid: String?,
         replyaccountid: String?,
         threadid: String?,
+        groupid: String?,
+        groupchannel: String?,
+        groupspace: String?,
         timeout: Int?,
         lane: String?,
         extrasystemprompt: String?,
@@ -521,6 +531,9 @@ public struct AgentParams: Codable, Sendable {
         self.accountid = accountid
         self.replyaccountid = replyaccountid
         self.threadid = threadid
+        self.groupid = groupid
+        self.groupchannel = groupchannel
+        self.groupspace = groupspace
         self.timeout = timeout
         self.lane = lane
         self.extrasystemprompt = extrasystemprompt
@@ -543,6 +556,9 @@ public struct AgentParams: Codable, Sendable {
         case accountid = "accountId"
         case replyaccountid = "replyAccountId"
         case threadid = "threadId"
+        case groupid = "groupId"
+        case groupchannel = "groupChannel"
+        case groupspace = "groupSpace"
         case timeout
         case lane
         case extrasystemprompt = "extraSystemPrompt"
