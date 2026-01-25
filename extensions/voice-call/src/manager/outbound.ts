@@ -244,4 +244,3 @@ export async function endCall(
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
-

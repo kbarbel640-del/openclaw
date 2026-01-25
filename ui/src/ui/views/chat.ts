@@ -69,7 +69,7 @@ const COMPACTION_TOAST_DURATION_MS = 5000;
 
 function renderCompactionIndicator(status: CompactionIndicatorStatus | null | undefined) {
   if (!status) return nothing;
-  
+
   // Show "compacting..." while active
   if (status.active) {
     return html`
@@ -78,7 +78,7 @@ function renderCompactionIndicator(status: CompactionIndicatorStatus | null | un
       </div>
     `;
   }
-  
+
   // Show "compaction complete" briefly after completion
   if (status.completedAt) {
     const elapsed = Date.now() - status.completedAt;
@@ -90,7 +90,7 @@ function renderCompactionIndicator(status: CompactionIndicatorStatus | null | un
       `;
     }
   }
-  
+
   return nothing;
 }
 
