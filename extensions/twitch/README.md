@@ -20,7 +20,7 @@ Onboarding: select Twitch and confirm the install prompt to fetch the plugin aut
 
 Minimal config (simplified single-account):
 
-**⚠️ Important:** Strongly recommended to add `requireMention` and access control (`allowFrom` or `allowedRoles`) to prevent the bot from replying to all chat messages.
+**⚠️ Important:** `requireMention` defaults to `true`. Add access control (`allowFrom` or `allowedRoles`) to prevent unauthorized users from triggering the bot.
 
 ```json5
 {
@@ -31,16 +31,15 @@ Minimal config (simplified single-account):
       accessToken: "oauth:abc123...", // OAuth Access Token (add oauth: prefix)
       clientId: "xyz789...", // Client ID from Token Generator
       channel: "vevisk", // Channel to join
-      requireMention: true, // (recommended) Only reply when mentioned
       allowFrom: ["123456789"], // (recommended) Your Twitch user ID only  (Convert your twitch username to ID at https://www.streamweasels.com/tools/convert-twitch-username-%20to-user-id/)
     },
   },
 }
 ```
 
-**Recommended access control options:**
+**Access control options:**
 
-- `requireMention: true` - Only respond when the bot is mentioned with `@botname`
+- `requireMention: false` - Disable the default mention requirement to respond to all messages
 - `allowFrom: ["your_user_id"]` - Restrict to your Twitch user ID only (find your ID at https://www.twitchangles.com/xqc or similar)
 - `allowedRoles: ["moderator", "vip", "subscriber"]` - Restrict to specific roles
 

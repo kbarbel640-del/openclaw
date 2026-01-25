@@ -38,7 +38,7 @@ export function checkTwitchAccessControl(params: {
 }): TwitchAccessControlResult {
   const { message, account, botUsername } = params;
 
-  if (account.requireMention) {
+  if (account.requireMention ?? true) {
     const mentions = extractMentions(message.message);
     if (!mentions.includes(botUsername.toLowerCase())) {
       return {

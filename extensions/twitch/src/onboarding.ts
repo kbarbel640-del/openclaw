@@ -269,10 +269,9 @@ const dmPolicy: ChannelOnboardingDmPolicy = {
     return "disabled";
   },
   setPolicy: (cfg, policy) => {
-    // Map policy to Twitch roles
     const allowedRoles: TwitchRole[] =
       policy === "open" ? ["all"] : policy === "allowlist" ? [] : ["moderator"];
-    return setTwitchAccessControl(cfg as ClawdbotConfig, allowedRoles, false);
+    return setTwitchAccessControl(cfg as ClawdbotConfig, allowedRoles, true);
   },
   promptAllowFrom: async ({ cfg, prompter }) => {
     const account = getAccountConfig(cfg, DEFAULT_ACCOUNT_ID);
@@ -378,12 +377,7 @@ export const twitchOnboardingAdapter: ChannelOnboardingAdapter = {
               ? ["moderator", "vip"]
               : [];
 
-        const requireMention = accessConfig.policy === "open";
-        const cfgWithAccessControl = setTwitchAccessControl(
-          cfgWithAllowFrom,
-          allowedRoles,
-          requireMention,
-        );
+        const cfgWithAccessControl = setTwitchAccessControl(cfgWithAllowFrom, allowedRoles, true);
         return { cfg: cfgWithAccessControl };
       }
     }

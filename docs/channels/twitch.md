@@ -38,7 +38,7 @@ Details: [Plugins](/plugin)
    - If both are set, config takes precedence (env fallback is default-account only).
 4) Start the gateway.
 
-**⚠️ Important:** Add `requireMention: true` and access control (`allowFrom` or `allowedRoles`) to prevent the bot from replying to all chat messages.
+**⚠️ Important:** Add access control (`allowFrom` or `allowedRoles`) to prevent unauthorized users from triggering the bot. `requireMention` defaults to `true`.
 
 Minimal config:
 
@@ -51,7 +51,6 @@ Minimal config:
       accessToken: "oauth:abc123...",    // OAuth Access Token (or use CLAWDBOT_TWITCH_ACCESS_TOKEN env var)
       clientId: "xyz789...",             // Client ID from Token Generator
       channel: "vevisk",                 // Which Twitch channel's chat to join
-      requireMention: true,              // (recommended) Only reply when mentioned
       allowFrom: ["123456789"]           // (recommended) Your Twitch user ID only
     }
   }
@@ -106,7 +105,6 @@ If both env and config are set, config takes precedence.
 {
   channels: {
     twitch: {
-      requireMention: true,          // (recommended) Only respond when mentioned
       allowFrom: ["123456789"],       // (recommended) Your Twitch user ID only
       allowedRoles: ["moderator"]     // Or restrict to roles
     }
@@ -223,7 +221,9 @@ Users in `allowFrom` bypass role checks:
 }
 ```
 
-### Require @mention
+### Disable @mention requirement
+
+By default, `requireMention` is `true`. To disable and respond to all messages:
 
 ```json5
 {
@@ -231,7 +231,7 @@ Users in `allowFrom` bypass role checks:
     twitch: {
       accounts: {
         default: {
-          requireMention: true
+          requireMention: false
         }
       }
     }
@@ -287,7 +287,7 @@ If you see "token refresh disabled (no refresh token)":
 - `obtainmentTimestamp` - Token obtained timestamp
 - `allowFrom` - User ID allowlist
 - `allowedRoles` - Role-based access control (`"moderator" | "owner" | "vip" | "subscriber" | "all"`)
-- `requireMention` - Require @mention (default: `false`)
+- `requireMention` - Require @mention (default: `true`)
 
 **Provider options:**
 - `channels.twitch.enabled` - Enable/disable channel startup
@@ -310,7 +310,6 @@ Full example:
       channel: "vevisk",
       clientSecret: "secret123...",
       refreshToken: "refresh456...",
-      requireMention: true,
       allowFrom: ["123456789"],
       allowedRoles: ["moderator", "vip"],
       accounts: {
@@ -325,8 +324,7 @@ Full example:
           expiresIn: 14400,
           obtainmentTimestamp: 1706092800000,
           allowFrom: ["123456789", "987654321"],
-          allowedRoles: ["moderator"],
-          requireMention: true
+          allowedRoles: ["moderator"]
         }
       }
     }

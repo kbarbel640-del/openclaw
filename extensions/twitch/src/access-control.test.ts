@@ -16,9 +16,44 @@ describe("checkTwitchAccessControl", () => {
   };
 
   describe("when no restrictions are configured", () => {
-    it("allows all messages", () => {
+    it("allows messages that mention the bot (default requireMention)", () => {
+      const message: TwitchChatMessage = {
+        ...mockMessage,
+        message: "@testbot hello",
+      };
       const result = checkTwitchAccessControl({
-        message: mockMessage,
+        message,
+        account: mockAccount,
+        botUsername: "testbot",
+      });
+      expect(result.allowed).toBe(true);
+    });
+  });
+
+  describe("requireMention default", () => {
+    it("defaults to true when undefined", () => {
+      const message: TwitchChatMessage = {
+        ...mockMessage,
+        message: "hello bot",
+      };
+
+      const result = checkTwitchAccessControl({
+        message,
+        account: mockAccount,
+        botUsername: "testbot",
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain("does not mention the bot");
+    });
+
+    it("allows mention when requireMention is undefined", () => {
+      const message: TwitchChatMessage = {
+        ...mockMessage,
+        message: "@testbot hello",
+      };
+
+      const result = checkTwitchAccessControl({
+        message,
         account: mockAccount,
         botUsername: "testbot",
       });
@@ -85,9 +120,13 @@ describe("checkTwitchAccessControl", () => {
         ...mockAccount,
         allowFrom: ["123456", "789012"],
       };
+      const message: TwitchChatMessage = {
+        ...mockMessage,
+        message: "@testbot hello",
+      };
 
       const result = checkTwitchAccessControl({
-        message: mockMessage,
+        message,
         account,
         botUsername: "testbot",
       });
@@ -101,9 +140,13 @@ describe("checkTwitchAccessControl", () => {
         ...mockAccount,
         allowFrom: ["789012"],
       };
+      const message: TwitchChatMessage = {
+        ...mockMessage,
+        message: "@testbot hello",
+      };
 
       const result = checkTwitchAccessControl({
-        message: mockMessage,
+        message,
         account,
         botUsername: "testbot",
       });
@@ -116,7 +159,11 @@ describe("checkTwitchAccessControl", () => {
         ...mockAccount,
         allowFrom: ["123456"],
       };
-      const message = { ...mockMessage, userId: undefined };
+      const message: TwitchChatMessage = {
+        ...mockMessage,
+        message: "@testbot hello",
+        userId: undefined,
+      };
 
       const result = checkTwitchAccessControl({
         message,
@@ -135,6 +182,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         isOwner: false,
       };
 
@@ -154,6 +202,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         userId: "123456",
         isMod: true,
       };
@@ -175,6 +224,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         userId: "123456",
         isMod: false,
       };
@@ -197,6 +247,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         isMod: true,
       };
 
@@ -216,6 +267,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         isVip: true,
         isMod: false,
         isSub: false,
@@ -236,6 +288,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         isMod: false,
       };
 
@@ -253,9 +306,13 @@ describe("checkTwitchAccessControl", () => {
         ...mockAccount,
         allowedRoles: ["all"],
       };
+      const message: TwitchChatMessage = {
+        ...mockMessage,
+        message: "@testbot hello",
+      };
 
       const result = checkTwitchAccessControl({
-        message: mockMessage,
+        message,
         account,
         botUsername: "testbot",
       });
@@ -270,6 +327,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         isMod: true,
       };
 
@@ -288,6 +346,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         isSub: true,
       };
 
@@ -306,6 +365,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         isOwner: true,
       };
 
@@ -324,6 +384,7 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
+        message: "@testbot hello",
         isVip: true,
       };
 
@@ -365,7 +426,8 @@ describe("checkTwitchAccessControl", () => {
       };
       const message: TwitchChatMessage = {
         ...mockMessage,
-        isOwner: false, // Not owner, but in allowlist
+        message: "@testbot hello",
+        isOwner: false,
       };
 
       const result = checkTwitchAccessControl({
