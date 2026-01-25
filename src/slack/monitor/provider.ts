@@ -18,11 +18,14 @@ import { resolveSlackUserAllowlist } from "../resolve-users.js";
 import { resolveSlackAppToken, resolveSlackBotToken } from "../token.js";
 import { normalizeSlackWebhookPath, registerSlackHttpHandler } from "../http/index.js";
 import { resolveSlackWebClientOptions } from "../client.js";
+import { createSlackOverseerBridge } from "../overseer/bridge.js";
+import { createSlackDecisionManager } from "../overseer/decisions.js";
 import { resolveSlackSlashCommandConfig } from "./commands.js";
 import { createSlackMonitorContext } from "./context.js";
 import { registerSlackMonitorEvents } from "./events.js";
 import { createSlackMessageHandler } from "./message-handler.js";
 import { registerSlackMonitorSlashCommands } from "./slash.js";
+import { registerAgentStatusCommand } from "./agent-status.js";
 import { normalizeAllowList } from "./allow-list.js";
 
 import type { MonitorSlackOpts } from "./types.js";
@@ -234,6 +237,36 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
 
   registerSlackMonitorEvents({ ctx, account, handleSlackMessage });
   registerSlackMonitorSlashCommands({ ctx, account });
+
+  // Initialize Overseer integration (bridge + decisions + agent status command)
+  const overseerBridge = createSlackOverseerBridge({
+    app,
+    botToken,
+    cfg,
+    accountId: account.accountId,
+  });
+  const overseerConfig = overseerBridge.getConfig();
+  const dashboardBaseUrl = overseerConfig?.includeDashboardLink
+    ? `http://localhost:${cfg.gateway?.port ?? 18789}/ui/`
+    : undefined;
+
+  // Register decision manager action handlers
+  const decisionManager = createSlackDecisionManager({
+    app,
+    botToken,
+    cfg,
+    bridge: overseerBridge,
+    accountId: account.accountId,
+  });
+  decisionManager.registerActionHandlers();
+
+  // Register /agent status command
+  registerAgentStatusCommand({
+    app,
+    cfg,
+    dashboardBaseUrl,
+  });
+
   if (slackMode === "http" && slackHttpHandler) {
     unregisterHttpHandler = registerSlackHttpHandler({
       path: slackWebhookPath,
