@@ -454,11 +454,7 @@ export async function finalizeOnboardingWizard(options: FinalizeOnboardingOption
           "Docs: https://docs.clawd.bot/tools/web",
         ].join("\n")
       : [
-          "If you want your agent to be able to search the web, you’ll need an API key.",
-          "",
-          "Clawdbot supports two web search providers:",
-          "- Perplexity Search (recommended) - structured results, fast",
-          "- Brave Search - structured results, free tier available",
+          "To enable web search, your agent will need an API key for either Perplexity Search or Brave Search.",
           "",
           "Set it up interactively:",
           `- Run: ${formatCliCommand("clawdbot configure --section web")}`,

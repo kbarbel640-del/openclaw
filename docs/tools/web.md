@@ -9,7 +9,7 @@ read_when:
 
 Clawdbot ships two lightweight web tools:
 
-- `web_search` — Search the web via Perplexity Search API (recommended) or Brave Search API.
+- `web_search` — Search the web using Perplexity Search API or Brave Search API.
 - `web_fetch` — HTTP fetch + readable extraction (HTML → markdown/text).
 
 These are **not** browser automation. For JS-heavy sites or logins, use the
@@ -18,19 +18,10 @@ These are **not** browser automation. For JS-heavy sites or logins, use the
 ## How it works
 
 - `web_search` calls your configured provider and returns results.
-  - **Perplexity** (recommended): returns structured results (title, URL, snippet) for fast research.
-  - **Brave**: returns structured results (title, URL, snippet) with free tier available.
 - Results are cached by query for 15 minutes (configurable).
 - `web_fetch` does a plain HTTP GET and extracts readable content
   (HTML → markdown/text). It does **not** execute JavaScript.
 - `web_fetch` is enabled by default (unless explicitly disabled).
-
-## Choosing a search provider
-
-| Provider | Pros | Cons | API Key |
-|----------|------|------|---------|
-| **Perplexity** (recommended) | Fast, structured results, high-quality results | Requires Perplexity API access | `PERPLEXITY_API_KEY` |
-| **Brave** | Structured results, free tier available | Traditional search results | `BRAVE_API_KEY` |
 
 See [Perplexity Search setup](/perplexity) and [Brave Search setup](/brave-search) for provider-specific details.
 
@@ -41,60 +32,42 @@ Set the provider in config:
   tools: {
     web: {
       search: {
-        provider: "brave"  // or "perplexity"
+        provider: "perplexity"  // or "brave"
       }
     }
   }
 }
 ```
 
-Example: switch to Perplexity Search:
+## Setting up web search
 
-```json5
-{
-  tools: {
-    web: {
-      search: {
-        provider: "perplexity",
-        perplexity: {
-          apiKey: "pplx-..."
-        }
-      }
-    }
-  }
-}
-```
+Use `clawdbot configure --section web` to set up your API key and choose a provider.
 
-## Getting a Brave API key
-
-1) Create a Brave Search API account at https://brave.com/search/api/
-2) In the dashboard, choose the **Data for Search** plan (not “Data for AI”) and generate an API key.
-3) Run `clawdbot configure --section web` to store the key in config (recommended), or set `BRAVE_API_KEY` in your environment.
-
-Brave provides a free tier plus paid plans; check the Brave API portal for the
-current limits and pricing.
-
-### Where to set the key (recommended)
-
-**Recommended:** run `clawdbot configure --section web`. It stores the key in
-`~/.clawdbot/clawdbot.json` under `tools.web.search.apiKey`.
-
-**Environment alternative:** set `BRAVE_API_KEY` in the Gateway process
-environment. For a gateway install, put it in `~/.clawdbot/.env` (or your
-service environment). See [Env vars](/help/faq#how-does-clawdbot-load-environment-variables).
-
-## Using Perplexity Search
-
-Perplexity Search API returns structured search results (title, URL, snippet) for fast research.
-It's the recommended provider for web search.
-
-### Getting a Perplexity API key
+### Perplexity Search
 
 1) Create a Perplexity account at https://www.perplexity.ai/settings/api
 2) Generate an API key in the dashboard
-3) Run `clawdbot configure --section web` to store the key in config (recommended), or set `PERPLEXITY_API_KEY` in your environment.
+3) Run `clawdbot configure --section web` to store the key in config, or set `PERPLEXITY_API_KEY` in your environment.
 
-### Setting up Perplexity search
+Perplexity provides $5 in API credits on a monthly rolling basis to Perplexity Pro subscribers. Check the Perplexity API docs for current limits and pricing.
+
+### Brave Search
+
+1) Create a Brave Search API account at https://brave.com/search/api/
+2) In the dashboard, choose the **Data for Search** plan (not "Data for AI") and generate an API key.
+3) Run `clawdbot configure --section web` to store the key in config, or set `BRAVE_API_KEY` in your environment.
+
+Brave provides a free tier plus paid plans; check the Brave API portal for the current limits and pricing.
+
+### Where to store the key
+
+**Via config (recommended):** run `clawdbot configure --section web`. It stores the key under `tools.web.search.perplexity.apiKey` or `tools.web.search.apiKey`.
+
+**Via environment:** set `PERPLEXITY_API_KEY` or `BRAVE_API_KEY` in the Gateway process environment. For a gateway install, put it in `~/.clawdbot/.env` (or your service environment). See [Env vars](/help/faq#how-does-clawdbot-load-environment-variables).
+
+### Config examples
+
+**Perplexity Search:**
 
 ```json5
 {
@@ -112,7 +85,21 @@ It's the recommended provider for web search.
 }
 ```
 
-**Environment alternative:** set `PERPLEXITY_API_KEY` in the Gateway environment. For a gateway install, put it in `~/.clawdbot/.env`.
+**Brave Search:**
+
+```json5
+{
+  tools: {
+    web: {
+      search: {
+        enabled: true,
+        provider: "brave",
+        apiKey: "BSA..."  // optional if BRAVE_API_KEY is set
+      }
+    }
+  }
+}
+```
 
 ## web_search
 

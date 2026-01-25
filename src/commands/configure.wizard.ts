@@ -132,12 +132,10 @@ async function promptWebToolsConfig(
           {
             value: "perplexity",
             label: "Perplexity Search",
-            hint: "Recommended - structured results, fast",
           },
           {
             value: "brave",
             label: "Brave Search",
-            hint: "Structured results, free tier available",
           },
         ],
         initialValue: existingProvider,
