@@ -135,11 +135,17 @@
   max-height: 150px;
   padding: 9px 12px;
   border-radius: 8px;
-  resize: vertical;
+  resize: none;
+  overflow: hidden;
   white-space: pre-wrap;
   font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.45;
+}
+
+/* Enable scrolling when content exceeds max-height */
+.chat-compose .chat-compose__field textarea.scrollable {
+  overflow-y: auto;
 }
 
 .chat-compose__field textarea:disabled {

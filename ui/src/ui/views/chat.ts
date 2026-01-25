@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import { repeat } from "lit/directives/repeat.js";
+import { ref as litRef } from "lit/directives/ref.js";
 import type { SessionsListResult } from "../types";
 import type { ChatQueueItem } from "../ui-types";
 import type { ChatItem, MessageGroup } from "../types/chat-types";
@@ -67,6 +68,31 @@ export type ChatProps = {
 };
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
+const TEXTAREA_MIN_HEIGHT = 40;
+const TEXTAREA_MAX_HEIGHT = 150;
+
+function autoResizeTextarea(textarea: HTMLTextAreaElement): void {
+  // Keep min-height for empty content
+  if (!textarea.value) {
+    textarea.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
+    textarea.classList.remove("scrollable");
+    return;
+  }
+
+  // Reset to min-height to recalculate
+  textarea.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
+  const scrollHeight = textarea.scrollHeight;
+
+  if (scrollHeight > TEXTAREA_MAX_HEIGHT) {
+    textarea.style.height = `${TEXTAREA_MAX_HEIGHT}px`;
+    textarea.classList.add("scrollable");
+  } else if (scrollHeight > TEXTAREA_MIN_HEIGHT) {
+    textarea.style.height = `${scrollHeight}px`;
+    textarea.classList.remove("scrollable");
+  } else {
+    textarea.classList.remove("scrollable");
+  }
+}
 
 function renderCompactionIndicator(status: CompactionIndicatorStatus | null | undefined) {
   if (!status) return nothing;
@@ -238,6 +264,11 @@ export function renderChat(props: ChatProps) {
         <label class="field chat-compose__field">
           <span>Message</span>
           <textarea
+            ${litRef((el) => {
+              if (el instanceof HTMLTextAreaElement) {
+                autoResizeTextarea(el);
+              }
+            })}
             .value=${props.draft}
             ?disabled=${!props.connected}
             @keydown=${(e: KeyboardEvent) => {
@@ -248,8 +279,11 @@ export function renderChat(props: ChatProps) {
               e.preventDefault();
               if (canCompose) props.onSend();
             }}
-            @input=${(e: Event) =>
-              props.onDraftChange((e.target as HTMLTextAreaElement).value)}
+            @input=${(e: Event) => {
+              const textarea = e.target as HTMLTextAreaElement;
+              props.onDraftChange(textarea.value);
+              autoResizeTextarea(textarea);
+            }}
             placeholder=${composePlaceholder}
           ></textarea>
         </label>
