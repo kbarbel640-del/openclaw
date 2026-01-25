@@ -16,6 +16,20 @@ import { resetBashChatCommandForTests } from "./bash-command.js";
 import { buildCommandContext, handleCommands } from "./commands.js";
 import { parseInlineDirectives } from "./directive-handling.js";
 
+// Avoid expensive workspace scans during /context tests.
+vi.mock("./commands-context-report.js", () => ({
+  buildContextReply: async (params: { command: { commandBodyNormalized: string } }) => {
+    const normalized = params.command.commandBodyNormalized;
+    if (normalized === "/context list") {
+      return { text: "Injected workspace files:\n- AGENTS.md" };
+    }
+    if (normalized === "/context detail") {
+      return { text: "Context breakdown (detailed)\nTop tools (schema size):" };
+    }
+    return { text: "/context\n- /context list\nInline shortcut" };
+  },
+}));
+
 let testWorkspaceDir = os.tmpdir();
 
 beforeAll(async () => {
