@@ -1,8 +1,8 @@
-import { Heart, Code, Shield, Users, Github, Mail, ExternalLink, ChevronRight, MessageCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React from 'react';
+import { Heart, Code, Shield, Users, Github, Mail, ExternalLink, ChevronRight } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
-import { Layout } from '../components/Layout';
-import { DonationButton } from '../components/DonationButton';
+// import { Layout } from '../components/Layout';
+// import { DonationButton } from '../components/DonationButton';
 
 // import team images
 import prathamimg from '../../public/image/pratham_kumar.png';
@@ -12,7 +12,7 @@ import Aryaimg from '../../public/image/arya.png';
 
 const AboutUs = () => {
     return (
-        <Layout>
+        <div className="font-sans">
             <Helmet>
                 <title>About Us - SecureChat | Open Source Encrypted Messaging</title>
                 <meta name="description" content="Learn about SecureChat's mission to provide free, secure, and private communication. Open-source encrypted messaging built with React, Node.js, and WebSocket." />
@@ -445,9 +445,9 @@ const AboutUs = () => {
                         <h2 className="text-3xl font-bold text-center text-white flex items-center gap-2">
                             <span className="text-red-500">⟩</span> What People Say
                         </h2>
-                        <Link to="#" className="text-red-500 text-sm hover:text-red-400 transition-colors flex items-center gap-1">
+                        <a href="#" className="text-red-500 text-sm hover:text-red-400 transition-colors flex items-center gap-1">
                             View all <ChevronRight className="w-4 h-4" />
-                        </Link>
+                        </a>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -549,7 +549,8 @@ const AboutUs = () => {
                                     consider supporting its development to keep it running and improving.
                                 </p>
                                 <div className="flex justify-center">
-                                    <DonationButton />
+                                    {/* <DonationButton /> */}
+                                    <button className="bg-red-500 text-white px-6 py-2 rounded-lg font-bold">Donate</button>
                                 </div>
                                 <p className="text-sm text-gray-400 mt-6">
                                     Every contribution helps maintain servers and add new features! 🚀
@@ -576,7 +577,7 @@ const AboutUs = () => {
                     </button>
                 </div>
             </div >
-        </Layout >
+        </div >
     );
 };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Shield, ShieldCheck, Users, X, Key, Image, AlertTriangle, Languages, Sparkles, ChevronLeft, ChevronRight, Ghost, Phone, Video } from 'lucide-react';
+import { Send, Users, X, Image, AlertTriangle, Languages, Sparkles, ChevronRight, Ghost, Phone, Video } from 'lucide-react';
 import { WebSocketService, Message, PublicKey } from '../services/websocket';
 import { CryptoService, KeyPair, HybridCryptoService } from '../crypto/encryption';
 import { GroupCryptoService } from '../crypto/groupEncryption';
