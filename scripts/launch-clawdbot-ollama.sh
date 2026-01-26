@@ -26,6 +26,59 @@ check_ollama_security() {
 }
 
 # =============================================================================
+# PROFILE SETUP
+# =============================================================================
+
+setup_ollama_profile() {
+    PROFILE_DIR="$HOME/.clawdbot-ollama"
+    AGENT_DIR="$PROFILE_DIR/agents/main/agent"
+
+    # Create profile config if missing
+    if [ ! -f "$PROFILE_DIR/clawdbot.json" ]; then
+        mkdir -p "$PROFILE_DIR"
+        cat > "$PROFILE_DIR/clawdbot.json" << 'CONF'
+{
+  "gateway": {
+    "mode": "local",
+    "port": 19001,
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "ollama-dev-token"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "ollama/qwen3-coder-32k:latest"
+      }
+    }
+  }
+}
+CONF
+        echo "Created Ollama profile config"
+    fi
+
+    # Create auth profile for Ollama provider
+    if [ ! -f "$AGENT_DIR/auth-profiles.json" ]; then
+        mkdir -p "$AGENT_DIR"
+        cat > "$AGENT_DIR/auth-profiles.json" << 'AUTH'
+{
+  "profiles": {
+    "ollama-default": {
+      "type": "api_key",
+      "key": "ollama",
+      "provider": "ollama",
+      "addedAt": "2026-01-26T00:00:00.000Z"
+    }
+  }
+}
+AUTH
+        echo "Created Ollama auth profile"
+    fi
+}
+
+# =============================================================================
 # OLLAMA
 # =============================================================================
 
@@ -52,6 +105,7 @@ echo "Profile: ollama (port 19001)"
 echo ""
 
 check_ollama_security
+setup_ollama_profile
 start_ollama
 
 echo ""
