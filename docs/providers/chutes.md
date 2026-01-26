@@ -24,6 +24,24 @@ To configure Chutes with OAuth (browser-based):
 clawdbot onboard --auth-choice chutes
 ```
 
+OAuth allows you to use your Chutes account without manually managing API keys. Clawdbot uses the standard [Sign in with Chutes](https://github.com/chutesai/Sign-in-with-Chutes) flow.
+
+### OAuth Scopes
+
+Clawdbot requests the following scopes by default:
+- `openid` (Required for authentication)
+- `profile` (Access to username)
+- `chutes:invoke` (Required to make AI API calls on your behalf)
+
+### Custom OAuth App (Advanced)
+
+If you wish to use your own OAuth application instead of the default, set these environment variables before running onboarding:
+
+- `CHUTES_CLIENT_ID`: Your OAuth client ID
+- `CHUTES_CLIENT_SECRET`: Your OAuth client secret (if applicable)
+- `CHUTES_OAUTH_REDIRECT_URI`: Your redirect URI (default: `http://127.0.0.1:1456/oauth-callback`)
+
+
 ## Config snippet
 
 ```json5
