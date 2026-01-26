@@ -116,3 +116,4 @@ if ! shopt -oq posix; then
   fi
 fi
 export PATH=$PATH:~/.local/node_modules/.bin
+export PATH="$HOME/.local/bin:$PATH"
