@@ -80,7 +80,7 @@ Reference: `dgarson/IMPROVEMENT-IDEAS.md` (198 incomplete items across 14 catego
 ### Command Palette Enhancement
 - [x] Implement fuzzy search (replace `string.includes()`)
 - [~] Add command history and recents (persisted to localStorage) — PR #21
-- [ ] Add favorites system
+- [~] Add favorites system — PR #26
 - [~] Add context-aware commands based on current view — PR #24
 - [ ] Add nested/sub-command menus
 - [ ] Add category filtering in search

@@ -981,6 +981,7 @@ export function renderApp(state: AppViewState) {
           command.action();
           state.closeCommandPalette();
         },
+        onFavoritesChange: () => state.bumpCommandPaletteFavVersion(),
       })}
     </div>
   `;

@@ -8,6 +8,7 @@ import { icon, type IconName } from "../icons";
 import type { Tab } from "../navigation";
 import { filterByFuzzy } from "./fuzzy-search";
 import { getRecentCommandIds, recordCommandUsage } from "./command-history";
+import { getFavoriteIds, isFavorite, toggleFavorite } from "./command-favorites";
 
 export type Command = {
   id: string;
@@ -31,6 +32,8 @@ export type CommandPaletteProps = {
   onQueryChange: (query: string) => void;
   onIndexChange: (index: number) => void;
   onSelect: (command: Command) => void;
+  /** Called after a favorite is toggled so the parent can trigger re-render. */
+  onFavoritesChange?: () => void;
 };
 
 function filterCommands(commands: Command[], query: string): Command[] {
@@ -43,8 +46,17 @@ function handlePaletteKeydown(
   filtered: Command[],
   onClose: () => void,
   onSelect: (cmd: Command) => void,
-  onIndexChange: (index: number) => void
+  onIndexChange: (index: number) => void,
+  onToggleFavorite?: (cmd: Command) => void
 ) {
+  // Ctrl/Cmd + D → toggle favorite on the selected item.
+  if (e.key === "d" && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    const selected = filtered[state.selectedIndex];
+    if (selected && onToggleFavorite) onToggleFavorite(selected);
+    return;
+  }
+
   switch (e.key) {
     case "Escape":
       e.preventDefault();
@@ -68,26 +80,38 @@ function handlePaletteKeydown(
 }
 
 export function renderCommandPalette(props: CommandPaletteProps) {
-  const { state, commands, onClose, onQueryChange, onIndexChange, onSelect } = props;
+  const { state, commands, onClose, onQueryChange, onIndexChange, onSelect, onFavoritesChange } =
+    props;
 
   if (!state.open) return nothing;
 
   const filtered = filterCommands(commands, state.query);
 
-  // Build the "Recents" group when the query is empty.
-  const recentIds = !state.query.trim() ? getRecentCommandIds() : [];
+  // Build "Favorites" and "Recents" groups when the query is empty.
+  const noQuery = !state.query.trim();
+  const favoriteIds = noQuery ? getFavoriteIds() : [];
+  const recentIds = noQuery ? getRecentCommandIds() : [];
   const commandById = new Map(commands.map((c) => [c.id, c]));
-  const recentCommands = recentIds
+
+  const favoriteCommands = favoriteIds
     .map((id) => commandById.get(id))
     .filter((c): c is Command => c !== undefined);
+  const favoriteIdSet = new Set(favoriteCommands.map((c) => c.id));
 
-  // IDs already shown in Recents — avoid duplicating them in the main list.
+  const recentCommands = recentIds
+    .map((id) => commandById.get(id))
+    .filter((c): c is Command => c !== undefined)
+    // Don't duplicate commands already shown in Favorites.
+    .filter((c) => !favoriteIdSet.has(c.id));
   const recentIdSet = new Set(recentCommands.map((c) => c.id));
 
-  // Group commands by category, excluding recents when they are shown.
+  // IDs shown in Favorites or Recents — avoid duplicating them in the main list.
+  const shownIds = new Set([...favoriteIdSet, ...recentIdSet]);
+
+  // Group remaining commands by category.
   const grouped = new Map<string, Command[]>();
   for (const cmd of filtered) {
-    if (recentCommands.length > 0 && recentIdSet.has(cmd.id)) continue;
+    if (shownIds.has(cmd.id)) continue;
     const cat = cmd.category ?? "Actions";
     if (!grouped.has(cat)) grouped.set(cat, []);
     grouped.get(cat)!.push(cmd);
@@ -99,8 +123,15 @@ export function renderCommandPalette(props: CommandPaletteProps) {
     onSelect(cmd);
   };
 
-  // Total visible items = recents + remaining grouped items.
+  // Toggle favorite handler.
+  const handleToggleFavorite = (cmd: Command) => {
+    toggleFavorite(cmd.id);
+    onFavoritesChange?.();
+  };
+
+  // Total visible items = favorites + recents + remaining grouped items.
   const totalVisible =
+    favoriteCommands.length +
     recentCommands.length +
     [...grouped.values()].reduce((sum, cmds) => sum + cmds.length, 0);
 
@@ -108,6 +139,7 @@ export function renderCommandPalette(props: CommandPaletteProps) {
   const renderItem = (cmd: Command) => {
     const idx = globalIndex++;
     const isSelected = idx === state.selectedIndex;
+    const starred = isFavorite(cmd.id);
     return html`
       <button
         class="command-palette__item ${isSelected ? "command-palette__item--selected" : ""}"
@@ -117,6 +149,17 @@ export function renderCommandPalette(props: CommandPaletteProps) {
       >
         <span class="command-palette__item-icon">${icon(cmd.icon, { size: 16 })}</span>
         <span class="command-palette__item-label">${cmd.label}</span>
+        ${starred
+          ? html`<span
+              class="command-palette__item-fav"
+              title="Favorited (${navigator.platform?.includes("Mac") ? "⌘" : "Ctrl+"}D to toggle)"
+              @click=${(e: Event) => {
+                e.stopPropagation();
+                handleToggleFavorite(cmd);
+              }}
+              >★</span
+            >`
+          : nothing}
         ${cmd.shortcut
           ? html`<kbd class="command-palette__item-shortcut">${cmd.shortcut}</kbd>`
           : nothing}
@@ -124,8 +167,8 @@ export function renderCommandPalette(props: CommandPaletteProps) {
     `;
   };
 
-  // Build the flat list for keyboard navigation (recents first, then grouped).
-  const allVisible = [...recentCommands, ...[...grouped.values()].flat()];
+  // Flat list for keyboard navigation: favorites first, then recents, then grouped.
+  const allVisible = [...favoriteCommands, ...recentCommands, ...[...grouped.values()].flat()];
 
   return html`
     <div class="command-palette-overlay" @click=${onClose}>
@@ -142,7 +185,15 @@ export function renderCommandPalette(props: CommandPaletteProps) {
               onIndexChange(0);
             }}
             @keydown=${(e: KeyboardEvent) =>
-              handlePaletteKeydown(e, state, allVisible, onClose, handleSelect, onIndexChange)}
+              handlePaletteKeydown(
+                e,
+                state,
+                allVisible,
+                onClose,
+                handleSelect,
+                onIndexChange,
+                handleToggleFavorite
+              )}
             autofocus
           />
           <kbd class="command-palette__kbd">ESC</kbd>
@@ -154,6 +205,14 @@ export function renderCommandPalette(props: CommandPaletteProps) {
                 <span>No commands found</span>
               </div>`
             : html`
+                ${favoriteCommands.length > 0
+                  ? html`
+                      <div class="command-palette__group">
+                        <div class="command-palette__group-label">★ Favorites</div>
+                        ${favoriteCommands.map(renderItem)}
+                      </div>
+                    `
+                  : nothing}
                 ${recentCommands.length > 0
                   ? html`
                       <div class="command-palette__group">
