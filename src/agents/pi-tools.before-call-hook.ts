@@ -63,10 +63,11 @@ export function wrapToolWithBeforeCallHook(
       // Check if the hook blocked the tool call
       if (hookResult?.block) {
         const reason = hookResult.blockReason ?? "Tool call blocked by policy";
-        // Return a properly structured AgentToolResult error
+        // Return a properly structured AgentToolResult error with status="error"
+        // so downstream error detection (isToolResultError) recognizes it as an error
         const blockedResult: AgentToolResult<unknown> = {
           content: [{ type: "text", text: `Error: ${reason}` }],
-          details: { blocked: true, reason },
+          details: { status: "error", error: reason, blocked: true },
         };
         return blockedResult;
       }

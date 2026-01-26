@@ -233,16 +233,6 @@ export async function runEmbeddedAttempt(
     const toolsSanitized = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
     logToolSchemasForGoogle({ tools: toolsSanitized, provider: params.provider });
 
-    // Wrap tools with before_tool_call hook if plugins have registered handlers
-    const hookRunner = getGlobalHookRunner();
-    const tools = hookRunner?.hasHooks("before_tool_call")
-      ? wrapToolsWithBeforeCallHook(toolsSanitized, {
-          hookRunner,
-          agentId: params.agentAccountId,
-          sessionKey: params.sessionKey ?? params.sessionId,
-        })
-      : toolsSanitized;
-
     const machineName = await getMachineDisplayName();
     const runtimeChannel = normalizeMessageChannel(params.messageChannel ?? params.messageProvider);
     let runtimeCapabilities = runtimeChannel
@@ -292,6 +282,18 @@ export async function runEmbeddedAttempt(
       sessionKey: params.sessionKey,
       config: params.config,
     });
+
+    // Wrap tools with before_tool_call hook if plugins have registered handlers
+    // This must happen after sessionAgentId is resolved for correct hook context
+    const hookRunner = getGlobalHookRunner();
+    const tools = hookRunner?.hasHooks("before_tool_call")
+      ? wrapToolsWithBeforeCallHook(toolsSanitized, {
+          hookRunner,
+          agentId: sessionAgentId,
+          sessionKey: params.sessionKey ?? params.sessionId,
+        })
+      : toolsSanitized;
+
     const sandboxInfo = buildEmbeddedSandboxInfo(sandbox, params.bashElevated);
     const reasoningTagHint = isReasoningTagProvider(params.provider);
     // Resolve channel-specific message actions for system prompt
