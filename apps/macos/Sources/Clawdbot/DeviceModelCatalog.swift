@@ -123,14 +123,48 @@ enum DeviceModelCatalog {
 
     private static func locateResourceBundle() -> Bundle? {
         // Prefer main bundle (packaged app), then module bundle (SwiftPM/tests).
-        // Accessing Bundle.module in the packaged app can crash if the bundle isn't where SwiftPM expects it.
         if let bundle = self.bundleIfContainsDeviceModels(Bundle.main) {
             return bundle
         }
 
-        if let bundle = self.bundleIfContainsDeviceModels(Bundle.module) {
-            return bundle
+        // Try to locate the module bundle manually to avoid fatalError from Bundle.module
+        // when the bundle isn't where SwiftPM expects it (e.g., in packaged .app bundles).
+        if let bundle = locateModuleBundleSafely() {
+            if let checked = self.bundleIfContainsDeviceModels(bundle) {
+                return checked
+            }
         }
+        return nil
+    }
+
+    private static func locateModuleBundleSafely() -> Bundle? {
+        let bundleName = "Clawdbot_Clawdbot"
+
+        let candidates: [URL?] = [
+            Bundle.main.resourceURL,
+            Bundle.main.bundleURL,
+            Bundle(for: BundleLocator.self).resourceURL,
+            Bundle(for: BundleLocator.self).bundleURL,
+        ]
+
+        for candidate in candidates {
+            guard let baseURL = candidate else { continue }
+
+            // Direct path
+            let directURL = baseURL.appendingPathComponent("\(bundleName).bundle")
+            if let bundle = Bundle(url: directURL) {
+                return bundle
+            }
+
+            // Inside Resources/
+            let resourcesURL = baseURL
+                .appendingPathComponent("Resources")
+                .appendingPathComponent("\(bundleName).bundle")
+            if let bundle = Bundle(url: resourcesURL) {
+                return bundle
+            }
+        }
+
         return nil
     }
 
@@ -186,3 +220,6 @@ enum DeviceModelCatalog {
         }
     }
 }
+
+// Helper class for bundle lookup via Bundle(for:)
+private final class BundleLocator {}
