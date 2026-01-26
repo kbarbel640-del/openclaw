@@ -48,6 +48,14 @@ Status: unreleased.
 
 ## 2026.1.24-2
 
+## [Unreleased]
+
+### Added
+- DeepSeek provider support with `deepseek-chat` and `deepseek-reasoner` models
+  - Set `DEEPSEEK_API_KEY` environment variable to enable
+  - OpenAI-compatible API at https://api.deepseek.com/v1
+  - Supports 128K context window
+
 ### Fixes
 - Packaging: include dist/link-understanding output in npm tarball (fixes missing apply.js import on install).
 

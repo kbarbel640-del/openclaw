@@ -20,6 +20,7 @@ export type AuthChoiceGroupId =
   | "zai"
   | "opencode-zen"
   | "minimax"
+  | "deepseek"
   | "synthetic"
   | "venice"
   | "qwen";
@@ -54,6 +55,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     label: "MiniMax",
     hint: "M2.1 (recommended)",
     choices: ["minimax-api", "minimax-api-lightning"],
+  },
+  {
+    value: "deepseek",
+    label: "DeepSeek",
+    hint: "V3.2 Chat + Reasoner",
+    choices: ["deepseek-api-key"],
   },
   {
     value: "qwen",

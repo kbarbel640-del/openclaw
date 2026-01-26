@@ -5,6 +5,8 @@ export {
 export { VENICE_DEFAULT_MODEL_ID, VENICE_DEFAULT_MODEL_REF } from "../agents/venice-models.js";
 export {
   applyAuthProfileConfig,
+  applyDeepSeekConfig,
+  applyDeepSeekProviderConfig,
   applyKimiCodeConfig,
   applyKimiCodeProviderConfig,
   applyMoonshotConfig,
@@ -35,6 +37,7 @@ export {
 export {
   OPENROUTER_DEFAULT_MODEL_REF,
   setAnthropicApiKey,
+  setDeepSeekApiKey,
   setGeminiApiKey,
   setKimiCodeApiKey,
   setMinimaxApiKey,

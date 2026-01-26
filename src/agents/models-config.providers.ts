@@ -64,6 +64,19 @@ const QWEN_PORTAL_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
+const DEEPSEEK_CHAT_MODEL_ID = "deepseek-chat";
+const DEEPSEEK_REASONER_MODEL_ID = "deepseek-reasoner";
+const DEEPSEEK_CONTEXT_WINDOW = 128000;
+const DEEPSEEK_CHAT_MAX_TOKENS = 8192;
+const DEEPSEEK_REASONER_MAX_TOKENS = 64000;
+const DEEPSEEK_COST = {
+  input: 0.28,
+  output: 1.1,
+  cacheRead: 0.028,
+  cacheWrite: 0.28,
+};
+
 const OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1";
 const OLLAMA_API_BASE_URL = "http://127.0.0.1:11434";
 const OLLAMA_DEFAULT_CONTEXT_WINDOW = 128000;
@@ -333,6 +346,33 @@ function buildQwenPortalProvider(): ProviderConfig {
   };
 }
 
+function buildDeepSeekProvider(): ProviderConfig {
+  return {
+    baseUrl: DEEPSEEK_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: DEEPSEEK_CHAT_MODEL_ID,
+        name: "DeepSeek V3.2 Chat",
+        reasoning: false,
+        input: ["text"],
+        cost: DEEPSEEK_COST,
+        contextWindow: DEEPSEEK_CONTEXT_WINDOW,
+        maxTokens: DEEPSEEK_CHAT_MAX_TOKENS,
+      },
+      {
+        id: DEEPSEEK_REASONER_MODEL_ID,
+        name: "DeepSeek V3.2 Reasoner",
+        reasoning: true,
+        input: ["text"],
+        cost: DEEPSEEK_COST,
+        contextWindow: DEEPSEEK_CONTEXT_WINDOW,
+        maxTokens: DEEPSEEK_REASONER_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 function buildSyntheticProvider(): ProviderConfig {
   return {
     baseUrl: SYNTHETIC_BASE_URL,
@@ -386,6 +426,13 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "kimi-code", store: authStore });
   if (kimiCodeKey) {
     providers["kimi-code"] = { ...buildKimiCodeProvider(), apiKey: kimiCodeKey };
+  }
+
+  const deepseekKey =
+    resolveEnvApiKeyVarName("deepseek") ??
+    resolveApiKeyFromProfiles({ provider: "deepseek", store: authStore });
+  if (deepseekKey) {
+    providers.deepseek = { ...buildDeepSeekProvider(), apiKey: deepseekKey };
   }
 
   const syntheticKey =

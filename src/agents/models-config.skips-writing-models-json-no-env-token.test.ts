@@ -51,6 +51,7 @@ describe("models-config", () => {
       const previousKimiCode = process.env.KIMICODE_API_KEY;
       const previousMinimax = process.env.MINIMAX_API_KEY;
       const previousMoonshot = process.env.MOONSHOT_API_KEY;
+      const previousDeepSeek = process.env.DEEPSEEK_API_KEY;
       const previousSynthetic = process.env.SYNTHETIC_API_KEY;
       const previousVenice = process.env.VENICE_API_KEY;
       delete process.env.COPILOT_GITHUB_TOKEN;
@@ -59,6 +60,7 @@ describe("models-config", () => {
       delete process.env.KIMICODE_API_KEY;
       delete process.env.MINIMAX_API_KEY;
       delete process.env.MOONSHOT_API_KEY;
+      delete process.env.DEEPSEEK_API_KEY;
       delete process.env.SYNTHETIC_API_KEY;
       delete process.env.VENICE_API_KEY;
 
@@ -89,6 +91,8 @@ describe("models-config", () => {
         else process.env.MINIMAX_API_KEY = previousMinimax;
         if (previousMoonshot === undefined) delete process.env.MOONSHOT_API_KEY;
         else process.env.MOONSHOT_API_KEY = previousMoonshot;
+        if (previousDeepSeek === undefined) delete process.env.DEEPSEEK_API_KEY;
+        else process.env.DEEPSEEK_API_KEY = previousDeepSeek;
         if (previousSynthetic === undefined) delete process.env.SYNTHETIC_API_KEY;
         else process.env.SYNTHETIC_API_KEY = previousSynthetic;
         if (previousVenice === undefined) delete process.env.VENICE_API_KEY;
@@ -179,5 +183,40 @@ describe("models-config", () => {
         else process.env.SYNTHETIC_API_KEY = prevKey;
       }
     });
+  });
+});
+
+it("adds deepseek provider when DEEPSEEK_API_KEY is set", async () => {
+  await withTempHome(async () => {
+    vi.resetModules();
+    const prevKey = process.env.DEEPSEEK_API_KEY;
+    process.env.DEEPSEEK_API_KEY = "sk-deepseek-test";
+    try {
+      const { ensureClawdbotModelsJson } = await import("./models-config.js");
+      const { resolveClawdbotAgentDir } = await import("./agent-paths.js");
+
+      await ensureClawdbotModelsJson({});
+
+      const modelPath = path.join(resolveClawdbotAgentDir(), "models.json");
+      const raw = await fs.readFile(modelPath, "utf8");
+      const parsed = JSON.parse(raw) as {
+        providers: Record<
+          string,
+          {
+            baseUrl?: string;
+            apiKey?: string;
+            models?: Array<{ id: string }>;
+          }
+        >;
+      };
+      expect(parsed.providers.deepseek?.baseUrl).toBe("https://api.deepseek.com/v1");
+      expect(parsed.providers.deepseek?.apiKey).toBe("DEEPSEEK_API_KEY");
+      const ids = parsed.providers.deepseek?.models?.map((model) => model.id);
+      expect(ids).toContain("deepseek-chat");
+      expect(ids).toContain("deepseek-reasoner");
+    } finally {
+      if (prevKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+      else process.env.DEEPSEEK_API_KEY = prevKey;
+    }
   });
 });
