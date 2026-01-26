@@ -1,0 +1,77 @@
+# Docker Compose configuration for running Cognee locally with Clawdbot
+#
+# Usage:
+#   1. Copy this file to your preferred location
+#   2. Run: docker-compose -f cognee-docker-compose.yaml up -d
+#   3. Verify: curl http://localhost:8000/status
+#   4. Configure Clawdbot with baseUrl: http://localhost:8000
+#
+# For production, see docs/memory-cognee.md for additional configuration
+
+version: '3.8'
+
+services:
+  # Cognee API server
+  cognee:
+    image: topoteretes/cognee:latest
+    container_name: cognee
+    ports:
+      - "8000:8000"
+    environment:
+      # Optional: Set API key for authentication
+      # Remove or comment out for local development without auth
+      - COGNEE_API_KEY=${COGNEE_API_KEY:-}
+
+      # Database connection
+      - DATABASE_URL=postgresql://cognee:cognee@postgres:5432/cognee
+
+      # Optional: Configure LLM provider for entity extraction
+      # Uncomment and set if you want to use specific providers
+      # - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - cognee_data:/app/data
+      - cognee_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cognee-network
+
+  # PostgreSQL database for Cognee
+  postgres:
+    image: postgres:15-alpine
+    container_name: cognee-postgres
+    environment:
+      - POSTGRES_USER=cognee
+      - POSTGRES_PASSWORD=cognee
+      - POSTGRES_DB=cognee
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cognee"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cognee-network
+
+volumes:
+  cognee_data:
+    driver: local
+  cognee_logs:
+    driver: local
+  postgres_data:
+    driver: local
+
+networks:
+  cognee-network:
+    driver: bridge

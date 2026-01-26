@@ -9,7 +9,7 @@ import { resolveAgentConfig } from "./agent-scope.js";
 export type ResolvedMemorySearchConfig = {
   enabled: boolean;
   sources: Array<"memory" | "sessions">;
-  provider: "openai" | "local" | "gemini" | "auto";
+  provider: "openai" | "local" | "gemini" | "auto" | "cognee";
   remote?: {
     baseUrl?: string;
     apiKey?: string;
@@ -25,11 +25,21 @@ export type ResolvedMemorySearchConfig = {
   experimental: {
     sessionMemory: boolean;
   };
-  fallback: "openai" | "gemini" | "local" | "none";
+  fallback: "openai" | "gemini" | "local" | "cognee" | "none";
   model: string;
   local: {
     modelPath?: string;
     modelCacheDir?: string;
+  };
+  cognee?: {
+    baseUrl?: string;
+    apiKey?: string;
+    datasetName?: string;
+    searchType?: "insights" | "chunks" | "summaries";
+    maxResults?: number;
+    timeoutSeconds?: number;
+    autoCognify?: boolean;
+    cognifyBatchSize?: number;
   };
   store: {
     driver: "sqlite";
@@ -222,6 +232,20 @@ function mergeConfig(
     enabled: overrides?.cache?.enabled ?? defaults?.cache?.enabled ?? DEFAULT_CACHE_ENABLED,
     maxEntries: overrides?.cache?.maxEntries ?? defaults?.cache?.maxEntries,
   };
+  const cognee =
+    provider === "cognee"
+      ? {
+          baseUrl: overrides?.cognee?.baseUrl ?? defaults?.cognee?.baseUrl,
+          apiKey: overrides?.cognee?.apiKey ?? defaults?.cognee?.apiKey,
+          datasetName: overrides?.cognee?.datasetName ?? defaults?.cognee?.datasetName,
+          searchType: overrides?.cognee?.searchType ?? defaults?.cognee?.searchType,
+          maxResults: overrides?.cognee?.maxResults ?? defaults?.cognee?.maxResults,
+          timeoutSeconds: overrides?.cognee?.timeoutSeconds ?? defaults?.cognee?.timeoutSeconds,
+          autoCognify: overrides?.cognee?.autoCognify ?? defaults?.cognee?.autoCognify,
+          cognifyBatchSize:
+            overrides?.cognee?.cognifyBatchSize ?? defaults?.cognee?.cognifyBatchSize,
+        }
+      : undefined;
 
   const overlap = clampNumber(chunking.overlap, 0, Math.max(0, chunking.tokens - 1));
   const minScore = clampNumber(query.minScore, 0, 1);
@@ -244,6 +268,7 @@ function mergeConfig(
     fallback,
     model,
     local,
+    cognee,
     store,
     chunking: { tokens: Math.max(1, chunking.tokens), overlap },
     sync: {
