@@ -172,26 +172,14 @@ const DEFAULT_EXPIRATION_BUFFER_MS = 5 * 60 * 1000;
 /**
  * Checks if a token is expired or about to expire.
  *
- * A token is considered expired if the current time plus the buffer
- * is greater than or equal to the expiration time. This ensures we
- * don't attempt to use a token that will expire during an operation.
+ * Note: This checks the access_token expiration. Even if the access token
+ * is expired, kiro-cli can still work if the refresh_token is valid.
+ * We use this primarily for informational purposes - kiro-cli handles
+ * the actual token refresh internally.
  *
  * @param token The token to check
  * @param bufferMs Buffer time before expiration (default: 5 minutes / 300000ms)
  * @returns true if token is expired or expires within buffer
- *
- * @example
- * ```ts
- * const token = extractKiroCliToken();
- * if (token && isTokenExpired(token)) {
- *   console.log("Token expired, please re-authenticate");
- * }
- *
- * // With custom buffer (1 minute)
- * if (token && isTokenExpired(token, 60000)) {
- *   console.log("Token expires within 1 minute");
- * }
- * ```
  */
 export function isTokenExpired(
   token: KiroCliToken,
@@ -200,6 +188,24 @@ export function isTokenExpired(
   const expirationTime = new Date(token.expires_at).getTime();
   const currentTime = Date.now();
 
+  // Handle invalid date parsing (NaN)
+  if (Number.isNaN(expirationTime)) {
+    // If we can't parse the expiration, assume token is valid
+    // and let kiro-cli handle the actual validation
+    return false;
+  }
+
   // Token is expired if current time + buffer >= expiration time
   return currentTime + bufferMs >= expirationTime;
+}
+
+/**
+ * Checks if a token has a valid refresh token that kiro-cli can use.
+ * Even if the access token is expired, kiro-cli can refresh it.
+ *
+ * @param token The token to check
+ * @returns true if the token has a refresh token
+ */
+export function hasValidRefreshToken(token: KiroCliToken): boolean {
+  return Boolean(token.refresh_token && token.refresh_token.length > 0);
 }

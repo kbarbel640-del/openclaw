@@ -1,6 +1,9 @@
 import { emptyPluginConfigSchema } from "clawdbot/plugin-sdk";
 
-import { extractKiroCliToken, isTokenExpired } from "./cli-credentials.js";
+import {
+  extractKiroCliToken,
+  hasValidRefreshToken,
+} from "./cli-credentials.js";
 import { findKiroCli } from "./cli-detector.js";
 
 const PROVIDER_ID = "kiro-cli";
@@ -60,16 +63,16 @@ const kiroPlugin = {
               );
             }
 
-            // Check token not expired
-            if (isTokenExpired(token)) {
-              spin.stop("Token expired");
+            // Check we have a refresh token (kiro-cli handles access token refresh)
+            if (!hasValidRefreshToken(token)) {
+              spin.stop("Invalid credentials");
               await ctx.prompter.note(
-                "Your kiro-cli token has expired.\n" +
+                "Your kiro-cli credentials are incomplete.\n" +
                   "Run `kiro-cli chat` to re-authenticate.",
                 "Re-authentication required",
               );
               throw new Error(
-                "kiro-cli token expired. Run `kiro-cli chat` to refresh.",
+                "kiro-cli credentials incomplete. Run `kiro-cli chat` to refresh.",
               );
             }
 
@@ -101,9 +104,9 @@ const kiroPlugin = {
       refreshOAuth: async (cred) => {
         // Re-read token from SQLite - kiro-cli handles the actual OAuth refresh
         const token = extractKiroCliToken();
-        if (!token || isTokenExpired(token)) {
+        if (!token || !hasValidRefreshToken(token)) {
           throw new Error(
-            "kiro-cli token expired. Run `kiro-cli chat` to refresh.",
+            "kiro-cli credentials invalid. Run `kiro-cli chat` to refresh.",
           );
         }
         return {
