@@ -266,7 +266,7 @@ function computeDiff(
 ): Array<{ path: string; from: unknown; to: unknown }> {
   if (!original || !current) return [];
   const changes: Array<{ path: string; from: unknown; to: unknown }> = [];
-  
+
   function compare(orig: unknown, curr: unknown, path: string) {
     if (orig === curr) return;
     if (typeof orig !== typeof curr) {
@@ -292,7 +292,7 @@ function computeDiff(
       compare(origObj[key], currObj[key], path ? `${path}.${key}` : key);
     }
   }
-  
+
   compare(original, current, "");
   return changes;
 }
@@ -671,7 +671,7 @@ export function renderConfig(props: ConfigProps) {
             : nothing}
           <span class="pill pill--sm ${validity === "valid" ? "pill--ok" : validity === "invalid" ? "pill--danger" : ""}">${validity}</span>
         </div>
-        
+
         <!-- Search -->
         <div class="config-search">
           <svg class="config-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -690,13 +690,13 @@ export function renderConfig(props: ConfigProps) {
             @input=${(e: Event) => props.onSearchChange((e.target as HTMLInputElement).value)}
           />
           ${props.searchQuery ? html`
-            <button 
+            <button
               class="config-search__clear"
               @click=${() => props.onSearchChange("")}
             >×</button>
           ` : nothing}
         </div>
-        
+
         <!-- Section nav -->
         <nav class="config-nav">
           <button
@@ -716,7 +716,7 @@ export function renderConfig(props: ConfigProps) {
             </button>
           `)}
         </nav>
-        
+
         <!-- Mode toggle at bottom -->
         <div class="config-sidebar__footer">
           <div class="config-mode-toggle">
@@ -736,7 +736,7 @@ export function renderConfig(props: ConfigProps) {
           </div>
         </div>
       </aside>
-      
+
       <!-- Main content -->
       <main class="config-main">
         <!-- Action bar -->
@@ -822,7 +822,7 @@ export function renderConfig(props: ConfigProps) {
         <div class="config-actions__hint muted">
           Save writes config; Apply activates it; Update updates the gateway binary. (Tip: Cmd/Ctrl+S saves.)
         </div>
-        
+
         <!-- Diff panel (form mode only - raw mode doesn't have granular diff) -->
         ${hasChanges && props.formMode === "form" ? html`
           <details class="config-diff">

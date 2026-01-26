@@ -1,6 +1,6 @@
 {
   "name": "clawdbot",
-  "version": "2026.1.24-1",
+  "version": "2026.1.25",
   "description": "WhatsApp gateway CLI (Baileys web) with Pi RPC agent",
   "type": "module",
   "main": "dist/index.js",
@@ -33,6 +33,7 @@
     "dist/macos/**",
     "dist/media/**",
     "dist/media-understanding/**",
+    "dist/link-understanding/**",
     "dist/process/**",
     "dist/plugins/**",
     "dist/plugin-sdk/**",
@@ -242,7 +243,19 @@
       "@sinclair/typebox": "0.34.47",
       "hono": "4.11.4",
       "tar": "7.5.4"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@lydell/node-pty",
+      "@matrix-org/matrix-sdk-crypto-nodejs",
+      "@whiskeysockets/baileys",
+      "authenticate-pam",
+      "clawdbot",
+      "core-js",
+      "esbuild",
+      "node-llama-cpp",
+      "protobufjs",
+      "sharp"
+    ]
   },
   "vitest": {
     "coverage": {
