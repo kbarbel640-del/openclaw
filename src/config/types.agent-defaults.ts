@@ -257,4 +257,6 @@ export type AgentCompactionMemoryFlushConfig = {
   prompt?: string;
   /** System prompt appended for the memory flush turn. */
   systemPrompt?: string;
+  /** Reset the session after memory flush instead of continuing to compaction (default: false). */
+  resetSession?: boolean;
 };

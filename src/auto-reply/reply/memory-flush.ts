@@ -5,6 +5,12 @@ import type { ClawdbotConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import { SILENT_REPLY_TOKEN } from "../tokens.js";
 
+export type MemoryFlushResult = {
+  sessionEntry: SessionEntry | undefined;
+  /** True if the session should be reset after memory flush. */
+  shouldResetSession: boolean;
+};
+
 export const DEFAULT_MEMORY_FLUSH_SOFT_TOKENS = 4000;
 
 export const DEFAULT_MEMORY_FLUSH_PROMPT = [
@@ -25,6 +31,8 @@ export type MemoryFlushSettings = {
   prompt: string;
   systemPrompt: string;
   reserveTokensFloor: number;
+  /** Reset the session after memory flush instead of continuing to compaction. */
+  resetSession: boolean;
 };
 
 const normalizeNonNegativeInt = (value: unknown): number | null => {
@@ -45,12 +53,15 @@ export function resolveMemoryFlushSettings(cfg?: ClawdbotConfig): MemoryFlushSet
     normalizeNonNegativeInt(cfg?.agents?.defaults?.compaction?.reserveTokensFloor) ??
     DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR;
 
+  const resetSession = defaults?.resetSession ?? false;
+
   return {
     enabled,
     softThresholdTokens,
     prompt: ensureNoReplyHint(prompt),
     systemPrompt: ensureNoReplyHint(systemPrompt),
     reserveTokensFloor,
+    resetSession,
   };
 }
 

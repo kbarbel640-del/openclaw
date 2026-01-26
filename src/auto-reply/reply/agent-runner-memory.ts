@@ -17,6 +17,7 @@ import type { VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions } from "../types.js";
 import { buildThreadingToolContext, resolveEnforceFinalTag } from "./agent-runner-utils.js";
 import {
+  type MemoryFlushResult,
   resolveMemoryFlushContextWindowTokens,
   resolveMemoryFlushSettings,
   shouldRunMemoryFlush,
@@ -37,9 +38,9 @@ export async function runMemoryFlushIfNeeded(params: {
   sessionKey?: string;
   storePath?: string;
   isHeartbeat: boolean;
-}): Promise<SessionEntry | undefined> {
+}): Promise<MemoryFlushResult> {
   const memoryFlushSettings = resolveMemoryFlushSettings(params.cfg);
-  if (!memoryFlushSettings) return params.sessionEntry;
+  if (!memoryFlushSettings) return { sessionEntry: params.sessionEntry, shouldResetSession: false };
 
   const memoryFlushWritable = (() => {
     if (!params.sessionKey) return true;
@@ -69,7 +70,7 @@ export async function runMemoryFlushIfNeeded(params: {
       softThresholdTokens: memoryFlushSettings.softThresholdTokens,
     });
 
-  if (!shouldFlushMemory) return params.sessionEntry;
+  if (!shouldFlushMemory) return { sessionEntry: params.sessionEntry, shouldResetSession: false };
 
   let activeSessionEntry = params.sessionEntry;
   const activeSessionStore = params.sessionStore;
@@ -182,7 +183,12 @@ export async function runMemoryFlushIfNeeded(params: {
     }
   } catch (err) {
     logVerbose(`memory flush run failed: ${String(err)}`);
+    // On failure, don't reset session
+    return { sessionEntry: activeSessionEntry, shouldResetSession: false };
   }
 
-  return activeSessionEntry;
+  return {
+    sessionEntry: activeSessionEntry,
+    shouldResetSession: memoryFlushSettings.resetSession,
+  };
 }

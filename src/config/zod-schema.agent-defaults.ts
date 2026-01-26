@@ -96,6 +96,8 @@ export const AgentDefaultsSchema = z
             softThresholdTokens: z.number().int().nonnegative().optional(),
             prompt: z.string().optional(),
             systemPrompt: z.string().optional(),
+            /** Reset the session after memory flush instead of continuing to compaction. */
+            resetSession: z.boolean().optional(),
           })
           .strict()
           .optional(),

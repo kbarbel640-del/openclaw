@@ -198,7 +198,7 @@ export async function runReplyAgent(params: {
 
   await typingSignals.signalRunStart();
 
-  activeSessionEntry = await runMemoryFlushIfNeeded({
+  const memoryFlushResult = await runMemoryFlushIfNeeded({
     cfg,
     followupRun,
     sessionCtx,
@@ -212,6 +212,48 @@ export async function runReplyAgent(params: {
     storePath,
     isHeartbeat,
   });
+  activeSessionEntry = memoryFlushResult.sessionEntry;
+
+  // Handle session reset after memory flush if configured
+  let memoryFlushResetCompleted = false;
+  if (memoryFlushResult.shouldResetSession && sessionKey && activeSessionStore && storePath) {
+    const prevEntry = activeSessionStore[sessionKey] ?? activeSessionEntry;
+    if (prevEntry) {
+      const nextSessionId = crypto.randomUUID();
+      const agentId = resolveAgentIdFromSessionKey(sessionKey);
+      const nextSessionFile = resolveSessionTranscriptPath(
+        nextSessionId,
+        agentId,
+        sessionCtx.MessageThreadId,
+      );
+      const nextEntry: SessionEntry = {
+        ...prevEntry,
+        sessionId: nextSessionId,
+        updatedAt: Date.now(),
+        systemSent: false,
+        abortedLastRun: false,
+        sessionFile: nextSessionFile,
+      };
+      activeSessionStore[sessionKey] = nextEntry;
+      try {
+        await updateSessionStore(storePath, (store) => {
+          store[sessionKey] = nextEntry;
+        });
+        followupRun.run.sessionId = nextSessionId;
+        followupRun.run.sessionFile = nextSessionFile;
+        activeSessionEntry = nextEntry;
+        activeIsNewSession = true;
+        memoryFlushResetCompleted = true;
+        defaultRuntime.error(
+          `Memory flush complete. Session reset: ${sessionKey} -> ${nextSessionId}`,
+        );
+      } catch (err) {
+        defaultRuntime.error(
+          `Failed to persist session reset after memory flush (${sessionKey}): ${String(err)}`,
+        );
+      }
+    }
+  }
 
   const runFollowupTurn = createFollowupRunner({
     opts,
@@ -495,7 +537,9 @@ export async function runReplyAgent(params: {
         finalPayloads = [{ text: `🧹 Auto-compaction complete${suffix}.` }, ...finalPayloads];
       }
     }
-    if (verboseEnabled && activeIsNewSession) {
+    if (memoryFlushResetCompleted && verboseEnabled) {
+      finalPayloads = [{ text: `📝 Memory flush complete. Session reset.` }, ...finalPayloads];
+    } else if (verboseEnabled && activeIsNewSession) {
       finalPayloads = [{ text: `🧭 New session: ${followupRun.run.sessionId}` }, ...finalPayloads];
     }
     if (responseUsageLine) {
