@@ -73,28 +73,58 @@ Pocket TTS includes 8 built-in voices (Les Misérables characters):
 | `eponine` | Female voice |
 | `azelma` | Female voice |
 
-## Voice cloning
+## Custom voices
 
-Clone any voice by providing a reference audio file:
+Pocket TTS supports three voice sources:
 
-```bash
-# Start server with custom voice
-pocket-tts serve --voice /path/to/your-voice.wav
-```
+### 1. Built-in voices
 
-Or use a HuggingFace voice:
+The 8 built-in voices listed above (`alba`, `marius`, etc.).
+
+### 2. HuggingFace voice repository
+
+Use `hf://` URLs to load voices from HuggingFace:
 
 ```json5
 {
   messages: {
     tts: {
       pocket: {
-        voice: "hf://kyutai/tts-voices/custom-voice.wav"
+        voice: "hf://kyutai/tts-voices/mimi_16khz.wav"
       }
     }
   }
 }
 ```
+
+Browse available voices: [kyutai/tts-voices on HuggingFace](https://huggingface.co/kyutai/tts-voices/tree/main)
+
+### 3. HTTP/HTTPS URLs
+
+Point to any WAV file hosted online:
+
+```json5
+{
+  messages: {
+    tts: {
+      pocket: {
+        voice: "https://example.com/my-voice.wav"
+      }
+    }
+  }
+}
+```
+
+### 4. Local files (server-side only)
+
+Local file paths work only when starting the server manually:
+
+```bash
+# Start server with local voice file
+pocket-tts serve --voice /path/to/your-voice.wav
+```
+
+**Note:** Local paths cannot be passed via the API - use `hf://` or `http://` URLs in config instead.
 
 ## Configuration
 
@@ -241,12 +271,16 @@ Subsequent requests are fast (~200ms).
 
 ### Invalid voice error
 
-Valid voices are:
-- Built-in: `alba`, `marius`, `javert`, `jean`, `fantine`, `cosette`, `eponine`, `azelma`
-- HuggingFace: `hf://kyutai/tts-voices/...`
-- HTTP/HTTPS URLs
+If you see a voice validation warning, check your voice format:
 
-Local file paths are **not** supported via the API. Use `pocket-tts serve --voice /path/to/file.wav` instead.
+| Format | Example | Supported |
+|--------|---------|-----------|
+| Built-in name | `alba` | ✅ |
+| HuggingFace URL | `hf://kyutai/tts-voices/mimi_16khz.wav` | ✅ |
+| HTTP/HTTPS URL | `https://example.com/voice.wav` | ✅ |
+| Local file path | `/path/to/voice.wav` | ❌ (use `--voice` flag when starting server) |
+
+**Note:** Clawdbot warns about unrecognized voices but still sends them to the server. The server gives the authoritative error if the voice is truly invalid.
 
 ### Missing dependencies
 
