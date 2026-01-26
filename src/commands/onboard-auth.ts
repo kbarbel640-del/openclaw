@@ -51,6 +51,7 @@ export {
   writeOAuthCredentials,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
   ZAI_DEFAULT_MODEL_REF,
+  TOGETHER_DEFAULT_MODEL_REF,
 } from "./onboard-auth.credentials.js";
 export {
   buildKimiCodeModelDefinition,
@@ -68,5 +69,3 @@ export {
   MOONSHOT_DEFAULT_MODEL_ID,
   MOONSHOT_DEFAULT_MODEL_REF,
 } from "./onboard-auth.models.js";
-// Together AI constants are now defined inline in onboard-auth.config-core.ts
-export { TOGETHER_DEFAULT_MODEL_REF } from "./onboard-auth.credentials.js";
