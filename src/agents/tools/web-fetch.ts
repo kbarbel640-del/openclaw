@@ -406,7 +406,7 @@ export async function fetchParallelContent(params: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${params.apiKey}`,
+      "x-api-key": params.apiKey,
       "parallel-beta": "search-extract-2025-10-10",
     },
     body: JSON.stringify({

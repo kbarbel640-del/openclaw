@@ -376,7 +376,7 @@ async function runParallelSearch(params: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${params.apiKey}`,
+      "x-api-key": params.apiKey,
       "parallel-beta": "search-extract-2025-10-10",
     },
     body: JSON.stringify({
@@ -384,7 +384,7 @@ async function runParallelSearch(params: {
       search_queries: [params.query],
       max_results: params.count,
       excerpts: {
-        max_chars_per_result: 500,
+        max_chars_per_result: 2000,
       },
       mode: "agentic",
     }),
