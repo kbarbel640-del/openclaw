@@ -1,188 +1,98 @@
 #!/bin/bash
-# Launch script for Clawdbot with Ollama
-# Starts Ollama if not running, then launches Clawdbot
+# Launch Clawdbot FORK with Ollama
+# Runs the local fork on port 19001, separate from installed clawdbot (18789)
 #
-# SECURITY: This script enforces localhost-only Ollama connections
+# SECURITY: Enforces localhost-only Ollama connections
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
 # =============================================================================
-# SECURITY CONFIGURATION
+# SECURITY
 # =============================================================================
 
-# Force Ollama to bind to localhost only (prevents network exposure)
 export OLLAMA_HOST="127.0.0.1:11434"
-
-# Never allow these dangerous configurations
-unset OLLAMA_ORIGINS  # Prevents CORS bypass
-
-# =============================================================================
-# SECURITY CHECKS
-# =============================================================================
+unset OLLAMA_ORIGINS
 
 check_ollama_security() {
-    echo "[Security] Checking Ollama configuration..."
-
-    # Check if Ollama is listening on 0.0.0.0 (dangerous!)
     if ss -tlnp 2>/dev/null | grep -q "0.0.0.0:11434"; then
-        echo ""
-        echo "!!! SECURITY WARNING !!!"
-        echo "Ollama is exposed to ALL network interfaces (0.0.0.0:11434)"
-        echo "This allows anyone on your network to use your Ollama instance!"
-        echo ""
-        echo "To fix this:"
-        echo "  1. Stop Ollama: systemctl --user stop ollama (or pkill ollama)"
-        echo "  2. Edit config: Remove OLLAMA_HOST=0.0.0.0 from your environment"
-        echo "  3. Restart Ollama (this script will bind it to localhost)"
-        echo ""
-        read -p "Continue anyway? (y/N): " -n 1 -r
+        echo "!!! WARNING: Ollama exposed to network (0.0.0.0:11434) !!!"
+        read -p "Continue? (y/N): " -n 1 -r
         echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "Aborted for security reasons."
-            exit 1
-        fi
-    fi
-
-    # Check if Ollama is listening on [::] (IPv6 all interfaces - also dangerous)
-    if ss -tlnp 2>/dev/null | grep -q "\[::\]:11434"; then
-        echo ""
-        echo "!!! SECURITY WARNING !!!"
-        echo "Ollama is exposed on IPv6 all interfaces ([::]:11434)"
-        echo ""
-        read -p "Continue anyway? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "Aborted for security reasons."
-            exit 1
-        fi
-    fi
-
-    # Check for dangerous environment variables in user's environment
-    if [ -f "$HOME/.bashrc" ] && grep -q "OLLAMA_HOST=0.0.0.0" "$HOME/.bashrc" 2>/dev/null; then
-        echo ""
-        echo "[Warning] Found OLLAMA_HOST=0.0.0.0 in ~/.bashrc"
-        echo "Consider removing this to prevent network exposure."
-        echo ""
-    fi
-
-    if [ -f "$HOME/.profile" ] && grep -q "OLLAMA_HOST=0.0.0.0" "$HOME/.profile" 2>/dev/null; then
-        echo ""
-        echo "[Warning] Found OLLAMA_HOST=0.0.0.0 in ~/.profile"
-        echo "Consider removing this to prevent network exposure."
-        echo ""
-    fi
-
-    # Check systemd service if it exists
-    if [ -f "/etc/systemd/system/ollama.service" ]; then
-        if grep -q "OLLAMA_HOST=0.0.0.0" /etc/systemd/system/ollama.service 2>/dev/null; then
-            echo ""
-            echo "[Warning] System Ollama service is configured to bind to 0.0.0.0"
-            echo "Edit /etc/systemd/system/ollama.service to fix this."
-            echo ""
-        fi
-    fi
-
-    echo "[Security] Checks complete."
-}
-
-check_firewall() {
-    # Informational: Check if firewall is active
-    if command -v ufw &> /dev/null; then
-        if ufw status 2>/dev/null | grep -q "Status: active"; then
-            echo "[Security] UFW firewall is active (good!)"
-        else
-            echo "[Info] UFW firewall is not active. Consider enabling it:"
-            echo "  sudo ufw enable"
-        fi
-    elif command -v firewall-cmd &> /dev/null; then
-        if firewall-cmd --state 2>/dev/null | grep -q "running"; then
-            echo "[Security] Firewalld is active (good!)"
-        fi
+        [[ ! $REPLY =~ ^[Yy]$ ]] && exit 1
     fi
 }
 
 # =============================================================================
-# MAIN SCRIPT
+# OLLAMA
 # =============================================================================
 
-echo "=== Clawdbot + Ollama Launcher ==="
+start_ollama() {
+    if ! pgrep -x "ollama" > /dev/null; then
+        echo "Starting Ollama..."
+        ollama serve &
+        for i in {1..30}; do
+            curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1 && break
+            sleep 1
+        done
+    fi
+    MODEL_COUNT=$(curl -s http://127.0.0.1:11434/api/tags | grep -o '"name"' | wc -l)
+    echo "Ollama: $MODEL_COUNT models available"
+}
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+echo "=== Clawdbot FORK + Ollama ==="
+echo "Project: $PROJECT_DIR"
+echo "Profile: ollama (port 19001)"
 echo ""
 
-# Run security checks
 check_ollama_security
-check_firewall
+start_ollama
 
-# Check if Ollama is running
-if ! pgrep -x "ollama" > /dev/null; then
-    echo ""
-    echo "Starting Ollama (localhost only)..."
+echo ""
+cd "$PROJECT_DIR"
 
-    # Start Ollama with secure settings
-    ollama serve &
-    OLLAMA_PID=$!
-
-    # Wait for Ollama to be ready
-    echo "Waiting for Ollama to start..."
-    for i in {1..30}; do
-        if curl -s http://127.0.0.1:11434/api/tags > /dev/null 2>&1; then
-            echo "Ollama is ready (PID: $OLLAMA_PID)"
-            break
-        fi
-        if [ $i -eq 30 ]; then
-            echo "Error: Ollama failed to start within 30 seconds"
-            exit 1
-        fi
-        sleep 1
-    done
-else
-    echo "Ollama is already running"
+# Check if gateway already running
+if ss -tlnp 2>/dev/null | grep -q ":19001"; then
+    echo "Gateway already running on port 19001"
+    echo "Opening dashboard..."
+    pnpm clawdbot --profile ollama dashboard
+    exit 0
 fi
 
-# Verify we're connecting to localhost only
-echo ""
-echo "[Security] Connecting to: http://127.0.0.1:11434 (localhost only)"
+echo "Starting Clawdbot gateway..."
 
-# Check if any models are available
-MODELS_JSON=$(curl -s http://127.0.0.1:11434/api/tags 2>/dev/null)
-MODEL_COUNT=$(echo "$MODELS_JSON" | grep -o '"name"' | wc -l)
+# Start gateway in background
+pnpm clawdbot --profile ollama gateway run --dev --port 19001 --bind loopback --force &
+GATEWAY_PID=$!
 
-if [ "$MODEL_COUNT" -eq 0 ]; then
-    echo ""
-    echo "No Ollama models found. You need to pull a model first."
-    echo ""
-    echo "Recommended models for coding:"
-    echo "  ollama pull qwen3-coder      # Fast, good for code"
-    echo "  ollama pull deepseek-r1:8b   # Reasoning model"
-    echo "  ollama pull llama3.3         # General purpose"
-    echo ""
+# Wait for gateway to be ready
+echo "Waiting for gateway..."
+for i in {1..30}; do
+    if ss -tlnp 2>/dev/null | grep -q ":19001"; then
+        echo "Gateway ready (PID: $GATEWAY_PID)"
+        sleep 2
 
-    # Open terminal to let user pull a model
-    if command -v gnome-terminal &> /dev/null; then
-        gnome-terminal -- bash -c "echo 'Pull a model with: ollama pull <model-name>'; echo ''; ollama list; exec bash"
-    elif command -v konsole &> /dev/null; then
-        konsole -e bash -c "echo 'Pull a model with: ollama pull <model-name>'; echo ''; ollama list; exec bash"
-    elif command -v xterm &> /dev/null; then
-        xterm -e "echo 'Pull a model with: ollama pull <model-name>'; ollama list; exec bash"
+        # Open dashboard with proper auth token
+        echo "Opening dashboard..."
+        pnpm clawdbot --profile ollama dashboard 2>/dev/null &
+
+        echo ""
+        echo "=== Running ==="
+        echo "Dashboard: http://127.0.0.1:19001/"
+        echo "Default model: ollama/qwen3-coder-32k:latest"
+        echo ""
+        echo "Press Ctrl+C to stop gateway"
+        wait $GATEWAY_PID
+        exit 0
     fi
-    exit 1
-fi
+    sleep 1
+done
 
-echo "Found $MODEL_COUNT Ollama model(s)"
-echo ""
-echo "Starting Clawdbot..."
-echo ""
-
-# Launch Clawdbot
-if command -v clawdbot &> /dev/null; then
-    exec clawdbot
-elif [ -f "$HOME/.local/bin/clawdbot" ]; then
-    exec "$HOME/.local/bin/clawdbot"
-elif [ -f "/usr/local/bin/clawdbot" ]; then
-    exec /usr/local/bin/clawdbot
-else
-    # Run from source
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-    cd "$PROJECT_DIR"
-    exec pnpm clawdbot
-fi
+echo "Gateway failed to start within 30 seconds"
+exit 1
