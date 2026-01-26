@@ -115,7 +115,7 @@ export async function setVeniceApiKey(key: string, agentDir?: string) {
 export async function setNearAiApiKey(key: string, agentDir?: string) {
   // Write to resolved agent dir so gateway finds credentials on startup.
   upsertAuthProfile({
-    profileId: "near-ai:default",
+    profileId: "nearai:default",
     credential: {
       type: "api_key",
       provider: "near-ai",

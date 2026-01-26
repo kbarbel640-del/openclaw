@@ -566,7 +566,7 @@ export async function applyAuthChoiceApiProviders(
       await setNearAiApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }
     nextConfig = applyAuthProfileConfig(nextConfig, {
-      profileId: "near-ai:default",
+      profileId: "nearai:default",
       provider: "near-ai",
       mode: "api_key",
     });
