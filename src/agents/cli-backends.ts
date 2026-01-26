@@ -88,9 +88,9 @@ const DEFAULT_CODEX_BACKEND: CliBackendConfig = {
 
 const DEFAULT_KIRO_BACKEND: CliBackendConfig = {
   command: "kiro-cli",
-  args: ["chat", "--no-interactive"],
+  args: ["chat", "--no-interactive", "--wrap", "never"],
   output: "text",
-  input: "stdin",
+  input: "arg",
   modelArg: "--model",
   modelAliases: KIRO_MODEL_ALIASES,
   sessionMode: "none",
