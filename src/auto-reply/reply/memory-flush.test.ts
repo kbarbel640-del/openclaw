@@ -42,6 +42,41 @@ describe("memory flush settings", () => {
     expect(settings?.prompt).toContain("NO_REPLY");
     expect(settings?.systemPrompt).toContain("NO_REPLY");
   });
+
+  it("defaults resetSession to false", () => {
+    const settings = resolveMemoryFlushSettings();
+    expect(settings?.resetSession).toBe(false);
+  });
+
+  it("respects resetSession when set to true", () => {
+    const settings = resolveMemoryFlushSettings({
+      agents: {
+        defaults: {
+          compaction: {
+            memoryFlush: {
+              resetSession: true,
+            },
+          },
+        },
+      },
+    });
+    expect(settings?.resetSession).toBe(true);
+  });
+
+  it("respects resetSession when explicitly set to false", () => {
+    const settings = resolveMemoryFlushSettings({
+      agents: {
+        defaults: {
+          compaction: {
+            memoryFlush: {
+              resetSession: false,
+            },
+          },
+        },
+      },
+    });
+    expect(settings?.resetSession).toBe(false);
+  });
 });
 
 describe("shouldRunMemoryFlush", () => {
