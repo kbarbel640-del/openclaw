@@ -257,7 +257,10 @@ export function resolveHeartbeatDeliveryTarget(params: {
       accountId: resolvedTarget.accountId,
       mode: "explicit",
     });
-    if (explicit.ok && explicit.to !== resolved.to) {
+    // Set reason to "allowFrom-fallback" if:
+    // 1. Explicit mode failed (target not in allowlist) and heartbeat succeeded, OR
+    // 2. Explicit mode succeeded but returned a different target than heartbeat mode
+    if (!explicit.ok || (explicit.ok && explicit.to !== resolved.to)) {
       reason = "allowFrom-fallback";
     }
   }

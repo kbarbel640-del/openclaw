@@ -408,26 +408,26 @@ describe("resolveHeartbeatDeliveryTarget", () => {
     ).toThrow(/requireExplicitTarget is enabled but no explicit 'to' target was provided/);
   });
 
-  it("throws error when requireExplicitTarget defaults to true and no to is set", () => {
+  it("allows implicit routing when requireExplicitTarget defaults to false", () => {
     const cfg: ClawdbotConfig = {
       agents: {
         defaults: {
           heartbeat: {
             target: "whatsapp",
-            // requireExplicitTarget defaults to true now
-            // no `to` set
+            // requireExplicitTarget defaults to false (backwards compatible)
+            // no `to` set - should use implicit routing
           },
         },
       },
       channels: { whatsapp: { allowFrom: ["+1555000001"] } },
     };
-    // FIX-1.4: Default is now strict mode - throws if no explicit target
-    expect(() =>
-      resolveHeartbeatDeliveryTarget({
-        cfg,
-        entry: { sessionId: "test", updatedAt: 1, lastChannel: "whatsapp", lastTo: "+1555000001" },
-      }),
-    ).toThrow(/requireExplicitTarget is enabled but no explicit 'to' target was provided/);
+    // Default is backwards compatible - allows implicit routing
+    const result = resolveHeartbeatDeliveryTarget({
+      cfg,
+      entry: { sessionId: "test", updatedAt: 1, lastChannel: "whatsapp", lastTo: "+1555000001" },
+    });
+    expect(result.channel).toBe("whatsapp");
+    expect(result.to).toBe("+1555000001");
   });
 
   it("allows heartbeat delivery when requireExplicitTarget is true and to is set", () => {

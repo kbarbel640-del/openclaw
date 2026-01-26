@@ -64,7 +64,7 @@ export type DeliveryContextSessionSource = {
  * Check if a delivery context has expired based on its updatedAt timestamp.
  * @param context The delivery context to check
  * @param ttlMs TTL in milliseconds (default: 24 hours)
- * @returns true if the context has expired or has no timestamp
+ * @returns true if the context has expired, false if valid or no timestamp (backwards compatible)
  */
 export function isDeliveryContextExpired(
   context?: DeliveryContext,
@@ -72,7 +72,8 @@ export function isDeliveryContextExpired(
 ): boolean {
   if (!context) return true;
   const updatedAt = context.updatedAt;
-  if (typeof updatedAt !== "number" || !Number.isFinite(updatedAt)) return true;
+  // Backwards compatibility: contexts without timestamps are considered valid (not expired)
+  if (typeof updatedAt !== "number" || !Number.isFinite(updatedAt)) return false;
   const now = Date.now();
   return now - updatedAt > ttlMs;
 }
@@ -185,10 +186,13 @@ export function mergeDeliveryContext(
   const normalizedPrimary = normalizeDeliveryContext(primary);
   const normalizedFallback = normalizeDeliveryContext(fallback);
   if (!normalizedPrimary && !normalizedFallback) return undefined;
-  // Use the most recent timestamp from either context
-  const primaryUpdatedAt = normalizedPrimary?.updatedAt ?? 0;
-  const fallbackUpdatedAt = normalizedFallback?.updatedAt ?? 0;
-  const updatedAt = Math.max(primaryUpdatedAt, fallbackUpdatedAt) || Date.now();
+  // Use the most recent timestamp from either context (only if at least one has it)
+  const primaryUpdatedAt = normalizedPrimary?.updatedAt;
+  const fallbackUpdatedAt = normalizedFallback?.updatedAt;
+  const hasTimestamp = primaryUpdatedAt != null || fallbackUpdatedAt != null;
+  const updatedAt = hasTimestamp
+    ? Math.max(primaryUpdatedAt ?? 0, fallbackUpdatedAt ?? 0)
+    : undefined;
   return normalizeDeliveryContext({
     channel: normalizedPrimary?.channel ?? normalizedFallback?.channel,
     to: normalizedPrimary?.to ?? normalizedFallback?.to,
