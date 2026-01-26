@@ -1,6 +1,5 @@
 #!/bin/sh
 # Render startup script - creates config and starts gateway
-# Note: We use set -e but handle permission errors gracefully
 set -e
 
 echo "=== Render startup script ==="
@@ -13,44 +12,11 @@ if [ -z "${HOME}" ]; then
   echo "Warning: HOME not set, using ${HOME}"
 fi
 
-# Determine config directory with fallback chain
-# 1. Try CLAWDBOT_STATE_DIR if set
-# 2. Try /data/.clawdbot (Render persistent disk)
-# 3. Fall back to $HOME/.clawdbot (always writable by node user)
-CONFIG_DIR=""
-if [ -n "${CLAWDBOT_STATE_DIR}" ]; then
-  if mkdir -p "${CLAWDBOT_STATE_DIR}" 2>/dev/null && touch "${CLAWDBOT_STATE_DIR}/.test" 2>/dev/null && rm -f "${CLAWDBOT_STATE_DIR}/.test" 2>/dev/null; then
-    CONFIG_DIR="${CLAWDBOT_STATE_DIR}"
-    echo "Using CLAWDBOT_STATE_DIR: ${CONFIG_DIR}"
-  else
-    echo "Warning: ${CLAWDBOT_STATE_DIR} is not writable"
-  fi
-fi
+# Determine config directory - try in order until one works
+# 1. CLAWDBOT_STATE_DIR if set
+# 2. /data/.clawdbot (Render persistent disk)
+# 3. $HOME/.clawdbot (always writable by node user)
 
-if [ -z "${CONFIG_DIR}" ]; then
-  if mkdir -p "/data/.clawdbot" 2>/dev/null && touch "/data/.clawdbot/.test" 2>/dev/null && rm -f "/data/.clawdbot/.test" 2>/dev/null; then
-    CONFIG_DIR="/data/.clawdbot"
-    echo "Using /data/.clawdbot: ${CONFIG_DIR}"
-  else
-    echo "Warning: /data/.clawdbot is not writable"
-  fi
-fi
-
-if [ -z "${CONFIG_DIR}" ]; then
-  # Final fallback: use HOME (always writable by node user)
-  CONFIG_DIR="${HOME}/.clawdbot"
-  echo "Using fallback: ${CONFIG_DIR}"
-fi
-
-CONFIG_FILE="${CONFIG_DIR}/clawdbot.json"
-
-echo "Config dir: ${CONFIG_DIR}"
-echo "Config file: ${CONFIG_FILE}"
-
-# Create config directory (should succeed now)
-mkdir -p "${CONFIG_DIR}"
-
-# Config content
 CONFIG_CONTENT='{
   "gateway": {
     "mode": "local",
@@ -61,8 +27,39 @@ CONFIG_CONTENT='{
   }
 }'
 
-# Write config file
-echo "${CONFIG_CONTENT}" > "${CONFIG_FILE}"
+CONFIG_DIR=""
+CONFIG_FILE=""
+
+# Try each directory in order
+for dir in "${CLAWDBOT_STATE_DIR:-}" "/data/.clawdbot" "${HOME}/.clawdbot"; do
+  if [ -z "${dir}" ]; then
+    continue
+  fi
+  
+  # Temporarily disable set -e for this test
+  set +e
+  mkdir -p "${dir}" 2>/dev/null
+  if echo "${CONFIG_CONTENT}" > "${dir}/clawdbot.json" 2>/dev/null; then
+    set -e
+    CONFIG_DIR="${dir}"
+    CONFIG_FILE="${dir}/clawdbot.json"
+    echo "Successfully wrote config to: ${CONFIG_FILE}"
+    break
+  fi
+  set -e
+done
+
+# Ensure we have a config directory (should always succeed with HOME fallback)
+if [ -z "${CONFIG_DIR}" ]; then
+  CONFIG_DIR="${HOME}/.clawdbot"
+  CONFIG_FILE="${CONFIG_DIR}/clawdbot.json"
+  mkdir -p "${CONFIG_DIR}"
+  echo "${CONFIG_CONTENT}" > "${CONFIG_FILE}"
+  echo "Using fallback: ${CONFIG_FILE}"
+fi
+
+echo "Config dir: ${CONFIG_DIR}"
+echo "Config file: ${CONFIG_FILE}"
 
 echo "=== Config written ==="
 echo "=== ${CONFIG_FILE}: ==="
