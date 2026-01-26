@@ -64,7 +64,14 @@ const QWEN_PORTAL_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
-const OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1";
+// Ollama supports both OpenAI-compatible (/v1) and Anthropic Messages API
+// We use the Anthropic Messages API for better Claude compatibility
+//
+// SECURITY: Hardcoded to 127.0.0.1 (localhost) only.
+// Ollama has no built-in authentication - anyone who can reach the port can use it.
+// Never change these to 0.0.0.0 or expose Ollama to the network without a reverse
+// proxy that handles authentication (e.g., nginx with basic auth or OAuth).
+const OLLAMA_BASE_URL = "http://127.0.0.1:11434";
 const OLLAMA_API_BASE_URL = "http://127.0.0.1:11434";
 const OLLAMA_DEFAULT_CONTEXT_WINDOW = 128000;
 const OLLAMA_DEFAULT_MAX_TOKENS = 8192;
@@ -354,7 +361,7 @@ async function buildOllamaProvider(): Promise<ProviderConfig> {
   const models = await discoverOllamaModels();
   return {
     baseUrl: OLLAMA_BASE_URL,
-    api: "openai-completions",
+    api: "anthropic-messages",
     models,
   };
 }
@@ -410,12 +417,11 @@ export async function resolveImplicitProviders(params: {
     };
   }
 
-  // Ollama provider - only add if explicitly configured
-  const ollamaKey =
-    resolveEnvApiKeyVarName("ollama") ??
-    resolveApiKeyFromProfiles({ provider: "ollama", store: authStore });
-  if (ollamaKey) {
-    providers.ollama = { ...(await buildOllamaProvider()), apiKey: ollamaKey };
+  // Ollama provider - auto-detect if running locally, no API key needed
+  // Ollama ignores the API key but we set a placeholder for compatibility
+  const ollamaProvider = await buildOllamaProvider();
+  if (ollamaProvider.models.length > 0) {
+    providers.ollama = { ...ollamaProvider, apiKey: "ollama" };
   }
 
   return providers;

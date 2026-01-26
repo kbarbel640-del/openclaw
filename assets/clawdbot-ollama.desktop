@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Clawdbot (Ollama)
+Comment=AI Assistant with local Ollama models
+Exec=/home/eve/Desktop/clawdbotPLUS/scripts/launch-clawdbot-ollama.sh
+Icon=/home/eve/Desktop/clawdbotPLUS/assets/chrome-extension/icons/icon128.png
+Terminal=true
+Type=Application
+Categories=Development;Utility;
+Keywords=ai;chat;ollama;local;llm;
+StartupNotify=true
