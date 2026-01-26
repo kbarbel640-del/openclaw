@@ -70,6 +70,11 @@ export type SessionEntry = {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  /**
+   * Approximate number of agent turns/runs recorded for this session.
+   * Incremented on each completed agent run.
+   */
+  turnCount?: number;
   modelProvider?: string;
   model?: string;
   contextTokens?: number;

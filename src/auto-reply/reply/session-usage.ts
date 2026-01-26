@@ -36,6 +36,7 @@ export async function persistSessionUsageUpdate(params: {
             inputTokens: input,
             outputTokens: output,
             totalTokens: promptTokens > 0 ? promptTokens : (params.usage?.total ?? input),
+            turnCount: (entry.turnCount ?? 0) + 1,
             modelProvider: params.providerUsed ?? entry.modelProvider,
             model: params.modelUsed ?? entry.model,
             contextTokens: params.contextTokensUsed ?? entry.contextTokens,
@@ -72,6 +73,7 @@ export async function persistSessionUsageUpdate(params: {
             model: params.modelUsed ?? entry.model,
             contextTokens: params.contextTokensUsed ?? entry.contextTokens,
             systemPromptReport: params.systemPromptReport ?? entry.systemPromptReport,
+            turnCount: (entry.turnCount ?? 0) + 1,
             updatedAt: Date.now(),
           };
           const cliProvider = params.providerUsed ?? entry.modelProvider;

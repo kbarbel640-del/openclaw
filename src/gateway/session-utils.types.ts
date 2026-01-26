@@ -19,6 +19,7 @@ export type GatewaySessionRow = {
   subject?: string;
   groupChannel?: string;
   space?: string;
+  workspaceDir?: string;
   chatType?: NormalizedChatType;
   origin?: SessionEntry["origin"];
   updatedAt: number | null;
@@ -33,6 +34,7 @@ export type GatewaySessionRow = {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  turnCount?: number;
   responseUsage?: "on" | "off" | "tokens" | "full";
   modelProvider?: string;
   model?: string;

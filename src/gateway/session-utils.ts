@@ -515,6 +515,7 @@ export function listSessionsFromStore(params: {
       const id = parsed?.id;
       const origin = entry?.origin;
       const originLabel = origin?.label;
+      const workspaceDir = entry?.systemPromptReport?.workspaceDir;
       const displayName =
         entry?.displayName ??
         (channel
@@ -540,6 +541,7 @@ export function listSessionsFromStore(params: {
         subject,
         groupChannel,
         space,
+        workspaceDir,
         chatType: entry?.chatType,
         origin,
         updatedAt,
@@ -554,6 +556,7 @@ export function listSessionsFromStore(params: {
         inputTokens: entry?.inputTokens,
         outputTokens: entry?.outputTokens,
         totalTokens: total,
+        turnCount: entry?.turnCount,
         responseUsage: entry?.responseUsage,
         modelProvider: entry?.modelProvider,
         model: entry?.model,

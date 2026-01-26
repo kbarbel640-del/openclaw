@@ -52,6 +52,7 @@ export async function loadSessions(state: SessionsState) {
     };
     const activeMinutes = toNumber(state.sessionsFilterActive, 0);
     const limit = toNumber(state.sessionsFilterLimit, 0);
+    if (limit > 0 && limit <= 200) params.includeLastMessage = true;
     if (activeMinutes > 0) params.activeMinutes = activeMinutes;
     if (limit > 0) params.limit = limit;
     const res = (await state.client.request("sessions.list", params)) as

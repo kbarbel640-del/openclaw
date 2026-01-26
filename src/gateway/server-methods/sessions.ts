@@ -255,6 +255,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         inputTokens: 0,
         outputTokens: 0,
         totalTokens: 0,
+        turnCount: 0,
       };
       store[primaryKey] = nextEntry;
       return nextEntry;

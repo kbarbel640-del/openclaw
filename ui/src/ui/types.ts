@@ -319,9 +319,9 @@ export type PresenceEntry = {
 };
 
 export type GatewaySessionsDefaults = {
+  modelProvider: string | null;
   model: string | null;
   contextTokens: number | null;
-  thinkingLevel?: string | null;
 };
 
 export type GatewayAgentRow = {
@@ -348,9 +348,11 @@ export type GatewaySessionRow = {
   kind: "direct" | "group" | "global" | "unknown";
   label?: string;
   displayName?: string;
-  surface?: string;
+  derivedTitle?: string;
+  lastMessagePreview?: string;
+  channel?: string;
   subject?: string;
-  room?: string;
+  groupChannel?: string;
   space?: string;
   updatedAt: number | null;
   sessionId?: string;
@@ -366,6 +368,8 @@ export type GatewaySessionRow = {
   model?: string;
   modelProvider?: string;
   contextTokens?: number;
+  turnCount?: number;
+  workspaceDir?: string;
 };
 
 export type SessionsListResult = {
@@ -374,6 +378,22 @@ export type SessionsListResult = {
   count: number;
   defaults: GatewaySessionsDefaults;
   sessions: GatewaySessionRow[];
+};
+
+export type SessionPreviewItem = {
+  role: "user" | "assistant" | "tool" | "system" | "other";
+  text: string;
+};
+
+export type SessionsPreviewEntry = {
+  key: string;
+  status: "ok" | "empty" | "missing" | "error";
+  items: SessionPreviewItem[];
+};
+
+export type SessionsPreviewResult = {
+  ts: number;
+  previews: SessionsPreviewEntry[];
 };
 
 export type SessionsPatchResult = {

@@ -22,6 +22,8 @@ import type {
   PresenceEntry,
   ChannelsStatusSnapshot,
   SessionsListResult,
+  SessionsPreviewEntry,
+  SessionsPreviewResult,
   SkillStatusReport,
   StatusSummary,
   NostrProfile,
@@ -177,6 +179,18 @@ function resolveDefaultGatewayPassword(): string {
   return fromEnv;
 }
 
+const SESSIONS_VIEW_MODE_STORAGE_KEY = "clawdbot.control.ui.sessions.viewMode.v1";
+
+function readSessionsViewMode(): "list" | "table" {
+  if (typeof window === "undefined") return "list";
+  try {
+    const raw = window.localStorage.getItem(SESSIONS_VIEW_MODE_STORAGE_KEY);
+    return raw === "table" ? "table" : "list";
+  } catch {
+    return "list";
+  }
+}
+
 @customElement("clawdbot-app")
 export class ClawdbotApp extends LitElement {
   @state() settings: UiSettings = loadSettings();
@@ -299,6 +313,10 @@ export class ClawdbotApp extends LitElement {
   @state() agentsLoading = false;
   @state() agentsList: AgentsListResult | null = null;
   @state() agentsError: string | null = null;
+  @state() agentsUiSelectedAgentKey: string | null = null;
+  @state() agentsUiAgentSearch = "";
+  @state() agentsUiSessionSearch = "";
+  @state() agentsUiSessionTypeFilter: "all" | "regular" | "cron" = "all";
 
   @state() sessionsLoading = false;
   @state() sessionsResult: SessionsListResult | null = null;
@@ -312,6 +330,14 @@ export class ClawdbotApp extends LitElement {
   @state() sessionsSortDir: "asc" | "desc" = "desc";
   @state() sessionsKindFilter: "all" | "direct" | "group" | "global" | "unknown" = "all";
   @state() sessionsStatusFilter: "all" | "active" | "idle" | "completed" = "all";
+  @state() sessionsAgentLabelFilter = "";
+  @state() sessionsLaneFilter: "all" | "cron" | "regular" = "all";
+  @state() sessionsViewMode: "list" | "table" = readSessionsViewMode();
+  @state() sessionsDrawerKey: string | null = null;
+  @state() sessionsDrawerExpanded = false;
+  @state() sessionsPreviewLoading = false;
+  @state() sessionsPreviewError: string | null = null;
+  @state() sessionsPreviewEntry: SessionsPreviewEntry | null = null;
 
   @state() cronLoading = false;
   @state() cronJobs: CronJob[] = [];
@@ -1106,6 +1132,64 @@ export class ClawdbotApp extends LitElement {
     this.overseerDrawerOpen = false;
     this.overseerDrawerKind = null;
     this.overseerDrawerNodeId = null;
+  }
+
+  handleSessionsDrawerClose() {
+    this.sessionsDrawerKey = null;
+    this.sessionsDrawerExpanded = false;
+    this.sessionsPreviewLoading = false;
+    this.sessionsPreviewError = null;
+    this.sessionsPreviewEntry = null;
+  }
+
+  handleSessionsDrawerToggleExpanded() {
+    this.sessionsDrawerExpanded = !this.sessionsDrawerExpanded;
+  }
+
+  async handleSessionsDrawerOpen(key: string) {
+    const trimmed = key.trim();
+    if (!trimmed) return;
+    if (this.sessionsDrawerKey === trimmed) return;
+    this.sessionsDrawerKey = trimmed;
+    this.sessionsDrawerExpanded = false;
+    this.sessionsPreviewEntry = null;
+    this.sessionsPreviewError = null;
+    await this.handleSessionsDrawerRefreshPreview();
+  }
+
+  async handleSessionsDrawerOpenExpanded(key: string) {
+    const trimmed = key.trim();
+    if (!trimmed) return;
+    if (this.sessionsDrawerKey !== trimmed) {
+      await this.handleSessionsDrawerOpen(trimmed);
+    }
+    this.sessionsDrawerExpanded = true;
+  }
+
+  async handleSessionsDrawerRefreshPreview() {
+    const key = this.sessionsDrawerKey;
+    if (!key || !this.client || !this.connected) return;
+    if (this.sessionsPreviewLoading) return;
+    this.sessionsPreviewLoading = true;
+    this.sessionsPreviewError = null;
+    this.sessionsPreviewEntry = null;
+    const requestKey = key;
+    try {
+      const res = (await this.client.request("sessions.preview", {
+        keys: [requestKey],
+        limit: 24,
+        maxChars: 280,
+      })) as SessionsPreviewResult | undefined;
+      if (this.sessionsDrawerKey !== requestKey) return;
+      this.sessionsPreviewEntry =
+        res?.previews?.find((entry) => entry.key === requestKey) ?? null;
+    } catch (err) {
+      if (this.sessionsDrawerKey !== requestKey) return;
+      this.sessionsPreviewError = String(err);
+      this.sessionsPreviewEntry = null;
+    } finally {
+      if (this.sessionsDrawerKey === requestKey) this.sessionsPreviewLoading = false;
+    }
   }
 
   async handleOverseerLoadCronRuns(jobId: string) {
