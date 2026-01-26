@@ -76,3 +76,11 @@ src/**/*.js.map
 src/**/*.d.ts
 src/**/*.d.ts.map
 
+
+# Terraform
+workers/clawdbot-aws/terraform/.terraform/
+workers/clawdbot-aws/terraform/*.tfstate
+workers/clawdbot-aws/terraform/*.tfstate.backup
+workers/clawdbot-aws/terraform/*.tfplan
+workers/clawdbot-aws/terraform/plan.tfplan
+workers/clawdbot-aws/terraform/tfplan
