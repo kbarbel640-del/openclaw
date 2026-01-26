@@ -53,7 +53,7 @@ async function requireRiskAcknowledgement(params: {
   const rich = isRich();
   const danger = (value: string) => colorize(rich, theme.error.bold, value);
   const warning = (value: string) => colorize(rich, theme.warn.bold, value);
-  const ok = (value: string) => colorize(rich, theme.success.bold, value);
+  const good = (value: string) => colorize(rich, theme.success.bold, value);
   const subtle = (value: string) => colorize(rich, theme.warn, value);
   const alert = (value: string) => colorize(rich, theme.error, value);
 
@@ -69,7 +69,7 @@ async function requireRiskAcknowledgement(params: {
       subtle("If tools are enabled, a bad prompt can leak secrets, run commands, or access files."),
       "",
       warning("Model policy (required for tool-enabled or untrusted input):"),
-      `- ${ok("Recommended:")} Anthropic Opus 4.5.`,
+      `- ${good("Recommended:")} Anthropic Opus 4.5.`,
       `- ${warning("Not recommended:")} weaker tiers like Sonnet or Haiku.`,
       `- ${warning("Supported but not recommended:")} free models, cheap models, or local models.`,
       "",
