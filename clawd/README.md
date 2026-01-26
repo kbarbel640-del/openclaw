@@ -31,7 +31,7 @@ Liam proposes changes to `~/clawd/EVOLUTION-QUEUE.md`.
 1. Open Cursor
 2. Ask: "Show me Liam's evolution queue"
 3. Tell Claude which items to approve/reject
-4. Claude implements approved changes
+4. Approved changes get implemented
 
 ## Daily Showcase Scouting
 

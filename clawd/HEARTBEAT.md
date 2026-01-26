@@ -125,6 +125,28 @@ One-liner options:
 - Deadline in <24h → "[Opportunity] action due soon: [Action]"
 - Multiple pending actions → Batch alert with opportunity summary
 
+## Evolution Queue Verification (2-3x daily during early dev)
+
+**Verify pending entries are still actually blocked.**
+
+During early development (first 2 weeks), verify EVOLUTION-QUEUE pending entries:
+- Morning (9 AM), Afternoon (2 PM), Evening (7 PM)
+
+**How to verify:**
+1. Read `~/clawd/EVOLUTION-QUEUE.md`
+2. For each entry in "## Pending" section without [RESOLVED]:
+   - Run the verification command to check if still broken
+   - If fixed: Mark as [RESOLVED] and add resolution note
+   - If still broken: Leave as-is
+3. Report any stale entries found to Simon
+
+**Quick scan command:**
+```bash
+grep -n "^### \[" ~/clawd/EVOLUTION-QUEUE.md | grep -v RESOLVED
+```
+
+**Why this matters:** Issues get fixed but the queue doesn't always get updated. Stale "pending" entries cause you to report false blockers.
+
 ## Data Tracking
 
 - Weekly: Run `clawdbot memory status` to check index health

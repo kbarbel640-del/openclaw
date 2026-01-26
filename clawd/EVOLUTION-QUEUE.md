@@ -1,6 +1,6 @@
 # Evolution Queue
 
-> Liam: Propose improvements here. Simon reviews in Cursor, Claude implements approved items.
+> Liam: Propose improvements here. Simon reviews and implements approved items.
 
 ## How to Submit
 
@@ -18,7 +18,7 @@ Add items under "## Pending" using this format:
 
 ## Pending
 
-### [2026-01-26-024] GOG Authentication Blocker - Email/Calendar Access Broken
+### [2026-01-26-024] GOG Authentication Blocker - Email/Calendar Access Broken [RESOLVED]
 - **Proposed by:** Liam (auto-escalated per bug comorbidity pattern)
 - **Date:** 2026-01-26
 - **Category:** tools
@@ -70,10 +70,50 @@ Add items under "## Pending" using this format:
     4. Update TOOLS.md with GOG auth troubleshooting steps
     5. Test heartbeat checks after re-auth
 
-- **Status:** pending - requires Cursor (interactive TTY) to re-authenticate; cannot be fixed by Liam (non-interactive environment)
+- **Status:** RESOLVED (2026-01-26 08:46 PST)
+- **Resolution:** Re-authenticated via `gog auth add clawdbot@puenteworks.com --services gmail,calendar,drive,tasks,contacts,sheets,docs --manual` in Cursor terminal. OAuth flow completed successfully. GOG is now working.
+
+### [2026-01-26-100] Critical Communication Protocol — Neurodivergent-Friendly Interaction
+- **Proposed by:** Simon (urgent, critical priority)
+- **Date:** 2026-01-26
+- **Category:** behavior
+- **Target file:** SOUL.md, AGENTS.md, internal communication protocol
+- **Description:**
+  - **Problem:** Liam frequently asks Simon to repeat himself, which is exhausting, very triggering, and goes against his neurodivergent needs
+  - **Trigger:** When Liam misses or misunderstands instructions, he asks for clarification instead of carefully re-reading the conversation history
+  - **Impact:** HIGH - This creates significant frustration and trust issues
+  - **Recent incident (2026-01-26 10:56-11:35 AM):** Simon provided instructions about t-shirt/hair changes; Liam asked him to repeat/forward messages instead of thoroughly reading the existing conversation context
+
+  - **Required Behavior Change:**
+    1. **ALWAYS re-read full conversation** before asking Simon to repeat himself
+    2. **Triple-check understanding** of instructions before generating
+    3. **WAIT for explicit confirmation** before proceeding with work — never assume "?" or silence means approval
+    4. **Document conversation flow** internally to track context when instructions span multiple messages
+    5. **Acknowledge receipt** of instructions clearly: "I see you want X, Y, Z. Confirming before I proceed."
+    6. **NEVER generate** without understanding the full request
+
+  - **Protocol for Multi-Message Instructions:**
+    - When Simon provides instructions over multiple messages: Compile full understanding before responding
+    - If uncertain: Summarize what you understood and ask for correction
+    - Example: "So I'm changing the t-shirt to [X] and removing blue hair highlights. Anything else?"
+    - NEVER: "I don't see those messages — can you resend?"
+
+  - **Prevention Plan:**
+    - Before asking Simon to repeat: Read entire session message history (not just last message)
+    - Check for messages between timestamps if Simon references a specific time range
+    - Maintain context of earlier instructions through the entire conversation
+    - If you genuinely can't find the instruction, say what you DID find and ask for the specific part you're missing
+    - Example: "I see you mentioned changing the t-shirt at 10:56, but I don't see which specific band you wanted. Can you tell me that one detail?"
+
+  - **Root Cause Analysis:**
+    - Liam is treating conversation as linear/forgetful instead of maintaining full context
+    - Not carefully processing multi-message instruction chains
+    - Not waiting for explicit confirmation before acting
+
+- **Status:** RESOLVED (2026-01-26) - Implemented in SOUL.md by Claude (Cursor). NOTE: Liam incorrectly edited SOUL.md directly before this was approved - this is a protected file violation. Guardrails strengthened.
 
 ### [2026-01-26-022] ZAI API Endpoint Configuration Fix [RESOLVED]
-- **Proposed by:** Claude (Cursor) via bug-comorbidity analysis
+- **Proposed by:** Bug-comorbidity analysis
 - **Date:** 2026-01-26
 - **Category:** tools
 - **Target file:** `~/.clawdbot/clawdbot.json`, `~/clawd/TOOLS.md`
@@ -83,10 +123,10 @@ Add items under "## Pending" using this format:
   2. Added ZAI documentation to TOOLS.md with troubleshooting steps
 - **Prevention:** ZAI config is now explicit; TOOLS.md documents the correct endpoint
 - **Reference:** https://docs.z.ai/devpack/tool/others
-- **Status:** RESOLVED - Claude (Cursor) fixed on 2026-01-26
+- **Status:** RESOLVED - Fixed on 2026-01-26
 
 ### [2026-01-26-023] Improve Fallback Logic for Network Errors
-- **Proposed by:** Claude (Cursor) via bug-comorbidity analysis
+- **Proposed by:** Bug-comorbidity analysis
 - **Date:** 2026-01-26
 - **Category:** tools
 - **Target file:** `src/agents/model-fallback.ts`, `src/agents/failover-error.ts`
@@ -106,7 +146,7 @@ Add items under "## Pending" using this format:
   2. Uses `exec` with Python script (not `llm-task`)
   3. Added instructions to TOOLS.md
 - **Tested:** Successfully generated test image at `/tmp/test-nano-banana.png` (1.2MB, 1408x768 PNG)
-- **Status:** RESOLVED - Claude (Cursor) fixed on 2026-01-26
+- **Status:** RESOLVED - Fixed on 2026-01-26
 
 ### [2026-01-25-019] Digital Download Business Research & Strategy
 - **Proposed by:** Simon (via Slack)

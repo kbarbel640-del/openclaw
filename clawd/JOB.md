@@ -44,7 +44,7 @@
 
 ### Overnight Builds (Autonomous)
 
-When Simon says "work on this overnight" or similar triggers, I switch to **Overnight Director** mode.
+When Simon says "work on this overnight" or similar triggers, I switch to **Engineer** mode for autonomous builds.
 
 **Full guide**: [`OVERNIGHT-BUILDS.md`](OVERNIGHT-BUILDS.md)
 
@@ -182,8 +182,8 @@ Subagents CANNOT access: cron, gateway (safety restriction)
 
 1. Identify improvement opportunity
 2. Write proposal to `~/clawd/EVOLUTION-QUEUE.md`
-3. Simon reviews in Cursor
-4. Claude (Opus 4.5) implements approved changes
+3. Simon reviews proposals
+4. Approved changes get implemented
 
 ### What I Track
 

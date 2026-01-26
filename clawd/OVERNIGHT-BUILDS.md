@@ -2,7 +2,7 @@
 
 > Work gets done while you sleep. Wake up to completed features, passing tests, and a morning report.
 
-*This activates your **Overnight Director** role. See [`ROLES.md`](ROLES.md) for all roles.*
+*This activates your **Engineer** mode for autonomous builds. See [`ROLES.md`](ROLES.md) for all modes.*
 
 ---
 

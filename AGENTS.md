@@ -161,3 +161,24 @@
 - Publish: `npm publish --access public --otp="<otp>"` (run from the package dir).
 - Verify without local npmrc side effects: `npm view <pkg> version --userconfig "$(mktemp)"`.
 - Kill the tmux session after publish.
+
+## Liam Session Hygiene (Stale Data Prevention)
+
+When fixing something in Cursor that Liam escalated to EVOLUTION-QUEUE.md:
+1. Search for related entries: `grep -n "keyword" ~/clawd/EVOLUTION-QUEUE.md`
+2. Mark the entry as [RESOLVED] in the title
+3. Add a resolution note with date and what was done
+
+**Why:** Liam reads EVOLUTION-QUEUE.md and will cite stale "pending" entries as "Known Blockers" if we don't mark them resolved. This causes frustration when he reports issues that are already fixed.
+
+**Example fix workflow:**
+```bash
+# Fix the actual issue
+vim ~/.clawdbot/clawdbot.json
+
+# Find and update the queue entry
+grep -n "GOG\|gog" ~/clawd/EVOLUTION-QUEUE.md
+# Then edit to add [RESOLVED] to the title and add resolution note
+```
+
+**Staleness rule for Liam (in AGENTS.md):** Entries >6 hours old must be verified before citing as blockers.
