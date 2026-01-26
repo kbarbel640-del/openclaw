@@ -6,7 +6,6 @@ import {
   REDPILL_BASE_URL,
   discoverRedpillModels,
   resetRedpillModelCache,
-  type RedpillCatalogEntry,
 } from "./redpill-models.js";
 
 describe("Redpill Models", () => {
