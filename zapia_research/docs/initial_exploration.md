@@ -12,11 +12,18 @@ This document summarizes the technical exploration of the Clawdbot codebase cond
 4. [System Prompt Structure](#4-system-prompt-structure)
 5. [Messages Array & LLM API Calls](#5-messages-array--llm-api-calls)
 6. [Context Management](#6-context-management)
-7. [Channel Integrations](#7-channel-integrations)
-8. [Hooks System (Email/Gmail)](#8-hooks-system-emailgmail)
-9. [Configuration](#9-configuration)
-10. [External Dependencies](#10-external-dependencies)
-11. [Porting Considerations](#11-porting-considerations)
+7. [Memory & Persistence](#7-memory--persistence)
+8. [Channel Integrations](#8-channel-integrations)
+   - [8.1 WhatsApp (Native Channel)](#81-whatsapp-native-channel---deep-dive)
+   - [8.2 Channel Architecture](#82-channel-architecture-general)
+9. [Gmail & Google Workspace](#9-gmail--google-workspace-external-tool-pattern)
+   - [9.1 How Gmail/Calendar Access Works](#91-how-gmailcalendar-access-works)
+   - [9.2 gog Skill](#92-gog-skill-google-workspace-cli)
+   - [9.3 Gmail Hooks](#93-gmail-hooks-optional-push-notifications)
+   - [9.4 WhatsApp vs Gmail Comparison](#94-comparison-whatsapp-vs-gmail)
+10. [Configuration](#10-configuration)
+11. [External Dependencies](#11-external-dependencies)
+12. [Porting Considerations](#12-porting-considerations)
 
 ---
 
@@ -82,13 +89,19 @@ clawdbot status           # Show status
 
 ### Is it a ReAct Agent?
 
-**No.** Clawdbot uses a **native tool-calling loop**, not the ReAct (Reasoning + Acting) pattern.
+**Conceptually yes, mechanically no.** Clawdbot follows the same observe-reason-act loop as ReAct, but uses **native API primitives** rather than text parsing.
 
-| Aspect | ReAct Pattern | Clawdbot (Native Tool Calling) |
-|--------|---------------|-------------------------------|
+| Aspect | ReAct (2022 Paper) | Clawdbot (Modern Implementation) |
+|--------|-------------------|----------------------------------|
 | Format | Text parsing: `Thought:`, `Action:`, `Observation:` | Structured JSON tool calls from API |
-| Reasoning | Explicit in output | Implicit (or via thinking tokens) |
-| Reliability | Requires careful prompt engineering | Native API support, more reliable |
+| Reasoning | Explicit `Thought:` blocks in output | Extended thinking tokens (Anthropic) or `<think>` tags |
+| Tool Calls | Parsed from `Action:` text | Native API `tool_use` / `function_call` response |
+| Reliability | Fragile text parsing | Native API support, more reliable |
+
+**Key insight:** ReAct (Yao et al. 2022) pioneered the reason-act-observe loop before LLM APIs had native tool calling. Modern agents like Clawdbot implement the same pattern using formalized API features:
+- **Native tool calling** replaces text-parsed `Action:` blocks
+- **Extended thinking tokens** (`thinkLevel`: off/minimal/low/medium/high) replace `Thought:` blocks
+- The fundamental loop remains identical
 
 ### The Agent Loop
 
@@ -327,11 +340,172 @@ Removes old tool results **without** rewriting the transcript:
 
 ---
 
-## 7. Channel Integrations
+## 7. Memory & Persistence
 
-Channels are loaded as **plugins** from `extensions/`.
+Clawdbot has **three distinct memory mechanisms** for different persistence needs.
 
-### Architecture
+### 7.1 Session Transcripts (Conversation History)
+
+**Storage:** JSONL files at `~/.clawdbot/agents/<agentId>/sessions/<SessionId>.jsonl`
+
+Each message (user, assistant, tool calls, tool results) is appended as a JSON line:
+
+```jsonl
+{"type":"session","id":"abc123","cwd":"/path/to/workspace"}
+{"type":"message","message":{"role":"user","content":"Fix the bug"}}
+{"type":"message","message":{"role":"assistant","content":[...],"tool_calls":[...]}}
+{"type":"message","message":{"role":"toolResult","id":"call_xyz","content":"..."}}
+```
+
+On each agent run:
+1. Session file is loaded into memory
+2. Messages are sanitized, validated, and limited (via `dmHistoryLimit`)
+3. Full history is passed to the LLM in the `messages` array
+
+**Key files:**
+- `src/agents/pi-embedded-runner/session-manager-init.ts` - Session initialization
+- `src/agents/session-tool-result-guard.ts` - Persistence guards
+
+### 7.2 Bootstrap Files (Injected System Context)
+
+**Location:** Workspace directory (e.g., `~/clawd/`)
+
+| File | Purpose | Injected Into |
+|------|---------|---------------|
+| `AGENTS.md` | Operating instructions + "memory" | System prompt |
+| `SOUL.md` | Persona, boundaries, tone | System prompt |
+| `TOOLS.md` | User-maintained tool notes | System prompt |
+| `IDENTITY.md` | Agent name/vibe/emoji | System prompt |
+| `USER.md` | User profile + preferred address | System prompt |
+
+These are **injected into the system prompt** on each turn. The agent can read/write these files with tools, so they serve as **persistent, mutable long-term memory** that survives across sessions.
+
+**Key insight:** The workspace *is* the artifact store. There's no separate database—the agent uses filesystem tools to persist anything it needs.
+
+### 7.3 Vector Memory Search (Optional)
+
+**Storage:** SQLite + vector embeddings at `~/.clawdbot/memory/<agentId>.sqlite`
+
+**Sources indexed:**
+- `MEMORY.md` (workspace root)
+- `memory/*.md` (workspace subdirectory)
+- Optionally: session transcripts
+
+**How it works:**
+
+```
+Agent needs past context
+    │
+    ▼
+Calls memory_search("project X deadline")
+    │
+    ▼
+Vector + BM25 hybrid search in SQLite
+    │
+    ▼
+Returns top snippets with path + line numbers
+    │
+    ▼
+Calls memory_get(path, from, lines) for full context
+```
+
+**Configuration:**
+```json5
+{
+  agents: {
+    defaults: {
+      memorySearch: {
+        enabled: true,
+        sources: ["memory", "sessions"],  // Include session transcripts
+        provider: "openai",               // or "gemini", "local", "auto"
+        model: "text-embedding-3-small",
+        store: {
+          driver: "sqlite",
+          vector: { enabled: true }
+        },
+        query: {
+          maxResults: 10,
+          minScore: 0.3,
+          hybrid: { enabled: true }
+        }
+      }
+    }
+  }
+}
+```
+
+**Key files:**
+- `src/memory/manager.ts` - Main memory manager (~2000 LOC)
+- `src/memory/sync-memory-files.ts` - File indexing
+- `src/memory/sync-session-files.ts` - Session transcript indexing
+- `src/agents/tools/memory-tool.ts` - `memory_search` and `memory_get` tools
+
+### Memory Architecture Summary
+
+| Type | Storage | Query Method | Persistence |
+|------|---------|--------------|-------------|
+| Session history | JSONL files | Loaded directly into messages array | Per-session |
+| Bootstrap files | Markdown files | Injected into system prompt | Cross-session |
+| Vector memory | SQLite + embeddings | `memory_search` tool | Cross-session |
+| Workspace files | Any file format | `read`/`write`/`edit` tools | Permanent |
+
+---
+
+## 8. Channel Integrations
+
+Channels are loaded as **plugins** from `extensions/`. There are two fundamentally different integration patterns:
+
+1. **Native Channels** (WhatsApp, Telegram, etc.) - Bidirectional, gateway-owned
+2. **External Tools via Skills** (Gmail, Calendar) - Agent invokes CLI tools
+
+### 8.1 WhatsApp (Native Channel - Deep Dive)
+
+WhatsApp uses **Baileys** (unofficial WhatsApp Web API). The gateway acts as a **linked device** on your WhatsApp account.
+
+**Architecture:**
+```
+Your Phone (WhatsApp)
+    │
+    ▼ (Linked Device)
+Baileys Socket (src/web/session.ts)
+    │
+    ▼
+Access Control Filter (src/web/inbound/access-control.ts)
+    │
+    ├── DMs: dmPolicy (pairing/allowlist/open)
+    │   └── allowFrom: ["+15551234567"]
+    │
+    └── Groups: groupPolicy (open/allowlist/disabled)
+        └── requireMention (default: true)
+    │
+    ▼
+Agent (processes filtered messages only)
+```
+
+**Capabilities:**
+
+| Action | How | Control |
+|--------|-----|---------|
+| Receive DMs | Gateway socket | `dmPolicy` + `allowFrom` |
+| Receive groups | Gateway socket | `groupPolicy` + `groups` allowlist |
+| Send messages | `message` tool | `actions.sendMessage` |
+| Send media | `message` tool | Images, audio, video, docs |
+| React to messages | `whatsapp react` action | `actions.reactions` |
+| Send polls | Channel plugin | `actions.polls` |
+
+**Security model:**
+- Gateway *receives* all messages (it's a linked device)
+- Agent only *processes* messages passing access control
+- `allowFrom` controls who can trigger the agent
+- Agent *can* send to any contact/group via `message` tool
+
+**Key files:**
+- `extensions/whatsapp/src/channel.ts` - Channel plugin
+- `src/web/session.ts` - Baileys socket creation
+- `src/web/inbound/access-control.ts` - DM/group filtering
+- `src/agents/tools/message-tool.ts` - Agent send capability
+
+### 8.2 Channel Architecture (General)
 
 ```
 Gateway Server (src/gateway/)
@@ -368,11 +542,70 @@ const plugin = {
 
 ---
 
-## 8. Hooks System (Email/Gmail)
+## 9. Gmail & Google Workspace (External Tool Pattern)
 
-**Important:** Email (Gmail) is NOT a channel - it's a **webhook-based hook**.
+**Important:** Gmail/Calendar are NOT native channels. The agent uses an **external CLI tool** (`gog`) via the `exec` tool.
 
-### Architecture
+### 9.1 How Gmail/Calendar Access Works
+
+```
+Agent needs to read email or calendar
+    │
+    ▼
+Agent calls exec tool
+    │
+    ▼
+exec("gog gmail search 'newer_than:1d'")
+    │
+    ▼
+gog CLI (external binary)
+    │
+    ▼ (OAuth tokens stored by gog in ~/.gog/)
+Gmail/Calendar API
+    │
+    ▼
+Results returned to agent
+```
+
+**Key insight:** The agent must *actively query* Gmail/Calendar. There's no automatic push of messages.
+
+### 9.2 gog Skill (Google Workspace CLI)
+
+`gog` is an external CLI by Peter Steinberger for Google Workspace:
+
+```bash
+# Install
+brew install steipete/tap/gogcli
+
+# Setup (one-time)
+gog auth credentials /path/to/client_secret.json
+gog auth add you@gmail.com --services gmail,calendar,drive,contacts,docs,sheets
+```
+
+**Gmail commands:**
+```bash
+gog gmail search 'newer_than:7d' --max 10
+gog gmail send --to a@b.com --subject "Hi" --body "Hello"
+gog gmail drafts create --to a@b.com --subject "Hi" --body-file ./msg.txt
+gog gmail send --reply-to-message-id <msgId> --to a@b.com --subject "Re: Hi" --body "Reply"
+```
+
+**Calendar commands:**
+```bash
+gog calendar events <calendarId> --from 2026-01-01 --to 2026-01-31
+gog calendar create <calendarId> --summary "Meeting" --from <iso> --to <iso>
+gog calendar update <calendarId> <eventId> --summary "New Title"
+```
+
+**Other services:** Drive, Contacts, Sheets, Docs also supported.
+
+**Key files:**
+- `skills/gog/SKILL.md` - Skill documentation (injected into system prompt)
+- Credentials: `~/.gog/` (managed by gog, NOT by Clawdbot)
+
+### 9.3 Gmail Hooks (Optional Push Notifications)
+
+For automatic email notifications, Clawdbot supports **Gmail Pub/Sub webhooks**:
 
 ```
 Gmail API
@@ -381,8 +614,7 @@ Gmail API
 Google Cloud Pub/Sub
     │
     ▼
-gog binary (external tool)
-  └── `gog gmail watch serve`
+gog gmail watch serve
     │
     ▼
 HTTP POST to /hooks/gmail
@@ -391,54 +623,50 @@ HTTP POST to /hooks/gmail
 Clawdbot Hook Handler
     │
     ▼
-Agent (one-way trigger, no reply)
+Agent (one-way trigger, no auto-reply)
 ```
 
-### Key Difference from Channels
-
-| Aspect | Channels (WhatsApp, Telegram) | Hooks (Gmail) |
-|--------|------------------------------|---------------|
-| Direction | Bidirectional | One-way trigger |
-| Integration | Native SDK | External tool + webhook |
-| Response | Auto-reply to sender | No automatic reply |
-
-### gog Tool
-
-`gog` is an **external CLI** by Peter Steinberger for Google Workspace:
-
-```bash
-# Install
-brew install steipete/tap/gogcli
-
-# Setup (one-time)
-gog auth credentials /path/to/client_secret.json
-gog auth add you@gmail.com --services gmail,calendar,drive
-
-# Gmail watch (used by Clawdbot)
-gog gmail watch start --account you@gmail.com --topic my-topic
-gog gmail watch serve --hook-url http://localhost/hooks/gmail
+**Configuration:**
+```json5
+{
+  hooks: {
+    enabled: true,
+    token: "CLAWDBOT_HOOK_TOKEN",
+    presets: ["gmail"],
+    gmail: {
+      account: "you@gmail.com",
+      topic: "projects/your-project/topics/gmail-watch"
+    }
+  }
+}
 ```
 
-Clawdbot **delegates** Gmail credential management to gog - it only reads gog's credential file to get the GCP project ID.
+**Key files:**
+- `src/hooks/gmail-watcher.ts` - Gmail watch service
+- `src/gateway/hooks-mapping.ts` - Hook routing
 
-### Hook Mapping
+### 9.4 Comparison: WhatsApp vs Gmail
 
-```typescript
-// src/gateway/hooks-mapping.ts
-const hookPresetMappings = {
-  gmail: [{
-    id: "gmail",
-    match: { path: "gmail" },
-    action: "agent",
-    sessionKey: "hook:gmail:{{messages[0].id}}",
-    messageTemplate: "New email from {{messages[0].from}}\nSubject: {{messages[0].subject}}"
-  }]
-};
-```
+| Aspect | WhatsApp (Native Channel) | Gmail (External Tool) |
+|--------|--------------------------|----------------------|
+| Integration type | Native SDK (Baileys) | CLI tool (gog) |
+| Connection | Persistent socket | On-demand API calls |
+| Receives messages | Automatic (gateway) | Manual query or webhook |
+| Sends messages | `message` tool | `exec("gog gmail send ...")` |
+| Bidirectional chat | ✅ Yes | ❌ No |
+| Credential storage | `~/.clawdbot/credentials/` | `~/.gog/` (gog-managed) |
+| Access control | `allowFrom`, `groupPolicy` | OAuth scopes |
+| Auto-reply | ✅ Yes | ❌ No |
+| Can read all messages | ✅ Yes (filtered by policy) | ✅ Yes (via gog queries) |
+| Can send as you | ✅ Yes (`message` tool) | ✅ Yes (`gog gmail send`) |
+
+**Bottom line:**
+- **WhatsApp** = Native integration, bidirectional chat, gateway manages connection
+- **Gmail** = External tool, agent queries on-demand, no automatic chat loop
 
 ---
 
-## 9. Configuration
+## 10. Configuration
 
 ### Location
 
@@ -493,7 +721,7 @@ Clawdbot **strictly validates** config on startup. Invalid configs prevent the g
 
 ---
 
-## 10. External Dependencies
+## 11. External Dependencies
 
 ### Pi-Agent Libraries (Mario Zechner)
 
@@ -522,7 +750,7 @@ Key design choices:
 
 ---
 
-## 11. Porting Considerations
+## 12. Porting Considerations
 
 ### Porting to Python/LangGraph
 
