@@ -512,7 +512,7 @@ export async function startNostrBus(
 
   const sub = pool.subscribeMany(
     relays,
-    [{ kinds: [4], "#p": [pk], since }],
+    { kinds: [4], "#p": [pk], since },
     {
       onevent: handleEvent,
       oneose: () => {
@@ -657,7 +657,7 @@ async function sendEncryptedDm(
 
     const startTime = Date.now();
     try {
-      await pool.publish([relay], reply);
+      await pool.publish([relay], reply)[0];
       const latency = Date.now() - startTime;
 
       // Record success
