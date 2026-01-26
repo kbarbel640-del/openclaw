@@ -116,9 +116,6 @@ describe("POST /tools/invoke", () => {
       const res = await fetch(`http://127.0.0.1:${port}/tools/invoke`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      const res = await fetch(`http://127.0.0.1:${port}/tools/invoke`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({
           tool: "sessions_list",
           action: "json",
