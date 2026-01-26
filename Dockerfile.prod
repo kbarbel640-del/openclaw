@@ -55,11 +55,9 @@ RUN rm -rf node_modules && npm install --omit=dev
 
 # Create entrypoint script
 RUN echo '#!/bin/sh\n\
-if [ ! -f "/root/.clawdbot/clawdbot.json" ]; then\n\
-  echo "Creating default config..."\n\
-  mkdir -p /root/.clawdbot\n\
-  cp /app/clawdbot.default.json /root/.clawdbot/clawdbot.json\n\
-fi\n\
+echo "Deploying config from repo..."\n\
+mkdir -p /root/.clawdbot\n\
+cp /app/clawdbot.default.json /root/.clawdbot/clawdbot.json\n\
 echo "Installing checkins plugin..."\n\
 mkdir -p /root/.clawdbot/extensions\n\
 cp -r /app/bundled-plugins/checkins /root/.clawdbot/extensions/\n\
