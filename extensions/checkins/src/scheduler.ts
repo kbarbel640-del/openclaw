@@ -32,17 +32,8 @@ export function getCheckInJobId(memberId: string): string {
  * @returns CronJobCreate configuration
  */
 export function buildCheckInCronJob(member: Member, team: Team): CronJobCreate {
-  // Build a clear instruction for the agent to call the trigger tool
-  const triggerMessage = [
-    "SCHEDULED CHECK-IN TRIGGER",
-    "",
-    "You must call the checkins_trigger tool with these exact parameters:",
-    `  memberId: "${member.id}"`,
-    `  teamId: "${team.id}"`,
-    "",
-    "Do not respond with any other message. Just call the tool.",
-  ].join("\n");
-
+  // Use systemEvent to trigger check-in via the main gateway process
+  // This avoids isolated agent sessions which don't have initialized plugin storage
   return {
     name: `Check-in: ${member.displayName ?? member.discordUserId}`,
     description: `Daily check-in for team ${team.name}`,
@@ -52,12 +43,12 @@ export function buildCheckInCronJob(member: Member, team: Team): CronJobCreate {
       expr: convertTimeToCronExpr(member.schedule.checkInTime),
       tz: member.schedule.timezone,
     },
-    sessionTarget: "isolated",
+    // sessionTarget is auto-set to "main" for systemEvent payloads
+    sessionTarget: "main",
     wakeMode: "now",
     payload: {
-      kind: "agentTurn",
-      message: triggerMessage,
-      deliver: false,
+      kind: "systemEvent",
+      text: `[system] checkins:trigger:${member.id}:${team.id}`,
     },
   };
 }

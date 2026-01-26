@@ -59,6 +59,7 @@ export function buildCleanupCronJobs(storage: CheckinsStorage): CronJobCreate[] 
   }
 
   // Build cleanup job for each timezone
+  // Use systemEvent to run in main gateway process (has access to initialized storage)
   const jobs: CronJobCreate[] = [];
   for (const tz of timezones) {
     jobs.push({
@@ -70,12 +71,11 @@ export function buildCleanupCronJobs(storage: CheckinsStorage): CronJobCreate[] 
         expr: "5 0 * * *", // 00:05 (5 minutes past midnight per RESEARCH.md)
         tz,
       },
-      sessionTarget: "isolated",
+      sessionTarget: "main",
       wakeMode: "now",
       payload: {
-        kind: "agentTurn",
-        message: `[system] checkins:cleanup:${tz}`,
-        deliver: false,
+        kind: "systemEvent",
+        text: `[system] checkins:cleanup:${tz}`,
       },
     });
   }
