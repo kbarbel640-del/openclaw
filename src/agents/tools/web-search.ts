@@ -352,7 +352,7 @@ async function runPerplexitySearchApi(params: {
   const data = (await res.json()) as PerplexitySearchApiResponse;
   const results = Array.isArray(data.results) ? data.results : [];
 
-  // Map to match Brave's format
+  // Map to align formats
   return results.map((entry) => ({
     title: entry.title ?? "",
     url: entry.url ?? "",

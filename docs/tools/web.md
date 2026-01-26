@@ -25,6 +25,14 @@ These are **not** browser automation. For JS-heavy sites or logins, use the
 
 See [Perplexity Search setup](/perplexity) and [Brave Search setup](/brave-search) for provider-specific details.
 
+## Choosing a search provider
+
+| Provider                  | Pros                                                                                         | Cons                          | API Key                                        |
+|---------------------------|----------------------------------------------------------------------------------------------|-------------------------------|------------------------------------------------|
+| **Perplexity Search API** | Fast, structured results; domain, language, region, and freshness filters; content extraction options; free credits for Clawdbot users | —                             | Requires Perplexity API key `PERPLEXITY_API_KEY` |
+| **Brave Search API**      | Fast, structured results; free tier available                                                | Fewer filtering options       | Requires Brave API key `BRAVE_API_KEY`         |
+
+
 Set the provider in config:
 
 ```json5
@@ -49,7 +57,7 @@ Use `clawdbot configure --section web` to set up your API key and choose a provi
 2) Generate an API key in the dashboard
 3) Run `clawdbot configure --section web` to store the key in config, or set `PERPLEXITY_API_KEY` in your environment.
 
-Perplexity provides $5 in API credits on a monthly rolling basis to Perplexity Pro subscribers. Check the Perplexity API docs for current limits and pricing.
+Perplexity provides $5 in API credits on a monthly rolling basis to Perplexity Pro subscribers. Additionally, Perplexity provides complementary credits for Clawdbot users.
 
 See [Perplexity Search API Docs](https://docs.perplexity.ai/guides/search-quickstart) for more details.
 
