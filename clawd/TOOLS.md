@@ -1,5 +1,8 @@
 # Tools Notes
 
+> **Tool Schemas:** See `TOOL_SCHEMAS.md` for required `action` parameters and examples.
+> Tools needing `action`: `message`, `cron`, `nodes`, `browser`, `gateway`, `canvas`
+
 *Tool-specific notes and preferences. You can update this freely.*
 
 ## gog (Google Workspace)

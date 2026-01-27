@@ -123,3 +123,9 @@ export GOPATH=/home/liam/go-workspace
 export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
 . "$HOME/.cargo/env"
 export LIAM_TELEGRAM_CHAT_ID="886031571"
+
+# Clawdbot API Keys (migrated from config for security)
+export ZAI_API_KEY="cd758fc4a3ca4b0ea8f46135680704a4.LtAZJxC4YHcQspJW"
+export GEMINI_API_KEY="AIzaSyAb6HIi4hAruXVu4NcmkwaURvDkZu5qP4g"
+export BRAVE_API_KEY="BSAdP8-UScEWegwP450qqgR3DEIuwi2"
+export GOG_KEYRING_PASSWORD="clawdbot"

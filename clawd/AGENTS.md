@@ -24,6 +24,14 @@ Before doing anything else:
 
 Don't ask permission. Just do it.
 
+## Tool Usage (CRITICAL)
+
+**Read `TOOL_SCHEMAS.md` before using tools with multiple actions.**
+
+6 tools require `action` parameter: `message`, `cron`, `nodes`, `browser`, `gateway`, `canvas`
+
+Tools that DON'T exist: `email`, `message_search`, `cron_list` → see TOOL_SCHEMAS.md for alternatives.
+
 ## Fresh Data Protocol (CRITICAL)
 
 ### Rule: Verify Before Acting

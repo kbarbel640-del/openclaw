@@ -1,16 +1,11 @@
 {
   "meta": {
     "lastTouchedVersion": "2026.1.25",
-    "lastTouchedAt": "2026-01-26T20:24:43.975Z"
-  },
-  "env": {
-    "ZAI_API_KEY": "cd758fc4a3ca4b0ea8f46135680704a4.LtAZJxC4YHcQspJW",
-    "GEMINI_API_KEY": "AIzaSyAb6HIi4hAruXVu4NcmkwaURvDkZu5qP4g",
-    "BRAVE_API_KEY": "BSAdP8-UScEWegwP450qqgR3DEIuwi2"
+    "lastTouchedAt": "2026-01-27T09:34:41.703Z"
   },
   "wizard": {
-    "lastRunAt": "2026-01-25T08:27:02.878Z",
-    "lastRunVersion": "2026.1.24-0",
+    "lastRunAt": "2026-01-27T09:25:17.108Z",
+    "lastRunVersion": "2026.1.25",
     "lastRunCommand": "doctor",
     "lastRunMode": "local"
   },
@@ -20,41 +15,18 @@
   "models": {
     "mode": "merge",
     "providers": {
-      "zai": {
-        "baseUrl": "https://api.z.ai/api/coding/paas/v4",
-        "api": "openai-completions",
-        "models": [
-          {
-            "id": "glm-4.7",
-            "name": "GLM-4.7",
-            "reasoning": true,
-            "input": [
-              "text"
-            ],
-            "contextWindow": 200000,
-            "maxTokens": 8192,
-            "cost": {
-              "input": 0,
-              "output": 0,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            }
-          }
-        ]
-      },
       "google": {
         "baseUrl": "https://generativelanguage.googleapis.com",
-        "apiKey": "AIzaSyAb6HIi4hAruXVu4NcmkwaURvDkZu5qP4g",
         "api": "google-generative-ai",
         "models": [
           {
-            "id": "gemini-3-pro-image-preview",
+            "id": "gemini-2.5-flash-image",
             "name": "Nano Banana Pro",
+            "reasoning": false,
             "input": [
               "text",
               "image"
             ],
-            "reasoning": false,
             "cost": {
               "input": 0,
               "output": 0,
@@ -143,11 +115,6 @@
   },
   "agents": {
     "defaults": {
-      "sandbox": {
-        "mode": "non-main",
-        "scope": "session",
-        "workspaceAccess": "rw"
-      },
       "model": {
         "primary": "zai/glm-4.7",
         "fallbacks": [
@@ -184,28 +151,10 @@
           "watch": true
         }
       },
-      "contextPruning": {
-        "mode": "cache-ttl",
-        "ttl": "5m",
-        "keepLastAssistants": 3,
-        "softTrimRatio": 0.3,
-        "hardClearRatio": 0.5,
-        "softTrim": {
-          "maxChars": 2000,
-          "headChars": 500,
-          "tailChars": 500
-        },
-        "hardClear": {
-          "enabled": true,
-          "placeholder": "[tool result pruned]"
-        }
-      },
       "compaction": {
-        "mode": "safeguard",
-        "reserveTokensFloor": 30000,
         "memoryFlush": {
           "enabled": true,
-          "softThresholdTokens": 8000
+          "softThresholdTokens": 4000
         }
       },
       "blockStreamingDefault": "on",
@@ -219,34 +168,38 @@
       "subagents": {
         "maxConcurrent": 4,
         "archiveAfterMinutes": 60,
-        "model": "zai/glm-4.7"
+        "model": "ollama/glm-4.7-flash"
       }
     },
     "list": [
       {
         "id": "liam-telegram",
-        "name": "Liam (Telegram)",
         "default": false,
+        "name": "Liam (Telegram)",
         "workspace": "/home/liam/clawd",
-        "identity": {
-          "name": "Liam"
-        },
         "model": {
           "primary": "zai/glm-4.7",
-          "fallbacks": ["ollama/glm-4.7-flash"]
+          "fallbacks": [
+            "ollama/glm-4.7-flash"
+          ]
+        },
+        "identity": {
+          "name": "Liam"
         }
       },
       {
         "id": "liam-discord",
-        "name": "Liam (Discord)",
         "default": true,
+        "name": "Liam (Discord)",
         "workspace": "/home/liam/clawd",
-        "identity": {
-          "name": "Liam"
-        },
         "model": {
           "primary": "ollama/glm-4.7-flash",
-          "fallbacks": ["zai/glm-4.7"]
+          "fallbacks": [
+            "zai/glm-4.7"
+          ]
+        },
+        "identity": {
+          "name": "Liam"
         }
       },
       {
@@ -279,11 +232,22 @@
       }
     ]
   },
-  "bindings": [
-    { "agentId": "liam-telegram", "match": { "channel": "telegram" } },
-    { "agentId": "liam-discord", "match": { "channel": "discord" } }
-  ],
   "tools": {
+    "allow": [
+      "exec",
+      "read",
+      "edit",
+      "write",
+      "web_fetch",
+      "web_search",
+      "message",
+      "cron",
+      "sessions_spawn",
+      "sessions_list",
+      "gateway",
+      "nodes",
+      "browser"
+    ],
     "media": {
       "image": {
         "enabled": true,
@@ -291,7 +255,7 @@
         "models": [
           {
             "provider": "google",
-            "model": "gemini-3-pro-image-preview"
+            "model": "gemini-2.5-flash-image"
           },
           {
             "provider": "ollama",
@@ -309,6 +273,20 @@
       }
     }
   },
+  "bindings": [
+    {
+      "agentId": "liam-telegram",
+      "match": {
+        "channel": "telegram"
+      }
+    },
+    {
+      "agentId": "liam-discord",
+      "match": {
+        "channel": "discord"
+      }
+    }
+  ],
   "messages": {
     "ackReactionScope": "group-mentions",
     "tts": {
@@ -333,7 +311,7 @@
       "dmPolicy": "pairing",
       "botToken": "8221260658:AAGx0J3hGeELbqdqrpUwM-u8T-sSzM2oi9E",
       "groupPolicy": "allowlist",
-      "streamMode": "block"
+      "streamMode": "off"
     },
     "discord": {
       "enabled": true,
@@ -347,15 +325,6 @@
         "*": {
           "requireMention": true
         }
-      },
-      "replyToMode": "first",
-      "historyLimit": 10,
-      "maxLinesPerMessage": 30,
-      "actions": {
-        "reactions": true,
-        "threads": true,
-        "pins": true,
-        "search": true
       }
     },
     "slack": {
@@ -370,7 +339,7 @@
     "mode": "local",
     "auth": {
       "mode": "token",
-      "token": "2a0785d4a8288ac2edfdf1a4b2bf21c130b35dc3997e695a"
+      "token": "1cb0974c90cc77902c86eaa312ebfc5a7fd993049eb0da49"
     }
   },
   "skills": {
@@ -405,62 +374,21 @@
       },
       "model-usage": {
         "enabled": true
-      },
-      "nano-banana-pro": {
-        "enabled": true,
-        "apiKey": "AIzaSyAb6HIi4hAruXVu4NcmkwaURvDkZu5qP4g"
-      },
-      "gifgrep": {
-        "enabled": true
-      },
-      "songsee": {
-        "enabled": true
-      },
-      "spotify-player": {
-        "enabled": false
-      },
-      "local-places": {
-        "enabled": false
-      },
-      "goplaces": {
-        "enabled": true,
-        "apiKey": "AIzaSyAb6HIi4hAruXVu4NcmkwaURvDkZu5qP4g"
-      },
-      "canvas": {
-        "enabled": true
-      },
-      "coding-agent": {
-        "enabled": true
       }
     }
   },
   "plugins": {
+    "slots": {
+      "memory": "none"
+    },
     "entries": {
-      "llm-task": {
-        "enabled": true,
-        "config": {
-          "defaultProvider": "ollama",
-          "defaultModel": "glm-4.7-flash",
-          "allowedModels": [
-            "ollama/glm-4.7-flash",
-            "ollama/lfm2.5-thinking:1.2b",
-            "ollama/deepseek-ocr",
-            "zai/glm-4.7"
-          ],
-          "maxTokens": 4096,
-          "timeoutMs": 60000
-        }
-      },
       "telegram": {
         "enabled": true
       },
-      "slack": {
-        "enabled": false
-      },
-      "lobster": {
+      "discord": {
         "enabled": true
       },
-      "discord": {
+      "slack": {
         "enabled": true
       }
     }
