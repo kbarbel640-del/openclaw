@@ -638,8 +638,12 @@ export async function applyNonInteractiveAuthChoice(params: {
       envVar: "OVHCLOUD_API_KEY",
       runtime,
     });
-    if (!resolved) return null;
-    if (resolved.source !== "profile") await setOvhcloudApiKey(resolved.key);
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setOvhcloudApiKey(resolved.key);
+    }
     nextConfig = applyAuthProfileConfig(nextConfig, {
       profileId: "ovhcloud:default",
       provider: "ovhcloud",

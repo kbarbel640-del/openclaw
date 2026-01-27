@@ -324,8 +324,8 @@ Models are auto-discovered from the OVHcloud catalog. The recommended model is `
 ```json5
 {
   agents: {
-    defaults: { model: { primary: "ovhcloud/gpt-oss-120b" } }
-  }
+    defaults: { model: { primary: "ovhcloud/gpt-oss-120b" } },
+  },
 }
 ```
 

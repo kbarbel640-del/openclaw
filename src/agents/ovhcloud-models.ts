@@ -107,15 +107,21 @@ export async function discoverOvhcloudModels(): Promise<ModelDefinitionConfig[]>
 
     // Convert discovered models to ModelDefinitionConfig
     const models: ModelDefinitionConfig[] = data.data.map((apiModel) => {
-      const isReasoning = apiModel.supported_features?.includes("reasoning") ?? false;
-      const hasVision = apiModel.input_modalities?.includes("image") ?? false;
+      const features = apiModel.supported_features ?? [];
+      const modalities = apiModel.input_modalities ?? [];
+      const isReasoning = features.includes("reasoning");
+      const hasVision = modalities.includes("image");
 
       // Parse pricing (values are strings representing cost per token, convert to cost per million tokens)
       // Example: "0.00000009" per token = 0.09 per million tokens
       const parsePricing = (value: string): number => {
-        if (!value || value === "") return 0;
+        if (!value || value === "") {
+          return 0;
+        }
         const num = parseFloat(value);
-        if (isNaN(num) || num === 0) return 0;
+        if (isNaN(num) || num === 0) {
+          return 0;
+        }
         // Convert per-token to per-million-tokens, round to nearest integer
         // For very small values (< 0.5 per million), use Math.ceil to avoid rounding to 0
         const perMillion = num * 1000000;

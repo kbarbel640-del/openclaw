@@ -96,6 +96,19 @@ describe("normalizeModelCompat", () => {
       (normalized.compat as { supportsDeveloperRole?: boolean } | undefined)?.supportsDeveloperRole,
     ).toBe(false);
   });
+
+  it("forces supportsStore off for ovhcloud models", () => {
+    const model = {
+      ...baseModel(),
+      provider: "ovhcloud",
+      baseUrl: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+    };
+    delete (model as { compat?: unknown }).compat;
+    const normalized = normalizeModelCompat(model);
+    expect((normalized.compat as { supportsStore?: boolean } | undefined)?.supportsStore).toBe(
+      false,
+    );
+  });
 });
 
 describe("isModernModelRef", () => {
