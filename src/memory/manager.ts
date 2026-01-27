@@ -26,8 +26,10 @@ import {
   type OpenAiBatchRequest,
   runOpenAiEmbeddingBatches,
 } from "./batch-openai.js";
+import { type VoyageBatchRequest, runVoyageEmbeddingBatches } from "./batch-voyage.js";
 import { DEFAULT_GEMINI_EMBEDDING_MODEL } from "./embeddings-gemini.js";
 import { DEFAULT_OPENAI_EMBEDDING_MODEL } from "./embeddings-openai.js";
+import { DEFAULT_VOYAGE_EMBEDDING_MODEL } from "./embeddings-voyage.js";
 import {
   createEmbeddingProvider,
   type EmbeddingProvider,
@@ -37,16 +39,6 @@ import {
   type VoyageEmbeddingClient,
 } from "./embeddings.js";
 import { bm25RankToScore, buildFtsQuery, mergeHybridResults } from "./hybrid.js";
-import { DEFAULT_GEMINI_EMBEDDING_MODEL } from "./embeddings-gemini.js";
-import { DEFAULT_OPENAI_EMBEDDING_MODEL } from "./embeddings-openai.js";
-import { DEFAULT_VOYAGE_EMBEDDING_MODEL } from "./embeddings-voyage.js";
-import {
-  OPENAI_BATCH_ENDPOINT,
-  type OpenAiBatchRequest,
-  runOpenAiEmbeddingBatches,
-} from "./batch-openai.js";
-import { runGeminiEmbeddingBatches, type GeminiBatchRequest } from "./batch-gemini.js";
-import { type VoyageBatchRequest, runVoyageEmbeddingBatches } from "./batch-voyage.js";
 import {
   buildFileEntry,
   chunkMarkdown,
@@ -58,6 +50,7 @@ import {
   type MemoryChunk,
   type MemoryFileEntry,
   parseEmbedding,
+  runWithConcurrency,
 } from "./internal.js";
 import { searchKeyword, searchVector } from "./manager-search.js";
 import { ensureMemoryIndexSchema } from "./memory-schema.js";
@@ -1122,7 +1115,7 @@ export class MemoryIndexManager implements MemorySearchManager {
         });
       }
     });
-    await this.runWithConcurrency(tasks, this.getIndexConcurrency());
+    await runWithConcurrency(tasks, this.getIndexConcurrency());
 
     const staleRows = this.db
       .prepare(`SELECT path FROM files WHERE source = ?`)
@@ -1219,7 +1212,7 @@ export class MemoryIndexManager implements MemorySearchManager {
         });
       }
     });
-    await this.runWithConcurrency(tasks, this.getIndexConcurrency());
+    await runWithConcurrency(tasks, this.getIndexConcurrency());
 
     const staleRows = this.db
       .prepare(`SELECT path FROM files WHERE source = ?`)
@@ -2196,41 +2189,6 @@ export class MemoryIndexManager implements MemorySearchManager {
         clearTimeout(timer);
       }
     }
-  }
-
-  private async runWithConcurrency<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<T[]> {
-    if (tasks.length === 0) {
-      return [];
-    }
-    const resolvedLimit = Math.max(1, Math.min(limit, tasks.length));
-    const results: T[] = Array.from({ length: tasks.length });
-    let next = 0;
-    let firstError: unknown = null;
-
-    const workers = Array.from({ length: resolvedLimit }, async () => {
-      while (true) {
-        if (firstError) {
-          return;
-        }
-        const index = next;
-        next += 1;
-        if (index >= tasks.length) {
-          return;
-        }
-        try {
-          results[index] = await tasks[index]();
-        } catch (err) {
-          firstError = err;
-          return;
-        }
-      }
-    });
-
-    await Promise.allSettled(workers);
-    if (firstError) {
-      throw firstError;
-    }
-    return results;
   }
 
   private async withBatchFailureLock<T>(fn: () => Promise<T>): Promise<T> {
