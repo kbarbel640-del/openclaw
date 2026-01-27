@@ -45,6 +45,11 @@ export function installSessionToolResultGuard(
       meta: { toolCallId?: string; toolName?: string; isSynthetic?: boolean },
     ) => AgentMessage;
     /**
+     * Optional, synchronous transform applied to ALL messages *before* they are
+     * persisted to the session transcript. Useful for PII masking.
+     */
+    transformMessageForPersistence?: (message: AgentMessage) => AgentMessage;
+    /**
      * Whether to synthesize missing tool results to satisfy strict providers.
      * Defaults to true.
      */
@@ -84,15 +89,20 @@ export function installSessionToolResultGuard(
     pending.clear();
   };
 
+  const transformMessage = opts?.transformMessageForPersistence;
+
   const guardedAppend = (message: AgentMessage) => {
     const role = (message as { role?: unknown }).role;
+
+    // Apply general transform to all messages (for PII masking, etc.)
+    const transformedMessage = transformMessage ? transformMessage(message) : message;
 
     if (role === "toolResult") {
       const id = extractToolResultId(message as Extract<AgentMessage, { role: "toolResult" }>);
       const toolName = id ? pending.get(id) : undefined;
       if (id) pending.delete(id);
       return originalAppend(
-        persistToolResult(message, {
+        persistToolResult(transformedMessage, {
           toolCallId: id ?? undefined,
           toolName,
           isSynthetic: false,
@@ -116,7 +126,7 @@ export function installSessionToolResultGuard(
       }
     }
 
-    const result = originalAppend(message as never);
+    const result = originalAppend(transformedMessage as never);
 
     const sessionFile = (
       sessionManager as { getSessionFile?: () => string | null }

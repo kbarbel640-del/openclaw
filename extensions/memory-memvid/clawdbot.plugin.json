@@ -1,0 +1,57 @@
+{
+  "id": "memory-memvid",
+  "name": "Memory (Memvid)",
+  "description": "Long-term memory using Memvid SDK. Provides efficient storage, hybrid search, and RAG capabilities with full conversation history preservation.",
+  "kind": "memory",
+  "version": "2026.1.27",
+  "author": "Memvid",
+  "repository": "https://github.com/memvid/memvid",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "memoryPath": {
+        "type": "string",
+        "description": "Path to the .mv2 memory file (default: ~/.clawdbot/memories/moltbot.mv2)"
+      },
+      "openaiApiKey": {
+        "type": "string",
+        "description": "OpenAI API key for embeddings (uses OPENAI_API_KEY env var if not set)"
+      },
+      "embeddingModel": {
+        "type": "string",
+        "description": "OpenAI embedding model",
+        "default": "text-embedding-3-small"
+      },
+      "autoRecall": {
+        "type": "boolean",
+        "description": "Automatically inject relevant memories before agent starts",
+        "default": true
+      },
+      "autoCapture": {
+        "type": "boolean",
+        "description": "Automatically capture important information after agent ends",
+        "default": true
+      },
+      "topK": {
+        "type": "number",
+        "description": "Number of results to return from memory search",
+        "default": 5
+      },
+      "snippetChars": {
+        "type": "number",
+        "description": "Maximum characters per snippet",
+        "default": 500
+      },
+      "minScore": {
+        "type": "number",
+        "description": "Minimum similarity score for memory matches (0-1)",
+        "default": 0.3
+      },
+      "ragModel": {
+        "type": "string",
+        "description": "Model for RAG answers",
+        "default": "gpt-4o-mini"
+      }
+    }
+  }
+}

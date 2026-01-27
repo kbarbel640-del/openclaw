@@ -1,0 +1,13 @@
+{
+  "name": "@moltbot/memory-memvid",
+  "version": "2026.1.27",
+  "description": "Memvid-backed long-term memory for Moltbot with efficient storage, hybrid search, and full audit trails",
+  "type": "module",
+  "main": "index.ts",
+  "dependencies": {
+    "@memvid/sdk": "^2.0.153"
+  },
+  "peerDependencies": {
+    "moltbot": "*"
+  }
+}
