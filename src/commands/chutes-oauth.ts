@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import type { ChutesOAuthAppConfig } from "../agents/chutes-oauth.js";
 import {
   CHUTES_AUTHORIZE_ENDPOINT,
@@ -10,6 +11,8 @@ import {
   generateChutesPkce,
   parseOAuthCallbackInput,
 } from "../agents/chutes-oauth.js";
+
+const log = createSubsystemLogger("commands/chutes-oauth");
 
 type OAuthPrompt = {
   message: string;
@@ -109,7 +112,9 @@ async function waitForLocalCallback(params: {
     timeout = setTimeout(() => {
       try {
         server.close();
-      } catch {}
+      } catch (err) {
+        log.debug(`server.close() error: ${String(err)}`);
+      }
       reject(new Error("OAuth callback timeout"));
     }, params.timeoutMs);
   });

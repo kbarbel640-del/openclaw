@@ -3,6 +3,10 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { createSubsystemLogger } from "../logging/subsystem.js";
+
+const log = createSubsystemLogger("memory");
+
 export type MemoryFileEntry = {
   path: string;
   absPath: string;
@@ -21,7 +25,9 @@ export type MemoryChunk = {
 export function ensureDir(dir: string): string {
   try {
     fsSync.mkdirSync(dir, { recursive: true });
-  } catch {}
+  } catch (err) {
+    log.debug(`mkdirSync(${dir}) failed: ${String(err)}`);
+  }
   return dir;
 }
 
@@ -77,7 +83,9 @@ export async function listMemoryFiles(workspaceDir: string): Promise<string[]> {
     let key = entry;
     try {
       key = await fs.realpath(entry);
-    } catch {}
+    } catch (err) {
+      log.debug(`fs.realpath(${entry}) failed: ${String(err)}`);
+    }
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(entry);

@@ -207,7 +207,9 @@ function extractSherpaOnnxText(raw: string): string | null {
           return text.trim();
         }
       }
-    } catch {}
+    } catch (err) {
+      logVerbose(`JSON parsing failed in extractMediaTextFromGeminiOutput: ${String(err)}`);
+    }
     return null;
   };
 
@@ -502,7 +504,9 @@ async function resolveCliOutput(params: {
     try {
       const content = await fs.readFile(fileOutput, "utf8");
       if (content.trim()) return content.trim();
-    } catch {}
+    } catch (err) {
+      logVerbose(`Failed to read file output from ${fileOutput}: ${String(err)}`);
+    }
   }
 
   if (commandId === "gemini") {

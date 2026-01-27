@@ -3,6 +3,10 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { createServer } from "node:http";
 import { delimiter, dirname, join } from "node:path";
 
+import { createSubsystemLogger } from "../../src/logging/subsystem.js";
+
+const log = createSubsystemLogger("extensions/google-gemini-cli-auth");
+
 const CLIENT_ID_KEYS = ["CLAWDBOT_GEMINI_OAUTH_CLIENT_ID", "GEMINI_CLI_OAUTH_CLIENT_ID"];
 const CLIENT_SECRET_KEYS = [
   "CLAWDBOT_GEMINI_OAUTH_CLIENT_SECRET",
@@ -118,7 +122,9 @@ function findFile(dir: string, name: string, depth: number): string | null {
         if (found) return found;
       }
     }
-  } catch {}
+  } catch (err) {
+    log.debug(`readdirSync failed in findFile: ${String(err)}`);
+  }
   return null;
 }
 

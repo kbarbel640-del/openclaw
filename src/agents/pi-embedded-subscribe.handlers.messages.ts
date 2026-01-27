@@ -133,9 +133,11 @@ export function handleMessageUpdate(
               mediaUrls: mediaUrls?.length ? mediaUrls : undefined,
             },
           }),
-        ).catch(() => {});
-      } catch {
-        // Ignore callback errors.
+        ).catch((err) => {
+          ctx.log.debug(`onAgentEvent callback error (assistant): ${String(err)}`);
+        });
+      } catch (err) {
+        ctx.log.debug(`onAgentEvent callback error (assistant): ${String(err)}`);
       }
       if (ctx.params.onPartialReply && ctx.state.shouldEmitPartialReplies) {
         void ctx.params.onPartialReply({

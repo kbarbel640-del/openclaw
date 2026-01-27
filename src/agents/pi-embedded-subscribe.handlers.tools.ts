@@ -77,9 +77,11 @@ export async function handleToolExecutionStart(
         stream: "tool",
         data: { phase: "start", name: toolName, toolCallId },
       }),
-    ).catch(() => {});
-  } catch {
-    // Ignore callback errors.
+    ).catch((err) => {
+      ctx.log.debug(`onAgentEvent callback error (tool/start): ${String(err)}`);
+    });
+  } catch (err) {
+    ctx.log.debug(`onAgentEvent callback error (tool/start): ${String(err)}`);
   }
 
   if (
@@ -142,9 +144,11 @@ export function handleToolExecutionUpdate(
           toolCallId,
         },
       }),
-    ).catch(() => {});
-  } catch {
-    // Ignore callback errors.
+    ).catch((err) => {
+      ctx.log.debug(`onAgentEvent callback error (tool/update): ${String(err)}`);
+    });
+  } catch (err) {
+    ctx.log.debug(`onAgentEvent callback error (tool/update): ${String(err)}`);
   }
 }
 
@@ -220,9 +224,11 @@ export function handleToolExecutionEnd(
           isError: isToolError,
         },
       }),
-    ).catch(() => {});
-  } catch {
-    // Ignore callback errors.
+    ).catch((err) => {
+      ctx.log.debug(`onAgentEvent callback error (tool/result): ${String(err)}`);
+    });
+  } catch (err) {
+    ctx.log.debug(`onAgentEvent callback error (tool/result): ${String(err)}`);
   }
 
   ctx.log.debug(

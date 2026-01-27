@@ -313,9 +313,11 @@ export async function runEmbeddedPiAgent(
               stream: "compaction",
               data,
             }),
-          ).catch(() => {});
-        } catch {
-          // Ignore callback errors.
+          ).catch((err) => {
+            log.debug(`onAgentEvent callback error (compaction): ${String(err)}`);
+          });
+        } catch (err) {
+          log.debug(`onAgentEvent callback error (compaction): ${String(err)}`);
         }
       };
 

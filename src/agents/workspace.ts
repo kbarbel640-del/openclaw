@@ -3,9 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { resolveUserPath } from "../utils.js";
+
+const log = createSubsystemLogger("agents/workspace");
 
 export function resolveDefaultAgentWorkspaceDir(
   env: NodeJS.ProcessEnv = process.env,
@@ -213,7 +216,9 @@ async function resolveMemoryBootstrapEntries(
     let key = entry.filePath;
     try {
       key = await fs.realpath(entry.filePath);
-    } catch {}
+    } catch (err) {
+      log.debug(`fs.realpath() failed for ${entry.filePath}: ${String(err)}`);
+    }
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(entry);

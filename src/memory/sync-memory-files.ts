@@ -87,14 +87,18 @@ export async function syncMemoryFiles(params: {
           `DELETE FROM ${params.vectorTable} WHERE id IN (SELECT id FROM chunks WHERE path = ? AND source = ?)`,
         )
         .run(stale.path, "memory");
-    } catch {}
+    } catch (err) {
+      log.debug(`Failed to delete from ${params.vectorTable}: ${String(err)}`);
+    }
     params.db.prepare(`DELETE FROM chunks WHERE path = ? AND source = ?`).run(stale.path, "memory");
     if (params.ftsEnabled && params.ftsAvailable) {
       try {
         params.db
           .prepare(`DELETE FROM ${params.ftsTable} WHERE path = ? AND source = ? AND model = ?`)
           .run(stale.path, "memory", params.model);
-      } catch {}
+      } catch (err) {
+        log.debug(`Failed to delete from ${params.ftsTable}: ${String(err)}`);
+      }
     }
   }
 }

@@ -1,7 +1,11 @@
+import { createSubsystemLogger } from "../logging/subsystem.js";
+
 type MinimaxBaseResp = {
   status_code?: number;
   status_msg?: string;
 };
+
+const log = createSubsystemLogger("agents/minimax-vlm");
 
 function coerceApiHost(params: {
   apiHost?: string;
@@ -18,12 +22,15 @@ function coerceApiHost(params: {
   try {
     const url = new URL(raw);
     return url.origin;
-  } catch {}
+  } catch (err) {
+    log.debug(`Failed to parse API host URL "${raw}": ${String(err)}`);
+  }
 
   try {
     const url = new URL(`https://${raw}`);
     return url.origin;
-  } catch {
+  } catch (err) {
+    log.debug(`Failed to parse API host URL with https prefix "${raw}": ${String(err)}`);
     return "https://api.minimax.io";
   }
 }

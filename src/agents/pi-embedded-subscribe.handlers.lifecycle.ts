@@ -22,9 +22,11 @@ export function handleAgentStart(ctx: EmbeddedPiSubscribeContext) {
         stream: "lifecycle",
         data: { phase: "start" },
       }),
-    ).catch(() => {});
-  } catch {
-    // Ignore callback errors.
+    ).catch((err) => {
+      ctx.log.debug(`onAgentEvent callback error (lifecycle/start): ${String(err)}`);
+    });
+  } catch (err) {
+    ctx.log.debug(`onAgentEvent callback error (lifecycle/start): ${String(err)}`);
   }
 }
 
@@ -43,9 +45,11 @@ export function handleAutoCompactionStart(ctx: EmbeddedPiSubscribeContext) {
         stream: "compaction",
         data: { phase: "start" },
       }),
-    ).catch(() => {});
-  } catch {
-    // Ignore callback errors.
+    ).catch((err) => {
+      ctx.log.debug(`onAgentEvent callback error (compaction/start): ${String(err)}`);
+    });
+  } catch (err) {
+    ctx.log.debug(`onAgentEvent callback error (compaction/start): ${String(err)}`);
   }
 }
 
@@ -73,9 +77,11 @@ export function handleAutoCompactionEnd(
         stream: "compaction",
         data: { phase: "end", willRetry },
       }),
-    ).catch(() => {});
-  } catch {
-    // Ignore callback errors.
+    ).catch((err) => {
+      ctx.log.debug(`onAgentEvent callback error (compaction/end): ${String(err)}`);
+    });
+  } catch (err) {
+    ctx.log.debug(`onAgentEvent callback error (compaction/end): ${String(err)}`);
   }
 }
 
@@ -95,9 +101,11 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
         stream: "lifecycle",
         data: { phase: "end" },
       }),
-    ).catch(() => {});
-  } catch {
-    // Ignore callback errors.
+    ).catch((err) => {
+      ctx.log.debug(`onAgentEvent callback error (lifecycle/end): ${String(err)}`);
+    });
+  } catch (err) {
+    ctx.log.debug(`onAgentEvent callback error (lifecycle/end): ${String(err)}`);
   }
 
   // Emit turn completion for continuation system (fire-and-forget)

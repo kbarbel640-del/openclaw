@@ -113,7 +113,9 @@ export function injectCanvasLiveReload(html: string): string {
         androidHandler.postMessage(raw);
         return true;
       }
-    } catch {}
+    } catch (err) {
+      console.debug("postToNode error:", String(err));
+    }
     return false;
   }
   function sendUserAction(userAction) {
@@ -135,7 +137,9 @@ export function injectCanvasLiveReload(html: string): string {
     ws.onmessage = (ev) => {
       if (String(ev.data || "") === "reload") location.reload();
     };
-  } catch {}
+  } catch (err) {
+    console.debug("WebSocket reload setup failed:", String(err));
+  }
 })();
 </script>
 `.trim();

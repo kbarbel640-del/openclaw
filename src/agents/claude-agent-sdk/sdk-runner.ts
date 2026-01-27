@@ -332,11 +332,11 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
     );
 
     try {
-      void Promise.resolve(params.onAssistantMessageStart?.()).catch(() => {
-        // Don't let async callback errors trigger unhandled rejections.
+      void Promise.resolve(params.onAssistantMessageStart?.()).catch((err) => {
+        logDebug(`[sdk-runner] onAssistantMessageStart callback error: ${String(err)}`);
       });
-    } catch {
-      // Ignore callback errors.
+    } catch (err) {
+      logDebug(`[sdk-runner] onAssistantMessageStart callback error: ${String(err)}`);
     }
 
     for await (const event of stream) {

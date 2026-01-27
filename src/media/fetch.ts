@@ -1,6 +1,9 @@
 import path from "node:path";
 
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import { detectMime, extensionForMime } from "./mime.js";
+
+const log = createSubsystemLogger("media/fetch");
 
 type FetchMediaResult = {
   buffer: Buffer;
@@ -164,7 +167,9 @@ async function readResponseWithLimit(res: Response, maxBytes: number): Promise<B
         if (total > maxBytes) {
           try {
             await reader.cancel();
-          } catch {}
+          } catch (err) {
+            log.debug(`reader.cancel() error: ${String(err)}`);
+          }
           throw new MediaFetchError(
             "max_bytes",
             `Failed to fetch media from ${res.url || "response"}: payload exceeds maxBytes ${maxBytes}`,
@@ -176,7 +181,9 @@ async function readResponseWithLimit(res: Response, maxBytes: number): Promise<B
   } finally {
     try {
       reader.releaseLock();
-    } catch {}
+    } catch (err) {
+      log.debug(`reader.releaseLock() error: ${String(err)}`);
+    }
   }
 
   return Buffer.concat(

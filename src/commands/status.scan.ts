@@ -4,6 +4,7 @@ import { buildGatewayConnectionDetails, callGateway } from "../gateway/call.js";
 import { normalizeControlUiBasePath } from "../gateway/control-ui-shared.js";
 import { probeGateway } from "../gateway/probe.js";
 import { collectChannelStatusIssues } from "../infra/channels-status-issues.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveOsSummary } from "../infra/os-summary.js";
 import { getTailnetHostname } from "../infra/tailscale.js";
 import type { MemoryIndexManager } from "../memory/manager.js";
@@ -14,6 +15,8 @@ import { pickGatewaySelfPresence, resolveGatewayProbeAuth } from "./status.gatew
 import { getStatusSummary } from "./status.summary.js";
 import { getUpdateCheckResult } from "./status.update.js";
 import { buildChannelsTable } from "./status-all/channels.js";
+
+const log = createSubsystemLogger("commands/status.scan");
 
 type MemoryStatusSnapshot = ReturnType<MemoryIndexManager["status"]> & {
   agentId: string;
@@ -156,7 +159,9 @@ export async function scanStatus(
         if (!manager) return null;
         try {
           await manager.probeVectorAvailability();
-        } catch {}
+        } catch (err) {
+          log.debug(`probeVectorAvailability() failed: ${String(err)}`);
+        }
         const status = manager.status();
         await manager.close().catch(() => {});
         return { agentId, ...status };
