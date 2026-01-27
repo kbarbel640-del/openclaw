@@ -138,8 +138,7 @@ export function collectSecretsInConfigFindings(cfg: ClawdbotConfig): SecurityAud
       title: "Gateway password is stored in config",
       detail:
         "gateway.auth.password is set in the config file; prefer environment variables for secrets when possible.",
-      remediation:
-        "Prefer CLAWDBOT_GATEWAY_PASSWORD (env) and remove gateway.auth.password from disk.",
+      remediation: `Run: export CLAWDBOT_GATEWAY_PASSWORD="your-password" && clawdbot config unset gateway.auth.password`,
     });
   }
 
@@ -188,7 +187,7 @@ export function collectHooksHardeningFindings(cfg: ClawdbotConfig): SecurityAudi
       title: "Hooks token reuses the Gateway token",
       detail:
         "hooks.token matches gateway.auth token; compromise of hooks expands blast radius to the Gateway API.",
-      remediation: "Use a separate hooks.token dedicated to hook ingress.",
+      remediation: `Run: clawdbot config set hooks.token "$(openssl rand -hex 32)"`,
     });
   }
 
@@ -199,7 +198,7 @@ export function collectHooksHardeningFindings(cfg: ClawdbotConfig): SecurityAudi
       severity: "critical",
       title: "Hooks base path is '/'",
       detail: "hooks.path='/' would shadow other HTTP endpoints and is unsafe.",
-      remediation: "Use a dedicated path like '/hooks'.",
+      remediation: `Run: clawdbot config set hooks.path /hooks`,
     });
   }
 
@@ -338,7 +337,7 @@ export function collectModelHygieneFindings(cfg: ClawdbotConfig): SecurityAuditF
         "Older/legacy models can be less robust against prompt injection and tool misuse.\n" +
         lines +
         more,
-      remediation: "Prefer modern, instruction-hardened models for any bot that can run tools.",
+      remediation: `Run: clawdbot config set agents.defaults.model.primary claude-sonnet-4-20250514 (or gpt-5)`,
     });
   }
 
@@ -356,8 +355,7 @@ export function collectModelHygieneFindings(cfg: ClawdbotConfig): SecurityAuditF
         "Smaller/older models are generally more susceptible to prompt injection and tool misuse.\n" +
         lines +
         more,
-      remediation:
-        "Use the latest, top-tier model for any bot with tools or untrusted inboxes. Avoid Haiku tiers; prefer GPT-5+ and Claude 4.5+.",
+      remediation: `Run: clawdbot config set agents.defaults.model.primary claude-sonnet-4-20250514 (avoid Haiku; prefer Claude 4.5+ or GPT-5+)`,
     });
   }
 
@@ -506,8 +504,7 @@ export function collectSmallModelRiskFindings(params: {
       exposureDetail +
       `\n` +
       "Small models are not recommended for untrusted inputs.",
-    remediation:
-      'If you must use small models, enable sandboxing for all sessions (agents.defaults.sandbox.mode="all") and disable web_search/web_fetch/browser (tools.deny=["group:web","browser"]).',
+    remediation: `Run: clawdbot config set agents.defaults.sandbox.mode all && clawdbot config set tools.deny '["group:web","browser"]'`,
   });
 
   return findings;
@@ -602,7 +599,7 @@ export async function collectPluginsTrustFindings(params: {
         (skillCommandsLikelyExposed
           ? "\nNative skill commands are enabled on at least one configured chat surface; treat unpinned/unallowlisted extensions as high risk."
           : ""),
-      remediation: "Set plugins.allow to an explicit list of plugin ids you trust.",
+      remediation: `Run: clawdbot config set plugins.allow '["plugin-id-1","plugin-id-2"]' (list only trusted plugin IDs)`,
     });
   }
 
@@ -937,7 +934,7 @@ export function collectExposureMatrixFindings(cfg: ClawdbotConfig): SecurityAudi
       detail:
         `Found groupPolicy="open" at:\n${openGroups.map((p) => `- ${p}`).join("\n")}\n` +
         "With tools.elevated enabled, a prompt injection in those rooms can become a high-impact incident.",
-      remediation: `Set groupPolicy="allowlist" and keep elevated allowlists extremely tight.`,
+      remediation: `Run: clawdbot security audit --fix (auto-sets groupPolicy to allowlist)`,
     });
   }
 

@@ -273,7 +273,7 @@ function collectGatewayConfigFindings(
       severity: "critical",
       title: "Gateway binds beyond loopback without auth",
       detail: `gateway.bind="${bind}" but no gateway.auth token/password is configured.`,
-      remediation: `Set gateway.auth (token recommended) or bind to loopback.`,
+      remediation: `Run: clawdbot config set gateway.auth.mode token && clawdbot config set gateway.auth.token "$(openssl rand -hex 32)"`,
     });
   }
 
@@ -286,8 +286,7 @@ function collectGatewayConfigFindings(
         "gateway.bind is loopback and gateway.trustedProxies is empty. " +
         "If you expose the Control UI through a reverse proxy, configure trusted proxies " +
         "so local-client checks cannot be spoofed.",
-      remediation:
-        "Set gateway.trustedProxies to your proxy IPs or keep the Control UI local-only.",
+      remediation: `Run: clawdbot config set gateway.trustedProxies '["127.0.0.1"]' (replace with your proxy IPs)`,
     });
   }
 
@@ -299,7 +298,7 @@ function collectGatewayConfigFindings(
       detail:
         "gateway.bind is loopback but no gateway auth secret is configured. " +
         "If the Control UI is exposed through a reverse proxy, unauthenticated access is possible.",
-      remediation: "Set gateway.auth (token recommended) or keep the Control UI local-only.",
+      remediation: `Run: clawdbot config set gateway.auth.mode token && clawdbot config set gateway.auth.token "$(openssl rand -hex 32)"`,
     });
   }
 
@@ -309,7 +308,7 @@ function collectGatewayConfigFindings(
       severity: "critical",
       title: "Tailscale Funnel exposure enabled",
       detail: `gateway.tailscale.mode="funnel" exposes the Gateway publicly; keep auth strict and treat it as internet-facing.`,
-      remediation: `Prefer tailscale.mode="serve" (tailnet-only) or set tailscale.mode="off".`,
+      remediation: `Run: clawdbot config set gateway.tailscale.mode serve (or "off" to disable)`,
     });
   } else if (tailscaleMode === "serve") {
     findings.push({
@@ -327,7 +326,7 @@ function collectGatewayConfigFindings(
       title: "Control UI allows insecure HTTP auth",
       detail:
         "gateway.controlUi.allowInsecureAuth=true allows token-only auth over HTTP and skips device identity.",
-      remediation: "Disable it or switch to HTTPS (Tailscale Serve) or localhost.",
+      remediation: `Run: clawdbot config set gateway.controlUi.allowInsecureAuth false`,
     });
   }
 
@@ -338,7 +337,7 @@ function collectGatewayConfigFindings(
       title: "DANGEROUS: Control UI device auth disabled",
       detail:
         "gateway.controlUi.dangerouslyDisableDeviceAuth=true disables device identity checks for the Control UI.",
-      remediation: "Disable it unless you are in a short-lived break-glass scenario.",
+      remediation: `Run: clawdbot config set gateway.controlUi.dangerouslyDisableDeviceAuth false`,
     });
   }
 
@@ -490,7 +489,7 @@ async function collectChannelSecurityFindings(params: {
         severity: "critical",
         title: `${input.label} DMs are open`,
         detail: `${policyPath}="open" allows anyone to DM the bot.`,
-        remediation: `Use pairing/allowlist; if you really need open DMs, ensure ${allowFromKey} includes "*".`,
+        remediation: `Run: clawdbot config set ${policyPath} allowlist (or add "*" to ${allowFromKey} if open DMs are required)`,
       });
       if (!hasWildcard) {
         findings.push({
@@ -519,7 +518,7 @@ async function collectChannelSecurityFindings(params: {
         title: `${input.label} DMs share the main session`,
         detail:
           "Multiple DM senders currently share the main session, which can leak context across users.",
-        remediation: 'Set session.dmScope="per-channel-peer" to isolate DM sessions per sender.',
+        remediation: `Run: clawdbot config set session.dmScope per-channel-peer`,
       });
     }
   };
@@ -596,8 +595,7 @@ async function collectChannelSecurityFindings(params: {
             title: "Discord slash commands are unrestricted",
             detail:
               "commands.useAccessGroups=false disables sender allowlists for Discord slash commands unless a per-guild/channel users allowlist is configured; with no users allowlist, any user in allowed guild channels can invoke /… commands.",
-            remediation:
-              "Set commands.useAccessGroups=true (recommended), or configure channels.discord.guilds.<id>.users (or channels.discord.guilds.<id>.channels.<channel>.users).",
+            remediation: `Run: clawdbot config set commands.useAccessGroups true`,
           });
         } else if (
           useAccessGroups &&
@@ -612,8 +610,7 @@ async function collectChannelSecurityFindings(params: {
             title: "Discord slash commands have no allowlists",
             detail:
               "Discord slash commands are enabled, but neither an owner allowFrom list nor any per-guild/channel users allowlist is configured; /… commands will be rejected for everyone.",
-            remediation:
-              "Add your user id to channels.discord.dm.allowFrom (or approve yourself via pairing), or configure channels.discord.guilds.<id>.users.",
+            remediation: `Run: clawdbot pair discord (recommended), or: clawdbot config set channels.discord.dm.allowFrom '["YOUR_USER_ID"]'`,
           });
         }
       }
@@ -650,7 +647,7 @@ async function collectChannelSecurityFindings(params: {
             title: "Slack slash commands bypass access groups",
             detail:
               "Slack slash/native commands are enabled while commands.useAccessGroups=false; this can allow unrestricted /… command execution from channels/users you didn't explicitly authorize.",
-            remediation: "Set commands.useAccessGroups=true (recommended).",
+            remediation: `Run: clawdbot config set commands.useAccessGroups true`,
           });
         } else {
           const dmAllowFromRaw = (account as { dm?: { allowFrom?: unknown } } | null)?.dm
@@ -672,8 +669,7 @@ async function collectChannelSecurityFindings(params: {
               title: "Slack slash commands have no allowlists",
               detail:
                 "Slack slash/native commands are enabled, but neither an owner allowFrom list nor any channels.<id>.users allowlist is configured; /… commands will be rejected for everyone.",
-              remediation:
-                "Approve yourself via pairing (recommended), or set channels.slack.dm.allowFrom and/or channels.slack.channels.<id>.users.",
+              remediation: `Run: clawdbot pair slack (recommended), or: clawdbot config set channels.slack.dm.allowFrom '["YOUR_USER_ID"]'`,
             });
           }
         }
@@ -765,8 +761,7 @@ async function collectChannelSecurityFindings(params: {
           title: "Telegram group allowlist contains wildcard",
           detail:
             'Telegram group sender allowlist contains "*", which allows any group member to run /… commands and control directives.',
-          remediation:
-            'Remove "*" from channels.telegram.groupAllowFrom and pairing store; prefer explicit user ids/usernames.',
+          remediation: `Run: clawdbot config set channels.telegram.groupAllowFrom '["YOUR_USER_ID"]' (remove "*" and use explicit IDs)`,
         });
         continue;
       }
@@ -786,8 +781,7 @@ async function collectChannelSecurityFindings(params: {
           detail:
             `Telegram group access is enabled but no sender allowlist is configured; this allows any group member to invoke /… commands` +
             (skillsEnabled ? " (including skill commands)." : "."),
-          remediation:
-            "Approve yourself via pairing (recommended), or set channels.telegram.groupAllowFrom (or per-group groups.<id>.allowFrom).",
+          remediation: `Run: clawdbot pair telegram (recommended), or: clawdbot config set channels.telegram.groupAllowFrom '["YOUR_USER_ID"]'`,
         });
       }
     }
