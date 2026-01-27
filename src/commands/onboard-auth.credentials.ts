@@ -164,3 +164,17 @@ export async function setOpencodeZenApiKey(key: string, agentDir?: string) {
     agentDir: resolveAuthAgentDir(agentDir),
   });
 }
+
+export const OLLAMA_DEFAULT_MODEL_REF = "ollama/llama3.3";
+
+export async function setOllamaApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "ollama:default",
+    credential: {
+      type: "api_key",
+      provider: "ollama",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}

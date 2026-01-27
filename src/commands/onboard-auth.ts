@@ -33,12 +33,14 @@ export {
   applyOpencodeZenProviderConfig,
 } from "./onboard-auth.config-opencode.js";
 export {
+  OLLAMA_DEFAULT_MODEL_REF,
   OPENROUTER_DEFAULT_MODEL_REF,
   setAnthropicApiKey,
   setGeminiApiKey,
   setKimiCodeApiKey,
   setMinimaxApiKey,
   setMoonshotApiKey,
+  setOllamaApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
   setSyntheticApiKey,
