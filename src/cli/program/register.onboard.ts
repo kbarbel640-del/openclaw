@@ -82,6 +82,7 @@ export function registerOnboardCommand(program: Command) {
   }
 
   command
+    .option("--kilocode-api-key <key>", "Kilo Gateway API key")
     .option("--custom-base-url <url>", "Custom provider base URL")
     .option("--custom-api-key <key>", "Custom provider API key (optional)")
     .option("--custom-model-id <id>", "Custom provider model ID")
@@ -133,6 +134,7 @@ export function registerOnboardCommand(program: Command) {
           openaiApiKey: opts.openaiApiKey as string | undefined,
           mistralApiKey: opts.mistralApiKey as string | undefined,
           openrouterApiKey: opts.openrouterApiKey as string | undefined,
+          kilocodeApiKey: opts.kilocodeApiKey as string | undefined,
           aiGatewayApiKey: opts.aiGatewayApiKey as string | undefined,
           cloudflareAiGatewayAccountId: opts.cloudflareAiGatewayAccountId as string | undefined,
           cloudflareAiGatewayGatewayId: opts.cloudflareAiGatewayGatewayId as string | undefined,
