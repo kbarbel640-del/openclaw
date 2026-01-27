@@ -1,9 +1,8 @@
-import fs from "node:fs";
-
 import { GoogleAuth, OAuth2Client } from "google-auth-library";
 import { DEFAULT_ACCOUNT_ID } from "clawdbot/plugin-sdk";
 
 import type { ResolvedGoogleChatAccount } from "./accounts.js";
+import { readJsonFile, readRefreshTokenFromFile } from "./file-utils.js";
 import { readGogRefreshTokenSync, resolveGogCredentialsFile } from "./gog.js";
 
 const CHAT_SCOPE = "https://www.googleapis.com/auth/chat.bot";
@@ -93,16 +92,6 @@ function parseOAuthClientJson(raw: unknown): OAuthClientConfig | null {
   return { clientId, clientSecret, redirectUri: redirect || undefined };
 }
 
-function readJsonFile(path: string): unknown | null {
-  try {
-    const raw = fs.readFileSync(path, "utf8");
-    if (!raw.trim()) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
 function resolveOAuthClientConfig(account: ResolvedGoogleChatAccount): OAuthClientConfig | null {
   const cfg = account.config;
   const gogAccount = cfg.gogAccount?.trim() || process.env[ENV_GOG_ACCOUNT]?.trim() || undefined;
@@ -154,42 +143,25 @@ function resolveOAuthRefreshToken(account: ResolvedGoogleChatAccount): string | 
   const gogAccount = cfg.gogAccount?.trim() || process.env[ENV_GOG_ACCOUNT]?.trim() || undefined;
   const gogClient = cfg.gogClient?.trim() || process.env[ENV_GOG_CLIENT]?.trim() || undefined;
   if (cfg.oauthRefreshToken?.trim()) return cfg.oauthRefreshToken.trim();
+
   const tokenFile = cfg.oauthRefreshTokenFile?.trim();
   if (tokenFile) {
-    const raw = readJsonFile(tokenFile);
-    if (typeof raw === "string" && raw.trim()) return raw.trim();
-    if (raw && typeof raw === "object") {
-      const record = raw as Record<string, unknown>;
-      const token =
-        typeof record.refresh_token === "string"
-          ? record.refresh_token.trim()
-          : typeof record.refreshToken === "string"
-            ? record.refreshToken.trim()
-            : "";
-      if (token) return token;
-    }
+    const token = readRefreshTokenFromFile(tokenFile);
+    if (token) return token;
   }
+
   if (cfg.oauthFromGog) {
     const token = readGogRefreshTokenSync({ gogAccount, gogClient });
     if (token) return token;
   }
+
   if (account.accountId === DEFAULT_ACCOUNT_ID) {
     const envToken = process.env[ENV_OAUTH_REFRESH_TOKEN]?.trim();
     if (envToken) return envToken;
     const envFile = process.env[ENV_OAUTH_REFRESH_TOKEN_FILE]?.trim();
     if (envFile) {
-      const raw = readJsonFile(envFile);
-      if (typeof raw === "string" && raw.trim()) return raw.trim();
-      if (raw && typeof raw === "object") {
-        const record = raw as Record<string, unknown>;
-        const token =
-          typeof record.refresh_token === "string"
-            ? record.refresh_token.trim()
-            : typeof record.refreshToken === "string"
-              ? record.refreshToken.trim()
-              : "";
-        if (token) return token;
-      }
+      const token = readRefreshTokenFromFile(envFile);
+      if (token) return token;
     }
   }
   return null;

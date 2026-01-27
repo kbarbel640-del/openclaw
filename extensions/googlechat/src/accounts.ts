@@ -161,8 +161,8 @@ function resolveUserAuthSource(params: {
     hasInlineRefresh || hasFileRefresh || hasEnvRefresh || hasEnvRefreshFile || hasGogRefresh;
   if (!hasClient || !hasRefresh) return "none";
 
-  if (hasEnvClient || hasEnvClientFile || hasEnvRefresh || hasEnvRefreshFile) return "env";
   if (hasFileClient || hasFileRefresh) return "file";
+  if (hasEnvClient || hasEnvClientFile || hasEnvRefresh || hasEnvRefreshFile) return "env";
   return "inline";
 }
 

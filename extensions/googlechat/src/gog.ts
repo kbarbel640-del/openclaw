@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { readJsonFile } from "./file-utils.js";
+
 const tokenCache = new Map<string, string>();
 
 function resolveWildcardJsonFile(
@@ -59,15 +61,6 @@ function resolveGogJsonFile(
   }
 
   return resolveWildcardJsonFile(dirs, baseName);
-}
-
-function readJsonFile(pathname: string): unknown | null {
-  try {
-    const raw = fs.readFileSync(pathname, "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
 }
 
 function resolveConfigDirs(): string[] {
