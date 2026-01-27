@@ -166,13 +166,77 @@ function resolveSpeechSynthesisSupport(): boolean {
 
 const injectedAssistantIdentity = resolveInjectedAssistantIdentity();
 
-function resolveOnboardingMode(): boolean {
+/**
+ * Resolve onboarding mode from URL params.
+ * Note: This is legacy behavior; onboarding is now primarily driven by config state.
+ * The URL param still works for manual triggering.
+ */
+function resolveOnboardingModeFromUrl(): boolean {
   if (!window.location.search) return false;
   const params = new URLSearchParams(window.location.search);
   const raw = params.get("onboarding");
   if (!raw) return false;
   const normalized = raw.trim().toLowerCase();
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+/**
+ * Check if onboarding should be shown based on config state.
+ * Onboarding is shown if:
+ * 1. URL param is set (legacy), OR
+ * 2. Config has incomplete onboarding progress
+ */
+function resolveOnboardingMode(): boolean {
+  // Check URL param first (for manual triggering)
+  if (resolveOnboardingModeFromUrl()) {
+    return true;
+  }
+  // Config state will be checked after connection in checkOnboardingStatus()
+  return false;
+}
+
+/**
+ * Check if onboarding is incomplete after config is loaded.
+ * This should be called after config.get completes.
+ *
+ * Supports both legacy wizard (essentials, health-check) and new V2 wizard (quick-start, ready).
+ */
+function shouldShowOnboarding(configSnapshot: import("../types").ConfigSnapshot | null): boolean {
+  if (!configSnapshot?.valid || !configSnapshot.config) {
+    return false;
+  }
+
+  const config = configSnapshot.config as Record<string, unknown>;
+  const wizard = config.wizard as Record<string, unknown> | undefined;
+
+  // Check if there's incomplete onboarding progress
+  if (wizard?.onboarding) {
+    const onboarding = wizard.onboarding as {
+      completedPhases: string[];
+      currentPhase: string;
+      startedAt: string;
+    };
+
+    const completed = onboarding.completedPhases ?? [];
+
+    // Check for new V2 wizard completion (has "ready" phase or at least "quick-start")
+    const hasQuickStart = completed.includes("quick-start");
+    const hasReady = completed.includes("ready");
+
+    // Check for legacy wizard completion (has "essentials" and "health-check")
+    const hasEssentials = completed.includes("essentials");
+    const hasHealthCheck = completed.includes("health-check");
+
+    // Onboarding is complete if EITHER:
+    // 1. New wizard: Has "quick-start" (can skip to "ready" phase) or "ready"
+    // 2. Legacy wizard: Has both "essentials" and "health-check"
+    const newWizardComplete = hasQuickStart || hasReady;
+    const legacyWizardComplete = hasEssentials && hasHealthCheck;
+
+    return !(newWizardComplete || legacyWizardComplete);
+  }
+
+  return false;
 }
 
 function resolveDefaultGatewayPassword(): string {
@@ -360,6 +424,54 @@ export class ClawdbrainApp extends LitElement {
     isDirty: false,
     showConfirmClose: false,
     pendingAction: null,
+  };
+
+  // Onboarding UX mode: "new" (simplified) or "legacy" (full options)
+  @state() onboardingUxMode: "new" | "legacy" = "new";
+  @state() uxSelectorOpen = false;
+
+  @state() onboardingWizardState: import("./views/onboarding-wizard").OnboardingWizardState = {
+    open: false,
+    currentPhase: "essentials",
+    currentSection: "security",
+    isDirty: false,
+    showConfirmClose: false,
+    showAdvanced: false,
+    pendingAction: null,
+    progress: null,
+    healthCheckResults: {},
+  };
+
+  @state() onboardingWizardV2State: import("./views/onboarding-wizard").OnboardingWizardState = {
+    open: false,
+    currentPhase: "quickstart",
+    step: 1,
+    totalSteps: 4,
+    quickStartForm: {
+      workspace: "~/clawdbot",
+      authProvider: "anthropic",
+      model: "claude-3-5-sonnet",
+      gatewayPort: 18789,
+      gatewayMode: "local",
+      showAdvanced: false,
+    },
+    channelCards: [],
+    modelCards: [],
+    addModalOpen: false,
+    addModalType: null,
+    configModal: {
+      open: false,
+      itemId: null,
+      itemName: "",
+      itemIcon: "settings",
+      isDirty: false,
+      isSaving: false,
+      showConfirmClose: false,
+    },
+    isDirty: false,
+    isSaving: false,
+    showConfirmClose: false,
+    progress: null,
   };
 
   @state() presenceLoading = false;
@@ -665,9 +777,30 @@ export class ClawdbrainApp extends LitElement {
       this.syncReadAloudSupport();
       if (this.connected) {
         void this.loadTtsProviders({ quiet: true });
+        // Check if onboarding is needed after connection
+        void this.checkOnboardingStatus();
       } else {
         this.ttsProvidersLoaded = false;
       }
+    }
+  }
+
+  /**
+   * Check if onboarding is needed after connection.
+   * This is called after gateway connects and config is loaded.
+   */
+  async checkOnboardingStatus(): Promise<void> {
+    if (!this.client || !this.connected) return;
+
+    // Trigger config load if not already loaded
+    if (!this.configSnapshot) {
+      await this.loadConfig();
+    }
+
+    // Check if onboarding is needed
+    if (shouldShowOnboarding(this.configSnapshot)) {
+      // Show UX selector dialog
+      this.uxSelectorOpen = true;
     }
   }
 
@@ -1385,6 +1518,633 @@ export class ClawdbrainApp extends LitElement {
       ...this.channelWizardState,
       showConfirmClose: false,
       pendingAction: null,
+    };
+  }
+
+  // ============================================================================
+  // Onboarding Wizard Handlers
+  // ============================================================================
+
+  handleOnboardingWizardOpen() {
+    this.onboarding = true;
+    // Load onboarding state from config if available
+    if (this.configSnapshot?.config) {
+      const config = this.configSnapshot.config as Record<string, unknown>;
+      const wizard = config.wizard as Record<string, unknown> | undefined;
+      if (wizard?.onboarding) {
+        const onboarding = wizard.onboarding as {
+          currentPhase?: string;
+          completedPhases?: string[];
+        };
+        if (onboarding.currentPhase) {
+          this.onboardingWizardState = {
+            ...this.onboardingWizardState,
+            currentPhase: onboarding.currentPhase,
+          };
+        }
+      }
+    }
+  }
+
+  handleOnboardingWizardClose() {
+    this.onboarding = false;
+    this.onboardingWizardState = {
+      ...this.onboardingWizardState,
+      open: false,
+      showConfirmClose: false,
+      pendingAction: null,
+    };
+  }
+
+  async handleOnboardingWizardContinue() {
+    const { currentPhase } = this.onboardingWizardState;
+    const phases = ["essentials", "channels", "advanced", "health-check"];
+    const currentIndex = phases.indexOf(currentPhase);
+
+    if (currentIndex < phases.length - 1) {
+      const nextPhase = phases[currentIndex + 1];
+
+      // Save onboarding progress
+      if (this.client && this.connected && this.configSnapshot) {
+        try {
+          const config = this.configSnapshot.config as Record<string, unknown>;
+          const wizard = (config?.wizard as Record<string, unknown>) ?? {};
+          const existingOnboarding = wizard.onboarding as {
+            startedAt?: string;
+            completedPhases?: string[];
+            currentPhase?: string;
+            phaseData?: Record<string, unknown>;
+          } | undefined;
+
+          const updatedCompletedPhases = existingOnboarding?.completedPhases ?? [];
+          if (!updatedCompletedPhases.includes(currentPhase)) {
+            updatedCompletedPhases.push(currentPhase);
+          }
+
+          const onboardingMetadata = {
+            startedAt: existingOnboarding?.startedAt ?? new Date().toISOString(),
+            currentPhase: nextPhase,
+            completedPhases: updatedCompletedPhases,
+            phaseData: {
+              ...(existingOnboarding?.phaseData ?? {}),
+              [currentPhase]: {
+                completedAt: new Date().toISOString(),
+              },
+            },
+            lastSavedAt: new Date().toISOString(),
+          };
+
+          const baseHash = this.configSnapshot.hash;
+          if (baseHash) {
+            const patch = {
+              wizard: {
+                ...(config?.wizard as Record<string, unknown> ?? {}),
+                onboarding: onboardingMetadata,
+              },
+            };
+
+            const raw = JSON.stringify(patch, null, 2);
+            await this.client.request("config.patch", { raw, baseHash });
+            await this.loadConfig();
+          }
+        } catch (err) {
+          console.error("Failed to save onboarding progress:", err);
+        }
+      }
+
+      this.onboardingWizardState = {
+        ...this.onboardingWizardState,
+        currentPhase: nextPhase,
+      };
+    }
+  }
+
+  handleOnboardingWizardBack() {
+    const { currentPhase } = this.onboardingWizardState;
+    const phases = ["essentials", "channels", "advanced", "health-check"];
+    const currentIndex = phases.indexOf(currentPhase);
+
+    if (currentIndex > 0) {
+      const prevPhase = phases[currentIndex - 1];
+      this.onboardingWizardState = {
+        ...this.onboardingWizardState,
+        currentPhase: prevPhase,
+      };
+    }
+  }
+
+  handleOnboardingWizardSkip() {
+    const { currentPhase } = this.onboardingWizardState;
+    const phases = ["essentials", "channels", "advanced", "health-check"];
+    const currentIndex = phases.indexOf(currentPhase);
+
+    if (currentIndex < phases.length - 1) {
+      const nextPhase = phases[currentIndex + 1];
+      this.onboardingWizardState = {
+        ...this.onboardingWizardState,
+        currentPhase: nextPhase,
+      };
+    }
+  }
+
+  handleOnboardingWizardPhaseChange(phaseId: string) {
+    this.onboardingWizardState = {
+      ...this.onboardingWizardState,
+      currentPhase: phaseId,
+    };
+  }
+
+  handleOnboardingWizardSectionChange(sectionId: string) {
+    this.onboardingWizardState = {
+      ...this.onboardingWizardState,
+      currentSection: sectionId,
+    };
+  }
+
+  handleOnboardingWizardToggleAdvanced() {
+    this.onboardingWizardState = {
+      ...this.onboardingWizardState,
+      showAdvanced: !this.onboardingWizardState.showAdvanced,
+    };
+  }
+
+  handleOnboardingWizardConfirmClose() {
+    this.onboardingWizardState = {
+      ...this.onboardingWizardState,
+      showConfirmClose: true,
+    };
+  }
+
+  handleOnboardingWizardCancelClose() {
+    this.onboardingWizardState = {
+      ...this.onboardingWizardState,
+      showConfirmClose: false,
+      pendingAction: null,
+    };
+  }
+
+  async handleOnboardingWizardHealthCheck() {
+    if (!this.client || !this.connected) {
+      return {
+        success: false,
+        checks: [],
+        error: "Not connected to gateway",
+      };
+    }
+
+    const checks: Array<{
+      name: string;
+      status: "pending" | "success" | "error" | "warning";
+      message: string;
+    }> = [];
+
+    // Check 1: Gateway reachability
+    try {
+      await this.client.request("ping", {});
+      checks.push({ name: "Gateway", status: "success", message: "Connected and responsive" });
+    } catch {
+      checks.push({ name: "Gateway", status: "error", message: "Failed to reach gateway" });
+    }
+
+    // Check 2: Config validity
+    if (this.configSnapshot?.valid) {
+      checks.push({ name: "Configuration", status: "success", message: "Valid configuration" });
+    } else {
+      checks.push({ name: "Configuration", status: "error", message: "Invalid configuration" });
+    }
+
+    // Check 3: Auth provider configured
+    const config = this.configSnapshot?.config as Record<string, unknown> | undefined;
+    const authProvider = config?.auth?.provider;
+    if (authProvider) {
+      checks.push({ name: "Authentication", status: "success", message: `Provider: ${authProvider}` });
+    } else {
+      checks.push({ name: "Authentication", status: "warning", message: "No auth provider configured" });
+    }
+
+    // Check 4: At least one channel configured
+    const channels = config?.channels as Record<string, unknown> | undefined;
+    const channelCount = Object.keys(channels ?? {}).length;
+    if (channelCount > 0) {
+      checks.push({ name: "Channels", status: "success", message: `${channelCount} channel(s) configured` });
+    } else {
+      checks.push({ name: "Channels", status: "warning", message: "No channels configured" });
+    }
+
+    // Check 5: Model configured
+    const model = config?.agents?.defaults?.model;
+    if (model) {
+      checks.push({ name: "Model", status: "success", message: `Default: ${model}` });
+    } else {
+      checks.push({ name: "Model", status: "error", message: "No default model configured" });
+    }
+
+    const hasErrors = checks.some((c) => c.status === "error");
+    const hasWarnings = checks.some((c) => c.status === "warning");
+
+    return {
+      success: !hasErrors,
+      checks,
+      summary: hasErrors
+        ? "Setup incomplete - please address the errors above"
+        : hasWarnings
+          ? "Setup complete with warnings"
+          : "Setup complete - you're ready to go!",
+    };
+  }
+
+  // ============================================================================
+  // V2 Onboarding Wizard Handlers (New UX)
+  // ============================================================================
+
+  async openOnboardingWizardV2() {
+    this.onboarding = true;
+    this.onboardingWizardV2State = {
+      ...this.onboardingWizardV2State,
+      open: true,
+      currentPhase: "quick-start",
+    };
+    // Refresh cards to show current config state
+    await this.refreshOnboardingCards();
+  }
+
+  handleOnboardingWizardV2Close() {
+    this.onboarding = false;
+    this.onboardingWizardV2State = {
+      ...this.onboardingWizardV2State,
+      open: false,
+      showConfirmClose: false,
+    };
+  }
+
+  async handleOnboardingWizardV2Next() {
+    const { currentPhase, completedPhases } = this.onboardingWizardV2State;
+    const phases = ["quick-start", "channels", "models", "ready"];
+    const currentIndex = phases.indexOf(currentPhase);
+
+    if (currentIndex < phases.length - 1) {
+      const nextPhase = phases[currentIndex + 1];
+
+      // Save onboarding progress before advancing
+      if (!completedPhases.includes(currentPhase)) {
+        await this.saveOnboardingProgress(currentPhase, nextPhase);
+      }
+
+      // Refresh cards when entering channels or models phase
+      if (nextPhase === "channels" || nextPhase === "models") {
+        await this.refreshOnboardingCards();
+      }
+
+      this.onboardingWizardV2State = {
+        ...this.onboardingWizardV2State,
+        currentPhase: nextPhase,
+        completedPhases: completedPhases.includes(currentPhase)
+          ? completedPhases
+          : [...completedPhases, currentPhase],
+      };
+    }
+  }
+
+  async saveOnboardingProgress(currentPhase: string, nextPhase: string) {
+    if (!this.client || !this.connected || !this.configSnapshot) return;
+
+    try {
+      const { completedPhases } = this.onboardingWizardV2State;
+      const config = this.configSnapshot.config as Record<string, unknown> | undefined;
+
+      // Build or update onboarding metadata
+      const wizard = (config?.wizard as Record<string, unknown>) ?? {};
+      const existingOnboarding = wizard.onboarding as {
+        startedAt?: string;
+        completedPhases?: string[];
+        currentPhase?: string;
+        phaseData?: Record<string, unknown>;
+      } | undefined;
+
+      const updatedCompletedPhases = existingOnboarding?.completedPhases ?? [];
+      if (!updatedCompletedPhases.includes(currentPhase)) {
+        updatedCompletedPhases.push(currentPhase);
+      }
+
+      const onboardingMetadata = {
+        startedAt: existingOnboarding?.startedAt ?? new Date().toISOString(),
+        currentPhase: nextPhase,
+        completedPhases: updatedCompletedPhases,
+        phaseData: {
+          ...(existingOnboarding?.phaseData ?? {}),
+          [currentPhase]: {
+            completedAt: new Date().toISOString(),
+          },
+        },
+        lastSavedAt: new Date().toISOString(),
+      };
+
+      // Use config.patch to incrementally update just the wizard.onboarding field
+      const baseHash = this.configSnapshot.hash;
+      if (!baseHash) {
+        console.error("Config hash missing; cannot save onboarding progress");
+        return;
+      }
+
+      const patch = {
+        wizard: {
+          ...(config?.wizard as Record<string, unknown> ?? {}),
+          onboarding: onboardingMetadata,
+        },
+      };
+
+      const raw = JSON.stringify(patch, null, 2);
+      await this.client.request("config.patch", { raw, baseHash });
+
+      // Reload config to get updated hash
+      await this.loadConfig();
+    } catch (err) {
+      console.error("Failed to save onboarding progress:", err);
+    }
+  }
+
+  async handleOnboardingWizardV2Back() {
+    const { currentPhase } = this.onboardingWizardV2State;
+    const phases = ["quick-start", "channels", "models", "ready"];
+    const currentIndex = phases.indexOf(currentPhase);
+
+    if (currentIndex > 0) {
+      const prevPhase = phases[currentIndex - 1];
+
+      // Refresh cards when going back to channels or models phase
+      if (prevPhase === "channels" || prevPhase === "models") {
+        await this.refreshOnboardingCards();
+      }
+
+      this.onboardingWizardV2State = {
+        ...this.onboardingWizardV2State,
+        currentPhase: prevPhase,
+      };
+    }
+  }
+
+  handleOnboardingWizardV2Skip() {
+    const { currentPhase } = this.onboardingWizardV2State;
+    const phases = ["quick-start", "channels", "models", "ready"];
+    const currentIndex = phases.indexOf(currentPhase);
+
+    if (currentIndex < phases.length - 1) {
+      const nextPhase = phases[currentIndex + 1];
+      this.onboardingWizardV2State = {
+        ...this.onboardingWizardV2State,
+        currentPhase: nextPhase,
+      };
+    }
+  }
+
+  updateQuickStartFormValue(path: string[], value: unknown) {
+    const { quickStartForm } = this.onboardingWizardV2State;
+    const updated = { ...quickStartForm };
+    let current: Record<string, unknown> = updated;
+
+    for (let i = 0; i < path.length - 1; i++) {
+      const key = path[i];
+      if (!(key in current)) {
+        current[key] = {};
+      }
+      current = current[key] as Record<string, unknown>;
+    }
+
+    current[path[path.length - 1]] = value;
+
+    this.onboardingWizardV2State = {
+      ...this.onboardingWizardV2State,
+      quickStartForm: updated,
+    };
+  }
+
+  handleOpenChannelConfigModal(channelId: string) {
+    const { channelCards } = this.onboardingWizardV2State;
+    const channel = channelCards.find((c) => c.id === channelId);
+
+    if (channel) {
+      this.onboardingWizardV2State = {
+        ...this.onboardingWizardV2State,
+        configModal: {
+          ...this.onboardingWizardV2State.configModal,
+          open: true,
+          itemId: channelId,
+          itemName: channel.name,
+          itemIcon: channel.icon,
+          isDirty: false,
+        },
+      };
+    }
+  }
+
+  handleOpenModelConfigModal(modelId: string) {
+    const { modelCards } = this.onboardingWizardV2State;
+    const model = modelCards.find((m) => m.id === modelId);
+
+    if (model) {
+      this.onboardingWizardV2State = {
+        ...this.onboardingWizardV2State,
+        configModal: {
+          ...this.onboardingWizardV2State.configModal,
+          open: true,
+          itemId: modelId,
+          itemName: model.name,
+          itemIcon: model.icon,
+          isDirty: false,
+        },
+      };
+    }
+  }
+
+  handleAddChannelFromModal(channelId: string) {
+    // Close the add modal and open the config modal for the selected channel
+    const { channelCards } = this.onboardingWizardV2State;
+
+    // If channel doesn't exist in cards, create a placeholder card
+    let channel = channelCards.find((c) => c.id === channelId);
+    if (!channel) {
+      const channelDef = this.onboardingWizardV2State.channelCards.find((c) => c.id === channelId);
+      if (channelDef) {
+        channel = channelDef;
+      }
+    }
+
+    this.onboardingWizardV2State = {
+      ...this.onboardingWizardV2State,
+      addModalOpen: false,
+      addModalType: null,
+      configModal: {
+        ...this.onboardingWizardV2State.configModal,
+        open: true,
+        itemId: channelId,
+        itemName: channel?.name || channelId,
+        itemIcon: channel?.icon || "message-square",
+        isDirty: false,
+      },
+    };
+  }
+
+  handleAddModelFromModal(modelId: string) {
+    // Close the add modal and open the config modal for the selected model
+    const { modelCards } = this.onboardingWizardV2State;
+
+    // If model doesn't exist in cards, create a placeholder card
+    let model = modelCards.find((m) => m.id === modelId);
+    if (!model) {
+      const modelDef = this.onboardingWizardV2State.modelCards.find((m) => m.id === modelId);
+      if (modelDef) {
+        model = modelDef;
+      }
+    }
+
+    this.onboardingWizardV2State = {
+      ...this.onboardingWizardV2State,
+      addModalOpen: false,
+      addModalType: null,
+      configModal: {
+        ...this.onboardingWizardV2State.configModal,
+        open: true,
+        itemId: modelId,
+        itemName: model?.name || modelId,
+        itemIcon: model?.icon || "cpu",
+        isDirty: false,
+      },
+    };
+  }
+
+  async handleRemoveChannel(channelId: string) {
+    if (!this.client || !this.connected || !this.configSnapshot) return;
+
+    try {
+      const config = this.configSnapshot.config as Record<string, unknown>;
+      const channels = (config.channels as Record<string, unknown>) ?? {};
+
+      // Remove the channel from config
+      delete channels[channelId];
+
+      const baseHash = this.configSnapshot.hash;
+      if (!baseHash) {
+        console.error("Config hash missing; cannot remove channel");
+        return;
+      }
+
+      const patch = { channels };
+      const raw = JSON.stringify(patch, null, 2);
+      await this.client.request("config.patch", { raw, baseHash });
+
+      // Reload config and refresh cards
+      await this.loadConfig();
+      await this.refreshOnboardingCards();
+    } catch (err) {
+      console.error("Failed to remove channel:", err);
+    }
+  }
+
+  async handleRemoveModel(modelId: string) {
+    // For now, models can't be removed if they're the default
+    // This would be expanded when we support multiple models
+    const config = this.configSnapshot?.config as Record<string, unknown> | undefined;
+    const defaultModel = config?.agents?.defaults?.model;
+
+    if (defaultModel === modelId) {
+      console.error("Cannot remove default model");
+      return;
+    }
+
+    // TODO: Implement model removal when we support multiple models
+    console.log("Model removal not yet implemented for non-default models");
+  }
+
+  async handleSaveConfigModal() {
+    const { configModal } = this.onboardingWizardV2State;
+
+    if (!configModal.itemId || !this.client || !this.connected || !this.configSnapshot) return;
+
+    try {
+      // Get the current config form as the updated config
+      const baseHash = this.configSnapshot.hash;
+      if (!baseHash) {
+        console.error("Config hash missing; cannot save config");
+        return;
+      }
+
+      // Serialize the current config form
+      const serialized = JSON.stringify(this.configForm ?? {}, null, 2);
+      await this.client.request("config.set", { raw: serialized, baseHash });
+
+      // Reload config to get updated hash and refresh card states
+      await this.loadConfig();
+
+      // Refresh the affected card (will be re-rendered with new config)
+      await this.refreshOnboardingCards();
+
+      // Close the modal
+      this.onboardingWizardV2State = {
+        ...this.onboardingWizardV2State,
+        configModal: {
+          ...configModal,
+          open: false,
+          isDirty: false,
+          itemId: null,
+        },
+      };
+    } catch (err) {
+      console.error("Failed to save config:", err);
+    }
+  }
+
+  async refreshOnboardingCards() {
+    if (!this.configSnapshot?.config) return;
+
+    const config = this.configSnapshot.config as Record<string, unknown>;
+
+    // Import the helper functions from onboarding-phases
+    const { getChannelCards, getModelCards } = await import("./views/onboarding-phases");
+
+    // Refresh channel cards based on current config
+    const channelCards = getChannelCards(config);
+
+    // Refresh model cards based on current config
+    const modelCards = getModelCards(config);
+
+    // Update wizard state with refreshed cards
+    this.onboardingWizardV2State = {
+      ...this.onboardingWizardV2State,
+      channelCards,
+      modelCards,
+    };
+  }
+
+  handleConfigModalClose() {
+    const { configModal } = this.onboardingWizardV2State;
+
+    if (configModal.isDirty) {
+      this.onboardingWizardV2State = {
+        ...this.onboardingWizardV2State,
+        configModal: {
+          ...configModal,
+          showConfirmClose: true,
+        },
+      };
+    } else {
+      this.onboardingWizardV2State = {
+        ...this.onboardingWizardV2State,
+        configModal: {
+          ...configModal,
+          open: false,
+          itemId: null,
+        },
+      };
+    }
+  }
+
+  handleConfigModalCancelClose() {
+    this.onboardingWizardV2State = {
+      ...this.onboardingWizardV2State,
+      configModal: {
+        ...this.onboardingWizardV2State.configModal,
+        showConfirmClose: false,
+      },
     };
   }
 
