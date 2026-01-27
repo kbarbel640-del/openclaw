@@ -4,7 +4,6 @@ import type { ConfigUiHints } from "../types";
 import { icons } from "../icons";
 import {
   hintForPath,
-  humanize,
   schemaType,
   type ConfigValidationMap,
   type JsonSchema,
@@ -202,26 +201,15 @@ export function renderConfigForm(props: ConfigFormProps) {
       ${subsectionContext
         ? (() => {
             const { sectionKey, subsectionKey, schema: node } = subsectionContext;
-            const hint = hintForPath([sectionKey, subsectionKey], props.uiHints);
-            const label = hint?.label ?? node.title ?? humanize(subsectionKey);
-            const description = hint?.help ?? node.description ?? "";
             const sectionValue = (value as Record<string, unknown>)[sectionKey];
             const scopedValue =
               sectionValue && typeof sectionValue === "object"
                 ? (sectionValue as Record<string, unknown>)[subsectionKey]
                 : undefined;
             const id = `config-section-${sectionKey}-${subsectionKey}`;
+            // No card header — the hero + subnav tab already identify the subsection
             return html`
-              <section class="config-section-card" id=${id}>
-                <div class="config-section-card__header">
-                  <span class="config-section-card__icon">${getSectionIcon(sectionKey)}</span>
-                  <div class="config-section-card__titles">
-                    <h3 class="config-section-card__title">${label}</h3>
-                    ${description
-                      ? html`<p class="config-section-card__desc">${description}</p>`
-                      : nothing}
-                  </div>
-                </div>
+              <section class="config-section-card config-section-card--headerless" id=${id}>
                 <div class="config-section-card__content">
                   ${renderNode({
                     schema: node,
@@ -242,18 +230,22 @@ export function renderConfigForm(props: ConfigFormProps) {
             const config = getSectionConfig(key);
             // Use schema description as fallback if config description is empty
             const description = config.description || node.description || "";
+            // When a specific section is active (hero visible), skip the card header
+            const showCardHeader = !activeSection;
 
             return html`
-              <section class="config-section-card" id="config-section-${key}">
-                <div class="config-section-card__header">
-                  <span class="config-section-card__icon">${getSectionIcon(key)}</span>
-                  <div class="config-section-card__titles">
-                    <h3 class="config-section-card__title">${config.label}</h3>
-                    ${description
-                      ? html`<p class="config-section-card__desc">${description}</p>`
-                      : nothing}
+              <section class="config-section-card ${!showCardHeader ? "config-section-card--headerless" : ""}" id="config-section-${key}">
+                ${showCardHeader ? html`
+                  <div class="config-section-card__header">
+                    <span class="config-section-card__icon">${getSectionIcon(key)}</span>
+                    <div class="config-section-card__titles">
+                      <h3 class="config-section-card__title">${config.label}</h3>
+                      ${description
+                        ? html`<p class="config-section-card__desc">${description}</p>`
+                        : nothing}
+                    </div>
                   </div>
-                </div>
+                ` : nothing}
                 <div class="config-section-card__content">
                   ${renderNode({
                     schema: node,

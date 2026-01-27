@@ -509,8 +509,9 @@ function renderObject(params: {
   const additional = schema.additionalProperties;
   const allowExtra = Boolean(additional) && typeof additional === "object";
 
-  // For top-level, don't wrap in collapsible
-  if (path.length === 1) {
+  // Render flat (no collapsible wrapper) for top-level objects or when
+  // showLabel is false (parent already provides the section title)
+  if (path.length === 1 || !showLabel) {
     return html`
       <div class="cfg-fields">
         ${sorted.map(([propKey, node]) =>

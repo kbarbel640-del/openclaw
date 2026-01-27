@@ -948,8 +948,20 @@
   border-color: var(--border-strong);
 }
 
+/* Headerless card: no redundant header, subtler container */
+.config-section-card--headerless {
+  border-color: transparent;
+  background: transparent;
+}
+.config-section-card--headerless:hover {
+  border-color: transparent;
+}
+
 :root[data-theme="light"] .config-section-card {
   background: white;
+}
+:root[data-theme="light"] .config-section-card--headerless {
+  background: transparent;
 }
 
 .config-section-card__header {
