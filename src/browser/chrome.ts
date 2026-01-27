@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
 
+import { BROWSER_PROXY } from "../config/api-endpoints.js";
 import { ensurePortAvailable } from "../infra/ports.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { CONFIG_DIR } from "../utils.js";
@@ -202,6 +203,9 @@ export async function launchClawdChrome(
     }
     if (process.platform === "linux") {
       args.push("--disable-dev-shm-usage");
+    }
+    if (BROWSER_PROXY) {
+      args.push(`--proxy-server=${BROWSER_PROXY}`);
     }
 
     // Always open a blank tab to ensure a target exists.

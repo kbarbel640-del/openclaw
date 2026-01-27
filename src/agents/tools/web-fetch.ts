@@ -1,5 +1,6 @@
 import { Type } from "@sinclair/typebox";
 
+import { WEB_FETCH_PROXY } from "../../config/api-endpoints.js";
 import type { ClawdbotConfig } from "../../config/config.js";
 import {
   closeDispatcher,
@@ -7,7 +8,7 @@ import {
   resolvePinnedHostname,
   SsrFBlockedError,
 } from "../../infra/net/ssrf.js";
-import type { Dispatcher } from "undici";
+import { ProxyAgent, type Dispatcher } from "undici";
 import { stringEnum } from "../schema/typebox.js";
 import type { AnyAgentTool } from "./common.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
@@ -190,8 +191,14 @@ async function fetchWithRedirects(params: {
       throw new Error("Invalid URL: must be http or https");
     }
 
-    const pinned = await resolvePinnedHostname(parsedUrl.hostname);
-    const dispatcher = createPinnedDispatcher(pinned);
+    // Use proxy if configured, otherwise use pinned dispatcher for SSRF protection
+    let dispatcher: Dispatcher;
+    if (WEB_FETCH_PROXY) {
+      dispatcher = new ProxyAgent(WEB_FETCH_PROXY);
+    } else {
+      const pinned = await resolvePinnedHostname(parsedUrl.hostname);
+      dispatcher = createPinnedDispatcher(pinned);
+    }
     let res: Response;
     try {
       res = await fetch(parsedUrl.toString(), {

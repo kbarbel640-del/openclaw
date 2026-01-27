@@ -102,3 +102,29 @@ export const OPENAI_TTS_BASE = trimSlash(process.env.OPENAI_TTS_BASE_URL) ?? OPE
  */
 export const ELEVENLABS_API_BASE =
   trimSlash(process.env.ELEVENLABS_API_BASE) ?? "https://api.elevenlabs.io";
+
+// =============================================================================
+// WEB PROXY (Browser & Fetch)
+// =============================================================================
+
+/**
+ * HTTP proxy for browser (Playwright/Puppeteer).
+ * When set, adds --proxy-server flag to Chrome launch args.
+ *
+ * @example
+ * ```bash
+ * CLAWDBOT_BROWSER_PROXY=http://proxy.example.com:8080
+ * ```
+ */
+export const BROWSER_PROXY = process.env.CLAWDBOT_BROWSER_PROXY?.trim() || undefined;
+
+/**
+ * HTTP proxy for web fetch tool requests.
+ * When set, routes all fetch tool HTTP requests through the proxy.
+ *
+ * @example
+ * ```bash
+ * CLAWDBOT_WEB_FETCH_PROXY=http://proxy.example.com:8080
+ * ```
+ */
+export const WEB_FETCH_PROXY = process.env.CLAWDBOT_WEB_FETCH_PROXY?.trim() || undefined;
