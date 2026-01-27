@@ -6,6 +6,7 @@
  */
 
 export interface ClawdbotConfig {
+  $schema?: string;
   meta?: {
     lastTouchedVersion?: string;
     lastTouchedAt?: string;
