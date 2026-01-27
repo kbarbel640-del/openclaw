@@ -27,15 +27,16 @@ let package = Package(
         .target(
             name: "MoltbotIPC",
             dependencies: [],
+            path: "Sources/ClawdbotIPC",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .target(
             name: "MoltbotDiscovery",
             dependencies: [
-                .product(name: "MoltbotKit", package: "MoltbotKit"),
+                .product(name: "MoltbotKit", package: "ClawdbotKit"),
             ],
-            path: "Sources/MoltbotDiscovery",
+            path: "Sources/ClawdbotDiscovery",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
@@ -44,9 +45,9 @@ let package = Package(
             dependencies: [
                 "MoltbotIPC",
                 "MoltbotDiscovery",
-                .product(name: "MoltbotKit", package: "MoltbotKit"),
-                .product(name: "MoltbotChatUI", package: "MoltbotKit"),
-                .product(name: "MoltbotProtocol", package: "MoltbotKit"),
+                .product(name: "MoltbotKit", package: "ClawdbotKit"),
+                .product(name: "MoltbotChatUI", package: "ClawdbotKit"),
+                .product(name: "MoltbotProtocol", package: "ClawdbotKit"),
                 .product(name: "SwabbleKit", package: "swabble"),
                 .product(name: "MenuBarExtraAccess", package: "MenuBarExtraAccess"),
                 .product(name: "Subprocess", package: "swift-subprocess"),
@@ -55,11 +56,12 @@ let package = Package(
                 .product(name: "PeekabooBridge", package: "Peekaboo"),
                 .product(name: "PeekabooAutomationKit", package: "Peekaboo"),
             ],
+            path: "Sources/Clawdbot",
             exclude: [
                 "Resources/Info.plist",
             ],
             resources: [
-                .copy("Resources/Moltbot.icns"),
+                .copy("Resources/Clawdbot.icns"),
                 .copy("Resources/DeviceModels"),
             ],
             swiftSettings: [
@@ -69,10 +71,10 @@ let package = Package(
             name: "MoltbotMacCLI",
             dependencies: [
                 "MoltbotDiscovery",
-                .product(name: "MoltbotKit", package: "MoltbotKit"),
-                .product(name: "MoltbotProtocol", package: "MoltbotKit"),
+                .product(name: "MoltbotKit", package: "ClawdbotKit"),
+                .product(name: "MoltbotProtocol", package: "ClawdbotKit"),
             ],
-            path: "Sources/MoltbotMacCLI",
+            path: "Sources/ClawdbotMacCLI",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
@@ -82,9 +84,10 @@ let package = Package(
                 "MoltbotIPC",
                 "Moltbot",
                 "MoltbotDiscovery",
-                .product(name: "MoltbotProtocol", package: "MoltbotKit"),
+                .product(name: "MoltbotProtocol", package: "ClawdbotKit"),
                 .product(name: "SwabbleKit", package: "swabble"),
             ],
+            path: "Tests/ClawdbotIPCTests",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
                 .enableExperimentalFeature("SwiftTesting"),

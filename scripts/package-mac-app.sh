@@ -140,7 +140,7 @@ mkdir -p "$APP_ROOT/Contents/Resources"
 mkdir -p "$APP_ROOT/Contents/Frameworks"
 
 echo "📄 Copying Info.plist template"
-INFO_PLIST_SRC="$ROOT_DIR/apps/macos/Sources/Moltbot/Resources/Info.plist"
+INFO_PLIST_SRC="$ROOT_DIR/apps/macos/Sources/Clawdbot/Resources/Info.plist"
 if [ ! -f "$INFO_PLIST_SRC" ]; then
   echo "ERROR: Info.plist template missing at $INFO_PLIST_SRC" >&2
   exit 1
@@ -201,11 +201,11 @@ else
 fi
 
 echo "🖼  Copying app icon"
-cp "$ROOT_DIR/apps/macos/Sources/Moltbot/Resources/Moltbot.icns" "$APP_ROOT/Contents/Resources/Moltbot.icns"
+cp "$ROOT_DIR/apps/macos/Sources/Clawdbot/Resources/Clawdbot.icns" "$APP_ROOT/Contents/Resources/Moltbot.icns"
 
 echo "📦 Copying device model resources"
 rm -rf "$APP_ROOT/Contents/Resources/DeviceModels"
-cp -R "$ROOT_DIR/apps/macos/Sources/Moltbot/Resources/DeviceModels" "$APP_ROOT/Contents/Resources/DeviceModels"
+cp -R "$ROOT_DIR/apps/macos/Sources/Clawdbot/Resources/DeviceModels" "$APP_ROOT/Contents/Resources/DeviceModels"
 
 echo "📦 Copying model catalog"
 MODEL_CATALOG_SRC="$ROOT_DIR/node_modules/@mariozechner/pi-ai/dist/models.generated.js"

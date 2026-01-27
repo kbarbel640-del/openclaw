@@ -26,11 +26,11 @@ let package = Package(
             ]),
         .target(
             name: "MoltbotKit",
-            path: "Sources/ClawdbotKit",
             dependencies: [
                 "MoltbotProtocol",
                 .product(name: "ElevenLabsKit", package: "ElevenLabsKit"),
             ],
+            path: "Sources/ClawdbotKit",
             resources: [
                 .process("Resources"),
             ],
@@ -39,7 +39,6 @@ let package = Package(
             ]),
         .target(
             name: "MoltbotChatUI",
-            path: "Sources/ClawdbotChatUI",
             dependencies: [
                 "MoltbotKit",
                 .product(
@@ -47,6 +46,7 @@ let package = Package(
                     package: "textual",
                     condition: .when(platforms: [.macOS, .iOS])),
             ],
+            path: "Sources/ClawdbotChatUI",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
