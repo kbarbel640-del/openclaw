@@ -149,6 +149,7 @@ function createPluginRecord(params: {
     cliCommands: [],
     services: [],
     commands: [],
+    cronJobs: [],
     httpHandlers: 0,
     hookCount: 0,
     configSchema: params.configSchema,

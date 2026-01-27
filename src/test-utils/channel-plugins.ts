@@ -21,6 +21,7 @@ export const createTestRegistry = (channels: PluginRegistry["channels"] = []): P
   cliRegistrars: [],
   services: [],
   commands: [],
+  cronJobs: [],
   diagnostics: [],
 });
 

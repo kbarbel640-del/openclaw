@@ -2,6 +2,7 @@ import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent
 import { initSubagentRegistry } from "../agents/subagent-registry.js";
 import { registerSkillsChangeListener } from "../agents/skills/refresh.js";
 import type { CanvasHostServer } from "../canvas-host/server.js";
+import { Cron } from "croner";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { formatCliCommand } from "../cli/command-format.js";
@@ -459,6 +460,27 @@ export async function startGatewayServer(
 
   void cron.start().catch((err) => logCron.error(`failed to start: ${String(err)}`));
 
+  const runningPluginCronJobs: Cron[] = [];
+  for (const plugin of pluginRegistry.plugins) {
+    if (plugin.status !== "loaded") continue;
+    for (const job of plugin.cronJobs) {
+      try {
+        logCron.info(`scheduling plugin cron job: ${plugin.id}:${job.id} (${job.schedule})`);
+        const instance = new Cron(job.schedule, async () => {
+          try {
+            logCron.debug(`running plugin cron job: ${plugin.id}:${job.id}`);
+            await job.handler();
+          } catch (err) {
+            logCron.error(`plugin cron job failed: ${plugin.id}:${job.id}: ${String(err)}`);
+          }
+        });
+        runningPluginCronJobs.push(instance);
+      } catch (err) {
+        logCron.error(`failed to schedule plugin cron job: ${plugin.id}:${job.id}: ${String(err)}`);
+      }
+    }
+  }
+
   const execApprovalManager = new ExecApprovalManager();
   const execApprovalForwarder = createExecApprovalForwarder();
   const execApprovalHandlers = createExecApprovalHandlers(execApprovalManager, {
@@ -612,6 +634,7 @@ export async function startGatewayServer(
     canvasHostServer,
     stopChannel,
     pluginServices,
+    pluginCronJobs: runningPluginCronJobs,
     cron,
     heartbeatRunner,
     overseerRunner,

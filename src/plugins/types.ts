@@ -234,6 +234,13 @@ export type ClawdbrainPluginModule =
   | ClawdbrainPluginDefinition
   | ((api: ClawdbrainPluginApi) => void | Promise<void>);
 
+export type ClawdbrainPluginCronJob = {
+  id: string;
+  schedule: string;
+  handler: () => void | Promise<void>;
+  description?: string;
+};
+
 export type ClawdbrainPluginApi = {
   id: string;
   name: string;
@@ -259,6 +266,7 @@ export type ClawdbrainPluginApi = {
   registerGatewayMethod: (method: string, handler: GatewayRequestHandler) => void;
   registerCli: (registrar: ClawdbrainPluginCliRegistrar, opts?: { commands?: string[] }) => void;
   registerService: (service: ClawdbrainPluginService) => void;
+  registerCron: (job: ClawdbrainPluginCronJob) => void;
   registerProvider: (provider: ProviderPlugin) => void;
   /**
    * Register a custom command that bypasses the LLM agent.
