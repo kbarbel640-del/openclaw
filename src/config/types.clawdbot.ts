@@ -21,6 +21,7 @@ import type {
 import type { ModelsConfig } from "./types.models.js";
 import type { NodeHostConfig } from "./types.node-host.js";
 import type { PluginsConfig } from "./types.plugins.js";
+import type { RbacConfig } from "./types.rbac.js";
 import type { SkillsConfig } from "./types.skills.js";
 import type { ToolsConfig } from "./types.tools.js";
 
@@ -95,6 +96,7 @@ export type MoltbotConfig = {
   canvasHost?: CanvasHostConfig;
   talk?: TalkConfig;
   gateway?: GatewayConfig;
+  rbac?: RbacConfig;
 };
 
 export type ConfigValidationIssue = {

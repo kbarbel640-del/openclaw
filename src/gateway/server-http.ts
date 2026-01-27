@@ -10,10 +10,13 @@ import type { WebSocketServer } from "ws";
 import { handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
 import type { CanvasHostHandler } from "../canvas-host/server.js";
 import { loadConfig } from "../config/config.js";
+import type { GatewayHealthConfig, GatewayMetricsConfig } from "../config/types.gateway.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { handleSlackHttpRequest } from "../slack/http/index.js";
 import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import { handleControlUiAvatarRequest, handleControlUiHttpRequest } from "./control-ui.js";
+import { createHealthEndpointsHandler, type HealthEndpointsHandler } from "./http-health.js";
+import { createMetricsEndpointsHandler, type MetricsEndpointsHandler } from "./http-metrics.js";
 import {
   extractHookToken,
   getHookChannelError,
@@ -211,6 +214,9 @@ export function createGatewayHttpServer(opts: {
   handlePluginRequest?: HooksRequestHandler;
   resolvedAuth: import("./auth.js").ResolvedGatewayAuth;
   tlsOptions?: TlsOptions;
+  healthConfig?: GatewayHealthConfig;
+  metricsConfig?: GatewayMetricsConfig;
+  trustedProxies?: string[];
 }): HttpServer {
   const {
     canvasHost,
@@ -222,7 +228,24 @@ export function createGatewayHttpServer(opts: {
     handleHooksRequest,
     handlePluginRequest,
     resolvedAuth,
+    healthConfig,
+    metricsConfig,
+    trustedProxies,
   } = opts;
+
+  // Health endpoints for container orchestration (enabled by default)
+  const handleHealthRequest: HealthEndpointsHandler = createHealthEndpointsHandler({
+    config: healthConfig,
+    resolvedAuth,
+    trustedProxies,
+  });
+
+  // Metrics endpoint for Prometheus (disabled by default)
+  const handleMetricsRequest: MetricsEndpointsHandler = createMetricsEndpointsHandler({
+    config: metricsConfig,
+    resolvedAuth,
+    trustedProxies,
+  });
   const httpServer: HttpServer = opts.tlsOptions
     ? createHttpsServer(opts.tlsOptions, (req, res) => {
         void handleRequest(req, res);
@@ -237,12 +260,17 @@ export function createGatewayHttpServer(opts: {
 
     try {
       const configSnapshot = loadConfig();
-      const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
+      const configTrustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
+
+      // Health and metrics endpoints (highest priority for ops tooling)
+      if (await handleHealthRequest(req, res)) return;
+      if (await handleMetricsRequest(req, res)) return;
+
       if (await handleHooksRequest(req, res)) return;
       if (
         await handleToolsInvokeHttpRequest(req, res, {
           auth: resolvedAuth,
-          trustedProxies,
+          trustedProxies: configTrustedProxies,
         })
       )
         return;
@@ -253,7 +281,7 @@ export function createGatewayHttpServer(opts: {
           await handleOpenResponsesHttpRequest(req, res, {
             auth: resolvedAuth,
             config: openResponsesConfig,
-            trustedProxies,
+            trustedProxies: configTrustedProxies,
           })
         )
           return;
@@ -262,7 +290,7 @@ export function createGatewayHttpServer(opts: {
         if (
           await handleOpenAiHttpRequest(req, res, {
             auth: resolvedAuth,
-            trustedProxies,
+            trustedProxies: configTrustedProxies,
           })
         )
           return;

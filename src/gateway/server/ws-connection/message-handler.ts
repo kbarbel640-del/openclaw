@@ -7,6 +7,7 @@ import {
   normalizeDevicePublicKeyBase64Url,
   verifyDeviceSignature,
 } from "../../../infra/device-identity.js";
+import { auditAuthFailure, auditAuthLogin } from "../../../security/audit-log.js";
 import {
   approveDevicePairing,
   ensureDeviceToken,
@@ -601,6 +602,18 @@ export function attachGatewayWsMessageHandler(params: {
             reason: authResult.reason,
             client: connectParams.client,
           });
+
+          // Audit: record auth failure
+          auditAuthFailure({
+            actor: {
+              type: "user",
+              id: device?.id ?? connectParams.client.id ?? "unknown",
+              remoteIp: clientIp ?? remoteAddr,
+              channel: "gateway",
+            },
+            reason: authResult.reason ?? "unauthorized",
+          });
+
           setCloseCause("unauthorized", {
             authMode: resolvedAuth.mode,
             authProvided,
@@ -753,6 +766,18 @@ export function attachGatewayWsMessageHandler(params: {
           clientId,
           platform: connectParams.client.platform,
           auth: authMethod,
+        });
+
+        // Audit: record successful auth login
+        auditAuthLogin({
+          actor: {
+            type: device ? "device" : "user",
+            id: device?.id ?? connectParams.client.id ?? "unknown",
+            remoteIp: clientIp ?? remoteAddr,
+            channel: "gateway",
+            deviceId: device?.id,
+          },
+          method: authMethod,
         });
 
         if (isWebchatConnect(connectParams)) {

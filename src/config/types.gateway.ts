@@ -191,6 +191,32 @@ export type GatewayHttpConfig = {
   endpoints?: GatewayHttpEndpointsConfig;
 };
 
+/**
+ * Health endpoint configuration for container orchestration.
+ * Provides K8s-style liveness/readiness probes.
+ */
+export type GatewayHealthConfig = {
+  /** Enable health endpoints (default: true). */
+  enabled?: boolean;
+  /** Base path for health endpoints (default: ""). */
+  basePath?: string;
+  /** Require auth for /health/deep (default: true). */
+  deepAuthRequired?: boolean;
+};
+
+/**
+ * Prometheus metrics endpoint configuration.
+ * Exposes metrics in Prometheus exposition format.
+ */
+export type GatewayMetricsConfig = {
+  /** Enable metrics endpoint (default: false). */
+  enabled?: boolean;
+  /** Path for metrics endpoint (default: /metrics). */
+  path?: string;
+  /** Require auth for metrics endpoint (default: true). */
+  authRequired?: boolean;
+};
+
 export type GatewayNodesConfig = {
   /** Browser routing policy for node-hosted browser proxies. */
   browser?: {
@@ -286,4 +312,8 @@ export type GatewayConfig = {
    * `x-real-ip`) to determine the client IP for local pairing and HTTP checks.
    */
   trustedProxies?: string[];
+  /** Health endpoint configuration for container orchestration. */
+  health?: GatewayHealthConfig;
+  /** Prometheus metrics endpoint configuration. */
+  metrics?: GatewayMetricsConfig;
 };

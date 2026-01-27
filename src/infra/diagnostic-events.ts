@@ -1,10 +1,13 @@
 import type { MoltbotConfig } from "../config/config.js";
+import { getCurrentTraceId } from "../observability/trace-context.js";
 
 export type DiagnosticSessionState = "idle" | "processing" | "waiting";
 
 type DiagnosticBaseEvent = {
   ts: number;
   seq: number;
+  /** W3C trace ID for distributed tracing correlation. */
+  traceId?: string;
 };
 
 export type DiagnosticUsageEvent = DiagnosticBaseEvent & {
@@ -154,10 +157,12 @@ export function isDiagnosticsEnabled(config?: MoltbotConfig): boolean {
 }
 
 export function emitDiagnosticEvent(event: DiagnosticEventInput) {
+  const traceId = getCurrentTraceId();
   const enriched = {
     ...event,
     seq: (seq += 1),
     ts: Date.now(),
+    ...(traceId !== "no-trace" ? { traceId } : {}),
   } satisfies DiagnosticEventPayload;
   for (const listener of listeners) {
     try {

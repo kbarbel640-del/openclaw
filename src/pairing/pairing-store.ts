@@ -7,6 +7,7 @@ import lockfile from "proper-lockfile";
 import { getPairingAdapter } from "../channels/plugins/pairing.js";
 import type { ChannelId, ChannelPairingAdapter } from "../channels/plugins/types.js";
 import { resolveOAuthDir, resolveStateDir } from "../config/paths.js";
+import { auditPairingApprove, auditPairingRequest } from "../security/audit-log.js";
 
 // SECURITY: 16 chars × 5 bits/char = 80 bits entropy (increased from 40 bits)
 const PAIRING_CODE_LENGTH = 16;
@@ -509,6 +510,13 @@ export async function upsertChannelPairingRequest(params: {
         ...(meta ? { meta } : {}),
       };
       await writeSignedPairingStore(filePath, [...reqs, next]);
+
+      // Audit: record pairing request
+      auditPairingRequest({
+        actor: { type: "user", id },
+        target: { type: "channel", id: String(params.channel) },
+      });
+
       return { code, created: true };
     },
   );
@@ -572,6 +580,13 @@ export async function approveChannelPairingCode(params: {
         entry: entry.id,
         env,
       });
+
+      // Audit: record pairing approval
+      auditPairingApprove({
+        actor: { type: "system", id: "pairing-store" },
+        target: { type: "channel-user", id: entry.id, channel: String(params.channel) },
+      });
+
       return { id: entry.id, entry };
     },
   );

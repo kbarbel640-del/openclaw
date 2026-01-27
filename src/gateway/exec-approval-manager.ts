@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { ExecApprovalDecision } from "../infra/exec-approvals.js";
+import { auditExecApprove, auditExecReject, auditExecRequest } from "../security/audit-log.js";
 
 export type ExecApprovalRequestPayload = {
   command: string;
@@ -46,6 +47,14 @@ export class ExecApprovalManager {
       createdAtMs: now,
       expiresAtMs: now + timeoutMs,
     };
+
+    // Audit: record exec request
+    auditExecRequest({
+      actor: { type: "agent", id: request.agentId ?? "unknown" },
+      target: { type: "session", id: request.sessionKey ?? resolvedId },
+      command: request.command,
+    });
+
     return record;
   }
 
@@ -71,6 +80,20 @@ export class ExecApprovalManager {
     pending.record.resolvedBy = resolvedBy ?? null;
     this.pending.delete(recordId);
     pending.resolve(decision);
+
+    // Audit: record exec approval or rejection
+    const request = pending.record.request;
+    const auditParams = {
+      actor: { type: "user" as const, id: resolvedBy ?? "unknown" },
+      target: { type: "session", id: request.sessionKey ?? recordId },
+      command: request.command,
+    };
+    if (decision === "allow-once" || decision === "allow-always") {
+      auditExecApprove(auditParams);
+    } else {
+      auditExecReject({ ...auditParams, reason: decision });
+    }
+
     return true;
   }
 

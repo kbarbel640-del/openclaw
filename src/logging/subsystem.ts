@@ -9,6 +9,7 @@ import { type LogLevel, levelToMinLevel } from "./levels.js";
 import { getChildLogger } from "./logger.js";
 import { loggingState } from "./state.js";
 import { clearActiveProgressLine } from "../terminal/progress-line.js";
+import { getShortTraceId } from "../observability/trace-context.js";
 
 type LogObj = { date?: Date } & Record<string, unknown>;
 
@@ -126,6 +127,7 @@ function formatConsoleLine(opts: {
   message: string;
   style: "pretty" | "compact" | "json";
   meta?: Record<string, unknown>;
+  traceId?: string;
 }): string {
   const displaySubsystem =
     opts.style === "json" ? opts.subsystem : formatSubsystemForConsole(opts.subsystem);
@@ -135,6 +137,7 @@ function formatConsoleLine(opts: {
       level: opts.level,
       subsystem: displaySubsystem,
       message: opts.message,
+      ...(opts.traceId && opts.traceId !== "no-trace" ? { traceId: opts.traceId } : {}),
       ...opts.meta,
     });
   }
@@ -160,7 +163,10 @@ function formatConsoleLine(opts: {
     return "";
   })();
   const prefixToken = prefixColor(prefix);
-  const head = [time, prefixToken].filter(Boolean).join(" ");
+  // Include short trace ID in the prefix if available (for distributed tracing correlation)
+  const traceToken =
+    opts.traceId && opts.traceId !== "no-trace" ? color.gray(`[${opts.traceId}]`) : "";
+  const head = [time, prefixToken, traceToken].filter(Boolean).join(" ");
   return `${head} ${levelColor(displayMessage)}`;
 }
 
@@ -218,7 +224,12 @@ export function createSubsystemLogger(subsystem: string): SubsystemLogger {
       }
       fileMeta = Object.keys(rest).length > 0 ? rest : undefined;
     }
-    logToFile(getFileLogger(), level, message, fileMeta);
+    // Get trace ID for correlation
+    const traceId = getShortTraceId();
+    // Include trace ID in file log metadata
+    const fileMetaWithTrace =
+      traceId && traceId !== "no-trace" ? { ...fileMeta, traceId } : fileMeta;
+    logToFile(getFileLogger(), level, message, fileMetaWithTrace);
     if (!shouldLogToConsole(level, { level: consoleSettings.level })) return;
     if (!shouldLogSubsystemToConsole(subsystem)) return;
     const consoleMessage = consoleMessageOverride ?? message;
@@ -235,6 +246,7 @@ export function createSubsystemLogger(subsystem: string): SubsystemLogger {
       message: consoleSettings.style === "json" ? message : consoleMessage,
       style: consoleSettings.style,
       meta: fileMeta,
+      traceId,
     });
     writeConsoleLine(level, line);
   };
