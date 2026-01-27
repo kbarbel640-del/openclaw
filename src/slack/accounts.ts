@@ -1,8 +1,11 @@
 import type { MoltbotConfig } from "../config/config.js";
 import type { SlackAccountConfig } from "../config/types.js";
 import { normalizeChatType } from "../channels/chat-type.js";
+import { createAccountBase } from "../channels/accounts-base.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 import { resolveSlackAppToken, resolveSlackBotToken } from "./token.js";
+
+const base = createAccountBase<SlackAccountConfig>("slack");
 
 export type SlackTokenSource = "env" | "config" | "none";
 
@@ -28,50 +31,16 @@ export type ResolvedSlackAccount = {
   channels?: SlackAccountConfig["channels"];
 };
 
-function listConfiguredAccountIds(cfg: MoltbotConfig): string[] {
-  const accounts = cfg.channels?.slack?.accounts;
-  if (!accounts || typeof accounts !== "object") return [];
-  return Object.keys(accounts).filter(Boolean);
-}
-
-export function listSlackAccountIds(cfg: MoltbotConfig): string[] {
-  const ids = listConfiguredAccountIds(cfg);
-  if (ids.length === 0) return [DEFAULT_ACCOUNT_ID];
-  return ids.sort((a, b) => a.localeCompare(b));
-}
-
-export function resolveDefaultSlackAccountId(cfg: MoltbotConfig): string {
-  const ids = listSlackAccountIds(cfg);
-  if (ids.includes(DEFAULT_ACCOUNT_ID)) return DEFAULT_ACCOUNT_ID;
-  return ids[0] ?? DEFAULT_ACCOUNT_ID;
-}
-
-function resolveAccountConfig(
-  cfg: MoltbotConfig,
-  accountId: string,
-): SlackAccountConfig | undefined {
-  const accounts = cfg.channels?.slack?.accounts;
-  if (!accounts || typeof accounts !== "object") return undefined;
-  return accounts[accountId] as SlackAccountConfig | undefined;
-}
-
-function mergeSlackAccountConfig(cfg: MoltbotConfig, accountId: string): SlackAccountConfig {
-  const { accounts: _ignored, ...base } = (cfg.channels?.slack ?? {}) as SlackAccountConfig & {
-    accounts?: unknown;
-  };
-  const account = resolveAccountConfig(cfg, accountId) ?? {};
-  return { ...base, ...account };
-}
+export const listSlackAccountIds = base.listAccountIds;
+export const resolveDefaultSlackAccountId = base.resolveDefaultAccountId;
 
 export function resolveSlackAccount(params: {
   cfg: MoltbotConfig;
   accountId?: string | null;
 }): ResolvedSlackAccount {
   const accountId = normalizeAccountId(params.accountId);
-  const baseEnabled = params.cfg.channels?.slack?.enabled !== false;
-  const merged = mergeSlackAccountConfig(params.cfg, accountId);
-  const accountEnabled = merged.enabled !== false;
-  const enabled = baseEnabled && accountEnabled;
+  const merged = base.mergeAccountConfig(params.cfg, accountId);
+  const enabled = base.isBaseEnabled(params.cfg) && merged.enabled !== false;
   const allowEnv = accountId === DEFAULT_ACCOUNT_ID;
   const envBot = allowEnv ? resolveSlackBotToken(process.env.SLACK_BOT_TOKEN) : undefined;
   const envApp = allowEnv ? resolveSlackAppToken(process.env.SLACK_APP_TOKEN) : undefined;
@@ -106,9 +75,7 @@ export function resolveSlackAccount(params: {
 }
 
 export function listEnabledSlackAccounts(cfg: MoltbotConfig): ResolvedSlackAccount[] {
-  return listSlackAccountIds(cfg)
-    .map((accountId) => resolveSlackAccount({ cfg, accountId }))
-    .filter((account) => account.enabled);
+  return base.listEnabledAccounts(cfg, resolveSlackAccount);
 }
 
 export function resolveSlackReplyToMode(

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { AuthRateLimiter } from "./auth-rate-limit.js";
 import { authorizeGatewayConnect } from "./auth.js";
 
 describe("gateway auth", () => {
@@ -98,5 +99,40 @@ describe("gateway auth", () => {
     expect(res.ok).toBe(true);
     expect(res.method).toBe("tailscale");
     expect(res.user).toBe("peter");
+  });
+
+  it("local direct requests still require token/password auth", async () => {
+    const res = await authorizeGatewayConnect({
+      auth: { mode: "token", token: "secret", allowTailscale: false },
+      connectAuth: {},
+      req: {
+        socket: { remoteAddress: "127.0.0.1" },
+        headers: { host: "localhost" },
+      } as never,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("token_missing");
+  });
+
+  it("returns rate_limited when rate limiter blocks", async () => {
+    const limiter = new AuthRateLimiter();
+    try {
+      for (let i = 0; i < 5; i++) {
+        limiter.recordFailure("10.0.0.1");
+      }
+      const res = await authorizeGatewayConnect({
+        auth: { mode: "token", token: "secret", allowTailscale: false },
+        connectAuth: { token: "secret" },
+        rateLimiter: limiter,
+        req: {
+          socket: { remoteAddress: "10.0.0.1" },
+          headers: { host: "gateway.example.com" },
+        } as never,
+      });
+      expect(res.ok).toBe(false);
+      expect(res.reason).toBe("rate_limited");
+    } finally {
+      limiter.close();
+    }
   });
 });

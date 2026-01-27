@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { GatewayAuthConfig, GatewayTailscaleMode } from "../config/config.js";
 import { readTailscaleWhoisIdentity, type TailscaleWhoisIdentity } from "../infra/tailscale.js";
+import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import { isTrustedProxyAddress, parseForwardedForClientIp, resolveGatewayClientIp } from "./net.js";
 export type ResolvedGatewayAuthMode = "token" | "password";
 
@@ -202,10 +203,18 @@ export async function authorizeGatewayConnect(params: {
   req?: IncomingMessage;
   trustedProxies?: string[];
   tailscaleWhois?: TailscaleWhoisLookup;
+  rateLimiter?: AuthRateLimiter;
 }): Promise<GatewayAuthResult> {
-  const { auth, connectAuth, req, trustedProxies } = params;
+  const { auth, connectAuth, req, trustedProxies, rateLimiter } = params;
   const tailscaleWhois = params.tailscaleWhois ?? readTailscaleWhoisIdentity;
+  // Local direct requests skip Tailscale path (Tailscale serve proxies from loopback).
+  // Token/password auth is still required for all requests including local ones.
   const localDirect = isLocalDirectRequest(req, trustedProxies);
+
+  const clientIp = resolveRequestClientIp(req, trustedProxies) ?? "";
+  if (rateLimiter && clientIp && rateLimiter.check(clientIp)) {
+    return { ok: false, reason: "rate_limited" };
+  }
 
   if (auth.allowTailscale && !localDirect) {
     const tailscaleCheck = await resolveVerifiedTailscaleUser({
@@ -213,6 +222,7 @@ export async function authorizeGatewayConnect(params: {
       tailscaleWhois,
     });
     if (tailscaleCheck.ok) {
+      rateLimiter?.recordSuccess(clientIp);
       return {
         ok: true,
         method: "tailscale",
@@ -221,32 +231,39 @@ export async function authorizeGatewayConnect(params: {
     }
   }
 
+  let result: GatewayAuthResult;
+
   if (auth.mode === "token") {
     if (!auth.token) {
-      return { ok: false, reason: "token_missing_config" };
+      result = { ok: false, reason: "token_missing_config" };
+    } else if (!connectAuth?.token) {
+      result = { ok: false, reason: "token_missing" };
+    } else if (!safeEqual(connectAuth.token, auth.token)) {
+      result = { ok: false, reason: "token_mismatch" };
+    } else {
+      result = { ok: true, method: "token" };
     }
-    if (!connectAuth?.token) {
-      return { ok: false, reason: "token_missing" };
-    }
-    if (!safeEqual(connectAuth.token, auth.token)) {
-      return { ok: false, reason: "token_mismatch" };
-    }
-    return { ok: true, method: "token" };
-  }
-
-  if (auth.mode === "password") {
+  } else if (auth.mode === "password") {
     const password = connectAuth?.password;
     if (!auth.password) {
-      return { ok: false, reason: "password_missing_config" };
+      result = { ok: false, reason: "password_missing_config" };
+    } else if (!password) {
+      result = { ok: false, reason: "password_missing" };
+    } else if (!safeEqual(password, auth.password)) {
+      result = { ok: false, reason: "password_mismatch" };
+    } else {
+      result = { ok: true, method: "password" };
     }
-    if (!password) {
-      return { ok: false, reason: "password_missing" };
-    }
-    if (!safeEqual(password, auth.password)) {
-      return { ok: false, reason: "password_mismatch" };
-    }
-    return { ok: true, method: "password" };
+  } else {
+    result = { ok: false, reason: "unauthorized" };
   }
 
-  return { ok: false, reason: "unauthorized" };
+  if (rateLimiter && clientIp) {
+    if (result.ok) {
+      rateLimiter.recordSuccess(clientIp);
+    } else {
+      rateLimiter.recordFailure(clientIp);
+    }
+  }
+  return result;
 }
