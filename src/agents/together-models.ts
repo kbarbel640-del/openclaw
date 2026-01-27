@@ -157,10 +157,6 @@ export async function discoverTogetherModels(apiKey?: string): Promise<ModelDefi
     return [];
   }
 
-  console.log("[together-models] Starting model discovery from Together AI API...");
-  console.log(`[together-models] Fetching from: ${TOGETHER_BASE_URL}/models`);
-  console.log(`[together-models] API key provided: ${apiKey ? "Yes" : "No"}`);
-
   try {
     // Together AI requires authentication for /models endpoint
     const headers: Record<string, string> = {
@@ -176,19 +172,14 @@ export async function discoverTogetherModels(apiKey?: string): Promise<ModelDefi
       headers,
     });
 
-    console.log(`[together-models] Response status: ${response.status} ${response.statusText}`);
-    console.log(
-      `[together-models] Response headers:`,
-      Object.fromEntries(response.headers.entries()),
-    );
-
     if (!response.ok) {
-      console.warn(`[together-models] Failed to discover models: HTTP ${response.status}`);
-
       // Try to get error details from response
       try {
         const errorText = await response.text();
-        console.warn(`[together-models] Error response body: ${errorText}`);
+        console.warn(
+          `[together-models] Failed to discover models: HTTP ${response.status}`,
+          errorText,
+        );
       } catch (e) {
         console.warn(`[together-models] Could not read error response body: ${String(e)}`);
       }
@@ -197,9 +188,6 @@ export async function discoverTogetherModels(apiKey?: string): Promise<ModelDefi
     }
 
     const rawResponse = await response.text();
-    console.log(
-      `[together-models] Raw response (first 500 chars): ${rawResponse.substring(0, 500)}`,
-    );
 
     let models: TogetherModel[];
     try {
@@ -208,41 +196,25 @@ export async function discoverTogetherModels(apiKey?: string): Promise<ModelDefi
       // Together AI returns array directly, not { data: array }
       if (Array.isArray(parsed)) {
         models = parsed as TogetherModel[];
-        console.log(`[together-models] Response is direct array with ${models.length} models`);
       } else if (parsed.data && Array.isArray(parsed.data)) {
         models = parsed.data as TogetherModel[];
-        console.log(`[together-models] Response has data array with ${models.length} models`);
       } else {
         console.error(`[together-models] Unexpected response format:`, parsed);
         return [];
       }
     } catch (e) {
       console.error(`[together-models] Failed to parse JSON: ${String(e)}`);
-      console.error(`[together-models] Raw response: ${rawResponse}`);
       return [];
     }
 
     if (!Array.isArray(models) || models.length === 0) {
-      console.warn("[together-models] No models found from API");
       return [];
     }
 
     // Filter for chat models only and map to ModelDefinitionConfig
     const chatModels = models.filter((model) => model.type === "chat");
-    console.log(
-      `[together-models] Found ${models.length} total models, ${chatModels.length} chat models`,
-    );
 
-    return chatModels.map((model: TogetherModel, index: number) => {
-      console.log(`[together-models] Processing model ${index + 1}/${chatModels.length}:`, {
-        id: model.id,
-        name: model.name,
-        display_name: model.display_name,
-        type: model.type,
-        context_length: model.context_length,
-        capabilities: model.capabilities,
-        pricing: model.pricing,
-      });
+    return chatModels.map((model: TogetherModel) => {
       const modelId = model.id;
       const displayName = model.display_name || model.name || modelId;
 
@@ -284,11 +256,6 @@ export async function discoverTogetherModels(apiKey?: string): Promise<ModelDefi
     });
   } catch (error) {
     console.warn(`[together-models] Discovery failed: ${String(error)}`);
-    if (error instanceof Error) {
-      console.warn(`[together-models] Error name: ${error.name}`);
-      console.warn(`[together-models] Error message: ${error.message}`);
-      console.warn(`[together-models] Error stack: ${error.stack}`);
-    }
     return [];
   }
 }
