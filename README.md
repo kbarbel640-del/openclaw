@@ -86,8 +86,8 @@ Details: [Development channels](https://docs.molt.bot/install/development-channe
 Prefer `pnpm` for builds from source. Bun is optional for running TypeScript directly.
 
 ```bash
-git clone https://github.com/clawdbot/clawdbot.git
-cd clawdbot
+git clone https://github.com/moltbot/moltbot.git
+cd moltbot
 
 pnpm install
 pnpm ui:build # auto-installs UI deps on first run
