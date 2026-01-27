@@ -418,3 +418,7 @@ export function createClawdbrainCodingTools(options?: {
   // on the wire and maps them back for tool dispatch.
   return withAbort;
 }
+
+// Alias for backward compatibility during rebrand
+export { createClawdbrainCodingTools as createClawdbotCodingTools };
+export { createClawdbrainCodingTools as createMoltbotCodingTools };

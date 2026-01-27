@@ -123,3 +123,7 @@ export type ConfigFileSnapshot = {
   warnings: ConfigValidationIssue[];
   legacyIssues: LegacyConfigIssue[];
 };
+
+// Alias for backward compatibility during rebrand
+export type { ClawdbrainConfig as MoltbotConfig };
+export type { ClawdbrainConfig as ClawdbotConfig };
