@@ -153,6 +153,18 @@ export async function setVercelAiGatewayApiKey(key: string, agentDir?: string) {
   });
 }
 
+export async function setOllamaApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "ollama:default",
+    credential: {
+      type: "api_key",
+      provider: "ollama",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+
 export async function setOpencodeZenApiKey(key: string, agentDir?: string) {
   upsertAuthProfile({
     profileId: "opencode:default",

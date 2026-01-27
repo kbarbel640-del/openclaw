@@ -37,6 +37,7 @@ import {
   setGeminiApiKey,
   setKimiCodeApiKey,
   setMoonshotApiKey,
+  setOllamaApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
   setSyntheticApiKey,
@@ -83,6 +84,8 @@ export async function applyAuthChoiceApiProviders(
       authChoice = "synthetic-api-key";
     } else if (params.opts.tokenProvider === "venice") {
       authChoice = "venice-api-key";
+    } else if (params.opts.tokenProvider === "ollama") {
+      authChoice = "ollama-api-key";
     } else if (params.opts.tokenProvider === "opencode") {
       authChoice = "opencode-zen";
     }
@@ -519,6 +522,51 @@ export async function applyAuthChoiceApiProviders(
       nextConfig = applied.config;
       agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
     }
+    return { config: nextConfig, agentModelOverride };
+  }
+
+  if (authChoice === "ollama-api-key") {
+    let hasCredential = false;
+
+    if (!hasCredential && params.opts?.token && params.opts?.tokenProvider === "ollama") {
+      await setOllamaApiKey(normalizeApiKeyInput(params.opts.token), params.agentDir);
+      hasCredential = true;
+    }
+
+    if (!hasCredential) {
+      await params.prompter.note(
+        [
+          "Ollama runs LLMs locally on your machine.",
+          "Make sure Ollama is running: ollama serve",
+          "The API key can be any non-empty string (e.g. 'ollama').",
+        ].join("\n"),
+        "Ollama",
+      );
+    }
+    const envKey = resolveEnvApiKey("ollama");
+    if (envKey) {
+      const useExisting = await params.prompter.confirm({
+        message: `Use existing OLLAMA_API_KEY (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+        initialValue: true,
+      });
+      if (useExisting) {
+        await setOllamaApiKey(envKey.apiKey, params.agentDir);
+        hasCredential = true;
+      }
+    }
+    if (!hasCredential) {
+      const key = await params.prompter.text({
+        message: "Enter Ollama API key (any non-empty string)",
+        initialValue: "ollama",
+        validate: validateApiKeyInput,
+      });
+      await setOllamaApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "ollama:default",
+      provider: "ollama",
+      mode: "api_key",
+    });
     return { config: nextConfig, agentModelOverride };
   }
 
