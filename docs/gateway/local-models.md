@@ -13,6 +13,26 @@ Local is doable, but Clawdbot expects large context + strong defenses against pr
 
 Best current local stack. Load MiniMax M2.1 in LM Studio, enable the local server (default `http://127.0.0.1:1234`), and use Responses API to keep reasoning separate from final text.
 
+### Quick setup (auto-discovery)
+
+The fastest way to configure LM Studio:
+
+```bash
+# Discover and configure models from default URL (127.0.0.1:1234)
+clawdbot models lmstudio setup --set-default
+
+# Or specify a custom URL (e.g., remote server)
+clawdbot models lmstudio setup --url http://brian:1234/v1 --set-default
+
+# Just list available models without configuring
+clawdbot models lmstudio discover
+clawdbot models lmstudio discover --url http://brian:1234/v1 --json
+```
+
+This auto-discovers all loaded models and adds them to your config. Use `--set-default` to also set the first model as your primary.
+
+### Manual configuration
+
 ```json5
 {
   agents: {

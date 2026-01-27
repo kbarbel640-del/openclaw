@@ -21,6 +21,8 @@ import {
   modelsImageFallbacksListCommand,
   modelsImageFallbacksRemoveCommand,
   modelsListCommand,
+  modelsLMStudioDiscoverCommand,
+  modelsLMStudioSetupCommand,
   modelsScanCommand,
   modelsSetCommand,
   modelsSetImageCommand,
@@ -262,6 +264,46 @@ export function registerModelsCli(program: Command) {
     .action(async (opts) => {
       await runModelsCommand(async () => {
         await modelsScanCommand(opts, defaultRuntime);
+      });
+    });
+
+  const lmstudio = models
+    .command("lmstudio")
+    .description("LM Studio local model setup and discovery");
+
+  lmstudio
+    .command("setup")
+    .description("Discover and configure LM Studio models")
+    .option("--url <url>", "LM Studio server URL (default: http://127.0.0.1:1234/v1)")
+    .option("--set-default", "Set discovered model as default", false)
+    .option("--yes", "Accept defaults without prompting", false)
+    .action(async (opts) => {
+      await runModelsCommand(async () => {
+        await modelsLMStudioSetupCommand(
+          {
+            url: opts.url as string | undefined,
+            setDefault: Boolean(opts.setDefault),
+            yes: Boolean(opts.yes),
+          },
+          defaultRuntime,
+        );
+      });
+    });
+
+  lmstudio
+    .command("discover")
+    .description("List models available on LM Studio server")
+    .option("--url <url>", "LM Studio server URL (default: http://127.0.0.1:1234/v1)")
+    .option("--json", "Output JSON", false)
+    .action(async (opts) => {
+      await runModelsCommand(async () => {
+        await modelsLMStudioDiscoverCommand(
+          {
+            url: opts.url as string | undefined,
+            json: Boolean(opts.json),
+          },
+          defaultRuntime,
+        );
       });
     });
 

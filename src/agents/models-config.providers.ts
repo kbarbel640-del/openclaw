@@ -75,6 +75,16 @@ const OLLAMA_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const LMSTUDIO_DEFAULT_BASE_URL = "http://127.0.0.1:1234/v1";
+const LMSTUDIO_DEFAULT_CONTEXT_WINDOW = 128000;
+const LMSTUDIO_DEFAULT_MAX_TOKENS = 8192;
+const LMSTUDIO_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 interface OllamaModel {
   name: string;
   modified_at: string;
@@ -88,6 +98,17 @@ interface OllamaModel {
 
 interface OllamaTagsResponse {
   models: OllamaModel[];
+}
+
+interface LMStudioModel {
+  id: string;
+  object: string;
+  owned_by: string;
+}
+
+interface LMStudioModelsResponse {
+  data: LMStudioModel[];
+  object: string;
 }
 
 async function discoverOllamaModels(): Promise<ModelDefinitionConfig[]> {
@@ -126,6 +147,70 @@ async function discoverOllamaModels(): Promise<ModelDefinitionConfig[]> {
     console.warn(`Failed to discover Ollama models: ${String(error)}`);
     return [];
   }
+}
+
+/**
+ * Discover models from an LM Studio instance via OpenAI-compatible /v1/models endpoint.
+ * Filters out embedding models and identifies reasoning models by name patterns.
+ */
+export async function discoverLMStudioModels(baseUrl?: string): Promise<ModelDefinitionConfig[]> {
+  // Skip discovery in test environments
+  if (process.env.VITEST || process.env.NODE_ENV === "test") {
+    return [];
+  }
+  const url = baseUrl ?? LMSTUDIO_DEFAULT_BASE_URL;
+  try {
+    const response = await fetch(`${url}/models`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) {
+      return [];
+    }
+    const data = (await response.json()) as LMStudioModelsResponse;
+    if (!data.data || data.data.length === 0) {
+      return [];
+    }
+    return data.data
+      .filter((model) => {
+        // Filter out embedding models
+        const id = model.id.toLowerCase();
+        return !id.includes("embedding") && !id.includes("embed-");
+      })
+      .map((model) => {
+        const modelId = model.id;
+        const idLower = modelId.toLowerCase();
+        const isReasoning =
+          idLower.includes("r1") ||
+          idLower.includes("reasoning") ||
+          idLower.includes("think");
+        const isVision =
+          idLower.includes("vision") ||
+          idLower.includes("-vl") ||
+          idLower.includes("vl-");
+        return {
+          id: modelId,
+          name: modelId,
+          reasoning: isReasoning,
+          input: isVision ? (["text", "image"] as const) : (["text"] as const),
+          cost: LMSTUDIO_DEFAULT_COST,
+          contextWindow: LMSTUDIO_DEFAULT_CONTEXT_WINDOW,
+          maxTokens: LMSTUDIO_DEFAULT_MAX_TOKENS,
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
+async function buildLMStudioProvider(baseUrl?: string): Promise<ProviderConfig> {
+  const url = baseUrl ?? LMSTUDIO_DEFAULT_BASE_URL;
+  const models = await discoverLMStudioModels(url);
+  return {
+    baseUrl: url,
+    apiKey: "lmstudio",
+    api: "openai-completions",
+    models,
+  };
 }
 
 function normalizeApiKeyConfig(value: string): string {
@@ -416,6 +501,18 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "ollama", store: authStore });
   if (ollamaKey) {
     providers.ollama = { ...(await buildOllamaProvider()), apiKey: ollamaKey };
+  }
+
+  // LM Studio provider - add if LMSTUDIO_API_KEY or LMSTUDIO_BASE_URL is set, or auth profile exists
+  const lmstudioKey =
+    resolveEnvApiKeyVarName("lmstudio") ??
+    resolveApiKeyFromProfiles({ provider: "lmstudio", store: authStore });
+  const lmstudioBaseUrl = process.env.LMSTUDIO_BASE_URL;
+  if (lmstudioKey || lmstudioBaseUrl) {
+    const provider = await buildLMStudioProvider(lmstudioBaseUrl);
+    if (provider.models.length > 0) {
+      providers.lmstudio = { ...provider, apiKey: lmstudioKey ?? "lmstudio" };
+    }
   }
 
   return providers;
