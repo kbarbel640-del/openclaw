@@ -12,6 +12,7 @@ import type {
   ClawdbrainPluginChannelRegistration,
   ClawdbrainPluginCliRegistrar,
   ClawdbrainPluginCommandDefinition,
+  ClawdbrainPluginCronJob,
   ClawdbrainPluginHttpHandler,
   ClawdbrainPluginHttpRouteHandler,
   ClawdbrainPluginHookOptions,
@@ -94,6 +95,12 @@ export type PluginCommandRegistration = {
   source: string;
 };
 
+export type PluginCronRegistration = {
+  pluginId: string;
+  job: ClawdbrainPluginCronJob;
+  source: string;
+};
+
 export type PluginRecord = {
   id: string;
   name: string;
@@ -114,6 +121,7 @@ export type PluginRecord = {
   cliCommands: string[];
   services: string[];
   commands: string[];
+  cronJobs: ClawdbrainPluginCronJob[];
   httpHandlers: number;
   hookCount: number;
   configSchema: boolean;
@@ -134,6 +142,7 @@ export type PluginRegistry = {
   cliRegistrars: PluginCliRegistration[];
   services: PluginServiceRegistration[];
   commands: PluginCommandRegistration[];
+  cronJobs: PluginCronRegistration[];
   diagnostics: PluginDiagnostic[];
 };
 
@@ -157,6 +166,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     cliRegistrars: [],
     services: [],
     commands: [],
+    cronJobs: [],
     diagnostics: [],
   };
   const coreGatewayMethods = new Set(Object.keys(registryParams.coreGatewayHandlers ?? {}));
@@ -406,6 +416,24 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     });
   };
 
+  const registerCron = (record: PluginRecord, job: ClawdbrainPluginCronJob) => {
+    if (!job.id || !job.schedule || !job.handler) {
+      pushDiagnostic({
+        level: "error",
+        pluginId: record.id,
+        source: record.source,
+        message: "cron registration missing id, schedule, or handler",
+      });
+      return;
+    }
+    record.cronJobs.push(job);
+    registry.cronJobs.push({
+      pluginId: record.id,
+      job,
+      source: record.source,
+    });
+  };
+
   const registerCommand = (record: PluginRecord, command: ClawdbrainPluginCommandDefinition) => {
     const name = command.name.trim();
     if (!name) {
@@ -488,6 +516,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       registerGatewayMethod: (method, handler) => registerGatewayMethod(record, method, handler),
       registerCli: (registrar, opts) => registerCli(record, registrar, opts),
       registerService: (service) => registerService(record, service),
+      registerCron: (job) => registerCron(record, job),
       registerCommand: (command) => registerCommand(record, command),
       resolvePath: (input: string) => resolveUserPath(input),
       on: (hookName, handler, opts) => registerTypedHook(record, hookName, handler, opts),

@@ -141,6 +141,7 @@ describeLive("memory plugin live tests", () => {
       },
       registerCli: vi.fn(),
       registerService: vi.fn(),
+      registerCron: vi.fn(),
       on: vi.fn(),
       resolvePath: (p: string) => p,
     };

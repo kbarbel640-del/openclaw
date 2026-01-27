@@ -98,6 +98,7 @@ describe("Inbox URL Summarization", () => {
       registerTool: vi.fn(),
       registerCli: vi.fn(),
       registerService: vi.fn(),
+      registerCron: vi.fn(),
       on: vi.fn((event, handler) => {
         registeredHooks[event] = handler;
       }),

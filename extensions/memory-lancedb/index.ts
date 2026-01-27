@@ -177,14 +177,14 @@ const memoryPlugin = {
     // Cron Jobs (The Gardener)
     // ======================================================================== 
 
-    // Assuming api.registerCron exists and handles persistence/scheduling
-    (api as any).registerCron?.({
+    api.registerCron({
       id: "memory-maintenance",
       description: "Daily memory synthesis and cleanup",
       schedule: "0 4 * * *", // 4 AM Daily
       handler: async () => {
         try {
-          await digest.runDailyMaintenance(api);
+          const summary = await digest.runDailyMaintenance(api);
+          api.logger.info(`[Gardener] Daily maintenance complete: ${summary}`);
         } catch (err) {
           api.logger.error(`[Gardener] Daily maintenance failed: ${String(err)}`);
         }
