@@ -1,4 +1,11 @@
 import { spawn, type ChildProcess } from "child_process";
+import { extractAndDownloadMedia, type DownloadedMedia } from "./media.js";
+
+export interface NdrMessageMedia {
+  path: string;
+  mimeType: string | null;
+  url: string;
+}
 
 export interface NdrBusOptions {
   accountId: string;
@@ -6,7 +13,7 @@ export interface NdrBusOptions {
   relays: string[];
   ndrPath: string;
   dataDir: string | null;
-  onMessage: (chatId: string, messageId: string, senderPubkey: string, text: string, reply: (text: string) => Promise<void>) => Promise<void>;
+  onMessage: (chatId: string, messageId: string, senderPubkey: string, text: string, reply: (text: string) => Promise<void>, media?: NdrMessageMedia) => Promise<void>;
   onNewSession?: (chatId: string, theirPubkey: string) => Promise<void>;
   onError?: (error: Error, context: string) => void;
   onConnect?: () => void;
@@ -94,15 +101,30 @@ export async function startNdrBus(options: NdrBusOptions): Promise<NdrBusHandle>
             const chatId = json.chat_id;
             const messageId = json.message_id ?? "";
             const senderPubkey = json.from_pubkey;
-            const content = json.content;
+            const rawContent = json.content;
 
             // Create reply function
             const reply = async (text: string) => {
               await runNdrCommand(ndrPath, [...baseArgs, "send", chatId, text]);
             };
 
-            onMessage(chatId, messageId, senderPubkey, content, reply).catch((err) => {
-              onError?.(err, "message_handler");
+            // Extract and download any nhash media URLs
+            extractAndDownloadMedia(rawContent).then(({ media, textContent }) => {
+              const messageMedia = media ? {
+                path: media.path,
+                mimeType: media.mimeType,
+                url: media.url,
+              } : undefined;
+              // Use textContent (with nhash removed) if media was found, otherwise use raw content
+              const content = media ? textContent : rawContent;
+              onMessage(chatId, messageId, senderPubkey, content, reply, messageMedia).catch((err) => {
+                onError?.(err, "message_handler");
+              });
+            }).catch((err) => {
+              // If media extraction fails, still process the message with raw content
+              onMessage(chatId, messageId, senderPubkey, rawContent, reply).catch((handlerErr) => {
+                onError?.(handlerErr, "message_handler");
+              });
             });
           }
 

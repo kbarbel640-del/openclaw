@@ -34,7 +34,7 @@ export const ndrPlugin: ChannelPlugin<ResolvedNdrAccount> = {
   },
   capabilities: {
     chatTypes: ["direct"], // DMs only
-    media: false, // No media support yet
+    media: true, // Supports nhash media via htree
   },
   reload: { configPrefixes: ["channels.ndr"] },
   configSchema: buildChannelConfigSchema(NdrConfigSchema),
@@ -192,8 +192,8 @@ export const ndrPlugin: ChannelPlugin<ResolvedNdrAccount> = {
         relays: account.relays,
         ndrPath: account.ndrPath,
         dataDir: account.dataDir,
-        onMessage: async (chatId, messageId, senderPubkey, text, replyFn) => {
-          ctx.log?.debug(`[${account.accountId}] Message from ${senderPubkey} in chat ${chatId}: ${text.slice(0, 50)}...`);
+        onMessage: async (chatId, messageId, senderPubkey, text, replyFn, media) => {
+          ctx.log?.debug(`[${account.accountId}] Message from ${senderPubkey} in chat ${chatId}: ${text.slice(0, 50)}...${media ? ` [media: ${media.path}]` : ""}`);
 
           // React with "eyes" emoji to indicate we're processing (like WhatsApp "typing" indicator)
           if (messageId) {
@@ -268,6 +268,10 @@ export const ndrPlugin: ChannelPlugin<ResolvedNdrAccount> = {
             CommandAuthorized: true, // Owner is always authorized
             OriginatingChannel: "ndr" as const,
             OriginatingTo: ndrTo,
+            // Media fields (if nhash URL was downloaded)
+            MediaPath: media?.path,
+            MediaType: media?.mimeType ?? undefined,
+            MediaUrl: media?.url,
           });
 
           // Record the session
