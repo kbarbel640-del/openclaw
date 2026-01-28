@@ -391,12 +391,14 @@ describe("runHeartbeatOnce", () => {
       const cfg: MoltbotConfig = {
         agents: {
           defaults: {
+            workspace: tmpDir,
             heartbeat: { every: "30m", prompt: "Default prompt" },
           },
           list: [
             { id: "main", default: true },
             {
               id: "ops",
+              workspace: tmpDir,
               heartbeat: { every: "5m", target: "whatsapp", prompt: "Ops check" },
             },
           ],
