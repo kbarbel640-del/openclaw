@@ -391,9 +391,7 @@ async function runSearxngSearch(params: {
   const results = Array.isArray(data.results) ? data.results : [];
 
   // Sort by score descending and take top N results
-  const sorted = results
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, params.count);
+  const sorted = results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, params.count);
 
   const mapped = sorted.map((entry) => ({
     title: entry.title ?? "",
@@ -562,7 +560,8 @@ export function createWebSearchTool(options?: {
     execute: async (_toolCallId, args) => {
       const perplexityAuth =
         provider === "perplexity" ? resolvePerplexityApiKey(perplexityConfig) : undefined;
-      const searxngBaseUrl = provider === "searxng" ? resolveSearxngBaseUrl(searxngConfig) : undefined;
+      const searxngBaseUrl =
+        provider === "searxng" ? resolveSearxngBaseUrl(searxngConfig) : undefined;
 
       // For SearXNG, we don't need an API key, just a base URL
       const apiKey =
