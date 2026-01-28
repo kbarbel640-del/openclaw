@@ -5,12 +5,10 @@ import {
   type MessagingTarget,
   type MessagingTargetKind,
   type MessagingTargetParseOptions,
-  type DirectoryConfigParams,
-  type ChannelDirectoryEntry,
 } from "../channels/targets.js";
+import { type DirectoryConfigParams } from "../channels/plugins/directory-config.js";
 
 import { listDiscordDirectoryPeersLive } from "./directory-live.js";
-import { resolveDiscordAccount } from "./accounts.js";
 
 export type DiscordTargetKind = MessagingTargetKind;
 
@@ -45,7 +43,8 @@ export function parseDiscordTarget(
     const id = ensureTargetId({
       candidate,
       pattern: /^\d+$/,
-      errorMessage: "Discord DMs require a user id (use user:<id> or a <@id> mention)",
+      errorMessage:
+        "Discord DMs require a user id (use user:<id> or a <@id> mention)",
     });
     return buildMessagingTarget("user", id, trimmed);
   }
@@ -76,14 +75,18 @@ export function resolveDiscordChannelId(raw: string): string {
  */
 export async function resolveDiscordTarget(
   raw: string,
-  options: DirectoryConfigParams,
+  options: DirectoryConfigParams & MessagingTargetParseOptions,
 ): Promise<MessagingTarget | undefined> {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
 
   // If already a known format, parse directly
   const directParse = parseDiscordTarget(trimmed, options);
-  if (directParse && directParse.kind !== "channel" && !isLikelyUsername(trimmed)) {
+  if (
+    directParse &&
+    directParse.kind !== "channel" &&
+    !isLikelyUsername(trimmed)
+  ) {
     return directParse;
   }
 
@@ -101,7 +104,7 @@ export async function resolveDiscordTarget(
       const userId = match.id.replace(/^user:/, "");
       return buildMessagingTarget("user", userId, trimmed);
     }
-  } catch (error) {
+  } catch {
     // Directory lookup failed - fall through to parse as-is
     // This preserves existing behavior for channel names
   }
