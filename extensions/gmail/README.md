@@ -7,7 +7,7 @@ Connects Clawdbot to Gmail via the `gog` CLI.
 This is a plugin. To install from source:
 
 ```bash
-clawdbot plugins install ./extensions/gmail
+moltbot plugins install ./extensions/gmail
 ```
 
 ## Features
@@ -25,7 +25,7 @@ clawdbot plugins install ./extensions/gmail
 
 ## Configuration
 
-Add to `clawdbot.json`:
+Add to `moltbot.json`:
 
 ```json5
 {

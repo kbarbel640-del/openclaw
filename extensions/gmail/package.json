@@ -1,10 +1,10 @@
 {
-  "name": "gmail",
-  "version": "1.0.0",
-  "description": "Gmail channel for Clawdbot",
+  "name": "@mcinteerj/moltbot-gmail",
+  "version": "1.0.2",
+  "description": "Gmail channel for Moltbot",
   "type": "module",
   "main": "index.ts",
-  "clawdbot": {
+  "moltbot": {
     "extensions": [
       "./index.ts"
     ],
@@ -34,7 +34,7 @@
     "sanitize-html": "^2.14.0"
   },
   "devDependencies": {
-    "clawdbot": "workspace:*",
+    "moltbot": "workspace:*",
     "@types/jsdom": "^21.1.7",
     "@types/dompurify": "^3.0.5",
     "@types/marked": "^6.0.0",

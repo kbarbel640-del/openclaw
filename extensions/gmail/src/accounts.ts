@@ -2,7 +2,7 @@ import {
   type ChannelConfig,
   type ResolvedChannelAccount,
   DEFAULT_ACCOUNT_ID,
-} from "clawdbot/plugin-sdk";
+} from "moltbot/plugin-sdk";
 import type { GmailConfig } from "./config.js";
 
 export interface ResolvedGmailAccount extends ResolvedChannelAccount {

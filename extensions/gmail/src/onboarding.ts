@@ -1,5 +1,5 @@
-import type { ClawdbotConfig, ChannelOnboardingAdapter } from "clawdbot/plugin-sdk";
-import { promptAccountId } from "clawdbot/plugin-sdk";
+import type { ClawdbotConfig, ChannelOnboardingAdapter } from "moltbot/plugin-sdk";
+import { promptAccountId } from "moltbot/plugin-sdk";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { listGmailAccountIds, resolveDefaultGmailAccountId } from "./accounts.js";

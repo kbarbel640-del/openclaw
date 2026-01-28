@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 
-// Store historyIds in ~/.clawdbot/state/gmail/history-{account}.json
-const STORE_DIR = path.join(os.homedir(), ".clawdbot", "state", "gmail");
+// Store historyIds in ~/.moltbot/state/gmail/history-{account}.json
+const STORE_DIR = path.join(os.homedir(), ".moltbot", "state", "gmail");
 
 interface HistoryState {
   historyId: string;

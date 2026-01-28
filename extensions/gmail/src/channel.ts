@@ -9,7 +9,7 @@ import {
   type ClawdbotConfig,
   type ChannelGatewayContext,
   type MsgContext,
-} from "clawdbot/plugin-sdk";
+} from "moltbot/plugin-sdk";
 import { GmailConfigSchema } from "./config.js";
 import {
   resolveGmailAccount,
