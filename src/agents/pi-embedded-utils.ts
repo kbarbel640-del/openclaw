@@ -1,4 +1,5 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { VerboseLevel } from "../auto-reply/thinking.js";
 import { stripReasoningTagsFromText } from "../shared/text/reasoning-tags.js";
 import { sanitizeUserFacingText } from "./pi-embedded-helpers.js";
 import { formatToolDetail, resolveToolDisplay } from "./tool-display.js";
@@ -198,7 +199,7 @@ export function stripThinkingTagsFromText(text: string): string {
   return stripReasoningTagsFromText(text, { mode: "strict", trim: "both" });
 }
 
-export function extractAssistantText(msg: AssistantMessage): string {
+export function extractAssistantText(msg: AssistantMessage, verboseLevel?: VerboseLevel): string {
   const isTextBlock = (block: unknown): block is { type: "text"; text: string } => {
     if (!block || typeof block !== "object") {
       return false;
@@ -210,11 +211,16 @@ export function extractAssistantText(msg: AssistantMessage): string {
   const blocks = Array.isArray(msg.content)
     ? msg.content
         .filter(isTextBlock)
-        .map((c) =>
-          stripThinkingTagsFromText(
-            stripDowngradedToolCallText(stripMinimaxToolCallXml(c.text)),
-          ).trim(),
-        )
+        .map((c) => {
+          let text = c.text;
+          // When verbose is "full", preserve tool call markers for display
+          if (verboseLevel !== "full") {
+            text = stripThinkingTagsFromText(
+              stripDowngradedToolCallText(stripMinimaxToolCallXml(text)),
+            ).trim();
+          }
+          return text;
+        })
         .filter(Boolean)
     : [];
   const extracted = blocks.join("\n").trim();

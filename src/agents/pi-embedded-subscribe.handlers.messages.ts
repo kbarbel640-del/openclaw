@@ -199,7 +199,7 @@ export function handleMessageEnd(
   const assistantMessage = msg;
   promoteThinkingTagsToBlocks(assistantMessage);
 
-  const rawText = extractAssistantText(assistantMessage);
+  const rawText = extractAssistantText(assistantMessage, ctx.params.verboseLevel);
   appendRawStream({
     ts: Date.now(),
     event: "assistant_message_end",

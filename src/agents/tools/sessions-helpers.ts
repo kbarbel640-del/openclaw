@@ -1,4 +1,5 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { MoltbotConfig } from "../../config/config.js";
+import type { VerboseLevel } from "../../auto-reply/thinking.js";
 import { callGateway } from "../../gateway/call.js";
 import { isAcpSessionKey, normalizeMainKey } from "../../routing/session-key.js";
 import { sanitizeUserFacingText } from "../pi-embedded-helpers.js";
@@ -353,21 +354,23 @@ export function stripToolMessages(messages: unknown[]): unknown[] {
 /**
  * Sanitize text content to strip tool call markers and thinking tags.
  * This ensures user-facing text doesn't leak internal tool representations.
+ *
+ * @param text - The text to sanitize
+ * @param verboseLevel - The current verbose level. When "full", tool calls are preserved.
  */
-export function sanitizeTextContent(text: string): string {
-  if (!text) {
-    return text;
-  }
+export function sanitizeTextContent(text: string, verboseLevel?: VerboseLevel): string {
+  if (!text) return text;
+  // When verbose is "full", preserve tool call markers for display
+  if (verboseLevel === "full") return text;
   return stripThinkingTagsFromText(stripDowngradedToolCallText(stripMinimaxToolCallXml(text)));
 }
 
-export function extractAssistantText(message: unknown): string | undefined {
-  if (!message || typeof message !== "object") {
-    return undefined;
-  }
-  if ((message as { role?: unknown }).role !== "assistant") {
-    return undefined;
-  }
+export function extractAssistantText(
+  message: unknown,
+  verboseLevel?: VerboseLevel,
+): string | undefined {
+  if (!message || typeof message !== "object") return undefined;
+  if ((message as { role?: unknown }).role !== "assistant") return undefined;
   const content = (message as { content?: unknown }).content;
   if (!Array.isArray(content)) {
     return undefined;
@@ -382,7 +385,7 @@ export function extractAssistantText(message: unknown): string | undefined {
     }
     const text = (block as { text?: unknown }).text;
     if (typeof text === "string") {
-      const sanitized = sanitizeTextContent(text);
+      const sanitized = sanitizeTextContent(text, verboseLevel);
       if (sanitized.trim()) {
         chunks.push(sanitized);
       }

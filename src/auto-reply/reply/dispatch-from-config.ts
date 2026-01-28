@@ -2,6 +2,7 @@ import type { OpenClawConfig } from "../../config/config.js";
 import type { FinalizedMsgContext } from "../templating.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import type { ReplyDispatcher, ReplyDispatchKind } from "./reply-dispatcher.js";
+import type { VerboseLevel } from "../thinking.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { loadSessionStore, resolveStorePath } from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
@@ -69,6 +70,29 @@ const resolveSessionTtsAuto = (
     const store = loadSessionStore(storePath);
     const entry = store[sessionKey.toLowerCase()] ?? store[sessionKey];
     return normalizeTtsAutoMode(entry?.ttsAuto);
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveSessionVerboseLevel = (
+  ctx: FinalizedMsgContext,
+  cfg: MoltbotConfig,
+): VerboseLevel | undefined => {
+  const targetSessionKey =
+    ctx.CommandSource === "native" ? ctx.CommandTargetSessionKey?.trim() : undefined;
+  const sessionKey = (targetSessionKey ?? ctx.SessionKey)?.trim();
+  if (!sessionKey) return undefined;
+  const agentId = resolveSessionAgentId({ sessionKey, config: cfg });
+  const storePath = resolveStorePath(cfg.session?.store, { agentId });
+  try {
+    const store = loadSessionStore(storePath);
+    const entry = store[sessionKey.toLowerCase()] ?? store[sessionKey];
+    const sessionVerbose = entry?.verboseLevel as VerboseLevel | undefined;
+    if (sessionVerbose) return sessionVerbose;
+    // Fall back to agent defaults config
+    const agentDefaults = cfg.agents?.defaults;
+    return agentDefaults?.verboseDefault as VerboseLevel | undefined;
   } catch {
     return undefined;
   }
@@ -147,6 +171,7 @@ export async function dispatchReplyFromConfig(params: {
 
   const inboundAudio = isInboundAudioContext(ctx);
   const sessionTtsAuto = resolveSessionTtsAuto(ctx, cfg);
+  const sessionVerboseLevel = resolveSessionVerboseLevel(ctx, cfg);
   const hookRunner = getGlobalHookRunner();
   if (hookRunner?.hasHooks("message_received")) {
     const timestamp =
@@ -296,9 +321,9 @@ export async function dispatchReplyFromConfig(params: {
       ctx,
       {
         ...params.replyOptions,
-        onToolResult:
-          ctx.ChatType !== "group" && ctx.CommandSource !== "native"
-            ? (payload: ReplyPayload) => {
+        ...(sessionVerboseLevel === "full"
+          ? {
+              onToolResult: (payload: ReplyPayload) => {
                 const run = async () => {
                   const ttsPayload = await maybeApplyTtsToPayload({
                     payload,
@@ -309,14 +334,15 @@ export async function dispatchReplyFromConfig(params: {
                     ttsAuto: sessionTtsAuto,
                   });
                   if (shouldRouteToOriginating) {
-                    await sendPayloadAsync(ttsPayload, undefined, false);
+                    await sendPayloadAsync(ttsPayload);
                   } else {
                     dispatcher.sendToolResult(ttsPayload);
                   }
                 };
                 return run();
-              }
-            : undefined,
+              },
+            }
+          : {}),
         onBlockReply: (payload: ReplyPayload, context) => {
           const run = async () => {
             // Accumulate block text for TTS generation after streaming

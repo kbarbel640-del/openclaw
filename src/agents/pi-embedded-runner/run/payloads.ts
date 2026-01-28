@@ -116,7 +116,9 @@ export function buildEmbeddedRunPayloads(params: {
     replyItems.push({ text: reasoningText });
   }
 
-  const fallbackAnswerText = params.lastAssistant ? extractAssistantText(params.lastAssistant) : "";
+  const fallbackAnswerText = params.lastAssistant
+    ? extractAssistantText(params.lastAssistant, params.verboseLevel)
+    : "";
   const shouldSuppressRawErrorText = (text: string) => {
     if (!lastAssistantErrored) {
       return false;
