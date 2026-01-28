@@ -1064,7 +1064,7 @@
 
 .cfg-fields {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .cfg-field {
@@ -1252,6 +1252,107 @@
 .cfg-number__input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* Slider Input */
+.cfg-slider-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cfg-slider-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  text-align: right;
+}
+
+.cfg-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-strong);
+  outline: none;
+  cursor: pointer;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.cfg-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  border: 2px solid var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.cfg-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.cfg-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  border: 2px solid var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.cfg-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+
+.cfg-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: transparent;
+}
+
+.cfg-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cfg-slider:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* Compact Field Grid */
+.cfg-fields-compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .cfg-fields-compact {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cfg-field--compact {
+  gap: 4px;
+}
+
+.cfg-fields-compact .cfg-number {
+  width: 100%;
+}
+
+.cfg-fields-compact .cfg-number__input {
+  flex: 1;
+  min-width: 40px;
 }
 
 /* Select */
@@ -1740,9 +1841,9 @@ details.cfg-object-flat[open] > summary .cfg-object-flat__chevron {
 }
 
 .cfg-object__content {
-  padding: 18px;
+  padding: 16px;
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 /* Array */
