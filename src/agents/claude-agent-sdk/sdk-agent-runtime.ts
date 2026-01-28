@@ -2,6 +2,7 @@
  * Claude Agent SDK runtime implementation.
  *
  * Implements the AgentRuntime interface using the Claude Agent SDK for execution.
+ * Uses both shared generalized fields and CCSDK-specific options from ccsdkOptions bag.
  */
 
 import type { MoltbotConfig } from "../../config/config.js";
@@ -20,8 +21,11 @@ import {
 } from "./sdk-session-transcript.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import type { SdkConversationTurn, SdkRunnerResult } from "./types.js";
+import { createMoltbotCodingTools } from "../pi-tools.js";
+import { resolveMoltbotAgentDir } from "../agent-paths.js";
+import { resolveModelAuthMode } from "../model-auth.js";
 
-const log = createSubsystemLogger("agents/claude-agent-sdk");
+const log = createSubsystemLogger("agents/ccsdk-runtime");
 
 export type CcSdkAgentRuntimeContext = {
   /** Moltbot configuration. */
@@ -90,11 +94,8 @@ function extractAgentId(sessionKey?: string): string {
  * Resolve user timezone from config.
  */
 function resolveTimezone(config?: MoltbotConfig): string | undefined {
-  // Check for explicit timezone in config
   const tz = config?.agents?.defaults?.userTimezone;
   if (tz) return tz;
-
-  // Fallback to environment
   return typeof process !== "undefined" ? process.env.TZ : undefined;
 }
 
@@ -115,7 +116,6 @@ function extractSkillNames(
  * Convert an SdkRunnerResult into an AgentRuntimeResult.
  */
 function adaptSdkResult(result: SdkRunnerResult, sessionId: string): AgentRuntimeResult {
-  // Map SDK usage stats to the Pi-embedded format.
   const usage = result.meta.usage
     ? {
         input: result.meta.usage.inputTokens,
@@ -140,9 +140,6 @@ function adaptSdkResult(result: SdkRunnerResult, sessionId: string): AgentRuntim
         model: result.meta.model ?? "default",
         usage,
       },
-      // SDK runner errors are rendered as text payloads with isError=true.
-      // Avoid mapping to Pi-specific error kinds (context/compaction) because
-      // downstream recovery logic would treat them incorrectly.
       error: undefined,
     },
     didSendViaMessagingTool: result.didSendViaMessagingTool,
@@ -161,17 +158,15 @@ function adaptSdkResult(result: SdkRunnerResult, sessionId: string): AgentRuntim
  * - AWS Bedrock and Google Vertex AI backends
  */
 export function createCcSdkAgentRuntime(context?: CcSdkAgentRuntimeContext): AgentRuntime {
-  // Pre-check SDK availability
   if (!isSdkAvailable()) {
     log.warn("Claude Agent SDK not available - runtime will fail on first run");
   }
 
-  // Resolve provider configuration from context
   const providerConfig = resolveProviderConfig({
     apiKey: context?.apiKey,
     authToken: context?.authToken,
     baseUrl: context?.baseUrl,
-    useCliCredentials: true, // Enable Claude CLI credential resolution
+    useCliCredentials: true,
   });
 
   return {
@@ -182,10 +177,19 @@ export function createCcSdkAgentRuntime(context?: CcSdkAgentRuntimeContext): Age
       const effectiveConfig = params.config ?? context?.config;
       const agentId = extractAgentId(params.sessionKey);
 
-      log.debug("CCSDK runtime run", {
+      // Extract CCSDK-specific options from the options bag
+      const ccsdkOpts = params.ccsdkOptions ?? {};
+
+      // Resolve effective model (from params or provider config)
+      const effectiveModel = params.model
+        ? `${params.provider ?? "anthropic"}/${params.model}`
+        : (ccsdkOpts.modelTiers?.sonnet ?? context?.ccsdkConfig?.models?.sonnet ?? "default");
+
+      log.info("Starting CCSDK Agent session", {
         sessionId: params.sessionId,
         runId: params.runId,
         provider: providerConfig.name,
+        model: effectiveModel,
         agentId,
         thinkLevel: params.thinkLevel,
         verboseLevel: params.verboseLevel,
@@ -200,8 +204,32 @@ export function createCcSdkAgentRuntime(context?: CcSdkAgentRuntimeContext): Age
         });
       }
 
+      // Build tools for this run (similar to how Pi runtime builds tools in attempt.ts)
+      // If pre-built tools are provided via context, use those instead
+      const tools: AnyAgentTool[] =
+        context?.tools ??
+        createMoltbotCodingTools({
+          messageProvider: params.messageChannel ?? params.messageProvider,
+          agentAccountId: params.agentAccountId,
+          messageTo: params.messageTo,
+          messageThreadId: params.messageThreadId,
+          sessionKey: params.sessionKey,
+          agentDir: params.agentDir ?? resolveMoltbotAgentDir(),
+          workspaceDir: params.workspaceDir,
+          config: effectiveConfig,
+          abortSignal: params.abortSignal,
+          modelProvider: params.provider,
+          modelId: params.model,
+          modelAuthMode: resolveModelAuthMode(params.provider ?? "anthropic"),
+          currentChannelId: params.currentChannelId,
+          currentThreadTs: params.currentThreadTs,
+          groupId: params.groupId,
+        });
+
+      log.debug("Built tools for CCSDK run", { toolCount: tools.length });
+
       const sdkResult = await runSdkAgent({
-        // ─── Session & Identity ──────────────────────────────────────────────
+        // ─── Core shared params (spread) ────────────────────────────────────────
         runId: params.runId,
         sessionId: params.sessionId,
         sessionKey: params.sessionKey,
@@ -209,35 +237,38 @@ export function createCcSdkAgentRuntime(context?: CcSdkAgentRuntimeContext): Age
         workspaceDir: params.workspaceDir,
         agentDir: params.agentDir,
         agentId,
-
-        // ─── Configuration ───────────────────────────────────────────────────
         config: effectiveConfig,
         prompt: params.prompt,
-        model: params.model ? `${params.provider ?? "anthropic"}/${params.model}` : undefined,
-        providerConfig,
         timeoutMs: params.timeoutMs,
         abortSignal: params.abortSignal,
+        extraSystemPrompt: params.extraSystemPrompt,
 
-        // ─── Model Behavior ──────────────────────────────────────────────────
+        // ─── Messaging & sender context (shared) ────────────────────────────────
+        messageChannel: params.messageChannel,
+        senderId: params.senderId,
+        senderName: params.senderName,
+        senderUsername: params.senderUsername,
+        senderE164: params.senderE164,
+
+        // ─── Transformed/SDK-specific fields ────────────────────────────────────
+        model: params.model ? `${params.provider ?? "anthropic"}/${params.model}` : undefined,
+        providerConfig,
         reasoningLevel: mapThinkLevel(params.thinkLevel),
         verboseLevel: mapVerboseLevel(params.verboseLevel),
-
-        // ─── System Prompt Context ───────────────────────────────────────────
-        extraSystemPrompt: params.extraSystemPrompt,
         timezone: resolveTimezone(effectiveConfig),
-        messageChannel: params.messageChannel,
         skills: extractSkillNames(params.skillsSnapshot),
 
-        // ─── SDK Options ─────────────────────────────────────────────────────
-        hooksEnabled: context?.ccsdkConfig?.hooksEnabled,
-        sdkOptions: context?.ccsdkConfig?.options,
-        modelTiers: context?.ccsdkConfig?.models,
+        // ─── CCSDK options from ccsdkOptions bag ────────────────────────────────
+        hooksEnabled: ccsdkOpts.hooksEnabled ?? context?.ccsdkConfig?.hooksEnabled,
+        sdkOptions: ccsdkOpts.sdkOptions ?? context?.ccsdkConfig?.options,
+        modelTiers: ccsdkOpts.modelTiers ?? context?.ccsdkConfig?.models,
+        claudeSessionId: ccsdkOpts.claudeSessionId,
+        forkSession: ccsdkOpts.forkSession,
         thinkingLevel: params.thinkLevel,
         conversationHistory,
-        tools: context?.tools,
+        tools,
 
-        // ─── Streaming Callbacks ─────────────────────────────────────────────
-        // Wrap callbacks to adapt SDK payload shapes to AgentRuntimeRunParams signatures
+        // ─── Streaming callbacks (adapted to SDK payload shapes) ────────────────
         onPartialReply: params.onPartialReply
           ? (payload) => params.onPartialReply?.({ text: payload.text })
           : undefined,
@@ -255,9 +286,17 @@ export function createCcSdkAgentRuntime(context?: CcSdkAgentRuntimeContext): Age
         onAgentEvent: params.onAgentEvent,
       });
 
+      log.debug("[CCSDK-RUNTIME] Callbacks passed to runSdkAgent", {
+        hasOnPartialReply: Boolean(params.onPartialReply),
+        hasOnBlockReply: Boolean(params.onBlockReply),
+        hasOnBlockReplyFlush: Boolean(params.onBlockReplyFlush),
+        hasOnReasoningStream: Boolean(params.onReasoningStream),
+        hasOnToolResult: Boolean(params.onToolResult),
+        hasOnAgentEvent: Boolean(params.onAgentEvent),
+      });
+
       // Persist session transcript for multi-turn continuity.
       if (params.sessionFile) {
-        // Record tool calls with structured format (matching pi-agent).
         if (sdkResult.completedToolCalls && sdkResult.completedToolCalls.length > 0) {
           appendSdkToolCallsToSessionTranscript({
             sessionFile: params.sessionFile,
@@ -265,7 +304,6 @@ export function createCcSdkAgentRuntime(context?: CcSdkAgentRuntimeContext): Age
           });
         }
 
-        // Record user/assistant text turn pair.
         appendSdkTurnPairToSessionTranscript({
           sessionFile: params.sessionFile,
           prompt: params.prompt,

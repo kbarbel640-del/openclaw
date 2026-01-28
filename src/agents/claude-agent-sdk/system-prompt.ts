@@ -26,6 +26,14 @@ export type PromptEnricherContext = {
   channelHints?: string;
   /** Available Moltbot skills. */
   skills?: string[];
+  /** Sender identifier. */
+  senderId?: string | null;
+  /** Sender display name. */
+  senderName?: string | null;
+  /** Sender username. */
+  senderUsername?: string | null;
+  /** Sender E.164 phone number. */
+  senderE164?: string | null;
   /** Additional custom context. */
   custom?: Record<string, unknown>;
 };
@@ -108,11 +116,36 @@ const skillsEnricher: PromptEnricher = (ctx) => {
   return `Available Moltbot skills: ${ctx.skills.join(", ")}`;
 };
 
+/**
+ * Sender context enricher.
+ *
+ * Provides sender identity information to help the model understand
+ * who is making the request.
+ */
+const senderEnricher: PromptEnricher = (ctx) => {
+  const parts: string[] = [];
+
+  if (ctx.senderName) {
+    parts.push(`Sender name: ${ctx.senderName}`);
+  }
+  if (ctx.senderUsername) {
+    parts.push(`Sender username: @${ctx.senderUsername}`);
+  }
+  if (ctx.senderId && !ctx.senderName && !ctx.senderUsername) {
+    // Only include raw ID if no friendly identifier is available
+    parts.push(`Sender ID: ${ctx.senderId}`);
+  }
+
+  if (parts.length === 0) return null;
+  return parts.join("\n");
+};
+
 // Register built-in enrichers
 registerPromptEnricher(agentIdentityEnricher);
 registerPromptEnricher(timezoneEnricher);
 registerPromptEnricher(channelEnricher);
 registerPromptEnricher(skillsEnricher);
+registerPromptEnricher(senderEnricher);
 
 // ─── Main API ────────────────────────────────────────────────────────────────
 
@@ -156,6 +189,10 @@ export function buildSystemPromptAdditionsFromParams(params: {
   messageChannel?: string;
   channelHints?: string;
   skills?: string[];
+  senderId?: string | null;
+  senderName?: string | null;
+  senderUsername?: string | null;
+  senderE164?: string | null;
 }): string | undefined {
   return buildSystemPromptAdditions({
     agentId: params.agentId ?? params.sessionKey?.split(":")[0],
@@ -165,5 +202,9 @@ export function buildSystemPromptAdditionsFromParams(params: {
     channel: params.messageChannel,
     channelHints: params.channelHints,
     skills: params.skills,
+    senderId: params.senderId,
+    senderName: params.senderName,
+    senderUsername: params.senderUsername,
+    senderE164: params.senderE164,
   });
 }

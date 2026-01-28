@@ -36,7 +36,7 @@ export { buildMoltbotSdkHooks, type SdkHooksConfig, type SdkHookEventName } from
 
 // Event utilities
 export { isSdkTerminalToolEventType } from "./sdk-event-checks.js";
-export { extractTextFromClaudeAgentSdkEvent } from "./extract.js";
+export { extractFromClaudeAgentSdkEvent, type SdkEventExtraction } from "./extract.js";
 export {
   bridgeMoltbotToolsToMcpServer,
   bridgeMoltbotToolsSync,

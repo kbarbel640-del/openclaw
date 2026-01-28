@@ -45,15 +45,17 @@ export function resolveAgentRuntimeKind(config: MoltbotConfig, agentId: string):
  *
  * @param config - Moltbot configuration
  * @param agentId - Agent identifier
+ * @param forceKind - Optional runtime kind to force (overrides config resolution)
  * @returns The appropriate AgentRuntime instance
  */
 export async function createAgentRuntime(
   config: MoltbotConfig,
   agentId: string,
+  forceKind?: AgentRuntimeKind,
 ): Promise<AgentRuntime> {
-  const runtimeKind = resolveAgentRuntimeKind(config, agentId);
+  const runtimeKind = forceKind ?? resolveAgentRuntimeKind(config, agentId);
 
-  log.debug("Creating agent runtime", { agentId, runtime: runtimeKind });
+  log.debug("Creating agent runtime", { agentId, runtime: runtimeKind, forced: !!forceKind });
 
   if (runtimeKind === "ccsdk") {
     // Dynamically import to avoid loading SDK when not needed

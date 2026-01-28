@@ -61,28 +61,58 @@ export function isSdkAvailable(): boolean {
  */
 export async function loadClaudeAgentSdk(): Promise<ClaudeAgentSdkModule> {
   if (sdkModule) {
+    log.debug("[CCSDK-LOADER] Returning cached SDK module");
     return sdkModule;
   }
 
   if (loadAttempted && loadError) {
+    log.debug("[CCSDK-LOADER] Previous load attempt failed, re-throwing cached error");
     throw loadError;
   }
 
   loadAttempted = true;
+  log.debug("[CCSDK-LOADER] Attempting to load Claude Agent SDK");
 
   try {
     // Dynamic import to avoid bundling issues
     // The SDK package name is resolved at runtime
     const moduleName = "@anthropic-ai/claude-agent-sdk";
+    const loadStart = Date.now();
     sdkModule = (await import(/* @vite-ignore */ moduleName)) as ClaudeAgentSdkModule;
-    log.info("Claude Agent SDK loaded successfully");
+    const loadDuration = Date.now() - loadStart;
+
+    // Log SDK module details for debugging
+    const moduleKeys = Object.keys(sdkModule);
+    const hasQuery = typeof sdkModule.query === "function";
+
+    log.info("[CCSDK-LOADER] Claude Agent SDK loaded successfully", {
+      loadDurationMs: loadDuration,
+      hasQueryFunction: hasQuery,
+      moduleExports: moduleKeys.slice(0, 10),
+      totalExports: moduleKeys.length,
+    });
+
+    if (!hasQuery) {
+      log.error("[CCSDK-LOADER] SDK loaded but query function is missing!", {
+        moduleKeys,
+        queryType: typeof sdkModule.query,
+      });
+    }
+
     return sdkModule;
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorStack = err instanceof Error ? err.stack : undefined;
+
+    log.error("[CCSDK-LOADER] Failed to load Claude Agent SDK", {
+      error: errorMessage,
+      stack: errorStack,
+    });
+
     loadError = new Error(
       "Claude Agent SDK not installed. Install with: npm install @anthropic-ai/claude-agent-sdk",
     );
     loadError.cause = err;
-    log.warn("Failed to load Claude Agent SDK", { error: String(err) });
     throw loadError;
   }
 }

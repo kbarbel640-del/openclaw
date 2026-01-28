@@ -10,7 +10,6 @@ import { runCliAgent } from "../agents/cli-runner.js";
 import { getCliSessionId } from "../agents/cli-session.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../agents/defaults.js";
 import { loadModelCatalog } from "../agents/model-catalog.js";
-import { runWithModelFallback } from "../agents/model-fallback.js";
 import {
   buildAllowedModelSet,
   isCliProvider,
@@ -19,6 +18,10 @@ import {
   resolveThinkingDefault,
 } from "../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
+import {
+  runAgentWithUnifiedFailover,
+  type UnifiedAgentRunResult,
+} from "../agents/unified-agent-runner.js";
 import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
 import { getSkillsSnapshotVersion } from "../agents/skills/refresh.js";
 import { resolveAgentTimeoutMs } from "../agents/timeout.js";
@@ -378,88 +381,96 @@ export async function agentCommand(
         opts.replyChannel ?? opts.channel,
       );
       const spawnedBy = opts.spawnedBy ?? sessionEntry?.spawnedBy;
-      const fallbackResult = await runWithModelFallback({
-        cfg,
-        provider,
-        model,
-        agentDir,
-        fallbacksOverride: resolveAgentModelFallbacksOverride(cfg, sessionAgentId),
-        run: (providerOverride, modelOverride) => {
-          if (isCliProvider(providerOverride, cfg)) {
-            const cliSessionId = getCliSessionId(sessionEntry, providerOverride);
-            return runCliAgent({
-              sessionId,
-              sessionKey,
-              sessionFile,
-              workspaceDir,
-              config: cfg,
-              prompt: body,
-              provider: providerOverride,
-              model: modelOverride,
-              thinkLevel: resolvedThinkLevel,
-              timeoutMs,
-              runId,
-              extraSystemPrompt: opts.extraSystemPrompt,
-              cliSessionId,
-              images: opts.images,
-              streamParams: opts.streamParams,
-            });
-          }
-          const authProfileId =
-            providerOverride === provider ? sessionEntry?.authProfileOverride : undefined;
-          return runEmbeddedPiAgent({
-            sessionId,
-            sessionKey,
-            messageChannel,
-            agentAccountId: runContext.accountId,
-            messageTo: opts.replyTo ?? opts.to,
-            messageThreadId: opts.threadId,
-            groupId: runContext.groupId,
-            groupChannel: runContext.groupChannel,
-            groupSpace: runContext.groupSpace,
-            spawnedBy,
-            currentChannelId: runContext.currentChannelId,
-            currentThreadTs: runContext.currentThreadTs,
-            replyToMode: runContext.replyToMode,
-            hasRepliedRef: runContext.hasRepliedRef,
-            sessionFile,
-            workspaceDir,
-            config: cfg,
-            skillsSnapshot,
-            prompt: body,
-            images: opts.images,
+
+      // CLI providers bypass the runtime abstraction
+      const primaryIsCliProvider = isCliProvider(provider, cfg);
+
+      if (primaryIsCliProvider) {
+        const cliSessionId = getCliSessionId(sessionEntry, provider);
+        result = await runCliAgent({
+          sessionId,
+          sessionKey,
+          sessionFile,
+          workspaceDir,
+          config: cfg,
+          prompt: body,
+          provider,
+          model,
+          thinkLevel: resolvedThinkLevel,
+          timeoutMs,
+          runId,
+          extraSystemPrompt: opts.extraSystemPrompt,
+          cliSessionId,
+          images: opts.images,
+          streamParams: opts.streamParams,
+        });
+        fallbackProvider = provider;
+        fallbackModel = model;
+      } else {
+        // Non-CLI path - use unified runtime with failover
+        const authProfileId = sessionEntry?.authProfileOverride;
+        const unifiedResult: UnifiedAgentRunResult = await runAgentWithUnifiedFailover({
+          // Core params
+          sessionId,
+          sessionKey,
+          sessionFile,
+          workspaceDir,
+          agentDir,
+          config: cfg,
+          skillsSnapshot,
+          prompt: body,
+          images: opts.images,
+          provider,
+          model,
+          authProfileId,
+          authProfileIdSource: authProfileId ? sessionEntry?.authProfileOverrideSource : undefined,
+          thinkLevel: resolvedThinkLevel,
+          verboseLevel: resolvedVerboseLevel,
+          timeoutMs,
+          runId,
+          lane: opts.lane,
+          abortSignal: opts.abortSignal,
+          extraSystemPrompt: opts.extraSystemPrompt,
+          streamParams: opts.streamParams,
+
+          // Messaging context
+          messageChannel,
+          agentAccountId: runContext.accountId,
+          messageTo: opts.replyTo ?? opts.to,
+          messageThreadId: opts.threadId,
+          groupId: runContext.groupId,
+          groupChannel: runContext.groupChannel,
+          groupSpace: runContext.groupSpace,
+          spawnedBy,
+          currentChannelId: runContext.currentChannelId,
+          currentThreadTs: runContext.currentThreadTs,
+          replyToMode: runContext.replyToMode,
+          hasRepliedRef: runContext.hasRepliedRef,
+
+          // Pi-specific options
+          piOptions: {
             clientTools: opts.clientTools,
-            provider: providerOverride,
-            model: modelOverride,
-            authProfileId,
-            authProfileIdSource: authProfileId
-              ? sessionEntry?.authProfileOverrideSource
-              : undefined,
-            thinkLevel: resolvedThinkLevel,
-            verboseLevel: resolvedVerboseLevel,
-            timeoutMs,
-            runId,
-            lane: opts.lane,
-            abortSignal: opts.abortSignal,
-            extraSystemPrompt: opts.extraSystemPrompt,
-            streamParams: opts.streamParams,
-            agentDir,
-            onAgentEvent: (evt) => {
-              // Track lifecycle end for fallback emission below.
-              if (
-                evt.stream === "lifecycle" &&
-                typeof evt.data?.phase === "string" &&
-                (evt.data.phase === "end" || evt.data.phase === "error")
-              ) {
-                lifecycleEnded = true;
-              }
-            },
-          });
-        },
-      });
-      result = fallbackResult.result;
-      fallbackProvider = fallbackResult.provider;
-      fallbackModel = fallbackResult.model;
+          },
+
+          // Fallback config
+          fallbacksOverride: resolveAgentModelFallbacksOverride(cfg, sessionAgentId),
+
+          // Callbacks
+          onAgentEvent: (evt) => {
+            // Track lifecycle end for fallback emission below.
+            if (
+              evt.stream === "lifecycle" &&
+              typeof evt.data?.phase === "string" &&
+              (evt.data.phase === "end" || evt.data.phase === "error")
+            ) {
+              lifecycleEnded = true;
+            }
+          },
+        });
+        result = unifiedResult.result;
+        fallbackProvider = unifiedResult.provider;
+        fallbackModel = unifiedResult.model;
+      }
       if (!lifecycleEnded) {
         emitAgentEvent({
           runId,

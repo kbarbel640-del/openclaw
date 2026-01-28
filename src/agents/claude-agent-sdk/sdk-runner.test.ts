@@ -206,4 +206,224 @@ describe("runSdkAgent", () => {
     expect(result.meta.truncated).toBe(true);
     expect(result.payloads[0]?.text).toContain("[Output truncated]");
   });
+
+  describe("callback wiring", () => {
+    it("calls onBlockReply with assistant text content", async () => {
+      const blockReplies: Array<{ text?: string }> = [];
+      const onBlockReply = vi.fn((payload: { text?: string }) => {
+        blockReplies.push(payload);
+      });
+
+      mockQuery.mockImplementationOnce(async function* () {
+        yield { type: "assistant", text: "First chunk" };
+        yield { type: "assistant", text: "Second chunk" };
+        yield { type: "result", result: "Final result" };
+      });
+
+      await runSdkAgent({
+        ...baseParams,
+        onBlockReply,
+      });
+
+      expect(onBlockReply).toHaveBeenCalled();
+      expect(blockReplies.length).toBeGreaterThan(0);
+      // Should have received text content
+      expect(blockReplies.some((r) => r.text && r.text.length > 0)).toBe(true);
+    });
+
+    it("calls onBlockReplyFlush after stream completion", async () => {
+      const onBlockReply = vi.fn();
+      const onBlockReplyFlush = vi.fn();
+      let flushCalledAfterReply = false;
+
+      mockQuery.mockImplementationOnce(async function* () {
+        yield { type: "assistant", text: "Hello world" };
+        yield { type: "result", result: "Hello world" };
+      });
+
+      await runSdkAgent({
+        ...baseParams,
+        onBlockReply: async (payload) => {
+          onBlockReply(payload);
+        },
+        onBlockReplyFlush: async () => {
+          // Verify flush is called after at least one block reply
+          flushCalledAfterReply = onBlockReply.mock.calls.length > 0;
+          onBlockReplyFlush();
+        },
+      });
+
+      expect(onBlockReplyFlush).toHaveBeenCalledTimes(1);
+      expect(flushCalledAfterReply).toBe(true);
+    });
+
+    it("calls onReasoningStream with thinking content", async () => {
+      const thinkingChunks: string[] = [];
+      const onReasoningStream = vi.fn((payload: { text?: string }) => {
+        if (payload.text) thinkingChunks.push(payload.text);
+      });
+
+      mockQuery.mockImplementationOnce(async function* () {
+        yield { type: "thinking", thinking: "Let me think..." };
+        yield { type: "thinking_delta", thinking: "Analyzing..." };
+        yield { type: "assistant", text: "Here is my answer" };
+        yield { type: "result", result: "Here is my answer" };
+      });
+
+      const result = await runSdkAgent({
+        ...baseParams,
+        thinkingLevel: "high",
+        onReasoningStream,
+      });
+
+      expect(onReasoningStream).toHaveBeenCalled();
+      expect(thinkingChunks.length).toBeGreaterThan(0);
+      expect(thinkingChunks.some((t) => t.includes("think") || t.includes("Analyzing"))).toBe(true);
+      // Final text should not contain thinking
+      expect(result.payloads[0]?.text).toBe("Here is my answer");
+    });
+
+    it("extracts both text and thinking from content_block events", async () => {
+      const thinkingChunks: string[] = [];
+      const textChunks: string[] = [];
+      const onReasoningStream = vi.fn((payload: { text?: string }) => {
+        if (payload.text) thinkingChunks.push(payload.text);
+      });
+      const onBlockReply = vi.fn((payload: { text?: string }) => {
+        if (payload.text) textChunks.push(payload.text);
+      });
+
+      mockQuery.mockImplementationOnce(async function* () {
+        // Emit thinking via content_block
+        yield {
+          type: "content_block_start",
+          content_block: { type: "thinking", thinking: "Internal reasoning process" },
+        };
+        yield {
+          type: "content_block_delta",
+          delta: { type: "thinking_delta", thinking: "More thinking..." },
+        };
+        // Emit text via content_block
+        yield {
+          type: "content_block_delta",
+          delta: { type: "text_delta", text: "Visible response" },
+        };
+        yield { type: "result", result: "Visible response" };
+      });
+
+      await runSdkAgent({
+        ...baseParams,
+        thinkingLevel: "high",
+        onReasoningStream,
+        onBlockReply,
+      });
+
+      // Thinking should be streamed separately
+      expect(thinkingChunks.length).toBeGreaterThan(0);
+      expect(thinkingChunks.some((t) => t.includes("reasoning") || t.includes("thinking"))).toBe(
+        true,
+      );
+
+      // Text should be streamed separately
+      expect(textChunks.length).toBeGreaterThan(0);
+      expect(textChunks.some((t) => t.includes("Visible"))).toBe(true);
+    });
+
+    it("handles event with both thinking and text fields", async () => {
+      const thinkingChunks: string[] = [];
+      const textChunks: string[] = [];
+      const onReasoningStream = vi.fn((payload: { text?: string }) => {
+        if (payload.text) thinkingChunks.push(payload.text);
+      });
+      const onBlockReply = vi.fn((payload: { text?: string }) => {
+        if (payload.text) textChunks.push(payload.text);
+      });
+
+      // Some SDK versions might emit both in one event
+      mockQuery.mockImplementationOnce(async function* () {
+        yield {
+          type: "assistant",
+          thinking: "My thought process",
+          text: "My visible answer",
+        };
+        yield { type: "result", result: "My visible answer" };
+      });
+
+      await runSdkAgent({
+        ...baseParams,
+        thinkingLevel: "high",
+        onReasoningStream,
+        onBlockReply,
+      });
+
+      // Both should be extracted and sent to appropriate callbacks
+      expect(thinkingChunks).toContain("My thought process");
+      expect(textChunks.some((t) => t.includes("My visible answer"))).toBe(true);
+    });
+
+    it("does not call onReasoningStream when callback not provided", async () => {
+      // This test verifies that if no onReasoningStream is provided,
+      // thinking content doesn't cause errors or unexpected behavior
+      mockQuery.mockImplementationOnce(async function* () {
+        yield { type: "thinking", thinking: "Internal thinking" };
+        yield { type: "assistant", text: "Response" };
+        yield { type: "result", result: "Response" };
+      });
+
+      const result = await runSdkAgent({
+        ...baseParams,
+        thinkingLevel: "high",
+        // No onReasoningStream provided
+      });
+
+      // Should complete successfully
+      expect(result.payloads[0]?.text).toBe("Response");
+      expect(result.payloads[0]?.isError).toBeUndefined();
+    });
+
+    it("does not call onBlockReplyFlush when callback not provided", async () => {
+      mockQuery.mockImplementationOnce(async function* () {
+        yield { type: "assistant", text: "Hello" };
+        yield { type: "result", result: "Hello" };
+      });
+
+      const result = await runSdkAgent({
+        ...baseParams,
+        onBlockReply: vi.fn(),
+        // No onBlockReplyFlush provided
+      });
+
+      // Should complete successfully
+      expect(result.payloads[0]?.text).toBe("Hello");
+    });
+
+    it("calls onPartialReply and onBlockReply in correct order", async () => {
+      const callOrder: string[] = [];
+      const onPartialReply = vi.fn(() => {
+        callOrder.push("partial");
+      });
+      const onBlockReply = vi.fn(() => {
+        callOrder.push("block");
+      });
+
+      mockQuery.mockImplementationOnce(async function* () {
+        yield { type: "assistant", text: "Streaming text" };
+        yield { type: "result", result: "Streaming text" };
+      });
+
+      await runSdkAgent({
+        ...baseParams,
+        onPartialReply,
+        onBlockReply,
+      });
+
+      // Both should be called
+      expect(onPartialReply).toHaveBeenCalled();
+      expect(onBlockReply).toHaveBeenCalled();
+      // Partial should be called before or at same time as block
+      const firstPartial = callOrder.indexOf("partial");
+      const firstBlock = callOrder.indexOf("block");
+      expect(firstPartial).toBeLessThanOrEqual(firstBlock);
+    });
+  });
 });

@@ -2,6 +2,7 @@ import { logVerbose } from "../../globals.js";
 import type { ReplyPayload } from "../types.js";
 import { createBlockReplyCoalescer } from "./block-reply-coalescer.js";
 import type { BlockStreamingCoalescing } from "./block-streaming.js";
+import { createPayloadKey } from "./payload-normalization.js";
 
 export type BlockReplyPipeline = {
   enqueue: (payload: ReplyPayload) => void;
@@ -34,18 +35,15 @@ export function createAudioAsVoiceBuffer(params: {
   };
 }
 
+/**
+ * Create a stable string key for a payload for deduplication.
+ *
+ * @deprecated Use `createPayloadKey` from `payload-normalization.ts` directly.
+ * This function is kept for backward compatibility but delegates to the
+ * centralized implementation for consistent key generation.
+ */
 export function createBlockReplyPayloadKey(payload: ReplyPayload): string {
-  const text = payload.text?.trim() ?? "";
-  const mediaList = payload.mediaUrls?.length
-    ? payload.mediaUrls
-    : payload.mediaUrl
-      ? [payload.mediaUrl]
-      : [];
-  return JSON.stringify({
-    text,
-    mediaList,
-    replyToId: payload.replyToId ?? null,
-  });
+  return createPayloadKey(payload);
 }
 
 const withTimeout = async <T>(

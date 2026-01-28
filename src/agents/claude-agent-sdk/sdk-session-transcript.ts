@@ -53,9 +53,11 @@ export function appendSdkTextTurnToSessionTranscript(params: {
     appendJsonlLine({
       filePath: params.sessionFile,
       value: {
-        role: params.role,
-        content: [{ type: "text", text: trimmed }],
-        timestamp: params.timestamp ?? Date.now(),
+        message: {
+          role: params.role,
+          content: [{ type: "text", text: trimmed }],
+          timestamp: params.timestamp ?? Date.now(),
+        },
       },
     });
   } catch (err) {

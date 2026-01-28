@@ -10,7 +10,6 @@ import { getCliSessionId, setCliSessionId } from "../../agents/cli-session.js";
 import { lookupContextTokens } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL, DEFAULT_PROVIDER } from "../../agents/defaults.js";
 import { loadModelCatalog } from "../../agents/model-catalog.js";
-import { runWithModelFallback } from "../../agents/model-fallback.js";
 import {
   getModelRefStatus,
   isCliProvider,
@@ -20,6 +19,10 @@ import {
   resolveThinkingDefault,
 } from "../../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
+import {
+  runAgentWithUnifiedFailover,
+  type UnifiedAgentRunResult,
+} from "../../agents/unified-agent-runner.js";
 import type { MessagingToolSend } from "../../agents/pi-embedded-messaging.js";
 import { buildWorkspaceSkillSnapshot } from "../../agents/skills.js";
 import { getSkillsSnapshotVersion } from "../../agents/skills/refresh.js";
@@ -328,53 +331,59 @@ export async function runCronIsolatedAgentTurn(params: {
       verboseLevel: resolvedVerboseLevel,
     });
     const messageChannel = resolvedDelivery.channel;
-    const fallbackResult = await runWithModelFallback({
-      cfg: cfgWithAgentDefaults,
-      provider,
-      model,
-      agentDir,
-      fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
-      run: (providerOverride, modelOverride) => {
-        if (isCliProvider(providerOverride, cfgWithAgentDefaults)) {
-          const cliSessionId = getCliSessionId(cronSession.sessionEntry, providerOverride);
-          return runCliAgent({
-            sessionId: cronSession.sessionEntry.sessionId,
-            sessionKey: agentSessionKey,
-            sessionFile,
-            workspaceDir,
-            config: cfgWithAgentDefaults,
-            prompt: commandBody,
-            provider: providerOverride,
-            model: modelOverride,
-            thinkLevel,
-            timeoutMs,
-            runId: cronSession.sessionEntry.sessionId,
-            cliSessionId,
-          });
-        }
-        return runEmbeddedPiAgent({
-          sessionId: cronSession.sessionEntry.sessionId,
-          sessionKey: agentSessionKey,
-          messageChannel,
-          agentAccountId: resolvedDelivery.accountId,
-          sessionFile,
-          workspaceDir,
-          config: cfgWithAgentDefaults,
-          skillsSnapshot,
-          prompt: commandBody,
-          lane: params.lane ?? "cron",
-          provider: providerOverride,
-          model: modelOverride,
-          thinkLevel,
-          verboseLevel: resolvedVerboseLevel,
-          timeoutMs,
-          runId: cronSession.sessionEntry.sessionId,
-        });
-      },
-    });
-    runResult = fallbackResult.result;
-    fallbackProvider = fallbackResult.provider;
-    fallbackModel = fallbackResult.model;
+
+    // CLI providers bypass the runtime abstraction
+    const primaryIsCliProvider = isCliProvider(provider, cfgWithAgentDefaults);
+
+    if (primaryIsCliProvider) {
+      const cliSessionId = getCliSessionId(cronSession.sessionEntry, provider);
+      runResult = await runCliAgent({
+        sessionId: cronSession.sessionEntry.sessionId,
+        sessionKey: agentSessionKey,
+        sessionFile,
+        workspaceDir,
+        config: cfgWithAgentDefaults,
+        prompt: commandBody,
+        provider,
+        model,
+        thinkLevel,
+        timeoutMs,
+        runId: cronSession.sessionEntry.sessionId,
+        cliSessionId,
+      });
+      fallbackProvider = provider;
+      fallbackModel = model;
+    } else {
+      // Non-CLI path - use unified runtime with failover
+      const unifiedResult: UnifiedAgentRunResult = await runAgentWithUnifiedFailover({
+        // Core params
+        sessionId: cronSession.sessionEntry.sessionId,
+        sessionKey: agentSessionKey,
+        sessionFile,
+        workspaceDir,
+        agentDir,
+        config: cfgWithAgentDefaults,
+        skillsSnapshot,
+        prompt: commandBody,
+        provider,
+        model,
+        thinkLevel,
+        verboseLevel: resolvedVerboseLevel,
+        timeoutMs,
+        runId: cronSession.sessionEntry.sessionId,
+        lane: params.lane ?? "cron",
+
+        // Messaging context
+        messageChannel,
+        agentAccountId: resolvedDelivery.accountId,
+
+        // Fallback config
+        fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
+      });
+      runResult = unifiedResult.result;
+      fallbackProvider = unifiedResult.provider;
+      fallbackModel = unifiedResult.model;
+    }
   } catch (err) {
     return { status: "error", error: String(err) };
   }

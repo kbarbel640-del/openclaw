@@ -5,22 +5,40 @@ import { createMockTypingController } from "./test-helpers.js";
 
 const runEmbeddedPiAgentMock = vi.fn();
 
-vi.mock("../../agents/model-fallback.js", () => ({
-  runWithModelFallback: async ({
-    run,
-  }: {
-    run: (provider: string, model: string) => Promise<unknown>;
-  }) => ({
-    // Force a cross-provider fallback candidate
-    result: await run("openai-codex", "gpt-5.2"),
-    provider: "openai-codex",
-    model: "gpt-5.2",
-  }),
+vi.mock("../../agents/unified-agent-runner.js", () => ({
+  runAgentWithUnifiedFailover: async (params: {
+    provider?: string;
+    model?: string;
+    authProfileId?: string;
+    authProfileIdSource?: string;
+  }) => {
+    // Simulate a cross-provider fallback - unified runner should drop authProfileId
+    // when provider changes from anthropic to openai-codex
+    const originalProvider = params.provider ?? "anthropic";
+    const fallbackProvider = "openai-codex";
+    const fallbackModel = "gpt-5.2";
+    const providerChanged = fallbackProvider !== originalProvider;
+
+    const result = await runEmbeddedPiAgentMock({
+      ...params,
+      provider: fallbackProvider,
+      model: fallbackModel,
+      // Drop auth profile when provider changes (the fix being tested)
+      authProfileId: providerChanged ? undefined : params.authProfileId,
+      authProfileIdSource: providerChanged ? undefined : params.authProfileIdSource,
+    });
+    return {
+      result,
+      runtime: "pi",
+      provider: fallbackProvider,
+      model: fallbackModel,
+      attempts: [],
+    };
+  },
 }));
 
 vi.mock("../../agents/pi-embedded.js", () => ({
   queueEmbeddedPiMessage: vi.fn().mockReturnValue(false),
-  runEmbeddedPiAgent: (params: unknown) => runEmbeddedPiAgentMock(params),
 }));
 
 vi.mock("./queue.js", async () => {

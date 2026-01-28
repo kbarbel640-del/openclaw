@@ -1,8 +1,7 @@
 import crypto from "node:crypto";
 import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
-import { runWithModelFallback } from "../../agents/model-fallback.js";
 import { isCliProvider } from "../../agents/model-selection.js";
-import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
+import { runAgentWithUnifiedFailover } from "../../agents/unified-agent-runner.js";
 import { resolveSandboxConfigForAgent, resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
 import type { MoltbotConfig } from "../../config/config.js";
 import {
@@ -87,70 +86,77 @@ export async function runMemoryFlushIfNeeded(params: {
   ]
     .filter(Boolean)
     .join("\n\n");
+
+  // Build threading context for tool auto-injection
+  const threadingContext = buildThreadingToolContext({
+    sessionCtx: params.sessionCtx,
+    config: params.followupRun.run.config,
+    hasRepliedRef: params.opts?.hasRepliedRef,
+  });
+
   try {
-    await runWithModelFallback({
-      cfg: params.followupRun.run.config,
+    await runAgentWithUnifiedFailover({
+      // Core params
+      sessionId: params.followupRun.run.sessionId,
+      sessionKey: params.sessionKey,
+      sessionFile: params.followupRun.run.sessionFile,
+      workspaceDir: params.followupRun.run.workspaceDir,
+      agentDir: params.followupRun.run.agentDir,
+      config: params.followupRun.run.config,
+      skillsSnapshot: params.followupRun.run.skillsSnapshot,
+      prompt: memoryFlushSettings.prompt,
+      extraSystemPrompt: flushSystemPrompt,
       provider: params.followupRun.run.provider,
       model: params.followupRun.run.model,
-      agentDir: params.followupRun.run.agentDir,
+      authProfileId: params.followupRun.run.authProfileId,
+      authProfileIdSource: params.followupRun.run.authProfileIdSource,
+      thinkLevel: params.followupRun.run.thinkLevel,
+      verboseLevel: params.followupRun.run.verboseLevel,
+      timeoutMs: params.followupRun.run.timeoutMs,
+      runId: flushRunId,
+
+      // Messaging context
+      messageProvider: params.sessionCtx.Provider?.trim().toLowerCase() || undefined,
+      agentAccountId: params.sessionCtx.AccountId,
+      messageTo: params.sessionCtx.OriginatingTo ?? params.sessionCtx.To,
+      messageThreadId: params.sessionCtx.MessageThreadId ?? undefined,
+      ...threadingContext,
+
+      // Sender context
+      senderId: params.sessionCtx.SenderId?.trim() || undefined,
+      senderName: params.sessionCtx.SenderName?.trim() || undefined,
+      senderUsername: params.sessionCtx.SenderUsername?.trim() || undefined,
+      senderE164: params.sessionCtx.SenderE164?.trim() || undefined,
+
+      // Generalized fields
+      reasoningLevel: params.followupRun.run.reasoningLevel,
+      ownerNumbers: params.followupRun.run.ownerNumbers,
+
+      // Pi-specific options
+      piOptions: {
+        enforceFinalTag: resolveEnforceFinalTag(
+          params.followupRun.run,
+          params.followupRun.run.provider,
+        ),
+        execOverrides: params.followupRun.run.execOverrides,
+        bashElevated: params.followupRun.run.bashElevated,
+      },
+
+      // Fallback config
       fallbacksOverride: resolveAgentModelFallbacksOverride(
         params.followupRun.run.config,
         resolveAgentIdFromSessionKey(params.followupRun.run.sessionKey),
       ),
-      run: (provider, model) => {
-        const authProfileId =
-          provider === params.followupRun.run.provider
-            ? params.followupRun.run.authProfileId
-            : undefined;
-        return runEmbeddedPiAgent({
-          sessionId: params.followupRun.run.sessionId,
-          sessionKey: params.sessionKey,
-          messageProvider: params.sessionCtx.Provider?.trim().toLowerCase() || undefined,
-          agentAccountId: params.sessionCtx.AccountId,
-          messageTo: params.sessionCtx.OriginatingTo ?? params.sessionCtx.To,
-          messageThreadId: params.sessionCtx.MessageThreadId ?? undefined,
-          // Provider threading context for tool auto-injection
-          ...buildThreadingToolContext({
-            sessionCtx: params.sessionCtx,
-            config: params.followupRun.run.config,
-            hasRepliedRef: params.opts?.hasRepliedRef,
-          }),
-          senderId: params.sessionCtx.SenderId?.trim() || undefined,
-          senderName: params.sessionCtx.SenderName?.trim() || undefined,
-          senderUsername: params.sessionCtx.SenderUsername?.trim() || undefined,
-          senderE164: params.sessionCtx.SenderE164?.trim() || undefined,
-          sessionFile: params.followupRun.run.sessionFile,
-          workspaceDir: params.followupRun.run.workspaceDir,
-          agentDir: params.followupRun.run.agentDir,
-          config: params.followupRun.run.config,
-          skillsSnapshot: params.followupRun.run.skillsSnapshot,
-          prompt: memoryFlushSettings.prompt,
-          extraSystemPrompt: flushSystemPrompt,
-          ownerNumbers: params.followupRun.run.ownerNumbers,
-          enforceFinalTag: resolveEnforceFinalTag(params.followupRun.run, provider),
-          provider,
-          model,
-          authProfileId,
-          authProfileIdSource: authProfileId
-            ? params.followupRun.run.authProfileIdSource
-            : undefined,
-          thinkLevel: params.followupRun.run.thinkLevel,
-          verboseLevel: params.followupRun.run.verboseLevel,
-          reasoningLevel: params.followupRun.run.reasoningLevel,
-          execOverrides: params.followupRun.run.execOverrides,
-          bashElevated: params.followupRun.run.bashElevated,
-          timeoutMs: params.followupRun.run.timeoutMs,
-          runId: flushRunId,
-          onAgentEvent: (evt) => {
-            if (evt.stream === "compaction") {
-              const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
-              const willRetry = Boolean(evt.data.willRetry);
-              if (phase === "end" && !willRetry) {
-                memoryCompactionCompleted = true;
-              }
-            }
-          },
-        });
+
+      // Callbacks
+      onAgentEvent: (evt) => {
+        if (evt.stream === "compaction") {
+          const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
+          const willRetry = Boolean(evt.data.willRetry);
+          if (phase === "end" && !willRetry) {
+            memoryCompactionCompleted = true;
+          }
+        }
       },
     });
     let memoryFlushCompactionCount =

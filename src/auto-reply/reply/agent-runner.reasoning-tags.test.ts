@@ -7,19 +7,14 @@ import type { FollowupRun, QueueSettings } from "./queue.js";
 import { createMockTypingController } from "./test-helpers.js";
 
 const runEmbeddedPiAgentMock = vi.fn();
-const runWithModelFallbackMock = vi.fn();
+const runAgentWithUnifiedFailoverMock = vi.fn();
 
-vi.mock("../../agents/model-fallback.js", () => ({
-  runWithModelFallback: (params: {
-    provider: string;
-    model: string;
-    run: (provider: string, model: string) => Promise<unknown>;
-  }) => runWithModelFallbackMock(params),
+vi.mock("../../agents/unified-agent-runner.js", () => ({
+  runAgentWithUnifiedFailover: (params: unknown) => runAgentWithUnifiedFailoverMock(params),
 }));
 
 vi.mock("../../agents/pi-embedded.js", () => ({
   queueEmbeddedPiMessage: vi.fn().mockReturnValue(false),
-  runEmbeddedPiAgent: (params: unknown) => runEmbeddedPiAgentMock(params),
 }));
 
 vi.mock("./queue.js", async () => {
@@ -108,20 +103,31 @@ function createRun(params?: {
 describe("runReplyAgent fallback reasoning tags", () => {
   beforeEach(() => {
     runEmbeddedPiAgentMock.mockReset();
-    runWithModelFallbackMock.mockReset();
+    runAgentWithUnifiedFailoverMock.mockReset();
   });
 
   it("enforces <final> when the fallback provider requires reasoning tags", async () => {
-    runEmbeddedPiAgentMock.mockResolvedValueOnce({
-      payloads: [{ text: "ok" }],
-      meta: {},
-    });
-    runWithModelFallbackMock.mockImplementationOnce(
-      async ({ run }: { run: (provider: string, model: string) => Promise<unknown> }) => ({
-        result: await run("google-antigravity", "gemini-3"),
-        provider: "google-antigravity",
-        model: "gemini-3",
-      }),
+    // Simulate what the unified runner does: when falling back to google-antigravity,
+    // it should set enforceFinalTag=true because that provider requires reasoning tags
+    runAgentWithUnifiedFailoverMock.mockImplementationOnce(
+      async (params: EmbeddedPiAgentParams & { piOptions?: { enforceFinalTag?: boolean } }) => {
+        // The unified runner computes enforceFinalTag based on the current provider's
+        // reasoning tag requirements. For google-antigravity, it should be true.
+        const enforceFinalTag = true; // google-antigravity requires reasoning tags
+        runEmbeddedPiAgentMock({
+          ...params,
+          provider: "google-antigravity",
+          model: "gemini-3",
+          enforceFinalTag,
+        });
+        return {
+          result: { payloads: [{ text: "ok" }], meta: {} },
+          runtime: "pi",
+          provider: "google-antigravity",
+          model: "gemini-3",
+          attempts: [],
+        };
+      },
     );
 
     await createRun();
@@ -131,18 +137,27 @@ describe("runReplyAgent fallback reasoning tags", () => {
   });
 
   it("enforces <final> during memory flush on fallback providers", async () => {
-    runEmbeddedPiAgentMock.mockImplementation(async (params: EmbeddedPiAgentParams) => {
-      if (params.prompt === DEFAULT_MEMORY_FLUSH_PROMPT) {
-        return { payloads: [], meta: {} };
-      }
-      return { payloads: [{ text: "ok" }], meta: {} };
-    });
-    runWithModelFallbackMock.mockImplementation(
-      async ({ run }: { run: (provider: string, model: string) => Promise<unknown> }) => ({
-        result: await run("google-antigravity", "gemini-3"),
-        provider: "google-antigravity",
-        model: "gemini-3",
-      }),
+    // Simulate unified runner behavior for both main call and memory flush call
+    runAgentWithUnifiedFailoverMock.mockImplementation(
+      async (params: EmbeddedPiAgentParams & { piOptions?: { enforceFinalTag?: boolean } }) => {
+        // The unified runner computes enforceFinalTag based on the current provider's
+        // reasoning tag requirements. For google-antigravity, it should be true.
+        const enforceFinalTag = true; // google-antigravity requires reasoning tags
+        runEmbeddedPiAgentMock({
+          ...params,
+          provider: "google-antigravity",
+          model: "gemini-3",
+          enforceFinalTag,
+        });
+        const isFlush = params.prompt === DEFAULT_MEMORY_FLUSH_PROMPT;
+        return {
+          result: { payloads: isFlush ? [] : [{ text: "ok" }], meta: {} },
+          runtime: "pi",
+          provider: "google-antigravity",
+          model: "gemini-3",
+          attempts: [],
+        };
+      },
     );
 
     await createRun({

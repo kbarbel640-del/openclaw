@@ -2,8 +2,10 @@ import crypto from "node:crypto";
 import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
 import { lookupContextTokens } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
-import { runWithModelFallback } from "../../agents/model-fallback.js";
-import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
+import {
+  runAgentWithUnifiedFailover,
+  type UnifiedAgentRunResult,
+} from "../../agents/unified-agent-runner.js";
 import { resolveAgentIdFromSessionKey, type SessionEntry } from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
 import { logVerbose } from "../../globals.js";
@@ -121,75 +123,80 @@ export function createFollowupRunner(params: {
         });
       }
       let autoCompactionCompleted = false;
-      let runResult: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
-      let fallbackProvider = queued.run.provider;
-      let fallbackModel = queued.run.model;
+      let unifiedResult: UnifiedAgentRunResult;
       try {
-        const fallbackResult = await runWithModelFallback({
-          cfg: queued.run.config,
+        unifiedResult = await runAgentWithUnifiedFailover({
+          // Core params
+          sessionId: queued.run.sessionId,
+          sessionKey: queued.run.sessionKey,
+          sessionFile: queued.run.sessionFile,
+          workspaceDir: queued.run.workspaceDir,
+          agentDir: queued.run.agentDir,
+          config: queued.run.config,
+          skillsSnapshot: queued.run.skillsSnapshot,
+          prompt: queued.prompt,
+          extraSystemPrompt: queued.run.extraSystemPrompt,
           provider: queued.run.provider,
           model: queued.run.model,
-          agentDir: queued.run.agentDir,
+          authProfileId: queued.run.authProfileId,
+          authProfileIdSource: queued.run.authProfileIdSource,
+          thinkLevel: queued.run.thinkLevel,
+          verboseLevel: queued.run.verboseLevel,
+          timeoutMs: queued.run.timeoutMs,
+          runId,
+
+          // Messaging context
+          messageProvider: queued.run.messageProvider,
+          agentAccountId: queued.run.agentAccountId,
+          messageTo: queued.originatingTo,
+          messageThreadId: queued.originatingThreadId,
+          groupId: queued.run.groupId,
+          groupChannel: queued.run.groupChannel,
+          groupSpace: queued.run.groupSpace,
+
+          // Sender context
+          senderId: queued.run.senderId,
+          senderName: queued.run.senderName,
+          senderUsername: queued.run.senderUsername,
+          senderE164: queued.run.senderE164,
+
+          // Generalized fields
+          reasoningLevel: queued.run.reasoningLevel,
+          blockReplyBreak: queued.run.blockReplyBreak,
+          ownerNumbers: queued.run.ownerNumbers,
+
+          // Pi-specific options
+          piOptions: {
+            enforceFinalTag: queued.run.enforceFinalTag,
+            execOverrides: queued.run.execOverrides,
+            bashElevated: queued.run.bashElevated,
+          },
+
+          // Fallback config
           fallbacksOverride: resolveAgentModelFallbacksOverride(
             queued.run.config,
             resolveAgentIdFromSessionKey(queued.run.sessionKey),
           ),
-          run: (provider, model) => {
-            const authProfileId =
-              provider === queued.run.provider ? queued.run.authProfileId : undefined;
-            return runEmbeddedPiAgent({
-              sessionId: queued.run.sessionId,
-              sessionKey: queued.run.sessionKey,
-              messageProvider: queued.run.messageProvider,
-              agentAccountId: queued.run.agentAccountId,
-              messageTo: queued.originatingTo,
-              messageThreadId: queued.originatingThreadId,
-              groupId: queued.run.groupId,
-              groupChannel: queued.run.groupChannel,
-              groupSpace: queued.run.groupSpace,
-              senderId: queued.run.senderId,
-              senderName: queued.run.senderName,
-              senderUsername: queued.run.senderUsername,
-              senderE164: queued.run.senderE164,
-              sessionFile: queued.run.sessionFile,
-              workspaceDir: queued.run.workspaceDir,
-              config: queued.run.config,
-              skillsSnapshot: queued.run.skillsSnapshot,
-              prompt: queued.prompt,
-              extraSystemPrompt: queued.run.extraSystemPrompt,
-              ownerNumbers: queued.run.ownerNumbers,
-              enforceFinalTag: queued.run.enforceFinalTag,
-              provider,
-              model,
-              authProfileId,
-              authProfileIdSource: authProfileId ? queued.run.authProfileIdSource : undefined,
-              thinkLevel: queued.run.thinkLevel,
-              verboseLevel: queued.run.verboseLevel,
-              reasoningLevel: queued.run.reasoningLevel,
-              execOverrides: queued.run.execOverrides,
-              bashElevated: queued.run.bashElevated,
-              timeoutMs: queued.run.timeoutMs,
-              runId,
-              blockReplyBreak: queued.run.blockReplyBreak,
-              onAgentEvent: (evt) => {
-                if (evt.stream !== "compaction") return;
-                const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
-                const willRetry = Boolean(evt.data.willRetry);
-                if (phase === "end" && !willRetry) {
-                  autoCompactionCompleted = true;
-                }
-              },
-            });
+
+          // Callbacks
+          onAgentEvent: (evt) => {
+            if (evt.stream !== "compaction") return;
+            const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
+            const willRetry = Boolean(evt.data.willRetry);
+            if (phase === "end" && !willRetry) {
+              autoCompactionCompleted = true;
+            }
           },
         });
-        runResult = fallbackResult.result;
-        fallbackProvider = fallbackResult.provider;
-        fallbackModel = fallbackResult.model;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         defaultRuntime.error?.(`Followup agent failed before reply: ${message}`);
         return;
       }
+
+      const runResult = unifiedResult.result;
+      const fallbackProvider = unifiedResult.provider;
+      const fallbackModel = unifiedResult.model;
 
       if (storePath && sessionKey) {
         const usage = runResult.meta.agentMeta?.usage;

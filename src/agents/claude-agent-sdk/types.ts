@@ -150,6 +150,14 @@ export type SdkRunnerParams = {
   channelHints?: string;
   /** Available Moltbot skills. */
   skills?: string[];
+  /** Sender identifier. */
+  senderId?: string | null;
+  /** Sender display name. */
+  senderName?: string | null;
+  /** Sender username. */
+  senderUsername?: string | null;
+  /** Sender E.164 phone number. */
+  senderE164?: string | null;
 
   // ─── SDK Options ───────────────────────────────────────────────────────────
   /** Enable Claude Code hooks. */

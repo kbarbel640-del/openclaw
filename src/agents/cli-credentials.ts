@@ -12,6 +12,18 @@ import { resolveUserPath } from "../utils.js";
 const log = createSubsystemLogger("agents/auth-profiles");
 
 const CLAUDE_CLI_CREDENTIALS_RELATIVE_PATH = ".claude/.credentials.json";
+
+/**
+ * Mask a token for logging - shows length and first/last 4 chars.
+ * Example: "sk-ant-api03-abc...xyz" (length: 108)
+ */
+function maskToken(token: string | undefined): string {
+  if (!token) return "(empty)";
+  if (token.length <= 12) return `${"*".repeat(token.length)} (length: ${token.length})`;
+  const first = token.slice(0, 4);
+  const last = token.slice(-4);
+  return `${first}...${"*".repeat(Math.min(8, token.length - 8))}...${last} (length: ${token.length})`;
+}
 const CODEX_CLI_AUTH_FILENAME = "auth.json";
 const QWEN_CLI_CREDENTIALS_RELATIVE_PATH = ".qwen/oauth_creds.json";
 
@@ -189,22 +201,56 @@ function readQwenCliCredentials(options?: { homeDir?: string }): QwenCliCredenti
 function readClaudeCliKeychainCredentials(
   execSyncImpl: ExecSyncFn = execSync,
 ): ClaudeCliCredential | null {
+  log.debug("[CCSDK-AUTH] Attempting to read credentials from macOS Keychain", {
+    service: CLAUDE_CLI_KEYCHAIN_SERVICE,
+    account: CLAUDE_CLI_KEYCHAIN_ACCOUNT,
+  });
+
   try {
     const result = execSyncImpl(
       `security find-generic-password -s "${CLAUDE_CLI_KEYCHAIN_SERVICE}" -w`,
       { encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] },
     );
 
+    log.debug("[CCSDK-AUTH] Keychain returned data", {
+      rawLength: result.length,
+    });
+
     const data = JSON.parse(result.trim());
     const claudeOauth = data?.claudeAiOauth;
-    if (!claudeOauth || typeof claudeOauth !== "object") return null;
+    if (!claudeOauth || typeof claudeOauth !== "object") {
+      log.debug("[CCSDK-AUTH] Keychain data missing claudeAiOauth object");
+      return null;
+    }
 
     const accessToken = claudeOauth.accessToken;
     const refreshToken = claudeOauth.refreshToken;
     const expiresAt = claudeOauth.expiresAt;
 
-    if (typeof accessToken !== "string" || !accessToken) return null;
-    if (typeof expiresAt !== "number" || expiresAt <= 0) return null;
+    if (typeof accessToken !== "string" || !accessToken) {
+      log.debug("[CCSDK-AUTH] Keychain accessToken invalid or missing");
+      return null;
+    }
+    if (typeof expiresAt !== "number" || expiresAt <= 0) {
+      log.debug("[CCSDK-AUTH] Keychain expiresAt invalid", { expiresAt });
+      return null;
+    }
+
+    const expiresDate = new Date(expiresAt);
+    const isExpired = expiresAt < Date.now();
+    const msUntilExpiry = expiresAt - Date.now();
+
+    log.debug("[CCSDK-AUTH] Keychain credentials parsed successfully", {
+      source: "keychain",
+      hasAccessToken: Boolean(accessToken),
+      accessTokenMasked: maskToken(accessToken),
+      hasRefreshToken: Boolean(refreshToken),
+      refreshTokenMasked: maskToken(refreshToken),
+      expiresAt: expiresDate.toISOString(),
+      isExpired,
+      msUntilExpiry,
+      type: refreshToken ? "oauth" : "token",
+    });
 
     if (typeof refreshToken === "string" && refreshToken) {
       return {
@@ -222,7 +268,10 @@ function readClaudeCliKeychainCredentials(
       token: accessToken,
       expires: expiresAt,
     };
-  } catch {
+  } catch (err) {
+    log.debug("[CCSDK-AUTH] Keychain read failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
@@ -234,30 +283,89 @@ export function readClaudeCliCredentials(options?: {
   execSync?: ExecSyncFn;
 }): ClaudeCliCredential | null {
   const platform = options?.platform ?? process.platform;
+
+  log.debug("[CCSDK-AUTH] readClaudeCliCredentials called", {
+    platform,
+    allowKeychainPrompt: options?.allowKeychainPrompt,
+    homeDir: options?.homeDir ?? "(default)",
+  });
+
+  // Try macOS Keychain first
   if (platform === "darwin" && options?.allowKeychainPrompt !== false) {
+    log.debug("[CCSDK-AUTH] Attempting macOS Keychain read");
     const keychainCreds = readClaudeCliKeychainCredentials(options?.execSync);
     if (keychainCreds) {
-      log.info("read anthropic credentials from claude cli keychain", {
+      log.info("[CCSDK-AUTH] Successfully read credentials from macOS Keychain", {
         type: keychainCreds.type,
+        source: "keychain",
+        accessTokenMasked:
+          keychainCreds.type === "oauth"
+            ? maskToken(keychainCreds.access)
+            : maskToken(keychainCreds.token),
       });
       return keychainCreds;
     }
+    log.debug("[CCSDK-AUTH] Keychain read returned null, falling back to file");
   }
 
+  // Fall back to file-based credentials
   const credPath = resolveClaudeCliCredentialsPath(options?.homeDir);
+  log.debug("[CCSDK-AUTH] Attempting to read credentials from file", {
+    path: credPath,
+  });
+
   const raw = loadJsonFile(credPath);
-  if (!raw || typeof raw !== "object") return null;
+  if (!raw || typeof raw !== "object") {
+    log.debug("[CCSDK-AUTH] Credentials file not found or invalid", {
+      path: credPath,
+      rawType: typeof raw,
+    });
+    return null;
+  }
 
   const data = raw as Record<string, unknown>;
   const claudeOauth = data.claudeAiOauth as Record<string, unknown> | undefined;
-  if (!claudeOauth || typeof claudeOauth !== "object") return null;
+  if (!claudeOauth || typeof claudeOauth !== "object") {
+    log.debug("[CCSDK-AUTH] Credentials file missing claudeAiOauth", {
+      path: credPath,
+      topLevelKeys: Object.keys(data),
+    });
+    return null;
+  }
 
   const accessToken = claudeOauth.accessToken;
   const refreshToken = claudeOauth.refreshToken;
   const expiresAt = claudeOauth.expiresAt;
 
-  if (typeof accessToken !== "string" || !accessToken) return null;
-  if (typeof expiresAt !== "number" || expiresAt <= 0) return null;
+  if (typeof accessToken !== "string" || !accessToken) {
+    log.debug("[CCSDK-AUTH] Credentials file accessToken invalid", {
+      path: credPath,
+    });
+    return null;
+  }
+  if (typeof expiresAt !== "number" || expiresAt <= 0) {
+    log.debug("[CCSDK-AUTH] Credentials file expiresAt invalid", {
+      path: credPath,
+      expiresAt,
+    });
+    return null;
+  }
+
+  const expiresDate = new Date(expiresAt);
+  const isExpired = expiresAt < Date.now();
+  const msUntilExpiry = expiresAt - Date.now();
+
+  log.info("[CCSDK-AUTH] Successfully read credentials from file", {
+    source: "file",
+    path: credPath,
+    accessTokenMasked: maskToken(accessToken as string),
+    hasRefreshToken: Boolean(refreshToken),
+    refreshTokenMasked: maskToken(refreshToken as string | undefined),
+    expiresAt: expiresDate.toISOString(),
+    isExpired,
+    msUntilExpiry,
+    type: refreshToken ? "oauth" : "token",
+  });
 
   if (typeof refreshToken === "string" && refreshToken) {
     return {

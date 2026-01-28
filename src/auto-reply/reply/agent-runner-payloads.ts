@@ -5,7 +5,8 @@ import type { OriginatingChannelType } from "../templating.js";
 import { SILENT_REPLY_TOKEN } from "../tokens.js";
 import type { ReplyPayload } from "../types.js";
 import { formatBunFetchSocketError, isBunFetchSocketError } from "./agent-runner-utils.js";
-import { createBlockReplyPayloadKey, type BlockReplyPipeline } from "./block-reply-pipeline.js";
+import type { BlockReplyPipeline } from "./block-reply-pipeline.js";
+import { createPayloadKey } from "./payload-normalization.js";
 import { parseReplyDirectives } from "./reply-directives.js";
 import {
   applyReplyThreading,
@@ -107,7 +108,7 @@ export function buildReplyPayloads(params: {
       ? dedupedPayloads.filter((payload) => !params.blockReplyPipeline?.hasSentPayload(payload))
       : params.directlySentBlockKeys?.size
         ? dedupedPayloads.filter(
-            (payload) => !params.directlySentBlockKeys!.has(createBlockReplyPayloadKey(payload)),
+            (payload) => !params.directlySentBlockKeys!.has(createPayloadKey(payload)),
           )
         : dedupedPayloads;
   const replyPayloads = suppressMessagingToolReplies ? [] : filteredPayloads;

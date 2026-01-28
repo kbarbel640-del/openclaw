@@ -505,14 +505,20 @@ export const chatHandlers: GatewayRequestHandlers = {
         },
       })
         .then(() => {
-          if (!agentRunStarted) {
-            const combinedReply = finalReplyParts
-              .map((part) => part.trim())
-              .filter(Boolean)
-              .join("\n\n")
-              .trim();
-            let message: Record<string, unknown> | undefined;
-            if (combinedReply) {
+          // Always broadcast final result regardless of whether an agent run started.
+          // Previously this only broadcast for non-agent runs (commands like /status),
+          // but agent responses also need to be broadcast since block streaming is disabled
+          // for webchat and there's no other mechanism to notify the UI of completion.
+          const combinedReply = finalReplyParts
+            .map((part) => part.trim())
+            .filter(Boolean)
+            .join("\n\n")
+            .trim();
+          let message: Record<string, unknown> | undefined;
+          if (combinedReply) {
+            // Only append to transcript for non-agent runs (commands).
+            // Agent runs write their own transcripts through the agent runtime layer.
+            if (!agentRunStarted) {
               const { storePath: latestStorePath, entry: latestEntry } = loadSessionEntry(
                 p.sessionKey,
               );
@@ -530,23 +536,27 @@ export const chatHandlers: GatewayRequestHandlers = {
                 context.logGateway.warn(
                   `webchat transcript append failed: ${appended.error ?? "unknown error"}`,
                 );
-                const now = Date.now();
-                message = {
-                  role: "assistant",
-                  content: [{ type: "text", text: combinedReply }],
-                  timestamp: now,
-                  stopReason: "injected",
-                  usage: { input: 0, output: 0, totalTokens: 0 },
-                };
               }
             }
-            broadcastChatFinal({
-              context,
-              runId: clientRunId,
-              sessionKey: p.sessionKey,
-              message,
-            });
+            // If no transcript message was created (either agent run or append failed),
+            // create an ephemeral message for the UI broadcast
+            if (!message) {
+              const now = Date.now();
+              message = {
+                role: "assistant",
+                content: [{ type: "text", text: combinedReply }],
+                timestamp: now,
+                stopReason: agentRunStarted ? "end_turn" : "injected",
+                usage: { input: 0, output: 0, totalTokens: 0 },
+              };
+            }
           }
+          broadcastChatFinal({
+            context,
+            runId: clientRunId,
+            sessionKey: p.sessionKey,
+            message,
+          });
           context.dedupe.set(`chat:${clientRunId}`, {
             ts: Date.now(),
             ok: true,
