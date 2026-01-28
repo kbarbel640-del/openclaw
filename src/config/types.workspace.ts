@@ -76,8 +76,16 @@ export type WorkspaceSyncConfig = {
 
   /**
    * File patterns to exclude from sync (glob patterns).
+   * Defaults include: .git/**, node_modules/**, .venv/**, *.log, .DS_Store
    */
   exclude?: string[];
+
+  /**
+   * Follow symlinks during sync (default: false).
+   * When false, symlinks are skipped with a notice.
+   * When true, symlinks are followed and their targets are copied.
+   */
+  copySymlinks?: boolean;
 
   /**
    * S3-specific configuration (when provider is "s3").

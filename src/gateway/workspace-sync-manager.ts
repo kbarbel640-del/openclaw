@@ -103,6 +103,7 @@ async function runSync(): Promise<void> {
       localPath: resolved.localPath,
       conflictResolve: resolved.conflictResolve,
       exclude: resolved.exclude,
+      copySymlinks: resolved.copySymlinks,
       resync: needsResync,
     });
 
@@ -116,6 +117,7 @@ async function runSync(): Promise<void> {
         localPath: resolved.localPath,
         conflictResolve: resolved.conflictResolve,
         exclude: resolved.exclude,
+        copySymlinks: resolved.copySymlinks,
         resync: true,
       });
     }

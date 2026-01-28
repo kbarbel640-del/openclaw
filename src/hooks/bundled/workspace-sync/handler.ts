@@ -95,6 +95,7 @@ const workspaceSyncHandler: HookHandler = async (event) => {
       localPath: resolved.localPath,
       conflictResolve: resolved.conflictResolve,
       exclude: resolved.exclude,
+      copySymlinks: resolved.copySymlinks,
       verbose: false,
     });
 
