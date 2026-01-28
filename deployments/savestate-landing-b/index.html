@@ -1,0 +1,2254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SaveState — Time Machine for AI</title>
+<meta name="description" content="Backup, restore, and migrate your AI identity. Encrypted. Universal. One command.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================
+   RESET & BASE
+   ============================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --navy: #1a1a2e;
+  --navy-soft: #2d2d44;
+  --blue: #0ea5e9;
+  --blue-light: #38bdf8;
+  --blue-pale: #e0f2fe;
+  --blue-glow: rgba(14, 165, 233, 0.12);
+  --bg: #fafafa;
+  --bg-warm: #f8f9fa;
+  --bg-card: #ffffff;
+  --text: #1a1a2e;
+  --text-secondary: #64748b;
+  --text-tertiary: #94a3b8;
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.03);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-xl: 0 20px 60px rgba(0,0,0,0.1), 0 8px 20px rgba(0,0,0,0.05);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-xs: 6px;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+code, pre, .mono {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+}
+
+img { max-width: 100%; display: block; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.15); opacity: 0.15; }
+  100% { transform: scale(1); opacity: 0.4; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  from, to { border-color: transparent; }
+  50% { border-color: var(--blue); }
+}
+
+@keyframes flow-dot {
+  0% { transform: translateX(0); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(60px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(60px) rotate(-360deg); }
+}
+
+/* Scroll-reveal using CSS only (animation-timeline not wide enough, use JS-free approach) */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ============================================
+   LAYOUT
+   ============================================ */
+.container {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.container-narrow {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+section {
+  padding: 100px 0;
+}
+
+/* ============================================
+   NAVIGATION
+   ============================================ */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(250, 250, 250, 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border-light);
+  transition: box-shadow 0.3s ease;
+}
+
+nav.scrolled {
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-inner {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: var(--navy);
+  text-decoration: none;
+}
+
+.nav-logo:hover { text-decoration: none; }
+
+.nav-logo-icon {
+  width: 32px;
+  height: 32px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-logo-icon .ring {
+  position: absolute;
+  border: 2px solid var(--blue);
+  border-radius: 50%;
+}
+
+.nav-logo-icon .ring-1 { width: 32px; height: 32px; opacity: 0.3; }
+.nav-logo-icon .ring-2 { width: 24px; height: 24px; opacity: 0.5; }
+.nav-logo-icon .ring-3 { width: 16px; height: 16px; opacity: 0.8; }
+.nav-logo-icon .center {
+  width: 8px;
+  height: 8px;
+  background: var(--navy);
+  border-radius: 50%;
+  position: relative;
+  z-index: 2;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  list-style: none;
+}
+
+.nav-links a {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.nav-links a:hover {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.nav-cta {
+  background: var(--navy);
+  color: white !important;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.nav-cta:hover {
+  background: var(--navy-soft);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-mobile-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.nav-mobile-toggle span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--navy);
+  margin: 5px 0;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+/* ============================================
+   HERO
+   ============================================ */
+.hero {
+  padding: 140px 0 100px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f0f7ff 0%, var(--bg) 100%);
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  right: -100px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(14,165,233,0.06) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: -100px;
+  left: -50px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(56,189,248,0.05) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.hero-text {
+  animation: fadeInUp 0.8s ease both;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--blue-pale);
+  color: var(--blue);
+  padding: 6px 16px;
+  border-radius: 100px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 28px;
+  letter-spacing: 0.02em;
+}
+
+.hero-badge::before {
+  content: '⚡';
+  font-size: 0.85rem;
+}
+
+.hero h1 {
+  font-size: 3.2rem;
+  font-weight: 800;
+  line-height: 1.12;
+  color: var(--navy);
+  margin-bottom: 20px;
+  letter-spacing: -0.03em;
+}
+
+.hero h1 span {
+  background: linear-gradient(135deg, var(--blue), var(--blue-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-subtitle {
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 36px;
+  max-width: 480px;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  border: none;
+  transition: all 0.25s ease;
+  text-decoration: none;
+}
+
+.btn:hover { text-decoration: none; }
+
+.btn-primary {
+  background: var(--blue);
+  color: white;
+  box-shadow: 0 4px 14px rgba(14,165,233,0.3);
+}
+
+.btn-primary:hover {
+  background: #0d94d3;
+  box-shadow: 0 6px 20px rgba(14,165,233,0.4);
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--navy);
+  border: 1.5px solid var(--border);
+}
+
+.btn-secondary:hover {
+  border-color: var(--blue-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+/* Hero illustration */
+.hero-illustration {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  animation: fadeIn 1s ease 0.3s both;
+}
+
+.hero-visual {
+  position: relative;
+  width: 340px;
+  height: 340px;
+}
+
+.hero-orb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  background: linear-gradient(135deg, var(--blue), var(--blue-light));
+  border-radius: 50%;
+  box-shadow:
+    0 0 60px rgba(14,165,233,0.2),
+    0 0 120px rgba(14,165,233,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: float 6s ease-in-out infinite;
+}
+
+.hero-orb-inner {
+  font-size: 4rem;
+  line-height: 1;
+  filter: brightness(1.1);
+}
+
+.hero-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border: 2px solid var(--blue);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.hero-ring-1 {
+  width: 260px;
+  height: 260px;
+  opacity: 0.15;
+  animation: pulse-ring 4s ease-in-out infinite;
+}
+
+.hero-ring-2 {
+  width: 320px;
+  height: 320px;
+  opacity: 0.08;
+  animation: pulse-ring 4s ease-in-out infinite 1s;
+}
+
+.hero-ring-3 {
+  width: 380px;
+  height: 380px;
+  opacity: 0.04;
+  animation: pulse-ring 4s ease-in-out infinite 2s;
+}
+
+/* Floating badges around orb */
+.hero-float-badge {
+  position: absolute;
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--navy);
+  white-space: nowrap;
+  animation: float 5s ease-in-out infinite;
+}
+
+.hero-float-badge:nth-child(5) {
+  top: 20px;
+  right: -10px;
+  animation-delay: 0s;
+}
+
+.hero-float-badge:nth-child(6) {
+  bottom: 40px;
+  left: -20px;
+  animation-delay: 1.5s;
+}
+
+.hero-float-badge:nth-child(7) {
+  top: 60px;
+  left: -30px;
+  animation-delay: 3s;
+}
+
+/* ============================================
+   SOCIAL PROOF / TRUST BAR
+   ============================================ */
+.trust-bar {
+  padding: 40px 0 60px;
+  text-align: center;
+}
+
+.trust-bar p {
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.trust-logos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  flex-wrap: wrap;
+  opacity: 0.5;
+}
+
+.trust-logo {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trust-logo .emoji {
+  font-size: 1.4rem;
+}
+
+/* ============================================
+   STORY SECTION
+   ============================================ */
+.story {
+  background: var(--bg-warm);
+  position: relative;
+}
+
+.story-header {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--navy);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+}
+
+.section-subtitle {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+.story-comparison {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.story-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 40px 32px;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.story-card-before {
+  border: 2px solid #fecaca;
+}
+
+.story-card-before::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #ef4444, #f97316);
+}
+
+.story-card-after {
+  border: 2px solid #bbf7d0;
+}
+
+.story-card-after::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #22c55e, var(--blue));
+}
+
+.story-card-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.story-card-before .story-card-label { color: #ef4444; }
+.story-card-after .story-card-label { color: #22c55e; }
+
+.story-card h3 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: var(--navy);
+}
+
+.story-items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.story-items li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.story-items li .icon {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+  margin-top: 1px;
+}
+
+.story-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: var(--blue);
+  font-weight: 700;
+}
+
+/* ============================================
+   THREE PILLARS
+   ============================================ */
+.pillars {
+  background: var(--bg);
+}
+
+.pillars-header {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+
+.pillar-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 44px 32px;
+  box-shadow: var(--shadow-md);
+  transition: all 0.3s ease;
+  border: 1px solid var(--border-light);
+  position: relative;
+  overflow: hidden;
+}
+
+.pillar-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--blue-pale);
+}
+
+.pillar-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  margin-bottom: 24px;
+}
+
+.pillar-card:nth-child(1) .pillar-icon {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+}
+
+.pillar-card:nth-child(2) .pillar-icon {
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+}
+
+.pillar-card:nth-child(3) .pillar-icon {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+}
+
+.pillar-card h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 12px;
+}
+
+.pillar-card p {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 20px;
+}
+
+.pillar-code {
+  background: var(--navy);
+  color: #e2e8f0;
+  padding: 12px 16px;
+  border-radius: var(--radius-xs);
+  font-size: 0.8rem;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.pillar-code .prompt { color: var(--blue-light); }
+.pillar-code .cmd { color: #f8fafc; }
+.pillar-code .flag { color: #a78bfa; }
+.pillar-code .comment { color: #64748b; }
+
+/* ============================================
+   HOW IT WORKS - TIMELINE
+   ============================================ */
+.how-it-works {
+  background: var(--bg-warm);
+  overflow: hidden;
+}
+
+.how-header {
+  text-align: center;
+  margin-bottom: 80px;
+}
+
+.timeline {
+  position: relative;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Connecting line */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--blue-light), var(--blue), var(--blue-light));
+  transform: translateX(-50%);
+  border-radius: 3px;
+}
+
+.timeline-step {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 60px;
+  position: relative;
+}
+
+.timeline-step:last-child { margin-bottom: 0; }
+
+.timeline-step:nth-child(odd) {
+  flex-direction: row;
+}
+
+.timeline-step:nth-child(even) {
+  flex-direction: row-reverse;
+}
+
+.timeline-content {
+  width: calc(50% - 40px);
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 32px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-light);
+  transition: all 0.3s ease;
+}
+
+.timeline-content:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--blue-pale);
+}
+
+.timeline-dot {
+  position: absolute;
+  left: 50%;
+  top: 36px;
+  width: 48px;
+  height: 48px;
+  background: var(--blue);
+  border-radius: 50%;
+  transform: translate(-50%, 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  box-shadow: 0 0 0 6px var(--bg-warm), 0 0 20px rgba(14,165,233,0.3);
+  z-index: 2;
+}
+
+.timeline-number {
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--blue);
+  background: var(--blue-pale);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.timeline-content h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+
+.timeline-content p {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* Horizontal flow for desktop (alternative) */
+.flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  flex-wrap: wrap;
+}
+
+.flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+  min-width: 160px;
+  max-width: 220px;
+  position: relative;
+}
+
+.flow-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 2;
+  transition: transform 0.3s ease;
+}
+
+.flow-step:hover .flow-icon {
+  transform: scale(1.08);
+}
+
+.flow-step:nth-child(1) .flow-icon { background: linear-gradient(135deg, #ede9fe, #ddd6fe); }
+.flow-step:nth-child(3) .flow-icon { background: linear-gradient(135deg, var(--blue-pale), #bae6fd); }
+.flow-step:nth-child(5) .flow-icon { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
+.flow-step:nth-child(7) .flow-icon { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+
+.flow-arrow {
+  font-size: 1.5rem;
+  color: var(--blue);
+  flex-shrink: 0;
+  padding: 0 8px;
+  margin-top: -30px;
+}
+
+.flow-step h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 6px;
+}
+
+.flow-step p {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ============================================
+   PLATFORM SUPPORT
+   ============================================ */
+.platforms {
+  background: var(--bg);
+}
+
+.platforms-header {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.platforms-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.platform-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 32px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.platform-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--blue-pale);
+}
+
+.platform-card-icon {
+  font-size: 2.2rem;
+  margin-bottom: 16px;
+}
+
+.platform-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.platform-card p {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-available {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.badge-soon {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.badge-planned {
+  background: #e0e7ff;
+  color: #6366f1;
+}
+
+.platform-captures {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.capture-tag {
+  background: var(--bg-warm);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* ============================================
+   PRICING
+   ============================================ */
+.pricing {
+  background: var(--bg-warm);
+}
+
+.pricing-header {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.pricing-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 40px 32px;
+  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--border-light);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.pricing-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.pricing-card.featured {
+  border-color: var(--blue);
+  box-shadow: var(--shadow-lg);
+  transform: scale(1.04);
+  z-index: 2;
+}
+
+.pricing-card.featured:hover {
+  box-shadow: var(--shadow-xl);
+}
+
+.pricing-popular {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--blue);
+  color: white;
+  padding: 4px 20px;
+  border-radius: 100px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.pricing-tier {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.pricing-amount {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.pricing-currency {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.pricing-value {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--navy);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.pricing-period {
+  font-size: 0.88rem;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.pricing-desc {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+  line-height: 1.5;
+}
+
+.pricing-features {
+  list-style: none;
+  margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pricing-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.pricing-features li::before {
+  content: '✓';
+  color: var(--blue);
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pricing-card .btn {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ============================================
+   FAQ
+   ============================================ */
+.faq {
+  background: var(--bg);
+}
+
+.faq-header {
+  text-align: center;
+  margin-bottom: 56px;
+}
+
+.faq-list {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.faq-item {
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.faq-item:hover {
+  border-color: var(--blue-pale);
+}
+
+.faq-question {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--navy);
+  transition: color 0.2s;
+}
+
+.faq-question:hover {
+  color: var(--blue);
+}
+
+.faq-chevron {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: var(--text-tertiary);
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+.faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, padding 0.3s ease;
+}
+
+.faq-answer-inner {
+  padding: 0 24px 20px;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* CSS-only accordion */
+.faq-toggle {
+  display: none;
+}
+
+.faq-toggle:checked ~ .faq-answer {
+  max-height: 400px;
+}
+
+.faq-toggle:checked ~ .faq-question .faq-chevron {
+  transform: rotate(180deg);
+}
+
+.faq-toggle:checked ~ .faq-question {
+  color: var(--blue);
+}
+
+/* ============================================
+   FOOTER CTA
+   ============================================ */
+.footer-cta {
+  background: var(--navy);
+  color: white;
+  text-align: center;
+  padding: 100px 0 60px;
+  position: relative;
+  overflow: hidden;
+}
+
+.footer-cta::before {
+  content: '';
+  position: absolute;
+  top: -150px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(14,165,233,0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.footer-cta h2 {
+  font-size: 2.8rem;
+  font-weight: 800;
+  margin-bottom: 16px;
+  letter-spacing: -0.02em;
+  position: relative;
+}
+
+.footer-cta .subtitle {
+  font-size: 1.1rem;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 40px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+}
+
+.install-block {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  padding: 16px 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 40px;
+  backdrop-filter: blur(10px);
+  position: relative;
+}
+
+.install-block code {
+  font-size: 1rem;
+  color: var(--blue-light);
+  font-weight: 500;
+}
+
+.install-block .copy-btn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.install-block .copy-btn:hover {
+  background: rgba(255,255,255,0.18);
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  margin-bottom: 48px;
+  flex-wrap: wrap;
+  position: relative;
+}
+
+.footer-links a {
+  color: rgba(255,255,255,0.5);
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover {
+  color: white;
+  text-decoration: none;
+}
+
+/* Newsletter */
+.newsletter {
+  max-width: 440px;
+  margin: 0 auto 48px;
+  position: relative;
+}
+
+.newsletter p {
+  font-size: 0.88rem;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 12px;
+}
+
+.newsletter-form {
+  display: flex;
+  gap: 8px;
+}
+
+.newsletter-form input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  color: white;
+  font-family: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.newsletter-form input::placeholder {
+  color: rgba(255,255,255,0.3);
+}
+
+.newsletter-form input:focus {
+  border-color: var(--blue);
+  background: rgba(255,255,255,0.1);
+}
+
+.newsletter-form button {
+  padding: 12px 24px;
+  background: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.newsletter-form button:hover {
+  background: #0d94d3;
+}
+
+.footer-bottom {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.footer-bottom p {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.3);
+}
+
+.footer-bottom-links {
+  display: flex;
+  gap: 24px;
+}
+
+.footer-bottom-links a {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.3);
+}
+
+.footer-bottom-links a:hover {
+  color: rgba(255,255,255,0.6);
+}
+
+/* ============================================
+   MOBILE RESPONSIVE
+   ============================================ */
+@media (max-width: 960px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    text-align: center;
+  }
+
+  .hero h1 { font-size: 2.5rem; }
+  .hero-subtitle { margin: 0 auto 36px; }
+  .hero-actions { justify-content: center; }
+  .hero-illustration { min-height: 300px; }
+  .hero-visual { width: 280px; height: 280px; }
+  .hero-orb { width: 160px; height: 160px; }
+  .hero-ring-1 { width: 210px; height: 210px; }
+  .hero-ring-2 { width: 260px; height: 260px; }
+  .hero-ring-3 { width: 310px; height: 310px; }
+
+  .story-comparison {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .story-arrow {
+    transform: rotate(90deg);
+    padding: 8px 0;
+  }
+
+  .pillars-grid {
+    grid-template-columns: 1fr;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  .flow {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .flow-arrow {
+    transform: rotate(90deg);
+    margin: 0;
+    padding: 0;
+  }
+
+  .platforms-grid {
+    grid-template-columns: 1fr;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  .pricing-card.featured {
+    transform: scale(1);
+  }
+
+  .section-title { font-size: 2rem; }
+
+  .footer-cta h2 { font-size: 2rem; }
+
+  .install-block {
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 640px) {
+  section { padding: 70px 0; }
+
+  .hero { padding: 110px 0 70px; }
+  .hero h1 { font-size: 2rem; }
+
+  .nav-links { display: none; }
+  .nav-mobile-toggle { display: block; }
+
+  .hero-float-badge { display: none; }
+
+  .newsletter-form {
+    flex-direction: column;
+  }
+
+  .flow-step {
+    min-width: 100%;
+  }
+
+  .timeline::before { left: 24px; }
+  .timeline-step,
+  .timeline-step:nth-child(even) {
+    flex-direction: row;
+    padding-left: 56px;
+  }
+  .timeline-content { width: 100%; }
+  .timeline-dot {
+    left: 24px;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+  .timeline-number {
+    left: 24px;
+  }
+}
+
+/* ============================================
+   UTILITY
+   ============================================ */
+.text-gradient {
+  background: linear-gradient(135deg, var(--blue), var(--blue-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.mt-2 { margin-top: 8px; }
+.mt-4 { margin-top: 16px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-4 { margin-bottom: 16px; }
+</style>
+</head>
+<body>
+
+<!-- ============================================
+     NAVIGATION
+     ============================================ -->
+<nav id="navbar">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon">
+        <div class="ring ring-1"></div>
+        <div class="ring ring-2"></div>
+        <div class="ring ring-3"></div>
+        <div class="center"></div>
+      </div>
+      SaveState
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#platforms">Platforms</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#faq">FAQ</a></li>
+      <li><a href="#get-started" class="nav-cta">Get Started</a></li>
+    </ul>
+    <button class="nav-mobile-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ============================================
+     HERO
+     ============================================ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div class="hero-text">
+        <div class="hero-badge">Time Machine for AI</div>
+        <h1>Your AI knows you.<br><span>Shouldn't you have a&nbsp;backup?</span></h1>
+        <p class="hero-subtitle">
+          Months of conversations, learned preferences, custom instructions — all living in someone else's cloud. SaveState encrypts and backs up your entire AI identity, so you never lose what makes your AI <em>yours</em>.
+        </p>
+        <div class="hero-actions">
+          <a href="#get-started" class="btn btn-primary">
+            Back up your AI →
+          </a>
+          <a href="#how-it-works" class="btn btn-secondary">
+            See how it works
+          </a>
+        </div>
+      </div>
+      <div class="hero-illustration">
+        <div class="hero-visual">
+          <div class="hero-ring hero-ring-3"></div>
+          <div class="hero-ring hero-ring-2"></div>
+          <div class="hero-ring hero-ring-1"></div>
+          <div class="hero-orb">
+            <div class="hero-orb-inner">🛡️</div>
+          </div>
+          <!-- Floating badges -->
+          <div class="hero-float-badge">🔐 AES-256 Encrypted</div>
+          <div class="hero-float-badge">💾 Backed Up</div>
+          <div class="hero-float-badge">🔄 Portable</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     TRUST BAR
+     ============================================ -->
+<div class="trust-bar">
+  <div class="container">
+    <p>Built for the platforms you already use</p>
+    <div class="trust-logos">
+      <div class="trust-logo"><span class="emoji">🤖</span> ChatGPT</div>
+      <div class="trust-logo"><span class="emoji">🧠</span> Claude</div>
+      <div class="trust-logo"><span class="emoji">⚡</span> Moltbot</div>
+      <div class="trust-logo"><span class="emoji">🔧</span> OpenAI API</div>
+      <div class="trust-logo"><span class="emoji">💎</span> Gemini</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================
+     STORY SECTION
+     ============================================ -->
+<section class="story" id="story">
+  <div class="container">
+    <div class="story-header reveal">
+      <div class="section-label">The Problem</div>
+      <h2 class="section-title">Meet your AI's worst nightmare</h2>
+      <p class="section-subtitle">
+        You've spent months building a relationship with your AI. It knows your writing style, your preferences, your projects. Then one day — poof.
+      </p>
+    </div>
+
+    <div class="story-comparison reveal">
+      <!-- Before -->
+      <div class="story-card story-card-before">
+        <div class="story-card-label">
+          <span>😰</span> Without SaveState
+        </div>
+        <h3>Starting from zero. Again.</h3>
+        <ul class="story-items">
+          <li>
+            <span class="icon">❌</span>
+            <span>Service updates wipe your conversation history</span>
+          </li>
+          <li>
+            <span class="icon">❌</span>
+            <span>Switching platforms means re-teaching everything</span>
+          </li>
+          <li>
+            <span class="icon">❌</span>
+            <span>No encryption — your data sits in someone else's cloud</span>
+          </li>
+          <li>
+            <span class="icon">❌</span>
+            <span>Manual exports are painful and incomplete</span>
+          </li>
+          <li>
+            <span class="icon">❌</span>
+            <span>Can't search across old conversations</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Arrow -->
+      <div class="story-arrow">→</div>
+
+      <!-- After -->
+      <div class="story-card story-card-after">
+        <div class="story-card-label">
+          <span>😌</span> With SaveState
+        </div>
+        <h3>Your AI identity, secured.</h3>
+        <ul class="story-items">
+          <li>
+            <span class="icon">✅</span>
+            <span>Automatic encrypted backups on your schedule</span>
+          </li>
+          <li>
+            <span class="icon">✅</span>
+            <span>Migrate seamlessly between platforms</span>
+          </li>
+          <li>
+            <span class="icon">✅</span>
+            <span>Zero-knowledge encryption — only you hold the keys</span>
+          </li>
+          <li>
+            <span class="icon">✅</span>
+            <span>One command captures everything</span>
+          </li>
+          <li>
+            <span class="icon">✅</span>
+            <span>Full-text search across all snapshots</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     THREE PILLARS
+     ============================================ -->
+<section class="pillars" id="features">
+  <div class="container">
+    <div class="pillars-header reveal">
+      <div class="section-label">Why SaveState</div>
+      <h2 class="section-title">Simple. Secure. Universal.</h2>
+      <p class="section-subtitle">
+        Built on three principles that make AI backup feel effortless.
+      </p>
+    </div>
+
+    <div class="pillars-grid">
+      <div class="pillar-card reveal">
+        <div class="pillar-icon">🔐</div>
+        <h3>Encrypted, always</h3>
+        <p>
+          AES-256-GCM encryption with keys derived from your passphrase. Your data is encrypted before it leaves your machine. We never see it. Nobody does.
+        </p>
+        <div class="pillar-code">
+          <span class="comment"># Your passphrase, your keys</span><br>
+          <span class="prompt">$</span> <span class="cmd">savestate init</span><br>
+          <span style="color:#94a3b8">🔑 Enter passphrase: ••••••••</span><br>
+          <span style="color:#4ade80">✓ Encryption configured (AES-256-GCM)</span>
+        </div>
+      </div>
+
+      <div class="pillar-card reveal">
+        <div class="pillar-icon">🔄</div>
+        <h3>Works everywhere</h3>
+        <p>
+          One tool for all your AI platforms. ChatGPT, Claude, Moltbot, OpenAI Assistants, custom agents — SaveState captures them all with platform-specific adapters.
+        </p>
+        <div class="pillar-code">
+          <span class="comment"># Adapters for every platform</span><br>
+          <span class="prompt">$</span> <span class="cmd">savestate adapters</span><br>
+          <span style="color:#94a3b8">  clawdbot</span> <span style="color:#4ade80">● active</span><br>
+          <span style="color:#94a3b8">  chatgpt</span>&nbsp; <span style="color:#4ade80">● active</span><br>
+          <span style="color:#94a3b8">  claude</span>&nbsp;&nbsp; <span style="color:#fbbf24">● coming soon</span>
+        </div>
+      </div>
+
+      <div class="pillar-card reveal">
+        <div class="pillar-icon">⚡</div>
+        <h3>One command</h3>
+        <p>
+          No configuration rabbit holes. No complicated setup. Run one command and your entire AI identity is captured, encrypted, and stored. Done.
+        </p>
+        <div class="pillar-code">
+          <span class="comment"># That's it. Really.</span><br>
+          <span class="prompt">$</span> <span class="cmd">npx @savestate/cli snapshot</span><br>
+          <span style="color:#94a3b8">📸 Capturing AI state...</span><br>
+          <span style="color:#94a3b8">🔐 Encrypting archive...</span><br>
+          <span style="color:#4ade80">✓ Snapshot saved (v7, 2.3MB)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     HOW IT WORKS
+     ============================================ -->
+<section class="how-it-works" id="how-it-works">
+  <div class="container">
+    <div class="how-header reveal">
+      <div class="section-label">How It Works</div>
+      <h2 class="section-title">Four steps to peace of mind</h2>
+      <p class="section-subtitle">
+        From your AI to an encrypted archive — and back again, anywhere.
+      </p>
+    </div>
+
+    <div class="flow reveal">
+      <div class="flow-step">
+        <div class="flow-icon">🤖</div>
+        <h4>Your AI</h4>
+        <p>Conversations, memories, instructions, tools</p>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-icon">📸</div>
+        <h4>SaveState Captures</h4>
+        <p>Platform adapter extracts your full state</p>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-icon">🔐</div>
+        <h4>Encrypted Archive</h4>
+        <p>AES-256 encryption with your keys</p>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="flow-icon">🌍</div>
+        <h4>Restore Anywhere</h4>
+        <p>Same platform or migrate to a new one</p>
+      </div>
+    </div>
+
+    <!-- Visual code demo -->
+    <div style="max-width:600px; margin: 56px auto 0;" class="reveal">
+      <div style="background: var(--navy); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-lg);">
+        <div style="padding: 12px 16px; background: rgba(255,255,255,0.05); display: flex; align-items: center; gap: 8px;">
+          <span style="width:12px; height:12px; border-radius:50%; background:#ef4444; display:inline-block;"></span>
+          <span style="width:12px; height:12px; border-radius:50%; background:#fbbf24; display:inline-block;"></span>
+          <span style="width:12px; height:12px; border-radius:50%; background:#22c55e; display:inline-block;"></span>
+          <span style="flex:1; text-align:center; font-size:0.75rem; color:rgba(255,255,255,0.3); font-family:'JetBrains Mono',monospace;">Terminal</span>
+        </div>
+        <div style="padding: 20px 24px; font-family:'JetBrains Mono',monospace; font-size:0.85rem; line-height:2; color:#e2e8f0;">
+          <div><span style="color:#38bdf8">$</span> <span style="color:#f8fafc">savestate snapshot --label "pre-migration"</span></div>
+          <div style="color:#94a3b8">📸 Scanning AI state (clawdbot adapter)...</div>
+          <div style="color:#94a3b8">&nbsp;&nbsp; Identity: SOUL.md, config, tools</div>
+          <div style="color:#94a3b8">&nbsp;&nbsp; Memory: 847 entries</div>
+          <div style="color:#94a3b8">&nbsp;&nbsp; Conversations: 234 threads</div>
+          <div style="color:#94a3b8">🔐 Encrypting with AES-256-GCM...</div>
+          <div style="color:#4ade80">✓ Snapshot v12 saved (4.2MB encrypted)</div>
+          <div style="margin-top:8px"><span style="color:#38bdf8">$</span> <span style="color:#f8fafc">savestate restore v12 --to claude</span></div>
+          <div style="color:#94a3b8">🔓 Decrypting archive...</div>
+          <div style="color:#94a3b8">📦 Mapping to Claude format...</div>
+          <div style="color:#4ade80">✓ Restored to Claude (847 memories, 234 threads)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     PLATFORM SUPPORT
+     ============================================ -->
+<section class="platforms" id="platforms">
+  <div class="container">
+    <div class="platforms-header reveal">
+      <div class="section-label">Platform Support</div>
+      <h2 class="section-title">Your AI lives everywhere. So does SaveState.</h2>
+      <p class="section-subtitle">
+        Deep integration with the platforms you use, with more on the way.
+      </p>
+    </div>
+
+    <div class="platforms-grid">
+      <div class="platform-card reveal">
+        <div class="platform-card-icon">⚡</div>
+        <h3>
+          Moltbot / Clawdbot
+          <span class="badge badge-available">Available</span>
+        </h3>
+        <p>Full extract and restore. Direct access to SOUL, memory files, conversations, tool configs, and knowledge base.</p>
+        <div class="platform-captures">
+          <span class="capture-tag">SOUL.md</span>
+          <span class="capture-tag">Memory</span>
+          <span class="capture-tag">Conversations</span>
+          <span class="capture-tag">Tools</span>
+          <span class="capture-tag">Config</span>
+        </div>
+      </div>
+
+      <div class="platform-card reveal">
+        <div class="platform-card-icon">🔧</div>
+        <h3>
+          OpenAI Assistants
+          <span class="badge badge-available">Available</span>
+        </h3>
+        <p>Full API integration. Captures threads, files, instructions, and tool configurations via the Assistants API.</p>
+        <div class="platform-captures">
+          <span class="capture-tag">Threads</span>
+          <span class="capture-tag">Files</span>
+          <span class="capture-tag">Instructions</span>
+          <span class="capture-tag">Tools</span>
+        </div>
+      </div>
+
+      <div class="platform-card reveal">
+        <div class="platform-card-icon">💻</div>
+        <h3>
+          Claude Code
+          <span class="badge badge-available">Available</span>
+        </h3>
+        <p>Captures CLAUDE.md, project memory, conversation state, and workspace context for Claude Code bots.</p>
+        <div class="platform-captures">
+          <span class="capture-tag">CLAUDE.md</span>
+          <span class="capture-tag">Memory</span>
+          <span class="capture-tag">Projects</span>
+          <span class="capture-tag">Context</span>
+        </div>
+      </div>
+
+      <div class="platform-card reveal">
+        <div class="platform-card-icon">🤖</div>
+        <h3>
+          ChatGPT
+          <span class="badge badge-soon">Coming Soon</span>
+        </h3>
+        <p>Export conversations and memories via data export API. Restore memories and custom instructions.</p>
+        <div class="platform-captures">
+          <span class="capture-tag">Conversations</span>
+          <span class="capture-tag">Memories</span>
+          <span class="capture-tag">Instructions</span>
+        </div>
+      </div>
+
+      <div class="platform-card reveal">
+        <div class="platform-card-icon">🧠</div>
+        <h3>
+          Claude (Consumer)
+          <span class="badge badge-soon">Coming Soon</span>
+        </h3>
+        <p>Memory export and Projects import. Captures learned preferences and project-level knowledge.</p>
+        <div class="platform-captures">
+          <span class="capture-tag">Memories</span>
+          <span class="capture-tag">Projects</span>
+          <span class="capture-tag">Preferences</span>
+        </div>
+      </div>
+
+      <div class="platform-card reveal">
+        <div class="platform-card-icon">💎</div>
+        <h3>
+          Gemini
+          <span class="badge badge-planned">Planned</span>
+        </h3>
+        <p>Google Takeout integration plus Gems capture. Extract conversations and personalization data.</p>
+        <div class="platform-captures">
+          <span class="capture-tag">Takeout Data</span>
+          <span class="capture-tag">Gems</span>
+          <span class="capture-tag">Conversations</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     PRICING
+     ============================================ -->
+<section class="pricing" id="pricing">
+  <div class="container">
+    <div class="pricing-header reveal">
+      <div class="section-label">Pricing</div>
+      <h2 class="section-title">Start free. Scale when ready.</h2>
+      <p class="section-subtitle">
+        The CLI is open source and always free. Pay only for cloud features you need.
+      </p>
+    </div>
+
+    <div class="pricing-grid">
+      <!-- Free -->
+      <div class="pricing-card reveal">
+        <div class="pricing-tier">Free</div>
+        <div class="pricing-amount">
+          <span class="pricing-currency">$</span>
+          <span class="pricing-value">0</span>
+        </div>
+        <div class="pricing-period">Forever free</div>
+        <p class="pricing-desc">Everything you need for local backups.</p>
+        <ul class="pricing-features">
+          <li>Open source CLI</li>
+          <li>Local storage</li>
+          <li>Manual snapshots</li>
+          <li>1 platform adapter</li>
+          <li>AES-256 encryption</li>
+          <li>Full search</li>
+        </ul>
+        <a href="#get-started" class="btn btn-secondary">Get Started Free</a>
+      </div>
+
+      <!-- Pro -->
+      <div class="pricing-card featured reveal">
+        <div class="pricing-popular">Most Popular</div>
+        <div class="pricing-tier">Pro</div>
+        <div class="pricing-amount">
+          <span class="pricing-currency">$</span>
+          <span class="pricing-value">9</span>
+        </div>
+        <div class="pricing-period">per month</div>
+        <p class="pricing-desc">Cloud backups and all platform adapters.</p>
+        <ul class="pricing-features">
+          <li>Everything in Free</li>
+          <li>Scheduled auto-backups</li>
+          <li>Cloud storage (10GB)</li>
+          <li>All platform adapters</li>
+          <li>Web dashboard</li>
+          <li>Email failure alerts</li>
+          <li>Priority support</li>
+        </ul>
+        <a href="#get-started" class="btn btn-primary">Start Pro Trial</a>
+      </div>
+
+      <!-- Team -->
+      <div class="pricing-card reveal">
+        <div class="pricing-tier">Team</div>
+        <div class="pricing-amount">
+          <span class="pricing-currency">$</span>
+          <span class="pricing-value">29</span>
+        </div>
+        <div class="pricing-period">per month</div>
+        <p class="pricing-desc">For teams managing multiple AI agents.</p>
+        <ul class="pricing-features">
+          <li>Everything in Pro</li>
+          <li>Shared team backups</li>
+          <li>Compliance & audit trails</li>
+          <li>SSO integration</li>
+          <li>Custom adapters</li>
+          <li>Dedicated support</li>
+        </ul>
+        <a href="#get-started" class="btn btn-secondary">Contact Sales</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     FAQ
+     ============================================ -->
+<section class="faq" id="faq">
+  <div class="container">
+    <div class="faq-header reveal">
+      <div class="section-label">FAQ</div>
+      <h2 class="section-title">Questions? We've got answers.</h2>
+    </div>
+
+    <div class="faq-list">
+      <!-- Q1 -->
+      <div class="faq-item reveal">
+        <input type="checkbox" id="faq1" class="faq-toggle">
+        <label for="faq1" class="faq-question">
+          Is my data safe?
+          <span class="faq-chevron">▼</span>
+        </label>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            Absolutely. SaveState uses AES-256-GCM encryption with keys derived from your passphrase using scrypt. Your data is encrypted <strong>before it leaves your machine</strong>. We operate on a zero-knowledge model — we never see your data, and we can't decrypt it even if we wanted to. If you use cloud storage, only encrypted blobs are transmitted. Your keys stay with you, always.
+          </div>
+        </div>
+      </div>
+
+      <!-- Q2 -->
+      <div class="faq-item reveal">
+        <input type="checkbox" id="faq2" class="faq-toggle">
+        <label for="faq2" class="faq-question">
+          Which platforms are supported?
+          <span class="faq-chevron">▼</span>
+        </label>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            At launch, SaveState supports <strong>Moltbot/Clawdbot</strong>, <strong>OpenAI Assistants API</strong>, and <strong>Claude Code</strong> with full extract and restore. ChatGPT and Claude (consumer) are coming soon with extract + partial restore. Gemini support is planned. The adapter system is open, so community contributors can add support for any platform.
+          </div>
+        </div>
+      </div>
+
+      <!-- Q3 -->
+      <div class="faq-item reveal">
+        <input type="checkbox" id="faq3" class="faq-toggle">
+        <label for="faq3" class="faq-question">
+          Can I search old backups?
+          <span class="faq-chevron">▼</span>
+        </label>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            Yes! One of SaveState's most powerful features is cross-snapshot search. Run <code>savestate search "that cocktail recipe"</code> and it'll search across all your snapshots — conversations, memories, instructions — and surface relevant results. No need to restore first. It works locally with a built-in index, no cloud required.
+          </div>
+        </div>
+      </div>
+
+      <!-- Q4 -->
+      <div class="faq-item reveal">
+        <input type="checkbox" id="faq4" class="faq-toggle">
+        <label for="faq4" class="faq-question">
+          What's the SAF format?
+          <span class="faq-chevron">▼</span>
+        </label>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            SAF stands for <strong>SaveState Archive Format</strong> — an open specification for packaging AI state. It organizes your data into structured directories: identity (personality, config, tools), memory (core memories, knowledge), conversations (threads, metadata), and meta (platform info, snapshot chain). The format is versioned, documented, and open source. No vendor lock-in — even for your backup tool.
+          </div>
+        </div>
+      </div>
+
+      <!-- Q5 -->
+      <div class="faq-item reveal">
+        <input type="checkbox" id="faq5" class="faq-toggle">
+        <label for="faq5" class="faq-question">
+          Can I migrate between platforms?
+          <span class="faq-chevron">▼</span>
+        </label>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            That's one of SaveState's core features. Take a snapshot from one platform and restore it to another: <code>savestate restore v12 --to claude</code>. SaveState maps data between platform formats — memories, instructions, and configurations get translated intelligently. The open SAF format acts as the universal intermediary between platforms.
+          </div>
+        </div>
+      </div>
+
+      <!-- Q6 -->
+      <div class="faq-item reveal">
+        <input type="checkbox" id="faq6" class="faq-toggle">
+        <label for="faq6" class="faq-question">
+          Where are backups stored?
+          <span class="faq-chevron">▼</span>
+        </label>
+        <div class="faq-answer">
+          <div class="faq-answer-inner">
+            Wherever you want. By default, snapshots are stored locally at <code>~/.savestate/</code>. You can configure any storage backend: Amazon S3, Cloudflare R2, Backblaze B2, or just point to a Dropbox or iCloud folder. All backends receive only encrypted data — zero-knowledge by design. Pro subscribers also get managed cloud storage.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     FOOTER CTA
+     ============================================ -->
+<section class="footer-cta" id="get-started">
+  <div class="container">
+    <h2>Never lose your AI again.</h2>
+    <p class="subtitle">
+      One command. Encrypted. Always yours.
+    </p>
+
+    <div class="install-block">
+      <code>npx @savestate/cli init</code>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('npx @savestate/cli init').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})">Copy</button>
+    </div>
+
+    <div class="footer-links">
+      <a href="https://www.npmjs.com/package/@savestate/cli">npm</a>
+      <a href="https://github.com/savestatedev/savestate">GitHub</a>
+      <a href="https://docs.savestate.dev">Documentation</a>
+      <a href="https://savestate.dev/blog">Blog</a>
+    </div>
+
+    <div class="newsletter">
+      <p>Get updates on new platform adapters and features.</p>
+      <form class="newsletter-form" onsubmit="event.preventDefault()">
+        <input type="email" placeholder="you@email.com" aria-label="Email address">
+        <button type="submit">Subscribe</button>
+      </form>
+    </div>
+
+    <div class="footer-bottom">
+      <p>© 2025 SaveState. Open source under MIT license.</p>
+      <div class="footer-bottom-links">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">Security</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================
+     SCROLL REVEAL JS (minimal)
+     ============================================ -->
+<script>
+// Navbar scroll shadow
+const nav = document.getElementById('navbar');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 10);
+});
+
+// Intersection Observer for scroll reveals
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, {
+  threshold: 0.1,
+  rootMargin: '0px 0px -40px 0px'
+});
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

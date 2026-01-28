@@ -1,0 +1,10 @@
+{
+  "name": "savestate-landing-b",
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    }
+  ]
+}

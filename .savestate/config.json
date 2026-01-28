@@ -1,0 +1,20 @@
+{
+  "version": "0.1.0",
+  "storage": {
+    "type": "r2",
+    "options": {
+      "path": "/Users/steve/.savestate",
+      "passphraseConfigured": true,
+      "bucket": "savestate-backups",
+      "endpoint": "https://3896f91bc02fe2ec4f45b9e92981e626.r2.cloudflarestorage.com",
+      "region": "auto"
+    }
+  },
+  "adapters": [
+    {
+      "id": "clawdbot",
+      "enabled": true
+    }
+  ],
+  "defaultAdapter": "clawdbot"
+}

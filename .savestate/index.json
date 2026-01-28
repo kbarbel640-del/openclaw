@@ -1,0 +1,49 @@
+{
+  "snapshots": [
+    {
+      "id": "ss-2026-01-27T21-46-44-d4fuva",
+      "timestamp": "2026-01-27T21:46:44.346Z",
+      "platform": "clawdbot",
+      "adapter": "clawdbot",
+      "label": "expanded-test",
+      "filename": "ss-2026-01-27T21-46-44-d4fuva.saf.enc",
+      "size": 92641
+    },
+    {
+      "id": "ss-2026-01-27T21-47-21-vwf7cg",
+      "timestamp": "2026-01-27T21:47:21.300Z",
+      "platform": "clawdbot",
+      "adapter": "clawdbot",
+      "label": "expanded-test-v2",
+      "filename": "ss-2026-01-27T21-47-21-vwf7cg.saf.enc",
+      "size": 488955
+    },
+    {
+      "id": "ss-2026-01-28T00-26-33-1p7llk",
+      "timestamp": "2026-01-28T00:26:33.564Z",
+      "platform": "clawdbot",
+      "adapter": "clawdbot",
+      "label": "first-real-snapshot",
+      "tags": [
+        "e2e-test",
+        "clawdbot"
+      ],
+      "filename": "ss-2026-01-28T00-26-33-1p7llk.saf.enc",
+      "size": 490404
+    },
+    {
+      "id": "ss-2026-01-28T00-52-22-62j057",
+      "timestamp": "2026-01-28T00:52:22.057Z",
+      "platform": "clawdbot",
+      "adapter": "clawdbot",
+      "label": "first-cloud-backup",
+      "tags": [
+        "r2",
+        "cloud",
+        "test"
+      ],
+      "filename": "ss-2026-01-28T00-52-22-62j057.saf.enc",
+      "size": 491193
+    }
+  ]
+}
