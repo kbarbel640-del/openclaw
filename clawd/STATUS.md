@@ -2,7 +2,7 @@
 
 > **TRUST THIS FILE OVER YOUR MEMORY.** If you remember something different, this file is correct.
 
-**Last updated:** 2026-01-28 (Discord channel added, Kimi K2.5 tested, message metadata fix)
+**Last updated:** 2026-01-28 (upstream merge, session scope configured, session-memory enhanced)
 
 ## AI Employee Mode
 
@@ -97,6 +97,20 @@ You are now operating as a **full-fledged AI Employee**, not just a chatbot.
 | **DeepSeek OCR** | Ollama (local) | OCR | Text extraction from images/PDFs |
 
 **Cross-Validation Principle:** Same model reviewing itself has identical blind spots. MiniMax drafts, GLM reviews.
+
+## Session Configuration
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| **dmScope** | per-channel-peer | Isolates DM sessions per channel (Telegram vs Discord vs Web) |
+| **session-memory messages** | 15 (default) | Upstream schema bug - custom value not yet supported |
+| **reset.mode** | daily | Automatic session reset at 4 AM PST |
+| **reset.idleMinutes** | 240 | Reset after 4 hours idle |
+
+**Benefits:**
+- Telegram conversations don't bleed into Discord context
+- Richer memory files when starting fresh sessions
+- Clean session boundaries for context management
 
 ## Skills
 
