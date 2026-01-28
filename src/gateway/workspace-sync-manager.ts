@@ -31,6 +31,7 @@ type SyncManagerState = {
   syncCount: number;
   errorCount: number;
   hasSuccessfulSync: boolean;
+  syncInProgress: boolean;
 };
 
 const state: SyncManagerState = {
@@ -40,6 +41,7 @@ const state: SyncManagerState = {
   syncCount: 0,
   errorCount: 0,
   hasSuccessfulSync: false,
+  syncInProgress: false,
 };
 
 let currentConfig: MoltbotConfig | null = null;
@@ -55,11 +57,14 @@ async function runSync(): Promise<void> {
   const syncConfig = currentConfig.workspace?.sync;
   if (!syncConfig?.provider || syncConfig.provider === "off") return;
 
-  const logger = currentLogger;
+  // Skip if a sync is already in progress
+  if (state.syncInProgress) {
+    currentLogger.info("[workspace-sync] Sync already in progress, skipping");
+    return;
+  }
 
-  // Clear any stale locks before attempting sync
-  // (handles case where prior sync failed and left a lock behind)
-  clearStaleLocks(logger);
+  const logger = currentLogger;
+  state.syncInProgress = true;
 
   try {
     // Check if rclone is available
@@ -133,6 +138,8 @@ async function runSync(): Promise<void> {
     logger.error(
       `[workspace-sync] Periodic sync error: ${err instanceof Error ? err.message : String(err)}`,
     );
+  } finally {
+    state.syncInProgress = false;
   }
 }
 
