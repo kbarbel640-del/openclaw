@@ -8,6 +8,7 @@
 
 import type { ClawdbrainConfig } from "../../config/config.js";
 import { logDebug } from "../../logger.js";
+import { DEFAULT_AGENT_ID, normalizeAgentId } from "../../routing/session-key.js";
 import type { AuthProfileStore } from "../auth-profiles/types.js";
 import type { SdkProviderConfig, SdkProviderEnv } from "./sdk-runner.types.js";
 
@@ -132,15 +133,25 @@ function resolveEnvValue(value: string, env: NodeJS.ProcessEnv): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Check whether the Claude Agent SDK runner is enabled as the main agent runtime.
+ * Check whether the Claude Agent SDK runner is enabled for a given agent.
  *
- * The SDK runner is enabled only when `agents.defaults.runtime` is "sdk".
+ * Resolution order for the main agent (agentId === "main"):
+ * 1. `agents.defaults.mainRuntime` (explicit main-agent override)
+ * 2. `agents.defaults.runtime` (global fallback)
+ *
+ * For all other agents (or when agentId is omitted):
+ * 1. `agents.defaults.runtime` only
  *
  * IMPORTANT: `tools.codingTask.*` is tool-level configuration and must not
  * implicitly change the gateway-wide/main-agent runtime selection.
  */
-export function isSdkRunnerEnabled(config?: ClawdbrainConfig): boolean {
-  return config?.agents?.defaults?.runtime === "sdk";
+export function isSdkRunnerEnabled(config?: ClawdbrainConfig, agentId?: string): boolean {
+  const defaults = config?.agents?.defaults;
+  // For the main agent, prefer mainRuntime when explicitly set.
+  if (agentId && normalizeAgentId(agentId) === DEFAULT_AGENT_ID && defaults?.mainRuntime != null) {
+    return defaults.mainRuntime === "sdk";
+  }
+  return defaults?.runtime === "sdk";
 }
 
 /**

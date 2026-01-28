@@ -154,6 +154,8 @@ export const AgentDefaultsSchema = z
       .strict()
       .optional(),
     runtime: z.enum(["pi", "sdk"]).optional(),
+    /** Runtime override exclusively for the main agent loop. Falls back to `runtime` when unset. */
+    mainRuntime: z.enum(["pi", "sdk"]).optional(),
     sandbox: z
       .object({
         mode: z.union([z.literal("off"), z.literal("non-main"), z.literal("all")]).optional(),

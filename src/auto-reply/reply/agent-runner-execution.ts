@@ -224,7 +224,7 @@ export async function runAgentTurnWithFallback(params: {
           }
 
           // SDK runner: use Claude Agent SDK as the main agent runtime.
-          if (isSdkRunnerEnabled(params.followupRun.run.config)) {
+          if (isSdkRunnerEnabled(params.followupRun.run.config, params.followupRun.run.agentId)) {
             return (async () => {
               const startedAt = Date.now();
               emitAgentEvent({
