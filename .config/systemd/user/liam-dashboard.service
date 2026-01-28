@@ -1,0 +1,15 @@
+[Unit]
+Description=Liam's Project Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=liam
+WorkingDirectory=/home/liam/clawd/dashboard
+ExecStart=/home/liam/clawd/dashboard/.venv/bin/python3 /home/liam/clawd/dashboard/start.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

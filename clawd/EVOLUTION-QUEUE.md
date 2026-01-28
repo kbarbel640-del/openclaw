@@ -134,6 +134,21 @@
 - **Note:** Requires: `sudo cp ~/clawd/dashboard/liam-dashboard.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable liam-dashboard`
 - **Status:** PENDING (needs sudo access)
 
+### [2026-01-27-050] WhatsApp Response Loop - 55 Notifications from Simple Message [CRITICAL]
+- **Proposed by:** Simon (via screenshot)
+- **Date:** 2026-01-27
+- **Category:** tools
+- **Target file:** WhatsApp channel handler (response throttling/deduplication)
+- **Verified:** YES - 55 notification badge visible in screenshot
+- **Evidence:** Screenshot shows "Liam" chat header with 55 notification badge after Simon sent "11"
+- **Description:** Liam is responding excessively to simple messages. 55 notifications from a single "11" message indicates response loop or spam. User reports "Discord Liam is cray" suggesting similar behavior across channels. This is a CRITICAL bug affecting usability.
+- **Investigation needed:**
+  - Check WhatsApp session logs for response loop pattern
+  - Check Discord session for similar behavior
+  - Verify response throttling/deduplication logic
+  - Check if heartbeat is triggering duplicate responses
+- **Status:** CRITICAL - INVESTIGATING
+
 ## Paused
 
 ### [2026-01-28-043] GLM-4.7-Flash vs Kimi K2.5 Model Comparison

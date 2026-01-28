@@ -1,473 +1,424 @@
 #!/usr/bin/env python3
 """
-Enhanced Dashboard Generator for Liam
-Home base for system monitoring, projects, and tasks
+Liam's Dashboard Server
+Data analytics platform with Technical Brutalism design.
 """
 
 import json
 import os
+import re
+import sqlite3
 import subprocess
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+import threading
+import time
 from datetime import datetime
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
+# === CONFIGURATION ===
 BASE_DIR = Path('/home/liam/clawd')
-OUTPUT_FILE = BASE_DIR / 'dashboard' / 'index.html'
+DASHBOARD_DIR = BASE_DIR / 'dashboard'
+DB_PATH = DASHBOARD_DIR / 'dashboard.db'
+STATIC_DIR = DASHBOARD_DIR / 'static'
+TEMPLATES_DIR = DASHBOARD_DIR / 'templates'
 PORT = 8080
+METRICS_INTERVAL = 5  # seconds between metric collection
+AUTH_USERNAME = 'liam'  # Basic auth username
+AUTH_PASSWORD = 'dashboard'  # Change this!
 
+# === DATABASE ===
+_db_local = threading.local()
 
+def get_db():
+    """Get thread-local database connection."""
+    if not hasattr(_db_local, 'conn'):
+        _db_local.conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+        _db_local.conn.row_factory = sqlite3.Row
+        _db_local.conn.execute('PRAGMA journal_mode=WAL')
+        _db_local.conn.execute('PRAGMA busy_timeout=5000')
+    return _db_local.conn
+
+def init_db():
+    """Initialize database from schema."""
+    schema_path = DASHBOARD_DIR / 'schema.sql'
+    if schema_path.exists():
+        conn = get_db()
+        conn.executescript(schema_path.read_text())
+        conn.commit()
+
+# === DATA COLLECTORS ===
 def get_gateway_status():
-    """Check Clawdbot gateway status"""
+    """Check Clawdbot gateway status."""
     try:
         result = subprocess.run(
-            ['systemctl', 'is-active', 'clawdbot-gateway'],
-            capture_output=True,
-            text=True,
-            timeout=2
+            ['systemctl', '--user', 'is-active', 'clawdbot-gateway'],
+            capture_output=True, text=True, timeout=2
         )
         status = result.stdout.strip()
         if status == 'active':
-            return {'status': 'running', 'color': '#6bcb77', 'text': 'Running'}
+            return {'status': 'running', 'color': '#00cc66'}
         elif status == 'inactive':
-            return {'status': 'stopped', 'color': '#ff6b6b', 'text': 'Stopped'}
+            return {'status': 'stopped', 'color': '#ff4444'}
         else:
-            return {'status': status, 'color': '#ffd93d', 'text': status}
-    except:
-        return {'status': 'unknown', 'color': '#8888aa', 'text': 'Unknown'}
-
+            return {'status': status, 'color': '#ffaa00'}
+    except Exception:
+        return {'status': 'unknown', 'color': '#666666'}
 
 def get_system_resources():
-    """Get system resource usage"""
+    """Get CPU, RAM, Disk usage."""
     try:
-        # CPU usage (from /proc/stat)
+        # CPU (simplified - instant reading)
         with open('/proc/stat', 'r') as f:
-            lines = f.readlines()
-        
-        cpu_total = 0
-        cpu_idle = 0
-        for line in lines:
-            if line.startswith('cpu '):
-                parts = line.split()
-                cpu_total = sum(int(x) for x in parts[1:5])
-                cpu_idle = int(parts[4])
-                cpu_percent = ((cpu_total - cpu_idle) / cpu_total) * 100
-                break
-        
-        # Memory usage (from /proc/meminfo)
+            line = f.readline()
+        parts = line.split()
+        cpu_total = sum(int(x) for x in parts[1:5])
+        cpu_idle = int(parts[4])
+        cpu_percent = round(((cpu_total - cpu_idle) / cpu_total) * 100, 1)
+
+        # Memory
         with open('/proc/meminfo', 'r') as f:
-            meminfo = dict(line.split(':') for line in f.read().split('\n') if ':' in line)
-        
-        mem_total = int(meminfo.get('MemTotal', '0').strip().split()[0])
-        mem_available = int(meminfo.get('MemAvailable', '0').strip().split()[0])
-        mem_percent = ((mem_total - mem_available) / mem_total) * 100
-        
-        # Disk usage
-        disk_result = subprocess.run(
-            ['df', '-h', '/home'],
-            capture_output=True,
-            text=True,
-            timeout=2
-        )
-        disk_lines = disk_result.stdout.split('\n')
-        disk_info = disk_lines[1].split() if len(disk_lines) > 1 else {}
-        disk_percent = int(disk_info[4].replace('%', '')) if len(disk_info) > 4 else 0
-        
+            meminfo = {}
+            for line in f:
+                if ':' in line:
+                    key, val = line.split(':')
+                    meminfo[key.strip()] = val.strip()
+        mem_total = int(meminfo.get('MemTotal', '0').split()[0])
+        mem_available = int(meminfo.get('MemAvailable', '0').split()[0])
+        mem_percent = round(((mem_total - mem_available) / mem_total) * 100, 1)
+        mem_total_gb = round(mem_total / 1024 / 1024, 1)
+
+        # Disk
+        result = subprocess.run(['df', '-h', '/home'], capture_output=True, text=True, timeout=2)
+        disk_lines = result.stdout.split('\n')
+        if len(disk_lines) > 1:
+            disk_info = disk_lines[1].split()
+            disk_percent = int(disk_info[4].replace('%', '')) if len(disk_info) > 4 else 0
+            disk_total = disk_info[1] if len(disk_info) > 1 else 'N/A'
+        else:
+            disk_percent, disk_total = 0, 'N/A'
+
         return {
-            'cpu_percent': round(cpu_percent, 1),
-            'mem_percent': round(mem_percent, 1),
-            'mem_total_gb': round(mem_total / 1024 / 1024, 1),
+            'cpu_percent': cpu_percent,
+            'mem_percent': mem_percent,
+            'mem_total_gb': mem_total_gb,
             'disk_percent': disk_percent,
-            'disk_total': disk_info[1] if len(disk_info) > 1 else 'N/A'
+            'disk_total': disk_total
         }
     except Exception as e:
         return {
-            'cpu_percent': 0,
-            'mem_percent': 0,
-            'mem_total_gb': 0,
-            'disk_percent': 0,
-            'disk_total': 'N/A'
+            'cpu_percent': 0, 'mem_percent': 0, 'mem_total_gb': 0,
+            'disk_percent': 0, 'disk_total': 'N/A', 'error': str(e)
         }
 
+def get_sessions():
+    """Get active Clawdbot sessions with details."""
+    sessions = []
+    agents_dir = Path('/home/liam/.clawdbot/agents')
+    if not agents_dir.exists():
+        return sessions
 
-def get_active_sessions():
-    """Get number of active Clawdbot sessions"""
+    for agent_dir in agents_dir.iterdir():
+        if not agent_dir.is_dir():
+            continue
+        sessions_file = agent_dir / 'sessions' / 'sessions.json'
+        if not sessions_file.exists():
+            continue
+        try:
+            data = json.loads(sessions_file.read_text())
+            for key, info in data.items():
+                if isinstance(info, dict):
+                    updated_at = info.get('updatedAt')
+                    if updated_at:
+                        # Convert Unix timestamp to relative time
+                        try:
+                            ts = int(updated_at) / 1000
+                            delta = time.time() - ts
+                            if delta < 60:
+                                relative = f"{int(delta)}s ago"
+                            elif delta < 3600:
+                                relative = f"{int(delta/60)}m ago"
+                            else:
+                                relative = f"{int(delta/3600)}h ago"
+                        except:
+                            relative = "unknown"
+                    else:
+                        relative = "unknown"
+
+                    sessions.append({
+                        'agent': agent_dir.name,
+                        'session_key': key,
+                        'updated': relative,
+                        'channel': key.split(':')[1] if ':' in key else 'main'
+                    })
+        except Exception:
+            continue
+    return sessions
+
+def get_subagents():
+    """Get active subagent runs."""
+    subagents = []
+    runs_file = Path('/home/liam/.clawdbot/subagents/runs.json')
+    if not runs_file.exists():
+        return subagents
     try:
-        sessions_dir = Path('/home/liam/.clawdbot/agents')
-        if not sessions_dir.exists():
-            return 0
-        
-        active_count = 0
-        for agent_dir in sessions_dir.iterdir():
-            sessions_file = agent_dir / 'sessions' / 'sessions.json'
-            if sessions_file.exists():
-                try:
-                    with open(sessions_file, 'r') as f:
-                        data = json.load(f)
-                        for session_key, session_info in data.items():
-                            if session_info.get('lastChannel') or session_info.get('updatedAt'):
-                                active_count += 1
-                except:
-                    pass
-        
-        return active_count
-    except:
-        return 0
+        data = json.loads(runs_file.read_text())
+        runs = data.get('runs', {})
+        for run_id, info in runs.items():
+            if isinstance(info, dict):
+                status = 'running'
+                if info.get('endedAt'):
+                    outcome = info.get('outcome', {})
+                    status = outcome.get('status', 'completed')
 
+                subagents.append({
+                    'run_id': run_id[:8],  # Truncate for display
+                    'task': info.get('task', 'Unknown task')[:50],  # Truncate
+                    'status': status,
+                    'parent': info.get('requesterDisplayKey', 'main'),
+                    'label': info.get('label', '')
+                })
+    except Exception:
+        pass
+    return subagents
 
 def parse_evolution_queue():
-    """Parse EVOLUTION-QUEUE.md into structured data"""
+    """Parse EVOLUTION-QUEUE.md into structured data."""
     queue_path = BASE_DIR / 'EVOLUTION-QUEUE.md'
-    
     if not queue_path.exists():
         return []
-    
-    with open(queue_path, 'r') as f:
-        content = f.read()
-    
+
+    content = queue_path.read_text()
     projects = []
     current_section = None
-    
+
     for line in content.split('\n'):
-        line = line.strip()
-        
-        if line.startswith('## ') and 'Pending' in line:
-            current_section = 'pending'
-        elif line.startswith('## ') and 'Paused' in line:
-            current_section = 'paused'
-        elif line.startswith('## ') and 'Approved' in line:
-            current_section = 'approved'
-        elif current_section and line.startswith('### '):
-            entry_id = line.strip('#').strip()
-            title = entry_id.split('] ')[-1] if '] ' in entry_id else entry_id
-            
+        line_stripped = line.strip()
+
+        # Detect section headers
+        if line_stripped.startswith('## '):
+            section_text = line_stripped[3:].lower()
+            if 'pending' in section_text:
+                current_section = 'pending'
+            elif 'paused' in section_text:
+                current_section = 'paused'
+            elif 'approved' in section_text:
+                current_section = 'approved'
+            else:
+                current_section = None
+
+        # Detect queue items
+        elif current_section and line_stripped.startswith('### '):
+            entry_text = line_stripped[4:].strip()
+            # Extract ID like [2026-01-27-046]
+            match = re.match(r'\[([^\]]+)\]\s*(.+)', entry_text)
+            if match:
+                item_id = match.group(1)
+                title = match.group(2).strip()
+            else:
+                item_id = entry_text[:20]
+                title = entry_text
+
+            # Check for [RESOLVED] tag
+            status = current_section
+            if '[RESOLVED]' in title.upper():
+                status = 'resolved'
+                title = title.replace('[RESOLVED]', '').replace('[resolved]', '').strip()
+
             projects.append({
-                'id': entry_id,
+                'id': item_id,
                 'title': title,
-                'status': current_section,
+                'status': status,
                 'section': current_section
             })
-    
+
     return projects
 
+# === METRIC RECORDING ===
+def record_metrics():
+    """Record current metrics to database."""
+    try:
+        conn = get_db()
+        gateway = get_gateway_status()
+        resources = get_system_resources()
+        sessions = get_sessions()
 
-def parse_progress_files():
-    """Parse progress files from progress/ directory"""
-    progress_dir = BASE_DIR / 'progress'
-    
-    if not progress_dir.exists():
-        return []
-    
-    tasks = []
-    
-    for task_file in progress_dir.glob('*.txt'):
-        with open(task_file, 'r') as f:
-            content = f.read()
-        
-        task_name = task_file.stem
-        lines = content.split('\n')
-        
-        status = 'active'
-        progress = 0
-        total = 100
-        
-        for line in lines:
-            if 'STATUS:' in line:
-                status = line.split(':', 1)[1].strip()
-            elif 'Progress: [' in line:
-                try:
-                    match = line.split('[')[1].split(']')[0] if '[' in line else '0'
-                    if '/' in match:
-                        progress_str, total_str = match.split('/')
-                        progress = int(progress_str) if progress_str.isdigit() else 0
-                        total = int(total_str) if total_str.isdigit() else 100
-                except:
-                    pass
-        
-        updated = datetime.fromtimestamp(task_file.stat().st_mtime).strftime('%Y-%m-%d %H:%M')
-        
-        tasks.append({
-            'name': task_name,
-            'status': status,
-            'progress': progress,
-            'total': total,
-            'percent': int((progress / total) * 100) if total > 0 else 0,
-            'updated': updated
-        })
-    
-    return sorted(tasks, key=lambda x: x['updated'], reverse=True)
+        conn.execute('''
+            INSERT INTO metrics (cpu_percent, mem_percent, mem_total_gb,
+                                 disk_percent, disk_total, gateway_status, active_sessions)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            resources['cpu_percent'],
+            resources['mem_percent'],
+            resources['mem_total_gb'],
+            resources['disk_percent'],
+            resources['disk_total'],
+            gateway['status'],
+            len(sessions)
+        ))
+        conn.commit()
+    except Exception as e:
+        print(f"Error recording metrics: {e}")
 
+def metrics_collector():
+    """Background thread to collect metrics periodically."""
+    while True:
+        record_metrics()
+        time.sleep(METRICS_INTERVAL)
 
-def generate_html(gateway_status, resources, active_sessions, projects, tasks):
-    """Generate comprehensive dashboard HTML"""
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    pending_count = sum(1 for p in projects if p['section'] == 'pending')
-    active_count = sum(1 for t in tasks if t['status'] == 'active')
-    
-    # System status color
-    sys_status_color = '#6bcb77' if gateway_status['status'] == 'running' else '#ff6b6b'
-    
-    project_cards = []
-    for p in projects:
-        card = f'''
-        <div class="card">
-            <div class="card-header">
-                <span class="card-id">{p['id']}</span>
-                <span class="card-status status-{p['section']}">{p['section']}</span>
-            </div>
-            <div class="card-title">{p['title']}</div>
-            <div class="card-meta">Status: {p['status']}</div>
-        </div>'''
-        project_cards.append(card)
-    
-    task_cards = []
-    for t in tasks:
-        card = f'''
-        <div class="card">
-            <div class="card-header">
-                <span class="card-status status-{t['status']}">{t['status']}</span>
-            </div>
-            <div class="card-title">{t['name']}</div>
-            <div class="card-meta">Updated: {t['updated']}</div>
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: {t['percent']}%"></div>
-            </div>
-            <div style="margin-top: 10px; font-size: 0.9em; color: #8888aa;">
-                {t['progress']} / {t['total']} steps ({t['percent']}%)
-            </div>
-        </div>'''
-        task_cards.append(card)
-    
-    html = f'''<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Liam's Home Base</title>
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #e0e0e0;
-            min-height: 100vh;
-            padding: 20px;
-        }}
-        .container {{ max-width: 1600px; margin: 0 auto; }}
-        header {{ text-align: center; padding: 30px 0; border-bottom: 1px solid #2a2a4a; margin-bottom: 30px; }}
-        h1 {{ 
-            font-size: 2.5em; font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-        }}
-        .subtitle {{ color: #8888aa; font-size: 0.9em; margin-top: 10px; }}
-        .refresh-info {{ color: #666688; font-size: 0.8em; margin-top: 5px; }}
-        
-        .main-grid {{ display: grid; grid-template-columns: 1fr 2fr; gap: 30px; margin-bottom: 40px; }}
-        
-        .sidebar {{ display: flex; flex-direction: column; gap: 20px; }}
-        
-        .status-section {{ background: rgba(255, 255, 255, 0.05); border: 1px solid #2a2a4a; border-radius: 12px; padding: 20px; }}
-        .section-title {{ font-size: 1.4em; font-weight: 600; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #667eea; display: flex; align-items: center; gap: 10px; }}
-        
-        .system-status {{ display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }}
-        .status-dot {{ width: 12px; height: 12px; border-radius: 50%; }}
-        .status-dot.running {{ background: #6bcb77; box-shadow: 0 0 10px #6bcb77; }}
-        .status-dot.stopped {{ background: #ff6b6b; }}
-        .status-dot.unknown {{ background: #ffd93d; }}
-        
-        .resource-grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 15px; }}
-        .resource-item {{ background: rgba(0, 0, 0, 0.3); border-radius: 8px; padding: 15px; text-align: center; }}
-        .resource-value {{ font-size: 2em; font-weight: 700; color: #667eea; }}
-        .resource-label {{ color: #8888aa; font-size: 0.85em; margin-top: 5px; }}
-        .resource-bar {{ height: 6px; background: rgba(0, 0, 0, 0.3); border-radius: 3px; margin-top: 10px; overflow: hidden; }}
-        .resource-fill {{ height: 100%; transition: width 0.5s ease; border-radius: 3px; }}
-        .resource-fill.cpu {{ background: #ff6b6b; }}
-        .resource-fill.mem {{ background: #667eea; }}
-        .resource-fill.disk {{ background: #6bcb77; }}
-        
-        .content-area {{ display: flex; flex-direction: column; gap: 20px; }}
-        
-        .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; }}
-        .stat-card {{ background: rgba(255, 255, 255, 0.05); border: 1px solid #2a2a4a; border-radius: 8px; padding: 15px; text-align: center; }}
-        .stat-value {{ font-size: 1.8em; font-weight: 700; color: #667eea; }}
-        .stat-label {{ color: #8888aa; font-size: 0.85em; margin-top: 5px; }}
-        
-        .badge {{ padding: 4px 10px; border-radius: 15px; font-size: 0.75em; font-weight: 600; }}
-        .badge-pending {{ background: #ff6b6b; color: white; }}
-        .badge-paused {{ background: #ffd93d; color: #1a1a2e; }}
-        .badge-active {{ background: #6bcb77; color: white; }}
-        
-        .section {{ margin-bottom: 20px; }}
-        .section {{ margin-bottom: 40px; }}
-        .section-title {{ font-size: 1.5em; font-weight: 600; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #667eea; }}
-        
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; }}
-        .card {{
-            background: rgba(255, 255, 255, 0.05); border: 1px solid #2a2a4a;
-            border-radius: 12px; padding: 20px; transition: all 0.3s ease; cursor: pointer;
-        }}
-        .card:hover {{ transform: translateY(-5px); border-color: #667eea; box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2); }}
-        .card-header {{ display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }}
-        .card-id {{ font-family: 'Monaco', 'Consolas', monospace; font-size: 0.7em; color: #666688; background: rgba(0, 0, 0, 0.2); padding: 3px 6px; border-radius: 4px; }}
-        .card-status {{ padding: 4px 10px; border-radius: 12px; font-size: 0.7em; font-weight: 600; text-transform: uppercase; }}
-        .status-pending {{ background: #ff6b6b33; color: #ff6b6b; }}
-        .status-paused {{ background: #ffd93d33; color: #ffd93d; }}
-        .status-active {{ background: #6bcb7733; color: #6bcb77; }}
-        .card-title {{ font-size: 1.1em; font-weight: 600; margin-bottom: 10px; color: #ffffff; }}
-        .card-meta {{ color: #8888aa; font-size: 0.8em; margin-bottom: 15px; }}
-        .progress-bar {{ width: 100%; height: 8px; background: rgba(0, 0, 0, 0.3); border-radius: 4px; overflow: hidden; margin-top: 10px; }}
-        .progress-fill {{ height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.5s ease; border-radius: 4px; }}
-        
-        footer {{ text-align: center; padding: 30px 0; color: #666688; font-size: 0.8em; border-top: 1px solid #2a2a4a; margin-top: 40px; }}
-        .empty-state {{ text-align: center; padding: 30px; color: #666688; font-style: italic; }}
-        
-        @media (max-width: 1200px) {{
-            .main-grid {{ grid-template-columns: 1fr; }}
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>🏠 Liam's Home Base</h1>
-            <p class="subtitle">System Status • Projects • Tasks</p>
-            <p class="refresh-info">Last updated: {timestamp} • Auto-refresh: 30s</p>
-        </header>
+# === HTTP HANDLER ===
+class DashboardHandler(SimpleHTTPRequestHandler):
+    """HTTP request handler with JSON API support."""
 
-        <div class="main-grid">
-            <div class="sidebar">
-                <div class="status-section">
-                    <div class="section-title">
-                        System Health
-                        <div class="system-status">
-                            <div class="status-dot {gateway_status['status']}"></div>
-                            <span style="color: {gateway_status['color']}; font-weight: 600;">{gateway_status['text']}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="resource-grid">
-                        <div class="resource-item">
-                            <div class="resource-value">{resources['cpu_percent']}%</div>
-                            <div class="resource-label">CPU</div>
-                            <div class="resource-bar">
-                                <div class="resource-fill cpu" style="width: {resources['cpu_percent']}%"></div>
-                            </div>
-                        </div>
-                        <div class="resource-item">
-                            <div class="resource-value">{resources['mem_percent']}%</div>
-                            <div class="resource-label">RAM ({resources['mem_total_gb']} GB)</div>
-                            <div class="resource-bar">
-                                <div class="resource-fill mem" style="width: {resources['mem_percent']}%"></div>
-                            </div>
-                        </div>
-                        <div class="resource-item">
-                            <div class="resource-value">{resources['disk_percent']}%</div>
-                            <div class="resource-label">Disk ({resources['disk_total']})</div>
-                            <div class="resource-bar">
-                                <div class="resource-fill disk" style="width: {resources['disk_percent']}%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-value">{active_sessions}</div>
-                            <div class="stat-label">Active Sessions</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">{len(projects)}</div>
-                            <div class="stat-label">Queue Items</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value">{len(tasks)}</div>
-                            <div class="stat-label">Active Tasks</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="content-area">
-                <div class="section">
-                    <div class="section-title">
-                        Evolution Queue
-                        <span class="badge badge-pending">{pending_count} Pending</span>
-                    </div>
-                    <div class="grid">
-                        {''.join(project_cards) if project_cards else '<div class="empty-state">No pending items</div>'}
-                    </div>
-                </div>
-                
-                <div class="section">
-                    <div class="section-title">
-                        Active Tasks
-                        <span class="badge badge-active">{active_count} Active</span>
-                    </div>
-                    <div class="grid">
-                        {''.join(task_cards) if task_cards else '<div class="empty-state">No active tasks</div>'}
-                    </div>
-                </div>
-            </div>
-        </div>
+    def send_json(self, data, status=200):
+        """Send JSON response."""
+        body = json.dumps(data, default=str).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', len(body))
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(body)
 
-        <footer>
-            <p>Liam's Home Base © 2026</p>
-            <p>System Monitoring • Project Tracking • Task Management</p>
-        </footer>
-    </div>
+    def send_file(self, path, content_type):
+        """Send static file."""
+        try:
+            content = path.read_bytes()
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', len(content))
+            self.end_headers()
+            self.wfile.write(content)
+        except FileNotFoundError:
+            self.send_error(404, 'File not found')
 
-    <script>
-        setTimeout(() => location.reload(), 30000);
-    </script>
-</body>
-</html>'''
-    
-    return html
+    def do_GET(self):
+        """Handle GET requests."""
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
 
+        # === STATIC FILES ===
+        if path == '/' or path == '/index.html':
+            self.send_file(TEMPLATES_DIR / 'index.html', 'text/html')
+        elif path == '/static/style.css':
+            self.send_file(STATIC_DIR / 'style.css', 'text/css')
+        elif path == '/static/app.js':
+            self.send_file(STATIC_DIR / 'app.js', 'application/javascript')
 
-def regenerate_html():
-    """Regenerate HTML and save to file"""
-    gateway_status = get_gateway_status()
-    resources = get_system_resources()
-    active_sessions = get_active_sessions()
-    projects = parse_evolution_queue()
-    tasks = parse_progress_files()
-    html = generate_html(gateway_status, resources, active_sessions, projects, tasks)
-    
-    with open(OUTPUT_FILE, 'w') as f:
-        f.write(html)
-    
-    print(f"Generated: gateway={gateway_status['status']}, cpu={resources['cpu_percent']}%, mem={resources['mem_percent']}%, sessions={active_sessions}")
+        # === JSON APIs ===
+        elif path == '/api/data':
+            # Main dashboard data
+            data = {
+                'gateway': get_gateway_status(),
+                'resources': get_system_resources(),
+                'sessions': get_sessions(),
+                'subagents': get_subagents(),
+                'queue': parse_evolution_queue(),
+                'timestamp': datetime.now().isoformat()
+            }
+            self.send_json(data)
 
+        elif path == '/api/metrics/recent':
+            # Recent metrics for charts
+            limit = int(query.get('limit', ['60'])[0])
+            conn = get_db()
+            rows = conn.execute('''
+                SELECT timestamp, cpu_percent, mem_percent, disk_percent
+                FROM metrics
+                ORDER BY timestamp DESC
+                LIMIT ?
+            ''', (limit,)).fetchall()
 
-def start_server():
-    """Start HTTP server serving dashboard"""
-    os.chdir(OUTPUT_FILE.parent)
-    
-    class Handler(SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-        
-        def do_GET(self):
-            if self.path == '/' or self.path == '/index.html':
-                self.send_response(200)
-                self.send_header('Content-type', 'text/html')
-                self.end_headers()
-                
-                regenerate_html()
-                
-                with open(OUTPUT_FILE, 'rb') as f:
-                    self.wfile.write(f.read())
-            else:
-                self.send_error(404)
-    
-    server = HTTPServer(('0.0.0.0', PORT), Handler)
-    print(f"\\n{'='*60}")
-    print(f"Liam's Home Base: http://localhost:{PORT}")
-    print(f"{'='*60}\\n")
-    server.serve_forever()
+            data = [
+                {
+                    'timestamp': row['timestamp'],
+                    'cpu_percent': row['cpu_percent'],
+                    'mem_percent': row['mem_percent'],
+                    'disk_percent': row['disk_percent']
+                }
+                for row in reversed(rows)  # Oldest first for charts
+            ]
+            self.send_json(data)
 
+        elif path == '/api/metrics/stats':
+            # Aggregate statistics
+            conn = get_db()
+            row = conn.execute('''
+                SELECT
+                    AVG(cpu_percent) as avg_cpu,
+                    MAX(cpu_percent) as max_cpu,
+                    AVG(mem_percent) as avg_mem,
+                    MAX(mem_percent) as max_mem,
+                    COUNT(*) as count
+                FROM metrics
+                WHERE timestamp > datetime('now', '-1 hour')
+            ''').fetchone()
+
+            self.send_json({
+                'avg_cpu': round(row['avg_cpu'] or 0, 1),
+                'max_cpu': round(row['max_cpu'] or 0, 1),
+                'avg_mem': round(row['avg_mem'] or 0, 1),
+                'max_mem': round(row['max_mem'] or 0, 1),
+                'samples': row['count']
+            })
+
+        elif path == '/api/export/csv':
+            # Export metrics as CSV
+            conn = get_db()
+            rows = conn.execute('''
+                SELECT timestamp, cpu_percent, mem_percent, disk_percent,
+                       gateway_status, active_sessions
+                FROM metrics
+                ORDER BY timestamp DESC
+                LIMIT 10000
+            ''').fetchall()
+
+            csv_lines = ['timestamp,cpu_percent,mem_percent,disk_percent,gateway_status,active_sessions']
+            for row in rows:
+                csv_lines.append(f"{row['timestamp']},{row['cpu_percent']},{row['mem_percent']},{row['disk_percent']},{row['gateway_status']},{row['active_sessions']}")
+
+            body = '\n'.join(csv_lines).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/csv')
+            self.send_header('Content-Disposition', 'attachment; filename="metrics.csv"')
+            self.send_header('Content-Length', len(body))
+            self.end_headers()
+            self.wfile.write(body)
+
+        else:
+            self.send_error(404, 'Not found')
+
+    def log_message(self, format, *args):
+        """Suppress default logging."""
+        pass  # Comment this out for debugging
+
+# === MAIN ===
+def main():
+    """Start the dashboard server."""
+    print(f"\n{'='*60}")
+    print(f"Liam's Dashboard")
+    print(f"{'='*60}")
+
+    # Initialize database
+    init_db()
+    print(f"Database: {DB_PATH}")
+
+    # Start metrics collector in background
+    collector = threading.Thread(target=metrics_collector, daemon=True)
+    collector.start()
+    print(f"Metrics collector started (interval: {METRICS_INTERVAL}s)")
+
+    # Start HTTP server
+    server = HTTPServer(('0.0.0.0', PORT), DashboardHandler)
+    print(f"Server: http://localhost:{PORT}")
+    print(f"{'='*60}\n")
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+        server.shutdown()
 
 if __name__ == '__main__':
-    regenerate_html()
-    start_server()
+    main()

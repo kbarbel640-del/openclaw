@@ -108,6 +108,23 @@
             },
             "contextWindow": 128000,
             "maxTokens": 4096
+          },
+          {
+            "id": "kimi-k2.5:cloud",
+            "name": "Kimi K2.5 Cloud",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 256000,
+            "maxTokens": 32768
           }
         ]
       }
@@ -194,8 +211,9 @@
         "name": "Liam (Discord)",
         "workspace": "/home/liam/clawd",
         "model": {
-          "primary": "ollama/glm-4.7-flash",
+          "primary": "ollama/kimi-k2.5:cloud",
           "fallbacks": [
+            "ollama/glm-4.7-flash",
             "zai/glm-4.7"
           ]
         },
