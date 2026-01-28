@@ -2,9 +2,13 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { CogneeClient } from "./cognee-client.js";
 import { request } from "undici";
 
-vi.mock("undici", () => ({
-  request: vi.fn(),
-}));
+vi.mock("undici", async () => {
+  const actual = await vi.importActual<typeof import("undici")>("undici");
+  return {
+    ...actual,
+    request: vi.fn(),
+  };
+});
 
 describe("CogneeClient", () => {
   beforeEach(() => {
@@ -73,7 +77,9 @@ describe("CogneeClient", () => {
           data: "Test data",
           datasetName: "test-dataset",
         }),
-      ).rejects.toThrow("Cognee add failed with status 500");
+      ).rejects.toThrow(
+        "Cognee add request failed: Cognee add failed with status 500: Internal server error",
+      );
     });
   });
 

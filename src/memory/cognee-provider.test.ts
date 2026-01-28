@@ -2,19 +2,19 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { CogneeMemoryProvider } from "./cognee-provider.js";
 import type { ClawdbotConfig } from "../config/config.js";
 
-vi.mock("./cognee-client.js", () => ({
-  CogneeClient: vi.fn().mockImplementation(() => ({
-    healthCheck: vi.fn().mockResolvedValue(true),
-    add: vi.fn().mockResolvedValue({
+vi.mock("./cognee-client.js", () => {
+  class CogneeClient {
+    healthCheck = vi.fn().mockResolvedValue(true);
+    add = vi.fn().mockResolvedValue({
       datasetId: "test-dataset-id",
       datasetName: "test-dataset",
       message: "Success",
-    }),
-    cognify: vi.fn().mockResolvedValue({
+    });
+    cognify = vi.fn().mockResolvedValue({
       status: "success",
       message: "Cognify completed",
-    }),
-    search: vi.fn().mockResolvedValue({
+    });
+    search = vi.fn().mockResolvedValue({
       results: [
         {
           id: "result-1",
@@ -28,8 +28,8 @@ vi.mock("./cognee-client.js", () => ({
       ],
       query: "test query",
       searchType: "GRAPH_COMPLETION",
-    }),
-    status: vi.fn().mockResolvedValue({
+    });
+    status = vi.fn().mockResolvedValue({
       status: "healthy",
       version: "1.0.0",
       datasets: [
@@ -39,9 +39,11 @@ vi.mock("./cognee-client.js", () => ({
           documentCount: 5,
         },
       ],
-    }),
-  })),
-}));
+    });
+  }
+
+  return { CogneeClient };
+});
 
 vi.mock("./internal.js", () => ({
   listMemoryFiles: vi.fn().mockResolvedValue([]),

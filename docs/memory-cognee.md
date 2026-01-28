@@ -8,15 +8,16 @@ read_when:
 
 # Cognee Memory Provider
 
-Clawdbot supports **Cognee** as an optional memory provider. Unlike the default SQLite-based vector memory, Cognee builds a knowledge graph with entity extraction and semantic relationships, providing richer contextual memory for your AI agent.
+MoltBot supports [**Cognee**](https://www.cognee.ai/) as an optional memory provider. Unlike the default SQLite-based vector memory, Cognee builds a knowledge graph with entity extraction and semantic relationships, providing richer contextual memory for your AI agent.
 
 ## What is Cognee?
 
-Cognee is an AI memory framework that:
+Cognee is an [open source AI memory](https://github.com/topoteretes/cognee) framework that:
+- Ingests unstructured/structured data from 30+ sources 
 - Extracts entities (people, places, concepts) from documents
-- Builds a knowledge graph of relationships
+- Builds a knowledge graph of relationships backed by embeddings
 - Enables semantic search with LLM-powered reasoning
-- Supports multiple search modes (GRAPH_COMPLETION, chunks, summaries)
+- Supports multiple search modes (e.g., GRAPH_COMPLETION, chunks, summaries)
 
 Learn more at [docs.cognee.ai](https://docs.cognee.ai/).
 
@@ -38,6 +39,8 @@ This binds to `127.0.0.1:8000`, so Cognee is only reachable from your machine.
 curl http://localhost:8000/health
 ```
 
+You can use `http://localhost:8000/docs` to register user and login to get your token. 
+
 ### Option 2: Cognee Cloud
 
 Use the hosted Cognee service:
@@ -48,17 +51,16 @@ Use the hosted Cognee service:
 
 ## Configuration
 
-Clawdbot reads `~/.clawdbot/clawdbot.json` (JSON5). For local + secure setup, use an env var for the Cognee token and reference it in config.
+Moltbot reads `~/.clawdbot/moltbot.json` (JSON5). For local + secure setup, use an env var for the Cognee token and reference it in config.
 
-### Step 1: Put tokens in `examples/.env`
+### Step 1: Put tokens in `~/.clawdbot/.env`
 
 ```bash
-LLM_API_KEY="your-llm-api-key"
 COGNEE_API_KEY="your-cognee-access-token"
 CLAWDBOT_GATEWAY_TOKEN="your-random-gateway-token"
 ```
 
-### Step 2: Configure Cognee in `~/.clawdbot/clawdbot.json`
+### Step 2: Configure Cognee in `~/.clawdbot/moltbot.json`
 
 ```json5
 {
@@ -87,27 +89,11 @@ CLAWDBOT_GATEWAY_TOKEN="your-random-gateway-token"
 ### Step 3: Start the gateway with env loaded
 
 ```zsh
-set -a; source "examples/.env"; set +a; pnpm clawdbot gateway --port 18789 --token "$CLAWDBOT_GATEWAY_TOKEN" --verbose
+set -a; source "$HOME/.clawdbot/.env"; set +a
+pnpm moltbot gateway --port 18789 --token "$CLAWDBOT_GATEWAY_TOKEN" --verbose
 ```
 
-### Cloud Configuration (tbt)
 
-```yaml
-agents:
-  defaults:
-    memorySearch:
-      enabled: true
-      provider: cognee
-      sources: [memory, sessions]
-      cognee:
-        baseUrl: https://cognee--cognee-saas-backend-serve.modal.run
-        apiKey: your-api-key-here  # Required for cloud
-        datasetName: clawdbot
-        searchType: GRAPH_COMPLETION
-        maxResults: 8
-        autoCognify: true
-        timeoutSeconds: 60
-```
 
 ## Configuration Options
 
@@ -124,23 +110,9 @@ agents:
 
 ## Search Types
 
-Cognee offers these modes:
+Cognee offers these modes. GRAPH_COMPLETION is the default mode.
 
-### GRAPH_COMPLETION
-Best for: **High-level understanding and reasoning**
-- Returns graph-completion outputs over the knowledge graph
-- Good for: "What projects am I working on?" or "Summarize my notes about X"
-
-### Chunks
-Best for: **Specific text matching**
-- Returns raw document chunks
-- Similar to traditional vector search
-- Good for: Finding exact quotes or specific information
-
-### Summaries
-Best for: **Document overviews**
-- Returns condensed summaries
-- Good for: Quick scanning of content
+Learn more from [cognee documentation](https://docs.cognee.ai/core-concepts/main-operations/search)
 
 ## Usage
 
@@ -167,8 +139,8 @@ agents:
 ### Manual Sync and Status
 
 ```bash
-# Force sync + cognify for the current agent
-clawdbot memory status --index --json
+# Manually sync cognee memory for the current agent
+pnpm moltbot memory status --index --json
 ```
 
 ## How It Works
@@ -188,12 +160,12 @@ clawdbot memory status --index --json
 | Feature | Cognee | SQLite (Default) |
 |---------|--------|------------------|
 | **Setup** | Requires Docker/cloud | Built-in, no setup |
-| **Offline** | No (needs service) | Yes (fully local) |
+| **Offline** | Yes (Optional cloud) | Yes (fully local) |
 | **Search** | Knowledge graph + LLM | Vector + BM25 hybrid |
 | **Entities** | Extracted automatically | Not available |
 | **Relationships** | Yes (graph-based) | No |
 | **Speed** | Slower (API calls) | Faster (local DB) |
-| **Memory** | Stored externally | SQLite file |
+| **Memory** | Stored locally (Optional cognee configs) | SQLite file |
 | **Best for** | Rich context, reasoning | Fast lookup, privacy |
 
 ## Troubleshooting
@@ -226,11 +198,11 @@ clawdbot memory status --index --json
 
 ### 401 Unauthorized (Cognee auth)
 
-**Cause**: Cognee auth is enabled, but Clawdbot is missing/using an invalid `COGNEE_API_KEY`.
+**Cause**: Cognee auth is enabled, but Moltbot is missing/using an invalid `COGNEE_API_KEY`.
 
 **Fix**:
 1. Log in to Cognee and get a fresh access token.
-2. Update `COGNEE_API_KEY` in `examples/.env`.
+2. Update `COGNEE_API_KEY` in `.clawd/.env`.
 3. Restart the gateway with env loaded (see Step 3 above).
 
 ## Advanced Configuration
@@ -251,12 +223,6 @@ agents:
           searchType: GRAPH_COMPLETION
           maxResults: 10
 ```
-
-### Hybrid Setup (Not Yet Supported)
-
-Future versions may support using both Cognee and SQLite:
-- Cognee for semantic understanding
-- SQLite for fast local lookup
 
 ## Docker Production Tips
 
@@ -299,13 +265,6 @@ volumes:
   - ./cognee_data:/app/cognee/.cognee_system
   - ./cognee_logs:/app/logs
 ```
-
-## Roadmap
-
-Planned features:
-- [ ] Hybrid mode (Cognee + SQLite)
-- [ ] Graph visualization export
-- [ ] Manual entity management
 
 ## Resources
 

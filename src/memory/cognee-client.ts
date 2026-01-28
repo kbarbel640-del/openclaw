@@ -295,16 +295,37 @@ export class CogneeClient {
 
         if (item && typeof item === "object") {
           const record = item as Record<string, unknown>;
+          const hasStructuredFields =
+            "id" in record || "text" in record || "score" in record || "metadata" in record;
           const raw =
             record.search_result ?? record.result ?? record.context ?? record.text ?? record;
           const text = typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
-          const metadata =
+          const datasetMetadata =
             record.dataset_name || record.dataset_id
               ? {
                   datasetName: record.dataset_name,
                   datasetId: record.dataset_id,
                 }
               : undefined;
+          const recordMetadata =
+            record.metadata && typeof record.metadata === "object"
+              ? (record.metadata as Record<string, unknown>)
+              : undefined;
+          const metadata = recordMetadata
+            ? datasetMetadata
+              ? { ...datasetMetadata, ...recordMetadata }
+              : recordMetadata
+            : datasetMetadata;
+
+          if (hasStructuredFields) {
+            return {
+              id: typeof record.id === "string" ? record.id : `result-${index}`,
+              text,
+              score: typeof record.score === "number" ? record.score : 0,
+              metadata,
+            };
+          }
+
           return { id: `result-${index}`, text, score: 0, metadata };
         }
 
