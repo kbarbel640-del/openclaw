@@ -5,6 +5,9 @@
  * This is a pure file operation that incurs zero token cost.
  */
 
+import { existsSync, readdirSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import type { MoltbotConfig } from "../config/config.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import {
@@ -130,6 +133,31 @@ async function runSync(): Promise<void> {
 }
 
 /**
+ * Clear stale rclone bisync lock files.
+ * Called on startup since a restart means any prior sync was interrupted.
+ */
+function clearStaleLocks(logger: SyncManagerLogger): void {
+  const lockDir = join(homedir(), ".cache", "rclone", "bisync");
+  try {
+    if (!existsSync(lockDir)) return;
+
+    const files = readdirSync(lockDir);
+    const lockFiles = files.filter((f) => f.endsWith(".lck"));
+
+    for (const lockFile of lockFiles) {
+      try {
+        unlinkSync(join(lockDir, lockFile));
+        logger.info(`[workspace-sync] Cleared stale lock: ${lockFile}`);
+      } catch {
+        // Ignore errors deleting individual files
+      }
+    }
+  } catch {
+    // Lock dir doesn't exist or can't be read - that's fine
+  }
+}
+
+/**
  * Start the background sync manager.
  * Called when the gateway starts.
  */
@@ -145,6 +173,9 @@ export function startWorkspaceSyncManager(cfg: MoltbotConfig, logger: SyncManage
     logger.info("[workspace-sync] Workspace sync not configured");
     return;
   }
+
+  // Clear any stale locks from prior interrupted syncs
+  clearStaleLocks(logger);
 
   const intervalSeconds = syncConfig.interval ?? 0;
   if (intervalSeconds <= 0) {
