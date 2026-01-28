@@ -35,7 +35,7 @@ moltbot agent --message "hi" --model codex-cli/gpt-5.2-codex
 GitHub Copilot CLI works the same way (requires GitHub CLI auth):
 
 ```bash
-moltbot agent --message "hi" --model copilot-cli/gpt-4o
+moltbot agent --message "hi" --model copilot-cli/gpt-4.1
 ```
 
 If your gateway runs under launchd/systemd and PATH is minimal, add just the

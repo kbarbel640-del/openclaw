@@ -188,7 +188,7 @@ CLAWDBOT_LIVE_SETUP_TOKEN=1 CLAWDBOT_LIVE_SETUP_TOKEN_PROFILE=anthropic:setup-to
 - Overrides (optional):
   - `CLAWDBOT_LIVE_CLI_BACKEND_MODEL="claude-cli/claude-opus-4-5"`
   - `CLAWDBOT_LIVE_CLI_BACKEND_MODEL="codex-cli/gpt-5.2-codex"`
-  - `CLAWDBOT_LIVE_CLI_BACKEND_MODEL="copilot-cli/gpt-4o"`
+  - `CLAWDBOT_LIVE_CLI_BACKEND_MODEL="copilot-cli/gpt-4.1"`
   - `CLAWDBOT_LIVE_CLI_BACKEND_COMMAND="/full/path/to/claude"`
   - `CLAWDBOT_LIVE_CLI_BACKEND_ARGS='["-p","--output-format","json","--permission-mode","bypassPermissions"]'`
   - `CLAWDBOT_LIVE_CLI_BACKEND_CLEAR_ENV='["ANTHROPIC_API_KEY","ANTHROPIC_API_KEY_OLD"]'`
@@ -210,11 +210,12 @@ CLAWDBOT_LIVE_CLI_BACKEND=1 \
 
 ```bash
 CLAWDBOT_LIVE_CLI_BACKEND=1 \
-  CLAWDBOT_LIVE_CLI_BACKEND_MODEL="copilot-cli/gpt-4o" \
+  CLAWDBOT_LIVE_CLI_BACKEND_MODEL="copilot-cli/gpt-4.1" \
   pnpm test:live src/gateway/gateway-cli-backend.live.test.ts
 ```
 
 Note: Copilot CLI requires GitHub CLI auth (`gh auth status`). Output is text-only (no JSON).
+`gpt-4.1` is available on GitHub Free tier; other models require a paid subscription.
 
 ### Recommended live recipes
 

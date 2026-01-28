@@ -12,8 +12,11 @@ GitHub Copilot CLI (`copilot`) is GitHub's terminal-based AI assistant. Moltbot 
 
 ## Prerequisites
 
-- **GitHub Copilot subscription** (Individual, Business, or Enterprise)
+- **GitHub account** (free tier works for `gpt-4.1`)
 - **GitHub CLI** (`gh`) authenticated with your GitHub account
+
+Note: `gpt-4.1` is available on the free GitHub tier. Other models like `gpt-4o`, `claude-sonnet-4-5`,
+and `claude-opus-4-5` require a paid GitHub Copilot subscription.
 
 ## Installation
 
@@ -48,7 +51,7 @@ gh copilot --help
 Use Copilot CLI directly with Moltbot:
 
 ```bash
-moltbot agent --message "hi" --model copilot-cli/gpt-4o
+moltbot agent --message "hi" --model copilot-cli/gpt-4.1
 ```
 
 ## Configuration
@@ -80,14 +83,14 @@ Add `copilot-cli` to your fallback list so it only runs when primary models fail
   agents: {
     defaults: {
       model: {
-        primary: "github-copilot/gpt-4o",
+        primary: "github-copilot/gpt-4.1",
         fallbacks: [
-          "copilot-cli/gpt-4o"
+          "copilot-cli/gpt-4.1"
         ]
       },
       models: {
-        "github-copilot/gpt-4o": { alias: "Copilot" },
-        "copilot-cli/gpt-4o": {}
+        "github-copilot/gpt-4.1": { alias: "Copilot" },
+        "copilot-cli/gpt-4.1": {}
       }
     }
   }
@@ -96,11 +99,14 @@ Add `copilot-cli` to your fallback list so it only runs when primary models fail
 
 ## Supported models
 
-Copilot CLI supports these models (availability depends on your plan):
+Copilot CLI supports these models (availability depends on your GitHub plan):
 
-- `gpt-4o`
-- `gpt-4.1`
+**Free tier (GitHub Free):**
+- `gpt-4.1` ← recommended default
 - `gpt-4.1-mini`
+
+**Paid tier (GitHub Copilot subscription):**
+- `gpt-4o`
 - `gpt-4-turbo`
 - `claude-sonnet-4-5`
 - `claude-opus-4-5`
@@ -108,8 +114,9 @@ Copilot CLI supports these models (availability depends on your plan):
 Example model refs:
 
 ```
-copilot-cli/gpt-4o
 copilot-cli/gpt-4.1
+copilot-cli/gpt-4.1-mini
+copilot-cli/gpt-4o
 copilot-cli/claude-sonnet-4-5
 ```
 
