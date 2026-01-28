@@ -20,6 +20,11 @@ import {
 import { promptRemoteGatewayConfig } from "../commands/onboard-remote.js";
 import { setupSkills } from "../commands/onboard-skills.js";
 import { setupInternalHooks } from "../commands/onboard-hooks.js";
+import {
+  conductUserInterview,
+  generateUserMarkdown,
+  saveUserProfile,
+} from "../commands/onboard-user-interview.js";
 import type {
   GatewayAuthChoice,
   OnboardMode,
@@ -425,6 +430,52 @@ export async function runOnboardingWizard(
   await ensureWorkspaceAndSessions(workspaceDir, runtime, {
     skipBootstrap: Boolean(nextConfig.agents?.defaults?.skipBootstrap),
   });
+
+  // USER Profile Setup
+  const wantsUserProfile = await prompter.confirm({
+    message: "Set up your USER profile? (helps the assistant understand you better)",
+    initialValue: true,
+  });
+
+  if (wantsUserProfile) {
+    await prompter.note(
+      [
+        "Let's set up your profile so I can assist you better.",
+        "This will only take a minute.",
+      ].join("\n"),
+      "USER Profile Setup",
+    );
+
+    try {
+      // Conduct interview
+      const userAnswers = await conductUserInterview(prompter);
+
+      // Generate markdown (tries LLM, falls back to template)
+      const progress = prompter.progress("Generating profile...");
+      const { markdown: userMarkdown, usedLLM } = await generateUserMarkdown(
+        userAnswers,
+        nextConfig,
+        workspaceDir,
+      );
+
+      // Save to USER.md
+      await saveUserProfile(workspaceDir, userMarkdown, runtime);
+
+      if (usedLLM) {
+        progress.stop("✓ Profile created (AI-generated)");
+      } else {
+        progress.stop("✓ Profile created (template-based)");
+        await prompter.note(
+          "Profile created from template. AI generation unavailable (auth not configured yet).",
+          "Profile Setup",
+        );
+      }
+    } catch (err) {
+      // Interview was cancelled or failed
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      runtime.error(`User interview failed: ${errorMsg}`);
+    }
+  }
 
   if (opts.skipSkills) {
     await prompter.note("Skipping skills setup.", "Skills");
