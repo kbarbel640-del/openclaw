@@ -75,6 +75,7 @@ USER.md
 # Clawdbot Secrets
 clawdbot.json
 .clawdbot/
+.moltbot/
 
 # Backup files
 *.backup.*
