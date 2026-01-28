@@ -1,15 +1,15 @@
 ---
 title: Contributing Plugins
-description: How to create, test, and distribute Clawdbot plugins
+description: How to create, test, and distribute Moltbot plugins
 ---
 
 # Contributing Plugins
 
-This guide walks you through creating plugins that extend Clawdbot with new channels, tools, commands, and services.
+This guide walks you through creating plugins that extend Moltbot with new channels, tools, commands, and services.
 
 ## What is a Plugin?
 
-A plugin is a TypeScript module that extends Clawdbot at runtime. Plugins can:
+A plugin is a TypeScript module that extends Moltbot at runtime. Plugins can:
 
 - Register new messaging channels (like Matrix, Nostr, MS Teams)
 - Add agent tools the AI can invoke
@@ -161,12 +161,12 @@ export default {
 
 ## Plugin API
 
-The `api` object provides access to Clawdbot internals:
+The `api` object provides access to Moltbot internals:
 
 ### Core Properties
 
 ```typescript
-api.config       // Full Clawdbot configuration
+api.config       // Full Moltbot configuration
 api.pluginConfig // This plugin's config (plugins.entries.<id>.config)
 api.logger       // Scoped logger instance
 api.runtime      // Runtime helpers (TTS, etc.)
@@ -245,7 +245,7 @@ Handler context:
 - `ctx.channel` - Channel name
 - `ctx.isAuthorizedSender` - Auth status
 - `ctx.args` - Command arguments (if `acceptsArgs: true`)
-- `ctx.config` - Clawdbot config
+- `ctx.config` - Moltbot config
 
 #### Background Services
 

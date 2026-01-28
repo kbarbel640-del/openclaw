@@ -380,7 +380,11 @@ export const chatHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    parsedMessage = sanitized.text;
+    // Use sanitized text with boundaries for model-facing content (Body, BodyForAgent)
+    // but keep raw text for command detection paths (CommandBody, BodyForCommands, RawBody)
+    // to avoid breaking slash command parsing that expects commands at line start
+    const modelFacingText = sanitized.text;
+    const commandFacingText = parsedMessage; // Raw text without boundaries for command detection
 
     const timeoutMs = resolveAgentTimeoutMs({
       cfg,
@@ -456,18 +460,21 @@ export const chatHandlers: GatewayRequestHandlers = {
       };
       respond(true, ackPayload, undefined, { runId: clientRunId });
 
-      const trimmedMessage = parsedMessage.trim();
+      const trimmedMessage = commandFacingText.trim();
       const injectThinking = Boolean(
         p.thinking && trimmedMessage && !trimmedMessage.startsWith("/"),
       );
-      const commandBody = injectThinking ? `/think ${p.thinking} ${parsedMessage}` : parsedMessage;
+      // Use raw commandFacingText for command detection paths (preserves slash commands at line start)
+      const commandBody = injectThinking
+        ? `/think ${p.thinking} ${commandFacingText}`
+        : commandFacingText;
       const clientInfo = client?.connect?.client;
       const ctx: MsgContext = {
-        Body: parsedMessage,
-        BodyForAgent: parsedMessage,
-        BodyForCommands: commandBody,
-        RawBody: parsedMessage,
-        CommandBody: commandBody,
+        Body: modelFacingText, // Sanitized with boundaries for model
+        BodyForAgent: modelFacingText, // Sanitized with boundaries for model
+        BodyForCommands: commandBody, // Raw text for command detection
+        RawBody: commandFacingText, // Raw text without boundaries
+        CommandBody: commandBody, // Raw text for command detection
         SessionKey: p.sessionKey,
         Provider: INTERNAL_MESSAGE_CHANNEL,
         Surface: INTERNAL_MESSAGE_CHANNEL,
@@ -648,17 +655,29 @@ export const chatHandlers: GatewayRequestHandlers = {
     };
 
     // Load session to find transcript file
-    const { cfg, storePath, entry } = loadSessionEntry(p.sessionKey);
+    const { storePath, entry } = loadSessionEntry(p.sessionKey);
     const sessionId = entry?.sessionId;
     if (!sessionId || !storePath) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "session not found"));
       return;
     }
 
-    // Note: No injection sanitization for chat.inject because:
-    // 1. This injects assistant content (not user input), so user boundary markers are inappropriate
-    // 2. Injection patterns detect user prompt manipulations, not assistant responses
-    // 3. This is a privileged gateway operation requiring authenticated access
+    // SECURITY: While chat.inject is a privileged operation for assistant content,
+    // we still analyze for suspicious patterns as defense-in-depth.
+    // We don't block, but we do log for security monitoring.
+    const injectionCheck = sanitizeIncomingMessage(p.message, {
+      stripEnvelopes: false, // Don't strip envelopes from injected content
+      blockCritical: false, // Don't block - this is privileged operation
+      logAttempts: true, // Log for security monitoring
+      useBoundaries: false, // Don't wrap - this is assistant content
+    });
+    if (injectionCheck.injectionAnalysis.detected) {
+      context.logGateway.warn("chat.inject contains suspicious patterns", {
+        sessionKey: p.sessionKey,
+        patterns: injectionCheck.injectionAnalysis.patterns,
+        severity: injectionCheck.injectionAnalysis.severity,
+      });
+    }
 
     // Resolve transcript path
     const transcriptPath = entry?.sessionFile

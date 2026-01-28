@@ -184,7 +184,7 @@ Import this dashboard for key metrics:
 
 ```json
 {
-  "title": "Clawdbot Gateway",
+  "title": "Moltbot Gateway",
   "panels": [
     {
       "title": "Token Usage Rate",
@@ -360,7 +360,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Clawdbot gateway is down"
+          summary: "Moltbot gateway is down"
 
       - alert: HighErrorRate
         expr: rate(clawdbot_message_processed_total{outcome="error"}[5m]) > 0.1

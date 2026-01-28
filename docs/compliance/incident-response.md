@@ -1,17 +1,17 @@
 ---
 title: Incident Response Procedure
-summary: Security incident detection, classification, response, and recovery procedures for Clawdbot deployments.
+summary: Security incident detection, classification, response, and recovery procedures for Moltbot deployments.
 permalink: /compliance/incident-response/
 ---
 
 # Incident Response Procedure
 
-This document defines the procedures for detecting, classifying, responding to, and recovering from security incidents in Clawdbot deployments.
+This document defines the procedures for detecting, classifying, responding to, and recovering from security incidents in Moltbot deployments.
 
 ## Scope
 
 This procedure applies to:
-- Unauthorized access attempts to the Clawdbot gateway
+- Unauthorized access attempts to the Moltbot gateway
 - Compromise of messaging channel credentials
 - Malicious command execution via connected channels
 - Data exfiltration or unauthorized data access
@@ -238,7 +238,7 @@ clawdbot config set security.promptInjection.mode "strict"
    - Reset modified configurations
 
 4. **Patch vulnerabilities**
-   - Update Clawdbot if applicable: `clawdbot update`
+   - Update Moltbot if applicable: `clawdbot update`
    - Apply configuration hardening per security audit recommendations
 
 ### Phase 4: Recovery (P1: 4 hr, P2: 48 hr, P3: 1 week)
@@ -350,7 +350,7 @@ Conduct review within 5 business days of incident closure.
 ```
 Subject: [SECURITY INCIDENT] P[N] - [Brief description]
 
-A security incident has been detected in the Clawdbot deployment.
+A security incident has been detected in the Moltbot deployment.
 
 Severity: P[N]
 Status: [Triage/Containment/Eradication/Recovery]

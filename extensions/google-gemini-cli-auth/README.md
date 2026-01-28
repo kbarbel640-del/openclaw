@@ -1,4 +1,4 @@
-# Google Gemini CLI Auth (Clawdbot plugin)
+# Google Gemini CLI Auth (Moltbot plugin)
 
 OAuth provider plugin for **Gemini CLI** (Google Code Assist).
 

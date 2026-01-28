@@ -1,16 +1,16 @@
 ---
 title: Compliance Overview
-summary: SOC2 and ISO 27001 compliance documentation and readiness resources for Clawdbot deployments.
+summary: SOC2 and ISO 27001 compliance documentation and readiness resources for Moltbot deployments.
 permalink: /compliance/
 ---
 
 # Compliance Overview
 
-This section provides governance and procedure documentation to support SOC2 Type II and ISO 27001 compliance for Clawdbot enterprise deployments.
+This section provides governance and procedure documentation to support SOC2 Type II and ISO 27001 compliance for Moltbot enterprise deployments.
 
 ## Technical Controls Foundation
 
-Clawdbot includes built-in security controls that form the technical foundation for compliance:
+Moltbot includes built-in security controls that form the technical foundation for compliance:
 
 | Control | Implementation | Documentation |
 |---------|---------------|---------------|

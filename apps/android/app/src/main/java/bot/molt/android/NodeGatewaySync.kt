@@ -170,6 +170,12 @@ internal fun NodeRuntime.decodeA2uiMessages(command: String, paramsJson: String?
     return JsonArray(out).toString()
 }
 
+/**
+ * Validate A2UI v0.8 message structure.
+ *
+ * SECURITY: Performs deep validation of message structure to prevent
+ * malicious payloads that might pass shallow key-only checks.
+ */
 private fun validateA2uiV0_8(msg: JsonObject, lineNumber: Int) {
     if (msg.containsKey("createSurface")) {
         throw IllegalArgumentException(
@@ -183,6 +189,43 @@ private fun validateA2uiV0_8(msg: JsonObject, lineNumber: Int) {
         throw IllegalArgumentException(
             "A2UI JSONL line $lineNumber: expected exactly one of ${allowed.sorted().joinToString(", ")}; found: $found",
         )
+    }
+
+    // Deep validation: ensure the command payload is properly structured
+    val commandKey = matched.first()
+    val payload = msg[commandKey]
+
+    when (commandKey) {
+        "beginRendering" -> {
+            // beginRendering should be an object with optional fields
+            if (payload != null && payload !is JsonObject && payload !is kotlinx.serialization.json.JsonNull) {
+                throw IllegalArgumentException(
+                    "A2UI JSONL line $lineNumber: beginRendering value must be an object or null",
+                )
+            }
+        }
+        "surfaceUpdate", "dataModelUpdate" -> {
+            // These should be objects
+            if (payload !is JsonObject) {
+                throw IllegalArgumentException(
+                    "A2UI JSONL line $lineNumber: $commandKey value must be an object",
+                )
+            }
+        }
+        "deleteSurface" -> {
+            // deleteSurface should contain a surfaceId string
+            if (payload !is JsonObject) {
+                throw IllegalArgumentException(
+                    "A2UI JSONL line $lineNumber: deleteSurface value must be an object",
+                )
+            }
+            val surfaceId = (payload["surfaceId"] as? JsonPrimitive)?.contentOrNull
+            if (surfaceId.isNullOrBlank()) {
+                throw IllegalArgumentException(
+                    "A2UI JSONL line $lineNumber: deleteSurface.surfaceId must be a non-empty string",
+                )
+            }
+        }
     }
 }
 

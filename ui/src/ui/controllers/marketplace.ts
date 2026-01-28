@@ -52,9 +52,30 @@ export type MarketplaceState = {
   marketplaceTab: "browse" | "installed";
 };
 
-function getErrorMessage(err: unknown) {
-  if (err instanceof Error) return err.message;
-  return String(err);
+/**
+ * Safely extract error message from unknown error type.
+ *
+ * SECURITY: Validates and sanitizes error messages to prevent
+ * injection of malicious content into the UI.
+ */
+function getErrorMessage(err: unknown): string {
+  let message: string;
+  if (err instanceof Error) {
+    message = err.message;
+  } else {
+    message = String(err);
+  }
+
+  // Sanitize: limit length to prevent UI overflow
+  if (message.length > 500) {
+    message = message.slice(0, 500) + "...";
+  }
+
+  // Sanitize: remove any HTML/script-like content for defense-in-depth
+  // (Lit's html template already escapes, but belt-and-suspenders)
+  message = message.replace(/[<>]/g, "");
+
+  return message || "An unknown error occurred";
 }
 
 function setMarketplaceMessage(

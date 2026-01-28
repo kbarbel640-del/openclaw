@@ -56,6 +56,29 @@ declare global {
 }
 
 /**
+ * Check if the current context is secure (HTTPS or localhost).
+ * Web Speech API requires a secure context to function.
+ */
+export function isSecureContext(): boolean {
+  if (typeof window === "undefined") return false;
+
+  // Check native secure context flag
+  if (window.isSecureContext !== undefined) {
+    return window.isSecureContext;
+  }
+
+  // Fallback: check protocol
+  const protocol = window.location?.protocol;
+  const hostname = window.location?.hostname;
+  return (
+    protocol === "https:" ||
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1"
+  );
+}
+
+/**
  * Check if Web Speech API is supported in the browser.
  */
 export function isVoiceInputSupported(): boolean {
@@ -63,6 +86,22 @@ export function isVoiceInputSupported(): boolean {
     typeof window !== "undefined" &&
       (window.SpeechRecognition || window.webkitSpeechRecognition),
   );
+}
+
+/**
+ * Get the reason why voice input is unavailable, or null if available.
+ */
+export function getVoiceInputUnavailableReason(): string | null {
+  if (typeof window === "undefined") {
+    return "Voice input requires a browser environment";
+  }
+  if (!isSecureContext()) {
+    return "Voice input requires HTTPS or localhost (secure context)";
+  }
+  if (!isVoiceInputSupported()) {
+    return "Voice input is not supported in this browser";
+  }
+  return null;
 }
 
 /**
@@ -96,6 +135,14 @@ let activeRecognition: SpeechRecognition | null = null;
 export function startVoiceRecognition(
   callbacks: VoiceInputCallbacks,
 ): (() => void) | null {
+  // Check for secure context first - this is the most common failure mode
+  if (!isSecureContext()) {
+    callbacks.onError(
+      "Voice input requires HTTPS or localhost. Please access this page securely.",
+    );
+    return null;
+  }
+
   const SpeechRecognitionClass = getSpeechRecognition();
   if (!SpeechRecognitionClass) {
     callbacks.onError("Voice input not supported in this browser");

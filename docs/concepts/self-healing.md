@@ -1,6 +1,6 @@
 # Self-Healing Behaviors
 
-Clawdbot includes built-in resilience mechanisms that automatically recover from transient failures without operator intervention. This document describes each self-healing behavior.
+Moltbot includes built-in resilience mechanisms that automatically recover from transient failures without operator intervention. This document describes each self-healing behavior.
 
 ## Exponential Backoff Reconnection
 
@@ -54,7 +54,7 @@ channels:
 
 ## Model Failover Cascade
 
-When a model request fails, Clawdbot automatically tries fallback models.
+When a model request fails, Moltbot automatically tries fallback models.
 
 ### How It Works
 

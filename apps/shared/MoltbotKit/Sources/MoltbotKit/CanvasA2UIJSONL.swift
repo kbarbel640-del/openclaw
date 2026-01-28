@@ -69,13 +69,24 @@ public enum MoltbotCanvasA2UIJSONL: Sendable {
         return items.map(\.message)
     }
 
+    /// Encode messages to a JSON array string safe for embedding in JavaScript.
+    ///
+    /// SECURITY: The output is JSON-encoded by JSONEncoder which handles escaping.
+    /// We additionally escape any `</script>` sequences to prevent XSS if the
+    /// JavaScript is embedded in HTML (defense-in-depth).
     public static func encodeMessagesJSONArray(_ messages: [AnyCodable]) throws -> String {
         let data = try JSONEncoder().encode(messages)
-        guard let json = String(data: data, encoding: .utf8) else {
+        guard var json = String(data: data, encoding: .utf8) else {
             throw NSError(domain: "A2UI", code: 10, userInfo: [
                 NSLocalizedDescriptionKey: "Failed to encode messages payload as UTF-8",
             ])
         }
+
+        // Defense-in-depth: escape sequences that could break HTML script context
+        // JSONEncoder handles standard escaping but </script> can still appear in strings
+        json = json.replacingOccurrences(of: "</script>", with: "<\\/script>", options: [.caseInsensitive])
+        json = json.replacingOccurrences(of: "<!--", with: "<\\!--")
+
         return json
     }
 }

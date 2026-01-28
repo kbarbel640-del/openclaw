@@ -1,17 +1,17 @@
 ---
 title: Contributing Skills
-description: How to create, test, and publish Clawdbot skills
+description: How to create, test, and publish Moltbot skills
 ---
 
 # Contributing Skills
 
-This guide walks you through creating skills for Clawdbot, from your first `SKILL.md` to publishing on ClawdHub.
+This guide walks you through creating skills for Moltbot, from your first `SKILL.md` to publishing on ClawdHub.
 
 ## What is a Skill?
 
-A skill is a directory containing a `SKILL.md` file that teaches Clawdbot how to use a tool, service, or workflow. Skills are injected into the system prompt and guide the AI agent on how to accomplish specific tasks.
+A skill is a directory containing a `SKILL.md` file that teaches Moltbot how to use a tool, service, or workflow. Skills are injected into the system prompt and guide the AI agent on how to accomplish specific tasks.
 
-Skills follow the [AgentSkills](https://agentskills.io) specification with Clawdbot-specific extensions.
+Skills follow the [AgentSkills](https://agentskills.io) specification with Moltbot-specific extensions.
 
 ## Quick Start
 
@@ -51,7 +51,7 @@ echo "scale=2; 10 / 3" | bc
 EOF
 ```
 
-Start a new Clawdbot session and the skill will be available.
+Start a new Moltbot session and the skill will be available.
 
 ## SKILL.md Format
 
@@ -78,7 +78,7 @@ disable-model-invocation: false   # Exclude from AI prompt (default: false)
 command-dispatch: tool            # Optional: bypass AI, call tool directly
 command-tool: exec                # Tool to invoke when command-dispatch is set
 command-arg-mode: raw             # How to pass args (default: raw)
-metadata: {"clawdbot":{...}}      # Clawdbot-specific configuration (see below)
+metadata: {"clawdbot":{...}}      # Moltbot-specific configuration (see below)
 ---
 ```
 
@@ -213,7 +213,7 @@ uv run {baseDir}/scripts/generate.py --prompt "hello"
 ```
 ```
 
-Clawdbot replaces `{baseDir}` with the actual skill path at runtime.
+Moltbot replaces `{baseDir}` with the actual skill path at runtime.
 
 ## Supporting Files
 

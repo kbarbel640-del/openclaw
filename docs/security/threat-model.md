@@ -1,16 +1,16 @@
 ---
 title: Threat Model
-summary: Security threat analysis for Clawdbot's attack surfaces and mitigations.
+summary: Security threat analysis for Moltbot's attack surfaces and mitigations.
 permalink: /security/threat-model/
 ---
 
 # Threat Model
 
-This document describes Clawdbot's security threat model, attack surfaces, and implemented mitigations.
+This document describes Moltbot's security threat model, attack surfaces, and implemented mitigations.
 
 ## System Overview
 
-Clawdbot is a personal AI assistant that:
+Moltbot is a personal AI assistant that:
 - Connects to messaging platforms (WhatsApp, Telegram, Discord, Slack, Signal, iMessage)
 - Executes shell commands on the host machine
 - Can control browsers via automation tools

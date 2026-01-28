@@ -1,16 +1,16 @@
 ---
 title: Change Management Procedure
-summary: Procedures for managing configuration, version, and operational changes in Clawdbot deployments.
+summary: Procedures for managing configuration, version, and operational changes in Moltbot deployments.
 permalink: /compliance/change-management/
 ---
 
 # Change Management Procedure
 
-This document defines procedures for managing changes to Clawdbot configuration, versions, channels, and plugins in a controlled manner.
+This document defines procedures for managing changes to Moltbot configuration, versions, channels, and plugins in a controlled manner.
 
 ## Purpose
 
-Ensure all changes to Clawdbot systems are:
+Ensure all changes to Moltbot systems are:
 - Authorized before implementation
 - Tested appropriately
 - Documented with audit trail
@@ -20,7 +20,7 @@ Ensure all changes to Clawdbot systems are:
 
 This procedure covers:
 - Configuration changes (settings, credentials, policies)
-- Version upgrades (Clawdbot releases)
+- Version upgrades (Moltbot releases)
 - Channel modifications (adding, removing, reconfiguring)
 - Plugin management (installation, updates, removal)
 - Infrastructure changes (gateway, networking)
@@ -176,7 +176,7 @@ clawdbot gateway stop
 # Backup state directory
 cp -r ~/.clawdbot ~/.clawdbot-backup-$(date +%Y%m%d)
 
-# Update Clawdbot
+# Update Moltbot
 clawdbot update
 # or: npm update -g clawdbot
 

@@ -1,12 +1,12 @@
 ---
 title: Data Handling Policy
-summary: How Clawdbot handles user data, retention, logging, and privacy.
+summary: How Moltbot handles user data, retention, logging, and privacy.
 permalink: /security/data-handling/
 ---
 
 # Data Handling Policy
 
-This document describes how Clawdbot handles user data, including storage, retention, logging, and user rights.
+This document describes how Moltbot handles user data, including storage, retention, logging, and user rights.
 
 ## Data Categories
 
@@ -118,7 +118,7 @@ Users can access their data through:
 
 ### Export Your Data
 
-To export all Clawdbot data:
+To export all Moltbot data:
 
 ```bash
 # Configuration
@@ -135,7 +135,7 @@ cp ~/.clawdbot/credentials/*.json ~/clawdbot-backup/credentials/
 
 ### Delete Your Data
 
-To remove all Clawdbot data:
+To remove all Moltbot data:
 
 ```bash
 # Stop the gateway
@@ -190,7 +190,7 @@ Data leaves the system in these cases:
 
 ### LLM Providers
 
-Clawdbot integrates with:
+Moltbot integrates with:
 - OpenAI (ChatGPT, GPT-4)
 - Anthropic (Claude)
 - Google (Gemini)

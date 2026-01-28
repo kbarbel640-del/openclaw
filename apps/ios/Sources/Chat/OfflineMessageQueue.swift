@@ -84,7 +84,14 @@ final class OfflineMessageQueue {
     private func save() {
         do {
             let data = try JSONEncoder().encode(pending)
-            try data.write(to: fileURL, options: .atomic)
+            // SECURITY: Use atomic write with data protection to encrypt at rest
+            try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+
+            // Ensure file protection is set (belt and suspenders)
+            try FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.complete],
+                ofItemAtPath: fileURL.path
+            )
         } catch {
             logger.error("Failed to save offline queue: \(error.localizedDescription)")
         }

@@ -1,16 +1,16 @@
 ---
 title: Access Control Policy
-summary: User access management, RBAC governance, and authorization procedures for Clawdbot deployments.
+summary: User access management, RBAC governance, and authorization procedures for Moltbot deployments.
 permalink: /compliance/access-control-policy/
 ---
 
 # Access Control Policy
 
-This policy defines the principles, roles, and procedures for managing user access to Clawdbot systems.
+This policy defines the principles, roles, and procedures for managing user access to Moltbot systems.
 
 ## Policy Statement
 
-Access to Clawdbot functionality shall be granted based on the principle of least privilege. Users receive only the permissions necessary to perform their authorized functions, and access is regularly reviewed and revoked when no longer needed.
+Access to Moltbot functionality shall be granted based on the principle of least privilege. Users receive only the permissions necessary to perform their authorized functions, and access is regularly reviewed and revoked when no longer needed.
 
 ## Scope
 
@@ -23,7 +23,7 @@ This policy applies to:
 
 ## Access Control Model
 
-Clawdbot implements Role-Based Access Control (RBAC) as defined in `src/security/rbac.ts`.
+Moltbot implements Role-Based Access Control (RBAC) as defined in `src/security/rbac.ts`.
 
 ### Built-in Roles
 

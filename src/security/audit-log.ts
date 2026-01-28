@@ -181,14 +181,33 @@ export async function rotateAuditLogs(config?: AuditLogConfig): Promise<void> {
 
 /**
  * Queue an audit write to ensure sequential writes.
+ *
+ * SECURITY: Handles errors gracefully to prevent queue deadlock.
+ * Even if one write fails, subsequent writes should still proceed.
  */
 function queueAuditWrite<T>(fn: () => Promise<T>): Promise<T> {
   const prev = writeQueue;
   let release: (() => void) | undefined;
+
+  // Create a new queue entry that will be resolved when this operation completes
   writeQueue = new Promise<void>((resolve) => {
     release = resolve;
   });
-  return prev.then(fn).finally(() => release?.());
+
+  return prev
+    .catch(() => {
+      // Ignore errors from previous queue entry - don't let them block us
+    })
+    .then(fn)
+    .finally(() => {
+      // Always release the lock, even if fn threw
+      // Wrap in try-catch to handle edge cases where release might throw
+      try {
+        release?.();
+      } catch {
+        // Ignore release errors
+      }
+    });
 }
 
 // Global state

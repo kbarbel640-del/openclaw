@@ -1,4 +1,4 @@
-## Clawdbot Node (Android) (internal)
+## Moltbot Node (Android) (internal)
 
 Modern Android node app: connects to the **Gateway WebSocket** (`_clawdbot-gw._tcp`) and exposes **Canvas + Chat + Camera**.
 

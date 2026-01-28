@@ -28,6 +28,12 @@ import {
 } from "../infra/skills-remote.js";
 import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
 import { setGatewaySigusr1RestartPolicy } from "../infra/restart.js";
+import {
+  initAuditLog,
+  stopAuditLog,
+  auditGatewayStart,
+  auditGatewayStop,
+} from "../security/audit-log.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
 import type { PluginServicesHandle } from "../plugins/services.js";
@@ -211,6 +217,11 @@ export async function startGatewayServer(
   }
 
   const cfgAtStart = loadConfig();
+
+  // Initialize audit logging early so all events are captured
+  // Uses default config (enabled: true) since audit isn't exposed in ClawdbotConfig yet
+  initAuditLog();
+
   const diagnosticsEnabled = isDiagnosticsEnabled(cfgAtStart);
   if (diagnosticsEnabled) {
     startDiagnosticHeartbeat();
@@ -496,6 +507,17 @@ export async function startGatewayServer(
     rateLimitConfig,
     log,
   });
+
+  // Emit gateway.start audit event
+  auditGatewayStart({
+    actor: { type: "system", id: "gateway" },
+    metadata: {
+      port,
+      bindHost,
+      tlsEnabled: gatewayTls.enabled,
+    },
+  });
+
   scheduleGatewayUpdateCheck({ cfg: cfgAtStart, log, isNixMode });
   const tailscaleCleanup = await startGatewayTailscaleExposure({
     tailscaleMode,
@@ -584,6 +606,12 @@ export async function startGatewayServer(
 
   return {
     close: async (opts) => {
+      // Emit gateway.stop audit event
+      auditGatewayStop({
+        actor: { type: "system", id: "gateway" },
+        reason: opts?.reason,
+      });
+
       if (diagnosticsEnabled) {
         stopDiagnosticHeartbeat();
       }
@@ -593,6 +621,10 @@ export async function startGatewayServer(
       }
       skillsChangeUnsub();
       rateLimiter.close();
+
+      // Stop audit log rotation timer
+      stopAuditLog();
+
       await close(opts);
     },
   };

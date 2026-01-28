@@ -107,7 +107,7 @@ struct TTSVoiceSettingsView: View {
 
     private func testVoice() {
         self.isTestPlaying = true
-        let utterance = AVSpeechUtterance(string: "Hello, I'm Clawdbot. How can I help you today?")
+        let utterance = AVSpeechUtterance(string: "Hello, I'm Moltbot. How can I help you today?")
 
         // Apply selected voice
         if !self.selectedVoiceId.isEmpty,

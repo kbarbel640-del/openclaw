@@ -1,4 +1,4 @@
-# Google Antigravity Auth (Clawdbot plugin)
+# Google Antigravity Auth (Moltbot plugin)
 
 OAuth provider plugin for **Google Antigravity** (Cloud Code Assist).
 

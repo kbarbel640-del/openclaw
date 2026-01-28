@@ -42,8 +42,11 @@ export function createMetricsEndpointsHandler(opts: {
   const metricsPath = config?.path ?? "/metrics";
   const authRequired = config?.authRequired !== false;
 
-  // Start metrics collection when handler is created (if enabled)
-  if (config?.enabled !== false) {
+  // Start metrics collection only when explicitly enabled
+  // Previously: `config?.enabled !== false` would start collection on undefined,
+  // but the endpoint returns 404 unless `config?.enabled === true`.
+  // Now both collection and endpoint require explicit enablement.
+  if (config?.enabled === true) {
     startMetricsCollection();
   }
 

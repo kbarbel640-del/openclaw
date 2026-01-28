@@ -25,7 +25,7 @@ Save to `~/.clawdbot/moltbot.json` and you can DM the bot from that number.
 ```json5
 {
   identity: {
-    name: "Clawd",
+    name: "Molty",
     theme: "helpful assistant",
     emoji: "🦞"
   },

@@ -48,6 +48,56 @@ export function isRbacEnabled(config?: ClawdbotConfig): boolean {
 }
 
 /**
+ * Validate RBAC configuration at startup.
+ * Returns validation errors or null if valid.
+ *
+ * SECURITY: Call this during gateway startup to catch configuration
+ * errors early rather than failing silently at runtime.
+ */
+export function validateRbacConfig(config?: ClawdbotConfig): string[] | null {
+  if (!isRbacEnabled(config)) {
+    return null; // RBAC disabled, no validation needed
+  }
+
+  const errors: string[] = [];
+  const rbacConfig = config?.rbac;
+
+  // When RBAC is enabled, defaultRole should be configured to avoid
+  // denying access to all users without explicit role assignments
+  if (!rbacConfig?.defaultRole) {
+    errors.push(
+      "RBAC enabled but no defaultRole configured. " +
+        "All users without explicit role assignments will be denied access. " +
+        "Set rbac.defaultRole to a valid role (e.g., 'user' or 'viewer').",
+    );
+  } else {
+    // Verify defaultRole references a valid role
+    const roles = { ...DEFAULT_ROLES, ...rbacConfig.roles };
+    if (!roles[rbacConfig.defaultRole]) {
+      errors.push(
+        `RBAC defaultRole '${rbacConfig.defaultRole}' does not exist. ` +
+          `Available roles: ${Object.keys(roles).join(", ")}`,
+      );
+    }
+  }
+
+  // Validate all role assignments reference valid roles
+  if (rbacConfig?.assignments) {
+    const roles = { ...DEFAULT_ROLES, ...rbacConfig.roles };
+    for (const [userId, roleId] of Object.entries(rbacConfig.assignments)) {
+      if (roleId && !roles[roleId]) {
+        errors.push(
+          `RBAC assignment for user '${userId}' references unknown role '${roleId}'. ` +
+            `Available roles: ${Object.keys(roles).join(", ")}`,
+        );
+      }
+    }
+  }
+
+  return errors.length > 0 ? errors : null;
+}
+
+/**
  * Get the RBAC config with defaults applied.
  */
 function getRbacConfig(config?: ClawdbotConfig): RbacConfig {
@@ -236,6 +286,14 @@ export function canAccessAgent(
 
 /**
  * Check if a user can use a specific tool.
+ *
+ * NOTE: This function is implemented but not currently enforced at runtime.
+ * It is fully tested and ready for use when tool-level RBAC enforcement is needed.
+ *
+ * TODO: Add canUseTool() enforcement to tool execution paths when required.
+ * This will enable role-based tool allow/deny lists. Current enforcement points:
+ * - canExecuteCommand() is enforced in runner.ts for exec commands
+ * - canAccessAgent() is enforced in chat.ts for agent access
  */
 export function canUseTool(
   senderId: string,

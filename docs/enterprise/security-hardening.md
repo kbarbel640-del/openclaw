@@ -355,7 +355,7 @@ iptables -A OUTPUT -p tcp --dport 443 -j ACCEPT
 
 - [ ] Rotate gateway tokens quarterly
 - [ ] Review audit logs for anomalies
-- [ ] Update to latest Clawdbot version
+- [ ] Update to latest Moltbot version
 - [ ] Review RBAC assignments when team changes
 - [ ] Test backup and recovery procedures
 

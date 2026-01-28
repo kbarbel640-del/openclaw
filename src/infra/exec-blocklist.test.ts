@@ -67,12 +67,9 @@ describe("evaluateBlocklist", () => {
   });
 
   describe("high severity commands", () => {
-    test("blocks sudo", () => {
-      const result = evaluateBlocklist("sudo rm -rf /tmp/test");
-      expect(result.blocked).toBe(true);
-      expect(result.severity).toBe("high");
-      expect(result.matchedPatterns).toContain("sudo (privilege escalation)");
-    });
+    // NOTE: sudo is intentionally NOT blocked in the blocklist.
+    // Sudo access is controlled via RBAC exec.elevated permission instead.
+    // See the note in MEDIUM_BLOCKLIST in exec-blocklist.ts.
 
     test("blocks su to root", () => {
       const result = evaluateBlocklist("su - root");
@@ -124,17 +121,22 @@ describe("evaluateBlocklist", () => {
   });
 
   describe("medium severity commands (not blocked by default)", () => {
-    test("does not block command substitution by default", () => {
+    // NOTE: Command substitution patterns ($() and backticks) are intentionally NOT
+    // in the blocklist anymore. They create too many false positives when users
+    // discuss shell syntax or share code examples. Command substitution is only
+    // dangerous in actual shell execution context, which is gated by exec permissions.
+
+    test("does not block command substitution (intentionally removed)", () => {
       const result = evaluateBlocklist("echo $(date)");
       expect(result.blocked).toBe(false);
-      expect(result.severity).toBe("medium");
-      expect(result.matchedPatterns).toContain("command substitution $()");
+      // These are no longer flagged at all
+      expect(result.severity).toBe(null);
     });
 
-    test("does not block backtick substitution by default", () => {
+    test("does not block backtick substitution (intentionally removed)", () => {
       const result = evaluateBlocklist("echo `whoami`");
       expect(result.blocked).toBe(false);
-      expect(result.severity).toBe("medium");
+      expect(result.severity).toBe(null);
     });
 
     test("does not block eval by default", () => {
@@ -162,7 +164,8 @@ describe("evaluateBlocklist", () => {
     });
 
     test("blocks medium severity when configured", () => {
-      const result = evaluateBlocklist("echo $(date)", { blockMedium: true });
+      // Use eval which is still in medium blocklist
+      const result = evaluateBlocklist("eval 'test'", { blockMedium: true });
       expect(result.blocked).toBe(true);
       expect(result.severity).toBe("medium");
     });
@@ -221,7 +224,8 @@ describe("evaluateBlocklist", () => {
     });
 
     test("can disable high blocking", () => {
-      const result = evaluateBlocklist("sudo ls", { blockHigh: false });
+      // Use 'su - root' since sudo was removed from blocklist
+      const result = evaluateBlocklist("su - root", { blockHigh: false });
       expect(result.blocked).toBe(false);
       expect(result.severity).toBe("high");
     });
@@ -237,14 +241,17 @@ describe("evaluateBlocklist", () => {
 describe("isOnBlocklist", () => {
   test("returns true for blocked commands", () => {
     expect(isOnBlocklist("rm -rf /")).toBe(true);
-    expect(isOnBlocklist("sudo ls")).toBe(true);
-    expect(isOnBlocklist("echo $(date)")).toBe(true);
+    expect(isOnBlocklist("su - root")).toBe(true);
+    expect(isOnBlocklist("eval 'test'")).toBe(true);
   });
 
   test("returns false for safe commands", () => {
     expect(isOnBlocklist("ls -la")).toBe(false);
     expect(isOnBlocklist("cat file.txt")).toBe(false);
     expect(isOnBlocklist("npm install")).toBe(false);
+    // sudo and $() are intentionally NOT on blocklist anymore
+    expect(isOnBlocklist("sudo ls")).toBe(false);
+    expect(isOnBlocklist("echo $(date)")).toBe(false);
   });
 });
 
@@ -314,7 +321,8 @@ describe("edge cases", () => {
   });
 
   test("handles case variations", () => {
-    const result = evaluateBlocklist("SUDO ls");
+    // Use 'SU - root' since sudo was removed
+    const result = evaluateBlocklist("SU - root");
     expect(result.blocked).toBe(true);
   });
 });

@@ -12,7 +12,7 @@ A single gateway serves one team with shared configuration:
 ┌─────────────────────────────────────────┐
 │              Gateway Host               │
 │  ┌─────────────────────────────────┐   │
-│  │         Clawdbot Gateway        │   │
+│  │         Moltbot Gateway        │   │
 │  │  - All team channels            │   │
 │  │  - Shared agent config          │   │
 │  │  - Team-wide RBAC               │   │
@@ -231,7 +231,7 @@ spec:
 
 ### Load Balancing Considerations
 
-Clawdbot gateway is stateful (WebSocket connections, session state). For HA:
+Moltbot gateway is stateful (WebSocket connections, session state). For HA:
 
 1. **Sticky sessions** - Route users to the same instance
 2. **Shared state** - Use external session storage (future feature)
@@ -291,7 +291,7 @@ server {
 }
 ```
 
-Configure trusted proxies in Clawdbot:
+Configure trusted proxies in Moltbot:
 
 ```yaml
 gateway:

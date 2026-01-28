@@ -316,11 +316,28 @@ internal fun NodeRuntime.hasBackgroundLocationPermission(): Boolean {
 
 // MARK: - Helper Extension
 
+/**
+ * Escape a string for safe embedding in JSON and JavaScript.
+ *
+ * SECURITY: Handles all necessary escaping including:
+ * - Standard JSON escapes (backslash, quotes, control chars)
+ * - HTML script-breaking sequences (defense-in-depth)
+ * - Unicode control characters
+ */
 private fun String.toJsonStringEscaped(): String {
     val escaped = this
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
         .replace("\n", "\\n")
         .replace("\r", "\\r")
+        .replace("\t", "\\t")
+        .replace("\b", "\\b")
+        .replace("\u000C", "\\f")
+        // Defense-in-depth: escape sequences that could break HTML script context
+        .replace("</script>", "<\\/script>", ignoreCase = true)
+        .replace("<!--", "<\\!--")
+        // Escape Unicode line/paragraph separators (valid JSON but can break JS)
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
     return "\"$escaped\""
 }

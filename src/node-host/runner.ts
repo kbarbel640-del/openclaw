@@ -68,6 +68,8 @@ type SystemRunParams = {
   needsScreenRecording?: boolean | null;
   agentId?: string | null;
   sessionKey?: string | null;
+  /** Sender identity for RBAC checks (preferred over sessionKey for identity) */
+  senderId?: string | null;
   approved?: boolean | null;
   approvalDecision?: string | null;
   runId?: string | null;
@@ -823,11 +825,14 @@ async function handleInvoke(
   const ask = approvals.agent.ask;
   const autoAllowSkills = approvals.agent.autoAllowSkills;
   const sessionKey = params.sessionKey?.trim() || "node";
+  // RBAC identity: prefer senderId (user identity) over sessionKey for consistent identity model
+  // This aligns with canAccessAgent() in chat.ts which uses senderId (clientInfo?.id)
+  const rbacIdentity = params.senderId?.trim() || sessionKey;
   const runId = params.runId?.trim() || crypto.randomUUID();
 
-  // RBAC: Check if command execution is allowed for this session
+  // RBAC: Check if command execution is allowed for this user
   if (isRbacEnabled(cfg)) {
-    const execCheck = canExecuteCommand(sessionKey, cmdText, cfg);
+    const execCheck = canExecuteCommand(rbacIdentity, cmdText, cfg);
     if (!execCheck.allowed) {
       await sendNodeEvent(
         client,

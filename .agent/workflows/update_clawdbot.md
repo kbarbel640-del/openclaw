@@ -1,8 +1,8 @@
 ---
-description: Update Clawdbot from upstream when branch has diverged (ahead/behind)
+description: Update Moltbot from upstream when branch has diverged (ahead/behind)
 ---
 
-# Clawdbot Upstream Sync Workflow
+# Moltbot Upstream Sync Workflow
 
 Use this workflow when your fork has diverged from upstream (e.g., "18 commits ahead, 29 commits behind").
 
@@ -129,10 +129,10 @@ pnpm mac:package
 
 ```bash
 # Kill running app
-pkill -x "Clawdbot" || true
+pkill -x "Moltbot" || true
 
 # Move old version
-mv /Applications/Clawdbot.app /tmp/Clawdbot-backup.app
+mv /Applications/Clawdbot.app /tmp/Moltbot-backup.app
 
 # Install new build
 cp -R dist/Clawdbot.app /Applications/

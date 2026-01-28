@@ -45,7 +45,7 @@ class ClawdbotMessagingService : FirebaseMessagingService() {
         message.notification?.let { notification ->
             Log.d(TAG, "FCM notification payload: title=${notification.title}, body=${notification.body}")
             showNotification(
-                title = notification.title ?: "Clawdbot",
+                title = notification.title ?: "Moltbot",
                 body = notification.body ?: "New message"
             )
         }
@@ -59,7 +59,7 @@ class ClawdbotMessagingService : FirebaseMessagingService() {
 
     private fun handleDataMessage(data: Map<String, String>) {
         val messageType = data["type"]
-        val title = data["title"] ?: "Clawdbot"
+        val title = data["title"] ?: "Moltbot"
         val body = data["body"] ?: "New message"
         val sessionKey = data["sessionKey"]
 
@@ -133,27 +133,49 @@ class ClawdbotMessagingService : FirebaseMessagingService() {
 }
 
 /**
- * Simple storage for FCM push token.
+ * Secure storage for FCM push token using EncryptedSharedPreferences.
  * The token should be sent to the gateway when connection is established.
+ *
+ * SECURITY: Uses EncryptedSharedPreferences to protect tokens at rest.
+ * Falls back to regular SharedPreferences only if encryption fails (rare edge cases).
  */
 object PushTokenStore {
-    private const val PREFS_NAME = "clawdbot_push"
+    private const val PREFS_NAME = "clawdbot_push_secure"
     private const val KEY_FCM_TOKEN = "fcm_token"
+    private const val TAG = "PushTokenStore"
+
+    private fun getSecurePrefs(context: Context): android.content.SharedPreferences {
+        return try {
+            androidx.security.crypto.EncryptedSharedPreferences.create(
+                context,
+                PREFS_NAME,
+                androidx.security.crypto.MasterKeys.getOrCreate(
+                    androidx.security.crypto.MasterKeys.AES256_GCM_SPEC
+                ),
+                androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            // Fallback to regular prefs if encryption fails (shouldn't happen)
+            Log.e(TAG, "Failed to create encrypted prefs, falling back to regular: ${e.message}")
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        }
+    }
 
     fun saveToken(context: Context, token: String) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        getSecurePrefs(context)
             .edit()
             .putString(KEY_FCM_TOKEN, token)
             .apply()
     }
 
     fun getToken(context: Context): String? {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return getSecurePrefs(context)
             .getString(KEY_FCM_TOKEN, null)
     }
 
     fun clearToken(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        getSecurePrefs(context)
             .edit()
             .remove(KEY_FCM_TOKEN)
             .apply()

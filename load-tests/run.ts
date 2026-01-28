@@ -38,7 +38,7 @@ async function main(): Promise<void> {
 
   console.log("");
   console.log("╔══════════════════════════════════════════════════════════════════╗");
-  console.log("║              Clawdbot Gateway Load Test                          ║");
+  console.log("║              Moltbot Gateway Load Test                          ║");
   console.log("╚══════════════════════════════════════════════════════════════════╝");
   console.log("");
   console.log(`  Scenario:     ${config.scenario}`);

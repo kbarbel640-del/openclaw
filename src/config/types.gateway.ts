@@ -316,4 +316,19 @@ export type GatewayConfig = {
   health?: GatewayHealthConfig;
   /** Prometheus metrics endpoint configuration. */
   metrics?: GatewayMetricsConfig;
+  /** Security configuration for gateway operations. */
+  security?: GatewaySecurityConfig;
+};
+
+/**
+ * Security configuration for gateway operations.
+ */
+export type GatewaySecurityConfig = {
+  /**
+   * Allow legacy v1 device signatures (without nonce) on loopback connections.
+   * This is disabled by default to prevent downgrade attacks. Enable only for
+   * compatibility with older clients that don't support v2 signatures.
+   * Default: false.
+   */
+  allowLegacyDeviceSignatures?: boolean;
 };

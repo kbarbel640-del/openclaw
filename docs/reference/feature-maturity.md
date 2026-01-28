@@ -1,11 +1,11 @@
 ---
 title: Feature Maturity
-description: Classification of Clawdbot features by stability and production-readiness
+description: Classification of Moltbot features by stability and production-readiness
 ---
 
 # Feature Maturity Matrix
 
-This document classifies Clawdbot features by their maturity level, helping you understand what to expect in terms of stability, API guarantees, and support.
+This document classifies Moltbot features by their maturity level, helping you understand what to expect in terms of stability, API guarantees, and support.
 
 ## Maturity Levels
 
@@ -222,7 +222,7 @@ This document classifies Clawdbot features by their maturity level, helping you 
 ## Upgrade Guidance
 
 ### Moving from Experimental to Beta
-Features at experimental level may have breaking changes between minor versions. Pin your Clawdbot version if you depend on experimental features.
+Features at experimental level may have breaking changes between minor versions. Pin your Moltbot version if you depend on experimental features.
 
 ### Moving from Beta to Stable
 Beta features are generally safe for production but may require migration steps. Check the [changelog](/reference/RELEASING) when upgrading.

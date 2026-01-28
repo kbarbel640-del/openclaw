@@ -55,7 +55,7 @@ describe("agents set-identity command", () => {
     await fs.writeFile(
       path.join(workspace, "IDENTITY.md"),
       [
-        "- Name: Clawd",
+        "- Name: Molty",
         "- Creature: helpful sloth",
         "- Emoji: :)",
         "- Avatar: avatars/clawd.png",
@@ -84,7 +84,7 @@ describe("agents set-identity command", () => {
     };
     const main = written.agents?.list?.find((entry) => entry.id === "main");
     expect(main?.identity).toEqual({
-      name: "Clawd",
+      name: "Molty",
       theme: "helpful sloth",
       emoji: ":)",
       avatar: "avatars/clawd.png",
@@ -123,7 +123,7 @@ describe("agents set-identity command", () => {
     await fs.writeFile(
       path.join(workspace, "IDENTITY.md"),
       [
-        "- Name: Clawd",
+        "- Name: Molty",
         "- Theme: space lobster",
         "- Emoji: :)",
         "- Avatar: avatars/clawd.png",

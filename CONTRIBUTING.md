@@ -43,7 +43,7 @@ AI PRs are first-class citizens here. We just want transparency so reviewers kno
 
 ## Contribution Guides
 
-Detailed guides for extending Clawdbot:
+Detailed guides for extending Moltbot:
 
 - **[Skills Guide](https://docs.clawd.bot/contributing/skills)** - Create and publish skills to ClawdHub
 - **[Plugins Guide](https://docs.clawd.bot/contributing/plugins)** - Build plugins for channels, tools, and more

@@ -1,4 +1,4 @@
-# Qwen OAuth (Clawdbot plugin)
+# Qwen OAuth (Moltbot plugin)
 
 OAuth provider plugin for **Qwen** (free-tier OAuth).
 

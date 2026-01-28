@@ -131,6 +131,8 @@ export type ExecToolDefaults = {
   allowBackground?: boolean;
   scopeKey?: string;
   sessionKey?: string;
+  /** Sender identity for RBAC checks (consistent with gateway chat.ts) */
+  senderId?: string;
   messageProvider?: string;
   notifyOnExit?: boolean;
   cwd?: string;
@@ -998,6 +1000,7 @@ export function createExecTool(
               timeoutMs: typeof params.timeout === "number" ? params.timeout * 1000 : undefined,
               agentId,
               sessionKey: defaults?.sessionKey,
+              senderId: defaults?.senderId, // Pass senderId for RBAC identity consistency
               approved: approvedByAsk,
               approvalDecision: approvalDecision ?? undefined,
               runId: runId ?? undefined,

@@ -51,8 +51,18 @@ type PairingRateLimitEntry = {
   windowStartMs: number;
 };
 
-/** In-memory rate limit tracker (per channel) */
+/** Persistent rate limit state (survives process restarts) */
+type PairingRateLimitState = {
+  version: 1;
+  entries: Record<string, PairingRateLimitEntry>;
+  lastCleanupMs: number;
+};
+
+/** In-memory rate limit tracker (per channel) - synced to disk */
 const rateLimitTracker = new Map<string, PairingRateLimitEntry>();
+
+/** Flag to track if we've loaded persisted state */
+let rateLimitStateLoaded = false;
 
 /**
  * Compute HMAC-SHA256 signature for pairing store integrity.
@@ -75,18 +85,117 @@ function computePairingStoreSignature(requests: PairingRequest[]): string {
 /**
  * Verify HMAC signature of pairing store.
  * Returns true if signature is valid or missing (for backwards compatibility).
+ *
+ * SECURITY: Always performs timing-safe comparison to prevent side-channel attacks.
+ * Even when signature is missing, we compute and compare against a dummy value
+ * to avoid leaking information about store initialization state.
  */
 function verifyPairingStoreSignature(store: PairingStore): boolean {
-  if (!store.signature) return true; // Backwards compatibility: unsigned stores are accepted
   const expected = computePairingStoreSignature(store.requests);
-  return crypto.timingSafeEqual(Buffer.from(store.signature, "hex"), Buffer.from(expected, "hex"));
+  const expectedBuf = Buffer.from(expected, "hex");
+
+  // Backwards compatibility: unsigned stores are accepted
+  // But we still perform a timing-safe comparison against a dummy value
+  // to avoid leaking whether a signature exists through timing differences
+  if (!store.signature) {
+    // Compare expected against itself to maintain constant-time behavior
+    crypto.timingSafeEqual(expectedBuf, expectedBuf);
+    return true;
+  }
+
+  try {
+    const providedBuf = Buffer.from(store.signature, "hex");
+    // Ensure buffers are same length before comparison
+    if (providedBuf.length !== expectedBuf.length) {
+      // Still do a comparison to maintain constant time
+      crypto.timingSafeEqual(expectedBuf, expectedBuf);
+      return false;
+    }
+    return crypto.timingSafeEqual(providedBuf, expectedBuf);
+  } catch {
+    // Invalid hex encoding - still perform dummy comparison for timing safety
+    crypto.timingSafeEqual(expectedBuf, expectedBuf);
+    return false;
+  }
+}
+
+/**
+ * Resolve the path to the rate limit state file.
+ */
+function resolveRateLimitStatePath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(resolveCredentialsDir(env), "pairing-rate-limit.json");
+}
+
+/**
+ * Load persisted rate limit state from disk.
+ * Called once on first access to restore state after restart.
+ */
+function loadRateLimitState(env: NodeJS.ProcessEnv = process.env): void {
+  if (rateLimitStateLoaded) return;
+  rateLimitStateLoaded = true;
+
+  const filePath = resolveRateLimitStatePath(env);
+  try {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const state = JSON.parse(raw) as PairingRateLimitState;
+    if (state.version !== 1 || typeof state.entries !== "object") return;
+
+    const now = Date.now();
+    // Only restore entries that haven't expired
+    for (const [key, entry] of Object.entries(state.entries)) {
+      if (entry && now - entry.windowStartMs <= PAIRING_RATE_LIMIT_WINDOW_MS) {
+        rateLimitTracker.set(key, entry);
+      }
+    }
+  } catch {
+    // File doesn't exist or is corrupted - start fresh
+  }
+}
+
+/**
+ * Persist rate limit state to disk.
+ * Called after each rate limit update to survive restarts.
+ */
+function saveRateLimitState(env: NodeJS.ProcessEnv = process.env): void {
+  const filePath = resolveRateLimitStatePath(env);
+  const now = Date.now();
+
+  // Clean up expired entries before saving
+  const entries: Record<string, PairingRateLimitEntry> = {};
+  for (const [key, entry] of rateLimitTracker.entries()) {
+    if (now - entry.windowStartMs <= PAIRING_RATE_LIMIT_WINDOW_MS) {
+      entries[key] = entry;
+    }
+  }
+
+  const state: PairingRateLimitState = {
+    version: 1,
+    entries,
+    lastCleanupMs: now,
+  };
+
+  try {
+    const dir = path.dirname(filePath);
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(filePath, JSON.stringify(state, null, 2), {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
+  } catch {
+    // Best-effort persistence - don't fail the operation
+  }
 }
 
 /**
  * Check if a pairing attempt is rate limited.
  * Returns true if the attempt should be blocked.
+ *
+ * SECURITY: Loads persisted state on first call to prevent bypass via restart.
  */
 function isPairingRateLimited(channelKey: string): boolean {
+  // Ensure we've loaded any persisted state
+  loadRateLimitState();
+
   const now = Date.now();
   const entry = rateLimitTracker.get(channelKey);
 
@@ -97,6 +206,7 @@ function isPairingRateLimited(channelKey: string): boolean {
   // Check if window has expired
   if (now - entry.windowStartMs > PAIRING_RATE_LIMIT_WINDOW_MS) {
     rateLimitTracker.delete(channelKey);
+    saveRateLimitState();
     return false;
   }
 
@@ -105,17 +215,24 @@ function isPairingRateLimited(channelKey: string): boolean {
 
 /**
  * Record a pairing attempt for rate limiting.
+ *
+ * SECURITY: Persists state to disk to survive process restarts.
  */
 function recordPairingAttempt(channelKey: string): void {
+  // Ensure we've loaded any persisted state
+  loadRateLimitState();
+
   const now = Date.now();
   const entry = rateLimitTracker.get(channelKey);
 
   if (!entry || now - entry.windowStartMs > PAIRING_RATE_LIMIT_WINDOW_MS) {
     rateLimitTracker.set(channelKey, { attempts: 1, windowStartMs: now });
-    return;
+  } else {
+    entry.attempts += 1;
   }
 
-  entry.attempts += 1;
+  // Persist to disk
+  saveRateLimitState();
 }
 
 /**

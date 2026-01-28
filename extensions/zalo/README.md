@@ -1,6 +1,6 @@
 # @clawdbot/zalo
 
-Zalo channel plugin for Clawdbot (Bot API).
+Zalo channel plugin for Moltbot (Bot API).
 
 ## Install (local checkout)
 

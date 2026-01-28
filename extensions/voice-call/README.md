@@ -1,6 +1,6 @@
 # @clawdbot/voice-call
 
-Official Voice Call plugin for **Clawdbot**.
+Official Voice Call plugin for **Moltbot**.
 
 Providers:
 - **Twilio** (Programmable Voice + Media Streams)
@@ -13,7 +13,7 @@ Plugin system: `https://docs.molt.bot/plugin`
 
 ## Install (local dev)
 
-### Option A: install via Clawdbot (recommended)
+### Option A: install via Moltbot (recommended)
 
 ```bash
 clawdbot plugins install @clawdbot/voice-call
@@ -100,7 +100,7 @@ Notes:
 ## CLI
 
 ```bash
-clawdbot voicecall call --to "+15555550123" --message "Hello from Clawdbot"
+clawdbot voicecall call --to "+15555550123" --message "Hello from Moltbot"
 clawdbot voicecall continue --call-id <id> --message "Any questions?"
 clawdbot voicecall speak --call-id <id> --message "One moment"
 clawdbot voicecall end --call-id <id>

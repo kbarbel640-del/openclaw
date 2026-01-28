@@ -1,12 +1,12 @@
 ---
 title: Security Metrics and KPIs
-summary: Key performance indicators and metrics for security monitoring in Clawdbot deployments.
+summary: Key performance indicators and metrics for security monitoring in Moltbot deployments.
 permalink: /compliance/security-metrics/
 ---
 
 # Security Metrics and KPIs
 
-This document defines security metrics, key performance indicators (KPIs), and monitoring guidance for Clawdbot deployments.
+This document defines security metrics, key performance indicators (KPIs), and monitoring guidance for Moltbot deployments.
 
 ## Purpose
 
@@ -204,7 +204,7 @@ clawdbot_gateway_uptime_seconds
   labels:
     severity: critical
   annotations:
-    summary: "Clawdbot gateway is down"
+    summary: "Moltbot gateway is down"
 ```
 
 ### Rate Limit Activations
@@ -286,7 +286,7 @@ echo "Rejected: $REJECTED ($((REJECTED * 100 / REQUESTS))%)"
 
 ```json
 {
-  "title": "Clawdbot Security Metrics",
+  "title": "Moltbot Security Metrics",
   "panels": [
     {
       "title": "Authentication Failures",

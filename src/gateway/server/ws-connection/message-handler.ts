@@ -232,6 +232,26 @@ export function attachGatewayWsMessageHandler(params: {
 
   socket.on("message", async (data) => {
     if (isClosed()) return;
+
+    // SECURITY: Check message size before any parsing to prevent CPU exhaustion
+    // from oversized payloads. This happens before JSON.parse() to avoid DoS.
+    // RawData can be Buffer | ArrayBuffer | Buffer[] - handle all cases
+    let dataLen: number;
+    if (Buffer.isBuffer(data)) {
+      dataLen = data.length;
+    } else if (data instanceof ArrayBuffer) {
+      dataLen = data.byteLength;
+    } else if (Array.isArray(data)) {
+      dataLen = data.reduce((sum, buf) => sum + buf.length, 0);
+    } else {
+      dataLen = 0; // Shouldn't happen, but be defensive
+    }
+    if (dataLen > MAX_PAYLOAD_BYTES) {
+      logWsControl.warn(`oversized message rejected: ${dataLen} bytes (max: ${MAX_PAYLOAD_BYTES})`);
+      close(1009, "message too large");
+      return;
+    }
+
     const text = rawDataToString(data);
     try {
       const parsed = JSON.parse(text);
@@ -375,6 +395,19 @@ export function attachGatewayWsMessageHandler(params: {
           isControlUi && configSnapshot.gateway?.controlUi?.dangerouslyDisableDeviceAuth === true;
         const allowControlUiBypass = allowInsecureControlUi || disableControlUiDeviceAuth;
         const device = disableControlUiDeviceAuth ? null : deviceRaw;
+
+        // SECURITY: Log when insecure Control UI options are being used
+        // These bypass normal security controls and should be monitored
+        if (allowInsecureControlUi) {
+          logWsControl.warn(
+            "Control UI using allowInsecureAuth - connection accepted without HTTPS/localhost",
+          );
+        }
+        if (disableControlUiDeviceAuth) {
+          logWsControl.warn(
+            "Control UI using dangerouslyDisableDeviceAuth - device identity verification bypassed",
+          );
+        }
         if (!device) {
           const canSkipDevice = allowControlUiBypass ? hasSharedAuth : hasTokenAuth;
 
@@ -500,7 +533,14 @@ export function attachGatewayWsMessageHandler(params: {
             version: providedNonce ? "v2" : "v1",
           });
           const signatureOk = verifyDeviceSignature(device.publicKey, payload, device.signature);
-          const allowLegacy = !nonceRequired && !providedNonce;
+
+          // SECURITY: Legacy v1 signatures (without nonce) are only allowed on loopback
+          // AND only when explicitly enabled via configuration. This prevents downgrade attacks.
+          const allowLegacy =
+            !nonceRequired &&
+            !providedNonce &&
+            configSnapshot.gateway?.security?.allowLegacyDeviceSignatures === true;
+
           if (!signatureOk && allowLegacy) {
             const legacyPayload = buildDeviceAuthPayload({
               deviceId: device.id,
@@ -513,7 +553,10 @@ export function attachGatewayWsMessageHandler(params: {
               version: "v1",
             });
             if (verifyDeviceSignature(device.publicKey, legacyPayload, device.signature)) {
-              // accepted legacy loopback signature
+              // Accepted legacy loopback signature - log for awareness
+              logWsControl.info(
+                "accepted legacy v1 device signature (nonce-less) - consider upgrading client",
+              );
             } else {
               setHandshakeState("failed");
               setCloseCause("device-auth-invalid", {
@@ -615,7 +658,10 @@ export function attachGatewayWsMessageHandler(params: {
           });
 
           // Rate limit: record auth failure for exponential backoff
-          const authClientId = clientIp ?? remoteAddr ?? "unknown";
+          // SECURITY: Use device/client ID when available to avoid blocking legitimate
+          // users behind shared NAT. Fall back to IP only when no identifier available.
+          const authClientId =
+            device?.id ?? connectParams.client.id ?? clientIp ?? remoteAddr ?? "unknown";
           buildRequestContext().rateLimiter.recordAuthFailure(authClientId);
 
           setCloseCause("unauthorized", {
@@ -785,7 +831,9 @@ export function attachGatewayWsMessageHandler(params: {
         });
 
         // Rate limit: clear auth failure state on successful login
-        const authSuccessClientId = clientIp ?? remoteAddr ?? "unknown";
+        // Use same identifier format as failure tracking for consistency
+        const authSuccessClientId =
+          device?.id ?? connectParams.client.id ?? clientIp ?? remoteAddr ?? "unknown";
         buildRequestContext().rateLimiter.clearAuthFailure(authSuccessClientId);
 
         if (isWebchatConnect(connectParams)) {
@@ -955,7 +1003,11 @@ export function attachGatewayWsMessageHandler(params: {
         const context = buildRequestContext();
         const rateLimitClientId =
           client?.connect.auth?.token?.slice(0, 16) ?? remoteAddr ?? "unknown";
-        const isAuthenticated = !!client?.connect.auth?.token;
+        // Consider authenticated if any auth mechanism was used (token or password).
+        // Device tokens are sent via the 'token' field, so they're covered by the token check.
+        // Previously only token was considered authenticated, leaving password-only users
+        // at the unauthenticated rate limit (60 req/min vs unlimited).
+        const isAuthenticated = !!(client?.connect.auth?.token || client?.connect.auth?.password);
         const rateCheck = context.rateLimiter.checkRequest(rateLimitClientId, isAuthenticated);
         if (!rateCheck.allowed) {
           respond(

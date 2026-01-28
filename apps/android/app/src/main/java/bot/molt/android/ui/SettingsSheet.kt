@@ -334,7 +334,7 @@ fun SettingsSheet(viewModel: MainViewModel) {
               style = MaterialTheme.typography.titleMedium,
             )
             Text(
-              "Make sure your Clawdbot gateway is running on the same network.",
+              "Make sure your Moltbot gateway is running on the same network.",
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               textAlign = TextAlign.Center,

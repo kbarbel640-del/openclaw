@@ -1,4 +1,4 @@
-# Copilot Proxy (Clawdbot plugin)
+# Copilot Proxy (Moltbot plugin)
 
 Provider plugin for the **Copilot Proxy** VS Code extension.
 

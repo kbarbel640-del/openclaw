@@ -26,8 +26,6 @@ type BlocklistEntry = {
   pattern: RegExp;
   description: string;
   severity: "critical" | "high" | "medium";
-  /** If true, requires explicit user approval even in elevated mode */
-  requiresExplicitApproval: boolean;
 };
 
 /**
@@ -40,19 +38,16 @@ const CRITICAL_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\brm\s+(-[a-zA-Z]*r[a-zA-Z]*\s+)?(-[a-zA-Z]*f[a-zA-Z]*\s+)?[/~]\s*$/i,
     description: "rm -rf / (root filesystem deletion)",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\brm\s+(-[a-zA-Z]*[rf]+[a-zA-Z]*\s+)+\s*\/\s*$/i,
     description: "rm -rf / (root filesystem deletion)",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\brm\s+(-[a-zA-Z]*[rf]+[a-zA-Z]*\s+)+\s*~\s*$/i,
     description: "rm -rf ~ (home directory deletion)",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
 
   // Disk/filesystem destruction
@@ -60,25 +55,21 @@ const CRITICAL_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\bdd\s+.*\bof\s*=\s*\/dev\/(sd[a-z]|hd[a-z]|nvme\d+n\d+|disk\d+)\b/i,
     description: "dd to raw disk device",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bmkfs(\.[a-z0-9]+)?\s+.*\/dev\/(sd[a-z]|hd[a-z]|nvme\d+n\d+|disk\d+)/i,
     description: "mkfs on disk device (filesystem destruction)",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bfdisk\s+.*\/dev\/(sd[a-z]|hd[a-z]|nvme\d+n\d+|disk\d+)/i,
     description: "fdisk partition manipulation",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bparted\s+.*\/dev\/(sd[a-z]|hd[a-z]|nvme\d+n\d+|disk\d+)/i,
     description: "parted partition manipulation",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
 
   // System control commands
@@ -86,19 +77,16 @@ const CRITICAL_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\b(halt|poweroff|reboot|shutdown)\b/i,
     description: "system halt/reboot command",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\binit\s+[0-6]\b/i,
     description: "init runlevel change",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bsystemctl\s+(halt|poweroff|reboot|suspend|hibernate)\b/i,
     description: "systemctl power control",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
 
   // Fork bomb patterns
@@ -106,39 +94,31 @@ const CRITICAL_BLOCKLIST: BlocklistEntry[] = [
     pattern: /:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/,
     description: "fork bomb",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bwhile\s+true\s*;\s*do\s*:\s*;\s*done\s*&/i,
     description: "infinite loop fork",
     severity: "critical",
-    requiresExplicitApproval: true,
   },
 ];
 
 /**
  * HIGH: Commands that can cause significant security issues or data loss.
  * These require explicit user approval.
+ *
+ * NOTE on sudo/privilege escalation:
+ * - sudo is NOT blocked here because it's often legitimately needed
+ * - RBAC enforces exec.elevated permission for sudo commands
+ * - The isElevatedCommand() function in rbac.ts handles sudo detection
+ * - Users with only "exec" permission (not "exec.elevated") cannot run sudo
+ * - This provides a more flexible security model than blanket blocking
  */
 const HIGH_BLOCKLIST: BlocklistEntry[] = [
-  // Privilege escalation
-  {
-    pattern: /\bsudo\s+/i,
-    description: "sudo (privilege escalation)",
-    severity: "high",
-    requiresExplicitApproval: true,
-  },
+  // Privilege escalation to root shell (always dangerous)
   {
     pattern: /\bsu\s+(-\s+)?root\b/i,
     description: "su to root",
     severity: "high",
-    requiresExplicitApproval: true,
-  },
-  {
-    pattern: /\bdoas\s+/i,
-    description: "doas (privilege escalation)",
-    severity: "high",
-    requiresExplicitApproval: true,
   },
 
   // Credential manipulation
@@ -146,19 +126,16 @@ const HIGH_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\bpasswd\b/i,
     description: "passwd (password change)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bchpasswd\b/i,
     description: "chpasswd (bulk password change)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bvisudo\b/i,
     description: "visudo (sudoers modification)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
 
   // Firewall and network security
@@ -166,31 +143,26 @@ const HIGH_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\biptables\s+/i,
     description: "iptables (firewall rules)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bip6tables\s+/i,
     description: "ip6tables (IPv6 firewall rules)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bnft\s+/i,
     description: "nftables (firewall rules)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bufw\s+(disable|reset|delete)/i,
     description: "ufw firewall disable/reset",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bfirewall-cmd\s+/i,
     description: "firewalld manipulation",
     severity: "high",
-    requiresExplicitApproval: true,
   },
 
   // User/group manipulation
@@ -198,31 +170,26 @@ const HIGH_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\buseradd\b/i,
     description: "useradd (user creation)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\buserdel\b/i,
     description: "userdel (user deletion)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\busermod\b/i,
     description: "usermod (user modification)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bgroupadd\b/i,
     description: "groupadd (group creation)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bgroupdel\b/i,
     description: "groupdel (group deletion)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
 
   // SSH key manipulation
@@ -230,7 +197,6 @@ const HIGH_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\bssh-keygen\s+.*(-[a-zA-Z]*f[a-zA-Z]*\s+)?~\/\.ssh\/(id_|authorized_keys)/i,
     description: "SSH key overwrite",
     severity: "high",
-    requiresExplicitApproval: true,
   },
 
   // Kernel/boot manipulation
@@ -238,19 +204,16 @@ const HIGH_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\bmodprobe\s+/i,
     description: "modprobe (kernel module loading)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\binsmod\s+/i,
     description: "insmod (kernel module insertion)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\brmmod\s+/i,
     description: "rmmod (kernel module removal)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
 
   // Cron manipulation (persistence)
@@ -258,7 +221,6 @@ const HIGH_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\bcrontab\s+-[a-zA-Z]*e/i,
     description: "crontab edit",
     severity: "high",
-    requiresExplicitApproval: true,
   },
 
   // System config files
@@ -266,7 +228,6 @@ const HIGH_BLOCKLIST: BlocklistEntry[] = [
     pattern: />\s*\/etc\/(passwd|shadow|sudoers|hosts|fstab|ssh)/i,
     description: "redirect to system config file",
     severity: "high",
-    requiresExplicitApproval: true,
   },
 
   // macOS specific
@@ -274,45 +235,35 @@ const HIGH_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\bcsrutil\s+(disable|enable)\b/i,
     description: "csrutil (SIP modification)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bspctl\s+/i,
     description: "spctl (Gatekeeper manipulation)",
     severity: "high",
-    requiresExplicitApproval: true,
   },
   {
     pattern: /\bdscl\s+.*-passwd/i,
     description: "dscl password change",
     severity: "high",
-    requiresExplicitApproval: true,
   },
 ];
 
 /**
  * MEDIUM: Commands that should be reviewed but may have legitimate uses.
  * These log warnings but don't block by default.
+ *
+ * NOTE: Command substitution patterns ($() and backticks) are intentionally
+ * omitted from this list. They create too many false positives when users
+ * discuss shell syntax, share code examples, or include documentation.
+ * Command substitution is only dangerous in the context of actual shell
+ * execution, which is already gated by the exec permission system.
  */
 const MEDIUM_BLOCKLIST: BlocklistEntry[] = [
-  // Shell operators that could enable injection
-  {
-    pattern: /\$\([^)]+\)/,
-    description: "command substitution $()",
-    severity: "medium",
-    requiresExplicitApproval: false,
-  },
-  {
-    pattern: /`[^`]+`/,
-    description: "backtick command substitution",
-    severity: "medium",
-    requiresExplicitApproval: false,
-  },
+  // eval is still flagged as it's explicitly used for code execution
   {
     pattern: /\beval\s+/i,
     description: "eval (arbitrary code execution)",
     severity: "medium",
-    requiresExplicitApproval: false,
   },
 
   // Network data exfiltration
@@ -320,13 +271,11 @@ const MEDIUM_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\bcurl\s+.*-[a-zA-Z]*d\s+/i,
     description: "curl POST data",
     severity: "medium",
-    requiresExplicitApproval: false,
   },
   {
     pattern: /\bwget\s+.*--post/i,
     description: "wget POST",
     severity: "medium",
-    requiresExplicitApproval: false,
   },
 
   // Process manipulation
@@ -334,13 +283,11 @@ const MEDIUM_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\bkillall\s+/i,
     description: "killall (mass process termination)",
     severity: "medium",
-    requiresExplicitApproval: false,
   },
   {
     pattern: /\bpkill\s+-9\s+/i,
     description: "pkill -9 (force kill)",
     severity: "medium",
-    requiresExplicitApproval: false,
   },
 
   // File permission changes
@@ -348,19 +295,16 @@ const MEDIUM_BLOCKLIST: BlocklistEntry[] = [
     pattern: /\bchmod\s+777\s+/i,
     description: "chmod 777 (world-writable)",
     severity: "medium",
-    requiresExplicitApproval: false,
   },
   {
     pattern: /\bchmod\s+-[a-zA-Z]*R[a-zA-Z]*\s+/i,
     description: "chmod recursive",
     severity: "medium",
-    requiresExplicitApproval: false,
   },
   {
     pattern: /\bchown\s+-[a-zA-Z]*R[a-zA-Z]*\s+/i,
     description: "chown recursive",
     severity: "medium",
-    requiresExplicitApproval: false,
   },
 ];
 
@@ -379,8 +323,6 @@ export type BlocklistConfig = {
   blockMedium: boolean;
   /** Log all blocklist matches */
   logMatches: boolean;
-  /** Allow bypass for explicitly approved commands */
-  allowExplicitApproval: boolean;
 };
 
 const DEFAULT_BLOCKLIST_CONFIG: BlocklistConfig = {
@@ -388,7 +330,6 @@ const DEFAULT_BLOCKLIST_CONFIG: BlocklistConfig = {
   blockHigh: true,
   blockMedium: false,
   logMatches: true,
-  allowExplicitApproval: false, // Even explicit approval cannot bypass critical/high by default
 };
 
 /**

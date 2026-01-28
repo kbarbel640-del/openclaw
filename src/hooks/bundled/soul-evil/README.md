@@ -1,6 +1,6 @@
 # SOUL Evil Hook
 
-Small persona swap hook for Clawdbot.
+Small persona swap hook for Moltbot.
 
 Docs: https://docs.molt.bot/hooks/soul-evil
 

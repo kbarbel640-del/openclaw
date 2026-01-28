@@ -1,6 +1,6 @@
 # @clawdbot/zalouser
 
-Clawdbot extension for Zalo Personal Account messaging via [zca-cli](https://zca-cli.dev).
+Moltbot extension for Zalo Personal Account messaging via [zca-cli](https://zca-cli.dev).
 
 > **Warning:** Using Zalo automation may result in account suspension or ban. Use at your own risk. This is an unofficial integration.
 
@@ -88,7 +88,7 @@ clawdbot channels login --channel zalouser
 ### Send a Message
 
 ```bash
-clawdbot message send --channel zalouser --target <threadId> --message "Hello from Clawdbot!"
+clawdbot message send --channel zalouser --target <threadId> --message "Hello from Moltbot!"
 ```
 
 ## Configuration

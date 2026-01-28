@@ -1,4 +1,4 @@
-# Clawdbot (iOS)
+# Moltbot (iOS)
 
 Internal-only SwiftUI app scaffold.
 

@@ -12,7 +12,7 @@
  */
 
 import crypto from "node:crypto";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -208,24 +208,30 @@ export function decryptData(encryptedBuffer: Buffer, password?: string): string 
 
 /**
  * Stores a secret in macOS Keychain.
+ * Uses stdin for secret input to avoid exposing secrets in process listings (ps aux).
  */
 function storeInKeychain(service: string, account: string, secret: string): boolean {
   try {
-    // First try to update existing entry
-    try {
-      execSync(
-        `security add-generic-password -U -s "${service}" -a "${account}" -w '${secret.replace(/'/g, "'\"'\"'")}'`,
-        { encoding: "utf8", timeout: 5000, stdio: "pipe" },
-      );
-      return true;
-    } catch {
-      // Entry doesn't exist, create new
-      execSync(
-        `security add-generic-password -s "${service}" -a "${account}" -w '${secret.replace(/'/g, "'\"'\"'")}'`,
-        { encoding: "utf8", timeout: 5000, stdio: "pipe" },
-      );
+    // Try to update existing entry first, using stdin for the password
+    // The -w flag without a value reads the password from stdin
+    const updateResult = spawnSync(
+      "security",
+      ["add-generic-password", "-U", "-s", service, "-a", account, "-w"],
+      { input: secret, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] },
+    );
+
+    if (updateResult.status === 0) {
       return true;
     }
+
+    // Entry doesn't exist, try creating new (without -U flag)
+    const createResult = spawnSync(
+      "security",
+      ["add-generic-password", "-s", service, "-a", account, "-w"],
+      { input: secret, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] },
+    );
+
+    return createResult.status === 0;
   } catch (err) {
     log.error("Failed to store in keychain", { service, error: String(err) });
     return false;
@@ -270,14 +276,18 @@ function deleteFromKeychain(service: string, account: string): boolean {
 
 /**
  * Stores a secret using Linux Secret Service (libsecret).
+ * Uses stdin for secret input to avoid exposing secrets in process listings (ps aux).
  */
 function storeInSecretService(service: string, account: string, secret: string): boolean {
   try {
-    execSync(
-      `echo -n '${secret.replace(/'/g, "'\\''")}' | secret-tool store --label="${service}" service "${service}" account "${account}"`,
-      { encoding: "utf8", timeout: 5000, stdio: "pipe", shell: "/bin/bash" },
+    // secret-tool reads the secret from stdin when not provided on command line
+    const result = spawnSync(
+      "secret-tool",
+      ["store", `--label=${service}`, "service", service, "account", account],
+      { input: secret, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] },
     );
-    return true;
+
+    return result.status === 0;
   } catch (err) {
     log.error("Failed to store in Secret Service", { service, error: String(err) });
     return false;

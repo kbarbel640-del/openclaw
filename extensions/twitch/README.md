@@ -1,6 +1,6 @@
 # @clawdbot/twitch
 
-Twitch channel plugin for Clawdbot.
+Twitch channel plugin for Moltbot.
 
 ## Install (local checkout)
 

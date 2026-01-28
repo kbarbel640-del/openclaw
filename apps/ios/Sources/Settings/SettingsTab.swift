@@ -287,7 +287,7 @@ struct SettingsTab: View {
             ContentUnavailableView {
                 Label("No Gateways Found", systemImage: "network.slash")
             } description: {
-                Text("Make sure your Clawdbot gateway is running on the same network.")
+                Text("Make sure your Moltbot gateway is running on the same network.")
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)

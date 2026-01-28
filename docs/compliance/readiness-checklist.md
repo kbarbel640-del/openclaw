@@ -282,7 +282,7 @@ Run this script to generate a compliance status summary:
 
 ```bash
 #!/bin/bash
-echo "=== Clawdbot Compliance Status ==="
+echo "=== Moltbot Compliance Status ==="
 echo "Date: $(date)"
 echo ""
 
