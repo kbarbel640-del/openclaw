@@ -75,7 +75,7 @@ export function resolveDiscordChannelId(raw: string): string {
  */
 export async function resolveDiscordTarget(
   raw: string,
-  options: DirectoryConfigParams & DiscordTargetParseOptions,
+  options: DirectoryConfigParams,
 ): Promise<MessagingTarget | undefined> {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
