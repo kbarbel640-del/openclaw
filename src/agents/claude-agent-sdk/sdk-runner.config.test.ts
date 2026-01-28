@@ -74,6 +74,44 @@ describe("isSdkRunnerEnabled", () => {
     expect(isSdkRunnerEnabled(config)).toBe(true);
   });
 
+  describe("mainRuntime override", () => {
+    it("mainRuntime=sdk enables SDK for main agent", () => {
+      const config: ClawdbrainConfig = {
+        agents: { defaults: { mainRuntime: "sdk" } },
+      };
+      expect(isSdkRunnerEnabled(config, "main")).toBe(true);
+    });
+
+    it("mainRuntime=sdk does not affect non-main agents", () => {
+      const config: ClawdbrainConfig = {
+        agents: { defaults: { mainRuntime: "sdk" } },
+      };
+      expect(isSdkRunnerEnabled(config, "assistant2")).toBe(false);
+    });
+
+    it("mainRuntime=pi overrides global runtime=sdk for main agent", () => {
+      const config: ClawdbrainConfig = {
+        agents: { defaults: { mainRuntime: "pi", runtime: "sdk" } },
+      };
+      expect(isSdkRunnerEnabled(config, "main")).toBe(false);
+      expect(isSdkRunnerEnabled(config, "assistant2")).toBe(true);
+    });
+
+    it("falls back to runtime when mainRuntime is not set", () => {
+      const config: ClawdbrainConfig = {
+        agents: { defaults: { runtime: "sdk" } },
+      };
+      expect(isSdkRunnerEnabled(config, "main")).toBe(true);
+    });
+
+    it("no agentId falls back to runtime (backward compat)", () => {
+      const config: ClawdbrainConfig = {
+        agents: { defaults: { mainRuntime: "sdk" } },
+      };
+      expect(isSdkRunnerEnabled(config)).toBe(false);
+    });
+  });
+
   it("does not enable SDK runtime from tools.codingTask config", () => {
     const config: ClawdbrainConfig = {
       tools: {

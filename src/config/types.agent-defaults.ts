@@ -100,6 +100,8 @@ export type AgentDefaultsConfig = {
    * - "sdk": Claude Agent SDK runner (stateless per query; multi-turn continuity via transcript injection)
    */
   runtime?: AgentRuntime;
+  /** Runtime override exclusively for the main agent loop. Falls back to `runtime` when unset. */
+  mainRuntime?: AgentRuntime;
   /** Primary model and fallbacks (provider/model). */
   model?: AgentModelListConfig;
   /** Optional image-capable model and fallbacks (provider/model). */
