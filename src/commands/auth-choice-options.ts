@@ -20,6 +20,7 @@ export type AuthChoiceGroupId =
   | "minimax"
   | "synthetic"
   | "venice"
+  | "deepseek"
   | "qwen";
 
 export type AuthChoiceGroup = {
@@ -52,6 +53,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     label: "MiniMax",
     hint: "M2.1 (recommended)",
     choices: ["minimax-api", "minimax-api-lightning"],
+  },
+  {
+    value: "deepseek",
+    label: "DeepSeek",
+    hint: "V3 / R1 (low cost)",
+    choices: ["deepseek-api-key"],
   },
   {
     value: "qwen",
@@ -147,6 +154,7 @@ export function buildAuthChoiceOptions(params: {
     label: "Venice AI API key",
     hint: "Privacy-focused inference (uncensored models)",
   });
+  options.push({ value: "deepseek-api-key", label: "DeepSeek API key" });
   options.push({
     value: "github-copilot",
     label: "GitHub Copilot (GitHub device login)",

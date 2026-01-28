@@ -4,6 +4,7 @@ import {
   fetchClaudeUsage,
   fetchCodexUsage,
   fetchCopilotUsage,
+  fetchDeepSeekUsage,
   fetchGeminiUsage,
   fetchMinimaxUsage,
   fetchZaiUsage,
@@ -66,6 +67,8 @@ export async function loadProviderUsageSummary(
             return await fetchCodexUsage(auth.token, auth.accountId, timeoutMs, fetchFn);
           case "minimax":
             return await fetchMinimaxUsage(auth.token, timeoutMs, fetchFn);
+          case "deepseek":
+            return await fetchDeepSeekUsage(auth.token, timeoutMs, fetchFn);
           case "zai":
             return await fetchZaiUsage(auth.token, timeoutMs, fetchFn);
           default:

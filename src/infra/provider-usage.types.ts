@@ -23,5 +23,6 @@ export type UsageProviderId =
   | "google-gemini-cli"
   | "google-antigravity"
   | "minimax"
+  | "deepseek"
   | "openai-codex"
   | "zai";

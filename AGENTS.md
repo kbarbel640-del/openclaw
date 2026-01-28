@@ -47,10 +47,13 @@
 - Type-check/build: `pnpm build` (tsc)
 - Lint/format: `pnpm lint` (oxlint), `pnpm format` (oxfmt)
 - Tests: `pnpm test` (vitest); coverage: `pnpm test:coverage`
+- Run single test: `pnpm vitest run src/path/to/test.ts` (fastest feedback loop).
 
 ## Coding Style & Naming Conventions
 - Language: TypeScript (ESM). Prefer strict typing; avoid `any`.
-- Formatting/linting via Oxlint and Oxfmt; run `pnpm lint` before commits.
+- Formatting/linting via Oxlint and Oxfmt; run `pnpm lint` before commits. Use `pnpm lint:fix` to auto-fix both.
+- Imports: Use standard ESM imports. No path aliases are configured; use relative paths.
+- Error Handling: Use strongly typed errors where possible. Handle specific error types rather than catching generic `Error`.
 - Add brief code comments for tricky or non-obvious logic.
 - Keep files concise; extract helpers instead of “V2” copies. Use existing patterns for CLI options and dependency injection via `createDefaultDeps`.
 - Aim to keep files under ~700 LOC; guideline only (not a hard guardrail). Split/refactor when it improves clarity or testability.
