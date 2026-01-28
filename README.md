@@ -245,11 +245,11 @@ Details: [Nodes](https://docs.molt.bot/nodes) · [macOS app](https://docs.molt.b
 
 Details: [Session tools](https://docs.molt.bot/concepts/session-tool)
 
-## Skills registry (ClawdHub)
+## Skills registry (MoltHub)
 
-ClawdHub is a minimal skill registry. With ClawdHub enabled, the agent can search for skills automatically and pull in new ones as needed.
+MoltHub is a minimal skill registry. With MoltHub enabled, the agent can search for skills automatically and pull in new ones as needed.
 
-[ClawdHub](https://ClawdHub.com)
+[MoltHub](https://MoltHub.com)
 
 ## Chat commands
 
