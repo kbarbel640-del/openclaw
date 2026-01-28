@@ -116,6 +116,16 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
     }
 
     const assistant = msg as Extract<AgentMessage, { role: "assistant" }>;
+
+    // Skip tool call extraction if the assistant turn errored/terminated.
+    // When stopReason is "error", the tool_use blocks are incomplete and were never executed,
+    // so we should not create synthetic tool_results for them.
+    const stopReason = (assistant as { stopReason?: unknown }).stopReason;
+    if (stopReason === "error") {
+      out.push(msg);
+      continue;
+    }
+
     const toolCalls = extractToolCallsFromAssistant(assistant);
     if (toolCalls.length === 0) {
       out.push(msg);
