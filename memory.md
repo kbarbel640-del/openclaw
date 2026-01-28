@@ -16,6 +16,18 @@
 
 - **Reminder timing**: ~1 hour heads up for events (not several hours in advance)
 
+## Infrastructure Rebranding (Jan 2026)
+
+The open source project is transitioning from **Clawdbot → Moltbot**:
+- Primary domain: **molt.bot** (clawdbot.dev redirects)
+- CLI: `moltbot` (was `clawdbot`)
+- Package: `@moltbot/*` on npm
+- Gateway config: `~/.moltbot/` (was `~/.clawdbot/`)
+- Hub: Still ClawdHub for now (clawdhub.com → will become molthub or similar)
+- My local workspace: still `~/clawd` (unchanged)
+
+Note: Some references to "clawdbot" remain in older code/docs during transition.
+
 ## Cron Job Best Practices
 
 - Use `deliver: true` + `provider: telegram` + `to: <chat_id>` for notifications
