@@ -552,6 +552,7 @@ export const MoltbotSchema = z
               .union([z.literal("newer"), z.literal("local"), z.literal("remote")])
               .optional(),
             exclude: z.array(z.string()).optional(),
+            copySymlinks: z.boolean().optional(),
             s3: z
               .object({
                 endpoint: z.string().optional(),

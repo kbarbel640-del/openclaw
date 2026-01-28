@@ -162,6 +162,7 @@ export function registerWorkspaceCli(program: Command): void {
             localPath: resolved.localPath,
             conflictResolve: resolved.conflictResolve,
             exclude: resolved.exclude,
+            copySymlinks: resolved.copySymlinks,
             resync: opts.resync,
             dryRun: opts.dryRun,
             verbose: opts.verbose,
@@ -563,6 +564,7 @@ export function registerWorkspaceCli(program: Command): void {
           localPath: resolved.localPath,
           conflictResolve: resolved.conflictResolve,
           exclude: resolved.exclude,
+          copySymlinks: resolved.copySymlinks,
           resync: true,
         });
 

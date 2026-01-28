@@ -11,7 +11,14 @@ const DEFAULT_REMOTE_NAME = "cloud";
 const DEFAULT_LOCAL_PATH = "shared";
 const DEFAULT_REMOTE_PATH = "moltbot-share";
 const DEFAULT_CONFLICT_RESOLVE = "newer";
-const DEFAULT_EXCLUDES = [".git/**", "node_modules/**", "*.log", ".DS_Store"];
+const DEFAULT_EXCLUDES = [
+  ".git/**",
+  "node_modules/**",
+  ".venv/**",
+  "__pycache__/**",
+  "*.log",
+  ".DS_Store",
+];
 
 export type RcloneSyncResult = {
   ok: boolean;
@@ -171,6 +178,7 @@ export function resolveSyncConfig(
   configPath: string;
   conflictResolve: "newer" | "local" | "remote";
   exclude: string[];
+  copySymlinks: boolean;
   interval: number;
   onSessionStart: boolean;
   onSessionEnd: boolean;
@@ -183,6 +191,7 @@ export function resolveSyncConfig(
     configPath: config?.configPath ?? getDefaultRcloneConfigPath(stateDir),
     conflictResolve: config?.conflictResolve ?? DEFAULT_CONFLICT_RESOLVE,
     exclude: config?.exclude ?? DEFAULT_EXCLUDES,
+    copySymlinks: config?.copySymlinks ?? false,
     interval: config?.interval ?? 0,
     onSessionStart: config?.onSessionStart ?? false,
     onSessionEnd: config?.onSessionEnd ?? false,
@@ -398,6 +407,7 @@ export async function runBisync(params: {
   localPath: string;
   conflictResolve: "newer" | "local" | "remote";
   exclude: string[];
+  copySymlinks?: boolean;
   resync?: boolean;
   dryRun?: boolean;
   verbose?: boolean;
@@ -424,6 +434,11 @@ export async function runBisync(params: {
   // Add excludes
   for (const pattern of params.exclude) {
     args.push("--exclude", pattern);
+  }
+
+  // Follow symlinks if configured
+  if (params.copySymlinks) {
+    args.push("--copy-links");
   }
 
   if (params.resync) {
