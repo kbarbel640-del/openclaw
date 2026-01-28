@@ -250,6 +250,7 @@ export const TtsConfigSchema = z
         refAudio: z.string().optional(),
         refText: z.string().optional(),
         outputFormat: z.enum(["ogg", "mp3", "wav"]).optional(),
+        timeoutMs: z.number().int().min(1000).max(300000).optional(),
       })
       .strict()
       .optional(),

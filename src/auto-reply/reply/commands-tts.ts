@@ -10,6 +10,7 @@ import {
   isTtsProviderConfigured,
   resolveTtsApiKey,
   resolveTtsConfig,
+  resolveTtsAutoMode,
   resolveTtsPrefsPath,
   setLastTtsAttempt,
   setSummarizationEnabled,
@@ -58,7 +59,7 @@ function ttsUsage(): ReplyPayload {
       `• openai — High quality (requires API key)\n` +
       `• elevenlabs — Premium voices (requires API key)\n` +
       `• qwen — Local Qwen3-TTS (uses sam_tts.py)\n\n` +
-      `**Text Limit (default: 1500, max: 4096):**\n` +
+      `**Text Limit (default: 1500, max: 8000):**\n` +
       `When text exceeds the limit:\n` +
       `• Summary ON: AI summarizes, then generates audio\n` +
       `• Summary OFF: Truncates text, then generates audio\n\n` +
@@ -204,19 +205,19 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
         shouldContinue: false,
         reply: {
           text:
-            `📏 TTS limit: ${currentLimit} characters.\n\n` +
+            `📏 TTS limit: ${currentLimit} characters (max ${config.maxTextLength}).\n\n` +
             `Text longer than this triggers summary (if enabled).\n` +
-            `Range: 100-4096 chars (Telegram max).\n\n` +
+            `Range: 100-${config.maxTextLength} chars.\n\n` +
             `To change: /tts limit <number>\n` +
             `Example: /tts limit 2000`,
         },
       };
     }
     const next = Number.parseInt(args.trim(), 10);
-    if (!Number.isFinite(next) || next < 100 || next > 4096) {
+    if (!Number.isFinite(next) || next < 100 || next > config.maxTextLength) {
       return {
         shouldContinue: false,
-        reply: { text: "❌ Limit must be between 100 and 4096 characters." },
+        reply: { text: `❌ Limit must be between 100 and ${config.maxTextLength} characters.` },
       };
     }
     setTtsMaxLength(prefsPath, next);
@@ -261,12 +262,14 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
     const hasKey = isTtsProviderConfigured(config, provider);
     const maxLength = getTtsMaxLength(prefsPath);
     const summarize = isSummarizationEnabled(prefsPath);
+    const autoMode = resolveTtsAutoMode({ config, prefsPath });
     const last = getLastTtsAttempt();
     const lines = [
       "📊 TTS status",
       `State: ${enabled ? "✅ enabled" : "❌ disabled"}`,
+      `Auto mode: ${autoMode}`,
       `Provider: ${provider} (${hasKey ? "✅ configured" : "❌ not configured"})`,
-      `Text limit: ${maxLength} chars`,
+      `Text limit: ${maxLength} chars (max ${config.maxTextLength})`,
       `Auto-summary: ${summarize ? "on" : "off"}`,
     ];
     if (last) {
@@ -274,6 +277,9 @@ export const handleTtsCommands: CommandHandler = async (params, allowTextCommand
       lines.push("");
       lines.push(`Last attempt (${timeAgo}s ago): ${last.success ? "✅" : "❌"}`);
       lines.push(`Text: ${last.textLength} chars${last.summarized ? " (summarized)" : ""}`);
+      if (last.preview) {
+        lines.push(`Preview: ${last.preview}`);
+      }
       if (last.success) {
         lines.push(`Provider: ${last.provider ?? "unknown"}`);
         lines.push(`Latency: ${last.latencyMs ?? 0}ms`);

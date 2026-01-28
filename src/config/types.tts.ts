@@ -104,6 +104,8 @@ export type TtsConfig = {
     refText?: string;
     /** Output format override (ogg, mp3, wav). */
     outputFormat?: "ogg" | "mp3" | "wav";
+    /** Qwen TTS timeout (ms). */
+    timeoutMs?: number;
   };
   /** Optional path for local TTS user preferences JSON. */
   prefsPath?: string;

@@ -9,6 +9,7 @@ import {
   rmSync,
   renameSync,
   unlinkSync,
+  statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -32,6 +33,7 @@ import {
 import { resolveModel } from "../agents/pi-embedded-runner/model.js";
 import { normalizeChannelId } from "../channels/plugins/index.js";
 import { logVerbose } from "../globals.js";
+import { logInfo } from "../logger.js";
 import { isVoiceCompatibleAudio } from "../media/audio.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { CONFIG_DIR, resolveUserPath } from "../utils.js";
@@ -39,7 +41,7 @@ import { CONFIG_DIR, resolveUserPath } from "../utils.js";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_TTS_MAX_LENGTH = 1500;
 const DEFAULT_TTS_SUMMARIZE = true;
-const DEFAULT_MAX_TEXT_LENGTH = 4096;
+const DEFAULT_MAX_TEXT_LENGTH = 8000;
 const TEMP_FILE_CLEANUP_DELAY_MS = 5 * 60 * 1000; // 5 minutes
 
 const DEFAULT_ELEVENLABS_BASE_URL = "https://api.elevenlabs.io";
@@ -53,6 +55,8 @@ const DEFAULT_EDGE_OUTPUT_FORMAT = "audio-24khz-48kbitrate-mono-mp3";
 const DEFAULT_QWEN_COMMAND = "sam_tts.py";
 const DEFAULT_QWEN_REF_AUDIO = "~/.openclaw/voices/sam_reference.wav";
 const DEFAULT_QWEN_OUTPUT_FORMAT = "mp3";
+const DEFAULT_QWEN_TIMEOUT_MS = 180_000;
+const MIN_TTS_CHAR_COUNT = 3;
 
 const DEFAULT_ELEVENLABS_VOICE_SETTINGS = {
   stability: 0.5,
@@ -142,6 +146,7 @@ export type ResolvedTtsConfig = {
     refAudio?: string;
     refText?: string;
     outputFormat?: "ogg" | "mp3" | "wav";
+    timeoutMs?: number;
   };
   prefsPath?: string;
   maxTextLength: number;
@@ -233,6 +238,7 @@ type TtsStatusEntry = {
   provider?: string;
   latencyMs?: number;
   error?: string;
+  preview?: string;
 };
 
 let lastTtsAttempt: TtsStatusEntry | undefined;
@@ -344,6 +350,7 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
       refAudio: raw.qwen?.refAudio?.trim() || DEFAULT_QWEN_REF_AUDIO,
       refText: raw.qwen?.refText?.trim() || undefined,
       outputFormat: raw.qwen?.outputFormat ?? DEFAULT_QWEN_OUTPUT_FORMAT,
+      timeoutMs: raw.qwen?.timeoutMs ?? DEFAULT_QWEN_TIMEOUT_MS,
     },
     prefsPath: raw.prefsPath,
     maxTextLength: raw.maxTextLength ?? DEFAULT_MAX_TEXT_LENGTH,
@@ -408,7 +415,7 @@ export function buildTtsSystemPromptHint(cfg: OpenClawConfig): string | undefine
     "Voice (TTS) is enabled.",
     autoHint,
     `Keep spoken text ≤${maxLength} chars to avoid auto-summary (summary ${summarize}).`,
-    "Use [[tts:...]] and optional [[tts:text]]...[[/tts:text]] to control voice/expressiveness.",
+    "Use [[tts]] (tag) and optional [[tts:text]]...[[/tts:text]] to control voice; overrides use [[tts:key=value]].",
   ]
     .filter(Boolean)
     .join("\n");
@@ -573,6 +580,30 @@ function resolveQwenJsonInput(raw: string): string | null {
   return null;
 }
 
+const TTS_EMOJI_RE = /\p{Extended_Pictographic}|\uFE0F/gu;
+const TTS_CODE_FENCE_RE = /```(?:[^\n]*\n)?([\s\S]*?)```/g;
+const TTS_INLINE_CODE_RE = /`([^`]+)`/g;
+const TTS_MARKDOWN_LINK_RE = /\[([^\]]+)\]\([^)]+\)/g;
+const TTS_AUDIO_TAG_RE = /\[\[\s*audio_as_voice\s*\]\]/gi;
+const TTS_PREVIEW_LIMIT = 160;
+
+function normalizeTtsInput(text: string): string {
+  let normalized = text;
+  normalized = normalized.replace(TTS_AUDIO_TAG_RE, " ");
+  normalized = normalized.replace(TTS_CODE_FENCE_RE, "$1");
+  normalized = normalized.replace(TTS_INLINE_CODE_RE, "$1");
+  normalized = normalized.replace(TTS_MARKDOWN_LINK_RE, "$1");
+  normalized = normalized.replace(TTS_EMOJI_RE, "");
+  normalized = normalized.replace(/\s+/g, " ").trim();
+  return normalized;
+}
+
+function buildTtsPreview(text: string, limit = TTS_PREVIEW_LIMIT): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= limit) return trimmed;
+  return `${trimmed.slice(0, limit - 3)}...`;
+}
+
 function resolveEdgeOutputFormat(config: ResolvedTtsConfig): string {
   return config.edge.outputFormat;
 }
@@ -698,6 +729,12 @@ function parseTtsDirectives(
   const warnings: string[] = [];
   let cleanedText = text;
   let hasDirective = false;
+
+  const bareTagRegex = /\[\[\s*tts\s*\]\]/gi;
+  cleanedText = cleanedText.replace(bareTagRegex, () => {
+    hasDirective = true;
+    return "";
+  });
 
   const blockRegex = /\[\[tts:text\]\]([\s\S]*?)\[\[\/tts:text\]\]/gi;
   cleanedText = cleanedText.replace(blockRegex, (_match, inner: string) => {
@@ -1465,7 +1502,8 @@ export async function textToSpeech(params: {
   const userProvider = getTtsProvider(config, prefsPath);
   const overrideProvider = params.overrides?.provider;
   const provider = overrideProvider ?? userProvider;
-  const providers = resolveTtsProviderOrder(provider);
+  const providers: TtsProvider[] =
+    provider === "qwen" ? ["qwen"] : resolveTtsProviderOrder(provider);
 
   let lastError: string | undefined;
 
@@ -1555,7 +1593,7 @@ export async function textToSpeech(params: {
             outputFormat,
             config: config.qwen,
             overrides: params.overrides?.qwen,
-            timeoutMs: config.timeoutMs,
+            timeoutMs: config.qwen.timeoutMs ?? config.timeoutMs,
           });
         } catch (err) {
           try {
@@ -1764,7 +1802,7 @@ export async function maybeApplyTtsToPayload(params: {
     prefsPath,
     sessionAuto: params.ttsAuto,
   });
-  if (autoMode === "off") {
+  if (params.payload.skipTts) {
     return params.payload;
   }
 
@@ -1778,6 +1816,8 @@ export async function maybeApplyTtsToPayload(params: {
   const trimmedCleaned = cleanedText.trim();
   const visibleText = trimmedCleaned.length > 0 ? trimmedCleaned : "";
   const ttsText = directives.ttsText?.trim() || visibleText;
+  const normalizedTtsText = normalizeTtsInput(ttsText);
+  const normalizedTrimmed = normalizedTtsText.trim();
 
   const nextPayload =
     visibleText === text.trim()
@@ -1787,10 +1827,15 @@ export async function maybeApplyTtsToPayload(params: {
           text: visibleText.length > 0 ? visibleText : undefined,
         };
 
-  if (autoMode === "tagged" && !directives.hasDirective) {
+  const effectiveAutoMode = autoMode === "off" && directives.hasDirective ? "tagged" : autoMode;
+
+  if (effectiveAutoMode === "off") {
     return nextPayload;
   }
-  if (autoMode === "inbound" && params.inboundAudio !== true) {
+  if (effectiveAutoMode === "tagged" && !directives.hasDirective) {
+    return nextPayload;
+  }
+  if (effectiveAutoMode === "inbound" && params.inboundAudio !== true) {
     return nextPayload;
   }
 
@@ -1799,7 +1844,7 @@ export async function maybeApplyTtsToPayload(params: {
     return nextPayload;
   }
 
-  if (!ttsText.trim()) {
+  if (!normalizedTrimmed) {
     return nextPayload;
   }
   if (params.payload.mediaUrl || (params.payload.mediaUrls?.length ?? 0) > 0) {
@@ -1808,12 +1853,12 @@ export async function maybeApplyTtsToPayload(params: {
   if (text.includes("MEDIA:")) {
     return nextPayload;
   }
-  if (ttsText.trim().length < 10) {
+  if (normalizedTrimmed.length < MIN_TTS_CHAR_COUNT) {
     return nextPayload;
   }
 
   const maxLength = getTtsMaxLength(prefsPath);
-  let textForAudio = ttsText.trim();
+  let textForAudio = normalizedTrimmed;
   let wasSummarized = false;
 
   if (textForAudio.length > maxLength) {
@@ -1849,6 +1894,14 @@ export async function maybeApplyTtsToPayload(params: {
     }
   }
 
+  textForAudio = normalizeTtsInput(textForAudio);
+  if (!textForAudio.trim()) return nextPayload;
+
+  const preview = buildTtsPreview(textForAudio);
+  logInfo(
+    `TTS: start len=${textForAudio.length} mode=${mode} auto=${autoMode} channel=${params.channel ?? "unknown"} preview="${preview}"`,
+  );
+
   const ttsStart = Date.now();
   const result = await textToSpeech({
     text: textForAudio,
@@ -1866,14 +1919,26 @@ export async function maybeApplyTtsToPayload(params: {
       summarized: wasSummarized,
       provider: result.provider,
       latencyMs: result.latencyMs,
+      preview,
     };
+
+    let audioBytes = 0;
+    try {
+      audioBytes = statSync(result.audioPath).size;
+    } catch {
+      audioBytes = 0;
+    }
+    logInfo(
+      `TTS: ok provider=${result.provider ?? "unknown"} latency=${result.latencyMs ?? 0}ms bytes=${audioBytes}`,
+    );
 
     const channelId = resolveChannelId(params.channel);
     const shouldVoice = channelId === "telegram" && result.voiceCompatible === true;
-    const finalPayload = {
+    const finalPayload: ReplyPayload = {
       ...nextPayload,
       mediaUrl: result.audioPath,
       audioAsVoice: shouldVoice || params.payload.audioAsVoice,
+      text: channelId === "telegram" ? undefined : nextPayload.text,
     };
     return finalPayload;
   }
@@ -1884,9 +1949,13 @@ export async function maybeApplyTtsToPayload(params: {
     textLength: text.length,
     summarized: wasSummarized,
     error: result.error,
+    preview,
   };
 
   const latency = Date.now() - ttsStart;
+  logInfo(
+    `TTS: failed latency=${latency}ms error=${result.error ?? "unknown"} preview="${preview}"`,
+  );
   logVerbose(`TTS: conversion failed after ${latency}ms (${result.error ?? "unknown"}).`);
   return nextPayload;
 }
