@@ -26,6 +26,7 @@ import {
   normalizeMessageChannel,
 } from "../../utils/message-channel.js";
 import { resolveAssistantIdentity } from "../assistant-identity.js";
+import { extractThreadIdFromSessionKey, normalizeAgentId } from "../../routing/session-key.js";
 import { parseMessageWithAttachments } from "../chat-attachments.js";
 import { resolveAssistantAvatarUrl } from "../control-ui-shared.js";
 import {
@@ -308,11 +309,14 @@ export const agentHandlers: GatewayRequestHandlers = {
       typeof request.threadId === "string" && request.threadId.trim()
         ? request.threadId.trim()
         : undefined;
+    // Extract threadId from sessionKey if not explicitly provided
+    const sessionKeyThreadId = extractThreadIdFromSessionKey(requestedSessionKey) ?? undefined;
+    const finalExplicitThreadId = explicitThreadId ?? sessionKeyThreadId;
     const deliveryPlan = resolveAgentDeliveryPlan({
       sessionEntry,
       requestedChannel: request.replyChannel ?? request.channel,
       explicitTo,
-      explicitThreadId,
+      explicitThreadId: finalExplicitThreadId,
       accountId: request.replyAccountId ?? request.accountId,
       wantsDelivery,
     });
