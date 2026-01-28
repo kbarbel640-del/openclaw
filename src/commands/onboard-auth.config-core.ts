@@ -416,7 +416,7 @@ export function applyVeniceConfig(cfg: MoltbotConfig): MoltbotConfig {
  * Apply Perplexity Agentic provider configuration without changing the default model.
  * Registers model alias but preserves existing model selection.
  */
-export function applyPerplexityAgenticProviderConfig(cfg: ClawdbotConfig): ClawdbotConfig {
+export function applyPerplexityAgenticProviderConfig(cfg: MoltbotConfig): MoltbotConfig {
   const models = { ...cfg.agents?.defaults?.models };
   models[PERPLEXITY_AGENTIC_DEFAULT_MODEL_REF] = {
     ...models[PERPLEXITY_AGENTIC_DEFAULT_MODEL_REF],
@@ -439,7 +439,7 @@ export function applyPerplexityAgenticProviderConfig(cfg: ClawdbotConfig): Clawd
  * Apply Perplexity Agentic provider configuration AND set it as the default model.
  * Use this when Perplexity Agentic is the primary provider choice during onboarding.
  */
-export function applyPerplexityAgenticConfig(cfg: ClawdbotConfig): ClawdbotConfig {
+export function applyPerplexityAgenticConfig(cfg: MoltbotConfig): MoltbotConfig {
   const next = applyPerplexityAgenticProviderConfig(cfg);
   const existingModel = next.agents?.defaults?.model;
   return {
