@@ -25,27 +25,49 @@ type SyncManagerLogger = {
 };
 
 type SyncManagerState = {
-  intervalId: ReturnType<typeof setInterval> | null;
+  timeoutId: ReturnType<typeof setTimeout> | null;
   lastSyncAt: Date | null;
   lastSyncOk: boolean | null;
   syncCount: number;
   errorCount: number;
   hasSuccessfulSync: boolean;
-  syncInProgress: boolean;
+  running: boolean;
+  intervalMs: number;
 };
 
 const state: SyncManagerState = {
-  intervalId: null,
+  timeoutId: null,
   lastSyncAt: null,
   lastSyncOk: null,
   syncCount: 0,
   errorCount: 0,
   hasSuccessfulSync: false,
-  syncInProgress: false,
+  running: false,
+  intervalMs: 0,
 };
 
 let currentConfig: MoltbotConfig | null = null;
 let currentLogger: SyncManagerLogger | null = null;
+
+/**
+ * Schedule the next sync after the configured interval.
+ * Uses setTimeout chain pattern - next sync schedules AFTER current completes.
+ */
+function scheduleNextSync(): void {
+  if (!state.running || state.intervalMs <= 0) return;
+
+  state.timeoutId = setTimeout(() => {
+    runSyncLoop();
+  }, state.intervalMs);
+}
+
+/**
+ * Run sync and schedule next. This is the main loop.
+ */
+async function runSyncLoop(): Promise<void> {
+  await runSync();
+  scheduleNextSync();
+}
 
 /**
  * Run a single sync operation.
@@ -57,14 +79,7 @@ async function runSync(): Promise<void> {
   const syncConfig = currentConfig.workspace?.sync;
   if (!syncConfig?.provider || syncConfig.provider === "off") return;
 
-  // Skip if a sync is already in progress
-  if (state.syncInProgress) {
-    currentLogger.info("[workspace-sync] Sync already in progress, skipping");
-    return;
-  }
-
   const logger = currentLogger;
-  state.syncInProgress = true;
 
   try {
     // Check if rclone is available
@@ -146,8 +161,6 @@ async function runSync(): Promise<void> {
     logger.error(
       `[workspace-sync] Periodic sync error: ${err instanceof Error ? err.message : String(err)}`,
     );
-  } finally {
-    state.syncInProgress = false;
   }
 }
 
@@ -214,15 +227,14 @@ export function startWorkspaceSyncManager(cfg: MoltbotConfig, logger: SyncManage
     `[workspace-sync] Starting periodic sync every ${effectiveInterval}s (pure file sync, zero LLM cost)`,
   );
 
-  // Run initial sync after a short delay (let gateway fully start)
-  setTimeout(() => {
-    runSync().catch(() => {});
-  }, 5000);
+  state.running = true;
+  state.intervalMs = effectiveInterval * 1000;
 
-  // Set up periodic sync
-  state.intervalId = setInterval(() => {
-    runSync().catch(() => {});
-  }, effectiveInterval * 1000);
+  // Run initial sync after a short delay (let gateway fully start)
+  // Then schedule subsequent syncs via setTimeout chain
+  state.timeoutId = setTimeout(() => {
+    runSyncLoop();
+  }, 5000);
 }
 
 /**
@@ -230,9 +242,10 @@ export function startWorkspaceSyncManager(cfg: MoltbotConfig, logger: SyncManage
  * Called when the gateway stops.
  */
 export function stopWorkspaceSyncManager(): void {
-  if (state.intervalId) {
-    clearInterval(state.intervalId);
-    state.intervalId = null;
+  state.running = false;
+  if (state.timeoutId) {
+    clearTimeout(state.timeoutId);
+    state.timeoutId = null;
   }
   currentConfig = null;
   currentLogger = null;
@@ -249,7 +262,7 @@ export function getWorkspaceSyncStatus(): {
   errorCount: number;
 } {
   return {
-    running: state.intervalId !== null,
+    running: state.running,
     lastSyncAt: state.lastSyncAt,
     lastSyncOk: state.lastSyncOk,
     syncCount: state.syncCount,
