@@ -84,6 +84,32 @@ Status: beta.
 - macOS: keep custom SSH usernames in remote target. (#2046) Thanks @algal.
 - CLI: use Node's module compile cache for faster startup. (#2808) Thanks @pi0.
 - Routing: add per-account DM session scope and document multi-account isolation. (#3095) Thanks @jarvis-sam.
+- Mobile: iOS refactor - split NodeAppModel.swift into focused modules (40% reduction).
+- Mobile: Android refactor - split NodeRuntime.kt into focused modules (40% reduction).
+- Mobile: add offline message queue for iOS with file protection.
+- Mobile: add FCM push service for Android (MoltbotMessagingService).
+- Mobile: add background sync worker for Android.
+- Mobile: add deep linking support (moltbot:// URL scheme) for iOS and Android.
+- Mobile: add TTS voice selection settings for iOS.
+- Mobile: add privacy manifest (PrivacyInfo.xcprivacy) for iOS 17+.
+- Mobile: add ProGuard rules and enable minification for Android release builds.
+- Enterprise: add health endpoints (/health, /ready, /health/deep).
+- Enterprise: add Prometheus metrics endpoint (/metrics) with prom-client.
+- Enterprise: add W3C traceparent request tracing with AsyncLocalStorage.
+- Enterprise: add JSONL audit logging with daily rotation and 7-day retention.
+- Enterprise: add RBAC permission engine with flat roles (admin, operator, user, viewer).
+- Enterprise: add load testing scenarios (connection stress, chat throughput, auth stress).
+- Marketplace: add MoltHub API client (search, details, install, updates).
+- Marketplace: add Marketplace tab in Web UI with browse/installed views.
+- Docs: add feature maturity matrix classifying 100+ features.
+- Docs: add skills contribution guide (SKILL.md format, gating, publishing).
+- Docs: add plugins contribution guide (manifest, API, distribution).
+- Compliance: add incident response procedures (P1-P4 severity, 5-phase response).
+- Compliance: add access control policy (RBAC governance, provisioning/revocation).
+- Compliance: add SOC2 readiness checklist for all TSC criteria.
+- Compliance: add change management procedures (standard/normal/emergency workflows).
+- Compliance: add vulnerability disclosure policy with safe harbor.
+- Compliance: add security metrics and alerting configuration.
 
 ### Breaking
 - **BREAKING:** Gateway auth mode "none" is removed; gateway now requires token/password (Tailscale Serve identity still allowed).
@@ -131,6 +157,21 @@ Status: beta.
 - Gateway: default auth now fail-closed (token/password required; Tailscale Serve identity remains allowed).
 - Gateway: treat loopback + non-local Host connections as remote unless trusted proxy headers are present.
 - Onboarding: remove unsupported gateway auth "off" choice from onboarding/configure flows and CLI flags.
+- Security: wire rate limiting through gateway pipeline (auth failures, requests, channel sends).
+- Security: wire injection defenses in chat.send handler.
+- Security: enforce RBAC at runtime for agent access and command execution.
+- Security: fix exec blocklist bypass in argv-only code path.
+- Security: fix WhatsApp encrypted backup restoration (.bak.enc → .json.enc).
+- Security: fix timing side-channel in pairing signature verification.
+- Security: add persistent rate limit state for pairing brute-force protection.
+- Security: add startup RBAC config validation.
+- Security: add early message size check before JSON parsing.
+- Security: add audit logging for insecure Control UI options.
+- Mobile: fix Android build break from duplicate Kotlin functions.
+- Mobile: fix iOS voice transcript using wrong session key variable.
+- Mobile: add EncryptedSharedPreferences for Android FCM token storage.
+- Mobile: add deep JSON validation for A2UI messages in Android.
+- Mobile: add enhanced JSON escaping for Canvas messages.
 
 ## 2026.1.24-3
 
