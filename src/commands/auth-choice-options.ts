@@ -75,7 +75,7 @@ const AUTH_CHOICE_GROUP_DEFS: {
     value: "google",
     label: "Google",
     hint: "Gemini API key + OAuth",
-    choices: ["gemini-api-key", "google-antigravity", "google-gemini-cli"],
+    choices: ["gemini-api-key", "google-gemini-cli"],
   },
   {
     value: "copilot",
@@ -153,11 +153,6 @@ export function buildAuthChoiceOptions(params: {
     hint: "Uses GitHub device flow",
   });
   options.push({ value: "gemini-api-key", label: "Google Gemini API key" });
-  options.push({
-    value: "google-antigravity",
-    label: "Google Antigravity OAuth",
-    hint: "Uses the bundled Antigravity auth plugin",
-  });
   options.push({
     value: "google-gemini-cli",
     label: "Google Gemini CLI OAuth",
