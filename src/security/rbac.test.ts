@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import type { ClawdbotConfig } from "../config/types.js";
+import type { MoltbotConfig } from "../config/types.js";
 import {
   isRbacEnabled,
   getRoleForUser,
@@ -42,12 +42,12 @@ describe("rbac", () => {
 
   describe("getRoleForUser", () => {
     it("returns null when RBAC is disabled", () => {
-      const config: ClawdbotConfig = { rbac: { enabled: false } };
+      const config: MoltbotConfig = { rbac: { enabled: false } };
       expect(getRoleForUser("user-1", config)).toBeNull();
     });
 
     it("returns assigned role when user is assigned", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "admin" },
@@ -59,7 +59,7 @@ describe("rbac", () => {
     });
 
     it("returns default role when user is not assigned", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           defaultRole: "viewer",
@@ -70,14 +70,14 @@ describe("rbac", () => {
     });
 
     it("returns null when no assignment and no default role", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: { enabled: true },
       };
       expect(getRoleForUser("user-1", config)).toBeNull();
     });
 
     it("uses custom role definitions", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           roles: {
@@ -97,21 +97,21 @@ describe("rbac", () => {
 
   describe("hasPermission", () => {
     it("allows everything when RBAC is disabled", () => {
-      const config: ClawdbotConfig = { rbac: { enabled: false } };
+      const config: MoltbotConfig = { rbac: { enabled: false } };
       const result = hasPermission("user-1", "exec.elevated", config);
       expect(result.allowed).toBe(true);
       expect(result.reason).toBe("rbac-disabled");
     });
 
     it("denies when user has no role", () => {
-      const config: ClawdbotConfig = { rbac: { enabled: true } };
+      const config: MoltbotConfig = { rbac: { enabled: true } };
       const result = hasPermission("user-1", "exec", config);
       expect(result.allowed).toBe(false);
       expect(result.reason).toBe("no-role-assigned");
     });
 
     it("allows when user has the permission", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "user" },
@@ -123,7 +123,7 @@ describe("rbac", () => {
     });
 
     it("denies when user lacks the permission", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "user" },
@@ -135,7 +135,7 @@ describe("rbac", () => {
     });
 
     it("admin role grants all permissions", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "admin" },
@@ -150,7 +150,7 @@ describe("rbac", () => {
 
   describe("canExecuteCommand", () => {
     it("allows basic commands with exec permission", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "user" },
@@ -161,7 +161,7 @@ describe("rbac", () => {
     });
 
     it("denies elevated commands without exec.elevated permission", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "user" },
@@ -172,7 +172,7 @@ describe("rbac", () => {
     });
 
     it("allows elevated commands with exec.elevated permission", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "admin" },
@@ -183,7 +183,7 @@ describe("rbac", () => {
     });
 
     it("detects sudo in various positions", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "user" },
@@ -198,7 +198,7 @@ describe("rbac", () => {
 
   describe("canAccessAgent", () => {
     it("allows all agents when no restrictions", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "user" },
@@ -210,7 +210,7 @@ describe("rbac", () => {
     });
 
     it("denies access to restricted agents", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           roles: {
@@ -228,7 +228,7 @@ describe("rbac", () => {
     });
 
     it("admin bypasses agent restrictions", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "admin" },
@@ -242,7 +242,7 @@ describe("rbac", () => {
 
   describe("canUseTool", () => {
     it("allows all tools when no restrictions", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "user" },
@@ -253,7 +253,7 @@ describe("rbac", () => {
     });
 
     it("denies tools on deny list", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           roles: {
@@ -271,7 +271,7 @@ describe("rbac", () => {
     });
 
     it("only allows tools on allow list when specified", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           roles: {
@@ -289,7 +289,7 @@ describe("rbac", () => {
     });
 
     it("deny takes precedence over allow", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           roles: {
@@ -307,7 +307,7 @@ describe("rbac", () => {
     });
 
     it("read-only role cannot use tools", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "viewer" },
@@ -321,7 +321,7 @@ describe("rbac", () => {
 
   describe("canApproveExec", () => {
     it("allows with exec.approve permission", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "operator" },
@@ -332,7 +332,7 @@ describe("rbac", () => {
     });
 
     it("denies without exec.approve permission", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "user" },
@@ -345,14 +345,14 @@ describe("rbac", () => {
 
   describe("getUserPermissionSummary", () => {
     it("returns disabled when RBAC is off", () => {
-      const config: ClawdbotConfig = { rbac: { enabled: false } };
+      const config: MoltbotConfig = { rbac: { enabled: false } };
       const summary = getUserPermissionSummary("user-1", config);
       expect(summary.enabled).toBe(false);
       expect(summary.roleId).toBeUndefined();
     });
 
     it("returns role details when RBAC is on", () => {
-      const config: ClawdbotConfig = {
+      const config: MoltbotConfig = {
         rbac: {
           enabled: true,
           assignments: { "user-1": "admin" },
@@ -366,7 +366,7 @@ describe("rbac", () => {
     });
 
     it("returns enabled with no role when user unassigned", () => {
-      const config: ClawdbotConfig = { rbac: { enabled: true } };
+      const config: MoltbotConfig = { rbac: { enabled: true } };
       const summary = getUserPermissionSummary("user-1", config);
       expect(summary.enabled).toBe(true);
       expect(summary.roleId).toBeUndefined();

@@ -5,7 +5,7 @@
  * When RBAC is disabled, all permissions are granted (backwards compatible).
  */
 
-import type { ClawdbotConfig } from "../config/types.js";
+import type { MoltbotConfig } from "../config/types.js";
 import type { RbacConfig, RbacPermission, RbacRoleDefinition } from "../config/types.rbac.js";
 import { auditRbacDenied } from "./audit-log.js";
 
@@ -43,7 +43,7 @@ const DEFAULT_ROLES: Record<string, RbacRoleDefinition> = {
 /**
  * Check if RBAC is enabled in the config.
  */
-export function isRbacEnabled(config?: ClawdbotConfig): boolean {
+export function isRbacEnabled(config?: MoltbotConfig): boolean {
   return config?.rbac?.enabled === true;
 }
 
@@ -54,7 +54,7 @@ export function isRbacEnabled(config?: ClawdbotConfig): boolean {
  * SECURITY: Call this during gateway startup to catch configuration
  * errors early rather than failing silently at runtime.
  */
-export function validateRbacConfig(config?: ClawdbotConfig): string[] | null {
+export function validateRbacConfig(config?: MoltbotConfig): string[] | null {
   if (!isRbacEnabled(config)) {
     return null; // RBAC disabled, no validation needed
   }
@@ -85,9 +85,10 @@ export function validateRbacConfig(config?: ClawdbotConfig): string[] | null {
   if (rbacConfig?.assignments) {
     const roles = { ...DEFAULT_ROLES, ...rbacConfig.roles };
     for (const [userId, roleId] of Object.entries(rbacConfig.assignments)) {
-      if (roleId && !roles[roleId]) {
+      const roleIdStr = String(roleId);
+      if (roleId && !roles[roleIdStr]) {
         errors.push(
-          `RBAC assignment for user '${userId}' references unknown role '${roleId}'. ` +
+          `RBAC assignment for user '${userId}' references unknown role '${roleIdStr}'. ` +
             `Available roles: ${Object.keys(roles).join(", ")}`,
         );
       }
@@ -100,7 +101,7 @@ export function validateRbacConfig(config?: ClawdbotConfig): string[] | null {
 /**
  * Get the RBAC config with defaults applied.
  */
-function getRbacConfig(config?: ClawdbotConfig): RbacConfig {
+function getRbacConfig(config?: MoltbotConfig): RbacConfig {
   return {
     enabled: false,
     roles: DEFAULT_ROLES,
@@ -125,7 +126,7 @@ function getRoles(rbacConfig: RbacConfig): Record<string, RbacRoleDefinition> {
  */
 export function getRoleForUser(
   senderId: string,
-  config?: ClawdbotConfig,
+  config?: MoltbotConfig,
 ): { roleId: string; role: RbacRoleDefinition } | null {
   const rbacConfig = getRbacConfig(config);
   const roles = getRoles(rbacConfig);
@@ -151,7 +152,7 @@ export function getRoleForUser(
 export function hasPermission(
   senderId: string,
   permission: RbacPermission,
-  config?: ClawdbotConfig,
+  config?: MoltbotConfig,
 ): RbacCheckResult {
   // If RBAC is disabled, allow everything
   if (!isRbacEnabled(config)) {
@@ -190,7 +191,7 @@ export function hasPermission(
 export function canExecuteCommand(
   senderId: string,
   command: string,
-  config?: ClawdbotConfig,
+  config?: MoltbotConfig,
 ): RbacCheckResult {
   // If RBAC is disabled, allow everything
   if (!isRbacEnabled(config)) {
@@ -244,7 +245,7 @@ function isElevatedCommand(command: string): boolean {
 export function canAccessAgent(
   senderId: string,
   agentId: string,
-  config?: ClawdbotConfig,
+  config?: MoltbotConfig,
 ): RbacCheckResult {
   // If RBAC is disabled, allow everything
   if (!isRbacEnabled(config)) {
@@ -298,7 +299,7 @@ export function canAccessAgent(
 export function canUseTool(
   senderId: string,
   toolName: string,
-  config?: ClawdbotConfig,
+  config?: MoltbotConfig,
 ): RbacCheckResult {
   // If RBAC is disabled, allow everything
   if (!isRbacEnabled(config)) {
@@ -364,7 +365,7 @@ export function canUseTool(
 /**
  * Check if a user can approve exec requests.
  */
-export function canApproveExec(senderId: string, config?: ClawdbotConfig): RbacCheckResult {
+export function canApproveExec(senderId: string, config?: MoltbotConfig): RbacCheckResult {
   return hasPermission(senderId, "exec.approve", config);
 }
 
@@ -373,7 +374,7 @@ export function canApproveExec(senderId: string, config?: ClawdbotConfig): RbacC
  */
 export function getUserPermissionSummary(
   senderId: string,
-  config?: ClawdbotConfig,
+  config?: MoltbotConfig,
 ): {
   enabled: boolean;
   roleId?: string;
