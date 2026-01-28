@@ -3,6 +3,8 @@ import { Type } from "@sinclair/typebox";
 import type { MoltbotConfig } from "../../config/config.js";
 import { loadConfig, resolveConfigSnapshotHash } from "../../config/io.js";
 import { loadSessionStore, resolveStorePath } from "../../config/sessions.js";
+import { loadCombinedSessionStoreForGateway } from "../../gateway/session-utils.js";
+import { listSessionsFromStore } from "../../gateway/session-utils.js";
 import { scheduleGatewaySigusr1Restart } from "../../infra/restart.js";
 import {
   formatDoctorNonInteractiveHint,
@@ -41,6 +43,7 @@ const GatewayToolSchema = Type.Object({
   // restart
   delayMs: Type.Optional(Type.Number()),
   reason: Type.Optional(Type.String()),
+  force: Type.Optional(Type.Boolean()),
   // config.get, config.schema, config.apply, update.run
   gatewayUrl: Type.Optional(Type.String()),
   gatewayToken: Type.Optional(Type.String()),
@@ -75,6 +78,46 @@ export function createGatewayTool(opts?: {
         if (opts?.config?.commands?.restart !== true) {
           throw new Error("Gateway restart is disabled. Set commands.restart=true to enable.");
         }
+
+        // Pre-flight check: warn if other sessions are active
+        const forceRestart = params.force === true;
+        if (!forceRestart) {
+          try {
+            const cfg = loadConfig();
+            const { storePath, store } = loadCombinedSessionStoreForGateway(cfg);
+            const activeList = listSessionsFromStore({
+              cfg,
+              storePath,
+              store,
+              opts: { activeMinutes: 5, limit: 20 },
+            });
+            // Filter out the current session from active list
+            const currentSessionKey = opts?.agentSessionKey?.trim();
+            const otherActiveSessions = activeList.sessions.filter(
+              (s) => s.key !== currentSessionKey,
+            );
+            if (otherActiveSessions.length > 0) {
+              const sessionList = otherActiveSessions
+                .slice(0, 10)
+                .map((s) => `- ${s.key} (${s.displayName || s.label || "unknown"})`)
+                .join("\n");
+              const moreCount =
+                otherActiveSessions.length > 10 ? otherActiveSessions.length - 10 : 0;
+              const moreNote = moreCount > 0 ? `\n... and ${moreCount} more` : "";
+              return jsonResult({
+                status: "blocked",
+                reason: "active_sessions",
+                message: `Found ${otherActiveSessions.length} active session(s) in the last 5 minutes. Restart would interrupt them.`,
+                activeSessions: sessionList + moreNote,
+                hint: "Pass force: true to restart anyway, or wait for sessions to complete.",
+              });
+            }
+          } catch {
+            // If session check fails, proceed with restart (fail open)
+            console.warn("gateway tool: failed to check active sessions, proceeding with restart");
+          }
+        }
+
         const sessionKey =
           typeof params.sessionKey === "string" && params.sessionKey.trim()
             ? params.sessionKey.trim()
