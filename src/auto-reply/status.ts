@@ -72,6 +72,8 @@ type StatusArgs = {
   subagentsLine?: string;
   includeTranscriptUsage?: boolean;
   now?: number;
+  /** Venice balance status line (e.g., "🏛️ Venice: DIEM: 44.32 · Status: ✅ OK"). */
+  veniceBalanceLine?: string;
 };
 
 function resolveRuntimeLabel(
@@ -414,6 +416,11 @@ export function buildStatusMessage(args: StatusArgs): string {
   const mediaLine = formatMediaUnderstandingLine(args.mediaDecisions);
   const voiceLine = formatVoiceModeLine(args.config, args.sessionEntry);
 
+  // Format Venice balance line with emoji prefix if present
+  const veniceBalanceLine = args.veniceBalanceLine
+    ? `🏛️ Venice: ${args.veniceBalanceLine}`
+    : null;
+
   return [
     versionLine,
     args.timeLine,
@@ -422,6 +429,7 @@ export function buildStatusMessage(args: StatusArgs): string {
     `📚 ${contextLine}`,
     mediaLine,
     args.usageLine,
+    veniceBalanceLine,
     `🧵 ${sessionLine}`,
     args.subagentsLine,
     `⚙️ ${optionsLine}`,

@@ -19,6 +19,12 @@ import { formatUserTime, resolveUserTimeFormat, resolveUserTimezone } from "../d
 import { normalizeGroupActivation } from "../../auto-reply/group-activation.js";
 import { getFollowupQueueDepth, resolveQueueSettings } from "../../auto-reply/reply/queue.js";
 import { buildStatusMessage } from "../../auto-reply/status.js";
+import {
+  formatVeniceBalanceStatus,
+  getVeniceBalance,
+  isVeniceProvider,
+  resolveVeniceBalanceThresholds,
+} from "../../providers/venice-balance.js";
 import type { MoltbotConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import {
@@ -410,6 +416,15 @@ export function createSessionStatusTool(opts?: {
         typeof agentDefaults.model === "object" && agentDefaults.model
           ? { ...agentDefaults.model, primary: defaultLabel }
           : { primary: defaultLabel };
+
+      // Generate Venice balance line if using Venice provider
+      let veniceBalanceLine: string | undefined;
+      if (isVeniceProvider(providerForCard)) {
+        const balance = getVeniceBalance();
+        const thresholds = resolveVeniceBalanceThresholds(cfg);
+        veniceBalanceLine = formatVeniceBalanceStatus(balance, thresholds) ?? undefined;
+      }
+
       const statusText = buildStatusMessage({
         config: cfg,
         agent: {
@@ -427,6 +442,7 @@ export function createSessionStatusTool(opts?: {
         }),
         usageLine,
         timeLine,
+        veniceBalanceLine,
         queue: {
           mode: queueSettings.mode,
           depth: queueDepth,

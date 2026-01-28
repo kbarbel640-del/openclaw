@@ -4,6 +4,61 @@ import type { MoltbotConfig } from "../../config/config.js";
 import { formatSandboxToolPolicyBlockedMessage } from "../sandbox.js";
 import type { FailoverReason } from "./types.js";
 
+/**
+ * Venice-specific billing/balance error patterns.
+ */
+const VENICE_BILLING_PATTERNS = [
+  "insufficient balance",
+  "insufficient_balance",
+  "spending_cap_exceeded",
+  "spending cap",
+  "balance depleted",
+  "diem balance",
+] as const;
+
+/**
+ * Check if an error message is a Venice-specific billing/balance error.
+ */
+export function isVeniceBillingError(errorMessage?: string): boolean {
+  if (!errorMessage) return false;
+  const lower = errorMessage.toLowerCase();
+  return VENICE_BILLING_PATTERNS.some((pattern) => lower.includes(pattern));
+}
+
+/**
+ * Format a Venice billing error with helpful guidance.
+ */
+export function formatVeniceBillingError(errorMessage: string): string {
+  const lower = errorMessage.toLowerCase();
+
+  if (lower.includes("insufficient balance") || lower.includes("insufficient_balance")) {
+    return (
+      "❌ Venice API error: Insufficient DIEM balance.\n" +
+      "Top up at: https://venice.ai/settings/billing"
+    );
+  }
+
+  if (lower.includes("spending_cap_exceeded") || lower.includes("spending cap")) {
+    return (
+      "❌ Venice API error: API key spending cap reached.\n" +
+      "Increase cap in API key settings or use a different key."
+    );
+  }
+
+  if (lower.includes("balance depleted") || lower.includes("diem balance")) {
+    return (
+      "❌ Venice API error: DIEM balance depleted.\n" +
+      "Top up at: https://venice.ai/settings/billing"
+    );
+  }
+
+  // Generic Venice billing error
+  return (
+    "❌ Venice API billing error.\n" +
+    "Check your balance at: https://venice.ai/settings/billing"
+  );
+}
+
 export function isContextOverflowError(errorMessage?: string): boolean {
   if (!errorMessage) return false;
   const lower = errorMessage.toLowerCase();
@@ -299,6 +354,11 @@ export function formatAssistantErrorText(
     return "The AI service is temporarily overloaded. Please try again in a moment.";
   }
 
+  // Venice-specific billing/balance error handling
+  if (isVeniceBillingError(raw)) {
+    return formatVeniceBillingError(raw);
+  }
+
   if (isLikelyHttpErrorText(raw) || isRawApiErrorPayload(raw)) {
     return formatRawAssistantErrorForUi(raw);
   }
@@ -371,6 +431,14 @@ const ERROR_PATTERNS = {
     "insufficient credits",
     "credit balance",
     "plans & billing",
+    // Venice-specific balance/billing errors
+    "insufficient balance",
+    "insufficient_balance",
+    "spending_cap_exceeded",
+    "spending cap",
+    "balance depleted",
+    "out of credits",
+    "diem balance",
   ],
   auth: [
     /invalid[_ ]?api[_ ]?key/,

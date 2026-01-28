@@ -72,11 +72,27 @@ export const BedrockDiscoverySchema = z
   .strict()
   .optional();
 
+export const VeniceBalanceWarningSchema = z
+  .object({
+    /** Enable balance warnings (default: true). */
+    enabled: z.boolean().optional(),
+    /** Warn when DIEM balance falls below this threshold (default: 10). */
+    lowDiemThreshold: z.number().nonnegative().optional(),
+    /** Critical warning when DIEM balance falls below this threshold (default: 2). */
+    criticalDiemThreshold: z.number().nonnegative().optional(),
+    /** Show balance in /status output (default: true). */
+    showInStatus: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
 export const ModelsConfigSchema = z
   .object({
     mode: z.union([z.literal("merge"), z.literal("replace")]).optional(),
     providers: z.record(z.string(), ModelProviderSchema).optional(),
     bedrockDiscovery: BedrockDiscoverySchema,
+    /** Venice-specific balance warning configuration. */
+    veniceBalanceWarning: VeniceBalanceWarningSchema,
   })
   .strict()
   .optional();

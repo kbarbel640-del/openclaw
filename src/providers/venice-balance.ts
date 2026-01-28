@@ -1,0 +1,356 @@
+/**
+ * Venice balance tracking module.
+ *
+ * Extracts and tracks Venice API balance from response headers:
+ * - x-venice-balance-diem: DIEM token balance
+ * - x-venice-balance-usd: USD credit balance
+ * - x-venice-balance-vcu: VCU balance
+ *
+ * This module provides:
+ * - Balance extraction from response headers
+ * - Global balance state management
+ * - Warning/threshold evaluation
+ * - Fetch interceptor for automatic balance capture
+ */
+
+export interface VeniceBalance {
+  diem?: number;
+  usd?: number;
+  vcu?: number;
+  lastChecked: number;
+  /** Provider identifier (for multi-key scenarios) */
+  providerId?: string;
+}
+
+export interface VeniceBalanceThresholds {
+  enabled: boolean;
+  lowDiemThreshold: number;
+  criticalDiemThreshold: number;
+  showInStatus: boolean;
+}
+
+export const DEFAULT_VENICE_BALANCE_THRESHOLDS: VeniceBalanceThresholds = {
+  enabled: true,
+  lowDiemThreshold: 10,
+  criticalDiemThreshold: 2,
+  showInStatus: true,
+};
+
+// Singleton balance state (in-memory, cleared on restart)
+let currentBalance: VeniceBalance | null = null;
+let balanceUpdateCallbacks: Array<(balance: VeniceBalance) => void> = [];
+
+/**
+ * Extract Venice balance from response headers.
+ * Returns null if no Venice balance headers are present.
+ */
+export function extractVeniceBalance(headers: Headers | Record<string, string>): VeniceBalance | null {
+  const get = (key: string): string | null => {
+    if (headers instanceof Headers) {
+      return headers.get(key);
+    }
+    // Handle plain object headers
+    const value = headers[key] ?? headers[key.toLowerCase()];
+    return typeof value === "string" ? value : null;
+  };
+
+  const diemRaw = get("x-venice-balance-diem");
+  if (!diemRaw) return null;
+
+  const diem = parseFloat(diemRaw);
+  if (isNaN(diem)) return null;
+
+  const usdRaw = get("x-venice-balance-usd");
+  const vcuRaw = get("x-venice-balance-vcu");
+
+  return {
+    diem,
+    usd: usdRaw ? parseFloat(usdRaw) : undefined,
+    vcu: vcuRaw ? parseFloat(vcuRaw) : undefined,
+    lastChecked: Date.now(),
+  };
+}
+
+/**
+ * Update the current Venice balance state.
+ * Called by the streaming/fetch layer when Venice headers are detected.
+ */
+export function updateVeniceBalance(balance: VeniceBalance): void {
+  currentBalance = balance;
+  for (const callback of balanceUpdateCallbacks) {
+    try {
+      callback(balance);
+    } catch {
+      // Ignore callback errors
+    }
+  }
+}
+
+/**
+ * Get the current Venice balance (if known).
+ */
+export function getVeniceBalance(): VeniceBalance | null {
+  return currentBalance;
+}
+
+/**
+ * Clear the current Venice balance state.
+ * Useful for testing or when switching accounts.
+ */
+export function clearVeniceBalance(): void {
+  currentBalance = null;
+}
+
+/**
+ * Subscribe to balance updates.
+ * Returns an unsubscribe function.
+ */
+export function onVeniceBalanceUpdate(
+  callback: (balance: VeniceBalance) => void,
+): () => void {
+  balanceUpdateCallbacks.push(callback);
+  return () => {
+    balanceUpdateCallbacks = balanceUpdateCallbacks.filter((cb) => cb !== callback);
+  };
+}
+
+/**
+ * Evaluate balance status against thresholds.
+ */
+export type BalanceStatus = "ok" | "low" | "critical" | "depleted" | "unknown";
+
+export function evaluateBalanceStatus(
+  balance: VeniceBalance | null,
+  thresholds: VeniceBalanceThresholds = DEFAULT_VENICE_BALANCE_THRESHOLDS,
+): BalanceStatus {
+  if (!balance || balance.diem === undefined) return "unknown";
+  if (balance.diem <= 0) return "depleted";
+  if (balance.diem < thresholds.criticalDiemThreshold) return "critical";
+  if (balance.diem < thresholds.lowDiemThreshold) return "low";
+  return "ok";
+}
+
+/**
+ * Format balance for display in status output.
+ */
+export function formatVeniceBalanceStatus(
+  balance: VeniceBalance | null,
+  thresholds: VeniceBalanceThresholds = DEFAULT_VENICE_BALANCE_THRESHOLDS,
+): string | null {
+  if (!thresholds.showInStatus) return null;
+  if (!balance) return null;
+
+  const status = evaluateBalanceStatus(balance, thresholds);
+  const diemLabel = balance.diem !== undefined ? balance.diem.toFixed(2) : "?";
+  const ageMs = Date.now() - balance.lastChecked;
+  const ageLabel = formatAge(ageMs);
+
+  const statusEmoji: Record<BalanceStatus, string> = {
+    ok: "✅",
+    low: "⚠️",
+    critical: "🚨",
+    depleted: "❌",
+    unknown: "❓",
+  };
+
+  const parts = [
+    `DIEM: ${diemLabel}`,
+    `Status: ${statusEmoji[status]} ${status.toUpperCase()}`,
+    `(${ageLabel})`,
+  ];
+
+  if (balance.usd !== undefined) {
+    parts.splice(1, 0, `USD: $${balance.usd.toFixed(2)}`);
+  }
+
+  return parts.join(" · ");
+}
+
+/**
+ * Generate a user-facing balance warning message.
+ * Returns null if balance is OK or warnings are disabled.
+ */
+export function generateBalanceWarning(
+  balance: VeniceBalance | null,
+  thresholds: VeniceBalanceThresholds = DEFAULT_VENICE_BALANCE_THRESHOLDS,
+): string | null {
+  if (!thresholds.enabled) return null;
+  if (!balance || balance.diem === undefined) return null;
+
+  const status = evaluateBalanceStatus(balance, thresholds);
+  const diemLabel = balance.diem.toFixed(2);
+
+  switch (status) {
+    case "critical":
+      return `🚨 Venice balance critical: ${diemLabel} DIEM remaining. Consider topping up at https://venice.ai/settings/billing`;
+    case "low":
+      return `⚠️ Venice balance low: ${diemLabel} DIEM remaining`;
+    case "depleted":
+      return `❌ Venice balance depleted (0.00 DIEM). Top up at https://venice.ai/settings/billing`;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Check if an error message indicates Venice balance/billing issues.
+ */
+export function isVeniceBalanceError(error: string | Error): boolean {
+  const message = typeof error === "string" ? error : error.message;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("insufficient balance") ||
+    lower.includes("insufficient_balance") ||
+    lower.includes("spending_cap_exceeded") ||
+    lower.includes("spending cap") ||
+    lower.includes("credit limit") ||
+    lower.includes("out of credits") ||
+    lower.includes("balance depleted")
+  );
+}
+
+/**
+ * Format a Venice-specific error with helpful guidance.
+ */
+export function formatVeniceError(error: string | Error): string {
+  const message = typeof error === "string" ? error : error.message;
+  const lower = message.toLowerCase();
+
+  if (lower.includes("insufficient balance") || lower.includes("insufficient_balance")) {
+    const balance = getVeniceBalance();
+    const balanceNote = balance?.diem !== undefined ? ` (current: ${balance.diem.toFixed(2)} DIEM)` : "";
+    return `❌ Venice API error: Insufficient balance${balanceNote}.\nTop up at: https://venice.ai/settings/billing`;
+  }
+
+  if (lower.includes("spending_cap_exceeded") || lower.includes("spending cap")) {
+    return `❌ Venice API error: API key spending cap reached.\nIncrease cap in API key settings or use a different key.`;
+  }
+
+  if (lower.includes("rate_limit") || lower.includes("rate limit")) {
+    return `⏳ Venice API error: Rate limit exceeded.\nWait for reset or upgrade your plan.`;
+  }
+
+  // Return original error if not a known Venice error
+  return message;
+}
+
+// Helper to format age in human-readable form
+function formatAge(ms: number): string {
+  if (ms < 0) return "unknown";
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+/**
+ * Create a fetch wrapper that extracts Venice balance headers.
+ * Use this to wrap the global fetch when making Venice API calls.
+ */
+export function createVeniceFetchWrapper(
+  baseFetch: typeof fetch = globalThis.fetch,
+): typeof fetch {
+  return async function veniceFetch(
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> {
+    const response = await baseFetch(input, init);
+
+    // Try to extract Venice balance headers from response
+    const balance = extractVeniceBalance(response.headers);
+    if (balance) {
+      updateVeniceBalance(balance);
+    }
+
+    return response;
+  };
+}
+
+/**
+ * Check if a provider string represents Venice.
+ */
+export function isVeniceProvider(provider: string): boolean {
+  const normalized = provider.toLowerCase().trim();
+  return normalized === "venice" || normalized.startsWith("venice/");
+}
+
+/**
+ * Check if a URL is a Venice API endpoint.
+ */
+export function isVeniceApiUrl(url: string | URL | Request): boolean {
+  try {
+    const urlStr = url instanceof Request ? url.url : url.toString();
+    const parsed = new URL(urlStr);
+    return (
+      parsed.hostname === "api.venice.ai" ||
+      parsed.hostname.endsWith(".venice.ai")
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Track whether fetch interceptor is installed
+let fetchInterceptorInstalled = false;
+let originalFetch: typeof fetch | null = null;
+
+/**
+ * Install a global fetch interceptor to capture Venice balance headers.
+ * Safe to call multiple times - will only install once.
+ *
+ * @returns Uninstall function
+ */
+export function installVeniceFetchInterceptor(): () => void {
+  if (fetchInterceptorInstalled) {
+    return () => {}; // Already installed
+  }
+
+  originalFetch = globalThis.fetch;
+  fetchInterceptorInstalled = true;
+
+  globalThis.fetch = async function interceptedFetch(
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> {
+    const response = await originalFetch!(input, init);
+
+    // Only process Venice API responses
+    if (isVeniceApiUrl(input)) {
+      const balance = extractVeniceBalance(response.headers);
+      if (balance) {
+        updateVeniceBalance(balance);
+      }
+    }
+
+    return response;
+  };
+
+  return () => {
+    if (originalFetch && fetchInterceptorInstalled) {
+      globalThis.fetch = originalFetch;
+      originalFetch = null;
+      fetchInterceptorInstalled = false;
+    }
+  };
+}
+
+/**
+ * Resolve Venice balance thresholds from config.
+ */
+export function resolveVeniceBalanceThresholds(
+  config?: { models?: { veniceBalanceWarning?: Partial<VeniceBalanceThresholds> } },
+): VeniceBalanceThresholds {
+  const override = config?.models?.veniceBalanceWarning;
+  if (!override) return DEFAULT_VENICE_BALANCE_THRESHOLDS;
+
+  return {
+    enabled: override.enabled ?? DEFAULT_VENICE_BALANCE_THRESHOLDS.enabled,
+    lowDiemThreshold: override.lowDiemThreshold ?? DEFAULT_VENICE_BALANCE_THRESHOLDS.lowDiemThreshold,
+    criticalDiemThreshold: override.criticalDiemThreshold ?? DEFAULT_VENICE_BALANCE_THRESHOLDS.criticalDiemThreshold,
+    showInStatus: override.showInStatus ?? DEFAULT_VENICE_BALANCE_THRESHOLDS.showInStatus,
+  };
+}
