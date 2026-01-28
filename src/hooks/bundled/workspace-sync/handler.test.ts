@@ -21,6 +21,7 @@ vi.mock("../../../logging/subsystem.js", () => ({
 vi.mock("../../../infra/rclone.js", () => ({
   isRcloneInstalled: vi.fn(),
   isRcloneConfigured: vi.fn(),
+  ensureRcloneConfigFromConfig: vi.fn(),
   resolveSyncConfig: vi.fn(),
   runBisync: vi.fn(),
 }));

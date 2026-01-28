@@ -10,6 +10,7 @@ import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent
 import {
   isRcloneInstalled,
   isRcloneConfigured,
+  ensureRcloneConfigFromConfig,
   resolveSyncConfig,
   runBisync,
 } from "../infra/rclone.js";
@@ -63,6 +64,9 @@ async function runSync(): Promise<void> {
     const agentId = resolveDefaultAgentId(currentConfig);
     const workspaceDir = resolveAgentWorkspaceDir(currentConfig, agentId);
     const resolved = resolveSyncConfig(syncConfig, workspaceDir);
+
+    // Auto-generate rclone config from moltbot.json if credentials present
+    ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
 
     // Check if configured
     if (!isRcloneConfigured(resolved.configPath, resolved.remoteName)) {

@@ -283,6 +283,67 @@ export function isRcloneConfigured(configPath: string, remoteName: string): bool
 }
 
 /**
+ * Ensure rclone config exists, auto-generating from moltbot.json config if credentials are present.
+ * This allows users to configure sync entirely via moltbot.json + env vars without manual rclone setup.
+ *
+ * @returns true if config exists or was generated, false if credentials are missing
+ */
+export function ensureRcloneConfigFromConfig(
+  syncConfig: WorkspaceSyncConfig | undefined,
+  configPath: string,
+  remoteName: string,
+): boolean {
+  // If config already exists with this remote, we're good
+  if (isRcloneConfigured(configPath, remoteName)) {
+    return true;
+  }
+
+  if (!syncConfig?.provider || syncConfig.provider === "off") {
+    return false;
+  }
+
+  // For Dropbox: need token (appKey/appSecret optional but recommended)
+  if (syncConfig.provider === "dropbox") {
+    const token = syncConfig.dropbox?.token;
+    if (!token) {
+      return false;
+    }
+
+    logVerbose(`[rclone] Auto-generating config for ${remoteName} from moltbot.json credentials`);
+
+    const configContent = generateRcloneConfig(syncConfig.provider, remoteName, token, {
+      dropbox: {
+        appKey: syncConfig.dropbox?.appKey,
+        appSecret: syncConfig.dropbox?.appSecret,
+      },
+    });
+
+    writeRcloneConfig(configPath, configContent);
+    return true;
+  }
+
+  // For S3: need accessKeyId and secretAccessKey
+  if (syncConfig.provider === "s3") {
+    const { accessKeyId, secretAccessKey, endpoint, bucket, region } = syncConfig.s3 ?? {};
+    if (!accessKeyId || !secretAccessKey) {
+      return false;
+    }
+
+    logVerbose(`[rclone] Auto-generating config for ${remoteName} from moltbot.json credentials`);
+
+    const configContent = generateRcloneConfig(syncConfig.provider, remoteName, "", {
+      s3: { endpoint, bucket, region, accessKeyId, secretAccessKey },
+    });
+
+    writeRcloneConfig(configPath, configContent);
+    return true;
+  }
+
+  // Other providers require manual rclone config
+  return false;
+}
+
+/**
  * Run rclone authorize command (returns the token).
  * This must be run on a machine with a browser.
  */

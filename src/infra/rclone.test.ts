@@ -1,7 +1,14 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
-import { resolveSyncConfig, generateRcloneConfig, isRcloneConfigured } from "./rclone.js";
+import {
+  resolveSyncConfig,
+  generateRcloneConfig,
+  isRcloneConfigured,
+  ensureRcloneConfigFromConfig,
+} from "./rclone.js";
 
 describe("rclone helpers", () => {
   describe("resolveSyncConfig", () => {
@@ -153,6 +160,118 @@ describe("rclone helpers", () => {
     it("returns false when config file does not exist", () => {
       const result = isRcloneConfigured("/nonexistent/path/rclone.conf", "cloud");
       expect(result).toBe(false);
+    });
+  });
+
+  describe("ensureRcloneConfigFromConfig", () => {
+    let tempDir: string;
+    let configPath: string;
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "rclone-test-"));
+      configPath = path.join(tempDir, "rclone.conf");
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it("returns false when provider is off", () => {
+      const result = ensureRcloneConfigFromConfig({ provider: "off" }, configPath, "cloud");
+      expect(result).toBe(false);
+      expect(fs.existsSync(configPath)).toBe(false);
+    });
+
+    it("returns false when provider is undefined", () => {
+      const result = ensureRcloneConfigFromConfig(undefined, configPath, "cloud");
+      expect(result).toBe(false);
+    });
+
+    it("returns false when dropbox has no token", () => {
+      const result = ensureRcloneConfigFromConfig(
+        { provider: "dropbox", dropbox: { appKey: "key", appSecret: "secret" } },
+        configPath,
+        "cloud",
+      );
+      expect(result).toBe(false);
+      expect(fs.existsSync(configPath)).toBe(false);
+    });
+
+    it("generates config when dropbox has token", () => {
+      const result = ensureRcloneConfigFromConfig(
+        {
+          provider: "dropbox",
+          dropbox: {
+            token: '{"access_token":"test123"}',
+            appKey: "mykey",
+            appSecret: "mysecret",
+          },
+        },
+        configPath,
+        "cloud",
+      );
+
+      expect(result).toBe(true);
+      expect(fs.existsSync(configPath)).toBe(true);
+
+      const content = fs.readFileSync(configPath, "utf-8");
+      expect(content).toContain("[cloud]");
+      expect(content).toContain("type = dropbox");
+      expect(content).toContain('token = {"access_token":"test123"}');
+      expect(content).toContain("client_id = mykey");
+      expect(content).toContain("client_secret = mysecret");
+    });
+
+    it("returns true without regenerating when config already exists", () => {
+      // Create existing config
+      fs.mkdirSync(path.dirname(configPath), { recursive: true });
+      fs.writeFileSync(configPath, "[cloud]\ntype = dropbox\ntoken = old");
+
+      const result = ensureRcloneConfigFromConfig(
+        { provider: "dropbox", dropbox: { token: '{"new":"token"}' } },
+        configPath,
+        "cloud",
+      );
+
+      expect(result).toBe(true);
+      // Should NOT overwrite existing config
+      const content = fs.readFileSync(configPath, "utf-8");
+      expect(content).toContain("token = old");
+    });
+
+    it("returns false when s3 has no credentials", () => {
+      const result = ensureRcloneConfigFromConfig(
+        { provider: "s3", s3: { endpoint: "https://example.com" } },
+        configPath,
+        "cloud",
+      );
+      expect(result).toBe(false);
+    });
+
+    it("generates config when s3 has credentials", () => {
+      const result = ensureRcloneConfigFromConfig(
+        {
+          provider: "s3",
+          s3: {
+            endpoint: "https://r2.example.com",
+            accessKeyId: "AKID123",
+            secretAccessKey: "SECRET456",
+            region: "auto",
+          },
+        },
+        configPath,
+        "r2",
+      );
+
+      expect(result).toBe(true);
+      expect(fs.existsSync(configPath)).toBe(true);
+
+      const content = fs.readFileSync(configPath, "utf-8");
+      expect(content).toContain("[r2]");
+      expect(content).toContain("type = s3");
+      expect(content).toContain("endpoint = https://r2.example.com");
+      expect(content).toContain("access_key_id = AKID123");
+      expect(content).toContain("secret_access_key = SECRET456");
     });
   });
 });

@@ -15,6 +15,7 @@ import {
   isRcloneInstalled,
   ensureRcloneInstalled,
   isRcloneConfigured,
+  ensureRcloneConfigFromConfig,
   resolveSyncConfig,
   runBisync,
   runSync,
@@ -114,6 +115,9 @@ export function registerWorkspaceCli(program: Command): void {
         }
 
         const resolved = resolveSyncConfig(syncConfig, workspaceDir, stateDir);
+
+        // Auto-generate rclone config from moltbot.json if credentials present
+        ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
 
         // Check config
         if (!isRcloneConfigured(resolved.configPath, resolved.remoteName)) {
@@ -234,12 +238,16 @@ export function registerWorkspaceCli(program: Command): void {
       }
       console.log(colorize(rich, theme.success, "✓ rclone installed"));
 
+      // Auto-generate rclone config from moltbot.json if credentials present
+      ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
+
       // Check config
       const configured = isRcloneConfigured(resolved.configPath, resolved.remoteName);
       if (!configured) {
         console.log(colorize(rich, theme.error, "✗ rclone not configured"));
         console.log("");
         console.log("Run: moltbot workspace authorize");
+        console.log("Or add dropbox.token to workspace.sync config");
         return;
       }
       console.log(colorize(rich, theme.success, "✓ rclone configured"));
@@ -668,6 +676,9 @@ export function registerWorkspaceCli(program: Command): void {
       }
 
       const resolved = resolveSyncConfig(syncConfig, workspaceDir, stateDir);
+
+      // Auto-generate rclone config from moltbot.json if credentials present
+      ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
 
       if (!isRcloneConfigured(resolved.configPath, resolved.remoteName)) {
         console.error(colorize(rich, theme.error, "rclone not configured."));

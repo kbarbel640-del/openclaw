@@ -101,10 +101,12 @@ export type WorkspaceSyncConfig = {
   dropbox?: {
     /** Use app folder access (more secure, limited to Apps/<app-name>/). */
     appFolder?: boolean;
-    /** Dropbox app key (for app folder access). */
+    /** Dropbox app key / client_id. */
     appKey?: string;
-    /** Dropbox app secret (for app folder access). */
+    /** Dropbox app secret / client_secret. */
     appSecret?: string;
+    /** OAuth token JSON (prefer env var ${DROPBOX_TOKEN}). */
+    token?: string;
   };
 };
 

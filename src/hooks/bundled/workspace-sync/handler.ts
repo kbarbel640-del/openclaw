@@ -13,6 +13,7 @@ import type { HookHandler } from "../../hooks.js";
 import {
   isRcloneInstalled,
   isRcloneConfigured,
+  ensureRcloneConfigFromConfig,
   resolveSyncConfig,
   runBisync,
 } from "../../../infra/rclone.js";
@@ -74,6 +75,9 @@ const workspaceSyncHandler: HookHandler = async (event) => {
     const stateDir = context.stateDir as string | undefined;
 
     const resolved = resolveSyncConfig(syncConfig, workspaceDir, stateDir);
+
+    // Auto-generate rclone config from moltbot.json if credentials present
+    ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
 
     // Check if rclone is configured
     if (!isRcloneConfigured(resolved.configPath, resolved.remoteName)) {
