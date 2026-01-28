@@ -52,6 +52,9 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
       actions.add("sticker");
       actions.add("sticker-search");
     }
+    if (gate("createForumTopic", false)) {
+      actions.add("thread-create");
+    }
     return Array.from(actions);
   },
   supportsButtons: ({ cfg }) => {
@@ -177,6 +180,24 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
           action: "searchSticker",
           query,
           limit: limit ?? undefined,
+          accountId: accountId ?? undefined,
+        },
+        cfg,
+      );
+    }
+
+    if (action === "thread-create") {
+      const chatId =
+        readStringOrNumberParam(params, "chatId") ??
+        readStringOrNumberParam(params, "channelId") ??
+        readStringParam(params, "target") ??
+        readStringParam(params, "to", { required: true });
+      const name = readStringParam(params, "threadName", { required: true });
+      return await handleTelegramAction(
+        {
+          action: "createForumTopic",
+          chatId,
+          name,
           accountId: accountId ?? undefined,
         },
         cfg,

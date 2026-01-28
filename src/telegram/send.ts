@@ -617,6 +617,95 @@ export async function editMessageTelegram(
   return { ok: true, messageId: String(messageId), chatId };
 }
 
+type CreateForumTopicOpts = {
+  token?: string;
+  accountId?: string;
+  verbose?: boolean;
+  api?: Bot["api"];
+  retry?: RetryConfig;
+  /** Color of the topic icon in RGB format (one of Telegram's allowed colors). */
+  iconColor?: number;
+  /** Custom emoji ID for the topic icon. */
+  iconCustomEmojiId?: string;
+};
+
+export type CreateForumTopicResult = {
+  ok: boolean;
+  messageThreadId?: number;
+  name?: string;
+  iconColor?: number;
+  iconCustomEmojiId?: string;
+};
+
+/**
+ * Create a new forum topic in a Telegram supergroup with topics enabled.
+ * @param chatIdInput - Chat ID of the supergroup
+ * @param name - Name of the topic (1-128 characters)
+ * @param opts - Optional configuration
+ */
+export async function createForumTopicTelegram(
+  chatIdInput: string | number,
+  name: string,
+  opts: CreateForumTopicOpts = {},
+): Promise<CreateForumTopicResult> {
+  if (!name?.trim()) {
+    throw new Error("Forum topic name is required");
+  }
+
+  const cfg = loadConfig();
+  const account = resolveTelegramAccount({
+    cfg,
+    accountId: opts.accountId,
+  });
+  const token = resolveToken(opts.token, account);
+  const chatId = normalizeChatId(String(chatIdInput));
+  const client = resolveTelegramClientOptions(account);
+  const api = opts.api ?? new Bot(token, client ? { client } : undefined).api;
+
+  const request = createTelegramRetryRunner({
+    retry: opts.retry,
+    configRetry: account.config.retry,
+    verbose: opts.verbose,
+  });
+  const logHttpError = createTelegramHttpLogger(cfg);
+  const requestWithDiag = <T>(fn: () => Promise<T>, label?: string) =>
+    withTelegramApiErrorLogging({
+      operation: label ?? "request",
+      fn: () => request(fn, label),
+    }).catch((err) => {
+      logHttpError(label ?? "request", err);
+      throw err;
+    });
+
+  const params: Record<string, unknown> = {};
+  if (opts.iconColor != null) {
+    params.icon_color = opts.iconColor;
+  }
+  if (opts.iconCustomEmojiId) {
+    params.icon_custom_emoji_id = opts.iconCustomEmojiId;
+  }
+
+  const res = await requestWithDiag(
+    () =>
+      Object.keys(params).length > 0
+        ? api.createForumTopic(chatId, name, params)
+        : api.createForumTopic(chatId, name),
+    "createForumTopic",
+  );
+
+  logVerbose(
+    `[telegram] Created forum topic "${name}" in chat ${chatId}, thread_id=${res?.message_thread_id}`,
+  );
+
+  return {
+    ok: true,
+    messageThreadId: res?.message_thread_id,
+    name: res?.name,
+    iconColor: res?.icon_color,
+    iconCustomEmojiId: res?.icon_custom_emoji_id,
+  };
+}
+
 function inferFilename(kind: ReturnType<typeof mediaKindFromMime>) {
   switch (kind) {
     case "image":
