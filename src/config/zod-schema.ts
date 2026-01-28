@@ -692,6 +692,7 @@ export const OpenClawSchema = z
                 appFolder: z.boolean().optional(),
                 appKey: z.string().optional(),
                 appSecret: z.string().optional(),
+                token: z.string().optional(),
               })
               .strict()
               .optional(),
