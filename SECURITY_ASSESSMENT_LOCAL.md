@@ -78,6 +78,9 @@ This will:
 - Clear all model fallbacks.
 - Deny web tools, browser, and skills-install.
 - Enable Docker sandboxing for non-main sessions.
+- Enforce network isolation for sandboxes (`network: "none"`).
+- Refuse to load cloud-based model providers.
+- Enable local skill vetting (omits skills with external URLs).
 
 ## Recommended Configuration for "Strictly Local" Setup
 
@@ -85,6 +88,9 @@ If you prefer to make these settings permanent in your configuration, add/update
 
 ```json5
 {
+  "security": {
+    "strictLocal": true
+  },
   "update": {
     "checkOnStart": false
   },
@@ -114,6 +120,25 @@ If you prefer to make these settings permanent in your configuration, add/update
   }
 }
 ```
+
+## Enhanced Local Features
+
+### Local TTS (Text-to-Speech)
+Moltbot now supports CLI-based local TTS. You can use tools like **Piper** or **Sherpa-ONNX**:
+```json5
+"messages": {
+  "tts": {
+    "provider": "cli",
+    "cli": {
+      "command": "piper",
+      "args": ["--model", "en_US-amy-medium.onnx", "--output_file", "{output}", "{text}"]
+    }
+  }
+}
+```
+
+### Ollama Health Checks
+Running `moltbot doctor` will now automatically check your local Ollama instance and list available models.
 
 ## Summary Verdict
 Moltbot is **well-suited** for local-only usage, provided the configuration is hardened as described above. The core architecture is local-first, and there are no mandatory "phone home" features that cannot be disabled.

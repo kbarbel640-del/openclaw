@@ -97,11 +97,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
 
   if (opts.localOnly) {
     gatewayLog.info("local-only: hardening configuration for strictly local usage");
-    setConfigOverride("update.checkOnStart", false);
-    setConfigOverride("diagnostics.enabled", false);
-    setConfigOverride("agents.defaults.model.fallbacks", []);
-    setConfigOverride("tools.deny", ["group:web", "browser", "skills-install"]);
-    setConfigOverride("agents.defaults.sandbox.mode", "non-main");
+    setConfigOverride("security.strictLocal", true);
   }
 
   const cfg = loadConfig();

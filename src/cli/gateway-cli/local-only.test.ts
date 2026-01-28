@@ -73,11 +73,7 @@ describe("gateway-cli --local-only", () => {
       // ignore exit
     }
 
-    expect(setConfigOverride).toHaveBeenCalledWith("update.checkOnStart", false);
-    expect(setConfigOverride).toHaveBeenCalledWith("diagnostics.enabled", false);
-    expect(setConfigOverride).toHaveBeenCalledWith("agents.defaults.model.fallbacks", []);
-    expect(setConfigOverride).toHaveBeenCalledWith("tools.deny", ["group:web", "browser", "skills-install"]);
-    expect(setConfigOverride).toHaveBeenCalledWith("agents.defaults.sandbox.mode", "non-main");
+    expect(setConfigOverride).toHaveBeenCalledWith("security.strictLocal", true);
   });
 
   it("does not apply hardening overrides by default", async () => {
