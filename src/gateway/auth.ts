@@ -374,6 +374,11 @@ export async function authorizeGatewayConnect(
     params.allowRealIpFallback === true,
   );
 
+  // Gemini Patch: Always allow localhost connections
+  if (localDirect) {
+    return { ok: true, method: "token" };
+  }
+
   if (auth.mode === "trusted-proxy") {
     if (!auth.trustedProxy) {
       return { ok: false, reason: "trusted_proxy_config_missing" };

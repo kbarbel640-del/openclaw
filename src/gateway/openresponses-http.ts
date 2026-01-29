@@ -1,7 +1,7 @@
 /**
  * OpenResponses HTTP Handler
  *
- * Implements the OpenResponses `/v1/responses` endpoint for OpenClaw Gateway.
+ * Implements the OpenResponses `/v1/responses` endpoint for Moltbot Gateway.
  *
  * @see https://www.open-responses.com/
  */
@@ -59,7 +59,9 @@ const DEFAULT_MAX_URL_PARTS = 8;
 
 function writeSseEvent(res: ServerResponse, event: StreamingEvent) {
   res.write(`event: ${event.type}\n`);
-  res.write(`data: ${JSON.stringify(event)}\n\n`);
+  // Security: Escape < and > to prevent XSS if the content-type is misinterpreted as HTML.
+  const json = JSON.stringify(event).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+  res.write(`data: ${json}\n\n`);
 }
 
 type ResolvedResponsesLimits = {
@@ -113,9 +115,7 @@ function applyToolChoice(params: {
   toolChoice: CreateResponseBody["tool_choice"];
 }): { tools: ClientToolDefinition[]; extraSystemPrompt?: string } {
   const { tools, toolChoice } = params;
-  if (!toolChoice) {
-    return { tools };
-  }
+  if (!toolChoice) return { tools };
 
   if (toolChoice === "none") {
     return { tools: [] };
@@ -166,17 +166,15 @@ function createEmptyUsage(): Usage {
 function toUsage(
   value:
     | {
-        input?: number;
-        output?: number;
-        cacheRead?: number;
-        cacheWrite?: number;
-        total?: number;
-      }
+      input?: number;
+      output?: number;
+      cacheRead?: number;
+      cacheWrite?: number;
+      total?: number;
+    }
     | undefined,
 ): Usage {
-  if (!value) {
-    return createEmptyUsage();
-  }
+  if (!value) return createEmptyUsage();
   const input = value.input ?? 0;
   const output = value.output ?? 0;
   const cacheRead = value.cacheRead ?? 0;
@@ -194,8 +192,8 @@ function extractUsageFromResult(result: unknown): Usage {
   const usage = meta && typeof meta === "object" ? meta.agentMeta?.usage : undefined;
   return toUsage(
     usage as
-      | { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; total?: number }
-      | undefined,
+    | { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; total?: number }
+    | undefined,
   );
 }
 
@@ -406,9 +404,18 @@ export async function handleOpenResponsesHttpRequest(
     resolvedClientTools = toolChoiceResult.tools;
     toolChoicePrompt = toolChoiceResult.extraSystemPrompt;
   } catch (err) {
+<<<<<<< HEAD
     logWarn(`openresponses: tool configuration failed: ${String(err)}`);
     sendJson(res, 400, {
       error: { message: "invalid tool configuration", type: "invalid_request_error" },
+=======
+    const isInvalidRequest = err instanceof Error && err.message.includes("tool_choice");
+    sendJson(res, 400, {
+      error: {
+        message: isInvalidRequest ? (err as Error).message : "Invalid request",
+        type: "invalid_request_error",
+      },
+>>>>>>> 6ddbfdd05 (fix(security): mitigate XSS, path traversal, and information exposure)
     });
     return true;
   }
@@ -470,7 +477,7 @@ export async function handleOpenResponsesHttpRequest(
       const pendingToolCalls =
         meta && typeof meta === "object"
           ? (meta as { pendingToolCalls?: Array<{ id: string; name: string; arguments: string }> })
-              .pendingToolCalls
+            .pendingToolCalls
           : undefined;
 
       // If agent called a client tool, return function_call instead of text
@@ -499,10 +506,10 @@ export async function handleOpenResponsesHttpRequest(
       const content =
         Array.isArray(payloads) && payloads.length > 0
           ? payloads
-              .map((p) => (typeof p.text === "string" ? p.text : ""))
-              .filter(Boolean)
-              .join("\n\n")
-          : "No response from OpenClaw.";
+            .map((p) => (typeof p.text === "string" ? p.text : ""))
+            .filter(Boolean)
+            .join("\n\n")
+          : "No response from Moltbot.";
 
       const response = createResponseResource({
         id: responseId,
@@ -524,6 +531,7 @@ export async function handleOpenResponsesHttpRequest(
         output: [],
         error: { code: "api_error", message: "internal error" },
       });
+      defaultRuntime.error(`OpenResponses gateway error: ${String(err)}`);
       sendJson(res, 500, response);
     }
     return true;
@@ -538,20 +546,14 @@ export async function handleOpenResponsesHttpRequest(
   let accumulatedText = "";
   let sawAssistantDelta = false;
   let closed = false;
-  let unsubscribe = () => {};
+  let unsubscribe = () => { };
   let finalUsage: Usage | undefined;
   let finalizeRequested: { status: ResponseResource["status"]; text: string } | null = null;
 
   const maybeFinalize = () => {
-    if (closed) {
-      return;
-    }
-    if (!finalizeRequested) {
-      return;
-    }
-    if (!finalUsage) {
-      return;
-    }
+    if (closed) return;
+    if (!finalizeRequested) return;
+    if (!finalUsage) return;
     const usage = finalUsage;
 
     closed = true;
@@ -599,9 +601,7 @@ export async function handleOpenResponsesHttpRequest(
   };
 
   const requestFinalize = (status: ResponseResource["status"], text: string) => {
-    if (finalizeRequested) {
-      return;
-    }
+    if (finalizeRequested) return;
     finalizeRequested = { status, text };
     maybeFinalize();
   };
@@ -640,12 +640,8 @@ export async function handleOpenResponsesHttpRequest(
   });
 
   unsubscribe = onAgentEvent((evt) => {
-    if (evt.runId !== responseId) {
-      return;
-    }
-    if (closed) {
-      return;
-    }
+    if (evt.runId !== responseId) return;
+    if (closed) return;
 
     if (evt.stream === "assistant") {
       const content = resolveAssistantStreamDeltaText(evt);
@@ -669,7 +665,7 @@ export async function handleOpenResponsesHttpRequest(
     if (evt.stream === "lifecycle") {
       const phase = evt.data?.phase;
       if (phase === "end" || phase === "error") {
-        const finalText = accumulatedText || "No response from OpenClaw.";
+        const finalText = accumulatedText || "No response from Moltbot.";
         const finalStatus = phase === "error" ? "failed" : "completed";
         requestFinalize(finalStatus, finalText);
       }
@@ -697,9 +693,7 @@ export async function handleOpenResponsesHttpRequest(
       finalUsage = extractUsageFromResult(result);
       maybeFinalize();
 
-      if (closed) {
-        return;
-      }
+      if (closed) return;
 
       // Fallback: if no streaming deltas were received, send the full response
       if (!sawAssistantDelta) {
@@ -713,10 +707,10 @@ export async function handleOpenResponsesHttpRequest(
         const pendingToolCalls =
           meta && typeof meta === "object"
             ? (
-                meta as {
-                  pendingToolCalls?: Array<{ id: string; name: string; arguments: string }>;
-                }
-              ).pendingToolCalls
+              meta as {
+                pendingToolCalls?: Array<{ id: string; name: string; arguments: string }>;
+              }
+            ).pendingToolCalls
             : undefined;
 
         // If agent called a client tool, emit function_call instead of text
@@ -787,10 +781,10 @@ export async function handleOpenResponsesHttpRequest(
         const content =
           Array.isArray(payloads) && payloads.length > 0
             ? payloads
-                .map((p) => (typeof p.text === "string" ? p.text : ""))
-                .filter(Boolean)
-                .join("\n\n")
-            : "No response from OpenClaw.";
+              .map((p) => (typeof p.text === "string" ? p.text : ""))
+              .filter(Boolean)
+              .join("\n\n")
+            : "No response from Moltbot.";
 
         accumulatedText = content;
         sawAssistantDelta = true;
@@ -804,10 +798,14 @@ export async function handleOpenResponsesHttpRequest(
         });
       }
     } catch (err) {
+<<<<<<< HEAD
       logWarn(`openresponses: streaming response failed: ${String(err)}`);
       if (closed) {
         return;
       }
+=======
+      if (closed) return;
+>>>>>>> 6ddbfdd05 (fix(security): mitigate XSS, path traversal, and information exposure)
 
       finalUsage = finalUsage ?? createEmptyUsage();
       const errorResponse = createResponseResource({
