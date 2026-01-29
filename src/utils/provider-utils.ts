@@ -32,3 +32,24 @@ export function isReasoningTagProvider(provider: string | undefined | null): boo
 
   return false;
 }
+
+/**
+ * Returns true if the provider is MiniMax.
+ * MiniMax uses a proprietary XML format for tool calls that requires
+ * special parsing (see minimax-tool-parser.ts).
+ */
+export function isMinimaxProvider(provider: string | undefined | null): boolean {
+  if (!provider) return false;
+  const normalized = provider.trim().toLowerCase();
+  return normalized.includes("minimax");
+}
+
+/**
+ * Returns true if the model ID indicates a MiniMax model.
+ * Used when provider is "ollama" but model is minimax.
+ */
+export function isMinimaxModel(modelId: string | undefined | null): boolean {
+  if (!modelId) return false;
+  const normalized = modelId.trim().toLowerCase();
+  return normalized.includes("minimax");
+}

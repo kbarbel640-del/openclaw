@@ -18,7 +18,15 @@ import { resolveTelegramInlineButtonsScope } from "../../../telegram/inline-butt
 import { resolveTelegramReactionLevel } from "../../../telegram/reaction-level.js";
 import { resolveSignalReactionLevel } from "../../../signal/reaction-level.js";
 import { normalizeMessageChannel } from "../../../utils/message-channel.js";
-import { isReasoningTagProvider } from "../../../utils/provider-utils.js";
+import {
+  isMinimaxModel,
+  isMinimaxProvider,
+  isReasoningTagProvider,
+} from "../../../utils/provider-utils.js";
+import {
+  executeMinimaxToolCalls,
+  hasPendingMinimaxToolCalls,
+} from "../../minimax-tool-executor.js";
 import { isSubagentSessionKey } from "../../../routing/session-key.js";
 import { resolveUserPath } from "../../../utils.js";
 import { createCacheTrace } from "../../cache-trace.js";
@@ -598,6 +606,8 @@ export async function runEmbeddedAttempt(
       const subscription = subscribeEmbeddedPiSession({
         session: activeSession,
         runId: params.runId,
+        provider: params.provider,
+        modelId: params.modelId,
         verboseLevel: params.verboseLevel,
         reasoningMode: params.reasoningLevel ?? "off",
         toolResultFormat: params.toolResultFormat,
@@ -794,6 +804,84 @@ export async function runEmbeddedAttempt(
             await abortable(activeSession.prompt(effectivePrompt, { images: imageResult.images }));
           } else {
             await abortable(activeSession.prompt(effectivePrompt));
+          }
+
+          // MiniMax Tool Execution Loop
+          // MiniMax outputs tool calls as XML in text, not structured events.
+          // We detect, execute, and re-prompt until no more tool calls.
+          const isMinimax = isMinimaxProvider(params.provider) || isMinimaxModel(params.modelId);
+          if (isMinimax && !params.disableTools && tools.length > 0) {
+            let minimaxLoopCount = 0;
+            const maxMinimaxLoops = 10;
+
+            while (minimaxLoopCount < maxMinimaxLoops) {
+              // Get latest assistant message
+              const latestMessages = activeSession.messages;
+              const lastAssistantMsg = latestMessages
+                .slice()
+                .reverse()
+                .find((m) => (m as { role?: string }).role === "assistant");
+
+              if (!lastAssistantMsg) break;
+
+              // Extract text from assistant message
+              const assistantContent = (lastAssistantMsg as AssistantMessage).content;
+              const assistantText =
+                typeof assistantContent === "string"
+                  ? assistantContent
+                  : Array.isArray(assistantContent)
+                    ? assistantContent
+                        .filter(
+                          (c): c is { type: "text"; text: string } =>
+                            c.type === "text" && typeof c.text === "string",
+                        )
+                        .map((c) => c.text)
+                        .join("")
+                    : "";
+
+              // Check for MiniMax XML tool calls
+              if (!hasPendingMinimaxToolCalls(assistantText)) break;
+
+              log.debug(
+                `MiniMax tool execution loop ${minimaxLoopCount + 1}: found XML tool calls in response`,
+              );
+
+              // Execute tool calls
+              const execResult = await executeMinimaxToolCalls({
+                assistantText,
+                tools,
+                runId: params.runId,
+                loopCount: minimaxLoopCount,
+                abortSignal: runAbortController.signal,
+              });
+
+              if (execResult.maxLoopsReached) {
+                log.warn(`MiniMax tool execution: max loops (${maxMinimaxLoops}) reached`);
+                break;
+              }
+
+              if (execResult.results.length === 0) break;
+
+              minimaxLoopCount = execResult.loopCount;
+
+              // Steer with tool results so MiniMax can continue
+              const steerPrompt = `[Tool Execution Results]\n\n${execResult.formattedResults}\n\nPlease continue based on these results.`;
+
+              log.debug(
+                `MiniMax tool execution: steering with ${execResult.results.length} tool results`,
+              );
+
+              await abortable(activeSession.steer(steerPrompt));
+
+              // Check if aborted
+              if (runAbortController.signal.aborted) break;
+            }
+
+            if (minimaxLoopCount > 0) {
+              log.info(
+                `MiniMax tool execution completed: ${minimaxLoopCount} loop(s), runId=${params.runId}`,
+              );
+            }
           }
         } catch (err) {
           promptError = err;

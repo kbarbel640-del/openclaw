@@ -65,6 +65,10 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     messagingToolSentTargets: [],
     pendingMessagingTexts: new Map(),
     pendingMessagingTargets: new Map(),
+    // MiniMax tool call detection state
+    minimaxToolBuffer: "",
+    minimaxToolBuffering: false,
+    minimaxDetectedToolCalls: [],
   };
 
   const assistantTexts = state.assistantTexts;

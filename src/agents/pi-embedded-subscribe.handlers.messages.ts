@@ -3,10 +3,16 @@ import type { AssistantMessage } from "@mariozechner/pi-ai";
 
 import { parseReplyDirectives } from "../auto-reply/reply/reply-directives.js";
 import { emitAgentEvent } from "../infra/agent-events.js";
+import { isMinimaxModel, isMinimaxProvider } from "../utils/provider-utils.js";
 import {
   isMessagingToolDuplicateNormalized,
   normalizeTextForComparison,
 } from "./pi-embedded-helpers.js";
+import {
+  hasMinimaxToolCallStart,
+  hasMinimaxToolCallEnd,
+  parseMinimaxToolCalls,
+} from "./minimax-tool-parser.js";
 import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
 import { appendRawStream } from "./pi-embedded-subscribe.raw-stream.js";
 import {
@@ -18,6 +24,15 @@ import {
   promoteThinkingTagsToBlocks,
 } from "./pi-embedded-utils.js";
 import { createInlineCodeState } from "../markdown/code-spans.js";
+
+/**
+ * Check if the current context is using a MiniMax model.
+ */
+function isMinimax(ctx: EmbeddedPiSubscribeContext): boolean {
+  const provider = ctx.params.provider;
+  const modelId = ctx.params.modelId;
+  return isMinimaxProvider(provider) || isMinimaxModel(modelId);
+}
 
 export function handleMessageStart(
   ctx: EmbeddedPiSubscribeContext,
@@ -98,6 +113,29 @@ export function handleMessageUpdate(
   if (ctx.state.streamReasoning) {
     // Handle partial <think> tags: stream whatever reasoning is visible so far.
     ctx.emitReasoningStream(extractThinkingFromTaggedStream(ctx.state.deltaBuffer));
+  }
+
+  // MiniMax tool call detection: buffer XML tool calls for parsing
+  if (isMinimax(ctx)) {
+    const buffer = ctx.state.deltaBuffer;
+    if (hasMinimaxToolCallStart(buffer)) {
+      ctx.state.minimaxToolBuffering = true;
+    }
+    if (ctx.state.minimaxToolBuffering) {
+      ctx.state.minimaxToolBuffer = buffer;
+      // Check if we have a complete tool call block
+      if (hasMinimaxToolCallEnd(buffer)) {
+        ctx.state.minimaxToolBuffering = false;
+        // Parse and store detected tool calls for logging at message end
+        const toolCalls = parseMinimaxToolCalls(buffer);
+        if (toolCalls.length > 0) {
+          ctx.state.minimaxDetectedToolCalls.push(...toolCalls);
+          ctx.log.debug(
+            `MiniMax tool calls detected during streaming: ${toolCalls.map((t) => t.name).join(", ")}`,
+          );
+        }
+      }
+    }
   }
 
   const next = ctx
@@ -279,6 +317,61 @@ export function handleMessageEnd(
         });
       }
     }
+  }
+
+  // Final MiniMax tool call detection at message end
+  if (isMinimax(ctx)) {
+    // Parse any remaining tool calls from the final text
+    const finalToolCalls = parseMinimaxToolCalls(rawText);
+    const allToolCalls = [...ctx.state.minimaxDetectedToolCalls];
+
+    // Add any newly detected calls that weren't caught during streaming
+    for (const call of finalToolCalls) {
+      const alreadyDetected = allToolCalls.some(
+        (existing) =>
+          existing.name === call.name &&
+          JSON.stringify(existing.arguments) === JSON.stringify(call.arguments),
+      );
+      if (!alreadyDetected) {
+        allToolCalls.push(call);
+      }
+    }
+
+    if (allToolCalls.length > 0) {
+      ctx.log.warn(
+        `MiniMax XML tool calls detected but not executed (${allToolCalls.length}): ${allToolCalls.map((t) => t.name).join(", ")}. ` +
+          `MiniMax tool execution requires the minimax-tool-parser integration.`,
+      );
+
+      // Emit event for observability
+      emitAgentEvent({
+        runId: ctx.params.runId,
+        stream: "minimax",
+        data: {
+          phase: "tool_calls_detected",
+          toolCalls: allToolCalls.map((t) => ({
+            name: t.name,
+            argumentKeys: Object.keys(t.arguments),
+          })),
+          count: allToolCalls.length,
+          warning: "Tool calls detected but not executed - MiniMax uses XML format",
+        },
+      });
+
+      void ctx.params.onAgentEvent?.({
+        stream: "minimax",
+        data: {
+          phase: "tool_calls_detected",
+          toolCalls: allToolCalls.map((t) => ({ name: t.name })),
+          count: allToolCalls.length,
+        },
+      });
+    }
+
+    // Reset MiniMax state
+    ctx.state.minimaxToolBuffer = "";
+    ctx.state.minimaxToolBuffering = false;
+    ctx.state.minimaxDetectedToolCalls = [];
   }
 
   ctx.state.deltaBuffer = "";

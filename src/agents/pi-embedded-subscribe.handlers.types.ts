@@ -58,6 +58,13 @@ export type EmbeddedPiSubscribeState = {
   messagingToolSentTargets: MessagingToolSend[];
   pendingMessagingTexts: Map<string, string>;
   pendingMessagingTargets: Map<string, MessagingToolSend>;
+
+  // MiniMax tool call buffering state
+  // MiniMax outputs tool calls as XML in text, not as structured events.
+  // We buffer and parse these for detection/logging.
+  minimaxToolBuffer: string;
+  minimaxToolBuffering: boolean;
+  minimaxDetectedToolCalls: Array<{ name: string; arguments: Record<string, unknown> }>;
 };
 
 export type EmbeddedPiSubscribeContext = {

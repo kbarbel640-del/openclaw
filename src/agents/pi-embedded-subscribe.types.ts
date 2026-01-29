@@ -8,6 +8,10 @@ export type ToolResultFormat = "markdown" | "plain";
 export type SubscribeEmbeddedPiSessionParams = {
   session: AgentSession;
   runId: string;
+  /** Provider name (e.g., "ollama", "anthropic") for provider-specific behavior */
+  provider?: string;
+  /** Model ID for model-specific behavior (e.g., "minimax-m2.1:cloud") */
+  modelId?: string;
   verboseLevel?: VerboseLevel;
   reasoningMode?: ReasoningLevel;
   toolResultFormat?: ToolResultFormat;
