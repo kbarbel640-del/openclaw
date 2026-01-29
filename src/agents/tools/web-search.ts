@@ -132,9 +132,7 @@ function resolveBraveBaseUrl(search?: WebSearchConfig): string {
   return fromConfig || DEFAULT_BRAVE_BASE_URL;
 }
 
-function resolveBraveAuthStyle(
-  search?: WebSearchConfig,
-): (typeof BRAVE_AUTH_STYLES)[number] {
+function resolveBraveAuthStyle(search?: WebSearchConfig): (typeof BRAVE_AUTH_STYLES)[number] {
   const raw =
     search && "authStyle" in search && typeof search.authStyle === "string"
       ? search.authStyle.trim().toLowerCase()
@@ -397,16 +395,14 @@ async function runWebSearch(params: {
 
   // Build auth header based on configured style (default: X-Subscription-Token for Brave)
   const authStyle = params.braveAuthStyle ?? "x-subscription-token";
-  const authHeader =
-    authStyle === "bearer"
-      ? { Authorization: `Bearer ${params.apiKey}` }
-      : { "X-Subscription-Token": params.apiKey };
 
   const res = await fetch(url.toString(), {
     method: "GET",
     headers: {
       Accept: "application/json",
-      ...authHeader,
+      ...(authStyle === "bearer"
+        ? { Authorization: `Bearer ${params.apiKey}` }
+        : { "X-Subscription-Token": params.apiKey }),
     },
     signal: withTimeout(undefined, params.timeoutSeconds * 1000),
   });
