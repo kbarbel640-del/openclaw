@@ -13,8 +13,8 @@ services:
       - ${MOLTBOT_CONFIG_DIR}:/home/node/.moltbot
       - ${MOLTBOT_WORKSPACE_DIR}:/home/node/moltbot
     ports:
-      - "${MOLTBOT_GATEWAY_PORT:-18789}:18789"
-      - "${MOLTBOT_BRIDGE_PORT:-18790}:18790"
+      - "${CLAWDBOT_GATEWAY_PORT:-19789}:18789"
+      - "${CLAWDBOT_BRIDGE_PORT:-19790}:18790"
     init: true
     restart: unless-stopped
     command:

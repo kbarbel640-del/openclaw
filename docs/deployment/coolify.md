@@ -63,13 +63,13 @@ BRAVE_API_KEY=BSAxxxxx
 ### 4. Configure Ports (Optional)
 
 Coolify will automatically handle port mapping. Default ports:
-- **18789**: Gateway API (HTTP/WebSocket)
-- **18790**: Bridge for browser extension
+- **19789**: Gateway API (HTTP/WebSocket)
+- **19790**: Bridge for browser extension
 
 You can override these with:
 ```env
-CLAWDBOT_GATEWAY_PORT=18789
-CLAWDBOT_BRIDGE_PORT=18790
+CLAWDBOT_GATEWAY_PORT=19789
+CLAWDBOT_BRIDGE_PORT=19790
 ```
 
 ### 5. Deploy
@@ -86,7 +86,7 @@ CLAWDBOT_BRIDGE_PORT=18790
 
 Check the logs in Coolify to ensure Moltbot started successfully. You should see:
 ```
-Gateway listening on http://0.0.0.0:18789
+Gateway listening on http://0.0.0.0:19789
 ```
 
 ## Advanced Configuration
@@ -138,7 +138,7 @@ AWS_REGION=us-east-1
 ### Health Checks
 
 The docker-compose.coolify.yml includes built-in health checks:
-- Endpoint: `http://localhost:18789/health`
+- Endpoint: `http://localhost:19789/health`
 - Interval: 30s
 - Timeout: 10s
 - Start period: 60s

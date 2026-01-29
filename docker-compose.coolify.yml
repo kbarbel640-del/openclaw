@@ -39,7 +39,7 @@ services:
       # Gateway configuration
       CLAWDBOT_GATEWAY_TOKEN: ${CLAWDBOT_GATEWAY_TOKEN}
       CLAWDBOT_GATEWAY_PASSWORD: ${CLAWDBOT_GATEWAY_PASSWORD:-}
-      CLAWDBOT_GATEWAY_PORT: ${CLAWDBOT_GATEWAY_PORT:-18789}
+      CLAWDBOT_GATEWAY_PORT: ${CLAWDBOT_GATEWAY_PORT:-19789}
       CLAWDBOT_GATEWAY_BIND: ${CLAWDBOT_GATEWAY_BIND:-lan}
       
       # AI Provider Keys
@@ -108,13 +108,13 @@ services:
     
     ports:
       # Gateway API port
-      - "${CLAWDBOT_GATEWAY_PORT:-18789}:18789"
+      - "${CLAWDBOT_GATEWAY_PORT:-19789}:18789"
       # Bridge port (for browser extension)
-      - "${CLAWDBOT_BRIDGE_PORT:-18790}:18790"
+      - "${CLAWDBOT_BRIDGE_PORT:-19790}:18790"
     
     # Health check
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:18789/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:19789/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -153,7 +153,7 @@ services:
       - "coolify.name=moltbot"
       - "coolify.type=service"
       - "coolify.http.enabled=true"
-      - "coolify.http.port=18789"
+      - "coolify.http.port=19789"
       - "coolify.http.path=/"
       - "coolify.health_check=/health"
 
