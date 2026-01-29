@@ -630,12 +630,12 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
       };
     }
 
-    log.debug(
-      `Bridged ${bridgeResult.toolCount} tools to MCP server "${mcpServerName}"` +
-        (bridgeResult.skippedTools.length > 0
-          ? ` (skipped: ${bridgeResult.skippedTools.join(", ")})`
-          : ""),
-    );
+    // log.debug(
+    //   `Exposed ${bridgeResult.toolCount} tools to MCP server "${mcpServerName}"` +
+    //     (bridgeResult.skippedTools.length > 0
+    //       ? ` (skipped: ${bridgeResult.skippedTools.join(", ")})`
+    //       : ""),
+    // );
   }
 
   // -------------------------------------------------------------------------

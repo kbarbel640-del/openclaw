@@ -20,6 +20,7 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
+import * as z from "zod/v4-mini";
 
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { normalizeToolName } from "../tool-policy.js";
@@ -36,84 +37,135 @@ import type {
 const log = createSubsystemLogger("agents/claude-agent-sdk/tool-bridge");
 
 // ---------------------------------------------------------------------------
-// Schema conversion: TypeBox → Zod-compatible schema
+// Schema conversion: TypeBox → Zod v4 Mini schema
 // ---------------------------------------------------------------------------
 
-/**
- * Interface for Zod-compatible schema that the MCP SDK expects.
- * The SDK checks for `parse` and `safeParse` methods to identify valid schemas.
- */
-export interface ZodCompatibleSchema {
-  /** Synchronous parse - throws on validation failure */
-  parse(data: unknown): unknown;
-  /** Safe synchronous parse - returns success/error result */
-  safeParse(data: unknown): { success: true; data: unknown } | { success: false; error: unknown };
-  /** Async version of safeParse (used by MCP SDK) */
-  safeParseAsync(
-    data: unknown,
-  ): Promise<{ success: true; data: unknown } | { success: false; error: unknown }>;
-  /** Mark this as a Zod-like schema instance (SDK checks for _def or _zod) */
-  _def: { typeName: string; description?: string };
-}
+// Use z.ZodMiniType as the base type for all Zod Mini schemas
+// biome-ignore lint/suspicious/noExplicitAny: Zod Mini type system is complex; any allows proper schema composition
+type ZodMiniSchema = z.ZodMiniType<any, any>;
 
 /**
- * Wrap a TypeBox schema to make it Zod-compatible for the MCP SDK.
- *
- * The MCP SDK's McpServer.tool() checks `isZodTypeLike()` which requires:
- * - `parse` method (function)
- * - `safeParse` method (function)
- *
- * This wrapper uses TypeBox's Value module to perform validation.
+ * Convert a TypeBox property schema to a Zod v4 Mini schema.
+ * This recursive converter handles common TypeBox/JSON Schema types.
  */
-export function createZodCompatibleSchema(typeboxSchema: TSchema): ZodCompatibleSchema {
-  return {
-    parse(data: unknown): unknown {
-      // Decode handles coercion (string→number, etc.) and throws on failure
-      return Value.Decode(typeboxSchema, data);
-    },
+function convertTypeBoxPropertyToZod(propSchema: TSchema): ZodMiniSchema {
+  const type = (propSchema as { type?: string }).type;
 
-    safeParse(
-      data: unknown,
-    ): { success: true; data: unknown } | { success: false; error: unknown } {
-      try {
-        // First check if valid
-        if (!Value.Check(typeboxSchema, data)) {
-          // Get the first validation error for a useful message
-          const errors = [...Value.Errors(typeboxSchema, data)];
-          const firstError = errors[0];
-          return {
-            success: false,
-            error: {
-              message: firstError?.message ?? "Validation failed",
-              path: firstError?.path ?? "",
-              issues: errors.map((e) => ({ message: e.message, path: e.path })),
-            },
-          };
-        }
-        // Decode to apply any transformations
-        const decoded = Value.Decode(typeboxSchema, data);
-        return { success: true, data: decoded };
-      } catch (err) {
-        return {
-          success: false,
-          error: err instanceof Error ? { message: err.message } : { message: String(err) },
-        };
+  // Handle based on JSON Schema type
+  switch (type) {
+    case "string": {
+      return z.string();
+    }
+    case "number":
+    case "integer": {
+      return z.number();
+    }
+    case "boolean": {
+      return z.boolean();
+    }
+    case "array": {
+      const items = (propSchema as { items?: TSchema }).items;
+      const itemSchema = items ? convertTypeBoxPropertyToZod(items) : z.unknown();
+      return z.array(itemSchema);
+    }
+    case "object": {
+      // Nested object - recursively convert
+      const nestedProps = (propSchema as { properties?: Record<string, TSchema> }).properties;
+      const nestedRequired = (propSchema as { required?: string[] }).required ?? [];
+      if (nestedProps) {
+        const shape = buildZodShapeFromTypeBox(nestedProps, nestedRequired);
+        return z.object(shape);
       }
-    },
+      // Object without defined properties - use passthrough
+      return z.record(z.string(), z.unknown());
+    }
+    case "null": {
+      return z.null();
+    }
+    default: {
+      // Check for enum/const
+      const enumValues = (propSchema as { enum?: string[] }).enum;
+      if (enumValues && Array.isArray(enumValues)) {
+        // Create a union of literals for enum
+        if (enumValues.length === 1) {
+          return z.literal(enumValues[0]);
+        }
+        const literals = enumValues.map((v) => z.literal(v));
+        // TypeScript requires explicit tuple type assertion for z.union
+        return z.union(literals as unknown as [ZodMiniSchema, ZodMiniSchema, ...ZodMiniSchema[]]);
+      }
 
-    async safeParseAsync(
-      data: unknown,
-    ): Promise<{ success: true; data: unknown } | { success: false; error: unknown }> {
-      return this.safeParse(data);
-    },
+      const constValue = (propSchema as { const?: unknown }).const;
+      if (constValue !== undefined) {
+        return z.literal(constValue as string | number | boolean);
+      }
 
-    // Mimic Zod v3's internal structure so isZodSchemaInstance returns true
-    _def: {
-      typeName: "ZodObject",
-      description: (typeboxSchema as { description?: string }).description,
-    },
-  };
+      // Fallback to unknown for unrecognized types
+      return z.unknown();
+    }
+  }
 }
+
+/**
+ * Build a Zod shape object from TypeBox properties.
+ */
+function buildZodShapeFromTypeBox(
+  properties: Record<string, TSchema>,
+  requiredProps: string[],
+): Record<string, ZodMiniSchema> {
+  const requiredSet = new Set(requiredProps);
+  const shape: Record<string, ZodMiniSchema> = {};
+
+  for (const [propName, propSchema] of Object.entries(properties)) {
+    let zodProp = convertTypeBoxPropertyToZod(propSchema);
+
+    // Wrap in optional if not required
+    if (!requiredSet.has(propName)) {
+      zodProp = z.optional(zodProp);
+    }
+
+    shape[propName] = zodProp;
+  }
+
+  return shape;
+}
+
+/**
+ * Convert a TypeBox object schema to a Zod v4 Mini object schema.
+ *
+ * The MCP SDK natively supports Zod v4 Mini schemas. By converting TypeBox
+ * to real Zod schemas, we get proper JSON Schema generation for Claude
+ * and validation that matches what the SDK expects.
+ */
+export function convertTypeBoxToZod(typeboxSchema: TSchema): ZodMiniSchema {
+  const properties = (typeboxSchema as { properties?: Record<string, TSchema> }).properties;
+  const requiredProps = (typeboxSchema as { required?: string[] }).required ?? [];
+
+  if (!properties || typeof properties !== "object") {
+    // No properties defined - return a permissive object schema
+    return z.object({});
+  }
+
+  const shape = buildZodShapeFromTypeBox(properties, requiredProps);
+  return z.object(shape);
+}
+
+/**
+ * Create a Zod v4 Mini schema from a tool's TypeBox parameters.
+ * Returns undefined if the tool has no parameters.
+ */
+export function extractZodSchema(tool: AnyAgentTool): ZodMiniSchema | undefined {
+  const schema = tool.parameters as TSchema | undefined;
+  if (!schema || typeof schema !== "object") {
+    return undefined;
+  }
+  return convertTypeBoxToZod(schema);
+}
+
+// Legacy exports for backward compatibility
+export type ZodCompatibleSchema = ZodMiniSchema;
+export const createZodCompatibleSchema = convertTypeBoxToZod;
+export const extractZodCompatibleSchema = extractZodSchema;
 
 /**
  * Extract a clean JSON Schema object from a TypeBox schema.
@@ -134,20 +186,6 @@ export function extractJsonSchema(tool: AnyAgentTool): Record<string, unknown> {
     log.debug(`Schema for "${tool.name}" is not JSON-serializable, using empty schema`);
     return { type: "object", properties: {} };
   }
-}
-
-/**
- * Create a Zod-compatible schema from a tool's TypeBox parameters.
- * Falls back to a permissive schema if the tool has no parameters.
- */
-export function extractZodCompatibleSchema(tool: AnyAgentTool): ZodCompatibleSchema | undefined {
-  const schema = tool.parameters as TSchema | undefined;
-  if (!schema || typeof schema !== "object") {
-    // Return undefined to indicate no input schema
-    // The MCP SDK will then call handler(extra) instead of handler(args, extra)
-    return undefined;
-  }
-  return createZodCompatibleSchema(schema);
 }
 
 // ---------------------------------------------------------------------------

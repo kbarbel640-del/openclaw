@@ -119,7 +119,8 @@ describe("tool-bridge", () => {
       expect(typeof zodSchema.parse).toBe("function");
       expect(typeof zodSchema.safeParse).toBe("function");
       expect(typeof zodSchema.safeParseAsync).toBe("function");
-      expect(zodSchema._def.typeName).toBe("ZodObject");
+      // Zod v4 Mini uses _zod instead of _def
+      expect((zodSchema as any)._zod).toBeDefined();
     });
 
     it("parse returns data for valid input", () => {
@@ -643,6 +644,184 @@ describe("tool-bridge", () => {
 
       expect(result.registeredTools).toEqual(["good_tool"]);
       expect(result.skippedTools).toContain("bad_tool");
+    });
+  });
+
+  describe("tool call error handling", () => {
+    const mockExtra = { signal: new AbortController().signal };
+
+    it("includes tool name in error message when tool throws", async () => {
+      const mockExecute = vi.fn().mockRejectedValue(new Error("Database connection failed"));
+
+      const tool = {
+        name: "database-query",
+        execute: mockExecute,
+      } as unknown as AnyAgentTool;
+
+      const handler = wrapToolHandler(tool);
+      const result = await handler({ query: "SELECT *" }, mockExtra);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].type).toBe("text");
+      expect((result.content[0] as { text: string }).text).toContain("database_query");
+      expect((result.content[0] as { text: string }).text).toContain("Database connection failed");
+    });
+
+    it("handles non-Error thrown values", async () => {
+      const mockExecute = vi.fn().mockRejectedValue("string error message");
+
+      const tool = {
+        name: "string-error-tool",
+        execute: mockExecute,
+      } as unknown as AnyAgentTool;
+
+      const handler = wrapToolHandler(tool);
+      const result = await handler({}, mockExtra);
+
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as { text: string }).text).toContain("string error message");
+    });
+
+    it("handles undefined/null thrown values", async () => {
+      const mockExecute = vi.fn().mockRejectedValue(undefined);
+
+      const tool = {
+        name: "undefined-error-tool",
+        execute: mockExecute,
+      } as unknown as AnyAgentTool;
+
+      const handler = wrapToolHandler(tool);
+      const result = await handler({}, mockExtra);
+
+      expect(result.isError).toBe(true);
+      expect(result.content.length).toBeGreaterThan(0);
+    });
+
+    it("converts tool_error blocks from result to MCP error format", () => {
+      const result: AgentToolResult<unknown> = {
+        content: [
+          { type: "tool_error", error: "Validation failed: missing required field 'name'" },
+        ],
+      };
+
+      const mcpResult = convertToolResult(result);
+
+      expect(mcpResult.isError).toBe(true);
+      expect(mcpResult.content).toHaveLength(1);
+      expect((mcpResult.content[0] as { text: string }).text).toBe(
+        "Validation failed: missing required field 'name'",
+      );
+    });
+
+    it("preserves error details from multiple error blocks", () => {
+      const result: AgentToolResult<unknown> = {
+        content: [
+          { type: "tool_error", error: "Error 1: Invalid input" },
+          { type: "tool_error", error: "Error 2: Permission denied" },
+        ],
+      };
+
+      const mcpResult = convertToolResult(result);
+
+      expect(mcpResult.isError).toBe(true);
+      expect(mcpResult.content).toHaveLength(2);
+    });
+
+    it("marks result as error when any block has error field", () => {
+      const result: AgentToolResult<unknown> = {
+        content: [
+          { type: "text", text: "Partial success" },
+          { type: "warning", error: "But something went wrong" },
+        ],
+      };
+
+      const mcpResult = convertToolResult(result);
+
+      expect(mcpResult.isError).toBe(true);
+    });
+  });
+
+  describe("Zod schema conversion", () => {
+    it("converts TypeBox string property to Zod string", () => {
+      const typeboxSchema = Type.Object({
+        name: Type.String(),
+      });
+
+      const zodSchema = createZodCompatibleSchema(typeboxSchema);
+
+      // Should successfully parse valid input
+      const parseResult = zodSchema.safeParse({ name: "test" });
+      expect(parseResult.success).toBe(true);
+    });
+
+    it("converts TypeBox number property to Zod number", () => {
+      const typeboxSchema = Type.Object({
+        count: Type.Number(),
+      });
+
+      const zodSchema = createZodCompatibleSchema(typeboxSchema);
+
+      const parseResult = zodSchema.safeParse({ count: 42 });
+      expect(parseResult.success).toBe(true);
+    });
+
+    it("converts TypeBox boolean property to Zod boolean", () => {
+      const typeboxSchema = Type.Object({
+        active: Type.Boolean(),
+      });
+
+      const zodSchema = createZodCompatibleSchema(typeboxSchema);
+
+      const parseResult = zodSchema.safeParse({ active: true });
+      expect(parseResult.success).toBe(true);
+    });
+
+    it("converts TypeBox array property to Zod array", () => {
+      const typeboxSchema = Type.Object({
+        items: Type.Array(Type.String()),
+      });
+
+      const zodSchema = createZodCompatibleSchema(typeboxSchema);
+
+      const parseResult = zodSchema.safeParse({ items: ["a", "b", "c"] });
+      expect(parseResult.success).toBe(true);
+    });
+
+    it("converts TypeBox optional property to Zod optional", () => {
+      const typeboxSchema = Type.Object({
+        required: Type.String(),
+        optional: Type.Optional(Type.String()),
+      });
+
+      const zodSchema = createZodCompatibleSchema(typeboxSchema);
+
+      // Should work without optional field
+      const parseResult = zodSchema.safeParse({ required: "value" });
+      expect(parseResult.success).toBe(true);
+    });
+
+    it("rejects invalid input with Zod validation errors", () => {
+      const typeboxSchema = Type.Object({
+        name: Type.String(),
+        count: Type.Number(),
+      });
+
+      const zodSchema = createZodCompatibleSchema(typeboxSchema);
+
+      // Pass wrong types
+      const parseResult = zodSchema.safeParse({ name: 123, count: "not a number" });
+      expect(parseResult.success).toBe(false);
+    });
+
+    it("has _zod property for MCP SDK compatibility", () => {
+      const typeboxSchema = Type.Object({
+        value: Type.String(),
+      });
+
+      const zodSchema = createZodCompatibleSchema(typeboxSchema);
+
+      // Zod v4 Mini schemas have _zod property that MCP SDK checks
+      expect((zodSchema as any)._zod).toBeDefined();
     });
   });
 });

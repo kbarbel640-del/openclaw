@@ -214,15 +214,6 @@ export function createCcSdkAgentRuntime(context?: CcSdkAgentRuntimeContext): Age
         ? `${params.provider ?? "anthropic"}/${params.model}`
         : (ccsdkOpts.modelTiers?.sonnet ?? context?.ccsdkConfig?.models?.sonnet ?? "default");
 
-      log.debug("Starting CCSDK Agent session", {
-        sessionId: params.sessionId,
-        runId: params.runId,
-        provider: providerConfig.name,
-        model: effectiveModel,
-        agentId,
-        thinkLevel: params.thinkLevel,
-      });
-
       // Load conversation history from session file if not provided
       let conversationHistory = context?.conversationHistory;
       if (!conversationHistory && params.sessionFile) {
@@ -274,12 +265,6 @@ export function createCcSdkAgentRuntime(context?: CcSdkAgentRuntimeContext): Age
 
       // Combine built-in tools with client tools
       const tools: AnyAgentTool[] = [...builtInTools, ...clientToolsConverted];
-
-      log.debug("Built tools for CCSDK run", {
-        builtInCount: builtInTools.length,
-        clientToolCount: clientToolsConverted.length,
-        totalCount: tools.length,
-      });
 
       // Resolve CCSDK config directory for this agent's session storage.
       // This ensures Moltbot sessions are stored separately from CLI sessions.
