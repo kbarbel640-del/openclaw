@@ -109,6 +109,15 @@ export async function runEmbeddedPiAgent(
         throw new Error(error ?? `Unknown model: ${provider}/${modelId}`);
       }
 
+      // Forensic audit log: record model invocation for MoA routing analysis (async, non-blocking)
+      // Writes to agent dir (not world-readable /tmp); errors logged but don't crash agent
+      const auditLogPath = `${agentDir}/audit.csv`;
+      fs.appendFile(auditLogPath, `${new Date().toISOString()}, ${provider}/${modelId}\n`).catch(
+        (err) => {
+          log.debug(`audit log write failed: ${err instanceof Error ? err.message : String(err)}`);
+        },
+      );
+
       const ctxInfo = resolveContextWindowInfo({
         cfg: params.config,
         provider,
@@ -292,6 +301,17 @@ export async function runEmbeddedPiAgent(
         }
       }
 
+      // Mac hardware compatibility: inject platform-specific shell guidance
+      // Computed once outside the loop to ensure consistency between attempts and compaction
+      let effectiveExtraSystemPrompt = params.extraSystemPrompt;
+      if (process.platform === "darwin") {
+        const macGuidance =
+          "\nRunning on macOS. Use 'ls', 'grep', 'find'. Do NOT use 'yum' or 'apt-get'.";
+        effectiveExtraSystemPrompt = effectiveExtraSystemPrompt
+          ? `${effectiveExtraSystemPrompt}${macGuidance}`
+          : macGuidance;
+      }
+
       let overflowCompactionAttempted = false;
       try {
         while (true) {
@@ -350,7 +370,7 @@ export async function runEmbeddedPiAgent(
             onReasoningStream: params.onReasoningStream,
             onToolResult: params.onToolResult,
             onAgentEvent: params.onAgentEvent,
-            extraSystemPrompt: params.extraSystemPrompt,
+            extraSystemPrompt: effectiveExtraSystemPrompt,
             streamParams: params.streamParams,
             ownerNumbers: params.ownerNumbers,
             enforceFinalTag: params.enforceFinalTag,
@@ -385,7 +405,7 @@ export async function runEmbeddedPiAgent(
                   thinkLevel,
                   reasoningLevel: params.reasoningLevel,
                   bashElevated: params.bashElevated,
-                  extraSystemPrompt: params.extraSystemPrompt,
+                  extraSystemPrompt: effectiveExtraSystemPrompt,
                   ownerNumbers: params.ownerNumbers,
                 });
                 if (compactResult.compacted) {
