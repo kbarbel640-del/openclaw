@@ -1,298 +1,297 @@
-# Security Audit Instructions (APEX 6.2)
+# APEX 6.2 Full Systems Audit Instructions
 
-This document provides step-by-step instructions for conducting a comprehensive security audit of the Moltbot codebase following APEX 6.2 protocols.
+**Purpose:** Repeatable process for conducting comprehensive system audits.
+**Created:** 2026-01-29
+**Last Updated:** 2026-01-29
+
+---
 
 ## Prerequisites
 
-Before starting, load these APEX skills:
-- `/home/liam/clawd/apex-vault/apex/skills/security-guard/COMPACT.md`
-- `/home/liam/clawd/apex-vault/apex/skills/bug-comorbidity/COMPACT.md`
-- `/home/liam/clawd/apex-vault/apex/skills/code-review/COMPACT.md`
-- `/home/liam/clawd/apex-vault/apex/skills/project-audit/COMPACT.md`
+1. Read APEX 6.2 rules: `/home/liam/.cursor/rules/apex-v6.mdc`
+2. Load bug-comorbidity skill: `/home/liam/clawd/apex-vault/apex/skills/bug-comorbidity/COMPACT.md`
+3. Load security-guard skill: `/home/liam/clawd/apex-vault/apex/skills/security-guard/COMPACT.md`
 
-## Audit Categories (Weighted)
+---
 
-| Category | Weight | Key Checks |
-|----------|--------|------------|
-| Security | 25% | OWASP, secrets, input validation |
-| Code Patterns | 20% | Error handling, null safety |
-| Testing | 20% | Coverage, quality |
-| Architecture | 15% | Structure, separation |
-| Dependencies | 10% | Outdated, vulnerabilities |
-| Documentation | 5% | README, API docs |
-| APEX Adoption | 5% | Which skills followed |
+## Audit Methodology
 
-## Step 1: Hardcoded Secrets Scan
+### Phase 1: Parallel Exploration
 
-Search for credentials, API keys, tokens, and passwords in source code.
+Launch 4 parallel explore subagents to cover different domains simultaneously:
 
-### Patterns to Search
+```
+1. SECURITY AUDIT
+   - Hardcoded secrets, tokens, API keys
+   - Injection vulnerabilities (SQL, XSS, command, path traversal)
+   - Authentication/authorization gaps
+   - CSRF protection
+   - SSRF vulnerabilities
+   - eval() usage
 
-```bash
-# API keys and tokens
-rg -i "(api_key|apikey|api-key|secret|password|token|private_key|credentials)\s*[=:]\s*['\"][^'\"]+['\"]" src/ extensions/ apps/
+2. CODE QUALITY AUDIT  
+   - Files exceeding 700 LOC (APEX guideline)
+   - TypeScript 'any' usage
+   - Duplicate code patterns
+   - Missing error handling
+   - Dead code
 
-# Bearer tokens
-rg "Bearer\s+[A-Za-z0-9._-]{20,}" src/ extensions/
+3. TEST COVERAGE AUDIT
+   - Core files missing .test.ts
+   - Critical functions without tests
+   - E2E test gaps
+   - Coverage below 70% threshold
 
-# Known API key formats
-rg "sk-[A-Za-z0-9]{20,}" src/ extensions/  # OpenAI
-rg "ghp_[A-Za-z0-9]{36}" src/ extensions/  # GitHub
-rg "AKIA[A-Z0-9]{16}" src/ extensions/     # AWS
-
-# Base64 encoded secrets
-rg "Buffer\.from\(['\"][A-Za-z0-9+/=]{20,}['\"],\s*['\"]base64['\"]" src/ extensions/
-
-# .env files (should not be committed)
-find . -name ".env" -not -path "./node_modules/*" -type f
+4. DEPENDENCY AUDIT
+   - Version mismatches
+   - Outdated/vulnerable deps
+   - Manual package.json edits
+   - Carbon dependency (never update)
 ```
 
-### Exclusions (Expected)
-- Test files (`*.test.ts`) with mock tokens
-- `.env.example` templates
-- Placeholder values like `"n/a"` or `"test-token"`
+### Phase 2: Bug Comorbidity Analysis
 
-## Step 2: Injection Vulnerabilities
+For each critical finding, search for related bugs:
 
-### Command Injection
+| If You Find | Also Check For |
+|-------------|----------------|
+| Hardcoded secrets | Debug endpoints, verbose errors |
+| SQL/XSS injection | Path traversal, command injection, SSRF |
+| Race condition | Deadlocks, data corruption, missing locks |
+| Memory leak | Unclosed resources, event listeners |
+| Null access | Missing validation, async timing |
+| Off-by-one | Empty array handling, loop bounds |
 
-```bash
-# exec/spawn with potential user input
-rg "(exec|execSync|spawn|spawnSync)\s*\(" src/ extensions/ --type ts
+### Phase 3: Additional Domain Audits
 
-# Check each finding for:
-# - Is the command string user-controlled?
-# - Is input sanitized before execution?
-# - Can shell metacharacters (;|&&$()) reach the shell?
+Launch additional parallel searches as needed:
+
+```
+5. EVOLUTION QUEUE CHECK
+   - Read ~/clawd/EVOLUTION-QUEUE.md
+   - Identify production outages
+   - Check for unresolved critical items
+
+6. OPERATIONS AUDIT
+   - Logging inconsistencies
+   - Missing health checks
+   - Shutdown handling
+   - Resource cleanup
+
+7. PERFORMANCE AUDIT
+   - Synchronous file operations
+   - N+1 query patterns
+   - Missing caching
+   - Blocking operations
+
+8. CI/CD AUDIT (optional)
+   - Missing test suites in CI
+   - Disabled jobs
+   - Labeler coverage gaps
+
+9. DOCUMENTATION AUDIT
+   - Missing READMEs
+   - JSDoc gaps
+   - Stale references
 ```
 
-### SQL Injection
-
-```bash
-# Raw SQL queries
-rg "\.query\s*\(" src/ --type ts
-rg "\.exec\s*\(" src/ --type ts | grep -i sql
-
-# Check for parameterized queries (SAFE):
-# .prepare() with ? placeholders
-# Template literals should NOT contain user input
-```
-
-### Eval Injection
-
-```bash
-rg "eval\s*\(" src/ extensions/ --type ts
-rg "new\s+Function\s*\(" src/ extensions/ --type ts
-rg "setTimeout\s*\([^,]+," src/ --type ts  # Check if first arg is string
-```
-
-## Step 3: Authentication & Authorization
-
-### Find Auth Mechanisms
-
-```bash
-# Auth-related files
-rg -l "auth|login|session|permission|role" src/ --type ts
-
-# Timing-safe comparisons (SAFE)
-rg "timingSafeEqual" src/ extensions/ --type ts
-
-# Unsafe string comparisons for secrets
-rg "===.*token|token.*===" src/ extensions/ --type ts
-rg "===.*secret|secret.*===" src/ extensions/ --type ts
-```
-
-### Check for Missing Auth
-
-```bash
-# HTTP handlers - verify each has auth check
-rg "app\.(get|post|put|delete|patch)\s*\(" src/ --type ts
-rg "router\.(get|post|put|delete|patch)\s*\(" src/ --type ts
-
-# WebSocket handlers
-rg "\.on\s*\(['\"]message" src/ --type ts
-```
-
-## Step 4: Input Validation & XSS
-
-### XSS Patterns
-
-```bash
-# Dangerous DOM manipulation
-rg "innerHTML\s*=" src/ ui/ --type ts
-rg "dangerouslySetInnerHTML" src/ ui/ --type ts
-rg "document\.write\s*\(" src/ ui/ --type ts
-
-# URL parameters without validation
-rg "URLSearchParams|\.get\s*\(" ui/ --type ts
-```
-
-### Input Validation
-
-```bash
-# File operations with user paths
-rg "fs\.(readFile|writeFile|unlink|rmdir)" src/ --type ts
-rg "path\.join\s*\(" src/ --type ts  # Check if user input reaches this
-
-# Check for path traversal prevention
-rg "\.\./" src/ --type ts  # Look for explicit checks
-rg "openFileWithinRoot" src/ --type ts  # SAFE pattern
-```
-
-## Step 5: Path Traversal
-
-```bash
-# File path construction
-rg "path\.(join|resolve)\s*\(" src/ --type ts -A 2
-
-# Check each for:
-# - Does user input reach this path construction?
-# - Is there validation for ".." sequences?
-# - Is there a root directory restriction?
-
-# Safe pattern to look for:
-rg "openFileWithinRoot|fs-safe" src/ --type ts
-```
-
-## Step 6: Cryptography
-
-```bash
-# Weak hash algorithms
-rg "createHash\s*\(['\"]md5['\"]" src/ --type ts
-rg "createHash\s*\(['\"]sha1['\"]" src/ --type ts  # OK for non-security use
-
-# Insecure random
-rg "Math\.random\s*\(" src/ --type ts  # Verify not used for security
-
-# TLS issues
-rg "rejectUnauthorized\s*[=:]\s*false" src/ --type ts
-```
-
-## Step 7: Error Handling & Info Disclosure
-
-```bash
-# Stack trace exposure
-rg "\.stack" src/ --type ts | grep -v test
-
-# Full error object logging
-rg "console\.(log|error)\s*\([^)]*err\s*\)" src/ extensions/ --type ts
-
-# Debug endpoints
-rg "debug|/debug" src/ --type ts
-```
-
-## Step 8: Dependencies
-
-```bash
-# Check for known vulnerable packages
-pnpm audit
-
-# Manual check for problematic packages
-cat package.json | jq '.dependencies' | grep -E "(lodash|axios|serialize-javascript|minimist|node-forge|vm2)"
-```
-
-## Step 9: Recent Changes Review
-
-```bash
-# List recent commits
-git log --oneline -30 --since="30 days ago"
-
-# Files changed recently
-git diff --name-only HEAD~30
-
-# Focus security review on:
-# - Auth changes
-# - Session handling
-# - Webhook endpoints
-# - New API endpoints
-```
+---
 
 ## Severity Classification
 
 | Severity | Criteria | Action |
 |----------|----------|--------|
-| CRITICAL | RCE, auth bypass, credential exposure | Fix immediately |
-| HIGH | Significant security impact, data exposure | Fix this sprint |
-| MEDIUM | Limited impact, defense-in-depth | Fix next sprint |
-| LOW | Minor issues, hardening | Track in backlog |
+| **CRITICAL** | Production outage, security breach risk, data loss | Fix immediately |
+| **HIGH** | Auth issues, major functionality broken, race conditions | Fix same session |
+| **MEDIUM** | Logic bugs, missing tests, tech debt | Schedule fix |
+| **LOW** | Style, minor issues, optimizations | Backlog |
 
-## Grading
+---
 
-| Grade | Criteria |
-|-------|----------|
-| A | 0 critical, ≤2 high |
-| B | 0 critical, ≤5 high |
-| C | ≤2 critical, multiple high |
-| D | 3+ critical |
-| F | Active security vulnerabilities |
+## Execution Checklist
 
-## Report Template
+### Before Starting
 
-```markdown
-# APEX Security Audit: [Project]
+```bash
+# 1. Verify baseline tests pass
+cd /home/liam && pnpm test 2>&1 | tail -10
 
-## Executive Summary
-| Grade | CRITICAL | HIGH | MEDIUM | LOW |
-|-------|----------|------|--------|-----|
-| [X]   | [n]      | [n]  | [n]    | [n] |
+# 2. Check git status
+git status
 
-## CRITICAL Findings
-### 1. [Issue Name]
-**Location:** `path/to/file.ts:line`
-**Issue:** Description
-**Fix:** Remediation steps
-
-## HIGH Severity Findings
-...
-
-## MEDIUM Severity Findings
-1. **[Issue]** - `location` - Description
-...
-
-## LOW Severity Findings
-...
-
-## Positive Findings
-- Safe patterns found
-...
-
-## Remediation Priority
-### Phase 1: Critical (Immediate)
-### Phase 2: High (This Sprint)
-### Phase 3: Medium (Next Sprint)
-
-## Files Requiring Attention
-1. `file.ts` - Issue
-...
+# 3. Note any pre-existing failures
 ```
 
-## Comorbidity Protocol
+### During Audit
 
-When you find a bug, search for related issues:
+- [ ] Read each file before analyzing
+- [ ] Trace every symbol (Context-First protocol)
+- [ ] Search for comorbid bugs
+- [ ] Document with specific file:line references
+- [ ] Classify severity
 
-| If You Find | Also Check For |
-|-------------|----------------|
-| Hardcoded secrets | Debug endpoints, verbose errors, log exposure |
-| Command injection | Path traversal, SQL injection, eval |
-| Missing auth | Authorization bypass, session issues |
-| Path traversal | File upload issues, symlink attacks |
-| Timing attacks | Other comparison vulnerabilities |
-| Null/undefined | Missing validation, async timing |
+### Before Each Fix
 
-## Automation
-
-Run the built-in security audit:
 ```bash
-moltbot security audit --deep
+# Run baseline test for affected area
+pnpm test src/<affected-module>/
+
+# Note the test count
 ```
 
-Run detect-secrets:
+### After Each Fix
+
 ```bash
-pip install detect-secrets==1.5.0
-detect-secrets scan --baseline .secrets.baseline
+# 1. Build
+pnpm build
+
+# 2. Lint
+pnpm lint
+
+# 3. Test affected area
+pnpm test src/<affected-module>/
+
+# 4. Compare test counts (no regressions)
+```
+
+### After All Fixes
+
+```bash
+# Full gate
+pnpm lint && pnpm build && pnpm test
+
+# Verify no new failures introduced
 ```
 
 ---
 
-*Last updated: 2026-01-28*
-*APEX Version: 6.2*
+## Output Format
+
+Create a plan file with:
+
+```markdown
+# APEX 6.2 Full Systems Audit Report
+
+**Date:** YYYY-MM-DD
+**Methodology:** Bug-comorbidity + parallel exploration
+**Coverage:** [list domains audited]
+
+## Domain Summary Table
+| Domain | Critical | High | Medium | Low | Total |
+
+## Critical Issues (fix immediately)
+### 1. [Issue Title]
+- **File:** path/to/file.ts:line
+- **Issue:** description
+- **Risk:** impact
+- **Action:** fix
+
+## High Priority Issues
+...
+
+## Medium Priority Issues
+...
+
+## Remediation Todos
+- id: unique-id
+  content: description
+  status: pending|in_progress|completed
+
+## Regression Guards
+[document test-before/test-after for each fix]
+```
+
+---
+
+## Common Patterns to Search
+
+### Security
+
+```bash
+# Hardcoded secrets
+grep -rn "password\s*=" --include="*.ts" src/
+grep -rn "secret\s*=" --include="*.ts" src/
+grep -rn "token\s*=" --include="*.ts" src/
+
+# eval() usage
+grep -rn "eval(" --include="*.ts" src/
+
+# Path traversal
+grep -rn "path.join.*subdir" --include="*.ts" src/
+
+# SSRF
+grep -rn "fetch\(\`\${" --include="*.ts" src/
+```
+
+### Code Quality
+
+```bash
+# Files over 700 LOC
+wc -l src/**/*.ts | awk '$1 > 700 {print}'
+
+# 'any' type usage
+grep -rn ": any" --include="*.ts" src/
+grep -rn "as any" --include="*.ts" src/
+
+# TODO/FIXME
+grep -rn "TODO\|FIXME" --include="*.ts" src/
+```
+
+### Concurrency
+
+```bash
+# Fire-and-forget promises (missing await)
+grep -rn "void.*\.catch" --include="*.ts" src/
+
+# Sync file operations
+grep -rn "Sync(" --include="*.ts" src/
+```
+
+---
+
+## Evolution Queue Integration
+
+After fixing issues, update EVOLUTION-QUEUE.md:
+
+1. Mark resolved items with `[RESOLVED]` in title
+2. Add resolution note with date
+3. Move to archive if applicable
+
+Example:
+```markdown
+### [2026-01-28-049] [RESOLVED] Issue Title
+- **Status:** RESOLVED
+- **Resolution (2026-01-29):** Description of fix
+```
+
+---
+
+## APEX 6.2 Compliance Checklist
+
+- [ ] Read-First: All files read before editing
+- [ ] Architecture-First: Structure discovered before changes
+- [ ] Regression Guard: Tests run before AND after changes
+- [ ] Quality Gates: Build/lint/test pass before complete
+- [ ] Bug Prevention: No working code broken
+- [ ] Non-Destructive: Rollback paths documented
+- [ ] Security-First: No hardcoded secrets, inputs validated
+- [ ] Bug-Comorbidity: Related bugs searched and addressed
+
+---
+
+## Files Modified in This Audit Session
+
+Track all modified files for review:
+
+```
+~/.clawdbot/moltbot.json - Agent tool permissions
+~/.clawdbot/cron/jobs.json - Cron job session targets
+~/clawd/EVOLUTION-QUEUE.md - Resolved items
+src/media/store.ts - Path traversal protection
+src/gateway/server-close.ts - Shutdown timeout
+src/gateway/server-channels.ts - Race condition guard
+```
+
+---
+
+*Reference: APEX v6.2.0 | Skills: bug-comorbidity, security-guard*

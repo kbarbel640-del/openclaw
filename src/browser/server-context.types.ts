@@ -21,6 +21,8 @@ export type BrowserServerState = {
   port: number;
   resolved: ResolvedBrowserConfig;
   profiles: Map<string, ProfileRuntimeState>;
+  /** CSRF token for state-changing requests (defense in depth for localhost) */
+  csrfToken: string;
 };
 
 export type BrowserRouteContext = {

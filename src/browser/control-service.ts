@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { loadConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveBrowserConfig, resolveProfile } from "./config.js";
@@ -30,6 +31,7 @@ export async function startBrowserControlServiceFromConfig(): Promise<BrowserSer
     port: resolved.controlPort,
     resolved,
     profiles: new Map(),
+    csrfToken: crypto.randomBytes(32).toString("hex"),
   };
 
   // If any profile uses the Chrome extension relay, start the local relay server eagerly

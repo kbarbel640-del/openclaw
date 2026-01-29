@@ -1,0 +1,357 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "ecfcc687-f334-45a8-a4b1-99271f963280",
+      "agentId": "liam-telegram",
+      "name": "Daily-Health-Check",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769486784195,
+      "updatedAtMs": 1769533200001,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run daily health check: 1) Check gateway status, 2) Verify channels are working (Telegram, Discord), 3) Test GOG authentication, 4) Check memory search is working, 5) Report any issues to Simon via Telegram.",
+        "model": "ollama/glm-4.7-flash",
+        "thinking": "off",
+        "timeoutSeconds": 300,
+        "channel": "last",
+        "userId": "886031571"
+      },
+      "state": {
+        "nextRunAtMs": 1769706000000,
+        "lastRunAtMs": 1769533200001,
+        "lastStatus": "ok",
+        "lastDurationMs": 30245
+      }
+    },
+    {
+      "id": "c02cd163-41fb-4ec9-ab70-94b4625c0617",
+      "agentId": "liam-telegram",
+      "name": "Morning-Weather",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769486786172,
+      "updatedAtMs": 1769612400001,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Get the weather forecast for Long Beach, CA for today. If there's significant weather (rain, extreme heat, cold front), alert Simon via Telegram with a brief summary and recommendation.",
+        "model": "zai/glm-4.7",
+        "thinking": "off",
+        "timeoutSeconds": 120,
+        "channel": "last",
+        "userId": "886031571"
+      },
+      "isolation": {
+        "postToMainPrefix": "Cron",
+        "postToMainMode": "summary",
+        "postToMainMaxChars": 8000
+      },
+      "state": {
+        "nextRunAtMs": 1769698800000,
+        "lastRunAtMs": 1769612400002,
+        "lastStatus": "ok",
+        "lastDurationMs": 148491
+      }
+    },
+    {
+      "id": "6301df91-cbcd-4698-9980-58147f13cf8d",
+      "agentId": "liam-telegram",
+      "name": "Heartbeat-Check",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769486794931,
+      "updatedAtMs": 1769664084368,
+      "schedule": {
+        "kind": "every",
+        "everyMs": 1800000
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "systemEvent",
+        "text": "heartbeat"
+      },
+      "state": {
+        "nextRunAtMs": 1769666915452,
+        "lastRunAtMs": 1769664084368,
+        "lastStatus": "ok",
+        "lastDurationMs": 0
+      }
+    },
+    {
+      "id": "9609adec-cc9a-4aeb-94ad-a1fc57a87745",
+      "agentId": "liam-telegram",
+      "name": "Blogwatcher-Check",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769486796992,
+      "updatedAtMs": 1769664068557,
+      "schedule": {
+        "kind": "every",
+        "everyMs": 7200000
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run blogwatcher scan to check for new articles from monitored feeds. Read the blogwatcher skill at ~/skills/blogwatcher/SKILL.md first. If there are new interesting articles, summarize and alert Simon via Telegram.",
+        "model": "zai/glm-4.7",
+        "thinking": "off",
+        "timeoutSeconds": 300,
+        "channel": "last",
+        "userId": "886031571"
+      },
+      "isolation": {
+        "postToMainPrefix": "Cron",
+        "postToMainMode": "summary",
+        "postToMainMaxChars": 8000
+      },
+      "state": {
+        "nextRunAtMs": 1769672315452,
+        "lastRunAtMs": 1769664068557,
+        "lastStatus": "ok",
+        "lastDurationMs": 15802
+      }
+    },
+    {
+      "id": "87d1ba96-0b0d-458e-a4e7-f61d70485bf4",
+      "agentId": "liam-telegram",
+      "name": "Daily-Employee-Review",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769486799269,
+      "updatedAtMs": 1769559764559,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Conduct weekly self-assessment as AI Employee: 1) Review JOB.md responsibilities, 2) Check METRICS.md for last week's activity, 3) Review EVOLUTION-QUEUE.md for pending proposals, 4) Generate brief status report to Simon via Telegram including accomplishments, blockers, and proposed improvements.",
+        "model": "zai/glm-4.7",
+        "thinking": "low",
+        "timeoutSeconds": 600,
+        "channel": "last",
+        "userId": "886031571"
+      },
+      "state": {
+        "nextRunAtMs": 1769706000000
+      }
+    },
+    {
+      "id": "2b9cc326-34ad-4ded-adf4-0051135437d3",
+      "agentId": "liam-telegram",
+      "name": "Calendar-Check",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769486805452,
+      "updatedAtMs": 1769529600003,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "EXECUTE: gog calendar events primary --from today --to '+2d' --account clawdbot@puenteworks.com\n\nIf there are meetings, alert Simon via Telegram with prep reminders.",
+        "model": "ollama/glm-4.7-flash",
+        "thinking": "off",
+        "timeoutSeconds": 120,
+        "channel": "last",
+        "userId": "886031571"
+      },
+      "state": {
+        "nextRunAtMs": 1769702400000,
+        "lastRunAtMs": 1769529600003,
+        "lastStatus": "ok",
+        "lastDurationMs": 21684
+      }
+    },
+    {
+      "id": "175325a0-5564-43b8-a77b-898d5b57e511",
+      "agentId": "liam-telegram",
+      "name": "Daily-Self-Audit",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769564227462,
+      "updatedAtMs": 1769564227462,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run ~/clawd/scripts/self-audit.sh. If CRITICAL or HIGH issues, alert Simon. Otherwise log silently.",
+        "timeoutSeconds": 120,
+        "channel": "last"
+      },
+      "state": {
+        "nextRunAtMs": 1769702400000
+      }
+    },
+    {
+      "id": "0ba63d60-ebfe-46d7-8b43-b41398ca7e67",
+      "agentId": "liam-telegram",
+      "name": "Evening-Self-Audit",
+      "description": "Debug mode: Evening self-audit check (revert after 2026-02-10)",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769569977269,
+      "updatedAtMs": 1769652005443,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 18 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run ~/clawd/scripts/self-audit.sh --full. This is the evening debug mode check. If CRITICAL or HIGH issues found, alert Simon immediately. Otherwise log silently.",
+        "model": "ollama/glm-4.7-flash",
+        "thinking": "off",
+        "channel": "last"
+      },
+      "state": {
+        "nextRunAtMs": 1769738400000,
+        "lastRunAtMs": 1769652005443,
+        "lastStatus": "ok",
+        "lastDurationMs": 21526
+      }
+    },
+    {
+      "id": "e64edcf6-7921-4d58-9866-66239a912f35",
+      "name": "self-evaluation",
+      "description": "Debug mode: APEX compliance check Wed+Sun (revert to Sun-only after 2026-02-10)",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769570013248,
+      "updatedAtMs": 1769570013248,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 3 * * 0,3"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "systemEvent",
+        "text": "self-eval"
+      },
+      "state": {
+        "nextRunAtMs": 1769943600000
+      }
+    },
+    {
+      "id": "11e2e97a-cfe2-483f-9a9e-b7a8ebeac499",
+      "agentId": "liam-telegram",
+      "name": "Queue-Cleanup",
+      "description": "Debug mode: Evolution Queue cleanup Wed+Sun (revert to Sun-only after 2026-02-10)",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769570028018,
+      "updatedAtMs": 1769659200017,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 20 * * 0,3",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run ~/clawd/scripts/queue-cleanup.sh --report. If there are resolved or cancelled items, alert Simon that archiving is needed. Also check CURSOR-RESOLUTIONS.md for unacknowledged resolutions and acknowledge them.",
+        "model": "ollama/glm-4.7-flash",
+        "thinking": "off",
+        "channel": "last"
+      },
+      "state": {
+        "nextRunAtMs": 1770004800000,
+        "lastRunAtMs": 1769659200017,
+        "lastStatus": "ok",
+        "lastDurationMs": 23071
+      }
+    },
+    {
+      "id": "d15189e4-846f-445a-9318-45495530145a",
+      "agentId": "liam-telegram",
+      "name": "Model-Health-Check",
+      "description": "Debug mode: Daily model endpoint health check (revert after 2026-02-10)",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769570080214,
+      "updatedAtMs": 1769623200002,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 10 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run ~/clawd/scripts/model-health.sh --quick. If any models fail, alert Simon immediately with details about which model(s) are not responding.",
+        "model": "ollama/glm-4.7-flash",
+        "thinking": "off",
+        "channel": "last"
+      },
+      "state": {
+        "nextRunAtMs": 1769709600000,
+        "lastRunAtMs": 1769623200002,
+        "lastStatus": "ok",
+        "lastDurationMs": 21368
+      }
+    },
+    {
+      "id": "supervisor-periodic-audit",
+      "agentId": "supervisor",
+      "name": "Supervisor-Periodic-Audit",
+      "description": "Tier 3 supervisor audit: Reviews recent session quality, error patterns, context rot indicators",
+      "enabled": true,
+      "deleteAfterRun": false,
+      "createdAtMs": 1769626800000,
+      "updatedAtMs": 1769659200017,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */4 * * *",
+        "tz": "America/Los_Angeles"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "next-heartbeat",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "SUPERVISOR AUDIT (Dual-Channel): 1) Read ~/clawd/skills/supervisor/SKILL.md for protocol. 2) Review last 10 sessions from BOTH agents via sessions_list: liam-telegram (MiniMax M2.1 worker) AND liam-discord (Kimi K2.5 worker). 3) Check for: hallucinated paths, repeated errors, context overflow warnings, subagent failures. 4) Cross-validate: look for blind spots one model caught that the other missed. 5) If CRITICAL issues found, summarize findings. 6) If all clear, log silently (no alert).",
+        "timeoutSeconds": 300,
+        "channel": "last"
+      },
+      "state": {
+        "nextRunAtMs": 1769673600000,
+        "lastRunAtMs": 1769659223095,
+        "lastStatus": "ok",
+        "lastDurationMs": 99137
+      }
+    }
+  ]
+}

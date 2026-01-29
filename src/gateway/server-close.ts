@@ -6,6 +6,25 @@ import { stopGmailWatcher } from "../hooks/gmail-watcher.js";
 import type { HeartbeatRunner } from "../infra/heartbeat-runner.js";
 import type { PluginServicesHandle } from "../plugins/services.js";
 
+/** Maximum time to wait for graceful shutdown before force exit */
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+/** Wrap a promise with a timeout. Returns the result or throws on timeout. */
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export function createGatewayCloseHandler(params: {
   bonjourStop: (() => Promise<void>) | null;
   tailscaleCleanup: (() => Promise<void>) | null;
@@ -37,92 +56,103 @@ export function createGatewayCloseHandler(params: {
       typeof opts?.restartExpectedMs === "number" && Number.isFinite(opts.restartExpectedMs)
         ? Math.max(0, Math.floor(opts.restartExpectedMs))
         : null;
-    if (params.bonjourStop) {
-      try {
-        await params.bonjourStop();
-      } catch {
-        /* ignore */
+
+    // Run graceful shutdown with timeout; force exit if it hangs
+    const gracefulShutdown = async () => {
+      if (params.bonjourStop) {
+        try {
+          await params.bonjourStop();
+        } catch {
+          /* ignore */
+        }
       }
-    }
-    if (params.tailscaleCleanup) {
-      await params.tailscaleCleanup();
-    }
-    if (params.canvasHost) {
-      try {
-        await params.canvasHost.close();
-      } catch {
-        /* ignore */
+      if (params.tailscaleCleanup) {
+        await params.tailscaleCleanup();
       }
-    }
-    if (params.canvasHostServer) {
-      try {
-        await params.canvasHostServer.close();
-      } catch {
-        /* ignore */
+      if (params.canvasHost) {
+        try {
+          await params.canvasHost.close();
+        } catch {
+          /* ignore */
+        }
       }
-    }
-    for (const plugin of listChannelPlugins()) {
-      await params.stopChannel(plugin.id);
-    }
-    if (params.pluginServices) {
-      await params.pluginServices.stop().catch(() => {});
-    }
-    await stopGmailWatcher();
-    params.cron.stop();
-    params.heartbeatRunner.stop();
-    for (const timer of params.nodePresenceTimers.values()) {
-      clearInterval(timer);
-    }
-    params.nodePresenceTimers.clear();
-    params.broadcast("shutdown", {
-      reason,
-      restartExpectedMs,
-    });
-    clearInterval(params.tickInterval);
-    clearInterval(params.healthInterval);
-    clearInterval(params.dedupeCleanup);
-    if (params.agentUnsub) {
-      try {
-        params.agentUnsub();
-      } catch {
-        /* ignore */
+      if (params.canvasHostServer) {
+        try {
+          await params.canvasHostServer.close();
+        } catch {
+          /* ignore */
+        }
       }
-    }
-    if (params.heartbeatUnsub) {
-      try {
-        params.heartbeatUnsub();
-      } catch {
-        /* ignore */
+      for (const plugin of listChannelPlugins()) {
+        await params.stopChannel(plugin.id);
       }
-    }
-    params.chatRunState.clear();
-    for (const c of params.clients) {
-      try {
-        c.socket.close(1012, "service restart");
-      } catch {
-        /* ignore */
+      if (params.pluginServices) {
+        await params.pluginServices.stop().catch(() => {});
       }
-    }
-    params.clients.clear();
-    await params.configReloader.stop().catch(() => {});
-    if (params.browserControl) {
-      await params.browserControl.stop().catch(() => {});
-    }
-    await new Promise<void>((resolve) => params.wss.close(() => resolve()));
-    const servers =
-      params.httpServers && params.httpServers.length > 0
-        ? params.httpServers
-        : [params.httpServer];
-    for (const server of servers) {
-      const httpServer = server as HttpServer & {
-        closeIdleConnections?: () => void;
-      };
-      if (typeof httpServer.closeIdleConnections === "function") {
-        httpServer.closeIdleConnections();
+      await stopGmailWatcher();
+      params.cron.stop();
+      params.heartbeatRunner.stop();
+      for (const timer of params.nodePresenceTimers.values()) {
+        clearInterval(timer);
       }
-      await new Promise<void>((resolve, reject) =>
-        httpServer.close((err) => (err ? reject(err) : resolve())),
-      );
+      params.nodePresenceTimers.clear();
+      params.broadcast("shutdown", {
+        reason,
+        restartExpectedMs,
+      });
+      clearInterval(params.tickInterval);
+      clearInterval(params.healthInterval);
+      clearInterval(params.dedupeCleanup);
+      if (params.agentUnsub) {
+        try {
+          params.agentUnsub();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (params.heartbeatUnsub) {
+        try {
+          params.heartbeatUnsub();
+        } catch {
+          /* ignore */
+        }
+      }
+      params.chatRunState.clear();
+      for (const c of params.clients) {
+        try {
+          c.socket.close(1012, "service restart");
+        } catch {
+          /* ignore */
+        }
+      }
+      params.clients.clear();
+      await params.configReloader.stop().catch(() => {});
+      if (params.browserControl) {
+        await params.browserControl.stop().catch(() => {});
+      }
+      await new Promise<void>((resolve) => params.wss.close(() => resolve()));
+      const servers =
+        params.httpServers && params.httpServers.length > 0
+          ? params.httpServers
+          : [params.httpServer];
+      for (const server of servers) {
+        const httpServer = server as HttpServer & {
+          closeIdleConnections?: () => void;
+        };
+        if (typeof httpServer.closeIdleConnections === "function") {
+          httpServer.closeIdleConnections();
+        }
+        await new Promise<void>((resolve, reject) =>
+          httpServer.close((err) => (err ? reject(err) : resolve())),
+        );
+      }
+    }; // end gracefulShutdown
+
+    try {
+      await withTimeout(gracefulShutdown(), SHUTDOWN_TIMEOUT_MS, "gateway shutdown");
+    } catch (err) {
+      // Shutdown timed out or failed - log and continue (process will exit anyway)
+      console.error(`[gateway] shutdown error: ${String(err)}`);
     }
   };
 }

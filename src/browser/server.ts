@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { Server } from "node:http";
 import express from "express";
 
@@ -20,8 +21,24 @@ export async function startBrowserControlServerFromConfig(): Promise<BrowserServ
   const resolved = resolveBrowserConfig(cfg.browser, cfg);
   if (!resolved.enabled) return null;
 
+  // Generate CSRF token for this server instance
+  const csrfToken = crypto.randomBytes(32).toString("hex");
+
   const app = express();
   app.use(express.json({ limit: "1mb" }));
+
+  // CSRF validation middleware - all state-changing requests require token
+  app.use((req, res, next) => {
+    // Skip read-only methods
+    if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      return next();
+    }
+    const token = req.headers["x-csrf-token"];
+    if (!token || token !== csrfToken) {
+      return res.status(403).json({ error: "Invalid or missing CSRF token" });
+    }
+    next();
+  });
 
   const ctx = createBrowserRouteContext({
     getState: () => state,
@@ -44,6 +61,7 @@ export async function startBrowserControlServerFromConfig(): Promise<BrowserServ
     port,
     resolved,
     profiles: new Map(),
+    csrfToken,
   };
 
   // If any profile uses the Chrome extension relay, start the local relay server eagerly

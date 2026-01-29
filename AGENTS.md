@@ -83,9 +83,30 @@
 - Mobile: before using a simulator, check for connected real devices (iOS + Android) and prefer them when available.
 
 ## Commit & Pull Request Guidelines
-- Create commits with `scripts/committer "<msg>" <file...>`; avoid manual `git add`/`git commit` so staging stays scoped.
-- Follow concise, action-oriented commit messages (e.g., `CLI: add verbose flag to send`).
-- Group related changes; avoid bundling unrelated refactors.
+
+### Commit Rules (MANDATORY)
+- **ALWAYS** use `scripts/committer "<msg>" <file...>` — never use manual `git add`/`git commit` directly.
+- **ALWAYS** use conventional commit prefixes: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `perf:`.
+- **ONE logical change per commit** — never bundle unrelated changes in a single commit.
+- Keep commits focused and atomic; if you changed 3 unrelated things, make 3 commits.
+
+### Commit Message Format
+```
+<prefix>: <concise description>
+
+# Examples:
+feat: add rate limiting to WebSocket connections
+fix: resolve path traversal in media store
+chore: disable CI/CD workflows
+docs: add README to src/gateway
+refactor: extract shutdown timeout to helper
+```
+
+### Bad vs Good Examples
+- BAD: `"Update #049: Discord session verified missing, both agents broken"` (no prefix, vague)
+- GOOD: `"fix: resolve Discord agent tool access (EVO-049)"`
+- BAD: One commit with 16 files across gateway, extensions, UI, and docs
+- GOOD: Separate commits for each logical area
 - Changelog workflow: keep latest released version at top (no `Unreleased`); after publishing, bump version and start a new top section.
 - PRs should summarize scope, note testing performed, and mention any user-facing changes or new flags.
 - PR review flow: when given a PR link, review via `gh pr view`/`gh pr diff` and do **not** change branches.

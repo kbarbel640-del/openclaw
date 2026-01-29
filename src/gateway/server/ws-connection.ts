@@ -2,12 +2,16 @@ import { randomUUID } from "node:crypto";
 
 import type { WebSocket, WebSocketServer } from "ws";
 import { resolveCanvasHostUrl } from "../../infra/canvas-host-url.js";
+import { createRateLimiter, WS_CONNECTION_RATE_LIMIT } from "../../infra/rate-limit.js";
 import { listSystemPresence, upsertPresence } from "../../infra/system-presence.js";
 import type { createSubsystemLogger } from "../../logging/subsystem.js";
 import { isWebchatClient } from "../../utils/message-channel.js";
 
 import type { ResolvedGatewayAuth } from "../auth.js";
 import { isLoopbackAddress } from "../net.js";
+
+// Connection rate limiter: prevents connection floods
+const connectionRateLimiter = createRateLimiter(WS_CONNECTION_RATE_LIMIT);
 import { getHandshakeTimeoutMs } from "../server-constants.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "../server-methods/types.js";
 import { formatError } from "../server-utils.js";
@@ -87,6 +91,20 @@ export function attachGatewayWsConnectionHandler(params: {
     });
 
     logWs("in", "open", { connId, remoteAddr });
+
+    // Rate limit check: prevent connection floods (skip for loopback)
+    const rateLimitKey = remoteAddr ?? "unknown";
+    if (!isLoopbackAddress(rateLimitKey)) {
+      const rateLimitResult = connectionRateLimiter.check(rateLimitKey);
+      if (!rateLimitResult.allowed) {
+        logGateway.warn(
+          `rate limit exceeded for ${rateLimitKey}, closing connection (resets in ${rateLimitResult.resetMs}ms)`,
+        );
+        socket.close(1008, "rate limit exceeded");
+        return;
+      }
+    }
+
     let handshakeState: "pending" | "connected" | "failed" = "pending";
     let closeCause: string | undefined;
     let closeMeta: Record<string, unknown> = {};

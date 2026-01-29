@@ -28,6 +28,28 @@ function sanitizeFilename(name: string): string {
 }
 
 /**
+ * Validate and sanitize a subdirectory path to prevent path traversal.
+ * Returns a safe subdir or throws if the path would escape the base directory.
+ */
+function validateSubdir(subdir: string, baseDir: string): string {
+  if (!subdir) return "";
+  // Remove leading/trailing slashes and normalize
+  const cleaned = subdir.replace(/^[/\\]+|[/\\]+$/g, "");
+  // Reject if empty after cleaning
+  if (!cleaned) return "";
+  // Reject if contains path traversal sequences
+  if (cleaned.includes("..") || cleaned.includes("~")) {
+    throw new Error("Invalid subdir: path traversal not allowed");
+  }
+  // Resolve the full path and verify it's still under baseDir
+  const resolved = path.resolve(baseDir, cleaned);
+  if (!resolved.startsWith(baseDir + path.sep) && resolved !== baseDir) {
+    throw new Error("Invalid subdir: path escapes media directory");
+  }
+  return cleaned;
+}
+
+/**
  * Extract original filename from path if it matches the embedded format.
  * Pattern: {original}---{uuid}.{ext} → returns "{original}.{ext}"
  * Falls back to basename if no pattern match, or "file.bin" if empty.
@@ -167,7 +189,8 @@ export async function saveMediaSource(
   subdir = "",
 ): Promise<SavedMedia> {
   const baseDir = resolveMediaDir();
-  const dir = subdir ? path.join(baseDir, subdir) : baseDir;
+  const safeSubdir = validateSubdir(subdir, baseDir);
+  const dir = safeSubdir ? path.join(baseDir, safeSubdir) : baseDir;
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   await cleanOldMedia();
   const baseId = crypto.randomUUID();
@@ -212,7 +235,9 @@ export async function saveMediaBuffer(
   if (buffer.byteLength > maxBytes) {
     throw new Error(`Media exceeds ${(maxBytes / (1024 * 1024)).toFixed(0)}MB limit`);
   }
-  const dir = path.join(resolveMediaDir(), subdir);
+  const baseDir = resolveMediaDir();
+  const safeSubdir = validateSubdir(subdir, baseDir);
+  const dir = path.join(baseDir, safeSubdir || "inbound");
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   const uuid = crypto.randomUUID();
   const headerExt = extensionForMime(contentType?.split(";")[0]?.trim() ?? undefined);

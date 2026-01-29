@@ -4,6 +4,13 @@ import { fetch as realFetch } from "undici";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_AI_SNAPSHOT_MAX_CHARS } from "./constants.js";
 
+// Helper to get CSRF token from server
+async function getCsrfToken(base: string): Promise<string> {
+  const res = await realFetch(`${base}/`);
+  const data = (await res.json()) as { csrfToken: string };
+  return data.csrfToken;
+}
+
 let testPort = 0;
 let cdpBaseUrl = "";
 let reachable = false;
@@ -260,18 +267,24 @@ describe("browser control server", () => {
     await stopBrowserControlServer();
   });
 
+  let csrfToken = "";
+
   const startServerAndBase = async () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
-    await realFetch(`${base}/start`, { method: "POST" }).then((r) => r.json());
+    csrfToken = await getCsrfToken(base);
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    }).then((r) => r.json());
     return base;
   };
 
   const postJson = async <T>(url: string, body?: unknown): Promise<T> => {
     const res = await realFetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     return (await res.json()) as T;
@@ -335,7 +348,7 @@ describe("browser control server", () => {
 
     const clickSelector = await realFetch(`${base}/act`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ kind: "click", selector: "button.save" }),
     });
     expect(clickSelector.status).toBe(400);

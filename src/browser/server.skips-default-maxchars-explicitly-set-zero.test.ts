@@ -3,6 +3,13 @@ import { fetch as realFetch } from "undici";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Helper to get CSRF token from server
+async function getCsrfToken(base: string): Promise<string> {
+  const res = await realFetch(`${base}/`);
+  const data = (await res.json()) as { csrfToken: string };
+  return data.csrfToken;
+}
+
 let testPort = 0;
 let cdpBaseUrl = "";
 let reachable = false;
@@ -263,7 +270,11 @@ describe("browser control server", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
-    await realFetch(`${base}/start`, { method: "POST" }).then((r) => r.json());
+    const csrfToken = await getCsrfToken(base);
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    }).then((r) => r.json());
 
     const snapAi = (await realFetch(`${base}/snapshot?format=ai&maxChars=0`).then((r) =>
       r.json(),
@@ -282,74 +293,78 @@ describe("browser control server", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
-    await realFetch(`${base}/start`, { method: "POST" }).then((r) => r.json());
+    const csrfToken = await getCsrfToken(base);
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    }).then((r) => r.json());
 
     const navMissing = await realFetch(`${base}/navigate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({}),
     });
     expect(navMissing.status).toBe(400);
 
     const actMissing = await realFetch(`${base}/act`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({}),
     });
     expect(actMissing.status).toBe(400);
 
     const clickMissingRef = await realFetch(`${base}/act`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ kind: "click" }),
     });
     expect(clickMissingRef.status).toBe(400);
 
     const scrollMissingRef = await realFetch(`${base}/act`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ kind: "scrollIntoView" }),
     });
     expect(scrollMissingRef.status).toBe(400);
 
     const scrollSelectorUnsupported = await realFetch(`${base}/act`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ kind: "scrollIntoView", selector: "button.save" }),
     });
     expect(scrollSelectorUnsupported.status).toBe(400);
 
     const clickBadButton = await realFetch(`${base}/act`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ kind: "click", ref: "1", button: "nope" }),
     });
     expect(clickBadButton.status).toBe(400);
 
     const clickBadModifiers = await realFetch(`${base}/act`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ kind: "click", ref: "1", modifiers: ["Nope"] }),
     });
     expect(clickBadModifiers.status).toBe(400);
 
     const typeBadText = await realFetch(`${base}/act`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ kind: "type", ref: "1", text: 123 }),
     });
     expect(typeBadText.status).toBe(400);
 
     const uploadMissingPaths = await realFetch(`${base}/hooks/file-chooser`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({}),
     });
     expect(uploadMissingPaths.status).toBe(400);
 
     const dialogMissingAccept = await realFetch(`${base}/hooks/dialog`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({}),
     });
     expect(dialogMissingAccept.status).toBe(400);
@@ -363,7 +378,7 @@ describe("browser control server", () => {
 
     const screenshotBadCombo = await realFetch(`${base}/screenshot`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ fullPage: true, element: "body" }),
     });
     expect(screenshotBadCombo.status).toBe(400);
@@ -374,10 +389,11 @@ describe("browser control server", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     const missing = await realFetch(`${base}/tabs/open`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({}),
     });
     expect(missing.status).toBe(400);
@@ -385,6 +401,7 @@ describe("browser control server", () => {
     reachable = false;
     const started = (await realFetch(`${base}/start`, {
       method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
     }).then((r) => r.json())) as { error?: string };
     expect(started.error ?? "").toMatch(/attachOnly/i);
   });
@@ -417,8 +434,10 @@ describe("browser control server", () => {
       onEnsureAttachTarget: ensured,
     });
 
+    const bridgeCsrfToken = await getCsrfToken(bridge.baseUrl);
     const started = (await realFetch(`${bridge.baseUrl}/start`, {
       method: "POST",
+      headers: { "X-CSRF-Token": bridgeCsrfToken },
     }).then((r) => r.json())) as { ok?: boolean; error?: string };
     expect(started.error).toBeUndefined();
     expect(started.ok).toBe(true);
@@ -435,12 +454,16 @@ describe("browser control server", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
-    await realFetch(`${base}/start`, { method: "POST" }).then((r) => r.json());
+    const csrfToken = await getCsrfToken(base);
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    }).then((r) => r.json());
 
     createTargetId = "abcd1234";
     const opened = (await realFetch(`${base}/tabs/open`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ url: "https://example.com" }),
     }).then((r) => r.json())) as { targetId?: string };
     expect(opened.targetId).toBe("abcd1234");

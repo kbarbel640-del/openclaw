@@ -268,11 +268,16 @@ describe("browser control server", () => {
     const s1 = (await realFetch(`${base}/`).then((r) => r.json())) as {
       running: boolean;
       pid: number | null;
+      csrfToken: string;
     };
     expect(s1.running).toBe(false);
     expect(s1.pid).toBe(null);
 
-    await realFetch(`${base}/start`, { method: "POST" }).then((r) => r.json());
+    const csrfToken = s1.csrfToken;
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    }).then((r) => r.json());
     const s2 = (await realFetch(`${base}/`).then((r) => r.json())) as {
       running: boolean;
       pid: number | null;
@@ -289,7 +294,14 @@ describe("browser control server", () => {
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
 
-    await realFetch(`${base}/start`, { method: "POST" }).then((r) => r.json());
+    // Get CSRF token first
+    const status = (await realFetch(`${base}/`).then((r) => r.json())) as { csrfToken: string };
+    const csrfToken = status.csrfToken;
+
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    }).then((r) => r.json());
     const tabs = (await realFetch(`${base}/tabs`).then((r) => r.json())) as {
       running: boolean;
       tabs: Array<{ targetId: string }>;
@@ -299,14 +311,14 @@ describe("browser control server", () => {
 
     const opened = await realFetch(`${base}/tabs/open`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ url: "https://example.com" }),
     }).then((r) => r.json());
     expect(opened).toMatchObject({ targetId: "newtab1" });
 
     const focus = await realFetch(`${base}/tabs/focus`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ targetId: "abc" }),
     });
     expect(focus.status).toBe(409);

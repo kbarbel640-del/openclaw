@@ -52,6 +52,7 @@ export function registerBrowserBasicRoutes(app: BrowserRouteRegistrar, ctx: Brow
 
     res.json({
       enabled: current.resolved.enabled,
+      csrfToken: current.csrfToken,
       profile: profileCtx.profile.name,
       running: cdpReady,
       cdpReady,

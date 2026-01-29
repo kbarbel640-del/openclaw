@@ -4,6 +4,26 @@
 
 ---
 
+## Archived Entries (Jan 28, 2026 - Session 2)
+
+### [2026-01-28-049] Telegram & Discord Liam Identity/Tool Access Failure [RESOLVED]
+- **Proposed by:** Liam (Discord)
+- **Date:** 2026-01-28
+- **Category:** behavior
+- **Target file:** ~/.clawdbot/moltbot.json
+- **Status:** RESOLVED (2026-01-28)
+- **Resolution:** Added explicit `tools.allow` sections to both `liam-telegram` and `liam-discord` agents. Full tool access: exec, read, edit, write, web_fetch, web_search, message, cron, sessions_spawn, sessions_list, sessions_history, gateway, nodes, browser, memory_search, memory_write. Verified working.
+
+### [2026-01-28-050] Cron Jobs Misconfigured - Isolated Sessions Lack Tool Access [RESOLVED]
+- **Proposed by:** Liam
+- **Date:** 2026-01-28
+- **Category:** behavior
+- **Target file:** ~/.clawdbot/cron/jobs.json
+- **Status:** RESOLVED (2026-01-28)
+- **Resolution:** Changed `sessionTarget` from "isolated" to "main" for 8 jobs needing tool access: Daily-Health-Check, Calendar-Check, Daily-Self-Audit, Evening-Self-Audit, Queue-Cleanup, Model-Health-Check, Daily-Employee-Review, Supervisor-Periodic-Audit. Jobs now have full tool access.
+
+---
+
 ## Archived Entries (Jan 28, 2026)
 
 ### [2026-01-28-049] Add "code" Alias for Kimi K2.5 Cloud [RESOLVED]

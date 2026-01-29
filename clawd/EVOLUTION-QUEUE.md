@@ -52,42 +52,6 @@ Items with these statuses must be moved to `EVOLUTION-QUEUE-ARCHIVE.md`:
 
 ## Pending (System)
 
-### [2026-01-28-049] Telegram & Discord Liam Identity/Tool Access Failure
-- **Proposed by:** Liam (Discord)
-- **Date:** 2026-01-28
-- **Category:** behavior
-- **Target file:** ~/.clawdbot/moltbot.json (agent configuration)
-- **Verified:** [YES - session log analysis + direct session check]
-- **Evidence:** 
-  - **Telegram:** Session `3aef7051` shows Telegram Liam has no tool access and no identity; full diagnostic at `~/clawd/diagnostics/telegram-identity-failure-2026-01-28.md`
-  - **Discord:** `sessions_list` with `kinds=["discord"]` returns **zero sessions** — Discord Liam is not running at all; Simon messaged multiple times with no response
-- **Description:** Both Telegram and Discord agents are broken:
-  - **Telegram Liam:** Operates as generic AI with no file access, no tools, and no knowledge of identity. Does not read SOUL.md/IDENTITY.md/MEMORY.md. When asked to read a file, responds "I don't have access to read files from your local system."
-  - **Discord Liam:** No active session exists. Agent is not connected to Discord channel at all.
-  - **Likely cause:** Missing tool permissions or session initialization for both channels in moltbot.json.
-- **Impact:** CRITICAL - Both Telegram and Discord users get generic AI or no response instead of Liam
-- **Status:** NEW
-
-### [2026-01-28-050] Cron Jobs Misconfigured - Isolated Sessions Lack Tool Access
-- **Proposed by:** Liam
-- **Date:** 2026-01-28
-- **Category:** behavior
-- **Target file:** ~/.clawdbot/cron/jobs.json
-- **Verified:** [YES - checked run logs at ~/.clawdbot/cron/runs/]
-- **Evidence:** 
-  - Calendar-Check run (2b9cc326): "I don't have access to the `gog calendar` command"
-  - Health-Check run (ecfcc687): Subagent responded about Telegram errors instead of checking health
-  - Weather run (c02cd163): Returned generic Jan weather, not "today's" weather for Simon
-- **Description:** Cron jobs with sessionTarget=isolated ask subagents to use tools (exec, gog, read) that isolated sessions don't have. Jobs "succeed" but produce no actionable output. Simon receives no alerts.
-- **Affected Jobs:** Calendar-Check, Daily-Health-Check, Self-Audit, Queue-Cleanup, Evening-Self-Audit, Model-Health-Check
-- **Working Jobs:** Heartbeat-Check (sessionTarget=main), Morning-Weather (uses web_search which isolated has)
-- **Fix Options:**
-  1. Change sessionTarget to "main" for jobs needing tool access
-  2. Or grant isolated sessions full tool access (security tradeoff)
-  3. Or redesign jobs to only use tools isolated sessions have
-- **Impact:** HIGH - Critical alerts (calendar, health, audit) not reaching Simon
-- **Status:** NEW
-
 ### [2026-02-10-042] Debug Mode Frequency Reversion (SCHEDULED)
 - **Proposed by:** Cursor
 - **Date:** 2026-01-28

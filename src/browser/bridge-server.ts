@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import express from "express";
@@ -40,11 +41,13 @@ export async function startBrowserBridgeServer(params: {
     });
   }
 
+  const csrfToken = crypto.randomBytes(32).toString("hex");
   const state: BrowserServerState = {
     server: null as unknown as Server,
     port,
     resolved: params.resolved,
     profiles: new Map(),
+    csrfToken,
   };
 
   const ctx = createBrowserRouteContext({

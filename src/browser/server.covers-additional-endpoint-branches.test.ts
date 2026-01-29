@@ -3,6 +3,13 @@ import { fetch as realFetch } from "undici";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Helper to get CSRF token from server
+async function getCsrfToken(base: string): Promise<string> {
+  const res = await realFetch(`${base}/`);
+  const data = (await res.json()) as { csrfToken: string };
+  return data.csrfToken;
+}
+
 let testPort = 0;
 let _cdpBaseUrl = "";
 let reachable = false;
@@ -271,24 +278,30 @@ describe("browser control server", () => {
     expect(tabsWhenStopped.running).toBe(false);
     expect(Array.isArray(tabsWhenStopped.tabs)).toBe(true);
 
+    const csrfToken = await getCsrfToken(base);
+
     const focusStopped = await realFetch(`${base}/tabs/focus`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ targetId: "abcd" }),
     });
     expect(focusStopped.status).toBe(409);
 
-    await realFetch(`${base}/start`, { method: "POST" }).then((r) => r.json());
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    }).then((r) => r.json());
 
     const focusMissing = await realFetch(`${base}/tabs/focus`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ targetId: "zzz" }),
     });
     expect(focusMissing.status).toBe(404);
 
     const delAmbiguous = await realFetch(`${base}/tabs/abc`, {
       method: "DELETE",
+      headers: { "X-CSRF-Token": csrfToken },
     });
     expect(delAmbiguous.status).toBe(409);
 
@@ -376,8 +389,12 @@ describe("backward compatibility (profile parameter)", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
-    const result = (await realFetch(`${base}/start`, { method: "POST" }).then((r) => r.json())) as {
+    const result = (await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    }).then((r) => r.json())) as {
       ok: boolean;
       profile?: string;
     };
@@ -389,10 +406,17 @@ describe("backward compatibility (profile parameter)", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
-    await realFetch(`${base}/start`, { method: "POST" });
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    });
 
-    const result = (await realFetch(`${base}/stop`, { method: "POST" }).then((r) => r.json())) as {
+    const result = (await realFetch(`${base}/stop`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    }).then((r) => r.json())) as {
       ok: boolean;
       profile?: string;
     };
@@ -404,8 +428,12 @@ describe("backward compatibility (profile parameter)", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
-    await realFetch(`${base}/start`, { method: "POST" });
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    });
 
     const result = (await realFetch(`${base}/tabs`).then((r) => r.json())) as {
       running: boolean;
@@ -419,12 +447,16 @@ describe("backward compatibility (profile parameter)", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
-    await realFetch(`${base}/start`, { method: "POST" });
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    });
 
     const result = (await realFetch(`${base}/tabs/open`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ url: "https://example.com" }),
     }).then((r) => r.json())) as { targetId?: string };
     expect(result.targetId).toBe("newtab1");
@@ -447,8 +479,12 @@ describe("backward compatibility (profile parameter)", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
-    await realFetch(`${base}/start`, { method: "POST" });
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    });
 
     const result = (await realFetch(`${base}/tabs?profile=clawd`).then((r) => r.json())) as {
       running: boolean;
@@ -462,12 +498,16 @@ describe("backward compatibility (profile parameter)", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
-    await realFetch(`${base}/start`, { method: "POST" });
+    await realFetch(`${base}/start`, {
+      method: "POST",
+      headers: { "X-CSRF-Token": csrfToken },
+    });
 
     const result = (await realFetch(`${base}/tabs/open?profile=clawd`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ url: "https://example.com" }),
     }).then((r) => r.json())) as { targetId?: string };
     expect(result.targetId).toBe("newtab1");

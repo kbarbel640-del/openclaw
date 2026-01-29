@@ -3,6 +3,13 @@ import { fetch as realFetch } from "undici";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Helper to get CSRF token from server
+async function getCsrfToken(base: string): Promise<string> {
+  const res = await realFetch(`${base}/`);
+  const data = (await res.json()) as { csrfToken: string };
+  return data.csrfToken;
+}
+
 let testPort = 0;
 let _cdpBaseUrl = "";
 let reachable = false;
@@ -263,10 +270,11 @@ describe("browser control server", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     const result = await realFetch(`${base}/tabs/open?profile=unknown`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ url: "https://example.com" }),
     });
     expect(result.status).toBe(404);
@@ -317,10 +325,11 @@ describe("profile CRUD endpoints", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     const result = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({}),
     });
     expect(result.status).toBe(400);
@@ -332,10 +341,11 @@ describe("profile CRUD endpoints", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     const result = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ name: "Invalid Name!" }),
     });
     expect(result.status).toBe(400);
@@ -347,11 +357,12 @@ describe("profile CRUD endpoints", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     // "clawd" already exists as the default profile
     const result = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ name: "clawd" }),
     });
     expect(result.status).toBe(409);
@@ -363,10 +374,11 @@ describe("profile CRUD endpoints", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     const result = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ name: "remote", cdpUrl: "http://10.0.0.42:9222" }),
     });
     expect(result.status).toBe(200);
@@ -384,10 +396,11 @@ describe("profile CRUD endpoints", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     const result = await realFetch(`${base}/profiles/create`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
       body: JSON.stringify({ name: "badremote", cdpUrl: "ws://bad" }),
     });
     expect(result.status).toBe(400);
@@ -399,9 +412,11 @@ describe("profile CRUD endpoints", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     const result = await realFetch(`${base}/profiles/nonexistent`, {
       method: "DELETE",
+      headers: { "X-CSRF-Token": csrfToken },
     });
     expect(result.status).toBe(404);
     const body = (await result.json()) as { error: string };
@@ -412,10 +427,12 @@ describe("profile CRUD endpoints", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     // clawd is the default profile
     const result = await realFetch(`${base}/profiles/clawd`, {
       method: "DELETE",
+      headers: { "X-CSRF-Token": csrfToken },
     });
     expect(result.status).toBe(400);
     const body = (await result.json()) as { error: string };
@@ -426,9 +443,11 @@ describe("profile CRUD endpoints", () => {
     const { startBrowserControlServerFromConfig } = await import("./server.js");
     await startBrowserControlServerFromConfig();
     const base = `http://127.0.0.1:${testPort}`;
+    const csrfToken = await getCsrfToken(base);
 
     const result = await realFetch(`${base}/profiles/Invalid-Name!`, {
       method: "DELETE",
+      headers: { "X-CSRF-Token": csrfToken },
     });
     expect(result.status).toBe(400);
     const body = (await result.json()) as { error: string };

@@ -102,11 +102,15 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
     await Promise.all(
       accountIds.map(async (id) => {
         if (store.tasks.has(id)) return;
+        // Set placeholder immediately to prevent concurrent starts (race guard)
+        const placeholder = Promise.resolve();
+        store.tasks.set(id, placeholder);
         const account = plugin.config.resolveAccount(cfg, id);
         const enabled = plugin.config.isEnabled
           ? plugin.config.isEnabled(account, cfg)
           : isAccountEnabled(account);
         if (!enabled) {
+          store.tasks.delete(id); // Remove placeholder since we're not starting
           setRuntime(channelId, id, {
             accountId: id,
             running: false,
@@ -120,6 +124,7 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
           configured = await plugin.config.isConfigured(account, cfg);
         }
         if (!configured) {
+          store.tasks.delete(id); // Remove placeholder since we're not starting
           setRuntime(channelId, id, {
             accountId: id,
             running: false,
