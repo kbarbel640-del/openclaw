@@ -11,8 +11,7 @@
     "./cli-entry": "./moltbot.mjs"
   },
   "bin": {
-    "moltbot": "./moltbot.mjs",
-    "clawdbot": "./moltbot.mjs"
+    "moltbot": "./moltbot.mjs"
   },
   "files": [
     "dist/acp/**",
