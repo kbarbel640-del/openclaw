@@ -1,0 +1,66 @@
+{
+  "source_name": "slow-ai",
+  "source_title": "Why Your AI Prompts Produce Noise Instead of Decisions",
+  "source_url": "https://theslowai.substack.com/p/ai-precision-research-framework",
+  "slug": "why-your-ai-prompts-produce-noise-instead-of-decisions",
+  "insights": [
+    {
+      "insight": "volume without decisions",
+      "action": "Use this approach in your work",
+      "framework": "Precision Research",
+      "para_category": "areas",
+      "para_target": "business-strategy",
+      "rationale": "Extracted from slow-ai article on Why Your AI Prompts Produce Noise Instead of Decis",
+      "confidence": "medium"
+    },
+    {
+      "insight": "AI to sharpen your questions rather than outsource your judgement",
+      "action": "Apply this approach in your work",
+      "framework": "with one Precision Research Framework",
+      "para_category": "areas",
+      "para_target": "business-strategy",
+      "rationale": "Extracted from slow-ai article on Why Your AI Prompts Produce Noise Instead of Decis",
+      "confidence": "medium"
+    },
+    {
+      "insight": "more issues than incorrect system outputs",
+      "action": "Implement this approach in your work",
+      "framework": "The Precision Research Framework",
+      "para_category": "areas",
+      "para_target": "business-strategy",
+      "rationale": "Extracted from slow-ai article on Why Your AI Prompts Produce Noise Instead of Decis",
+      "confidence": "medium"
+    },
+    {
+      "insight": "long enough to ask what would genuinely shift your view",
+      "action": "Try this approach in your work",
+      "framework": null,
+      "para_category": "areas",
+      "para_target": "business-strategy",
+      "rationale": "Extracted from slow-ai article on Why Your AI Prompts Produce Noise Instead of Decis",
+      "confidence": "medium"
+    },
+    {
+      "insight": "this prompt with your AI tool of choice:I am researching [SPECIFIC TOPIC] because I need to [DECISIO",
+      "action": "Explore this approach in your work",
+      "framework": null,
+      "para_category": "areas",
+      "para_target": "business-strategy",
+      "rationale": "Extracted from slow-ai article on Why Your AI Prompts Produce Noise Instead of Decis",
+      "confidence": "medium"
+    }
+  ],
+  "insight_count": 5,
+  "frameworks_detected": [
+    "Precision Research",
+    "The Precision Research Framework",
+    "with one Precision Research Framework"
+  ],
+  "para_distribution": {
+    "projects": 0,
+    "areas": 5,
+    "resources": 0
+  },
+  "extracted_at": "2026-01-28T22:53:14.649866",
+  "extraction_method": "pattern_based"
+}

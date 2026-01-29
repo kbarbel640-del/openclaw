@@ -1,0 +1,62 @@
+{
+  "source_name": "slow-ai",
+  "source_title": "What AI Takes When You Aren't Looking",
+  "source_url": "https://theslowai.substack.com/p/ai-cognitive-costs-pattern-intuition",
+  "slug": "what-ai-takes-when-you-arent-looking",
+  "insights": [
+    {
+      "insight": "one prompt that encourages self-examination rather than maximisation",
+      "action": "Use this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on What AI Takes When You Aren't Looking",
+      "confidence": "medium"
+    },
+    {
+      "insight": "thinking systems rather than prompt collections",
+      "action": "Apply this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on What AI Takes When You Aren't Looking",
+      "confidence": "medium"
+    },
+    {
+      "insight": "this prompt with your AI tool of choice:If you could teach me one thing I lose by relying on you",
+      "action": "Implement this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on What AI Takes When You Aren't Looking",
+      "confidence": "medium"
+    },
+    {
+      "insight": "it for this exact prompt",
+      "action": "Try this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on What AI Takes When You Aren't Looking",
+      "confidence": "medium"
+    },
+    {
+      "insight": "by struggling through problems yourself",
+      "action": "Explore this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on What AI Takes When You Aren't Looking",
+      "confidence": "medium"
+    }
+  ],
+  "insight_count": 5,
+  "frameworks_detected": [],
+  "para_distribution": {
+    "projects": 0,
+    "areas": 0,
+    "resources": 5
+  },
+  "extracted_at": "2026-01-28T22:53:14.676837",
+  "extraction_method": "pattern_based"
+}

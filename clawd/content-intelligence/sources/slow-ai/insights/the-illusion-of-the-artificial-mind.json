@@ -1,0 +1,66 @@
+{
+  "source_name": "slow-ai",
+  "source_title": "The Illusion of the Artificial Mind",
+  "source_url": "https://theslowai.substack.com/p/attribution-of-mind-ai",
+  "slug": "the-illusion-of-the-artificial-mind",
+  "insights": [
+    {
+      "insight": "to get these feelings of surprise at how complex",
+      "action": "Use this approach in your work",
+      "framework": "knowledge that these",
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Illusion of the Artificial Mind",
+      "confidence": "medium"
+    },
+    {
+      "insight": "a prompt that slows your assumptions before they solidify",
+      "action": "Apply this approach in your work",
+      "framework": "practical application of this",
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Illusion of the Artificial Mind",
+      "confidence": "medium"
+    },
+    {
+      "insight": "this prompt with your AI tool of choice:Why is there a part of me that thinks you have a mind? I kno",
+      "action": "Implement this approach in your work",
+      "framework": "necessary framework",
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Illusion of the Artificial Mind",
+      "confidence": "medium"
+    },
+    {
+      "insight": "these models to organize information and help us interact with new stimuli",
+      "action": "Try this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Illusion of the Artificial Mind",
+      "confidence": "medium"
+    },
+    {
+      "insight": "support isn’t a feeling on my side — it’s an effect on your side",
+      "action": "Explore this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Illusion of the Artificial Mind",
+      "confidence": "medium"
+    }
+  ],
+  "insight_count": 5,
+  "frameworks_detected": [
+    "practical application of this",
+    "knowledge that these",
+    "necessary framework"
+  ],
+  "para_distribution": {
+    "projects": 0,
+    "areas": 0,
+    "resources": 5
+  },
+  "extracted_at": "2026-01-28T22:53:14.660872",
+  "extraction_method": "pattern_based"
+}

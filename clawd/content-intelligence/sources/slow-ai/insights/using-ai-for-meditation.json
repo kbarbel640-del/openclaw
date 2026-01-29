@@ -1,0 +1,65 @@
+{
+  "source_name": "slow-ai",
+  "source_title": "Using AI for Meditation",
+  "source_url": "https://theslowai.substack.com/p/ai-meditation-reflective-prompt",
+  "slug": "using-ai-for-meditation",
+  "insights": [
+    {
+      "insight": "of AI in meditation involves using these tools for personal attention and training",
+      "action": "Use this approach in your work",
+      "framework": "focus and",
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on Using AI for Meditation",
+      "confidence": "medium"
+    },
+    {
+      "insight": "AI to track your experience",
+      "action": "Apply this approach in your work",
+      "framework": "suggested that the forensic framework",
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on Using AI for Meditation",
+      "confidence": "medium"
+    },
+    {
+      "insight": "this prompt with your AI tool of choice:Guide me through a reflective exercise on the idea of AI lea",
+      "action": "Implement this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on Using AI for Meditation",
+      "confidence": "medium"
+    },
+    {
+      "insight": "a more meditative rhythm",
+      "action": "Try this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on Using AI for Meditation",
+      "confidence": "medium"
+    },
+    {
+      "insight": "AI as a reflective tool while remaining the primary source of meaning",
+      "action": "Explore this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on Using AI for Meditation",
+      "confidence": "medium"
+    }
+  ],
+  "insight_count": 5,
+  "frameworks_detected": [
+    "focus and",
+    "suggested that the forensic framework"
+  ],
+  "para_distribution": {
+    "projects": 0,
+    "areas": 0,
+    "resources": 5
+  },
+  "extracted_at": "2026-01-28T22:53:14.672421",
+  "extraction_method": "pattern_based"
+}

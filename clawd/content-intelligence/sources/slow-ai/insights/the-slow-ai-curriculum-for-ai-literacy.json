@@ -1,0 +1,66 @@
+{
+  "source_name": "slow-ai",
+  "source_title": "The Slow AI Curriculum for AI Literacy",
+  "source_url": "https://theslowai.substack.com/p/slow-ai-curriculum-literacy",
+  "slug": "the-slow-ai-curriculum-for-ai-literacy",
+  "insights": [
+    {
+      "insight": "to navigate the tensions between human agency and synthetic systems",
+      "action": "Use this approach in your work",
+      "framework": "structured framework",
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Slow AI Curriculum for AI Literacy",
+      "confidence": "medium"
+    },
+    {
+      "insight": "the humanities to interrogate technology",
+      "action": "Apply this approach in your work",
+      "framework": "work establishes the critical framework",
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Slow AI Curriculum for AI Literacy",
+      "confidence": "medium"
+    },
+    {
+      "insight": "the theory to a singular",
+      "action": "Implement this approach in your work",
+      "framework": "Automated Law",
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Slow AI Curriculum for AI Literacy",
+      "confidence": "medium"
+    },
+    {
+      "insight": "this to request that your employer covers the cost of the curriculum as part of your formal continui",
+      "action": "Try this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Slow AI Curriculum for AI Literacy",
+      "confidence": "medium"
+    },
+    {
+      "insight": "one hundred scholars to join will receive an inaugural rate of £50 for the year",
+      "action": "Explore this approach in your work",
+      "framework": null,
+      "para_category": "resources",
+      "para_target": "frameworks",
+      "rationale": "Extracted from slow-ai article on The Slow AI Curriculum for AI Literacy",
+      "confidence": "medium"
+    }
+  ],
+  "insight_count": 5,
+  "frameworks_detected": [
+    "Automated Law",
+    "work establishes the critical framework",
+    "structured framework"
+  ],
+  "para_distribution": {
+    "projects": 0,
+    "areas": 0,
+    "resources": 5
+  },
+  "extracted_at": "2026-01-28T22:53:14.624594",
+  "extraction_method": "pattern_based"
+}

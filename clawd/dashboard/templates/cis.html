@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Intelligence System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 2rem;
+            border-bottom: 1px solid #333;
+        }
+        .header h1 { font-size: 1.8rem; color: #fff; margin-bottom: 0.5rem; }
+        .header p { color: #888; font-size: 0.9rem; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            padding: 1.5rem;
+            background: #1a1a1a;
+        }
+        .stat-card {
+            background: #252525;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border-left: 4px solid #4a9eff;
+        }
+        .stat-card h3 { font-size: 2rem; color: #4a9eff; margin-bottom: 0.3rem; }
+        .stat-card p { color: #888; font-size: 0.9rem; }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .nav { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+        .nav a {
+            color: #888;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .nav a:hover, .nav a.active { background: #252525; color: #4a9eff; }
+
+        /* Filters */
+        .filters {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .filter-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .filter-group:last-child { margin-bottom: 0; }
+        .filter-label {
+            color: #666;
+            font-size: 0.85rem;
+            font-weight: 500;
+            min-width: 100px;
+        }
+        .filter-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .filter-btn {
+            background: #252525;
+            color: #888;
+            border: 1px solid #333;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .filter-btn:hover { border-color: #4a9eff; color: #4a9eff; }
+        .filter-btn.active {
+            background: #4a9eff;
+            border-color: #4a9eff;
+            color: #fff;
+        }
+
+        /* Live Feed */
+        .live-feed {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid #4a9eff;
+            position: relative;
+        }
+        .live-feed::before {
+            content: "● LIVE";
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            color: #ff4757;
+            font-size: 0.75rem;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .live-feed h2 {
+            color: #fff;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .live-feed h2::before { content: "📡"; }
+        .feed-item {
+            background: rgba(37, 37, 37, 0.8);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid #7ec8a0;
+            display: flex;
+            gap: 1rem;
+            transition: all 0.3s;
+        }
+        .feed-item.new { animation: slideIn 0.5s ease; background: rgba(74, 158, 255, 0.1); }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .feed-item .timestamp { color: #666; font-size: 0.75rem; min-width: 60px; }
+        .feed-item .content { flex: 1; }
+        .feed-item .source { color: #4a9eff; font-size: 0.8rem; margin-bottom: 0.25rem; }
+        .feed-item .text { color: #ccc; font-size: 0.9rem; }
+        .last-updated { color: #666; font-size: 0.8rem; margin-top: 1rem; text-align: right; }
+        .refresh-btn {
+            background: #4a9eff;
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+            transition: background 0.2s;
+        }
+        .refresh-btn:hover { background: #3d8de6; }
+        .refresh-btn:disabled { background: #666; cursor: not-allowed; }
+
+        /* Sources Grid */
+        .sources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .source-card {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #333;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .source-card:hover { border-color: #4a9eff; transform: translateY(-2px); }
+        .source-card.filtered { display: none; }
+        .source-card h3 { color: #fff; margin-bottom: 0.5rem; }
+        .source-card .meta { color: #666; font-size: 0.85rem; margin-bottom: 1rem; }
+        .source-card .stats-row { display: flex; gap: 1.5rem; margin-top: 1rem; }
+        .source-card .stat { text-align: center; }
+        .source-card .stat-value { font-size: 1.5rem; font-weight: bold; color: #4a9eff; }
+        .source-card .stat-label { font-size: 0.75rem; color: #666; text-transform: uppercase; }
+
+        /* Insights Section */
+        .insights-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+        .insights-section h2 {
+            color: #fff;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .insights-section h2::before { content: "💡"; }
+        .insight-card {
+            background: #252525;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 3px solid #4a9eff;
+            transition: all 0.2s;
+        }
+        .insight-card.filtered { display: none; }
+        .insight-card:hover { background: #2a2a2a; }
+        .insight-card .tags { margin-bottom: 0.75rem; }
+        .insight-card .source-tag {
+            display: inline-block;
+            background: #333;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: #4a9eff;
+            margin-right: 0.5rem;
+        }
+        .insight-card .para-tag {
+            display: inline-block;
+            background: #2d4a3e;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: #7ec8a0;
+        }
+        .insight-card h4 { color: #fff; margin-bottom: 0.5rem; }
+        .insight-card p { color: #aaa; font-size: 0.9rem; }
+        .insight-card .action {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #333;
+            color: #7ec8a0;
+            font-size: 0.85rem;
+        }
+
+        /* PARA Categories */
+        .para-section {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+        .para-section h2 {
+            color: #fff;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .para-section h2::before { content: "📁"; }
+        .para-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        .para-card {
+            background: #252525;
+            border-radius: 8px;
+            padding: 1.5rem;
+            border-left: 4px solid;
+            transition: all 0.2s;
+        }
+        .para-card.projects { border-color: #ff6b6b; }
+        .para-card.areas { border-color: #4a9eff; }
+        .para-card.resources { border-color: #7ec8a0; }
+        .para-card.archives { border-color: #a0a0a0; }
+        .para-card h3 {
+            color: #fff;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .para-card .count {
+            background: #333;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+        .para-card ul {
+            list-style: none;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+        .para-card li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #333;
+        }
+        .para-card li:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧠 Content Intelligence System</h1>
+        <p>Track, harvest, and extract insights from your content sources</p>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card">
+            <h3 id="total-sources">6</h3>
+            <p>Active Sources</p>
+        </div>
+        <div class="stat-card">
+            <h3 id="total-articles">130</h3>
+            <p>Articles Archived</p>
+        </div>
+        <div class="stat-card">
+            <h3 id="total-insights">542</h3>
+            <p>Insights Extracted</p>
+        </div>
+        <div class="stat-card">
+            <h3 id="para-routed">630</h3>
+            <p>PARA Routed</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Filters -->
+        <div class="filters">
+            <div class="filter-group">
+                <span class="filter-label">Source:</span>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterBySource('all')">All</button>
+                    <button class="filter-btn" onclick="filterBySource('nate-jones')">Nate Jones</button>
+                    <button class="filter-btn" onclick="filterBySource('rhys-morgan')">Rhys Morgan</button>
+                    <button class="filter-btn" onclick="filterBySource('slow-ai')">Slow AI</button>
+                    <button class="filter-btn" onclick="filterBySource('aakash-gupta')">Aakash Gupta</button>
+                    <button class="filter-btn" onclick="filterBySource('new-economies')">NEW ECONOMIES</button>
+                    <button class="filter-btn" onclick="filterBySource('sabrina-ramonov')">Sabrina Ramonov</button>
+                </div>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">PARA:</span>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterByPara('all')">All</button>
+                    <button class="filter-btn" onclick="filterByPara('projects')">Projects</button>
+                    <button class="filter-btn" onclick="filterByPara('areas')">Areas</button>
+                    <button class="filter-btn" onclick="filterByPara('resources')">Resources</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Feed -->
+        <div class="live-feed">
+            <h2>Live Feed</h2>
+            <div id="feed-container">
+                <div class="feed-item">
+                    <span class="timestamp">22:59</span>
+                    <div class="content">
+                        <div class="source">Nate Jones</div>
+                        <div class="text">New article: "AI Architecture vs Human Cognition" extracted → 4 insights → Routed to ai-tools</div>
+                    </div>
+                </div>
+                <div class="feed-item">
+                    <span class="timestamp">22:54</span>
+                    <div class="content">
+                        <div class="source">Rhys Morgan</div>
+                        <div class="text">Paid subscription active! 3 new premium articles harvested → 12 insights extracted</div>
+                    </div>
+                </div>
+                <div class="feed-item">
+                    <span class="timestamp">22:48</span>
+                    <div class="content">
+                        <div class="source">Slow AI</div>
+                        <div class="text">Weekly digest: "Algorithmic Bereavement" analyzed → 5 insights → Routed to ef-coaching</div>
+                    </div>
+                </div>
+                <div class="feed-item">
+                    <span class="timestamp">22:45</span>
+                    <div class="content">
+                        <div class="source">Aakash Gupta</div>
+                        <div class="text">Voice AI guide processed → 6 insights → Routed to business-strategy</div>
+                    </div>
+                </div>
+            </div>
+            <div class="last-updated" id="last-updated">Last updated: Just now</div>
+            <button class="refresh-btn" id="refresh-btn" onclick="refreshFeed()">🔄 Refresh Now</button>
+        </div>
+
+        <!-- PARA Categories -->
+        <div class="para-section">
+            <h2>PARA Categories</h2>
+            <div class="para-grid">
+                <div class="para-card projects">
+                    <h3>🔴 Projects <span class="count">38 insights</span></h3>
+                    <ul>
+                        <li>Ceramics Business → 12 insights</li>
+                        <li>Dopamine Depot (Stickers) → 15 insights</li>
+                        <li>Natural Capture → 11 insights</li>
+                    </ul>
+                </div>
+                <div class="para-card areas">
+                    <h3>🔵 Areas <span class="count">449 insights</span></h3>
+                    <ul>
+                        <li>EF Coaching → 187 insights</li>
+                        <li>AI Tools → 162 insights</li>
+                        <li>Business Strategy → 100 insights</li>
+                    </ul>
+                </div>
+                <div class="para-card resources">
+                    <h3>🟢 Resources <span class="count">143 insights</span></h3>
+                    <ul>
+                        <li>Frameworks → 45 insights</li>
+                        <li>Templates → 38 insights</li>
+                        <li>Best Practices → 60 insights</li>
+                    </ul>
+                </div>
+                <div class="para-card archives">
+                    <h3>⚪ Archives <span class="count">0 insights</span></h3>
+                    <ul>
+                        <li>Historical content → auto-archived</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sources Grid -->
+        <h2 style="color: #fff; margin: 2rem 0 1rem; display: flex; align-items: center; gap: 0.5rem;">📰 Sources</h2>
+        <div class="sources-grid" id="sources">
+            <div class="source-card" data-source="nate-jones">
+                <h3>Nate Jones</h3>
+                <div class="meta">AI Strategy & Coding Tools</div>
+                <p>Daily newsletters on AI architecture, agents, and enterprise strategy.</p>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-value">21</div>
+                        <div class="stat-label">Articles</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">84</div>
+                        <div class="stat-label">Insights</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="source-card" data-source="slow-ai">
+                <h3>Slow AI</h3>
+                <div class="meta">Critical AI Literacy</div>
+                <p>Thoughtful prompts and frameworks for intentional AI use.</p>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-value">20</div>
+                        <div class="stat-label">Articles</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">80</div>
+                        <div class="stat-label">Insights</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="source-card" data-source="aakash-gupta">
+                <h3>Aakash Gupta</h3>
+                <div class="meta">Product Growth & Voice AI</div>
+                <p>Product management strategies and AI tool adoption for PMs.</p>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-value">20</div>
+                        <div class="stat-label">Articles</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">80</div>
+                        <div class="stat-label">Insights</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="source-card" data-source="new-economies">
+                <h3>NEW ECONOMIES</h3>
+                <div class="meta">Startup & VC Intelligence</div>
+                <p>Funding rounds, unicorns, and venture capital trends.</p>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-value">19</div>
+                        <div class="stat-label">Articles</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">76</div>
+                        <div class="stat-label">Insights</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="source-card" data-source="rhys-morgan">
+                <h3>Rhys Morgan</h3>
+                <div class="meta">ADHD & Neurodivergent Strategies</div>
+                <p>Executive function support and late-diagnosis insights.</p>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-value">30</div>
+                        <div class="stat-label">Articles</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">120</div>
+                        <div class="stat-label">Insights</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="source-card" data-source="sabrina-ramonov">
+                <h3>Sabrina Ramonov</h3>
+                <div class="meta">AI Skills & Vibe Coding</div>
+                <p>Practical AI tutorials, automation, and social media growth.</p>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-value">20</div>
+                        <div class="stat-label">Articles</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">80</div>
+                        <div class="stat-label">Insights</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Insights Section -->
+        <div class="insights-section" id="insights">
+            <h2>Recent Insights</h2>
+            
+            <div class="insight-card" data-source="nate-jones" data-para="ai-tools">
+                <div class="tags">
+                    <span class="source-tag">Nate Jones</span>
+                    <span class="para-tag">ai-tools</span>
+                </div>
+                <h4>AI is structurally better at architecture than humans</h4>
+                <p>Not because AI is smarter, but because humans are structurally incapable of the vigilance architecture requires. Context accumulates faster than any human can track.</p>
+                <div class="action">→ Apply to: Code review processes, system design decisions</div>
+            </div>
+            
+            <div class="insight-card" data-source="slow-ai" data-para="ef-coaching">
+                <div class="tags">
+                    <span class="source-tag">Slow AI</span>
+                    <span class="para-tag">ef-coaching</span>
+                </div>
+                <h4>FOMO is not a feeling, it's a misreading of your timeline</h4>
+                <p>Decisions arrive faster than they can be evaluated. AI can either accelerate pressure or create distance from it. Use prompts to slow the moment before reacting.</p>
+                <div class="action">→ Apply to: Decision-making frameworks, urgency triage</div>
+            </div>
+            
+            <div class="insight-card" data-source="aakash-gupta" data-para="business-strategy">
+                <div class="tags">
+                    <span class="source-tag">Aakash Gupta</span>
+                    <span class="para-tag">business-strategy</span>
+                </div>
+                <h4>Voice AI changes the productivity curve permanently</h4>
+                <p>Dictation is 3-4x faster than typing. PMs who adopt early will compound that advantage over months. Voice-first AI works in motion, not just at desks.</p>
+                <div class="action">→ Apply to: Content creation workflow, meeting prep</div>
+            </div>
+            
+            <div class="insight-card" data-source="rhys-morgan" data-para="ef-coaching">
+                <div class="tags">
+                    <span class="source-tag">Rhys Morgan</span>
+                    <span class="para-tag">ef-coaching</span>
+                </div>
+                <h4>The "closed questions" technique for clarity</h4>
+                <p>Remove "maybe/could you possibly" from requests. Use closed questions for clarity. Request summaries after meetings. Direct communication reduces cognitive load.</p>
+                <div class="action">→ Apply to: Meeting requests, async communication</div>
+            </div>
+            
+            <div class="insight-card" data-source="sabrina-ramonov" data-para="ai-tools">
+                <div class="tags">
+                    <span class="source-tag">Sabrina Ramonov</span>
+                    <span class="para-tag">ai-tools</span>
+                </div>
+                <h4>Vibe coding: 10-year-olds building apps in 2 hours</h4>
+                <p>AI has lowered the barrier to building. The constraint is no longer technical skill but clarity of intent. Prompt engineering matters more than coding syntax.</p>
+                <div class="action">→ Apply to: Rapid prototyping, MVP development</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Filter State
+        let currentSourceFilter = 'all';
+        let currentParaFilter = 'all';
+
+        // Filter Functions
+        function filterBySource(source) {
+            currentSourceFilter = source;
+            updateFilterButtons('source', source);
+            applyFilters();
+        }
+
+        function filterByPara(para) {
+            currentParaFilter = para;
+            updateFilterButtons('para', para);
+            applyFilters();
+        }
+
+        function updateFilterButtons(type, selected) {
+            const groups = document.querySelectorAll('.filter-group');
+            const group = type === 'source' ? groups[0] : groups[1];
+            group.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                const btnText = btn.textContent.toLowerCase().replace(/\s/g, '-');
+                if (selected === 'all' && btn.textContent === 'All') btn.classList.add('active');
+                if (selected === btnText) btn.classList.add('active');
+            });
+        }
+
+        function applyFilters() {
+            // Filter sources
+            document.querySelectorAll('.source-card').forEach(card => {
+                const source = card.dataset.source;
+                if (currentSourceFilter === 'all' || source === currentSourceFilter) {
+                    card.classList.remove('filtered');
+                } else {
+                    card.classList.add('filtered');
+                }
+            });
+
+            // Filter insights
+            document.querySelectorAll('.insight-card').forEach(card => {
+                const source = card.dataset.source;
+                const para = card.dataset.para;
+                const sourceMatch = currentSourceFilter === 'all' || source === currentSourceFilter;
+                const paraMatch = currentParaFilter === 'all' || para === currentParaFilter;
+                
+                if (sourceMatch && paraMatch) {
+                    card.classList.remove('filtered');
+                } else {
+                    card.classList.add('filtered');
+                }
+            });
+        }
+
+        // Live Feed Configuration
+        const REFRESH_INTERVAL = 30000;
+        let feedContainer = document.getElementById('feed-container');
+        let lastUpdated = document.getElementById('last-updated');
+        let refreshBtn = document.getElementById('refresh-btn');
+
+        function getTimeString(minutesAgo = 0) {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - minutesAgo);
+            return now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+
+        function addFeedItem(item) {
+            const div = document.createElement('div');
+            div.className = 'feed-item new';
+            div.innerHTML = `
+                <span class="timestamp">${item.time}</span>
+                <div class="content">
+                    <div class="source">${item.source}</div>
+                    <div class="text">${item.text}</div>
+                </div>
+            `;
+            feedContainer.insertBefore(div, feedContainer.firstChild);
+            setTimeout(() => div.classList.remove('new'), 500);
+            while (feedContainer.children.length > 10) {
+                feedContainer.removeChild(feedContainer.lastChild);
+            }
+        }
+
+        function updateLastUpdated() {
+            lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+        }
+
+        function refreshFeed() {
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '⏳ Checking...';
+            setTimeout(() => {
+                addFeedItem({
+                    source: 'System',
+                    text: 'Feed refreshed - no new content',
+                    time: getTimeString()
+                });
+                updateLastUpdated();
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Refresh Now';
+            }, 1500);
+        }
+
+        // Auto-refresh
+        setInterval(updateLastUpdated, REFRESH_INTERVAL);
+        updateLastUpdated();
+    </script>
+</body>
+</html>

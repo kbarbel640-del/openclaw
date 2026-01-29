@@ -1,0 +1,62 @@
+{
+  "source_name": "slow-ai",
+  "source_title": "Your AI is shaping your voice more than you think",
+  "source_url": "https://theslowai.substack.com/p/ai-mirroring-linguistic-agency",
+  "slug": "your-ai-is-shaping-your-voice-more-than-you-think",
+  "insights": [
+    {
+      "insight": "a prompt to track the boundary between your voice and the tool",
+      "action": "Use this approach in your work",
+      "framework": null,
+      "para_category": "areas",
+      "para_target": "ai-tools",
+      "rationale": "Extracted from slow-ai article on Your AI is shaping your voice more than you think",
+      "confidence": "medium"
+    },
+    {
+      "insight": "this prompt with your AI tool of choice:You are a reflective guide helping me understand how I inter",
+      "action": "Apply this approach in your work",
+      "framework": null,
+      "para_category": "areas",
+      "para_target": "ai-tools",
+      "rationale": "Extracted from slow-ai article on Your AI is shaping your voice more than you think",
+      "confidence": "medium"
+    },
+    {
+      "insight": "it to generate outputs",
+      "action": "Implement this approach in your work",
+      "framework": null,
+      "para_category": "areas",
+      "para_target": "ai-tools",
+      "rationale": "Extracted from slow-ai article on Your AI is shaping your voice more than you think",
+      "confidence": "medium"
+    },
+    {
+      "insight": "engage critically with AI rather than just use it to generate outputs",
+      "action": "Try this approach in your work",
+      "framework": null,
+      "para_category": "areas",
+      "para_target": "ai-tools",
+      "rationale": "Extracted from slow-ai article on Your AI is shaping your voice more than you think",
+      "confidence": "medium"
+    },
+    {
+      "insight": "Large language models are designed to predict and mirror user input",
+      "action": "Explore this approach in your work",
+      "framework": null,
+      "para_category": "areas",
+      "para_target": "ai-tools",
+      "rationale": "Extracted from slow-ai article on Your AI is shaping your voice more than you think",
+      "confidence": "medium"
+    }
+  ],
+  "insight_count": 5,
+  "frameworks_detected": [],
+  "para_distribution": {
+    "projects": 0,
+    "areas": 5,
+    "resources": 0
+  },
+  "extracted_at": "2026-01-28T22:53:14.693277",
+  "extraction_method": "pattern_based"
+}
