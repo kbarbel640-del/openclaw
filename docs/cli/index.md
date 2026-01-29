@@ -307,6 +307,7 @@ Options:
 - `--openrouter-api-key <key>`
 - `--ai-gateway-api-key <key>`
 - `--moonshot-api-key <key>`
+- `--pollinations-api-key <key>`
 - `--kimi-code-api-key <key>`
 - `--gemini-api-key <key>`
 - `--zai-api-key <key>`

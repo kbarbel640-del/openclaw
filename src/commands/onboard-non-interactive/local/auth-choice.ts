@@ -14,6 +14,7 @@ import {
   applyMoonshotConfig,
   applyOpencodeZenConfig,
   applyOpenrouterConfig,
+  applyPollinationsConfig,
   applySyntheticConfig,
   applyVeniceConfig,
   applyVercelAiGatewayConfig,
@@ -25,6 +26,7 @@ import {
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
+  setPollinationsApiKey,
   setSyntheticApiKey,
   setVeniceApiKey,
   setVercelAiGatewayApiKey,
@@ -307,6 +309,25 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applyVeniceConfig(nextConfig);
+  }
+
+  if (authChoice === "pollinations") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "pollinations",
+      cfg: baseConfig,
+      flagValue: opts.pollinationsApiKey,
+      flagName: "--pollinations-api-key",
+      envVar: "POLLINATIONS_API_KEY",
+      runtime,
+    });
+    if (!resolved) return null;
+    if (resolved.source !== "profile") await setPollinationsApiKey(resolved.key);
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "pollinations:default",
+      provider: "pollinations",
+      mode: "api_key",
+    });
+    return applyPollinationsConfig(nextConfig);
   }
 
   if (

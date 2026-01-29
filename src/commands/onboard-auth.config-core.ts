@@ -25,6 +25,10 @@ import {
   MOONSHOT_BASE_URL,
   MOONSHOT_DEFAULT_MODEL_ID,
   MOONSHOT_DEFAULT_MODEL_REF,
+  POLLINATIONS_BASE_URL,
+  POLLINATIONS_DEFAULT_MODEL_REF,
+  POLLINATIONS_MODEL_CATALOG,
+  buildPollinationsModelDefinition,
 } from "./onboard-auth.models.js";
 
 export function applyZaiConfig(cfg: MoltbotConfig): MoltbotConfig {
@@ -405,6 +409,81 @@ export function applyVeniceConfig(cfg: MoltbotConfig): MoltbotConfig {
               }
             : undefined),
           primary: VENICE_DEFAULT_MODEL_REF,
+        },
+      },
+    },
+  };
+}
+
+export function applyPollinationsProviderConfig(cfg: MoltbotConfig): MoltbotConfig {
+  const models = { ...cfg.agents?.defaults?.models };
+
+  // Add the default model
+  models[POLLINATIONS_DEFAULT_MODEL_REF] = {
+    ...models[POLLINATIONS_DEFAULT_MODEL_REF],
+    alias: models[POLLINATIONS_DEFAULT_MODEL_REF]?.alias ?? "Pollinations GPT-5 Mini",
+  };
+
+  const providers = { ...cfg.models?.providers };
+  const existingProvider = providers.pollinations;
+  const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
+  const pollinationsModels = Object.keys(POLLINATIONS_MODEL_CATALOG).map((id) =>
+    buildPollinationsModelDefinition({ id }),
+  );
+  const mergedModels = [
+    ...existingModels,
+    ...pollinationsModels.filter(
+      (model) => !existingModels.some((existing) => existing.id === model.id),
+    ),
+  ];
+  const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
+    string,
+    unknown
+  > as { apiKey?: string };
+  // Pollinations doesn't technically require a key but we might support it if users want to pass one.
+  const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
+  const normalizedApiKey = resolvedApiKey?.trim();
+
+  providers.pollinations = {
+    ...existingProviderRest,
+    baseUrl: POLLINATIONS_BASE_URL,
+    api: "openai-completions",
+    ...(normalizedApiKey ? { apiKey: normalizedApiKey } : {}),
+    models: mergedModels.length > 0 ? mergedModels : pollinationsModels,
+  };
+
+  return {
+    ...cfg,
+    agents: {
+      ...cfg.agents,
+      defaults: {
+        ...cfg.agents?.defaults,
+        models,
+      },
+    },
+    models: {
+      mode: cfg.models?.mode ?? "merge",
+      providers,
+    },
+  };
+}
+
+export function applyPollinationsConfig(cfg: MoltbotConfig): MoltbotConfig {
+  const next = applyPollinationsProviderConfig(cfg);
+  const existingModel = next.agents?.defaults?.model;
+  return {
+    ...next,
+    agents: {
+      ...next.agents,
+      defaults: {
+        ...next.agents?.defaults,
+        model: {
+          ...(existingModel && "fallbacks" in (existingModel as Record<string, unknown>)
+            ? {
+                fallbacks: (existingModel as { fallbacks?: string[] }).fallbacks,
+              }
+            : undefined),
+          primary: POLLINATIONS_DEFAULT_MODEL_REF,
         },
       },
     },

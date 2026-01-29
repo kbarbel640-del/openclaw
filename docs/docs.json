@@ -94,6 +94,14 @@
       "destination": "/providers/moonshot"
     },
     {
+      "source": "/pollinations",
+      "destination": "/providers/pollinations"
+    },
+    {
+      "source": "/pollinations/",
+      "destination": "/providers/pollinations"
+    },
+    {
       "source": "/openrouter",
       "destination": "/providers/openrouter"
     },
@@ -1010,6 +1018,7 @@
           "providers/anthropic",
           "bedrock",
           "providers/moonshot",
+          "providers/pollinations",
           "providers/minimax",
           "providers/vercel-ai-gateway",
           "providers/openrouter",

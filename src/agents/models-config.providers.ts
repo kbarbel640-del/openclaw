@@ -53,6 +53,16 @@ const KIMI_CODE_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const POLLINATIONS_BASE_URL = "https://gen.pollinations.ai/v1";
+const POLLINATIONS_DEFAULT_CONTEXT_WINDOW = 128000;
+const POLLINATIONS_DEFAULT_MAX_TOKENS = 8192;
+const POLLINATIONS_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 const QWEN_PORTAL_BASE_URL = "https://portal.qwen.ai/v1";
 const QWEN_PORTAL_OAUTH_PLACEHOLDER = "qwen-oauth";
 const QWEN_PORTAL_DEFAULT_CONTEXT_WINDOW = 128000;
@@ -333,6 +343,186 @@ function buildQwenPortalProvider(): ProviderConfig {
   };
 }
 
+function buildPollinationsProvider(): ProviderConfig {
+  return {
+    baseUrl: POLLINATIONS_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: "openai",
+        name: "OpenAI GPT-5 Mini",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.15, output: 0.6, cacheRead: 0.04, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "openai-large",
+        name: "OpenAI GPT-5.2",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 1.75, output: 14.0, cacheRead: 0.18, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "openai-fast",
+        name: "OpenAI GPT-5 Nano",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.06, output: 0.44, cacheRead: 0.01, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "claude",
+        name: "Anthropic Claude Sonnet 4.5",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 3.0, output: 15.0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "claude-large",
+        name: "Anthropic Claude Opus 4.5",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 5.0, output: 25.0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "claude-fast",
+        name: "Anthropic Claude Haiku 4.5",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 1.0, output: 5.0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "gemini",
+        name: "Google Gemini 3 Flash",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.5, output: 3.0, cacheRead: 0.05, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "gemini-large",
+        name: "Google Gemini 3 Pro",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 2.0, output: 12.0, cacheRead: 0.2, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "gemini-fast",
+        name: "Google Gemini 2.5 Flash Lite",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.1, output: 0.4, cacheRead: 0.01, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "qwen-coder",
+        name: "Qwen3 Coder 30B",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.06, output: 0.22, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "mistral",
+        name: "Mistral Small 3.2 24B",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.15, output: 0.35, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "deepseek",
+        name: "DeepSeek V3.2",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0.57, output: 1.68, cacheRead: 0.29, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "grok",
+        name: "xAI Grok 4 Fast",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.2, output: 0.5, cacheRead: 0.2, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "perplexity-fast",
+        name: "Perplexity Sonar",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 1.0, output: 1.0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "perplexity-reasoning",
+        name: "Perplexity Sonar Reasoning",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 2.0, output: 8.0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "kimi",
+        name: "Moonshot Kimi K2.5",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0.6, output: 3.0, cacheRead: 0.1, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "glm",
+        name: "Z.ai GLM-4.7",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0.6, output: 2.21, cacheRead: 0.3, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "minimax",
+        name: "MiniMax M2.1",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0.3, output: 1.2, cacheRead: 0.15, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "nova-fast",
+        name: "Amazon Nova Micro",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0.04, output: 0.15, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: POLLINATIONS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: POLLINATIONS_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 function buildSyntheticProvider(): ProviderConfig {
   return {
     baseUrl: SYNTHETIC_BASE_URL,
@@ -408,6 +598,20 @@ export async function resolveImplicitProviders(params: {
       ...buildQwenPortalProvider(),
       apiKey: QWEN_PORTAL_OAUTH_PLACEHOLDER,
     };
+  }
+
+  const pollinationsKey =
+    resolveEnvApiKeyVarName("pollinations") ??
+    resolveApiKeyFromProfiles({ provider: "pollinations", store: authStore });
+  // Always add Pollinations if explicitly asked, or if we have a profile.
+  // Since it's free, maybe we should add it by default?
+  // For now, let's follow the pattern: add if key/profile exists OR maybe if it's just enabled via config (not implemented here yet).
+  // But since it doesn't strictly need a key, users might just select it.
+  // The 'resolveImplicitProviders' logic seems to depend on keys or profiles being present.
+  // We can treat it like Ollama: only if configured/detected.
+  // If the user selects it in onboarding, they will get a profile (maybe with dummy key).
+  if (pollinationsKey) {
+    providers.pollinations = { ...buildPollinationsProvider(), apiKey: pollinationsKey };
   }
 
   // Ollama provider - only add if explicitly configured
