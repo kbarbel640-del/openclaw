@@ -498,6 +498,8 @@ export async function runHeartbeatOnce(opts: {
   const isExecEvent = opts.reason === "exec-event";
   // Check if this is a cron job system event (not a periodic heartbeat).
   // Cron jobs enqueue system events before calling runHeartbeatOnce.
+  // SECURITY: opts.reason is set internally by the heartbeat scheduler and cron runner.
+  // It is NOT user-controlled. Cron jobs are defined in admin-only gateway config.
   const isCronEvent = typeof opts.reason === "string" && opts.reason.startsWith("cron:");
   // Always peek system events for cron and exec events to determine prompt type.
   const pendingEvents = isExecEvent || isCronEvent ? peekSystemEvents(sessionKey) : [];
@@ -508,6 +510,8 @@ export async function runHeartbeatOnce(opts: {
 
   // For cron events with pending system events, use the system event text directly
   // (without appending the heartbeat prompt). The system event IS the prompt.
+  // SECURITY: System events originate from admin-controlled cron job configs (payload.text).
+  // User input cannot reach enqueueSystemEvent() - only the cron scheduler calls it.
   const cronEventBody = hasCronSystemEvents ? pendingEvents.join("\n\n") : null;
   const prompt = hasExecCompletion
     ? EXEC_EVENT_PROMPT
