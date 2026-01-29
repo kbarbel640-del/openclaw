@@ -794,7 +794,6 @@ export async function applyAuthChoiceApiProviders(
         options: [
           { value: "retry-apikey", label: "Re-enter API key" },
           { value: "retry-baseurl", label: "Re-enter base URL" },
-          { value: "manual", label: "Enter model name manually" },
           { value: "cancel", label: "Go back to provider selection" },
         ],
       });
@@ -832,31 +831,8 @@ export async function applyAuthChoiceApiProviders(
         return await applyAuthChoiceApiProviders(newParams);
       }
 
-      // Manual model entry
-      const modelInput = await params.prompter.text({
-        message: "Enter model name (as configured in your LiteLLM server)",
-        placeholder: "e.g., gpt-4, claude-opus-4-5, etc.",
-        validate: (value) => {
-          if (!value?.trim()) return "Model name is required";
-          return undefined;
-        },
-      });
-      normalizedModelId = String(modelInput).trim();
-
-      // Prompt for context window since we couldn't auto-detect it
-      const contextInput = await params.prompter.text({
-        message: "Enter context window size (tokens) - optional",
-        placeholder: "e.g., 200000 for Claude Opus 4.5",
-        validate: (value) => {
-          if (!value?.trim()) return undefined; // Optional
-          const num = Number.parseInt(value, 10);
-          if (Number.isNaN(num) || num <= 0) return "Must be a positive number";
-          return undefined;
-        },
-      });
-      if (contextInput && String(contextInput).trim()) {
-        contextWindow = Number.parseInt(String(contextInput).trim(), 10);
-      }
+      // This should never be reached, but throw error as fallback
+      throw new Error("Failed to configure LiteLLM provider");
     }
 
     // Strip litellm/ prefix if the API returned it (avoid litellm/litellm/model)
