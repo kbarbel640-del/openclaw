@@ -97,13 +97,13 @@ export async function runEmbeddedPiAgent(
       let targetModel = params.model;
 
       if (!targetProvider && !targetModel && params.config?.agents?.defaults?.model?.primary) {
-         // Resolve primary model from config (e.g. "google-gemini-cli/gemini-3-pro-preview")
-         const primary = params.config.agents.defaults.model.primary;
-         const parts = primary.split('/');
-         if (parts.length === 2) {
-             targetProvider = parts[0];
-             targetModel = parts[1];
-         }
+        // Resolve primary model from config (e.g. "google-gemini-cli/gemini-3-pro-preview")
+        const primary = params.config.agents.defaults.model.primary;
+        const parts = primary.split("/");
+        if (parts.length === 2) {
+          targetProvider = parts[0];
+          targetModel = parts[1];
+        }
       }
 
       const provider = (targetProvider ?? DEFAULT_PROVIDER).trim() || DEFAULT_PROVIDER;
