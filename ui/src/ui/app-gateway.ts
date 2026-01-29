@@ -120,12 +120,17 @@ export function connectGateway(host: GatewayHost) {
   const clientName =
     host.tab === "public-chat" ? GATEWAY_CLIENT_NAMES.WEBCHAT_UI : "moltbot-control-ui";
 
+  const role = host.tab === "public-chat" ? "webchat" : undefined;
+
   host.client = new GatewayBrowserClient({
     url: host.settings.gatewayUrl,
     token: host.settings.token.trim() ? host.settings.token : undefined,
     password: host.password.trim() ? host.password : undefined,
     clientName,
     mode: "webchat",
+    role,
+    // Leave scopes undefined for operator (gateway will default). For webchat we want no scopes.
+    scopes: role === "webchat" ? [] : undefined,
     onHello: (hello) => {
       host.connected = true;
       host.lastError = null;
