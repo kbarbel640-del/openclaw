@@ -53,7 +53,35 @@ See [Voice Call](/plugins/voice-call) for a concrete example plugin.
 
 Community-contributed plugins that extend Moltbot:
 
-- **[ClawdBoost](https://github.com/NikeGunn/clawdboost)** — `clawdboost` — Smart context injection plugin. Automatically boosts AI conversations with pattern-matched, time-aware context snippets. [npm](https://www.npmjs.com/package/clawdboost)
+- **[ClawdBoost](https://github.com/NikeGunn/clawdboost)** — `clawdboost` — Smart context injection plugin. Automatically injects relevant context into AI conversations based on pattern matching and time-aware rules. Features include keyword triggers, time-based context (morning/evening, weekdays/weekends), CLI management (`moltbot cb`), and AI tool integration. [npm](https://www.npmjs.com/package/clawdboost) | [Quick Start](#clawdboost-quick-start)
+
+<details>
+<summary id="clawdboost-quick-start"><strong>ClawdBoost Quick Start</strong></summary>
+
+```bash
+# Install
+npm install clawdboost
+# Initialize with examples
+npx clawdboost init
+```
+
+Add to `~/.clawdbot/moltbot.json`:
+```json
+{
+  "plugins": {
+    "entries": { "clawdboost": { "enabled": true } },
+    "load": { "paths": ["node_modules/clawdboost"] }
+  }
+}
+```
+
+```bash
+# Use
+moltbot cb status
+moltbot cb add "Work Context" --content "I work at Acme Corp" --patterns "work,job"
+```
+
+</details>
 
 > Want your plugin listed? Open a PR adding it to this section!
 
