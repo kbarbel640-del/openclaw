@@ -213,12 +213,13 @@ sudo apt-get install -y nodejs
 
 ### 7. **Gateway Crash Loop & Inotify Exhaustion** (Jan 29, 2026)
 
-**Problem:** Gateway hung/became unresponsive. Systemd crashed 1203+ times. Telegram bot stopped responding.
+**Problem:** Gateway hung/became unresponsive. PM2 restarted 448+ times. Telegram bot stopped responding.
 
 **Symptoms:**
-- `Port 18789 is already in use` (but port handler didn't properly clean up)
-- `Gateway failed to start: gateway already running (pid 618450); lock timeout after 5000ms`
+- `Port 18789 is already in use` (process stuck, wouldn't release port)
+- `Gateway failed to start: gateway already running; lock timeout after 5000ms`
 - Lock files stale/not released
+- Port conflict between different PM2 daemons and attempted systemd service
 
 **Root Cause:** System hit **inotify file descriptor limit** (`ENOSPC`):
 ```
@@ -227,44 +228,40 @@ Error: ENOSPC: System limit for number of file watchers reached, watch '/root/cl
 Error: ENOSPC: System limit for number of file watchers reached, watch '/root/clawd'
 ```
 
-Gateway couldn't monitor config/skill files for changes → config reloading broke → became hung/unresponsive → systemd restart loop.
+Gateway couldn't monitor config/skill files for changes → config reloading broke → became hung/unresponsive → PM2 restart loop (448+ restarts).
 
 **Solutions:**
 
-1. **Immediate fix:** Kill stuck process + clean lock files
-```bash
-kill -9 618450
-rm -f ~/.clawdbot/gateway.lock ~/.clawdbot/moltbot.lock
-systemctl restart moltbot-gateway
-```
-
-2. **Permanent inotify limit increase:** `/etc/sysctl.d/99-moltbot-inotify.conf`
+1. **Permanent inotify limit increase:** `/etc/sysctl.d/99-moltbot-inotify.conf`
 ```
 fs.inotify.max_user_watches=524288  # Increased from 65536
 ```
 Apply: `sysctl -p /etc/sysctl.d/99-moltbot-inotify.conf`
 
-3. **Better systemd service:** `/etc/systemd/system/moltbot-gateway.service`
-   - Changed `Restart=always` → `Restart=on-failure` (only restart on actual failure)
-   - Increased `RestartSec=5` → `RestartSec=10` (reduce CPU churn)
-   - Reduced `StartLimitBurst=10` → `StartLimitBurst=5` (fewer restart attempts before blocking)
-   - Added `ExecStartPre` to auto-clean stale locks on startup
+Verify: `cat /proc/sys/fs/inotify/max_user_watches` (should show 524288)
 
-4. **Health check monitoring:** `/etc/systemd/system/moltbot-health-check.{service,timer}`
-   - Runs `/root/moltbot/scripts/health-check-gateway.sh` every 5 minutes
-   - Checks if gateway is responding on port 18789
-   - Detects stale lock files and crash loops
-   - Automatically cleans locks and restarts if needed
-   - **Isolated:** Does not interfere with other services (code-server, ssh, etc.)
+2. **Process management:** Gateway is managed by **PM2 (separate daemon)**, not systemd
+```bash
+pm2 status                    # Check gateway status
+pm2 restart moltbot-gateway   # Restart gateway (PM2-managed)
+pm2 logs moltbot-gateway      # View real-time logs
+```
 
-**Key Files Added/Modified:**
-- Created: `scripts/health-check-gateway.sh` (health check logic)
-- Created: `/etc/systemd/system/moltbot-health-check.service`
-- Created: `/etc/systemd/system/moltbot-health-check.timer`
-- Created: `/etc/sysctl.d/99-moltbot-inotify.conf`
-- Modified: `/etc/systemd/system/moltbot-gateway.service` (restart policy)
+3. **Manual recovery (if stuck):**
+```bash
+killall -9 moltbot
+pm2 restart moltbot-gateway
+```
 
-**Status:** ✅ Fixed. All preventative measures in place.
+**Key Files Modified:**
+- Created: `/etc/sysctl.d/99-moltbot-inotify.conf` (inotify limit increase)
+
+**Architecture Note:**
+- PM2 runs multiple independent daemons: `si_project/dashboard`, `ai_product_visualizer`, `moltbot-gateway`
+- Each daemon is separate to prevent process interference
+- **Never** use systemd for moltbot-gateway (causes port conflicts with PM2)
+
+**Status:** ✅ Fixed. Inotify limit increased. PM2 managing gateway cleanly.
 
 ---
 
@@ -299,24 +296,39 @@ Apply: `sysctl -p /etc/sysctl.d/99-moltbot-inotify.conf`
 
 ---
 
-## Architecture: Service Isolation & Stability
+## Architecture: Process Management
 
-### Systemd Services Running on This Host
-- `moltbot-gateway.service` - Telegram bot gateway (isolated, does not affect others)
-- `moltbot-health-check.timer` - Periodic gateway health monitoring (oneshot service, no resource hoarding)
-- `code-server.service` - Code editor (independent, unaffected)
-- `ssh.service` - SSH server (independent, unaffected)
+### PM2 Daemons on This Host
+- **Moltbot Gateway** (`pm2 start ecosystem.config.cjs` or `pm2 restart moltbot-gateway`)
+  - Managed by: PM2 (separate daemon, independent from other PM2 instances)
+  - Port: 18789
+  - PID file: `/root/.pm2/pids/moltbot-gateway-0.pid`
+  - Config: `/root/moltbot/ecosystem.config.cjs`
+
+- **Other PM2 Daemons** (separate instances)
+  - `si_project/dashboard` - Frontend dashboard
+  - `ai_product_visualizer` - Backend visualizer
+  - **Each runs in its own PM2 daemon to prevent interference**
+
+### Systemd Services (Independent)
+- `code-server.service` - Code editor (not PM2-managed)
+- `ssh.service` - SSH server (not PM2-managed)
+- These do not interact with moltbot or other PM2 processes
 
 ### Safety Design
-- **No shared resources:** Each service runs independently
-- **No resource limits affecting others:** Moltbot has `LimitNOFILE/NOPROC` set locally only
-- **Health check is isolated:** Runs as `oneshot` (completes quickly), doesn't run concurrently with gateway
-- **No interference with startup/shutdown:** Services can be restarted independently
+- **Process isolation:** Each PM2 daemon is independent (separate instances)
+- **No port conflicts:** Moltbot never uses systemd (only PM2)
+- **Independent logging:** Moltbot logs to `/tmp/moltbot/` (separate from other services)
+- **Inotify limit:** System-wide increased to prevent file watcher exhaustion
 
-### Monitoring
-- **Automatic health checks:** Every 5 minutes (can be adjusted in `moltbot-health-check.timer`)
-- **Logs:** `/tmp/moltbot-health-check.log` (separate from gateway logs)
-- **Manual check:** `systemctl list-timers moltbot-health-check.timer`
+### Monitoring & Control
+```bash
+pm2 list                      # View all PM2 daemons (in current user's daemon)
+pm2 status                    # Show moltbot-gateway status
+pm2 restart moltbot-gateway   # Restart gateway
+pm2 logs moltbot-gateway      # Real-time logs
+pm2 logs moltbot-gateway -n 100  # Last 100 lines
+```
 
 ---
 
@@ -324,16 +336,25 @@ Apply: `sysctl -p /etc/sysctl.d/99-moltbot-inotify.conf`
 
 ### Bot Not Responding
 
-1. Check status: `systemctl status moltbot-gateway`
-2. Check logs: `journalctl -u moltbot-gateway -n 50`
-3. Check health: `bash /root/moltbot/scripts/health-check-gateway.sh`
-4. Restart: `systemctl restart moltbot-gateway`
-5. Check inotify limit (if file watching errors): `cat /proc/sys/fs/inotify/max_user_watches`
+1. Check status: `pm2 status`
+2. Check logs: `pm2 logs moltbot-gateway` or `pm2 logs moltbot-gateway -n 50`
+3. Restart: `pm2 restart moltbot-gateway`
+4. Check port: `nc -zv 127.0.0.1 18789`
+5. Check inotify limit (if file watching errors): `cat /proc/sys/fs/inotify/max_user_watches` (should be 524288)
+6. If stuck, force kill and restart:
+```bash
+killall -9 moltbot
+pm2 restart moltbot-gateway
+```
 
 ### Telegram Connection Error
 
-Check logs for `setMyCommands failed` or network errors.
-If command limit error: Verify `native: false` in both config files.
+Check logs for `setMyCommands failed` or network errors:
+```bash
+pm2 logs moltbot-gateway | grep -i telegram
+```
+
+If command limit error: Verify `native: false` in `/root/.clawdbot/moltbot.json` and `/root/.clawdbot/agents/main/config.json`.
 
 ### High Latency (>1 minute)
 
@@ -343,6 +364,14 @@ If consistent, check model health: `node dist/entry.js models status`
 ### Duplicate Responses
 
 Check `streamMode: "block"` is set in `/root/.clawdbot/moltbot.json`.
+
+### Gateway Crashes Frequently
+
+Check PM2 restart count: `pm2 list | grep moltbot-gateway`
+- If `↺` count is high (>10), check logs for root cause:
+  - Inotify exhaustion: `dmesg | grep -i inotify`
+  - Memory pressure: `pm2 logs moltbot-gateway | grep -i memory`
+  - Telegram errors: `pm2 logs moltbot-gateway | grep -i telegram`
 If issue persists, reduce retry attempts in retry policy config.
 
 ---
@@ -367,9 +396,7 @@ If issue persists, reduce retry attempts in retry policy config.
 /root/moltbot/                          Main installation
 ├── dist/                               Compiled code (loaded at runtime)
 ├── src/                                TypeScript source
-├── scripts/
-│   └── health-check-gateway.sh         Health monitoring script
-├── ecosystem.config.cjs                PM2 config (legacy, not used)
+├── ecosystem.config.cjs                PM2 config (moltbot-gateway process)
 └── README_Tech.md                      This file
 
 ~/.clawdbot/                            Config directory
@@ -379,25 +406,26 @@ If issue persists, reduce retry attempts in retry policy config.
 │   └── auth-profiles.json              API key storage
 └── .env                                Environment variables
 
-/etc/systemd/system/                    System services
-├── moltbot-gateway.service             Systemd service (gateway)
-├── moltbot-health-check.service        Health check service
-├── moltbot-health-check.timer          Health check timer (runs every 5min)
-└── ...other services (code-server, ssh, etc)
+/root/.pm2/                             PM2 daemon directory
+├── pids/moltbot-gateway-0.pid          Process ID file (moltbot-gateway)
+└── logs/                               PM2 logs directory
 
 /etc/sysctl.d/                          System configuration
-└── 99-moltbot-inotify.conf            Inotify limit config
-
-/var/log/                               System logs
-└── moltbot-gateway.log                 Gateway application log
+└── 99-moltbot-inotify.conf            Inotify limit increase (filesystem watchers)
 
 /tmp/moltbot/                           Runtime logs
-├── moltbot-*.log                       Detailed debug logs
-└── moltbot-health-check.log            Health check results
+├── moltbot-*.log                       Detailed application debug logs
+├── pm2-out.log                         PM2 stdout log
+└── pm2-error.log                       PM2 stderr/error log
+
+/etc/systemd/system/                    Systemd services (NOT used for moltbot)
+├── code-server.service                 Code editor (independent)
+├── ssh.service                         SSH server (independent)
+└── ...other services
 ```
 
 ---
 
-**Last Updated:** Jan 29, 2026 (18:50 UTC)
+**Last Updated:** Jan 29, 2026 (19:50 UTC)
 **Maintained By:** Claude Code + Moltbot Task Router
-**Latest:** Crash loop root cause fixed (inotify limit), health monitoring added, service isolation verified
+**Latest:** Crash loop root cause fixed (inotify limit increased to 524288). PM2 process manager confirmed as correct, systemd conflicts removed. Gateway now running cleanly via PM2.
