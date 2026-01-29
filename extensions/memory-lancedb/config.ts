@@ -7,6 +7,8 @@ export type MemoryConfig = {
     provider: "openai";
     model?: string;
     apiKey: string;
+    baseUrl?: string;
+    dimensions?: number;
   };
   dbPath?: string;
   autoCapture?: boolean;
@@ -81,7 +83,10 @@ function resolveEnvVars(value: string): string {
 
 function resolveEmbeddingModel(embedding: Record<string, unknown>): string {
   const model = typeof embedding.model === "string" ? embedding.model : DEFAULT_MODEL;
-  vectorDimsForModel(model);
+  // Only validate model if dimensions not explicitly provided
+  if (typeof embedding.dimensions !== "number") {
+    vectorDimsForModel(model);
+  }
   return model;
 }
 
@@ -101,7 +106,7 @@ export const memoryConfigSchema = {
     if (!embedding || typeof embedding.apiKey !== "string") {
       throw new Error("embedding.apiKey is required");
     }
-    assertAllowedKeys(embedding, ["apiKey", "model"], "embedding config");
+    assertAllowedKeys(embedding, ["apiKey", "model", "baseUrl", "dimensions"], "embedding config");
 
     const model = resolveEmbeddingModel(embedding);
 
@@ -119,6 +124,8 @@ export const memoryConfigSchema = {
         provider: "openai",
         model,
         apiKey: resolveEnvVars(embedding.apiKey),
+        baseUrl: typeof embedding.baseUrl === "string" ? embedding.baseUrl : undefined,
+        dimensions: typeof embedding.dimensions === "number" ? embedding.dimensions : undefined,
       },
       dbPath: typeof cfg.dbPath === "string" ? cfg.dbPath : DEFAULT_DB_PATH,
       autoCapture: cfg.autoCapture === true,
