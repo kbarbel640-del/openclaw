@@ -116,6 +116,9 @@ export default function ReceiptDetail({ receipt, onClose }: Props) {
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
         onClick={onClose}
+        role="button"
+        aria-label="Close"
+        tabIndex={-1}
       />
       <div
         role="dialog"
@@ -200,13 +203,13 @@ export default function ReceiptDetail({ receipt, onClose }: Props) {
                 <span className="font-mono text-xs break-all text-neutral-300 flex-1">
                   {receipt.daCommitment}
                 </span>
-                <a
-                  href="#"
+                <button
+                  type="button"
                   aria-label="View on EigenDA explorer"
                   className="shrink-0 p-1 rounded hover:bg-neutral-700 transition-colors"
                 >
                   <ExternalLink className="w-3.5 h-3.5 text-neutral-400" aria-hidden="true" />
-                </a>
+                </button>
               </div>
             ) : (
               <div className="text-neutral-400 text-sm">
@@ -221,6 +224,7 @@ export default function ReceiptDetail({ receipt, onClose }: Props) {
             </div>
           </Accordion>
         </div>
+        <div tabIndex={0} onFocus={() => closeButtonRef.current?.focus()} aria-hidden="true" />
       </div>
     </>
   );

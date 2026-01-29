@@ -67,6 +67,7 @@ function SessionCard({
     <div className="bg-neutral-900 rounded-xl border border-neutral-800">
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
         className="w-full flex items-center gap-3 p-4 text-left hover:bg-neutral-800/30 transition-colors rounded-xl"
       >
         <ChevronDown
@@ -74,6 +75,7 @@ function SessionCard({
             "w-4 h-4 text-neutral-400 shrink-0 transition-transform",
             expanded && "rotate-180",
           )}
+          aria-hidden="true"
         />
         <span className="font-mono text-xs truncate flex-1 text-neutral-300">
           {group.sessionKey}
@@ -100,36 +102,45 @@ function SessionCard({
       </button>
       {expanded && (
         <div className="border-t border-neutral-800 p-3">
-          <div className="grid grid-cols-[1fr_80px_90px_40px_40px] gap-2 px-3 pb-2 text-neutral-400 text-xs uppercase tracking-wide">
-            <span>Tool</span>
-            <span>Tier</span>
-            <span>Time</span>
-            <span>Status</span>
-            <span>Anomaly</span>
-          </div>
-          {group.receipts.map((r) => (
+          <div role="table">
+            <div role="row" className="grid grid-cols-[1fr_80px_90px_40px_40px] gap-2 px-3 pb-2 text-neutral-400 text-xs uppercase tracking-wide">
+              <span role="columnheader">Tool</span>
+              <span role="columnheader">Tier</span>
+              <span role="columnheader">Time</span>
+              <span role="columnheader">Status</span>
+              <span role="columnheader">Anomaly</span>
+            </div>
+            {group.receipts.map((r) => (
             <div
               key={r.id}
+              role="row"
+              tabIndex={0}
               onClick={() => onSelectReceipt(r)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelectReceipt(r);
+                }
+              }}
               className="grid grid-cols-[1fr_80px_90px_40px_40px] gap-2 items-center px-3 py-2 rounded-lg cursor-pointer hover:bg-neutral-800/30 transition-colors"
             >
-              <span className="text-sm font-mono truncate">{r.toolName}</span>
-              <span>
+              <span role="cell" className="text-sm font-mono truncate">{r.toolName}</span>
+              <span role="cell">
                 <span className={cn("rounded-full px-2 py-0.5 text-xs", tierBadge[r.tier])}>
                   {r.tier}
                 </span>
               </span>
-              <span className="text-xs text-neutral-400">
+              <span role="cell" className="text-xs text-neutral-400">
                 {formatRelativeTime(r.timestamp)}
               </span>
-              <span>
+              <span role="cell">
                 {r.success ? (
                   <CheckCircle className="w-4 h-4 text-emerald-400" aria-label="Success" />
                 ) : (
                   <XCircle className="w-4 h-4 text-red-400" aria-label="Failed" />
                 )}
               </span>
-              <span>
+              <span role="cell">
                 {r.anomalies.length > 0 ? (
                   <AlertTriangle className="w-4 h-4 text-amber-400" aria-label="Has anomalies" />
                 ) : (
@@ -138,6 +149,7 @@ function SessionCard({
               </span>
             </div>
           ))}
+          </div>
         </div>
       )}
     </div>

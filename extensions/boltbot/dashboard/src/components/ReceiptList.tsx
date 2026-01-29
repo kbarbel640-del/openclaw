@@ -82,7 +82,7 @@ export default function ReceiptList({
               "grid grid-cols-[1fr_80px_90px_40px_40px] gap-2 items-center px-3 py-2 rounded-lg cursor-pointer transition-colors",
               selectedId === r.id
                 ? "bg-neutral-800/50 border-l-2 border-emerald-400"
-                : "hover:bg-neutral-800/30",
+                : "hover:bg-neutral-800/30 border-l-2 border-transparent",
             )}
           >
             <span role="cell" className="text-sm font-mono truncate">{r.toolName}</span>

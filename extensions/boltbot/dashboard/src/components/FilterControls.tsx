@@ -54,7 +54,7 @@ export default function FilterControls({
               onClick={() => toggleTier(t.value)}
               aria-pressed={isActive}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
+                "px-3 py-2.5 rounded-lg text-xs font-medium border transition-colors",
                 isActive ? style.active : style.inactive,
               )}
             >
@@ -67,7 +67,7 @@ export default function FilterControls({
         onClick={() => onAnomalyOnlyChange(!anomalyOnly)}
         aria-pressed={anomalyOnly}
         className={cn(
-          "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors",
+          "px-3 py-2.5 rounded-lg text-xs font-medium border transition-colors",
           anomalyOnly
             ? "bg-red-500/20 text-red-400 border-red-500"
             : "border-neutral-700 text-neutral-400 hover:border-red-500/50",

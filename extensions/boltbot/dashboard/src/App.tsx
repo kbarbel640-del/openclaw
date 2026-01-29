@@ -88,9 +88,11 @@ export default function App() {
         <div className="max-w-6xl mx-auto space-y-6 pt-6">
           <StatsCards stats={stats} isLoading={statsLoading} error={statsError} />
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" role="tablist">
             <button
               onClick={() => setViewMode("list")}
+              role="tab"
+              aria-selected={viewMode === "list"}
               className={cn(
                 "px-4 py-1.5 text-sm rounded-lg transition-colors",
                 viewMode === "list"
@@ -102,6 +104,8 @@ export default function App() {
             </button>
             <button
               onClick={() => setViewMode("sessions")}
+              role="tab"
+              aria-selected={viewMode === "sessions"}
               className={cn(
                 "px-4 py-1.5 text-sm rounded-lg transition-colors",
                 viewMode === "sessions"

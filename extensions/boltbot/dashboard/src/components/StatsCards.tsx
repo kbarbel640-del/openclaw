@@ -37,7 +37,7 @@ export default function StatsCards({ stats, isLoading, error }: Props) {
           className="bg-neutral-900 rounded-xl border border-neutral-800 p-4"
         >
           <div className="flex items-center gap-2 mb-2">
-            <card.icon className={`w-4 h-4 ${card.color}`} />
+            <card.icon className={`w-4 h-4 ${card.color}`} aria-hidden="true" />
             <span className="text-xs text-neutral-400 uppercase tracking-wide">
               {card.label}
             </span>
