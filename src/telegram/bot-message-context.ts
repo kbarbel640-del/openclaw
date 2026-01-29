@@ -173,7 +173,8 @@ export const buildTelegramMessageContext = async ({
     },
   });
   const baseSessionKey = route.sessionKey;
-  const dmThreadId = !isGroup ? resolvedThreadId : undefined;
+  // DMs: use raw messageThreadId for thread sessions (not resolvedThreadId which is for forums)
+  const dmThreadId = !isGroup ? messageThreadId : undefined;
   const threadKeys =
     dmThreadId != null
       ? resolveThreadSessionKeys({ baseSessionKey, threadId: String(dmThreadId) })
@@ -334,6 +335,7 @@ export const buildTelegramMessageContext = async ({
   let placeholder = "";
   if (msg.photo) placeholder = "<media:image>";
   else if (msg.video) placeholder = "<media:video>";
+  else if (msg.video_note) placeholder = "<media:video>";
   else if (msg.audio || msg.voice) placeholder = "<media:audio>";
   else if (msg.document) placeholder = "<media:document>";
   else if (msg.sticker) placeholder = "<media:sticker>";
@@ -601,7 +603,8 @@ export const buildTelegramMessageContext = async ({
     Sticker: allMedia[0]?.stickerMetadata,
     ...(locationData ? toLocationContext(locationData) : undefined),
     CommandAuthorized: commandAuthorized,
-    MessageThreadId: resolvedThreadId,
+    // For groups: use resolvedThreadId (forum topics only); for DMs: use raw messageThreadId
+    MessageThreadId: isGroup ? resolvedThreadId : messageThreadId,
     IsForum: isForum,
     // Originating channel for reply routing.
     OriginatingChannel: "telegram" as const,
