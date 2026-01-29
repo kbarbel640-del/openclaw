@@ -114,7 +114,10 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
 
   if (role === "webchat") {
     if (WEBCHAT_ROLE_METHODS.has(method)) return null;
-    return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized method for role webchat: ${method}`);
+    return errorShape(
+      ErrorCodes.INVALID_REQUEST,
+      `unauthorized method for role webchat: ${method}`,
+    );
   }
 
   if (role !== "operator") {
