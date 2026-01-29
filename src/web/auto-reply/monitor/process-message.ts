@@ -334,6 +334,19 @@ export async function processMessage(params: {
         }
       },
       deliver: async (payload: ReplyPayload, info) => {
+        // Check confidence threshold before delivering
+        const minConfidence = params.cfg.channels?.whatsapp?.minResponseConfidence;
+        if (minConfidence !== undefined && minConfidence > 0 && info.kind === "final") {
+          const confidence = payload.confidence ?? 1.0;
+          if (confidence < minConfidence) {
+            params.replyLogger.warn(
+              { confidence, minConfidence, from: params.msg.from, to: params.msg.to },
+              `Response confidence below threshold (${confidence.toFixed(2)} < ${minConfidence.toFixed(2)}); not delivering to WhatsApp`,
+            );
+            return; // Skip delivery for low-confidence final responses
+          }
+        }
+
         await deliverWebReply({
           replyResult: payload,
           msg: params.msg,

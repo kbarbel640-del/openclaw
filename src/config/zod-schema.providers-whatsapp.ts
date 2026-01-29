@@ -59,6 +59,7 @@ export const WhatsAppAccountSchema = z
       .optional(),
     debounceMs: z.number().int().nonnegative().optional().default(0),
     heartbeat: ChannelHeartbeatVisibilitySchema,
+    minResponseConfidence: z.number().min(0).max(1).optional().default(0),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -124,6 +125,7 @@ export const WhatsAppConfigSchema = z
       .optional(),
     debounceMs: z.number().int().nonnegative().optional().default(0),
     heartbeat: ChannelHeartbeatVisibilitySchema,
+    minResponseConfidence: z.number().min(0).max(1).optional().default(0),
   })
   .strict()
   .superRefine((value, ctx) => {

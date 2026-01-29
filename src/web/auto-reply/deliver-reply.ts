@@ -25,6 +25,7 @@ export async function deliverWebReply(params: {
   tableMode?: MarkdownTableMode;
 }) {
   const { replyResult, msg, maxMediaBytes, textLimit, replyLogger, connectionId, skipLog } = params;
+
   const replyStarted = Date.now();
   const tableMode = params.tableMode ?? "code";
   const chunkMode = params.chunkMode ?? "length";

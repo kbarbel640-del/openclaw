@@ -54,4 +54,6 @@ export type ReplyPayload = {
   isError?: boolean;
   /** Channel-specific payload data (per-channel envelope). */
   channelData?: Record<string, unknown>;
+  /** Confidence score (0.0-1.0) indicating bot's certainty in this response. */
+  confidence?: number;
 };
