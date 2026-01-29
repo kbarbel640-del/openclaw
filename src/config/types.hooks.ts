@@ -43,6 +43,28 @@ export type HookMappingConfig = {
 
 export type HooksGmailTailscaleMode = "off" | "serve" | "funnel";
 
+export type HooksGmailGcpConfig = {
+  /** GCP project ID (auto-detected from topic path or gog credentials if omitted) */
+  projectId?: string;
+  /** Service account key JSON string (or use serviceAccountKeyFile) */
+  serviceAccountKey?: string;
+  /** Path to service account key JSON file */
+  serviceAccountKeyFile?: string;
+  /** Auto-create Pub/Sub topic and enable required APIs on startup */
+  autoSetup?: boolean;
+};
+
+export type HooksGmailGogConfig = {
+  /** OAuth refresh token for gog (skips interactive auth if provided) */
+  refreshToken?: string;
+  /** Path to gog credentials.json file to copy/use */
+  credentialsFile?: string;
+  /** OAuth client ID (required with refreshToken) */
+  clientId?: string;
+  /** OAuth client secret (required with refreshToken) */
+  clientSecret?: string;
+};
+
 export type HooksGmailConfig = {
   account?: string;
   label?: string;
@@ -55,6 +77,10 @@ export type HooksGmailConfig = {
   renewEveryMinutes?: number;
   /** DANGEROUS: Disable external content safety wrapping for Gmail hooks. */
   allowUnsafeExternalContent?: boolean;
+  /** GCP/Pub/Sub configuration for config-driven setup */
+  gcp?: HooksGmailGcpConfig;
+  /** gog (Gmail CLI) configuration for config-driven auth */
+  gog?: HooksGmailGogConfig;
   serve?: {
     bind?: string;
     port?: number;
@@ -65,6 +91,8 @@ export type HooksGmailConfig = {
     path?: string;
     /** Optional tailscale serve/funnel target (port, host:port, or full URL). */
     target?: string;
+    /** Auth key for automated Tailscale login (skips interactive auth) */
+    authKey?: string;
   };
   /** Optional model override for Gmail hook processing (provider/model or alias). */
   model?: string;

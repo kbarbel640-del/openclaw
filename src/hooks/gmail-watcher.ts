@@ -10,6 +10,7 @@ import { hasBinary } from "../agents/skills.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { runCommandWithTimeout } from "../process/exec.js";
+import { runGmailAutoSetup } from "./gmail-auto-setup.js";
 import { ensureTailscaleEndpoint } from "./gmail-setup-utils.js";
 import {
   buildGogWatchServeArgs,
@@ -137,6 +138,16 @@ export async function startGmailWatcher(cfg: OpenClawConfig): Promise<GmailWatch
 
   if (!cfg.hooks?.gmail?.account) {
     return { started: false, reason: "no gmail account configured" };
+  }
+
+  // Run config-driven auto-setup if configured (service account, gog creds, tailscale auth)
+  const autoSetupResult = await runGmailAutoSetup(cfg);
+  if (!autoSetupResult.ok) {
+    log.error(`gmail auto-setup failed: ${autoSetupResult.error}`);
+    return { started: false, reason: `auto-setup failed: ${autoSetupResult.error}` };
+  }
+  if (!autoSetupResult.skipped) {
+    log.info("gmail auto-setup completed successfully");
   }
 
   // Check if gog is available

@@ -118,6 +118,26 @@ export const InternalHooksSchema = z
   .strict()
   .optional();
 
+const HooksGmailGcpSchema = z
+  .object({
+    projectId: z.string().optional(),
+    serviceAccountKey: z.string().optional(),
+    serviceAccountKeyFile: z.string().optional(),
+    autoSetup: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
+const HooksGmailGogSchema = z
+  .object({
+    refreshToken: z.string().optional(),
+    credentialsFile: z.string().optional(),
+    clientId: z.string().optional(),
+    clientSecret: z.string().optional(),
+  })
+  .strict()
+  .optional();
+
 export const HooksGmailSchema = z
   .object({
     account: z.string().optional(),
@@ -130,6 +150,8 @@ export const HooksGmailSchema = z
     maxBytes: z.number().int().positive().optional(),
     renewEveryMinutes: z.number().int().positive().optional(),
     allowUnsafeExternalContent: z.boolean().optional(),
+    gcp: HooksGmailGcpSchema,
+    gog: HooksGmailGogSchema,
     serve: z
       .object({
         bind: z.string().optional(),
@@ -143,6 +165,7 @@ export const HooksGmailSchema = z
         mode: z.union([z.literal("off"), z.literal("serve"), z.literal("funnel")]).optional(),
         path: z.string().optional(),
         target: z.string().optional(),
+        authKey: z.string().optional(),
       })
       .strict()
       .optional(),
