@@ -20,7 +20,8 @@ export type AuthChoiceGroupId =
   | "minimax"
   | "synthetic"
   | "venice"
-  | "qwen";
+  | "qwen"
+  | "poe";
 
 export type AuthChoiceGroup = {
   value: AuthChoiceGroupId;
@@ -113,6 +114,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     hint: "API key",
     choices: ["opencode-zen"],
   },
+  {
+    value: "poe",
+    label: "Poe",
+    hint: "OpenAI-compatible API (80+ models)",
+    choices: ["poe-api-key"],
+  },
 ];
 
 export function buildAuthChoiceOptions(params: {
@@ -182,6 +189,11 @@ export function buildAuthChoiceOptions(params: {
     value: "minimax-api-lightning",
     label: "MiniMax M2.1 Lightning",
     hint: "Faster, higher output cost",
+  });
+  options.push({
+    value: "poe-api-key",
+    label: "Poe API key",
+    hint: "OpenAI-compatible API with 80+ models (GPT-5, Claude 4.5, Gemini 3, etc.)",
   });
   if (params.includeSkip) {
     options.push({ value: "skip", label: "Skip for now" });

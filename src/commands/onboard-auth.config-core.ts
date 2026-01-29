@@ -13,6 +13,7 @@ import {
 import type { MoltbotConfig } from "../config/config.js";
 import {
   OPENROUTER_DEFAULT_MODEL_REF,
+  POE_DEFAULT_MODEL_REF,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
   ZAI_DEFAULT_MODEL_REF,
 } from "./onboard-auth.credentials.js";
@@ -405,6 +406,55 @@ export function applyVeniceConfig(cfg: MoltbotConfig): MoltbotConfig {
               }
             : undefined),
           primary: VENICE_DEFAULT_MODEL_REF,
+        },
+      },
+    },
+  };
+}
+
+/**
+ * Apply Poe provider configuration without changing the default model.
+ * Registers Poe provider, but preserves existing model selection.
+ */
+export function applyPoeProviderConfig(cfg: MoltbotConfig): MoltbotConfig {
+  const models = { ...cfg.agents?.defaults?.models };
+  models[POE_DEFAULT_MODEL_REF] = {
+    ...models[POE_DEFAULT_MODEL_REF],
+    alias: models[POE_DEFAULT_MODEL_REF]?.alias ?? "GPT-5.2",
+  };
+
+  return {
+    ...cfg,
+    agents: {
+      ...cfg.agents,
+      defaults: {
+        ...cfg.agents?.defaults,
+        models,
+      },
+    },
+  };
+}
+
+/**
+ * Apply Poe provider configuration AND set Poe as the default model.
+ * Use this when Poe is the primary provider choice during onboarding.
+ */
+export function applyPoeConfig(cfg: MoltbotConfig): MoltbotConfig {
+  const next = applyPoeProviderConfig(cfg);
+  const existingModel = next.agents?.defaults?.model;
+  return {
+    ...next,
+    agents: {
+      ...next.agents,
+      defaults: {
+        ...next.agents?.defaults,
+        model: {
+          ...(existingModel && "fallbacks" in (existingModel as Record<string, unknown>)
+            ? {
+                fallbacks: (existingModel as { fallbacks?: string[] }).fallbacks,
+              }
+            : undefined),
+          primary: POE_DEFAULT_MODEL_REF,
         },
       },
     },

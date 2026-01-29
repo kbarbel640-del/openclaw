@@ -21,6 +21,8 @@ import {
   applyOpencodeZenProviderConfig,
   applyOpenrouterConfig,
   applyOpenrouterProviderConfig,
+  applyPoeConfig,
+  applyPoeProviderConfig,
   applySyntheticConfig,
   applySyntheticProviderConfig,
   applyVeniceConfig,
@@ -31,6 +33,7 @@ import {
   KIMI_CODE_MODEL_REF,
   MOONSHOT_DEFAULT_MODEL_REF,
   OPENROUTER_DEFAULT_MODEL_REF,
+  POE_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_REF,
   VENICE_DEFAULT_MODEL_REF,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
@@ -39,6 +42,7 @@ import {
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
+  setPoeApiKey,
   setSyntheticApiKey,
   setVeniceApiKey,
   setVercelAiGatewayApiKey,
@@ -85,6 +89,8 @@ export async function applyAuthChoiceApiProviders(
       authChoice = "venice-api-key";
     } else if (params.opts.tokenProvider === "opencode") {
       authChoice = "opencode-zen";
+    } else if (params.opts.tokenProvider === "poe") {
+      authChoice = "poe-api-key";
     }
   }
 
@@ -570,6 +576,72 @@ export async function applyAuthChoiceApiProviders(
         applyDefaultConfig: applyOpencodeZenConfig,
         applyProviderConfig: applyOpencodeZenProviderConfig,
         noteDefault: OPENCODE_ZEN_DEFAULT_MODEL,
+        noteAgentModel,
+        prompter: params.prompter,
+      });
+      nextConfig = applied.config;
+      agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
+    }
+    return { config: nextConfig, agentModelOverride };
+  }
+
+  if (authChoice === "poe-api-key") {
+    let hasCredential = false;
+
+    if (!hasCredential && params.opts?.token && params.opts?.tokenProvider === "poe") {
+      await setPoeApiKey(normalizeApiKeyInput(params.opts.token), params.agentDir);
+      hasCredential = true;
+    }
+
+    if (!hasCredential) {
+      await params.prompter.note(
+        [
+          "Poe provides OpenAI-compatible API access to 80+ models:",
+          "• OpenAI: GPT-5, GPT-4, o3, o1",
+          "• Anthropic: Claude Opus 4.5, Sonnet 4.5, Haiku 4.5",
+          "• Google: Gemini 3 Pro, Gemini 2.5 Flash",
+          "• Meta: Llama 4, Llama 3.3",
+          "• DeepSeek: DeepSeek R1, DeepSeek V3",
+          "• XAI: Grok 4",
+          "",
+          "Get your API key at: https://poe.com/api_key",
+          "Requires an active Poe subscription.",
+        ].join("\n"),
+        "Poe API",
+      );
+    }
+
+    const envKey = resolveEnvApiKey("poe");
+    if (envKey) {
+      const useExisting = await params.prompter.confirm({
+        message: `Use existing POE_API_KEY (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+        initialValue: true,
+      });
+      if (useExisting) {
+        await setPoeApiKey(envKey.apiKey, params.agentDir);
+        hasCredential = true;
+      }
+    }
+    if (!hasCredential) {
+      const key = await params.prompter.text({
+        message: "Enter Poe API key",
+        validate: validateApiKeyInput,
+      });
+      await setPoeApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "poe:default",
+      provider: "poe",
+      mode: "api_key",
+    });
+    {
+      const applied = await applyDefaultModelChoice({
+        config: nextConfig,
+        setDefaultModel: params.setDefaultModel,
+        defaultModel: POE_DEFAULT_MODEL_REF,
+        applyDefaultConfig: applyPoeConfig,
+        applyProviderConfig: applyPoeProviderConfig,
+        noteDefault: POE_DEFAULT_MODEL_REF,
         noteAgentModel,
         prompter: params.prompter,
       });

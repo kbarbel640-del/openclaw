@@ -14,6 +14,7 @@ import {
   applyMoonshotConfig,
   applyOpencodeZenConfig,
   applyOpenrouterConfig,
+  applyPoeConfig,
   applySyntheticConfig,
   applyVeniceConfig,
   applyVercelAiGatewayConfig,
@@ -25,6 +26,7 @@ import {
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
+  setPoeApiKey,
   setSyntheticApiKey,
   setVeniceApiKey,
   setVercelAiGatewayApiKey,
@@ -353,6 +355,25 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applyOpencodeZenConfig(nextConfig);
+  }
+
+  if (authChoice === "poe-api-key") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "poe",
+      cfg: baseConfig,
+      flagValue: opts.poeApiKey,
+      flagName: "--poe-api-key",
+      envVar: "POE_API_KEY",
+      runtime,
+    });
+    if (!resolved) return null;
+    if (resolved.source !== "profile") await setPoeApiKey(resolved.key);
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "poe:default",
+      provider: "poe",
+      mode: "api_key",
+    });
+    return applyPoeConfig(nextConfig);
   }
 
   if (

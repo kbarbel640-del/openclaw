@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ensure NODE_PATH is defined (required for strict mode with -u flag)
+export NODE_PATH="${NODE_PATH:-}"
+
 on_error() {
   echo "A2UI bundling failed. Re-run with: pnpm canvas:a2ui:bundle" >&2
   echo "If this persists, verify pnpm deps and try again." >&2

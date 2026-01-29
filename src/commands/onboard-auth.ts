@@ -11,6 +11,8 @@ export {
   applyMoonshotProviderConfig,
   applyOpenrouterConfig,
   applyOpenrouterProviderConfig,
+  applyPoeConfig,
+  applyPoeProviderConfig,
   applySyntheticConfig,
   applySyntheticProviderConfig,
   applyVeniceConfig,
@@ -34,6 +36,7 @@ export {
 } from "./onboard-auth.config-opencode.js";
 export {
   OPENROUTER_DEFAULT_MODEL_REF,
+  POE_DEFAULT_MODEL_REF,
   setAnthropicApiKey,
   setGeminiApiKey,
   setKimiCodeApiKey,
@@ -41,6 +44,7 @@ export {
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
+  setPoeApiKey,
   setSyntheticApiKey,
   setVeniceApiKey,
   setVercelAiGatewayApiKey,

@@ -164,3 +164,18 @@ export async function setOpencodeZenApiKey(key: string, agentDir?: string) {
     agentDir: resolveAuthAgentDir(agentDir),
   });
 }
+
+export const POE_DEFAULT_MODEL_REF = "poe/gpt-5.2";
+
+export async function setPoeApiKey(key: string, agentDir?: string) {
+  // Write to resolved agent dir so gateway finds credentials on startup.
+  upsertAuthProfile({
+    profileId: "poe:default",
+    credential: {
+      type: "api_key",
+      provider: "poe",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
