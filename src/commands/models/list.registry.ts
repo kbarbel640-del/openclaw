@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { Api, Model } from "@mariozechner/pi-ai";
 import { discoverAuthStorage, discoverModels } from "@mariozechner/pi-coding-agent";
 
@@ -10,9 +12,28 @@ import {
   resolveEnvApiKey,
 } from "../../agents/model-auth.js";
 import { ensureMoltbotModelsJson } from "../../agents/models-config.js";
+import { buildInlineProviderModels } from "../../agents/pi-embedded-runner/model.js";
 import type { MoltbotConfig } from "../../config/config.js";
 import type { ModelRow } from "./list.types.js";
 import { modelKey } from "./shared.js";
+
+async function readModelsJsonProviders(
+  agentDir: string,
+): Promise<
+  Record<string, { baseUrl?: string; api?: string; models?: Array<Record<string, unknown>> }>
+> {
+  try {
+    const modelsJsonPath = path.join(agentDir, "models.json");
+    const raw = await fs.readFile(modelsJsonPath, "utf8");
+    const parsed = JSON.parse(raw) as { providers?: Record<string, unknown> };
+    return (parsed.providers ?? {}) as Record<
+      string,
+      { baseUrl?: string; api?: string; models?: Array<Record<string, unknown>> }
+    >;
+  } catch {
+    return {};
+  }
+}
 
 const isLocalBaseUrl = (baseUrl: string) => {
   try {
@@ -43,9 +64,51 @@ export async function loadModelRegistry(cfg: MoltbotConfig) {
   const agentDir = resolveMoltbotAgentDir();
   const authStorage = discoverAuthStorage(agentDir);
   const registry = discoverModels(authStorage, agentDir);
-  const models = registry.getAll() as Model<Api>[];
+  const builtInModels = registry.getAll() as Model<Api>[];
   const availableModels = registry.getAvailable() as Model<Api>[];
   const availableKeys = new Set(availableModels.map((model) => modelKey(model.provider, model.id)));
+
+  // Merge custom provider models from models.json into the registry.
+  // The pi-ai SDK only returns built-in models; custom providers are written to agentDir/models.json.
+  const modelsJsonProviders = await readModelsJsonProviders(agentDir);
+  const customModels = buildInlineProviderModels(modelsJsonProviders)
+    .filter((entry) => typeof entry.id === "string" && entry.id.length > 0)
+    .map((entry) => {
+      // Normalize model ID: strip leading "provider/" prefix if present (avoid double-prefixing)
+      const normalizedId = entry.id.startsWith(`${entry.provider}/`)
+        ? entry.id.slice(entry.provider.length + 1)
+        : entry.id;
+      return {
+        id: normalizedId,
+        name: entry.name || normalizedId,
+        provider: entry.provider,
+        baseUrl: entry.baseUrl ?? "",
+        api: entry.api ?? "openai-completions",
+        input: entry.input ?? ["text"],
+        reasoning: entry.reasoning ?? false,
+        cost: entry.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: entry.contextWindow ?? 128000,
+        maxTokens: entry.maxTokens ?? 8192,
+      } as Model<Api>;
+    });
+
+  // Combine built-in and custom models, deduplicating by key (custom overrides built-in)
+  const modelsByKey = new Map<string, Model<Api>>();
+  for (const model of builtInModels) {
+    modelsByKey.set(modelKey(model.provider, model.id), model);
+  }
+  for (const model of customModels) {
+    modelsByKey.set(modelKey(model.provider, model.id), model);
+  }
+  const models = Array.from(modelsByKey.values());
+
+  // Mark local custom provider models as available (getAvailable() doesn't see them).
+  for (const model of customModels) {
+    if (model.baseUrl && isLocalBaseUrl(model.baseUrl)) {
+      availableKeys.add(modelKey(model.provider, model.id));
+    }
+  }
+
   return { registry, models, availableKeys };
 }
 

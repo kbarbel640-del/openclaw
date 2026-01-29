@@ -15,6 +15,7 @@ const resolveAwsSdkEnvVarName = vi.fn().mockReturnValue(undefined);
 const getCustomProviderApiKey = vi.fn().mockReturnValue(undefined);
 const discoverAuthStorage = vi.fn().mockReturnValue({});
 const discoverModels = vi.fn();
+const mockReadFile = vi.fn().mockRejectedValue(new Error("no file"));
 
 vi.mock("../config/config.js", () => ({
   CONFIG_PATH: "/tmp/moltbot.json",
@@ -47,6 +48,12 @@ vi.mock("../agents/model-auth.js", () => ({
 vi.mock("@mariozechner/pi-coding-agent", () => ({
   discoverAuthStorage,
   discoverModels,
+}));
+
+vi.mock("node:fs/promises", () => ({
+  default: {
+    readFile: mockReadFile,
+  },
 }));
 
 function makeRuntime() {
@@ -282,5 +289,198 @@ describe("models list/status", () => {
     expect(runtime.log).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(runtime.log.mock.calls[0]?.[0]));
     expect(payload.models[0]?.available).toBe(false);
+  });
+
+  it("models list includes custom provider models from models.json", async () => {
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "ollama/llama3:chat" } },
+    });
+    const runtime = makeRuntime();
+
+    // Mock models.json content (read from agentDir)
+    const modelsJson = {
+      providers: {
+        ollama: {
+          baseUrl: "http://127.0.0.1:11434/v1",
+          api: "openai-completions",
+          models: [
+            {
+              id: "llama3:chat",
+              name: "Llama 3 Chat",
+              input: ["text"],
+              contextWindow: 128000,
+            },
+          ],
+        },
+      },
+    };
+    mockReadFile.mockResolvedValueOnce(JSON.stringify(modelsJson));
+
+    // Built-in registry returns empty for Ollama (pi-ai doesn't know about custom providers)
+    discoverModels.mockReturnValue({
+      getAll: () => [],
+      getAvailable: () => [],
+    });
+
+    const { modelsListCommand } = await import("./models/list.js");
+    await modelsListCommand({}, runtime);
+
+    expect(runtime.log).toHaveBeenCalled();
+    const output = String(runtime.log.mock.calls.flat().join("\n"));
+    // Custom provider model should NOT be missing
+    expect(output).not.toMatch(/ollama\/llama3:chat.*missing/i);
+  });
+
+  it("models list normalizes custom provider model id with leading prefix", async () => {
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "ollama/llama3:chat" } },
+    });
+    const runtime = makeRuntime();
+
+    // Mock models.json with model id that has provider prefix (edge case)
+    const modelsJson = {
+      providers: {
+        ollama: {
+          baseUrl: "http://127.0.0.1:11434/v1",
+          api: "openai-completions",
+          models: [
+            {
+              id: "ollama/llama3:chat",
+              name: "Llama 3 Chat",
+              input: ["text"],
+              contextWindow: 128000,
+            },
+          ],
+        },
+      },
+    };
+    mockReadFile.mockResolvedValueOnce(JSON.stringify(modelsJson));
+
+    discoverModels.mockReturnValue({
+      getAll: () => [],
+      getAvailable: () => [],
+    });
+
+    const { loadModelRegistry } = await import("./models/list.registry.js");
+    const { availableKeys, models } = await loadModelRegistry(loadConfig());
+
+    // Should normalize to "ollama/llama3:chat" (not "ollama/ollama/llama3:chat")
+    expect(availableKeys.has("ollama/llama3:chat")).toBe(true);
+    expect(availableKeys.has("ollama/ollama/llama3:chat")).toBe(false);
+    // And the model should be in the models array with normalized id
+    const ollamaModel = models.find((m) => m.provider === "ollama");
+    expect(ollamaModel?.id).toBe("llama3:chat");
+  });
+
+  it("models list marks local custom providers as available", async () => {
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "lmstudio/some-model" } },
+    });
+    const runtime = makeRuntime();
+
+    // Mock models.json with local provider
+    const modelsJson = {
+      providers: {
+        lmstudio: {
+          baseUrl: "http://127.0.0.1:1234/v1",
+          api: "openai-completions",
+          models: [
+            {
+              id: "some-model",
+              name: "Some Model",
+              input: ["text"],
+              contextWindow: 128000,
+            },
+          ],
+        },
+      },
+    };
+    mockReadFile.mockResolvedValueOnce(JSON.stringify(modelsJson));
+
+    discoverModels.mockReturnValue({
+      getAll: () => [],
+      getAvailable: () => [],
+    });
+
+    const { loadModelRegistry } = await import("./models/list.registry.js");
+    const { availableKeys } = await loadModelRegistry(loadConfig());
+
+    // Local custom provider models should be marked available
+    expect(availableKeys.has("lmstudio/some-model")).toBe(true);
+  });
+
+  it("models list does NOT mark remote custom providers as available", async () => {
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "remote-provider/some-model" } },
+    });
+    const runtime = makeRuntime();
+
+    // Mock models.json with remote provider
+    const modelsJson = {
+      providers: {
+        "remote-provider": {
+          baseUrl: "https://api.example.com/v1",
+          api: "openai-completions",
+          models: [
+            {
+              id: "some-model",
+              name: "Some Model",
+              input: ["text"],
+              contextWindow: 128000,
+            },
+          ],
+        },
+      },
+    };
+    mockReadFile.mockResolvedValueOnce(JSON.stringify(modelsJson));
+
+    discoverModels.mockReturnValue({
+      getAll: () => [],
+      getAvailable: () => [],
+    });
+
+    const { loadModelRegistry } = await import("./models/list.registry.js");
+    const { availableKeys } = await loadModelRegistry(loadConfig());
+
+    // Remote custom provider models should NOT be marked available (need getAvailable() check)
+    expect(availableKeys.has("remote-provider/some-model")).toBe(false);
+  });
+
+  it("models list ignores model entries with missing or invalid id", async () => {
+    loadConfig.mockReturnValue({
+      agents: { defaults: { model: "ollama/llama3:chat" } },
+    });
+    const runtime = makeRuntime();
+
+    // Mock models.json with invalid entries (missing id, empty id, non-string id)
+    const modelsJson = {
+      providers: {
+        ollama: {
+          baseUrl: "http://127.0.0.1:11434/v1",
+          api: "openai-completions",
+          models: [
+            { name: "No ID Model" }, // missing id
+            { id: "", name: "Empty ID Model" }, // empty string id
+            { id: 123, name: "Numeric ID Model" }, // non-string id
+            { id: "llama3:chat", name: "Valid Model" }, // valid
+          ],
+        },
+      },
+    };
+    mockReadFile.mockResolvedValueOnce(JSON.stringify(modelsJson));
+
+    discoverModels.mockReturnValue({
+      getAll: () => [],
+      getAvailable: () => [],
+    });
+
+    const { loadModelRegistry } = await import("./models/list.registry.js");
+    const { models, availableKeys } = await loadModelRegistry(loadConfig());
+
+    // Should only include the valid model
+    const ollamaModels = models.filter((m) => m.provider === "ollama");
+    expect(ollamaModels.length).toBe(1);
+    expect(ollamaModels[0]?.id).toBe("llama3:chat");
+    expect(availableKeys.has("ollama/llama3:chat")).toBe(true);
   });
 });
