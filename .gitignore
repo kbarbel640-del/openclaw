@@ -71,3 +71,12 @@ USER.md
 
 # local tooling
 .serena/
+
+# sensitive files
+*client_secret*.json
+*credentials*.json
+*.pem
+*.key
+secrets/
+.clawdbot/
+.var/
