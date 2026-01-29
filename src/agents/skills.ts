@@ -31,6 +31,13 @@ export {
   resolveSkillsPromptForRun,
   syncSkillsToWorkspace,
 } from "./skills/workspace.js";
+export {
+  detectPlatform,
+  hasPackageManager,
+  selectInstallSpec,
+  type PackageManagerKind,
+  type PlatformInfo,
+} from "./skills/dependency-manager.js";
 
 export function resolveSkillsInstallPreferences(config?: MoltbotConfig) {
   const raw = config?.skills?.install;
