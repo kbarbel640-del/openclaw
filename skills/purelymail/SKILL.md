@@ -7,121 +7,134 @@ metadata:
     emoji: "📬"
     requires:
       bins: ["python3"]
+      env: ["PURELYMAIL_API_KEY"]
 ---
 
-# PurelyMail Setup for Clawdbot
+# PurelyMail Admin API
 
-Set up email for your Clawdbot agent using [PurelyMail](https://purelymail.com) - a simple, privacy-focused email service perfect for agent inboxes.
+Manage domains, users, and routing for PurelyMail via API.
 
-## Why PurelyMail?
+## Setup
 
-- **Cheap**: ~$10/year for unlimited addresses
-- **Simple**: No bloat, just email
-- **Privacy**: Based in US, minimal data retention
-- **Reliable**: Great deliverability
-- **Agent-friendly**: Easy IMAP/SMTP setup
+**API Key** is stored in 1Password: `moltbot skill: purelymail admin api`
 
-## Quick Start (Wizard)
-
-The easiest way to set up is with the interactive wizard:
-
+To use directly, set:
 ```bash
-purelymail wizard
+export PURELYMAIL_API_KEY="pm-live-..."
 ```
 
-The wizard will:
-1. ✓ Check if you have a PurelyMail account
-2. ✓ Test your IMAP/SMTP connection
-3. ✓ Generate clawdbot.json config
-4. ✓ Optionally send a test email
+Or the script will attempt to fetch from 1Password via op-safe tmux session.
 
-## Manual Setup
-
-### 1. Create PurelyMail Account
-
-1. Go to [purelymail.com](https://purelymail.com) and sign up
-2. Add your domain (or use their subdomain)
-3. Create a mailbox for your agent (e.g., `agent@yourdomain.com`)
-4. Note the password
-
-### 2. Generate Clawdbot Config
+## Admin CLI Commands
 
 ```bash
-purelymail config --email agent@yourdomain.com --password "YourPassword"
+# List all domains with DNS status
+uv run {baseDir}/scripts/purelymail-admin.py domains
+
+# Add a new domain
+uv run {baseDir}/scripts/purelymail-admin.py add-domain nothockney.com
+
+# List all users (grouped by domain)
+uv run {baseDir}/scripts/purelymail-admin.py users
+
+# Create a new user/mailbox
+uv run {baseDir}/scripts/purelymail-admin.py create-user hello@nothockney.com
+uv run {baseDir}/scripts/purelymail-admin.py create-user noreply@nothockney.com --password "SecurePass123!"
+
+# Delete a user
+uv run {baseDir}/scripts/purelymail-admin.py delete-user old@example.com
+
+# List routing rules
+uv run {baseDir}/scripts/purelymail-admin.py routing
+
+# Add routing rule (catchall)
+uv run {baseDir}/scripts/purelymail-admin.py add-routing example.com --catchall --targets admin@example.com
+
+# FULL PROJECT SETUP (domain + noreply + hello users)
+uv run {baseDir}/scripts/purelymail-admin.py setup-project nothockney.com
+uv run {baseDir}/scripts/purelymail-admin.py setup-project nothockney.com --users noreply hello support
 ```
 
-Outputs JSON to add to your `clawdbot.json`:
+## Project Incubation Workflow
+
+When starting a new DBH Ventures project:
+
+```bash
+# 1. Set up email for the project
+uv run {baseDir}/scripts/purelymail-admin.py setup-project newproject.com
+
+# Output includes:
+# - Domain added (if needed)
+# - noreply@newproject.com created with password
+# - hello@newproject.com created with password
+# - DNS records needed
+```
+
+## DNS Records Needed
+
+After adding a domain, configure these DNS records:
+
+| Type | Name | Value |
+|------|------|-------|
+| MX | @ | mx.purelymail.com (priority 10) |
+| TXT | @ | v=spf1 include:_spf.purelymail.com ~all |
+| TXT | _dmarc | v=DMARC1; p=quarantine; rua=mailto:dmarc@purelymail.com |
+| CNAME | purelymail._domainkey | (check dashboard for domain-specific value) |
+
+## API Reference
+
+Base URL: `https://purelymail.com/api/v0`
+Auth: `Purelymail-Api-Token: <api_key>` header
+Method: All endpoints use POST with JSON body
+
+### Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `listDomains` | List all domains with DNS status |
+| `addDomain` | Add a domain (`{"domainName": "..."}`) |
+| `listUser` | List all users |
+| `createUser` | Create user (`{userName, domainName, password, ...}`) |
+| `deleteUser` | Delete user (`{userName, domainName}`) |
+| `listRoutingRules` | List routing rules |
+| `addRoutingRule` | Add routing rule |
+
+### Create User Schema
 
 ```json
 {
-  "skills": {
-    "entries": {
-      "agent-email": {
-        "env": {
-          "AGENT_EMAIL": "agent@yourdomain.com",
-          "AGENT_EMAIL_PASSWORD": "YourPassword",
-          "AGENT_IMAP_SERVER": "imap.purelymail.com",
-          "AGENT_SMTP_SERVER": "smtp.purelymail.com"
-        }
-      }
-    }
-  }
+  "userName": "hello",
+  "domainName": "example.com",
+  "password": "SecurePassword123!",
+  "enablePasswordReset": true,
+  "recoveryEmail": "recovery@other.com",
+  "enableSearchIndexing": true,
+  "sendWelcomeEmail": false
 }
 ```
 
-### 3. Test Connection
+## Existing Domains
 
-```bash
-purelymail test --email agent@yourdomain.com --password "YourPassword"
-```
+Current domains in the account:
+- savestate.dev
+- meshguard.app
+- withagency.ai
+- customcanvascurators.com
+- findzion.com
+- salesaide.app
 
-Tests IMAP and SMTP connectivity.
-
-### 4. Send Test Email
-
-```bash
-purelymail send-test --email agent@yourdomain.com --password "YourPassword" --to you@example.com
-```
-
-### 5. Check Inbox
-
-```bash
-purelymail inbox --email agent@yourdomain.com --password "YourPassword" --limit 5
-```
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `config` | Generate clawdbot.json config snippet |
-| `test` | Test IMAP/SMTP connectivity |
-| `send-test` | Send a test email |
-| `inbox` | List recent inbox messages |
-| `read` | Read a specific email |
-| `setup-guide` | Print full setup instructions |
-
-## Environment Variables
-
-Once configured in clawdbot.json, these env vars are available:
-
-- `AGENT_EMAIL` - The email address
-- `AGENT_EMAIL_PASSWORD` - The password
-- `AGENT_IMAP_SERVER` - IMAP server (imap.purelymail.com)
-- `AGENT_SMTP_SERVER` - SMTP server (smtp.purelymail.com)
-
-## PurelyMail Settings
+## IMAP/SMTP Settings
 
 | Setting | Value |
 |---------|-------|
-| IMAP Server | `imap.purelymail.com` |
-| IMAP Port | `993` (SSL) |
-| SMTP Server | `smtp.purelymail.com` |
-| SMTP Port | `465` (SSL) or `587` (STARTTLS) |
-| Auth | Email + Password |
+| IMAP Server | imap.purelymail.com |
+| IMAP Port | 993 (SSL) |
+| SMTP Server | smtp.purelymail.com |
+| SMTP Port | 465 (SSL) or 587 (STARTTLS) |
 
 ## Tips
 
-- Use a strong, unique password for your agent
-- Consider creating a dedicated domain for agent emails
-- PurelyMail supports catch-all addresses (great for routing)
-- Enable 2FA on your PurelyMail account (use app password for agent)
+- Use `setup-project` for new DBH Ventures incubations
+- Passwords are auto-generated if not specified (16 chars, mixed)
+- Save credentials immediately - they can't be retrieved later
+- DNS propagation takes 5-60 minutes after adding records
