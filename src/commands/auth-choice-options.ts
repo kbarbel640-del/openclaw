@@ -16,11 +16,11 @@ export type AuthChoiceGroupId =
   | "ai-gateway"
   | "moonshot"
   | "zai"
-  | "xiaomi"
   | "opencode-zen"
   | "minimax"
   | "synthetic"
   | "venice"
+  | "nebius"
   | "qwen";
 
 export type AuthChoiceGroup = {
@@ -109,10 +109,10 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["zai-api-key"],
   },
   {
-    value: "xiaomi",
-    label: "Xiaomi",
-    hint: "API key",
-    choices: ["xiaomi-api-key"],
+    value: "nebius",
+    label: "Nebius",
+    hint: "Nebius Token Factory",
+    choices: ["nebius-api-key"],
   },
   {
     value: "opencode-zen",
@@ -171,10 +171,6 @@ export function buildAuthChoiceOptions(params: {
     hint: "Uses the bundled Gemini CLI auth plugin",
   });
   options.push({ value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" });
-  options.push({
-    value: "xiaomi-api-key",
-    label: "Xiaomi API key",
-  });
   options.push({ value: "qwen-portal", label: "Qwen OAuth" });
   options.push({
     value: "copilot-proxy",
@@ -189,6 +185,11 @@ export function buildAuthChoiceOptions(params: {
     hint: "Claude, GPT, Gemini via opencode.ai/zen",
   });
   options.push({ value: "minimax-api", label: "MiniMax M2.1" });
+  options.push({
+    value: "nebius-api-key",
+    label: "Nebius API key",
+    hint: "Nebius Token Factory)",
+  });
   options.push({
     value: "minimax-api-lightning",
     label: "MiniMax M2.1 Lightning",

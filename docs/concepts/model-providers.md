@@ -118,6 +118,10 @@ Moltbot ships with the pi‑ai catalog. These providers require **no**
   - OpenAI-compatible base URL: `https://api.cerebras.ai/v1`.
 - Mistral: `mistral` (`MISTRAL_API_KEY`)
 - GitHub Copilot: `github-copilot` (`COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`)
+- Nebius: `nebius` (`NEBIUS_API_KEY`)
+  - Example model: `Qwen/Qwen3-32B-fast` (recommended default)
+  - Available: Qwen, Llama, DeepSeek, GLM, and other open models
+  - OpenAI-compatible base URL: `https://api.tokenfactory.nebius.com/v1/`
 
 ## Providers via `models.providers` (custom/base URL)
 

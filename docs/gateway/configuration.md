@@ -2608,6 +2608,56 @@ Notes:
 - Override the agent config root with `CLAWDBOT_AGENT_DIR` (or `PI_CODING_AGENT_DIR`)
   if you want `models.json` stored elsewhere (default: `~/.clawdbot/agents/main/agent`).
 
+
+### Nebius (GLM 7 / GLM 5)
+
+Use Nebius via their OpenAI-compatible endpoint:
+
+```json5
+{
+  env: {
+    NEBIUS_API_KEY: "" },
+
+  agents: {
+    defaults: {
+      model: {
+        primary: "Qwen/Qwen3-32B-fast",
+        fallbacks: ["meta-llama/Llama-3.3-70B-Instruct-fast"]
+      },
+      models: {
+        "Qwen/Qwen3-32B-fast": { alias: "Qwen3 32B Fast" },
+        "meta-llama/Llama-3.3-70B-Instruct-fast": { alias: "Llama 3.3 70B Fast" },
+        "deepseek-ai/DeepSeek-R1-0528-fast": { alias: "DeepSeek R1 Fast" },
+        "Qwen/Qwen2.5-VL-72B-Instruct": { alias: "Qwen2.5 VL 72B" }
+      }
+    }
+  },
+
+  models: {
+    mode: "merge",
+    providers: {
+      nebius: {
+        baseUrl: "https://api.tokenfactory.nebius.com/v1",
+        apiKey: "${NEBIUS_API_KEY}",
+        api: "openai-completions",
+        models: [
+          { id: "Qwen/Qwen3-32B-fast", name: "Qwen3 32B Fast" },
+          { id: "meta-llama/Meta-Llama-3.1-8B-Instruct-fast", name: "Llama 3.1 8B Fast" },
+          { id: "meta-llama/Llama-3.3-70B-Instruct", name: "Llama 3.3 70B" },
+          { id: "meta-llama/Llama-3.3-70B-Instruct-fast", name: "Llama 3.3 70B Fast" },
+          { id: "deepseek-ai/DeepSeek-V3-0324-fast", name: "DeepSeek V3 Fast" },
+          { id: "deepseek-ai/DeepSeek-R1-0528-fast", name: "DeepSeek R1 Fast", reasoning: true },
+          { id: "Qwen/Qwen2.5-VL-72B-Instruct", name: "Qwen2.5 VL 72B", input: ["text", "image"] },
+          { id: "Qwen/Qwen2.5-Coder-7B-fast", name: "Qwen2.5 Coder 7B Fast" },
+          { id: "intfloat/e5-mistral-7b-instruct", name: "e5 Mistral 7B" },
+          { id: "zai-org/GLM-4.7-FP8", name: "GLM 4.7 FP8" },
+          { id: "zai-org/GLM-4.5", name: "GLM 4.5" }
+        ]
+      }
+    }
+  }
+}
+
 ### `session`
 
 Controls session scoping, reset policy, reset triggers, and where the session store is written.

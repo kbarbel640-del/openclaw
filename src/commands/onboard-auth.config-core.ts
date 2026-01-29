@@ -1,4 +1,3 @@
-import { buildXiaomiProvider, XIAOMI_DEFAULT_MODEL_ID } from "../agents/models-config.providers.js";
 import {
   buildSyntheticModelDefinition,
   SYNTHETIC_BASE_URL,
@@ -15,7 +14,6 @@ import type { MoltbotConfig } from "../config/config.js";
 import {
   OPENROUTER_DEFAULT_MODEL_REF,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
-  XIAOMI_DEFAULT_MODEL_REF,
   ZAI_DEFAULT_MODEL_REF,
 } from "./onboard-auth.credentials.js";
 import {
@@ -338,37 +336,17 @@ export function applySyntheticConfig(cfg: MoltbotConfig): MoltbotConfig {
   };
 }
 
-export function applyXiaomiProviderConfig(cfg: MoltbotConfig): MoltbotConfig {
+export function applyNebiusProviderConfig(cfg: MoltbotConfig): MoltbotConfig {
   const models = { ...cfg.agents?.defaults?.models };
-  models[XIAOMI_DEFAULT_MODEL_REF] = {
-    ...models[XIAOMI_DEFAULT_MODEL_REF],
-    alias: models[XIAOMI_DEFAULT_MODEL_REF]?.alias ?? "Xiaomi",
+
+  models["zai-org/GLM-4.7-FP8"] = {
+    ...models["zai-org/GLM-4.7-FP8"],
+    alias: models["zai-org/GLM-4.7-FP8"]?.alias ?? "GLM 7",
   };
 
-  const providers = { ...cfg.models?.providers };
-  const existingProvider = providers.xiaomi;
-  const defaultProvider = buildXiaomiProvider();
-  const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
-  const defaultModels = defaultProvider.models ?? [];
-  const hasDefaultModel = existingModels.some((model) => model.id === XIAOMI_DEFAULT_MODEL_ID);
-  const mergedModels =
-    existingModels.length > 0
-      ? hasDefaultModel
-        ? existingModels
-        : [...existingModels, ...defaultModels]
-      : defaultModels;
-  const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
-    string,
-    unknown
-  > as { apiKey?: string };
-  const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
-  const normalizedApiKey = resolvedApiKey?.trim();
-  providers.xiaomi = {
-    ...existingProviderRest,
-    baseUrl: defaultProvider.baseUrl,
-    api: defaultProvider.api,
-    ...(normalizedApiKey ? { apiKey: normalizedApiKey } : {}),
-    models: mergedModels.length > 0 ? mergedModels : defaultProvider.models,
+  models["zai-org/GLM-4.5"] = {
+    ...models["zai-org/GLM-4.5"],
+    alias: models["zai-org/GLM-4.5"]?.alias ?? "GLM 5",
   };
 
   return {
@@ -380,16 +358,13 @@ export function applyXiaomiProviderConfig(cfg: MoltbotConfig): MoltbotConfig {
         models,
       },
     },
-    models: {
-      mode: cfg.models?.mode ?? "merge",
-      providers,
-    },
   };
 }
 
-export function applyXiaomiConfig(cfg: MoltbotConfig): MoltbotConfig {
-  const next = applyXiaomiProviderConfig(cfg);
+export function applyNebiusConfig(cfg: MoltbotConfig): MoltbotConfig {
+  const next = applyNebiusProviderConfig(cfg);
   const existingModel = next.agents?.defaults?.model;
+
   return {
     ...next,
     agents: {
@@ -402,7 +377,7 @@ export function applyXiaomiConfig(cfg: MoltbotConfig): MoltbotConfig {
                 fallbacks: (existingModel as { fallbacks?: string[] }).fallbacks,
               }
             : undefined),
-          primary: XIAOMI_DEFAULT_MODEL_REF,
+          primary: "zai-org/GLM-4.7-FP8",
         },
       },
     },

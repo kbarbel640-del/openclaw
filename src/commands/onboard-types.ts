@@ -23,11 +23,11 @@ export type AuthChoice =
   | "google-antigravity"
   | "google-gemini-cli"
   | "zai-api-key"
-  | "xiaomi-api-key"
   | "minimax-cloud"
   | "minimax"
   | "minimax-api"
   | "minimax-api-lightning"
+  | "nebius-api-key"
   | "opencode-zen"
   | "github-copilot"
   | "copilot-proxy"
@@ -68,8 +68,8 @@ export type OnboardOptions = {
   kimiCodeApiKey?: string;
   geminiApiKey?: string;
   zaiApiKey?: string;
-  xiaomiApiKey?: string;
   minimaxApiKey?: string;
+  nebiusApiKey?: string;
   syntheticApiKey?: string;
   veniceApiKey?: string;
   opencodeZenApiKey?: string;
