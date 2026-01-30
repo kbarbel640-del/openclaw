@@ -103,8 +103,8 @@ export function applyGroupGating(params: {
   });
 
   // Check if this message is a reply to the bot
-  const selfJid = params.msg.selfJid?.replace(/:\\d+/, "");
-  const replySenderJid = params.msg.replyToSenderJid?.replace(/:\\d+/, "");
+  const selfJid = params.msg.selfJid?.replace(/:\d+/, "");
+  const replySenderJid = params.msg.replyToSenderJid?.replace(/:\d+/, "");
   const selfE164 = params.msg.selfE164 ? normalizeE164(params.msg.selfE164) : null;
   const replySenderE164 = params.msg.replyToSenderE164
     ? normalizeE164(params.msg.replyToSenderE164)
@@ -114,9 +114,8 @@ export function applyGroupGating(params: {
     (selfE164 && replySenderE164 && selfE164 === replySenderE164),
   );
 
-  // Ensure safe default for shouldBypassMention in case it's undefined in some contexts
-  const safeShouldBypassMention =
-    typeof shouldBypassMention !== "undefined" ? shouldBypassMention : false;
+  // Owner control commands bypass activation restrictions
+  const bypassMention = shouldBypassMention === true;
 
   // require mention only in strict 'mention' mode
   const requireMention = activation === "mention";
@@ -125,14 +124,14 @@ export function applyGroupGating(params: {
     canDetectMention: true,
     wasMentioned,
     implicitMention: isReplyToBot, // treat reply-to-bot as an implicit mention
-    shouldBypassMention: safeShouldBypassMention,
+    shouldBypassMention: bypassMention,
   });
 
   // Determine if we should process based on activation mode
   const shouldProcess = (() => {
     if (activation === "always") return true;
-    if (activation === "never") return safeShouldBypassMention;
-    if (activation === "replies") return isReplyToBot || safeShouldBypassMention;
+    if (activation === "never") return bypassMention;
+    if (activation === "replies") return isReplyToBot || bypassMention;
     if (activation === "mention+replies") return mentionGate.effectiveWasMentioned;
     // Default to "mention" mode
     return !mentionGate.shouldSkip;
