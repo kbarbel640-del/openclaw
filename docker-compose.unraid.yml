@@ -1,6 +1,8 @@
 services:
   moltbot-gateway:
     image: ${CLAWDBOT_IMAGE:-moltbot:local}
+    env_file:
+      - .env
     environment:
       HOME: /home/node
       TERM: xterm-256color
@@ -17,6 +19,20 @@ services:
       - "${CLAWDBOT_BRIDGE_PORT:-18790}:18790"
     init: true
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "dist/index.js",
+          "health",
+          "--token",
+          "${CLAWDBOT_GATEWAY_TOKEN}"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
     command:
       [
         "node",
@@ -30,6 +46,8 @@ services:
 
   moltbot-cli:
     image: ${CLAWDBOT_IMAGE:-moltbot:local}
+    env_file:
+      - .env
     environment:
       HOME: /home/node
       TERM: xterm-256color
