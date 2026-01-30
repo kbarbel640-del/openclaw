@@ -89,6 +89,36 @@ Vectors + BM25 + reranking finds things even with different wording.
 - `trash` > `rm` (recoverable beats gone forever)
 - When in doubt, ask.
 
+## CSS / Tailwind v4 Rules
+
+**CRITICAL:** In Tailwind v4, utilities live in `@layer utilities`. Unlayered CSS has **higher cascade priority** than layered CSS.
+
+**Never do this:**
+```css
+@import "tailwindcss";
+
+* { margin: 0; padding: 0; }  /* ❌ This overrides ALL Tailwind utilities! */
+```
+
+**Always do this:**
+```css
+@import "tailwindcss";
+
+@layer base {
+  /* Theme variables, html/body styles */
+}
+
+@layer components {
+  /* Custom component classes */
+}
+
+@layer utilities {
+  /* Custom utilities, animations */
+}
+```
+
+Tailwind's preflight already handles resets — don't add your own `*` reset.
+
 ## External vs Internal
 
 **Safe to do freely:**

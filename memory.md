@@ -71,6 +71,7 @@ Note: Some references to "moltbot" or "clawdbot" may remain in older code/config
   - ID 4: 🛡️ MeshGuard (launched)
   - ID 5: 💾 SaveState (launched Jan 27, 2026)
   - ID 7: 🎨 NotHockney (paused - foundation complete)
+  - Omega Foundation: 🎓 AI-powered homeschool (in Inbox, researching)
 - **Incubation phases**: Idea → Foundation → MVP → Launch → Growth
 - **Idea workflow**: 
   1. New idea → create task in Inbox (ID 2)
@@ -80,6 +81,17 @@ Note: Some references to "moltbot" or "clawdbot" may remain in older code/config
 - **Usage**: Clone template project for each new venture
 - **⚠️ IMPORTANT**: Always create tasks/projects via David's account (dbhurley) so he sees them by default — use API with his credentials, not steve's
 - **Usage**: Clone template project for each new venture
+
+## Omega Foundation — Incubation (Jan 2026)
+
+- **What**: AI-powered Montessori homeschool (like Alpha School for homeschoolers)
+- **Website**: https://omega.foundation/
+- **Status**: Research complete, evaluating
+- **Model**: Alpha School's "2 Hour Learning" — AI tutors for core academics
+- **Target**: Homeschool families (3.1M students in US)
+- **Opportunity**: Middle tier ($50-200/mo) is wide open — Alpha charges $10K-$75K/year
+- **Recommended pricing**: $149/mo family subscription
+- **Research**: `memory/omega-foundation-research.md`
 
 ## NotHockney — Incubation (Jan 2026)
 
@@ -123,6 +135,16 @@ uv run skills/purelymail/scripts/purelymail-admin.py setup-project example.com
 # Image generation (Hockney-style example)
 uv run skills/nano-banana-pro/scripts/generate_image.py --prompt "..." --filename output.png --resolution 2K
 ```
+
+## Mission Control Dashboard
+
+- **What**: Visual dashboard for managing DBH Ventures AI sub-agents
+- **URL**: https://dbh-mission-control.vercel.app
+- **Repo**: github.com/dbhurley/dbh-mission-control (private)
+- **Tech**: Next.js + Tailwind on Vercel
+- **Features**: Agent sidebar, kanban tasks, documentation panel
+- **Agents defined**: Scout (research), Builder (dev), Scribe (content), Analyst (data), Canvas (design), Sentinel (QA), Steve (orchestrator)
+- **Status**: MVP with mock data — needs integration with Vikunja, OpenClaw, Bear
 
 ## SaveState — LAUNCHED Jan 27, 2026 🚀
 
