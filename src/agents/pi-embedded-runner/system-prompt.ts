@@ -75,7 +75,7 @@ export function buildEmbeddedSystemPrompt(params: {
 
 export function createSystemPromptOverride(
   systemPrompt: string,
-): (defaultPrompt: string) => string {
+): (base: string | undefined) => string | undefined {
   const trimmed = systemPrompt.trim();
   return () => trimmed;
 }
