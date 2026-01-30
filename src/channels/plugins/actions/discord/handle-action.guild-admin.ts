@@ -294,6 +294,24 @@ export async function tryHandleDiscordMessageActionGuildAdmin(params: {
     );
   }
 
+  if (action === "voice-join") {
+    const guildId = readStringParam(actionParams, "guildId", { required: true });
+    const channelId = readStringParam(actionParams, "channelId", { required: true });
+    const userId = readStringParam(actionParams, "userId", { required: true });
+    return await handleDiscordAction(
+      { action: "voiceJoin", accountId: accountId ?? undefined, guildId, channelId, userId },
+      cfg,
+    );
+  }
+
+  if (action === "voice-leave") {
+    const guildId = readStringParam(actionParams, "guildId", { required: true });
+    return await handleDiscordAction(
+      { action: "voiceLeave", accountId: accountId ?? undefined, guildId },
+      cfg,
+    );
+  }
+
   if (action === "event-list") {
     const guildId = readStringParam(actionParams, "guildId", {
       required: true,
