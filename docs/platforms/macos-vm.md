@@ -94,7 +94,10 @@ Note: The download can take a while depending on your connection.
 ---
 
 ## 3) Complete Setup Assistant
-
+Run VM with display (VNC window opens)
+```bash
+lume run openclaw
+```
 In the VNC window:
 1. Select language and region
 2. Skip Apple ID (or sign in if you want iMessage later)
