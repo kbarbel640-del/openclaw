@@ -1,5 +1,6 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import fs from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
 
@@ -68,7 +69,7 @@ async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
       vi.mocked(abortEmbeddedPiRun).mockClear();
       return await fn(home);
     },
-    { prefix: "openclaw-triggers-" },
+    { prefix: "clawdbot-triggers-" },
   );
 }
 
@@ -77,7 +78,7 @@ function _makeCfg(home: string) {
     agents: {
       defaults: {
         model: "anthropic/claude-opus-4-5",
-        workspace: join(home, "openclaw"),
+        workspace: join(home, "clawd"),
       },
     },
     channels: {
@@ -94,17 +95,55 @@ afterEach(() => {
 });
 
 describe("trigger handling", () => {
-  it("runs a greeting prompt for a bare /reset", async () => {
+  it("treats a bare /reset as a control action (no forced reply)", async () => {
     await withTempHome(async (home) => {
+      const store = join(tmpdir(), `clawdbot-session-test-${Date.now()}.json`);
+      const cfg = {
+        agents: {
+          defaults: {
+            model: "anthropic/claude-opus-4-5",
+            workspace: join(home, "clawd"),
+          },
+        },
+        channels: {
+          whatsapp: {
+            allowFrom: ["*"],
+          },
+        },
+        session: {
+          store,
+        },
+      };
+
       vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
-        payloads: [{ text: "hello" }],
+        payloads: [{ text: "ok" }],
         meta: {
           durationMs: 1,
           agentMeta: { sessionId: "s", provider: "p", model: "m" },
         },
       });
 
-      const res = await getReplyFromConfig(
+      const res1 = await getReplyFromConfig(
+        {
+          Body: "ping",
+          From: "+1003",
+          To: "+2000",
+          CommandAuthorized: true,
+        },
+        {},
+        cfg,
+      );
+      expect(Array.isArray(res1) ? res1[0]?.text : res1?.text).toBe("ok");
+      expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
+
+      const before = JSON.parse(fs.readFileSync(store, "utf8")) as Record<string, { sessionId?: string }>;
+      const key = Object.keys(before)[0];
+      expect(key).toBeTruthy();
+      const beforeId = key ? before[key]?.sessionId : undefined;
+      expect(beforeId).toBeTruthy();
+
+      vi.mocked(runEmbeddedPiAgent).mockClear();
+      const res2 = await getReplyFromConfig(
         {
           Body: "/reset",
           From: "+1003",
@@ -112,28 +151,15 @@ describe("trigger handling", () => {
           CommandAuthorized: true,
         },
         {},
-        {
-          agents: {
-            defaults: {
-              model: "anthropic/claude-opus-4-5",
-              workspace: join(home, "openclaw"),
-            },
-          },
-          channels: {
-            whatsapp: {
-              allowFrom: ["*"],
-            },
-          },
-          session: {
-            store: join(tmpdir(), `openclaw-session-test-${Date.now()}.json`),
-          },
-        },
+        cfg,
       );
-      const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toBe("hello");
-      expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
-      const prompt = vi.mocked(runEmbeddedPiAgent).mock.calls[0]?.[0]?.prompt ?? "";
-      expect(prompt).toContain("A new session was started via /new or /reset");
+      expect(res2).toBeUndefined();
+      expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
+
+      const after = JSON.parse(fs.readFileSync(store, "utf8")) as Record<string, { sessionId?: string }>;
+      const afterId = key ? after[key]?.sessionId : undefined;
+      expect(afterId).toBeTruthy();
+      expect(afterId).not.toBe(beforeId);
     });
   });
   it("does not reset for unauthorized /reset", async () => {
@@ -150,7 +176,7 @@ describe("trigger handling", () => {
           agents: {
             defaults: {
               model: "anthropic/claude-opus-4-5",
-              workspace: join(home, "openclaw"),
+              workspace: join(home, "clawd"),
             },
           },
           channels: {
@@ -159,7 +185,7 @@ describe("trigger handling", () => {
             },
           },
           session: {
-            store: join(tmpdir(), `openclaw-session-test-${Date.now()}.json`),
+            store: join(tmpdir(), `clawdbot-session-test-${Date.now()}.json`),
           },
         },
       );
@@ -181,7 +207,7 @@ describe("trigger handling", () => {
           agents: {
             defaults: {
               model: "anthropic/claude-opus-4-5",
-              workspace: join(home, "openclaw"),
+              workspace: join(home, "clawd"),
             },
           },
           channels: {
@@ -190,7 +216,7 @@ describe("trigger handling", () => {
             },
           },
           session: {
-            store: join(tmpdir(), `openclaw-session-test-${Date.now()}.json`),
+            store: join(tmpdir(), `clawdbot-session-test-${Date.now()}.json`),
           },
         },
       );

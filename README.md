@@ -73,6 +73,107 @@ openclaw agent --message "Ship checklist" --thinking high
 
 Upgrading? [Updating guide](https://docs.openclaw.ai/install/updating) (and run `openclaw doctor`).
 
+## Docker (localhost-only, hardened)
+
+This repo includes a `docker-compose.yml` that runs the Gateway in Docker with a **localhost-only** network surface and Docker-volume-backed state (so Linux file permissions work correctly).
+
+1) Create `.env` (it is gitignored) with at least:
+
+```bash
+CLAWDBOT_WORKSPACE_DIR=/absolute/path/to/clawd
+
+# Long random tokens (32+ bytes recommended)
+CLAWDBOT_GATEWAY_TOKEN=...
+CLAWDBOT_BROWSER_CONTROL_TOKEN=...
+
+# Optional (Talk Mode / Voice Wake)
+ELEVENLABS_API_KEY=...
+
+# Optional: pick an image
+# CLAWDBOT_IMAGE=clawdbot:local
+```
+
+Token helper:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+2) Start the Gateway:
+
+```bash
+docker compose up -d clawdbot-gateway
+```
+
+3) Verify it is local-only + healthy:
+
+```bash
+# Dashboard (localhost only)
+# http://127.0.0.1:18789/
+
+docker exec clawdbot-gateway node dist/index.js status --all
+docker exec clawdbot-gateway node dist/index.js security audit --deep
+```
+
+If the dashboard shows `disconnected (1008): pairing required`, approve the pending Control UI device:
+
+```bash
+docker exec clawdbot-gateway node dist/index.js devices list
+docker exec clawdbot-gateway node dist/index.js devices approve <requestId>
+```
+
+Tip: stick to one dashboard origin (`http://localhost:18789/` or `http://127.0.0.1:18789/`). The Control UI device identity is stored per-origin, so swapping hostnames can trigger a new pairing request.
+
+Notes:
+- **Local-only ports:** `docker-compose.yml` publishes `18789`/`18790` on `127.0.0.1` only (no LAN exposure by default).
+- **State location:** state/config lives in the Docker volume `clawdbot_state` (mounted at `/home/node/.clawdbot`).
+- **Non-root container:** the Gateway runs as user `node` (not `root`).
+- **No secrets on disk:** tokens are expected via env (for example `CLAWDBOT_GATEWAY_TOKEN`, `CLAWDBOT_BROWSER_CONTROL_TOKEN`, `ELEVENLABS_API_KEY`).
+
+### Rotating secrets
+
+Update the relevant entries in `.env`, then recreate the container:
+
+```bash
+docker compose up -d --force-recreate --no-deps clawdbot-gateway
+```
+
+### Migrating existing state into the volume
+
+If you previously ran Clawdbot with a host-mounted `~/.clawdbot`, this Compose setup does **not** mount it by default. To migrate, stop the Gateway and copy your old state into the `clawdbot_state` volume:
+
+```bash
+docker compose down
+
+docker run --rm \
+  -v clawdbot_state:/new \
+  -v /absolute/path/to/old-clawdbot-state:/old \
+  alpine:3.20 sh -lc "cp -a /old/. /new/ && chown -R 1000:1000 /new && chmod 700 /new"
+
+docker compose up -d clawdbot-gateway
+```
+
+### Browser control (local)
+
+If you enable browser control on the Gateway, the common local pattern is:
+
+- Start the browser control server on the host (Windows):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\browser-serve.ps1
+```
+
+- Point the Gateway at the host server:
+
+```bash
+docker exec clawdbot-gateway node dist/index.js config set browser.enabled true
+docker exec clawdbot-gateway node dist/index.js config set browser.controlUrl http://host.docker.internal:18791
+```
+
+The server requires `Authorization: Bearer …` and reads the token from `.env` (`CLAWDBOT_BROWSER_CONTROL_TOKEN`).
+
+Security note: `clawdbot security audit` will still warn that this endpoint is `http://…` because it can’t prove it’s local-only. For a clean report, terminate it behind HTTPS (for example Tailscale Serve) or disable browser control.
+
 ## Development channels
 
 - **stable**: tagged releases (`vYYYY.M.D` or `vYYYY.M.D-<patch>`), npm dist-tag `latest`.

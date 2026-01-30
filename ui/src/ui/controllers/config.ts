@@ -160,9 +160,28 @@ export async function runUpdate(state: ConfigState) {
   state.updateRunning = true;
   state.lastError = null;
   try {
-    await state.client.request("update.run", {
+    const res = (await state.client.request("update.run", {
       sessionKey: state.applySessionKey,
-    });
+    })) as {
+      ok?: boolean;
+      result?: {
+        status?: "ok" | "error" | "skipped";
+        mode?: string;
+        reason?: string;
+      };
+    };
+
+    const status = res?.result?.status;
+    if (status === "skipped") {
+      const reason = res?.result?.reason ?? "unknown";
+      state.lastError =
+        `Update skipped (${reason}). ` +
+        "This install isn't self-updatable (not a git checkout or global install). " +
+        "If you're running in Docker, rebuild/pull the image and restart the container.";
+    } else if (status === "error") {
+      const reason = res?.result?.reason ?? "unknown";
+      state.lastError = `Update failed (${reason}). Check gateway logs for details.`;
+    }
   } catch (err) {
     state.lastError = String(err);
   } finally {

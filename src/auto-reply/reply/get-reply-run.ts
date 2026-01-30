@@ -47,8 +47,9 @@ import { resolveTypingMode } from "./typing-mode.js";
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 type ExecOverrides = Pick<ExecToolDefaults, "host" | "security" | "ask" | "node">;
 
-const BARE_SESSION_RESET_PROMPT =
-  "A new session was started via /new or /reset. Say hi briefly (1-2 sentences) and ask what the user wants to do next. If the runtime model differs from default_model in the system prompt, mention the default model in the greeting. Do not mention internal steps, files, tools, or reasoning.";
+// NOTE: /new and /reset are session reset triggers. When the inbound message is *only*
+// a reset trigger, we treat it as a control action (reset state) and do not force
+// an agent reply. This keeps synthetic prompts out of user-visible transcripts.
 
 type RunPreparedReplyParams = {
   ctx: MsgContext;
@@ -197,7 +198,13 @@ export async function runPreparedReply(
   const isBareSessionReset =
     isNewSession &&
     ((baseBodyTrimmedRaw.length === 0 && rawBodyTrimmed.length > 0) || isBareNewOrReset);
-  const baseBodyFinal = isBareSessionReset ? BARE_SESSION_RESET_PROMPT : baseBody;
+
+  if (isBareSessionReset) {
+    typing.cleanup();
+    return undefined;
+  }
+
+  const baseBodyFinal = baseBody;
   const baseBodyTrimmed = baseBodyFinal.trim();
   if (!baseBodyTrimmed) {
     await typing.onReplyStart();
