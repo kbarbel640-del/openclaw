@@ -1,4 +1,35 @@
-# 🦞 Moltbot — Personal AI Assistant
+# 🦞 OpenClaw简体中文版 — 你的贴身小秘
+
+- <span style="color:#E53935;font-weight:700">针对英语不好，或者不想看英语的同志，汉化了。</span>：默认跟随浏览器语言，亦可在设置中切换 EN/中文
+
+
+<div align="center">
+  <span style="color:#E53935;font-weight:700">截图</span>
+</div>
+
+
+<p align="center">
+  <img src="./docs/assets/ui-zh-overview.png" alt="UI 中文 - 概览" width="860">
+</p>
+<p align="center">
+  <img src="./docs/assets/ui-zh-channels.png" alt="UI 中文 - 渠道" width="860">
+</p>
+<p align="center">
+  <img src="./docs/assets/ui-zh-config.png" alt="UI 中文 - 配置" width="860">
+</p>
+
+
+
+```bash
+pnpm ui:build
+# 打开 Gateway 控制台，浏览器语言为中文时自动显示中文
+```
+
+原项目的完整产品介绍与文档请参考：
+
+---
+- Upstream README: https://github.com/moltbot/moltbot#readme
+- 官方站点与文档入口：见下文原始内容
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/moltbot/moltbot/main/docs/whatsapp-clawd.jpg" alt="Clawdbot" width="400">
