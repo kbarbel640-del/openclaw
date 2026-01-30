@@ -2,6 +2,13 @@
 
 Docs: https://docs.openclaw.ai
 
+## 2026.1.30
+Status: stable.
+
+### Changes
+- Agents: implementa sistema RAG para redução de 85%+ no consumo de tokens - modo "rag" carrega contexto sob demanda via lazy loading (prompt inicial: ~17k → ~2k tokens).
+- Agents: otimiza system prompt padrão (~45% redução) - condensa seções verbosas, reduz tool summaries, diminui bootstrapMaxChars de 20k para 12k chars.
+
 ## 2026.1.29
 Status: stable.
 
