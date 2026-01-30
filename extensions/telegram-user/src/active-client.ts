@@ -1,5 +1,5 @@
 import type { TelegramClient } from "@mtcute/node";
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "clawdbot/plugin-sdk";
+import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk";
 
 const activeClients = new Map<string, TelegramClient>();
 

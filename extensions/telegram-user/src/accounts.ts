@@ -1,5 +1,5 @@
 import type { CoreConfig, TelegramUserAccountConfig } from "./types.js";
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "clawdbot/plugin-sdk";
+import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk";
 
 export type TelegramUserCredentials = {
   apiId?: number;

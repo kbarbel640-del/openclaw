@@ -1,4 +1,4 @@
-import type { DmPolicy, GroupPolicy, GroupToolPolicyConfig } from "clawdbot/plugin-sdk";
+import type { DmPolicy, GroupPolicy, GroupToolPolicyConfig } from "openclaw/plugin-sdk";
 
 export type TelegramUserTopicConfig = {
   requireMention?: boolean;

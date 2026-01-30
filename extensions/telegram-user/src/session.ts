@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { normalizeAccountId } from "clawdbot/plugin-sdk";
+import { normalizeAccountId } from "openclaw/plugin-sdk";
 import { getTelegramUserRuntime } from "./runtime.js";
 
 export function resolveTelegramUserSessionPath(accountId?: string | null): string {

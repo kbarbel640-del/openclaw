@@ -1,6 +1,6 @@
 import type { TelegramClient } from "@mtcute/node";
 import type { MessageContext } from "@mtcute/dispatcher";
-import type { RuntimeEnv } from "clawdbot/plugin-sdk";
+import type { RuntimeEnv } from "openclaw/plugin-sdk";
 
 import {
   formatLocationText,
@@ -8,7 +8,7 @@ import {
   resolveMentionGatingWithBypass,
   toLocationContext,
   type NormalizedLocation,
-} from "clawdbot/plugin-sdk";
+} from "openclaw/plugin-sdk";
 import { getTelegramUserRuntime } from "../runtime.js";
 import type { CoreConfig, TelegramUserAccountConfig } from "../types.js";
 import { sendMediaTelegramUser, sendMessageTelegramUser } from "../send.js";

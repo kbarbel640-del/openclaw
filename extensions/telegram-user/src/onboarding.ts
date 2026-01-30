@@ -6,10 +6,10 @@ import {
   normalizeAccountId,
   type ChannelOnboardingAdapter,
   type ChannelOnboardingDmPolicy,
-  type MoltbotConfig,
+  type OpenClawConfig,
   type DmPolicy,
   type WizardPrompter,
-} from "clawdbot/plugin-sdk";
+} from "openclaw/plugin-sdk";
 
 import {
   listTelegramUserAccountIds,
@@ -24,10 +24,10 @@ const channel = "telegram-user" as const;
 type TelegramUserChannelConfig = NonNullable<CoreConfig["channels"]>["telegram-user"];
 
 function setTelegramUserDmPolicy(
-  cfg: MoltbotConfig,
+  cfg: OpenClawConfig,
   policy: DmPolicy,
   accountId?: string,
-): MoltbotConfig {
+): OpenClawConfig {
   const resolvedAccountId = normalizeAccountId(accountId) ?? DEFAULT_ACCOUNT_ID;
   const current = cfg.channels?.["telegram-user"] as TelegramUserChannelConfig | undefined;
   const allowFrom =
@@ -73,7 +73,7 @@ async function noteTelegramUserAuthHelp(prompter: WizardPrompter): Promise<void>
     [
       "Telegram User (MTProto) needs an API ID + API hash from my.telegram.org.",
       "You can store them in config or set TELEGRAM_USER_API_ID/TELEGRAM_USER_API_HASH.",
-      "Login happens via `moltbot channels login --channel telegram-user`.",
+      "Login happens via `openclaw channels login --channel telegram-user`.",
       `Docs: ${formatDocsLink("/channels/telegram-user", "channels/telegram-user")}`,
     ].join("\n"),
     "Telegram user setup",
@@ -94,10 +94,10 @@ function parseAllowFromInput(raw: string): string[] {
 }
 
 async function promptTelegramUserAllowFrom(params: {
-  cfg: MoltbotConfig;
+  cfg: OpenClawConfig;
   prompter: WizardPrompter;
   accountId?: string;
-}): Promise<MoltbotConfig> {
+}): Promise<OpenClawConfig> {
   const accountId = normalizeAccountId(params.accountId) ?? DEFAULT_ACCOUNT_ID;
   const resolved = resolveTelegramUserAccount({
     cfg: params.cfg as CoreConfig,
@@ -197,7 +197,7 @@ export const telegramUserOnboardingAdapter: ChannelOnboardingAdapter = {
     let accountId = override ? normalizeAccountId(override) : defaultAccountId;
     if (shouldPromptAccountIds && !override) {
       accountId = await promptAccountId({
-        cfg: cfg as MoltbotConfig,
+        cfg: cfg as OpenClawConfig,
         prompter,
         label: "Telegram User",
         currentId: accountId ?? defaultAccountId,
@@ -344,7 +344,7 @@ export const telegramUserOnboardingAdapter: ChannelOnboardingAdapter = {
         } catch (err) {
           runtime.error(`Telegram user login failed: ${String(err)}`);
           await prompter.note(
-            `Run \`moltbot channels login --channel telegram-user\` later to link.`,
+            `Run \`openclaw channels login --channel telegram-user\` later to link.`,
             "Telegram user login",
           );
         }
@@ -353,7 +353,7 @@ export const telegramUserOnboardingAdapter: ChannelOnboardingAdapter = {
       await prompter.note(
         [
           "Next: link the account via QR or phone code.",
-          "Run: moltbot channels login --channel telegram-user",
+          "Run: openclaw channels login --channel telegram-user",
         ].join("\n"),
         "Telegram user login",
       );

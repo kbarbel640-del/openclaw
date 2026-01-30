@@ -13,9 +13,9 @@ import {
   type ChannelGroupContext,
   type ChannelPlugin,
   type ChannelSetupInput,
-  type MoltbotConfig,
+  type OpenClawConfig,
   type GroupToolPolicyConfig,
-} from "clawdbot/plugin-sdk";
+} from "openclaw/plugin-sdk";
 
 import {
   listTelegramUserAccountIds,
@@ -338,7 +338,7 @@ export const telegramUserPlugin: ChannelPlugin<ResolvedTelegramUserAccount> = {
     resolveAccountId: ({ accountId }) => normalizeAccountId(accountId),
     applyAccountName: ({ cfg, accountId, name }) =>
       applyAccountNameToChannelSection({
-        cfg: cfg as MoltbotConfig,
+        cfg: cfg as OpenClawConfig,
         channelKey: "telegram-user",
         accountId,
         name,
@@ -356,7 +356,7 @@ export const telegramUserPlugin: ChannelPlugin<ResolvedTelegramUserAccount> = {
     applyAccountConfig: ({ cfg, accountId, input }) => {
       const setupInput = input as TelegramUserSetupInput;
       const namedConfig = applyAccountNameToChannelSection({
-        cfg: cfg as MoltbotConfig,
+        cfg: cfg as OpenClawConfig,
         channelKey: "telegram-user",
         accountId,
         name: setupInput.name,
@@ -454,7 +454,7 @@ export const telegramUserPlugin: ChannelPlugin<ResolvedTelegramUserAccount> = {
         }
       }
 
-      const nextCfg = { ...cfg } as MoltbotConfig;
+      const nextCfg = { ...cfg } as OpenClawConfig;
       const nextSection = cfg.channels?.["telegram-user"]
         ? { ...cfg.channels["telegram-user"] }
         : undefined;

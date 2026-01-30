@@ -5,7 +5,7 @@ import {
   GroupPolicySchema,
   ToolPolicySchema,
   requireOpenAllowFrom,
-} from "clawdbot/plugin-sdk";
+} from "openclaw/plugin-sdk";
 
 const allowFromEntry = z.union([z.string(), z.number()]);
 

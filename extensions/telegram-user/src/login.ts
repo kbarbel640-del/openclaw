@@ -2,7 +2,7 @@ import qrcode from "qrcode-terminal";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { isCancel, select } from "@clack/prompts";
-import type { RuntimeEnv } from "clawdbot/plugin-sdk";
+import type { RuntimeEnv } from "openclaw/plugin-sdk";
 
 import { createTelegramUserClient } from "./client.js";
 import { ensureTelegramUserSessionDir } from "./session.js";

@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import type { RuntimeEnv } from "clawdbot/plugin-sdk";
+import type { RuntimeEnv } from "openclaw/plugin-sdk";
 
 import { createTelegramUserClient } from "../client.js";
 import { resolveTelegramUserAccount } from "../accounts.js";
@@ -60,7 +60,7 @@ export async function monitorTelegramUserProvider(opts: MonitorTelegramUserOpts 
   const storagePath = resolveTelegramUserSessionPath(account.accountId);
   if (!fs.existsSync(storagePath)) {
     throw new Error(
-      "Telegram user session missing. Run `moltbot channels login --channel telegram-user` first.",
+      "Telegram user session missing. Run `openclaw channels login --channel telegram-user` first.",
     );
   }
   const client = await createTelegramUserClient({ apiId, apiHash, storagePath });

@@ -1,9 +1,9 @@
 {
-  "name": "@moltbot/telegram-user",
-  "version": "2026.1.22",
+  "name": "@openclaw/telegram-user",
+  "version": "2026.1.29",
   "type": "module",
-  "description": "Moltbot Telegram user (MTProto) channel plugin",
-  "moltbot": {
+  "description": "OpenClaw Telegram user (MTProto) channel plugin",
+  "openclaw": {
     "extensions": [
       "./index.ts"
     ],
@@ -19,7 +19,7 @@
       "quickstartAllowFrom": true
     },
     "install": {
-      "npmSpec": "@moltbot/telegram-user",
+      "npmSpec": "@openclaw/telegram-user",
       "localPath": "extensions/telegram-user",
       "defaultChoice": "npm"
     }
@@ -33,9 +33,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "moltbot": "workspace:*"
+    "openclaw": "workspace:*"
   },
   "peerDependencies": {
-    "moltbot": ">=2026.1.25"
+    "openclaw": ">=2026.1.29"
   }
 }

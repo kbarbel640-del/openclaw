@@ -1,10 +1,10 @@
-import type { ChannelDirectoryEntry, MoltbotConfig } from "clawdbot/plugin-sdk";
+import type { ChannelDirectoryEntry, OpenClawConfig } from "openclaw/plugin-sdk";
 
 import { resolveTelegramUserAccount } from "./accounts.js";
 import type { CoreConfig } from "./types.js";
 
 export type TelegramUserDirectoryConfigParams = {
-  cfg: MoltbotConfig;
+  cfg: OpenClawConfig;
   accountId?: string | null;
   query?: string | null;
   limit?: number | null;
