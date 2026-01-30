@@ -52,7 +52,7 @@ export type CogneeCognifyResponse = {
 
 export type CogneeSearchRequest = {
   queryText: string;
-  searchType?: "GRAPH_COMPLETION" | "chunks" | "summaries";
+  searchType?: "GRAPH_COMPLETION" | "CHUNKS" | "SUMMARIES";
   datasetIds?: string[];
 };
 
@@ -367,9 +367,9 @@ export class CogneeClient {
 
   private mapSearchType(type?: CogneeSearchRequest["searchType"]): CogneeSearchApiType {
     switch (type) {
-      case "chunks":
+      case "CHUNKS":
         return "CHUNKS";
-      case "summaries":
+      case "SUMMARIES":
         return "SUMMARIES";
       case "GRAPH_COMPLETION":
       default:

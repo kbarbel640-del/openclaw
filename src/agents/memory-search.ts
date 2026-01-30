@@ -9,6 +9,7 @@ import { resolveAgentConfig } from "./agent-scope.js";
 export type ResolvedMemorySearchConfig = {
   enabled: boolean;
   sources: Array<"memory" | "sessions">;
+  extraPaths: string[];
   provider: "openai" | "local" | "gemini" | "auto" | "cognee";
   remote?: {
     baseUrl?: string;
@@ -35,7 +36,7 @@ export type ResolvedMemorySearchConfig = {
     baseUrl?: string;
     apiKey?: string;
     datasetName?: string;
-    searchType?: "GRAPH_COMPLETION" | "chunks" | "summaries";
+    searchType?: "GRAPH_COMPLETION" | "CHUNKS" | "SUMMARIES";
     maxResults?: number;
     timeoutSeconds?: number;
     autoCognify?: boolean;

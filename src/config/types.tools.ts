@@ -271,8 +271,8 @@ export type MemorySearchConfig = {
     apiKey?: string;
     /** Dataset name for organizing memories (default: "clawdbot"). */
     datasetName?: string;
-    /** Search type: "GRAPH_COMPLETION", "chunks", or "summaries" (default: "GRAPH_COMPLETION"). */
-    searchType?: "GRAPH_COMPLETION" | "chunks" | "summaries";
+    /** Search type: "GRAPH_COMPLETION", "CHUNKS", or "SUMMARIES" (default: "GRAPH_COMPLETION"). */
+    searchType?: "GRAPH_COMPLETION" | "CHUNKS" | "SUMMARIES";
     /** Max results per search query (default: 6). */
     maxResults?: number;
     /** Timeout for API requests in seconds (default: 30). */

@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { MemoryIndexManager } from "./manager.js";
 import type { CogneeMemoryProvider } from "./cognee-provider.js";
+import { resolveMemorySearchConfig } from "../agents/memory-search.js";
 
 export type MemorySearchManagerResult = {
   manager: MemoryIndexManager | CogneeMemoryProvider | null;

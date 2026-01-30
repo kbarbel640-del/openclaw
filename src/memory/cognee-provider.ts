@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { MoltbotConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
 import { resolveStateDir } from "../config/paths.js";
 import { resolveSessionTranscriptsDirForAgent } from "../config/sessions/paths.js";
@@ -37,7 +37,7 @@ export type CogneeProviderConfig = {
   baseUrl?: string;
   apiKey?: string;
   datasetName?: string;
-  searchType?: "GRAPH_COMPLETION" | "chunks" | "summaries";
+  searchType?: "GRAPH_COMPLETION" | "CHUNKS" | "SUMMARIES";
   maxResults?: number;
   timeoutSeconds?: number;
   autoCognify?: boolean;
@@ -48,11 +48,11 @@ export type CogneeMemorySource = "memory" | "sessions";
 
 export class CogneeMemoryProvider {
   private readonly client: CogneeClient;
-  private readonly cfg: MoltbotConfig;
+  private readonly cfg: OpenClawConfig;
   private readonly agentId: string;
   private readonly workspaceDir: string;
   private readonly datasetName: string;
-  private readonly searchType: "GRAPH_COMPLETION" | "chunks" | "summaries";
+  private readonly searchType: "GRAPH_COMPLETION" | "CHUNKS" | "SUMMARIES";
   private readonly maxResults: number;
   private readonly autoCognify: boolean;
   private readonly cognifyBatchSize: number;
@@ -65,7 +65,7 @@ export class CogneeMemoryProvider {
   private syncIndexDirty = false;
 
   constructor(
-    cfg: MoltbotConfig,
+    cfg: OpenClawConfig,
     agentId: string,
     sources: Array<CogneeMemorySource>,
     config: CogneeProviderConfig = {},
@@ -535,7 +535,7 @@ export class CogneeMemoryProvider {
 }
 
 export async function createCogneeProvider(
-  cfg: MoltbotConfig,
+  cfg: OpenClawConfig,
   agentId: string,
   sources: Array<CogneeMemorySource>,
   config: CogneeProviderConfig = {},
