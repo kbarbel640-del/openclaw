@@ -6,9 +6,18 @@ Context and essential info for another agent to carry on.
 
 OpenClaw now has a **cursor-cli** backend: the Cursor Agent CLI is used like `claude-cli`, with auth via **OAuth** (`cursor agent login`), not the Cursor Background Agents API key.
 
-- **Two Cursor integrations exist:**
-  1. **cursor-agent** (extension) — Background Agents API, API key from dashboard, remote runs.
-  2. **cursor-cli** (core) — CLI backend, OAuth via `cursor agent login`, local runs.
+### Session changes (2026-01-30)
+
+- **`--version` now shows commit hash**: e.g. `2026.1.29 (67b2c05)` — uses `resolveCommitHash()` from `src/infra/git-commit.ts`
+- **`--agent` defaults to `"main"`**: No need to pass `--agent main` every time
+- **Gateway schema**: Already had `model` field — just needed gateway restart with new build
+- **Plugin manifest created**: `extensions/cursor-agent/openclaw.plugin.json` (was missing, caused config validation errors)
+- **Global install**: After building, run `npm install -g .` to install dev version globally
+
+## Two Cursor integrations
+
+1. **cursor-agent** (extension) — Background Agents API, API key from dashboard, remote runs.
+2. **cursor-cli** (core) — CLI backend, OAuth via `cursor agent login`, local runs.
 
 ## Key files
 
@@ -19,8 +28,11 @@ OpenClaw now has a **cursor-cli** backend: the Cursor Agent CLI is used like `cl
 | Model selection | `src/agents/model-selection.ts` — `cursor-cli` in `isCliProvider()` |
 | Runner | `src/agents/cli-runner.ts` — generic; cursor-cli uses same path. `src/agents/cursor-cli-runner.ts` — `runCursorCliAgent()` wrapper |
 | Auth profile ID | `src/agents/auth-profiles/constants.ts` — `CURSOR_CLI_PROFILE_ID = "cursor:cursor-cli"` |
+| Version with commit | `src/cli/program/help.ts` — imports `resolveCommitHash()`, shows `version (commit)` |
+| Default agent | `src/cli/program/register.agent.ts` — `--agent <id>` defaults to `"main"` |
 | Agent command `--model` | `src/cli/program/register.agent.ts` — `--model <provider/model>`; `src/commands/agent-via-gateway.ts` — `model` in opts and gateway params; `src/gateway/protocol/schema/agent.ts` — `model` in `AgentParamsSchema`; `src/gateway/server-methods/agent.ts` — passes `model` to `agentCommand`; `src/commands/agent/types.ts` — `model?: string` in `AgentCommandOpts`; `src/commands/agent.ts` — parses `opts.model` and uses it for this run (over session/config) |
 | Models status (auth) | `src/commands/models/list.types.ts` — `effective.kind` includes `"cli"`, `cliAuth?: boolean`; `src/commands/models/list.auth-overview.ts` — for `cursor-cli` calls `readCursorCliCredentials()`, sets `effective: { kind: "cli", detail: "cursor agent login (keychain)" }` and `cliAuth: true`; `src/commands/models/list.status-command.ts` — filter keeps entries with `cliAuth`, Missing auth hint for cursor-cli: `Run \`cursor agent login\`` |
+| Plugin manifest | `extensions/cursor-agent/openclaw.plugin.json` — required for extension to load |
 
 ## How it works
 
@@ -42,7 +54,7 @@ OpenClaw now has a **cursor-cli** backend: the Cursor Agent CLI is used like `cl
 cursor agent login
 
 # Use default model (cursor-cli if configured as primary)
-openclaw agent --message "Hello" --agent main
+openclaw agent --message "Hello"
 
 # Explicit model for this run
 openclaw agent --message "Hello" --model cursor-cli/auto
@@ -51,15 +63,46 @@ openclaw agent --message "Hello" --model anthropic/claude-sonnet-4-5
 
 # Check auth / models
 openclaw models
-# When cursor-cli has keychain creds: shows cursor-cli in Auth overview as "cli: cursor agent login (keychain)" and not under "Missing auth".
-# When not logged in: cursor-cli under Missing auth with hint "Run `cursor agent login` to authenticate with Cursor CLI."
+
+# Check version (now includes commit hash)
+openclaw --version
+# Output: 2026.1.29 (67b2c05)
+```
+
+## Development workflow
+
+```bash
+# Build
+pnpm build
+
+# Build UI (for Control UI)
+pnpm ui:build
+
+# Install globally (after building)
+npm install -g .
+
+# Restart gateway to pick up changes
+openclaw gateway restart
+
+# Or run dev gateway directly
+pnpm openclaw gateway run --force
 ```
 
 ## Current state
 
-- **Working:** cursor-cli backend registration, keychain credential reading, `--model` on `openclaw agent`, gateway passing `model`, models status treating cursor-cli as authenticated when keychain has tokens and showing the right missing-auth hint.
+- **Working:** cursor-cli backend registration, keychain credential reading, `--model` on `openclaw agent`, gateway passing `model`, models status treating cursor-cli as authenticated when keychain has tokens and showing the right missing-auth hint, version with commit hash, default agent "main".
 - **Not done:** No automated tests for cursor-cli in this session. E2E would require `cursor` on PATH and (optionally) mock or real login.
 - **Platform:** Cursor keychain auth is macOS-only in code (`platform === "darwin"` in `readCursorCliCredentials`); other platforms would need another auth story (e.g. env or file) if desired.
+
+## UI improvement opportunities
+
+To ease cursor-cli setup, consider:
+
+1. **Model picker** (`src/commands/model-picker.ts`) — Could add cursor-cli as a visible option in interactive model selection
+2. **Auth overview** (`src/commands/models/list.auth-overview.ts`) — Already shows cursor-cli auth status, works well
+3. **Control UI config form** (`ui/src/ui/views/config-form.*.ts`) — Could add cursor-cli backend selection dropdown in the agents section
+4. **Onboarding registry** (`src/commands/onboarding/registry.ts`) — Could add cursor-cli onboarding step that prompts `cursor agent login`
+5. **Gateway model catalog** (`src/gateway/server-model-catalog.ts`) — cursor-cli models could appear in `models.list` API for UI display
 
 ## Repo / env
 
@@ -72,4 +115,4 @@ openclaw models
 - **Extension** `extensions/cursor-agent`: Background Agents API (API key, dashboard), webhooks, remote runs. Config under `channels.cursorAgent`.
 - **Core** cursor-cli: CLI backend (OAuth via `cursor agent login`), local `cursor` process. Config under `agents.defaults.cliBackends.cursor-cli` and `agents.defaults.model.primary`.
 
-Use this doc to continue work on cursor-cli, models status, or related agent/CLI behavior.
+Use this doc to continue work on cursor-cli, models status, UI integration, or related agent/CLI behavior.
