@@ -1,23 +1,24 @@
 # Railway Deployment Fix
 
 ## Problem
-Railway deployment was failing with error: `Cannot find module '/app/dist/moltbot.mjs'`
-
-**Note:** `moltbot` was the old project name. The project has been renamed to `openclaw`.
-The correct entry point is `openclaw.mjs` (not `moltbot.mjs`).
+Railway deployment was failing with error: `mkdir: cannot create directory '/data/.openclaw': Permission denied`
 
 ## Root Cause Analysis
 
-1. **Wrong entry point**: The Dockerfile was trying to run `node dist/index.js`, which is the library entry point, not the CLI entry point
-2. **Missing CLI wrapper**: The correct entry point is `openclaw.mjs` which loads `dist/entry.js`
-3. **Port mapping issue**: Railway sets `PORT` env var, but OpenClaw expects `OPENCLAW_GATEWAY_PORT` or `CLAWDBOT_GATEWAY_PORT`
+1. **Volume permission issue**: Railway mounts the `/data` volume at runtime with root ownership. The container runs as `node` user (non-root) and cannot write to the mounted volume.
+2. **Build-time chown ineffective**: The Dockerfile's `RUN chown -R node:node /data` runs at build time, but Railway mounts the volume at runtime, overwriting ownership.
+3. **Port mapping**: Railway sets `PORT` env var, but OpenClaw expects `OPENCLAW_GATEWAY_PORT` or `CLAWDBOT_GATEWAY_PORT`
 
 ## Solution
 
-### 1. Created `docker-entrypoint.sh`
-A shell script that:
-- Maps Railway's `PORT` environment variable to `OPENCLAW_GATEWAY_PORT`
-- Runs the correct CLI command: `node openclaw.mjs gateway run --bind 0.0.0.0 --port $OPENCLAW_GATEWAY_PORT`
+### 1. Updated `docker-entrypoint.sh`
+- Creates config as root (before dropping privileges)
+- Runs `chown -R node:node /data` at runtime to fix volume permissions
+- Uses `su node -c "..."` to exec the gateway as the node user
+
+### 2. Updated `Dockerfile`
+- Removed build-time `chown` (ineffective for Railway volumes)
+- Kept `USER node` for security hardening
 
 ### 2. Updated `Dockerfile`
 - Copies and makes the entrypoint script executable

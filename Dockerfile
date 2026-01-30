@@ -44,7 +44,8 @@ ENV NODE_ENV=production
 
 # Create persistent data directory for Railway deployments
 # This directory MUST be mounted as a volume in Railway to persist pairing state
-RUN mkdir -p /data/.clawdbot && chown -R node:node /data
+# Note: /data is mounted at runtime; chown happens in entrypoint.sh (railway mounts with root ownership)
+RUN mkdir -p /data/.clawdbot
 
 # Security hardening: Run as non-root user
 # The node:22-bookworm image includes a 'node' user (uid 1000)
