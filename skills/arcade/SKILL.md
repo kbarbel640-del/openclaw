@@ -1,13 +1,13 @@
 ---
 name: arcade
-description: Arcade.dev integration - 500+ authorized tools (7500+ with useApiTools) across hundreds of services
+description: Arcade.dev integration - authorized tools across hundreds of services
 homepage: https://docs.arcade.dev
 metadata: {"openclaw":{"emoji":"🎮","requires":{"env":["ARCADE_API_KEY"]},"primaryEnv":"ARCADE_API_KEY","plugins":["arcade"]}}
 ---
 
 # Arcade.dev Tools
 
-Arcade.dev provides authorized access to 500+ tools (7500+ with `useApiTools: true`) across hundreds of services including Gmail, Slack, GitHub, Google Calendar, Asana, Jira, Notion, Figma, Stripe, and more. Each tool handles OAuth automatically.
+Arcade.dev provides authorized access to tools across hundreds of services including Gmail, Slack, GitHub, Google Calendar, Asana, Jira, Notion, Figma, Stripe, and more (even more with `useApiTools: true`). Each tool handles OAuth automatically.
 
 ## Setup
 
