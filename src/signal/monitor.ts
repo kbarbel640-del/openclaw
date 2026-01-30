@@ -259,10 +259,23 @@ async function deliverReplies(params: {
     chunkMode,
     chunkDelay,
   } = params;
+  let isFirstPayload = true;
   for (const payload of replies) {
     const mediaList = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
     const text = payload.text ?? "";
     if (!text && mediaList.length === 0) continue;
+    if (!isFirstPayload && chunkDelay) {
+      const delayMs = computeChunkDelay(chunkDelay, (text || "").length);
+      if (delayMs > 0) {
+        try {
+          await sendTypingSignal(target, { baseUrl, account, accountId });
+        } catch {
+          /* typing failure is non-fatal */
+        }
+        await sleep(delayMs);
+      }
+    }
+    isFirstPayload = false;
     if (mediaList.length === 0) {
       const chunks = chunkTextWithMode(text, textLimit, chunkMode);
       let isFirst = true;
