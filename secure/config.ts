@@ -142,8 +142,9 @@ export function loadSecureConfig(): SecureConfig {
   const webhooksEnabled = optionalBool("WEBHOOKS_ENABLED", true);
   const webhookSecret = optional("WEBHOOK_SECRET", generateSecureToken());
 
-  // Optional: Sandbox
-  const sandboxEnabled = optionalBool("SANDBOX_ENABLED", true);
+  // Optional: Sandbox (disabled by default - requires Docker socket access)
+  // Won't work on Railway, Render, Fly.io etc. - only on VPS with Docker
+  const sandboxEnabled = optionalBool("SANDBOX_ENABLED", false);
 
   // Optional: Scheduler
   const schedulerEnabled = optionalBool("SCHEDULER_ENABLED", true);
