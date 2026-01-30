@@ -1,6 +1,39 @@
 # 🦞 OpenClaw简体中文版 — 你的贴身小秘
 
-- <span style="color:#E53935;font-weight:700">针对英语不好，或者不想看英语的同志，汉化了。</span>：默认跟随浏览器语言，亦可在设置中切换 EN/中文
+- <span style="color:#E53935;font-weight:700">OpenClaw汉化版</span>，默认跟随浏览器语言，亦可在右上角设置中切换 EN/中文
+
+## 🚀 快速开始
+
+Runtime: **Node ≥18** (推荐 Node 22+).
+
+**一键安装（推荐）**
+
+使用我们的定制脚本快速安装中文版：
+
+```bash
+# 自动安装 OpenClaw 中文版及所有依赖
+curl -fsSL https://raw.githubusercontent.com/RogerPu/OpenClawCN/main/scripts/install-cn.sh | bash
+```
+
+**手动安装**
+
+如果您更喜欢手动操作：
+
+```bash
+# 1. 克隆代码
+git clone https://github.com/RogerPu/OpenClawCN.git ~/.openclawcn/source
+
+# 2. 安装依赖并构建
+cd ~/.openclawcn/source
+pnpm install
+pnpm ui:build
+pnpm build
+
+# 3. 启动
+./dist/entry.js onboard
+```
+
+## ✨ 效果预览
 
 <div align="center">
   <span style="color:#E53935;font-weight:700">截图</span>
@@ -16,15 +49,12 @@
   <img src="./docs/assets/ui-zh-config.png" alt="UI 中文 - 配置" width="860">
 </p>
 
-```bash
-pnpm ui:build
-# 打开 Gateway 控制台，浏览器语言为中文时自动显示中文
-```
+
 
 原项目的完整产品介绍与文档请参考：
 
 ---
-- Upstream README: https://github.com/moltbot/moltbot#readme
+- Upstream README: https://github.com/openclaw/openclaw#readme
 - 官方站点与文档入口：见下文原始内容
 
 <p align="center">
