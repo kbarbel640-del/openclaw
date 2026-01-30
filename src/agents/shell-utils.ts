@@ -24,9 +24,18 @@ export function getShellConfig(): { shell: string; args: string[] } {
     // directly to the console via WriteConsole API, bypassing stdout pipes.
     // When Node.js spawns cmd.exe with piped stdio, these utilities produce no output.
     // PowerShell properly captures and redirects their output to stdout.
+    //
+    // Set UTF-8 encoding to properly handle Chinese filenames and other non-ASCII characters.
+    // Without this, PowerShell 5.1 (Windows default) uses system encoding (GBK on Chinese Windows),
+    // causing filenames to display as garbled text.
     return {
       shell: resolvePowerShellPath(),
-      args: ["-NoProfile", "-NonInteractive", "-Command"],
+      args: [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8;",
+      ],
     };
   }
 
