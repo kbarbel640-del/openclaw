@@ -9,6 +9,7 @@ import { note } from "../terminal/note.js";
 import { resolveUserPath } from "../utils.js";
 import { createClackPrompter } from "../wizard/clack-prompter.js";
 import { WizardCancelledError } from "../wizard/prompts.js";
+import { t } from "../wizard/i18n.js";
 import { removeChannelConfigWizard } from "./configure.channels.js";
 import { maybeInstallDaemon } from "./configure.daemon.js";
 import { promptGatewayConfig } from "./configure.gateway.js";
@@ -51,13 +52,13 @@ async function promptConfigureSection(
 ): Promise<ConfigureSectionChoice> {
   return guardCancel(
     await select<ConfigureSectionChoice>({
-      message: "Select sections to configure",
+      message: t("configure.sections.title"),
       options: [
         ...CONFIGURE_SECTION_OPTIONS,
         {
           value: "__continue",
-          label: "Continue",
-          hint: hasSelection ? "Done" : "Skip for now",
+          label: t("configure.sections.continue"),
+          hint: hasSelection ? t("configure.sections.continueHint") : t("configure.sections.skipHint"),
         },
       ],
       initialValue: CONFIGURE_SECTION_OPTIONS[0]?.value,
@@ -69,17 +70,17 @@ async function promptConfigureSection(
 async function promptChannelMode(runtime: RuntimeEnv): Promise<ChannelsWizardMode> {
   return guardCancel(
     await select({
-      message: "Channels",
+      message: t("configure.sections.channels"),
       options: [
         {
           value: "configure",
-          label: "Configure/link",
-          hint: "Add/update channels; disable unselected accounts",
+          label: t("configure.channels.configure"),
+          hint: t("configure.channels.configureHint"),
         },
         {
           value: "remove",
-          label: "Remove channel config",
-          hint: "Delete channel tokens/settings from openclaw.json",
+          label: t("configure.channels.remove"),
+          hint: t("configure.channels.removeHint"),
         },
       ],
       initialValue: "configure",
@@ -107,7 +108,7 @@ async function promptWebToolsConfig(
 
   const enableSearch = guardCancel(
     await confirm({
-      message: "Enable web_search (Brave Search)?",
+      message: t("configure.web.enableSearch"),
       initialValue: existingSearch?.enabled ?? hasSearchKey,
     }),
     runtime,
@@ -122,9 +123,9 @@ async function promptWebToolsConfig(
     const keyInput = guardCancel(
       await text({
         message: hasSearchKey
-          ? "Brave Search API key (leave blank to keep current or use BRAVE_API_KEY)"
-          : "Brave Search API key (paste it here; leave blank to use BRAVE_API_KEY)",
-        placeholder: hasSearchKey ? "Leave blank to keep current" : "BSA...",
+          ? t("configure.web.keyPrompt")
+          : t("configure.web.keyPromptEmpty"),
+        placeholder: hasSearchKey ? t("configure.web.placeholderKey") : t("configure.web.placeholderKeyEmpty"),
       }),
       runtime,
     );
@@ -133,19 +134,15 @@ async function promptWebToolsConfig(
       nextSearch = { ...nextSearch, apiKey: key };
     } else if (!hasSearchKey) {
       note(
-        [
-          "No key stored yet, so web_search will stay unavailable.",
-          "Store a key here or set BRAVE_API_KEY in the Gateway environment.",
-          "Docs: https://docs.openclaw.ai/tools/web",
-        ].join("\n"),
-        "Web search",
+        t("configure.web.noKeyWarning"),
+        t("configure.sections.web"),
       );
     }
   }
 
   const enableFetch = guardCancel(
     await confirm({
-      message: "Enable web_fetch (keyless HTTP fetch)?",
+      message: t("configure.web.enableFetch"),
       initialValue: existingFetch?.enabled ?? true,
     }),
     runtime,
@@ -175,7 +172,7 @@ export async function runConfigureWizard(
 ) {
   try {
     printWizardHeader(runtime);
-    intro(opts.command === "update" ? "OpenClaw update wizard" : "OpenClaw configure");
+    intro(opts.command === "update" ? t("configure.updateTitle") : t("configure.title"));
     const prompter = createClackPrompter();
 
     const snapshot = await readConfigFileSnapshot();
@@ -212,30 +209,30 @@ export async function runConfigureWizard(
     const remoteUrl = baseConfig.gateway?.remote?.url?.trim() ?? "";
     const remoteProbe = remoteUrl
       ? await probeGatewayReachable({
-          url: remoteUrl,
-          token: baseConfig.gateway?.remote?.token,
-        })
+        url: remoteUrl,
+        token: baseConfig.gateway?.remote?.token,
+      })
       : null;
 
     const mode = guardCancel(
       await select({
-        message: "Where will the Gateway run?",
+        message: t("configure.gateway.modeSelect"),
         options: [
           {
             value: "local",
-            label: "Local (this machine)",
+            label: t("configure.gateway.local"),
             hint: localProbe.ok
-              ? `Gateway reachable (${localUrl})`
-              : `No gateway detected (${localUrl})`,
+              ? t("configure.gateway.localHintReachable", { url: localUrl })
+              : t("configure.gateway.localHintMissing", { url: localUrl }),
           },
           {
             value: "remote",
-            label: "Remote (info-only)",
+            label: t("configure.gateway.remote"),
             hint: !remoteUrl
-              ? "No remote URL configured yet"
+              ? t("configure.gateway.remoteHintNoUrl")
               : remoteProbe?.ok
-                ? `Gateway reachable (${remoteUrl})`
-                : `Configured but unreachable (${remoteUrl})`,
+                ? t("configure.gateway.remoteHintReachable", { url: remoteUrl })
+                : t("configure.gateway.remoteHintConfigured", { url: remoteUrl }),
           },
         ],
       }),
@@ -250,7 +247,7 @@ export async function runConfigureWizard(
       });
       await writeConfigFile(remoteConfig);
       logConfigUpdated(runtime);
-      outro("Remote gateway configured.");
+      outro(t("configure.gateway.remoteConfigured"));
       return;
     }
 
@@ -288,7 +285,7 @@ export async function runConfigureWizard(
     if (opts.sections) {
       const selected = opts.sections;
       if (!selected || selected.length === 0) {
-        outro("No changes selected.");
+        outro(t("configure.gateway.noChanges"));
         return;
       }
 
@@ -530,10 +527,10 @@ export async function runConfigureWizard(
       if (!ranSection) {
         if (didSetGatewayMode) {
           await persistConfig();
-          outro("Gateway mode set to local.");
+          outro(t("configure.gateway.modeSetLocal"));
           return;
         }
-        outro("No changes selected.");
+        outro(t("configure.gateway.noChanges"));
         return;
       }
     }
@@ -582,7 +579,7 @@ export async function runConfigureWizard(
       "Control UI",
     );
 
-    outro("Configure complete.");
+    outro(t("configure.gateway.configureComplete"));
   } catch (err) {
     if (err instanceof WizardCancelledError) {
       runtime.exit(0);

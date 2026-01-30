@@ -11,6 +11,7 @@ import {
   promptDefaultModel,
   promptModelAllowlist,
 } from "./model-picker.js";
+import { t } from "../wizard/i18n.js";
 
 type GatewayAuthChoice = "token" | "password";
 
@@ -80,7 +81,7 @@ export async function promptAuthConfig(
     prompter,
     allowedKeys: anthropicOAuth ? ANTHROPIC_OAUTH_MODEL_KEYS : undefined,
     initialSelections: anthropicOAuth ? ["anthropic/claude-opus-4-5"] : undefined,
-    message: anthropicOAuth ? "Anthropic OAuth models" : undefined,
+    message: anthropicOAuth ? t("configure.auth.anthropicOAuthModels") : undefined,
   });
   if (allowlistSelection.models) {
     next = applyModelAllowlist(next, allowlistSelection.models);

@@ -7,6 +7,7 @@ import {
 } from "@clack/prompts";
 
 import { stylePromptHint, stylePromptMessage, stylePromptTitle } from "../terminal/prompt-style.js";
+import { t } from "../wizard/i18n.js";
 
 export const CONFIGURE_WIZARD_SECTIONS = [
   "workspace",
@@ -33,27 +34,27 @@ export const CONFIGURE_SECTION_OPTIONS: Array<{
   label: string;
   hint: string;
 }> = [
-  { value: "workspace", label: "Workspace", hint: "Set workspace + sessions" },
-  { value: "model", label: "Model", hint: "Pick provider + credentials" },
-  { value: "web", label: "Web tools", hint: "Configure Brave search + fetch" },
-  { value: "gateway", label: "Gateway", hint: "Port, bind, auth, tailscale" },
-  {
-    value: "daemon",
-    label: "Daemon",
-    hint: "Install/manage the background service",
-  },
-  {
-    value: "channels",
-    label: "Channels",
-    hint: "Link WhatsApp/Telegram/etc and defaults",
-  },
-  { value: "skills", label: "Skills", hint: "Install/enable workspace skills" },
-  {
-    value: "health",
-    label: "Health check",
-    hint: "Run gateway + channel checks",
-  },
-];
+    { value: "workspace", label: t("configure.sections.workspace"), hint: t("configure.sections.workspaceHint") },
+    { value: "model", label: t("configure.sections.model"), hint: t("configure.sections.modelHint") },
+    { value: "web", label: t("configure.sections.web"), hint: t("configure.sections.webHint") },
+    { value: "gateway", label: t("configure.sections.gateway"), hint: t("configure.sections.gatewayHint") },
+    {
+      value: "daemon",
+      label: t("configure.sections.daemon"),
+      hint: t("configure.sections.daemonHint"),
+    },
+    {
+      value: "channels",
+      label: t("configure.sections.channels"),
+      hint: t("configure.sections.channelsHint"),
+    },
+    { value: "skills", label: t("configure.sections.skills"), hint: t("configure.sections.skillsHint") },
+    {
+      value: "health",
+      label: t("configure.sections.health"),
+      hint: t("configure.sections.healthHint"),
+    },
+  ];
 
 export const intro = (message: string) => clackIntro(stylePromptTitle(message) ?? message);
 export const outro = (message: string) => clackOutro(stylePromptTitle(message) ?? message);
