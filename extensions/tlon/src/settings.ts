@@ -228,8 +228,11 @@ export function createSettingsManager(
      */
     async load(): Promise<TlonSettingsStore> {
       try {
-        const raw = await api.scry(`/desk/${SETTINGS_DESK}.json`);
-        state.current = parseSettingsResponse(raw);
+        const raw = await api.scry("/all.json");
+        // Response shape: { all: { [desk]: { [bucket]: { [key]: value } } } }
+        const allData = raw as { all?: Record<string, Record<string, unknown>> };
+        const deskData = allData?.all?.[SETTINGS_DESK];
+        state.current = parseSettingsResponse(deskData ?? {});
         state.loaded = true;
         logger?.log?.(`[settings] Loaded: ${JSON.stringify(state.current)}`);
         return state.current;
