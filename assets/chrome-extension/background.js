@@ -5,6 +5,7 @@ const BADGE = {
   off: { text: '', color: '#000000' },
   connecting: { text: '…', color: '#F59E0B' },
   error: { text: '!', color: '#B91C1C' },
+  reconnecting: { text: '↻', color: '#6366F1' },
 }
 
 /** @type {WebSocket|null} */
@@ -13,6 +14,16 @@ let relayWs = null
 let relayConnectPromise = null
 
 let debuggerListenersInstalled = false
+
+// Auto-reconnect state
+let reconnectAttempts = 0
+let reconnectTimer = null
+const MAX_RECONNECT_ATTEMPTS = 20
+const RECONNECT_BASE_DELAY = 2000 // 2 seconds
+const RECONNECT_MAX_DELAY = 30000 // 30 seconds
+
+/** @type {Map<number, {targetId: string, url?: string}>} */
+let tabsToReattach = new Map()
 
 let nextSession = 1
 
@@ -109,17 +120,82 @@ function onRelayClosed(reason) {
     p.reject(new Error(`Relay disconnected (${reason})`))
   }
 
-  for (const tabId of tabs.keys()) {
+  // Save tabs to reattach after reconnect
+  tabsToReattach.clear()
+  for (const [tabId, tab] of tabs.entries()) {
+    if (tab.targetId) {
+      tabsToReattach.set(tabId, { targetId: tab.targetId })
+    }
     void chrome.debugger.detach({ tabId }).catch(() => {})
-    setBadge(tabId, 'connecting')
+    setBadge(tabId, 'reconnecting')
     void chrome.action.setTitle({
       tabId,
-      title: 'Moltbot Browser Relay: disconnected (click to re-attach)',
+      title: 'Moltbot Browser Relay: reconnecting…',
     })
   }
   tabs.clear()
   tabBySession.clear()
   childSessionToTab.clear()
+
+  // Start auto-reconnect if we had tabs attached
+  if (tabsToReattach.size > 0) {
+    scheduleReconnect()
+  }
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) return // Already scheduled
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.warn('Max reconnect attempts reached, giving up')
+    for (const tabId of tabsToReattach.keys()) {
+      setBadge(tabId, 'error')
+      void chrome.action.setTitle({
+        tabId,
+        title: 'Moltbot Browser Relay: failed to reconnect (click to retry)',
+      })
+    }
+    tabsToReattach.clear()
+    reconnectAttempts = 0
+    return
+  }
+
+  // Exponential backoff: 2s, 4s, 8s, ... up to 30s max
+  const delay = Math.min(RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts), RECONNECT_MAX_DELAY)
+  reconnectAttempts++
+
+  console.log(`Scheduling reconnect attempt ${reconnectAttempts} in ${delay}ms`)
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    void attemptReconnect()
+  }, delay)
+}
+
+async function attemptReconnect() {
+  try {
+    await ensureRelayConnection()
+    console.log('Reconnected to relay server')
+    
+    // Reattach all previously attached tabs
+    for (const [tabId] of tabsToReattach.entries()) {
+      try {
+        // Check if tab still exists
+        const tab = await chrome.tabs.get(tabId).catch(() => null)
+        if (!tab) continue
+        
+        await attachTab(tabId)
+        console.log(`Reattached tab ${tabId}`)
+      } catch (err) {
+        console.warn(`Failed to reattach tab ${tabId}:`, err)
+        setBadge(tabId, 'off')
+      }
+    }
+    
+    tabsToReattach.clear()
+    reconnectAttempts = 0
+  } catch (err) {
+    console.warn(`Reconnect attempt ${reconnectAttempts} failed:`, err)
+    scheduleReconnect()
+  }
 }
 
 function sendToRelay(payload) {
@@ -286,6 +362,14 @@ async function connectOrToggleForActiveTab() {
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
   const tabId = active?.id
   if (!tabId) return
+
+  // Cancel any pending reconnect when user manually clicks
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  reconnectAttempts = 0
+  tabsToReattach.delete(tabId)
 
   const existing = tabs.get(tabId)
   if (existing?.state === 'connected') {
