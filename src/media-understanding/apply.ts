@@ -123,21 +123,67 @@ function resolveUtf16Charset(buffer?: Buffer): "utf-16le" | "utf-16be" | undefin
   if (!buffer || buffer.length < 2) return undefined;
   const b0 = buffer[0];
   const b1 = buffer[1];
+  // Explicit BOM detection — reliable
   if (b0 === 0xff && b1 === 0xfe) {
     return "utf-16le";
   }
   if (b0 === 0xfe && b1 === 0xff) {
     return "utf-16be";
   }
+  // Heuristic: many null bytes *could* mean UTF-16, but binary media formats
+  // (OGG, MP3, MP4, WebM, FLAC, WAV, etc.) also contain lots of null bytes.
+  // Check for known binary magic bytes first to avoid false positives.
+  if (looksLikeBinaryMedia(buffer)) {
+    return undefined;
+  }
   const sampleLen = Math.min(buffer.length, 2048);
   let zeroCount = 0;
+  // UTF-16LE text has nulls in a regular alternating pattern (every other byte).
+  // Binary files have nulls scattered randomly.  Check for the alternating pattern.
+  let alternatingNulls = 0;
   for (let i = 0; i < sampleLen; i += 1) {
-    if (buffer[i] === 0) zeroCount += 1;
+    if (buffer[i] === 0) {
+      zeroCount += 1;
+      // In UTF-16LE ASCII text, odd-indexed bytes are 0x00
+      if (i % 2 === 1) alternatingNulls += 1;
+    }
   }
   if (zeroCount / sampleLen > 0.2) {
-    return "utf-16le";
+    // Only classify as UTF-16 if nulls follow an alternating pattern
+    // (at least 70% of nulls at expected positions)
+    if (zeroCount > 0 && alternatingNulls / zeroCount > 0.7) {
+      return "utf-16le";
+    }
   }
   return undefined;
+}
+
+/** Check first bytes against known binary media container magic bytes. */
+function looksLikeBinaryMedia(buffer: Buffer): boolean {
+  if (buffer.length < 4) return false;
+  const b = buffer;
+  // OGG: "OggS"
+  if (b[0] === 0x4f && b[1] === 0x67 && b[2] === 0x67 && b[3] === 0x53) return true;
+  // FLAC: "fLaC"
+  if (b[0] === 0x66 && b[1] === 0x4c && b[2] === 0x61 && b[3] === 0x43) return true;
+  // MP3: ID3 tag or sync word
+  if (b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33) return true; // "ID3"
+  if (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) return true; // MP3 sync
+  // RIFF (WAV, AVI): "RIFF"
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46) return true;
+  // MP4/MOV: check for ftyp box (offset 4)
+  if (buffer.length >= 8 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) {
+    return true;
+  }
+  // WebM/MKV: EBML header 0x1A45DFA3
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return true;
+  // AAC ADTS
+  if (b[0] === 0xff && (b[1] & 0xf0) === 0xf0) return true;
+  // AMR: "#!AMR"
+  if (buffer.length >= 5 && b[0] === 0x23 && b[1] === 0x21 && b[2] === 0x41 && b[3] === 0x4d) {
+    return true;
+  }
+  return false;
 }
 
 function looksLikeUtf8Text(buffer?: Buffer): boolean {
@@ -241,15 +287,21 @@ async function extractFileBlocks(params: {
     const nameHint = bufferResult?.fileName ?? attachment.path ?? attachment.url;
     const forcedTextMimeResolved = forcedTextMime ?? resolveTextMimeFromName(nameHint ?? "");
     const utf16Charset = resolveUtf16Charset(bufferResult?.buffer);
-    const textSample = decodeTextSample(bufferResult?.buffer);
-    const textLike = Boolean(utf16Charset) || looksLikeUtf8Text(bufferResult?.buffer);
+    const rawMime = bufferResult?.mime ?? attachment.mime;
+    // If the raw MIME is a known binary type (audio/*, video/*), skip text
+    // heuristics entirely — binary formats like OGG can fool looksLikeUtf8Text
+    // and guessDelimitedMime, producing garbage in the model context.
+    const knownBinaryMime =
+      rawMime && (rawMime.startsWith("audio/") || rawMime.startsWith("video/"));
+    const textSample = knownBinaryMime ? "" : decodeTextSample(bufferResult?.buffer);
+    const textLike =
+      !knownBinaryMime && (Boolean(utf16Charset) || looksLikeUtf8Text(bufferResult?.buffer));
     if (!forcedTextMimeResolved && kind === "audio" && !textLike) {
       continue;
     }
     const guessedDelimited = textLike ? guessDelimitedMime(textSample) : undefined;
     const textHint =
       forcedTextMimeResolved ?? guessedDelimited ?? (textLike ? "text/plain" : undefined);
-    const rawMime = bufferResult?.mime ?? attachment.mime;
     const mimeType = textHint ?? normalizeMimeType(rawMime);
     // Log when MIME type is overridden from non-text to text for auditability
     if (textHint && rawMime && !rawMime.startsWith("text/")) {

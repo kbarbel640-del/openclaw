@@ -488,18 +488,18 @@ describe("applyMediaUnderstanding", () => {
     expect(ctx.BodyForCommands).toBe("audio ok");
   });
 
-  it("treats text-like audio attachments as CSV (comma wins over tabs)", async () => {
+  it("treats text-like document attachments as CSV (comma wins over tabs)", async () => {
     const { applyMediaUnderstanding } = await loadApply();
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-media-"));
-    const csvPath = path.join(dir, "data.mp3");
+    const csvPath = path.join(dir, "data.csv");
     const csvText = '"a","b"\t"c"\n"1","2"\t"3"';
     const csvBuffer = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(csvText, "utf16le")]);
     await fs.writeFile(csvPath, csvBuffer);
 
     const ctx: MsgContext = {
-      Body: "<media:audio>",
+      Body: "<media:document>",
       MediaPath: csvPath,
-      MediaType: "audio/mpeg",
+      MediaType: "text/csv",
     };
     const cfg: MoltbotConfig = {
       tools: {
@@ -514,21 +514,54 @@ describe("applyMediaUnderstanding", () => {
     const result = await applyMediaUnderstanding({ ctx, cfg });
 
     expect(result.appliedFile).toBe(true);
-    expect(ctx.Body).toContain('<file name="data.mp3" mime="text/csv">');
+    expect(ctx.Body).toContain('<file name="data.csv" mime="text/csv">');
     expect(ctx.Body).toContain('"a","b"\t"c"');
+  });
+
+  it("does not treat OGG audio binary as text file", async () => {
+    const { applyMediaUnderstanding } = await loadApply();
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-media-"));
+    const oggPath = path.join(dir, "voice.ogg");
+    // OGG magic header "OggS" followed by random binary with many null bytes
+    const header = Buffer.from([0x4f, 0x67, 0x67, 0x53]);
+    const body = Buffer.alloc(512);
+    for (let i = 0; i < body.length; i++) {
+      body[i] = i % 3 === 0 ? 0 : (i * 7) & 0xff;
+    }
+    await fs.writeFile(oggPath, Buffer.concat([header, body]));
+
+    const ctx: MsgContext = {
+      Body: "<media:audio>",
+      MediaPath: oggPath,
+      MediaType: "audio/ogg",
+    };
+    const cfg: MoltbotConfig = {
+      tools: {
+        media: {
+          audio: { enabled: false },
+          image: { enabled: false },
+          video: { enabled: false },
+        },
+      },
+    };
+
+    const result = await applyMediaUnderstanding({ ctx, cfg });
+
+    expect(result.appliedFile).toBe(false);
+    expect(ctx.Body).not.toContain("<file");
   });
 
   it("infers TSV when tabs are present without commas", async () => {
     const { applyMediaUnderstanding } = await loadApply();
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-media-"));
-    const tsvPath = path.join(dir, "report.mp3");
+    const tsvPath = path.join(dir, "report.tsv");
     const tsvText = "a\tb\tc\n1\t2\t3";
     await fs.writeFile(tsvPath, tsvText);
 
     const ctx: MsgContext = {
-      Body: "<media:audio>",
+      Body: "<media:document>",
       MediaPath: tsvPath,
-      MediaType: "audio/mpeg",
+      MediaType: "text/tab-separated-values",
     };
     const cfg: MoltbotConfig = {
       tools: {
@@ -543,7 +576,7 @@ describe("applyMediaUnderstanding", () => {
     const result = await applyMediaUnderstanding({ ctx, cfg });
 
     expect(result.appliedFile).toBe(true);
-    expect(ctx.Body).toContain('<file name="report.mp3" mime="text/tab-separated-values">');
+    expect(ctx.Body).toContain('<file name="report.tsv" mime="text/tab-separated-values">');
     expect(ctx.Body).toContain("a\tb\tc");
   });
 
