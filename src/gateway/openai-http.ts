@@ -5,7 +5,8 @@ import { agentCommand } from "../commands/agent.js";
 import {
   clearConfigCacheForTenant,
   resolveTenantStateDirFromId,
-  setTenantStateDir,
+  runWithTenantContextAsync,
+  type TenantContext,
 } from "../config/config.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { logWarn } from "../logger.js";
@@ -37,24 +38,17 @@ function getTenantIdFromRequest(req: IncomingMessage): string | undefined {
 }
 
 /**
- * Set up tenant context for a request.
- * Returns a cleanup function to call when done.
+ * Build tenant context from request headers.
+ * Returns null if no tenant ID is present (single-tenant mode).
  */
-function setupTenantContext(req: IncomingMessage): () => void {
+function buildTenantContextFromRequest(req: IncomingMessage): TenantContext | null {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) {
-    // No tenant specified - use default behavior
-    return () => {};
+    return null;
   }
 
-  const tenantStateDir = resolveTenantStateDirFromId(tenantId);
-  clearConfigCacheForTenant();
-  setTenantStateDir(tenantStateDir);
-
-  return () => {
-    setTenantStateDir(null);
-    clearConfigCacheForTenant();
-  };
+  const stateDir = resolveTenantStateDirFromId(tenantId);
+  return { tenantId, stateDir };
 }
 
 type OpenAiHttpOptions = {
@@ -240,27 +234,17 @@ function resolveAgentResponseText(result: unknown): string {
   return content || "No response from OpenClaw.";
 }
 
-export async function handleOpenAiHttpRequest(
+/**
+ * Core implementation of OpenAI HTTP request handling.
+ * This is called within the tenant context (if any).
+ */
+async function handleOpenAiHttpRequestImpl(
   req: IncomingMessage,
   res: ServerResponse,
   opts: OpenAiHttpOptions,
+  body: unknown,
 ): Promise<boolean> {
-  const handled = await handleGatewayPostJsonEndpoint(req, res, {
-    pathname: "/v1/chat/completions",
-    auth: opts.auth,
-    trustedProxies: opts.trustedProxies,
-    allowRealIpFallback: opts.allowRealIpFallback,
-    rateLimiter: opts.rateLimiter,
-    maxBodyBytes: opts.maxBodyBytes ?? 1024 * 1024,
-  });
-  if (handled === false) {
-    return false;
-  }
-  if (!handled) {
-    return true;
-  }
-
-  const payload = coerceRequest(handled.body);
+  const payload = coerceRequest(body);
   const stream = Boolean(payload.stream);
   const model = typeof payload.model === "string" ? payload.model : "openclaw";
   const user = typeof payload.user === "string" ? payload.user : undefined;
@@ -278,8 +262,8 @@ export async function handleOpenAiHttpRequest(
     return true;
   }
 
-  // Set up tenant context from X-Tenant-ID header
-  const cleanupTenant = setupTenantContext(req);
+  // Clear config cache at start of tenant request to ensure fresh config
+  clearConfigCacheForTenant();
 
   const runId = `chatcmpl_${randomUUID()}`;
   const deps = createDefaultDeps();
@@ -314,8 +298,6 @@ export async function handleOpenAiHttpRequest(
       sendJson(res, 500, {
         error: { message: "internal error", type: "api_error" },
       });
-    } finally {
-      cleanupTenant();
     }
     return true;
   }
@@ -418,9 +400,55 @@ export async function handleOpenAiHttpRequest(
         writeDone(res);
         res.end();
       }
-      cleanupTenant();
     }
   })();
 
   return true;
+}
+
+/**
+ * Handle OpenAI-compatible HTTP requests.
+ * Wraps request processing in tenant context for multi-tenant isolation.
+ */
+export async function handleOpenAiHttpRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: OpenAiHttpOptions,
+): Promise<boolean> {
+  const url = new URL(req.url ?? "/", `http://${req.headers.host || "localhost"}`);
+  if (url.pathname !== "/v1/chat/completions") return false;
+
+  if (req.method !== "POST") {
+    sendMethodNotAllowed(res);
+    return true;
+  }
+
+  const token = getBearerToken(req);
+  const authResult = await authorizeGatewayConnect({
+    auth: opts.auth,
+    connectAuth: { token, password: token },
+    req,
+    trustedProxies: opts.trustedProxies,
+  });
+  if (!authResult.ok) {
+    sendUnauthorized(res);
+    return true;
+  }
+
+  const body = await readJsonBodyOrError(req, res, opts.maxBodyBytes ?? 1024 * 1024);
+  if (body === undefined) return true;
+
+  // Build tenant context from X-Tenant-ID header
+  const tenantContext = buildTenantContextFromRequest(req);
+
+  // If no tenant context, run without isolation (single-tenant mode)
+  if (!tenantContext) {
+    return handleOpenAiHttpRequestImpl(req, res, opts, body);
+  }
+
+  // Wrap the entire request handling in the tenant context
+  // This ensures all async operations see the correct tenant state directory
+  return runWithTenantContextAsync(tenantContext, async () => {
+    return handleOpenAiHttpRequestImpl(req, res, opts, body);
+  });
 }

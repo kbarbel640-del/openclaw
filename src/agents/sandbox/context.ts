@@ -116,6 +116,26 @@ export async function resolveSandboxContext(params: {
   }
   const { rawSessionKey, cfg } = resolved;
 
+  // Light sandbox mode: path validation only, no Docker
+  if (cfg.mode === "paths-only") {
+    const agentWorkspaceDir = resolveUserPath(
+      params.workspaceDir?.trim() || DEFAULT_AGENT_WORKSPACE_DIR,
+    );
+    const workspaceRoot = resolveUserPath(cfg.workspaceRoot);
+
+    await fs.mkdir(workspaceRoot, { recursive: true });
+
+    return {
+      enabled: true,
+      sessionKey: rawSessionKey,
+      workspaceDir: workspaceRoot,
+      agentWorkspaceDir,
+      workspaceAccess: cfg.workspaceAccess,
+      tools: cfg.tools,
+      browserAllowHostControl: false,
+    };
+  }
+
   await maybePruneSandboxes(cfg);
 
   const { agentWorkspaceDir, scopeKey, workspaceDir } = await ensureSandboxWorkspaceLayout({
