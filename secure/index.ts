@@ -73,6 +73,9 @@ async function main() {
   const sandboxAvailable = await sandbox.isAvailable();
   console.log(`[init] Sandbox available: ${sandboxAvailable}`);
 
+  // Wire sandbox to agent for tool calling
+  agent.setSandbox(sandbox);
+
   // Create a placeholder bot for circular deps
   // We'll create telegram, scheduler, and webhooks together
   const { Bot } = await import("grammy");

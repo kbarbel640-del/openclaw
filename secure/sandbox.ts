@@ -9,6 +9,20 @@
  */
 
 import { spawn } from "node:child_process";
+
+/**
+ * Normalize smart quotes to straight quotes
+ * Telegram and mobile keyboards often auto-convert quotes which breaks code
+ */
+export function normalizeQuotes(code: string): string {
+  return code
+    // Double quotes: " " „ ‟ → "
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    // Single quotes: ' ' ‚ ‛ → '
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    // Backticks: ` → `
+    .replace(/[\u0060\u2018]/g, "`");
+}
 import type { SecureConfig } from "./config.js";
 import type { AuditLogger } from "./audit.js";
 
@@ -90,6 +104,9 @@ async function runPiston(
 ): Promise<SandboxResult> {
   const startTime = Date.now();
 
+  // Normalize smart quotes from mobile keyboards
+  const normalizedCode = normalizeQuotes(code);
+
   const langConfig = PISTON_LANGUAGES[language.toLowerCase()];
   if (!langConfig) {
     return {
@@ -110,7 +127,7 @@ async function runPiston(
       body: JSON.stringify({
         language: langConfig.language,
         version: langConfig.version,
-        files: [{ content: code }],
+        files: [{ content: normalizedCode }],
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -219,8 +236,11 @@ async function runDocker(
 ): Promise<SandboxResult> {
   const startTime = Date.now();
 
+  // Normalize smart quotes from mobile keyboards
+  const normalizedCommand = normalizeQuotes(command);
+
   return new Promise((resolve) => {
-    const args = buildDockerArgs(config, command);
+    const args = buildDockerArgs(config, normalizedCommand);
 
     const proc = spawn("docker", args, {
       stdio: ["pipe", "pipe", "pipe"],

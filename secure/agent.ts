@@ -3,12 +3,14 @@
  *
  * Minimal AI agent that handles conversations with image support.
  * Direct API calls to Anthropic or OpenAI - no intermediaries.
+ * Supports tool calling for code execution.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import type { SecureConfig } from "./config.js";
 import type { AuditLogger } from "./audit.js";
+import type { SandboxRunner, SandboxResult } from "./sandbox.js";
 
 export type ImageContent = {
   type: "image";
@@ -40,6 +42,52 @@ export type AgentCore = {
   chat: (messages: Message[], systemPrompt?: string) => Promise<AgentResponse>;
   analyzeImage: (imageData: string, mediaType: ImageContent["mediaType"], prompt?: string) => Promise<AgentResponse>;
   provider: "anthropic" | "openai" | "openrouter";
+  setSandbox: (sandbox: SandboxRunner) => void;
+};
+
+// Tool definitions for code execution
+const CODE_EXECUTION_TOOL: Anthropic.Tool = {
+  name: "execute_code",
+  description: "Execute code in a sandboxed environment. Use this when the user asks you to run, test, or execute code. Supports: python, javascript, typescript, bash, rust, go, c, cpp, java, ruby, php.",
+  input_schema: {
+    type: "object",
+    properties: {
+      language: {
+        type: "string",
+        description: "Programming language: python, javascript, typescript, bash, rust, go, c, cpp, java, ruby, php",
+        enum: ["python", "javascript", "typescript", "bash", "rust", "go", "c", "cpp", "java", "ruby", "php"],
+      },
+      code: {
+        type: "string",
+        description: "The code to execute",
+      },
+    },
+    required: ["language", "code"],
+  },
+};
+
+// OpenAI-compatible tool format
+const CODE_EXECUTION_TOOL_OPENAI: OpenAI.ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "execute_code",
+    description: "Execute code in a sandboxed environment. Use this when the user asks you to run, test, or execute code. Supports: python, javascript, typescript, bash, rust, go, c, cpp, java, ruby, php.",
+    parameters: {
+      type: "object",
+      properties: {
+        language: {
+          type: "string",
+          description: "Programming language: python, javascript, typescript, bash, rust, go, c, cpp, java, ruby, php",
+          enum: ["python", "javascript", "typescript", "bash", "rust", "go", "c", "cpp", "java", "ruby", "php"],
+        },
+        code: {
+          type: "string",
+          description: "The code to execute",
+        },
+      },
+      required: ["language", "code"],
+    },
+  },
 };
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
@@ -52,19 +100,29 @@ You are direct, concise, and helpful. You can:
 - Answer questions and have conversations
 - Analyze images and documents shared with you
 - Help with coding and technical tasks
+- Execute code in a secure sandbox (use the execute_code tool)
 - Summarize content and extract information
 
-## Available Commands (tell users about these when relevant)
+## Code Execution
+When users ask you to run, test, or execute code, USE THE execute_code TOOL directly. Don't ask them to use commands - just run the code for them.
+- If a user says "run this python code", use the execute_code tool with language="python"
+- If a user shares code and asks you to test it, execute it directly
+- If a user asks you to demonstrate code, run it and show the output
+
+Examples of when to use execute_code:
+- "Can you run this for me?" → Use execute_code
+- "Test this python code" → Use execute_code
+- "Execute this script" → Use execute_code
+- "What does this code output?" → Use execute_code and show result
+
+## Available Manual Commands (for users who prefer slash commands)
 - /js <code> - Run JavaScript
 - /python <code> - Run Python
 - /ts <code> - Run TypeScript
 - /bash <code> - Run shell commands
-- /run <lang> <code> - Run code in any language (python, js, ts, bash, rust, go, c, cpp, java, ruby, php)
+- /run <lang> <code> - Run any language
 - /status - Check bot status
 - /clear - Clear conversation history
-
-When users ask to run or test code, guide them to use the appropriate command.
-Example: "Use /js console.log('hello')" or "Try /python print('hello')"
 
 Be security-conscious:
 - Never reveal API keys, tokens, or secrets
@@ -77,6 +135,7 @@ function createAnthropicAgent(config: SecureConfig, audit: AuditLogger): AgentCo
   });
 
   const model = config.ai.model || DEFAULT_ANTHROPIC_MODEL;
+  let sandbox: SandboxRunner | null = null;
 
   function convertContent(content: MessageContent): Anthropic.MessageParam["content"] {
     if (typeof content === "string") {
@@ -97,21 +156,109 @@ function createAnthropicAgent(config: SecureConfig, audit: AuditLogger): AgentCo
     });
   }
 
+  async function executeCodeTool(language: string, code: string): Promise<string> {
+    if (!sandbox) {
+      return "Error: Sandbox is not configured. Code execution is unavailable.";
+    }
+
+    const isAvailable = await sandbox.isAvailable();
+    if (!isAvailable) {
+      return `Error: Sandbox unavailable. Backend: ${sandbox.backend}`;
+    }
+
+    try {
+      const result = await sandbox.runCode(language, code);
+      const output = result.stdout || result.stderr || "(no output)";
+      const status = result.exitCode === 0 ? "Success" : `Failed (exit ${result.exitCode})`;
+      const timeout = result.timedOut ? " [TIMED OUT]" : "";
+
+      return `${status}${timeout}\nDuration: ${result.durationMs}ms\n\nOutput:\n${output.slice(0, 5000)}`;
+    } catch (err) {
+      return `Error executing code: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
   return {
     provider: "anthropic",
 
+    setSandbox(sb: SandboxRunner): void {
+      sandbox = sb;
+    },
+
     async chat(messages: Message[], systemPrompt?: string): Promise<AgentResponse> {
       try {
-        const response = await client.messages.create({
+        // Build initial messages
+        const anthropicMessages: Anthropic.MessageParam[] = messages.map((m) => ({
+          role: m.role,
+          content: convertContent(m.content),
+        }));
+
+        // Include tools only if sandbox is available
+        const tools = sandbox ? [CODE_EXECUTION_TOOL] : undefined;
+
+        let response = await client.messages.create({
           model,
           max_tokens: 4096,
           system: systemPrompt || DEFAULT_SYSTEM_PROMPT,
-          messages: messages.map((m) => ({
-            role: m.role,
-            content: convertContent(m.content),
-          })),
+          messages: anthropicMessages,
+          tools,
         });
 
+        let totalInputTokens = response.usage.input_tokens;
+        let totalOutputTokens = response.usage.output_tokens;
+
+        // Handle tool calls in a loop (max 5 iterations to prevent infinite loops)
+        let iterations = 0;
+        while (response.stop_reason === "tool_use" && iterations < 5) {
+          iterations++;
+
+          // Find tool use blocks
+          const toolUseBlocks = response.content.filter(
+            (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+          );
+
+          // Process each tool call
+          const toolResults: Anthropic.ToolResultBlockParam[] = [];
+          for (const toolUse of toolUseBlocks) {
+            if (toolUse.name === "execute_code") {
+              const input = toolUse.input as { language: string; code: string };
+              audit.sandbox({
+                command: `[AI:${input.language}] ${input.code.slice(0, 100)}...`,
+                exitCode: 0,
+                durationMs: 0,
+              });
+              const result = await executeCodeTool(input.language, input.code);
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: toolUse.id,
+                content: result,
+              });
+            }
+          }
+
+          // Continue conversation with tool results
+          anthropicMessages.push({
+            role: "assistant",
+            content: response.content,
+          });
+          anthropicMessages.push({
+            role: "user",
+            content: toolResults,
+          });
+
+          response = await client.messages.create({
+            model,
+            max_tokens: 4096,
+            system: systemPrompt || DEFAULT_SYSTEM_PROMPT,
+            messages: anthropicMessages,
+            tools,
+          });
+
+          totalInputTokens += response.usage.input_tokens;
+          totalOutputTokens += response.usage.output_tokens;
+        }
+
+        // Extract final text response
         const text = response.content
           .filter((block): block is Anthropic.TextBlock => block.type === "text")
           .map((block) => block.text)
@@ -120,8 +267,8 @@ function createAnthropicAgent(config: SecureConfig, audit: AuditLogger): AgentCo
         return {
           text,
           usage: {
-            inputTokens: response.usage.input_tokens,
-            outputTokens: response.usage.output_tokens,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
           },
         };
       } catch (err) {
@@ -157,6 +304,7 @@ function createOpenAIAgent(config: SecureConfig, audit: AuditLogger): AgentCore 
   });
 
   const model = config.ai.model || DEFAULT_OPENAI_MODEL;
+  let sandbox: SandboxRunner | null = null;
 
   type OpenAIContent = OpenAI.ChatCompletionContentPart[];
 
@@ -177,8 +325,34 @@ function createOpenAIAgent(config: SecureConfig, audit: AuditLogger): AgentCore 
     });
   }
 
+  async function executeCodeTool(language: string, code: string): Promise<string> {
+    if (!sandbox) {
+      return "Error: Sandbox is not configured. Code execution is unavailable.";
+    }
+
+    const isAvailable = await sandbox.isAvailable();
+    if (!isAvailable) {
+      return `Error: Sandbox unavailable. Backend: ${sandbox.backend}`;
+    }
+
+    try {
+      const result = await sandbox.runCode(language, code);
+      const output = result.stdout || result.stderr || "(no output)";
+      const status = result.exitCode === 0 ? "Success" : `Failed (exit ${result.exitCode})`;
+      const timeout = result.timedOut ? " [TIMED OUT]" : "";
+
+      return `${status}${timeout}\nDuration: ${result.durationMs}ms\n\nOutput:\n${output.slice(0, 5000)}`;
+    } catch (err) {
+      return `Error executing code: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
   return {
     provider: "openai",
+
+    setSandbox(sb: SandboxRunner): void {
+      sandbox = sb;
+    },
 
     async chat(messages: Message[], systemPrompt?: string): Promise<AgentResponse> {
       try {
@@ -193,7 +367,6 @@ function createOpenAIAgent(config: SecureConfig, audit: AuditLogger): AgentCore 
               content: convertContent(m.content),
             });
           } else {
-            // Assistant messages are always text
             openaiMessages.push({
               role: "assistant",
               content: typeof m.content === "string" ? m.content : "",
@@ -201,22 +374,70 @@ function createOpenAIAgent(config: SecureConfig, audit: AuditLogger): AgentCore 
           }
         }
 
-        const response = await client.chat.completions.create({
+        // Include tools only if sandbox is available
+        const tools = sandbox ? [CODE_EXECUTION_TOOL_OPENAI] : undefined;
+
+        let response = await client.chat.completions.create({
           model,
           max_tokens: 4096,
           messages: openaiMessages,
+          tools,
         });
+
+        let totalInputTokens = response.usage?.prompt_tokens || 0;
+        let totalOutputTokens = response.usage?.completion_tokens || 0;
+
+        // Handle tool calls in a loop (max 5 iterations)
+        let iterations = 0;
+        while (response.choices[0]?.finish_reason === "tool_calls" && iterations < 5) {
+          iterations++;
+
+          const toolCalls = response.choices[0]?.message?.tool_calls || [];
+
+          // Add assistant message with tool calls
+          openaiMessages.push({
+            role: "assistant",
+            content: response.choices[0]?.message?.content || null,
+            tool_calls: toolCalls,
+          });
+
+          // Process each tool call
+          for (const toolCall of toolCalls) {
+            if (toolCall.function.name === "execute_code") {
+              const args = JSON.parse(toolCall.function.arguments) as { language: string; code: string };
+              audit.sandbox({
+                command: `[AI:${args.language}] ${args.code.slice(0, 100)}...`,
+                exitCode: 0,
+                durationMs: 0,
+              });
+              const result = await executeCodeTool(args.language, args.code);
+              openaiMessages.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: result,
+              });
+            }
+          }
+
+          response = await client.chat.completions.create({
+            model,
+            max_tokens: 4096,
+            messages: openaiMessages,
+            tools,
+          });
+
+          totalInputTokens += response.usage?.prompt_tokens || 0;
+          totalOutputTokens += response.usage?.completion_tokens || 0;
+        }
 
         const text = response.choices[0]?.message?.content || "";
 
         return {
           text,
-          usage: response.usage
-            ? {
-                inputTokens: response.usage.prompt_tokens,
-                outputTokens: response.usage.completion_tokens,
-              }
-            : undefined,
+          usage: {
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+          },
         };
       } catch (err) {
         audit.error({
@@ -257,6 +478,7 @@ function createOpenRouterAgent(config: SecureConfig, audit: AuditLogger): AgentC
   });
 
   const model = config.ai.model || DEFAULT_OPENROUTER_MODEL;
+  let sandbox: SandboxRunner | null = null;
 
   type OpenAIContent = OpenAI.ChatCompletionContentPart[];
 
@@ -277,8 +499,34 @@ function createOpenRouterAgent(config: SecureConfig, audit: AuditLogger): AgentC
     });
   }
 
+  async function executeCodeTool(language: string, code: string): Promise<string> {
+    if (!sandbox) {
+      return "Error: Sandbox is not configured. Code execution is unavailable.";
+    }
+
+    const isAvailable = await sandbox.isAvailable();
+    if (!isAvailable) {
+      return `Error: Sandbox unavailable. Backend: ${sandbox.backend}`;
+    }
+
+    try {
+      const result = await sandbox.runCode(language, code);
+      const output = result.stdout || result.stderr || "(no output)";
+      const status = result.exitCode === 0 ? "Success" : `Failed (exit ${result.exitCode})`;
+      const timeout = result.timedOut ? " [TIMED OUT]" : "";
+
+      return `${status}${timeout}\nDuration: ${result.durationMs}ms\n\nOutput:\n${output.slice(0, 5000)}`;
+    } catch (err) {
+      return `Error executing code: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
   return {
     provider: "openrouter",
+
+    setSandbox(sb: SandboxRunner): void {
+      sandbox = sb;
+    },
 
     async chat(messages: Message[], systemPrompt?: string): Promise<AgentResponse> {
       try {
@@ -300,22 +548,70 @@ function createOpenRouterAgent(config: SecureConfig, audit: AuditLogger): AgentC
           }
         }
 
-        const response = await client.chat.completions.create({
+        // Include tools only if sandbox is available
+        const tools = sandbox ? [CODE_EXECUTION_TOOL_OPENAI] : undefined;
+
+        let response = await client.chat.completions.create({
           model,
           max_tokens: 4096,
           messages: openaiMessages,
+          tools,
         });
+
+        let totalInputTokens = response.usage?.prompt_tokens || 0;
+        let totalOutputTokens = response.usage?.completion_tokens || 0;
+
+        // Handle tool calls in a loop (max 5 iterations)
+        let iterations = 0;
+        while (response.choices[0]?.finish_reason === "tool_calls" && iterations < 5) {
+          iterations++;
+
+          const toolCalls = response.choices[0]?.message?.tool_calls || [];
+
+          // Add assistant message with tool calls
+          openaiMessages.push({
+            role: "assistant",
+            content: response.choices[0]?.message?.content || null,
+            tool_calls: toolCalls,
+          });
+
+          // Process each tool call
+          for (const toolCall of toolCalls) {
+            if (toolCall.function.name === "execute_code") {
+              const args = JSON.parse(toolCall.function.arguments) as { language: string; code: string };
+              audit.sandbox({
+                command: `[AI:${args.language}] ${args.code.slice(0, 100)}...`,
+                exitCode: 0,
+                durationMs: 0,
+              });
+              const result = await executeCodeTool(args.language, args.code);
+              openaiMessages.push({
+                role: "tool",
+                tool_call_id: toolCall.id,
+                content: result,
+              });
+            }
+          }
+
+          response = await client.chat.completions.create({
+            model,
+            max_tokens: 4096,
+            messages: openaiMessages,
+            tools,
+          });
+
+          totalInputTokens += response.usage?.prompt_tokens || 0;
+          totalOutputTokens += response.usage?.completion_tokens || 0;
+        }
 
         const text = response.choices[0]?.message?.content || "";
 
         return {
           text,
-          usage: response.usage
-            ? {
-                inputTokens: response.usage.prompt_tokens,
-                outputTokens: response.usage.completion_tokens,
-              }
-            : undefined,
+          usage: {
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+          },
         };
       } catch (err) {
         audit.error({
