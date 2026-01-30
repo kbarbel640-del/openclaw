@@ -41,6 +41,17 @@ const XIAOMI_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const NEBIUS_BASE_URL = "https://api.tokenfactory.nebius.com/v1";
+const NEBIUS_DEFAULT_MODEL_ID = "Qwen/Qwen3-32B-fast";
+const NEBIUS_DEFAULT_CONTEXT_WINDOW = 128000;
+const NEBIUS_DEFAULT_MAX_TOKENS = 8192;
+const NEBIUS_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 const MOONSHOT_BASE_URL = "https://api.moonshot.ai/v1";
 const MOONSHOT_DEFAULT_MODEL_ID = "kimi-k2.5";
 const MOONSHOT_DEFAULT_CONTEXT_WINDOW = 256000;
@@ -370,6 +381,105 @@ export function buildXiaomiProvider(): ProviderConfig {
   };
 }
 
+export function buildNebiusProvider(): ProviderConfig {
+  return {
+    baseUrl: NEBIUS_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: "Qwen/Qwen3-32B-fast",
+        name: "Qwen3 32B Fast",
+        reasoning: false,
+        input: ["text"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "meta-llama/Meta-Llama-3.1-8B-Instruct-fast",
+        name: "Llama 3.1 8B Fast",
+        reasoning: false,
+        input: ["text"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "meta-llama/Llama-3.3-70B-Instruct",
+        name: "Llama 3.3 70B",
+        reasoning: false,
+        input: ["text"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "meta-llama/Llama-3.3-70B-Instruct-fast",
+        name: "Llama 3.3 70B Fast",
+        reasoning: false,
+        input: ["text"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "deepseek-ai/DeepSeek-V3-0324-fast",
+        name: "DeepSeek V3 Fast",
+        reasoning: false,
+        input: ["text"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "deepseek-ai/DeepSeek-R1-0528-fast",
+        name: "DeepSeek R1 Fast",
+        reasoning: true,
+        input: ["text"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "Qwen/Qwen2.5-VL-72B-Instruct",
+        name: "Qwen2.5 VL 72B",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "Qwen/Qwen2.5-Coder-7B-fast",
+        name: "Qwen2.5 Coder 7B Fast",
+        reasoning: false,
+        input: ["text"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "zai-org/GLM-4.7-FP8",
+        name: "GLM 4.7 FP8",
+        reasoning: false,
+        input: ["text"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "zai-org/GLM-4.5",
+        name: "GLM 4.5",
+        reasoning: false,
+        input: ["text"],
+        cost: NEBIUS_DEFAULT_COST,
+        contextWindow: NEBIUS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: NEBIUS_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 async function buildVeniceProvider(): Promise<ProviderConfig> {
   const models = await discoverVeniceModels();
   return {
@@ -444,6 +554,14 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "xiaomi", store: authStore });
   if (xiaomiKey) {
     providers.xiaomi = { ...buildXiaomiProvider(), apiKey: xiaomiKey };
+  }
+
+  const nebiusKey =
+    resolveEnvApiKeyVarName("nebius") ??
+    resolveApiKeyFromProfiles({ provider: "nebius", store: authStore });
+
+  if (nebiusKey) {
+    providers.nebius = { ...buildNebiusProvider(), apiKey: nebiusKey };
   }
 
   // Ollama provider - only add if explicitly configured

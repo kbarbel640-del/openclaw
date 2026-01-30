@@ -17,6 +17,7 @@ export type AuthChoiceGroupId =
   | "moonshot"
   | "zai"
   | "xiaomi"
+  | "nebius"
   | "opencode-zen"
   | "minimax"
   | "synthetic"
@@ -115,6 +116,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["xiaomi-api-key"],
   },
   {
+    value: "nebius",
+    label: "Nebius",
+    hint: "Nebius Token Factory",
+    choices: ["nebius-api-key"],
+  },
+  {
     value: "opencode-zen",
     label: "OpenCode Zen",
     hint: "API key",
@@ -176,6 +183,11 @@ export function buildAuthChoiceOptions(params: {
     label: "Xiaomi API key",
   });
   options.push({ value: "qwen-portal", label: "Qwen OAuth" });
+  options.push({
+    value: "nebius-api-key",
+    label: "Nebius API key",
+    hint: "Nebius Token Factory",
+  });
   options.push({
     value: "copilot-proxy",
     label: "Copilot Proxy (local)",

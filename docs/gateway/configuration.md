@@ -2472,6 +2472,48 @@ Notes:
 - Set `KIMICODE_API_KEY` in the environment or use `moltbot onboard --auth-choice kimi-code-api-key`.
 - Model ref: `kimi-code/kimi-for-coding`.
 
+### Nebius Token Factory
+
+Use Nebius's OpenAI-compatible endpoint:
+
+```json5
+{
+  env: { NEBIUS_API_KEY: "sk-..." },
+  agents: {
+    defaults: {
+      model: { primary: "nebius/Qwen/Qwen3-32B-fast" },
+      models: { "nebius/Qwen/Qwen3-32B-fast": { alias: "Qwen3 32B" } }
+    }
+  },
+  models: {
+    mode: "merge",
+    providers: {
+      nebius: {
+        baseUrl: "https://api.tokenfactory.nebius.com/v1",
+        apiKey: "${NEBIUS_API_KEY}",
+        api: "openai-completions",
+        models: [
+          {
+            id: "Qwen/Qwen3-32B-fast",
+            name: "Qwen3 32B Fast",
+            reasoning: false,
+            input: ["text"],
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            contextWindow: 128000,
+            maxTokens: 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+Notes:
+- Set `NEBIUS_API_KEY` in the environment or use `moltbot onboard --auth-choice nebius-api-key`.
+- Model ref: `nebius/Qwen/Qwen3-32B-fast`.
+- Available models include Qwen, DeepSeek, Llama, and GLM families.
+
 ### Synthetic (Anthropic-compatible)
 
 Use Synthetic's Anthropic-compatible endpoint:

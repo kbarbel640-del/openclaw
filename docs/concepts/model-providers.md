@@ -239,6 +239,46 @@ MiniMax is configured via `models.providers` because it uses custom endpoints:
 
 See [/providers/minimax](/providers/minimax) for setup details, model options, and config snippets.
 
+### Nebius Token Factory
+
+Nebius provides OpenAI-compatible inference for frontier and open models:
+
+- Provider: `nebius`
+- Auth: `NEBIUS_API_KEY`
+- Example model: `nebius/Qwen/Qwen3-32B-fast`
+- CLI: `moltbot onboard --auth-choice nebius-api-key`
+
+```json5
+{
+  agents: {
+    defaults: { model: { primary: "nebius/Qwen/Qwen3-32B-fast" } }
+  },
+  models: {
+    mode: "merge",
+    providers: {
+      nebius: {
+        baseUrl: "https://api.tokenfactory.nebius.com/v1",
+        apiKey: "${NEBIUS_API_KEY}",
+        api: "openai-completions",
+        models: [
+          {
+            id: "Qwen/Qwen3-32B-fast",
+            name: "Qwen3 32B Fast",
+            reasoning: false,
+            input: ["text"],
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            contextWindow: 128000,
+            maxTokens: 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+See [/providers/nebius](/providers/nebius) for setup details and available models.
+
 ### Ollama
 
 Ollama is a local LLM runtime that provides an OpenAI-compatible API:
