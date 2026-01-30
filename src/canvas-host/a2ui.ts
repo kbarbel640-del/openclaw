@@ -5,37 +5,14 @@ import { fileURLToPath } from "node:url";
 
 import { detectMime } from "../media/mime.js";
 
-export const A2UI_PATH = "/__clawdbot__/a2ui";
-export const CANVAS_HOST_PATH = "/__clawdbot__/canvas";
-export const CANVAS_WS_PATH = "/__clawdbot/ws";
+export const A2UI_PATH = "/__openclaw__/a2ui";
+
+export const CANVAS_HOST_PATH = "/__openclaw__/canvas";
+
+export const CANVAS_WS_PATH = "/__openclaw__/ws";
 
 let cachedA2uiRootReal: string | null | undefined;
 let resolvingA2uiRoot: Promise<string | null> | null = null;
-
-/** Reset the A2UI root cache (for testing). */
-export function resetA2uiCache(): void {
-  cachedA2uiRootReal = undefined;
-  resolvingA2uiRoot = null;
-}
-
-async function findRepoRoot(startDir: string): Promise<string | null> {
-  let dir = startDir;
-  for (let i = 0; i < 10; i++) {
-    try {
-      const pkgPath = path.join(dir, "package.json");
-      await fs.stat(pkgPath);
-      // Verify it's the clawdbot package
-      const pkg = JSON.parse(await fs.readFile(pkgPath, "utf8"));
-      if (pkg.name === "clawdbot") return dir;
-    } catch {
-      // not found, go up
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return null;
-}
 
 async function resolveA2uiRoot(): Promise<string | null> {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -50,12 +27,6 @@ async function resolveA2uiRoot(): Promise<string | null> {
   ];
   if (process.execPath) {
     candidates.unshift(path.resolve(path.dirname(process.execPath), "a2ui"));
-  }
-  // Find repo root by walking up from `here` (handles vitest/vite transforms).
-  const repoRoot = await findRepoRoot(here);
-  if (repoRoot) {
-    candidates.push(path.resolve(repoRoot, "src/canvas-host/a2ui"));
-    candidates.push(path.resolve(repoRoot, "dist/canvas-host/a2ui"));
   }
 
   for (const dir of candidates) {
@@ -127,22 +98,24 @@ export function injectCanvasLiveReload(html: string): string {
 (() => {
   // Cross-platform action bridge helper.
   // Works on:
-  // - iOS: window.webkit.messageHandlers.clawdbotCanvasA2UIAction.postMessage(...)
-  // - Android: window.clawdbotCanvasA2UIAction.postMessage(...)
-  const actionHandlerName = "clawdbotCanvasA2UIAction";
+  // - iOS: window.webkit.messageHandlers.openclawCanvasA2UIAction.postMessage(...)
+  // - Android: window.openclawCanvasA2UIAction.postMessage(...)
+  const handlerNames = ["openclawCanvasA2UIAction"];
   function postToNode(payload) {
     try {
       const raw = typeof payload === "string" ? payload : JSON.stringify(payload);
-      const iosHandler = globalThis.webkit?.messageHandlers?.[actionHandlerName];
-      if (iosHandler && typeof iosHandler.postMessage === "function") {
-        iosHandler.postMessage(raw);
-        return true;
-      }
-      const androidHandler = globalThis[actionHandlerName];
-      if (androidHandler && typeof androidHandler.postMessage === "function") {
-        // Important: call as a method on the interface object (binding matters on Android WebView).
-        androidHandler.postMessage(raw);
-        return true;
+      for (const name of handlerNames) {
+        const iosHandler = globalThis.webkit?.messageHandlers?.[name];
+        if (iosHandler && typeof iosHandler.postMessage === "function") {
+          iosHandler.postMessage(raw);
+          return true;
+        }
+        const androidHandler = globalThis[name];
+        if (androidHandler && typeof androidHandler.postMessage === "function") {
+          // Important: call as a method on the interface object (binding matters on Android WebView).
+          androidHandler.postMessage(raw);
+          return true;
+        }
       }
     } catch {}
     return false;
@@ -154,11 +127,11 @@ export function injectCanvasLiveReload(html: string): string {
     const action = { ...userAction, id };
     return postToNode({ userAction: action });
   }
-  globalThis.Clawdbot = globalThis.Clawdbot ?? {};
-  globalThis.Clawdbot.postMessage = postToNode;
-  globalThis.Clawdbot.sendUserAction = sendUserAction;
-  globalThis.clawdbotPostMessage = postToNode;
-  globalThis.clawdbotSendUserAction = sendUserAction;
+  globalThis.OpenClaw = globalThis.OpenClaw ?? {};
+  globalThis.OpenClaw.postMessage = postToNode;
+  globalThis.OpenClaw.sendUserAction = sendUserAction;
+  globalThis.openclawPostMessage = postToNode;
+  globalThis.openclawSendUserAction = sendUserAction;
 
   try {
     const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -186,9 +159,9 @@ export async function handleA2uiHttpRequest(
   if (!urlRaw) return false;
 
   const url = new URL(urlRaw, "http://localhost");
-  if (url.pathname !== A2UI_PATH && !url.pathname.startsWith(`${A2UI_PATH}/`)) {
-    return false;
-  }
+  const basePath =
+    url.pathname === A2UI_PATH || url.pathname.startsWith(`${A2UI_PATH}/`) ? A2UI_PATH : undefined;
+  if (!basePath) return false;
 
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.statusCode = 405;
@@ -205,7 +178,7 @@ export async function handleA2uiHttpRequest(
     return true;
   }
 
-  const rel = url.pathname.slice(A2UI_PATH.length);
+  const rel = url.pathname.slice(basePath.length);
   const filePath = await resolveA2uiFilePath(a2uiRootReal, rel || "/");
   if (!filePath) {
     res.statusCode = 404;
