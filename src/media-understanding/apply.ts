@@ -75,6 +75,20 @@ const TEXT_EXT_MIME = new Map<string, string>([
   [".xml", "application/xml"],
 ]);
 
+// Audio file extensions: skip regardless of MIME type to prevent incorrect text extraction
+const AUDIO_EXTS = new Set([
+  ".ogg",
+  ".opus",
+  ".mp3",
+  ".wav",
+  ".m4a",
+  ".oga",
+  ".weba",
+  ".webm",
+  ".aac",
+  ".flac",
+]);
+
 const XML_ESCAPE_MAP: Record<string, string> = {
   "<": "&lt;",
   ">": "&gt;",
@@ -226,6 +240,15 @@ async function extractFileBlocks(params: {
   const blocks: string[] = [];
   for (const attachment of attachments) {
     if (!attachment) {
+      continue;
+    }
+    // Skip audio files by extension to prevent garbled text from incorrect MIME detection
+    const nameForExt = attachment.path ?? attachment.url ?? "";
+    const ext = path.extname(nameForExt).toLowerCase();
+    if (AUDIO_EXTS.has(ext)) {
+      if (shouldLogVerbose()) {
+        logVerbose(`media: file attachment skipped (audio ext ${ext}) index=${attachment.index}`);
+      }
       continue;
     }
     const forcedTextMime = resolveTextMimeFromName(attachment.path ?? attachment.url ?? "");
