@@ -101,6 +101,7 @@ resource containerGroup 'Microsoft.ContainerInstance/containerGroups@2023-05-01'
           ]
           environmentVariables: [
             { name: 'NODE_ENV', value: 'production' }
+            { name: 'NODE_OPTIONS', value: '--max-old-space-size=1536' }
             { name: 'OPENCLAW_STATE_DIR', value: '/data' }
             { name: 'OPENCLAW_PREFER_PNPM', value: '1' }
             { name: 'OPENCLAW_GATEWAY_TOKEN', secureValue: openclawGatewayToken }
@@ -120,10 +121,14 @@ resource containerGroup 'Microsoft.ContainerInstance/containerGroups@2023-05-01'
             }
           ]
           livenessProbe: {
-            tcpSocket: { port: 18789 }
-            initialDelaySeconds: 120
+            httpGet: {
+              path: '/'
+              port: 18789
+              scheme: 'http'
+            }
+            initialDelaySeconds: 300
             periodSeconds: 30
-            failureThreshold: 3
+            failureThreshold: 5
           }
         }
       }

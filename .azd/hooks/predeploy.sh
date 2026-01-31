@@ -26,8 +26,8 @@ echo "==> Logging in to Azure Container Registry: $CONTAINER_REGISTRY"
 az acr login --name "$CONTAINER_REGISTRY"
 
 IMAGE_NAME="${CONTAINER_REGISTRY}.azurecr.io/openclaw:latest"
-echo "==> Building image: $IMAGE_NAME"
-docker build -t "$IMAGE_NAME" -f Dockerfile .
+echo "==> Building image: $IMAGE_NAME (linux/amd64)"
+docker build --platform linux/amd64 -t "$IMAGE_NAME" -f Dockerfile .
 
 echo "==> Pushing image to ACR..."
 docker push "$IMAGE_NAME"

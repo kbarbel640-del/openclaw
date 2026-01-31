@@ -185,6 +185,30 @@ az container restart --resource-group <rg-name> --name <container-name>
 
 ## Troubleshooting
 
+### First deploy fails on image pull
+
+On first `azd up`, provisioning may fail with `InaccessibleImage` because the
+container image hasn't been pushed to ACR yet. This is a one-time issue:
+
+```bash
+# 1) Push the image manually after ACR is created:
+ACR_NAME=$(azd env get-values | grep AZURE_CONTAINER_REGISTRY_NAME | cut -d'=' -f2 | tr -d '"')
+az acr login --name "$ACR_NAME"
+docker build --platform linux/amd64 -t "${ACR_NAME}.azurecr.io/openclaw:latest" -f Dockerfile .
+docker push "${ACR_NAME}.azurecr.io/openclaw:latest"
+
+# 2) Run provision again:
+azd provision
+```
+
+Subsequent deploys using `azd up` will work without this extra step.
+
+### Gateway slow to start
+
+The gateway takes 2-5 minutes to start on 1 CPU ACI (initial module loading).
+The liveness probe is configured with a 5-minute grace period. If the gateway
+is still not responding after 7-8 minutes, check logs for errors.
+
 ### Container not starting
 
 Check logs:
@@ -195,7 +219,7 @@ azd monitor --logs
 Common causes:
 - Missing or invalid API keys
 - Insufficient memory (increase `containerMemory` param)
-- ACR image not pushed (re-run `azd deploy`)
+- ACR image not pushed (see "First deploy fails on image pull" above)
 
 ### Cannot reach the gateway URL
 
