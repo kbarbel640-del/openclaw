@@ -209,7 +209,7 @@ describe("mergeHybridResults with RRF strategy", () => {
 
     expect(merged).toHaveLength(2);
     // Both appear at rank 0 in one list and rank 1 in the other → equal RRF scores
-    expect(merged[0]?.score).toBeCloseTo(merged[1]!.score);
+    expect(merged[0]?.score).toBeCloseTo(merged[1]?.score ?? 0);
   });
 
   it("RRF boosts items that appear in both lists over single-list items", () => {

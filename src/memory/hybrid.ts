@@ -74,7 +74,7 @@ export function computeRrfScores(rankedLists: Array<string[]>, k: number): Map<s
   const safeK = Number.isFinite(k) && k > 0 ? k : 1;
   for (const list of rankedLists) {
     for (let rank = 0; rank < list.length; rank++) {
-      const id = list[rank]!;
+      const id = list[rank];
       const current = scores.get(id) ?? 0;
       scores.set(id, current + 1 / (safeK + rank + 1)); // rank is 0-indexed, RRF uses 1-indexed
     }
@@ -171,11 +171,11 @@ export function mergeHybridResults(params: {
     const rawK = params.rrfK ?? 60;
     const k = Number.isFinite(rawK) && rawK > 0 ? rawK : 60;
     // Build ranked lists sorted by their respective scores (descending)
-    const vectorRanked = [...params.vector]
-      .sort((a, b) => b.vectorScore - a.vectorScore)
+    const vectorRanked = params.vector
+      .toSorted((a, b) => b.vectorScore - a.vectorScore)
       .map((r) => r.id);
-    const keywordRanked = [...params.keyword]
-      .sort((a, b) => b.textScore - a.textScore)
+    const keywordRanked = params.keyword
+      .toSorted((a, b) => b.textScore - a.textScore)
       .map((r) => r.id);
     const rrfScores = computeRrfScores([vectorRanked, keywordRanked], k);
     const listsUsed = (vectorRanked.length > 0 ? 1 : 0) + (keywordRanked.length > 0 ? 1 : 0);
@@ -215,5 +215,5 @@ export function mergeHybridResults(params: {
     }
   }
 
-  return [...merged].sort((a, b) => b.score - a.score).map(({ updatedAt: _, ...rest }) => rest);
+  return merged.toSorted((a, b) => b.score - a.score).map(({ updatedAt: _, ...rest }) => rest);
 }
