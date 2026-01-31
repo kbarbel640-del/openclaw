@@ -196,12 +196,15 @@ export async function buildFeishuMessageContext(
 
     // Get sender ID
     const senderId =
-      sender.sender_id.open_id ?? sender.sender_id.user_id ?? sender.sender_id.union_id ?? "";
+      sender.sender_id?.open_id ??
+      sender.sender_id?.user_id ??
+      sender.sender_id?.union_id ??
+      "";
 
     // Build mentions array
     const mentions = (message.mentions ?? []).map((m) => ({
       key: m.key,
-      id: m.id.open_id ?? m.id.user_id ?? m.id.union_id ?? "",
+      id: m.id?.open_id ?? m.id?.user_id ?? m.id?.union_id ?? "",
       name: m.name,
     }));
 
@@ -223,7 +226,7 @@ export async function buildFeishuMessageContext(
       chatId: message.chat_id,
       chatType: message.chat_type,
       senderId,
-      senderUserId: sender.sender_id.user_id,
+      senderUserId: sender.sender_id?.user_id,
       messageType: message.message_type,
       content,
       text: cleanedText || text,

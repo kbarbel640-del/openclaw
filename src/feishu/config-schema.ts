@@ -8,60 +8,66 @@ import { z } from "zod";
 /**
  * Group-specific configuration schema
  */
-export const FeishuGroupConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  allowFrom: z.array(z.string()).optional(),
-  requireMention: z.boolean().optional(),
-  systemPrompt: z.string().optional(),
-  skills: z.array(z.string()).optional(),
-});
+export const FeishuGroupConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    allowFrom: z.array(z.string()).optional(),
+    requireMention: z.boolean().optional(),
+    systemPrompt: z.string().optional(),
+    skills: z.array(z.string()).optional(),
+  })
+  .strict();
 
 /**
  * Account configuration schema
  */
-export const FeishuAccountConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  appId: z.string().optional(),
-  appSecret: z.string().optional(),
-  appIdFile: z.string().optional(),
-  appSecretFile: z.string().optional(),
-  encryptKey: z.string().optional(),
-  verificationToken: z.string().optional(),
-  name: z.string().optional(),
-  allowFrom: z.array(z.string()).optional(),
-  groupAllowFrom: z.array(z.string()).optional(),
-  dmPolicy: z.enum(["open", "allowlist", "pairing", "disabled"]).optional(),
-  groupPolicy: z.enum(["open", "allowlist", "disabled"]).optional(),
-  requireMention: z.boolean().optional(),
-  mediaMaxMb: z.number().optional(),
-  webhookPath: z.string().optional(),
-  useLongConnection: z.boolean().optional(),
-  groups: z.record(FeishuGroupConfigSchema).optional(),
-});
+export const FeishuAccountConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    appId: z.string().optional(),
+    appSecret: z.string().optional(),
+    appIdFile: z.string().optional(),
+    appSecretFile: z.string().optional(),
+    encryptKey: z.string().optional(),
+    verificationToken: z.string().optional(),
+    name: z.string().optional(),
+    allowFrom: z.array(z.string()).optional(),
+    groupAllowFrom: z.array(z.string()).optional(),
+    dmPolicy: z.enum(["open", "allowlist", "pairing", "disabled"]).optional(),
+    groupPolicy: z.enum(["open", "allowlist", "disabled"]).optional(),
+    requireMention: z.boolean().optional(),
+    mediaMaxMb: z.number().optional(),
+    webhookPath: z.string().optional(),
+    useLongConnection: z.boolean().optional(),
+    groups: z.record(z.string(), FeishuGroupConfigSchema.optional()).optional(),
+  })
+  .strict();
 
 /**
  * Main Feishu configuration schema
  */
-export const FeishuConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  appId: z.string().optional(),
-  appSecret: z.string().optional(),
-  appIdFile: z.string().optional(),
-  appSecretFile: z.string().optional(),
-  encryptKey: z.string().optional(),
-  verificationToken: z.string().optional(),
-  name: z.string().optional(),
-  allowFrom: z.array(z.string()).optional(),
-  groupAllowFrom: z.array(z.string()).optional(),
-  dmPolicy: z.enum(["open", "allowlist", "pairing", "disabled"]).optional(),
-  groupPolicy: z.enum(["open", "allowlist", "disabled"]).optional(),
-  requireMention: z.boolean().optional(),
-  mediaMaxMb: z.number().optional(),
-  webhookPath: z.string().optional(),
-  useLongConnection: z.boolean().optional(),
-  accounts: z.record(FeishuAccountConfigSchema).optional(),
-  groups: z.record(FeishuGroupConfigSchema).optional(),
-});
+export const FeishuConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    appId: z.string().optional(),
+    appSecret: z.string().optional(),
+    appIdFile: z.string().optional(),
+    appSecretFile: z.string().optional(),
+    encryptKey: z.string().optional(),
+    verificationToken: z.string().optional(),
+    name: z.string().optional(),
+    allowFrom: z.array(z.string()).optional(),
+    groupAllowFrom: z.array(z.string()).optional(),
+    dmPolicy: z.enum(["open", "allowlist", "pairing", "disabled"]).optional(),
+    groupPolicy: z.enum(["open", "allowlist", "disabled"]).optional(),
+    requireMention: z.boolean().optional(),
+    mediaMaxMb: z.number().optional(),
+    webhookPath: z.string().optional(),
+    useLongConnection: z.boolean().optional(),
+    accounts: z.record(z.string(), FeishuAccountConfigSchema.optional()).optional(),
+    groups: z.record(z.string(), FeishuGroupConfigSchema.optional()).optional(),
+  })
+  .strict();
 
 export type FeishuConfigSchemaType = z.infer<typeof FeishuConfigSchema>;
 export type FeishuAccountConfigSchemaType = z.infer<typeof FeishuAccountConfigSchema>;

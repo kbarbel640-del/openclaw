@@ -16,7 +16,7 @@ async function main() {
     const wsClient = new Lark.WSClient({
         appId: APP_ID,
         appSecret: APP_SECRET,
-        loggerLevel: Lark.LoggerLevel.DEBUG,
+        loggerLevel: Lark.LoggerLevel.debug,
     });
 
     // 2. 创建 EventDispatcher 并注册事件

@@ -21,13 +21,14 @@ async function initConnection() {
   const wsClient = new lark.WSClient({
     appId: APP_ID,
     appSecret: APP_SECRET,
-    eventDispatcher,
     loggerLevel: lark.LoggerLevel.info,
   });
 
   try {
     console.log("   正在连接到飞书服务器...");
-    await wsClient.start();
+    await wsClient.start({
+      eventDispatcher,
+    });
     console.log("\n✅ 长连接已建立！\n");
     console.log("📋 现在请按照以下步骤操作：");
     console.log("   1. 回到飞书开发者后台");

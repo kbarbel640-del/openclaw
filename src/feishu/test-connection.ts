@@ -34,7 +34,8 @@ async function testConnection() {
       return;
     }
 
-    console.log(`✅ 凭证验证成功！Token 有效期: ${tokenResponse.expire} 秒\n`);
+    const expireSecs = (tokenResponse.data as { expire?: number })?.expire ?? "unknown";
+    console.log(`✅ 凭证验证成功！Token 有效期: ${expireSecs} 秒\n`);
 
     // 2. 获取机器人信息
     console.log("2️⃣ 获取机器人信息...");
@@ -105,12 +106,13 @@ async function testConnection() {
     const wsClient = new lark.WSClient({
       appId: APP_ID,
       appSecret: APP_SECRET,
-      eventDispatcher,
       loggerLevel: lark.LoggerLevel.info,
     });
 
     console.log("   正在启动长连接...");
-    await wsClient.start();
+    await wsClient.start({
+      eventDispatcher,
+    });
     console.log("   ✅ 长连接已建立！现在可以在飞书中给机器人发消息了。\n");
     console.log("   💡 提示: 在飞书中搜索你的应用名称，然后发送消息测试\n");
 

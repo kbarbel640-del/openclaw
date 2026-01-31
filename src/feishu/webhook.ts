@@ -8,7 +8,7 @@ import http from "node:http";
 
 import type * as lark from "@larksuiteoapi/node-sdk";
 
-import { logError, logVerbose } from "../globals.js";
+import { logVerbose } from "../globals.js";
 
 export interface FeishuWebhookOptions {
   /** Event dispatcher from Lark SDK */
@@ -71,7 +71,7 @@ export function createFeishuWebhookHandler(
       // Note: The actual event processing is handled by the EventDispatcher
       // which is configured in bot.ts with registered handlers
     } catch (error) {
-      logError(`feishu: webhook error: ${error}`);
+      console.error(`[feishu] webhook error: ${String(error)}`);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal server error" }));
     }

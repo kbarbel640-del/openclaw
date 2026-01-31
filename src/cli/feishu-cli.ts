@@ -40,6 +40,14 @@ export function registerFeishuCli(program: Command) {
         .action(async (opts) => {
             await runFeishuCommand(async () => {
                 const cfg = loadConfig();
+                // DEBUG LOG
+                console.log("DEBUG: Config loaded from:", process.cwd());
+                console.log("DEBUG: Config channels keys:", Object.keys(cfg.channels || {}));
+                console.log("DEBUG: Feishu config present:", !!cfg.channels?.feishu);
+                if (cfg.channels?.feishu) {
+                    console.log("DEBUG: Feishu accounts:", Object.keys(cfg.channels.feishu.accounts || {}));
+                }
+
                 const accountIds = listFeishuAccountIds(cfg);
 
                 if (opts.json) {

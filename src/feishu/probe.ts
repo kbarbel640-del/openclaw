@@ -46,6 +46,9 @@ export async function probeFeishuBot(account: ResolvedFeishuAccount): Promise<Fe
         params: {
           lang: "zh_cn",
         },
+        path: {
+          app_id: account.appId,
+        },
       });
 
       if (appInfoResponse.code === 0 && appInfoResponse.data?.app) {

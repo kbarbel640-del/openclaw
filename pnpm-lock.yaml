@@ -307,6 +307,8 @@ importers:
 
   extensions/discord: {}
 
+  extensions/feishu: {}
+
   extensions/google-antigravity-auth: {}
 
   extensions/google-gemini-cli-auth: {}

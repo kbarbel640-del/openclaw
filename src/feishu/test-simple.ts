@@ -28,7 +28,8 @@ async function testSimple() {
     });
 
     if (tokenRes.code === 0) {
-      console.log(`   ✅ 凭证有效！Token 过期时间: ${tokenRes.expire}秒\n`);
+      const expireSecs = (tokenRes.data as { expire?: number })?.expire ?? "unknown";
+      console.log(`   ✅ 凭证有效！Token 过期时间: ${expireSecs}秒\n`);
     } else {
       console.log(`   ❌ 凭证无效: ${tokenRes.msg}\n`);
       return;
