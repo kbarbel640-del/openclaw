@@ -28,12 +28,18 @@ function filterMemoryBootstrapFiles(params: {
   config?: OpenClawConfig;
   sessionKey?: string;
 }): WorkspaceBootstrapFile[] {
-  if (!params.config) return params.files;
+  if (!params.config) {
+    return params.files;
+  }
   const sessionKey = params.sessionKey?.trim();
-  if (!sessionKey) return params.files;
+  if (!sessionKey) {
+    return params.files;
+  }
 
   const access = resolveSandboxMemoryAccess({ cfg: params.config, sessionKey });
-  if (access.allowMemoryFiles) return params.files;
+  if (access.allowMemoryFiles) {
+    return params.files;
+  }
   return params.files.filter((file) => !MEMORY_BOOTSTRAP_FILES.has(file.name));
 }
 

@@ -31,8 +31,12 @@ type SessionMessageEntry = { type?: string; message?: { role?: string } };
 
 function countSessionUserTurns(sessionFile?: string): number | null {
   const file = sessionFile?.trim();
-  if (!file) return null;
-  if (!fs.existsSync(file)) return null;
+  if (!file) {
+    return null;
+  }
+  if (!fs.existsSync(file)) {
+    return null;
+  }
   try {
     const sessionManager = SessionManager.open(file);
     const entries = sessionManager.getEntries();
@@ -122,7 +126,9 @@ export async function runMemoryFlushIfNeeded(params: {
 
   const shouldFlushMemory = shouldFlushByTokens || shouldFlushByHistory;
 
-  if (!shouldFlushMemory) return params.sessionEntry;
+  if (!shouldFlushMemory) {
+    return params.sessionEntry;
+  }
 
   let activeSessionEntry = params.sessionEntry;
   const activeSessionStore = params.sessionStore;
