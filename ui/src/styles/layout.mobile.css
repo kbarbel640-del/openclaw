@@ -238,15 +238,11 @@
   }
 
   .chat-compose__actions {
-    justify-content: stretch;
     width: 100%;
   }
 
   .chat-compose__actions .btn {
     flex: 1;
-    height: 44px;
-    min-height: 44px;
-    max-height: 44px;
   }
 
   .chat-compose__field textarea {
