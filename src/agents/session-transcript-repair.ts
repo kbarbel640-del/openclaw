@@ -24,11 +24,9 @@ function isValidToolUseBlock(block: unknown): boolean {
   if (rec.type !== "toolCall" && rec.type !== "toolUse" && rec.type !== "functionCall") {
     return true;
   }
-  // Malformed: missing/invalid id, missing name, or has partialJson (indicates interrupted serialization)
+  // Malformed: missing/invalid id or has partialJson (indicates interrupted serialization)
+  // Note: missing `name` is tolerable - extractToolCallsFromAssistant handles it gracefully
   if (typeof rec.id !== "string" || !rec.id) {
-    return false;
-  }
-  if (typeof rec.name !== "string") {
     return false;
   }
   if (rec.partialJson !== undefined) {
@@ -77,12 +75,8 @@ function stripMalformedToolUseBlocks(messages: AgentMessage[]): {
     if (validContent.length === content.length) {
       out.push(msg);
     } else if (validContent.length === 0) {
-      // Keep empty assistant with stopReason: "error" for error tracking
-      const stopReason = (assistant as { stopReason?: unknown }).stopReason;
-      if (stopReason === "error") {
-        out.push({ ...assistant, content: [] } as typeof assistant);
-      }
-      // Otherwise drop the empty assistant message entirely
+      // Preserve assistant message with empty content to maintain transcript order/metadata
+      out.push({ ...assistant, content: [] } as typeof assistant);
     } else {
       out.push({ ...assistant, content: validContent } as typeof assistant);
     }

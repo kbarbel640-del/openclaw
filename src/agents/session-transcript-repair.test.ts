@@ -174,19 +174,21 @@ describe("repairToolUseResultPairing malformed tool_use stripping", () => {
     expect((assistantContent![0] as { type: string }).type).toBe("text");
   });
 
-  it("strips tool_use blocks with missing name", () => {
+  it("tolerates tool_use blocks with missing name (repaired via synthetic result)", () => {
     const input = [
       {
         role: "assistant",
         content: [
-          { type: "toolCall", id: "call_1", arguments: {} },
+          { type: "toolCall", id: "call_1", arguments: {} }, // missing name is ok
           { type: "text", text: "ok" },
         ],
       },
     ] as AgentMessage[];
 
     const report = repairToolUseResultPairing(input);
-    expect(report.droppedMalformedToolUseCount).toBe(1);
+    expect(report.droppedMalformedToolUseCount).toBe(0);
+    // Missing name triggers synthetic result insertion
+    expect(report.added).toHaveLength(1);
   });
 
   it("keeps valid blocks while stripping malformed ones", () => {
@@ -217,19 +219,20 @@ describe("repairToolUseResultPairing malformed tool_use stripping", () => {
     expect(report.added).toHaveLength(0);
   });
 
-  it("preserves error assistant messages after stripping all tool blocks", () => {
+  it("preserves assistant messages with empty content after stripping all tool blocks", () => {
     const input = [
       {
         role: "assistant",
         content: [{ type: "toolCall", name: "read", arguments: {} }], // missing id
-        stopReason: "error",
+        stopReason: "tool_use", // non-error stopReason to verify we preserve any metadata
       },
     ] as AgentMessage[];
 
     const report = repairToolUseResultPairing(input);
     expect(report.droppedMalformedToolUseCount).toBe(1);
     expect(report.messages).toHaveLength(1);
-    expect((report.messages[0] as { stopReason?: string }).stopReason).toBe("error");
+    // Message preserved with metadata intact
+    expect((report.messages[0] as { stopReason?: string }).stopReason).toBe("tool_use");
     expect((report.messages[0] as { content?: unknown[] }).content).toHaveLength(0);
   });
 
