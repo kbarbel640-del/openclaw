@@ -73,9 +73,9 @@ export class OnboardWelcome extends LocalizedElement {
 
   @property({ type: String }) title = "";
 
-  private handleContinue(): void {
+  private handleContinue = (): void => {
     this.dispatchEvent(new CustomEvent("continue"));
-  }
+  };
 
   override render() {
     return html`

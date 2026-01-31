@@ -161,11 +161,11 @@ export class OnboardMultiselect extends LocalizedElement {
     this.selectedValues = newSet;
   }
 
-  private handleSubmit(): void {
+  private handleSubmit = (): void => {
     this.dispatchEvent(new CustomEvent("select", { 
       detail: { values: Array.from(this.selectedValues) } 
     }));
-  }
+  };
 
   override render() {
     const translatedMessage = translateBackendMessage(this.message);

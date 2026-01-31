@@ -1,5 +1,4 @@
 import {
-  buildNvidiaProvider,
   getNvidiaStaticFallbackModels,
   NVIDIA_API_BASE_URL,
 } from "../agents/nvidia-models.js";

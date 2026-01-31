@@ -125,13 +125,13 @@ export class OnboardSecurity extends LocalizedElement {
     }
   `;
 
-  private handleAccept(): void {
+  private handleAccept = (): void => {
     this.dispatchEvent(new CustomEvent("accept", { detail: { accepted: true } }));
-  }
+  };
 
-  private handleDecline(): void {
+  private handleDecline = (): void => {
     this.dispatchEvent(new CustomEvent("decline", { detail: { accepted: false } }));
-  }
+  };
 
   override render() {
     return html`

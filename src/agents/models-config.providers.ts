@@ -18,16 +18,8 @@ import {
   getOpencodeZenStaticFallbackModels,
   OPENCODE_ZEN_API_BASE_URL,
 } from "./opencode-zen-models.js";
-import {
-  buildNvidiaProvider,
-  getNvidiaStaticFallbackModels,
-  NVIDIA_API_BASE_URL,
-} from "./nvidia-models.js";
-import {
-  buildSiliconFlowProvider,
-  getSiliconFlowStaticFallbackModels,
-  SILICONFLOW_API_BASE_URL,
-} from "./siliconflow-models.js";
+import { buildNvidiaProvider } from "./nvidia-models.js";
+import { buildSiliconFlowProvider } from "./siliconflow-models.js";
 
 type ModelsConfig = NonNullable<OpenClawConfig["models"]>;
 export type ProviderConfig = NonNullable<ModelsConfig["providers"]>[string];

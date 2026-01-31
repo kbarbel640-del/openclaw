@@ -21,7 +21,6 @@ export function applyOpencodeZenProviderConfig(cfg: OpenClawConfig): OpenClawCon
   const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
 
   // Use static fallback models for initial configuration
-  // The models will be dynamically fetched at runtime via fetchOpencodeZenModels
   const opencodeModels = getOpencodeZenStaticFallbackModels();
   const mergedModels = [
     ...existingModels,

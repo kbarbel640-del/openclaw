@@ -74,11 +74,11 @@ export async function startOnboardWebServer(options: ServerOptions): Promise<voi
     const prompter = new WebPrompter(ws);
 
     // Handle incoming messages (responses and shutdown requests)
-    ws.on("message", (data) => {
+    ws.on("message", (data: Buffer) => {
       try {
-        const message = JSON.parse(data.toString());
+        const raw = JSON.parse(data.toString()) as Record<string, unknown>;
         // Check for shutdown request
-        if (message.type === "shutdown") {
+        if (raw.type === "shutdown") {
           runtime.log("[onboard-web] Received shutdown request from client");
           ws.send(JSON.stringify({ type: "shutdown_ack" }));
           // Give a moment for the ack to be sent before shutting down
@@ -87,10 +87,12 @@ export async function startOnboardWebServer(options: ServerOptions): Promise<voi
           }, 100);
           return;
         }
-        // Other messages are handled by the prompter
-        prompter.handleMessage(message);
+        // Other messages are handled by the prompter (response messages have id and value)
+        if (typeof raw.id === "string" && "value" in raw) {
+          prompter.handleMessage(raw as { id: string; value: unknown; cancelled?: boolean });
+        }
       } catch (error) {
-        runtime.error(`[onboard-web] Failed to parse message: ${error}`);
+        runtime.error(`[onboard-web] Failed to parse message: ${String(error)}`);
       }
     });
 

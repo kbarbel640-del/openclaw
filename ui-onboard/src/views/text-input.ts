@@ -107,20 +107,20 @@ export class OnboardTextInput extends LocalizedElement {
     this.value = this.initialValue ?? "";
   }
 
-  private handleInput(e: Event): void {
+  private handleInput = (e: Event): void => {
     const input = e.target as HTMLInputElement;
     this.value = input.value;
-  }
+  };
 
-  private handleKeydown(e: KeyboardEvent): void {
+  private handleKeydown = (e: KeyboardEvent): void => {
     if (e.key === "Enter" && (this.value ?? "").trim()) {
       this.handleSubmit();
     }
-  }
+  };
 
-  private handleSubmit(): void {
+  private handleSubmit = (): void => {
     this.dispatchEvent(new CustomEvent("submit", { detail: { value: this.value } }));
-  }
+  };
 
   private isPasswordField(): boolean {
     const msg = this.message.toLowerCase();
