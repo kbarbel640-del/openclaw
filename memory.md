@@ -1,5 +1,21 @@
 # Long-term Memory
 
+## DBH Ventures File Storage
+
+**Pitch Decks & Presentations:** `/Users/steve/Dropbox/DBH-Ventures/`
+
+```
+DBH-Ventures/
+├── MeshGuard/       # one-pager.pdf ✓
+├── SaveState/
+├── UndercoverAgent/
+├── AgentConsole/
+└── README.md
+```
+
+Use for: pitch decks, investor materials, large presentation files.
+Easy to share via Dropbox links from mobile.
+
 ## Infrastructure
 
 - **Current Server**: Synology NAS at 192.168.4.84
@@ -146,6 +162,18 @@ Standard steps for new DBH Ventures projects:
 3. **DNS**: Configure MX, SPF, DKIM, DMARC for email
 4. **Vercel**: Create project, link domain
 5. **Vikunja**: Clone from template (ID 3)
+
+### Branding (Canvas Sub-Agent Routine)
+1. **Logo**: Get/create logo, save to `/assets/logo-primary.*`
+2. **Color extraction**: Analyze logo for exact hex codes
+3. **Coolors.co palette**: Find complementary palette at coolors.co/palettes matching logo colors
+4. **Google Font**: Pick unique font that matches brand personality (NOT generic Inter)
+   - Friendly brands: Nunito, Quicksand, Poppins
+   - Professional: Source Sans Pro, Lato, Open Sans
+   - Technical: Space Grotesk, IBM Plex Sans
+5. **BRAND-GUIDE.md**: Create comprehensive guide with colors, fonts, CSS variables, voice/tone
+6. **Save to Bear**: Title "[Project] — Brand Guide", tags: projects,[project],dbhventures
+7. **CRITICAL**: Design must be BESPOKE and UNIQUE — never generic templates!
 
 ### SEO (do at launch)
 1. **Meta tags**: Title, description, keywords, Open Graph, Twitter Cards
