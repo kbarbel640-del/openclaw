@@ -29,7 +29,7 @@ export function ToolCallCard({ toolCall, toolResult }: Props) {
   const resultStr = toolResult?.content ?? "";
 
   return (
-    <div className="my-2 w-full rounded-md border border-border/60 bg-muted/60">
+    <div className="mt-1 w-full rounded-md border border-border/60 bg-muted/60">
       <button
         type="button"
         className="flex w-full items-center justify-between gap-3 p-3"

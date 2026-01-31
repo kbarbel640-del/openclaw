@@ -63,6 +63,10 @@ export function ChatMessages({ messages, stream, streamParts, busy }: Props) {
     return buildToolResultMap(allParts);
   }, [messages, streamParts]);
 
+  const visibleMessages = useMemo(() =>
+    messages.filter((m) => m.role === "user" || m.text || m.parts.some((p) => p.type === "text" || p.type === "toolCall")),
+  [messages]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: mounted.current ? "smooth" : "instant" });
     mounted.current = true;
@@ -71,18 +75,24 @@ export function ChatMessages({ messages, stream, streamParts, busy }: Props) {
   return (
     <div className="flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_16px,black_calc(100%-16px),transparent)]">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-0 px-6">
-        {messages.filter((m) => m.role === "user" || m.text || m.parts.some((p) => p.type === "text" || p.type === "toolCall")).map((m, i, arr) => {
-          const prevRole = i > 0 ? arr[i - 1].role : null;
-          return (m.role === "user" ? (
-            <div key={i} className={`flex justify-end ${prevRole === "user" ? "py-1" : "py-3"}`}>
-              <div className="max-w-[80%] rounded-3xl rounded-br-[4px] bg-card px-4 py-3 shadow-[var(--shadow-soft)] overflow-hidden">
-                <p className="whitespace-pre-wrap break-words overflow-hidden leading-relaxed">
-                  {m.text}
-                </p>
+        {visibleMessages.map((m, i) => {
+          const sameAsPrev = i > 0 && visibleMessages[i - 1].role === m.role;
+          const gap = sameAsPrev ? "mt-1" : "mt-3";
+
+          if (m.role === "user") {
+            return (
+              <div key={i} className={`flex justify-end ${gap}`}>
+                <div className="max-w-[80%] rounded-3xl rounded-br-[4px] bg-card px-4 py-3 shadow-[var(--shadow-soft)] overflow-hidden">
+                  <p className="whitespace-pre-wrap break-words overflow-hidden leading-relaxed">
+                    {m.text}
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div key={i} className={m.parts.some((p) => p.type === "text" && p.text) ? "py-3" : "pt-1"}>
+            );
+          }
+
+          return (
+            <div key={i} className={gap}>
               {m.parts.length > 0 && m.parts.some((p) => p.type !== "text" || p.text) ? (
                 <AssistantMessage parts={m.parts} isAnimating={false} resultMap={globalResultMap} />
               ) : (
@@ -91,7 +101,7 @@ export function ChatMessages({ messages, stream, streamParts, busy }: Props) {
                 </Streamdown>
               )}
             </div>
-          ));
+          );
         })}
         {stream !== null && (stream || streamParts.length > 0) && (
           <div className="pt-6">

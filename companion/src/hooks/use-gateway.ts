@@ -234,9 +234,6 @@ export function useGateway() {
             resetToolStream(s);
           }
           syncReactState();
-          if (result === "final") {
-            void loadChatHistory(s).then(() => syncReactState());
-          }
         }
       },
       onClose: () => {
