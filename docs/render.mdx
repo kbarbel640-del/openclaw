@@ -31,12 +31,10 @@ services:
   - type: web
     name: openclaw
     runtime: docker
-    plan: starter
+    plan: standard
     healthCheckPath: /health
     dockerCommand: node dist/index.js gateway --bind lan --port 8080 --allow-unconfigured
     envVars:
-      - key: NODE_OPTIONS
-        value: "--max-old-space-size=384"
       - key: PORT
         value: "8080"
       - key: SETUP_PASSWORD
@@ -66,14 +64,14 @@ Key Blueprint features used:
 
 ## Choosing a plan
 
-| Plan | Spin-down | Disk | Best for |
-|------|-----------|------|----------|
-| Free | After 15 min idle | Not available | Testing, demos |
-| Starter | Never | 1GB+ | Personal use, small teams |
-| Standard+ | Never | 1GB+ | Production, multiple channels |
+| Plan | Spin-down | RAM | Disk | Best for |
+|------|-----------|-----|------|----------|
+| Free | After 15 min idle | 512MB | Not available | Testing, demos |
+| Starter | Never | 512MB | 1GB+ | Not recommended (insufficient memory) |
+| Standard | Never | 1GB | 1GB+ | Personal use, small teams |
+| Standard+ | Never | 2GB+ | 1GB+ | Production, multiple channels |
 
-The Blueprint defaults to `starter`. To use free tier, change `plan: free` in your fork's
-`render.yaml` (but note: no persistent disk means config resets on each deploy).
+The Blueprint defaults to `standard`. Starter plan (512MB RAM) does not have enough memory to run the gateway.
 
 ## After deployment
 
@@ -163,4 +161,4 @@ Render expects a 200 response from `/health` within 30 seconds. If builds succee
 
 ### JavaScript heap out of memory
 
-Starter plan has 512MB RAM, which may be insufficient depending on enabled features and plugins. The Blueprint includes `NODE_OPTIONS: "--max-old-space-size=384"` to help, but if you still see heap errors, upgrade to Standard plan (1GB+ RAM).
+Starter plan (512MB RAM) does not have enough memory to run OpenClaw. Use Standard plan or higher.
