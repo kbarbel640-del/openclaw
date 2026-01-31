@@ -4,6 +4,7 @@ services:
     runtime: docker
     plan: standard
     healthCheckPath: /health
+    dockerCommand: node --max-old-space-size=768 dist/index.js gateway --port 8080 --bind lan --allow-unconfigured
     envVars:
       - key: PORT
         value: "8080"
@@ -14,7 +15,9 @@ services:
       - key: OPENCLAW_WORKSPACE_DIR
         value: /data/workspace
       - key: OPENCLAW_GATEWAY_TOKEN
-        generateValue: true
+        value: "8ce1726d13a61426451d7ddb8dd96d484809eaefbe1b5e93aaa4d0a8e5ffe366"
+      - key: OPENCLAW_GATEWAY_PAIRING
+        value: "off"
     disk:
       name: openclaw-data
       mountPath: /data
