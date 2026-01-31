@@ -165,7 +165,7 @@ NanoGPT exposes OpenAI-compatible endpoints:
 - Provider: `nanogpt`
 - Auth: `NANOGPT_API_KEY`
 - Example model: `nanogpt/zai-org/glm-4.7`
-- CLI: `clawdbot onboard --auth-choice nanogpt-api-key`
+- CLI: `openclaw onboard --auth-choice nanogpt-api-key`
 
 ```json5
 {

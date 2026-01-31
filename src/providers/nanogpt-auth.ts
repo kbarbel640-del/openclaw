@@ -1,12 +1,9 @@
 import { intro, note, outro, spinner } from "@clack/prompts";
 
+import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
 import { ensureAuthProfileStore, upsertAuthProfile } from "../agents/auth-profiles.js";
 import { updateConfig } from "../commands/models/shared.js";
-import {
-  applyAuthProfileConfig,
-  applyNanoGptConfig,
-  setNanoGptApiKey,
-} from "../commands/onboard-auth.js";
+import { applyAuthProfileConfig, applyNanoGptConfig } from "../commands/onboard-auth.js";
 import { logConfigUpdated } from "../config/logging.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { stylePromptTitle } from "../terminal/prompt-style.js";
@@ -150,9 +147,6 @@ export async function nanogptLoginCommand(
   });
   polling.stop("NanoGPT API key acquired");
 
-  // Store the API key
-  await setNanoGptApiKey(apiKey);
-
   upsertAuthProfile({
     profileId,
     credential: {
@@ -160,6 +154,7 @@ export async function nanogptLoginCommand(
       provider: "nanogpt",
       key: apiKey,
     },
+    agentDir: resolveOpenClawAgentDir(),
   });
 
   await updateConfig((cfg) => {

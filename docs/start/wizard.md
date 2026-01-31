@@ -254,7 +254,7 @@ openclaw onboard --non-interactive \
 NanoGPT example:
 
 ```bash
-clawdbot onboard --non-interactive \
+openclaw onboard --non-interactive \
   --mode local \
   --auth-choice nanogpt-api-key \
   --nanogpt-api-key "$NANOGPT_API_KEY" \

@@ -158,7 +158,7 @@ openclaw [--dev] [--profile <name>] <command>
     fallbacks list|add|remove|clear
     image-fallbacks list|add|remove|clear
     scan
-    auth add|setup-token|paste-token
+    auth add|setup-token|paste-token|login-nanogpt
     auth order get|set|clear
   sandbox
     list

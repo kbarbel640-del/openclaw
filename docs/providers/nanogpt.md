@@ -1,12 +1,12 @@
 ---
-summary: "Use NanoGPT's OpenAI-compatible API in Moltbot"
+summary: "Use NanoGPT's OpenAI-compatible API in OpenClaw"
 read_when:
   - You want to use NanoGPT as a model provider
   - You need a NanoGPT API key or base URL setup
 ---
 # NanoGPT
 
-NanoGPT exposes OpenAI-compatible endpoints. Moltbot registers it as the
+NanoGPT exposes OpenAI-compatible endpoints. OpenClaw registers it as the
 `nanogpt` provider.
 
 ## Quick setup
@@ -16,15 +16,15 @@ NanoGPT exposes OpenAI-compatible endpoints. Moltbot registers it as the
 Use the device flow to authenticate via your browser:
 
 ```bash
-moltbot models auth login-nanogpt
+openclaw models auth login-nanogpt
 ```
 
-This opens your browser, you approve access, and Moltbot receives your API key automatically.
+This opens your browser, you approve access, and OpenClaw receives your API key automatically.
 
 Add `--set-default` to also set NanoGPT as your default model:
 
 ```bash
-moltbot models auth login-nanogpt --set-default
+openclaw models auth login-nanogpt --set-default
 ```
 
 ### Option 2: API key
@@ -33,7 +33,7 @@ moltbot models auth login-nanogpt --set-default
 2) Run onboarding:
 
 ```bash
-moltbot onboard --auth-choice nanogpt-api-key
+openclaw onboard --auth-choice nanogpt-api-key
 ```
 
 The default model is set to:
