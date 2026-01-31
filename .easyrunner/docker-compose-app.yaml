@@ -12,7 +12,7 @@ services:
       - TERM=xterm-256color
       # Gateway auth token - required when binding to non-loopback
       # Generate with: openssl rand -hex 32
-      - CLAWDBOT_GATEWAY_TOKEN=ksjdjk345nsoivuyh4e5%$^$sd#sdflkjdsf';#29qqYoO0XSDfasksnfao934kj6sD!""
+      - CLAWDBOT_GATEWAY_TOKEN=ks£jdjk345nsoivuyh4e5%$^$sd#sdflkjdsf;#29qqYoO0XSDfasksnfao934kj6sD!
     restart: unless-stopped
     networks:
       - easyrunner_proxy_network
