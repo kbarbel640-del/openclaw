@@ -21,7 +21,7 @@ import { formatLocationText, toLocationContext } from "../channels/location.js";
 import { recordInboundSession } from "../channels/session.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../config/sessions.js";
-import type { MoltbotConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/config.js";
 import type { DmPolicy, TelegramGroupConfig, TelegramTopicConfig } from "../config/types.js";
 import { logVerbose, shouldLogVerbose } from "../globals.js";
 import { recordChannelActivity } from "../infra/channel-activity.js";
@@ -96,7 +96,7 @@ type BuildTelegramMessageContextParams = {
   storeAllowFrom: string[];
   options?: TelegramMessageContextOptions;
   bot: Bot;
-  cfg: MoltbotConfig;
+  cfg: OpenClawConfig;
   account: { accountId: string };
   historyLimit: number;
   groupHistories: Map<string, HistoryEntry[]>;
@@ -111,7 +111,7 @@ type BuildTelegramMessageContextParams = {
 };
 
 async function resolveStickerVisionSupport(params: {
-  cfg: MoltbotConfig;
+  cfg: OpenClawConfig;
   agentId?: string;
 }): Promise<boolean> {
   try {
@@ -121,7 +121,9 @@ async function resolveStickerVisionSupport(params: {
       agentId: params.agentId,
     });
     const entry = findModelInCatalog(catalog, defaultModel.provider, defaultModel.model);
-    if (!entry) return false;
+    if (!entry) {
+      return false;
+    }
     return modelSupportsVision(entry);
   } catch {
     return false;
@@ -161,6 +163,7 @@ export const buildTelegramMessageContext = async ({
     isForum,
     messageThreadId,
   });
+  const replyThreadId = isGroup ? resolvedThreadId : messageThreadId;
   const { groupConfig, topicConfig } = resolveTelegramGroupConfig(chatId, resolvedThreadId);
   const peerId = isGroup ? buildTelegramGroupPeerId(chatId, resolvedThreadId) : String(chatId);
   const route = resolveAgentRoute({
@@ -173,7 +176,8 @@ export const buildTelegramMessageContext = async ({
     },
   });
   const baseSessionKey = route.sessionKey;
-  const dmThreadId = !isGroup ? resolvedThreadId : undefined;
+  // DMs: use raw messageThreadId for thread sessions (not resolvedThreadId which is for forums)
+  const dmThreadId = !isGroup ? messageThreadId : undefined;
   const threadKeys =
     dmThreadId != null
       ? resolveThreadSessionKeys({ baseSessionKey, threadId: String(dmThreadId) })
@@ -202,7 +206,7 @@ export const buildTelegramMessageContext = async ({
   const sendTyping = async () => {
     await withTelegramApiErrorLogging({
       operation: "sendChatAction",
-      fn: () => bot.api.sendChatAction(chatId, "typing", buildTypingThreadParams(resolvedThreadId)),
+      fn: () => bot.api.sendChatAction(chatId, "typing", buildTypingThreadParams(replyThreadId)),
     });
   };
 
@@ -211,7 +215,7 @@ export const buildTelegramMessageContext = async ({
       await withTelegramApiErrorLogging({
         operation: "sendChatAction",
         fn: () =>
-          bot.api.sendChatAction(chatId, "record_voice", buildTypingThreadParams(resolvedThreadId)),
+          bot.api.sendChatAction(chatId, "record_voice", buildTypingThreadParams(replyThreadId)),
       });
     } catch (err) {
       logVerbose(`telegram record_voice cue failed for chat ${chatId}: ${String(err)}`);
@@ -220,7 +224,9 @@ export const buildTelegramMessageContext = async ({
 
   // DM access control (secure defaults): "pairing" (default) / "allowlist" / "open" / "disabled"
   if (!isGroup) {
-    if (dmPolicy === "disabled") return null;
+    if (dmPolicy === "disabled") {
+      return null;
+    }
 
     if (dmPolicy !== "open") {
       const candidate = String(chatId);
@@ -271,14 +277,14 @@ export const buildTelegramMessageContext = async ({
                   bot.api.sendMessage(
                     chatId,
                     [
-                      "Moltbot: access not configured.",
+                      "OpenClaw: access not configured.",
                       "",
                       `Your Telegram user id: ${telegramUserId}`,
                       "",
                       `Pairing code: ${code}`,
                       "",
                       "Ask the bot owner to approve with:",
-                      formatCliCommand("moltbot pairing approve telegram <code>"),
+                      formatCliCommand("openclaw pairing approve telegram <code>"),
                     ].join("\n"),
                   ),
               });
@@ -332,11 +338,19 @@ export const buildTelegramMessageContext = async ({
   const historyKey = isGroup ? buildTelegramGroupPeerId(chatId, resolvedThreadId) : undefined;
 
   let placeholder = "";
-  if (msg.photo) placeholder = "<media:image>";
-  else if (msg.video) placeholder = "<media:video>";
-  else if (msg.audio || msg.voice) placeholder = "<media:audio>";
-  else if (msg.document) placeholder = "<media:document>";
-  else if (msg.sticker) placeholder = "<media:sticker>";
+  if (msg.photo) {
+    placeholder = "<media:image>";
+  } else if (msg.video) {
+    placeholder = "<media:video>";
+  } else if (msg.video_note) {
+    placeholder = "<media:video>";
+  } else if (msg.audio || msg.voice) {
+    placeholder = "<media:audio>";
+  } else if (msg.document) {
+    placeholder = "<media:document>";
+  } else if (msg.sticker) {
+    placeholder = "<media:sticker>";
+  }
 
   // Check if sticker has a cached description - if so, use it instead of sending the image
   const cachedStickerDescription = allMedia[0]?.stickerMetadata?.cachedDescription;
@@ -357,8 +371,12 @@ export const buildTelegramMessageContext = async ({
   const rawTextSource = msg.text ?? msg.caption ?? "";
   const rawText = expandTextLinks(rawTextSource, msg.entities ?? msg.caption_entities).trim();
   let rawBody = [rawText, locationText].filter(Boolean).join("\n").trim();
-  if (!rawBody) rawBody = placeholder;
-  if (!rawBody && allMedia.length === 0) return null;
+  if (!rawBody) {
+    rawBody = placeholder;
+  }
+  if (!rawBody && allMedia.length === 0) {
+    return null;
+  }
 
   let bodyText = rawBody;
   if (!bodyText && allMedia.length > 0) {
@@ -480,9 +498,13 @@ export const buildTelegramMessageContext = async ({
   const replyTarget = describeReplyTarget(msg);
   const forwardOrigin = normalizeForwardedContext(msg);
   const replySuffix = replyTarget
-    ? `\n\n[Replying to ${replyTarget.sender}${
-        replyTarget.id ? ` id:${replyTarget.id}` : ""
-      }]\n${replyTarget.body}\n[/Replying]`
+    ? replyTarget.kind === "quote"
+      ? `\n\n[Quoting ${replyTarget.sender}${
+          replyTarget.id ? ` id:${replyTarget.id}` : ""
+        }]\n"${replyTarget.body}"\n[/Quoting]`
+      : `\n\n[Replying to ${replyTarget.sender}${
+          replyTarget.id ? ` id:${replyTarget.id}` : ""
+        }]\n${replyTarget.body}\n[/Replying]`
     : "";
   const forwardPrefix = forwardOrigin
     ? `[Forwarded from ${forwardOrigin.from}${
@@ -565,6 +587,7 @@ export const buildTelegramMessageContext = async ({
     ReplyToId: replyTarget?.id,
     ReplyToBody: replyTarget?.body,
     ReplyToSender: replyTarget?.sender,
+    ReplyToIsQuote: replyTarget?.kind === "quote" ? true : undefined,
     ForwardedFrom: forwardOrigin?.from,
     ForwardedFromType: forwardOrigin?.fromType,
     ForwardedFromId: forwardOrigin?.fromId,
@@ -596,7 +619,8 @@ export const buildTelegramMessageContext = async ({
     Sticker: allMedia[0]?.stickerMetadata,
     ...(locationData ? toLocationContext(locationData) : undefined),
     CommandAuthorized: commandAuthorized,
-    MessageThreadId: resolvedThreadId,
+    // For groups: use resolvedThreadId (forum topics only); for DMs: use raw messageThreadId
+    MessageThreadId: isGroup ? resolvedThreadId : messageThreadId,
     IsForum: isForum,
     // Originating channel for reply routing.
     OriginatingChannel: "telegram" as const,
@@ -649,6 +673,7 @@ export const buildTelegramMessageContext = async ({
     chatId,
     isGroup,
     resolvedThreadId,
+    replyThreadId,
     isForum,
     historyKey,
     historyLimit,
