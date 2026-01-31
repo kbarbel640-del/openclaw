@@ -14,6 +14,7 @@ import {
   type GatewayClientMode,
   type GatewayClientName,
 } from "../utils/message-channel.js";
+import { getTenantIdFromContext } from "../config/tenant-context.js";
 import { GatewayClient } from "./client.js";
 import { resolveGatewayCredentialsFromConfig } from "./credentials.js";
 import {
@@ -312,6 +313,8 @@ async function executeGatewayRequestWithScopes<T>(params: {
 }): Promise<T> {
   const { opts, scopes, url, token, password, tlsFingerprint, timeoutMs, safeTimerTimeoutMs } =
     params;
+  // Get tenant ID from AsyncLocalStorage context for multi-tenant isolation
+  const tenantId = getTenantIdFromContext();
   return await new Promise<T>((resolve, reject) => {
     let settled = false;
     let ignoreClose = false;
@@ -344,6 +347,8 @@ async function executeGatewayRequestWithScopes<T>(params: {
       deviceIdentity: loadOrCreateDeviceIdentity(),
       minProtocol: opts.minProtocol ?? PROTOCOL_VERSION,
       maxProtocol: opts.maxProtocol ?? PROTOCOL_VERSION,
+      // Propagate tenant context via header for multi-tenant isolation
+      headers: tenantId ? { "X-Tenant-ID": tenantId } : undefined,
       onHelloOk: async () => {
         try {
           const result = await client.request<T>(opts.method, opts.params, {

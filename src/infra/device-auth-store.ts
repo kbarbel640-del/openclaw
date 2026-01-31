@@ -7,10 +7,17 @@ import {
   normalizeDeviceAuthRole,
   normalizeDeviceAuthScopes,
 } from "../shared/device-auth.js";
+import { getTenantStateDirFromContext } from "../config/tenant-context.js";
 
 const DEVICE_AUTH_FILE = "device-auth.json";
 
 function resolveDeviceAuthPath(env: NodeJS.ProcessEnv = process.env): string {
+  // Check for tenant context first (multi-tenant mode)
+  const tenantStateDir = getTenantStateDirFromContext();
+  if (tenantStateDir) {
+    return path.join(tenantStateDir, "identity", DEVICE_AUTH_FILE);
+  }
+  // Fallback to global state dir (single-tenant mode)
   return path.join(resolveStateDir(env), "identity", DEVICE_AUTH_FILE);
 }
 
