@@ -44,7 +44,8 @@ function ensureExperimentalWarningSuppressed(): boolean {
   // Set OPENCLAW_PHOENIX_ENABLED=true in environment to enable Phoenix tracing
   let updatedOptions = nodeOptions;
   if (process.env.OPENCLAW_PHOENIX_ENABLED === "true") {
-    const projectRoot = path.resolve(path.dirname(process.argv[1]), "..");
+    // phoenix-preload.mjs is in the project root alongside openclaw.mjs
+    const projectRoot = path.dirname(process.argv[1]);
     const phoenixPreload = path.join(projectRoot, "phoenix-preload.mjs");
     updatedOptions = `${updatedOptions} --import ${phoenixPreload}`.trim();
   }
