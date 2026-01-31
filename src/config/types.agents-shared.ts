@@ -14,7 +14,7 @@ export type AgentModelConfig =
     };
 
 export type AgentSandboxConfig = {
-  mode?: "off" | "non-main" | "all";
+  mode?: "off" | "non-main" | "all" | "paths-only";
   /** Agent workspace access inside the sandbox. */
   workspaceAccess?: "none" | "ro" | "rw";
   /**
