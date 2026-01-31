@@ -118,20 +118,20 @@ Override via config:
       subagents: {
         maxConcurrent: 1,
         model: "anthropic/claude-haiku-4",
-        thinking: "low"
-      }
-    }
+        thinking: "low",
+      },
+    },
   },
   tools: {
     subagents: {
       tools: {
         // deny wins
-        deny: ["gateway", "cron"]
+        deny: ["gateway", "cron"],
         // if allow is set, it becomes allow-only (deny still wins)
         // allow: ["read", "exec", "process"]
-      }
-    }
-  }
+      },
+    },
+  },
 }
 ```
 
