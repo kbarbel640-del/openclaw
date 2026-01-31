@@ -13,6 +13,11 @@ import {
   SYNTHETIC_MODEL_CATALOG,
 } from "./synthetic-models.js";
 import { discoverVeniceModels, VENICE_BASE_URL } from "./venice-models.js";
+import {
+  fetchOpencodeServerModels,
+  OPENCODE_SERVER_DEFAULT_URL,
+  type OpencodeServerAuth,
+} from "./opencode-server-models.js";
 
 type ModelsConfig = NonNullable<OpenClawConfig["models"]>;
 export type ProviderConfig = NonNullable<ModelsConfig["providers"]>[string];
@@ -374,6 +379,21 @@ async function buildOllamaProvider(): Promise<ProviderConfig> {
   };
 }
 
+async function buildOpencodeServerProvider(params?: {
+  baseUrl?: string;
+  auth?: OpencodeServerAuth;
+}): Promise<ProviderConfig> {
+  const baseUrl = params?.baseUrl ?? process.env.OPENCODE_SERVER_URL ?? OPENCODE_SERVER_DEFAULT_URL;
+  const models = await fetchOpencodeServerModels(baseUrl, params?.auth);
+  return {
+    baseUrl,
+    // OpenCode Server routes models to different APIs dynamically per-model
+    // Models have their API set in their definition from fetchOpencodeServerModels
+    api: "openai-completions", // Fallback API
+    models,
+  };
+}
+
 export async function resolveImplicitProviders(params: {
   agentDir: string;
 }): Promise<ModelsConfig["providers"]> {
@@ -431,6 +451,20 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "ollama", store: authStore });
   if (ollamaKey) {
     providers.ollama = { ...(await buildOllamaProvider()), apiKey: ollamaKey };
+  }
+
+  // OpenCode Server provider - add if OPENCODE_SERVER_URL or OPENCODE_SERVER_PASSWORD is set
+  const opencodeServerUrl = process.env.OPENCODE_SERVER_URL;
+  const opencodeServerPassword = process.env.OPENCODE_SERVER_PASSWORD;
+  if (opencodeServerUrl || opencodeServerPassword) {
+    const auth: OpencodeServerAuth = {
+      username: process.env.OPENCODE_SERVER_USERNAME,
+      password: opencodeServerPassword,
+    };
+    providers["opencode-server"] = {
+      ...(await buildOpencodeServerProvider({ baseUrl: opencodeServerUrl, auth })),
+      apiKey: opencodeServerPassword ?? "opencode-server", // Placeholder for providers with auth
+    };
   }
 
   return providers;
