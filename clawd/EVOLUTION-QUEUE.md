@@ -296,3 +296,11 @@ elif path == '/api/cis/status':
 *Created: 2026-01-29 06:54 PST*
 *By Liam (Diagnosis)*
 
+
+### Discord Command Names Conflict
+**Added:** 2026-01-31
+**Priority:** Low
+**Error:** `failed to deploy native commands: Error (status=400, body={"7":["Application command names must be unique"]})`
+**Impact:** Non-blocking, Discord still works
+**Fix:** Investigate duplicate slash command registration
+

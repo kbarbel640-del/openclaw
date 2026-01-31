@@ -87,7 +87,7 @@ See [`ROLES.md`](ROLES.md) for full mode descriptions and capabilities.
 - **Model:** GLM-4.7-Flash (local) with GLM-4.7 (cloud) fallback
 - **Identity files:** `~/clawd/`
 - **Skills:** `~/clawdbot/skills/` and `~/skills/`
-- **Standards:** APEX v6.3.3
+- **Standards:** APEX v7.0
 - **Reachable via:** Slack, Telegram, CLI
 - **Emoji:** 🦞
 - **Avatar:** `~/clawd/canvas/favicon.ico`

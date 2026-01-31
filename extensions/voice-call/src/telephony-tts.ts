@@ -1,6 +1,7 @@
 import type { CoreConfig } from "./core-bridge.js";
 import type { VoiceCallTtsConfig } from "./config.js";
 import { convertPcmToMulaw8k } from "./telephony-audio.js";
+import { GroqTTSProvider } from "./providers/tts-groq.js";
 
 export type TelephonyTtsRuntime = {
   textToSpeechTelephony: (params: {
@@ -24,8 +25,33 @@ export function createTelephonyTtsProvider(params: {
   coreConfig: CoreConfig;
   ttsOverride?: VoiceCallTtsConfig;
   runtime: TelephonyTtsRuntime;
+  groqApiKey?: string;
 }): TelephonyTtsProvider {
-  const { coreConfig, ttsOverride, runtime } = params;
+  const { coreConfig, ttsOverride, runtime, groqApiKey } = params;
+
+  // Check if Groq TTS is configured
+  if (ttsOverride?.provider === "groq") {
+    const groqConfig = ttsOverride.groq;
+    const apiKey = groqConfig?.apiKey || groqApiKey || process.env.GROQ_API_KEY;
+
+    if (!apiKey) {
+      throw new Error(
+        "Groq TTS requires API key (set in tts.groq.apiKey, providers.groq.apiKey, or GROQ_API_KEY env)",
+      );
+    }
+
+    const provider = new GroqTTSProvider({
+      apiKey,
+      voice: groqConfig?.voice as "troy" | "austin" | "daniel" | "autumn" | "diana" | "hannah",
+      vocalDirection: groqConfig?.vocalDirection,
+    });
+
+    return {
+      synthesizeForTelephony: (text: string) => provider.synthesizeForTwilio(text),
+    };
+  }
+
+  // Fall through to core runtime delegation for other providers
   const mergedConfig = applyTtsOverride(coreConfig, ttsOverride);
 
   return {

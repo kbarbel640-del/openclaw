@@ -38,13 +38,13 @@ else
     log_ok "SOUL.md size: $SOUL_SIZE chars"
 fi
 
-# APEX version consistency
+# APEX version consistency (v7.0 is current)
 if grep -rqE "APEX v[0-9]\.[0-9]" "$CLAWD_DIR"/*.md 2>/dev/null; then
-    STALE=$(grep -rn "APEX v[0-9]" "$CLAWD_DIR"/*.md 2>/dev/null | grep -vE "v6\.2\.0|upgraded from|backup|EVOLUTION-QUEUE" | head -3 || true)
+    STALE=$(grep -rn "APEX v[0-9]" "$CLAWD_DIR"/*.md 2>/dev/null | grep -vE "v7\.0|v6\.3\.3.*backup|upgraded from|EVOLUTION-QUEUE" | head -3 || true)
     if [ -n "$STALE" ]; then
-        log_high "Stale APEX version refs found"
+        log_high "Stale APEX version refs found (expected v7.0)"
     else
-        log_ok "APEX versions consistent"
+        log_ok "APEX versions consistent (v7.0)"
     fi
 fi
 
@@ -155,8 +155,8 @@ fi
 # Ghost bug: Entry 037
 if grep -q "### \[2026-01-27-037\]" "$CLAWD_DIR/EVOLUTION-QUEUE.md" 2>/dev/null; then
     if ! grep -q "037.*RESOLVED" "$CLAWD_DIR/EVOLUTION-QUEUE.md"; then
-        if grep -q "Create without discovering" "$CLAWD_DIR/apex-vault/APEX_COMPACT.md"; then
-            log_medium "Entry 037 is ghost bug - find/ls already in APEX"
+        if grep -q "Verify First" "$CLAWD_DIR/apex-vault/APEX_v7.md"; then
+            log_medium "Entry 037 is ghost bug - find/ls already in APEX v7"
         fi
     fi
 fi

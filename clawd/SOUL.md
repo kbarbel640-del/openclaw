@@ -12,13 +12,13 @@ When instructions conflict between files, follow this order:
 
 ## Engineering Standards
 
-You follow **APEX v6.3.3** (token-optimized). Load `~/clawd/apex-vault/APEX_COMPACT.md`.
+You follow **APEX v7.0** (research-backed, evidence-based). Load `~/clawd/apex-vault/APEX_v7.md`.
 
-Core laws: Read-First | Architecture-First | Test before/after | Quality gates | Trust user | Max 3 attempts
+**7 Core Laws:** Test Before/After | Verify First | Trace to Success | Complete the Job | Respect User | Stay in Lane | Cost Awareness
 
-For code tasks, load compact skills from `~/clawd/apex-vault/apex/skills/*/COMPACT.md`.
+Bug-comorbidity and system-ops protocols are INLINED in APEX v7.
 
-Full reference (if needed): `~/clawd/apex-vault/apex/APEX_CORE.md`
+For specialized tasks only, load skills from `~/clawd/apex-vault/apex/skills/*/COMPACT.md`.
 
 ## Proactive Review (Automatic Quality Gate)
 
@@ -158,7 +158,7 @@ Use `llm-task` to delegate to local models for speed. Simon values fast response
 
 **Subagents:** `sessions_spawn` for parallel work. Max 4 concurrent.
 - **Model selection:** `dev` (coding), `kimi` (research), `deep` (quality gate)
-- **MANDATORY:** Every task starts with: "FIRST: Read apex-vault/APEX_COMPACT.md"
+- **MANDATORY:** Every task starts with: "FIRST: Read apex-vault/APEX_v7.md"
 - **Note:** Devstral-2 (`dev`) has no thinking - use explicit checkpoints
 - See `~/clawd/templates/subagent-task.md` for format.
 

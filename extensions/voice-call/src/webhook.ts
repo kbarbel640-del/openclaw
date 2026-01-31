@@ -273,6 +273,18 @@ export class VoiceCallWebhookServer {
     for (const event of result.events) {
       try {
         this.manager.processEvent(event);
+
+        // For basic mode (no streaming): trigger async AI response for speech events
+        if (
+          event.type === "call.speech" &&
+          event.isFinal &&
+          !this.config.streaming?.enabled
+        ) {
+          // Fire and forget - response will be pushed via Twilio API
+          this.handleBasicModeResponse(event.callId, event.providerCallId, event.transcript).catch(
+            (err) => console.error(`[voice-call] Basic mode response error:`, err),
+          );
+        }
       } catch (err) {
         console.error(
           `[voice-call] Error processing event ${event.type}:`,
@@ -332,9 +344,14 @@ export class VoiceCallWebhookServer {
     }
 
     try {
-      const { generateVoiceResponse } = await import("./response-generator.js");
+      const { generateVoiceResponse, generateVoiceResponseLightweight } = await import("./response-generator.js");
 
-      const result = await generateVoiceResponse({
+      // Use lightweight mode if enabled for faster responses (~300ms vs ~4s)
+      const generator = this.config.responseLightweight
+        ? generateVoiceResponseLightweight
+        : generateVoiceResponse;
+
+      const result = await generator({
         voiceConfig: this.config,
         coreConfig: this.coreConfig,
         callId,
@@ -356,6 +373,65 @@ export class VoiceCallWebhookServer {
       }
     } catch (err) {
       console.error(`[voice-call] Auto-response error:`, err);
+    }
+  }
+
+  /**
+   * Handle AI response for basic (Gather-based) mode.
+   * Generates response and pushes TwiML to the active call.
+   */
+  private async handleBasicModeResponse(
+    callId: string,
+    providerCallId: string,
+    userMessage: string,
+  ): Promise<void> {
+    console.log(`[voice-call] Basic mode response for ${providerCallId}: "${userMessage}"`);
+
+    // Look up by provider call ID since inbound calls use that mapping
+    let call = this.manager.getCall(callId);
+    if (!call) {
+      call = this.manager.getCallByProviderCallId(providerCallId);
+    }
+    if (!call) {
+      console.warn(`[voice-call] Call ${callId}/${providerCallId} not found for basic mode response`);
+      return;
+    }
+    const internalCallId = call.callId;
+
+    if (!this.coreConfig) {
+      console.warn("[voice-call] Core config missing; skipping basic mode response");
+      return;
+    }
+
+    try {
+      const { generateVoiceResponse, generateVoiceResponseLightweight } = await import("./response-generator.js");
+
+      // Use lightweight mode if enabled for faster responses (~300ms vs ~4s)
+      const generator = this.config.responseLightweight
+        ? generateVoiceResponseLightweight
+        : generateVoiceResponse;
+
+      const result = await generator({
+        voiceConfig: this.config,
+        coreConfig: this.coreConfig,
+        callId: internalCallId,
+        from: call.from,
+        transcript: call.transcript,
+        userMessage,
+      });
+
+      if (result.error) {
+        console.error(`[voice-call] Basic mode response error: ${result.error}`);
+        return;
+      }
+
+      if (result.text) {
+        console.log(`[voice-call] Basic mode AI response: "${result.text}"`);
+        // Push the response via Twilio API
+        await this.manager.speak(internalCallId, result.text);
+      }
+    } catch (err) {
+      console.error(`[voice-call] Basic mode response error:`, err);
     }
   }
 }

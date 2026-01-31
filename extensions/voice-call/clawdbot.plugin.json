@@ -134,6 +134,21 @@
       "label": "ElevenLabs Base URL",
       "advanced": true
     },
+    "tts.groq.apiKey": {
+      "label": "Groq API Key",
+      "sensitive": true,
+      "advanced": true
+    },
+    "tts.groq.voice": {
+      "label": "Groq Voice",
+      "help": "troy, austin, daniel (male) or autumn, diana, hannah (female)",
+      "advanced": true
+    },
+    "tts.groq.vocalDirection": {
+      "label": "Groq Vocal Direction",
+      "help": "e.g. [briskly low playful] for tone/pace control",
+      "advanced": true
+    },
     "publicUrl": {
       "label": "Public Webhook URL",
       "advanced": true
@@ -146,12 +161,21 @@
       "label": "Call Log Store Path",
       "advanced": true
     },
+    "agentId": {
+      "label": "Agent ID",
+      "help": "Agent to use for voice responses (identity, tools, memory)"
+    },
     "responseModel": {
       "label": "Response Model",
       "advanced": true
     },
     "responseSystemPrompt": {
       "label": "Response System Prompt",
+      "advanced": true
+    },
+    "responseLightweight": {
+      "label": "Lightweight Mode (Fast)",
+      "help": "Direct API call (~300ms) instead of Pi agent (~4s). No tools.",
       "advanced": true
     },
     "responseTimeoutMs": {
@@ -417,7 +441,8 @@
             "enum": [
               "openai",
               "elevenlabs",
-              "edge"
+              "edge",
+              "groq"
             ]
           },
           "summaryModel": {
@@ -531,6 +556,25 @@
               }
             }
           },
+          "groq": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "apiKey": {
+                "type": "string",
+                "description": "Groq API key (uses GROQ_API_KEY env if not set)"
+              },
+              "voice": {
+                "type": "string",
+                "enum": ["troy", "austin", "daniel", "autumn", "diana", "hannah"],
+                "description": "Groq Orpheus voice persona"
+              },
+              "vocalDirection": {
+                "type": "string",
+                "description": "Vocal direction prefix, e.g. [briskly low playful]"
+              }
+            }
+          },
           "edge": {
             "type": "object",
             "additionalProperties": false,
@@ -586,11 +630,19 @@
       "store": {
         "type": "string"
       },
+      "agentId": {
+        "type": "string",
+        "description": "Agent ID to use for voice responses (uses agent's identity, tools, memory)"
+      },
       "responseModel": {
         "type": "string"
       },
       "responseSystemPrompt": {
         "type": "string"
+      },
+      "responseLightweight": {
+        "type": "boolean",
+        "default": false
       },
       "responseTimeoutMs": {
         "type": "integer",

@@ -82,9 +82,19 @@ export const SttConfigSchema = z
   .default({ provider: "openai", model: "whisper-1" });
 export type SttConfig = z.infer<typeof SttConfigSchema>;
 
-export const TtsProviderSchema = z.enum(["openai", "elevenlabs", "edge"]);
+export const TtsProviderSchema = z.enum(["openai", "elevenlabs", "edge", "groq"]);
 export const TtsModeSchema = z.enum(["final", "all"]);
 export const TtsAutoSchema = z.enum(["off", "always", "inbound", "tagged"]);
+
+/** Groq Orpheus TTS voice options */
+export const GroqTtsVoiceSchema = z.enum([
+  "troy",
+  "austin",
+  "daniel",
+  "autumn",
+  "diana",
+  "hannah",
+]);
 
 export const TtsConfigSchema = z
   .object({
@@ -133,6 +143,17 @@ export const TtsConfigSchema = z
         apiKey: z.string().optional(),
         model: z.string().optional(),
         voice: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    groq: z
+      .object({
+        /** Groq API key (uses GROQ_API_KEY env if not set) */
+        apiKey: z.string().optional(),
+        /** Voice persona: troy, austin, daniel (male) or autumn, diana, hannah (female) */
+        voice: GroqTtsVoiceSchema.default("troy"),
+        /** Vocal direction prefix, e.g. "[briskly low playful]" */
+        vocalDirection: z.string().default("[briskly low playful]"),
       })
       .strict()
       .optional(),
@@ -368,11 +389,20 @@ export const VoiceCallConfigSchema = z
   /** Store path for call logs */
   store: z.string().optional(),
 
+  /** Agent ID to use for voice responses (uses agent's identity, tools, memory) */
+  agentId: z.string().optional(),
+
   /** Model for generating voice responses (e.g., "anthropic/claude-sonnet-4", "openai/gpt-4o") */
   responseModel: z.string().default("openai/gpt-4o-mini"),
 
   /** System prompt for voice responses */
   responseSystemPrompt: z.string().optional(),
+
+  /** 
+   * Use lightweight direct API call instead of full Pi agent.
+   * ~300ms latency vs ~4s, but no tools (web search, memory, etc.)
+   */
+  responseLightweight: z.boolean().default(false),
 
   /** Timeout for response generation in ms (default 30s) */
   responseTimeoutMs: z.number().int().positive().default(30000),

@@ -292,6 +292,63 @@ export class TwilioProvider implements VoiceCallProvider {
   <Pause length="30"/>
 </Response>`;
 
+  /** Inbound greeting message (set from config) */
+  private inboundGreeting: string = "Hello! How can I help you today?";
+
+  /** Set the inbound greeting from config */
+  setInboundGreeting(greeting: string): void {
+    this.inboundGreeting = greeting;
+  }
+
+  /**
+   * Generate TwiML for basic Gather-based inbound calls (no streaming).
+   * Uses Twilio's built-in STT instead of OpenAI.
+   */
+  private getBasicGatherTwiml(webhookUrl: string, greeting?: string): string {
+    const message = greeting || this.inboundGreeting;
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Matthew">${escapeXml(message)}</Say>
+  <Gather input="speech" speechTimeout="auto" action="${escapeXml(webhookUrl)}" method="POST">
+    <Say voice="Polly.Matthew">.</Say>
+  </Gather>
+  <Say voice="Polly.Matthew">I didn't hear anything. Goodbye.</Say>
+</Response>`;
+  }
+
+  /**
+   * Generate TwiML for "thinking" state while AI processes speech.
+   * Returns a short acknowledgment - actual response comes via API push.
+   */
+  private getThinkingTwiml(webhookUrl: string): string {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Pause length="15"/>
+</Response>`;
+  }
+
+  /** Queue of pending AI responses for basic mode calls */
+  private pendingResponses = new Map<string, string>();
+
+  /** Set a pending AI response to be spoken on next webhook */
+  setPendingResponse(providerCallId: string, response: string): void {
+    this.pendingResponses.set(providerCallId, response);
+  }
+
+  /**
+   * Generate TwiML with AI response and continue listening.
+   */
+  private getResponseTwiml(webhookUrl: string, response: string): string {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Matthew">${escapeXml(response)}</Say>
+  <Gather input="speech" speechTimeout="auto" action="${escapeXml(webhookUrl)}" method="POST">
+    <Say voice="Polly.Matthew">.</Say>
+  </Gather>
+  <Say voice="Polly.Matthew">Is there anything else?</Say>
+</Response>`;
+  }
+
   /**
    * Generate TwiML response for webhook.
    * When a call is answered, connects to media stream for bidirectional audio.
@@ -340,13 +397,39 @@ export class TwilioProvider implements VoiceCallProvider {
       return TwilioProvider.EMPTY_TWIML;
     }
 
+    // Build action URL for Gather callbacks
+    let actionUrl = this.currentPublicUrl || ctx.url;
+    if (actionUrl && !actionUrl.includes("/voice/webhook")) {
+      actionUrl = actionUrl.replace(/\/$/, "") + "/voice/webhook";
+    }
+
+    const callSid = params.get("CallSid") || "";
+    const speechResult = params.get("SpeechResult");
+
+    // Check if we have a pending AI response for this call
+    if (callSid && this.pendingResponses.has(callSid)) {
+      const response = this.pendingResponses.get(callSid)!;
+      this.pendingResponses.delete(callSid);
+      console.log(`[twilio] Delivering pending response for ${callSid}`);
+      return this.getResponseTwiml(actionUrl, response);
+    }
+
+    // If this is a speech result, return "thinking" TwiML
+    // The actual AI response will be pushed via Twilio API
+    if (speechResult) {
+      console.log(`[twilio] Speech received: "${speechResult}" - sending thinking TwiML`);
+      return this.getThinkingTwiml(actionUrl);
+    }
+
     // Handle subsequent webhook requests (status callbacks, etc.)
-    // For inbound calls, answer immediately with stream
+    // For inbound calls, answer immediately with stream or basic Gather
     if (direction === "inbound") {
       const streamUrl = this.getStreamUrl();
-      return streamUrl
-        ? this.getStreamConnectXml(streamUrl)
-        : TwilioProvider.PAUSE_TWIML;
+      if (streamUrl) {
+        return this.getStreamConnectXml(streamUrl);
+      }
+      // Fallback: use basic Gather-based TwiML (no OpenAI needed)
+      return this.getBasicGatherTwiml(actionUrl);
     }
 
     // For outbound calls, only connect to stream when call is in-progress

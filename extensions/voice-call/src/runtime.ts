@@ -160,14 +160,25 @@ export async function createVoiceCallRuntime(params: {
     (provider as TwilioProvider).setPublicUrl(publicUrl);
   }
 
+  // Set inbound greeting for basic Gather mode (non-streaming)
+  if (provider.name === "twilio" && config.inboundGreeting) {
+    (provider as TwilioProvider).setInboundGreeting(config.inboundGreeting);
+  }
+
   if (provider.name === "twilio" && config.streaming?.enabled) {
     const twilioProvider = provider as TwilioProvider;
     if (ttsRuntime?.textToSpeechTelephony) {
       try {
+        // Extract Groq API key from config if available
+        const groqApiKey =
+          (coreConfig as { models?: { providers?: { groq?: { apiKey?: string } } } })
+            ?.models?.providers?.groq?.apiKey;
+
         const ttsProvider = createTelephonyTtsProvider({
           coreConfig,
           ttsOverride: config.tts,
           runtime: ttsRuntime,
+          groqApiKey,
         });
         twilioProvider.setTTSProvider(ttsProvider);
         log.info("[voice-call] Telephony TTS provider configured");

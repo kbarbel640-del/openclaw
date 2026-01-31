@@ -46,7 +46,7 @@ These tools are disabled for security in this testing environment:
 
 ## Quality Standards
 
-Follow APEX v6.3.3 Core Laws (embedded in SOUL.md):
+Follow APEX v7.0 Core Laws (embedded in SOUL.md):
 - Trust User
 - Max 3 Attempts
 - Error Skepticism

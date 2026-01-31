@@ -15,6 +15,7 @@ export type CoreConfig = {
 };
 
 type CoreAgentDeps = {
+  resolveDefaultAgentId: (cfg: CoreConfig) => string;
   resolveAgentDir: (cfg: CoreConfig, agentId: string) => string;
   resolveAgentWorkspaceDir: (cfg: CoreConfig, agentId: string) => string;
   resolveAgentIdentity: (
@@ -147,6 +148,7 @@ export async function loadCoreAgentDeps(): Promise<CoreAgentDeps> {
       sessions,
     ] = await Promise.all([
       importCoreModule<{
+        resolveDefaultAgentId: CoreAgentDeps["resolveDefaultAgentId"];
         resolveAgentDir: CoreAgentDeps["resolveAgentDir"];
         resolveAgentWorkspaceDir: CoreAgentDeps["resolveAgentWorkspaceDir"];
       }>("agents/agent-scope.js"),
@@ -178,6 +180,7 @@ export async function loadCoreAgentDeps(): Promise<CoreAgentDeps> {
     ]);
 
     return {
+      resolveDefaultAgentId: agentScope.resolveDefaultAgentId,
       resolveAgentDir: agentScope.resolveAgentDir,
       resolveAgentWorkspaceDir: agentScope.resolveAgentWorkspaceDir,
       resolveAgentIdentity: identity.resolveAgentIdentity,
