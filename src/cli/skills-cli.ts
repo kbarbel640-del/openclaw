@@ -7,11 +7,7 @@ import {
   type SkillStatusEntry,
   type SkillStatusReport,
 } from "../agents/skills-status.js";
-import {
-  formatPermissionManifest,
-  formatValidationResult,
-  validatePermissionManifest,
-} from "../agents/skills/permissions.js";
+import { formatPermissionManifest, formatValidationResult } from "../agents/skills/permissions.js";
 import type {
   PermissionRiskLevel,
   SkillEntryWithPermissions,

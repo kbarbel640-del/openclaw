@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { SkillPermissionManifest, PermissionValidationResult } from "./types.js";
+import { describe, it, expect } from "vitest";
+import type { SkillPermissionManifest } from "./types.js";
 import { validatePermissionManifest } from "./permissions.js";
 import type { SkillsSecurityConfig } from "../../config/types.skills.js";
 
