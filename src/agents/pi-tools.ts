@@ -112,11 +112,15 @@ function pickAllowPaths(agentPaths?: string[], globalPaths?: string[], cwd?: str
   if (!Array.isArray(agentPaths)) {
     return Array.isArray(globalPaths) ? globalPaths : undefined;
   }
-  if (!Array.isArray(globalPaths)) return agentPaths;
+  if (!Array.isArray(globalPaths)) {
+    return agentPaths;
+  }
   const baseCwd = cwd ?? process.cwd();
   const normalizedGlobal = normalizeAllowRoots(globalPaths, baseCwd);
   const normalizedAgent = normalizeAllowRoots(agentPaths, baseCwd);
-  if (normalizedGlobal.length === 0 || normalizedAgent.length === 0) return [];
+  if (normalizedGlobal.length === 0 || normalizedAgent.length === 0) {
+    return [];
+  }
   const isWithin = (candidate: string, root: string) => {
     const relative = path.relative(root, candidate);
     return !relative || (!relative.startsWith("..") && !path.isAbsolute(relative));
@@ -140,7 +144,9 @@ function pickSecurity(
   agentSecurity?: FileToolSecurity,
   globalSecurity?: FileToolSecurity,
 ): FileToolSecurity | undefined {
-  if (!agentSecurity && !globalSecurity) return undefined;
+  if (!agentSecurity && !globalSecurity) {
+    return undefined;
+  }
   const ranking: FileToolSecurity[] = ["deny", "allowlist", "full"];
   const rank = (value?: FileToolSecurity) => (value ? ranking.indexOf(value) : ranking.length);
   const effective = rank(agentSecurity) <= rank(globalSecurity) ? agentSecurity : globalSecurity;
@@ -318,7 +324,9 @@ export function createOpenClawCodingTools(options?: {
 
   const base = (codingTools as unknown as AnyAgentTool[]).flatMap((tool) => {
     if (tool.name === readTool.name) {
-      if (readSecurity === "deny") return [];
+      if (readSecurity === "deny") {
+        return [];
+      }
       if (sandboxRoot) {
         return [createSandboxedReadTool(sandboxRoot, readAllowPaths, readDenyPaths, readSecurity)];
       }
@@ -341,8 +349,12 @@ export function createOpenClawCodingTools(options?: {
       return [];
     }
     if (tool.name === "write") {
-      if (writeSecurity === "deny") return [];
-      if (sandboxRoot) return [];
+      if (writeSecurity === "deny") {
+        return [];
+      }
+      if (sandboxRoot) {
+        return [];
+      }
       // Wrap with param normalization for Claude Code compatibility
       return [
         wrapAllowPathsGuard(
@@ -358,8 +370,12 @@ export function createOpenClawCodingTools(options?: {
       ];
     }
     if (tool.name === "edit") {
-      if (editSecurity === "deny") return [];
-      if (sandboxRoot) return [];
+      if (editSecurity === "deny") {
+        return [];
+      }
+      if (sandboxRoot) {
+        return [];
+      }
       // Wrap with param normalization for Claude Code compatibility
       return [
         wrapAllowPathsGuard(

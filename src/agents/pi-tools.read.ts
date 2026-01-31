@@ -281,7 +281,9 @@ export function wrapAllowPathsGuard(
   params: { allowPaths?: string[]; cwd: string; security?: FileToolSecurity },
 ): AnyAgentTool {
   const security = params.security ?? "full";
-  if (security !== "allowlist") return tool;
+  if (security !== "allowlist") {
+    return tool;
+  }
   const allowPaths = Array.isArray(params.allowPaths)
     ? params.allowPaths.map((entry) => entry.trim()).filter(Boolean)
     : [];
@@ -358,7 +360,9 @@ export function wrapDenyPathsGuard(
   const denyPaths = Array.isArray(params.denyPaths)
     ? params.denyPaths.map((entry) => entry.trim()).filter(Boolean)
     : [];
-  if (denyPaths.length === 0) return tool;
+  if (denyPaths.length === 0) {
+    return tool;
+  }
   const resolvedDenyEntriesPromise = Promise.all(
     denyPaths.map((entry) => resolveDenyEntry(entry, params.cwd)),
   );

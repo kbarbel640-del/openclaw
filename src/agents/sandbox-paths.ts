@@ -68,7 +68,9 @@ export async function assertSandboxPathInRoots(params: {
       await assertNoSymlink(resolved.relative, path.resolve(root));
       return { ...resolved, root: path.resolve(root) };
     } catch (err) {
-      if (isSandboxEscapeError(err)) continue;
+      if (isSandboxEscapeError(err)) {
+        continue;
+      }
       throw err;
     }
   }
@@ -112,7 +114,9 @@ export function normalizeAllowRoots(roots: string[], cwd: string) {
 }
 
 function isSandboxEscapeError(err: unknown): boolean {
-  if (!err || typeof err !== "object" || !("message" in err)) return false;
+  if (!err || typeof err !== "object" || !("message" in err)) {
+    return false;
+  }
   const rawMessage = (err as { message?: unknown }).message;
   const message = typeof rawMessage === "string" ? rawMessage : "";
   return message.startsWith("Path escapes sandbox root");
