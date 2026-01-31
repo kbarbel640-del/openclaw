@@ -45,10 +45,10 @@ RUN mkdir -p /home/node/.clawdbot /home/node/.moltbot \
 # - trustedProxies: trust Docker/Podman network ranges for X-Forwarded-For headers  
 # - dangerouslyDisableDeviceAuth: required for reverse proxy (browser sends device identity
 #   over HTTPS, but gateway can't verify pairing approval without persistent state/manual approval)
-# - plugins.slots.memory: null disables the default memory-core plugin (not available in container)
+# - plugins.slots.memory: "none" disables the default memory-core plugin (not available in container)
 # Security note: This disables device-level auth; rely on token/password auth instead
 # NOTE: Config must be openclaw.json (not config.yaml) - the code only reads .json files
-RUN echo '{"gateway":{"trustedProxies":["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"],"controlUi":{"dangerouslyDisableDeviceAuth":true}},"plugins":{"slots":{"memory":null}}}' > /home/node/.moltbot/openclaw.json \
+RUN echo '{"gateway":{"trustedProxies":["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"],"controlUi":{"dangerouslyDisableDeviceAuth":true}},"plugins":{"slots":{"memory":"none"}}}' > /home/node/.moltbot/openclaw.json \
     && chown node:node /home/node/.moltbot/openclaw.json
 
 USER node
