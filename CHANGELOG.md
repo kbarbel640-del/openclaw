@@ -2,6 +2,12 @@
 
 Docs: https://docs.openclaw.ai
 
+## 2026.1.31
+Status: stable.
+
+### Changes
+- Doctor: fix node service incorrectly flagged as "gateway-like service" in doctor scan.
+
 ## 2026.1.29
 Status: stable.
 
