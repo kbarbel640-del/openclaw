@@ -128,7 +128,7 @@ export async function resolveSandboxContext(params: {
     return {
       enabled: true,
       sessionKey: rawSessionKey,
-      workspaceDir: workspaceRoot,
+      workspaceDir: agentWorkspaceDir,
       agentWorkspaceDir,
       workspaceAccess: cfg.workspaceAccess,
       tools: cfg.tools,
