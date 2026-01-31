@@ -24,7 +24,6 @@ import { formatDiscordReactionEmoji, formatDiscordUserTag } from "./format.js";
 import { resolveDiscordChannelInfo } from "./message-utils.js";
 import { resolveDiscordUserAllowed } from "./allow-list.js";
 
-const UNKNOWN_MESSAGE_ID = "unknown";
 const TRIGGER_DEBOUNCE_MS = 3000;
 const triggerDebounce = new Map<string, number>();
 
@@ -71,7 +70,9 @@ export function cacheBotMessage(params: { channelId: string; messageId: string; 
 function getBotMessageFromCache(channelId: string, messageId: string): BotMessageCacheEntry | null {
   const key = `${channelId}:${messageId}`;
   const entry = botMessageCache.get(key);
-  if (!entry) return null;
+  if (!entry) {
+    return null;
+  }
   // Check TTL
   if (Date.now() - entry.timestamp > BOT_MESSAGE_CACHE_TTL_MS) {
     botMessageCache.delete(key);
@@ -89,8 +90,12 @@ export function classifyReactionEmoji(
   const positiveEmojis = config?.positiveEmojis ?? DEFAULT_POSITIVE_EMOJIS;
   const negativeEmojis = config?.negativeEmojis ?? DEFAULT_NEGATIVE_EMOJIS;
 
-  if (positiveEmojis.includes(emoji)) return "positive";
-  if (negativeEmojis.includes(emoji)) return "negative";
+  if (positiveEmojis.includes(emoji)) {
+    return "positive";
+  }
+  if (negativeEmojis.includes(emoji)) {
+    return "negative";
+  }
   return "neutral";
 }
 
@@ -104,18 +109,26 @@ export function shouldTriggerOnReaction(params: {
   const { botUserId, messageAuthorId, messageTimestamp, config, emojiSentiment } = params;
 
   // Must be enabled
-  if (!config?.enabled) return false;
+  if (!config?.enabled) {
+    return false;
+  }
 
   // Must be bot's own message
-  if (!botUserId || messageAuthorId !== botUserId) return false;
+  if (!botUserId || messageAuthorId !== botUserId) {
+    return false;
+  }
 
   // Must be within time window
   const windowMs = (config.windowSeconds ?? 60) * 1000;
   const elapsed = Date.now() - messageTimestamp;
-  if (elapsed > windowMs) return false;
+  if (elapsed > windowMs) {
+    return false;
+  }
 
   // Must be positive or negative (not neutral)
-  if (emojiSentiment === "neutral") return false;
+  if (emojiSentiment === "neutral") {
+    return false;
+  }
 
   return true;
 }

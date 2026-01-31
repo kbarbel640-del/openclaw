@@ -558,16 +558,7 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
 
   // Reaction trigger callback - dispatches to session when reaction trigger conditions are met
   const onReactionTrigger: import("./listeners.js").ReactionTriggerCallback = async (params) => {
-    const {
-      channelId,
-      originalContent,
-      emoji,
-      sentiment,
-      userId,
-      userName,
-      guildId,
-      client: triggerClient,
-    } = params;
+    const { channelId, originalContent, emoji, sentiment, userId, userName, guildId } = params;
     const sentimentLabel = sentiment === "positive" ? "POSITIVE" : "NEGATIVE";
     const triggerMessage = `[Reaction Trigger: ${sentimentLabel}] ${userName} responded with reaction ${emoji}. Original message: "${originalContent.slice(0, 150)}${originalContent.length > 150 ? "..." : ""}"`;
 
@@ -598,7 +589,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       dispatcherOptions: {
         deliver: async (reply) => {
           // Use shared delivery logic (chunking, media, etc)
-          if (!reply.text && (!reply.mediaUrls || reply.mediaUrls.length === 0)) return;
+          if (!reply.text && (!reply.mediaUrls || reply.mediaUrls.length === 0)) {
+            return;
+          }
           try {
             await deliverDiscordReply({
               replies: [reply],
