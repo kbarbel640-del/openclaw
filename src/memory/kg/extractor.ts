@@ -6,9 +6,12 @@ import { recordProvenance, getDefaultTrustScore } from "../trust/provenance.js";
 /**
  * Entity and relation extraction from text chunks.
  *
- * Uses pattern-based extraction for fast, offline-capable entity recognition.
- * Extracts entities (people, organizations, technologies, etc.) and relations
- * from text using regex patterns and contextual analysis.
+ * Implements a hybrid approach:
+ * 1. Pattern-based extraction (fast, works offline)
+ * 2. LLM-based extraction (higher quality, optional)
+ *
+ * Pattern-based extraction serves as the default and fallback.
+ * LLM extraction can be enabled when API access is available.
  */
 
 export interface ExtractionResult {
@@ -36,6 +39,14 @@ export interface ExtractorOptions {
   db: DatabaseSync;
   sourceType: SourceType;
   trustScore?: number;
+  /** Enable LLM-based extraction (requires API key) */
+  useLlm?: boolean;
+  /** OpenAI API key for LLM extraction */
+  openaiApiKey?: string;
+  /** OpenAI base URL (defaults to https://api.openai.com/v1) */
+  openaiBaseUrl?: string;
+  /** Model to use for extraction (defaults to gpt-4o-mini) */
+  extractionModel?: string;
 }
 
 // Common words to exclude from entity extraction
@@ -206,18 +217,32 @@ const TECH_KEYWORDS = new Set([
 
 /**
  * Extracts entities and relations from a text chunk.
- * Uses pattern-based extraction for offline-capable entity recognition.
+ * Uses pattern-based extraction by default, with optional LLM enhancement.
  */
 export async function extractFromChunk(
   chunkId: string,
   text: string,
-  _options: ExtractorOptions,
+  options: ExtractorOptions,
 ): Promise<ExtractionResult> {
   // Skip very short text
   if (!text || text.length < 10) {
     return { entities: [], relations: [] };
   }
 
+  // Try LLM extraction if enabled and API key provided
+  if (options.useLlm && options.openaiApiKey) {
+    try {
+      const llmResult = await extractWithLlm(text, options);
+      if (llmResult.entities.length > 0 || llmResult.relations.length > 0) {
+        return llmResult;
+      }
+    } catch (err) {
+      // Fall back to pattern-based extraction on LLM failure
+      console.warn(`LLM extraction failed for chunk ${chunkId}, using pattern-based:`, err);
+    }
+  }
+
+  // Default to pattern-based extraction
   return extractWithPatterns(text);
 }
 
@@ -482,6 +507,221 @@ function isValidEntityName(name: string): boolean {
     !STOP_WORDS.has(name.toLowerCase()) &&
     /^[A-Za-z]/.test(name)
   );
+}
+
+/**
+ * LLM-based entity and relation extraction using OpenAI API.
+ * Provides higher quality extraction but requires API access.
+ */
+async function extractWithLlm(text: string, options: ExtractorOptions): Promise<ExtractionResult> {
+  const baseUrl = options.openaiBaseUrl || "https://api.openai.com/v1";
+  const model = options.extractionModel || "gpt-4o-mini";
+  const apiKey = options.openaiApiKey;
+
+  if (!apiKey) {
+    throw new Error("OpenAI API key required for LLM extraction");
+  }
+
+  // Truncate very long text to avoid token limits
+  const maxChars = 4000;
+  const truncatedText = text.length > maxChars ? text.slice(0, maxChars) + "..." : text;
+
+  const systemPrompt = `You are an entity and relation extraction system. Extract entities and their relationships from the given text.
+
+Return a JSON object with this exact structure:
+{
+  "entities": [
+    {
+      "name": "entity name",
+      "type": "person|project|concept|organization|technology|location|file|other",
+      "confidence": 0.0-1.0
+    }
+  ],
+  "relations": [
+    {
+      "source": "source entity name",
+      "target": "target entity name",
+      "type": "works_on|knows|prefers|owns|uses|created|related_to|depends_on|part_of|other",
+      "confidence": 0.0-1.0
+    }
+  ]
+}
+
+Rules:
+- Only extract meaningful named entities (people, projects, technologies, organizations, concepts)
+- Skip common words and pronouns
+- Relations should connect extracted entities
+- Confidence should reflect certainty (0.5 = uncertain, 0.9 = very confident)
+- Keep entity names as they appear in text (preserve casing)
+- For code/technical content, extract function names, class names, package names as concepts or technologies`;
+
+  const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: truncatedText },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+      max_tokens: 2000,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`LLM extraction failed: ${response.status} ${errorText}`);
+  }
+
+  const result = (await response.json()) as {
+    choices?: Array<{
+      message?: {
+        content?: string;
+      };
+    }>;
+  };
+
+  const content = result.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("LLM returned empty response");
+  }
+
+  const parsed = JSON.parse(content) as {
+    entities?: Array<{
+      name: string;
+      type: string;
+      confidence?: number;
+    }>;
+    relations?: Array<{
+      source: string;
+      target: string;
+      type: string;
+      confidence?: number;
+    }>;
+  };
+
+  // Convert LLM response to our format
+  const entities: ExtractedEntity[] = (parsed.entities || [])
+    .filter((e) => e.name && e.type)
+    .map((e) => ({
+      name: e.name,
+      type: normalizeEntityType(e.type),
+      mentionText: e.name,
+      confidence: e.confidence ?? 0.7,
+    }));
+
+  const relations: ExtractedRelation[] = (parsed.relations || [])
+    .filter((r) => r.source && r.target && r.type)
+    .map((r) => ({
+      sourceEntityName: r.source,
+      targetEntityName: r.target,
+      relationType: normalizeRelationType(r.type),
+      confidence: r.confidence ?? 0.6,
+    }));
+
+  return { entities, relations };
+}
+
+/**
+ * Normalizes entity type from LLM output to valid EntityType.
+ */
+function normalizeEntityType(type: string): EntityType {
+  const normalized = type.toLowerCase().trim();
+  const validTypes: EntityType[] = [
+    "person",
+    "project",
+    "concept",
+    "organization",
+    "technology",
+    "location",
+    "file",
+    "other",
+  ];
+
+  if (validTypes.includes(normalized as EntityType)) {
+    return normalized as EntityType;
+  }
+
+  // Map common variations
+  if (normalized === "tech" || normalized === "tool" || normalized === "framework") {
+    return "technology";
+  }
+  if (normalized === "company" || normalized === "org" || normalized === "team") {
+    return "organization";
+  }
+  if (normalized === "user" || normalized === "developer" || normalized === "author") {
+    return "person";
+  }
+  if (normalized === "repo" || normalized === "package" || normalized === "library") {
+    return "project";
+  }
+  if (normalized === "place" || normalized === "city" || normalized === "country") {
+    return "location";
+  }
+  if (normalized === "path" || normalized === "module") {
+    return "file";
+  }
+
+  return "other";
+}
+
+/**
+ * Normalizes relation type from LLM output to valid RelationType.
+ */
+function normalizeRelationType(type: string): RelationType {
+  const normalized = type.toLowerCase().trim().replace(/\s+/g, "_");
+  const validTypes: RelationType[] = [
+    "works_on",
+    "knows",
+    "prefers",
+    "owns",
+    "uses",
+    "created",
+    "related_to",
+    "depends_on",
+    "part_of",
+    "other",
+  ];
+
+  if (validTypes.includes(normalized as RelationType)) {
+    return normalized as RelationType;
+  }
+
+  // Map common variations
+  if (normalized === "working_on" || normalized === "develops" || normalized === "maintains") {
+    return "works_on";
+  }
+  if (normalized === "used_by" || normalized === "utilizes" || normalized === "employs") {
+    return "uses";
+  }
+  if (normalized === "made" || normalized === "built" || normalized === "authored") {
+    return "created";
+  }
+  if (normalized === "has" || normalized === "possesses") {
+    return "owns";
+  }
+  if (normalized === "requires" || normalized === "needs") {
+    return "depends_on";
+  }
+  if (normalized === "member_of" || normalized === "belongs_to" || normalized === "included_in") {
+    return "part_of";
+  }
+  if (
+    normalized === "associated_with" ||
+    normalized === "connected_to" ||
+    normalized === "linked_to"
+  ) {
+    return "related_to";
+  }
+
+  return "other";
 }
 
 /**
