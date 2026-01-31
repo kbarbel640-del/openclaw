@@ -37,27 +37,28 @@ EXPOSE 18789
 # Security hardening: Run as non-root user
 # The node:22-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
-# Create state directories before switching to node user (supports both legacy and new paths)
-# Also make extensions dir readable by node user to avoid permission warnings
-RUN mkdir -p /home/node/.clawdbot /home/node/.moltbot \
-    && chown -R node:node /home/node/.clawdbot /home/node/.moltbot /home/node \
+# Create state directory structure (will be overwritten by volume mount if used)
+# Make extensions dir readable by node user to avoid permission warnings
+RUN mkdir -p /home/node/.openclaw \
+    && chown -R node:node /home/node/.openclaw /home/node \
     && chmod -R a+rX /app/extensions 2>/dev/null || true
 
-# Create default config for container deployment with reverse proxy support
-# - trustedProxies: trust Docker/Podman network ranges for X-Forwarded-For headers  
-# - dangerouslyDisableDeviceAuth: required for reverse proxy (browser sends device identity
-#   over HTTPS, but gateway can't verify pairing approval without persistent state/manual approval)
-# - plugins.slots.memory: "none" disables the default memory-core plugin (not available in container)
-# Security note: This disables device-level auth; rely on token/password auth instead
-# NOTE: Config must be openclaw.json (not config.yaml) - the code only reads .json files
-RUN echo '{"gateway":{"trustedProxies":["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"],"controlUi":{"dangerouslyDisableDeviceAuth":true}},"plugins":{"slots":{"memory":"none"}}}' > /home/node/.moltbot/openclaw.json \
-    && chown node:node /home/node/.moltbot/openclaw.json
+# Copy and set up entrypoint script
+COPY --chown=node:node scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 USER node
 
-# Default: run the gateway server (most common container use case)
-# --allow-unconfigured: starts without pre-existing config (configure via Control UI)
-# --bind lan: binds to all interfaces (0.0.0.0) for container networking
-# IMPORTANT: Set SETUP_PASSWORD env var for web setup wizard, or CLAWDBOT_GATEWAY_TOKEN for direct auth
-# Override with: docker run moltbot node dist/index.js <other-command>
-CMD ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789", "--allow-unconfigured"]
+# Default: run the gateway server via entrypoint
+# The entrypoint script:
+# 1. Creates minimal config on first run (trustedProxies, dangerouslyDisableDeviceAuth, etc.)
+# 2. Starts the gateway with --bind lan
+# 
+# To complete setup, connect your local CLI to the remote gateway:
+#   openclaw config set gateway.mode remote
+#   openclaw config set gateway.remote.url wss://your-domain.com/ws
+#   openclaw config set gateway.remote.token YOUR_TOKEN
+#   openclaw status  # verify connection
+#   openclaw setup   # complete setup wizard
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD []

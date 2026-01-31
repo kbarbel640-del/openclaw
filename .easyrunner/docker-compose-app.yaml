@@ -2,19 +2,16 @@ name: easyrunner
 services:
   moltbot-gateway:
     image: localhost/moltbot:latest
-    # Override CMD to run the gateway server (Dockerfile default just runs CLI)
-    # NOTE: easyrunner currently doesn't support command overrides yet. So for now this fix has been applied to the dockerfile directly.
-    # this is not ideal because updates from upstream will overwrite it.
-    command: ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789", "--allow-unconfigured"]
+    # Uses the docker-entrypoint.sh which creates minimal config on first run
     environment:
       - NODE_ENV=production
       - HOME=/home/node
       - TERM=xterm-256color
-      # Gateway token for auth - token auth allows skipping device pairing
+      # Gateway token for auth - required for remote CLI access
       # Use only hex characters (a-f, 0-9) to avoid encoding issues
       - OPENCLAW_GATEWAY_TOKEN=79da707a00cce6f610d7dea17e2903346294a4fc8acd2a89021f6c06400b7d31
-      # State directory for persistent config
-      - CLAWDBOT_STATE_DIR=/home/node/.moltbot
+      # State directory - must match the volume mount path
+      - OPENCLAW_STATE_DIR=/home/node/.openclaw
     restart: unless-stopped
     networks:
       - easyrunner_proxy_network
@@ -22,8 +19,14 @@ services:
       xyz.easyrunner.appFramework: standardbackend
       xyz.easyrunner.appIsPublic: true
       xyz.easyrunner.appContainerInternalPort: 18789
-    # Skip volumes for now - rootless Podman has permission issues with named volumes
-    # TODO: Add volume mounts once initial deployment works
+    volumes:
+      # Persistent state directory - stores config, sessions, credentials
+      # The :U flag tells Podman to recursively chown the volume to the container user (node, uid 1000)
+      - moltbot_state:/home/node/.openclaw:U
+
+volumes:
+  moltbot_state:
+    driver: local
 
 networks:
   easyrunner_proxy_network:
