@@ -17,6 +17,7 @@ metadata:
               "formula": "steipete/tap/sag",
               "bins": ["sag"],
               "label": "Install sag (brew)",
+              "os": ["darwin"],
             },
           ],
       },

@@ -11,19 +11,29 @@ metadata:
         "install":
           [
             {
-              "id": "brew",
+              "id": "brew-spogo",
               "kind": "brew",
               "formula": "spogo",
               "tap": "steipete/tap",
               "bins": ["spogo"],
               "label": "Install spogo (brew)",
+              "os": ["darwin"],
             },
             {
-              "id": "brew",
+              "id": "brew-spotify-player",
               "kind": "brew",
               "formula": "spotify_player",
               "bins": ["spotify_player"],
               "label": "Install spotify_player (brew)",
+              "os": ["darwin"],
+            },
+            {
+              "id": "cargo",
+              "kind": "cargo",
+              "crate": "spotify_player",
+              "bins": ["spotify_player"],
+              "label": "Install spotify_player (cargo)",
+              "os": ["linux"],
             },
           ],
       },

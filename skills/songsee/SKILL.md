@@ -16,6 +16,7 @@ metadata:
               "formula": "steipete/tap/songsee",
               "bins": ["songsee"],
               "label": "Install songsee (brew)",
+              "os": ["darwin"],
             },
           ],
       },

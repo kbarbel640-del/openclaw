@@ -17,6 +17,7 @@ metadata:
               "formula": "steipete/tap/remindctl",
               "bins": ["remindctl"],
               "label": "Install remindctl via Homebrew",
+              "os": ["darwin"],
             },
           ],
       },

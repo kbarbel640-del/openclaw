@@ -16,6 +16,7 @@ metadata:
               "formula": "steipete/tap/gogcli",
               "bins": ["gog"],
               "label": "Install gog (brew)",
+              "os": ["darwin"],
             },
           ],
       },

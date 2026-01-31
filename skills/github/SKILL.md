@@ -15,6 +15,7 @@ metadata:
               "formula": "gh",
               "bins": ["gh"],
               "label": "Install GitHub CLI (brew)",
+              "os": ["darwin"],
             },
             {
               "id": "apt",
@@ -22,6 +23,7 @@ metadata:
               "package": "gh",
               "bins": ["gh"],
               "label": "Install GitHub CLI (apt)",
+              "os": ["linux"],
             },
           ],
       },

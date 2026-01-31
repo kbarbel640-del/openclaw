@@ -17,6 +17,7 @@ metadata:
               "formula": "steipete/tap/imsg",
               "bins": ["imsg"],
               "label": "Install imsg (brew)",
+              "os": ["darwin"],
             },
           ],
       },

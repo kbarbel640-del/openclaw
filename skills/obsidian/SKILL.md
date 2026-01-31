@@ -16,6 +16,7 @@ metadata:
               "formula": "yakitrak/yakitrak/obsidian-cli",
               "bins": ["obsidian-cli"],
               "label": "Install obsidian-cli (brew)",
+              "os": ["darwin"],
             },
           ],
       },

@@ -16,6 +16,7 @@ metadata:
               "formula": "steipete/tap/summarize",
               "bins": ["summarize"],
               "label": "Install summarize (brew)",
+              "os": ["darwin"],
             },
           ],
       },

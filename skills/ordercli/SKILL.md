@@ -16,6 +16,7 @@ metadata:
               "formula": "steipete/tap/ordercli",
               "bins": ["ordercli"],
               "label": "Install ordercli (brew)",
+              "os": ["darwin"],
             },
             {
               "id": "go",

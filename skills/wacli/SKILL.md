@@ -16,6 +16,7 @@ metadata:
               "formula": "steipete/tap/wacli",
               "bins": ["wacli"],
               "label": "Install wacli (brew)",
+              "os": ["darwin"],
             },
             {
               "id": "go",

@@ -16,6 +16,7 @@ metadata:
               "formula": "steipete/tap/camsnap",
               "bins": ["camsnap"],
               "label": "Install camsnap (brew)",
+              "os": ["darwin"],
             },
           ],
       },

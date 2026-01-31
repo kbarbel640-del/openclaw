@@ -17,6 +17,7 @@ metadata:
               "formula": "steipete/tap/peekaboo",
               "bins": ["peekaboo"],
               "label": "Install Peekaboo (brew)",
+              "os": ["darwin"],
             },
           ],
       },
