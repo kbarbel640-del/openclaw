@@ -2,6 +2,11 @@
 
 Docs: https://docs.openclaw.ai
 
+## Unreleased
+
+### Changes
+- GitHub Copilot: add SDK-based model discovery with `models.copilotSdk.enableModelDiscovery` config option. Queries available models from user's Copilot subscription via the Copilot CLI. (#XXXX)
+
 ## 2026.1.29
 Status: stable.
 
