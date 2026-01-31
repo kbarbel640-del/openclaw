@@ -10,11 +10,9 @@ services:
       - NODE_ENV=production
       - HOME=/home/node
       - TERM=xterm-256color
-      # Gateway auth token - required when binding to non-loopback
-      # Generate with: openssl rand -hex 32
-      - CLAWDBOT_GATEWAY_TOKEN=ks£jdjk345nsoivuyh4e5%$^$sd#sdflkjdsf;#29qqYoO0XSDfasksnfao934kj6sD!
-      # Setup password - browse to /setup to configure via web wizard
-      - SETUP_PASSWORD=your-setup-password-here
+      # Gateway password for web UI auth - browse to /setup or root to configure
+      # NOTE: The code expects OPENCLAW_GATEWAY_PASSWORD (not SETUP_PASSWORD as some docs say)
+      - OPENCLAW_GATEWAY_PASSWORD=your-setup-password-here
       # State directory for persistent config
       - CLAWDBOT_STATE_DIR=/home/node/.moltbot      
     restart: unless-stopped
