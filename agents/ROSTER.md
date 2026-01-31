@@ -131,6 +131,20 @@ This document defines all sub-agents available for DBH Ventures incubation proje
 
 ---
 
+### 🏗️ UX Architect
+- **Role:** Design system consistency, information architecture, UX cohesion
+- **Location:** `/agents/ux-architect/AGENT.md`
+- **Spawnable:** Yes
+- **Label:** `ux-architect`
+- **Outputs:** UX audits, IA recommendations, component consolidation plans
+- **Used for:**
+  - Eliminating redundancy across views
+  - Ensuring each page has clear purpose
+  - Design system maintenance
+  - Pre-release UX reviews
+
+---
+
 ## Spawning Agents
 
 ```python

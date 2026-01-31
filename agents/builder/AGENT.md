@@ -55,6 +55,12 @@ Task for Builder:
 
 ## Standards
 
+### Completeness
+- **Check all navigation links** — every sidebar/nav link must have a working page
+- **No 404s** — if you add navigation, add the page
+- **Follow the spec** — read project docs, don't leave gaps
+- **Test your work** — verify all routes before marking complete
+
 ### Code Quality
 - TypeScript for all new code
 - ESLint + Prettier formatting

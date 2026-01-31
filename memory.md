@@ -95,24 +95,31 @@ Note: Some references to "moltbot" or "clawdbot" may remain in older code/config
 - **Recommended pricing**: $149/mo family subscription
 - **Research**: `memory/omega-foundation-research.md`
 
-## Agent Console — Incubation (Jan 30, 2026)
+## Agent Console — MVP COMPLETE (Jan 30, 2026) 🚀
 
 - **What**: Real-time operations dashboard for AI agents
 - **Name**: Agent Console
-- **Domain**: agentconsole.app (Vercel)
+- **Domain**: agentconsole.app (landing) / dashboard.agentconsole.app (app)
+- **GitHub**: github.com/dbhurley/agent-console
 - **Vikunja project**: ID 8
-- **Status**: Incubating - dogfood for DBH Ventures first, then productize
+- **Status**: MVP complete, dogfooding
+- **Password**: AgentConsole2026!
+- **Gateway token**: ac-gateway-2026-secure (set in gateway.auth.token)
 - **Problem**: Existing tools (LangSmith, Arize, etc.) are observability/debugging focused. Missing: real-time ops console for running agent fleets.
 - **Key differentiators**:
   - Real-time agent status (running/paused/idle) — not retrospective traces
   - Task ↔ session linking (why is the agent doing this?)
   - Intervention capabilities (pause, inject, redirect)
-  - Multi-framework from day 1 (OpenTelemetry-native)
-- **Competitive landscape**: AgentOps.ai ($2.6M), LangSmith ($260M), Arize ($131M), but all "observability" not "operations"
-- **Tech stack**: Next.js, WebSocket for real-time, OpenClaw integration first
-- **Replaces**: Vikunja + Mission Control for internal DBH Ventures use
+  - Multi-framework from day 1
+- **Pricing model**: Free ($0/3 agents), Pro ($29/mo/10), Team ($99/mo/50), Enterprise
+- **Tech stack**: Next.js 16, SSE for real-time, Tailwind CSS
 - **Bear doc**: "Agent Ops Console — Project Document"
 - **Spec**: `/Users/steve/clawd/memory/agent-ops-console-spec.md`
+
+### Agent Roster for Incubation
+Sub-agents defined in `/agents/`:
+- 📋 Project Manager, 🛠️ Builder, 🔍 Scout, 🎨 Canvas
+- ✍️ Scribe, 🛡️ Sentinel, 📊 Analyst, 🧪 Tester
 
 ## NotHockney — Incubation (Jan 2026)
 
