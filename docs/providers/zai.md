@@ -13,12 +13,12 @@ depending on your region and subscription type.
 
 ## Provider Variants
 
-| Provider | Region | Plan Type | Base URL |
-|----------|--------|-----------|----------|
-| `zai` | International | Pay-as-you-go | api.z.ai |
-| `zai-coding` | International | Coding Plan | api.z.ai (coding endpoint) |
-| `zhipu` | China | Pay-as-you-go | bigmodel.cn |
-| `zhipu-coding` | China | Coding Plan | bigmodel.cn (coding endpoint) |
+| Provider       | Region        | Plan Type     | Base URL                      |
+| -------------- | ------------- | ------------- | ----------------------------- |
+| `zai`          | International | Pay-as-you-go | api.z.ai                      |
+| `zai-coding`   | International | Coding Plan   | api.z.ai (coding endpoint)    |
+| `zhipu`        | China         | Pay-as-you-go | bigmodel.cn                   |
+| `zhipu-coding` | China         | Coding Plan   | bigmodel.cn (coding endpoint) |
 
 ## Which should I use?
 
@@ -64,12 +64,12 @@ openclaw onboard --non-interactive --auth-choice zhipu-coding-api-key --zhipu-co
 
 ## Environment Variables
 
-| Provider | Primary Env Var | Fallback Chain |
-|----------|-----------------|----------------|
-| `zai` | `ZAI_API_KEY` | `Z_AI_API_KEY` |
-| `zai-coding` | `ZAI_CODING_API_KEY` | `ZAI_API_KEY` → `Z_AI_API_KEY` |
-| `zhipu` | `ZHIPU_API_KEY` | (none) |
-| `zhipu-coding` | `ZHIPU_CODING_API_KEY` | `ZHIPU_API_KEY` |
+| Provider       | Primary Env Var        | Fallback Chain                 |
+| -------------- | ---------------------- | ------------------------------ |
+| `zai`          | `ZAI_API_KEY`          | `Z_AI_API_KEY`                 |
+| `zai-coding`   | `ZAI_CODING_API_KEY`   | `ZAI_API_KEY` → `Z_AI_API_KEY` |
+| `zhipu`        | `ZHIPU_API_KEY`        | (none)                         |
+| `zhipu-coding` | `ZHIPU_CODING_API_KEY` | `ZHIPU_API_KEY`                |
 
 The coding providers fall back to their respective general provider's env var, so you can
 use a single API key for both if desired.
@@ -90,7 +90,7 @@ use a single API key for both if desired.
 ```json5
 {
   env: { ZAI_API_KEY: "sk-..." },
-  agents: { defaults: { model: { primary: "zai-coding/glm-4.7" } } }
+  agents: { defaults: { model: { primary: "zai-coding/glm-4.7" } } },
 }
 ```
 
@@ -99,7 +99,7 @@ use a single API key for both if desired.
 ```json5
 {
   env: { ZHIPU_API_KEY: "sk-..." },
-  agents: { defaults: { model: { primary: "zhipu/glm-4.7" } } }
+  agents: { defaults: { model: { primary: "zhipu/glm-4.7" } } },
 }
 ```
 
@@ -108,7 +108,7 @@ use a single API key for both if desired.
 ```json5
 {
   env: { ZHIPU_API_KEY: "sk-..." },
-  agents: { defaults: { model: { primary: "zhipu-coding/glm-4.7" } } }
+  agents: { defaults: { model: { primary: "zhipu-coding/glm-4.7" } } },
 }
 ```
 

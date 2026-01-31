@@ -14,12 +14,12 @@ GLM is a **model family** developed by Zhipu AI. GLM models are available throug
 
 ## Provider Options
 
-| Provider | Platform | Use Case |
-|----------|----------|----------|
-| `zai` | Z.AI (International) | Pay-as-you-go |
-| `zai-coding` | Z.AI (International) | Coding Plan subscription |
-| `zhipu` | Zhipu AI (China) | Pay-as-you-go |
-| `zhipu-coding` | Zhipu AI (China) | Coding Plan subscription |
+| Provider       | Platform             | Use Case                 |
+| -------------- | -------------------- | ------------------------ |
+| `zai`          | Z.AI (International) | Pay-as-you-go            |
+| `zai-coding`   | Z.AI (International) | Coding Plan subscription |
+| `zhipu`        | Zhipu AI (China)     | Pay-as-you-go            |
+| `zhipu-coding` | Zhipu AI (China)     | Coding Plan subscription |
 
 ## CLI Setup
 

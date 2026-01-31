@@ -206,8 +206,12 @@ export async function applyNonInteractiveAuthChoice(params: {
       envVar: "ZAI_CODING_API_KEY (or ZAI_API_KEY)",
       runtime,
     });
-    if (!resolved) return null;
-    if (resolved.source !== "profile") await setZaiCodingApiKey(resolved.key);
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setZaiCodingApiKey(resolved.key);
+    }
     nextConfig = applyAuthProfileConfig(nextConfig, {
       profileId: "zai-coding:default",
       provider: "zai-coding",
@@ -225,8 +229,12 @@ export async function applyNonInteractiveAuthChoice(params: {
       envVar: "ZHIPU_API_KEY",
       runtime,
     });
-    if (!resolved) return null;
-    if (resolved.source !== "profile") await setZhipuApiKey(resolved.key);
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setZhipuApiKey(resolved.key);
+    }
     nextConfig = applyAuthProfileConfig(nextConfig, {
       profileId: "zhipu:default",
       provider: "zhipu",
@@ -244,8 +252,12 @@ export async function applyNonInteractiveAuthChoice(params: {
       envVar: "ZHIPU_CODING_API_KEY (or ZHIPU_API_KEY)",
       runtime,
     });
-    if (!resolved) return null;
-    if (resolved.source !== "profile") await setZhipuCodingApiKey(resolved.key);
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setZhipuCodingApiKey(resolved.key);
+    }
     nextConfig = applyAuthProfileConfig(nextConfig, {
       profileId: "zhipu-coding:default",
       provider: "zhipu-coding",
