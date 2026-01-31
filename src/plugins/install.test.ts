@@ -193,7 +193,7 @@ describe("installPluginFromArchive", () => {
     expect(result.pluginId).toBe("zipper");
     expect(result.targetDir).toBe(path.join(stateDir, "extensions", "zipper"));
     expect(fs.existsSync(path.join(result.targetDir, "package.json"))).toBe(true);
-    expect(fs.existsSync(path.join(result.targetDir, "dist", "index.js"))).toBe(true);
+    expect(fs.existsSync(path.join(result.targetDir, "dist", "index.mjs"))).toBe(true);
   });
 
   it("allows updates when mode is update", async () => {
