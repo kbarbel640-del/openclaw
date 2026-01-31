@@ -13,6 +13,7 @@ import {
   readConfigFileSnapshot,
   writeConfigFile,
 } from "../config/config.js";
+import { checkPendingOnStartup, schedulePendingMarkerClear } from "../config/config-pending.js";
 import { isDiagnosticsEnabled } from "../infra/diagnostic-events.js";
 import { logAcceptedEnvOption } from "../infra/env.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
@@ -158,6 +159,14 @@ export async function startGatewayServer(
     key: "OPENCLAW_RAW_STREAM_PATH",
     description: "raw stream log path override",
   });
+
+  // Check for config rollback on startup (transactional config changes)
+  const rollbackResult = await checkPendingOnStartup();
+  if (rollbackResult.rolledBack) {
+    log.warn(
+      `gateway: config rolled back after startup failure.\n${rollbackResult.error ?? "Unknown error"}`,
+    );
+  }
 
   let configSnapshot = await readConfigFileSnapshot();
   if (configSnapshot.legacyIssues.length > 0) {
@@ -573,6 +582,20 @@ export async function startGatewayServer(
     httpServer,
     httpServers,
   });
+
+  // Schedule pending marker cleanup after successful startup
+  schedulePendingMarkerClear(5000);
+
+  // Log rollback error if config was rolled back
+  // TODO: inject into session via cron.wake or similar mechanism
+  if (rollbackResult.rolledBack && rollbackResult.error) {
+    log.warn(
+      `⚠️ Config rollback triggered after startup failure.\n` +
+        `Reason: ${rollbackResult.reason ?? "config.patch"}\n` +
+        `Previous config restored from backup.\n` +
+        `Error: ${rollbackResult.error}`,
+    );
+  }
 
   return {
     close: async (opts) => {
