@@ -1,53 +1,43 @@
-FROM node:22-bookworm
+# Use Node.js 22 (OpenClaw requires Node >= 22)
+FROM node:22-bullseye-slim
 
-# Install Bun (required for build scripts)
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
+# Install Bun (OpenClaw build scripts use Bun) and pnpm
+RUN curl -fsSL https://bun.sh/install | bash && export PATH="/root/.bun/bin:$PATH" \
+ && corepack enable
 
-RUN corepack enable
-
+# Set working directory
 WORKDIR /app
 
-ARG OPENCLAW_DOCKER_APT_PACKAGES=""
-RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
-      apt-get update && \
-      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES && \
-      apt-get clean && \
-      rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
-    fi
-
+# Copy only package metadata first (for caching dependencies)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ui/package.json ./ui/package.json
-COPY patches ./patches
 COPY scripts ./scripts
 
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
+# Copy the rest of the source code and build
 COPY . .
+RUN pnpm build && pnpm ui:install && pnpm ui:build
 
-# Copy and set up entrypoint script
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Create the data directory and adjust permissions for the non-root user
+RUN mkdir -p /data && chown node:node /data
 
-RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build
-# Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
-ENV OPENCLAW_PREFER_PNPM=1
-RUN pnpm ui:build
+# Switch to a non-root user (Node user)
+USER node
 
-# Verify build artifacts exist (fail fast if build didn't produce expected files)
-RUN echo "=== Verifying build artifacts ===" && \
-    test -f /app/openclaw.mjs || (echo "ERROR: /app/openclaw.mjs not found" && exit 1) && \
-    test -f /app/dist/entry.js || (echo "ERROR: /app/dist/entry.js not found" && exit 1) && \
-    echo "Build verification passed: openclaw.mjs and dist/entry.js exist"
+# Expose the gateway port (Railway will map this via $PORT)
+EXPOSE 8080
 
-ENV NODE_ENV=production
+# Default environment (can be overridden by Railway)
+ENV NODE_ENV=production \
+    OPENCLAW_STATE_DIR=/data/.openclaw \
+    OPENCLAW_WORKSPACE_DIR=/data/workspace
 
-# Create persistent data directory for Railway deployments
-# This directory MUST be mounted as a volume in Railway to persist pairing state
-# Note: /data is mounted at runtime; chown happens in entrypoint.sh (railway mounts with root ownership)
-RUN mkdir -p /data/.clawdbot
+# Copy entrypoint script and set entrypoint
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+ENTRYPOINT ["/docker-entrypoint.sh"]
 
-# Run the gateway server via entrypoint script
-# The script maps Railway's PORT env var to OPENCLAW_GATEWAY_PORT
-# Entrypoint runs as root to set /data permissions, then switches to node user
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+# By default, run the OpenClaw gateway (the entrypoint will handle flags)
+CMD ["gateway"]
