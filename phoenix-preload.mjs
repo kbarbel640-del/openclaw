@@ -7,6 +7,7 @@
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { register, registerInstrumentations } from "@arizeai/phoenix-otel";
 import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
+import { AnthropicInstrumentation } from "@arizeai/openinference-instrumentation-anthropic";
 
 const phoenixEnabled = process.env.OPENCLAW_PHOENIX_ENABLED === "true";
 
@@ -25,15 +26,19 @@ if (phoenixEnabled) {
 		batch: false, // Simple processor for immediate export
 	});
 
-	// Create OpenAI instrumentation instance
+	// Create instrumentation instances
 	const openaiInst = new OpenAIInstrumentation();
+	const anthropicInst = new AnthropicInstrumentation();
 	registerInstrumentations({
 		tracerProvider,
-		instrumentations: [openaiInst],
+		instrumentations: [openaiInst, anthropicInst],
 	});
 
-	// Manually instrument OpenAI SDK for ESM (required because auto-instrumentation hooks don't fire for ESM imports)
-	// Use top-level await to ensure this completes BEFORE any application code loads OpenAI
+	// Manually instrument SDKs for ESM (required because auto-instrumentation hooks don't fire for ESM imports)
+	// Use top-level await to ensure this completes BEFORE any application code loads the SDKs
 	const { default: OpenAI } = await import("openai");
 	openaiInst.manuallyInstrument(OpenAI);
+
+	const { default: Anthropic } = await import("@anthropic-ai/sdk");
+	anthropicInst.manuallyInstrument(Anthropic);
 }
