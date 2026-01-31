@@ -37,7 +37,8 @@
       "archive_count": 1,
       "topic": "Product Management, Growth",
       "priority": "medium",
-      "frequency": "weekly"
+      "frequency": "batch",
+      "batch_schedule": "weekly"
     },
     "new-economies": {
       "name": "NEW ECONOMIES",
@@ -50,7 +51,8 @@
       "archive_count": 0,
       "topic": "Business Models, Future of Work",
       "priority": "medium",
-      "frequency": "bi-weekly"
+      "frequency": "batch",
+      "batch_schedule": "weekly"
     },
     "rhys-morgan": {
       "name": "Rhys Morgan",
@@ -76,6 +78,71 @@
       "archive_count": 0,
       "topic": "AI Tools, Productivity",
       "priority": "high",
+      "frequency": "weekly"
+    },
+    "lennys-newsletter": {
+      "name": "Lenny's Newsletter",
+      "safe_name": "lennys-newsletter",
+      "url": "https://lennyrachitsky.substack.com/feed",
+      "platform": "substack",
+      "created_at": "2026-01-30T21:35:00.000000",
+      "status": "active",
+      "last_harvest": null,
+      "archive_count": 0,
+      "topic": "Product, AI, Growth",
+      "priority": "high",
+      "frequency": "weekly"
+    },
+    "ai-corner": {
+      "name": "The AI Corner",
+      "safe_name": "ai-corner",
+      "url": "https://theaicorner.substack.com/feed",
+      "platform": "substack",
+      "created_at": "2026-01-30T21:35:00.000000",
+      "status": "active",
+      "last_harvest": null,
+      "archive_count": 0,
+      "topic": "AI Tools, Angels, Funding",
+      "priority": "high",
+      "frequency": "weekly"
+    },
+    "waking-up": {
+      "name": "Waking Up",
+      "safe_name": "waking-up",
+      "url": "https://wakingup.substack.com/feed",
+      "platform": "substack",
+      "created_at": "2026-01-30T21:35:00.000000",
+      "status": "active",
+      "last_harvest": null,
+      "archive_count": 0,
+      "topic": "Meditation, Mindfulness",
+      "priority": "medium",
+      "frequency": "weekly"
+    },
+    "ground-news": {
+      "name": "Ground News",
+      "safe_name": "ground-news",
+      "url": "https://groundnews.substack.com/feed",
+      "platform": "substack",
+      "created_at": "2026-01-30T21:35:00.000000",
+      "status": "active",
+      "last_harvest": null,
+      "archive_count": 0,
+      "topic": "News, Media Bias",
+      "priority": "low",
+      "frequency": "daily"
+    },
+    "techtiff": {
+      "name": "TechTiff",
+      "safe_name": "techtiff",
+      "url": "https://techtiff.substack.com/feed",
+      "platform": "substack",
+      "created_at": "2026-01-30T21:35:00.000000",
+      "status": "active",
+      "last_harvest": null,
+      "archive_count": 0,
+      "topic": "iPhone Tips, Tech",
+      "priority": "low",
       "frequency": "weekly"
     }
   }
