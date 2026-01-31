@@ -38,8 +38,10 @@ EXPOSE 18789
 # The node:22-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
 # Create state directories before switching to node user (supports both legacy and new paths)
+# Also make extensions dir readable by node user to avoid permission warnings
 RUN mkdir -p /home/node/.clawdbot /home/node/.moltbot \
-    && chown -R node:node /home/node/.clawdbot /home/node/.moltbot /home/node
+    && chown -R node:node /home/node/.clawdbot /home/node/.moltbot /home/node \
+    && chmod -R a+rX /app/extensions 2>/dev/null || true
 
 # Create default config for container deployment with reverse proxy support
 # - trustedProxies: trust Docker/Podman network ranges for X-Forwarded-For headers  
