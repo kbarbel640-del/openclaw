@@ -4,6 +4,7 @@ services:
     runtime: docker
     plan: starter
     healthCheckPath: /health
+    dockerCommand: ./docker-entrypoint.sh
     envVars:
       - key: PORT
         value: "8080"
