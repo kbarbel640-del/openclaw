@@ -28,13 +28,13 @@ export class OnboardApp extends LitElement {
       display: block;
       min-height: 100vh;
     }
-
+    
     .app-container {
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
-
+    
     .main-content {
       flex: 1;
       display: flex;
@@ -43,11 +43,11 @@ export class OnboardApp extends LitElement {
       justify-content: center;
       padding: 2rem;
     }
-
+    
     .loading-container {
       text-align: center;
     }
-
+    
     .spinner {
       display: inline-block;
       width: 40px;
@@ -57,31 +57,33 @@ export class OnboardApp extends LitElement {
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
-
+    
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
-
+    
     .loading-text {
       margin-top: 1rem;
       color: var(--color-text-secondary, #6c757d);
     }
-
+    
     .error-container {
       text-align: center;
       padding: 2rem;
     }
-
+    
     .error-icon {
       font-size: 3rem;
       margin-bottom: 1rem;
     }
-
+    
     .error-message {
       color: var(--color-error, #e63946);
       margin-bottom: 1rem;
     }
-
+    
     .retry-button {
       padding: 0.5rem 1.5rem;
       background: var(--color-primary, #e63946);
@@ -91,38 +93,38 @@ export class OnboardApp extends LitElement {
       cursor: pointer;
       font-size: 1rem;
     }
-
+    
     .retry-button:hover {
       background: var(--color-primary-hover, #c1121f);
     }
-
+    
     .prompt-container {
       width: 100%;
       max-width: 800px;
     }
-
+    
     .complete-message {
       text-align: center;
       padding: 2rem;
     }
-
+    
     .complete-icon {
       font-size: 4rem;
       margin-bottom: 1rem;
     }
-
+    
     .complete-title {
       font-size: 1.5rem;
       font-weight: 600;
       margin-bottom: 0.5rem;
     }
-
+    
     .complete-text {
       color: var(--color-text-secondary, #6c757d);
       margin-bottom: 1.5rem;
       max-width: 400px;
     }
-
+    
     .complete-message .retry-button {
       margin-top: 1rem;
     }
@@ -135,10 +137,10 @@ export class OnboardApp extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    
+
     // Listen for locale changes
     window.addEventListener("locale-changed", this.handleLocaleChange);
-    
+
     // Setup WebSocket handlers
     onboardSocket.onConnect(() => {
       this.viewState = "prompt";
@@ -256,7 +258,7 @@ export class OnboardApp extends LitElement {
             @continue=${() => this.handleResponse(true)}
           ></onboard-welcome>
         `;
-      
+
       case "note":
         return html`
           <onboard-note
@@ -265,7 +267,7 @@ export class OnboardApp extends LitElement {
             @continue=${() => this.handleResponse(true)}
           ></onboard-note>
         `;
-      
+
       case "confirm":
         return html`
           <onboard-confirm
@@ -274,7 +276,7 @@ export class OnboardApp extends LitElement {
             @confirm=${(e: CustomEvent) => this.handleResponse(e.detail.value)}
           ></onboard-confirm>
         `;
-      
+
       case "select":
         return html`
           <onboard-select
@@ -284,7 +286,7 @@ export class OnboardApp extends LitElement {
             @select=${(e: CustomEvent) => this.handleResponse(e.detail.value)}
           ></onboard-select>
         `;
-      
+
       case "multiselect":
         return html`
           <onboard-multiselect
@@ -294,7 +296,7 @@ export class OnboardApp extends LitElement {
             @select=${(e: CustomEvent) => this.handleResponse(e.detail.values)}
           ></onboard-multiselect>
         `;
-      
+
       case "text":
         return html`
           <onboard-text-input
@@ -304,7 +306,7 @@ export class OnboardApp extends LitElement {
             @submit=${(e: CustomEvent) => this.handleResponse(e.detail.value)}
           ></onboard-text-input>
         `;
-      
+
       case "progress":
         return html`
           <onboard-progress
@@ -312,7 +314,7 @@ export class OnboardApp extends LitElement {
             .status=${(params as { status: string }).status}
           ></onboard-progress>
         `;
-      
+
       case "outro":
         return html`
           <onboard-complete
@@ -320,7 +322,7 @@ export class OnboardApp extends LitElement {
             @close=${() => this.handleResponse(true)}
           ></onboard-complete>
         `;
-      
+
       default:
         return html`<p>Unknown prompt type: ${type}</p>`;
     }
@@ -352,11 +354,15 @@ export class OnboardApp extends LitElement {
           ${isSuccess ? t("complete.title") : isCancelled ? t("cancelled.title") : t("error.title")}
         </h2>
         <p class="complete-text">${message}</p>
-        ${!isSuccess ? html`
+        ${
+          !isSuccess
+            ? html`
           <button class="retry-button" @click=${() => window.location.reload()}>
             ${t("error.retry")}
           </button>
-        ` : ""}
+        `
+            : ""
+        }
       </div>
     `;
   }

@@ -18,7 +18,7 @@ function detectLocale(): Locale {
   if (typeof navigator === "undefined") {
     return "en";
   }
-  
+
   const lang = navigator.language.toLowerCase();
   if (lang.startsWith("zh")) {
     return "zh";

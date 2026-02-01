@@ -15,7 +15,7 @@ export class LanguageSwitcher extends LitElement {
       right: 1rem;
       z-index: 1000;
     }
-
+    
     .switcher {
       display: flex;
       gap: 0.25rem;
@@ -24,7 +24,7 @@ export class LanguageSwitcher extends LitElement {
       border-radius: 0.5rem;
       border: 1px solid var(--color-border, #dee2e6);
     }
-
+    
     .lang-btn {
       padding: 0.375rem 0.75rem;
       font-size: 0.875rem;
@@ -36,11 +36,11 @@ export class LanguageSwitcher extends LitElement {
       transition: all 150ms ease;
       color: var(--color-text-secondary, #6c757d);
     }
-
+    
     .lang-btn:hover {
       background: var(--color-bg-tertiary, #e9ecef);
     }
-
+    
     .lang-btn.active {
       background: var(--color-primary, #e63946);
       color: white;

@@ -4,7 +4,11 @@
 
 import { html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { translateBackendMessage, translateOptionLabel, translateHint } from "../i18n/backend-messages.js";
+import {
+  translateBackendMessage,
+  translateOptionLabel,
+  translateHint,
+} from "../i18n/backend-messages.js";
 import { LocalizedElement } from "../components/localized-element.js";
 
 interface SelectOption {
@@ -19,42 +23,42 @@ export class OnboardSelect extends LocalizedElement {
     :host {
       display: block;
     }
-
+    
     .select-container {
       max-width: 900px;
       margin: 0 auto;
       padding: 2rem;
     }
-
+    
     .select-container.two-column {
       max-width: 900px;
     }
-
+    
     .message {
       font-size: 1.25rem;
       font-weight: 500;
       margin-bottom: 1.5rem;
       color: var(--color-text, #212529);
     }
-
+    
     .option-list {
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
     }
-
+    
     .option-list.two-column {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 0.75rem;
     }
-
+    
     @media (max-width: 768px) {
       .option-list.two-column {
         grid-template-columns: 1fr;
       }
     }
-
+    
     .option-item {
       display: flex;
       align-items: center;
@@ -66,17 +70,17 @@ export class OnboardSelect extends LocalizedElement {
       cursor: pointer;
       transition: all 150ms ease;
     }
-
+    
     .option-item:hover {
       border-color: var(--color-primary, #e63946);
       background: rgba(230, 57, 70, 0.05);
     }
-
+    
     .option-item.selected {
       border-color: var(--color-primary, #e63946);
       background: rgba(230, 57, 70, 0.1);
     }
-
+    
     .option-radio {
       width: 20px;
       height: 20px;
@@ -87,11 +91,11 @@ export class OnboardSelect extends LocalizedElement {
       justify-content: center;
       flex-shrink: 0;
     }
-
+    
     .option-item.selected .option-radio {
       border-color: var(--color-primary, #e63946);
     }
-
+    
     .option-radio-inner {
       width: 10px;
       height: 10px;
@@ -100,33 +104,33 @@ export class OnboardSelect extends LocalizedElement {
       opacity: 0;
       transition: opacity 150ms ease;
     }
-
+    
     .option-item.selected .option-radio-inner {
       opacity: 1;
     }
-
+    
     .option-content {
       flex: 1;
     }
-
+    
     .option-label {
       font-weight: 500;
       color: var(--color-text, #212529);
     }
-
+    
     .option-hint {
       font-size: 0.875rem;
       color: var(--color-text-secondary, #6c757d);
       margin-top: 0.25rem;
     }
-
+    
     .button-group {
       display: flex;
       gap: 1rem;
       margin-top: 1.5rem;
       justify-content: flex-end;
     }
-
+    
     .btn {
       padding: 0.625rem 1.25rem;
       font-size: 1rem;
@@ -135,17 +139,17 @@ export class OnboardSelect extends LocalizedElement {
       cursor: pointer;
       transition: all 150ms ease;
     }
-
+    
     .btn-primary {
       background: var(--color-primary, #e63946);
       color: white;
       border: none;
     }
-
+    
     .btn-primary:hover:not(:disabled) {
       background: var(--color-primary-hover, #c1121f);
     }
-
+    
     .btn-primary:disabled {
       opacity: 0.5;
       cursor: not-allowed;

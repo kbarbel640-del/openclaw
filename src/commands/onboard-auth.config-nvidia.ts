@@ -26,9 +26,7 @@ export function applyNvidiaProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
   const nvidiaModels = getNvidiaStaticFallbackModels();
   const mergedModels = [
     ...existingModels,
-    ...nvidiaModels.filter(
-      (model) => !existingModels.some((existing) => existing.id === model.id),
-    ),
+    ...nvidiaModels.filter((model) => !existingModels.some((existing) => existing.id === model.id)),
   ];
 
   const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<

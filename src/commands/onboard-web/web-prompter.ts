@@ -15,7 +15,15 @@ import type {
 } from "../../wizard/prompts.js";
 import { WizardCancelledError } from "../../wizard/prompts.js";
 
-type PromptType = "select" | "multiselect" | "text" | "confirm" | "note" | "intro" | "outro" | "progress";
+type PromptType =
+  | "select"
+  | "multiselect"
+  | "text"
+  | "confirm"
+  | "note"
+  | "intro"
+  | "outro"
+  | "progress";
 
 interface PromptMessage {
   type: PromptType;
@@ -79,11 +87,13 @@ export class WebPrompter implements WizardPrompter {
         const validationError = pending.validate(message.value);
         if (validationError) {
           // Send validation error back to client for re-input
-          this.ws.send(JSON.stringify({
-            type: "validation_error",
-            id: message.id,
-            error: validationError,
-          }));
+          this.ws.send(
+            JSON.stringify({
+              type: "validation_error",
+              id: message.id,
+              error: validationError,
+            }),
+          );
           return; // Don't resolve yet, wait for corrected input
         }
       }
@@ -171,26 +181,32 @@ export class WebPrompter implements WizardPrompter {
     const id = generatePromptId();
 
     // Send initial progress message
-    this.ws.send(JSON.stringify({
-      type: "progress",
-      id,
-      params: { label, status: "start" },
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: "progress",
+        id,
+        params: { label, status: "start" },
+      }),
+    );
 
     return {
       update: (message: string) => {
-        this.ws.send(JSON.stringify({
-          type: "progress",
-          id,
-          params: { label: message, status: "update" },
-        }));
+        this.ws.send(
+          JSON.stringify({
+            type: "progress",
+            id,
+            params: { label: message, status: "update" },
+          }),
+        );
       },
       stop: (message?: string) => {
-        this.ws.send(JSON.stringify({
-          type: "progress",
-          id,
-          params: { label: message ?? label, status: "stop" },
-        }));
+        this.ws.send(
+          JSON.stringify({
+            type: "progress",
+            id,
+            params: { label: message ?? label, status: "stop" },
+          }),
+        );
       },
     };
   }

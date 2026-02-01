@@ -13,14 +13,14 @@ export class OnboardProgress extends LocalizedElement {
     :host {
       display: block;
     }
-
+    
     .progress-container {
       max-width: 400px;
       margin: 0 auto;
       padding: 2rem;
       text-align: center;
     }
-
+    
     .spinner {
       display: inline-block;
       width: 48px;
@@ -31,26 +31,28 @@ export class OnboardProgress extends LocalizedElement {
       animation: spin 0.8s linear infinite;
       margin-bottom: 1.5rem;
     }
-
+    
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
-
+    
     .label {
       font-size: 1.125rem;
       color: var(--color-text-secondary, #6c757d);
     }
-
+    
     .completed {
       color: var(--color-success, #2a9d8f);
     }
-
+    
     .completed .spinner {
       border-color: var(--color-success, #2a9d8f);
       border-top-color: transparent;
       animation: none;
     }
-
+    
     .check-icon {
       font-size: 3rem;
       margin-bottom: 1rem;
@@ -66,9 +68,14 @@ export class OnboardProgress extends LocalizedElement {
 
     return html`
       <div class="progress-container ${isComplete ? "completed" : ""}">
-        ${isComplete 
-          ? html`<div class="check-icon">✓</div>` 
-          : html`<div class="spinner"></div>`
+        ${
+          isComplete
+            ? html`
+                <div class="check-icon">✓</div>
+              `
+            : html`
+                <div class="spinner"></div>
+              `
         }
         <div class="label">${translatedLabel}</div>
       </div>

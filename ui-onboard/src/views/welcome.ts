@@ -13,38 +13,38 @@ export class OnboardWelcome extends LocalizedElement {
     :host {
       display: block;
     }
-
+    
     .welcome-container {
       text-align: center;
       max-width: 600px;
       margin: 0 auto;
       padding: 2rem;
     }
-
+    
     .logo {
       font-size: 5rem;
       margin-bottom: 1.5rem;
     }
-
+    
     .title {
       font-size: 2.5rem;
       font-weight: 700;
       margin-bottom: 0.5rem;
       color: var(--color-text, #212529);
     }
-
+    
     .subtitle {
       font-size: 1.25rem;
       color: var(--color-text-secondary, #6c757d);
       margin-bottom: 2rem;
     }
-
+    
     .description {
       color: var(--color-text-secondary, #6c757d);
       margin-bottom: 2rem;
       line-height: 1.6;
     }
-
+    
     .start-button {
       display: inline-flex;
       align-items: center;
@@ -60,12 +60,12 @@ export class OnboardWelcome extends LocalizedElement {
       cursor: pointer;
       transition: all 150ms ease;
     }
-
+    
     .start-button:hover {
       background: var(--color-primary-hover, #c1121f);
       transform: translateY(-1px);
     }
-
+    
     .start-button:active {
       transform: translateY(0);
     }

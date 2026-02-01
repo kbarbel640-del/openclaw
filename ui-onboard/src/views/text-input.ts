@@ -14,24 +14,24 @@ export class OnboardTextInput extends LocalizedElement {
     :host {
       display: block;
     }
-
+    
     .text-input-container {
       max-width: 500px;
       margin: 0 auto;
       padding: 2rem;
     }
-
+    
     .message {
       font-size: 1.25rem;
       font-weight: 500;
       margin-bottom: 1.5rem;
       color: var(--color-text, #212529);
     }
-
+    
     .input-wrapper {
       margin-bottom: 1.5rem;
     }
-
+    
     .text-input {
       width: 100%;
       padding: 0.75rem 1rem;
@@ -44,33 +44,33 @@ export class OnboardTextInput extends LocalizedElement {
       transition: border-color 150ms ease;
       box-sizing: border-box;
     }
-
+    
     .text-input:focus {
       outline: none;
       border-color: var(--color-primary, #e63946);
     }
-
+    
     .text-input::placeholder {
       color: var(--color-text-muted, #adb5bd);
     }
-
+    
     .text-input.password {
       font-family: monospace;
       letter-spacing: 0.1em;
     }
-
+    
     .hint {
       font-size: 0.875rem;
       color: var(--color-text-secondary, #6c757d);
       margin-top: 0.5rem;
     }
-
+    
     .button-group {
       display: flex;
       gap: 1rem;
       justify-content: flex-end;
     }
-
+    
     .btn {
       padding: 0.625rem 1.25rem;
       font-size: 1rem;
@@ -79,17 +79,17 @@ export class OnboardTextInput extends LocalizedElement {
       cursor: pointer;
       transition: all 150ms ease;
     }
-
+    
     .btn-primary {
       background: var(--color-primary, #e63946);
       color: white;
       border: none;
     }
-
+    
     .btn-primary:hover:not(:disabled) {
       background: var(--color-primary-hover, #c1121f);
     }
-
+    
     .btn-primary:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -124,11 +124,13 @@ export class OnboardTextInput extends LocalizedElement {
 
   private isPasswordField(): boolean {
     const msg = this.message.toLowerCase();
-    return msg.includes("api key") || 
-           msg.includes("密钥") || 
-           msg.includes("password") || 
-           msg.includes("token") ||
-           msg.includes("secret");
+    return (
+      msg.includes("api key") ||
+      msg.includes("密钥") ||
+      msg.includes("password") ||
+      msg.includes("token") ||
+      msg.includes("secret")
+    );
   }
 
   override render() {
@@ -149,9 +151,13 @@ export class OnboardTextInput extends LocalizedElement {
             @keydown=${this.handleKeydown}
             autocomplete="off"
           />
-          ${isPassword ? html`
+          ${
+            isPassword
+              ? html`
             <div class="hint">${t("auth.api_key.hint")}</div>
-          ` : ""}
+          `
+              : ""
+          }
         </div>
 
         <div class="button-group">

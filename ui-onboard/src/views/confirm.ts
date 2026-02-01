@@ -14,14 +14,14 @@ export class OnboardConfirm extends LocalizedElement {
     :host {
       display: block;
     }
-
+    
     .confirm-container {
       max-width: 500px;
       margin: 0 auto;
       padding: 2rem;
       text-align: center;
     }
-
+    
     .message {
       font-size: 1.25rem;
       font-weight: 500;
@@ -29,13 +29,13 @@ export class OnboardConfirm extends LocalizedElement {
       color: var(--color-text, #212529);
       line-height: 1.5;
     }
-
+    
     .button-group {
       display: flex;
       gap: 1rem;
       justify-content: center;
     }
-
+    
     .btn {
       padding: 0.75rem 2rem;
       font-size: 1rem;
@@ -45,23 +45,23 @@ export class OnboardConfirm extends LocalizedElement {
       transition: all 150ms ease;
       min-width: 100px;
     }
-
+    
     .btn-primary {
       background: var(--color-primary, #e63946);
       color: white;
       border: none;
     }
-
+    
     .btn-primary:hover {
       background: var(--color-primary-hover, #c1121f);
     }
-
+    
     .btn-secondary {
       background: transparent;
       color: var(--color-text, #212529);
       border: 1px solid var(--color-border, #dee2e6);
     }
-
+    
     .btn-secondary:hover {
       background: var(--color-bg-tertiary, #e9ecef);
     }

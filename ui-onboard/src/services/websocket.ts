@@ -2,7 +2,15 @@
  * WebSocket client for communicating with the onboarding server
  */
 
-export type PromptType = "select" | "multiselect" | "text" | "confirm" | "note" | "intro" | "outro" | "progress";
+export type PromptType =
+  | "select"
+  | "multiselect"
+  | "text"
+  | "confirm"
+  | "note"
+  | "intro"
+  | "outro"
+  | "progress";
 
 export interface PromptMessage {
   type: PromptType;
@@ -61,7 +69,7 @@ export class OnboardWebSocket {
     this.ws.addEventListener("message", (event) => {
       try {
         const data = JSON.parse(event.data as string) as Record<string, unknown>;
-        
+
         // Check for shutdown acknowledgement
         if (data.type === "shutdown_ack") {
           console.log("[onboard-ws] Shutdown acknowledged by server");

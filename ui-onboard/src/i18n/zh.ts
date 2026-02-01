@@ -159,9 +159,11 @@ export default {
   "complete.close": "关闭向导",
   "complete.gateway_info_title": "启动网关",
   "complete.gateway_info_desc": "如果网关服务安装失败（例如权限问题），您需要手动启动它：",
-  "complete.gateway_info_note": "使用 OpenClaw 时请保持此终端窗口打开。网关负责处理您的频道与 AI 之间的通信。",
+  "complete.gateway_info_note":
+    "使用 OpenClaw 时请保持此终端窗口打开。网关负责处理您的频道与 AI 之间的通信。",
   "complete.service_warning_title": "Windows 用户注意",
-  "complete.service_warning_desc": "如果网关服务安装因「拒绝访问」而失败，您可以选择以管理员身份重新运行配置向导，或者每次使用 OpenClaw 时手动运行 'openclaw gateway run'。",
+  "complete.service_warning_desc":
+    "如果网关服务安装因「拒绝访问」而失败，您可以选择以管理员身份重新运行配置向导，或者每次使用 OpenClaw 时手动运行 'openclaw gateway run'。",
   "complete.shutdown_description": "配置完成后，您可以关闭向导并停止配置服务器：",
   "complete.shutdown_wizard": "关闭向导并停止服务",
   "complete.shutting_down": "正在关闭...",

@@ -37,6 +37,7 @@
 新安装？从这里开始：[快速开始](https://docs.openclaw.ai/start/getting-started)
 
 **订阅 (OAuth):**
+
 - **[Anthropic](https://www.anthropic.com/)** (Claude Pro/Max)
 - **[OpenAI](https://openai.com/)** (ChatGPT/Codex)
 
@@ -71,6 +72,7 @@ openclaw onboard --web --web-port 9887
 ```
 
 这将在 `http://127.0.0.1:9887` 启动一个现代化 Web 界面，引导您完成：
+
 - 模型提供商选择（Anthropic、OpenAI、Google、硅基流动、OpenCode Zen 等）
 - API 密钥配置
 - 网关设置
@@ -134,6 +136,7 @@ OpenClaw 连接到真实的消息平台。将入站私信视为**不受信任的
 完整安全指南：[安全](https://docs.openclaw.ai/gateway/security)
 
 在 Telegram/WhatsApp/Signal/iMessage/Microsoft Teams/Discord/Google Chat/Slack 上的默认行为：
+
 - **私信配对**（`dmPolicy="pairing"` / `channels.discord.dm.policy="pairing"` / `channels.slack.dm.policy="pairing"`）：未知发送者会收到一个简短的配对码，机器人不会处理他们的消息。
 - 批准命令：`openclaw pairing approve <channel> <code>`（然后发送者会被添加到本地白名单存储中）。
 - 公开入站私信需要明确的选择加入：设置 `dmPolicy="open"` 并在频道白名单中包含 `"*"`（`allowFrom` / `channels.discord.dm.allowFrom` / `channels.slack.dm.allowFrom`）。
@@ -158,6 +161,7 @@ OpenClaw 连接到真实的消息平台。将入站私信视为**不受信任的
 ## 我们构建的全部功能
 
 ### 核心平台
+
 - [Gateway WS 控制平面](https://docs.openclaw.ai/gateway) 包含会话、在线状态、配置、定时任务、webhooks、[控制界面](https://docs.openclaw.ai/web) 和 [Canvas 主机](https://docs.openclaw.ai/platforms/mac/canvas#canvas-a2ui)。
 - [CLI 界面](https://docs.openclaw.ai/tools/agent-send)：gateway、agent、send、[向导](https://docs.openclaw.ai/start/wizard) 和 [doctor](https://docs.openclaw.ai/gateway/doctor)。
 - [Pi 代理运行时](https://docs.openclaw.ai/concepts/agent) 支持 RPC 模式，带有工具流和块流。
@@ -165,16 +169,19 @@ OpenClaw 连接到真实的消息平台。将入站私信视为**不受信任的
 - [媒体管道](https://docs.openclaw.ai/nodes/images)：图片/音频/视频，转录钩子，大小限制，临时文件生命周期。音频详情：[音频](https://docs.openclaw.ai/nodes/audio)。
 
 ### 频道
+
 - [频道](https://docs.openclaw.ai/channels)：[WhatsApp](https://docs.openclaw.ai/channels/whatsapp) (Baileys)、[Telegram](https://docs.openclaw.ai/channels/telegram) (grammY)、[Slack](https://docs.openclaw.ai/channels/slack) (Bolt)、[Discord](https://docs.openclaw.ai/channels/discord) (discord.js)、[Google Chat](https://docs.openclaw.ai/channels/googlechat) (Chat API)、[Signal](https://docs.openclaw.ai/channels/signal) (signal-cli)、[iMessage](https://docs.openclaw.ai/channels/imessage) (imsg)、[BlueBubbles](https://docs.openclaw.ai/channels/bluebubbles) (扩展)、[Microsoft Teams](https://docs.openclaw.ai/channels/msteams) (扩展)、[Matrix](https://docs.openclaw.ai/channels/matrix) (扩展)、[Zalo](https://docs.openclaw.ai/channels/zalo) (扩展)、[Zalo Personal](https://docs.openclaw.ai/channels/zalouser) (扩展)、[WebChat](https://docs.openclaw.ai/web/webchat)。
 - [群组路由](https://docs.openclaw.ai/concepts/group-messages)：提及门控，回复标签，每个频道的分块和路由。频道规则：[频道](https://docs.openclaw.ai/channels)。
 
 ### 应用 + 节点
+
 - [macOS 应用](https://docs.openclaw.ai/platforms/macos)：菜单栏控制平面，[语音唤醒](https://docs.openclaw.ai/nodes/voicewake)/PTT，[对话模式](https://docs.openclaw.ai/nodes/talk) 覆盖层，[WebChat](https://docs.openclaw.ai/web/webchat)，调试工具，[远程网关](https://docs.openclaw.ai/gateway/remote) 控制。
 - [iOS 节点](https://docs.openclaw.ai/platforms/ios)：[Canvas](https://docs.openclaw.ai/platforms/mac/canvas)，[语音唤醒](https://docs.openclaw.ai/nodes/voicewake)，[对话模式](https://docs.openclaw.ai/nodes/talk)，相机，屏幕录制，Bonjour 配对。
 - [Android 节点](https://docs.openclaw.ai/platforms/android)：[Canvas](https://docs.openclaw.ai/platforms/mac/canvas)，[对话模式](https://docs.openclaw.ai/nodes/talk)，相机，屏幕录制，可选短信。
 - [macOS 节点模式](https://docs.openclaw.ai/nodes)：system.run/notify + canvas/camera 暴露。
 
 ### 工具 + 自动化
+
 - [浏览器控制](https://docs.openclaw.ai/tools/browser)：专用 openclaw Chrome/Chromium，快照，操作，上传，配置文件。
 - [Canvas](https://docs.openclaw.ai/platforms/mac/canvas)：[A2UI](https://docs.openclaw.ai/platforms/mac/canvas#canvas-a2ui) 推送/重置，eval，快照。
 - [节点](https://docs.openclaw.ai/nodes)：相机拍照/录像，屏幕录制，[location.get](https://docs.openclaw.ai/nodes/location-command)，通知。
@@ -182,12 +189,14 @@ OpenClaw 连接到真实的消息平台。将入站私信视为**不受信任的
 - [技能平台](https://docs.openclaw.ai/tools/skills)：内置、托管和工作区技能，带有安装门控 + UI。
 
 ### 运行时 + 安全
+
 - [频道路由](https://docs.openclaw.ai/concepts/channel-routing)，[重试策略](https://docs.openclaw.ai/concepts/retry) 和 [流式/分块](https://docs.openclaw.ai/concepts/streaming)。
 - [在线状态](https://docs.openclaw.ai/concepts/presence)，[输入指示器](https://docs.openclaw.ai/concepts/typing-indicators) 和 [使用量跟踪](https://docs.openclaw.ai/concepts/usage-tracking)。
 - [模型](https://docs.openclaw.ai/concepts/models)，[模型故障转移](https://docs.openclaw.ai/concepts/model-failover) 和 [会话修剪](https://docs.openclaw.ai/concepts/session-pruning)。
 - [安全](https://docs.openclaw.ai/gateway/security) 和 [故障排除](https://docs.openclaw.ai/channels/troubleshooting)。
 
 ### 运维 + 打包
+
 - [控制界面](https://docs.openclaw.ai/web) + [WebChat](https://docs.openclaw.ai/web/webchat) 直接从 Gateway 提供。
 - [Tailscale Serve/Funnel](https://docs.openclaw.ai/gateway/tailscale) 或 [SSH 隧道](https://docs.openclaw.ai/gateway/remote) 带有令牌/密码认证。
 - [Nix 模式](https://docs.openclaw.ai/install/nix) 用于声明式配置；[Docker](https://docs.openclaw.ai/install/docker) 安装。
@@ -196,12 +205,14 @@ OpenClaw 连接到真实的消息平台。将入站私信视为**不受信任的
 ## 支持的模型提供商
 
 ### 国际提供商
+
 - **Anthropic** - Claude Opus 4.5、Sonnet 4.5、Haiku 4.5
 - **OpenAI** - GPT-5.2、GPT-5.1、GPT-5、Codex 系列
 - **Google** - Gemini 3 Pro、Gemini 3 Flash
 - **OpenRouter** - 多模型聚合平台
 
 ### 国内提供商
+
 - **硅基流动 (SiliconFlow)** - DeepSeek、GLM、Qwen、Llama 等
 - **OpenCode Zen** - Claude、GPT、Gemini、GLM、Kimi 等
 - **月之暗面 (Moonshot)** - Kimi K2、Kimi K2.5
@@ -210,6 +221,7 @@ OpenClaw 连接到真实的消息平台。将入站私信视为**不受信任的
 - **通义千问 (Qwen)** - Qwen3 Coder
 
 ### 其他提供商
+
 - **NVIDIA NIM** - 各种开源模型
 - **Amazon Bedrock** - 多模型云服务
 - **Azure OpenAI** - 企业级 OpenAI 服务
@@ -251,6 +263,7 @@ OpenClaw 可以自动配置 Tailscale **Serve**（仅限 tailnet）或 **Funnel*
 - `funnel`：通过 `tailscale funnel` 的公开 HTTPS（需要共享密码认证）。
 
 注意：
+
 - 启用 Serve/Funnel 时 `gateway.bind` 必须保持 `loopback`（OpenClaw 强制执行）。
 - Serve 可以通过设置 `gateway.auth.mode: "password"` 或 `gateway.auth.allowTailscale: false` 强制要求密码。
 - 除非设置 `gateway.auth.mode: "password"`，否则 Funnel 拒绝启动。
@@ -264,7 +277,7 @@ OpenClaw 可以自动配置 Tailscale **Serve**（仅限 tailnet）或 **Funnel*
 
 - **Gateway 主机** 默认运行 exec 工具和频道连接。
 - **设备节点** 通过 `node.invoke` 运行设备本地操作（`system.run`、相机、屏幕录制、通知）。
-简而言之：exec 在 Gateway 所在位置运行；设备操作在设备所在位置运行。
+  简而言之：exec 在 Gateway 所在位置运行；设备操作在设备所在位置运行。
 
 详情：[远程访问](https://docs.openclaw.ai/gateway/remote) · [节点](https://docs.openclaw.ai/nodes) · [安全](https://docs.openclaw.ai/gateway/security)
 
@@ -283,7 +296,7 @@ macOS 应用可以在 **节点模式** 下运行，并通过 Gateway WebSocket �
 
 详情：[节点](https://docs.openclaw.ai/nodes) · [macOS 应用](https://docs.openclaw.ai/platforms/macos) · [Gateway 协议](https://docs.openclaw.ai/concepts/architecture)
 
-## 代理到代理（sessions_* 工具）
+## 代理到代理（sessions\_\* 工具）
 
 - 使用这些工具在会话间协调工作，无需在聊天界面之间跳转。
 - `sessions_list` — 发现活动会话（代理）及其元数据。
@@ -353,8 +366,8 @@ Gateway 本身就能提供很好的体验。所有应用都是可选的，只是
 ```json5
 {
   agent: {
-    model: "anthropic/claude-opus-4-5"
-  }
+    model: "anthropic/claude-opus-4-5",
+  },
 }
 ```
 
@@ -363,8 +376,8 @@ Gateway 本身就能提供很好的体验。所有应用都是可选的，只是
 ```json5
 {
   agent: {
-    model: "siliconflow/deepseek-ai-DeepSeek-V3.2"
-  }
+    model: "siliconflow/deepseek-ai-DeepSeek-V3.2",
+  },
 }
 ```
 
@@ -395,9 +408,9 @@ Gateway 本身就能提供很好的体验。所有应用都是可选的，只是
 {
   channels: {
     telegram: {
-      botToken: "123456:ABCDEF"
-    }
-  }
+      botToken: "123456:ABCDEF",
+    },
+  },
 }
 ```
 
@@ -414,9 +427,9 @@ Gateway 本身就能提供很好的体验。所有应用都是可选的，只是
 {
   channels: {
     discord: {
-      token: "1234abcd"
-    }
-  }
+      token: "1234abcd",
+    },
+  },
 }
 ```
 
@@ -444,14 +457,15 @@ Gateway 本身就能提供很好的体验。所有应用都是可选的，只是
 {
   browser: {
     enabled: true,
-    color: "#FF4500"
-  }
+    color: "#FF4500",
+  },
 }
 ```
 
 ## 文档
 
 当您完成配置流程并需要更深入的参考时使用这些：
+
 - [从文档索引开始导航和"什么在哪里"](https://docs.openclaw.ai)
 - [阅读架构概述了解网关 + 协议模型](https://docs.openclaw.ai/concepts/architecture)
 - [当您需要每个键和示例时使用完整配置参考](https://docs.openclaw.ai/gateway/configuration)
@@ -523,6 +537,7 @@ Gateway 本身就能提供很好的体验。所有应用都是可选的，只是
 强烈推荐使用 WSL2。原生 Windows 未经测试且问题更多。
 
 如果网关服务安装失败（显示"拒绝访问"），您可以：
+
 1. 以管理员身份运行配置向导
 2. 或每次手动运行 `openclaw gateway run`
 

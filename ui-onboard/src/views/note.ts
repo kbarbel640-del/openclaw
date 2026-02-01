@@ -14,13 +14,13 @@ export class OnboardNote extends LocalizedElement {
     :host {
       display: block;
     }
-
+    
     .note-container {
       max-width: 900px;
       margin: 0 auto;
       padding: 2rem;
     }
-
+    
     .note-box {
       background: var(--color-bg-secondary, #f8f9fa);
       border: 1px solid var(--color-border, #dee2e6);
@@ -31,36 +31,36 @@ export class OnboardNote extends LocalizedElement {
       max-height: 60vh;
       overflow-y: auto;
     }
-
+    
     .note-title {
       font-size: 1.125rem;
       font-weight: 600;
       margin-bottom: 1rem;
       color: var(--color-text, #212529);
     }
-
+    
     .note-content {
       white-space: pre-line;
       color: var(--color-text-secondary, #6c757d);
       line-height: 1.6;
     }
-
+    
     .note-content.two-column {
       column-count: 2;
       column-gap: 2rem;
     }
-
+    
     @media (max-width: 768px) {
       .note-content.two-column {
         column-count: 1;
       }
     }
-
+    
     .button-group {
       display: flex;
       justify-content: center;
     }
-
+    
     .btn {
       padding: 0.625rem 1.5rem;
       font-size: 1rem;
@@ -72,7 +72,7 @@ export class OnboardNote extends LocalizedElement {
       cursor: pointer;
       transition: all 150ms ease;
     }
-
+    
     .btn:hover {
       background: var(--color-primary-hover, #c1121f);
     }

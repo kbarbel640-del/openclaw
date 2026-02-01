@@ -106,8 +106,10 @@ export async function startOnboardWebServer(options: ServerOptions): Promise<voi
       })
       .catch((error) => {
         // Check if it's a WizardCancelledError (user cancelled the wizard)
-        if (error instanceof WizardCancelledError || 
-            (error instanceof Error && error.name === "WizardCancelledError")) {
+        if (
+          error instanceof WizardCancelledError ||
+          (error instanceof Error && error.name === "WizardCancelledError")
+        ) {
           const reason = error instanceof Error ? error.message : "cancelled";
           runtime.log(`[onboard-web] Onboarding cancelled: ${reason}`);
           ws.send(JSON.stringify({ type: "cancelled", reason }));
@@ -226,7 +228,7 @@ function openBrowser(url: string, runtime: RuntimeEnv): void {
   void (async () => {
     try {
       const { exec } = await import("node:child_process");
-      
+
       let command: string;
       if (platform === "win32") {
         // On Windows, use rundll32 which is the most reliable way to open URLs

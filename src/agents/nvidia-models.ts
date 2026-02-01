@@ -34,18 +34,18 @@ export const NVIDIA_MODEL_ALIASES: Record<string, string> = {
 
   // Qwen models
   qwen: "qwen/qwen3-235b-a22b",
-  "qwen3": "qwen/qwen3-235b-a22b",
+  qwen3: "qwen/qwen3-235b-a22b",
   "qwen3-coder": "qwen/qwen3-coder-480b-a35b-instruct",
   "qwen3-next": "qwen/qwen3-next-80b-a3b-instruct",
-  "qwq": "qwen/qwq-32b",
+  qwq: "qwen/qwq-32b",
   "qwen2.5-coder": "qwen/qwen2.5-coder-32b-instruct",
 
   // Mistral models
   mistral: "mistralai/mistral-large-3-675b-instruct-2512",
   "mistral-large": "mistralai/mistral-large-3-675b-instruct-2512",
   "mistral-medium": "mistralai/mistral-medium-3-instruct",
-  "devstral": "mistralai/devstral-2-123b-instruct-2512",
-  "mixtral": "mistralai/mixtral-8x22b-instruct-v0.1",
+  devstral: "mistralai/devstral-2-123b-instruct-2512",
+  mixtral: "mistralai/mixtral-8x22b-instruct-v0.1",
 
   // Kimi models
   kimi: "moonshotai/kimi-k2.5",

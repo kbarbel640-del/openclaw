@@ -21,7 +21,7 @@ export function applySiliconFlowProviderConfig(cfg: OpenClawConfig): OpenClawCon
   const providers = { ...cfg.models?.providers };
   const existingProvider = providers.siliconflow;
   const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
-  
+
   // Use static fallback models for initial configuration
   // The models will be dynamically fetched at runtime via fetchSiliconFlowModels
   const siliconflowModels = getSiliconFlowStaticFallbackModels();
@@ -31,14 +31,14 @@ export function applySiliconFlowProviderConfig(cfg: OpenClawConfig): OpenClawCon
       (model) => !existingModels.some((existing) => existing.id === model.id),
     ),
   ];
-  
+
   const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
     string,
     unknown
   > as { apiKey?: string };
   const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
   const normalizedApiKey = resolvedApiKey?.trim();
-  
+
   providers.siliconflow = {
     ...existingProviderRest,
     baseUrl: SILICONFLOW_API_BASE_URL,

@@ -51,7 +51,10 @@ export function registerOnboardCommand(program: Command) {
     .option("--non-interactive", "Run without prompts", false)
     .option("--web", "Launch web-based onboarding UI instead of CLI wizard")
     .option("--web-port <port>", "Port for web-based onboarding UI (default: 9887)")
-    .option("--no-web-open", "Don't open browser automatically when using --web (browser opens by default)")
+    .option(
+      "--no-web-open",
+      "Don't open browser automatically when using --web (browser opens by default)",
+    )
     .option(
       "--accept-risk",
       "Acknowledge that agents are powerful and full system access is risky (required for --non-interactive)",

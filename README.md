@@ -72,6 +72,7 @@ openclaw onboard --web --web-port 9887
 ```
 
 This launches a modern web UI at `http://127.0.0.1:9887` that guides you through:
+
 - Model provider selection (Anthropic, OpenAI, Google, SiliconFlow, OpenCode Zen, etc.)
 - API key configuration
 - Gateway settings

@@ -10,10 +10,7 @@ import { startOnboardWebServer } from "./server.js";
 
 const DEFAULT_WEB_PORT = 9887;
 
-export async function runWebOnboarding(
-  opts: OnboardOptions,
-  runtime: RuntimeEnv,
-): Promise<void> {
+export async function runWebOnboarding(opts: OnboardOptions, runtime: RuntimeEnv): Promise<void> {
   const port = opts.webPort ?? DEFAULT_WEB_PORT;
   const open = opts.webOpen ?? true;
 

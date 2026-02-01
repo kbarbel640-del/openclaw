@@ -48,7 +48,7 @@ export const SILICONFLOW_MODEL_ALIASES: Record<string, string> = {
 
   // Qwen3
   qwen: "Qwen/Qwen3-235B-A22B-Instruct-2507",
-  "qwen3": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+  qwen3: "Qwen/Qwen3-235B-A22B-Instruct-2507",
   "qwen3-coder": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
   "qwen3-32b": "Qwen/Qwen3-32B",
   "qwen3-14b": "Qwen/Qwen3-14B",
@@ -61,7 +61,7 @@ export const SILICONFLOW_MODEL_ALIASES: Record<string, string> = {
   "qwen2.5-72b": "Qwen/Qwen2.5-72B-Instruct",
   "qwen2.5-32b": "Qwen/Qwen2.5-32B-Instruct",
   "qwen2.5-coder": "Qwen/Qwen2.5-Coder-32B-Instruct",
-  "qwq": "Qwen/QwQ-32B",
+  qwq: "Qwen/QwQ-32B",
 
   // MiniMax
   minimax: "Pro/MiniMaxAI/MiniMax-M2.1",
@@ -156,8 +156,18 @@ const MODEL_COSTS: Record<
   // DeepSeek models (CNY/M tokens -> approx USD)
   "deepseek-ai/DeepSeek-V3.2": { input: 0.42, output: 0.42, cacheRead: 0.04, cacheWrite: 0 },
   "Pro/deepseek-ai/DeepSeek-V3.2": { input: 0.42, output: 0.42, cacheRead: 0.04, cacheWrite: 0 },
-  "deepseek-ai/DeepSeek-V3.1-Terminus": { input: 1.68, output: 1.68, cacheRead: 0.17, cacheWrite: 0 },
-  "Pro/deepseek-ai/DeepSeek-V3.1-Terminus": { input: 1.68, output: 1.68, cacheRead: 0.17, cacheWrite: 0 },
+  "deepseek-ai/DeepSeek-V3.1-Terminus": {
+    input: 1.68,
+    output: 1.68,
+    cacheRead: 0.17,
+    cacheWrite: 0,
+  },
+  "Pro/deepseek-ai/DeepSeek-V3.1-Terminus": {
+    input: 1.68,
+    output: 1.68,
+    cacheRead: 0.17,
+    cacheWrite: 0,
+  },
   "deepseek-ai/DeepSeek-R1": { input: 2.24, output: 2.24, cacheRead: 0.22, cacheWrite: 0 },
   "Pro/deepseek-ai/DeepSeek-R1": { input: 2.24, output: 2.24, cacheRead: 0.22, cacheWrite: 0 },
   "deepseek-ai/DeepSeek-V3": { input: 1.12, output: 1.12, cacheRead: 0.11, cacheWrite: 0 },
@@ -168,7 +178,12 @@ const MODEL_COSTS: Record<
   "moonshotai/Kimi-K2-Thinking": { input: 2.24, output: 2.24, cacheRead: 0.22, cacheWrite: 0 },
   "Pro/moonshotai/Kimi-K2-Thinking": { input: 2.24, output: 2.24, cacheRead: 0.22, cacheWrite: 0 },
   "moonshotai/Kimi-K2-Instruct-0905": { input: 2.24, output: 2.24, cacheRead: 0.22, cacheWrite: 0 },
-  "Pro/moonshotai/Kimi-K2-Instruct-0905": { input: 2.24, output: 2.24, cacheRead: 0.22, cacheWrite: 0 },
+  "Pro/moonshotai/Kimi-K2-Instruct-0905": {
+    input: 2.24,
+    output: 2.24,
+    cacheRead: 0.22,
+    cacheWrite: 0,
+  },
   "moonshotai/Kimi-Dev-72B": { input: 1.12, output: 1.12, cacheRead: 0.11, cacheWrite: 0 },
 
   // GLM models
@@ -192,8 +207,18 @@ const MODEL_COSTS: Record<
   "Qwen/Qwen3-235B-A22B-Thinking-2507": { input: 1.4, output: 1.4, cacheRead: 0.14, cacheWrite: 0 },
   "Qwen/Qwen3-30B-A3B-Instruct-2507": { input: 0.39, output: 0.39, cacheRead: 0.04, cacheWrite: 0 },
   "Qwen/Qwen3-30B-A3B-Thinking-2507": { input: 0.39, output: 0.39, cacheRead: 0.04, cacheWrite: 0 },
-  "Qwen/Qwen3-Coder-480B-A35B-Instruct": { input: 2.24, output: 2.24, cacheRead: 0.22, cacheWrite: 0 },
-  "Qwen/Qwen3-Coder-30B-A3B-Instruct": { input: 0.39, output: 0.39, cacheRead: 0.04, cacheWrite: 0 },
+  "Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+    input: 2.24,
+    output: 2.24,
+    cacheRead: 0.22,
+    cacheWrite: 0,
+  },
+  "Qwen/Qwen3-Coder-30B-A3B-Instruct": {
+    input: 0.39,
+    output: 0.39,
+    cacheRead: 0.04,
+    cacheWrite: 0,
+  },
   "Qwen/Qwen3-VL-235B-A22B-Instruct": { input: 1.4, output: 1.4, cacheRead: 0.14, cacheWrite: 0 },
   "Qwen/Qwen3-VL-235B-A22B-Thinking": { input: 1.4, output: 1.4, cacheRead: 0.14, cacheWrite: 0 },
   "Qwen/Qwen3-VL-32B-Instruct": { input: 0.56, output: 0.56, cacheRead: 0.06, cacheWrite: 0 },
@@ -224,13 +249,28 @@ const MODEL_COSTS: Record<
   "Tongyi-Zhiwen/QwenLong-L1-32B": { input: 0.56, output: 0.56, cacheRead: 0.06, cacheWrite: 0 },
 
   // DeepSeek Distill models
-  "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": { input: 0.18, output: 0.18, cacheRead: 0.02, cacheWrite: 0 },
-  "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": { input: 0.1, output: 0.1, cacheRead: 0.01, cacheWrite: 0 },
+  "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": {
+    input: 0.18,
+    output: 0.18,
+    cacheRead: 0.02,
+    cacheWrite: 0,
+  },
+  "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": {
+    input: 0.1,
+    output: 0.1,
+    cacheRead: 0.01,
+    cacheWrite: 0,
+  },
   "deepseek-ai/deepseek-vl2": { input: 0.14, output: 0.14, cacheRead: 0.01, cacheWrite: 0 },
 
   // Other models
   "stepfun-ai/step3": { input: 1.4, output: 1.4, cacheRead: 0.14, cacheWrite: 0 },
-  "ByteDance-Seed/Seed-OSS-36B-Instruct": { input: 0.56, output: 0.56, cacheRead: 0.06, cacheWrite: 0 },
+  "ByteDance-Seed/Seed-OSS-36B-Instruct": {
+    input: 0.56,
+    output: 0.56,
+    cacheRead: 0.06,
+    cacheWrite: 0,
+  },
   "inclusionAI/Ring-flash-2.0": { input: 0.56, output: 0.56, cacheRead: 0.06, cacheWrite: 0 },
   "inclusionAI/Ling-flash-2.0": { input: 0.56, output: 0.56, cacheRead: 0.06, cacheWrite: 0 },
   "inclusionAI/Ling-mini-2.0": { input: 0.28, output: 0.28, cacheRead: 0.03, cacheWrite: 0 },
@@ -354,7 +394,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "Qwen/Qwen3-14B": 8192,
   "Qwen/Qwen3-32B": 8192,
   "Qwen/Qwen3-30B-A3B": 8192,
-  
+
   // GLM models have high max tokens
   "THUDM/glm-4-9b-chat": 131072,
   "THUDM/GLM-Z1-9B-0414": 16384,
@@ -372,11 +412,11 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   // Kimi models
   "Pro/moonshotai/Kimi-K2.5": 8192,
   "moonshotai/Kimi-K2-Thinking": 8192,
-  
+
   // Qwen3 Coder
   "Qwen/Qwen3-Coder-480B-A35B-Instruct": 16384,
   "Qwen/Qwen3-Coder-30B-A3B-Instruct": 16384,
-  
+
   // Qwen2.5
   "Qwen/Qwen2.5-Coder-32B-Instruct": 16384,
 };

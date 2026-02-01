@@ -14,38 +14,38 @@ export class OnboardComplete extends LocalizedElement {
     :host {
       display: block;
     }
-
+    
     .complete-container {
       max-width: 600px;
       margin: 0 auto;
       padding: 2rem;
       text-align: center;
     }
-
+    
     .icon {
       font-size: 5rem;
       margin-bottom: 1.5rem;
     }
-
+    
     .title {
       font-size: 2rem;
       font-weight: 700;
       margin-bottom: 0.5rem;
       color: var(--color-text, #212529);
     }
-
+    
     .subtitle {
       font-size: 1.125rem;
       color: var(--color-text-secondary, #6c757d);
       margin-bottom: 2rem;
     }
-
+    
     .message {
       color: var(--color-text-secondary, #6c757d);
       margin-bottom: 2rem;
       line-height: 1.6;
     }
-
+    
     .next-steps {
       background: var(--color-bg-secondary, #f8f9fa);
       border: 1px solid var(--color-border, #dee2e6);
@@ -54,19 +54,19 @@ export class OnboardComplete extends LocalizedElement {
       margin-bottom: 1.5rem;
       text-align: left;
     }
-
+    
     .next-steps-title {
       font-weight: 600;
       margin-bottom: 1rem;
       color: var(--color-text, #212529);
     }
-
+    
     .step-list {
       list-style: none;
       padding: 0;
       margin: 0;
     }
-
+    
     .step-item {
       display: flex;
       align-items: flex-start;
@@ -74,7 +74,7 @@ export class OnboardComplete extends LocalizedElement {
       padding: 0.5rem 0;
       color: var(--color-text-secondary, #6c757d);
     }
-
+    
     .step-number {
       display: flex;
       align-items: center;
@@ -88,7 +88,7 @@ export class OnboardComplete extends LocalizedElement {
       font-weight: 600;
       flex-shrink: 0;
     }
-
+    
     .step-text code {
       background: var(--color-bg-tertiary, #e9ecef);
       padding: 0.125rem 0.375rem;
@@ -96,7 +96,7 @@ export class OnboardComplete extends LocalizedElement {
       font-family: var(--font-family-mono, monospace);
       font-size: 0.875rem;
     }
-
+    
     .info-box {
       background: var(--color-bg-info, #e7f5ff);
       border: 1px solid var(--color-info, #457b9d);
@@ -105,7 +105,7 @@ export class OnboardComplete extends LocalizedElement {
       margin-bottom: 1.5rem;
       text-align: left;
     }
-
+    
     .info-box-title {
       font-weight: 600;
       margin-bottom: 0.75rem;
@@ -114,13 +114,13 @@ export class OnboardComplete extends LocalizedElement {
       align-items: center;
       gap: 0.5rem;
     }
-
+    
     .info-box-content {
       color: var(--color-text-secondary, #6c757d);
       font-size: 0.9rem;
       line-height: 1.6;
     }
-
+    
     .info-box-content code {
       background: rgba(69, 123, 157, 0.15);
       padding: 0.125rem 0.375rem;
@@ -129,7 +129,7 @@ export class OnboardComplete extends LocalizedElement {
       font-size: 0.85rem;
       color: var(--color-info, #457b9d);
     }
-
+    
     .command-box {
       background: #1e1e1e;
       border-radius: 0.5rem;
@@ -140,7 +140,7 @@ export class OnboardComplete extends LocalizedElement {
       color: #d4d4d4;
       overflow-x: auto;
     }
-
+    
     .warning-box {
       background: var(--color-bg-warning, #fff3cd);
       border: 1px solid var(--color-warning, #ffc107);
@@ -149,24 +149,24 @@ export class OnboardComplete extends LocalizedElement {
       margin-bottom: 1.5rem;
       text-align: left;
     }
-
+    
     .warning-box-title {
       font-weight: 600;
       margin-bottom: 0.5rem;
       color: var(--color-warning-dark, #856404);
     }
-
+    
     .warning-box-content {
       color: var(--color-text-secondary, #6c757d);
       font-size: 0.9rem;
     }
-
+    
     .button-group {
       display: flex;
       gap: 1rem;
       justify-content: center;
     }
-
+    
     .btn {
       padding: 0.75rem 1.5rem;
       font-size: 1rem;
@@ -175,54 +175,54 @@ export class OnboardComplete extends LocalizedElement {
       cursor: pointer;
       transition: all 150ms ease;
     }
-
+    
     .btn-primary {
       background: var(--color-primary, #e63946);
       color: white;
       border: none;
     }
-
+    
     .btn-primary:hover {
       background: var(--color-primary-hover, #c1121f);
     }
-
+    
     .btn-secondary {
       background: transparent;
       color: var(--color-text, #212529);
       border: 1px solid var(--color-border, #dee2e6);
     }
-
+    
     .btn-secondary:hover {
       background: var(--color-bg-tertiary, #e9ecef);
     }
-
+    
     .btn-danger {
       background: var(--color-error, #dc3545);
       color: white;
       border: none;
     }
-
+    
     .btn-danger:hover {
       background: #c82333;
     }
-
+    
     .btn-danger:disabled {
       background: #6c757d;
       cursor: not-allowed;
     }
-
+    
     .shutdown-section {
       margin-top: 2rem;
       padding-top: 1.5rem;
       border-top: 1px solid var(--color-border, #dee2e6);
     }
-
+    
     .shutdown-description {
       color: var(--color-text-secondary, #6c757d);
       font-size: 0.9rem;
       margin-bottom: 1rem;
     }
-
+    
     .shutdown-status {
       color: var(--color-success, #28a745);
       font-size: 0.9rem;
@@ -319,15 +319,21 @@ export class OnboardComplete extends LocalizedElement {
             @click=${this.handleShutdown}
             ?disabled=${this.isShuttingDown || this.shutdownComplete}
           >
-            ${this.shutdownComplete 
-              ? t("complete.shutdown_complete") 
-              : this.isShuttingDown 
-                ? t("complete.shutting_down") 
-                : t("complete.shutdown_wizard")}
+            ${
+              this.shutdownComplete
+                ? t("complete.shutdown_complete")
+                : this.isShuttingDown
+                  ? t("complete.shutting_down")
+                  : t("complete.shutdown_wizard")
+            }
           </button>
-          ${this.shutdownComplete ? html`
+          ${
+            this.shutdownComplete
+              ? html`
             <p class="shutdown-status">${t("complete.shutdown_status")}</p>
-          ` : ""}
+          `
+              : ""
+          }
         </div>
       </div>
     `;

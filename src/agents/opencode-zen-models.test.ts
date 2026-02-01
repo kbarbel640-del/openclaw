@@ -66,7 +66,7 @@ describe("getOpencodeZenStaticFallbackModels", () => {
     expect(ids).toContain("kimi-k2.5-free");
     expect(ids).toContain("trinity-large-preview-free");
     expect(ids).toContain("big-pickle");
-    
+
     // Paid models
     expect(ids).toContain("claude-opus-4-5");
     expect(ids).toContain("claude-sonnet-4-5");

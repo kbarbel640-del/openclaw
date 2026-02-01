@@ -100,11 +100,11 @@ export const OPENCODE_ZEN_MODEL_ALIASES: Record<string, string> = {
   trinity: "trinity-large-preview-free",
   "big-pickle": "big-pickle",
   pickle: "big-pickle",
-  
+
   // Qwen
   qwen: "qwen3-coder",
   "qwen-coder": "qwen3-coder",
-  "qwen3": "qwen3-coder",
+  qwen3: "qwen3-coder",
 };
 
 /**
@@ -165,7 +165,7 @@ const MODEL_COSTS: Record<
   "minimax-m2.1-free": { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   "trinity-large-preview-free": { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
   "big-pickle": { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-  
+
   // Claude models
   "claude-opus-4-5": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
   "claude-opus-4-1": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
@@ -208,7 +208,7 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   "minimax-m2.1-free": 200000,
   "trinity-large-preview-free": 128000,
   "big-pickle": 128000,
-  
+
   // Claude models
   "claude-opus-4-5": 200000,
   "claude-opus-4-1": 200000,
@@ -253,7 +253,7 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   "minimax-m2.1-free": 16384,
   "trinity-large-preview-free": 8192,
   "big-pickle": 8192,
-  
+
   // Claude models
   "claude-opus-4-5": 64000,
   "claude-opus-4-1": 64000,
@@ -318,7 +318,7 @@ const MODEL_NAMES: Record<string, string> = {
   "minimax-m2.1-free": "MiniMax M2.1 Free",
   "trinity-large-preview-free": "Trinity Large Preview Free",
   "big-pickle": "Big Pickle",
-  
+
   // Claude models
   "claude-opus-4-5": "Claude Opus 4.5",
   "claude-opus-4-1": "Claude Opus 4.1",

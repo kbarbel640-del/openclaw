@@ -57,7 +57,7 @@ Please ensure you understand the security implications before proceeding.`,
   "auth.title": "Model Provider",
   "auth.subtitle": "Select your AI model provider",
   "auth.description": "Choose how you want to authenticate with AI model providers.",
-  
+
   // Provider groups
   "auth.group.anthropic": "Anthropic",
   "auth.group.openai": "OpenAI",
@@ -158,11 +158,15 @@ Please ensure you understand the security implications before proceeding.`,
   "complete.open_dashboard": "Open Dashboard",
   "complete.close": "Close Setup",
   "complete.gateway_info_title": "Starting the Gateway",
-  "complete.gateway_info_desc": "If the gateway service was not installed successfully (e.g., due to permission issues), you need to start it manually:",
-  "complete.gateway_info_note": "Keep this terminal open while using OpenClaw. The gateway handles communication between your channels and the AI.",
+  "complete.gateway_info_desc":
+    "If the gateway service was not installed successfully (e.g., due to permission issues), you need to start it manually:",
+  "complete.gateway_info_note":
+    "Keep this terminal open while using OpenClaw. The gateway handles communication between your channels and the AI.",
   "complete.service_warning_title": "Windows Users Note",
-  "complete.service_warning_desc": "If the gateway service installation failed due to 'Access Denied', you can either run the onboarding as Administrator, or simply run 'openclaw gateway run' each time you want to use OpenClaw.",
-  "complete.shutdown_description": "When you're done, you can close this wizard and stop the onboarding server:",
+  "complete.service_warning_desc":
+    "If the gateway service installation failed due to 'Access Denied', you can either run the onboarding as Administrator, or simply run 'openclaw gateway run' each time you want to use OpenClaw.",
+  "complete.shutdown_description":
+    "When you're done, you can close this wizard and stop the onboarding server:",
   "complete.shutdown_wizard": "Close Wizard & Stop Server",
   "complete.shutting_down": "Shutting down...",
   "complete.shutdown_complete": "Server stopped",
@@ -180,11 +184,13 @@ Please ensure you understand the security implications before proceeding.`,
 
   // Cancelled
   "cancelled.title": "Setup Cancelled",
-  "cancelled.risk_not_accepted": "You chose not to continue. You can restart the setup when you're ready.",
+  "cancelled.risk_not_accepted":
+    "You chose not to continue. You can restart the setup when you're ready.",
   "cancelled.default": "Setup was cancelled. You can restart anytime.",
 
   // Backend message translations (for known messages)
-  "backend.risk_not_accepted": "You chose not to continue. You can restart the setup when you're ready.",
+  "backend.risk_not_accepted":
+    "You chose not to continue. You can restart the setup when you're ready.",
   "backend.wizard_cancelled": "Setup was cancelled.",
 
   // Wizard-specific messages
@@ -197,7 +203,8 @@ Please ensure you understand the security implications before proceeding.`,
   "wizard.enter_opencode_key": "Enter your OpenCode Zen API key",
   "wizard.enter_nvidia_key": "Enter your NVIDIA NIM API key",
   "wizard.install_gateway": "Install gateway as system service?",
-  "wizard.gateway_install_failed": "Gateway service installation failed. Administrator privileges may be required.",
+  "wizard.gateway_install_failed":
+    "Gateway service installation failed. Administrator privileges may be required.",
   "wizard.config_saved": "Configuration saved successfully!",
   "wizard.fetching_models": "Fetching available models...",
   "wizard.validating_key": "Validating API key...",
