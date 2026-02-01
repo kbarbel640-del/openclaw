@@ -1,4 +1,3 @@
 # Next Steps
 
-- [ ] Verify `openclaw git status` with tests or manual run
-- [ ] Add more git utilities if needed
+- [ ] Benchmark baseline CLI load time (Action Plan Step 1) <!-- id: 1 -->
