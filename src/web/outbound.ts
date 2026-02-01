@@ -68,9 +68,10 @@ export async function sendMessageWhatsApp(
     const hasExplicitAccountId = Boolean(options.accountId?.trim());
     const accountId = hasExplicitAccountId ? resolvedAccountId : undefined;
     const sendOptions: ActiveWebSendOptions | undefined =
-      options.gifPlayback || accountId
+      options.gifPlayback || accountId || mediaFileName
         ? {
             ...(options.gifPlayback ? { gifPlayback: true } : {}),
+            ...(mediaFileName ? { fileName: mediaFileName } : {}),
             accountId,
           }
         : undefined;
