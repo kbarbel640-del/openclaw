@@ -229,7 +229,7 @@ function processLine(
 
   let enhanced = `${prefix}${roleRaw}`;
   if (name) {
-    enhanced += ` "${name}"`;
+    enhanced += ` "${name.replace(/"/g, '\\"')}"`;
   }
   enhanced += ` [ref=${ref}]`;
   if (nth > 0) {
@@ -301,7 +301,7 @@ export function buildRoleSnapshotFromAriaSnapshot(
 
       let enhanced = `- ${roleRaw}`;
       if (name) {
-        enhanced += ` "${name}"`;
+        enhanced += ` "${name.replace(/"/g, '\\"')}"`;
       }
       enhanced += ` [ref=${ref}]`;
       if (nth > 0) {
@@ -378,7 +378,7 @@ export function buildRoleSnapshotFromAiSnapshot(
         continue;
       }
       refs[ref] = { role, ...(name ? { name } : {}) };
-      out.push(`- ${roleRaw}${name ? ` "${name}"` : ""}${suffix}`);
+      out.push(`- ${roleRaw}${name ? ` "${name.replace(/"/g, '\\"')}"` : ""}${suffix}`);
     }
     return {
       snapshot: out.join("\n") || "(no interactive elements)",
