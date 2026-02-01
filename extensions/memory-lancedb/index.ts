@@ -6,12 +6,13 @@
  * Provides seamless auto-recall and auto-capture via lifecycle hooks.
  */
 
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import * as lancedb from "@lancedb/lancedb";
 import { Type } from "@sinclair/typebox";
-import { randomUUID } from "node:crypto";
+import * as lancedb from "@lancedb/lancedb";
 import OpenAI from "openai";
+import { randomUUID } from "node:crypto";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { stringEnum } from "openclaw/plugin-sdk";
+
 import {
   MEMORY_CATEGORIES,
   type MemoryCategory,
@@ -30,12 +31,31 @@ type MemoryEntry = {
   importance: number;
   category: MemoryCategory;
   createdAt: number;
+  // Provenance (optional; enables auditability)
+  sourceKind?: string;
+  sourceId?: string;
+  sourceTs?: number;
+  sourceUrl?: string;
+  sourceHash?: string;
 };
 
 type MemorySearchResult = {
   entry: MemoryEntry;
   score: number;
 };
+
+type MemoryRef = {
+  id: string;
+  category: MemoryCategory;
+  sourceKind?: string;
+  sourceId?: string;
+  sourceTs?: number;
+  sourceUrl?: string;
+};
+
+// Track which memories were injected for the current session run.
+// Runs are serialized per sessionKey, so a simple map is sufficient.
+const injectedRefsBySession = new Map<string, MemoryRef[]>();
 
 // ============================================================================
 // LanceDB Provider
@@ -54,12 +74,8 @@ class MemoryDB {
   ) {}
 
   private async ensureInitialized(): Promise<void> {
-    if (this.table) {
-      return;
-    }
-    if (this.initPromise) {
-      return this.initPromise;
-    }
+    if (this.table) return;
+    if (this.initPromise) return this.initPromise;
 
     this.initPromise = this.doInitialize();
     return this.initPromise;
@@ -76,10 +92,15 @@ class MemoryDB {
         {
           id: "__schema__",
           text: "",
-          vector: Array.from({ length: this.vectorDim }).fill(0),
+          vector: new Array(this.vectorDim).fill(0),
           importance: 0,
           category: "other",
           createdAt: 0,
+          sourceKind: "",
+          sourceId: "",
+          sourceTs: 0,
+          sourceUrl: "",
+          sourceHash: "",
         },
       ]);
       await this.table.delete('id = "__schema__"');
@@ -117,6 +138,11 @@ class MemoryDB {
           importance: row.importance as number,
           category: row.category as MemoryEntry["category"],
           createdAt: row.createdAt as number,
+          sourceKind: (row.sourceKind as string) || undefined,
+          sourceId: (row.sourceId as string) || undefined,
+          sourceTs: (row.sourceTs as number) || undefined,
+          sourceUrl: (row.sourceUrl as string) || undefined,
+          sourceHash: (row.sourceHash as string) || undefined,
         },
         score,
       };
@@ -182,43 +208,25 @@ const MEMORY_TRIGGERS = [
 ];
 
 function shouldCapture(text: string): boolean {
-  if (text.length < 10 || text.length > 500) {
-    return false;
-  }
+  if (text.length < 10 || text.length > 500) return false;
   // Skip injected context from memory recall
-  if (text.includes("<relevant-memories>")) {
-    return false;
-  }
+  if (text.includes("<relevant-memories>")) return false;
   // Skip system-generated content
-  if (text.startsWith("<") && text.includes("</")) {
-    return false;
-  }
+  if (text.startsWith("<") && text.includes("</")) return false;
   // Skip agent summary responses (contain markdown formatting)
-  if (text.includes("**") && text.includes("\n-")) {
-    return false;
-  }
+  if (text.includes("**") && text.includes("\n-")) return false;
   // Skip emoji-heavy responses (likely agent output)
   const emojiCount = (text.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length;
-  if (emojiCount > 3) {
-    return false;
-  }
+  if (emojiCount > 3) return false;
   return MEMORY_TRIGGERS.some((r) => r.test(text));
 }
 
 function detectCategory(text: string): MemoryCategory {
   const lower = text.toLowerCase();
-  if (/prefer|radši|like|love|hate|want/i.test(lower)) {
-    return "preference";
-  }
-  if (/rozhodli|decided|will use|budeme/i.test(lower)) {
-    return "decision";
-  }
-  if (/\+\d{10,}|@[\w.-]+\.\w+|is called|jmenuje se/i.test(lower)) {
-    return "entity";
-  }
-  if (/is|are|has|have|je|má|jsou/i.test(lower)) {
-    return "fact";
-  }
+  if (/prefer|radši|like|love|hate|want/i.test(lower)) return "preference";
+  if (/rozhodli|decided|will use|budeme/i.test(lower)) return "decision";
+  if (/\+\d{10,}|@[\w.-]+\.\w+|is called|jmenuje se/i.test(lower)) return "entity";
+  if (/is|are|has|have|je|má|jsou/i.test(lower)) return "fact";
   return "other";
 }
 
@@ -283,6 +291,11 @@ const memoryPlugin = {
             category: r.entry.category,
             importance: r.entry.importance,
             score: r.score,
+            sourceKind: r.entry.sourceKind,
+            sourceId: r.entry.sourceId,
+            sourceTs: r.entry.sourceTs,
+            sourceUrl: r.entry.sourceUrl,
+            sourceHash: r.entry.sourceHash,
           }));
 
           return {
@@ -304,16 +317,32 @@ const memoryPlugin = {
           text: Type.String({ description: "Information to remember" }),
           importance: Type.Optional(Type.Number({ description: "Importance 0-1 (default: 0.7)" })),
           category: Type.Optional(stringEnum(MEMORY_CATEGORIES)),
+          // Optional provenance (recommended)
+          sourceKind: Type.Optional(Type.String()),
+          sourceId: Type.Optional(Type.String()),
+          sourceTs: Type.Optional(Type.Number()),
+          sourceUrl: Type.Optional(Type.String()),
+          sourceHash: Type.Optional(Type.String()),
         }),
         async execute(_toolCallId, params) {
           const {
             text,
             importance = 0.7,
             category = "other",
+            sourceKind,
+            sourceId,
+            sourceTs,
+            sourceUrl,
+            sourceHash,
           } = params as {
             text: string;
             importance?: number;
             category?: MemoryEntry["category"];
+            sourceKind?: string;
+            sourceId?: string;
+            sourceTs?: number;
+            sourceUrl?: string;
+            sourceHash?: string;
           };
 
           const vector = await embeddings.embed(text);
@@ -341,6 +370,11 @@ const memoryPlugin = {
             vector,
             importance,
             category,
+            sourceKind,
+            sourceId,
+            sourceTs,
+            sourceUrl,
+            sourceHash,
           });
 
           return {
@@ -476,23 +510,34 @@ const memoryPlugin = {
     // Auto-recall: inject relevant memories before agent starts
     if (cfg.autoRecall) {
       api.on("before_agent_start", async (event) => {
-        if (!event.prompt || event.prompt.length < 5) {
-          return;
-        }
+        if (!event.prompt || event.prompt.length < 5) return;
 
         try {
           const vector = await embeddings.embed(event.prompt);
           const results = await db.search(vector, 3, 0.3);
 
-          if (results.length === 0) {
-            return;
-          }
+          if (results.length === 0) return;
 
           const memoryContext = results
             .map((r) => `- [${r.entry.category}] ${r.entry.text}`)
             .join("\n");
 
           api.logger.info?.(`memory-lancedb: injecting ${results.length} memories into context`);
+
+          // Record refs so we can attach a footer to the outgoing assistant message.
+          if (event.sessionKey) {
+            injectedRefsBySession.set(
+              event.sessionKey,
+              results.map((r) => ({
+                id: r.entry.id,
+                category: r.entry.category,
+                sourceKind: r.entry.sourceKind,
+                sourceId: r.entry.sourceId,
+                sourceTs: r.entry.sourceTs,
+                sourceUrl: r.entry.sourceUrl,
+              })),
+            );
+          }
 
           return {
             prependContext: `<relevant-memories>\nThe following memories may be relevant to this conversation:\n${memoryContext}\n</relevant-memories>`,
@@ -502,6 +547,39 @@ const memoryPlugin = {
         }
       });
     }
+
+    // Outbound message hook: append Memory refs footer when we injected memories.
+    api.on("message_sending", async (event) => {
+      try {
+        if (!event || typeof event !== "object") return;
+        const ev = event as Record<string, unknown>;
+        const sessionKey = typeof ev.sessionKey === "string" ? ev.sessionKey : undefined;
+        if (!sessionKey) return;
+
+        const refs = injectedRefsBySession.get(sessionKey);
+        if (!refs || refs.length === 0) return;
+
+        // Only modify assistant outbound messages.
+        const role = typeof ev.role === "string" ? ev.role : undefined;
+        if (role && role !== "assistant") return;
+
+        const content = typeof ev.content === "string" ? ev.content : null;
+        if (!content) return;
+
+        const lines = refs.map((r) => {
+          const src = [r.sourceKind, r.sourceId, r.sourceTs].filter(Boolean).join(":");
+          const srcPart = src ? ` src:${src}` : "";
+          return `- mem:${r.id} (cat=${r.category})${srcPart}`;
+        });
+
+        const footer = `\n\nMemory refs:\n${lines.join("\n")}`;
+        injectedRefsBySession.delete(sessionKey);
+
+        return { content: content + footer };
+      } catch (err) {
+        api.logger?.warn?.(`memory-lancedb: message_sending hook failed: ${String(err)}`);
+      }
+    });
 
     // Auto-capture: analyze and store important information after agent ends
     if (cfg.autoCapture) {
@@ -515,16 +593,12 @@ const memoryPlugin = {
           const texts: string[] = [];
           for (const msg of event.messages) {
             // Type guard for message object
-            if (!msg || typeof msg !== "object") {
-              continue;
-            }
+            if (!msg || typeof msg !== "object") continue;
             const msgObj = msg as Record<string, unknown>;
 
             // Only process user and assistant messages
             const role = msgObj.role;
-            if (role !== "user" && role !== "assistant") {
-              continue;
-            }
+            if (role !== "user" && role !== "assistant") continue;
 
             const content = msgObj.content;
 
@@ -553,9 +627,7 @@ const memoryPlugin = {
 
           // Filter for capturable content
           const toCapture = texts.filter((text) => text && shouldCapture(text));
-          if (toCapture.length === 0) {
-            return;
-          }
+          if (toCapture.length === 0) return;
 
           // Store each capturable piece (limit to 3 per conversation)
           let stored = 0;
@@ -565,9 +637,7 @@ const memoryPlugin = {
 
             // Check for duplicates (high similarity threshold)
             const existing = await db.search(vector, 1, 0.95);
-            if (existing.length > 0) {
-              continue;
-            }
+            if (existing.length > 0) continue;
 
             await db.store({
               text,
