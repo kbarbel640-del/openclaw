@@ -100,7 +100,7 @@ Files created:
 4. **Cross-agent session access** - Deferred. Essential for power users, but not needed for minimal viable agent. Will add when requirements demand it.
 5. **TypeScript with Rust portability** - Distill into TypeScript, but write code that converts easily to Rust. Avoid TypeScript-only tricks; verify heavy dependencies have Rust ecosystem equivalents.
 6. **Minimal viable agent** - A CLI where an agent using a Claude subscription can read and write files via tools. We'll refine this definition as we go.
-7. **No gateway for minimal scope** - Single-process CLI doesn't need a broker. Design session storage and tool execution so they *could* be fronted by a broker later, but don't build it until needed. If/when we need a broker, prefer local-first IPC (ZeroMQ, Unix sockets) over web-oriented tech (WebSocket, HTTP). The gateway pattern solves multi-client and multi-agent problems we don't have yet.
+7. **No gateway for minimal scope** - Single-process CLI doesn't need inter-process communication. Design session storage and tool execution so they *could* support multi-agent later, but don't build it until needed. If/when we need multi-agent communication, prefer local-first IPC (ZeroMQ, Unix sockets) over web-oriented tech (WebSocket, HTTP). Note: ZeroMQ supports broker-less patterns (direct peer-to-peer)—a central broker may not be required at all.
 
 ---
 
