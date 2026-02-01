@@ -1,5 +1,8 @@
-import type { SignalEventHandlerDeps, SignalMention, SignalReceivePayload } from "./event-handler.types.js";
-import { signalRpcRequest } from "../client.js";
+import type {
+  SignalEventHandlerDeps,
+  SignalMention,
+  SignalReceivePayload,
+} from "./event-handler.types.js";
 import { resolveHumanDelayConfig } from "../../agents/identity.js";
 import { hasControlCommand } from "../../auto-reply/command-detection.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
@@ -34,6 +37,7 @@ import {
 } from "../../pairing/pairing-store.js";
 import { resolveAgentRoute } from "../../routing/resolve-route.js";
 import { normalizeE164 } from "../../utils.js";
+import { signalRpcRequest } from "../client.js";
 import {
   formatSignalPairingIdLine,
   formatSignalSenderDisplay,
@@ -63,10 +67,12 @@ function isUuid(s: string | null | undefined): boolean {
  * does this for users not in the local address book).
  */
 const signalNameCache = new Map<string, string>();
-let signalNameCacheSeeded = false;
+let seedPromise: Promise<void> | null = null;
 
 function nameCachePut(uuid: string | null | undefined, name: string | null | undefined): void {
-  if (!uuid || !name || isUuid(name)) return;
+  if (!uuid || !name || isUuid(name)) {
+    return;
+  }
   signalNameCache.set(uuid.toLowerCase(), name);
 }
 
@@ -75,23 +81,37 @@ function nameCacheGet(uuid: string | null | undefined): string | undefined {
 }
 
 async function seedSignalNameCache(baseUrl: string, account: string | undefined): Promise<void> {
-  if (signalNameCacheSeeded) return;
-  signalNameCacheSeeded = true;
-  try {
-    type Contact = {
-      uuid?: string;
-      profile?: { givenName?: string; familyName?: string };
-    };
-    const contacts = await signalRpcRequest<Contact[]>("listContacts", { account }, { baseUrl, timeoutMs: 5000 });
-    if (Array.isArray(contacts)) {
-      for (const c of contacts) {
-        const displayName = [c.profile?.givenName, c.profile?.familyName].filter(Boolean).join(" ").trim();
-        if (c.uuid && displayName) nameCachePut(c.uuid, displayName);
-      }
-    }
-  } catch {
-    // Non-fatal — cache will still be populated from SSE events.
+  if (seedPromise) {
+    return seedPromise;
   }
+  seedPromise = (async () => {
+    try {
+      type Contact = {
+        uuid?: string;
+        profile?: { givenName?: string; familyName?: string };
+      };
+      const contacts = await signalRpcRequest<Contact[]>(
+        "listContacts",
+        { account },
+        { baseUrl, timeoutMs: 5000 },
+      );
+      if (Array.isArray(contacts)) {
+        for (const c of contacts) {
+          const displayName = [c.profile?.givenName, c.profile?.familyName]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+          if (c.uuid && displayName) {
+            nameCachePut(c.uuid, displayName);
+          }
+        }
+      }
+    } catch {
+      // Non-fatal — allow retry on next event by clearing the promise.
+      seedPromise = null;
+    }
+  })();
+  return seedPromise;
 }
 
 /**
@@ -107,22 +127,29 @@ async function seedSignalNameCache(baseUrl: string, account: string | undefined)
  * the name cache, then number, then UUID.
  */
 function resolveSignalMentions(text: string, mentions: SignalMention[] | null | undefined): string {
-  if (!mentions || mentions.length === 0) return text;
+  if (!mentions || mentions.length === 0) {
+    return text;
+  }
 
   // Process from end to start so replacements don't shift earlier indices.
-  const sorted = [...mentions].sort((a, b) => (b.start ?? 0) - (a.start ?? 0));
+  const sorted = [...mentions].toSorted((a, b) => (b.start ?? 0) - (a.start ?? 0));
   let result = text;
   for (const mention of sorted) {
-    const start = mention.start ?? 0;
-    const length = mention.length ?? 1;
+    const start = Math.max(0, Math.min(mention.start ?? 0, result.length));
+    const length = Math.max(0, mention.length ?? 1);
+
+    // Skip mentions that extend beyond the text or don't point at a U+FFFC placeholder.
+    if (start + length > result.length) {
+      continue;
+    }
+    if (result.charAt(start) !== "\uFFFC") {
+      continue;
+    }
 
     let label = mention.name?.trim();
     if (!label || isUuid(label)) {
       label =
-        nameCacheGet(mention.uuid) ||
-        mention.number?.trim() ||
-        mention.uuid?.trim() ||
-        "someone";
+        nameCacheGet(mention.uuid) || mention.number?.trim() || mention.uuid?.trim() || "someone";
     }
 
     result = result.slice(0, start) + `@${label}` + result.slice(start + length);
@@ -430,7 +457,10 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       : deps.isSignalReactionMessage(dataMessage?.reaction)
         ? dataMessage?.reaction
         : null;
-    const messageText = resolveSignalMentions(dataMessage?.message ?? "", dataMessage?.mentions).trim();
+    const messageText = resolveSignalMentions(
+      dataMessage?.message ?? "",
+      dataMessage?.mentions,
+    ).trim();
     const quoteText = dataMessage?.quote?.text?.trim() ?? "";
     const hasBodyContent =
       Boolean(messageText || quoteText) || Boolean(!reaction && dataMessage?.attachments?.length);
