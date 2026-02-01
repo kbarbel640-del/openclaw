@@ -8,7 +8,7 @@
 - [x] Refactor command registry <!-- id: 7 -->
     - [x] Convert `src/cli/program/command-registry.ts` to use lazy imports
     - [x] Isolate `status` command dependencies
-- [ ] Optimize build-time penalties <!-- id: 2 -->
+- [x] Optimize build-time penalties <!-- id: 2 -->
 - [ ] Streamline subcommand registration <!-- id: 3 -->
 - [ ] Reduce global registry imports <!-- id: 4 -->
 - [ ] Test and validate improvements <!-- id: 5 -->

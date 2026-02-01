@@ -25,7 +25,7 @@ A targeted exploration of the startup path revealed specific culprits:
 - [x] **Import Analysis**: Identified `src/cli/program/command-registry.ts` as the root cause of eager loading, specifically the top-level imports of `registerStatusHealthSessionsCommands` which pulls in the plugin system.
 - [x] **Lazy Registry Refactor**: Decouple routing metadata from command implementation imports (Completed).
 - [x] **Async Program Build**: Propagate async requirements up to `buildProgram()` to support lazy loading (Completed).
-- [ ] **Build Optimization**: Address the `pnpm tsgo` overhead in `scripts/run-node.mjs`.
+- [x] **Build Optimization**: Address the `pnpm tsgo` overhead in `scripts/run-node.mjs` (Optimized file scanning and added direct binary invocation).
 
 ## Architecture: Lazy Command Registry
 To address the eager import issues, we will refactor `src/cli/program/command-registry.ts` to separate **routing metadata** from **command registration logic**.
@@ -52,6 +52,28 @@ export const commandRegistry: CommandEntry[] = [
   // ...
 ];
 ```
+
+## Implementation Plan: Build-time Optimization (2026-02-01)
+
+The `scripts/run-node.mjs` script incurs significant overhead by scanning the entire `src/` directory in JavaScript and spawning `pnpm exec` for builds.
+
+### 1. Optimize File Scanning
+Refactor `findLatestMtime` to use Node.js 22 native recursive `readdir`:
+- **Current**: Manual DFS traversal in JS.
+- **New**: `fs.readdirSync(srcRoot, { recursive: true, withFileTypes: true })`.
+- **Win**: Moves the heavy lifting to C++ (libuv), significantly reducing traversal time.
+
+### 2. Direct Binary Invocation
+Bypass `pnpm exec` wrapper:
+- **Current**: `pnpm exec tsgo ...` (Spawns pnpm, which spawns node, which spawns tsgo).
+- **New**: Resolve `node_modules/.bin/tsgo` (or `tsc`) and spawn it directly.
+- **Win**: Saves ~200-500ms of pnpm startup overhead.
+
+### 3. Early Exit Strategy
+Stop scanning as soon as a stale file is found:
+- **Current**: Scans *all* files to find the absolute latest mtime.
+- **New**: If any file has `mtime > buildstamp`, return `true` immediately.
+- **Win**: O(1) in the worst case (first file changed), O(N) only for clean builds.
 
 ## Recommendations
 1. Ship a fresh `dist/` bundle (or skip the build step) to avoid the repeated pnpm/tsgo invocation and filesystem scan. Alternatively, allow using `bunx tsgo` or a bundled compiler so the runner succeeds without relying on a globally-installed pnpm.

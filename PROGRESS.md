@@ -9,3 +9,4 @@
 - 2026-02-01: Performed deep dive into CLI startup path. Identified `status` command and `tryRouteCli` as key bottlenecks. Updated analysis doc.
 - 2026-02-01: Documented architectural plan for Lazy Command Registry in `docs/analysis/cli-bottlenecks.md`.
 - 2026-02-01: Initialized tracking for CLI Bottlenecks mission.
+- 2026-02-01: Implemented build-time optimizations in `scripts/run-node.mjs`: switched to recursive `fs.readdir` for faster change detection and added direct `tsgo` binary invocation to bypass `pnpm` overhead.
