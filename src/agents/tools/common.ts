@@ -1,7 +1,6 @@
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import fs from "node:fs/promises";
 import { detectMime } from "../../media/mime.js";
-import { encodeToon } from "../../utils/toon.js";
 import { sanitizeToolResultImages } from "../tool-images.js";
 
 // biome-ignore lint/suspicious/noExplicitAny: TypeBox schema type from pi-agent-core uses a different module instance.
@@ -192,7 +191,7 @@ export function jsonResult(payload: unknown): AgentToolResult<unknown> {
     content: [
       {
         type: "text",
-        text: encodeToon(payload as any),
+        text: "Result completed successfully",
       },
     ],
     details: payload,
