@@ -2025,17 +2025,19 @@ of `every`, keep `HEARTBEAT.md` tiny, and/or choose a cheaper `model`.
 - `restrictToWorkspace`: when `true`, restricts `read`, `write`, and `edit` tools to the agent's workspace directory. Paths outside workspace will be rejected. This provides path-based security without requiring Docker sandbox. Default: `false`.
 
 Example:
+
 ```json5
 {
   tools: {
     fs: {
-      restrictToWorkspace: true
-    }
-  }
+      restrictToWorkspace: true,
+    },
+  },
 }
 ```
 
 When enabled, the agent cannot:
+
 - Read files outside the workspace
 - Write files outside the workspace
 - Edit files outside the workspace
@@ -2043,6 +2045,8 @@ When enabled, the agent cannot:
 - Follow symlinks that point outside the workspace
 
 Note: This only restricts the filesystem tools (`read`, `write`, `edit`). The `exec` tool can still access the full filesystem unless you also enable Docker sandboxing or restrict `exec` via tool policy.
+
+> **Important:** `restrictToWorkspace` is designed for use **without Docker sandbox**. If Docker sandbox is enabled, `write` and `edit` tools are handled differently (removed for security). Do not combine both settings — use one or the other.
 
 `tools.exec` configures background exec defaults:
 

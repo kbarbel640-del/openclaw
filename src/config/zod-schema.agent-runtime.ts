@@ -249,6 +249,13 @@ export const AgentSandboxSchema = z
   .strict()
   .optional();
 
+export const ToolsFsSchema = z
+  .object({
+    restrictToWorkspace: z.boolean().optional(),
+  })
+  .strict()
+  .optional();
+
 export const AgentToolsSchema = z
   .object({
     profile: ToolProfileSchema,
@@ -292,6 +299,7 @@ export const AgentToolsSchema = z
       })
       .strict()
       .optional(),
+    fs: ToolsFsSchema,
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -453,13 +461,6 @@ export const AgentEntrySchema = z
     tools: AgentToolsSchema,
   })
   .strict();
-
-export const ToolsFsSchema = z
-  .object({
-    restrictToWorkspace: z.boolean().optional(),
-  })
-  .strict()
-  .optional();
 
 export const ToolsSchema = z
   .object({
