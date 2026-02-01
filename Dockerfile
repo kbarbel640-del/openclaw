@@ -27,13 +27,10 @@ RUN pnpm ui:build
 
 ENV NODE_ENV=production
 
-# Allow non-root user to write temp files during runtime/tests.
-RUN chown -R node:node /app
-
-# Security hardening: Run as non-root user
-# The node:22-bookworm image includes a 'node' user (uid 1000)
-# This reduces the attack surface by preventing container escape via root privileges
-USER node
+# Security note: Standard Docker deployments should run as non-root (USER node).
+# Synology NAS deployments require root due to /home/node permission constraints.
+# Set user via docker-compose.yml: "0:0" (root) for Synology, "1000:1000" (node) for standard.
+RUN chown -R node:node /app || true
 
 # Start gateway server with default config.
 # Binds to loopback (127.0.0.1) by default for security.
