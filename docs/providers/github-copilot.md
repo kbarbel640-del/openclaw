@@ -123,3 +123,19 @@ openclaw models set github-copilot/gpt-4o
   Copilot API token when OpenClaw runs.
 - SDK discovery is optional and requires the Copilot CLI to be installed.
 - Models are discovered at config load time and cached in `models.json`.
+
+## Additional Resources
+
+### Comprehensive Guides
+
+- **[SDK Verification Guide](./github-copilot-sdk-verification)** - Verify that the SDK is correctly using models from your subscription
+- **[Complete Usage Guide](./github-copilot-sdk-usage-guide)** - Extensive documentation on using OpenClaw with Copilot SDK
+- **[Skills Extension Guide](./github-copilot-sdk-skills-guide)** - Learn how to extend OpenClaw with custom skills and capabilities
+
+These guides cover:
+- Step-by-step verification procedures
+- Complete workflow examples
+- Integration with messaging platforms
+- Creating custom skills
+- API integrations
+- Best practices and troubleshooting
