@@ -5,7 +5,7 @@ Reads SOUL.md, IDENTITY.md, USER.md to build a custom system prompt.
 """
 
 import argparse
-import os
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -109,17 +109,23 @@ def create_ollama_model(name: str, modelfile_path: Path) -> bool:
 
 def create_helper_script(name: str, output_dir: Path) -> Path:
     """Create a helper bash script for quick prompts."""
+    # Use jq to properly escape the prompt for JSON
     script_content = f'''#!/bin/bash
 # Quick prompt helper for {name} model
 # Usage: ask-{name} "your prompt here"
 
 PROMPT="${{1:-Hello}}"
 
-curl -s http://localhost:11434/api/generate \\
-  -d '{{"model":"{name}","prompt":"'"$PROMPT"'","stream":false}}' \\
-  | jq -r '.response'
+# Use jq to safely escape the prompt for JSON
+JSON_BODY=$(jq -n --arg model "{name}" --arg prompt "$PROMPT" \\
+  '{{model: $model, prompt: $prompt, stream: false}}')
+
+curl -s http://localhost:11434/api/generate -d "$JSON_BODY" | jq -r '.response'
 '''
-    
+
+    # Ensure output directory exists
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     script_path = output_dir / f"ask-{name}"
     script_path.write_text(script_content)
     script_path.chmod(0o755)

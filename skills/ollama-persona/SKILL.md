@@ -44,14 +44,16 @@ The script reads `SOUL.md`, `IDENTITY.md`, and `USER.md` to build a system promp
 ### 3. Use the Model
 
 ```bash
-# Quick prompt
+# Quick prompt via curl
 curl -s http://localhost:11434/api/generate \
   -d '{"model":"myagent","prompt":"Write a tweet","stream":false}' \
   | jq -r '.response'
 
-# Or use the generated helper
-~/.local/bin/ask-myagent "Write a tweet"
+# Or use the generated helper script (created at ~/.local/bin/ask-<name>)
+ask-myagent "Write a tweet"
 ```
+
+Note: The helper script is installed to `~/.local/bin/`. Ensure this is in your PATH.
 
 ## When to Use Local vs Cloud
 
