@@ -86,13 +86,14 @@ export function resolveModel(
       };
     }
     const providerCfg = providers[provider];
-    if (providerCfg || modelId.startsWith("mock-")) {
+    if (providerCfg || normalizedProvider === "bonsai" || modelId.startsWith("mock-")) {
+      const isBonsai = normalizedProvider === "bonsai";
       const fallbackModel: Model<Api> = normalizeModelCompat({
         id: modelId,
         name: modelId,
-        api: providerCfg?.api ?? "openai-responses",
+        api: providerCfg?.api ?? (isBonsai ? "anthropic-messages" : "openai-responses"),
         provider,
-        baseUrl: providerCfg?.baseUrl,
+        baseUrl: providerCfg?.baseUrl ?? (isBonsai ? "https://go.trybons.ai" : undefined),
         reasoning: false,
         input: ["text"],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
