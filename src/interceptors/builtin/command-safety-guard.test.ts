@@ -74,4 +74,69 @@ describe("command-safety-guard interceptor", () => {
     expect(result.block).toBe(true);
     expect(result.blockReason).toContain("Fork bomb");
   });
+
+  // Sensitive file read via exec (bypasses read/write/edit interceptor)
+  it("blocks cat ~/.bashrc", async () => {
+    const result = await run("cat ~/.bashrc");
+    expect(result.block).toBe(true);
+    expect(result.blockReason).toContain("sensitive file");
+  });
+
+  it("blocks cat .env", async () => {
+    const result = await run("cat /app/.env");
+    expect(result.block).toBe(true);
+    expect(result.blockReason).toContain("sensitive file");
+  });
+
+  it("blocks head ~/.claude/.credentials.json", async () => {
+    const result = await run("head -n 10 ~/.claude/.credentials.json");
+    expect(result.block).toBe(true);
+    expect(result.blockReason).toContain("sensitive file");
+  });
+
+  it("blocks tail /etc/shadow", async () => {
+    const result = await run("tail -f /etc/shadow");
+    expect(result.block).toBe(true);
+    expect(result.blockReason).toContain("sensitive file");
+  });
+
+  it("blocks base64 on SSH keys", async () => {
+    const result = await run("base64 ~/.ssh/id_rsa");
+    expect(result.block).toBe(true);
+    expect(result.blockReason).toContain("sensitive file");
+  });
+
+  it("blocks cat on Codex auth", async () => {
+    const result = await run("cat ~/.codex/auth.json");
+    expect(result.block).toBe(true);
+    expect(result.blockReason).toContain("sensitive file");
+  });
+
+  it("blocks cp of sensitive files", async () => {
+    const result = await run("cp ~/.aws/credentials /tmp/exfil");
+    expect(result.block).toBe(true);
+    expect(result.blockReason).toContain("sensitive file");
+  });
+
+  it("blocks piped cat of sensitive files", async () => {
+    const result = await run("cat ~/.zshrc | grep API");
+    expect(result.block).toBe(true);
+    expect(result.blockReason).toContain("sensitive file");
+  });
+
+  it("blocks input redirect from sensitive files", async () => {
+    const result = await run("grep KEY < ~/.profile");
+    expect(result.block).toBe(true);
+    expect(result.blockReason).toContain("sensitive file");
+  });
+
+  it("allows cat on normal files", async () => {
+    const result = await run("cat /tmp/test.txt");
+    expect(result.block).toBeUndefined();
+  });
+
+  it("allows cat on source code", async () => {
+    const result = await run("cat src/index.ts");
+    expect(result.block).toBeUndefined();
+  });
 });
