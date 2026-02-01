@@ -1,3 +1,4 @@
+import { ProxyAgent } from "undici";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ssrf from "../../infra/net/ssrf.js";
 import { createWebFetchTool } from "./web-tools.js";
@@ -299,6 +300,7 @@ describe("web_fetch proxy support", () => {
 
   it("uses proxy dispatcher when proxy is configured", async () => {
     let capturedDispatcher: unknown = null;
+    const resolvePinnedSpy = vi.spyOn(ssrf, "resolvePinnedHostname");
     const mockFetch = vi.fn((input: RequestInfo, init?: RequestInit) => {
       capturedDispatcher = (init as { dispatcher?: unknown })?.dispatcher;
       return Promise.resolve(
@@ -327,12 +329,16 @@ describe("web_fetch proxy support", () => {
     const details = result?.details as { text?: string };
 
     expect(mockFetch).toHaveBeenCalled();
-    expect(capturedDispatcher).toBeDefined();
+    // Verify dispatcher is a ProxyAgent instance
+    expect(capturedDispatcher).toBeInstanceOf(ProxyAgent);
+    // Verify SSRF protection is bypassed when proxy is configured
+    expect(resolvePinnedSpy).not.toHaveBeenCalled();
     expect(details.text).toContain("Hello via proxy");
   });
 
   it("does not use proxy when proxy is not configured", async () => {
     let capturedDispatcher: unknown = null;
+    const resolvePinnedSpy = vi.spyOn(ssrf, "resolvePinnedHostname");
     const mockFetch = vi.fn((input: RequestInfo, init?: RequestInit) => {
       capturedDispatcher = (init as { dispatcher?: unknown })?.dispatcher;
       return Promise.resolve(
@@ -360,8 +366,11 @@ describe("web_fetch proxy support", () => {
     const details = result?.details as { text?: string };
 
     expect(mockFetch).toHaveBeenCalled();
-    // Without proxy, dispatcher should be a pinned dispatcher (not ProxyAgent)
+    // Verify dispatcher is NOT a ProxyAgent (should be pinned dispatcher)
     expect(capturedDispatcher).toBeDefined();
+    expect(capturedDispatcher).not.toBeInstanceOf(ProxyAgent);
+    // Verify SSRF protection is active when no proxy is configured
+    expect(resolvePinnedSpy).toHaveBeenCalled();
     expect(details.text).toContain("Hello direct");
   });
 });

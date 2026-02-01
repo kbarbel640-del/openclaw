@@ -1,6 +1,6 @@
 import type { Dispatcher } from "undici";
-import { ProxyAgent } from "undici";
 import { Type } from "@sinclair/typebox";
+import { ProxyAgent } from "undici";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import {
@@ -200,13 +200,20 @@ async function fetchWithRedirects(params: {
   timeoutSeconds: number;
   userAgent: string;
   proxy?: string;
-}): Promise<{ response: Response; finalUrl: string; dispatcher: Dispatcher }> {
+}): Promise<{
+  response: Response;
+  finalUrl: string;
+  dispatcher: Dispatcher;
+  isProxyDispatcher: boolean;
+}> {
   const signal = withTimeout(undefined, params.timeoutSeconds * 1000);
   const visited = new Set<string>();
   let currentUrl = params.url;
   let redirectCount = 0;
 
-  // Create proxy dispatcher if configured
+  // Create proxy dispatcher if configured.
+  // NOTE: When a proxy is configured, SSRF protection is intentionally bypassed.
+  // The user explicitly trusts the proxy to handle requests safely.
   const proxyDispatcher = params.proxy ? new ProxyAgent(params.proxy) : null;
 
   while (true) {
@@ -222,7 +229,8 @@ async function fetchWithRedirects(params: {
       throw new Error("Invalid URL: must be http or https");
     }
 
-    // Use proxy dispatcher if available, otherwise use pinned dispatcher for SSRF protection
+    // Use proxy dispatcher if available, otherwise use pinned dispatcher for SSRF protection.
+    // When proxy is configured, we skip SSRF checks as the proxy handles the connection.
     let dispatcher: Dispatcher;
     if (proxyDispatcher) {
       dispatcher = proxyDispatcher;
@@ -277,7 +285,12 @@ async function fetchWithRedirects(params: {
       continue;
     }
 
-    return { response: res, finalUrl: currentUrl, dispatcher };
+    return {
+      response: res,
+      finalUrl: currentUrl,
+      dispatcher,
+      isProxyDispatcher: !!proxyDispatcher,
+    };
   }
 }
 
@@ -415,6 +428,7 @@ async function runWebFetch(params: {
   const start = Date.now();
   let res: Response;
   let dispatcher: Dispatcher | null = null;
+  let isProxyDispatcher = false;
   let finalUrl = params.url;
   try {
     const result = await fetchWithRedirects({
@@ -427,6 +441,7 @@ async function runWebFetch(params: {
     res = result.response;
     finalUrl = result.finalUrl;
     dispatcher = result.dispatcher;
+    isProxyDispatcher = result.isProxyDispatcher;
   } catch (error) {
     if (error instanceof SsrFBlockedError) {
       throw error;
@@ -569,7 +584,11 @@ async function runWebFetch(params: {
     writeCache(FETCH_CACHE, cacheKey, payload, params.cacheTtlMs);
     return payload;
   } finally {
-    await closeDispatcher(dispatcher);
+    // Only close non-proxy dispatchers here; proxy dispatcher is closed by fetchWithRedirects
+    // on error/redirect, or we close it here after successful completion.
+    if (dispatcher) {
+      await closeDispatcher(dispatcher);
+    }
   }
 }
 
