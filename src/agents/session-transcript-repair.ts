@@ -5,6 +5,15 @@ type ToolCallLike = {
   name?: string;
 };
 
+/** Tool block type values to match (both camelCase and snake_case variants) */
+const TOOL_BLOCK_TYPES = new Set([
+  "toolCall",
+  "toolUse",
+  "functionCall",
+  "tool_use",
+  "function_call",
+]);
+
 /**
  * Check if a content block is a valid tool_use/toolCall/functionCall block.
  * Returns true for non-tool blocks (they pass through) and valid tool blocks.
@@ -34,8 +43,7 @@ function isValidToolUseBlock(block: unknown): boolean {
     incomplete?: unknown;
   };
   // Only validate tool-related types (both camelCase and snake_case variants)
-  const toolTypes = ["toolCall", "toolUse", "functionCall", "tool_use", "function_call"];
-  if (!toolTypes.includes(rec.type as string)) {
+  if (!TOOL_BLOCK_TYPES.has(rec.type as string)) {
     return true;
   }
   // Malformed: missing/invalid id (tool call wasn't fully initialized)
@@ -126,7 +134,7 @@ function extractToolCallsFromAssistant(
       continue;
     }
 
-    if (rec.type === "toolCall" || rec.type === "toolUse" || rec.type === "functionCall") {
+    if (TOOL_BLOCK_TYPES.has(rec.type as string)) {
       toolCalls.push({
         id: rec.id,
         name: typeof rec.name === "string" ? rec.name : undefined,
