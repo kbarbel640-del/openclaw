@@ -88,6 +88,7 @@ USER.md
 !.agent/workflows/
 /local/
 package-lock.json
+phala-deploy/secrets/
 
 # Local iOS signing overrides
 apps/ios/LocalSigning.xcconfig
