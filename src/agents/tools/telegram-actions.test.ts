@@ -233,7 +233,7 @@ describe("handleTelegramAction", () => {
     );
     expect(result.content).toContainEqual({
       type: "text",
-      text: expect.stringContaining("success"),
+      text: expect.stringContaining('"ok": true'),
     });
   });
 

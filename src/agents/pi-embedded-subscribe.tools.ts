@@ -149,26 +149,46 @@ export function extractToolErrorMessage(result: unknown): string | undefined {
   if (fromRoot) {
     return fromRoot;
   }
+
+  // Iterate content blocks for structured encoding (JSON, TOON)
+  const content = Array.isArray(record.content) ? record.content : [];
+  for (const item of content) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const entry = item as Record<string, unknown>;
+
+    if (entry.type === "text" && typeof entry.text === "string") {
+      const text = entry.text.trim();
+      if (!text) {
+        continue;
+      }
+
+      // Try TOON parsing on block
+      try {
+        const cleanToon = text.replace(/^# toon\s+/, "");
+        const parsed = decodeToon(cleanToon);
+        const err = extractErrorField(parsed);
+        if (err) {
+          return err;
+        }
+      } catch {}
+
+      // Try JSON parsing on block
+      try {
+        const parsed = JSON.parse(text);
+        const err = extractErrorField(parsed);
+        if (err) {
+          return err;
+        }
+      } catch {}
+    }
+  }
+
+  // Fallback: Check joined text (legacy robustness) and plain string
   const text = extractToolResultText(result);
   if (!text) {
     return undefined;
-  }
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    const fromJson = extractErrorField(parsed);
-    if (fromJson) {
-      return fromJson;
-    }
-  } catch {
-    try {
-      const parsed = decodeToon(text);
-      const fromToon = extractErrorField(parsed);
-      if (fromToon) {
-        return fromToon;
-      }
-    } catch {
-      // Fall through to first-line text fallback.
-    }
   }
   return normalizeToolErrorText(text);
 }

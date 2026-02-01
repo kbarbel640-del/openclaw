@@ -38,10 +38,11 @@ export function wrapToolWithToonEncoding(tool: AnyAgentTool): AnyAgentTool {
     }
 
     if (result?.content && isPlainObject(result.details)) {
-      const firstBlock = result.content?.[0];
-      const existingText = firstBlock?.type === "text" ? firstBlock.text : undefined;
+      const hasSentinel = result.content.some(
+        (block) => block.type === "text" && block.text.startsWith(TOON_SENTINEL),
+      );
 
-      if (existingText?.startsWith(TOON_SENTINEL)) {
+      if (hasSentinel) {
         return result;
       }
 
@@ -51,6 +52,8 @@ export function wrapToolWithToonEncoding(tool: AnyAgentTool): AnyAgentTool {
         toonEncoded = toonEncoded.slice(0, MAX_TOON_CHARS) + "\n# truncated";
       }
 
+      const nonTextBlocks = result.content.filter((block) => block.type !== "text");
+
       const textBlock: TextContent = {
         type: "text",
         text: TOON_SENTINEL + toonEncoded,
@@ -58,7 +61,7 @@ export function wrapToolWithToonEncoding(tool: AnyAgentTool): AnyAgentTool {
 
       return {
         ...result,
-        content: [textBlock],
+        content: [textBlock, ...nonTextBlocks],
       };
     }
 

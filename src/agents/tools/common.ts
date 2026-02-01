@@ -191,7 +191,7 @@ export function jsonResult(payload: unknown): AgentToolResult<unknown> {
     content: [
       {
         type: "text",
-        text: "Result completed successfully",
+        text: JSON.stringify(payload, null, 2),
       },
     ],
     details: payload,
