@@ -82,6 +82,14 @@ export const SessionSchema = z
       })
       .strict()
       .optional(),
+    shortTermMemory: z
+      .object({
+        enabled: z.boolean().optional(),
+        messageCount: z.number().int().min(1).max(100).optional(),
+        path: z.string().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .optional();
