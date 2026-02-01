@@ -26,7 +26,8 @@ type LaneState = {
 function shouldAutoRemoveLane(lane: string) {
   // Dynamic lanes derived from session keys should not live forever.
   // Main lane is process-wide and intentionally persistent.
-  return lane.trim() !== CommandLane.Main && lane.startsWith("session:");
+  // Lint: avoid enum/string comparison issues by comparing to the literal main lane name.
+  return lane.trim() !== "main" && lane.startsWith("session:");
 }
 
 function maybeRemoveIdleLane(state: LaneState) {
