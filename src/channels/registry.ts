@@ -7,6 +7,7 @@ import { requireActivePluginRegistry } from "../plugins/runtime.js";
 export const CHAT_CHANNEL_ORDER = [
   "telegram",
   "whatsapp",
+  "messenger",
   "discord",
   "googlechat",
   "slack",
@@ -47,6 +48,16 @@ const CHAT_CHANNEL_META: Record<ChatChannelId, ChannelMeta> = {
     docsLabel: "whatsapp",
     blurb: "works with your own number; recommend a separate phone + eSIM.",
     systemImage: "message",
+  },
+  messenger: {
+    id: "messenger",
+    label: "Messenger",
+    selectionLabel: "Messenger (Page API)",
+    detailLabel: "Facebook Messenger",
+    docsPath: "/channels/messenger",
+    docsLabel: "messenger",
+    blurb: "Facebook Messenger via Page webhook integration.",
+    systemImage: "bubble.left.and.bubble.right.fill",
   },
   discord: {
     id: "discord",
@@ -104,6 +115,8 @@ export const CHAT_CHANNEL_ALIASES: Record<string, ChatChannelId> = {
   imsg: "imessage",
   "google-chat": "googlechat",
   gchat: "googlechat",
+  fb: "messenger",
+  "fb-messenger": "messenger",
 };
 
 const normalizeChannelKey = (raw?: string | null): string | undefined => {

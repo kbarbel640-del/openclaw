@@ -11,9 +11,11 @@ import {
   SlackConfigSchema,
   TelegramConfigSchema,
 } from "./zod-schema.providers-core.js";
+import { MessengerConfigSchema } from "./zod-schema.providers-messenger.js";
 import { WhatsAppConfigSchema } from "./zod-schema.providers-whatsapp.js";
 
 export * from "./zod-schema.providers-core.js";
+export * from "./zod-schema.providers-messenger.js";
 export * from "./zod-schema.providers-whatsapp.js";
 export { ChannelHeartbeatVisibilitySchema } from "./zod-schema.channels.js";
 
@@ -35,6 +37,7 @@ export const ChannelsSchema = z
     imessage: IMessageConfigSchema.optional(),
     bluebubbles: BlueBubblesConfigSchema.optional(),
     msteams: MSTeamsConfigSchema.optional(),
+    messenger: MessengerConfigSchema.optional(),
   })
   .passthrough() // Allow extension channel configs (nostr, matrix, zalo, etc.)
   .optional();

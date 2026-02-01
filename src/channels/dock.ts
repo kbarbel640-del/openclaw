@@ -12,6 +12,7 @@ import type {
 } from "./plugins/types.js";
 import { resolveDiscordAccount } from "../discord/accounts.js";
 import { resolveIMessageAccount } from "../imessage/accounts.js";
+import { resolveMessengerAccount } from "../messenger/accounts.js";
 import { requireActivePluginRegistry } from "../plugins/runtime.js";
 import { normalizeAccountId } from "../routing/session-key.js";
 import { resolveSignalAccount } from "../signal/accounts.js";
@@ -163,6 +164,35 @@ const DOCKS: Record<ChatChannelId, ChannelDock> = {
         const escaped = escapeRegExp(selfE164);
         return [escaped, `@${escaped}`];
       },
+    },
+    threading: {
+      buildToolContext: ({ context, hasRepliedRef }) => {
+        const channelId = context.From?.trim() || context.To?.trim() || undefined;
+        return {
+          currentChannelId: channelId,
+          currentThreadTs: context.ReplyToId,
+          hasRepliedRef,
+        };
+      },
+    },
+  },
+  messenger: {
+    id: "messenger",
+    capabilities: {
+      chatTypes: ["direct"],
+      media: true,
+    },
+    outbound: { textChunkLimit: 2000 },
+    config: {
+      resolveAllowFrom: ({ cfg, accountId }) =>
+        (resolveMessengerAccount({ cfg, accountId }).config.allowFrom ?? []).map((entry) =>
+          String(entry),
+        ),
+      formatAllowFrom: ({ allowFrom }) =>
+        allowFrom
+          .map((entry) => String(entry).trim())
+          .filter(Boolean)
+          .map((entry) => entry.replace(/^messenger:/i, "").toLowerCase()),
     },
     threading: {
       buildToolContext: ({ context, hasRepliedRef }) => {

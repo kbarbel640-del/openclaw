@@ -3,6 +3,7 @@ import type { ChannelOutboundAdapter } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { sendMessageDiscord } from "../../discord/send.js";
 import type { sendMessageIMessage } from "../../imessage/send.js";
+import type { sendMessageMessenger } from "../../messenger/send.js";
 import type { sendMessageSlack } from "../../slack/send.js";
 import type { sendMessageTelegram } from "../../telegram/send.js";
 import type { sendMessageWhatsApp } from "../../web/outbound.js";
@@ -41,6 +42,7 @@ export type OutboundSendDeps = {
   sendSlack?: typeof sendMessageSlack;
   sendSignal?: typeof sendMessageSignal;
   sendIMessage?: typeof sendMessageIMessage;
+  sendMessenger?: typeof sendMessageMessenger;
   sendMatrix?: SendMatrixMessage;
   sendMSTeams?: (
     to: string,
@@ -56,6 +58,7 @@ export type OutboundDeliveryResult = {
   channelId?: string;
   roomId?: string;
   conversationId?: string;
+  recipientId?: string;
   timestamp?: number;
   toJid?: string;
   pollId?: string;

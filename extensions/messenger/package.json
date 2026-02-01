@@ -1,0 +1,14 @@
+{
+  "name": "@openclaw/messenger",
+  "version": "2026.1.30",
+  "description": "OpenClaw Facebook Messenger channel plugin",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

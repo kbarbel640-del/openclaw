@@ -99,3 +99,35 @@ export function createTelegramRetryRunner(params: {
         : undefined,
     });
 }
+
+export const MESSENGER_RETRY_DEFAULTS = {
+  attempts: 3,
+  minDelayMs: 500,
+  maxDelayMs: 30_000,
+  jitter: 0.1,
+};
+
+const MESSENGER_RETRY_RE = /429|rate limit|too many requests|timeout|econnreset|500|502|503/i;
+
+export function createMessengerRetryRunner(params: {
+  retry?: RetryConfig;
+  verbose?: boolean;
+}): RetryRunner {
+  const retryConfig = resolveRetryConfig(MESSENGER_RETRY_DEFAULTS, params.retry);
+  const shouldRetry = (err: unknown) => MESSENGER_RETRY_RE.test(formatErrorMessage(err));
+
+  return <T>(fn: () => Promise<T>, label?: string) =>
+    retryAsync(fn, {
+      ...retryConfig,
+      label,
+      shouldRetry,
+      onRetry: params.verbose
+        ? (info) => {
+            const maxRetries = Math.max(1, info.maxAttempts - 1);
+            console.warn(
+              `messenger send retry ${info.attempt}/${maxRetries} for ${info.label ?? label ?? "request"} in ${info.delayMs}ms: ${formatErrorMessage(info.err)}`,
+            );
+          }
+        : undefined,
+    });
+}

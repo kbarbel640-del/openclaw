@@ -369,5 +369,35 @@ export {
 } from "../line/markdown-to-line.js";
 export type { ProcessedLineMessage } from "../line/markdown-to-line.js";
 
+// Channel: Messenger
+export {
+  listMessengerAccountIds,
+  resolveDefaultMessengerAccountId,
+  resolveMessengerAccount,
+  listEnabledMessengerAccounts,
+} from "../messenger/accounts.js";
+export type { ResolvedMessengerAccount } from "../messenger/types.js";
+export {
+  normalizeMessengerTarget,
+  looksLikeMessengerTarget,
+  isMessengerPsid,
+  formatMessengerTarget,
+  normalizeMessengerAllowFromEntry,
+} from "../messenger/normalize.js";
+export { chunkMessengerText, sendMessageMessenger, sendSenderAction } from "../messenger/send.js";
+export { probeMessenger, type MessengerProbe } from "../messenger/probe.js";
+export {
+  messengerPairingAdapter,
+  messengerSecurityAdapter,
+  isMessengerSenderAllowed,
+} from "../messenger/pairing.js";
+export {
+  startMessengerAccount,
+  stopMessengerAccount,
+  getMessengerBotState,
+  isMessengerAccountRunning,
+  listRunningMessengerAccounts,
+} from "../messenger/bot.js";
+
 // Media utilities
 export { loadWebMedia, type WebMediaResult } from "../web/media.js";
