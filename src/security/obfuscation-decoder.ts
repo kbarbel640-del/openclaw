@@ -109,14 +109,16 @@ export function decodeROT13(text: string): string {
 export function decodePigLatin(text: string): string {
   // Match any word ending in "ay"
   return text.replace(/\b(\w+)ay\b/gi, (match, wordMinusAy) => {
-    // Find consonant cluster at the end (these were moved from the start)
-    const consonantMatch = wordMinusAy.match(/([b-df-hj-np-tv-z]+)$/i);
-    if (consonantMatch) {
-      const consonants = consonantMatch[1];
-      const rest = wordMinusAy.slice(0, -consonants.length);
-      // Only valid pig latin if rest starts with vowel
-      if (rest && /^[aeiou]/i.test(rest)) {
-        return consonants + rest;
+    // Find consonant cluster at the end (1-3 chars, as most words start with short clusters)
+    // Try different cluster lengths, starting with common sizes
+    for (const len of [2, 1, 3]) {
+      if (wordMinusAy.length > len) {
+        const consonants = wordMinusAy.slice(-len);
+        const rest = wordMinusAy.slice(0, -len);
+        // Valid if: consonants are all consonants AND rest starts with vowel
+        if (/^[b-df-hj-np-tv-z]+$/i.test(consonants) && /^[aeiou]/i.test(rest)) {
+          return consonants + rest;
+        }
       }
     }
     return match; // Not valid pig latin, return unchanged
