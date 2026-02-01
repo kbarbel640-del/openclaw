@@ -1,5 +1,7 @@
 ## Summary
 
+Compatibility note: Verified against **OpenClaw v2026.1.30**, including recent Telegram threading/HTML and routing changes. The `resolve_room_key` hook remains stable because it operates above channel-specific routing details.
+
 This PR introduces a small, backward-compatible core hook that allows plugins to deterministically influence the canonical conversation identity ("RoomKey") used by OpenClaw for:
 
 - session/transcript selection
