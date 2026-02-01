@@ -153,6 +153,25 @@ export async function abortChatRun(state: ChatState): Promise<boolean> {
   }
 }
 
+export async function patchChatModel(state: ChatState, model: string): Promise<boolean> {
+  if (!state.client || !state.connected) return false;
+  try {
+    await state.client.request("sessions.patch", {
+      key: state.sessionKey,
+      model,
+    });
+    return true;
+  } catch (err) {
+    state.lastError = String(err);
+    return false;
+  }
+}
+
+function addMessageToHistory(state: ChatState, msg: unknown) {
+  if (!msg || typeof msg !== "object") return;
+  state.chatMessages = [...state.chatMessages, msg];
+}
+
 export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   if (!payload) return null;
   if (payload.sessionKey !== state.sessionKey) return null;
@@ -160,7 +179,13 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   // Final from another run (e.g. sub-agent announce): refresh history to show new message.
   // See https://github.com/openclaw/openclaw/issues/1909
   if (payload.runId && state.chatRunId && payload.runId !== state.chatRunId) {
-    if (payload.state === "final") return "final";
+    if (payload.state === "final") {
+      // Add the message immediately instead of waiting for polling
+      if (payload.message) {
+        addMessageToHistory(state, payload.message);
+      }
+      return "final";
+    }
     return null;
   }
 
@@ -173,6 +198,18 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
       }
     }
   } else if (payload.state === "final") {
+    // Build final message from current stream state
+    if (state.chatStream) {
+      const finalMsg = {
+        role: "assistant",
+        content: [{ type: "text", text: state.chatStream }],
+        timestamp: Date.now(),
+      };
+      addMessageToHistory(state, finalMsg);
+    } else if (payload.message) {
+      // Fallback to payload message if stream was empty
+      addMessageToHistory(state, payload.message);
+    }
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
@@ -181,6 +218,13 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
   } else if (payload.state === "error") {
+    // Add error message to history immediately
+    const errorMsg = {
+      role: "assistant",
+      content: [{ type: "text", text: `Error: ${payload.errorMessage || "unknown error"}` }],
+      timestamp: Date.now(),
+    };
+    addMessageToHistory(state, errorMsg);
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;

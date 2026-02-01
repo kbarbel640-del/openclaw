@@ -12,6 +12,7 @@ import {
 import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-normalizer";
 import { icons } from "../icons";
 import { renderMarkdownSidebar } from "./markdown-sidebar";
+import { renderModelPickerDialog } from "../components/model-picker-dialog";
 import "../components/resizable-divider";
 
 export type CompactionIndicatorStatus = {
@@ -41,6 +42,8 @@ export type ChatProps = {
   disabledReason: string | null;
   error: string | null;
   sessions: SessionsListResult | null;
+  availableModels?: Array<{ id: string; name?: string; provider?: string; contextWindow?: number; reasoning?: boolean }>;
+  currentModel?: string | null;
   // Focus mode
   focusMode: boolean;
   // Sidebar state
@@ -53,6 +56,10 @@ export type ChatProps = {
   // Image attachments
   attachments?: ChatAttachment[];
   onAttachmentsChange?: (attachments: ChatAttachment[]) => void;
+  // Model picker dialog
+  modelPickerOpen?: boolean;
+  onOpenModelPicker?: () => void;
+  onCloseModelPicker?: () => void;
   // Event handlers
   onRefresh: () => void;
   onToggleFocusMode: () => void;
@@ -61,6 +68,7 @@ export type ChatProps = {
   onAbort?: () => void;
   onQueueRemove: (id: string) => void;
   onNewSession: () => void;
+  onModelChange?: (model: string) => void;
   onOpenSidebar?: (content: string) => void;
   onCloseSidebar?: () => void;
   onSplitRatioChange?: (ratio: number) => void;
@@ -168,6 +176,51 @@ function renderAttachmentPreview(props: ChatProps) {
           </div>
         `,
       )}
+    </div>
+  `;
+}
+
+function formatProviderName(provider: string): string {
+  const names: Record<string, string> = {
+    openai: "OpenAI",
+    anthropic: "Anthropic",
+    google: "Google",
+    "google-antigravity": "Google AG",
+    "github-copilot": "GitHub Copilot",
+    deepseek: "DeepSeek",
+    groq: "Groq",
+    mistral: "Mistral",
+    zai: "Z.AI",
+    other: "Other",
+  };
+  return names[provider.toLowerCase()] || provider;
+}
+
+function renderModelSelector(props: ChatProps) {
+  if (!props.availableModels || props.availableModels.length === 0 || !props.onModelChange) {
+    return nothing;
+  }
+
+  const currentModel = props.currentModel || "";
+  
+  // Find current model display name
+  const currentModelEntry = props.availableModels.find((m) => m.id === currentModel);
+  const currentModelDisplay = currentModelEntry?.name || currentModel || "Select model...";
+  const currentProvider = currentModelEntry?.provider || "";
+  
+  return html`
+    <div class="chat-compose__meta">
+      <button
+        class="chat-model-button"
+        type="button"
+        @click=${() => props.onOpenModelPicker?.()}
+        title="Change model"
+      >
+        <span class="chat-model-button__label">Model:</span>
+        <span class="chat-model-button__value">${currentModelDisplay}</span>
+        ${currentProvider ? html`<span class="chat-model-button__provider">${formatProviderName(currentProvider)}</span>` : nothing}
+        <span class="chat-model-button__icon">${icons.chevronDown}</span>
+      </button>
     </div>
   `;
 }
@@ -330,6 +383,7 @@ export function renderChat(props: ChatProps) {
 
       <div class="chat-compose">
         ${renderAttachmentPreview(props)}
+        ${renderModelSelector(props)}
         <div class="chat-compose__row">
           <label class="field chat-compose__field">
             <span>Message</span>
@@ -372,6 +426,19 @@ export function renderChat(props: ChatProps) {
           </div>
         </div>
       </div>
+      ${renderModelPickerDialog({
+        open: props.modelPickerOpen ?? false,
+        models: (props.availableModels ?? []).map((m) => ({
+          id: m.id,
+          name: m.name,
+          provider: m.provider,
+          contextWindow: m.contextWindow,
+          reasoning: m.reasoning,
+        })),
+        currentModel: props.currentModel ?? null,
+        onSelect: (modelId) => props.onModelChange?.(modelId),
+        onClose: () => props.onCloseModelPicker?.(),
+      })}
     </section>
   `;
 }
@@ -396,7 +463,14 @@ function groupMessages(items: ChatItem[]): Array<ChatItem | MessageGroup> {
     const role = normalizeRoleForGrouping(normalized.role);
     const timestamp = normalized.timestamp || Date.now();
 
-    if (!currentGroup || currentGroup.role !== role) {
+    // Tool messages should be merged into the preceding assistant group
+    const isTool = role === "tool";
+    const canMergeWithAssistant = isTool && currentGroup?.role === "assistant";
+
+    if (canMergeWithAssistant) {
+      // Merge tool result into the assistant group
+      currentGroup!.messages.push({ message: item.message, key: item.key });
+    } else if (!currentGroup || currentGroup.role !== role) {
       if (currentGroup) result.push(currentGroup);
       currentGroup = {
         kind: "group",
