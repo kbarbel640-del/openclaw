@@ -78,7 +78,11 @@ describe("chat view", () => {
       renderChat(
         createProps({
           messages: [
-            { role: "system", content: "You are a helpful assistant. Greet the user.", timestamp: 1 },
+            {
+              role: "system",
+              content: "You are a helpful assistant. Greet the user.",
+              timestamp: 1,
+            },
             { role: "assistant", content: "Hello! How can I help?", timestamp: 2 },
             { role: "user", content: "Hi there", timestamp: 3 },
           ],
