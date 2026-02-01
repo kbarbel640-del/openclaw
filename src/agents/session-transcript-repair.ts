@@ -9,6 +9,14 @@ type ToolCallLike = {
  * Check if a content block is a valid tool_use/toolCall/functionCall block.
  * Returns true for non-tool blocks (they pass through) and valid tool blocks.
  * Returns false for malformed tool blocks that should be stripped.
+ *
+ * Malformed conditions (indicate interrupted/incomplete tool calls):
+ * - Missing or empty `id` field (tool call wasn't fully initialized)
+ * - Has `partialJson` field (Anthropic SDK streaming artifact)
+ * - Has `partial` field set to true (generic streaming indicator)
+ * - Has `incomplete` field set to true (OpenAI-style indicator)
+ *
+ * Note: Missing `name` is tolerable - extractToolCallsFromAssistant handles it gracefully.
  */
 function isValidToolUseBlock(block: unknown): boolean {
   if (!block || typeof block !== "object") {
@@ -19,17 +27,25 @@ function isValidToolUseBlock(block: unknown): boolean {
     id?: unknown;
     name?: unknown;
     partialJson?: unknown;
+    partial?: unknown;
+    incomplete?: unknown;
   };
   // Only validate tool-related types
   if (rec.type !== "toolCall" && rec.type !== "toolUse" && rec.type !== "functionCall") {
     return true;
   }
-  // Malformed: missing/invalid id or has partialJson (indicates interrupted serialization)
-  // Note: missing `name` is tolerable - extractToolCallsFromAssistant handles it gracefully
+  // Malformed: missing/invalid id (tool call wasn't fully initialized)
   if (typeof rec.id !== "string" || !rec.id) {
     return false;
   }
+  // Malformed: has streaming/partial indicators (tool call was interrupted mid-stream)
   if (rec.partialJson !== undefined) {
+    return false;
+  }
+  if (rec.partial === true) {
+    return false;
+  }
+  if (rec.incomplete === true) {
     return false;
   }
   return true;
