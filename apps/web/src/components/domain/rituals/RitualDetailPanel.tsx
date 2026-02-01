@@ -99,6 +99,11 @@ export function RitualDetailPanel({
 }: RitualDetailPanelProps) {
   const [showScheduler, setShowScheduler] = React.useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [showScheduleConfirm, setShowScheduleConfirm] = React.useState(false);
+  const [pendingSchedule, setPendingSchedule] = React.useState<{
+    time: string;
+    frequency: RitualFrequency;
+  } | null>(null);
 
   if (!ritual) return null;
 
@@ -123,8 +128,8 @@ export function RitualDetailPanel({
   };
 
   const handleScheduleUpdate = (time: string, frequency: RitualFrequency) => {
-    onUpdateSchedule?.(ritual.id, { time, frequency });
-    setShowScheduler(false);
+    setPendingSchedule({ time, frequency });
+    setShowScheduleConfirm(true);
   };
 
   // Extract time from schedule string (simplified - in real app, parse cron)
@@ -347,6 +352,7 @@ export function RitualDetailPanel({
             <RitualScheduler
               initialTime={getTimeFromSchedule()}
               initialFrequency={ritual.frequency === "custom" ? "daily" : ritual.frequency}
+              variant="inline"
               onSchedule={handleScheduleUpdate}
               onCancel={() => setShowScheduler(false)}
             />
@@ -433,6 +439,29 @@ export function RitualDetailPanel({
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={confirmDelete}
+      />
+      <ConfirmDialog
+        open={showScheduleConfirm}
+        onOpenChange={(open) => {
+          setShowScheduleConfirm(open);
+          if (!open) {
+            setPendingSchedule(null);
+          }
+        }}
+        title="Confirm schedule change"
+        description={
+          pendingSchedule
+            ? `Update this ritual to run ${pendingSchedule.frequency} at ${pendingSchedule.time}?`
+            : "Update schedule?"
+        }
+        confirmLabel="Confirm"
+        onConfirm={() => {
+          if (pendingSchedule) {
+            onUpdateSchedule?.(ritual.id, pendingSchedule);
+            setShowScheduler(false);
+            setPendingSchedule(null);
+          }
+        }}
       />
     </DetailPanel>
   );

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,12 +70,28 @@ function AgentsPage() {
   };
 
   const handleViewSession = (agent: Agent) => {
-    navigate({ to: "/agents/$agentId", params: { agentId: agent.id }, search: { tab: "activity" } });
+    // Navigate to the new Agent Session UI with current session
+    navigate({
+      to: "/agents/$agentId/session/$sessionKey",
+      params: { agentId: agent.id, sessionKey: "current" },
+    });
   };
 
   const handleNewSession = (agent: Agent) => {
-    // Navigate to agent detail with activity tab and trigger new session
-    navigate({ to: "/agents/$agentId", params: { agentId: agent.id }, search: { tab: "activity", newSession: true } });
+    // Navigate to the new Agent Session UI with a new session
+    const newSessionKey = `session-${Date.now()}`;
+    navigate({
+      to: "/agents/$agentId/session/$sessionKey",
+      params: { agentId: agent.id, sessionKey: newSessionKey },
+    });
+  };
+
+  const handleChat = (agent: Agent) => {
+    // Navigate to the new Agent Session UI
+    navigate({
+      to: "/agents/$agentId/session/$sessionKey",
+      params: { agentId: agent.id, sessionKey: "current" },
+    });
   };
 
   // Filter and sort agents
@@ -315,31 +331,20 @@ function AgentsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
               >
-	                <Link
-	                  to="/agents/$agentId"
-	                  params={{ agentId: agent.id }}
-	                  className="block"
-	                >
-	                  <AgentCard
-	                    agent={agent}
-	                    variant="expanded"
-	                    onChat={() => {
-	                      navigate({ to: "/agents/$agentId", params: { agentId: agent.id } });
-	                    }}
-	                    onSettings={() => {
-	                      navigate({ to: "/agents/$agentId", params: { agentId: agent.id }, search: { tab: "overview" } });
-	                    }}
-	                    onToggle={() => {
-	                      handleToggleAgent(agent);
-	                    }}
-	                    onViewSession={() => {
-	                      handleViewSession(agent);
-	                    }}
-	                    onNewSession={() => {
-	                      handleNewSession(agent);
-	                    }}
-	                  />
-	                </Link>
+                  <AgentCard
+                    agent={agent}
+                    variant="expanded"
+                    onChat={() => handleChat(agent)}
+                    onSettings={() => {
+                      navigate({ to: "/agents/$agentId", params: { agentId: agent.id }, search: { tab: "overview" } });
+                    }}
+                    onToggle={() => handleToggleAgent(agent)}
+                    onViewSession={() => handleViewSession(agent)}
+                    onNewSession={() => handleNewSession(agent)}
+                    onCardClick={() => {
+                      navigate({ to: "/agents/$agentId", params: { agentId: agent.id } });
+                    }}
+                  />
               </motion.div>
             ))}
           </motion.div>

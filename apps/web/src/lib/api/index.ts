@@ -61,3 +61,26 @@ export {
   saveProviderApiKey,
   removeProviderApiKey,
 } from "./config";
+
+// Session API functions
+export {
+  listSessions,
+  getChatHistory,
+  sendChatMessage,
+  abortChat,
+  patchSession,
+  deleteSession,
+  buildAgentSessionKey,
+  parseAgentSessionKey,
+  filterSessionsByAgent,
+  type GatewaySessionRow,
+  type SessionsListResult,
+  type ChatMessage,
+  type ToolCall,
+  type ChatHistoryResult,
+  type ChatSendParams,
+  type ChatSendResult,
+  type SessionPatchParams,
+  type ChatEventPayload,
+  type AgentEventPayload,
+} from "./sessions";

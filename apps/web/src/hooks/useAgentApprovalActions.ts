@@ -1,0 +1,75 @@
+import * as React from "react";
+import { useOptionalOpenClawGateway } from "@/integrations/openclaw/react";
+import { useAgentStore } from "@/stores/useAgentStore";
+import { showError, showSuccess, showWarning } from "@/lib/toast";
+
+export function useAgentApprovalActions() {
+  const gateway = useOptionalOpenClawGateway();
+  const updateAgentWith = useAgentStore((s) => s.updateAgentWith);
+
+  const approvePending = React.useCallback(
+    async (agentId: string) => {
+      const agent = useAgentStore.getState().agents.find((entry) => entry.id === agentId);
+      const pending = agent?.pendingToolCallIds ?? [];
+      if (!pending.length) {
+        showWarning("No pending approvals for this agent.");
+        return false;
+      }
+      if (!gateway) {
+        showWarning("Gateway not connected — approval stubbed.");
+        return false;
+      }
+
+      try {
+        await Promise.all(pending.map((toolCallId) => gateway.rpc("tool.approve", { toolCallId })));
+        updateAgentWith(agentId, (entry) => ({
+          ...entry,
+          pendingToolCallIds: [],
+          pendingApprovals: 0,
+        }));
+        showSuccess(`Approved ${pending.length} request${pending.length === 1 ? "" : "s"} for ${agent?.name ?? "agent"}.`);
+        return true;
+      } catch (error) {
+        showError("Failed to approve pending requests.");
+        return false;
+      }
+    },
+    [gateway, updateAgentWith]
+  );
+
+  const denyPending = React.useCallback(
+    async (agentId: string) => {
+      const agent = useAgentStore.getState().agents.find((entry) => entry.id === agentId);
+      const pending = agent?.pendingToolCallIds ?? [];
+      if (!pending.length) {
+        showWarning("No pending approvals for this agent.");
+        return false;
+      }
+      if (!gateway) {
+        showWarning("Gateway not connected — denial stubbed.");
+        return false;
+      }
+
+      try {
+        await Promise.all(
+          pending.map((toolCallId) => gateway.rpc("tool.reject", { toolCallId, reason: "Denied by operator" }))
+        );
+        updateAgentWith(agentId, (entry) => ({
+          ...entry,
+          pendingToolCallIds: [],
+          pendingApprovals: 0,
+        }));
+        showSuccess(`Denied ${pending.length} request${pending.length === 1 ? "" : "s"} for ${agent?.name ?? "agent"}.`);
+        return true;
+      } catch (error) {
+        showError("Failed to deny pending requests.");
+        return false;
+      }
+    },
+    [gateway, updateAgentWith]
+  );
+
+  return { approvePending, denyPending };
+}
+
+export default useAgentApprovalActions;

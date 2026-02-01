@@ -233,11 +233,11 @@ export function CreateRitualModal({
                               "rounded-lg border px-2 py-2 text-center transition-all",
                               time === option.time
                                 ? "border-primary bg-primary/10 text-primary"
-                                : "border-border/50 bg-secondary/30 text-muted-foreground hover:border-primary/30 hover:bg-secondary/50"
+                                : "border-border/50 bg-secondary/30 text-muted-foreground hover:border-primary/40 hover:bg-secondary/70 hover:text-foreground"
                             )}
                           >
                             <span className="block text-xs font-medium">{option.label}</span>
-                            <span className="block text-[10px] text-muted-foreground">{option.time}</span>
+                            <span className="block text-[10px] text-muted-foreground/80">{option.time}</span>
                           </button>
                         ))}
                       </div>
@@ -261,7 +261,7 @@ export function CreateRitualModal({
                               "relative rounded-xl border p-3 text-left transition-all",
                               frequency === option.value
                                 ? "border-primary bg-primary/10"
-                                : "border-border/50 bg-secondary/30 hover:border-primary/30 hover:bg-secondary/50"
+                                : "border-border/50 bg-secondary/30 hover:border-primary/40 hover:bg-secondary/70"
                             )}
                           >
                             {frequency === option.value && (

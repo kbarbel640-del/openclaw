@@ -8,8 +8,9 @@
 import type { UserProfile, UserPreferences } from "@/hooks/queries/useUserSettings";
 import type { UIState } from "@/stores/useUIStore";
 import type { ClawdbrainConfig, AgentsConfig, ChannelsConfig } from "@/lib/api/types";
+import type { ToolsetConfig } from "@/components/domain/tools";
 
-export type ExportSection = "profile" | "preferences" | "uiSettings" | "gatewayConfig";
+export type ExportSection = "profile" | "preferences" | "uiSettings" | "gatewayConfig" | "toolsets";
 
 export interface ConfigurationExport {
   version: "1.0";
@@ -22,6 +23,10 @@ export interface ConfigurationExport {
     gatewayConfig?: {
       agents?: SanitizedAgentsConfig;
       channels?: SanitizedChannelsConfig;
+    };
+    toolsets?: {
+      configs: ToolsetConfig[];
+      defaultToolsetId: string | null;
     };
   };
 }
@@ -46,6 +51,10 @@ export interface ExportConfigParams {
   preferences?: UserPreferences;
   uiState?: UIState;
   gatewayConfig?: ClawdbrainConfig;
+  toolsets?: {
+    configs: ToolsetConfig[];
+    defaultToolsetId: string | null;
+  };
 }
 
 /**
@@ -99,6 +108,7 @@ export function exportConfiguration({
   preferences,
   uiState,
   gatewayConfig,
+  toolsets,
 }: ExportConfigParams): ConfigurationExport {
   const exportData: ConfigurationExport = {
     version: "1.0",
@@ -137,6 +147,14 @@ export function exportConfiguration({
     exportData.data.gatewayConfig = {
       agents: sanitizeAgentsConfig(gatewayConfig.agents),
       channels: sanitizeChannelsConfig(gatewayConfig.channels),
+    };
+  }
+
+  if (sections.includes("toolsets") && toolsets) {
+    // Only export custom toolsets, not built-in ones
+    exportData.data.toolsets = {
+      configs: toolsets.configs.filter((t) => !t.isBuiltIn),
+      defaultToolsetId: toolsets.defaultToolsetId,
     };
   }
 

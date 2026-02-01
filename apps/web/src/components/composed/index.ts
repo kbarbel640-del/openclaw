@@ -2,6 +2,7 @@
 export { DetailPanel } from "./DetailPanel";
 export { StatusBadge, type StatusType } from "./StatusBadge";
 export { MetricCard } from "./MetricCard";
+export { AgentAvatar, type AgentAvatarProps, type AgentAvatarSize, type AgentAvatarStatus } from "./AgentAvatar";
 export { ThemeToggle } from "./ThemeToggle";
 export { UltraCompactCommandPalette } from "./UltraCompactCommandPalette";
 export type { PaletteCommand, CommandCategory } from "./UltraCompactCommandPalette";

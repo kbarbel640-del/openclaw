@@ -542,7 +542,7 @@ function WorkstreamDAGInner({
 
   // Handle right-click on pane (not on node) - close menu and prevent browser menu
   const handlePaneContextMenu = useCallback(
-    (event: React.MouseEvent) => {
+    (event: MouseEvent | React.MouseEvent) => {
       event.preventDefault();
       // Close the custom menu when right-clicking elsewhere
       setContextMenuPosition(null);

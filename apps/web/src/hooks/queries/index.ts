@@ -118,3 +118,12 @@ export type {
   UserSettings,
   NotificationPreference,
 } from "./useUserSettings";
+
+// Sessions
+export {
+  useSessions,
+  useAgentSessions,
+  useChatHistory,
+  useChatEventSubscription,
+  sessionKeys,
+} from "./useSessions";

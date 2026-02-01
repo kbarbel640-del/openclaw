@@ -20,14 +20,14 @@ interface ChatSettingsPanelProps {
 }
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    weekday: "long",
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat("en-US", {
     year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-  });
+  }).format(date);
 }
 
 export function ChatSettingsPanel({
@@ -80,22 +80,22 @@ export function ChatSettingsPanel({
           <div className="space-y-3">
             {conversation && (
               <>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground flex items-center gap-2">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground flex items-center gap-2 min-w-0">
                     <Clock className="h-3.5 w-3.5" />
                     Created
                   </span>
-                  <span className="text-foreground">
+                  <span className="text-foreground whitespace-nowrap tabular-nums">
                     {formatDate(conversation.createdAt)}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground flex items-center gap-2">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground flex items-center gap-2 min-w-0">
                     <Clock className="h-3.5 w-3.5" />
                     Last Updated
                   </span>
-                  <span className="text-foreground">
+                  <span className="text-foreground whitespace-nowrap tabular-nums">
                     {formatDate(conversation.updatedAt)}
                   </span>
                 </div>

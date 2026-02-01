@@ -145,6 +145,17 @@ export function ImportConfigDialog({
       });
     }
 
+    if (data.sections.includes("toolsets")) {
+      const toolsetsData = data.data.toolsets;
+      const count = toolsetsData?.configs?.length ?? 0;
+      previews.push({
+        id: "toolsets",
+        label: "Toolsets",
+        summary: `${count} custom toolset${count !== 1 ? "s" : ""}${toolsetsData?.defaultToolsetId ? " (with default)" : ""}`,
+        available: true,
+      });
+    }
+
     return previews;
   }, [validationResult?.data]);
 

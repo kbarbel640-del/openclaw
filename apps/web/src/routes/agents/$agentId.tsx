@@ -1,9 +1,10 @@
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useMatches } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/composed/StatusBadge";
 import { CardSkeleton } from "@/components/composed";
@@ -20,6 +21,7 @@ import { useAgent } from "@/hooks/queries/useAgents";
 import { useWorkstreamsByOwner } from "@/hooks/queries/useWorkstreams";
 import { useRitualsByAgent } from "@/hooks/queries/useRituals";
 import { useUpdateAgentStatus } from "@/hooks/mutations/useAgentMutations";
+import { useUIStore } from "@/stores/useUIStore";
 import type { AgentStatus } from "@/hooks/queries/useAgents";
 import {
   ArrowLeft,
@@ -62,6 +64,20 @@ function AgentDetailPage() {
   const [activeTab, setActiveTab] = React.useState<AgentDetailTab>(searchTab ?? "overview");
   const [showNewSessionDialog, setShowNewSessionDialog] = React.useState(false);
 
+  // Check if a child route is active (e.g., /agents/$agentId/session/...)
+  const matches = useMatches();
+  const currentRouteId = Route.id;
+  const hasChildRoute = matches.some(
+    (match) => match.routeId !== currentRouteId && match.routeId.startsWith(currentRouteId)
+  );
+
+  // All hooks must be called before any conditional returns
+  const { data: agent, isLoading, error } = useAgent(agentId);
+  const { data: workstreams } = useWorkstreamsByOwner(agentId);
+  const { data: rituals } = useRitualsByAgent(agentId);
+  const updateStatus = useUpdateAgentStatus();
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+
   // Handle newSession param - show dialog and clear param
   React.useEffect(() => {
     if (newSession) {
@@ -73,11 +89,6 @@ function AgentDetailPage() {
       });
     }
   }, [newSession, navigate]);
-
-  const { data: agent, isLoading, error } = useAgent(agentId);
-  const { data: workstreams } = useWorkstreamsByOwner(agentId);
-  const { data: rituals } = useRitualsByAgent(agentId);
-  const updateStatus = useUpdateAgentStatus();
 
   React.useEffect(() => {
     if (searchTab && searchTab !== activeTab) setActiveTab(searchTab);
@@ -92,6 +103,15 @@ function AgentDetailPage() {
       replace: true,
     });
   }, [activityId, searchTab, navigate]);
+
+  // If a child route is active, render only the Outlet (child content)
+  if (hasChildRoute) {
+    return <Outlet />;
+  }
+
+  const showModeBadge = (import.meta.env?.DEV ?? false);
+  const modeLabel = useLiveGateway ? "Live gateway" : "Mock data";
+  const modeVariant = useLiveGateway ? "success" : "secondary";
 
   const handleToggleStatus = () => {
     if (!agent) return;
@@ -232,9 +252,16 @@ function AgentDetailPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
-                      <h1 className="text-2xl font-bold tracking-tight">
-                        {agent.name}
-                      </h1>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h1 className="text-2xl font-bold tracking-tight">
+                          {agent.name}
+                        </h1>
+                        {showModeBadge && (
+                          <Badge variant={modeVariant} className="text-xs">
+                            {modeLabel}
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-muted-foreground">{agent.role}</p>
                       <div className="mt-2">
                         <StatusBadge status={agent.status} size="md" />
@@ -243,9 +270,14 @@ function AgentDetailPage() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
-                      <Button className="gap-2">
-                        <MessageSquare className="h-4 w-4" />
-                        Chat
+                      <Button asChild className="gap-2">
+                        <Link
+                          to="/agents/$agentId/session/$sessionKey"
+                          params={{ agentId, sessionKey: "current" }}
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          Chat
+                        </Link>
                       </Button>
                       <Button variant="outline" className="gap-2">
                         <Edit className="h-4 w-4" />

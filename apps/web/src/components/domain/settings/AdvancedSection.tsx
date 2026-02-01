@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useUIStore } from "@/stores/useUIStore";
+import { useToolsetsStore } from "@/stores/useToolsetsStore";
 import {
   ExportConfigSection,
   ExportConversationsDialog,
@@ -89,6 +90,15 @@ export function AdvancedSection({ className, onOpenShortcuts }: AdvancedSectionP
     if (sections.includes("gatewayConfig") && data.data.gatewayConfig) {
       // TODO: Implement gateway config import via gateway API
       toast.info("Gateway configuration noted - apply via CLI for now");
+    }
+
+    // Apply toolsets
+    if (sections.includes("toolsets") && data.data.toolsets) {
+      const { importToolsets, setDefaultToolsetId } = useToolsetsStore.getState();
+      importToolsets(data.data.toolsets.configs, strategy === "merge");
+      if (data.data.toolsets.defaultToolsetId) {
+        setDefaultToolsetId(data.data.toolsets.defaultToolsetId);
+      }
     }
 
     // Reset import state

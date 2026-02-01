@@ -1,6 +1,9 @@
+import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getConfig } from "@/lib/api";
 import { getAgentsList, mapAgentEntryToAgent } from "@/lib/agents";
+import { useUIStore } from "@/stores/useUIStore";
+import { useAgentStore } from "@/stores/useAgentStore";
 
 // Re-export types from store for consistency
 export type { Agent, AgentStatus } from "../../stores/useAgentStore";
@@ -13,7 +16,7 @@ export const agentKeys = {
   list: (filters: Record<string, unknown>) =>
     [...agentKeys.lists(), filters] as const,
   details: () => [...agentKeys.all, "detail"] as const,
-  detail: (id: string) => [...agentKeys.details(), id] as const,
+  detail: (id: string, mode?: "live" | "mock") => [...agentKeys.details(), id, mode] as const,
 };
 
 const mockAgents: Agent[] = [
@@ -36,6 +39,7 @@ const mockAgents: Agent[] = [
     model: "openai/gpt-4o",
     runtime: "pi",
     status: "busy",
+    currentTask: "Refactoring routing guardrails",
     description: "Assists with coding, debugging, and code reviews",
     tags: ["code", "debug", "review"],
     taskCount: 3,
@@ -60,6 +64,9 @@ const mockAgents: Agent[] = [
     model: "openai/gpt-4-turbo",
     runtime: "pi",
     status: "paused",
+    currentTask: "Approve tool access for export flow",
+    pendingApprovals: 2,
+    pendingToolCallIds: ["tool-approval-1", "tool-approval-2"],
     description: "Coordinates tasks and manages workflows",
     tags: ["tasks", "coordination", "planning"],
     taskCount: 8,
@@ -72,7 +79,10 @@ async function fetchMockAgents(): Promise<Agent[]> {
   return mockAgents;
 }
 
-async function fetchAgents(): Promise<Agent[]> {
+async function fetchAgents(liveMode: boolean): Promise<Agent[]> {
+  if (!liveMode) {
+    return fetchMockAgents();
+  }
   try {
     const snapshot = await getConfig();
     if (snapshot?.config) {
@@ -85,37 +95,77 @@ async function fetchAgents(): Promise<Agent[]> {
   }
 }
 
-async function fetchAgent(id: string): Promise<Agent | null> {
-  const agents = await fetchAgents();
+async function fetchAgent(id: string, liveMode: boolean): Promise<Agent | null> {
+  const agents = await fetchAgents(liveMode);
   return agents.find((a) => a.id === id) ?? null;
 }
 
-async function fetchAgentsByStatus(status: Agent["status"]): Promise<Agent[]> {
-  const agents = await fetchAgents();
+async function fetchAgentsByStatus(status: Agent["status"], liveMode: boolean): Promise<Agent[]> {
+  const agents = await fetchAgents(liveMode);
   return agents.filter((a) => a.status === status);
 }
 
 // Query hooks
 export function useAgents() {
-  return useQuery({
-    queryKey: agentKeys.lists(),
-    queryFn: fetchAgents,
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const liveMode = (import.meta.env?.DEV ?? false) && useLiveGateway;
+  const modeKey = liveMode ? "live" : "mock";
+  const upsertAgents = useAgentStore((s) => s.upsertAgents);
+  const storeAgents = useAgentStore((s) => s.agents);
+
+  const query = useQuery({
+    queryKey: agentKeys.list({ mode: modeKey }),
+    queryFn: () => fetchAgents(liveMode),
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  React.useEffect(() => {
+    if (query.data && query.data.length > 0) {
+      upsertAgents(query.data);
+    }
+  }, [query.data, upsertAgents]);
+
+  const mergedAgents = React.useMemo(() => {
+    if (!query.data) return query.data;
+    if (storeAgents.length === 0) return query.data;
+    const byId = new Map(storeAgents.map((agent) => [agent.id, agent]));
+    return query.data.map((agent) => {
+      const live = byId.get(agent.id);
+      if (!live) return agent;
+      return {
+        ...agent,
+        ...live,
+        currentTask: live.currentTask ?? agent.currentTask,
+        pendingApprovals: live.pendingApprovals ?? agent.pendingApprovals,
+        pendingToolCallIds: live.pendingToolCallIds ?? agent.pendingToolCallIds,
+      };
+    });
+  }, [query.data, storeAgents]);
+
+  return {
+    ...query,
+    data: mergedAgents,
+  };
 }
 
 export function useAgent(id: string) {
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const liveMode = (import.meta.env?.DEV ?? false) && useLiveGateway;
+  const modeKey = liveMode ? "live" : "mock";
   return useQuery({
-    queryKey: agentKeys.detail(id),
-    queryFn: () => fetchAgent(id),
+    queryKey: agentKeys.detail(id, modeKey),
+    queryFn: () => fetchAgent(id, liveMode),
     enabled: !!id,
   });
 }
 
 export function useAgentsByStatus(status: Agent["status"]) {
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const liveMode = (import.meta.env?.DEV ?? false) && useLiveGateway;
+  const modeKey = liveMode ? "live" : "mock";
   return useQuery({
-    queryKey: agentKeys.list({ status }),
-    queryFn: () => fetchAgentsByStatus(status),
+    queryKey: agentKeys.list({ status, mode: modeKey }),
+    queryFn: () => fetchAgentsByStatus(status, liveMode),
     enabled: !!status,
   });
 }

@@ -6,6 +6,8 @@ export { ModelProviderSection } from "./ModelProviderSection";
 export { GatewaySection } from "./GatewaySection";
 export { ChannelsSection } from "./ChannelsSection";
 export { AgentsSection } from "./AgentsSection";
+export { ToolsetsSection } from "./ToolsetsSection";
+export { ToolsetEditor } from "./ToolsetEditor";
 export { AdvancedSection } from "./AdvancedSection";
 export { ConnectionsSection } from "./ConnectionsSection";
 export { UsageSection } from "./UsageSection";

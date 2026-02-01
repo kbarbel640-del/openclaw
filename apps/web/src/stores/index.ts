@@ -24,3 +24,11 @@ export type {
   WorkspaceStore,
   Workspace,
 } from "./useWorkspaceStore";
+
+// Toolsets Store - persisted to localStorage
+export { useToolsetsStore } from "./useToolsetsStore";
+export type {
+  ToolsetsState,
+  ToolsetsActions,
+  ToolsetsStore,
+} from "./useToolsetsStore";

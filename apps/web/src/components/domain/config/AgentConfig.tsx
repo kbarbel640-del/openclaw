@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -27,6 +28,7 @@ import {
   useUpdateAgentStatus,
 } from "@/hooks/mutations/useAgentMutations";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
+import { useUIStore } from "@/stores/useUIStore";
 import type { Agent, AgentStatus } from "@/stores/useAgentStore";
 
 type FilterStatus = "all" | AgentStatus;
@@ -39,6 +41,10 @@ export function AgentConfig({ className }: AgentConfigProps) {
   const { data: agents = [], isLoading, error, refetch, isFetching } = useAgents();
   const [isRetrying, setIsRetrying] = React.useState(false);
   const workspaces = useWorkspaceStore((state) => state.workspaces);
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const showModeBadge = (import.meta.env?.DEV ?? false);
+  const modeLabel = useLiveGateway ? "Live gateway" : "Mock data";
+  const modeVariant = useLiveGateway ? "success" : "secondary";
 
   const createAgent = useCreateAgent();
   const updateAgent = useUpdateAgent();
@@ -173,7 +179,14 @@ export function AgentConfig({ className }: AgentConfigProps) {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Agents</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-semibold tracking-tight">Agents</h2>
+            {showModeBadge && (
+              <Badge variant={modeVariant} className="text-xs">
+                {modeLabel}
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
             Manage your AI agents and their configurations
           </p>

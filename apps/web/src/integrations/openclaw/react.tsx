@@ -52,6 +52,14 @@ export function useOpenClawGateway() {
   return ctx.gateway;
 }
 
+export function useOptionalOpenClawEvents() {
+  return React.useContext(OpenClawContext)?.eventBus ?? null;
+}
+
+export function useOptionalOpenClawGateway() {
+  return React.useContext(OpenClawContext)?.gateway ?? null;
+}
+
 export function useOpenClawEvent<K extends keyof OpenClawEvents>(
   event: K,
   handler: (data: OpenClawEvents[K]) => void

@@ -29,6 +29,7 @@ interface AgentCardProps {
   onToggle?: () => void;
   onViewSession?: () => void;
   onNewSession?: () => void;
+  onCardClick?: () => void;
   className?: string;
 }
 
@@ -47,6 +48,7 @@ export function AgentCard({
   onToggle,
   onViewSession,
   onNewSession,
+  onCardClick,
   className,
 }: AgentCardProps) {
   const status = statusConfig[agent.status];
@@ -58,7 +60,8 @@ export function AgentCard({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
         whileHover={{ scale: 1.02 }}
-        className={cn("group", className)}
+        className={cn("group", onCardClick && "cursor-pointer", className)}
+        onClick={onCardClick}
       >
         <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
           <CardContent className="flex items-center gap-4 p-4">
@@ -125,7 +128,8 @@ export function AgentCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className={cn("group relative", className)}
+      className={cn("group relative", onCardClick && "cursor-pointer", className)}
+      onClick={onCardClick}
     >
       <Card className="relative overflow-hidden rounded-2xl border-border/50 bg-gradient-to-br from-card via-card to-card/80 backdrop-blur-sm transition-all duration-500 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10">
         {/* Gradient accent line */}

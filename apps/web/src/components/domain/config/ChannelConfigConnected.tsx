@@ -119,11 +119,11 @@ export function ChannelConfigConnected({
     const cfg = configSnapshot?.config?.channels?.telegram;
     if (cfg?.botToken) {
       return {
-        botToken: cfg.botToken,
-        mode: cfg.mode,
-        webhookUrl: cfg.webhookUrl,
-        allowFrom: cfg.allowFrom,
-        allowUnmentionedGroups: cfg.allowUnmentionedGroups,
+        botToken: cfg.botToken as string,
+        mode: cfg.mode as "polling" | "webhook" | undefined,
+        webhookUrl: cfg.webhookUrl as string | undefined,
+        allowFrom: cfg.allowFrom as string[] | undefined,
+        allowUnmentionedGroups: cfg.allowUnmentionedGroups as boolean | undefined,
       };
     }
     return undefined;
@@ -133,10 +133,10 @@ export function ChannelConfigConnected({
     const cfg = configSnapshot?.config?.channels?.discord;
     if (cfg?.botToken) {
       return {
-        botToken: cfg.botToken,
-        applicationId: cfg.applicationId,
-        allowFrom: cfg.allowFrom,
-        dmPolicy: cfg.dmPolicy,
+        botToken: cfg.botToken as string,
+        applicationId: cfg.applicationId as string | undefined,
+        allowFrom: cfg.allowFrom as string[] | undefined,
+        dmPolicy: cfg.dmPolicy as "disabled" | "allow" | "mentions" | undefined,
       };
     }
     return undefined;
@@ -146,21 +146,21 @@ export function ChannelConfigConnected({
     const cfg = configSnapshot?.config?.channels?.slack;
     if (cfg?.workspaceId) {
       return {
-        workspaceId: cfg.workspaceId,
-        workspaceName: cfg.workspaceName,
-        mode: cfg.mode,
-        defaultChannel: cfg.defaultChannel,
-        allowChannels: cfg.allowChannels,
+        workspaceId: cfg.workspaceId as string,
+        workspaceName: cfg.workspaceName as string | undefined,
+        mode: cfg.mode as "token" | "oauth" | undefined,
+        defaultChannel: cfg.defaultChannel as string | undefined,
+        allowChannels: cfg.allowChannels as string[] | undefined,
       };
     }
     if (cfg?.botToken) {
       return {
-        mode: "token",
-        botToken: cfg.botToken,
-        appToken: cfg.appToken,
-        signingSecret: cfg.signingSecret,
-        defaultChannel: cfg.defaultChannel,
-        allowChannels: cfg.allowChannels,
+        mode: "token" as const,
+        botToken: cfg.botToken as string,
+        appToken: cfg.appToken as string | undefined,
+        signingSecret: cfg.signingSecret as string | undefined,
+        defaultChannel: cfg.defaultChannel as string | undefined,
+        allowChannels: cfg.allowChannels as string[] | undefined,
       };
     }
     return undefined;
@@ -180,9 +180,9 @@ export function ChannelConfigConnected({
     const cfg = configSnapshot?.config?.channels?.signal;
     if (cfg?.phoneNumber) {
       return {
-        phoneNumber: cfg.phoneNumber,
-        baseUrl: cfg.baseUrl,
-        deviceName: cfg.deviceName,
+        phoneNumber: cfg.phoneNumber as string,
+        baseUrl: cfg.baseUrl as string | undefined,
+        deviceName: cfg.deviceName as string | undefined,
       };
     }
     return undefined;
@@ -192,8 +192,8 @@ export function ChannelConfigConnected({
     const cfg = configSnapshot?.config?.channels?.imessage;
     if (cfg?.cliPath || cfg?.dbPath) {
       return {
-        cliPath: cfg.cliPath,
-        dbPath: cfg.dbPath,
+        cliPath: cfg.cliPath as string | undefined,
+        dbPath: cfg.dbPath as string | undefined,
       };
     }
     return undefined;

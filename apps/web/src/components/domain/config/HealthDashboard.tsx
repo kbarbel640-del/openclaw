@@ -198,7 +198,7 @@ function GatewayStatusCard({
         {/* Quick link */}
         <div className="pt-2 border-t">
           <Link
-            to="/you"
+            to="/settings"
             search={{ section: "gateway" }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
           >
@@ -349,7 +349,7 @@ function ChannelsStatusCard({ className }: { className?: string }) {
         {/* Quick link */}
         <div className="pt-2 border-t">
           <Link
-            to="/you"
+            to="/settings"
             search={{ section: "channels" }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
           >
@@ -477,7 +477,7 @@ function ProvidersStatusCard({ className }: { className?: string }) {
         {/* Quick link */}
         <div className="pt-2 border-t">
           <Link
-            to="/you"
+            to="/settings"
             search={{ section: "ai-provider" }}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
           >

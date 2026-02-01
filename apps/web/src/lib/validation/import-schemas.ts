@@ -70,15 +70,37 @@ const gatewayConfigSchema = z.object({
   channels: channelsConfigSchema,
 });
 
+const toolEntrySchema = z.object({
+  toolId: z.string(),
+  enabled: z.boolean(),
+  permissions: z.array(z.string()).optional(),
+});
+
+const toolsetConfigSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+  isBuiltIn: z.boolean().optional(),
+  tools: z.array(toolEntrySchema),
+});
+
+const toolsetsDataSchema = z.object({
+  configs: z.array(toolsetConfigSchema),
+  defaultToolsetId: z.string().nullable(),
+});
+
 export const configurationExportSchema = z.object({
   version: z.literal("1.0"),
   exportedAt: z.string().datetime(),
-  sections: z.array(z.enum(["profile", "preferences", "uiSettings", "gatewayConfig"])),
+  sections: z.array(z.enum(["profile", "preferences", "uiSettings", "gatewayConfig", "toolsets"])),
   data: z.object({
     profile: profileSchema.optional(),
     preferences: preferencesSchema.optional(),
     uiSettings: uiSettingsSchema.optional(),
     gatewayConfig: gatewayConfigSchema.optional(),
+    toolsets: toolsetsDataSchema.optional(),
   }),
 });
 

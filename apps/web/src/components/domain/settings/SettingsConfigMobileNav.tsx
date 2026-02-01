@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Bot,
   Activity,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,7 @@ const navItems: NavItem[] = [
   { id: "gateway", label: "Gateway", shortLabel: "Gateway", icon: Server },
   { id: "channels", label: "Channels", shortLabel: "Channels", icon: MessageSquare },
   { id: "agents", label: "Agents", shortLabel: "Agents", icon: Bot },
+  { id: "toolsets", label: "Toolsets", shortLabel: "Toolsets", icon: Wrench },
   { id: "advanced", label: "Advanced", shortLabel: "Advanced", icon: Zap },
   { id: "connections", label: "Connections", shortLabel: "Connect", icon: Plug },
   { id: "usage", label: "Usage & Billing", shortLabel: "Usage", icon: CreditCard },

@@ -18,6 +18,7 @@ import { useRituals, useRitualExecutions } from "@/hooks/queries/useRituals";
 import { useAgents } from "@/hooks/queries/useAgents";
 import {
   useCreateRitual,
+  useUpdateRitual,
   usePauseRitual,
   useResumeRitual,
   useDeleteRitual,
@@ -32,7 +33,7 @@ import {
   Pause,
   Play,
 } from "lucide-react";
-import type { Ritual, RitualStatus } from "@/hooks/queries/useRituals";
+import type { Ritual, RitualStatus, RitualFrequency } from "@/hooks/queries/useRituals";
 
 export const Route = createFileRoute("/rituals/")({
   component: RitualsPage,
@@ -57,7 +58,7 @@ const containerVariants = {
       staggerChildren: 0.08,
     },
   },
-};
+} as const;
 
 const itemVariants = {
   hidden: { opacity: 0, x: -20 },
@@ -65,7 +66,7 @@ const itemVariants = {
     opacity: 1,
     x: 0,
     transition: {
-      type: "spring",
+      type: "spring" as const,
       stiffness: 300,
       damping: 24,
     },
@@ -75,6 +76,7 @@ const itemVariants = {
 function RitualsPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
+  const [density, setDensity] = React.useState<"compact" | "expanded">("compact");
   const [selectedRitual, setSelectedRitual] = React.useState<Ritual | null>(null);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
@@ -86,18 +88,23 @@ function RitualsPage() {
   const { data: executions } = useRitualExecutions(selectedRitual?.id || "");
 
   const createRitual = useCreateRitual();
+  const updateRitual = useUpdateRitual();
   const pauseRitual = usePauseRitual();
   const resumeRitual = useResumeRitual();
   const deleteRitual = useDeleteRitual();
   const triggerRitual = useTriggerRitual();
 
   // Filter rituals based on search and status
+  const resolvedStatusFilter = statusOptions.some((option) => option.value === statusFilter)
+    ? statusFilter
+    : "all";
+
   const filteredRituals = React.useMemo(() => {
     if (!rituals) return [];
 
     return rituals.filter((ritual) => {
       // Status filter
-      if (statusFilter !== "all" && ritual.status !== statusFilter) {
+      if (resolvedStatusFilter !== "all" && ritual.status !== resolvedStatusFilter) {
         return false;
       }
 
@@ -112,7 +119,10 @@ function RitualsPage() {
 
       return true;
     });
-  }, [rituals, statusFilter, debouncedSearch]);
+  }, [rituals, resolvedStatusFilter, debouncedSearch]);
+
+  const activeCount = filteredRituals.filter((r) => r.status === "active").length;
+  const pausedCount = filteredRituals.filter((r) => r.status === "paused").length;
 
   const handleViewDetails = (ritual: Ritual) => {
     setSelectedRitual(ritual);
@@ -142,6 +152,22 @@ function RitualsPage() {
     });
   };
 
+  const buildSchedule = (time: string, frequency: RitualFrequency): string => {
+    const [hours, minutes] = time.split(":");
+    switch (frequency) {
+      case "hourly":
+        return `${minutes} * * * *`;
+      case "daily":
+        return `${minutes} ${hours} * * *`;
+      case "weekly":
+        return `${minutes} ${hours} * * 1`;
+      case "monthly":
+        return `${minutes} ${hours} 1 * *`;
+      default:
+        return `${minutes} ${hours} * * *`;
+    }
+  };
+
   // Convert Ritual from query to RitualCard format
   const convertToCardRitual = (ritual: Ritual) => {
     // Extract time from schedule or nextRun
@@ -158,9 +184,11 @@ function RitualsPage() {
       id: ritual.id,
       name: ritual.name,
       description: ritual.description,
-      frequency: ritual.frequency as "daily" | "weekly" | "monthly" | "custom",
+      frequency: ritual.frequency,
       time,
       enabled: ritual.status === "active",
+      status: ritual.status,
+      successRate: ritual.successRate,
       agentId: ritual.agentId,
       agentName: agent?.name,
       nextOccurrence: ritual.nextRun ? new Date(ritual.nextRun) : undefined,
@@ -231,8 +259,8 @@ function RitualsPage() {
 
           {/* Status Filter */}
           <Select
-            value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value as StatusFilter)}
+            value={resolvedStatusFilter}
+            onValueChange={(value) => setStatusFilter((value || "all") as StatusFilter)}
           >
             <SelectTrigger className="h-11 w-full sm:w-[180px] rounded-xl">
               <SlidersHorizontal className="h-4 w-4 mr-2 text-muted-foreground" />
@@ -246,6 +274,28 @@ function RitualsPage() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Density Toggle */}
+          <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/60 p-1">
+            <Button
+              type="button"
+              variant={density === "compact" ? "default" : "ghost"}
+              size="sm"
+              className="h-9 rounded-lg"
+              onClick={() => setDensity("compact")}
+            >
+              Compact
+            </Button>
+            <Button
+              type="button"
+              variant={density === "expanded" ? "default" : "ghost"}
+              size="sm"
+              className="h-9 rounded-lg"
+              onClick={() => setDensity("expanded")}
+            >
+              Expanded
+            </Button>
+          </div>
         </motion.div>
 
         {/* Content */}
@@ -317,8 +367,17 @@ function RitualsPage() {
                 >
                   <RitualCard
                     ritual={convertToCardRitual(ritual)}
+                    variant={density}
                     onToggle={() => handleToggle(ritual)}
                     onSettings={() => handleViewDetails(ritual)}
+                    onTrigger={() => triggerRitual.mutate(ritual.id)}
+                    onUpdateSchedule={(schedule) => {
+                      updateRitual.mutate({
+                        id: ritual.id,
+                        frequency: schedule.frequency,
+                        schedule: buildSchedule(schedule.time, schedule.frequency),
+                      });
+                    }}
                   />
                 </motion.div>
               ))}
@@ -332,11 +391,22 @@ function RitualsPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-2xl border border-border bg-card/95 backdrop-blur-lg px-4 py-3 shadow-xl"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-2xl border border-primary/20 bg-card/98 backdrop-blur-lg px-5 py-3 shadow-2xl ring-1 ring-border/40"
           >
-            <span className="text-sm text-muted-foreground mr-2">
-              {filteredRituals.filter((r) => r.status === "active").length} active
-            </span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 rounded-full bg-secondary/40 px-3 py-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                <span className="text-sm font-medium text-foreground">
+                  {activeCount} active
+                </span>
+              </div>
+              <div className="flex items-center gap-2 rounded-full bg-secondary/40 px-3 py-1">
+                <span className="h-2.5 w-2.5 rounded-full bg-orange-500" />
+                <span className="text-sm font-medium text-foreground">
+                  {pausedCount} paused
+                </span>
+              </div>
+            </div>
             <div className="w-px h-6 bg-border" />
             <Button
               variant="ghost"
@@ -375,6 +445,13 @@ function RitualsPage() {
           onClose={() => setIsDetailOpen(false)}
           onPause={(id) => pauseRitual.mutate(id)}
           onResume={(id) => resumeRitual.mutate(id)}
+          onUpdateSchedule={(id, schedule) => {
+            updateRitual.mutate({
+              id,
+              frequency: schedule.frequency,
+              schedule: buildSchedule(schedule.time, schedule.frequency),
+            });
+          }}
           onDelete={(id) => {
             deleteRitual.mutate(id);
             setIsDetailOpen(false);

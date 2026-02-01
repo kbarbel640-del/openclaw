@@ -52,7 +52,7 @@ export function MemoryList({
         staggerChildren: 0.05,
       },
     },
-  };
+  } as const;
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -61,7 +61,7 @@ export function MemoryList({
       y: 0,
       transition: {
         duration: 0.3,
-        ease: "easeOut",
+        ease: "easeOut" as const,
       },
     },
     exit: {

@@ -10,6 +10,8 @@ import { routeTree } from "./routeTree.gen";
 
 // Import security provider for app lock & 2FA
 import { SecurityProvider } from "./features/security";
+import { OpenClawProvider } from "./integrations/openclaw/react";
+import { useUIStore } from "./stores/useUIStore";
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({
@@ -44,7 +46,9 @@ createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <SecurityProvider>
-        <RouterProvider router={router} />
+        <AppGatewayProviders>
+          <RouterProvider router={router} />
+        </AppGatewayProviders>
       </SecurityProvider>
       {import.meta.env.DEV && (
         <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
@@ -52,3 +56,13 @@ createRoot(rootElement).render(
     </QueryClientProvider>
   </StrictMode>
 );
+
+function AppGatewayProviders({ children }: { children: React.ReactNode }) {
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const liveMode = (import.meta.env?.DEV ?? false) && useLiveGateway;
+  return (
+    <OpenClawProvider autoConnect={liveMode}>
+      {children}
+    </OpenClawProvider>
+  );
+}

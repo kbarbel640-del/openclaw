@@ -15,6 +15,7 @@ import {
 } from "@/lib/export";
 import { useUserProfile, useUserPreferences } from "@/hooks/queries/useUserSettings";
 import { useUIStore } from "@/stores/useUIStore";
+import { useToolsetsStore } from "@/stores/useToolsetsStore";
 import { useConfig } from "@/hooks/queries/useConfig";
 
 interface ExportConfigSectionProps {
@@ -42,6 +43,11 @@ const EXPORT_SECTIONS: { id: ExportSection; label: string; description: string }
     label: "Agents & Channels",
     description: "Gateway configuration (no API keys)",
   },
+  {
+    id: "toolsets",
+    label: "Toolsets",
+    description: "Custom tool permission configurations",
+  },
 ];
 
 export function ExportConfigSection({ className }: ExportConfigSectionProps) {
@@ -50,6 +56,7 @@ export function ExportConfigSection({ className }: ExportConfigSectionProps) {
     "preferences",
     "uiSettings",
     "gatewayConfig",
+    "toolsets",
   ]);
   const [isExporting, setIsExporting] = React.useState(false);
 
@@ -57,6 +64,7 @@ export function ExportConfigSection({ className }: ExportConfigSectionProps) {
   const { data: preferences } = useUserPreferences();
   const { data: configSnapshot } = useConfig();
   const uiState = useUIStore();
+  const { toolsets, defaultToolsetId } = useToolsetsStore();
 
   const toggleSection = (section: ExportSection) => {
     setSelectedSections((prev) =>
@@ -82,8 +90,13 @@ export function ExportConfigSection({ className }: ExportConfigSectionProps) {
           theme: uiState.theme,
           sidebarCollapsed: uiState.sidebarCollapsed,
           powerUserMode: uiState.powerUserMode,
+          useLiveGateway: uiState.useLiveGateway,
         },
         gatewayConfig: configSnapshot?.config,
+        toolsets: {
+          configs: toolsets,
+          defaultToolsetId,
+        },
       });
 
       const filename = formatExportFilename("clawdbrain-config");

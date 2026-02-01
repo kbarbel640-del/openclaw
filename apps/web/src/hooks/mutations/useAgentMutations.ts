@@ -8,6 +8,7 @@ import {
   getAgentsList,
   mapAgentEntryToAgent,
 } from "@/lib/agents";
+import { useUIStore } from "@/stores/useUIStore";
 import type { Agent, AgentStatus } from "../queries/useAgents";
 import { agentKeys } from "../queries/useAgents";
 import { configKeys } from "../queries/useConfig";
@@ -48,11 +49,11 @@ async function updateAgentStatusMock(
   return { id, status };
 }
 
-async function resolveConfigSnapshot() {
+async function resolveConfigSnapshot(): Promise<{ hash: string; config?: unknown } | null> {
   try {
     const snapshot = await getConfig();
     if (!snapshot?.hash) return null;
-    return snapshot;
+    return { hash: snapshot.hash, config: snapshot.config };
   } catch {
     return null;
   }
@@ -119,9 +120,15 @@ async function deleteAgentConfig(
 // Mutation hooks
 export function useCreateAgent() {
   const queryClient = useQueryClient();
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const liveMode = (import.meta.env?.DEV ?? false) && useLiveGateway;
+  const listKey = agentKeys.list({ mode: liveMode ? "live" : "mock" });
 
   return useMutation({
     mutationFn: async (data: Omit<Agent, "id" | "lastActive">): Promise<AgentResult> => {
+      if (!liveMode) {
+        return { agent: await createAgentMock(data), source: "mock" };
+      }
       const snapshot = await resolveConfigSnapshot();
       if (!snapshot) {
         return { agent: await createAgentMock(data), source: "mock" };
@@ -132,7 +139,7 @@ export function useCreateAgent() {
     onSuccess: (result) => {
       const newAgent = result.agent;
       // Optimistically add to cache
-      queryClient.setQueryData<Agent[]>(agentKeys.lists(), (old) =>
+      queryClient.setQueryData<Agent[]>(listKey, (old) =>
         old ? [...old, newAgent] : [newAgent]
       );
       queryClient.invalidateQueries({ queryKey: agentKeys.all });
@@ -151,11 +158,17 @@ export function useCreateAgent() {
 
 export function useUpdateAgent() {
   const queryClient = useQueryClient();
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const liveMode = (import.meta.env?.DEV ?? false) && useLiveGateway;
+  const listKey = agentKeys.list({ mode: liveMode ? "live" : "mock" });
 
   return useMutation({
     mutationFn: async (
       data: Partial<Agent> & { id: string }
     ): Promise<AgentResult> => {
+      if (!liveMode) {
+        return { agent: await updateAgentMock(data), source: "mock" };
+      }
       const snapshot = await resolveConfigSnapshot();
       if (!snapshot) {
         return { agent: await updateAgentMock(data), source: "mock" };
@@ -166,25 +179,27 @@ export function useUpdateAgent() {
     onMutate: async (updatedAgent) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({
-        queryKey: agentKeys.detail(updatedAgent.id),
+        queryKey: agentKeys.detail(updatedAgent.id, liveMode ? "live" : "mock"),
       });
 
       // Snapshot previous value
       const previousAgent = queryClient.getQueryData<Agent>(
-        agentKeys.detail(updatedAgent.id)
+        agentKeys.detail(updatedAgent.id, liveMode ? "live" : "mock")
       );
 
       // Optimistically update
       queryClient.setQueryData<Agent>(
-        agentKeys.detail(updatedAgent.id),
+        agentKeys.detail(updatedAgent.id, liveMode ? "live" : "mock"),
         (old) => (old ? { ...old, ...updatedAgent } : undefined)
       );
 
       return { previousAgent };
     },
     onSuccess: (result, variables) => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.detail(variables.id) });
-      queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: agentKeys.detail(variables.id, liveMode ? "live" : "mock"),
+      });
+      queryClient.invalidateQueries({ queryKey: listKey });
       if (result.source === "gateway") {
         queryClient.invalidateQueries({ queryKey: configKeys.all });
       }
@@ -194,7 +209,7 @@ export function useUpdateAgent() {
       // Rollback on error
       if (context?.previousAgent) {
         queryClient.setQueryData(
-          agentKeys.detail(variables.id),
+          agentKeys.detail(variables.id, liveMode ? "live" : "mock"),
           context.previousAgent
         );
       }
@@ -207,9 +222,15 @@ export function useUpdateAgent() {
 
 export function useDeleteAgent() {
   const queryClient = useQueryClient();
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const liveMode = (import.meta.env?.DEV ?? false) && useLiveGateway;
+  const listKey = agentKeys.list({ mode: liveMode ? "live" : "mock" });
 
   return useMutation({
     mutationFn: async (id: string): Promise<DeleteResult> => {
+      if (!liveMode) {
+        return { id: await deleteAgentMock(id), source: "mock" };
+      }
       const snapshot = await resolveConfigSnapshot();
       if (!snapshot) {
         return { id: await deleteAgentMock(id), source: "mock" };
@@ -218,14 +239,14 @@ export function useDeleteAgent() {
       return { id: deletedId, source: "gateway" };
     },
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: agentKeys.lists() });
+      await queryClient.cancelQueries({ queryKey: listKey });
 
       const previousAgents = queryClient.getQueryData<Agent[]>(
-        agentKeys.lists()
+        listKey
       );
 
       // Optimistically remove from list
-      queryClient.setQueryData<Agent[]>(agentKeys.lists(), (old) =>
+      queryClient.setQueryData<Agent[]>(listKey, (old) =>
         old ? old.filter((agent) => agent.id !== id) : []
       );
 
@@ -240,7 +261,7 @@ export function useDeleteAgent() {
     },
     onError: (error, _, context) => {
       if (context?.previousAgents) {
-        queryClient.setQueryData(agentKeys.lists(), context.previousAgents);
+        queryClient.setQueryData(listKey, context.previousAgents);
       }
       toast.error(
         `Failed to delete agent: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -251,23 +272,29 @@ export function useDeleteAgent() {
 
 export function useUpdateAgentStatus() {
   const queryClient = useQueryClient();
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const liveMode = (import.meta.env?.DEV ?? false) && useLiveGateway;
+  const listKey = agentKeys.list({ mode: liveMode ? "live" : "mock" });
 
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: AgentStatus }) =>
       updateAgentStatusMock(id, status),
     onMutate: async ({ id, status }) => {
-      await queryClient.cancelQueries({ queryKey: agentKeys.detail(id) });
+      await queryClient.cancelQueries({
+        queryKey: agentKeys.detail(id, liveMode ? "live" : "mock"),
+      });
 
       const previousAgent = queryClient.getQueryData<Agent>(
-        agentKeys.detail(id)
+        agentKeys.detail(id, liveMode ? "live" : "mock")
       );
 
-      queryClient.setQueryData<Agent>(agentKeys.detail(id), (old) =>
-        old ? { ...old, status } : undefined
+      queryClient.setQueryData<Agent>(
+        agentKeys.detail(id, liveMode ? "live" : "mock"),
+        (old) => (old ? { ...old, status } : undefined)
       );
 
       // Also update in list
-      queryClient.setQueryData<Agent[]>(agentKeys.lists(), (old) =>
+      queryClient.setQueryData<Agent[]>(listKey, (old) =>
         old
           ? old.map((agent) =>
               agent.id === id ? { ...agent, status } : agent
@@ -278,13 +305,15 @@ export function useUpdateAgentStatus() {
       return { previousAgent };
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.detail(variables.id) });
+      queryClient.invalidateQueries({
+        queryKey: agentKeys.detail(variables.id, liveMode ? "live" : "mock"),
+      });
       toast.success(`Agent status updated to ${variables.status}`);
     },
     onError: (_error, variables, context) => {
       if (context?.previousAgent) {
         queryClient.setQueryData(
-          agentKeys.detail(variables.id),
+          agentKeys.detail(variables.id, liveMode ? "live" : "mock"),
           context.previousAgent
         );
       }

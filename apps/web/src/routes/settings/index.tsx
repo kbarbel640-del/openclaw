@@ -8,6 +8,7 @@ import {
   GatewaySection,
   ChannelsSection,
   AgentsSection,
+  ToolsetsSection,
   HealthSection,
   AdvancedSection,
   ConnectionsSection,
@@ -26,6 +27,7 @@ export const Route = createFileRoute("/settings/")({
       "gateway",
       "channels",
       "agents",
+      "toolsets",
       "advanced",
       "connections",
       "usage",
@@ -74,6 +76,8 @@ function SettingsPage() {
         return <ChannelsSection />;
       case "agents":
         return <AgentsSection />;
+      case "toolsets":
+        return <ToolsetsSection />;
       case "advanced":
         return <AdvancedSection onOpenShortcuts={() => setShortcutsOpen(true)} />;
       case "connections":

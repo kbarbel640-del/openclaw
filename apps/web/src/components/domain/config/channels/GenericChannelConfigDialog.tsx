@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, ExternalLink, CheckCircle2, HelpCircle, ChevronDown, Download, AlertTriangle, ShieldCheck, KeyRound } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 
+import { cn } from "@/lib/utils";
 import { showSuccess } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Brain, ChevronDown, FlaskConical, Sparkles } from "lucide-react";
+import { Brain, ChevronDown, FlaskConical, Settings, Sparkles } from "lucide-react";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -491,6 +491,9 @@ export function ModelProviderSection({ className }: ModelProviderSectionProps) {
   const { data: modelsData, isLoading: modelsLoading, modelsByProvider } = useModelsByProvider();
   const patchConfig = usePatchConfig();
   const powerUserMode = useUIStore((state) => state.powerUserMode);
+  const useLiveGateway = useUIStore((state) => state.useLiveGateway);
+  const setUseLiveGateway = useUIStore((state) => state.setUseLiveGateway);
+  const showDevControls = import.meta.env?.DEV ?? false;
 
   const config = configSnapshot?.config;
   const auth = config?.auth;
@@ -764,7 +767,7 @@ export function ModelProviderSection({ className }: ModelProviderSectionProps) {
     const nextModels = {
       ...currentModels,
       [defaultTextModel]: nextEntry,
-    };
+    } as AgentsDefaultsConfig["models"];
     await patchDefaults({ models: nextModels }, note);
   };
 
@@ -794,6 +797,37 @@ export function ModelProviderSection({ className }: ModelProviderSectionProps) {
 
   const behaviorEditable = powerUserMode && !isLoading && !isSaving;
   const modelBehaviorEditable = behaviorEditable && !!defaultTextModel;
+  const canResetBehavior =
+    modelBehaviorEditable &&
+    (creativityValue !== undefined || responseLengthValue !== undefined);
+
+  const handleResetBehavior = async () => {
+    if (!defaultTextModel) return;
+    const currentDefaults = isPlainObject(defaults) ? defaults : undefined;
+    const currentModels = isPlainObject(currentDefaults?.models)
+      ? (currentDefaults?.models as Record<string, unknown>)
+      : {};
+    const existingEntry = isPlainObject(currentModels[defaultTextModel])
+      ? (currentModels[defaultTextModel] as Record<string, unknown>)
+      : {};
+    const existingParams = isPlainObject(existingEntry.params)
+      ? (existingEntry.params as Record<string, unknown>)
+      : {};
+    const nextParams = { ...existingParams };
+    delete nextParams.temperature;
+    delete nextParams.maxTokens;
+    const nextEntry = { ...existingEntry };
+    if (Object.keys(nextParams).length === 0) {
+      delete nextEntry.params;
+    } else {
+      nextEntry.params = nextParams;
+    }
+    const nextModels = {
+      ...currentModels,
+      [defaultTextModel]: nextEntry,
+    } as AgentsDefaultsConfig["models"];
+    await patchDefaults({ models: nextModels }, "Reset default model params");
+  };
 
   return (
     <div className={cn("space-y-6", className)}>
@@ -1177,6 +1211,45 @@ export function ModelProviderSection({ className }: ModelProviderSectionProps) {
                         </p>
                       )}
                     </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-3">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Reset to model defaults</p>
+                        <p className="text-xs text-muted-foreground">
+                          Clears custom creativity and response length values for the default text model.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!canResetBehavior}
+                        onClick={handleResetBehavior}
+                      >
+                        Reset
+                      </Button>
+                    </div>
+
+                    {showDevControls && (
+                      <div className="rounded-lg border border-dashed p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-sm font-medium">
+                              Live gateway mode (dev only)
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Opt in to live gateway-backed agents instead of mocks.
+                            </p>
+                          </div>
+                          <Switch
+                            checked={useLiveGateway}
+                            onCheckedChange={setUseLiveGateway}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Uses the live gateway when available. Falls back to mocks if unreachable.
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </motion.div>
               )}

@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Bot,
   Activity,
+  Wrench,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ export type ConfigSection =
   | "gateway"
   | "channels"
   | "agents"
+  | "toolsets"
   | "advanced"
   | "connections"
   | "usage";
@@ -43,6 +45,7 @@ const navItems: NavItem[] = [
   { id: "gateway", label: "Gateway", icon: Server, group: "system" },
   { id: "channels", label: "Channels", icon: MessageSquare, group: "system" },
   { id: "agents", label: "Agents", icon: Bot, group: "system" },
+  { id: "toolsets", label: "Toolsets", icon: Wrench, group: "system" },
   // Power user
   { id: "advanced", label: "Advanced", icon: Zap, group: "power" },
   { id: "connections", label: "Connections", icon: Plug, group: "power" },

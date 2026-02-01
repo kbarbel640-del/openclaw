@@ -38,6 +38,16 @@ export interface OpenClawHookEvent<T = unknown> {
   };
 }
 
+function isOpenClawHookEvent(value: unknown): value is OpenClawHookEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as OpenClawHookEvent;
+  return (
+    typeof event.type === "string" &&
+    typeof event.action === "string" &&
+    typeof event.sessionKey === "string"
+  );
+}
+
 export interface OpenClawConfig {
   gateway?: {
     port?: number;
@@ -352,7 +362,15 @@ export class OpenClawGatewayClient {
     }
 
     if (message.type === "event" && message.event) {
-      this.emitEvent("gateway", "message", { raw: message });
+      const payload = (message as { params?: unknown; payload?: unknown; result?: unknown }).params
+        ?? (message as { payload?: unknown }).payload
+        ?? (message as { result?: unknown }).result;
+      if (isOpenClawHookEvent(payload)) {
+        const eventKey = `${payload.type}:${payload.action}` as keyof OpenClawEvents;
+        this.eventBus.emit(eventKey, payload as OpenClawEvents[keyof OpenClawEvents]);
+        void this.eventBus.triggerHooks(payload);
+      }
+      this.emitEvent("gateway", "message", { raw: message, payload });
     }
   }
 

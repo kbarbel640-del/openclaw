@@ -1,13 +1,30 @@
 "use client";
 
+import * as React from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Clock, Calendar, Bot, Play, Pause, Settings } from "lucide-react";
+import { ConfirmDialog } from "@/components/composed/ConfirmDialog";
+import {
+  RefreshCw,
+  Clock,
+  Calendar,
+  Bot,
+  Play,
+  Pause,
+  Settings,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  SkipForward,
+  AlarmClock,
+} from "lucide-react";
+import { RitualScheduler } from "./RitualScheduler";
 
 export type RitualFrequency = "hourly" | "daily" | "weekly" | "monthly" | "custom";
+export type RitualStatus = "active" | "paused" | "completed" | "failed";
 
 export interface Ritual {
   id: string;
@@ -16,6 +33,8 @@ export interface Ritual {
   frequency: RitualFrequency;
   time: string; // HH:mm format
   enabled: boolean;
+  status?: RitualStatus;
+  successRate?: number;
   agentId?: string;
   agentName?: string;
   nextOccurrence?: Date;
@@ -27,6 +46,10 @@ interface RitualCardProps {
   ritual: Ritual;
   variant?: "expanded" | "compact";
   onToggle?: () => void;
+  onTrigger?: () => void;
+  onSkipNext?: () => void;
+  onSnooze?: () => void;
+  onUpdateSchedule?: (schedule: { time: string; frequency: RitualFrequency }) => void;
   onSettings?: () => void;
   onAgentClick?: () => void;
   className?: string;
@@ -64,16 +87,75 @@ function formatTime(time: string): string {
   return `${displayHour}:${minutes} ${ampm}`;
 }
 
+const BUSY_WINDOW_MS = 15 * 60 * 1000;
+
+function getActivityState(ritual: Ritual) {
+  const status = ritual.status ?? (ritual.enabled ? "active" : "paused");
+
+  if (status !== "active") {
+    return {
+      label: "Inactive",
+      textClass: "text-muted-foreground",
+      dotClass: "bg-muted-foreground",
+      pulse: false,
+    };
+  }
+
+  const now = Date.now();
+  const lastRunMs = ritual.lastRun?.getTime();
+  const nextRunMs = ritual.nextOccurrence?.getTime();
+  const isBusy =
+    (lastRunMs ? now - lastRunMs <= BUSY_WINDOW_MS : false) ||
+    (nextRunMs ? nextRunMs - now <= BUSY_WINDOW_MS : false);
+
+  if (isBusy) {
+    return {
+      label: "Busy",
+      textClass: "text-amber-500",
+      dotClass: "bg-amber-500",
+      pulse: true,
+    };
+  }
+
+  if (lastRunMs || nextRunMs) {
+    return {
+      label: "Idle",
+      textClass: "text-emerald-500",
+      dotClass: "bg-emerald-500",
+      pulse: false,
+    };
+  }
+
+  return {
+    label: "Active",
+    textClass: "text-emerald-500",
+    dotClass: "bg-emerald-500",
+    pulse: true,
+  };
+}
+
 export function RitualCard({
   ritual,
   variant = "expanded",
   onToggle,
+  onTrigger,
+  onSkipNext,
+  onSnooze,
+  onUpdateSchedule,
   onSettings,
   onAgentClick,
   className,
 }: RitualCardProps) {
   const freq = frequencyConfig[ritual.frequency];
   const FreqIcon = freq.icon;
+  const activity = getActivityState(ritual);
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const [showScheduler, setShowScheduler] = React.useState(false);
+  const [pendingSchedule, setPendingSchedule] = React.useState<{
+    time: string;
+    frequency: RitualFrequency;
+  } | null>(null);
+  const [showConfirm, setShowConfirm] = React.useState(false);
 
   if (variant === "compact") {
     return (
@@ -85,34 +167,243 @@ export function RitualCard({
         className={cn("group", className)}
       >
         <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
-          <CardContent className="flex items-center gap-4 p-4">
-            {/* Status indicator */}
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary">
-              <RefreshCw className={cn("h-5 w-5", ritual.enabled ? "text-primary" : "text-muted-foreground")} />
-              {ritual.enabled && (
-                <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 ring-2 ring-card" />
-              )}
+          <CardContent className="p-4">
+            <div className="flex items-start gap-4">
+              {/* Status indicator */}
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary">
+                <RefreshCw className={cn("h-5 w-5", ritual.enabled ? "text-primary" : "text-muted-foreground")} />
+                {ritual.enabled && (
+                  <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 ring-2 ring-card" />
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge className={cn("text-[10px] font-medium", freq.color)}>
+                        <FreqIcon className="mr-1 h-3 w-3" />
+                        {freq.label}
+                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-xs font-medium", activity.textClass)}>
+                          {activity.label}
+                        </span>
+                        <div className="relative flex h-3 w-3 items-center justify-center">
+                          <span className={cn("h-2.5 w-2.5 rounded-full", activity.dotClass)} />
+                          {activity.pulse && (
+                            <span className={cn("absolute h-2.5 w-2.5 rounded-full opacity-40 animate-ping", activity.dotClass)} />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <h4 className="truncate text-base font-semibold text-foreground mt-2">
+                      {ritual.name}
+                    </h4>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {formatTime(ritual.time)} - {freq.label}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsExpanded((prev) => !prev)}
+                      className="h-8 w-8 rounded-lg bg-secondary/40 text-muted-foreground hover:text-foreground"
+                    >
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={onSettings}
+                      className="h-8 w-8 rounded-lg bg-secondary/40 text-muted-foreground hover:text-foreground"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-secondary/30 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Next:</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {formatNextOccurrence(ritual.nextOccurrence)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={onSnooze}
+                      disabled={!onSnooze}
+                      className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                    >
+                      <AlarmClock className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={onSkipNext}
+                      disabled={!onSkipNext}
+                      className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground"
+                    >
+                      <SkipForward className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                {ritual.lastRun && (
+                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-secondary/20 px-3 py-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Last:</span>
+                    <span className="text-xs font-medium text-foreground">
+                      {ritual.lastRun.toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    {typeof ritual.successRate === "number" && (
+                      <span className={cn(
+                        "ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium",
+                        ritual.successRate >= 90
+                          ? "bg-emerald-500/15 text-emerald-500"
+                          : ritual.successRate >= 70
+                            ? "bg-amber-500/15 text-amber-500"
+                            : "bg-rose-500/15 text-rose-500"
+                      )}>
+                        {ritual.successRate}% success
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-col items-start gap-2">
+                  <Button
+                    onClick={onToggle}
+                    variant="ghost"
+                    className={cn(
+                      "h-9 rounded-lg justify-center px-4",
+                      ritual.enabled
+                        ? "bg-orange-500/10 text-orange-500 hover:bg-orange-500/20"
+                        : "bg-green-500/10 text-green-500 hover:bg-green-500/20"
+                    )}
+                  >
+                    {ritual.enabled ? (
+                      <>
+                        <Pause className="mr-2 h-4 w-4" />
+                        Pause
+                      </>
+                    ) : (
+                      <>
+                        <Play className="mr-2 h-4 w-4" />
+                        Resume
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={onTrigger}
+                    variant="ghost"
+                    disabled={!onTrigger || (ritual.status ?? (ritual.enabled ? "active" : "paused")) !== "active"}
+                    className="h-9 rounded-lg bg-secondary/50 text-foreground hover:bg-secondary px-4"
+                  >
+                    <Zap className="mr-2 h-4 w-4" />
+                    Run Now
+                  </Button>
+                </div>
+              </div>
             </div>
 
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <h4 className="truncate text-sm font-medium text-foreground">{ritual.name}</h4>
-              <p className="truncate text-xs text-muted-foreground">
-                {formatTime(ritual.time)} - {freq.label}
-              </p>
-            </div>
+            {isExpanded && (
+              <div className="mt-4 space-y-3">
+                {ritual.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {ritual.description}
+                  </p>
+                )}
 
-            {/* Quick action */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggle}
-              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              {ritual.enabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </Button>
+                {ritual.agentName && (
+                  <button
+                    onClick={onAgentClick}
+                    className="flex w-full items-center gap-2 rounded-lg border border-border/50 bg-secondary/30 px-3 py-2 text-left transition-all hover:border-primary/30 hover:bg-secondary/50"
+                  >
+                    <Bot className="h-4 w-4 text-primary" />
+                    <span className="text-xs text-muted-foreground">Assigned to:</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {ritual.agentName}
+                    </span>
+                  </button>
+                )}
+
+                {onUpdateSchedule && (
+                  <div className="rounded-xl border border-border/50 bg-secondary/20 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Schedule</p>
+                        <p className="text-sm font-medium text-foreground">
+                          {formatTime(ritual.time)} - {freq.label}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowScheduler((prev) => !prev)}
+                        className="rounded-lg"
+                      >
+                        {showScheduler ? "Close" : "Edit"}
+                      </Button>
+                    </div>
+
+                    {showScheduler && (
+                      <div className="mt-3">
+                        <RitualScheduler
+                          initialTime={ritual.time}
+                          initialFrequency={ritual.frequency === "custom" ? "daily" : ritual.frequency}
+                          variant="inline"
+                          onSchedule={(time, frequency) => {
+                            setPendingSchedule({ time, frequency });
+                            setShowConfirm(true);
+                          }}
+                          onCancel={() => setShowScheduler(false)}
+                          className="max-w-none"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        <ConfirmDialog
+          open={showConfirm}
+          onOpenChange={(open) => {
+            setShowConfirm(open);
+            if (!open) {
+              setPendingSchedule(null);
+            }
+          }}
+          title="Confirm schedule change"
+          description={
+            pendingSchedule
+              ? `Update this ritual to run ${pendingSchedule.frequency} at ${formatTime(pendingSchedule.time)}?`
+              : "Update schedule?"
+          }
+          confirmLabel="Confirm"
+          onConfirm={() => {
+            if (pendingSchedule) {
+              onUpdateSchedule?.(pendingSchedule);
+              setShowScheduler(false);
+              setPendingSchedule(null);
+            }
+          }}
+        />
       </motion.div>
     );
   }
@@ -142,19 +433,13 @@ export function RitualCard({
               {freq.label}
             </Badge>
             <div className="flex items-center gap-2">
-              <span className={cn(
-                "text-xs font-medium",
-                ritual.enabled ? "text-green-500" : "text-muted-foreground"
-              )}>
-                {ritual.enabled ? "Active" : "Paused"}
+              <span className={cn("text-xs font-medium", activity.textClass)}>
+                {activity.label}
               </span>
               <div className="relative flex h-3 w-3 items-center justify-center">
-                <span className={cn(
-                  "h-2.5 w-2.5 rounded-full",
-                  ritual.enabled ? "bg-green-500" : "bg-gray-400"
-                )} />
-                {ritual.enabled && (
-                  <span className="absolute h-2.5 w-2.5 rounded-full bg-green-500 opacity-40 animate-ping" />
+                <span className={cn("h-2.5 w-2.5 rounded-full", activity.dotClass)} />
+                {activity.pulse && (
+                  <span className={cn("absolute h-2.5 w-2.5 rounded-full opacity-40 animate-ping", activity.dotClass)} />
                 )}
               </div>
             </div>
@@ -198,12 +483,36 @@ export function RitualCard({
           )}
 
           {/* Next occurrence */}
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Next:</span>
-            <span className="text-sm font-medium text-foreground">
-              {formatNextOccurrence(ritual.nextOccurrence)}
-            </span>
+          <div className="mb-4 flex items-center justify-between gap-2 rounded-lg bg-secondary/50 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Next:</span>
+              <span className="text-sm font-medium text-foreground">
+                {formatNextOccurrence(ritual.nextOccurrence)}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={onSnooze}
+                disabled={!onSnooze}
+                className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+              >
+                <AlarmClock className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={onSkipNext}
+                disabled={!onSkipNext}
+                className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+              >
+                <SkipForward className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Agent association */}
@@ -219,11 +528,11 @@ export function RitualCard({
           )}
 
           {/* Actions */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={onToggle}
               className={cn(
-                "flex-1 h-11 rounded-xl transition-all",
+                "h-10 rounded-lg px-4 transition-all",
                 ritual.enabled
                   ? "bg-orange-500/10 text-orange-500 hover:bg-orange-500/20"
                   : "bg-green-500/10 text-green-500 hover:bg-green-500/20"
@@ -238,15 +547,24 @@ export function RitualCard({
               ) : (
                 <>
                   <Play className="mr-2 h-4 w-4" />
-                  Enable
+                  Resume
                 </>
               )}
+            </Button>
+            <Button
+              onClick={onTrigger}
+              disabled={!onTrigger || (ritual.status ?? (ritual.enabled ? "active" : "paused")) !== "active"}
+              className="h-10 rounded-lg px-4 bg-secondary/60 text-foreground hover:bg-secondary"
+              variant="ghost"
+            >
+              <Zap className="mr-2 h-4 w-4" />
+              Run Now
             </Button>
             <Button
               onClick={onSettings}
               variant="ghost"
               size="icon"
-              className="h-11 w-11 rounded-xl bg-secondary/50 hover:bg-secondary transition-all"
+              className="h-10 w-10 rounded-lg bg-secondary/50 hover:bg-secondary transition-all"
             >
               <Settings className="h-4 w-4" />
             </Button>
