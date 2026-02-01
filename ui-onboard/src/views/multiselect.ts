@@ -4,13 +4,13 @@
 
 import { html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { t } from "../i18n/index.js";
+import { LocalizedElement } from "../components/localized-element.js";
 import {
   translateBackendMessage,
   translateOptionLabel,
   translateHint,
 } from "../i18n/backend-messages.js";
-import { LocalizedElement } from "../components/localized-element.js";
+import { t } from "../i18n/index.js";
 
 interface SelectOption {
   value: unknown;

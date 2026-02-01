@@ -4,8 +4,8 @@
 
 import { html, css } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { t } from "../i18n/index.js";
 import { LocalizedElement } from "../components/localized-element.js";
+import { t } from "../i18n/index.js";
 
 @customElement("onboard-welcome")
 export class OnboardWelcome extends LocalizedElement {

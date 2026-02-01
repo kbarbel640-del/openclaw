@@ -6,7 +6,6 @@ import { LitElement, html, css, type TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { t, getLocale, type Locale } from "./i18n/index.js";
 import { onboardSocket, type PromptMessage, type CompleteMessage } from "./services/websocket.js";
-
 // Import views
 import "./views/welcome.js";
 import "./views/security.js";

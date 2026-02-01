@@ -4,8 +4,8 @@
 
 import { html, css } from "lit";
 import { customElement } from "lit/decorators.js";
-import { t } from "../i18n/index.js";
 import { LocalizedElement } from "../components/localized-element.js";
+import { t } from "../i18n/index.js";
 
 @customElement("onboard-security")
 export class OnboardSecurity extends LocalizedElement {

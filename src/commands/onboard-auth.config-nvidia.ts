@@ -1,9 +1,9 @@
+import type { OpenClawConfig } from "../config/config.js";
 import {
   getNvidiaStaticFallbackModels,
   NVIDIA_API_BASE_URL,
   NVIDIA_DEFAULT_MODEL_REF,
 } from "../agents/nvidia-models.js";
-import type { OpenClawConfig } from "../config/config.js";
 
 export { NVIDIA_DEFAULT_MODEL_REF };
 

@@ -1,9 +1,9 @@
+import type { OpenClawConfig } from "../config/config.js";
 import {
   getSiliconFlowStaticFallbackModels,
   SILICONFLOW_API_BASE_URL,
   SILICONFLOW_DEFAULT_MODEL_REF,
 } from "../agents/siliconflow-models.js";
-import type { OpenClawConfig } from "../config/config.js";
 
 export { SILICONFLOW_DEFAULT_MODEL_REF } from "../agents/siliconflow-models.js";
 

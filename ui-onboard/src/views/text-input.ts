@@ -4,9 +4,9 @@
 
 import { html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { t } from "../i18n/index.js";
-import { translateBackendMessage } from "../i18n/backend-messages.js";
 import { LocalizedElement } from "../components/localized-element.js";
+import { translateBackendMessage } from "../i18n/backend-messages.js";
+import { t } from "../i18n/index.js";
 
 @customElement("onboard-text-input")
 export class OnboardTextInput extends LocalizedElement {

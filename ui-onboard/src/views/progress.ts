@@ -4,8 +4,8 @@
 
 import { html, css } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { translateBackendMessage } from "../i18n/backend-messages.js";
 import { LocalizedElement } from "../components/localized-element.js";
+import { translateBackendMessage } from "../i18n/backend-messages.js";
 
 @customElement("onboard-progress")
 export class OnboardProgress extends LocalizedElement {

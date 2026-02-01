@@ -2,16 +2,16 @@
  * HTTP/WebSocket server for web-based onboarding.
  */
 
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { WebSocketServer, type WebSocket } from "ws";
-import { fileURLToPath } from "node:url";
-import { dirname, join, extname } from "node:path";
 import { readFile, stat } from "node:fs/promises";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { dirname, join, extname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { WebSocketServer, type WebSocket } from "ws";
 import type { RuntimeEnv } from "../../runtime.js";
 import type { OnboardOptions } from "../onboard-types.js";
+import { WizardCancelledError } from "../../wizard/prompts.js";
 import { WebPrompter } from "./web-prompter.js";
 import { runOnboardingWizard } from "./wizard-runner.js";
-import { WizardCancelledError } from "../../wizard/prompts.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

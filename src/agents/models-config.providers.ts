@@ -7,19 +7,19 @@ import {
 import { ensureAuthProfileStore, listProfilesForProvider } from "./auth-profiles.js";
 import { discoverBedrockModels } from "./bedrock-discovery.js";
 import { resolveAwsSdkEnvVarName, resolveEnvApiKey } from "./model-auth.js";
+import { buildNvidiaProvider } from "./nvidia-models.js";
+import {
+  fetchOpencodeZenModels,
+  getOpencodeZenStaticFallbackModels,
+  OPENCODE_ZEN_API_BASE_URL,
+} from "./opencode-zen-models.js";
+import { buildSiliconFlowProvider } from "./siliconflow-models.js";
 import {
   buildSyntheticModelDefinition,
   SYNTHETIC_BASE_URL,
   SYNTHETIC_MODEL_CATALOG,
 } from "./synthetic-models.js";
 import { discoverVeniceModels, VENICE_BASE_URL } from "./venice-models.js";
-import {
-  fetchOpencodeZenModels,
-  getOpencodeZenStaticFallbackModels,
-  OPENCODE_ZEN_API_BASE_URL,
-} from "./opencode-zen-models.js";
-import { buildNvidiaProvider } from "./nvidia-models.js";
-import { buildSiliconFlowProvider } from "./siliconflow-models.js";
 
 type ModelsConfig = NonNullable<OpenClawConfig["models"]>;
 export type ProviderConfig = NonNullable<ModelsConfig["providers"]>[string];

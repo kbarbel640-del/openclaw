@@ -1,9 +1,9 @@
+import type { OpenClawConfig } from "../config/config.js";
 import {
   getOpencodeZenStaticFallbackModels,
   OPENCODE_ZEN_API_BASE_URL,
   OPENCODE_ZEN_DEFAULT_MODEL_REF,
 } from "../agents/opencode-zen-models.js";
-import type { OpenClawConfig } from "../config/config.js";
 
 /**
  * Apply OpenCode Zen provider configuration without changing the default model.

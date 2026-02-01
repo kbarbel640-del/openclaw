@@ -5,8 +5,8 @@
  */
 
 import type { RuntimeEnv } from "../../runtime.js";
-import type { OnboardOptions } from "../onboard-types.js";
 import type { WizardPrompter } from "../../wizard/prompts.js";
+import type { OnboardOptions } from "../onboard-types.js";
 import { runOnboardingWizard as runWizard } from "../../wizard/onboarding.js";
 
 export async function runOnboardingWizard(
