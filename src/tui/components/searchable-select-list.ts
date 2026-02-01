@@ -175,7 +175,10 @@ export class SearchableSelectList implements Component {
 
     // If no items match filter, show message
     if (this.filteredItems.length === 0) {
-      lines.push(this.theme.noMatch("  No matches"));
+      const noMatchLine = this.theme.noMatch("  No matches");
+      lines.push(
+        visibleWidth(noMatchLine) > width ? truncateToWidth(noMatchLine, width, "") : noMatchLine,
+      );
       return lines;
     }
 
