@@ -192,7 +192,7 @@ function resolveMainSessionKey(
 
 function resolveSessionDisplayName(key: string, row?: SessionsListResult["sessions"][number]) {
   const label = row?.label?.trim();
-  if (label) return `${label} (${key})`;
+  if (label) return label;
   const displayName = row?.displayName?.trim();
   if (displayName) return displayName;
   return key;
