@@ -1028,10 +1028,14 @@ export function createExecTool(
           allowlistSatisfied,
         });
         const commandText = params.command;
-        const invokeTimeoutMs = Math.max(
-          10_000,
-          (typeof params.timeout === "number" ? params.timeout : defaultTimeoutSec) * 1000 + 5_000,
-        );
+        const nodeEffectiveTimeout =
+          typeof params.timeout === "number"
+            ? params.timeout
+            : params.background
+              ? 0
+              : defaultTimeoutSec;
+        const invokeTimeoutMs =
+          nodeEffectiveTimeout > 0 ? Math.max(10_000, nodeEffectiveTimeout * 1000 + 5_000) : 0;
         const buildInvokeParams = (
           approvedByAsk: boolean,
           approvalDecision: "allow-once" | "allow-always" | null,
