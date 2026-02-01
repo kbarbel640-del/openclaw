@@ -99,6 +99,13 @@ function truncateLogValue(value: string, maxLength = 2000): string {
   return `${value.slice(0, maxLength)}…(len=${value.length})`;
 }
 
+function sanitizePromptForLog(value: string): string {
+  const sanitized = value.replace(/"data":"([^"]{200,})"/g, (match, data) => {
+    return `"data":"[base64:${data.length}]"`;
+  });
+  return sanitized;
+}
+
 function redactLogValue(value: unknown): unknown {
   if (typeof value === "string") {
     return truncateLogValue(value);
@@ -794,7 +801,7 @@ export async function runEmbeddedAttempt(
         const promptSnapshot = {
           runId: params.runId,
           sessionId: params.sessionId,
-          prompt: truncateLogValue(effectivePrompt),
+          prompt: sanitizePromptForLog(effectivePrompt),
           messages: redactLogValue(activeSession.messages),
         };
         log.info(`[openresponses] prompt snapshot ${safeJsonStringify(promptSnapshot)}`);
