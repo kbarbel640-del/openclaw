@@ -76,6 +76,42 @@ export {
   type VoiceBillingResult,
 } from "./voice-billing.js";
 
+// Real-time Interpreter & Translation
+export {
+  createInterpreter,
+  formatLanguageList,
+  formatPopularPairs,
+  parseLanguageCode,
+  POPULAR_PAIRS,
+  RealtimeInterpreter,
+  SUPPORTED_LANGUAGES,
+  translateText,
+  type InterpretationResult,
+  type InterpreterConfig,
+  type InterpreterEvents,
+  type InterpreterSession,
+  type InterpreterStats,
+  type InterpreterStatus,
+  type LanguageCode,
+  type LanguageInfo,
+  type TranslationRequest,
+  type TranslationResult,
+} from "./realtime-interpreter.js";
+
+// Translation Commands
+export {
+  calculateInterpretationCredits,
+  calculateTranslationCredits,
+  formatTranslationBillingInfo,
+  handleTranslationCommand,
+  isTranslationCommand,
+  parseTranslationCommand,
+  type TranslationBillingResult,
+  type TranslationCommand,
+  type TranslationCommandResult,
+  type TranslationCommandType,
+} from "./translation-commands.js";
+
 // Legacy exports (for backwards compatibility)
 export {
   createRealtimeClient,
