@@ -71,3 +71,29 @@ USER.md
 
 # local tooling
 .serena/
+
+# Python / SotyBot specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+logs/
+data/
+*.db
+*.sqlite
+*.sqlite3
+.env
+venv/
+env/
+ENV/

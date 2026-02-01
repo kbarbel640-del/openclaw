@@ -1,57 +1,124 @@
-# Contributing to OpenClaw
+# Contributing to SotyBot
 
-Welcome to the lobster tank! 🦞
+Thank you for your interest in contributing to SotyBot! 🤖
 
-## Quick Links
+## Ways to Contribute
 
-- **GitHub:** https://github.com/openclaw/openclaw
-- **Discord:** https://discord.gg/qkhbAGHRBT
-- **X/Twitter:** [@steipete](https://x.com/steipete) / [@openclaw](https://x.com/openclaw)
+### 1. Build Agents 🤖
+The easiest way to contribute is to build agents for new domains:
+- Security agents (malware analysis, threat detection)
+- Crypto agents (trading, DeFi research)
+- Creative agents (content generation, design)
+- Sports agents (predictions, analysis)
+- Any domain you can imagine!
 
-## Maintainers
+See [Agent Development Guide](docs/AGENT_DEV.md) for details.
 
-- **Peter Steinberger** - Benevolent Dictator
-  - GitHub: [@steipete](https://github.com/steipete) · X: [@steipete](https://x.com/steipete)
+### 2. Improve Core Engine 🔧
+- Add new action connectors
+- Enhance permission system
+- Improve performance
+- Add tests
 
-- **Shadow** - Discord + Slack subsystem
-  - GitHub: [@thewilloftheshadow](https://github.com/thewilloftheshadow) · X: [@4shad0wed](https://x.com/4shad0wed)
+### 3. Documentation 📚
+- Improve README and guides
+- Add examples and tutorials
+- Translate documentation
+- Create video tutorials
 
-- **Jos** - Telegram, API, Nix mode
-  - GitHub: [@joshp123](https://github.com/joshp123) · X: [@jjpcodes](https://x.com/jjpcodes)
+### 4. Report Bugs 🐛
+- Open issues with detailed descriptions
+- Include reproduction steps
+- Provide system information
 
-## How to Contribute
+## Development Setup
 
-1. **Bugs & small fixes** → Open a PR!
-2. **New features / architecture** → Start a [GitHub Discussion](https://github.com/openclaw/openclaw/discussions) or ask in Discord first
-3. **Questions** → Discord #setup-help
+```bash
+# Clone the repo
+git clone https://github.com/sotyhub/sotybot.git
+cd sotybot
 
-## Before You PR
+# Install with dev dependencies
+pip install -e ".[dev]"
 
-- Test locally with your OpenClaw instance
-- Run tests: `pnpm tsgo && pnpm format && pnpm lint && pnpm build && pnpm test`
-- Keep PRs focused (one thing per PR)
-- Describe what & why
+# Run tests
+pytest tests/
 
-## AI/Vibe-Coded PRs Welcome! 🤖
+# Run linters
+black .
+ruff check .
+mypy .
+```
 
-Built with Codex, Claude, or other AI tools? **Awesome - just mark it!**
+## Pull Request Process
 
-Please include in your PR:
+1. **Fork** the repository
+2. **Create a branch**: `git checkout -b feature/your-feature`
+3. **Make changes** and commit: `git commit -m "Add amazing feature"`
+4. **Run tests**: `pytest tests/`
+5. **Push**: `git push origin feature/your-feature`
+6. **Open a Pull Request**
 
-- [ ] Mark as AI-assisted in the PR title or description
-- [ ] Note the degree of testing (untested / lightly tested / fully tested)
-- [ ] Include prompts or session logs if possible (super helpful!)
-- [ ] Confirm you understand what the code does
+## Code Style
 
-AI PRs are first-class citizens here. We just want transparency so reviewers know what to look for.
+- Follow PEP 8
+- Use type hints
+- Write docstrings
+- Add tests for new features
+- Keep lines under 100 characters
 
-## Current Focus & Roadmap 🗺
+## Agent Contribution Guidelines
 
-We are currently prioritizing:
+When contributing an agent:
 
-- **Stability**: Fixing edge cases in channel connections (WhatsApp/Telegram).
-- **UX**: Improving the onboarding wizard and error messages.
-- **Skills**: Expanding the library of bundled skills and improving the Skill Creation developer experience.
-- **Performance**: Optimizing token usage and compaction logic.
+1. **Create proper structure**:
+   ```
+   agents/[domain]/[agent_name]/
+   ├── manifest.json
+   ├── agent.py
+   └── README.md (optional)
+   ```
 
-Check the [GitHub Issues](https://github.com/openclaw/openclaw/issues) for "good first issue" labels!
+2. **Include complete manifest**:
+   - Name, version, author
+   - Domain and capabilities
+   - Required actions
+   - Risk level
+   - Configuration schema
+
+3. **Implement BaseAgent**:
+   - All required methods
+   - Proper error handling
+   - Execution tracking
+
+4. **Add documentation**:
+   - What the agent does
+   - Example usage
+   - Configuration options
+
+5. **Test your agent**:
+   - Load and unload
+   - Execute various tasks
+   - Handle errors gracefully
+
+## Community Guidelines
+
+- Be respectful and inclusive
+- Help others learn
+- Share knowledge
+- Give credit where due
+- Focus on building together
+
+## Questions?
+
+- Open a GitHub issue
+- Join our [Discord](https://discord.gg/sotyhub)
+- Email: hello@sotyhub.com
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
+
+---
+
+**Thank you for helping build the open agent ecosystem! 🚀**
