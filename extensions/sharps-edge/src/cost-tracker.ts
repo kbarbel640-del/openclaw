@@ -2,7 +2,7 @@
  * SHARPS EDGE - Cost Tracking System
  *
  * Monitors budget usage and blocks actions when limits are approached.
- * Persists cost data to workspace/logs/costs/YYYY-MM.json.
+ * Phase 2: API quota tracking, command-level cost estimation, daily burn alerts.
  */
 
 import fs from "node:fs/promises";
@@ -19,31 +19,57 @@ import {
   type SharpsEdgeConfig,
 } from "./types.js";
 
+// ============================================================================
+// Cost Estimation
+// ============================================================================
+
 /**
  * Estimate cost of a tool call in USD.
- * These are rough estimates - actual costs depend on token usage.
+ * Granular estimates based on tool type and params.
  */
 function estimateToolCost(toolName: string, params: Record<string, unknown>): number {
-  // LLM-invoking tools are the most expensive
-  const expensive = new Set(["exec", "shell", "bash", "run_command"]);
-  if (expensive.has(toolName)) {
-    return 0.005; // ~$0.005 per command execution (conservative)
+  const command = typeof params.command === "string" ? params.command : "";
+
+  // Shell commands - estimate by what they're doing
+  if (toolName === "exec" || toolName === "shell" || toolName === "bash" || toolName === "run_command") {
+    // API calls are more expensive (network + potential metered API)
+    if (/curl|wget|fetch|http/i.test(command)) return 0.01;
+    // Build/test commands use compute
+    if (/build|test|compile|bundle/i.test(command)) return 0.005;
+    // Deployment commands
+    if (/deploy|publish|push/i.test(command)) return 0.02;
+    // Simple commands (ls, cat, git status)
+    return 0.002;
   }
+
+  // Browser operations are moderate (headless browser + potential API)
+  if (toolName === "browser") return 0.015;
+  if (toolName === "web_search") return 0.01;
 
   // File operations are essentially free
-  const fileOps = new Set(["read", "write", "edit", "apply_patch", "create_file", "delete_file"]);
-  if (fileOps.has(toolName)) {
-    return 0.0001;
-  }
+  const fileOps = new Set(["read", "write", "edit", "apply_patch", "create_file", "delete_file", "move_file"]);
+  if (fileOps.has(toolName)) return 0.0001;
 
-  // Browser operations are moderate
-  if (toolName === "browser" || toolName === "web_search") {
-    return 0.01;
-  }
-
-  // Default: small cost for tracking purposes
+  // Default
   return 0.001;
 }
+
+/**
+ * Detect API-specific usage from tool params and return quota key if applicable.
+ */
+function detectApiUsage(toolName: string, params: Record<string, unknown>): string | null {
+  const command = typeof params.command === "string" ? params.command : "";
+
+  if (/the-odds-api\.com|odds-api/i.test(command)) return "the-odds-api";
+  if (/api\.espn\.com|espn/i.test(command)) return "espn";
+  if (/open-meteo\.com/i.test(command)) return "open-meteo";
+
+  return null;
+}
+
+// ============================================================================
+// CostTracker Class
+// ============================================================================
 
 export class CostTracker {
   private workspaceDir: string;
@@ -51,6 +77,7 @@ export class CostTracker {
   private alertThreshold: number;
   private state: BudgetState | null = null;
   private dirty = false;
+  private lastAlertRatio = 0; // Prevent alert spam
 
   constructor(workspaceDir: string, monthlyLimitUsd: number, alertThreshold: number) {
     this.workspaceDir = workspaceDir;
@@ -75,7 +102,6 @@ export class CostTracker {
       const raw = await fs.readFile(this.costFilePath, "utf-8");
       this.state = JSON.parse(raw) as BudgetState;
 
-      // Reset if month changed
       if (this.state.month !== this.currentMonth) {
         this.state = this.freshState();
       }
@@ -93,6 +119,8 @@ export class CostTracker {
       entries: [],
       apiQuotas: {
         "the-odds-api": { limit: 500, used: 0, resetsAt: "monthly" },
+        "espn": { limit: 10000, used: 0, resetsAt: "daily" },
+        "open-meteo": { limit: 10000, used: 0, resetsAt: "daily" },
       },
     };
   }
@@ -106,7 +134,11 @@ export class CostTracker {
     this.dirty = false;
   }
 
-  async recordCost(toolName: string, params: Record<string, unknown>, projectId: string): Promise<void> {
+  async recordCost(
+    toolName: string,
+    params: Record<string, unknown>,
+    projectId: string,
+  ): Promise<{ ratio: number; quotaWarning: string | null }> {
     const state = await this.loadState();
     const cost = estimateToolCost(toolName, params);
 
@@ -119,17 +151,35 @@ export class CostTracker {
       cumulativeMonthUsd: state.totalSpentUsd,
     });
 
-    // Keep only last 1000 entries to prevent unbounded growth
+    // Track API quota usage
+    let quotaWarning: string | null = null;
+    const apiKey = detectApiUsage(toolName, params);
+    if (apiKey && state.apiQuotas[apiKey]) {
+      const quota = state.apiQuotas[apiKey];
+      quota.used++;
+
+      const remaining = quota.limit - quota.used;
+      if (remaining <= 0) {
+        quotaWarning = `API quota exhausted for ${apiKey} (${quota.used}/${quota.limit})`;
+      } else if (remaining <= quota.limit * 0.1) {
+        quotaWarning = `API quota low for ${apiKey}: ${remaining} remaining of ${quota.limit}`;
+      }
+    }
+
+    // Keep entries bounded
     if (state.entries.length > 1000) {
       state.entries = state.entries.slice(-500);
     }
 
     this.dirty = true;
 
-    // Periodic save (every 10 entries)
+    // Save periodically
     if (state.entries.length % 10 === 0) {
       await this.saveState();
     }
+
+    const ratio = state.totalSpentUsd / this.monthlyLimitUsd;
+    return { ratio, quotaWarning };
   }
 
   async getBudgetRatio(): Promise<number> {
@@ -144,10 +194,17 @@ export class CostTracker {
     ratio: number;
     remaining: number;
     dailyBurn: number;
+    daysRemaining: number;
+    projectedMonthEnd: number;
+    apiQuotas: BudgetState["apiQuotas"];
   }> {
     const state = await this.loadState();
     const dayOfMonth = new Date().getDate();
+    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const ratio = state.totalSpentUsd / this.monthlyLimitUsd;
+    const dailyBurn = dayOfMonth > 0 ? state.totalSpentUsd / dayOfMonth : 0;
+    const daysRemaining = daysInMonth - dayOfMonth;
+    const projectedMonthEnd = state.totalSpentUsd + dailyBurn * daysRemaining;
 
     return {
       month: state.month,
@@ -155,14 +212,18 @@ export class CostTracker {
       limit: this.monthlyLimitUsd,
       ratio,
       remaining: this.monthlyLimitUsd - state.totalSpentUsd,
-      dailyBurn: dayOfMonth > 0 ? state.totalSpentUsd / dayOfMonth : 0,
+      dailyBurn,
+      daysRemaining,
+      projectedMonthEnd,
+      apiQuotas: state.apiQuotas,
     };
   }
 }
 
-/**
- * Register cost tracking hooks on the plugin API.
- */
+// ============================================================================
+// Registration
+// ============================================================================
+
 export function registerCostTracker(
   api: OpenClawPluginApi,
   cfg: SharpsEdgeConfig,
@@ -178,34 +239,41 @@ export function registerCostTracker(
   api.on("after_tool_call", async (event, ctx) => {
     const projectId = ctx.agentId ?? "UNKNOWN";
     try {
-      await tracker.recordCost(event.toolName, event.params, projectId);
+      const { ratio, quotaWarning } = await tracker.recordCost(event.toolName, event.params, projectId);
 
-      // Check if we need to alert
-      const ratio = await tracker.getBudgetRatio();
-      if (ratio >= alertThreshold && ratio < alertThreshold + 0.01) {
-        // Just crossed the threshold
-        const summary = await tracker.getSummary();
-        await auditLogger.logAlert(
-          projectId,
-          Severity.WARN,
-          `Budget alert: ${(ratio * 100).toFixed(1)}% used ($${summary.spent.toFixed(2)} / $${summary.limit})`,
-        );
-        api.logger.warn(
-          `sharps-edge: Budget at ${(ratio * 100).toFixed(1)}% ($${summary.spent.toFixed(2)} / $${summary.limit})`,
-        );
+      // Budget threshold alerts (alert at each 10% step: 80%, 90%, 95%)
+      const thresholds = [alertThreshold, 0.9, 0.95];
+      for (const t of thresholds) {
+        if (ratio >= t && ratio < t + 0.005) {
+          const summary = await tracker.getSummary();
+          const msg = `Budget at ${(ratio * 100).toFixed(1)}% ($${summary.spent.toFixed(2)} / $${summary.limit}). Projected month-end: $${summary.projectedMonthEnd.toFixed(2)}`;
+          await auditLogger.logAlert(projectId, Severity.WARN, msg);
+          api.logger.warn(`sharps-edge: ${msg}`);
+        }
+      }
+
+      // API quota warnings
+      if (quotaWarning) {
+        await auditLogger.logAlert(projectId, Severity.WARN, quotaWarning);
+        api.logger.warn(`sharps-edge: ${quotaWarning}`);
       }
     } catch {
       // Never let cost tracking crash the pipeline
     }
   });
 
-  // Save state when gateway stops
+  // Persist on gateway stop
   api.on("gateway_stop", async () => {
     try {
       await tracker.saveState();
-    } catch {
-      // Best effort
-    }
+    } catch { /* best effort */ }
+  });
+
+  // Persist on session end
+  api.on("session_end", async () => {
+    try {
+      await tracker.saveState();
+    } catch { /* best effort */ }
   });
 
   return tracker;

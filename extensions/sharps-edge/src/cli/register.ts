@@ -68,6 +68,7 @@ export function registerSharpsEdgeCli(
           console.log(`Spent: $${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)} (${(budget.ratio * 100).toFixed(1)}%)`);
           console.log(`Remaining: $${budget.remaining.toFixed(2)}`);
           console.log(`Daily burn: $${budget.dailyBurn.toFixed(2)}/day`);
+          console.log(`Projected month-end: $${budget.projectedMonthEnd.toFixed(2)}`);
           console.log("");
           console.log("--- Build Status ---");
           console.log(buildStatus);
@@ -103,12 +104,26 @@ export function registerSharpsEdgeCli(
           console.log(`Used: ${(summary.ratio * 100).toFixed(2)}%`);
           console.log(`Remaining: $${summary.remaining.toFixed(2)}`);
           console.log(`Daily burn: $${summary.dailyBurn.toFixed(4)}/day`);
+          console.log(`Days remaining: ${summary.daysRemaining}`);
+          console.log(`Projected month-end: $${summary.projectedMonthEnd.toFixed(2)}`);
+
+          // API quotas
+          if (summary.apiQuotas && Object.keys(summary.apiQuotas).length > 0) {
+            console.log("\n--- API Quotas ---");
+            for (const [api, quota] of Object.entries(summary.apiQuotas)) {
+              const pct = quota.limit > 0 ? ((quota.used / quota.limit) * 100).toFixed(1) : "0.0";
+              console.log(`${api}: ${quota.used}/${quota.limit} (${pct}%) [resets: ${quota.resetsAt}]`);
+            }
+          }
 
           if (summary.ratio >= 0.8) {
             console.log("\n!! WARNING: Budget above 80% !!");
           }
           if (summary.ratio >= 0.95) {
             console.log("!! CRITICAL: Budget above 95% - non-essential actions blocked !!");
+          }
+          if (summary.projectedMonthEnd > summary.limit) {
+            console.log(`!! PROJECTED OVERSPEND: $${summary.projectedMonthEnd.toFixed(2)} > $${summary.limit.toFixed(2)} !!`);
           }
         });
 

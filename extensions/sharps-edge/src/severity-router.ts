@@ -54,13 +54,39 @@ export class SeverityRouter {
 
     // Route to external channel if configured
     if (target !== "log") {
-      this.api.logger.info?.(
-        `sharps-edge: Would route ${severity} alert to ${target}: ${message}`,
+      await this.deliverAlert(target, severity, message, projectId);
+    }
+  }
+  /**
+   * Deliver alert via OpenClaw's system event queue.
+   * Falls back to logging if the runtime API is unavailable.
+   */
+  private async deliverAlert(
+    target: string,
+    severity: Severity,
+    message: string,
+    projectId: string,
+  ): Promise<void> {
+    try {
+      const formatted = `[SHARPS EDGE ${severity}] [${projectId}] ${message}`;
+
+      // Use OpenClaw's system event queue for channel delivery
+      if (typeof this.api.runtime?.system?.enqueueSystemEvent === "function") {
+        await this.api.runtime.system.enqueueSystemEvent({
+          type: "notification",
+          channel: target,
+          message: formatted,
+          metadata: { source: "sharps-edge", severity, projectId },
+        });
+      } else {
+        this.api.logger.warn(
+          `sharps-edge: Cannot deliver to ${target} (runtime API unavailable): ${formatted}`,
+        );
+      }
+    } catch (err) {
+      this.api.logger.warn(
+        `sharps-edge: Failed to deliver ${severity} alert to ${target}: ${String(err)}`,
       );
-      // External channel routing is handled by OpenClaw's messaging system.
-      // The agent can send messages to channels via tool calls.
-      // For now, we log the intent - actual delivery uses the agent's
-      // reply system or cron-based notification jobs.
     }
   }
 }

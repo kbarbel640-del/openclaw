@@ -93,3 +93,6 @@ workspace/projects/*/research/**
 
 # Project source code (lives in its own repo or deployment target)
 workspace/projects/*/src/**
+
+# Contention lock file (runtime artifact from conflict-detector)
+.sharps-edge-active.json

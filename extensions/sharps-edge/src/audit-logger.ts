@@ -1,8 +1,8 @@
 /**
  * SHARPS EDGE - Structured Audit Logger
  *
- * Append-only JSONL audit trail for all significant actions.
- * Logs to workspace/logs/ directories organized by type and date.
+ * Append-only audit trail for all significant actions.
+ * Phase 2: Session lifecycle hooks, decision categorization, redaction.
  */
 
 import fs from "node:fs/promises";
@@ -25,28 +25,32 @@ export class AuditLogger {
     const dir = path.join(this.workspaceDir, "logs", type);
     await fs.mkdir(dir, { recursive: true });
 
-    const date = entry.timestamp.slice(0, 10); // YYYY-MM-DD
+    const date = entry.timestamp.slice(0, 10);
     const filename = path.join(dir, `${date}.md`);
-    const time = entry.timestamp.slice(11, 19); // HH:MM:SS
+    const time = entry.timestamp.slice(11, 19);
 
-    const markdown = [
+    const lines = [
       "",
       `## ${time} | ${entry.severity} | ${entry.projectId}`,
       `**Event:** ${entry.event}`,
       `**Action:** ${entry.action}`,
       `**Outcome:** ${entry.outcome}`,
-      entry.outcome !== "pass" && entry.details.reason
-        ? `**Reason:** ${entry.details.reason}`
-        : null,
-      Object.keys(entry.details).length > 0
-        ? `**Details:** ${JSON.stringify(entry.details)}`
-        : null,
-      "",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    ];
 
-    await fs.appendFile(filename, markdown, "utf-8");
+    if (entry.outcome !== "pass" && entry.details.reason) {
+      lines.push(`**Reason:** ${String(entry.details.reason)}`);
+    }
+
+    // Add details, filtering out already-shown reason
+    const extraDetails = { ...entry.details };
+    delete extraDetails.reason;
+    if (Object.keys(extraDetails).length > 0) {
+      lines.push(`**Details:** ${JSON.stringify(redactSensitive(extraDetails))}`);
+    }
+
+    lines.push("");
+
+    await fs.appendFile(filename, lines.join("\n"), "utf-8");
   }
 
   async logConflict(
@@ -100,10 +104,30 @@ export class AuditLogger {
       outcome: "completed",
     });
   }
+
+  async logSessionEvent(
+    projectId: string,
+    event: "session_start" | "session_end",
+    details: Record<string, unknown> = {},
+  ): Promise<void> {
+    await this.log("decisions", {
+      timestamp: new Date().toISOString(),
+      severity: Severity.INFO,
+      projectId,
+      event,
+      action: event,
+      details,
+      outcome: "completed",
+    });
+  }
 }
 
+// ============================================================================
+// Helpers
+// ============================================================================
+
 /**
- * Summarize tool params for logging, redacting long values.
+ * Summarize tool params for logging. Truncate long values, redact secrets.
  */
 function summarizeParams(params: Record<string, unknown>): Record<string, unknown> {
   const summary: Record<string, unknown> = {};
@@ -114,12 +138,33 @@ function summarizeParams(params: Record<string, unknown>): Record<string, unknow
       summary[key] = value;
     }
   }
-  return summary;
+  return redactSensitive(summary);
 }
 
 /**
- * Register audit logging hooks on the plugin API.
+ * Redact values that look like secrets.
  */
+function redactSensitive(obj: Record<string, unknown>): Record<string, unknown> {
+  const sensitiveKeys = /key|token|secret|password|credential|auth/i;
+  const sensitiveValues = /^(sk-|ghp_|ghs_|xox[bpsa]-|Bearer\s|Basic\s)/;
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (sensitiveKeys.test(key) && typeof value === "string") {
+      result[key] = "[REDACTED]";
+    } else if (typeof value === "string" && sensitiveValues.test(value)) {
+      result[key] = "[REDACTED]";
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+// ============================================================================
+// Registration
+// ============================================================================
+
 export function registerAuditLogger(
   api: OpenClawPluginApi,
   _cfg: SharpsEdgeConfig,
@@ -136,11 +181,11 @@ export function registerAuditLogger(
         event.toolName,
         event.params,
         event.error ? "failed" : "completed",
-        event.error ? { error: event.error, durationMs: event.durationMs } : { durationMs: event.durationMs },
+        event.error
+          ? { error: event.error, durationMs: event.durationMs }
+          : { durationMs: event.durationMs },
       );
-    } catch {
-      // Never let logging failures crash the pipeline
-    }
+    } catch { /* never crash the pipeline */ }
   });
 
   // Log inbound messages
@@ -155,9 +200,27 @@ export function registerAuditLogger(
         details: { contentLength: event.content?.length ?? 0 },
         outcome: "completed",
       });
-    } catch {
-      // Silent failure
-    }
+    } catch { /* silent */ }
+  });
+
+  // Log session lifecycle
+  api.on("session_start", async (event, ctx) => {
+    try {
+      await logger.logSessionEvent(ctx.agentId ?? "UNKNOWN", "session_start", {
+        sessionId: event.sessionId,
+        resumedFrom: event.resumedFrom,
+      });
+    } catch { /* silent */ }
+  });
+
+  api.on("session_end", async (event, ctx) => {
+    try {
+      await logger.logSessionEvent(ctx.agentId ?? "UNKNOWN", "session_end", {
+        sessionId: event.sessionId,
+        messageCount: event.messageCount,
+        durationMs: event.durationMs,
+      });
+    } catch { /* silent */ }
   });
 
   return logger;
