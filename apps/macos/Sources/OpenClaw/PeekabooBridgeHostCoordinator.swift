@@ -21,12 +21,16 @@ final class PeekabooBridgeHostCoordinator {
         return directory.appendingPathComponent(PeekabooBridgeConstants.socketName, isDirectory: false).path
     }
 
-    private static var legacySocketPath: String {
+    private static var legacySocketPaths: [String] {
         let fileManager = FileManager.default
         let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
-        let directory = base.appendingPathComponent("clawdbot", isDirectory: true)
-        return directory.appendingPathComponent(PeekabooBridgeConstants.socketName, isDirectory: false).path
+        let legacyDirectories = ["clawdbot", "clawdis"]
+        return legacyDirectories.map { name in
+            base.appendingPathComponent(name, isDirectory: true)
+                .appendingPathComponent(PeekabooBridgeConstants.socketName, isDirectory: false)
+                .path
+        }
     }
 
     func setEnabled(_ enabled: Bool) async {
@@ -54,7 +58,7 @@ final class PeekabooBridgeHostCoordinator {
         }
         let allowlistedBundles: Set<String> = []
 
-        self.ensureLegacySocketSymlink()
+        self.ensureLegacySocketSymlinks()
 
         let services = OpenClawPeekabooBridgeServices()
         let server = PeekabooBridgeServer(
@@ -77,9 +81,14 @@ final class PeekabooBridgeHostCoordinator {
             .info("PeekabooBridge host started at \(Self.openclawSocketPath, privacy: .public)")
     }
 
-    private func ensureLegacySocketSymlink() {
+    private func ensureLegacySocketSymlinks() {
+        Self.legacySocketPaths.forEach { legacyPath in
+            self.ensureLegacySocketSymlink(at: legacyPath)
+        }
+    }
+
+    private func ensureLegacySocketSymlink(at legacyPath: String) {
         let fileManager = FileManager.default
-        let legacyPath = Self.legacySocketPath
         let legacyDirectory = (legacyPath as NSString).deletingLastPathComponent
         do {
             let directoryAttributes: [FileAttributeKey: Any] = [
