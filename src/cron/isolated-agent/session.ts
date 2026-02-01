@@ -20,31 +20,29 @@ export async function resolveCronSession(params: {
   });
   const store = loadSessionStore(storePath);
   const existing = store[params.sessionKey];
-  
+
   const sessionId = existing?.sessionId ?? crypto.randomUUID();
   const isNewSession = !existing;
   const systemSent = false;
-  
+
   const patch: Partial<SessionEntry> = {
     sessionId,
     updatedAt: params.nowMs,
     systemSent,
   };
 
-  let sessionEntry: SessionEntry;
-  await updateSessionStore(storePath, (currentStore) => {
+  const sessionEntry = await updateSessionStore(storePath, (currentStore) => {
     const current = currentStore[params.sessionKey];
-    sessionEntry = mergeSessionEntry(current, patch);
-    currentStore[params.sessionKey] = sessionEntry;
+    const merged = mergeSessionEntry(current, patch);
+    currentStore[params.sessionKey] = merged;
+    return merged;
   });
-
-  const updatedStore = loadSessionStore(storePath);
 
   return {
     storePath,
-    store: updatedStore,
-    sessionEntry: sessionEntry!,
+    store,
+    sessionEntry,
     systemSent,
-    isNewSession
+    isNewSession,
   };
 }
