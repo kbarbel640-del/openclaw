@@ -35,7 +35,6 @@ import {
   EMBEDDING_RETRY_MAX_DELAY_MS,
   FTS_TABLE,
   META_KEY,
-  SESSION_DELTA_READ_CHUNK_BYTES,
   SESSION_DIRTY_DEBOUNCE_MS,
   SNIPPET_MAX_CHARS,
   VECTOR_LOAD_TIMEOUT_MS,
@@ -65,6 +64,7 @@ import {
   parseEmbedding,
 } from "./internal.js";
 import { searchKeyword, searchVector } from "./manager-search.js";
+import { onMemoryFileUpdate } from "./memory-events.js";
 import { ensureMemoryIndexSchema } from "./memory-schema.js";
 import {
   ensureRetentionSchema,
@@ -75,6 +75,17 @@ import {
   DEFAULT_RETENTION_POLICY,
   type RetentionPolicy,
 } from "./retention.js";
+import {
+  buildSessionEntry,
+  listSessionFilesForAgent,
+  sessionPathForFile,
+  readSessionDelta,
+  updateDeltaState,
+  shouldSyncDelta,
+  resetDeltaCounters,
+  type SessionDeltaState,
+  type SessionFileEntry,
+} from "./session-files.js";
 import { loadSqliteVecExtension } from "./sqlite-vec.js";
 import { requireNodeSqlite } from "./sqlite.js";
 
@@ -94,15 +105,6 @@ type MemoryIndexMeta = {
   chunkTokens: number;
   chunkOverlap: number;
   vectorDims?: number;
-};
-
-type SessionFileEntry = {
-  path: string;
-  absPath: string;
-  mtimeMs: number;
-  size: number;
-  hash: string;
-  content: string;
 };
 
 type MemorySyncProgressUpdate = {
@@ -173,16 +175,14 @@ export class MemoryIndexManager {
   private watchTimer: NodeJS.Timeout | null = null;
   private sessionWatchTimer: NodeJS.Timeout | null = null;
   private sessionUnsubscribe: (() => void) | null = null;
+  private memoryFileUnsubscribe: (() => void) | null = null;
   private intervalTimer: NodeJS.Timeout | null = null;
   private closed = false;
   private dirty = false;
   private sessionsDirty = false;
   private sessionsDirtyFiles = new Set<string>();
   private sessionPendingFiles = new Set<string>();
-  private sessionDeltas = new Map<
-    string,
-    { lastSize: number; pendingBytes: number; pendingMessages: number }
-  >();
+  private sessionDeltas = new Map<string, SessionDeltaState>();
   private sessionWarm = new Set<string>();
   private syncing: Promise<void> | null = null;
 
@@ -265,6 +265,7 @@ export class MemoryIndexManager {
     }
     this.ensureWatcher();
     this.ensureSessionListener();
+    this.ensureMemoryFileListener();
     this.ensureIntervalSync();
     this.dirty = this.sources.has("memory");
     this.batch = this.resolveBatchConfig();
@@ -689,6 +690,10 @@ export class MemoryIndexManager {
       this.sessionUnsubscribe();
       this.sessionUnsubscribe = null;
     }
+    if (this.memoryFileUnsubscribe) {
+      this.memoryFileUnsubscribe();
+      this.memoryFileUnsubscribe = null;
+    }
     this.db.close();
     INDEX_CACHE.delete(this.cacheKey);
   }
@@ -1012,6 +1017,38 @@ export class MemoryIndexManager {
     });
   }
 
+  /**
+   * Listen for memory file update events (e.g., after memory flush).
+   * Triggers immediate sync instead of waiting for watch debounce.
+   */
+  private ensureMemoryFileListener() {
+    if (!this.sources.has("memory") || this.memoryFileUnsubscribe) {
+      return;
+    }
+    this.memoryFileUnsubscribe = onMemoryFileUpdate((update) => {
+      if (this.closed) {
+        return;
+      }
+      // Only process events for this agent
+      if (update.agentId !== this.agentId) {
+        return;
+      }
+      // Check if the file is within our workspace's memory folder
+      const relPath = path.relative(this.workspaceDir, update.memoryFile);
+      if (!isMemoryPath(relPath)) {
+        return;
+      }
+      // Mark dirty and trigger immediate sync for memory flush events
+      this.dirty = true;
+      if (update.updateType === "flush") {
+        log.debug(`Memory file updated via flush: ${update.memoryFile}`);
+        void this.sync({ reason: "memory-flush" }).catch((err) => {
+          log.warn(`memory sync failed (memory-flush): ${String(err)}`);
+        });
+      }
+    });
+  }
+
   private scheduleSessionDirty(sessionFile: string) {
     this.sessionPendingFiles.add(sessionFile);
     if (this.sessionWatchTimer) {
@@ -1031,133 +1068,71 @@ export class MemoryIndexManager {
     }
     const pending = Array.from(this.sessionPendingFiles);
     this.sessionPendingFiles.clear();
-    let shouldSync = false;
-    for (const sessionFile of pending) {
-      const delta = await this.updateSessionDelta(sessionFile);
-      if (!delta) {
-        continue;
-      }
-      const bytesThreshold = delta.deltaBytes;
-      const messagesThreshold = delta.deltaMessages;
-      const bytesHit =
-        bytesThreshold <= 0 ? delta.pendingBytes > 0 : delta.pendingBytes >= bytesThreshold;
-      const messagesHit =
-        messagesThreshold <= 0
-          ? delta.pendingMessages > 0
-          : delta.pendingMessages >= messagesThreshold;
-      if (!bytesHit && !messagesHit) {
-        continue;
-      }
-      this.sessionsDirtyFiles.add(sessionFile);
-      this.sessionsDirty = true;
-      delta.pendingBytes =
-        bytesThreshold > 0 ? Math.max(0, delta.pendingBytes - bytesThreshold) : 0;
-      delta.pendingMessages =
-        messagesThreshold > 0 ? Math.max(0, delta.pendingMessages - messagesThreshold) : 0;
-      shouldSync = true;
+
+    const thresholds = this.settings.sync.sessions;
+    if (!thresholds) {
+      return;
     }
-    if (shouldSync) {
+
+    let needsSync = false;
+    for (const sessionFile of pending) {
+      // Get or create delta state for this file
+      let state = this.sessionDeltas.get(sessionFile);
+      if (!state) {
+        state = { lastSize: 0, pendingBytes: 0, pendingMessages: 0 };
+        this.sessionDeltas.set(sessionFile, state);
+      }
+
+      // Read only the new portion of the file
+      const deltaResult = await readSessionDelta(sessionFile, state.lastSize);
+      if (!deltaResult) {
+        continue;
+      }
+
+      // Update state with new delta information
+      const newState = updateDeltaState(state, deltaResult);
+      this.sessionDeltas.set(sessionFile, newState);
+
+      // Check if thresholds are met for syncing
+      if (
+        shouldSyncDelta(newState, {
+          deltaBytes: thresholds.deltaBytes,
+          deltaMessages: thresholds.deltaMessages,
+        })
+      ) {
+        this.sessionsDirtyFiles.add(sessionFile);
+        this.sessionsDirty = true;
+        // Reset counters after triggering sync
+        this.sessionDeltas.set(sessionFile, resetDeltaCounters(newState));
+        needsSync = true;
+      }
+    }
+
+    if (needsSync) {
       void this.sync({ reason: "session-delta" }).catch((err) => {
         log.warn(`memory sync failed (session-delta): ${String(err)}`);
       });
     }
   }
 
-  private async updateSessionDelta(sessionFile: string): Promise<{
-    deltaBytes: number;
-    deltaMessages: number;
-    pendingBytes: number;
-    pendingMessages: number;
-  } | null> {
-    const thresholds = this.settings.sync.sessions;
-    if (!thresholds) {
-      return null;
-    }
-    let stat: { size: number };
-    try {
-      stat = await fs.stat(sessionFile);
-    } catch {
-      return null;
-    }
-    const size = stat.size;
-    let state = this.sessionDeltas.get(sessionFile);
-    if (!state) {
-      state = { lastSize: 0, pendingBytes: 0, pendingMessages: 0 };
-      this.sessionDeltas.set(sessionFile, state);
-    }
-    const deltaBytes = Math.max(0, size - state.lastSize);
-    if (deltaBytes === 0 && size === state.lastSize) {
-      return {
-        deltaBytes: thresholds.deltaBytes,
-        deltaMessages: thresholds.deltaMessages,
-        pendingBytes: state.pendingBytes,
-        pendingMessages: state.pendingMessages,
-      };
-    }
-    if (size < state.lastSize) {
-      state.lastSize = size;
-      state.pendingBytes += size;
-      const shouldCountMessages =
-        thresholds.deltaMessages > 0 &&
-        (thresholds.deltaBytes <= 0 || state.pendingBytes < thresholds.deltaBytes);
-      if (shouldCountMessages) {
-        state.pendingMessages += await this.countNewlines(sessionFile, 0, size);
-      }
-    } else {
-      state.pendingBytes += deltaBytes;
-      const shouldCountMessages =
-        thresholds.deltaMessages > 0 &&
-        (thresholds.deltaBytes <= 0 || state.pendingBytes < thresholds.deltaBytes);
-      if (shouldCountMessages) {
-        state.pendingMessages += await this.countNewlines(sessionFile, state.lastSize, size);
-      }
-      state.lastSize = size;
-    }
-    this.sessionDeltas.set(sessionFile, state);
-    return {
-      deltaBytes: thresholds.deltaBytes,
-      deltaMessages: thresholds.deltaMessages,
-      pendingBytes: state.pendingBytes,
-      pendingMessages: state.pendingMessages,
-    };
-  }
-
-  private async countNewlines(absPath: string, start: number, end: number): Promise<number> {
-    if (end <= start) {
-      return 0;
-    }
-    const handle = await fs.open(absPath, "r");
-    try {
-      let offset = start;
-      let count = 0;
-      const buffer = Buffer.alloc(SESSION_DELTA_READ_CHUNK_BYTES);
-      while (offset < end) {
-        const toRead = Math.min(buffer.length, end - offset);
-        const { bytesRead } = await handle.read(buffer, 0, toRead, offset);
-        if (bytesRead <= 0) {
-          break;
-        }
-        for (let i = 0; i < bytesRead; i += 1) {
-          if (buffer[i] === 10) {
-            count += 1;
-          }
-        }
-        offset += bytesRead;
-      }
-      return count;
-    } finally {
-      await handle.close();
-    }
-  }
-
-  private resetSessionDelta(absPath: string, size: number): void {
+  /**
+   * Reset session delta state after successful indexing.
+   * Updates lastSize and resets pending counters.
+   */
+  private resetSessionDeltaAfterIndex(absPath: string, size: number): void {
     const state = this.sessionDeltas.get(absPath);
-    if (!state) {
-      return;
+    if (state) {
+      this.sessionDeltas.set(absPath, {
+        ...resetDeltaCounters(state),
+        lastSize: size,
+      });
+    } else {
+      this.sessionDeltas.set(absPath, {
+        lastSize: size,
+        pendingBytes: 0,
+        pendingMessages: 0,
+      });
     }
-    state.lastSize = size;
-    state.pendingBytes = 0;
-    state.pendingMessages = 0;
   }
 
   private isSessionFileForAgent(sessionFile: string): boolean {
@@ -1297,8 +1272,8 @@ export class MemoryIndexManager {
     needsFullReindex: boolean;
     progress?: MemorySyncProgressState;
   }) {
-    const files = await this.listSessionFiles();
-    const activePaths = new Set(files.map((file) => this.sessionPathForFile(file)));
+    const files = await listSessionFilesForAgent(this.agentId);
+    const activePaths = new Set(files.map((file) => sessionPathForFile(file)));
     const indexAll = params.needsFullReindex || this.sessionsDirtyFiles.size === 0;
     log.debug("memory sync: indexing session files", {
       files: files.length,
@@ -1327,7 +1302,7 @@ export class MemoryIndexManager {
         }
         return;
       }
-      const entry = await this.buildSessionEntry(absPath);
+      const entry = await buildSessionEntry(absPath);
       if (!entry) {
         if (params.progress) {
           params.progress.completed += 1;
@@ -1349,11 +1324,11 @@ export class MemoryIndexManager {
             total: params.progress.total,
           });
         }
-        this.resetSessionDelta(absPath, entry.size);
+        this.resetSessionDeltaAfterIndex(absPath, entry.size);
         return;
       }
       await this.indexFile(entry, { source: "sessions", content: entry.content });
-      this.resetSessionDelta(absPath, entry.size);
+      this.resetSessionDeltaAfterIndex(absPath, entry.size);
       if (params.progress) {
         params.progress.completed += 1;
         params.progress.report({
@@ -1694,113 +1669,6 @@ export class MemoryIndexManager {
         `INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
       )
       .run(META_KEY, value);
-  }
-
-  private async listSessionFiles(): Promise<string[]> {
-    const dir = resolveSessionTranscriptsDirForAgent(this.agentId);
-    try {
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-      return entries
-        .filter((entry) => entry.isFile())
-        .map((entry) => entry.name)
-        .filter((name) => name.endsWith(".jsonl"))
-        .map((name) => path.join(dir, name));
-    } catch {
-      return [];
-    }
-  }
-
-  private sessionPathForFile(absPath: string): string {
-    return path.join("sessions", path.basename(absPath)).replace(/\\/g, "/");
-  }
-
-  private normalizeSessionText(value: string): string {
-    return value
-      .replace(/\s*\n+\s*/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  private extractSessionText(content: unknown): string | null {
-    if (typeof content === "string") {
-      const normalized = this.normalizeSessionText(content);
-      return normalized ? normalized : null;
-    }
-    if (!Array.isArray(content)) {
-      return null;
-    }
-    const parts: string[] = [];
-    for (const block of content) {
-      if (!block || typeof block !== "object") {
-        continue;
-      }
-      const record = block as { type?: unknown; text?: unknown };
-      if (record.type !== "text" || typeof record.text !== "string") {
-        continue;
-      }
-      const normalized = this.normalizeSessionText(record.text);
-      if (normalized) {
-        parts.push(normalized);
-      }
-    }
-    if (parts.length === 0) {
-      return null;
-    }
-    return parts.join(" ");
-  }
-
-  private async buildSessionEntry(absPath: string): Promise<SessionFileEntry | null> {
-    try {
-      const stat = await fs.stat(absPath);
-      const raw = await fs.readFile(absPath, "utf-8");
-      const lines = raw.split("\n");
-      const collected: string[] = [];
-      for (const line of lines) {
-        if (!line.trim()) {
-          continue;
-        }
-        let record: unknown;
-        try {
-          record = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        if (
-          !record ||
-          typeof record !== "object" ||
-          (record as { type?: unknown }).type !== "message"
-        ) {
-          continue;
-        }
-        const message = (record as { message?: unknown }).message as
-          | { role?: unknown; content?: unknown }
-          | undefined;
-        if (!message || typeof message.role !== "string") {
-          continue;
-        }
-        if (message.role !== "user" && message.role !== "assistant") {
-          continue;
-        }
-        const text = this.extractSessionText(message.content);
-        if (!text) {
-          continue;
-        }
-        const label = message.role === "user" ? "User" : "Assistant";
-        collected.push(`${label}: ${text}`);
-      }
-      const content = collected.join("\n");
-      return {
-        path: this.sessionPathForFile(absPath),
-        absPath,
-        mtimeMs: stat.mtimeMs,
-        size: stat.size,
-        hash: hashText(content),
-        content,
-      };
-    } catch (err) {
-      log.debug(`Failed reading session file ${absPath}: ${String(err)}`);
-      return null;
-    }
   }
 
   private estimateEmbeddingTokens(text: string): number {

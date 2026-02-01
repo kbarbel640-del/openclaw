@@ -35,7 +35,10 @@ export async function listSessionFilesForAgent(agentId: string): Promise<string[
 }
 
 export function sessionPathForFile(absPath: string): string {
-  return path.join("sessions", path.basename(absPath)).replace(/\\/g, "/");
+  // Normalize Windows backslashes to forward slashes before extracting basename
+  // This ensures path.basename works correctly on all platforms
+  const normalized = absPath.replace(/\\/g, "/");
+  return path.join("sessions", path.basename(normalized)).replace(/\\/g, "/");
 }
 
 /**
@@ -158,9 +161,10 @@ export async function readSessionDelta(
     const rawDelta = buffer.slice(0, bytesRead).toString("utf-8");
 
     // Handle partial line at the start (if we're mid-line from last read)
-    // Find the first newline to skip potential partial line
+    // Only skip if: we're not at file start, doesn't start with newline,
+    // AND doesn't start with '{' (which indicates a valid JSONL line start)
     let startIndex = 0;
-    if (fromOffset > 0 && !rawDelta.startsWith("\n")) {
+    if (fromOffset > 0 && !rawDelta.startsWith("\n") && !rawDelta.startsWith("{")) {
       const firstNewline = rawDelta.indexOf("\n");
       if (firstNewline !== -1) {
         startIndex = firstNewline + 1;
