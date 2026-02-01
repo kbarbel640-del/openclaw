@@ -164,9 +164,42 @@ bash pty:true workdir:~/project background:true command:"claude 'Your task'"
 
 ## OpenCode
 
+**Path:** `~/.opencode/bin/opencode` (not in PATH by default)
+
+**⚠️ Payment Required:** Most models need payment method. Use **free models** to avoid charges.
+
+### Free Models (no payment needed)
 ```bash
-bash pty:true workdir:~/project command:"opencode run 'Your task'"
+# GLM-4.7 Free
+~/.opencode/bin/opencode -m "opencode/glm-4.7-free" --prompt "hello"
+
+# Kimi K2.5 Free
+~/.opencode/bin/opencode -m "opencode/kimi-k2.5-free" --prompt "hello"
 ```
+
+### Paid Models (need payment method at https://opencode.ai/workspace/.../billing)
+```bash
+# Default model (requires payment)
+~/.opencode/bin/opencode --prompt "hello"
+
+# Other models (require payment)
+~/.opencode/bin/opencode -m "opencode/glm-4.7-plus" --prompt "task"
+~/.opencode/bin/opencode -m "gemini-3-pro" --prompt "task"
+```
+
+### Running with PTY
+```bash
+# Free model with PTY
+bash pty:true workdir:~/project command:"~/.opencode/bin/opencode -m 'opencode/glm-4.7-free' --prompt 'Your task'"
+
+# Background mode
+bash pty:true workdir:~/project background:true command:"~/.opencode/bin/opencode -m 'opencode/glm-4.7-free' --prompt 'Your task'"
+```
+
+### Error: "No payment method"
+- This means you used a non-free model
+- Add payment method at https://opencode.ai/workspace/.../billing
+- Or switch to free model: `-m "opencode/glm-4.7-free"`
 
 ---
 
@@ -276,3 +309,5 @@ This triggers an immediate wake event — Skippy gets pinged in seconds, not 10 
 - **exec is your friend:** `codex exec "prompt"` runs and exits cleanly - perfect for one-shots.
 - **submit vs write:** Use `submit` to send input + Enter, `write` for raw data without newline.
 - **Sass works:** Codex responds well to playful prompts. Asked it to write a haiku about being second fiddle to a space lobster, got: *"Second chair, I code / Space lobster sets the tempo / Keys glow, I follow"* 🦞
+- **OpenCode free model:** Use `-m "opencode/glm-4.7-free"` to avoid payment requirements.
+- **Codex ESM bug:** If you get `SyntaxError: Unexpected reserved word` at line 160, the Codex CLI package has a bug. Try updating: `npm update -g @openai/codex`
