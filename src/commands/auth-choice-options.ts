@@ -18,6 +18,7 @@ export type AuthChoiceGroupId =
   | "zai"
   | "xiaomi"
   | "opencode-zen"
+  | "chutes"
   | "minimax"
   | "synthetic"
   | "venice"
@@ -77,6 +78,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     label: "Qwen",
     hint: "OAuth",
     choices: ["qwen-portal"],
+  },
+  {
+    value: "chutes",
+    label: "Chutes",
+    hint: "OAuth (open-source models)",
+    choices: ["chutes"],
   },
   {
     value: "zai",
