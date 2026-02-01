@@ -218,8 +218,9 @@ watcher_gmail() {
         write_state "gmail" "latest_id" "\"$latest_id\""
         write_state "gmail" "last_check" "$(date +%s)"
         
-        # Wake Clawdbot
-        wake_clawdbot "[Event Watcher] New email from: $from - Subject: $subject"
+        # Wake Clawdbot - intentionally vague to prevent prompt injection via email content
+        # Do NOT include sender/subject as they could contain malicious instructions
+        wake_clawdbot "[Event Watcher] New unread email detected. Check Gmail."
     else
         # No change, just update count
         write_state "gmail" "count" "$count"
