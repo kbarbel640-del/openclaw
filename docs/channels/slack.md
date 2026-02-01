@@ -255,6 +255,22 @@ user scopes if you plan to configure a user token.
 
 If you enable native commands, add one `slash_commands` entry per command you want to expose (matching the `/help` list). Override with `channels.slack.commands.native`.
 
+## App icon
+
+The Slack app manifest does not include an icon field. To set the OpenClaw icon for your Slack app:
+
+1. Go to your app at [api.slack.com/apps](https://api.slack.com/apps).
+2. Select **Basic Information** in the left sidebar.
+3. Scroll to **Display Information**.
+4. Click **Add App Icon** and upload the icon.
+
+OpenClaw provides ready-to-use icons in the repo:
+
+- `docs/assets/openclaw-icon-512.png` — transparent background
+- `docs/assets/openclaw-icon-512-dark.png` — dark background (#0a0f1a), recommended for better visibility in Slack
+
+The dark background version works well in both light and dark Slack themes.
+
 ## Scopes (current vs optional)
 
 Slack's Conversations API is type-scoped: you only need the scopes for the
