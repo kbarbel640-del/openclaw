@@ -65,6 +65,15 @@ import {
 } from "./internal.js";
 import { searchKeyword, searchVector } from "./manager-search.js";
 import { ensureMemoryIndexSchema } from "./memory-schema.js";
+import {
+  ensureRetentionSchema,
+  recordChunkAccess,
+  updateImportanceScores,
+  enforceStorageLimits,
+  initializeChunkTimestamps,
+  DEFAULT_RETENTION_POLICY,
+  type RetentionPolicy,
+} from "./retention.js";
 import { loadSqliteVecExtension } from "./sqlite-vec.js";
 import { requireNodeSqlite } from "./sqlite.js";
 
@@ -154,6 +163,10 @@ export class MemoryIndexManager {
     available: boolean;
     loadError?: string;
   };
+  private readonly retention: {
+    enabled: boolean;
+    policy: RetentionPolicy;
+  };
   private vectorReady: Promise<boolean> | null = null;
   private watcher: FSWatcher | null = null;
   private watchTimer: NodeJS.Timeout | null = null;
@@ -235,6 +248,10 @@ export class MemoryIndexManager {
       maxEntries: params.settings.cache.maxEntries,
     };
     this.fts = { enabled: params.settings.query.hybrid.enabled, available: false };
+    this.retention = {
+      enabled: true,
+      policy: DEFAULT_RETENTION_POLICY,
+    };
     this.ensureSchema();
     this.vector = {
       enabled: params.settings.store.vector.enabled,
@@ -305,7 +322,15 @@ export class MemoryIndexManager {
       : [];
 
     if (!hybrid.enabled) {
-      return vectorResults.filter((entry) => entry.score >= minScore).slice(0, maxResults);
+      const results = vectorResults.filter((entry) => entry.score >= minScore).slice(0, maxResults);
+      // Record access for retention tracking
+      if (this.retention.enabled && results.length > 0) {
+        recordChunkAccess(
+          this.db,
+          results.map((r) => r.id),
+        );
+      }
+      return results;
     }
 
     const merged = this.mergeHybridResults({
@@ -315,7 +340,27 @@ export class MemoryIndexManager {
       textWeight: hybrid.textWeight,
     });
 
-    return merged.filter((entry) => entry.score >= minScore).slice(0, maxResults);
+    const finalResults = merged.filter((entry) => entry.score >= minScore).slice(0, maxResults);
+
+    // Record access for retention tracking
+    if (this.retention.enabled && finalResults.length > 0) {
+      // Get chunk IDs from the merged results
+      const idsToRecord: string[] = [];
+      for (const result of finalResults) {
+        // Find matching chunk ID from vector or keyword results
+        const matchingVector = vectorResults.find(
+          (v) => v.path === result.path && v.startLine === result.startLine,
+        );
+        if (matchingVector) {
+          idsToRecord.push(matchingVector.id);
+        }
+      }
+      if (idsToRecord.length > 0) {
+        recordChunkAccess(this.db, idsToRecord);
+      }
+    }
+
+    return finalResults;
   }
 
   private async searchVector(
@@ -844,6 +889,43 @@ export class MemoryIndexManager {
       this.fts.loadError = result.ftsError;
       log.warn(`fts unavailable: ${result.ftsError}`);
     }
+    // Initialize retention schema
+    if (this.retention.enabled) {
+      ensureRetentionSchema(this.db);
+    }
+  }
+
+  /**
+   * Run retention maintenance: initialize timestamps, update scores, enforce limits
+   */
+  private runRetentionMaintenance(): void {
+    if (!this.retention.enabled) return;
+
+    try {
+      // Initialize timestamps for new chunks
+      const initialized = initializeChunkTimestamps(this.db);
+      if (initialized > 0) {
+        log.debug(`Initialized timestamps for ${initialized} chunks`);
+      }
+
+      // Update importance scores
+      const updated = updateImportanceScores(this.db, this.retention.policy);
+      log.debug(`Updated importance scores for ${updated} chunks`);
+
+      // Enforce storage limits
+      const result = enforceStorageLimits(this.db, this.retention.policy, {
+        vectorTable: VECTOR_TABLE,
+        ftsTable: FTS_TABLE,
+      });
+
+      if (result.pruned > 0 || result.archived > 0) {
+        log.debug(
+          `Retention maintenance: pruned=${result.pruned}, archived=${result.archived}, bytes freed=${result.bytesFreed}`,
+        );
+      }
+    } catch (err) {
+      log.warn(`Retention maintenance failed: ${String(err)}`);
+    }
   }
 
   private ensureWatcher() {
@@ -1356,6 +1438,11 @@ export class MemoryIndexManager {
         this.sessionsDirty = true;
       } else {
         this.sessionsDirty = false;
+      }
+
+      // Update retention after sync
+      if (this.retention.enabled) {
+        this.runRetentionMaintenance();
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
