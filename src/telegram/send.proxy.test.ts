@@ -21,6 +21,10 @@ const { resolveTelegramFetch } = vi.hoisted(() => ({
   resolveTelegramFetch: vi.fn(),
 }));
 
+const { resolveTelegramApiRoot } = vi.hoisted(() => ({
+  resolveTelegramApiRoot: vi.fn(),
+}));
+
 vi.mock("../config/config.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../config/config.js")>();
   return {
@@ -35,6 +39,10 @@ vi.mock("./proxy.js", () => ({
 
 vi.mock("./fetch.js", () => ({
   resolveTelegramFetch,
+}));
+
+vi.mock("./local-api.js", () => ({
+  resolveTelegramApiRoot,
 }));
 
 vi.mock("grammy", () => ({
@@ -118,6 +126,28 @@ describe("telegram proxy client", () => {
       "tok",
       expect.objectContaining({
         client: expect.objectContaining({ fetch: fetchImpl }),
+      }),
+    );
+  });
+
+  it("includes apiRoot in client options when localApiServer is configured", async () => {
+    const fetchImpl = vi.fn();
+    const apiRoot = "http://localhost:8081";
+    resolveTelegramFetch.mockReturnValue(fetchImpl as unknown as typeof fetch);
+    resolveTelegramApiRoot.mockReturnValue(apiRoot);
+    loadConfig.mockReturnValue({
+      channels: { telegram: { accounts: { foo: { localApiServer: apiRoot } } } },
+    });
+
+    await sendMessageTelegram("123", "hi", { token: "tok", accountId: "foo" });
+
+    expect(resolveTelegramApiRoot).toHaveBeenCalledWith(
+      expect.objectContaining({ localApiServer: apiRoot }),
+    );
+    expect(botCtorSpy).toHaveBeenCalledWith(
+      "tok",
+      expect.objectContaining({
+        client: expect.objectContaining({ apiRoot }),
       }),
     );
   });

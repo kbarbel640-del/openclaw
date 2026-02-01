@@ -46,6 +46,7 @@ import {
   resolveTelegramStreamMode,
 } from "./bot/helpers.js";
 import { resolveTelegramFetch } from "./fetch.js";
+import { resolveTelegramApiRoot } from "./local-api.js";
 import { wasSentByBot } from "./sent-message-cache.js";
 
 export type TelegramBotOptions = {
@@ -132,13 +133,16 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     typeof telegramCfg?.timeoutSeconds === "number" && Number.isFinite(telegramCfg.timeoutSeconds)
       ? Math.max(1, Math.floor(telegramCfg.timeoutSeconds))
       : undefined;
+  const apiRoot = resolveTelegramApiRoot(telegramCfg);
+  const shouldProvideApiRoot = apiRoot !== "https://api.telegram.org";
   const client: ApiClientOptions | undefined =
-    shouldProvideFetch || timeoutSeconds
+    shouldProvideFetch || timeoutSeconds || shouldProvideApiRoot
       ? {
           ...(shouldProvideFetch && fetchImpl
             ? { fetch: fetchImpl as unknown as ApiClientOptions["fetch"] }
             : {}),
           ...(timeoutSeconds ? { timeoutSeconds } : {}),
+          ...(shouldProvideApiRoot ? { apiRoot } : {}),
         }
       : undefined;
 

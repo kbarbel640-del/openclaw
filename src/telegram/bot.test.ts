@@ -334,6 +334,54 @@ describe("createTelegramBot", () => {
     }
   });
 
+  it("uses default API root when localApiServer is not configured", () => {
+    botCtorSpy.mockReset();
+    loadConfig.mockReturnValue({
+      channels: { telegram: { dmPolicy: "open", allowFrom: ["*"] } },
+    });
+
+    createTelegramBot({ token: "tok" });
+
+    const clientOptions = botCtorSpy.mock.calls[0]?.[1] as { client?: { apiRoot?: string } };
+    expect(clientOptions?.client?.apiRoot).toBeUndefined();
+  });
+
+  it("uses custom API root when localApiServer is configured", () => {
+    botCtorSpy.mockReset();
+    loadConfig.mockReturnValue({
+      channels: {
+        telegram: {
+          dmPolicy: "open",
+          allowFrom: ["*"],
+          localApiServer: "http://localhost:8081",
+        },
+      },
+    });
+
+    createTelegramBot({ token: "tok" });
+
+    const clientOptions = botCtorSpy.mock.calls[0]?.[1] as { client?: { apiRoot?: string } };
+    expect(clientOptions?.client?.apiRoot).toBe("http://localhost:8081");
+  });
+
+  it("normalizes API root by removing trailing slashes", () => {
+    botCtorSpy.mockReset();
+    loadConfig.mockReturnValue({
+      channels: {
+        telegram: {
+          dmPolicy: "open",
+          allowFrom: ["*"],
+          localApiServer: "http://localhost:8081///",
+        },
+      },
+    });
+
+    createTelegramBot({ token: "tok" });
+
+    const clientOptions = botCtorSpy.mock.calls[0]?.[1] as { client?: { apiRoot?: string } };
+    expect(clientOptions?.client?.apiRoot).toBe("http://localhost:8081");
+  });
+
   it("sequentializes updates by chat and thread", () => {
     createTelegramBot({ token: "tok" });
     expect(sequentializeSpy).toHaveBeenCalledTimes(1);

@@ -24,6 +24,7 @@ import { buildTelegramThreadParams } from "./bot/helpers.js";
 import { splitTelegramCaption } from "./caption.js";
 import { resolveTelegramFetch } from "./fetch.js";
 import { renderTelegramHtmlText } from "./format.js";
+import { resolveTelegramApiRoot } from "./local-api.js";
 import { isRecoverableTelegramNetworkError } from "./network-errors.js";
 import { makeProxyFetch } from "./proxy.js";
 import { recordSentMessage } from "./sent-message-cache.js";
@@ -98,10 +99,13 @@ function resolveTelegramClientOptions(
     Number.isFinite(account.config.timeoutSeconds)
       ? Math.max(1, Math.floor(account.config.timeoutSeconds))
       : undefined;
-  return fetchImpl || timeoutSeconds
+  const apiRoot = resolveTelegramApiRoot(account.config);
+  const isDefaultApiRoot = apiRoot === "https://api.telegram.org";
+  return fetchImpl || timeoutSeconds || !isDefaultApiRoot
     ? {
         ...(fetchImpl ? { fetch: fetchImpl as unknown as ApiClientOptions["fetch"] } : {}),
         ...(timeoutSeconds ? { timeoutSeconds } : {}),
+        ...(!isDefaultApiRoot ? { apiRoot } : {}),
       }
     : undefined;
 }
