@@ -35,8 +35,7 @@ run_benchmark() {
   if [[ "$OSTYPE" == "darwin"* ]]; then
     local real_time=$(grep "real" "$tmp_time" | awk '{print $1}')
     local max_rss=$(grep "maximum resident set size" "$tmp_time" | awk '{print $1}')
-    # Convert RSS to MB (bytes on macOS? No, wait, `man time` says bytes? or Kbytes?)
-    # macOS time -l: "maximum resident set size" is in BYTES.
+    # macOS /usr/bin/time -l: "maximum resident set size" is in BYTES.
     local max_rss_mb=$(echo "scale=2; $max_rss / 1024 / 1024" | bc)
 
     echo "  Time: ${real_time}s"
