@@ -22,7 +22,9 @@ export type ToolHookContext = {
  */
 export function wrapToolWithHooks(tool: AnyAgentTool, ctx: ToolHookContext): AnyAgentTool {
   const originalExecute = tool.execute;
-  if (!originalExecute) return tool;
+  if (!originalExecute) {
+    return tool;
+  }
 
   return {
     ...tool,
