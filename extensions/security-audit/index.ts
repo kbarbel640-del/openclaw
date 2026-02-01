@@ -1,0 +1,466 @@
+/**
+ * Security Audit Plugin
+ *
+ * Restricts access to sensitive credential and configuration files.
+ * Prevents reads, writes, and edits to API tokens, SSH keys, and
+ * shell configuration files.
+ */
+
+import path from "node:path";
+import os from "node:os";
+
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+
+import {
+  type BaseStageConfig,
+  type GuardrailBaseConfig,
+  type GuardrailEvaluation,
+  type GuardrailEvaluationContext,
+  createGuardrailPlugin,
+} from "../../src/plugins/guardrails-utils.js";
+
+// ============================================================================
+// Types
+// ============================================================================
+
+type SensitivePathRule = {
+  /** Rule identifier */
+  id: string;
+  /** Human-readable description */
+  description: string;
+  /** Glob-like patterns (supports * and **) */
+  patterns: string[];
+  /** Which operations to block */
+  operations: ("read" | "write" | "execute")[];
+};
+
+type SecurityAuditConfig = GuardrailBaseConfig & {
+  /** Additional sensitive path patterns (glob-like) */
+  extraPaths?: string[];
+  /** Paths to allow even if they match block rules */
+  allowPaths?: string[];
+  /** Disable specific built-in rules by ID */
+  disabledRules?: string[];
+  stages?: {
+    beforeToolCall?: BaseStageConfig;
+  };
+};
+
+// ============================================================================
+// Built-in Rules
+// ============================================================================
+
+const BUILT_IN_RULES: SensitivePathRule[] = [
+  // SSH credentials
+  {
+    id: "ssh-keys",
+    description: "SSH private keys and configuration",
+    patterns: [
+      "~/.ssh/id_*",
+      "~/.ssh/*_key",
+      "~/.ssh/config",
+      "~/.ssh/known_hosts",
+      "~/.ssh/authorized_keys",
+    ],
+    operations: ["read", "write"],
+  },
+
+  // GPG keys
+  {
+    id: "gpg-keys",
+    description: "GPG private keys",
+    patterns: ["~/.gnupg/private-keys-v1.d/*", "~/.gnupg/secring.gpg"],
+    operations: ["read", "write"],
+  },
+
+  // AI assistant credentials
+  {
+    id: "claude-credentials",
+    description: "Claude Code credentials",
+    patterns: ["~/.claude/*", "~/.claude.json", "~/.config/claude/*"],
+    operations: ["read", "write"],
+  },
+  {
+    id: "openclaw-credentials",
+    description: "OpenClaw credentials and sessions",
+    patterns: ["~/.openclaw/credentials/*", "~/.openclaw/sessions/*"],
+    operations: ["read", "write"],
+  },
+  {
+    id: "openai-credentials",
+    description: "OpenAI API credentials",
+    patterns: ["~/.openai/*", "~/.config/openai/*"],
+    operations: ["read", "write"],
+  },
+  {
+    id: "copilot-credentials",
+    description: "GitHub Copilot credentials",
+    patterns: ["~/.config/github-copilot/*", "~/.copilot/*"],
+    operations: ["read", "write"],
+  },
+
+  // Cloud provider credentials
+  {
+    id: "aws-credentials",
+    description: "AWS credentials and config",
+    patterns: ["~/.aws/credentials", "~/.aws/config"],
+    operations: ["read", "write"],
+  },
+  {
+    id: "gcloud-credentials",
+    description: "Google Cloud credentials",
+    patterns: [
+      "~/.config/gcloud/credentials.db",
+      "~/.config/gcloud/application_default_credentials.json",
+    ],
+    operations: ["read", "write"],
+  },
+  {
+    id: "azure-credentials",
+    description: "Azure credentials",
+    patterns: ["~/.azure/credentials", "~/.azure/accessTokens.json"],
+    operations: ["read", "write"],
+  },
+
+  // Package manager credentials
+  {
+    id: "npm-credentials",
+    description: "npm authentication",
+    patterns: ["~/.npmrc", "~/.npm/_authToken"],
+    operations: ["read", "write"],
+  },
+  {
+    id: "pypi-credentials",
+    description: "PyPI credentials",
+    patterns: ["~/.pypirc"],
+    operations: ["read", "write"],
+  },
+
+  // Shell configuration (write-only block to prevent backdoors)
+  {
+    id: "shell-config",
+    description: "Shell configuration files",
+    patterns: [
+      "~/.bashrc",
+      "~/.bash_profile",
+      "~/.profile",
+      "~/.zshrc",
+      "~/.zprofile",
+      "~/.zshenv",
+    ],
+    operations: ["write"],
+  },
+
+  // Environment files
+  {
+    id: "env-files",
+    description: "Environment variable files",
+    patterns: ["**/.env", "**/.env.local", "**/.env.production", "**/.env.*"],
+    operations: ["read"],
+  },
+
+  // Git credentials
+  {
+    id: "git-credentials",
+    description: "Git credential storage",
+    patterns: ["~/.git-credentials", "~/.gitconfig"],
+    operations: ["read", "write"],
+  },
+
+  // Netrc (FTP/HTTP auth)
+  {
+    id: "netrc",
+    description: "Network authentication file",
+    patterns: ["~/.netrc"],
+    operations: ["read", "write"],
+  },
+
+  // Kubernetes
+  {
+    id: "kube-config",
+    description: "Kubernetes configuration",
+    patterns: ["~/.kube/config", "~/.kube/credentials/*"],
+    operations: ["read", "write"],
+  },
+
+  // Docker
+  {
+    id: "docker-config",
+    description: "Docker authentication",
+    patterns: ["~/.docker/config.json"],
+    operations: ["read", "write"],
+  },
+];
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+const HOME_DIR = os.homedir();
+
+/**
+ * Normalize a path, expanding ~ to home directory.
+ */
+function normalizePath(p: string): string {
+  if (p.startsWith("~/")) {
+    return path.join(HOME_DIR, p.slice(2));
+  }
+  if (p.startsWith("~")) {
+    return path.join(HOME_DIR, p.slice(1));
+  }
+  return path.resolve(p);
+}
+
+/**
+ * Convert a glob-like pattern to a regex.
+ * Supports:
+ * - * matches any characters except /
+ * - ** matches any characters including /
+ * - ~ expands to home directory
+ */
+function patternToRegex(pattern: string): RegExp {
+  let normalized = pattern;
+
+  // Expand ~
+  if (normalized.startsWith("~/")) {
+    normalized = HOME_DIR + normalized.slice(1);
+  } else if (normalized === "~") {
+    normalized = HOME_DIR;
+  }
+
+  // Escape regex special chars except * and **
+  let regexStr = normalized
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, "<<<DOUBLESTAR>>>")
+    .replace(/\*/g, "[^/]*")
+    .replace(/<<<DOUBLESTAR>>>/g, ".*");
+
+  return new RegExp(`^${regexStr}$`);
+}
+
+/**
+ * Check if a path matches any of the given patterns.
+ */
+function pathMatchesPatterns(filePath: string, patterns: string[]): boolean {
+  const normalizedPath = normalizePath(filePath);
+  return patterns.some((pattern) => {
+    const regex = patternToRegex(pattern);
+    return regex.test(normalizedPath);
+  });
+}
+
+/**
+ * Determine the operation type from tool name.
+ */
+function getOperationType(
+  toolName: string,
+  params: unknown,
+): "read" | "write" | "execute" | null {
+  switch (toolName) {
+    case "Read":
+      return "read";
+    case "Write":
+    case "Edit":
+    case "NotebookEdit":
+      return "write";
+    case "Bash": {
+      // Bash can be read, write, or execute depending on command
+      const cmd = (params as { command?: string })?.command ?? "";
+      if (/\b(cat|head|tail|less|more|grep|awk|sed)\b/.test(cmd)) {
+        return "read";
+      }
+      if (/\b(echo|printf|tee)\b.*>/.test(cmd) || /\b(cp|mv|rm)\b/.test(cmd)) {
+        return "write";
+      }
+      return "execute";
+    }
+    case "Glob":
+    case "Grep":
+      return "read";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Extract file paths from tool parameters.
+ */
+function extractPaths(toolName: string, params: unknown): string[] {
+  if (!params || typeof params !== "object") return [];
+  const p = params as Record<string, unknown>;
+
+  switch (toolName) {
+    case "Read":
+    case "Write":
+    case "Edit":
+    case "NotebookEdit":
+      if (typeof p.file_path === "string") return [p.file_path];
+      if (typeof p.path === "string") return [p.path];
+      return [];
+
+    case "Glob":
+    case "Grep":
+      if (typeof p.path === "string") return [p.path];
+      if (typeof p.pattern === "string") {
+        // Extract directory from glob pattern
+        const parts = p.pattern.split("/");
+        if (parts.length > 1) {
+          return [parts.slice(0, -1).join("/")];
+        }
+      }
+      return [];
+
+    case "Bash": {
+      // Try to extract paths from command
+      const cmd = (p.command as string) ?? "";
+      const paths: string[] = [];
+
+      // Match common file path patterns in commands
+      // This is best-effort; complex commands may not be fully parsed
+      const pathMatches = cmd.match(/(?:^|\s)((?:~|\/)[^\s;|&><]+)/g);
+      if (pathMatches) {
+        for (const match of pathMatches) {
+          paths.push(match.trim());
+        }
+      }
+      return paths;
+    }
+
+    default:
+      return [];
+  }
+}
+
+// ============================================================================
+// Plugin Definition
+// ============================================================================
+
+const securityAuditPlugin = createGuardrailPlugin<SecurityAuditConfig>({
+  id: "security-audit",
+  name: "Security Audit",
+  description: "Restricts access to sensitive credential and configuration files",
+
+  async evaluate(
+    ctx: GuardrailEvaluationContext,
+    config: SecurityAuditConfig,
+    api: OpenClawPluginApi,
+  ): Promise<GuardrailEvaluation | null> {
+    // Only evaluate before_tool_call
+    if (ctx.stage !== "before_tool_call") {
+      return { safe: true };
+    }
+
+    const toolName = ctx.metadata.toolName;
+    const params = ctx.metadata.toolParams;
+
+    if (!toolName) {
+      return { safe: true };
+    }
+
+    // Determine operation type
+    const operation = getOperationType(toolName, params);
+    if (!operation) {
+      return { safe: true };
+    }
+
+    // Extract paths from tool parameters
+    const paths = extractPaths(toolName, params);
+    if (paths.length === 0) {
+      return { safe: true };
+    }
+
+    // Check allow patterns first (escape hatch)
+    const allowPatterns = config.allowPaths ?? [];
+    const disabledRules = new Set(config.disabledRules ?? []);
+
+    for (const filePath of paths) {
+      // Skip if path is in allow list
+      if (allowPatterns.length > 0 && pathMatchesPatterns(filePath, allowPatterns)) {
+        continue;
+      }
+
+      // Check extra sensitive paths from config
+      if (config.extraPaths && config.extraPaths.length > 0) {
+        if (pathMatchesPatterns(filePath, config.extraPaths)) {
+          return {
+            safe: false,
+            reason: "Access to sensitive path blocked",
+            details: {
+              path: filePath,
+              operation,
+              source: "custom",
+            },
+          };
+        }
+      }
+
+      // Check built-in rules
+      for (const rule of BUILT_IN_RULES) {
+        if (disabledRules.has(rule.id)) {
+          continue;
+        }
+
+        // Check if operation matches rule
+        if (!rule.operations.includes(operation)) {
+          continue;
+        }
+
+        // Check if path matches rule patterns
+        if (pathMatchesPatterns(filePath, rule.patterns)) {
+          return {
+            safe: false,
+            reason: rule.description,
+            details: {
+              path: filePath,
+              operation,
+              ruleId: rule.id,
+            },
+          };
+        }
+      }
+    }
+
+    return { safe: true };
+  },
+
+  formatViolationMessage(evaluation: GuardrailEvaluation, location: string): string {
+    const details = evaluation.details as {
+      path?: string;
+      operation?: string;
+      ruleId?: string;
+    } | undefined;
+
+    const parts = [`Access blocked: ${evaluation.reason}.`];
+
+    if (details?.operation) {
+      parts.push(`Operation: ${details.operation}.`);
+    }
+
+    if (details?.ruleId) {
+      parts.push(`Rule: ${details.ruleId}.`);
+    }
+
+    return parts.join(" ");
+  },
+
+  onRegister(api: OpenClawPluginApi, config: SecurityAuditConfig) {
+    const disabledCount = config.disabledRules?.length ?? 0;
+    const extraCount = config.extraPaths?.length ?? 0;
+    api.logger.info(
+      `Security audit enabled (${BUILT_IN_RULES.length - disabledCount} built-in rules, ${extraCount} custom paths)`,
+    );
+  },
+});
+
+// Apply config schema
+const pluginWithSchema = {
+  ...securityAuditPlugin,
+  configSchema: emptyPluginConfigSchema(),
+};
+
+export default pluginWithSchema;
+
+// Export for testing
+export { BUILT_IN_RULES, normalizePath, patternToRegex, pathMatchesPatterns, extractPaths };
+export type { SecurityAuditConfig, SensitivePathRule };

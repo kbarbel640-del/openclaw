@@ -1,0 +1,52 @@
+{
+  "id": "security-audit",
+  "name": "Security Audit",
+  "description": "Restricts access to sensitive credential and configuration files",
+  "version": "0.0.1",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Enable security audit"
+      },
+      "failOpen": {
+        "type": "boolean",
+        "description": "Allow access through if evaluation fails (default: true)"
+      },
+      "extraPaths": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Additional sensitive path patterns (glob-like, e.g., '~/.secrets/*')"
+      },
+      "allowPaths": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Paths to allow even if they match block rules"
+      },
+      "disabledRules": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Built-in rule IDs to disable (e.g., 'ssh-keys', 'aws-credentials')"
+      },
+      "stages": {
+        "type": "object",
+        "properties": {
+          "beforeToolCall": {
+            "type": "object",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "mode": { "type": "string", "enum": ["block", "monitor"] }
+            }
+          }
+        }
+      }
+    },
+    "uiHints": {
+      "enabled": { "label": "Enable" },
+      "extraPaths": { "label": "Extra Sensitive Paths", "advanced": true },
+      "allowPaths": { "label": "Allow Paths", "advanced": true },
+      "disabledRules": { "label": "Disabled Rules", "advanced": true }
+    }
+  }
+}
