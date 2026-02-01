@@ -23,7 +23,8 @@ const ROLLBACK_HISTORY_PATH = path.join(CONFIG_DIR, "config-rollback-history.jso
 
 // Dist backup paths (for code/schema rollback)
 // Use fileURLToPath for cross-platform compatibility (Windows paths)
-const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../");
+// This file is at dist/config/config-pending.js, so "../" gets to dist/
+const DIST_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../");
 const DIST_BACKUP_DIR = path.join(CONFIG_DIR, "dist.bak");
 
 export interface ConfigPendingMarker {

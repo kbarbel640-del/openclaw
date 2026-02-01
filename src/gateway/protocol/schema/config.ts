@@ -30,6 +30,10 @@ export const ConfigPatchParamsSchema = Type.Object(
     sessionKey: Type.Optional(Type.String()),
     note: Type.Optional(Type.String()),
     restartDelayMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    /** Enable transactional config change with auto-rollback on crash */
+    rollbackOnFail: Type.Optional(Type.Boolean()),
+    /** Rollback timeout in ms (minimum 5000, default 30000) */
+    rollbackTimeoutMs: Type.Optional(Type.Integer({ minimum: 5000 })),
   },
   { additionalProperties: false },
 );
