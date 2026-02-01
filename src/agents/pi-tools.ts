@@ -232,7 +232,7 @@ export function createOpenClawCodingTools(options?: {
     logWarn(
       "Both Docker sandbox and tools.fs.restrictToWorkspace are enabled. " +
         "Docker sandbox takes precedence: write/edit tools will be disabled (not restricted to workspace). " +
-        "Use one setting or the other, not both."
+        "Use one setting or the other, not both.",
     );
   }
 
