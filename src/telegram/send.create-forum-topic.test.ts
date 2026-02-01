@@ -1,7 +1,7 @@
+import { type ForumTopic } from "@grammyjs/types";
+import { Bot } from "grammy";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createForumTopicTelegram } from "./send.js";
-import { Bot } from "grammy";
-import { type ForumTopic } from "@grammyjs/types";
 
 vi.mock("../config/config.js", () => ({
   loadConfig: () => ({
