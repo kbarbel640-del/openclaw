@@ -98,6 +98,8 @@ Files created:
 2. **No plugin hooks for core behavior** - Static, predictable behavior
 3. **Vector-only search** - Modern embeddings are sufficient
 4. **Cross-agent session access preserved** - Essential user functionality
+5. **TypeScript with Rust portability** - Distill into TypeScript, but write code that converts easily to Rust. Avoid TypeScript-only tricks; verify heavy dependencies have Rust ecosystem equivalents.
+6. **Minimal viable agent** - A CLI where an agent using a Claude subscription can read and write files via tools. We'll refine this definition as we go.
 
 ---
 
@@ -135,9 +137,7 @@ The original codebase had **no architectural principles documented**—only oper
 
 ## Open Questions
 
-1. Should we distill in TypeScript first, then port? Or go directly to target language?
-2. What's the minimal viable subset for a working agent?
-3. How do we handle cross-agent session access (marked as essential)?
+1. How do we handle cross-agent session access (marked as essential)?
 
 ---
 
