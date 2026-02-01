@@ -12,6 +12,7 @@ export type HookMappingConfig = {
   id?: string;
   match?: HookMappingMatch;
   action?: "wake" | "agent";
+  agentId?: string;
   wakeMode?: "now" | "next-heartbeat";
   name?: string;
   sessionKey?: string;
@@ -31,6 +32,7 @@ export type HookMappingConfig = {
     | "imessage"
     | "msteams";
   to?: string;
+  accountId?: string;
   /** Override model for this hook (provider/model or alias). */
   model?: string;
   thinking?: string;

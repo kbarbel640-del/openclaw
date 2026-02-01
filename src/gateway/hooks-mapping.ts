@@ -8,6 +8,7 @@ export type HookMappingResolved = {
   matchPath?: string;
   matchSource?: string;
   action: "wake" | "agent";
+  agentId?: string;
   wakeMode?: "now" | "next-heartbeat";
   name?: string;
   sessionKey?: string;
@@ -17,6 +18,7 @@ export type HookMappingResolved = {
   allowUnsafeExternalContent?: boolean;
   channel?: HookMessageChannel;
   to?: string;
+  accountId?: string;
   model?: string;
   thinking?: string;
   timeoutSeconds?: number;
@@ -51,13 +53,14 @@ export type HookAction =
       allowUnsafeExternalContent?: boolean;
       channel?: HookMessageChannel;
       to?: string;
+      accountId?: string;
       model?: string;
       thinking?: string;
       timeoutSeconds?: number;
     };
 
 export type HookMappingResult =
-  | { ok: true; action: HookAction }
+  | ({ ok: true; action: HookAction } & { agentId?: string; accountId?: string })
   | { ok: true; action: null; skipped: true }
   | { ok: false; error: string };
 
@@ -90,6 +93,7 @@ type HookTransformResult = Partial<{
   allowUnsafeExternalContent: boolean;
   channel: HookMessageChannel;
   to: string;
+  accountId: string;
   model: string;
   thinking: string;
   timeoutSeconds: number;
@@ -167,6 +171,8 @@ export async function applyHookMappings(
     if (!merged.ok) {
       return merged;
     }
+    (merged as any).agentId = mapping.agentId;
+    (merged as any).accountId = mapping.accountId;
     return merged;
   }
   return null;
@@ -203,9 +209,11 @@ function normalizeHookMapping(
     allowUnsafeExternalContent: mapping.allowUnsafeExternalContent,
     channel: mapping.channel,
     to: mapping.to,
+    accountId: mapping.accountId,
     model: mapping.model,
     thinking: mapping.thinking,
     timeoutSeconds: mapping.timeoutSeconds,
+    agentId: mapping.agentId,
     transform,
   };
 }
@@ -253,6 +261,7 @@ function buildActionFromMapping(
       allowUnsafeExternalContent: mapping.allowUnsafeExternalContent,
       channel: mapping.channel,
       to: renderOptional(mapping.to, ctx),
+      accountId: renderOptional(mapping.accountId, ctx),
       model: renderOptional(mapping.model, ctx),
       thinking: renderOptional(mapping.thinking, ctx),
       timeoutSeconds: mapping.timeoutSeconds,
@@ -293,6 +302,7 @@ function mergeAction(
         : baseAgent?.allowUnsafeExternalContent,
     channel: override.channel ?? baseAgent?.channel,
     to: override.to ?? baseAgent?.to,
+    accountId: override.accountId ?? baseAgent?.accountId,
     model: override.model ?? baseAgent?.model,
     thinking: override.thinking ?? baseAgent?.thinking,
     timeoutSeconds: override.timeoutSeconds ?? baseAgent?.timeoutSeconds,

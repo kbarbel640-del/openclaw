@@ -10,6 +10,7 @@ export const HookMappingSchema = z
       })
       .optional(),
     action: z.union([z.literal("wake"), z.literal("agent")]).optional(),
+    agentId: z.string().optional(),
     wakeMode: z.union([z.literal("now"), z.literal("next-heartbeat")]).optional(),
     name: z.string().optional(),
     sessionKey: z.string().optional(),
@@ -30,6 +31,7 @@ export const HookMappingSchema = z
       ])
       .optional(),
     to: z.string().optional(),
+    accountId: z.string().optional(),
     model: z.string().optional(),
     thinking: z.string().optional(),
     timeoutSeconds: z.number().int().positive().optional(),

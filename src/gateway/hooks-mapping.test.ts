@@ -164,4 +164,81 @@ describe("hooks mapping", () => {
     });
     expect(result?.ok).toBe(false);
   });
+
+  it("passes agentId from mapping", async () => {
+    const mappings = resolveHookMappings({
+      mappings: [
+        {
+          id: "agent-route",
+          match: { path: "custom" },
+          action: "agent",
+          messageTemplate: "Hello",
+          agentId: "my-agent",
+        },
+      ],
+    });
+    const result = await applyHookMappings(mappings, {
+      payload: {},
+      headers: {},
+      url: new URL("http://127.0.0.1:18789/hooks/custom"),
+      path: "custom",
+    });
+    expect(result?.ok).toBe(true);
+    if (result?.ok && result.action) {
+      expect(result.agentId).toBe("my-agent");
+    }
+  });
+
+  it("passes accountId from mapping", async () => {
+    const mappings = resolveHookMappings({
+      mappings: [
+        {
+          id: "account-route",
+          match: { path: "custom" },
+          action: "agent",
+          messageTemplate: "Hello",
+          channel: "whatsapp",
+          to: "+1234567890",
+          accountId: "work",
+        },
+      ],
+    });
+    const result = await applyHookMappings(mappings, {
+      payload: {},
+      headers: {},
+      url: new URL("http://127.0.0.1:18789/hooks/custom"),
+      path: "custom",
+    });
+    expect(result?.ok).toBe(true);
+    if (result?.ok && result.action) {
+      expect(result.accountId).toBe("work");
+      if (result.action.kind === "agent") {
+        expect(result.action.accountId).toBe("work");
+      }
+    }
+  });
+
+  it("renders accountId from template", async () => {
+    const mappings = resolveHookMappings({
+      mappings: [
+        {
+          id: "dynamic-account",
+          match: { path: "custom" },
+          action: "agent",
+          messageTemplate: "Hello",
+          accountId: "{{payload.account}}",
+        },
+      ],
+    });
+    const result = await applyHookMappings(mappings, {
+      payload: { account: "personal" },
+      headers: {},
+      url: new URL("http://127.0.0.1:18789/hooks/custom"),
+      path: "custom",
+    });
+    expect(result?.ok).toBe(true);
+    if (result?.ok && result.action?.kind === "agent") {
+      expect(result.action.accountId).toBe("personal");
+    }
+  });
 });

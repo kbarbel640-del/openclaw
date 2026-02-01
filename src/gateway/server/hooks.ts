@@ -29,19 +29,23 @@ export function createGatewayHooksRequestHandler(params: {
     }
   };
 
-  const dispatchAgentHook = (value: {
-    message: string;
-    name: string;
-    wakeMode: "now" | "next-heartbeat";
-    sessionKey: string;
-    deliver: boolean;
-    channel: HookMessageChannel;
-    to?: string;
-    model?: string;
-    thinking?: string;
-    timeoutSeconds?: number;
-    allowUnsafeExternalContent?: boolean;
-  }) => {
+  const dispatchAgentHook = (
+    value: {
+      message: string;
+      name: string;
+      wakeMode: "now" | "next-heartbeat";
+      sessionKey: string;
+      deliver: boolean;
+      channel: HookMessageChannel;
+      to?: string;
+      accountId?: string;
+      model?: string;
+      thinking?: string;
+      timeoutSeconds?: number;
+      allowUnsafeExternalContent?: boolean;
+    },
+    agentId?: string,
+  ) => {
     const sessionKey = value.sessionKey.trim() ? value.sessionKey.trim() : `hook:${randomUUID()}`;
     const mainSessionKey = resolveMainSessionKeyFromConfig();
     const jobId = randomUUID();
@@ -64,6 +68,7 @@ export function createGatewayHooksRequestHandler(params: {
         deliver: value.deliver,
         channel: value.channel,
         to: value.to,
+        accountId: value.accountId,
         allowUnsafeExternalContent: value.allowUnsafeExternalContent,
       },
       state: { nextRunAtMs: now },
@@ -79,6 +84,7 @@ export function createGatewayHooksRequestHandler(params: {
           job,
           message: value.message,
           sessionKey,
+          agentId: agentId,
           lane: "cron",
         });
         const summary = result.summary?.trim() || result.error?.trim() || result.status;

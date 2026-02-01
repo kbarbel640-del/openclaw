@@ -23,6 +23,7 @@ export type CronPayload =
       deliver?: boolean;
       channel?: CronMessageChannel;
       to?: string;
+      accountId?: string;
       bestEffortDeliver?: boolean;
     };
 
@@ -38,6 +39,7 @@ export type CronPayloadPatch =
       deliver?: boolean;
       channel?: CronMessageChannel;
       to?: string;
+      accountId?: string;
       bestEffortDeliver?: boolean;
     };
 

@@ -241,6 +241,7 @@ export async function runCronIsolatedAgentTurn(params: {
   const resolvedDelivery = await resolveDeliveryTarget(cfgWithAgentDefaults, agentId, {
     channel: agentPayload?.channel ?? "last",
     to: agentPayload?.to,
+    accountId: agentPayload?.accountId,
   });
 
   const userTimezone = resolveUserTimezone(params.cfg.agents?.defaults?.userTimezone);

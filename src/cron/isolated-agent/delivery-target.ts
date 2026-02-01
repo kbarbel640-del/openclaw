@@ -19,6 +19,7 @@ export async function resolveDeliveryTarget(
   jobPayload: {
     channel?: "last" | ChannelId;
     to?: string;
+    accountId?: string;
   },
 ): Promise<{
   channel: Exclude<OutboundChannel, "none">;
@@ -29,6 +30,8 @@ export async function resolveDeliveryTarget(
 }> {
   const requestedChannel = typeof jobPayload.channel === "string" ? jobPayload.channel : "last";
   const explicitTo = typeof jobPayload.to === "string" ? jobPayload.to : undefined;
+  const explicitAccountId =
+    typeof jobPayload.accountId === "string" ? jobPayload.accountId : undefined;
 
   const sessionCfg = cfg.session;
   const mainSessionKey = resolveAgentMainSessionKey({ cfg, agentId });
@@ -67,22 +70,23 @@ export async function resolveDeliveryTarget(
   const channel = resolved.channel ?? fallbackChannel ?? DEFAULT_CHAT_CHANNEL;
   const mode = resolved.mode as "explicit" | "implicit";
   const toCandidate = resolved.to;
+  const accountId = explicitAccountId ?? resolved.accountId;
 
   if (!toCandidate) {
-    return { channel, to: undefined, accountId: resolved.accountId, mode };
+    return { channel, to: undefined, accountId, mode };
   }
 
   const docked = resolveOutboundTarget({
     channel,
     to: toCandidate,
     cfg,
-    accountId: resolved.accountId,
+    accountId,
     mode,
   });
   return {
     channel,
     to: docked.ok ? docked.to : undefined,
-    accountId: resolved.accountId,
+    accountId,
     mode,
     error: docked.ok ? undefined : docked.error,
   };

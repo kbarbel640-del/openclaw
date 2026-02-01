@@ -35,19 +35,23 @@ type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
 type HookDispatchers = {
   dispatchWakeHook: (value: { text: string; mode: "now" | "next-heartbeat" }) => void;
-  dispatchAgentHook: (value: {
-    message: string;
-    name: string;
-    wakeMode: "now" | "next-heartbeat";
-    sessionKey: string;
-    deliver: boolean;
-    channel: HookMessageChannel;
-    to?: string;
-    model?: string;
-    thinking?: string;
-    timeoutSeconds?: number;
-    allowUnsafeExternalContent?: boolean;
-  }) => string;
+  dispatchAgentHook: (
+    value: {
+      message: string;
+      name: string;
+      wakeMode: "now" | "next-heartbeat";
+      sessionKey: string;
+      deliver: boolean;
+      channel: HookMessageChannel;
+      to?: string;
+      accountId?: string;
+      model?: string;
+      thinking?: string;
+      timeoutSeconds?: number;
+      allowUnsafeExternalContent?: boolean;
+    },
+    agentId?: string,
+  ) => string;
 };
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
@@ -172,19 +176,23 @@ export function createHooksRequestHandler(
             sendJson(res, 400, { ok: false, error: getHookChannelError() });
             return true;
           }
-          const runId = dispatchAgentHook({
-            message: mapped.action.message,
-            name: mapped.action.name ?? "Hook",
-            wakeMode: mapped.action.wakeMode,
-            sessionKey: mapped.action.sessionKey ?? "",
-            deliver: resolveHookDeliver(mapped.action.deliver),
-            channel,
-            to: mapped.action.to,
-            model: mapped.action.model,
-            thinking: mapped.action.thinking,
-            timeoutSeconds: mapped.action.timeoutSeconds,
-            allowUnsafeExternalContent: mapped.action.allowUnsafeExternalContent,
-          });
+          const runId = dispatchAgentHook(
+            {
+              message: mapped.action.message,
+              name: mapped.action.name ?? "Hook",
+              wakeMode: mapped.action.wakeMode,
+              sessionKey: mapped.action.sessionKey ?? "",
+              deliver: resolveHookDeliver(mapped.action.deliver),
+              channel,
+              to: mapped.action.to,
+              accountId: mapped.action.accountId ?? mapped.accountId,
+              model: mapped.action.model,
+              thinking: mapped.action.thinking,
+              timeoutSeconds: mapped.action.timeoutSeconds,
+              allowUnsafeExternalContent: mapped.action.allowUnsafeExternalContent,
+            },
+            mapped.agentId,
+          );
           sendJson(res, 202, { ok: true, runId });
           return true;
         }
