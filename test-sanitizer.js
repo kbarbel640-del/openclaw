@@ -4,7 +4,7 @@
  */
 
 function sanitizeModelOutput(text) {
-  if (!text) return "";
+  if (!text) {return "";}
 
   let out = text;
 
@@ -87,7 +87,8 @@ To send a Discord message:
 1. Create a REST client
 2. Use the API endpoint
 3. Send the message`,
-    expected: "To send a Discord message:\n1. Create a REST client\n2. Use the API endpoint\n3. Send the message",
+    expected:
+      "To send a Discord message:\n1. Create a REST client\n2. Use the API endpoint\n3. Send the message",
   },
 ];
 

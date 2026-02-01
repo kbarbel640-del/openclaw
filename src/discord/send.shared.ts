@@ -30,7 +30,9 @@ type DiscordRequest = RetryRunner;
  * Handles formats from Gemini 3 Pro, DeepSeek, Kimi, Grok, and other reasoning models.
  */
 function sanitizeModelOutput(text: string): string {
-  if (!text) return "";
+  if (!text) {
+    return "";
+  }
 
   let out = text;
 
