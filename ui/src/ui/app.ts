@@ -232,7 +232,6 @@ export class OpenClawApp extends LitElement {
   @state() logsFile: string | null = null;
   @state() logsEntries: LogEntry[] = [];
   @state() logsFilterText = "";
-  @state() logsLevelFilters: Record<LogLevel, boolean> = this.settings.logsLevelFilters;
   @state() logsAutoFollow = true;
   @state() logsTruncated = false;
   @state() logsCursor: number | null = null;
