@@ -559,12 +559,15 @@ export async function runAgentTurnWithFallback(params: {
         const hookEvent = createInternalHookEvent(
           "agent",
           "context_overflow",
-          params.sessionKey ?? "",
+          params.sessionKey ?? params.followupRun.run.sessionId,
           {
             sessionId: params.getActiveSessionEntry()?.sessionId,
             sessionFile: params.sessionFile,
+            provider: fallbackProvider,
+            model: fallbackModel,
             errorMessage: message,
             isCompactionFailure: isCompactionFailure,
+            autoCompactionAttempted: autoCompactionCompleted,
             thrownAsException: true,
           },
         );
