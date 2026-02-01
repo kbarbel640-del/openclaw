@@ -32,7 +32,7 @@ export type EncodingDetectionResult = {
 
 // Keywords that indicate prompt injection when found in decoded content
 const INSTRUCTION_KEYWORDS =
-  /\b(system|prompt|instruction|ignore|previous|reveal|secret|confidential|bypass|override|admin|root|sudo|password|token|key|credential)\b/gi;
+  /\b(system|prompt|instructions?|ignore|previous|reveal|secrets?|confidential|bypass|override|admin|root|sudo|passwords?|tokens?|keys?|credentials?)\b/gi;
 
 // ROT13 encoded versions of common injection keywords
 const ROT13_KEYWORDS =
