@@ -5,7 +5,11 @@ import path from "node:path";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
-import { resolveEffectiveMessagesConfig, resolveIdentityName } from "../../agents/identity.js";
+import {
+  resolveEffectiveMessagesConfig,
+  resolveIdentityName,
+} from "../../agents/identity.js";
+import { injectTimestamp, timestampOptsFromConfig } from "./agent-timestamp.js";
 import { resolveThinkingDefault } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
@@ -22,7 +26,10 @@ import {
   isChatStopCommandText,
   resolveChatRunExpiresAtMs,
 } from "../chat-abort.js";
-import { type ChatImageContent, parseMessageWithAttachments } from "../chat-attachments.js";
+import {
+  type ChatImageContent,
+  parseMessageWithAttachments,
+} from "../chat-attachments.js";
 import { stripEnvelopeFromMessages } from "../chat-sanitize.js";
 import {
   ErrorCodes,
@@ -68,7 +75,7 @@ function resolveTranscriptPath(params: {
 /**
  * Get the id of the last entry in the transcript file.
  * Used to set parentId for injected messages to maintain tree structure.
- * 
+ *
  * Optimized to read only the tail of the file instead of loading the entire
  * transcript into memory. Falls back to session id if no valid entry found.
  */
@@ -110,7 +117,10 @@ function getLastEntryId(transcriptPath: string): string | null {
   return null;
 }
 
-function ensureTranscriptFile(params: { transcriptPath: string; sessionId: string }): {
+function ensureTranscriptFile(params: {
+  transcriptPath: string;
+  sessionId: string;
+}): {
   ok: boolean;
   error?: string;
 } {
@@ -126,10 +136,17 @@ function ensureTranscriptFile(params: { transcriptPath: string; sessionId: strin
       timestamp: new Date().toISOString(),
       cwd: process.cwd(),
     };
-    fs.writeFileSync(params.transcriptPath, `${JSON.stringify(header)}\n`, "utf-8");
+    fs.writeFileSync(
+      params.transcriptPath,
+      `${JSON.stringify(header)}\n`,
+      "utf-8",
+    );
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
@@ -159,7 +176,10 @@ function appendAssistantTranscriptMessage(params: {
       sessionId: params.sessionId,
     });
     if (!ensured.ok) {
-      return { ok: false, error: ensured.error ?? "failed to create transcript file" };
+      return {
+        ok: false,
+        error: ensured.error ?? "failed to create transcript file",
+      };
     }
   }
 
@@ -184,27 +204,43 @@ function appendAssistantTranscriptMessage(params: {
   };
 
   try {
-    fs.appendFileSync(transcriptPath, `${JSON.stringify(transcriptEntry)}\n`, "utf-8");
+    fs.appendFileSync(
+      transcriptPath,
+      `${JSON.stringify(transcriptEntry)}\n`,
+      "utf-8",
+    );
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 
   return { ok: true, messageId, message: transcriptEntry.message };
 }
 
-function nextChatSeq(context: { agentRunSeq: Map<string, number> }, runId: string) {
+function nextChatSeq(
+  context: { agentRunSeq: Map<string, number> },
+  runId: string,
+) {
   const next = (context.agentRunSeq.get(runId) ?? 0) + 1;
   context.agentRunSeq.set(runId, next);
   return next;
 }
 
 function broadcastChatFinal(params: {
-  context: Pick<GatewayRequestContext, "broadcast" | "nodeSendToSession" | "agentRunSeq">;
+  context: Pick<
+    GatewayRequestContext,
+    "broadcast" | "nodeSendToSession" | "agentRunSeq"
+  >;
   runId: string;
   sessionKey: string;
   message?: Record<string, unknown>;
 }) {
-  const seq = nextChatSeq({ agentRunSeq: params.context.agentRunSeq }, params.runId);
+  const seq = nextChatSeq(
+    { agentRunSeq: params.context.agentRunSeq },
+    params.runId,
+  );
   const payload = {
     runId: params.runId,
     sessionKey: params.sessionKey,
@@ -217,12 +253,18 @@ function broadcastChatFinal(params: {
 }
 
 function broadcastChatError(params: {
-  context: Pick<GatewayRequestContext, "broadcast" | "nodeSendToSession" | "agentRunSeq">;
+  context: Pick<
+    GatewayRequestContext,
+    "broadcast" | "nodeSendToSession" | "agentRunSeq"
+  >;
   runId: string;
   sessionKey: string;
   errorMessage?: string;
 }) {
-  const seq = nextChatSeq({ agentRunSeq: params.context.agentRunSeq }, params.runId);
+  const seq = nextChatSeq(
+    { agentRunSeq: params.context.agentRunSeq },
+    params.runId,
+  );
   const payload = {
     runId: params.runId,
     sessionKey: params.sessionKey,
@@ -254,14 +296,20 @@ export const chatHandlers: GatewayRequestHandlers = {
     const { cfg, storePath, entry } = loadSessionEntry(sessionKey);
     const sessionId = entry?.sessionId;
     const rawMessages =
-      sessionId && storePath ? readSessionMessages(sessionId, storePath, entry?.sessionFile) : [];
+      sessionId && storePath
+        ? readSessionMessages(sessionId, storePath, entry?.sessionFile)
+        : [];
     const hardMax = 1000;
     const defaultLimit = 200;
     const requested = typeof limit === "number" ? limit : defaultLimit;
     const max = Math.min(hardMax, requested);
-    const sliced = rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
+    const sliced =
+      rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
     const sanitized = stripEnvelopeFromMessages(sliced);
-    const capped = capArrayByJsonBytes(sanitized, getMaxChatHistoryMessagesBytes()).items;
+    const capped = capArrayByJsonBytes(
+      sanitized,
+      getMaxChatHistoryMessagesBytes(),
+    ).items;
     let thinkingLevel = entry?.thinkingLevel;
     if (!thinkingLevel) {
       const configured = cfg.agents?.defaults?.thinkingDefault;
@@ -331,7 +379,10 @@ export const chatHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INVALID_REQUEST, "runId does not match sessionKey"),
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "runId does not match sessionKey",
+        ),
       );
       return;
     }
@@ -397,7 +448,10 @@ export const chatHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INVALID_REQUEST, "message or attachment required"),
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "message or attachment required",
+        ),
       );
       return;
     }
@@ -405,14 +459,22 @@ export const chatHandlers: GatewayRequestHandlers = {
     let parsedImages: ChatImageContent[] = [];
     if (normalizedAttachments.length > 0) {
       try {
-        const parsed = await parseMessageWithAttachments(p.message, normalizedAttachments, {
-          maxBytes: 5_000_000,
-          log: context.logGateway,
-        });
+        const parsed = await parseMessageWithAttachments(
+          p.message,
+          normalizedAttachments,
+          {
+            maxBytes: 5_000_000,
+            log: context.logGateway,
+          },
+        );
         parsedMessage = parsed.message;
         parsedImages = parsed.images;
       } catch (err) {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, String(err)));
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, String(err)),
+        );
         return;
       }
     }
@@ -435,7 +497,10 @@ export const chatHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INVALID_REQUEST, "send blocked by session policy"),
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          "send blocked by session policy",
+        ),
       );
       return;
     }
@@ -468,10 +533,15 @@ export const chatHandlers: GatewayRequestHandlers = {
 
     const activeExisting = context.chatAbortControllers.get(clientRunId);
     if (activeExisting) {
-      respond(true, { runId: clientRunId, status: "in_flight" as const }, undefined, {
-        cached: true,
-        runId: clientRunId,
-      });
+      respond(
+        true,
+        { runId: clientRunId, status: "in_flight" as const },
+        undefined,
+        {
+          cached: true,
+          runId: clientRunId,
+        },
+      );
       return;
     }
 
@@ -495,12 +565,17 @@ export const chatHandlers: GatewayRequestHandlers = {
       const injectThinking = Boolean(
         p.thinking && trimmedMessage && !trimmedMessage.startsWith("/"),
       );
-      const commandBody = injectThinking ? `/think ${p.thinking} ${parsedMessage}` : parsedMessage;
+      const commandBody = injectThinking
+        ? `/think ${p.thinking} ${parsedMessage}`
+        : parsedMessage;
       const clientInfo = client?.connect?.client;
       // Inject timestamp so agents know the current date/time.
       // Only BodyForAgent gets the timestamp — Body stays raw for UI display.
       // See: https://github.com/moltbot/moltbot/issues/3658
-      const stampedMessage = injectTimestamp(parsedMessage, timestampOptsFromConfig(cfg));
+      const stampedMessage = injectTimestamp(
+        parsedMessage,
+        timestampOptsFromConfig(cfg),
+      );
 
       const ctx: MsgContext = {
         Body: parsedMessage,
@@ -529,10 +604,13 @@ export const chatHandlers: GatewayRequestHandlers = {
       };
       const finalReplyParts: string[] = [];
       const dispatcher = createReplyDispatcher({
-        responsePrefix: resolveEffectiveMessagesConfig(cfg, agentId).responsePrefix,
+        responsePrefix: resolveEffectiveMessagesConfig(cfg, agentId)
+          .responsePrefix,
         responsePrefixContextProvider: () => prefixContext,
         onError: (err) => {
-          context.logGateway.warn(`webchat dispatch failed: ${formatForLog(err)}`);
+          context.logGateway.warn(
+            `webchat dispatch failed: ${formatForLog(err)}`,
+          );
         },
         deliver: async (payload, info) => {
           if (info.kind !== "final") {
@@ -576,10 +654,10 @@ export const chatHandlers: GatewayRequestHandlers = {
               .trim();
             let message: Record<string, unknown> | undefined;
             if (combinedReply) {
-              const { storePath: latestStorePath, entry: latestEntry } = loadSessionEntry(
-                p.sessionKey,
-              );
-              const sessionId = latestEntry?.sessionId ?? entry?.sessionId ?? clientRunId;
+              const { storePath: latestStorePath, entry: latestEntry } =
+                loadSessionEntry(p.sessionKey);
+              const sessionId =
+                latestEntry?.sessionId ?? entry?.sessionId ?? clientRunId;
               const appended = appendAssistantTranscriptMessage({
                 message: combinedReply,
                 sessionId,
@@ -679,7 +757,11 @@ export const chatHandlers: GatewayRequestHandlers = {
     const { storePath, entry } = loadSessionEntry(p.sessionKey);
     const sessionId = entry?.sessionId;
     if (!sessionId || !storePath) {
-      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "session not found"));
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "session not found"),
+      );
       return;
     }
 
@@ -720,13 +802,20 @@ export const chatHandlers: GatewayRequestHandlers = {
 
     // Append to transcript file
     try {
-      fs.appendFileSync(transcriptPath, `${JSON.stringify(transcriptEntry)}\n`, "utf-8");
+      fs.appendFileSync(
+        transcriptPath,
+        `${JSON.stringify(transcriptEntry)}\n`,
+        "utf-8",
+      );
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.UNAVAILABLE, `failed to write transcript: ${errMessage}`),
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to write transcript: ${errMessage}`,
+        ),
       );
       return;
     }
