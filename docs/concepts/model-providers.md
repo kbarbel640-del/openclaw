@@ -120,6 +120,10 @@ OpenClaw ships with the pi‑ai catalog. These providers require **no**
   - OpenAI-compatible base URL: `https://api.cerebras.ai/v1`.
 - Mistral: `mistral` (`MISTRAL_API_KEY`)
 - GitHub Copilot: `github-copilot` (`COPILOT_GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_TOKEN`)
+- Baseten: `baseten` (`BASETEN_API_KEY`)
+  - Supports open source models: DeepSeek, GLM, Kimi
+  - Example model: `baseten/deepseek-ai/DeepSeek-V3.1`
+  - CLI: `openclaw onboard --auth-choice baseten-api-key`
 
 ## Providers via `models.providers` (custom/base URL)
 

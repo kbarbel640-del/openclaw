@@ -1046,6 +1046,7 @@
               "providers/vercel-ai-gateway",
               "providers/openrouter",
               "providers/synthetic",
+              "providers/baseten",
               "providers/opencode",
               "providers/glm",
               "providers/zai"
