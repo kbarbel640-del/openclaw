@@ -11,7 +11,7 @@ import type { ModelApi, ModelDefinitionConfig } from "../config/types.js";
 
 export const SILICONFLOW_API_BASE_URL = "https://api.siliconflow.cn/v1";
 export const SILICONFLOW_DEFAULT_MODEL = "deepseek-ai/DeepSeek-V3.2";
-export const SILICONFLOW_DEFAULT_MODEL_REF = `siliconflow/${SILICONFLOW_DEFAULT_MODEL.replace("/", "-")}`;
+export const SILICONFLOW_DEFAULT_MODEL_REF = `siliconflow/${SILICONFLOW_DEFAULT_MODEL}`;
 
 // Cache for fetched models (1 hour TTL)
 let cachedModels: ModelDefinitionConfig[] | null = null;
