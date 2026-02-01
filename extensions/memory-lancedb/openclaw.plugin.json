@@ -44,10 +44,7 @@
           },
           "provider": {
             "type": "string",
-            "enum": [
-              "openai",
-              "google"
-            ],
+            "enum": ["openai", "google"],
             "default": "openai"
           },
           "model": {

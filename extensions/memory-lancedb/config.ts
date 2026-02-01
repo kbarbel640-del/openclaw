@@ -1,7 +1,7 @@
+import { Type } from "@sinclair/typebox";
 import fs from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { Type } from "@sinclair/typebox";
 
 export type MemoryConfig = {
   embedding: {
@@ -101,27 +101,35 @@ function resolveEmbeddingProvider(model: string, explicitProvider?: string): "op
 export const memoryConfigTypeboxSchema = Type.Object({
   embedding: Type.Object({
     apiKey: Type.String({
-      description: "API key for embeddings provider"
+      description: "API key for embeddings provider",
     }),
-    provider: Type.Optional(Type.Union([
-      Type.Literal("openai"),
-      Type.Literal("google")
-    ], {
-      description: "Embedding provider (auto-detected from model if not specified)"
-    })),
-    model: Type.Optional(Type.String({
-      description: "Embedding model to use (OpenAI: text-embedding-3-small/3-large, Google: gemini-embedding-001)"
-    })),
+    provider: Type.Optional(
+      Type.Union([Type.Literal("openai"), Type.Literal("google")], {
+        description: "Embedding provider (auto-detected from model if not specified)",
+      }),
+    ),
+    model: Type.Optional(
+      Type.String({
+        description:
+          "Embedding model to use (OpenAI: text-embedding-3-small/3-large, Google: gemini-embedding-001)",
+      }),
+    ),
   }),
-  dbPath: Type.Optional(Type.String({
-    description: "Database path"
-  })),
-  autoCapture: Type.Optional(Type.Boolean({
-    description: "Automatically capture important information from conversations"
-  })),
-  autoRecall: Type.Optional(Type.Boolean({
-    description: "Automatically inject relevant memories into context"
-  })),
+  dbPath: Type.Optional(
+    Type.String({
+      description: "Database path",
+    }),
+  ),
+  autoCapture: Type.Optional(
+    Type.Boolean({
+      description: "Automatically capture important information from conversations",
+    }),
+  ),
+  autoRecall: Type.Optional(
+    Type.Boolean({
+      description: "Automatically inject relevant memories into context",
+    }),
+  ),
 });
 
 export const memoryConfigSchema = {
@@ -139,7 +147,8 @@ export const memoryConfigSchema = {
     assertAllowedKeys(embedding, ["apiKey", "model", "provider"], "embedding config");
 
     const model = resolveEmbeddingModel(embedding);
-    const explicitProvider = typeof embedding.provider === "string" ? embedding.provider : undefined;
+    const explicitProvider =
+      typeof embedding.provider === "string" ? embedding.provider : undefined;
     const provider = resolveEmbeddingProvider(model, explicitProvider);
 
     return {
