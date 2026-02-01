@@ -56,19 +56,22 @@ const CRESCENDO_PHRASES = [
 const PERSONA_HIJACK_PATTERNS = [
   /you\s+are\s+(now\s+)?DAN/i,
   /you\s+are\s+(now\s+)?a\s+(different|new|unrestricted)/i,
+  /you\s+are\s+(now\s+)?(completely\s+)?unrestricted/i,
   /pretend\s+(to\s+be|you['']?re)/i,
   /roleplay\s+as/i,
   /act\s+as\s+(if\s+you['']?re|a)/i,
   /imagine\s+you['']?re/i,
   /let['']?s\s+play\s+a\s+game/i,
   /enter\s+(developer|debug|sudo|admin)\s+mode/i,
-  /activate\s+(unrestricted|jailbreak)/i,
+  /activate\s+(unrestricted|jailbreak|developer)\s+mode/i,
   /Do\s+Anything\s+Now/i,
 ];
 
 // Patterns for authority spoofing
 const AUTHORITY_SPOOF_PATTERNS = [
-  /\[(SYSTEM|ADMIN|ROOT|SUDO|OVERRIDE|DEVELOPER)\]/i,
+  /\[(SYSTEM|ADMIN|ROOT|SUDO|OVERRIDE|DEVELOPER)(\s+\w+)?\]/i,
+  /\[ADMIN\s+OVERRIDE\]/i,
+  /\[SYSTEM\s+OVERRIDE\]/i,
   /ADMIN\s+(COMMAND|OVERRIDE|ACCESS):/i,
   /SYSTEM\s+(OVERRIDE|COMMAND|MESSAGE):/i,
   /MAINTENANCE\s+MODE/i,

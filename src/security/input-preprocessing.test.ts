@@ -49,7 +49,8 @@ describe("obfuscation-decoder", () => {
 
   describe("decodePigLatin", () => {
     it("decodes pig latin encoded words", () => {
-      expect(decodePigLatin("ignorearay")).toBe("ignore");
+      // Standard pig latin: consonants moved to end + "ay"
+      expect(decodePigLatin("omptpray")).toBe("prompt");
       expect(decodePigLatin("eviouspray")).toBe("previous");
     });
   });

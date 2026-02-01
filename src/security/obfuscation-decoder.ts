@@ -103,12 +103,18 @@ export function decodeROT13(text: string): string {
 
 /**
  * Decode Pig Latin text (handles -ay suffix patterns).
- * Example: "ignorearay eviouspray" -> "ignore previous"
+ * Example: "omptpray eviouspray" -> "prompt previous"
+ * Standard pig latin: consonants moved to end + "ay"
  */
 export function decodePigLatin(text: string): string {
   // Match words ending in consonant(s) + "ay"
-  return text.replace(/\b([b-df-hj-np-tv-z]+)([aeiou]\w*)ay\b/gi, (_, consonants, rest) => {
-    return rest + consonants;
+  // The consonants were moved from the beginning of the original word
+  return text.replace(/\b(\w*?)([b-df-hj-np-tv-z]+)ay\b/gi, (match, rest, consonants) => {
+    // Only decode if it looks like valid pig latin (rest starts with vowel)
+    if (rest && /^[aeiou]/i.test(rest)) {
+      return consonants + rest;
+    }
+    return match; // Not valid pig latin, return unchanged
   });
 }
 
