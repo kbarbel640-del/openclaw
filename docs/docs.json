@@ -977,6 +977,8 @@
           "gateway/logging",
           "gateway/security",
           "security/formal-verification",
+          "security/agentic-security-assessment",
+          "security/security-epic",
           "gateway/sandbox-vs-tool-policy-vs-elevated",
           "gateway/sandboxing",
           "gateway/troubleshooting",
@@ -986,6 +988,18 @@
           "gateway/discovery",
           "gateway/bonjour",
           "gateway/tailscale"
+        ]
+      },
+      {
+        "group": "Security Stories",
+        "pages": [
+          "security/stories/concern-1-agent-control-plane",
+          "security/stories/concern-2-exposed-surfaces",
+          "security/stories/concern-3-prompt-injection",
+          "security/stories/concern-4-credentials",
+          "security/stories/concern-5-runtime-policy",
+          "security/stories/concern-6-runtime-isolation",
+          "security/stories/concern-7-security-system-property"
         ]
       },
       {
