@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { WebTerminal, type WebTerminalRef } from "@/components/composed";
+import type { WebTerminalRef } from "@/components/composed/WebTerminal";
 import {
   Maximize2,
   Minimize2,
@@ -13,9 +13,17 @@ import {
   FolderOpen,
   RefreshCw,
   ChevronDown,
+  Loader2,
 } from "lucide-react";
 import { FilePreviewPanel } from "./FilePreviewPanel";
 import { createWorktreeGatewayAdapter } from "@/integrations/worktree/gateway";
+
+// Lazy-load WebTerminal and all xterm dependencies
+const LazyWebTerminal = React.lazy(() =>
+  import("@/components/composed/WebTerminal").then((mod) => ({
+    default: mod.WebTerminal,
+  }))
+);
 
 export interface SessionWorkspacePaneProps {
   /** Whether the pane is maximized */
@@ -240,13 +248,24 @@ export function SessionWorkspacePane({
       {/* Content */}
       <div className="flex-1 min-h-0">
         {activeTab === "terminal" ? (
-          <WebTerminal
-            ref={terminalRef}
-            className="h-full rounded-none border-none"
-            height="100%"
-            welcomeMessage={`Clawdbrain Terminal\nSession: ${sessionKey ?? "none"}\nWorkspace: ${workspaceDir}\n`}
-            onData={onTerminalData}
-          />
+          <React.Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center bg-background">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <div className="text-sm text-muted-foreground">Loading terminal...</div>
+                </div>
+              </div>
+            }
+          >
+            <LazyWebTerminal
+              ref={terminalRef}
+              className="h-full rounded-none border-none"
+              height="100%"
+              welcomeMessage={`Clawdbrain Terminal\nSession: ${sessionKey ?? "none"}\nWorkspace: ${workspaceDir}\n`}
+              onData={onTerminalData}
+            />
+          </React.Suspense>
         ) : (
           <div className={cn(
             "h-full",

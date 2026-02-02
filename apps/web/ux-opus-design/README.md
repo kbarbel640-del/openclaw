@@ -81,6 +81,21 @@ The Agent Configuration MVP does **not** include Graph DB integration or ingesti
 | [14-GRAPH-DB-INTEGRATION.md](./14-GRAPH-DB-INTEGRATION.md) | Future track (not MVP): graph DB + knowledge explorer |
 | [15-INGESTION-AND-RETRIEVAL-PIPELINE.md](./15-INGESTION-AND-RETRIEVAL-PIPELINE.md) | Future track (not MVP): ingestion, RAG, hybrid retrieval |
 
+### Advanced UX Systems
+
+| Document | Purpose |
+|----------|---------|
+| [20-INHERITANCE-CLARITY-BADGES.md](./20-INHERITANCE-CLARITY-BADGES.md) | Visual system for default vs custom value inheritance |
+| [21-PERSONA-PROGRESSION-SYSTEM.md](./21-PERSONA-PROGRESSION-SYSTEM.md) | Three-tier user complexity system (Casual/Engaged/Expert) |
+| [22-HIGH-IMPACT-UX-PATTERNS.md](./22-HIGH-IMPACT-UX-PATTERNS.md) | Five high-impact patterns for progressive disclosure |
+
+### Tab Consolidation Effort
+
+| Document | Purpose |
+|----------|---------|
+| [23-TAB-CONSOLIDATION-NAVIGATION.md](./23-TAB-CONSOLIDATION-NAVIGATION.md) | Complete navigation redesign spec (6 tabs → 5 tabs) with ASCII diagrams |
+| [24-IMPLEMENTATION-PLAN-TAB-CONSOLIDATION.md](./24-IMPLEMENTATION-PLAN-TAB-CONSOLIDATION.md) | Phased implementation plan with code examples and task checklists |
+
 ---
 
 ## Quick Links

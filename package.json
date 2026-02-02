@@ -101,6 +101,7 @@
     "gateway:dev": "OPENCLAW_SKIP_CHANNELS=1 CLAWDBOT_SKIP_CHANNELS=1 node scripts/run-node.mjs --dev gateway",
     "gateway:dev:reset": "OPENCLAW_SKIP_CHANNELS=1 CLAWDBOT_SKIP_CHANNELS=1 node scripts/run-node.mjs --dev gateway --reset",
     "gateway:watch": "node scripts/watch-node.mjs gateway --force",
+    "gateway:watch:skip-channels": "OPENCLAW_SKIP_CHANNELS=1 CLAWDBOT_SKIP_CHANNELS=1 node scripts/watch-node.mjs gateway --force",
     "ios:build": "bash -lc 'cd apps/ios && xcodegen generate && xcodebuild -project OpenClaw.xcodeproj -scheme OpenClaw -destination \"${IOS_DEST:-platform=iOS Simulator,name=iPhone 17}\" -configuration Debug build'",
     "ios:gen": "cd apps/ios && xcodegen generate",
     "ios:open": "cd apps/ios && xcodegen generate && open OpenClaw.xcodeproj",
@@ -148,12 +149,15 @@
     "tui:dev": "OPENCLAW_PROFILE=dev CLAWDBOT_PROFILE=dev node scripts/run-node.mjs --dev tui",
     "ui:build": "node scripts/ui.js build",
     "ui:dev": "node scripts/ui.js dev",
+    "ui:gateway-dev": "concurrently --kill-others-on-fail --prefix '[{name}]' --names 'gateway,ui' --prefix-colors 'cyan.bold,magenta.bold' 'pnpm gateway:watch:skip-channels' 'pnpm ui:dev'",
     "ui:install": "node scripts/ui.js install",
     "security:demo:build": "pnpm --filter @openclaw/security-info-demo build",
     "security:demo:dev": "pnpm --filter @openclaw/security-info-demo dev",
+    "security:demo:gateway-dev": "concurrently --kill-others-on-fail --prefix '[{name}]' --names 'gateway,demo' --prefix-colors 'cyan.bold,yellow.bold' 'pnpm gateway:watch:skip-channels' 'pnpm security:demo:dev'",
     "security:demo:preview": "pnpm --filter @openclaw/security-info-demo preview",
     "web:build": "pnpm --filter @clawdbrain/web build",
-    "web:dev": "pnpm --filter @clawdbrain/web dev"
+    "web:dev": "pnpm --filter @clawdbrain/web dev",
+    "web:gateway-dev": "concurrently --kill-others-on-fail --prefix '[{name}]' --names 'gateway,web' --prefix-colors 'cyan.bold,green.bold' 'pnpm gateway:watch:skip-channels' 'pnpm web:dev'"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "0.13.1",
@@ -230,6 +234,7 @@
     "@types/ws": "^8.18.1",
     "@typescript/native-preview": "7.0.0-dev.20260201.1",
     "@vitest/coverage-v8": "^4.0.18",
+    "concurrently": "^9.1.2",
     "docx-preview": "^0.3.7",
     "lit": "^3.3.2",
     "lucide": "^0.563.0",

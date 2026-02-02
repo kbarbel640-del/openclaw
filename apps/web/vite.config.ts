@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import path from "path";
+import { visualizer } from "rollup-plugin-visualizer";
 
 // Default dev token for local development (must match gateway config)
 const DEV_TOKEN = "dev-token-local";
@@ -22,11 +23,57 @@ export default defineConfig(({ mode }) => {
       }),
       react(),
       tailwindcss(),
+      visualizer({
+        filename: "./dist/stats.html",
+        open: false,
+        gzipSize: true,
+        brotliSize: true,
+      }),
     ],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
         "@clawdbrain/vercel-ai-agent": path.resolve(__dirname, "../../packages/vercel-ai-agent/dist/index.js"),
+      },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            // Split large vendor libraries into separate chunks
+            if (id.includes('node_modules')) {
+              // 3D rendering libraries (from reagraph)
+              if (id.includes('three') || id.includes('@react-three/') || id.includes('@react-spring/three')) {
+                return 'vendor-three';
+              }
+              // Terminal libraries
+              if (id.includes('@xterm/xterm')) {
+                return 'vendor-xterm';
+              }
+              if (id.includes('@xterm/addon-')) {
+                return 'vendor-xterm-addons';
+              }
+              // Graph visualization
+              if (id.includes('reagraph') || id.includes('graphology')) {
+                return 'vendor-graph';
+              }
+              // React core
+              if (id.includes('react') || id.includes('react-dom')) {
+                return 'vendor-react';
+              }
+              // Radix UI components
+              if (id.includes('@radix-ui/')) {
+                return 'vendor-radix';
+              }
+              // TanStack ecosystem
+              if (id.includes('@tanstack/')) {
+                return 'vendor-tanstack';
+              }
+              // Other vendor code
+              return 'vendor';
+            }
+          },
+        },
       },
     },
     server: {

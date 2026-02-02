@@ -10,14 +10,21 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { DetailPanel } from "@/components/composed/DetailPanel";
-import { WebTerminal, type WebTerminalRef } from "@/components/composed/WebTerminal";
+import type { WebTerminalRef } from "@/components/composed/WebTerminal";
 import { WorktreeFileManager } from "@/components/integrations/WorktreeFileManager";
 import { ChatThread } from "@/components/domain/chat";
 import type { Message } from "@/stores/useConversationStore";
 import type { Agent } from "@/stores/useAgentStore";
 import type { WorktreeAdapter, WorktreeEntry } from "@/integrations/worktree";
 import { toast } from "sonner";
-import { Copy, FileText, MessageSquare } from "lucide-react";
+import { Copy, FileText, MessageSquare, Loader2 } from "lucide-react";
+
+// Lazy-load WebTerminal and all xterm dependencies
+const LazyWebTerminal = React.lazy(() =>
+  import("@/components/composed/WebTerminal").then((mod) => ({
+    default: mod.WebTerminal,
+  }))
+);
 
 async function copyToClipboard(text: string): Promise<void> {
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
@@ -172,13 +179,24 @@ export function AgentWorkbench({
         </div>
 
         <div className="min-h-0">
-          <WebTerminal
-            ref={terminalRef}
-            height="100%"
-            welcomeMessage={terminal?.welcomeMessage ?? "Clawdbrain Workbench Terminal (stub)"}
-            onData={handleTerminalData}
-            onResize={terminal?.onResize}
-          />
+          <React.Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center bg-background rounded-lg border border-border">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <div className="text-sm text-muted-foreground">Loading terminal...</div>
+                </div>
+              </div>
+            }
+          >
+            <LazyWebTerminal
+              ref={terminalRef}
+              height="100%"
+              welcomeMessage={terminal?.welcomeMessage ?? "Clawdbrain Workbench Terminal (stub)"}
+              onData={handleTerminalData}
+              onResize={terminal?.onResize}
+            />
+          </React.Suspense>
         </div>
       </div>
 
