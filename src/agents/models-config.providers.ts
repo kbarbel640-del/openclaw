@@ -76,9 +76,10 @@ const OLLAMA_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
-const AIMLAPI_BASE_URL = "https://api.aimlapi.com/v1";
+export const AIMLAPI_BASE_URL = "https://api.aimlapi.com/v1";
+export const AIMLAPI_DEFAULT_MODEL_ID = "openai/gpt-5-nano-2025-08-07";
 const AIMLAPI_DEFAULT_CONTEXT_WINDOW = 128000;
-const AIMLAPI_DEFAULT_MAX_TOKENS = 8192;
+const AIMLAPI_DEFAULT_MAX_TOKENS = 16384;
 const AIMLAPI_DEFAULT_COST = {
   input: 0,
   output: 0,
@@ -389,6 +390,26 @@ function buildMinimaxPortalProvider(): ProviderConfig {
         maxTokens: MINIMAX_DEFAULT_MAX_TOKENS,
       },
     ],
+  };
+}
+
+export function buildAimlapiModelDefinition(): ModelDefinitionConfig {
+  return {
+    id: AIMLAPI_DEFAULT_MODEL_ID,
+    name: "GPT-5 Nano (2025-08-07)",
+    reasoning: false,
+    input: ["text", "image"],
+    cost: AIMLAPI_DEFAULT_COST,
+    contextWindow: AIMLAPI_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: AIMLAPI_DEFAULT_MAX_TOKENS,
+  };
+}
+
+export function buildAimlapiProvider(): ProviderConfig {
+  return {
+    baseUrl: AIMLAPI_BASE_URL,
+    api: "openai-completions",
+    models: [buildAimlapiModelDefinition()],
   };
 }
 

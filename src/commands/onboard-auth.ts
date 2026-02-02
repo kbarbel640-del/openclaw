@@ -39,13 +39,13 @@ export {
 export {
   OPENROUTER_DEFAULT_MODEL_REF,
   setAnthropicApiKey,
+  setAimlapiApiKey,
   setGeminiApiKey,
   setKimiCodingApiKey,
   setMinimaxApiKey,
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
-  setAimlapiApiKey,
   setSyntheticApiKey,
   setVeniceApiKey,
   setVercelAiGatewayApiKey,
@@ -58,6 +58,9 @@ export {
   AIMLAPI_DEFAULT_MODEL_REF,
 } from "./onboard-auth.credentials.js";
 export {
+  AIMLAPI_BASE_URL,
+  AIMLAPI_DEFAULT_MODEL_ID,
+  buildAimlapiModelDefinition,
   buildMinimaxApiModelDefinition,
   buildMinimaxModelDefinition,
   buildMoonshotModelDefinition,

@@ -218,7 +218,7 @@ export async function applyAuthChoiceApiProviders(
       const envKey = resolveEnvApiKey("aimlapi");
       if (envKey) {
         const useExisting = await params.prompter.confirm({
-          message: `Use existing AIMLAPI_API_KEY (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+          message: `Use existing AI/ML API key (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
           initialValue: true,
         });
         if (useExisting) {
@@ -230,7 +230,7 @@ export async function applyAuthChoiceApiProviders(
 
     if (!hasCredential) {
       const key = await params.prompter.text({
-        message: "Enter Aimlapi API key",
+        message: "Enter AI/ML API key",
         validate: validateApiKeyInput,
       });
       await setAimlapiApiKey(normalizeApiKeyInput(String(key)), params.agentDir);

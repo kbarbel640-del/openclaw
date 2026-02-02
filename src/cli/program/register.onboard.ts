@@ -73,7 +73,7 @@ export function registerOnboardCommand(program: Command) {
     .option("--anthropic-api-key <key>", "Anthropic API key")
     .option("--openai-api-key <key>", "OpenAI API key")
     .option("--openrouter-api-key <key>", "OpenRouter API key")
-    .option("--aimlapi-api-key <key>", "Aimlapi API key")
+    .option("--aimlapi-api-key <key>", "AI/ML API key")
     .option("--ai-gateway-api-key <key>", "Vercel AI Gateway API key")
     .option("--moonshot-api-key <key>", "Moonshot API key")
     .option("--kimi-code-api-key <key>", "Kimi Coding API key")

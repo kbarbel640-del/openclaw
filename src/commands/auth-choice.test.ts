@@ -389,7 +389,7 @@ describe("applyAuthChoice", () => {
 
     expect(confirm).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining("AIMLAPI_API_KEY"),
+        message: expect.stringContaining("AI/ML API key"),
       }),
     );
     expect(text).not.toHaveBeenCalled();
@@ -450,9 +450,7 @@ describe("applyAuthChoice", () => {
       setDefaultModel: true,
     });
 
-    expect(text).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "Enter Aimlapi API key" }),
-    );
+    expect(text).toHaveBeenCalledWith(expect.objectContaining({ message: "Enter AI/ML API key" }));
     expect(confirm).not.toHaveBeenCalled();
     expect(result.config.auth?.profiles?.["aimlapi:default"]).toMatchObject({
       provider: "aimlapi",

@@ -1,5 +1,11 @@
 import type { OpenClawConfig } from "../config/config.js";
-import { buildXiaomiProvider, XIAOMI_DEFAULT_MODEL_ID } from "../agents/models-config.providers.js";
+import {
+  AIMLAPI_BASE_URL,
+  AIMLAPI_DEFAULT_MODEL_ID,
+  buildAimlapiModelDefinition,
+  buildXiaomiProvider,
+  XIAOMI_DEFAULT_MODEL_ID,
+} from "../agents/models-config.providers.js";
 import {
   buildSyntheticModelDefinition,
   SYNTHETIC_BASE_URL,
@@ -78,7 +84,27 @@ export function applyAimlapiProviderConfig(cfg: OpenClawConfig): OpenClawConfig 
   const models = { ...cfg.agents?.defaults?.models };
   models[AIMLAPI_DEFAULT_MODEL_REF] = {
     ...models[AIMLAPI_DEFAULT_MODEL_REF],
-    alias: models[AIMLAPI_DEFAULT_MODEL_REF]?.alias ?? "Aimlapi",
+    alias: models[AIMLAPI_DEFAULT_MODEL_REF]?.alias ?? "AI/ML API",
+  };
+
+  const providers = { ...cfg.models?.providers };
+  const existingProvider = providers.aimlapi;
+  const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
+  const defaultModel = buildAimlapiModelDefinition();
+  const hasDefaultModel = existingModels.some((model) => model.id === AIMLAPI_DEFAULT_MODEL_ID);
+  const mergedModels = hasDefaultModel ? existingModels : [...existingModels, defaultModel];
+  const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
+    string,
+    unknown
+  > as { apiKey?: string };
+  const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
+  const normalizedApiKey = resolvedApiKey?.trim();
+  providers.aimlapi = {
+    ...existingProviderRest,
+    baseUrl: AIMLAPI_BASE_URL,
+    api: "openai-completions",
+    ...(normalizedApiKey ? { apiKey: normalizedApiKey } : {}),
+    models: mergedModels.length > 0 ? mergedModels : [defaultModel],
   };
 
   return {
@@ -89,6 +115,10 @@ export function applyAimlapiProviderConfig(cfg: OpenClawConfig): OpenClawConfig 
         ...cfg.agents?.defaults,
         models,
       },
+    },
+    models: {
+      mode: cfg.models?.mode ?? "merge",
+      providers,
     },
   };
 }
