@@ -42,6 +42,7 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
         params,
         signal,
         onUpdate: AgentToolUpdateCallback<unknown> | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         _ctx,
       ): Promise<AgentToolResult<unknown>> => {
         try {
@@ -91,8 +92,9 @@ export function toClientToolDefinitions(
       execute: async (
         toolCallId,
         params,
-        _signal,
-        _onUpdate: AgentToolUpdateCallback<unknown> | undefined,
+        signal,
+        onUpdate: AgentToolUpdateCallback<unknown> | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         _ctx,
       ): Promise<AgentToolResult<unknown>> => {
         const outcome = await runBeforeToolCallHook({
