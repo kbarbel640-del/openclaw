@@ -19,6 +19,7 @@ import {
   isProfileInCooldown,
   resolveAuthProfileOrder,
 } from "./auth-profiles.js";
+import { isModelQuotaExhausted } from "./antigravity-quota-cache.js";
 
 type ModelCandidate = {
   provider: string;
@@ -272,6 +273,40 @@ export async function runWithModelFallback<T>(params: {
           reason: "rate_limit",
         });
         continue;
+      }
+
+      // Proactive quota check for Antigravity - they don't return 429, just hang
+      if (candidate.provider === "google-antigravity") {
+        let allProfilesExhausted = true;
+        for (const profileId of profileIds) {
+          if (isProfileInCooldown(authStore, profileId, candidate.model)) continue;
+          const profile = authStore.profiles[profileId];
+          if (!profile || !("access" in profile) || !profile.access) continue;
+          try {
+            const quotaResult = await isModelQuotaExhausted(
+              profileId,
+              profile.access,
+              candidate.model,
+            );
+            if (!quotaResult.exhausted) {
+              allProfilesExhausted = false;
+              break;
+            }
+          } catch {
+            // Quota check failed - don't block, let request proceed
+            allProfilesExhausted = false;
+            break;
+          }
+        }
+        if (allProfilesExhausted) {
+          attempts.push({
+            provider: candidate.provider,
+            model: candidate.model,
+            error: `Model ${candidate.model} quota exhausted (all profiles at 99%+)`,
+            reason: "rate_limit",
+          });
+          continue;
+        }
       }
     }
     try {
