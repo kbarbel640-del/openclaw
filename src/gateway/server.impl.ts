@@ -1,3 +1,4 @@
+import { resolveMoltbotAgentDir } from "../agents/agent-paths.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { initSubagentRegistry } from "../agents/subagent-registry.js";
 import { registerSkillsChangeListener } from "../agents/skills/refresh.js";
@@ -66,6 +67,7 @@ import { hasConnectedMobileNode } from "./server-mobile-nodes.js";
 import { resolveSessionKeyForRun } from "./server-session-key.js";
 import { startGatewaySidecars } from "./server-startup.js";
 import { logGatewayStartup } from "./server-startup-log.js";
+import { formatValidationError, validateGatewayStartup } from "./startup-validation.js";
 import { startGatewayTailscaleExposure } from "./server-tailscale.js";
 import { loadGatewayTlsRuntime } from "./server/tls.js";
 import { createWizardSessionTracker } from "./server-wizard-sessions.js";
@@ -218,6 +220,16 @@ export async function startGatewayServer(
   initSubagentRegistry();
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);
   const defaultWorkspaceDir = resolveAgentWorkspaceDir(cfgAtStart, defaultAgentId);
+
+  // Fail-fast: validate that the configured default model can resolve before accepting connections.
+  const agentDir = resolveMoltbotAgentDir();
+  const validationResult = await validateGatewayStartup(cfgAtStart, agentDir);
+  if (!validationResult.ok) {
+    const errorMsg = formatValidationError(validationResult);
+    log.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+
   const baseMethods = listGatewayMethods();
   const { pluginRegistry, gatewayMethods: baseGatewayMethods } = loadGatewayPlugins({
     cfg: cfgAtStart,

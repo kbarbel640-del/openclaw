@@ -410,12 +410,21 @@ export async function resolveImplicitProviders(params: {
     };
   }
 
-  // Ollama provider - only add if explicitly configured
+  // Ollama provider - auto-discover when running locally (no API key required for local)
   const ollamaKey =
     resolveEnvApiKeyVarName("ollama") ??
     resolveApiKeyFromProfiles({ provider: "ollama", store: authStore });
   if (ollamaKey) {
+    // Explicit API key configured (possibly for remote Ollama)
     providers.ollama = { ...(await buildOllamaProvider()), apiKey: ollamaKey };
+  } else if (!process.env.CLAWDBOT_SKIP_LOCAL_DISCOVERY) {
+    // Try local discovery without requiring API key
+    const { discoverLocalOllama } = await import("./local-provider-discovery.js");
+    const localOllama = await discoverLocalOllama();
+    if (localOllama) {
+      // Ollama running locally - register with placeholder apiKey (not actually used)
+      providers.ollama = { ...localOllama, apiKey: "ollama" };
+    }
   }
 
   return providers;

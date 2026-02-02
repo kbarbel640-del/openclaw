@@ -3,6 +3,7 @@ import type { IncomingMessage } from "node:http";
 import type { GatewayAuthConfig, GatewayTailscaleMode } from "../config/config.js";
 import { readTailscaleWhoisIdentity, type TailscaleWhoisIdentity } from "../infra/tailscale.js";
 import { isTrustedProxyAddress, parseForwardedForClientIp, resolveGatewayClientIp } from "./net.js";
+import { resolveGatewayPassword, resolveGatewayToken } from "./token-resolution.js";
 export type ResolvedGatewayAuthMode = "token" | "password";
 
 export type ResolvedGatewayAuth = {
@@ -171,8 +172,18 @@ export function resolveGatewayAuth(params: {
 }): ResolvedGatewayAuth {
   const authConfig = params.authConfig ?? {};
   const env = params.env ?? process.env;
-  const token = authConfig.token ?? env.CLAWDBOT_GATEWAY_TOKEN ?? undefined;
-  const password = authConfig.password ?? env.CLAWDBOT_GATEWAY_PASSWORD ?? undefined;
+
+  // Use shared token resolution with precedence: CLI > config > env
+  // Note: Gateway side has no CLI arg, so config > env for token/password
+  const { token } = resolveGatewayToken({
+    configToken: authConfig.token,
+    env,
+  });
+  const { password } = resolveGatewayPassword({
+    configPassword: authConfig.password,
+    env,
+  });
+
   const mode: ResolvedGatewayAuth["mode"] = authConfig.mode ?? (password ? "password" : "token");
   const allowTailscale =
     authConfig.allowTailscale ?? (params.tailscaleMode === "serve" && mode !== "password");

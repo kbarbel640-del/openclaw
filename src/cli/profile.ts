@@ -105,7 +105,15 @@ export function applyCliProfileEnv(params: {
     env.CLAWDBOT_CONFIG_PATH = path.join(stateDir, "moltbot.json");
   }
 
-  if (profile === "dev" && !env.CLAWDBOT_GATEWAY_PORT?.trim()) {
-    env.CLAWDBOT_GATEWAY_PORT = "19001";
+  if (profile === "dev") {
+    // Set full gateway URL for dev profile to ensure TUI connects to dev gateway.
+    // URL takes precedence over PORT in resolveGatewayConnection, so we set both
+    // for compatibility with code that checks either.
+    if (!env.CLAWDBOT_GATEWAY_URL?.trim()) {
+      env.CLAWDBOT_GATEWAY_URL = "ws://127.0.0.1:19001";
+    }
+    if (!env.CLAWDBOT_GATEWAY_PORT?.trim()) {
+      env.CLAWDBOT_GATEWAY_PORT = "19001";
+    }
   }
 }
