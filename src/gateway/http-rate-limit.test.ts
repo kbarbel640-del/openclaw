@@ -199,10 +199,33 @@ describe("HTTP Rate Limiting", () => {
       expect(m2.statusCode()).toBe(429);
     });
 
-    it("/tools/invoke returns 429 after limit exceeded", () => {
-      const config = resolveRateLimitsConfig({});
+    it("custom toolsPerMinute value is respected", () => {
+      const config = resolveRateLimitsConfig({ http: { toolsPerMinute: 3 } });
       limiters = createHttpRateLimiters(config);
-      // tools limiter defaults to 20/min
+      for (let i = 0; i < 3; i++) {
+        const mock = createMockResponse();
+        expect(checkRateLimit(limiters.tools, "tools:ip1", mock.res)).toBe(true);
+      }
+      const mock = createMockResponse();
+      expect(checkRateLimit(limiters.tools, "tools:ip1", mock.res)).toBe(false);
+      expect(mock.statusCode()).toBe(429);
+    });
+
+    it("static limiter returns 429 after limit exceeded", () => {
+      const config = resolveRateLimitsConfig({ http: { staticPerMinute: 2 } });
+      limiters = createHttpRateLimiters(config);
+      for (let i = 0; i < 2; i++) {
+        const mock = createMockResponse();
+        expect(checkRateLimit(limiters.static, "static:ip1", mock.res)).toBe(true);
+      }
+      const mock = createMockResponse();
+      expect(checkRateLimit(limiters.static, "static:ip1", mock.res)).toBe(false);
+      expect(mock.statusCode()).toBe(429);
+    });
+
+    it("/tools/invoke returns 429 after limit exceeded", () => {
+      const config = resolveRateLimitsConfig({}); // toolsPerMinute defaults to 20
+      limiters = createHttpRateLimiters(config);
       for (let i = 0; i < 20; i++) {
         const mock = createMockResponse();
         expect(checkRateLimit(limiters.tools, "tools:ip1", mock.res)).toBe(true);
@@ -287,6 +310,7 @@ describe("HTTP Rate Limiting", () => {
       expect(config.http.agentPerMinute).toBe(10);
       expect(config.http.hookPerMinute).toBe(20);
       expect(config.http.staticPerMinute).toBe(200);
+      expect(config.http.toolsPerMinute).toBe(20);
     });
 
     it("partial config merges with defaults", () => {

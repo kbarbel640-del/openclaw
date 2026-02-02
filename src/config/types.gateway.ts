@@ -9,6 +9,8 @@ export type RateLimitsHttpConfig = {
   hookPerMinute?: number;
   /** Static/control-ui per-IP req/min — default: 200. */
   staticPerMinute?: number;
+  /** Tool invocation per-IP req/min — default: 20. */
+  toolsPerMinute?: number;
 };
 
 export type RateLimitsWsConfig = {
@@ -64,6 +66,7 @@ const RATE_LIMITS_HTTP_DEFAULTS: ResolvedRateLimitsHttpConfig = {
   agentPerMinute: 10,
   hookPerMinute: 20,
   staticPerMinute: 200,
+  toolsPerMinute: 20,
 };
 
 const RATE_LIMITS_WS_DEFAULTS: ResolvedRateLimitsWsConfig = {

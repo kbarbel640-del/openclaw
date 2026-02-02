@@ -57,8 +57,8 @@ export function createHttpRateLimiters(config: ResolvedRateLimitsConfig): HttpRa
       refillIntervalMs: intervalMs,
     }),
     tools: new RateLimiter({
-      maxTokens: 20,
-      refillRate: 20,
+      maxTokens: config.http.toolsPerMinute,
+      refillRate: config.http.toolsPerMinute,
       refillIntervalMs: intervalMs,
     }),
   };

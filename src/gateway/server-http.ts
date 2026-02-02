@@ -318,6 +318,19 @@ export function createGatewayHttpServer(opts: {
           return;
         }
       }
+      // Per-IP rate limit for static/canvas/control-UI traffic.
+      if (rateLimiters) {
+        const staticIp = resolveGatewayClientIp({
+          remoteAddr: req.socket.remoteAddress,
+          forwardedFor: req.headers["x-forwarded-for"] as string | undefined,
+          realIp: req.headers["x-real-ip"] as string | undefined,
+          trustedProxies,
+        });
+        if (staticIp && !checkRateLimit(rateLimiters.static, `static:${staticIp}`, res)) {
+          return;
+        }
+      }
+
       if (canvasHost) {
         if (await handleA2uiHttpRequest(req, res)) {
           return;

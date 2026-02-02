@@ -242,6 +242,7 @@ describe("resolveRateLimitsConfig", () => {
     expect(resolved.http.agentPerMinute).toBe(10);
     expect(resolved.http.hookPerMinute).toBe(20);
     expect(resolved.http.staticPerMinute).toBe(200);
+    expect(resolved.http.toolsPerMinute).toBe(20);
     expect(resolved.ws.messagesPerMinute).toBe(60);
     expect(resolved.ws.agentPerMinute).toBe(10);
     expect(resolved.ws.ttsPerMinute).toBe(20);
