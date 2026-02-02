@@ -205,7 +205,7 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
     }
   };
 
-  emitEvent("lifecycle", { phase: "start", startedAt, runtime: "ccsdk" });
+  emitEvent("lifecycle", { phase: "start", startedAt, runtime: "claude" });
   emitEvent("sdk", { type: "sdk_runner_start", runId: params.runId });
 
   // -------------------------------------------------------------------------
@@ -228,7 +228,7 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
       phase: "error",
       startedAt,
       endedAt: Date.now(),
-      runtime: "ccsdk",
+      runtime: "claude",
       error: message,
     });
     return {
@@ -279,7 +279,7 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
       phase: "error",
       startedAt,
       endedAt: Date.now(),
-      runtime: "ccsdk",
+      runtime: "claude",
       error: message,
     });
     return {
@@ -715,7 +715,7 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
         phase: "error",
         startedAt,
         endedAt: Date.now(),
-        runtime: "ccsdk",
+        runtime: "claude",
         aborted: true,
         error: message,
       });
@@ -754,7 +754,7 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
         phase: "error",
         startedAt,
         endedAt: Date.now(),
-        runtime: "ccsdk",
+        runtime: "claude",
         error: message,
       });
       return {
@@ -801,7 +801,7 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
       phase: "error",
       startedAt,
       endedAt: Date.now(),
-      runtime: "ccsdk",
+      runtime: "claude",
       aborted,
       error: "No text output",
     });
@@ -857,7 +857,7 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
     phase: "end",
     startedAt,
     endedAt: Date.now(),
-    runtime: "ccsdk",
+    runtime: "claude",
     aborted,
     truncated,
     usage: accumulatedUsage,
