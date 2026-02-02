@@ -177,7 +177,22 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
     try {
       // runner.task() returns a promise that resolves when the runner stops
       await runner.task();
-      return;
+      // If no abort signal was provided, or it already fired, treat as clean exit.
+      if (!opts.abortSignal || opts.abortSignal.aborted) return;
+      // The abort signal exists but hasn't fired — the runner stopped on its own
+      // (e.g. maxRetryTime exhausted with silent:true). Restart with backoff.
+      restartAttempts += 1;
+      const delayMs = computeBackoff(TELEGRAM_POLL_RESTART_POLICY, restartAttempts);
+      (opts.runtime?.error ?? console.error)(
+        `Telegram polling runner stopped unexpectedly; restarting in ${formatDurationMs(delayMs)}.`,
+      );
+      try {
+        await sleepWithAbort(delayMs, opts.abortSignal);
+      } catch (sleepErr) {
+        if (opts.abortSignal.aborted) return;
+        throw sleepErr;
+      }
+      continue;
     } catch (err) {
       if (opts.abortSignal?.aborted) {
         throw err;
