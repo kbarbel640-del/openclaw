@@ -313,6 +313,29 @@ Notes:
   the app, or `OPENCLAW_NODE_EXEC_FALLBACK=0` to disable fallback.
 - Add `--tls` / `--tls-fingerprint` when the Gateway WS uses TLS.
 
+
+### Remote Gateway via SSH tunnel (loopback bind)
+
+If your Gateway binds to loopback (`gateway.bind=loopback`, default in local mode),
+remote clients cannot connect directly. Use an SSH tunnel and point the node host
+at the local end of the tunnel.
+
+Example (Mac → VPS):
+
+```bash
+# Terminal A (keep running): forward local 18790 -> VPS 127.0.0.1:18789
+ssh -N -L 18790:127.0.0.1:18789 ubuntu@<vps-host>
+
+# Terminal B: pass the gateway token and connect through the tunnel
+export OPENCLAW_GATEWAY_TOKEN="<gateway-token>"
+openclaw node run --host 127.0.0.1 --port 18790 --display-name "My Mac"
+```
+
+Notes:
+
+- The token is `gateway.auth.token` from the Gateway config (`~/.openclaw/openclaw.json` on the Gateway host).
+- In current CLI versions, `openclaw node run` uses `OPENCLAW_GATEWAY_TOKEN` for auth.
+
 ## Mac node mode
 
 - The macOS menubar app connects to the Gateway WS server as a node (so `openclaw nodes …` works against this Mac).
