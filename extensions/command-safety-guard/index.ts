@@ -79,8 +79,6 @@ const BUILT_IN_RULES: CommandRule[] = [
     pattern: /\bfind\s+\/\s+.*-delete/,
     severity: "error",
   },
-    severity: "error",
-  },
   {
     id: "dd-device",
     description: "Direct disk write with dd",
