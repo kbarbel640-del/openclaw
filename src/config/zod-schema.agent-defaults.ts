@@ -150,6 +150,12 @@ export const AgentDefaultsSchema = z
               .strict(),
           ])
           .optional(),
+        /** Enable provider inheritance from parent session (default: true) */
+        inheritProvider: z.boolean().optional(),
+        /** Upgrade to most advanced model within inherited provider (default: true) */
+        upgradeModel: z.boolean().optional(),
+        /** Allow agents to spawn subagents with different agent IDs */
+        allowAgents: z.array(z.string()).optional(),
       })
       .strict()
       .optional(),

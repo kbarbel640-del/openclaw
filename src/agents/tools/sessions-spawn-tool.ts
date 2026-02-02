@@ -10,6 +10,7 @@ import {
   normalizeAgentId,
   parseAgentSessionKey,
 } from "../../routing/session-key.js";
+import { getCurrentSessionModel } from "../../sessions/current-model-query.js";
 import { normalizeDeliveryContext } from "../../utils/delivery-context.js";
 import { resolveAgentConfig } from "../agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "../lanes.js";
@@ -22,6 +23,11 @@ import {
   resolveInternalSessionKey,
   resolveMainSessionAlias,
 } from "./sessions-helpers.js";
+import {
+  getInheritedModel,
+  formatModelRef,
+  isSupportedProvider,
+} from "./sessions-model-inheritance.js";
 
 const SessionsSpawnToolSchema = Type.Object({
   task: Type.String(),
@@ -168,10 +174,43 @@ export function createSessionsSpawnTool(opts?: {
       const childSessionKey = `agent:${targetAgentId}:subagent:${crypto.randomUUID()}`;
       const spawnedByKey = requesterInternalKey;
       const targetAgentConfig = resolveAgentConfig(cfg, targetAgentId);
-      const resolvedModel =
-        normalizeModelSelection(modelOverride) ??
-        normalizeModelSelection(targetAgentConfig?.subagents?.model) ??
-        normalizeModelSelection(cfg.agents?.defaults?.subagents?.model);
+
+      // Model inheritance logic: inherit provider from parent, upgrade to best model
+      let resolvedModel = normalizeModelSelection(modelOverride);
+      let inheritanceApplied = false;
+
+      if (!resolvedModel) {
+        // Check if inheritance is enabled (default: true)
+        const inheritanceEnabled = cfg.agents?.defaults?.subagents?.inheritProvider !== false;
+        const upgradeEnabled = cfg.agents?.defaults?.subagents?.upgradeModel !== false;
+
+        if (inheritanceEnabled && upgradeEnabled && requesterInternalKey) {
+          try {
+            // Get the parent session's model
+            const parentModel = await getCurrentSessionModel(requesterInternalKey);
+            if (parentModel) {
+              const inheritedModel = getInheritedModel(parentModel);
+              if (inheritedModel) {
+                resolvedModel = formatModelRef(inheritedModel);
+                inheritanceApplied = true;
+              }
+            }
+          } catch (error) {
+            // If inheritance fails, continue with normal fallback logic
+            console.warn(
+              `[sessions_spawn] Model inheritance failed for ${requesterInternalKey}:`,
+              error,
+            );
+          }
+        }
+
+        // Fallback to existing configuration-based resolution
+        if (!resolvedModel) {
+          resolvedModel =
+            normalizeModelSelection(targetAgentConfig?.subagents?.model) ??
+            normalizeModelSelection(cfg.agents?.defaults?.subagents?.model);
+        }
+      }
       let thinkingOverride: string | undefined;
       if (thinkingOverrideRaw) {
         const normalized = normalizeThinkLevel(thinkingOverrideRaw);
@@ -270,6 +309,7 @@ export function createSessionsSpawnTool(opts?: {
         childSessionKey,
         runId: childRunId,
         modelApplied: resolvedModel ? modelApplied : undefined,
+        inheritanceApplied,
         warning: modelWarning,
       });
     },
