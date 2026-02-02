@@ -191,7 +191,9 @@ async function discoverAimlapiModels(): Promise<ModelDefinitionConfig[]> {
           modelId.toLowerCase().includes("vision");
 
         const input: ("text" | "image")[] = ["text"];
-        if (hasVision) input.push("image");
+        if (hasVision) {
+          input.push("image");
+        }
         // Note: audio is not supported in ModelDefinitionConfig input type
 
         // Cap maxTokens to reasonable limits to avoid Pi SDK validation errors

@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-
 import { type OpenClawConfig, loadConfig } from "../config/config.js";
 import { resolveOpenClawAgentDir } from "./agent-paths.js";
 import { ensureOpenClawModelsJson } from "./models-config.js";
@@ -102,7 +101,9 @@ export async function loadModelCatalog(params?: {
       const modelsJsonPath = path.join(agentDir, "models.json");
       try {
         const modelsJsonRaw = await fs.readFile(modelsJsonPath, "utf8");
-        const modelsJson = JSON.parse(modelsJsonRaw) as { providers?: Record<string, any> };
+        const modelsJson = JSON.parse(modelsJsonRaw) as {
+          providers?: Record<string, { models?: unknown }>;
+        };
         if (modelsJson.providers?.aimlapi?.models) {
           const aimlapiModels = modelsJson.providers.aimlapi.models as Array<{
             id: string;

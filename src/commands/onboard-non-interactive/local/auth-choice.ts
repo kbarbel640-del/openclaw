@@ -268,8 +268,12 @@ export async function applyNonInteractiveAuthChoice(params: {
       envVar: "AIMLAPI_API_KEY",
       runtime,
     });
-    if (!resolved) return null;
-    if (resolved.source !== "profile") await setAimlapiApiKey(resolved.key);
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setAimlapiApiKey(resolved.key);
+    }
     nextConfig = applyAuthProfileConfig(nextConfig, {
       profileId: "aimlapi:default",
       provider: "aimlapi",
