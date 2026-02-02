@@ -89,10 +89,10 @@ Commands should be grouped by category and support fuzzy search.
 3) **Settings**
    - Open Settings Section: Model & Provider / Channels / Gateway / Connections / Toolsets / Advanced / Usage
    - Toggle Expert Mode (power)
-   - Toggle View Mode (this page): Simple / Full (power)
+   - (Optional) Toggle View Mode is not required on Settings pages in MVP; prefer Expert Mode + collapsible Advanced sections
 
 4) **Providers**
-   - Connect Provider: Anthropic/OpenAI/Gemini/OpenRouter/Z.AI
+   - Connect Provider: OpenAI/Anthropic/Gemini/OpenRouter/Z.AI/Azure OpenAI/Bedrock/Vertex AI
    - Test Provider Connection: `<provider>`
 
 5) **Toolsets**

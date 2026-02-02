@@ -2,6 +2,7 @@ import * as React from "react";
 import { motion } from "framer-motion";
 import { Sidebar } from "./Sidebar";
 import { cn } from "@/lib/utils";
+import { ApprovalAttentionNudgeConnected } from "@/components/composed/ApprovalAttentionNudge";
 
 export interface AppShellProps {
   /** Main content to render */
@@ -40,6 +41,13 @@ export function AppShell({ children, panel, className }: AppShellProps) {
         <div className="flex flex-1 overflow-hidden">
           {/* Primary Content */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin">
+            <ApprovalAttentionNudgeConnected
+              className={cn(
+                "sticky top-0 z-40",
+                "mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8",
+                "bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+              )}
+            />
             <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
               {children}
             </div>

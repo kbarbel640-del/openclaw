@@ -457,7 +457,12 @@ export function AgentActivityTab({
 
     const conversationId = meta.conversationId;
     if (typeof conversationId === "string" && conversationId.length > 0) {
-      items.push({ label: "Open conversation", href: `/conversations/${encodeURIComponent(conversationId)}`, external: false });
+      // Prefer session route for conversation links - use the conversationId as a session key
+      items.push({
+        label: "Open chat session",
+        href: `/agents/${encodeURIComponent(agentId)}/session/${encodeURIComponent(conversationId)}`,
+        external: false,
+      });
     }
 
     const sessionKey = selectedActivity.sessionKey ?? meta.sessionKey;
@@ -701,10 +706,10 @@ export function AgentActivityTab({
                       >
                         {/* Connectors */}
                         {!isFirst && (
-                          <div className="pointer-events-none absolute left-5 -top-[6px] z-0 h-4 w-px rounded-full bg-border transition-colors group-hover:bg-primary/40" />
+                          <div className="pointer-events-none absolute left-5 -top-[6px] z-0 h-4 w-px rounded-full bg-border" />
                         )}
                         {!isLast && (
-                          <div className="pointer-events-none absolute left-5 top-[50px] -bottom-4 z-0 w-px rounded-full bg-border transition-colors group-hover:bg-primary/40" />
+                          <div className="pointer-events-none absolute left-5 top-[50px] -bottom-4 z-0 w-px rounded-full bg-border" />
                         )}
 
                         {/* Icon */}

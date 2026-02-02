@@ -144,11 +144,10 @@ Auth method families (canonical):
 - **OAuth (device code)**: show a code + URL, user completes auth elsewhere.
 - **Pair from local machine**: generate a pairing code in the web UI, complete the flow via CLI on a machine that can open a browser.
 
-MVP-required provider set (by user decision, 2026-02-01):
+MVP provider set (by user decision, 2026-02-02):
 - OpenAI, Anthropic, Gemini
 - OpenRouter, Z.AI
 - Azure OpenAI, Bedrock, Vertex AI
-- plus at least 3 additional online providers (TBD)
 
 | Provider | API key | Token(s) / Cloud creds | Service account JSON | OAuth (browser) | OAuth (device code) | Pair from local machine | Platforms supported |
 |----------|---------|------------------------|----------------------|----------------|----------------------|-------------------------|--------------------|
@@ -183,8 +182,15 @@ Canonical cross-integration auth UX (Providers + Channels + Connections):
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
 │                                                                 │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-│  │ ○ OpenRouter    │  │ ○ Z.AI          │  │ + Add Provider  │ │
-│  │   Not configured│  │   Not configured│  │   (future)      │ │
+│  │ ○ OpenRouter    │  │ ○ Z.AI          │  │ ○ Azure OpenAI  │ │
+│  │   Not configured│  │   Not configured│  │   Not configured│ │
+│  │                 │  │                 │  │                 │ │
+│  │   [Connect]     │  │   [Connect]     │  │   [Connect]     │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
+│                                                                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
+│  │ ○ Bedrock       │  │ ○ Vertex AI     │  │ + Add Provider  │ │
+│  │   Not configured│  │   Not configured│  │                 │ │
 │  │                 │  │                 │  │                 │ │
 │  │   [Connect]     │  │   [Connect]     │  │                 │ │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘ │

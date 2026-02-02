@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { RitualCard, type Ritual, type RitualFrequency } from "./RitualCard";
+import type { RitualAssignPayload } from "./RitualAssignDialog";
 import { RefreshCw, Calendar, Clock } from "lucide-react";
 
 interface RitualListProps {
@@ -11,6 +12,16 @@ interface RitualListProps {
   onToggle?: (ritual: Ritual) => void;
   onSettings?: (ritual: Ritual) => void;
   onAgentClick?: (ritual: Ritual) => void;
+  onAssign?: (ritual: Ritual, payload: RitualAssignPayload) => void;
+  agents?: Array<{
+    id: string;
+    name: string;
+    role?: string;
+    status?: string;
+    description?: string;
+    tags?: string[];
+    currentTask?: string;
+  }>;
   className?: string;
 }
 
@@ -72,6 +83,8 @@ export function RitualList({
   onToggle,
   onSettings,
   onAgentClick,
+  onAssign,
+  agents,
   className,
 }: RitualListProps) {
   // Group rituals by frequency
@@ -163,6 +176,8 @@ export function RitualList({
                     onToggle={() => onToggle?.(ritual)}
                     onSettings={() => onSettings?.(ritual)}
                     onAgentClick={() => onAgentClick?.(ritual)}
+                    onAssign={(payload) => onAssign?.(ritual, payload)}
+                    agents={agents}
                   />
                 </motion.div>
               ))}

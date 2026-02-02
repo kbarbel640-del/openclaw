@@ -16,6 +16,8 @@ import {
   Zap,
   Keyboard,
   PanelLeftClose,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -30,6 +32,8 @@ import {
 import { useUIStore } from "@/stores/useUIStore";
 import { useAgentStore } from "@/stores/useAgentStore";
 import { useConversationStore } from "@/stores/useConversationStore";
+import { derivePendingApprovalsSummary } from "@/lib/approvals/pending";
+import { showInfo } from "@/lib/toast";
 
 export interface CommandPaletteProps {
   open: boolean;
@@ -43,10 +47,17 @@ export function CommandPalette({
   onShowShortcuts,
 }: CommandPaletteProps) {
   const navigate = useNavigate();
-  const { theme, setTheme, powerUserMode, setPowerUserMode, toggleSidebar } =
-    useUIStore();
+  const {
+    theme,
+    setTheme,
+    powerUserMode,
+    setPowerUserMode,
+    toggleSidebar,
+    setAttentionSnoozeUntilMs,
+  } = useUIStore();
   const agents = useAgentStore((s) => s.agents);
   const conversations = useConversationStore((s) => s.conversations);
+  const approvals = React.useMemo(() => derivePendingApprovalsSummary(agents), [agents]);
 
   const handleSelect = React.useCallback(
     (action: () => void) => {
@@ -83,7 +94,21 @@ export function CommandPalette({
 
   const handleGoToConversation = React.useCallback(
     (conversationId: string) => {
+      // Conversations are now sessions - navigate to agent session view
+      // The conversationId format might be "agent-{agentId}-{sessionKey}" or similar
+      // For now, navigate to the conversations list which will redirect appropriately
       navigate({ to: "/conversations/$id", params: { id: conversationId } });
+    },
+    [navigate]
+  );
+
+  const handleChatWithAgent = React.useCallback(
+    (agentId: string) => {
+      navigate({
+        to: "/agents/$agentId/session/$sessionKey",
+        params: { agentId, sessionKey: "current" },
+        search: { newSession: false },
+      });
     },
     [navigate]
   );
@@ -146,6 +171,53 @@ export function CommandPalette({
           )}
         </CommandGroup>
 
+        {approvals.pendingApprovals > 0 ? (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Approvals">
+              <CommandItem
+                onSelect={() =>
+                  handleSelect(() =>
+                    navigate({ to: "/agents", search: { status: "waiting" } })
+                  )
+                }
+              >
+                <AlertCircle className="mr-2 h-4 w-4" />
+                <span>Review waiting approvals</span>
+                <CommandShortcut>W</CommandShortcut>
+              </CommandItem>
+              {approvals.nextAgentId ? (
+                <CommandItem
+                  onSelect={() =>
+                    handleSelect(() =>
+                      navigate({
+                        to: "/agents/$agentId",
+                        params: { agentId: approvals.nextAgentId! },
+                        search: { tab: "activity" },
+                      })
+                    )
+                  }
+                >
+                  <Bot className="mr-2 h-4 w-4" />
+                  <span>Open next approval</span>
+                  <CommandShortcut>↵</CommandShortcut>
+                </CommandItem>
+              ) : null}
+              <CommandItem
+                onSelect={() =>
+                  handleSelect(() => {
+                    setAttentionSnoozeUntilMs(Date.now() + 15 * 60_000);
+                    showInfo("Approval reminders snoozed for 15 minutes.");
+                  })
+                }
+              >
+                <Clock className="mr-2 h-4 w-4" />
+                <span>Snooze approval reminders (15m)</span>
+              </CommandItem>
+            </CommandGroup>
+          </>
+        ) : null}
+
         <CommandSeparator />
 
         {/* Navigation */}
@@ -166,6 +238,18 @@ export function CommandPalette({
         {/* Agents */}
         {agents.length > 0 && (
           <>
+            <CommandSeparator />
+            <CommandGroup heading="Chat with Agent">
+              {agents.slice(0, 5).map((agent) => (
+                <CommandItem
+                  key={`chat-${agent.id}`}
+                  onSelect={() => handleSelect(() => handleChatWithAgent(agent.id))}
+                >
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  <span>Chat with {agent.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
             <CommandSeparator />
             <CommandGroup heading="Agents">
               {agents.slice(0, 5).map((agent) => (

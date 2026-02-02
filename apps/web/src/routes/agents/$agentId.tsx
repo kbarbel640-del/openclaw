@@ -18,7 +18,6 @@ import {
   NewSessionDialog,
 } from "@/components/domain/agents";
 import { useAgent } from "@/hooks/queries/useAgents";
-import { useConversationsByAgent } from "@/hooks/queries/useConversations";
 import { useWorkstreamsByOwner } from "@/hooks/queries/useWorkstreams";
 import { useRitualsByAgent } from "@/hooks/queries/useRituals";
 import { useUpdateAgentStatus } from "@/hooks/mutations/useAgentMutations";
@@ -74,27 +73,18 @@ function AgentDetailPage() {
 
   // All hooks must be called before any conditional returns
   const { data: agent, isLoading, error } = useAgent(agentId);
-  const { data: conversations } = useConversationsByAgent(agentId);
   const { data: workstreams } = useWorkstreamsByOwner(agentId);
   const { data: rituals } = useRitualsByAgent(agentId);
   const updateStatus = useUpdateAgentStatus();
   const useLiveGateway = useUIStore((state) => state.useLiveGateway);
 
-  const latestConversation = React.useMemo(() => {
-    if (!conversations || conversations.length === 0) return null;
-    return [...conversations].sort((a, b) => {
-      const aTime = new Date(a.updatedAt ?? a.createdAt ?? 0).getTime();
-      const bTime = new Date(b.updatedAt ?? b.createdAt ?? 0).getTime();
-      return bTime - aTime;
-    })[0] ?? null;
-  }, [conversations]);
-
   const handleChatClick = () => {
-    if (latestConversation) {
-      navigate({ to: "/conversations/$id", params: { id: latestConversation.id } });
-      return;
-    }
-    navigate({ to: "/conversations" });
+    // Navigate to the agent's current session (existing session)
+    navigate({
+      to: "/agents/$agentId/session/$sessionKey",
+      params: { agentId, sessionKey: "current" },
+      search: { newSession: false },
+    });
   };
 
   const handleEditClick = () => {
@@ -174,7 +164,7 @@ function AgentDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background text-foreground">
+      <div className="min-h-full bg-background text-foreground">
         <div className="container mx-auto max-w-6xl px-6 py-8">
           <div className="space-y-6">
             <CardSkeleton />
@@ -187,7 +177,7 @@ function AgentDetailPage() {
 
   if (error || !agent) {
     return (
-      <div className="min-h-screen bg-background text-foreground">
+      <div className="min-h-full bg-background text-foreground">
         <div className="container mx-auto max-w-6xl px-6 py-8">
           <Card className="border-destructive/50 bg-destructive/10">
             <CardContent className="p-8 text-center">
@@ -209,7 +199,7 @@ function AgentDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-full bg-background text-foreground">
       <div className="container mx-auto max-w-6xl px-6 py-8">
         {/* Back Button */}
         <motion.div

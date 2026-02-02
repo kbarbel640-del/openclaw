@@ -34,6 +34,7 @@ import {
   Pause,
   Play,
   Calendar,
+  RotateCcw,
 } from "lucide-react";
 import type { Ritual, RitualStatus, RitualFrequency } from "@/hooks/queries/useRituals";
 
@@ -114,6 +115,18 @@ function RitualsPage() {
   const resolvedFrequencyFilter = frequencyOptions.some((option) => option.value === frequencyFilter)
     ? frequencyFilter
     : "all";
+
+  React.useEffect(() => {
+    if (resolvedStatusFilter !== statusFilter) {
+      setStatusFilter(resolvedStatusFilter);
+    }
+  }, [resolvedStatusFilter, statusFilter]);
+
+  React.useEffect(() => {
+    if (resolvedFrequencyFilter !== frequencyFilter) {
+      setFrequencyFilter(resolvedFrequencyFilter);
+    }
+  }, [resolvedFrequencyFilter, frequencyFilter]);
 
   const filteredRituals = React.useMemo(() => {
     if (!rituals) return [];
@@ -268,7 +281,7 @@ function RitualsPage() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
-          className="flex flex-col sm:flex-row gap-3 mb-8"
+          className="flex flex-col sm:flex-row sm:items-center gap-3 mb-8"
         >
           {/* Search */}
           <div className="relative flex-1">
@@ -339,6 +352,23 @@ function RitualsPage() {
               Expanded
             </Button>
           </div>
+
+          {(searchQuery || resolvedStatusFilter !== "all" || resolvedFrequencyFilter !== "all") && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-11 rounded-xl gap-2"
+              onClick={() => {
+                setSearchQuery("");
+                setStatusFilter("all");
+                setFrequencyFilter("all");
+              }}
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset Filters
+            </Button>
+          )}
         </motion.div>
 
         {/* Content */}
@@ -421,6 +451,25 @@ function RitualsPage() {
                         schedule: buildSchedule(schedule.time, schedule.frequency),
                       });
                     }}
+                    onAssign={(payload) => {
+                      updateRitual.mutate({
+                        id: ritual.id,
+                        agentId: payload.agentId,
+                        goals: payload.goals,
+                        workstreams: payload.workstreams,
+                        directivesMarkdown: payload.directivesMarkdown ?? undefined,
+                        guidancePackIds: payload.guidancePackIds,
+                      });
+                    }}
+                    agents={(agents ?? []).map((agent) => ({
+                      id: agent.id,
+                      name: agent.name,
+                      role: agent.role,
+                      status: agent.status,
+                      description: agent.description,
+                      tags: agent.tags,
+                      currentTask: agent.currentTask,
+                    }))}
                   />
                 </motion.div>
               ))}

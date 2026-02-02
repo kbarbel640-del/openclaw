@@ -13,6 +13,7 @@ import {
   AdvancedSection,
   ConnectionsSection,
   UsageSection,
+  GuidancePacksSection,
   KeyboardShortcutsModal,
 } from "@/components/domain/settings";
 import { SettingsConfigNav, type ConfigSection } from "@/components/domain/settings/SettingsConfigNav";
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/settings/")({
       "gateway",
       "channels",
       "agents",
+      "guidance",
       "toolsets",
       "advanced",
       "connections",
@@ -86,6 +88,8 @@ function SettingsPage() {
         return <ChannelsSection />;
       case "agents":
         return <AgentsSection initialEditAgentId={agentId} />;
+      case "guidance":
+        return <GuidancePacksSection />;
       case "toolsets":
         return <ToolsetsSection />;
       case "advanced":

@@ -61,18 +61,21 @@ function HomePage() {
   const GreetingIcon = greeting.icon;
 
   const handleQuickChatSend = (message: string, agentId: string) => {
-    // Navigate to conversation with agent, passing the message
+    // Navigate to new session with agent, passing the message
+    const sessionKey = `session-${Date.now()}`;
     navigate({
-      to: "/conversations/$id",
-      params: { id: `new-${agentId}` },
-      search: { initialMessage: message },
+      to: "/agents/$agentId/session/$sessionKey",
+      params: { agentId, sessionKey },
+      search: { newSession: true, initialMessage: message },
     });
   };
 
   const handleChatWithAgent = (agentId: string) => {
+    // Navigate to the current session for the agent
     navigate({
-      to: "/conversations/$id",
-      params: { id: `new-${agentId}` },
+      to: "/agents/$agentId/session/$sessionKey",
+      params: { agentId, sessionKey: "current" },
+      search: { newSession: false },
     });
   };
 

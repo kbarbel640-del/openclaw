@@ -10,6 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { CardSkeleton } from "@/components/composed";
 import { useRitualsByAgent } from "@/hooks/queries/useRituals";
+import { useAgents } from "@/hooks/queries/useAgents";
+import { useCreateRitual } from "@/hooks/mutations/useRitualMutations";
+import { useQueryClient } from "@tanstack/react-query";
+import { ritualKeys } from "@/hooks/queries/useRituals";
+import { CreateRitualModal } from "@/components/domain/rituals";
 import type { RitualStatus, RitualFrequency } from "@/hooks/queries/useRituals";
 import {
   Calendar,
@@ -46,6 +51,28 @@ const frequencyConfig: Record<RitualFrequency, { icon: React.ElementType; label:
 
 export function AgentRitualsTab({ agentId }: AgentRitualsTabProps) {
   const { data: rituals, isLoading, error } = useRitualsByAgent(agentId);
+  const { data: agents } = useAgents();
+  const createRitual = useCreateRitual();
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [newRitualId, setNewRitualId] = React.useState<string | null>(null);
+  const [highlightedRitualId, setHighlightedRitualId] = React.useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  React.useEffect(() => {
+    if (!newRitualId || !rituals?.length) return;
+    const target = document.querySelector(`[data-ritual-id="${newRitualId}"]`);
+    if (target instanceof HTMLElement) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedRitualId(newRitualId);
+      setNewRitualId(null);
+    }
+  }, [newRitualId, rituals]);
+
+  React.useEffect(() => {
+    if (!highlightedRitualId) return;
+    const timer = window.setTimeout(() => setHighlightedRitualId(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [highlightedRitualId]);
 
   if (isLoading) {
     return (
@@ -69,21 +96,45 @@ export function AgentRitualsTab({ agentId }: AgentRitualsTabProps) {
 
   if (!rituals || rituals.length === 0) {
     return (
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-            <Calendar className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <h3 className="mt-4 text-lg font-medium">No rituals configured</h3>
-          <p className="mt-1 text-sm text-muted-foreground text-center max-w-sm">
-            Create automated rituals for this agent to perform on a schedule
-          </p>
-          <Button className="mt-4 gap-2" variant="outline">
-            <Plus className="h-4 w-4" />
-            Create Ritual
-          </Button>
-        </CardContent>
-      </Card>
+      <>
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+              <Calendar className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="mt-4 text-lg font-medium">No rituals configured</h3>
+            <p className="mt-1 text-sm text-muted-foreground text-center max-w-sm">
+              Create automated rituals for this agent to perform on a schedule
+            </p>
+            <Button className="mt-4 gap-2" variant="outline" onClick={() => setIsCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Create Ritual
+            </Button>
+          </CardContent>
+        </Card>
+        <CreateRitualModal
+          open={isCreateOpen}
+          onOpenChange={setIsCreateOpen}
+          agents={(agents ?? []).map((agent) => ({ id: agent.id, name: agent.name }))}
+          initialAgentId={agentId}
+          isLoading={createRitual.isPending}
+          onSubmit={(data) => {
+            createRitual.mutate(data, {
+              onSuccess: (created) => {
+                queryClient.setQueryData(
+                  ritualKeys.list({ agentId }),
+                  (old: typeof rituals) => {
+                    const next = old ? [created, ...old] : [created];
+                    return next.filter((entry) => entry.agentId === agentId);
+                  }
+                );
+                setNewRitualId(created.id);
+                setIsCreateOpen(false);
+              },
+            });
+          }}
+        />
+      </>
     );
   }
 
@@ -136,9 +187,11 @@ export function AgentRitualsTab({ agentId }: AgentRitualsTabProps) {
         return (
           <motion.div
             key={ritual.id}
+            data-ritual-id={ritual.id}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: index * 0.05 }}
+            className={ritual.id === highlightedRitualId ? "ritual-new-highlight" : undefined}
           >
             <Card className="border-border/50 hover:border-primary/30 transition-colors">
               <CardContent className="p-5">
@@ -243,10 +296,37 @@ export function AgentRitualsTab({ agentId }: AgentRitualsTabProps) {
       })}
 
       {/* Add Ritual Button */}
-      <Button variant="outline" className="w-full gap-2 border-dashed">
+      <Button
+        variant="outline"
+        className="w-full gap-2 border-dashed"
+        onClick={() => setIsCreateOpen(true)}
+      >
         <Plus className="h-4 w-4" />
         Add New Ritual
       </Button>
+
+      <CreateRitualModal
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        agents={(agents ?? []).map((agent) => ({ id: agent.id, name: agent.name }))}
+        initialAgentId={agentId}
+        isLoading={createRitual.isPending}
+        onSubmit={(data) => {
+          createRitual.mutate(data, {
+            onSuccess: (created) => {
+              queryClient.setQueryData(
+                ritualKeys.list({ agentId }),
+                (old: typeof rituals) => {
+                  const next = old ? [created, ...old] : [created];
+                  return next.filter((entry) => entry.agentId === agentId);
+                }
+              );
+              setNewRitualId(created.id);
+              setIsCreateOpen(false);
+            },
+          });
+        }}
+      />
     </div>
   );
 }

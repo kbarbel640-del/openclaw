@@ -135,6 +135,18 @@ export function ShortcutsProvider({ children }: ShortcutsProviderProps) {
         enabled: waitingForGoTo,
       },
 
+      // Go to Waiting (agents waiting for input/approvals)
+      {
+        key: "w",
+        action: () => {
+          if (waitingForGoTo) {
+            navigate({ to: "/agents", search: { status: "waiting" } });
+            clearGoToState();
+          }
+        },
+        enabled: waitingForGoTo,
+      },
+
       // Escape to close go-to mode
       {
         key: "Escape",

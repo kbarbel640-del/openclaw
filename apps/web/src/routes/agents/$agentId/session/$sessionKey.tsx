@@ -21,6 +21,11 @@ import { ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/agents/$agentId/session/$sessionKey")({
   component: AgentSessionPage,
+  validateSearch: (search: Record<string, unknown>): { newSession?: boolean; initialMessage?: string } => {
+    const newSession = search.newSession === true || search.newSession === "true";
+    const initialMessage = typeof search.initialMessage === "string" ? search.initialMessage : undefined;
+    return { newSession: newSession || undefined, initialMessage };
+  },
 });
 
 // Mock activities for development
@@ -159,30 +164,32 @@ function AgentSessionPage() {
     }
   }, [sessionKey, getCurrentRunId, clearStreaming]);
 
-  // Handle session change
+  // Handle session change (switching to an existing session)
   const handleSessionChange = React.useCallback(
     (newSessionKey: string) => {
       navigate({
         to: "/agents/$agentId/session/$sessionKey",
         params: { agentId, sessionKey: newSessionKey },
+        search: { newSession: false },
       });
     },
     [navigate, agentId]
   );
 
-  // Handle new session
+  // Handle new session (creating a fresh session)
   const handleNewSession = React.useCallback(() => {
     const newKey = buildAgentSessionKey(agentId, `session-${Date.now()}`);
     navigate({
       to: "/agents/$agentId/session/$sessionKey",
       params: { agentId, sessionKey: newKey },
+      search: { newSession: true },
     });
   }, [navigate, agentId]);
 
   // Loading state
   if (agentLoading) {
     return (
-      <div className="min-h-screen bg-background text-foreground p-6">
+      <div className="min-h-full bg-background text-foreground p-6">
         <CardSkeleton />
       </div>
     );
@@ -211,7 +218,7 @@ function AgentSessionPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen max-h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col bg-background text-foreground overflow-hidden">
       {/* Session Header - Always visible, shrink-0 prevents it from shrinking */}
       <SessionHeader
         agent={agent}
@@ -251,13 +258,13 @@ function AgentSessionPage() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.2, delay: 0.1 }}
           className={cn(
-            "w-[380px] border-l border-border/50 flex flex-col bg-card/30",
+            "w-[380px] border-l border-border/50 flex flex-col bg-card/30 p-3 gap-3",
             workspacePaneMaximized && "flex-1 w-full"
           )}
         >
           {/* Activity Feed (top of right sidebar) - hidden when maximized */}
           {!workspacePaneMaximized && (
-            <div className="h-[280px] border-b border-border/50 overflow-hidden shrink-0">
+            <div className="h-[280px] border border-border/50 rounded-xl overflow-hidden shrink-0 bg-card/40">
               <div className="px-4 py-3 border-b border-border/50">
                 <h3 className="text-sm font-medium">Activity</h3>
               </div>
@@ -272,6 +279,7 @@ function AgentSessionPage() {
               onToggleMaximize={() => setWorkspacePaneMaximized((v) => !v)}
               sessionKey={sessionKey}
               workspaceDir={`~/.clawdbrain/agents/${agentId}/workspace`}
+              agentId={agentId}
               className="h-full"
             />
           </div>

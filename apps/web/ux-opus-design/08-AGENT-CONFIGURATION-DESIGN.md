@@ -52,7 +52,7 @@ Goal: 90% of users can complete 90% of configuration from **Basics**.
 - Purpose tags
 - Toolset + tool configuration summary
 - Creativity + response length + streaming (high-level)
-- Quiet hours (high-level)
+- Quiet hours (high-level, Focus-mode style)
 - Configuration Summary (diff: inherits vs overrides)
 
 #### More
@@ -87,7 +87,7 @@ The Basics tab is a composition tab that surfaces the “90% controls” without
 
 It reuses existing components where possible (identity, purpose, tools) and adds:
 - Behavior quick controls (creativity/length/streaming)
-- Quiet hours quick control
+- Quiet hours quick control (Focus-mode presets; default “Respond only when mentioned”)
 - Configuration Summary (diff + override management)
 
 ### Configuration Summary (Power User Anchor)
@@ -369,7 +369,8 @@ Note: a toolset dropdown and read-only mode already exist in the current `apps/w
 ## Availability Tab (NEW)
 
 **Component:** `AgentAvailabilityPanel.tsx`
-**Config path (proposed):** `agents.list[].availability.quietHours`, `agents.list[].heartbeat`
+**Config path:** Quiet hours policy is **not implemented yet**; document as proposed. Heartbeat remains `agents.list[].heartbeat`.
+**Quiet hours (proposed):** `agents.list[].availability.quietHours` (do not treat as canonical key yet)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -382,8 +383,8 @@ Note: a toolset dropdown and read-only mode already exist in the current `apps/w
 │  certain times.                                                 │
 │                                                                 │
 │  Policy                                                        │
-│  ○ Mute outbound messages (recommended)                         │
-│  ○ No proactive messages (respond only when mentioned)          │
+│  ● Respond only when mentioned (default)                         │
+│  ○ Mute outbound messages                                        │
 │  ○ Pause agent (strong)                                         │
 │  ○ Custom (Expert)                                              │
 │                                                                 │
@@ -403,6 +404,10 @@ Note: a toolset dropdown and read-only mode already exist in the current `apps/w
 │  [America/Los_Angeles (PST) ▼]                                  │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
+
+Notes:
+- Quiet hours must not block explicit manual interaction. Direct chats still get responses.
+- Quiet hours must not interrupt the System Brain or background activity; it only affects user-facing agent emissions.
 
 ┌─────────────────────────────────────────────────────────────────┐
 │ ▶ Heartbeat (Per-Agent)                                         │

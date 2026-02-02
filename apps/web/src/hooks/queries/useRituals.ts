@@ -34,6 +34,10 @@ export interface Ritual {
   nextRun?: string;
   lastRun?: string;
   agentId?: string;
+  guidancePackIds?: string[];
+  goals?: string[];
+  workstreams?: string[];
+  directivesMarkdown?: string;
   status: RitualStatus;
   createdAt: string;
   updatedAt: string;
@@ -84,6 +88,7 @@ async function fetchRituals(): Promise<Ritual[]> {
       nextRun: getNextFriday(17).toISOString(),
       lastRun: new Date(Date.now() - 604800000).toISOString(),
       agentId: "1",
+      guidancePackIds: ["pack-weekly-clarity"],
       status: "active",
       createdAt: new Date(Date.now() - 5184000000).toISOString(),
       updatedAt: new Date(Date.now() - 604800000).toISOString(),

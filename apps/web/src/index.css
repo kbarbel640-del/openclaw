@@ -202,10 +202,28 @@
     }
   }
 
+  .ritual-new-highlight {
+    animation: ritual-highlight 2.4s ease-out;
+  }
+
+  @keyframes ritual-highlight {
+    0% {
+      box-shadow: 0 0 0 0 rgba(250, 160, 84, 0.35);
+      transform: translateY(0);
+    }
+    35% {
+      box-shadow: 0 0 0 6px rgba(250, 160, 84, 0.18);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(250, 160, 84, 0);
+    }
+  }
+
   /* Respect reduced motion preferences */
   @media (prefers-reduced-motion: reduce) {
     .animate-in,
-    .animate-out {
+    .animate-out,
+    .ritual-new-highlight {
       animation: none;
     }
   }

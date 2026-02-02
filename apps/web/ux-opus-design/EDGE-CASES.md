@@ -105,3 +105,17 @@ We must support many power-user knobs, but only show them when supported.
   - Safe error message, last tested stamp, suggested next steps.
 - **Models list fetch failed**
   - Distinguish “no models available” from “cannot load models” with recovery actions.
+
+## 11) Quiet Hours (Policy vs Notifications)
+
+Quiet hours has two related but distinct concerns:
+
+1) **User-facing agent emission policy** (planned)
+   - Default: respond only when mentioned (direct chats still respond).
+   - Must not interrupt System Brain/background work.
+   - Needs clear semantics for "queue vs skip" during quiet hours.
+
+2) **Notification/event delivery suppression** (future)
+   - Even if background work continues, the system may normally emit UI/email/push notifications.
+   - A future "quiet notifications" layer could buffer/digest/suppress delivery until quiet hours end.
+   - Requires decisions about which event types are suppressible (vs critical alerts).

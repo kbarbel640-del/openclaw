@@ -66,8 +66,8 @@ These rules keep labels consistent across providers, pages, and components.
 - Title: `Quiet hours`
 - Helper: `Reduce interruptions and limit what this agent can do during certain times.`
 - Policy presets:
-  - `Mute outbound messages (recommended)`
-  - `Respond only when mentioned`
+  - `Respond only when mentioned (recommended)`
+  - `Mute outbound messages`
   - `Pause agent`
 
 ### More tab

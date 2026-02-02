@@ -1,6 +1,6 @@
 "use client";
 
-import { User, Settings, Zap, Plug, CreditCard, Brain, Server, MessageSquare, Bot, Activity } from "lucide-react";
+import { User, Settings, Zap, Plug, CreditCard, Brain, Server, MessageSquare, Bot, Activity, BookOpen } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ export type SettingsSection =
   | "gateway"
   | "channels"
   | "agents"
+  | "guidance"
   | "health"
   | "advanced"
   | "connections"
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { id: "gateway", label: "Gateway", icon: Server, group: "system" },
   { id: "channels", label: "Channels", icon: MessageSquare, group: "system" },
   { id: "agents", label: "Agents", icon: Bot, group: "system" },
+  { id: "guidance", label: "Guidance Packs", icon: BookOpen, group: "system" },
   // Power user
   { id: "advanced", label: "Advanced", icon: Zap, group: "power" },
   { id: "connections", label: "Connections", icon: Plug, group: "power" },

@@ -76,16 +76,19 @@ These are internal param keys stored under model params (system defaults and per
 
 ### Scheduling & Availability
 
+Note: `apps/web` currently has a **user settings** concept of quiet hours for notifications. Agent-level quiet hours policy is a planned feature and the exact config keys are still evolving; treat the entries marked “(proposed)” as design intent, not current source-of-truth keys.
+
 | Technical Term | Friendly Label | Helper Text | Notes |
 |---------------|----------------|-------------|-------|
 | `heartbeat` | **Heartbeat** | Scheduled check-ins and background tasks. | Card |
 | `heartbeat.schedule` | **Schedule** | How often to check in. | Cron-like picker |
 | `heartbeat.target` | **Check-in target** | What to monitor during heartbeat. | Dropdown |
 | `heartbeat.model` | **Heartbeat model** | AI model for background tasks. | Dropdown |
-| `availability.quietHours` | **Quiet hours** | Reduce interruptions and limit what agents can do during certain times. | Composition control + policy presets |
-| `availability.quietHours.policy` | **Quiet hours policy** | Choose what to limit during quiet hours. | Presets + Expert overrides |
-| `availability.quietHours.schedule` | **Quiet hours schedule** | When quiet hours apply. | Timezone-aware |
-| `availability.quietHours.behaviorDuringQuietHours` | **When quiet hours start** | Queue work, respond only when mentioned, or pause. | Depends on runtime semantics |
+| `userSettings.notificationSettings.pauseDuringQuietHours` | **Pause during quiet hours** | Don't show notifications during quiet hours. | Exists today (UI-level settings) |
+| `availability.quietHours` (proposed) | **Quiet hours** | Reduce interruptions and limit what agents can do during certain times. | Composition control + policy presets |
+| `availability.quietHours.policy` (proposed) | **Quiet hours policy** | Choose what to limit during quiet hours. | Presets + Expert overrides |
+| `availability.quietHours.schedule` (proposed) | **Quiet hours schedule** | When quiet hours apply. | Timezone-aware |
+| `availability.quietHours.behaviorDuringQuietHours` (proposed) | **When quiet hours start** | Queue work, respond only when mentioned, or pause. | Depends on runtime semantics |
 
 ### System Components
 

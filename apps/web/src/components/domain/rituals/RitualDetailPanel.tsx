@@ -10,6 +10,7 @@ import { DetailPanel } from "@/components/composed/DetailPanel";
 import { ConfirmDialog } from "@/components/composed/ConfirmDialog";
 import { TokenCostIndicator } from "@/components/composed/TokenCostIndicator";
 import { RitualScheduler } from "./RitualScheduler";
+import { useGuidancePackStore } from "@/stores/useGuidancePackStore";
 import {
   RefreshCw,
   Calendar,
@@ -61,6 +62,67 @@ const frequencyLabels: Record<RitualFrequency, string> = {
   custom: "Custom",
 };
 
+const executionStatusStyles: Record<
+  string,
+  { label: string; className: string; icon: typeof CheckCircle2 }
+> = {
+  success: {
+    label: "Success",
+    className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+    icon: CheckCircle2,
+  },
+  failed: {
+    label: "Failed",
+    className: "bg-rose-500/15 text-rose-400 border border-rose-500/30",
+    icon: XCircle,
+  },
+  running: {
+    label: "Waiting",
+    className: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+    icon: AlertCircle,
+  },
+  waiting: {
+    label: "Waiting",
+    className: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+    icon: AlertCircle,
+  },
+  waiting_approval: {
+    label: "Waiting",
+    className: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+    icon: AlertCircle,
+  },
+  timed_out: {
+    label: "Timed Out",
+    className: "bg-orange-500/15 text-orange-400 border border-orange-500/30",
+    icon: AlertCircle,
+  },
+  timeout: {
+    label: "Timed Out",
+    className: "bg-orange-500/15 text-orange-400 border border-orange-500/30",
+    icon: AlertCircle,
+  },
+  skipped: {
+    label: "Skipped",
+    className: "bg-slate-500/15 text-slate-300 border border-slate-500/30",
+    icon: AlertCircle,
+  },
+};
+
+function resolveExecutionBadge(status?: string) {
+  if (!status) {
+    return {
+      label: "Unknown",
+      className: "bg-muted/40 text-muted-foreground border border-border/60",
+      icon: AlertCircle,
+    };
+  }
+  return executionStatusStyles[status] ?? {
+    label: status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    className: "bg-muted/40 text-muted-foreground border border-border/60",
+    icon: AlertCircle,
+  };
+}
+
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString("en-US", {
     weekday: "short",
@@ -105,6 +167,9 @@ export function RitualDetailPanel({
   agents = [],
   className,
 }: RitualDetailPanelProps) {
+  // Early return BEFORE any hooks
+  if (!ritual) return null;
+
   const [showScheduler, setShowScheduler] = React.useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [showScheduleConfirm, setShowScheduleConfirm] = React.useState(false);
@@ -121,8 +186,6 @@ export function RitualDetailPanel({
   const latestExecution = sortedExecutions[0];
   const isRunning = executions.some((execution) => execution.status === "running");
   const canSkipNext = Boolean(onSkipNext);
-
-  if (!ritual) return null;
 
   const status = statusConfig[ritual.status];
   const StatusIcon = status.icon;
@@ -160,6 +223,14 @@ export function RitualDetailPanel({
   };
 
   const assignedAgent = agents.find((a) => a.id === ritual.agentId);
+  const guidancePacks = useGuidancePackStore((state) => state.packs);
+  const attachedPacks = React.useMemo(() => {
+    if (!ritual.guidancePackIds?.length) return [];
+    const byId = new Map(guidancePacks.map((pack) => [pack.id, pack]));
+    return ritual.guidancePackIds
+      .map((id) => byId.get(id))
+      .filter((pack): pack is NonNullable<typeof pack> => Boolean(pack));
+  }, [guidancePacks, ritual.guidancePackIds]);
 
   return (
     <DetailPanel
@@ -385,6 +456,27 @@ export function RitualDetailPanel({
           </motion.div>
         )}
 
+        {attachedPacks.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.24 }}
+            className="rounded-xl bg-secondary/30 p-4 border border-border/50"
+          >
+            <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+              <Settings className="h-4 w-4 text-primary" />
+              Guidance Packs
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {attachedPacks.map((pack) => (
+                <Badge key={pack.id} variant="secondary" className="text-xs">
+                  {pack.name}
+                </Badge>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         {/* Execution History */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -401,20 +493,14 @@ export function RitualDetailPanel({
                 const sessionHref = ritual.agentId && execution.sessionKey
                   ? `/agents/${encodeURIComponent(ritual.agentId)}/session/${encodeURIComponent(execution.sessionKey)}`
                   : null;
+                const statusBadge = resolveExecutionBadge(execution.status);
+                const StatusIcon = statusBadge.icon;
                 return (
                 <div
                   key={execution.id}
                   className="flex items-center gap-3 rounded-lg bg-secondary/30 p-3 border border-border/50"
                 >
-                  {execution.status === "success" ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                  ) : execution.status === "failed" ? (
-                    <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-                  ) : execution.status === "running" ? (
-                    <AlertCircle className="h-4 w-4 text-emerald-400 shrink-0 animate-pulse" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0" />
-                  )}
+                  <StatusIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground truncate">
                       {execution.result || execution.error || "Completed"}
@@ -423,6 +509,12 @@ export function RitualDetailPanel({
                       {formatDate(execution.startedAt)}
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant="secondary"
+                        className={cn("text-[10px] uppercase tracking-wide", statusBadge.className)}
+                      >
+                        {statusBadge.label}
+                      </Badge>
                       {execution.toolCalls !== undefined && (
                         <Badge variant="outline" className="text-[10px]">
                           {execution.toolCalls} tool calls

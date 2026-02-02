@@ -8,6 +8,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/composed/ConfirmDialog";
+import RitualAssignDialog, {
+  type AssignableAgent,
+  type RitualAssignPayload,
+} from "./RitualAssignDialog";
 import {
   RefreshCw,
   Clock,
@@ -55,6 +59,8 @@ interface RitualCardProps {
   onUpdateSchedule?: (schedule: { time: string; frequency: RitualFrequency }) => void;
   onSettings?: () => void;
   onAgentClick?: () => void;
+  onAssign?: (payload: RitualAssignPayload) => void;
+  agents?: AssignableAgent[];
   className?: string;
 }
 
@@ -127,8 +133,69 @@ function formatSessionTime(dateString?: string): string {
 
 const BUSY_WINDOW_MS = 15 * 60 * 1000;
 
+const executionStatusStyles: Record<
+  string,
+  { label: string; className: string }
+> = {
+  success: {
+    label: "Success",
+    className: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+  },
+  failed: {
+    label: "Failed",
+    className: "bg-rose-500/15 text-rose-400 border border-rose-500/30",
+  },
+  running: {
+    label: "Waiting",
+    className: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+  },
+  waiting: {
+    label: "Waiting",
+    className: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+  },
+  waiting_approval: {
+    label: "Waiting",
+    className: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+  },
+  timed_out: {
+    label: "Timed Out",
+    className: "bg-orange-500/15 text-orange-400 border border-orange-500/30",
+  },
+  timeout: {
+    label: "Timed Out",
+    className: "bg-orange-500/15 text-orange-400 border border-orange-500/30",
+  },
+  skipped: {
+    label: "Skipped",
+    className: "bg-slate-500/15 text-slate-300 border border-slate-500/30",
+  },
+};
+
+function resolveExecutionBadge(status?: string) {
+  if (!status) {
+    return {
+      label: "Unknown",
+      className: "bg-muted/40 text-muted-foreground border border-border/60",
+    };
+  }
+  return executionStatusStyles[status] ?? {
+    label: status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    className: "bg-muted/40 text-muted-foreground border border-border/60",
+  };
+}
+
 function getActivityState(ritual: Ritual) {
   const status = ritual.status ?? (ritual.enabled ? "active" : "paused");
+
+  // Distinguish between paused and other inactive states
+  if (status === "paused") {
+    return {
+      label: "Paused",
+      textClass: "text-orange-500",
+      dotClass: "bg-orange-500",
+      pulse: false,
+    };
+  }
 
   if (status !== "active") {
     return {
@@ -182,6 +249,8 @@ export function RitualCard({
   onUpdateSchedule,
   onSettings,
   onAgentClick,
+  onAssign,
+  agents = [],
   className,
 }: RitualCardProps) {
   const freq = frequencyConfig[ritual.frequency];
@@ -194,6 +263,7 @@ export function RitualCard({
     frequency: RitualFrequency;
   } | null>(null);
   const [showConfirm, setShowConfirm] = React.useState(false);
+  const [assignOpen, setAssignOpen] = React.useState(false);
   const { data: executions } = useRitualExecutions(isExpanded ? ritual.id : "");
   const sessionExecutions = executions ?? [];
 
@@ -206,7 +276,12 @@ export function RitualCard({
         whileHover={{ scale: 1.02 }}
         className={cn("group", className)}
       >
-        <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
+        <Card className={cn(
+          "overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-300",
+          ritual.status === "paused"
+            ? "opacity-75 border-orange-500/30 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/5"
+            : "hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+        )}>
           <CardContent className="p-4">
             <div className="flex items-start gap-4">
               {/* Status indicator */}
@@ -430,13 +505,19 @@ export function RitualCard({
                                 {formatSessionTime(execution.startedAt)}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="text-[10px] capitalize">
-                                {execution.status}
-                              </Badge>
-                              {sessionHref ? (
-                                <Button asChild variant="ghost" size="sm" className="h-7 rounded-md gap-1">
-                                  <Link to={sessionHref}>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "text-[10px] uppercase tracking-wide",
+                                resolveExecutionBadge(execution.status).className
+                              )}
+                            >
+                              {resolveExecutionBadge(execution.status).label}
+                            </Badge>
+                            {sessionHref ? (
+                              <Button asChild variant="ghost" size="sm" className="h-7 rounded-md gap-1">
+                                <Link to={sessionHref}>
                                     Open session
                                     <ArrowUpRight className="h-3.5 w-3.5" />
                                   </Link>
@@ -492,11 +573,20 @@ export function RitualCard({
       transition={{ duration: 0.4, ease: "easeOut" }}
       className={cn("group relative", className)}
     >
-      <Card className="relative overflow-hidden rounded-2xl border-border/50 bg-gradient-to-br from-card via-card to-card/80 backdrop-blur-sm transition-all duration-500 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10">
+      <Card className={cn(
+        "relative overflow-hidden rounded-2xl border-border/50 bg-gradient-to-br from-card via-card to-card/80 backdrop-blur-sm transition-all duration-500",
+        ritual.status === "paused"
+          ? "opacity-75 border-orange-500/30 hover:border-orange-500/50 hover:shadow-xl hover:shadow-orange-500/10"
+          : "hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10"
+      )}>
         {/* Gradient accent line */}
         <div className={cn(
           "absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r opacity-60",
-          ritual.enabled ? "from-primary via-accent to-primary" : "from-muted via-muted-foreground/30 to-muted"
+          ritual.status === "paused"
+            ? "from-orange-500 via-orange-400 to-orange-500"
+            : ritual.enabled
+              ? "from-primary via-accent to-primary"
+              : "from-muted via-muted-foreground/30 to-muted"
         )} />
 
         {/* Glow effect on hover */}
@@ -581,6 +671,15 @@ export function RitualCard({
                   >
                     {ritual.enabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   </Button>
+                  <Button
+                    onClick={onSettings}
+                    variant="ghost"
+                    size="icon"
+                    disabled={!onSettings}
+                    className="h-9 w-9 rounded-lg bg-secondary/50 text-muted-foreground hover:text-foreground"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -623,18 +722,6 @@ export function RitualCard({
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={onSettings}
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-lg bg-secondary/50 hover:bg-secondary transition-all"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-          </div>
-
           {isExpanded && (
             <div className="mt-5 space-y-4">
               {/* Description */}
@@ -645,16 +732,30 @@ export function RitualCard({
               )}
 
               {/* Agent association */}
-              {ritual.agentName && (
-                <button
-                  onClick={onAgentClick}
-                  className="flex w-full items-center gap-2 rounded-lg border border-border/50 bg-secondary/30 px-3 py-2 text-left transition-all hover:border-primary/30 hover:bg-secondary/50"
-                >
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-secondary/30 px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <Bot className="h-4 w-4 text-primary" />
                   <span className="text-sm text-muted-foreground">Assigned to:</span>
-                  <span className="text-sm font-medium text-foreground">{ritual.agentName}</span>
-                </button>
-              )}
+                  <button
+                    type="button"
+                    onClick={onAgentClick}
+                    className="truncate text-sm font-medium text-foreground hover:text-primary"
+                    disabled={!onAgentClick}
+                  >
+                    {ritual.agentName ?? "Unassigned"}
+                  </button>
+                </div>
+                {onAssign ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAssignOpen(true)}
+                    className="rounded-lg"
+                  >
+                    {ritual.agentName ? "Reassign" : "Assign"}
+                  </Button>
+                ) : null}
+              </div>
 
               {onUpdateSchedule && (
                 <div className="rounded-xl border border-border/50 bg-secondary/20 p-3">
@@ -744,6 +845,15 @@ export function RitualCard({
           )}
         </CardContent>
       </Card>
+      {onAssign ? (
+        <RitualAssignDialog
+          open={assignOpen}
+          onOpenChange={setAssignOpen}
+          agents={agents}
+          initialAgentId={ritual.agentId}
+          onConfirm={(payload) => onAssign(payload)}
+        />
+      ) : null}
     </motion.div>
   );
 }

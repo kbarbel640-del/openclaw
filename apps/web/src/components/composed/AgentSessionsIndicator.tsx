@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, AlertCircle, Check, X } from "lucide-react";
+import { Bot, AlertCircle, Check, Info, X } from "lucide-react";
 import { useAgents } from "@/hooks/queries/useAgents";
 import {
   Tooltip,
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useAgentLiveUpdates } from "@/hooks/useAgentLiveUpdates";
 import { useAgentApprovalActions } from "@/hooks/useAgentApprovalActions";
 
 export interface AgentSessionsIndicatorProps {
@@ -34,8 +33,7 @@ export function AgentSessionsIndicator({
   const { data: agents, isLoading } = useAgents();
   const [waitingOpen, setWaitingOpen] = React.useState(false);
   const { approvePending, denyPending } = useAgentApprovalActions();
-
-  useAgentLiveUpdates();
+  const navigate = useNavigate();
 
   const formatCollapsedCount = React.useCallback((count: number) => {
     return String(Math.min(count, 99));
@@ -233,6 +231,25 @@ export function AgentSessionsIndicator({
                           {approvals} approval{approvals !== 1 ? "s" : ""}
                         </div>
                         <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            className="text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                            aria-label={`More info for ${agent.name}`}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              navigate({
+                                to: "/agents/$agentId",
+                                params: { agentId: agent.id },
+                                search: { tab: "activity" },
+                              });
+                              setWaitingOpen(false);
+                            }}
+                          >
+                            <Info className="size-3.5" />
+                          </Button>
                           <Button
                             type="button"
                             variant="ghost"

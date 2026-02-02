@@ -142,7 +142,7 @@ Canonical dual-mode wizard plan:
               ▼
     ┌─────────────────────────────────────────┐
     │  Choose Auth Method                     │
-    │  ○ API key (recommended)                │
+    │  ○ API key                              │
     │  ○ Sign in with OAuth                   │
     └────────────────┬────────────────────────┘
                      │

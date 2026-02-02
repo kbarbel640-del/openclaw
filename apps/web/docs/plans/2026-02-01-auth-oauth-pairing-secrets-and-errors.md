@@ -51,18 +51,10 @@ Platforms:
 
 ### 2.1 Model Providers (MVP subset)
 
-MVP-required provider set includes:
+MVP provider set includes:
 - OpenAI, Anthropic, Gemini
 - OpenRouter, Z.AI
 - Azure OpenAI, Bedrock, Vertex AI
-- plus at least 3 additional online providers (TBD)
-
-Candidate additional providers (pick at least 3; do not assume final set):
-- Groq
-- Mistral
-- Cohere
-- Together AI
-- Replicate
 
 | Provider | API key | Token(s) / Cloud creds | Service account JSON | OAuth (browser) | OAuth (device code) | Pair from local machine | Platforms |
 |----------|---------|------------------------|----------------------|----------------|----------------------|-------------------------|----------|
@@ -77,6 +69,7 @@ Candidate additional providers (pick at least 3; do not assume final set):
 
 Notes:
 - OAuth (browser) is the target MVP for OpenAI/Anthropic/Gemini when possible.
+- If Vertex OAuth (browser) is supported, it should follow the same gateway-terminated callback pattern as other OAuth providers (no special “headless” complexity beyond callback reachability).
 - “Headless gateway” is not inherently a blocker for OAuth (browser) because OAuth occurs in the user’s browser; the key requirements are correct callback hosting and secure server-side token storage (see Section 6).
 - Azure OpenAI and Bedrock often authenticate via cloud credentials rather than consumer OAuth; ship with keys/creds first.
 

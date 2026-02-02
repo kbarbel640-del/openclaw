@@ -70,11 +70,16 @@ Docs:
 ### 4.5) Quiet Hours as a Policy Layer (Reduce Interruptions Without Losing Capability)
 
 "Quiet hours" is not just a schedule. It is a policy layer that governs what agents are allowed to do (and how they behave) during certain times:
-- mute outbound messages vs "respond only when mentioned"
+- default: "Respond only when mentioned" (Focus-mode style)
+- alternative: mute outbound messages/notifications
 - optional queueing vs skipping
 - optional tool-execution limits for high-safety/business environments
 
 The moat is making this legible and controllable while preserving power-user configurability.
+
+Constraints (by design):
+- Quiet hours apply to user-facing agents only; System Brain/background activity continues uninterrupted.
+- Explicit manual interaction should override quiet hours (direct chats still respond).
 
 Docs:
 - `apps/web/ux-opus-design/00-CANONICAL-CONFIG-AND-TERMS.md` (proposed schema)

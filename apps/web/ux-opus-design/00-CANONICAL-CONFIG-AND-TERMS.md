@@ -54,23 +54,27 @@ All UX + monetization docs must use **exactly** these four personas (no extras, 
 
 ## Canonical Internal Keys (Use These in Docs and UI Logic)
 
-## Canonical Provider IDs (apps/web)
+## Provider Support (apps/web)
 
-Docs and UI must normalize on stable internal provider ids (not marketing names).
+This section defines the MVP provider set at the *product* level. The `apps/web` code may lag behind this list; docs should reflect the target.
 
-MVP-required providers (by user decision, 2026-02-01):
-- `openai` (OpenAI)
-- `anthropic` (Anthropic / Claude)
-- `google` (Gemini)
-- `openrouter` (OpenRouter)
-- `zai` (Z.AI)
-- `azureOpenai` (Azure OpenAI)
-- `bedrock` (Amazon Bedrock)
-- `vertex` (Google Vertex AI)
+MVP provider set (by user decision, 2026-02-02):
+- OpenAI
+- Anthropic (Claude)
+- Gemini
+- OpenRouter
+- Z.AI
+- Azure OpenAI
+- Amazon Bedrock
+- Vertex AI
 
-Additional providers (MVP-required: "at least 3 most-used online providers besides OpenRouter"):
-- TBD (do not invent ids in code until we confirm the exact set)
-- Candidates (not yet confirmed): Groq, Mistral, Cohere, Together AI, Replicate
+Implementation note (avoid premature coupling):
+- `apps/web` currently hardcodes a smaller provider list in `settings/ModelProviderSection.tsx` (Anthropic/OpenAI/Google/Z.AI/OpenRouter).
+- Current provider ids in code (see `apps/web/src/lib/api/types.ts`): `anthropic`, `openai`, `google`, `openrouter`, `zai`.
+- Recommended ids to add for MVP expansion (align backend + frontend types together):
+  - `azureOpenai`
+  - `bedrock`
+  - `vertex`
 
 ### Agents (system defaults)
 - Default runtime: `agents.defaults.runtime`
@@ -93,13 +97,25 @@ Additional providers (MVP-required: "at least 3 most-used online providers besid
 - Heartbeat (system-wide):
   - `agents.defaults.heartbeat.*` (schedule, active hours, model, target, etc.)
 
-### Quiet Hours (proposed canonical schema; to be implemented)
+## Planned Additions (Not Yet Canonical)
 
-Quiet hours are a differentiator: they are a **policy layer** that governs when agents are allowed to initiate or emit certain kinds of actions.
+### Quiet Hours (proposed schema; do not treat keys as canonical yet)
 
-Proposed config placement (system default + per-agent overrides):
-- System default: `agents.defaults.availability.quietHours`
-- Per-agent override: `agents.list[].availability.quietHours`
+Quiet hours are a differentiator: they are a **policy layer** that governs when *user-facing agents* are allowed to initiate or emit certain kinds of actions.
+
+Important constraints (by user decision, 2026-02-02):
+- Quiet hours must **not** interrupt the System Brain or background activity.
+- Quiet hours must still allow explicit manual interaction:
+  - Direct chats should still get responses.
+  - In channels/group chats, “Respond only when mentioned” should be the default behavior.
+- Notification/event suppression (e.g. quieting alerts until morning) is a separate, future layer (see “future extension” below).
+
+Current reality in `apps/web`:
+- There is already a user-preferences concept of quiet hours for notifications (e.g. `notificationSettings.pauseDuringQuietHours` in `useUserSettings.ts`). This is UI-level preference storage (localStorage today), not agent runtime behavior.
+
+Proposed future config placement (system default + per-agent overrides) - document only:
+- System default: `agents.defaults.availability.quietHours` (proposed)
+- Per-agent override: `agents.list[].availability.quietHours` (proposed)
 
 Proposed schema (illustrative; keep fields optional and extendable):
 ```json
@@ -111,12 +127,12 @@ Proposed schema (illustrative; keep fields optional and extendable):
     { "days": ["sat","sun"], "start": "00:00", "end": "09:00" }
   ],
   "policy": {
-    "blockOutboundMessages": true,
+    "respondOnlyWhenMentioned": true,
+    "muteOutboundNotifications": true,
     "blockProactiveMessages": true,
     "blockToolExecution": false,
-    "allowMentions": true,
-    "allowOwnerOnlyOverride": true,
-    "allowCriticalAlerts": true
+    "allowDirectChats": true,
+    "allowOwnerOnlyOverride": true
   },
   "exceptions": {
     "channelsAllow": [],
@@ -129,10 +145,13 @@ Proposed schema (illustrative; keep fields optional and extendable):
 ```
 
 Canonical meaning options (must be surfaced in UI copy):
-- "Mute outbound messages" (agent may still think/act, but cannot message users).
-- "No proactive messages" (agent may respond if addressed/mentioned, but won't initiate).
-- "No tool execution" (strongest safety posture; often for business environments).
+- "Respond only when mentioned" (default) - silence in group contexts unless explicitly addressed; direct chats still work.
+- "Mute outbound notifications/messages" - reduce interruptions while preserving explicit interactions.
+- "Pause agent" (strongest) - stop user-facing emissions; background continues via System Brain.
 - "Queue until quiet hours end" vs "Drop/skip" (behaviorDuringQuietHours).
+
+Future extension (scoped, not implemented):
+- A “quiet notifications” layer that suppresses *delivery* (UI/email/push) of certain event types until quiet hours end, without stopping background work.
 
 ### System Brain (main agent)
 - Model for System Brain “SDK” behavior:

@@ -37,6 +37,7 @@ const shortcutCategories: ShortcutCategory[] = [
       { keys: ["G", "H"], description: "Go to Home" },
       { keys: ["G", "C"], description: "Go to Conversations" },
       { keys: ["G", "A"], description: "Go to Agents" },
+      { keys: ["G", "W"], description: "Go to Waiting (approvals/input)" },
     ],
   },
   {

@@ -66,7 +66,7 @@ export function SessionChatInput({
 
   return (
     <div className={cn("bg-background px-4 pb-4 pt-2", className)}>
-      <form onSubmit={handleSubmit} className="mx-auto max-w-3xl">
+      <form onSubmit={handleSubmit} className="mx-auto max-w-3xl" autoComplete="off">
         <div className="flex items-end gap-2 rounded-2xl border border-border bg-muted/30 p-2 shadow-sm transition-colors focus-within:border-primary/30 focus-within:bg-muted/50">
           {/* Attachment button */}
           <Button
@@ -100,9 +100,20 @@ export function SessionChatInput({
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
+            id="session-chat-input"
+            name="message"
             rows={1}
+            autoComplete="off"
+            inputMode="text"
+            aria-label={placeholder}
+            data-form-type="other"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             className={cn(
-              "flex-1 resize-none bg-transparent py-2 text-sm",
+              "flex-1 resize-none bg-transparent py-2 text-sm text-foreground caret-foreground",
               "placeholder:text-muted-foreground focus:outline-none disabled:opacity-50",
               "scrollbar-thin"
             )}

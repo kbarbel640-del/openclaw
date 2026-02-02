@@ -31,6 +31,7 @@ interface CreateRitualModalProps {
     status: "active";
   }) => void;
   agents?: { id: string; name: string }[];
+  initialAgentId?: string;
   isLoading?: boolean;
   className?: string;
 }
@@ -54,6 +55,7 @@ export function CreateRitualModal({
   onOpenChange,
   onSubmit,
   agents = [],
+  initialAgentId,
   isLoading = false,
   className,
 }: CreateRitualModalProps) {
@@ -66,15 +68,17 @@ export function CreateRitualModal({
 
   // Reset form when modal closes
   React.useEffect(() => {
-    if (!open) {
-      setName("");
-      setDescription("");
-      setTime("09:00");
-      setFrequency("daily");
-      setAgentId("");
-      setErrors({});
+    if (open) {
+      if (initialAgentId) setAgentId(initialAgentId);
+      return;
     }
-  }, [open]);
+    setName("");
+    setDescription("");
+    setTime("09:00");
+    setFrequency("daily");
+    setAgentId(initialAgentId ?? "");
+    setErrors({});
+  }, [open, initialAgentId]);
 
   // Build cron expression from time and frequency
   const buildSchedule = (time: string, frequency: RitualFrequency): string => {

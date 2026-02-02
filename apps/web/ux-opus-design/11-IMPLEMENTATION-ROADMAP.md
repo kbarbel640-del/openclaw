@@ -125,6 +125,7 @@ This roadmap focuses on what is missing (Basics/More composition surfaces, per-a
 ### Definition of Done
 
 - [ ] Memory tab: toggle, depth, pruning, compaction
+- [ ] Availability tab: heartbeat overrides + quiet hours UI (Focus-mode presets; underlying config keys may be staged if schema is still evolving)
 - [ ] Advanced tab: runtime, sandbox, group chat, raw config
 - [ ] All tabs save correctly
 - [ ] All tabs show "use system default" appropriately

@@ -11,6 +11,7 @@ import {
   Bot,
   Activity,
   Wrench,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { id: "gateway", label: "Gateway", shortLabel: "Gateway", icon: Server },
   { id: "channels", label: "Channels", shortLabel: "Channels", icon: MessageSquare },
   { id: "agents", label: "Agents", shortLabel: "Agents", icon: Bot },
+  { id: "guidance", label: "Guidance Packs", shortLabel: "Guidance", icon: BookOpen },
   { id: "toolsets", label: "Toolsets", shortLabel: "Toolsets", icon: Wrench },
   { id: "advanced", label: "Advanced", shortLabel: "Advanced", icon: Zap },
   { id: "connections", label: "Connections", shortLabel: "Connect", icon: Plug },

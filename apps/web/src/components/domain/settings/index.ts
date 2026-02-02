@@ -4,6 +4,7 @@ export { PreferencesSection } from "./PreferencesSection";
 export { AIProviderSection } from "./AIProviderSection";
 export { ModelProviderSection } from "./ModelProviderSection";
 export { GatewaySection } from "./GatewaySection";
+export { GuidancePacksSection } from "./GuidancePacksSection";
 export { ChannelsSection } from "./ChannelsSection";
 export { AgentsSection } from "./AgentsSection";
 export { ToolsetsSection } from "./ToolsetsSection";

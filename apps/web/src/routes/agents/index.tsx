@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { AgentCard } from "@/components/domain/agents/AgentCard";
 import { CreateAgentWizard } from "@/components/domain/agents/CreateAgentWizard";
+import { NewSessionDialog } from "@/components/domain/agents/NewSessionDialog";
 import { CardSkeleton } from "@/components/composed";
 import { useAgents } from "@/hooks/queries/useAgents";
 import { useUpdateAgentStatus } from "@/hooks/mutations/useAgentMutations";
@@ -47,6 +48,7 @@ function AgentsPage() {
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>(searchStatus || "all");
   const [sortBy, setSortBy] = React.useState<SortOption>("recent");
   const [wizardOpen, setWizardOpen] = React.useState(false);
+  const [newSessionAgent, setNewSessionAgent] = React.useState<Agent | null>(null);
 
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -74,23 +76,21 @@ function AgentsPage() {
     navigate({
       to: "/agents/$agentId/session/$sessionKey",
       params: { agentId: agent.id, sessionKey: "current" },
+      search: { newSession: false },
     });
   };
 
   const handleNewSession = (agent: Agent) => {
-    // Navigate to the new Agent Session UI with a new session
-    const newSessionKey = `session-${Date.now()}`;
-    navigate({
-      to: "/agents/$agentId/session/$sessionKey",
-      params: { agentId: agent.id, sessionKey: newSessionKey },
-    });
+    // Open the New Session dialog for this agent
+    setNewSessionAgent(agent);
   };
 
   const handleChat = (agent: Agent) => {
-    // Navigate to the new Agent Session UI
+    // Navigate to the new Agent Session UI (existing/current session)
     navigate({
       to: "/agents/$agentId/session/$sessionKey",
       params: { agentId: agent.id, sessionKey: "current" },
+      search: { newSession: false },
     });
   };
 
@@ -351,6 +351,18 @@ function AgentsPage() {
         )}
       {/* Create Agent Wizard */}
       <CreateAgentWizard open={wizardOpen} onOpenChange={setWizardOpen} />
+
+      {/* New Session Dialog */}
+      {newSessionAgent && (
+        <NewSessionDialog
+          open={!!newSessionAgent}
+          onOpenChange={(open) => {
+            if (!open) setNewSessionAgent(null);
+          }}
+          agentId={newSessionAgent.id}
+          agentName={newSessionAgent.name}
+        />
+      )}
     </>
   );
 }
