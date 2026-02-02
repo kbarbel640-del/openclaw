@@ -141,6 +141,11 @@ export function createEventHandlers(context: EventHandlerContext) {
     tui.requestRender();
   };
 
+  // Track emoji display time for minimum visibility
+  let lastEmojiShownAt: number | null = null;
+  let emojiResetTimer: ReturnType<typeof setTimeout> | null = null;
+  const MIN_EMOJI_DISPLAY_MS = 1000;
+
   const handleAgentEvent = (payload: unknown) => {
     if (!payload || typeof payload !== "object") {
       return;
@@ -166,7 +171,13 @@ export function createEventHandlers(context: EventHandlerContext) {
         // Show tool status in status bar if emoji provided in event data
         const emoji = asString(data.emoji, "");
         if (emoji) {
+          // Clear any pending reset timer
+          if (emojiResetTimer) {
+            clearTimeout(emojiResetTimer);
+            emojiResetTimer = null;
+          }
           setActivityStatus(`${emoji} ${toolName}…`);
+          lastEmojiShownAt = Date.now();
         }
       } else if (phase === "update") {
         chatLog.updateToolResult(toolCallId, data.partialResult, {
@@ -176,8 +187,18 @@ export function createEventHandlers(context: EventHandlerContext) {
         chatLog.updateToolResult(toolCallId, data.result, {
           isError: Boolean(data.isError),
         });
-        // Reset status after tool completes (agent still running)
-        setActivityStatus("running");
+        // Reset status after tool completes, but ensure emoji visible for minimum time
+        const elapsed = lastEmojiShownAt ? Date.now() - lastEmojiShownAt : MIN_EMOJI_DISPLAY_MS;
+        const remaining = MIN_EMOJI_DISPLAY_MS - elapsed;
+        if (remaining > 0) {
+          emojiResetTimer = setTimeout(() => {
+            setActivityStatus("running");
+            tui.requestRender();
+            emojiResetTimer = null;
+          }, remaining);
+        } else {
+          setActivityStatus("running");
+        }
       }
       tui.requestRender();
       return;
