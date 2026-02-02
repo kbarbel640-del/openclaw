@@ -2,6 +2,8 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { AgentRuntime } from "./agent-runtime.js";
 import type { SandboxContext } from "./sandbox.js";
 import type { AnyAgentTool } from "./tools/common.js";
+import { resolveMcpToolsForAgent } from "../mcp/mcp-tools.js";
+import { resolveSessionAgentId } from "./agent-scope.js";
 import { createSdkAgentRuntime } from "./claude-agent-sdk/sdk-agent-runtime.js";
 import { resolveThinkingBudget } from "./claude-agent-sdk/sdk-runner.config.js";
 import { createOpenClawCodingTools } from "./pi-tools.js";
@@ -62,6 +64,19 @@ export async function createSdkMainAgentRuntime(
       workspaceDir: params.workspaceDir,
     }));
 
+  const agentIdForMcp = resolveSessionAgentId({
+    sessionKey: params.sessionKey,
+    config: params.config,
+  });
+
+  const mcpTools = params.tools
+    ? []
+    : await resolveMcpToolsForAgent({
+        config: params.config,
+        agentId: agentIdForMcp,
+        abortSignal: params.abortSignal,
+      });
+
   const tools =
     params.tools ??
     createOpenClawCodingTools({
@@ -87,6 +102,7 @@ export async function createSdkMainAgentRuntime(
       currentThreadTs: params.currentThreadTs,
       replyToMode: params.replyToMode,
       hasRepliedRef: params.hasRepliedRef,
+      extraTools: mcpTools,
     });
 
   const sdkCfg = params.config?.agents?.main?.sdk;
