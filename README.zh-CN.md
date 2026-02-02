@@ -131,5 +131,6 @@ Telegram/WhatsApp/Signal/iMessage/Microsoft Teams/Discord/Google Chat/Slack 默�
 ---
 
 > 想参与中文维护？建议：
-> 1) 先把“核心上手部分”（Install / Quick start / Security）保持最新
-> 2) 其余长文部分按章节逐步补齐
+>
+> 1. 先把“核心上手部分”（Install / Quick start / Security）保持最新
+> 2. 其余长文部分按章节逐步补齐
