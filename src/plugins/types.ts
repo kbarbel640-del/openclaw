@@ -384,6 +384,7 @@ export type PluginHookToolContext = {
 // before_tool_call hook
 export type PluginHookBeforeToolCallEvent = {
   toolName: string;
+  toolCallId?: string;
   params: Record<string, unknown>;
 };
 
@@ -396,6 +397,7 @@ export type PluginHookBeforeToolCallResult = {
 // after_tool_call hook
 export type PluginHookAfterToolCallEvent = {
   toolName: string;
+  toolCallId?: string;
   params: Record<string, unknown>;
   result?: unknown;
   error?: string;
