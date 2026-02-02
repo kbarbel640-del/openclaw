@@ -53,6 +53,7 @@ import {
   hasBotMention,
   resolveTelegramForumThreadId,
 } from "./bot/helpers.js";
+import { escapeHtml } from "./format.js";
 
 type TelegramMediaRef = {
   path: string;
@@ -281,13 +282,14 @@ export const buildTelegramMessageContext = async ({
                     [
                       "OpenClaw: access not configured.",
                       "",
-                      `Your Telegram user id: ${telegramUserId}`,
+                      `Your Telegram user id: <code>${escapeHtml(telegramUserId)}</code>`,
                       "",
-                      `Pairing code: ${code}`,
+                      `Pairing code: <code>${escapeHtml(code)}</code>`,
                       "",
                       "Ask the bot owner to approve with:",
-                      formatCliCommand("openclaw pairing approve telegram <code>"),
+                      `<code>${escapeHtml(formatCliCommand("openclaw pairing approve telegram <code>"))}</code>`,
                     ].join("\n"),
+                    { parse_mode: "HTML" },
                   ),
               });
             }
