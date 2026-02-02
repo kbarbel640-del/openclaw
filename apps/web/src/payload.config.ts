@@ -30,6 +30,22 @@ import { botStatus } from './endpoints/bot-status'
 import { getFeed, getProfileTimeline } from './endpoints/social/feed'
 import { followProfile, unfollowProfile } from './endpoints/social/profiles'
 
+// Endpoints - Blockchain
+import {
+  mintBotNFT,
+  listBotForSale,
+  listBotForRent,
+  buyBot,
+  rentBot,
+  getBalance,
+  withdrawEarnings,
+  getBotRating,
+  rateBot,
+  registerBittensorMiner,
+  getBittensorEarnings,
+  getMarketplaceListings
+} from './endpoints/blockchain'
+
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
@@ -110,6 +126,72 @@ export default buildConfig({
       path: '/social/profiles/:id/follow',
       method: 'delete',
       handler: unfollowProfile
+    },
+
+    // Blockchain - NFT and Marketplace
+    {
+      path: '/blockchain/mint-nft',
+      method: 'post',
+      handler: mintBotNFT
+    },
+    {
+      path: '/blockchain/list-sale',
+      method: 'post',
+      handler: listBotForSale
+    },
+    {
+      path: '/blockchain/list-rent',
+      method: 'post',
+      handler: listBotForRent
+    },
+    {
+      path: '/blockchain/buy-bot',
+      method: 'post',
+      handler: buyBot
+    },
+    {
+      path: '/blockchain/rent-bot',
+      method: 'post',
+      handler: rentBot
+    },
+    {
+      path: '/blockchain/balance',
+      method: 'get',
+      handler: getBalance
+    },
+    {
+      path: '/blockchain/withdraw',
+      method: 'post',
+      handler: withdrawEarnings
+    },
+    {
+      path: '/blockchain/bot-rating',
+      method: 'get',
+      handler: getBotRating
+    },
+    {
+      path: '/blockchain/rate-bot',
+      method: 'post',
+      handler: rateBot
+    },
+
+    // Blockchain - Bittensor
+    {
+      path: '/blockchain/bittensor/register',
+      method: 'post',
+      handler: registerBittensorMiner
+    },
+    {
+      path: '/blockchain/bittensor/earnings',
+      method: 'get',
+      handler: getBittensorEarnings
+    },
+
+    // Blockchain - Marketplace
+    {
+      path: '/blockchain/marketplace/listings',
+      method: 'get',
+      handler: getMarketplaceListings
     }
   ],
   sharp: true
