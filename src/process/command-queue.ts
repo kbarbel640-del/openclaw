@@ -93,6 +93,7 @@ function drainLane(lane: string) {
             );
           }
           entry.reject(err);
+          maybeRemoveIdleLane(state);
           return;
         } finally {
           state.active -= 1;
@@ -103,6 +104,7 @@ function drainLane(lane: string) {
         );
         pump();
         entry.resolve(result);
+        maybeRemoveIdleLane(state);
       })();
     }
     state.draining = false;
