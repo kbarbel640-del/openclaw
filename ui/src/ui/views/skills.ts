@@ -29,12 +29,14 @@ export function renderSkills(props: SkillsProps) {
         [skill.name, skill.description, skill.source].join(" ").toLowerCase().includes(filter),
       )
     : skills;
+  const hasMissing = (skill: SkillStatusEntry) =>
+    Object.values(skill.missing).some((missing) => missing.length > 0);
   const installFilter = props.installFilter;
   const filtered =
     installFilter === "installed"
-      ? searchFiltered.filter((skill) => skill.missing.bins.length === 0)
+      ? searchFiltered.filter((skill) => !hasMissing(skill))
       : installFilter === "not-installed"
-        ? searchFiltered.filter((skill) => skill.missing.bins.length > 0)
+        ? searchFiltered.filter((skill) => hasMissing(skill))
         : searchFiltered;
 
   return html`
@@ -58,7 +60,7 @@ export function renderSkills(props: SkillsProps) {
             placeholder="Search skills"
           />
         </label>
-        <label class="field" style="min-width: 200px;">
+        <label class="field field--min">
           <span>Install status</span>
           <select
             .value=${props.installFilter}
