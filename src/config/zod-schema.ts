@@ -528,6 +528,68 @@ export const OpenClawSchema = z
       })
       .strict()
       .optional(),
+    voice: z
+      .object({
+        mode: z.enum(["option2a", "personaplex", "hybrid"]).optional(),
+        enabled: z.boolean().optional(),
+        sttProvider: z.enum(["whisper", "openai"]).optional(),
+        ttsProvider: z.enum(["elevenlabs", "openai", "edge", "macos"]).optional(),
+        whisper: z
+          .object({
+            binaryPath: z.string().optional(),
+            modelPath: z.string().optional(),
+            language: z.string().optional(),
+            threads: z.number().int().positive().optional(),
+            timeoutMs: z.number().int().positive().optional(),
+          })
+          .strict()
+          .optional(),
+        localTts: z
+          .object({
+            useSag: z.boolean().optional(),
+            voiceId: z.string().optional(),
+            modelId: z.string().optional(),
+            fallbackToMacos: z.boolean().optional(),
+            macosVoice: z.string().optional(),
+            timeoutMs: z.number().int().positive().optional(),
+          })
+          .strict()
+          .optional(),
+        router: z
+          .object({
+            mode: z.enum(["local", "cloud", "auto"]).optional(),
+            detectSensitive: z.boolean().optional(),
+            useComplexity: z.boolean().optional(),
+            localModel: z.string().optional(),
+            cloudModel: z.string().optional(),
+            complexityThreshold: z.number().int().min(0).max(10).optional(),
+          })
+          .strict()
+          .optional(),
+        personaplex: z
+          .object({
+            enabled: z.boolean().optional(),
+            installPath: z.string().optional(),
+            port: z.number().int().positive().optional(),
+            useSsl: z.boolean().optional(),
+            hfToken: z.string().optional(),
+            useGpu: z.boolean().optional(),
+            cpuOffload: z.boolean().optional(),
+            timeoutMs: z.number().int().positive().optional(),
+            autoStart: z.boolean().optional(),
+            voicePrompt: z.string().optional(),
+            textPrompt: z.string().optional(),
+            seed: z.number().int().optional(),
+          })
+          .strict()
+          .optional(),
+        streaming: z.boolean().optional(),
+        bufferMs: z.number().int().positive().optional(),
+        maxRecordingSeconds: z.number().int().positive().optional(),
+        vadSensitivity: z.number().min(0).max(1).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((cfg, ctx) => {

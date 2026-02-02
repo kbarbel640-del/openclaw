@@ -30,7 +30,7 @@ struct SettingsTab: View {
     @AppStorage("gateway.lastDiscoveredStableID") private var lastDiscoveredGatewayStableID: String = ""
     @AppStorage("gateway.manual.enabled") private var manualGatewayEnabled: Bool = false
     @AppStorage("gateway.manual.host") private var manualGatewayHost: String = ""
-    @AppStorage("gateway.manual.port") private var manualGatewayPort: Int = 18789
+    @AppStorage("gateway.manual.port") private var manualGatewayPort: Int = 32555
     @AppStorage("gateway.manual.tls") private var manualGatewayTLS: Bool = true
     @AppStorage("gateway.discovery.debugLogs") private var discoveryDebugLogsEnabled: Bool = false
     @AppStorage("canvas.debugStatusEnabled") private var canvasDebugStatusEnabled: Bool = false
@@ -144,7 +144,7 @@ struct SettingsTab: View {
 
                         Text(
                             "Use this when mDNS/Bonjour discovery is blocked. "
-                                + "The gateway WebSocket listens on port 18789 by default.")
+                                + "The gateway WebSocket listens on port 32555 by default.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
 

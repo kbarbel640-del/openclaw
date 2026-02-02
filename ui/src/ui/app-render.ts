@@ -88,6 +88,7 @@ import {
 } from "./controllers/cron";
 import { loadDebug, callDebugMethod } from "./controllers/debug";
 import { loadLogs } from "./controllers/logs";
+import { renderVoiceBar } from "./views/voice-bar";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
@@ -147,6 +148,14 @@ export function renderApp(state: AppViewState) {
             <span>Health</span>
             <span class="mono">${state.connected ? "OK" : "Offline"}</span>
           </div>
+          <button
+            class="voice-toggle-btn ${state.voiceBarVisible ? "voice-toggle-btn--active" : ""}"
+            @click=${() => state.toggleVoiceBar()}
+            title="${state.voiceBarVisible ? "Hide voice mode" : "Show voice mode"}"
+            aria-label="${state.voiceBarVisible ? "Hide voice mode" : "Show voice mode"}"
+          >
+            ${icons.mic || "🎤"}
+          </button>
           ${renderThemeToggle(state)}
         </div>
       </header>
@@ -602,6 +611,16 @@ export function renderApp(state: AppViewState) {
       </main>
       ${renderExecApprovalPrompt(state)}
       ${renderGatewayUrlConfirmation(state)}
+      ${renderVoiceBar({
+        state: state.voiceState,
+        visible: state.voiceBarVisible,
+        expanded: state.voiceBarExpanded,
+        onToggleExpanded: () => state.toggleVoiceBarExpanded(),
+        onStartConversation: () => state.handleVoiceStartConversation(),
+        onStopConversation: () => state.handleVoiceStopConversation(),
+        onClose: () => state.handleVoiceClose(),
+        onRetry: () => state.handleVoiceRetry(),
+      })}
     </div>
   `;
 }

@@ -26,6 +26,7 @@ import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exe
 import type { DevicePairingList } from "./controllers/devices";
 import type { ExecApprovalRequest } from "./controllers/exec-approval";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form";
+import type { VoiceState } from "./controllers/voice";
 
 export type AppViewState = {
   settings: UiSettings;
@@ -135,6 +136,10 @@ export type AppViewState = {
   debugCallParams: string;
   debugCallResult: string | null;
   debugCallError: string | null;
+  // Voice mode state
+  voiceBarVisible: boolean;
+  voiceBarExpanded: boolean;
+  voiceState: VoiceState;
   logsLoading: boolean;
   logsError: string | null;
   logsFile: string | null;
@@ -203,4 +208,12 @@ export type AppViewState = {
   handleLogsLevelFilterToggle: (level: LogLevel) => void;
   handleLogsAutoFollowToggle: (next: boolean) => void;
   handleCallDebugMethod: (method: string, params: string) => Promise<void>;
+  // Voice mode handlers
+  toggleVoiceBar: () => void;
+  toggleVoiceBarExpanded: () => void;
+  handleVoiceStartRecording: () => Promise<void>;
+  handleVoiceStopRecording: () => Promise<void>;
+  handleVoicePlayResponse: () => Promise<void>;
+  handleVoiceRetry: () => void;
+  handleVoiceClose: () => void;
 };

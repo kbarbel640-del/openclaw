@@ -33,8 +33,14 @@ export type ResolvedMemorySearchConfig = {
     modelCacheDir?: string;
   };
   store: {
-    driver: "sqlite";
+    driver: "sqlite" | "qdrant";
     path: string;
+    qdrant: {
+      url: string;
+      collection: string;
+      apiKey?: string;
+      timeoutMs: number;
+    };
     vector: {
       enabled: boolean;
       extensionPath?: string;
@@ -175,14 +181,25 @@ function mergeConfig(
     .map((value) => value.trim())
     .filter(Boolean);
   const extraPaths = Array.from(new Set(rawPaths));
+  const storeDriver = overrides?.store?.driver ?? defaults?.store?.driver ?? "sqlite";
   const vector = {
     enabled: overrides?.store?.vector?.enabled ?? defaults?.store?.vector?.enabled ?? true,
     extensionPath:
       overrides?.store?.vector?.extensionPath ?? defaults?.store?.vector?.extensionPath,
   };
-  const store = {
-    driver: overrides?.store?.driver ?? defaults?.store?.driver ?? "sqlite",
+  const qdrant = {
+    url: overrides?.store?.qdrant?.url ?? defaults?.store?.qdrant?.url ?? "http://127.0.0.1:6333",
+    collection:
+      overrides?.store?.qdrant?.collection ??
+      defaults?.store?.qdrant?.collection ??
+      "jarvis_memory_chunks",
+    apiKey: overrides?.store?.qdrant?.apiKey ?? defaults?.store?.qdrant?.apiKey,
+    timeoutMs: overrides?.store?.qdrant?.timeoutMs ?? defaults?.store?.qdrant?.timeoutMs ?? 10_000,
+  };
+  const store: ResolvedMemorySearchConfig["store"] = {
+    driver: storeDriver,
     path: resolveStorePath(agentId, overrides?.store?.path ?? defaults?.store?.path),
+    qdrant,
     vector,
   };
   const chunking = {

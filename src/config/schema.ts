@@ -233,7 +233,12 @@ const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.memorySearch.model": "Memory Search Model",
   "agents.defaults.memorySearch.fallback": "Memory Search Fallback",
   "agents.defaults.memorySearch.local.modelPath": "Local Embedding Model Path",
+  "agents.defaults.memorySearch.store.driver": "Memory Search Store Driver",
   "agents.defaults.memorySearch.store.path": "Memory Search Index Path",
+  "agents.defaults.memorySearch.store.qdrant.url": "Qdrant URL",
+  "agents.defaults.memorySearch.store.qdrant.collection": "Qdrant Collection",
+  "agents.defaults.memorySearch.store.qdrant.apiKey": "Qdrant API Key",
+  "agents.defaults.memorySearch.store.qdrant.timeoutMs": "Qdrant Timeout (ms)",
   "agents.defaults.memorySearch.store.vector.enabled": "Memory Search Vector Index",
   "agents.defaults.memorySearch.store.vector.extensionPath": "Memory Search Vector Extension Path",
   "agents.defaults.memorySearch.chunking.tokens": "Memory Chunk Tokens",
@@ -526,6 +531,14 @@ const FIELD_HELP: Record<string, string> = {
     'Fallback provider when embeddings fail ("openai", "gemini", "local", or "none").',
   "agents.defaults.memorySearch.store.path":
     "SQLite index path (default: ~/.openclaw/memory/{agentId}.sqlite).",
+  "agents.defaults.memorySearch.store.driver": 'Memory search store driver ("sqlite" or "qdrant").',
+  "agents.defaults.memorySearch.store.qdrant.url":
+    "Qdrant base URL (default: http://127.0.0.1:6333).",
+  "agents.defaults.memorySearch.store.qdrant.collection":
+    "Qdrant collection name (default: jarvis_memory_chunks).",
+  "agents.defaults.memorySearch.store.qdrant.apiKey": "Qdrant API key (sent as api-key header).",
+  "agents.defaults.memorySearch.store.qdrant.timeoutMs":
+    "Qdrant request timeout in ms (default: 10000).",
   "agents.defaults.memorySearch.store.vector.enabled":
     "Enable sqlite-vec extension for vector search (default: true).",
   "agents.defaults.memorySearch.store.vector.extensionPath":
@@ -679,7 +692,7 @@ const FIELD_HELP: Record<string, string> = {
 };
 
 const FIELD_PLACEHOLDERS: Record<string, string> = {
-  "gateway.remote.url": "ws://host:18789",
+  "gateway.remote.url": "ws://host:32555",
   "gateway.remote.tlsFingerprint": "sha256:ab12cd34…",
   "gateway.remote.sshTarget": "user@host",
   "gateway.controlUi.basePath": "/openclaw",

@@ -57,13 +57,13 @@ forwards `exec` calls to the **node host** when `host=node` is selected.
 On the node machine:
 
 ```bash
-openclaw node run --host <gateway-host> --port 18789 --display-name "Build Node"
+openclaw node run --host <gateway-host> --port 32555 --display-name "Build Node"
 ```
 
 ### Start a node host (service)
 
 ```bash
-openclaw node install --host <gateway-host> --port 18789 --display-name "Build Node"
+openclaw node install --host <gateway-host> --port 32555 --display-name "Build Node"
 openclaw node restart
 ```
 
@@ -298,7 +298,7 @@ or for running a minimal node alongside a server.
 Start it:
 
 ```bash
-openclaw node run --host <gateway-host> --port 18789
+openclaw node run --host <gateway-host> --port 32555
 ```
 
 Notes:

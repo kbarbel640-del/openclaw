@@ -75,6 +75,14 @@ import {
 } from "./app-channels";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity";
+import {
+  createVoiceState,
+  loadVoiceStatus,
+  processVoiceInput,
+  startConversation,
+  stopConversation,
+  type VoiceState,
+} from "./controllers/voice";
 
 declare global {
   interface Window {
@@ -227,6 +235,11 @@ export class OpenClawApp extends LitElement {
   @state() debugCallParams = "{}";
   @state() debugCallResult: string | null = null;
   @state() debugCallError: string | null = null;
+
+  // Voice mode state
+  @state() voiceBarVisible = false;
+  @state() voiceBarExpanded = false;
+  voiceState: VoiceState = createVoiceState();
 
   @state() logsLoading = false;
   @state() logsError: string | null = null;
@@ -467,6 +480,62 @@ export class OpenClawApp extends LitElement {
     const newRatio = Math.max(0.4, Math.min(0.7, ratio));
     this.splitRatio = newRatio;
     this.applySettings({ ...this.settings, splitRatio: newRatio });
+  }
+
+  // Voice mode handlers
+  async loadVoiceStatus() {
+    if (!this.client || !this.connected) return;
+    this.voiceState.client = this.client;
+    this.voiceState.connected = this.connected;
+    await loadVoiceStatus(this.voiceState);
+    this.requestUpdate();
+  }
+
+  toggleVoiceBar() {
+    this.voiceBarVisible = !this.voiceBarVisible;
+    if (this.voiceBarVisible && !this.voiceState.capabilities) {
+      void this.loadVoiceStatus();
+    }
+  }
+
+  toggleVoiceBarExpanded() {
+    this.voiceBarExpanded = !this.voiceBarExpanded;
+  }
+
+  /**
+   * Start a natural voice conversation with VAD.
+   * Mic goes live, VAD detects speech end, processes, responds, loops.
+   */
+  handleVoiceStartConversation() {
+    startConversation(
+      this.voiceState,
+      () => this.requestUpdate(),
+      async (audioBase64: string) => {
+        return await processVoiceInput(this.voiceState, audioBase64);
+      },
+    );
+    this.requestUpdate();
+  }
+  
+  /**
+   * Stop the voice conversation.
+   */
+  handleVoiceStopConversation() {
+    stopConversation(this.voiceState);
+    this.requestUpdate();
+  }
+
+  handleVoiceRetry() {
+    this.voiceState.error = null;
+    this.voiceState.transcription = null;
+    this.voiceState.response = null;
+    this.requestUpdate();
+  }
+
+  handleVoiceClose() {
+    stopConversation(this.voiceState);
+    this.voiceBarVisible = false;
+    this.requestUpdate();
   }
 
   render() {

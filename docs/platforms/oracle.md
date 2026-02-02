@@ -138,7 +138,7 @@ systemctl --user status openclaw-gateway
 tailscale serve status
 
 # Test local response
-curl http://localhost:18789
+curl http://localhost:32555
 ```
 
 ## 8) Lock Down VCN Security
@@ -218,10 +218,10 @@ If Tailscale Serve isn't working, use an SSH tunnel:
 
 ```bash
 # From your local machine (via Tailscale)
-ssh -L 18789:127.0.0.1:18789 ubuntu@openclaw
+ssh -L 32555:127.0.0.1:32555 ubuntu@openclaw
 ```
 
-Then open `http://localhost:18789`.
+Then open `http://localhost:32555`.
 
 ---
 
@@ -260,7 +260,7 @@ journalctl --user -u openclaw-gateway -n 50
 tailscale serve status
 
 # Check gateway is listening
-curl http://localhost:18789
+curl http://localhost:32555
 
 # Restart if needed
 systemctl --user restart openclaw-gateway

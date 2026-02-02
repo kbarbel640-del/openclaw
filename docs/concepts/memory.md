@@ -227,7 +227,7 @@ Local mode:
 ### What gets indexed (and when)
 
 - File type: Markdown only (`MEMORY.md`, `memory/**/*.md`, plus any `.md` files under `memorySearch.extraPaths`).
-- Index storage: per-agent SQLite at `~/.openclaw/memory/<agentId>.sqlite` (configurable via `agents.defaults.memorySearch.store.path`, supports `{agentId}` token).
+- Index storage: per-agent SQLite at `~/.openclaw/memory/<agentId>.sqlite` by default (configurable via `agents.defaults.memorySearch.store.path`, supports `{agentId}` token). To use Qdrant as the vector store, set `agents.defaults.memorySearch.store.driver = "qdrant"` and configure `store.qdrant.url` / `store.qdrant.collection`.
 - Freshness: watcher on `MEMORY.md`, `memory/`, and `memorySearch.extraPaths` marks the index dirty (debounce 1.5s). Sync is scheduled on session start, on search, or on an interval and runs asynchronously. Session transcripts use delta thresholds to trigger background sync.
 - Reindex triggers: the index stores the embedding **provider/model + endpoint fingerprint + chunking params**. If any of those change, OpenClaw automatically resets and reindexes the entire store.
 

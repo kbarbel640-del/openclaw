@@ -265,8 +265,20 @@ export type MemorySearchConfig = {
   };
   /** Index storage configuration. */
   store?: {
-    driver?: "sqlite";
+    driver?: "sqlite" | "qdrant";
+    /** SQLite index path (ignored when driver is qdrant). */
     path?: string;
+    /** Qdrant settings (used when driver is qdrant). */
+    qdrant?: {
+      /** Base URL for Qdrant (default: http://127.0.0.1:6333). */
+      url?: string;
+      /** Collection name (default: jarvis_memory_chunks). */
+      collection?: string;
+      /** Optional Qdrant API key (sent as api-key header). */
+      apiKey?: string;
+      /** Request timeout in ms (default: 10000). */
+      timeoutMs?: number;
+    };
     vector?: {
       /** Enable sqlite-vec extension for vector search (default: true). */
       enabled?: boolean;

@@ -39,7 +39,7 @@ type Pending = {
 };
 
 export type GatewayClientOptions = {
-  url?: string; // ws://127.0.0.1:18789
+  url?: string; // ws://127.0.0.1:32555
   token?: string;
   password?: string;
   instanceId?: string;
@@ -99,10 +99,8 @@ export class GatewayClient {
   }
 
   start() {
-    if (this.closed) {
-      return;
-    }
-    const url = this.opts.url ?? "ws://127.0.0.1:18789";
+    if (this.closed) return;
+    const url = this.opts.url ?? "ws://127.0.0.1:32555";
     if (this.opts.tlsFingerprint && !url.startsWith("wss://")) {
       this.opts.onConnectError?.(new Error("gateway tls fingerprint requires wss:// gateway url"));
       return;
@@ -175,9 +173,7 @@ export class GatewayClient {
   }
 
   private sendConnect() {
-    if (this.connectSent) {
-      return;
-    }
+    if (this.connectSent) return;
     this.connectSent = true;
     if (this.connectTimer) {
       clearTimeout(this.connectTimer);
@@ -200,9 +196,7 @@ export class GatewayClient {
     const nonce = this.connectNonce ?? undefined;
     const scopes = this.opts.scopes ?? ["operator.admin"];
     const device = (() => {
-      if (!this.opts.deviceIdentity) {
-        return undefined;
-      }
+      if (!this.opts.deviceIdentity) return undefined;
       const payload = buildDeviceAuthPayload({
         deviceId: this.opts.deviceIdentity.deviceId,
         clientId: this.opts.clientName ?? GATEWAY_CLIENT_NAMES.GATEWAY_CLIENT,
@@ -275,11 +269,8 @@ export class GatewayClient {
         }
         this.opts.onConnectError?.(err instanceof Error ? err : new Error(String(err)));
         const msg = `gateway connect failed: ${String(err)}`;
-        if (this.opts.mode === GATEWAY_CLIENT_MODES.PROBE) {
-          logDebug(msg);
-        } else {
-          logError(msg);
-        }
+        if (this.opts.mode === GATEWAY_CLIENT_MODES.PROBE) logDebug(msg);
+        else logError(msg);
         this.ws?.close(1008, "connect failed");
       });
   }
@@ -288,7 +279,7 @@ export class GatewayClient {
     try {
       const parsed = JSON.parse(raw);
       if (validateEventFrame(parsed)) {
-        const evt = parsed;
+        const evt = parsed as EventFrame;
         if (evt.event === "connect.challenge") {
           const payload = evt.payload as { nonce?: unknown } | undefined;
           const nonce = payload && typeof payload.nonce === "string" ? payload.nonce : null;
@@ -313,9 +304,7 @@ export class GatewayClient {
       }
       if (validateResponseFrame(parsed)) {
         const pending = this.pending.get(parsed.id);
-        if (!pending) {
-          return;
-        }
+        if (!pending) return;
         // If the payload is an ack with status accepted, keep waiting for final.
         const payload = parsed.payload as { status?: unknown } | undefined;
         const status = payload?.status;
@@ -323,11 +312,8 @@ export class GatewayClient {
           return;
         }
         this.pending.delete(parsed.id);
-        if (parsed.ok) {
-          pending.resolve(parsed.payload);
-        } else {
-          pending.reject(new Error(parsed.error?.message ?? "unknown error"));
-        }
+        if (parsed.ok) pending.resolve(parsed.payload);
+        else pending.reject(new Error(parsed.error?.message ?? "unknown error"));
       }
     } catch (err) {
       logDebug(`gateway client parse error: ${String(err)}`);
@@ -337,18 +323,14 @@ export class GatewayClient {
   private queueConnect() {
     this.connectNonce = null;
     this.connectSent = false;
-    if (this.connectTimer) {
-      clearTimeout(this.connectTimer);
-    }
+    if (this.connectTimer) clearTimeout(this.connectTimer);
     this.connectTimer = setTimeout(() => {
       this.sendConnect();
     }, 750);
   }
 
   private scheduleReconnect() {
-    if (this.closed) {
-      return;
-    }
+    if (this.closed) return;
     if (this.tickTimer) {
       clearInterval(this.tickTimer);
       this.tickTimer = null;
@@ -366,17 +348,11 @@ export class GatewayClient {
   }
 
   private startTickWatch() {
-    if (this.tickTimer) {
-      clearInterval(this.tickTimer);
-    }
+    if (this.tickTimer) clearInterval(this.tickTimer);
     const interval = Math.max(this.tickIntervalMs, 1000);
     this.tickTimer = setInterval(() => {
-      if (this.closed) {
-        return;
-      }
-      if (!this.lastTick) {
-        return;
-      }
+      if (this.closed) return;
+      if (!this.lastTick) return;
       const gap = Date.now() - this.lastTick;
       if (gap > this.tickIntervalMs * 2) {
         this.ws?.close(4000, "tick timeout");
@@ -385,13 +361,9 @@ export class GatewayClient {
   }
 
   private validateTlsFingerprint(): Error | null {
-    if (!this.opts.tlsFingerprint || !this.ws) {
-      return null;
-    }
+    if (!this.opts.tlsFingerprint || !this.ws) return null;
     const expected = normalizeFingerprint(this.opts.tlsFingerprint);
-    if (!expected) {
-      return new Error("gateway tls fingerprint missing");
-    }
+    if (!expected) return new Error("gateway tls fingerprint missing");
     const socket = (
       this.ws as WebSocket & {
         _socket?: { getPeerCertificate?: () => { fingerprint256?: string } };
@@ -402,16 +374,12 @@ export class GatewayClient {
     }
     const cert = socket.getPeerCertificate();
     const fingerprint = normalizeFingerprint(cert?.fingerprint256 ?? "");
-    if (!fingerprint) {
-      return new Error("gateway tls fingerprint unavailable");
-    }
-    if (fingerprint !== expected) {
-      return new Error("gateway tls fingerprint mismatch");
-    }
+    if (!fingerprint) return new Error("gateway tls fingerprint unavailable");
+    if (fingerprint !== expected) return new Error("gateway tls fingerprint mismatch");
     return null;
   }
 
-  async request<T = Record<string, unknown>>(
+  async request<T = unknown>(
     method: string,
     params?: unknown,
     opts?: { expectFinal?: boolean },

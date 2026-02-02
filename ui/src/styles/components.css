@@ -1496,3 +1496,302 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* ===========================================
+   Voice Bar Component
+   =========================================== */
+
+.voice-bar {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 300px;
+  max-width: 400px;
+  z-index: 1000;
+  overflow: hidden;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.voice-bar--expanded {
+  max-width: 450px;
+}
+
+.voice-bar__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--secondary);
+}
+
+.voice-bar__toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-bar__toggle:hover {
+  color: var(--text);
+}
+
+.voice-bar__title {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+}
+
+.voice-bar__mode {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--bg);
+  border-radius: var(--radius-full);
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.voice-bar__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-bar__close:hover {
+  color: var(--danger);
+}
+
+.voice-bar__main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+}
+
+.voice-bar__mic {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--accent);
+  background: var(--card);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.voice-bar__mic:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--primary-foreground);
+  transform: scale(1.05);
+}
+
+.voice-bar__mic:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-bar__mic--recording {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}
+
+.voice-bar__recording {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.voice-bar__recording-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--danger);
+  border-radius: var(--radius-full);
+  animation: voice-blink 1s ease-in-out infinite;
+}
+
+@keyframes voice-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.voice-bar__processing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.voice-bar__processing svg {
+  animation: spin 1s linear infinite;
+}
+
+.voice-bar__details {
+  padding: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.voice-bar__capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.voice-bar__capability {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.voice-bar__capability--available {
+  background: var(--ok-subtle);
+  color: var(--ok);
+}
+
+.voice-bar__capability--unavailable {
+  background: var(--danger-subtle);
+  color: var(--danger);
+}
+
+.voice-bar__timings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.voice-bar__timing {
+  display: flex;
+  gap: 4px;
+}
+
+.voice-bar__timing-label {
+  color: var(--muted);
+}
+
+.voice-bar__timing-value {
+  font-weight: 600;
+}
+
+.voice-bar__transcription,
+.voice-bar__response {
+  margin-bottom: 12px;
+}
+
+.voice-bar__label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.voice-bar__text {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--secondary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.voice-bar__play-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.voice-bar__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--danger-subtle);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+}
+
+.voice-bar__error-text {
+  flex: 1;
+  font-size: 12px;
+}
+
+.voice-bar__disabled,
+.voice-bar__disconnected {
+  padding: 10px 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--secondary);
+}
+
+/* Voice Toggle Button */
+.voice-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.voice-toggle-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+  background: var(--secondary);
+}
+
+.voice-toggle-btn--active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.voice-toggle-btn--active:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: white;
+}
+
+.voice-toggle-btn svg {
+  width: 16px;
+  height: 16px;
+}

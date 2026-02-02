@@ -10,7 +10,7 @@ read_when:
 Goal: go from **zero** → **first working chat** (with sane defaults) as quickly as possible.
 
 Fastest chat: open the Control UI (no channel setup needed). Run `openclaw dashboard`
-and chat in the browser, or open `http://127.0.0.1:18789/` on the gateway host.
+and chat in the browser, or open `http://127.0.0.1:32555/` on the gateway host.
 Docs: [Dashboard](/web/dashboard) and [Control UI](/web/control-ui).
 
 Recommended path: use the **CLI onboarding wizard** (`openclaw onboard`). It sets up:
@@ -113,10 +113,10 @@ openclaw gateway status
 Manual run (foreground):
 
 ```bash
-openclaw gateway --port 18789 --verbose
+openclaw gateway --port 32555 --verbose
 ```
 
-Dashboard (local loopback): `http://127.0.0.1:18789/`
+Dashboard (local loopback): `http://127.0.0.1:32555/`
 If a token is configured, paste it into the Control UI settings (stored as `connect.params.auth.token`).
 
 ⚠️ **Bun warning (WhatsApp + Telegram):** Bun has known issues with these
@@ -183,7 +183,7 @@ If you don’t have a global install yet, run the onboarding step via `pnpm open
 Gateway (from this repo):
 
 ```bash
-node openclaw.mjs gateway --port 18789 --verbose
+node openclaw.mjs gateway --port 32555 --verbose
 ```
 
 ## 7) Verify end-to-end
