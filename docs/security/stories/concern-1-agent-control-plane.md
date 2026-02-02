@@ -351,7 +351,7 @@ The test suite must cover:
 - [ ] **AC-1.3.1**: Test suite covers all tool categories defined in TOOL_GROUPS
   - Tests exist for: `group:memory`, `group:web`, `group:fs`, `group:runtime`, `group:sessions`, `group:ui`, `group:automation`, `group:messaging`, `group:nodes`, `group:openclaw`
   - Each tool group has at least 3 test cases (allow, deny, edge case)
-  - Test coverage report shows >90% of tool dispatch code paths
+  - Test coverage report shows 90%+ of tool dispatch code paths
 
 - [ ] **AC-1.3.2**: Tests verify policy engine is invoked for every tool dispatch
   - Mock policy engine to track invocations
@@ -384,14 +384,14 @@ The test suite must cover:
 |--------|-------|
 | Separation relies on code review only | Automated tests catch violations |
 | Regression can reintroduce bypass paths | CI pipeline blocks regressions |
-| Coverage gaps may exist in policy paths | >90% coverage requirement |
+| Coverage gaps may exist in policy paths | 90%+ coverage requirement |
 
 ### Verification Method
 
 | Verification Type | Method |
 |-------------------|--------|
 | **CI Pipeline** | Test suite runs on every PR |
-| **Coverage Report** | Policy path coverage >90% |
+| **Coverage Report** | Policy path coverage 90%+ |
 | **Mutation Testing** | Verify tests detect intentional bypass attempts |
 | **Test Review** | Security team reviews test completeness |
 
@@ -623,7 +623,7 @@ flowchart LR
 | Metric | Target | Measurement |
 |--------|--------|-------------|
 | Tool calls through boundary | 100% | Audit log analysis |
-| Policy path test coverage | >90% | Coverage report |
+| Policy path test coverage | 90%+ | Coverage report |
 | Audit log completeness | 100% | Log validation tests |
 | Invariant validation | Pass on startup | Runtime assertion |
 | Documentation accuracy | 100% | Architecture tests |

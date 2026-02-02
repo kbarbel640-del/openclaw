@@ -160,7 +160,7 @@ None - this is a foundational story.
 | Method | Description |
 |--------|-------------|
 | **Unit Tests** | Pattern test suite with 100+ known injection payloads from public datasets |
-| **False Positive Testing** | Validation against corpus of legitimate messages to measure false positive rate (<1% target) |
+| **False Positive Testing** | Validation against corpus of legitimate messages to measure false positive rate (less than 1% target) |
 | **Performance Tests** | Benchmark detection on various content sizes |
 | **Integration Tests** | Verify detection at all ingestion points |
 
@@ -691,8 +691,8 @@ export function sanitizeToolResult(
 
 | Metric | Current | Target | Measurement |
 |--------|---------|--------|-------------|
-| Detection Coverage | ~30% of known attacks | >80% | Pattern test suite pass rate |
-| False Positive Rate | Unknown | <1% | Legitimate message corpus testing |
+| Detection Coverage | ~30% of known attacks | greater than 80% | Pattern test suite pass rate |
+| False Positive Rate | Unknown | less than 1% | Legitimate message corpus testing |
 | Tool Input Gating | 0% | 100% | Code coverage of tool dispatch path |
 | Trust Boundary Enforcement | None | Compile-time | TypeScript compilation errors |
 | Result Sanitization | 0% | 100% high-risk tools | Tool result processing audit |

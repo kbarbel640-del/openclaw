@@ -102,7 +102,7 @@ The implementation should:
 - [ ] **AC1:** All credential types in `src/config/types.auth.ts` have a configurable `ttl` field (optional, with sensible defaults: API keys 90 days, OAuth per-provider, tokens 24 hours)
 - [ ] **AC2:** Credentials are automatically invalidated when TTL expires - `resolveApiKeyForProfile()` returns error for expired credentials
 - [ ] **AC3:** Credential expiration events are logged to the audit system with structured metadata (credential ID hash, type, age at expiration)
-- [ ] **AC4:** Configuration validation warns when TTL exceeds recommended maximums (API keys > 180 days, tokens > 7 days)
+- [ ] **AC4:** Configuration validation warns when TTL exceeds recommended maximums (API keys over 180 days, tokens over 7 days)
 
 ### Dependencies
 

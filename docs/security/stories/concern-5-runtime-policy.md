@@ -600,10 +600,10 @@ flowchart LR
 | Metric | Current | Target | Measurement |
 |--------|---------|--------|-------------|
 | Tool calls with policy evaluation | Partial | 100% | Audit log coverage |
-| Policy violation alert latency | N/A | < 100ms | Alert timestamp delta |
+| Policy violation alert latency | N/A | under 100ms | Alert timestamp delta |
 | Approval workflow adoption | 0% | 100% for elevated tools | Approval request count |
 | Policy change audit coverage | 0% | 100% | Audit entry count |
-| Policy test coverage | 0% | > 80% rules tested | Test case count |
+| Policy test coverage | 0% | 80%+ rules tested | Test case count |
 
 ---
 
