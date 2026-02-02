@@ -342,40 +342,6 @@ function safeJsonStringify(value: unknown): string {
   }
 }
 
-function truncateLogValue(value: string, maxLength = 2000): string {
-  if (value.length <= maxLength) {
-    return value;
-  }
-  return `${value.slice(0, maxLength)}…(len=${value.length})`;
-}
-
-function redactOpenResponsesForLog(value: unknown): unknown {
-  if (typeof value === "string") {
-    return truncateLogValue(value);
-  }
-  if (Array.isArray(value)) {
-    const trimmed = value.slice(0, 50);
-    return trimmed.map((entry) => redactOpenResponsesForLog(entry));
-  }
-  if (!value || typeof value !== "object") {
-    return value;
-  }
-  const record = value as Record<string, unknown>;
-  const result: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(record)) {
-    if (key === "data" && typeof entry === "string") {
-      result[key] = `[base64:${entry.length}]`;
-      continue;
-    }
-    if (key === "content" && Array.isArray(entry)) {
-      result[key] = entry.slice(0, 10).map((item) => redactOpenResponsesForLog(item));
-      continue;
-    }
-    result[key] = redactOpenResponsesForLog(entry);
-  }
-  return result;
-}
-
 export async function handleOpenResponsesHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -414,12 +380,6 @@ export async function handleOpenResponsesHttpRequest(
     return true;
   }
 
-  const rawToolNames = Array.isArray((body as { tools?: unknown })?.tools)
-    ? ((body as { tools: Array<{ function?: { name?: string } }> }).tools || [])
-        .map((tool) => tool?.function?.name)
-        .filter(Boolean)
-    : [];
-
   // Validate request body with Zod
   const parseResult = CreateResponseBodySchema.safeParse(body);
   if (!parseResult.success) {
@@ -437,7 +397,7 @@ export async function handleOpenResponsesHttpRequest(
   const user = payload.user;
   const toolResultMaxDataBytes = opts.config?.toolResultMaxDataBytes;
   const reasoningLevel = payload.reasoning ? "stream" : undefined;
-  const reasoningSummary = payload.reasoning?.summary ? true : false;
+  const reasoningSummary = Boolean(payload.reasoning?.summary);
 
   // Extract images + files from input (Phase 2)
   let images: ImageContent[] = [];

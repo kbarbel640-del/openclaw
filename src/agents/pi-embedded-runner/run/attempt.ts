@@ -87,59 +87,6 @@ import { splitSdkTools } from "../tool-split.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
 import { detectAndLoadPromptImages } from "./images.js";
 
-function truncateLogValue(value: string, maxLength = 2000): string {
-  if (value.length <= maxLength) {
-    return value;
-  }
-  return `${value.slice(0, maxLength)}…(len=${value.length})`;
-}
-
-function sanitizePromptForLog(value: string): string {
-  const sanitized = value.replace(/"data":"([^"]{200,})"/g, (match, data) => {
-    return `"data":"[base64:${data.length}]"`;
-  });
-  return sanitized;
-}
-
-function redactLogValue(value: unknown): unknown {
-  if (typeof value === "string") {
-    return truncateLogValue(value);
-  }
-  if (Array.isArray(value)) {
-    const trimmed = value.slice(0, 50);
-    return trimmed.map((entry) => redactLogValue(entry));
-  }
-  if (!value || typeof value !== "object") {
-    return value;
-  }
-  const record = value as Record<string, unknown>;
-  const result: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(record)) {
-    if (key === "data" && typeof entry === "string") {
-      result[key] = `[base64:${entry.length}]`;
-      continue;
-    }
-    if (key === "content" && Array.isArray(entry)) {
-      result[key] = entry.slice(0, 10).map((item) => redactLogValue(item));
-      continue;
-    }
-    result[key] = redactLogValue(entry);
-  }
-  return result;
-}
-
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    try {
-      return String(value);
-    } catch {
-      return "";
-    }
-  }
-}
-
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
   historyImagesByIndex: Map<number, ImageContent[]>,
@@ -501,7 +448,6 @@ export async function runEmbeddedAttempt(
 
       // Add client tools (OpenResponses hosted tools) to customTools
       let clientToolCallDetected: { name: string; params: Record<string, unknown> } | null = null;
-      const rawClientTools = params.clientTools ?? [];
       const clientToolDefs = params.clientTools
         ? toClientToolDefinitions(
             params.clientTools,
@@ -783,12 +729,6 @@ export async function runEmbeddedAttempt(
         }
 
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
-        const promptSnapshot = {
-          runId: params.runId,
-          sessionId: params.sessionId,
-          prompt: sanitizePromptForLog(effectivePrompt),
-          messages: redactLogValue(activeSession.messages),
-        };
         cacheTrace?.recordStage("prompt:before", {
           prompt: effectivePrompt,
           messages: activeSession.messages,
