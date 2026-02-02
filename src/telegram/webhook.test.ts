@@ -102,6 +102,26 @@ describe("startTelegramWebhook", () => {
     abort.abort();
   });
 
+  it("defaults to 0.0.0.0 when publicUrl is external", async () => {
+    const abort = new AbortController();
+    const cfg = { bindings: [] };
+    const { server } = await startTelegramWebhook({
+      token: "tok",
+      accountId: "opie",
+      config: cfg,
+      port: 0,
+      abortSignal: abort.signal,
+      publicUrl: "https://my-server.example.com/telegram-webhook",
+    });
+    const addr = server.address();
+    if (!addr || typeof addr === "string") {
+      throw new Error("no addr");
+    }
+    // External publicUrl should bind to all interfaces
+    expect(addr.address).toBe("0.0.0.0");
+    abort.abort();
+  });
+
   it("logs warning when no webhook secret is configured", async () => {
     const logSpy = vi.fn();
     const abort = new AbortController();

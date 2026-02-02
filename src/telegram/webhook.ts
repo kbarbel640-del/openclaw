@@ -33,7 +33,12 @@ export async function startTelegramWebhook(opts: {
   const path = opts.path ?? "/telegram-webhook";
   const healthPath = opts.healthPath ?? "/healthz";
   const port = opts.port ?? 8787;
-  const host = opts.host ?? "127.0.0.1";
+  // Default to loopback unless a public URL suggests external traffic is expected
+  const hasExternalPublicUrl =
+    opts.publicUrl &&
+    !opts.publicUrl.includes("localhost") &&
+    !opts.publicUrl.includes("127.0.0.1");
+  const host = opts.host ?? (hasExternalPublicUrl ? "0.0.0.0" : "127.0.0.1");
   const runtime = opts.runtime ?? defaultRuntime;
   const diagnosticsEnabled = isDiagnosticsEnabled(opts.config);
   const bot = createTelegramBot({
