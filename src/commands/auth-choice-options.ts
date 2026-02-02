@@ -18,6 +18,7 @@ export type AuthChoiceGroupId =
   | "zai"
   | "xiaomi"
   | "opencode-zen"
+  | "amazon-nova"
   | "minimax"
   | "synthetic"
   | "venice"
@@ -83,6 +84,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     label: "Z.AI (GLM 4.7)",
     hint: "API key",
     choices: ["zai-api-key"],
+  },
+  {
+    value: "amazon-nova",
+    label: "Amazon Nova",
+    hint: "API key (1P API)",
+    choices: ["amazon-nova-api-key"],
   },
   {
     value: "copilot",
@@ -169,6 +176,10 @@ export function buildAuthChoiceOptions(params: {
     value: "google-gemini-cli",
     label: "Google Gemini CLI OAuth",
     hint: "Uses the bundled Gemini CLI auth plugin",
+  });
+  options.push({
+    value: "amazon-nova-api-key",
+    label: "Amazon Nova API key",
   });
   options.push({ value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" });
   options.push({

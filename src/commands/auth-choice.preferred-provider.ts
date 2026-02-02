@@ -28,6 +28,7 @@ const PREFERRED_PROVIDER_BY_AUTH_CHOICE: Partial<Record<AuthChoice, string>> = {
   "minimax-api-lightning": "minimax",
   minimax: "lmstudio",
   "opencode-zen": "opencode",
+  "amazon-nova-api-key": "amazon-nova",
   "qwen-portal": "qwen-portal",
   "minimax-portal": "minimax-portal",
 };
