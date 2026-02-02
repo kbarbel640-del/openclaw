@@ -761,8 +761,8 @@ export async function runEmbeddedAttempt(
             existingImages: params.images,
             historyMessages: activeSession.messages,
             maxBytes: MAX_IMAGE_BYTES,
-            // Enforce sandbox path restrictions when sandbox is enabled
-            sandboxRoot: sandbox?.enabled ? sandbox.workspaceDir : undefined,
+            // Always enforce path restrictions to prevent reading files outside workspace
+            sandboxRoot: sandbox?.workspaceDir ?? effectiveWorkspace,
           });
 
           // Inject history images into their original message positions.
