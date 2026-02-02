@@ -10,6 +10,22 @@ read_when:
 
 See also: [Formal Verification (Security Models)](/security/formal-verification/)
 
+### Agentic Security Assessment
+
+OpenClaw is an agentic system where AI models can execute tools, access credentials, and interact with external systems. This introduces security concerns beyond traditional application security.
+
+| Concern | Description |
+|---------|-------------|
+| 1. Agent/Control Plane Separation | Lack of separation between agent reasoning and control plane |
+| 2. Exposed Control Surfaces | Internet-exposed UI, APIs, WebSockets, tool endpoints |
+| 3. Prompt Injection | Untrusted inputs directly influencing tool execution |
+| 4. Credential Management | Over-privileged, long-lived credentials and sessions |
+| 5. Runtime Policy | Missing runtime policy enforcement and execution guardrails |
+| 6. Runtime Isolation | Insufficient isolation between agent runtime and host system |
+| 7. Security as System Property | Security treated as deployment hygiene rather than system property |
+
+See [Agentic Security Assessment](/security/agentic-security-assessment) for detailed analysis and remediation stories.
+
 Run this regularly (especially after changing config or exposing network surfaces):
 
 ```bash
@@ -140,6 +156,24 @@ People who message you can:
 - Try to trick your AI into doing bad things
 - Social engineer access to your data
 - Probe for infrastructure details
+
+### Agentic-Specific Threats
+
+Beyond traditional application threats, agentic systems face unique attack vectors:
+
+- **Reasoning plane manipulation**: Prompt injection attacks that influence the agent's tool selection and execution decisions. Attackers craft inputs that cause the LLM to invoke unintended tools or bypass safety checks.
+
+- **Control plane bypass**: Direct invocation of tool endpoints without passing through the policy engine. This bypasses allowlists and approval workflows.
+
+- **Credential exfiltration**: Agent reasoning gaining access to stored credentials (API keys, OAuth tokens) through indirect prompting or tool output inspection.
+
+- **Sandbox escape**: Breaking out of container isolation to access host filesystem, network, or processes. This includes bind mount exploitation and namespace breakouts.
+
+- **Policy bypass**: Circumventing tool allowlists/denylists through aliasing, path traversal, or exploiting gaps between policy definition and enforcement.
+
+See [Formal Verification](/security/formal-verification) for TLA+ models validating security invariants.
+
+For comprehensive analysis of these threats and remediation planning, see [Agentic Security Assessment](/security/agentic-security-assessment).
 
 ## Core concept: access control before intelligence
 
@@ -298,6 +332,44 @@ Assume “compromised” means: someone got into a room that can trigger the bot
    - Review `extensions/` and remove anything you don’t fully trust.
 4. **Re-run audit**
    - `openclaw security audit --deep` and confirm the report is clean.
+
+### Agentic-Specific Incidents
+
+In addition to general incident response, agentic systems require specific procedures for AI-related security events:
+
+**Prompt Injection Attack**
+- **Signs**: Unexpected tool calls, data exfiltration attempts, agent behavior diverging from system prompt
+- **Response**:
+  1. Disable tools immediately (`tools.enabled: false` or remove elevated permissions)
+  2. Review session transcripts for the attack vector
+  3. Tighten content gating in external-content.ts patterns
+  4. Consider enabling sandbox-only mode
+
+**Policy Bypass**
+- **Signs**: Tool execution outside configured allowlist, unexpected command patterns
+- **Response**:
+  1. Review `tools.policy` and `tools.elevated` configuration
+  2. Check src/agents/tool-policy.ts for policy gaps
+  3. Verify TOOL_GROUPS and TOOL_PROFILES match intended restrictions
+  4. Add missing deny patterns
+
+**Credential Compromise**
+- **Signs**: Unusual API usage patterns, token exhaustion, unauthorized service access
+- **Response**:
+  1. Rotate all auth-profiles immediately (`~/.openclaw/agents/*/agent/auth-profiles.json`)
+  2. Invalidate all active sessions
+  3. Revoke OAuth tokens and regenerate API keys
+  4. Review credential access patterns in session transcripts
+
+**Sandbox Escape**
+- **Signs**: Host filesystem access from sandboxed agent, processes running outside container namespace
+- **Response**:
+  1. Stop all sandbox containers immediately
+  2. Audit bind mounts in sandbox configuration
+  3. Review Docker security configuration (seccomp, capabilities)
+  4. Check for namespace isolation violations
+
+For detailed security analysis and remediation planning, see [Agentic Security Assessment](/security/agentic-security-assessment) and [Security Remediation Epic](/security/security-epic).
 
 ## Lessons Learned (The Hard Way)
 
