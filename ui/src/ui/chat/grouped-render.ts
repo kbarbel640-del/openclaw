@@ -257,8 +257,19 @@ function renderGroupedMessage(
     .filter(Boolean)
     .join(" ");
 
-  if (!markdown && hasToolCards && isToolResult) {
+  // Tool results with only tool cards (no markdown, no images) - render cards only
+  if (!markdown && hasToolCards && isToolResult && !hasImages) {
     return html`${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}`;
+  }
+
+  // Tool results with images - render both cards and images
+  if (!markdown && hasToolCards && isToolResult && hasImages) {
+    return html`
+      <div class="${bubbleClasses}">
+        ${renderMessageImages(images)}
+        ${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}
+      </div>
+    `;
   }
 
   if (!markdown && !hasToolCards && !hasImages) {
