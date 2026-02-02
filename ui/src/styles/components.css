@@ -562,6 +562,20 @@
   color: var(--ok);
 }
 
+/* Callout icons */
+.callout svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
 /* Compaction indicator */
 .compaction-indicator {
   font-size: 13px;
