@@ -22,7 +22,7 @@ async function walk(entryPath, files = []) {
     } else if (st.isFile()) {
       files.push(entryPath);
     }
-  } catch (err) {
+  } catch {
     // Ignore missing files or directories
   }
   return files;
@@ -82,7 +82,7 @@ async function main() {
   try {
     await fs.access(A2UI_RENDERER_DIR);
     await fs.access(A2UI_APP_DIR);
-  } catch (err) {
+  } catch {
     console.log("A2UI sources missing; keeping prebuilt bundle.");
     return;
   }
@@ -90,13 +90,16 @@ async function main() {
   const currentHash = await computeHash();
   try {
     const previousHash = await fs.readFile(HASH_FILE, "utf-8");
-    const outputExists = await fs.access(OUTPUT_FILE).then(() => true).catch(() => false);
+    const outputExists = await fs
+      .access(OUTPUT_FILE)
+      .then(() => true)
+      .catch(() => false);
 
     if (previousHash.trim() === currentHash && outputExists) {
       console.log("A2UI bundle up to date; skipping.");
       return;
     }
-  } catch (err) {
+  } catch {
     // Hash file missing or other error, continue to build
   }
 
