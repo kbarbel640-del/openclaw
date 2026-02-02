@@ -24,6 +24,8 @@ Docs: https://docs.openclaw.ai
 
 - Auto-reply: avoid referencing workspace files in /new greeting prompt. (#5706) Thanks @bravostation.
 - Process: resolve Windows `spawn()` failures for npm-family CLIs by appending `.cmd` when needed. (#5815) Thanks @thejhinvirtuoso.
+- Docs: update MiniMax OAuth setup commands; Extensions: use OpenClaw plugin SDK for MiniMax OAuth. (#5402) Thanks @Maosghoul.
+- Web UI: prevent drag-and-drop images from opening in a new tab; treat as attachments. (#6525)
 - Discord: resolve PluralKit proxied senders for allowlists and labels. (#5838) Thanks @thewilloftheshadow.
 - Agents: ensure OpenRouter attribution headers apply in the embedded runner.
 - Agents: cap context window resolution for compaction safeguard. (#6187) Thanks @iamEvanYT.

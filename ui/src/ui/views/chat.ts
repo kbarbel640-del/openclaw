@@ -105,39 +105,82 @@ function generateAttachmentId(): string {
   return `att-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function handlePaste(e: ClipboardEvent, props: ChatProps) {
-  const items = e.clipboardData?.items;
-  if (!items || !props.onAttachmentsChange) return;
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
 
-  const imageItems: DataTransferItem[] = [];
+function extractImageFilesFromItems(items: DataTransferItemList | null | undefined): File[] {
+  if (!items) return [];
+  const files: File[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (item.type.startsWith("image/")) {
-      imageItems.push(item);
-    }
-  }
-
-  if (imageItems.length === 0) return;
-
-  e.preventDefault();
-
-  for (const item of imageItems) {
+    if (item.kind !== "file" || !item.type.startsWith("image/")) continue;
     const file = item.getAsFile();
-    if (!file) continue;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const newAttachment: ChatAttachment = {
-        id: generateAttachmentId(),
-        dataUrl,
-        mimeType: file.type,
-      };
-      const current = props.attachments ?? [];
-      props.onAttachmentsChange?.([...current, newAttachment]);
-    };
-    reader.readAsDataURL(file);
+    if (file) files.push(file);
   }
+  return files;
+}
+
+function extractImageFilesFromList(list: FileList | null | undefined): File[] {
+  if (!list) return [];
+  const files: File[] = [];
+  for (let i = 0; i < list.length; i++) {
+    const file = list[i];
+    if (file && file.type.startsWith("image/")) files.push(file);
+  }
+  return files;
+}
+
+async function appendImageAttachments(files: File[], props: ChatProps) {
+  if (!props.onAttachmentsChange || files.length === 0) return;
+  const results = await Promise.allSettled(files.map(readFileAsDataUrl));
+  const newAttachments: ChatAttachment[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status !== "fulfilled") continue;
+    newAttachments.push({
+      id: generateAttachmentId(),
+      dataUrl: result.value,
+      mimeType: files[i]?.type ?? "image/*",
+    });
+  }
+  if (newAttachments.length === 0) return;
+  const current = props.attachments ?? [];
+  props.onAttachmentsChange([...current, ...newAttachments]);
+}
+
+function handlePaste(e: ClipboardEvent, props: ChatProps) {
+  if (!props.onAttachmentsChange) return;
+  const files = extractImageFilesFromItems(e.clipboardData?.items);
+  if (files.length === 0) return;
+  e.preventDefault();
+  void appendImageAttachments(files, props);
+}
+
+function handleDrop(e: DragEvent, props: ChatProps) {
+  if (!props.onAttachmentsChange) return;
+  const transfer = e.dataTransfer;
+  const hasFiles = Boolean(transfer?.files && transfer.files.length > 0) || hasFileTransfer(e);
+  if (!hasFiles) return;
+  e.preventDefault();
+  e.stopPropagation();
+  let files = extractImageFilesFromItems(transfer?.items);
+  if (files.length === 0) {
+    files = extractImageFilesFromList(transfer?.files);
+  }
+  if (files.length === 0) return;
+  void appendImageAttachments(files, props);
+}
+
+function hasFileTransfer(e: DragEvent): boolean {
+  const types = e.dataTransfer?.types;
+  if (!types) return false;
+  return Array.from(types).includes("Files");
 }
 
 function renderAttachmentPreview(props: ChatProps) {
@@ -240,7 +283,13 @@ export function renderChat(props: ChatProps) {
   `;
 
   return html`
-    <section class="card chat">
+    <section
+      class="card chat"
+      @dragover=${(e: DragEvent) => {
+        if (hasFileTransfer(e)) e.preventDefault();
+      }}
+      @drop=${(e: DragEvent) => handleDrop(e, props)}
+    >
       ${props.disabledReason ? html`<div class="callout">${props.disabledReason}</div>` : nothing}
 
       ${props.error ? html`<div class="callout danger">${props.error}</div>` : nothing}
