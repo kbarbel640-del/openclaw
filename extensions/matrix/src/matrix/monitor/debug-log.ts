@@ -1,12 +1,17 @@
+/**
+ * Debug logging utility for Matrix monitor.
+ * Disabled by default - set MATRIX_DEBUG_LOG env var to enable.
+ */
 import fs from "node:fs";
-import path from "node:path";
 
-const DEBUG_LOG_PATH = "/home/keller/clawd/agents/mondo-assistant/debug-matrix.log";
+const DEBUG_LOG_PATH = process.env.MATRIX_DEBUG_LOG;
 
 export function debugLog(message: string): void {
-  const timestamp = new Date().toISOString();
-  const line = `[${timestamp}] ${message}\n`;
+  if (!DEBUG_LOG_PATH) return;
+  
   try {
+    const timestamp = new Date().toISOString();
+    const line = `[${timestamp}] ${message}\n`;
     fs.appendFileSync(DEBUG_LOG_PATH, line);
   } catch {
     // Ignore errors

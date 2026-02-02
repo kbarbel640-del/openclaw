@@ -1,9 +1,10 @@
 import type { LocationMessageEventContent, MatrixClient } from "@vector-im/matrix-bot-sdk";
 import fs from "node:fs";
 
-// File-based debug logging
-const DEBUG_LOG = "/home/keller/clawd/agents/mondo-assistant/matrix-debug.log";
+// File-based debug logging (disabled by default)
+const DEBUG_LOG = process.env.MATRIX_DEBUG_LOG;
 function debugWrite(msg: string) {
+  if (!DEBUG_LOG) return;
   try {
     fs.appendFileSync(DEBUG_LOG, `[${new Date().toISOString()}] ${msg}\n`);
   } catch { /* ignore */ }
