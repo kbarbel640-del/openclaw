@@ -1,0 +1,18 @@
+# DEPLOYMENT_REPORT_HASHES.txt
+# Generated: 2026-02-02T12:25:00Z
+# Verification: sha256sum -c DEPLOYMENT_REPORT_HASHES.txt
+
+f8ca135ff929353a61aac6e2fa892e78b5c2b571f9f06fa6f51ed82eedfe0ce7  src/agents/pi-embedded-runner.ts
+039037a424f687e86d0d12c1822f885205666403e017eab609166ea83e272fd7  src/agents/pi-embedded.ts
+ff78f392963c47a325ec5ad26e6c610f105f6b373100094c64d76f4d8307536d  src/agents/sandbox/tool-policy.ts
+475e7bbb367602c57c7ed754c89ba83275348484148bb8b424dbdedd6b8d5a0c  src/agents/sandbox/config.ts
+c46c0a630c54925885edbe6a6a12fc019fc1c1102c1f121ff9736199b15701b7  src/agents/pi-embedded-helpers.ts
+0983a59969eda719c627e7c5c53a1a8303add5fb03e616d4830b223e8d666189  docs/reference/templates/SOUL.md
+30347b09539764f7da9155853388722a8cb079b745d871acf2d8dbd9a40ccfd8  docs/reference/templates/AGENTS.md
+948832627da5984e1430dd92b0d2d460f6ab63cc8f10f220fb093f58a4ecbde7  docs/reference/templates/TOOLS.md
+c6f74d2a2e885745491973f3914d7b812c39b313990cef6a3a895f8e4ee9ed39  src/agents/pi-embedded-runner/sandbox-info.ts
+b053f3633e16045172e8403a306046fa1b896476d1812a2318b8b0a866ae205e  src/agents/pi-embedded-runner/tool-split.ts
+53c8e782171fb51b61f212245e9c1b816eee5c29ece1a1e87827258730a69f51  src/agents/pi-embedded-subscribe.ts
+f2823f9b52729d805b48c31dbc85472c740c5b6ede25cef589620ee2f7f3de94  docs/platforms/mac/bundled-gateway.md
+34ecb05d3d294f074e709918a8483b804a49477aed54b159fd752e9ebb25ba4a  src/agents/pi-embedded-runner.test.ts
+d1ed4f7f92b92119853b2fec746b44a0a23d8ae4d11863c8c9c43799b15517fb  src/agents/sandbox/tool-policy.test.ts
