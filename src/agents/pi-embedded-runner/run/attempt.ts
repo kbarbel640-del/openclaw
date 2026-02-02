@@ -1,36 +1,31 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { ImageContent } from "@mariozechner/pi-ai";
-import { streamSimple } from "@mariozechner/pi-ai";
-import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs/promises";
 import os from "node:os";
-import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
+
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AssistantMessage, ImageContent } from "@mariozechner/pi-ai";
+import { streamSimple } from "@mariozechner/pi-ai";
+import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
+
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
-import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
-import { getMachineDisplayName } from "../../../infra/machine-name.js";
-import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
-import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
-import { isSubagentSessionKey } from "../../../routing/session-key.js";
-import { resolveSignalReactionLevel } from "../../../signal/reaction-level.js";
-import { resolveTelegramInlineButtonsScope } from "../../../telegram/inline-buttons.js";
-import { resolveTelegramReactionLevel } from "../../../telegram/reaction-level.js";
-import { buildTtsSystemPromptHint } from "../../../tts/tts.js";
-import { resolveUserPath } from "../../../utils.js";
-import { normalizeMessageChannel } from "../../../utils/message-channel.js";
-import { isReasoningTagProvider } from "../../../utils/provider-utils.js";
-import { resolveOpenClawAgentDir } from "../../agent-paths.js";
-import { resolveSessionAgentIds } from "../../agent-scope.js";
-import { createAnthropicPayloadLogger } from "../../anthropic-payload-log.js";
-import { makeBootstrapWarn, resolveBootstrapContextForRun } from "../../bootstrap-files.js";
-import { createCacheTrace } from "../../cache-trace.js";
 import {
   listChannelSupportedActions,
   resolveChannelMessageToolHints,
 } from "../../channel-tools.js";
-import { resolveOpenClawDocsPath } from "../../docs-path.js";
-import { isTimeoutError } from "../../failover-error.js";
+import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
+import { getMachineDisplayName } from "../../../infra/machine-name.js";
+import { resolveTelegramInlineButtonsScope } from "../../../telegram/inline-buttons.js";
+import { resolveTelegramReactionLevel } from "../../../telegram/reaction-level.js";
+import { normalizeMessageChannel } from "../../../utils/message-channel.js";
+import { isReasoningTagProvider } from "../../../utils/provider-utils.js";
+import { isSubagentSessionKey } from "../../../routing/session-key.js";
+import { resolveUserPath } from "../../../utils.js";
+import { createCacheTrace } from "../../cache-trace.js";
+import { createAnthropicPayloadLogger } from "../../anthropic-payload-log.js";
+import { resolveClawdbotAgentDir } from "../../agent-paths.js";
+import { resolveSessionAgentIds } from "../../agent-scope.js";
+import { makeBootstrapWarn, resolveBootstrapContextForRun } from "../../bootstrap-files.js";
+import { resolveClawdbotDocsPath } from "../../docs-path.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
-import { resolveDefaultModelForAgent } from "../../model-selection.js";
 import {
   isCloudCodeAssistFormatError,
   resolveBootstrapMaxChars,
@@ -42,11 +37,10 @@ import {
   ensurePiCompactionReserveTokens,
   resolveCompactionReserveTokensFloor,
 } from "../../pi-settings.js";
-import { toClientToolDefinitions } from "../../pi-tool-definition-adapter.js";
-import { createOpenClawCodingTools } from "../../pi-tools.js";
+import { createClawdbotCodingTools } from "../../pi-tools.js";
 import { resolveSandboxContext } from "../../sandbox.js";
-import { resolveSandboxRuntimeStatus } from "../../sandbox/runtime-status.js";
 import { guardSessionManager } from "../../session-tool-result-guard-wrapper.js";
+import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { acquireSessionWriteLock } from "../../session-write-lock.js";
 import {
   applySkillEnvOverrides,
@@ -54,14 +48,14 @@ import {
   loadWorkspaceSkillEntries,
   resolveSkillsPromptForRun,
 } from "../../skills.js";
-import { buildSystemPromptParams } from "../../system-prompt-params.js";
-import { buildSystemPromptReport } from "../../system-prompt-report.js";
-import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
+import { buildSystemPromptReport } from "../../system-prompt-report.js";
+import { resolveDefaultModelForAgent } from "../../model-selection.js";
+
 import { isAbortError } from "../abort.js";
-import { appendCacheTtlTimestamp, isCacheTtlEligibleProvider } from "../cache-ttl.js";
 import { buildEmbeddedExtensionPaths } from "../extensions.js";
 import { applyExtraParamsToAgent } from "../extra-params.js";
+import { appendCacheTtlTimestamp, isCacheTtlEligibleProvider } from "../cache-ttl.js";
 import {
   logToolSchemasForGoogle,
   sanitizeSessionHistory,
@@ -78,29 +72,30 @@ import {
 import { buildEmbeddedSandboxInfo } from "../sandbox-info.js";
 import { prewarmSessionFile, trackSessionManagerAccess } from "../session-manager-cache.js";
 import { prepareSessionManagerForRun } from "../session-manager-init.js";
-import {
-  applySystemPromptOverrideToSession,
-  buildEmbeddedSystemPrompt,
-  createSystemPromptOverride,
-} from "../system-prompt.js";
+import { buildEmbeddedSystemPrompt, createSystemPromptOverride } from "../system-prompt.js";
 import { splitSdkTools } from "../tool-split.js";
+import { toClientToolDefinitions } from "../../pi-tool-definition-adapter.js";
+import { buildSystemPromptParams } from "../../system-prompt-params.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
+import { resolveSandboxRuntimeStatus } from "../../sandbox/runtime-status.js";
+import { buildTtsSystemPromptHint } from "../../../tts/tts.js";
+import { isTimeoutError } from "../../failover-error.js";
+import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
+import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
+import { modelSupportsTools } from "../../model-compat.js";
+import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 import { detectAndLoadPromptImages } from "./images.js";
 
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
   historyImagesByIndex: Map<number, ImageContent[]>,
 ): boolean {
-  if (historyImagesByIndex.size === 0) {
-    return false;
-  }
+  if (historyImagesByIndex.size === 0) return false;
   let didMutate = false;
 
   for (const [msgIndex, images] of historyImagesByIndex) {
     // Bounds check: ensure index is valid before accessing
-    if (msgIndex < 0 || msgIndex >= messages.length) {
-      continue;
-    }
+    if (msgIndex < 0 || msgIndex >= messages.length) continue;
     const msg = messages[msgIndex];
     if (msg && msg.role === "user") {
       // Convert string content to array format if needed
@@ -138,6 +133,11 @@ export function injectHistoryImagesIntoMessages(
 export async function runEmbeddedAttempt(
   params: EmbeddedRunAttemptParams,
 ): Promise<EmbeddedRunAttemptResult> {
+  // Debug: Write to file at very start of function
+  if (process.env.CLAWDBOT_DEBUG_TOOLS === "1") {
+    await fs.appendFile("/tmp/clawdbot-debug.log", `[attempt.ts] runEmbeddedAttempt ENTERED\n`);
+  }
+
   const resolvedWorkspace = resolveUserPath(params.workspaceDir);
   const prevCwd = process.cwd();
   const runAbortController = new AbortController();
@@ -200,45 +200,81 @@ export async function runEmbeddedAttempt(
       ? ["Reminder: commit your changes in this workspace after edits."]
       : undefined;
 
-    const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
+    const agentDir = params.agentDir ?? resolveClawdbotAgentDir();
 
     // Check if the model supports native image input
     const modelHasVision = params.model.input?.includes("image") ?? false;
-    const toolsRaw = params.disableTools
-      ? []
-      : createOpenClawCodingTools({
-          exec: {
-            ...params.execOverrides,
-            elevated: params.bashElevated,
-          },
-          sandbox,
-          messageProvider: params.messageChannel ?? params.messageProvider,
-          agentAccountId: params.agentAccountId,
-          messageTo: params.messageTo,
-          messageThreadId: params.messageThreadId,
-          groupId: params.groupId,
-          groupChannel: params.groupChannel,
-          groupSpace: params.groupSpace,
-          spawnedBy: params.spawnedBy,
-          senderId: params.senderId,
-          senderName: params.senderName,
-          senderUsername: params.senderUsername,
-          senderE164: params.senderE164,
-          sessionKey: params.sessionKey ?? params.sessionId,
-          agentDir,
-          workspaceDir: effectiveWorkspace,
-          config: params.config,
-          abortSignal: runAbortController.signal,
-          modelProvider: params.model.provider,
-          modelId: params.modelId,
-          modelAuthMode: resolveModelAuthMode(params.model.provider, params.config),
-          currentChannelId: params.currentChannelId,
-          currentThreadTs: params.currentThreadTs,
-          replyToMode: params.replyToMode,
-          hasRepliedRef: params.hasRepliedRef,
-          modelHasVision,
-        });
+
+    // Debug: Write to file for reliable debugging
+    if (process.env.CLAWDBOT_DEBUG_TOOLS === "1") {
+      const debugInfo = [
+        `[attempt.ts] Checking tool support for model:`,
+        `[attempt.ts] params.modelId=${params.modelId}`,
+        `[attempt.ts] params.model.id=${params.model?.id}`,
+        `[attempt.ts] params.model.api=${params.model?.api}`,
+        `[attempt.ts] params.model.compat=${JSON.stringify(params.model?.compat)}`,
+      ].join("\n") + "\n";
+      fs.appendFile("/tmp/clawdbot-debug.log", debugInfo);
+    }
+
+    // Check if model supports tools via compat.supportedParameters
+    // If not declared (undefined), assume tools are supported (backward compat with cloud providers)
+    // If explicitly declared, check if "tools" is in the array
+    const modelHasToolSupport = modelSupportsTools(params.model);
+
+    if (process.env.CLAWDBOT_DEBUG_TOOLS === "1") {
+      const debugInfo2 = [
+        `[attempt.ts] modelHasToolSupport=${modelHasToolSupport}`,
+        `[attempt.ts] params.disableTools=${params.disableTools}`,
+      ].join("\n") + "\n";
+      fs.appendFile("/tmp/clawdbot-debug.log", debugInfo2);
+    }
+
+    if (!modelHasToolSupport) {
+      log.debug(
+        `Tools disabled for model ${params.modelId}: compat.supportedParameters does not include "tools"`,
+      );
+    }
+
+    const toolsRaw =
+      params.disableTools || !modelHasToolSupport
+        ? []
+        : createClawdbotCodingTools({
+            exec: {
+              ...params.execOverrides,
+              elevated: params.bashElevated,
+            },
+            sandbox,
+            messageProvider: params.messageChannel ?? params.messageProvider,
+            agentAccountId: params.agentAccountId,
+            messageTo: params.messageTo,
+            messageThreadId: params.messageThreadId,
+            groupId: params.groupId,
+            groupChannel: params.groupChannel,
+            groupSpace: params.groupSpace,
+            spawnedBy: params.spawnedBy,
+            sessionKey: params.sessionKey ?? params.sessionId,
+            agentDir,
+            workspaceDir: effectiveWorkspace,
+            config: params.config,
+            abortSignal: runAbortController.signal,
+            modelProvider: params.model.provider,
+            modelId: params.modelId,
+            modelAuthMode: resolveModelAuthMode(params.model.provider, params.config),
+            currentChannelId: params.currentChannelId,
+            currentThreadTs: params.currentThreadTs,
+            replyToMode: params.replyToMode,
+            hasRepliedRef: params.hasRepliedRef,
+            modelHasVision,
+          });
     const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
+
+    // Debug: Log tools count
+    if (process.env.CLAWDBOT_DEBUG_TOOLS === "1") {
+      const toolNames = tools.map((t: { name?: string }) => t.name || "unknown").join(", ");
+      fs.appendFile("/tmp/clawdbot-debug.log", `[attempt.ts] tools count=${tools.length}, names=${toolNames}\n`);
+    }
+
     logToolSchemasForGoogle({ tools, provider: params.provider });
 
     const machineName = await getMachineDisplayName();
@@ -256,9 +292,7 @@ export async function runEmbeddedAttempt(
         accountId: params.agentAccountId ?? undefined,
       });
       if (inlineButtonsScope !== "off") {
-        if (!runtimeCapabilities) {
-          runtimeCapabilities = [];
-        }
+        if (!runtimeCapabilities) runtimeCapabilities = [];
         if (
           !runtimeCapabilities.some((cap) => String(cap).trim().toLowerCase() === "inlinebuttons")
         ) {
@@ -267,25 +301,14 @@ export async function runEmbeddedAttempt(
       }
     }
     const reactionGuidance =
-      runtimeChannel && params.config
+      runtimeChannel === "telegram" && params.config
         ? (() => {
-            if (runtimeChannel === "telegram") {
-              const resolved = resolveTelegramReactionLevel({
-                cfg: params.config,
-                accountId: params.agentAccountId ?? undefined,
-              });
-              const level = resolved.agentReactionGuidance;
-              return level ? { level, channel: "Telegram" } : undefined;
-            }
-            if (runtimeChannel === "signal") {
-              const resolved = resolveSignalReactionLevel({
-                cfg: params.config,
-                accountId: params.agentAccountId ?? undefined,
-              });
-              const level = resolved.agentReactionGuidance;
-              return level ? { level, channel: "Signal" } : undefined;
-            }
-            return undefined;
+            const resolved = resolveTelegramReactionLevel({
+              cfg: params.config,
+              accountId: params.agentAccountId ?? undefined,
+            });
+            const level = resolved.agentReactionGuidance;
+            return level ? { level, channel: "Telegram" } : undefined;
           })()
         : undefined;
     const { defaultAgentId, sessionAgentId } = resolveSessionAgentIds({
@@ -333,7 +356,7 @@ export async function runEmbeddedAttempt(
     });
     const isDefaultAgent = sessionAgentId === defaultAgentId;
     const promptMode = isSubagentSessionKey(params.sessionKey) ? "minimal" : "full";
-    const docsPath = await resolveOpenClawDocsPath({
+    const docsPath = await resolveClawdbotDocsPath({
       workspaceDir: effectiveWorkspace,
       argv1: process.argv[1],
       cwd: process.cwd(),
@@ -389,8 +412,7 @@ export async function runEmbeddedAttempt(
       skillsPrompt,
       tools,
     });
-    const systemPromptOverride = createSystemPromptOverride(appendPrompt);
-    const systemPromptText = systemPromptOverride();
+    const systemPrompt = createSystemPromptOverride(appendPrompt);
 
     const sessionLock = await acquireSessionWriteLock({
       sessionFile: params.sessionFile,
@@ -432,8 +454,7 @@ export async function runEmbeddedAttempt(
         minReserveTokens: resolveCompactionReserveTokensFloor(params.config),
       });
 
-      // Call for side effects (sets compaction/pruning runtime state)
-      buildEmbeddedExtensionPaths({
+      const additionalExtensionPaths = buildEmbeddedExtensionPaths({
         cfg: params.config,
         sessionManager,
         provider: params.provider,
@@ -446,22 +467,31 @@ export async function runEmbeddedAttempt(
         sandboxEnabled: !!sandbox?.enabled,
       });
 
+      // Debug: Log builtInTools and customTools count
+      if (process.env.CLAWDBOT_DEBUG_TOOLS === "1") {
+        fs.appendFile(
+          "/tmp/clawdbot-debug.log",
+          `[attempt.ts] builtInTools count=${builtInTools.length}, customTools count=${customTools.length}\n`,
+        );
+      }
+
       // Add client tools (OpenResponses hosted tools) to customTools
       let clientToolCallDetected: { name: string; params: Record<string, unknown> } | null = null;
       const clientToolDefs = params.clientTools
-        ? toClientToolDefinitions(
-            params.clientTools,
-            (toolName, toolParams) => {
-              clientToolCallDetected = { name: toolName, params: toolParams };
-            },
-            {
-              agentId: sessionAgentId,
-              sessionKey: params.sessionKey,
-            },
-          )
+        ? toClientToolDefinitions(params.clientTools, (toolName, toolParams) => {
+            clientToolCallDetected = { name: toolName, params: toolParams };
+          })
         : [];
 
       const allCustomTools = [...customTools, ...clientToolDefs];
+
+      // Debug: Log what we're passing to createAgentSession
+      if (process.env.CLAWDBOT_DEBUG_TOOLS === "1") {
+        fs.appendFile(
+          "/tmp/clawdbot-debug.log",
+          `[attempt.ts] Calling createAgentSession with tools=${builtInTools.length}, customTools=${allCustomTools.length}\n`,
+        );
+      }
 
       ({ session } = await createAgentSession({
         cwd: resolvedWorkspace,
@@ -470,16 +500,34 @@ export async function runEmbeddedAttempt(
         modelRegistry: params.modelRegistry,
         model: params.model,
         thinkingLevel: mapThinkingLevel(params.thinkLevel),
+        systemPrompt,
         tools: builtInTools,
         customTools: allCustomTools,
         sessionManager,
         settingsManager,
+        skills: [],
+        contextFiles: [],
+        additionalExtensionPaths,
       }));
-      applySystemPromptOverrideToSession(session, systemPromptOverride);
       if (!session) {
         throw new Error("Embedded agent session missing");
       }
       const activeSession = session;
+
+      // Debug: Log tools in session after creation
+      if (process.env.CLAWDBOT_DEBUG_TOOLS === "1") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sessionTools = (activeSession.agent as any)?.state?.tools ?? [];
+        const toolNames = Array.isArray(sessionTools)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ? sessionTools.map((t: any) => t.name || "unknown").join(", ")
+          : "N/A";
+        fs.appendFile(
+          "/tmp/clawdbot-debug.log",
+          `[attempt.ts] After createAgentSession: agent.state.tools count=${Array.isArray(sessionTools) ? sessionTools.length : 0}, names=${toolNames}\n`,
+        );
+      }
+
       const cacheTrace = createCacheTrace({
         cfg: params.config,
         env: process.env,
@@ -516,7 +564,7 @@ export async function runEmbeddedAttempt(
       if (cacheTrace) {
         cacheTrace.recordStage("session:loaded", {
           messages: activeSession.messages,
-          system: systemPromptText,
+          system: systemPrompt,
           note: "after session create",
         });
         activeSession.agent.streamFn = cacheTrace.wrapStreamFn(activeSession.agent.streamFn);
@@ -575,9 +623,7 @@ export async function runEmbeddedAttempt(
       };
       const abortRun = (isTimeout = false, reason?: unknown) => {
         aborted = true;
-        if (isTimeout) {
-          timedOut = true;
-        }
+        if (isTimeout) timedOut = true;
         if (isTimeout) {
           runAbortController.abort(reason ?? makeTimeoutAbortReason());
         } else {
@@ -662,9 +708,7 @@ export async function runEmbeddedAttempt(
           abortRun(true);
           if (!abortWarnTimer) {
             abortWarnTimer = setTimeout(() => {
-              if (!activeSession.isStreaming) {
-                return;
-              }
+              if (!activeSession.isStreaming) return;
               if (!isProbeSession) {
                 log.warn(
                   `embedded run abort still streaming: runId=${params.runId} sessionId=${params.sessionId}`,
@@ -812,9 +856,7 @@ export async function runEmbeddedAttempt(
           await waitForCompactionRetry();
         } catch (err) {
           if (isAbortError(err)) {
-            if (!promptError) {
-              promptError = err;
-            }
+            if (!promptError) promptError = err;
           } else {
             throw err;
           }
@@ -852,9 +894,7 @@ export async function runEmbeddedAttempt(
         }
       } finally {
         clearTimeout(abortTimer);
-        if (abortWarnTimer) {
-          clearTimeout(abortWarnTimer);
-        }
+        if (abortWarnTimer) clearTimeout(abortWarnTimer);
         unsubscribe();
         clearActiveEmbeddedRun(params.sessionId, queueHandle);
         params.abortSignal?.removeEventListener?.("abort", onAbort);
@@ -862,8 +902,8 @@ export async function runEmbeddedAttempt(
 
       const lastAssistant = messagesSnapshot
         .slice()
-        .toReversed()
-        .find((m) => m.role === "assistant");
+        .reverse()
+        .find((m) => (m as AgentMessage)?.role === "assistant") as AssistantMessage | undefined;
 
       const toolMetasNormalized = toolMetas
         .filter(
