@@ -47,4 +47,13 @@ describe("formatAssistantErrorText", () => {
     );
     expect(formatAssistantErrorText(msg)).toBe("LLM error server_error: Something exploded");
   });
+  it("guides AIMLAPI auth failures to the key page", () => {
+    const msg = {
+      stopReason: "error",
+      errorMessage: 'No API key resolved for provider "aimlapi" (auth mode: api-key).',
+      provider: "aimlapi",
+    } as AssistantMessage;
+    const result = formatAssistantErrorText(msg);
+    expect(result).toContain("https://aimlapi.com/app/keys/");
+  });
 });

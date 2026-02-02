@@ -229,6 +229,13 @@ export async function applyAuthChoiceApiProviders(
     }
 
     if (!hasCredential) {
+      await params.prompter.note(
+        [
+          "Need an AI/ML API key?",
+          "Open https://aimlapi.com/app/keys/ to create one, then paste it here.",
+        ].join("\n"),
+        "AI/ML API key",
+      );
       const key = await params.prompter.text({
         message: "Enter AI/ML API key",
         validate: validateApiKeyInput,
