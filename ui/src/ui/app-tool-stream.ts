@@ -19,7 +19,7 @@ export type ToolStreamEntry = {
   sessionKey?: string;
   name: string;
   args?: unknown;
-  output?: string;
+  output?: string | null;
   startedAt: number;
   updatedAt: number;
   message: Record<string, unknown>;
@@ -262,7 +262,9 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
       updatedAt: now,
       message: {},
     };
-    host.toolStreamById.set(toolCallId, entry);
+    if (entry !== undefined) {
+      host.toolStreamById.set(toolCallId, entry);
+    }
     host.toolStreamOrder.push(toolCallId);
   } else {
     entry.name = name;

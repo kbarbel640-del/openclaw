@@ -44,8 +44,8 @@ export type ChatProps = {
   // Focus mode
   focusMode: boolean;
   // Sidebar state
-  sidebarOpen?: boolean;
-  sidebarContent?: string | null;
+  sidebarOpen?: boolean | string | null;
+  sidebarContent?: boolean | string | null;
   sidebarError?: string | null;
   splitRatio?: number;
   assistantName: string;
@@ -160,7 +160,7 @@ function renderAttachmentPreview(props: ChatProps) {
   return html`
     <div class="chat-attachments">
       ${attachments.map(
-        (att) => html`
+    (att) => html`
           <div class="chat-attachment">
             <img
               src=${att.dataUrl}
@@ -172,15 +172,15 @@ function renderAttachmentPreview(props: ChatProps) {
               type="button"
               aria-label="Remove attachment"
               @click=${() => {
-                const next = (props.attachments ?? []).filter((a) => a.id !== att.id);
-                props.onAttachmentsChange?.(next);
-              }}
+        const next = (props.attachments ?? []).filter((a) => a.id !== att.id);
+        props.onAttachmentsChange?.(next);
+      }}
             >
               ${icons.x}
             </button>
           </div>
         `,
-      )}
+  )}
     </div>
   `;
 }
@@ -213,42 +213,41 @@ export function renderChat(props: ChatProps) {
       aria-live="polite"
       @scroll=${props.onChatScroll}
     >
-      ${
-        props.loading
-          ? html`
+      ${props.loading
+      ? html`
               <div class="muted">Loading chat…</div>
             `
-          : nothing
-      }
+      : nothing
+    }
       ${repeat(
-        buildChatItems(props),
-        (item) => item.key,
-        (item) => {
-          if (item.kind === "reading-indicator") {
-            return renderReadingIndicatorGroup(assistantIdentity);
-          }
+      buildChatItems(props),
+      (item) => item.key,
+      (item) => {
+        if (item.kind === "reading-indicator") {
+          return renderReadingIndicatorGroup(assistantIdentity);
+        }
 
-          if (item.kind === "stream") {
-            return renderStreamingGroup(
-              item.text,
-              item.startedAt,
-              props.onOpenSidebar,
-              assistantIdentity,
-            );
-          }
+        if (item.kind === "stream") {
+          return renderStreamingGroup(
+            item.text,
+            item.startedAt,
+            props.onOpenSidebar,
+            assistantIdentity,
+          );
+        }
 
-          if (item.kind === "group") {
-            return renderMessageGroup(item, {
-              onOpenSidebar: props.onOpenSidebar,
-              showReasoning,
-              assistantName: props.assistantName,
-              assistantAvatar: assistantIdentity.avatar,
-            });
-          }
+        if (item.kind === "group") {
+          return renderMessageGroup(item, {
+            onOpenSidebar: props.onOpenSidebar,
+            showReasoning,
+            assistantName: props.assistantName,
+            assistantAvatar: assistantIdentity.avatar,
+          });
+        }
 
-          return nothing;
-        },
-      )}
+        return nothing;
+      },
+    )}
     </div>
   `;
 
@@ -260,9 +259,8 @@ export function renderChat(props: ChatProps) {
 
       ${renderCompactionIndicator(props.compactionStatus)}
 
-      ${
-        props.focusMode
-          ? html`
+      ${props.focusMode
+      ? html`
             <button
               class="chat-focus-exit"
               type="button"
@@ -273,8 +271,8 @@ export function renderChat(props: ChatProps) {
               ${icons.x}
             </button>
           `
-          : nothing
-      }
+      : nothing
+    }
 
       <div
         class="chat-split-container ${sidebarOpen ? "chat-split-container--open" : ""}"
@@ -286,45 +284,42 @@ export function renderChat(props: ChatProps) {
           ${thread}
         </div>
 
-        ${
-          sidebarOpen
-            ? html`
+        ${sidebarOpen
+      ? html`
               <resizable-divider
                 .splitRatio=${splitRatio}
                 @resize=${(e: CustomEvent) => props.onSplitRatioChange?.(e.detail.splitRatio)}
               ></resizable-divider>
               <div class="chat-sidebar">
                 ${renderMarkdownSidebar({
-                  content: props.sidebarContent ?? null,
-                  error: props.sidebarError ?? null,
-                  onClose: props.onCloseSidebar!,
-                  onViewRawText: () => {
-                    if (!props.sidebarContent || !props.onOpenSidebar) {
-                      return;
-                    }
-                    props.onOpenSidebar(`\`\`\`\n${props.sidebarContent}\n\`\`\``);
-                  },
-                })}
+        content: props.sidebarContent ?? null,
+        error: props.sidebarError ?? null,
+        onClose: props.onCloseSidebar!,
+        onViewRawText: () => {
+          if (!props.sidebarContent || !props.onOpenSidebar) {
+            return;
+          }
+          props.onOpenSidebar(`\`\`\`\n${props.sidebarContent}\n\`\`\``);
+        },
+      })}
               </div>
             `
-            : nothing
-        }
+      : nothing
+    }
       </div>
 
-      ${
-        props.queue.length
-          ? html`
+      ${props.queue.length
+      ? html`
             <div class="chat-queue" role="status" aria-live="polite">
               <div class="chat-queue__title">Queued (${props.queue.length})</div>
               <div class="chat-queue__list">
                 ${props.queue.map(
-                  (item) => html`
+        (item) => html`
                     <div class="chat-queue__item">
                       <div class="chat-queue__text">
-                        ${
-                          item.text ||
-                          (item.attachments?.length ? `Image (${item.attachments.length})` : "")
-                        }
+                        ${item.text ||
+          (item.attachments?.length ? `Image (${item.attachments.length})` : "")
+          }
                       </div>
                       <button
                         class="btn chat-queue__remove"
@@ -336,16 +331,15 @@ export function renderChat(props: ChatProps) {
                       </button>
                     </div>
                   `,
-                )}
+      )}
               </div>
             </div>
           `
-          : nothing
-      }
+      : nothing
+    }
 
-      ${
-        props.showNewMessages
-          ? html`
+      ${props.showNewMessages
+      ? html`
             <button
               class="chat-new-messages"
               type="button"
@@ -354,8 +348,8 @@ export function renderChat(props: ChatProps) {
               New messages ${icons.arrowDown}
             </button>
           `
-          : nothing
-      }
+      : nothing
+    }
 
       <div class="chat-compose">
         ${renderAttachmentPreview(props)}
@@ -367,28 +361,28 @@ export function renderChat(props: ChatProps) {
               .value=${props.draft}
               ?disabled=${!props.connected}
               @keydown=${(e: KeyboardEvent) => {
-                if (e.key !== "Enter") {
-                  return;
-                }
-                if (e.isComposing || e.keyCode === 229) {
-                  return;
-                }
-                if (e.shiftKey) {
-                  return;
-                } // Allow Shift+Enter for line breaks
-                if (!props.connected) {
-                  return;
-                }
-                e.preventDefault();
-                if (canCompose) {
-                  props.onSend();
-                }
-              }}
+      if (e.key !== "Enter") {
+        return;
+      }
+      if (e.isComposing || e.keyCode === 229) {
+        return;
+      }
+      if (e.shiftKey) {
+        return;
+      } // Allow Shift+Enter for line breaks
+      if (!props.connected) {
+        return;
+      }
+      e.preventDefault();
+      if (canCompose) {
+        props.onSend();
+      }
+    }}
               @input=${(e: Event) => {
-                const target = e.target as HTMLTextAreaElement;
-                adjustTextareaHeight(target);
-                props.onDraftChange(target.value);
-              }}
+      const target = e.target as HTMLTextAreaElement;
+      adjustTextareaHeight(target);
+      props.onDraftChange(target.value);
+    }}
               @paste=${(e: ClipboardEvent) => handlePaste(e, props)}
               placeholder=${composePlaceholder}
             ></textarea>

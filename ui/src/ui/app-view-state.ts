@@ -26,8 +26,27 @@ import type {
 } from "./types";
 import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form";
+import { CompactionIndicatorStatus } from "./views/chat";
 
 export type AppViewState = {
+  handleLogsScroll(event: Event): void;
+  exportLogs(lines: string[], label: string): void;
+  configActiveSubsection: string | null;
+  configActiveSection: string | null;
+  configSearchQuery: string;
+  handleChatScroll(event: Event): void;
+  handleSplitRatioChange(ratio: number): void;
+  handleOpenSidebar(content?: string): void;
+  splitRatio: number | undefined;
+  sidebarError: string | null | undefined;
+  sidebarOpen?: boolean | string | null;
+  removeQueuedMessage(id: string): void;
+  handleAbortChat(): unknown;
+  handleSendChat(arg0?: string, arg1?: object): void;
+  resetChatScroll(): unknown;
+  compactionStatus: CompactionIndicatorStatus | null | undefined;
+  chatStreamStartedAt: null;
+  resetToolStream(): unknown;
   settings: UiSettings;
   password: string;
   tab: Tab;

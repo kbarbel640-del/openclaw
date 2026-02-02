@@ -15,7 +15,7 @@ export type ConfigProps = {
   connected: boolean;
   schema: unknown;
   schemaLoading: boolean;
-  uiHints: ConfigUiHints;
+  uiHints: ConfigUiHints | Record<string, unknown>;
   formMode: "form" | "raw";
   formValue: Record<string, unknown> | null;
   originalValue: Record<string, unknown> | null;
@@ -311,7 +311,7 @@ function resolveSectionMeta(
 function resolveSubsections(params: {
   key: string;
   schema: JsonSchema | undefined;
-  uiHints: ConfigUiHints;
+  uiHints: ConfigUiHints | Record<string, unknown>;
 }): SubsectionEntry[] {
   const { key, schema, uiHints } = params;
   if (!schema || schemaType(schema) !== "object" || !schema.properties) {
@@ -409,10 +409,10 @@ export function renderConfig(props: ConfigProps) {
     : null;
   const subsections = props.activeSection
     ? resolveSubsections({
-        key: props.activeSection,
-        schema: activeSectionSchema,
-        uiHints: props.uiHints,
-      })
+      key: props.activeSection,
+      schema: activeSectionSchema,
+      uiHints: props.uiHints,
+    })
     : [];
   const allowSubnav =
     props.formMode === "form" && Boolean(props.activeSection) && subsections.length > 0;
@@ -451,9 +451,8 @@ export function renderConfig(props: ConfigProps) {
         <div class="config-sidebar__header">
           <div class="config-sidebar__title">Settings</div>
           <span
-            class="pill pill--sm ${
-              validity === "valid" ? "pill--ok" : validity === "invalid" ? "pill--danger" : ""
-            }"
+            class="pill pill--sm ${validity === "valid" ? "pill--ok" : validity === "invalid" ? "pill--danger" : ""
+    }"
             >${validity}</span
           >
         </div>
@@ -477,9 +476,8 @@ export function renderConfig(props: ConfigProps) {
             .value=${props.searchQuery}
             @input=${(e: Event) => props.onSearchChange((e.target as HTMLInputElement).value)}
           />
-          ${
-            props.searchQuery
-              ? html`
+          ${props.searchQuery
+      ? html`
                 <button
                   class="config-search__clear"
                   @click=${() => props.onSearchChange("")}
@@ -487,8 +485,8 @@ export function renderConfig(props: ConfigProps) {
                   ×
                 </button>
               `
-              : nothing
-          }
+      : nothing
+    }
         </div>
 
         <!-- Section nav -->
@@ -501,7 +499,7 @@ export function renderConfig(props: ConfigProps) {
             <span class="config-nav__label">All Settings</span>
           </button>
           ${allSections.map(
-            (section) => html`
+      (section) => html`
               <button
                 class="config-nav__item ${props.activeSection === section.key ? "active" : ""}"
                 @click=${() => props.onSectionChange(section.key)}
@@ -512,7 +510,7 @@ export function renderConfig(props: ConfigProps) {
                 <span class="config-nav__label">${section.label}</span>
               </button>
             `,
-          )}
+    )}
         </nav>
 
         <!-- Mode toggle at bottom -->
@@ -540,21 +538,19 @@ export function renderConfig(props: ConfigProps) {
         <!-- Action bar -->
         <div class="config-actions">
           <div class="config-actions__left">
-            ${
-              hasChanges
-                ? html`
+            ${hasChanges
+      ? html`
                   <span class="config-changes-badge"
-                    >${
-                      props.formMode === "raw"
-                        ? "Unsaved changes"
-                        : `${diff.length} unsaved change${diff.length !== 1 ? "s" : ""}`
-                    }</span
+                    >${props.formMode === "raw"
+          ? "Unsaved changes"
+          : `${diff.length} unsaved change${diff.length !== 1 ? "s" : ""}`
+        }</span
                   >
                 `
-                : html`
+      : html`
                     <span class="config-status muted">No changes</span>
                   `
-            }
+    }
           </div>
           <div class="config-actions__right">
             <button
@@ -589,9 +585,8 @@ export function renderConfig(props: ConfigProps) {
         </div>
 
         <!-- Diff panel (form mode only - raw mode doesn't have granular diff) -->
-        ${
-          hasChanges && props.formMode === "form"
-            ? html`
+        ${hasChanges && props.formMode === "form"
+      ? html`
               <details class="config-diff">
                 <summary class="config-diff__summary">
                   <span
@@ -610,7 +605,7 @@ export function renderConfig(props: ConfigProps) {
                 </summary>
                 <div class="config-diff__content">
                   ${diff.map(
-                    (change) => html`
+        (change) => html`
                       <div class="config-diff__item">
                         <div class="config-diff__path">${change.path}</div>
                         <div class="config-diff__values">
@@ -624,15 +619,14 @@ export function renderConfig(props: ConfigProps) {
                         </div>
                       </div>
                     `,
-                  )}
+      )}
                 </div>
               </details>
             `
-            : nothing
-        }
-        ${
-          activeSectionMeta && props.formMode === "form"
-            ? html`
+      : nothing
+    }
+        ${activeSectionMeta && props.formMode === "form"
+      ? html`
               <div class="config-section-hero">
                 <div class="config-section-hero__icon">
                   ${getSectionIcon(props.activeSection ?? "")}
@@ -641,21 +635,19 @@ export function renderConfig(props: ConfigProps) {
                   <div class="config-section-hero__title">
                     ${activeSectionMeta.label}
                   </div>
-                  ${
-                    activeSectionMeta.description
-                      ? html`<div class="config-section-hero__desc">
+                  ${activeSectionMeta.description
+          ? html`<div class="config-section-hero__desc">
                         ${activeSectionMeta.description}
                       </div>`
-                      : nothing
-                  }
+          : nothing
+        }
                 </div>
               </div>
             `
-            : nothing
-        }
-        ${
-          allowSubnav
-            ? html`
+      : nothing
+    }
+        ${allowSubnav
+      ? html`
               <div class="config-subnav">
                 <button
                   class="config-subnav__item ${effectiveSubsection === null ? "active" : ""}"
@@ -664,80 +656,75 @@ export function renderConfig(props: ConfigProps) {
                   All
                 </button>
                 ${subsections.map(
-                  (entry) => html`
+        (entry) => html`
                     <button
-                      class="config-subnav__item ${
-                        effectiveSubsection === entry.key ? "active" : ""
-                      }"
+                      class="config-subnav__item ${effectiveSubsection === entry.key ? "active" : ""
+          }"
                       title=${entry.description || entry.label}
                       @click=${() => props.onSubsectionChange(entry.key)}
                     >
                       ${entry.label}
                     </button>
                   `,
-                )}
+      )}
               </div>
             `
-            : nothing
-        }
+      : nothing
+    }
 
         <!-- Form content -->
         <div class="config-content">
-          ${
-            props.formMode === "form"
-              ? html`
-                ${
-                  props.schemaLoading
-                    ? html`
+          ${props.formMode === "form"
+      ? html`
+                ${props.schemaLoading
+          ? html`
                         <div class="config-loading">
                           <div class="config-loading__spinner"></div>
                           <span>Loading schema…</span>
                         </div>
                       `
-                    : renderConfigForm({
-                        schema: analysis.schema,
-                        uiHints: props.uiHints,
-                        value: props.formValue,
-                        disabled: props.loading || !props.formValue,
-                        unsupportedPaths: analysis.unsupportedPaths,
-                        onPatch: props.onFormPatch,
-                        searchQuery: props.searchQuery,
-                        activeSection: props.activeSection,
-                        activeSubsection: effectiveSubsection,
-                      })
-                }
-                ${
-                  formUnsafe
-                    ? html`
+          : renderConfigForm({
+            schema: analysis.schema,
+            uiHints: props.uiHints,
+            value: props.formValue,
+            disabled: props.loading || !props.formValue,
+            unsupportedPaths: analysis.unsupportedPaths,
+            onPatch: props.onFormPatch,
+            searchQuery: props.searchQuery,
+            activeSection: props.activeSection,
+            activeSubsection: effectiveSubsection,
+          })
+        }
+                ${formUnsafe
+          ? html`
                         <div class="callout danger" style="margin-top: 12px">
                           Form view can't safely edit some fields. Use Raw to avoid losing config entries.
                         </div>
                       `
-                    : nothing
-                }
+          : nothing
+        }
               `
-              : html`
+      : html`
                 <label class="field config-raw-field">
                   <span>Raw JSON5</span>
                   <textarea
                     .value=${props.raw}
                     @input=${(e: Event) =>
-                      props.onRawChange((e.target as HTMLTextAreaElement).value)}
+          props.onRawChange((e.target as HTMLTextAreaElement).value)}
                   ></textarea>
                 </label>
               `
-          }
+    }
         </div>
 
-        ${
-          props.issues.length > 0
-            ? html`<div class="callout danger" style="margin-top: 12px;">
+        ${props.issues.length > 0
+      ? html`<div class="callout danger" style="margin-top: 12px;">
               <pre class="code-block">
 ${JSON.stringify(props.issues, null, 2)}</pre
               >
             </div>`
-            : nothing
-        }
+      : nothing
+    }
       </main>
     </div>
   `;

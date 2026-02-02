@@ -1,3 +1,4 @@
+import { AppViewState } from "../app-view-state";
 import type { GatewayBrowserClient } from "../gateway";
 import type { ConfigSchemaResponse, ConfigSnapshot, ConfigUiHints } from "../types";
 import {
@@ -41,7 +42,7 @@ export async function loadConfig(state: ConfigState) {
   state.configLoading = true;
   state.lastError = null;
   try {
-    const res = await state.client.request("config.get", {});
+    const res = await state.client.request("config.get", {}) as ConfigSnapshot;
     applyConfigSnapshot(state, res);
   } catch (err) {
     state.lastError = String(err);
@@ -59,7 +60,7 @@ export async function loadConfigSchema(state: ConfigState) {
   }
   state.configSchemaLoading = true;
   try {
-    const res = await state.client.request("config.schema", {});
+    const res = await state.client.request("config.schema", {}) as ConfigSchemaResponse;
     applyConfigSchema(state, res);
   } catch (err) {
     state.lastError = String(err);
@@ -117,7 +118,7 @@ export async function saveConfig(state: ConfigState) {
     }
     await state.client.request("config.set", { raw, baseHash });
     state.configFormDirty = false;
-    await loadConfig(state);
+    await loadConfig(state as unknown as ConfigState);
   } catch (err) {
     state.lastError = String(err);
   } finally {
@@ -173,7 +174,7 @@ export async function runUpdate(state: ConfigState) {
 }
 
 export function updateConfigFormValue(
-  state: ConfigState,
+  state: Partial<AppViewState>,
   path: Array<string | number>,
   value: unknown,
 ) {
@@ -186,7 +187,7 @@ export function updateConfigFormValue(
   }
 }
 
-export function removeConfigFormValue(state: ConfigState, path: Array<string | number>) {
+export function removeConfigFormValue(state: Partial<AppViewState>, path: Array<string | number>) {
   const base = cloneConfigObject(state.configForm ?? state.configSnapshot?.config ?? {});
   removePathValue(base, path);
   state.configForm = base;

@@ -29,7 +29,7 @@ export type ChannelsProps = {
   configSchema: unknown;
   configSchemaLoading: boolean;
   configForm: Record<string, unknown> | null;
-  configUiHints: ConfigUiHints;
+  configUiHints: ConfigUiHints | Record<string, unknown>;
   configSaving: boolean;
   configFormDirty: boolean;
   nostrProfileFormState: NostrProfileFormState | null;
@@ -53,7 +53,7 @@ export type ChannelsChannelData = {
   whatsapp?: WhatsAppStatus;
   telegram?: TelegramStatus;
   discord?: DiscordStatus | null;
-  googlechat?: GoogleChatStatus | null;
+  googlechat: GoogleChatStatus | null;
   slack?: SlackStatus | null;
   signal?: SignalStatus | null;
   imessage?: IMessageStatus | null;

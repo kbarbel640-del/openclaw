@@ -6,8 +6,9 @@ import {
   updateConfigFormValue,
   type ConfigState,
 } from "./config";
+import { AppViewState } from "../app-view-state";
 
-function createState(): ConfigState {
+function createState(): Partial<ConfigState> {
   return {
     client: null,
     connected: false,
@@ -41,7 +42,7 @@ describe("applyConfigSnapshot", () => {
     state.configForm = { gateway: { mode: "local", port: 18789 } };
     state.configRaw = "{\n}\n";
 
-    applyConfigSnapshot(state, {
+    applyConfigSnapshot(state as ConfigState, {
       config: { gateway: { mode: "remote", port: 9999 } },
       valid: true,
       issues: [],
@@ -55,7 +56,7 @@ describe("applyConfigSnapshot", () => {
 
   it("updates config form when clean", () => {
     const state = createState();
-    applyConfigSnapshot(state, {
+    applyConfigSnapshot(state as ConfigState, {
       config: { gateway: { mode: "local" } },
       valid: true,
       issues: [],
@@ -67,7 +68,7 @@ describe("applyConfigSnapshot", () => {
 
   it("sets configRawOriginal when clean for change detection", () => {
     const state = createState();
-    applyConfigSnapshot(state, {
+    applyConfigSnapshot(state as ConfigState, {
       config: { gateway: { mode: "local" } },
       valid: true,
       issues: [],
@@ -84,7 +85,7 @@ describe("applyConfigSnapshot", () => {
     state.configRawOriginal = '{ "original": true }';
     state.configFormOriginal = { original: true };
 
-    applyConfigSnapshot(state, {
+    applyConfigSnapshot(state as ConfigState, {
       config: { gateway: { mode: "local" } },
       valid: true,
       issues: [],
@@ -107,7 +108,7 @@ describe("updateConfigFormValue", () => {
       raw: "{}",
     };
 
-    updateConfigFormValue(state, ["gateway", "port"], 18789);
+    updateConfigFormValue(state as AppViewState, ["gateway", "port"], 18789);
 
     expect(state.configFormDirty).toBe(true);
     expect(state.configForm).toEqual({
@@ -125,7 +126,7 @@ describe("updateConfigFormValue", () => {
       raw: "{\n}\n",
     };
 
-    updateConfigFormValue(state, ["gateway", "port"], 18789);
+    updateConfigFormValue(state as ConfigState, ["gateway", "port"], 18789);
 
     expect(state.configRaw).toBe(
       '{\n  "gateway": {\n    "mode": "local",\n    "port": 18789\n  }\n}\n',
@@ -146,7 +147,7 @@ describe("applyConfig", () => {
       hash: "hash-123",
     };
 
-    await applyConfig(state);
+    await applyConfig(state as ConfigState);
 
     expect(request).toHaveBeenCalledWith("config.apply", {
       raw: '{\n  agent: { workspace: "~/openclaw" }\n}\n',
@@ -164,7 +165,7 @@ describe("runUpdate", () => {
     state.client = { request } as unknown as ConfigState["client"];
     state.applySessionKey = "agent:main:whatsapp:dm:+15555550123";
 
-    await runUpdate(state);
+    await runUpdate(state as ConfigState);
 
     expect(request).toHaveBeenCalledWith("update.run", {
       sessionKey: "agent:main:whatsapp:dm:+15555550123",

@@ -1,4 +1,4 @@
-import type { ConfigUiHints } from "../types";
+import type { ConfigUiHints, ConfigUiHint } from "../types";
 
 export type JsonSchema = {
   type?: string | string[];
@@ -56,11 +56,14 @@ export function pathKey(path: Array<string | number>): string {
   return path.filter((segment) => typeof segment === "string").join(".");
 }
 
-export function hintForPath(path: Array<string | number>, hints: ConfigUiHints) {
+export function hintForPath(
+  path: Array<string | number>,
+  hints: ConfigUiHints | Record<string, unknown>,
+): ConfigUiHint | undefined {
   const key = pathKey(path);
   const direct = hints[key];
   if (direct) {
-    return direct;
+    return direct as ConfigUiHint;
   }
   const segments = key.split(".");
   for (const [hintKey, hint] of Object.entries(hints)) {
@@ -79,7 +82,7 @@ export function hintForPath(path: Array<string | number>, hints: ConfigUiHints) 
       }
     }
     if (match) {
-      return hint;
+      return hint as ConfigUiHint;
     }
   }
   return undefined;

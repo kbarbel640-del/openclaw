@@ -9,6 +9,7 @@ import { abortChatRun, loadChatHistory, sendChatMessage } from "./controllers/ch
 import { loadSessions } from "./controllers/sessions";
 import { normalizeBasePath } from "./navigation";
 import { generateUUID } from "./uuid";
+import { AppViewState } from "./app-view-state";
 
 type ChatHost = {
   connected: boolean;
@@ -202,7 +203,7 @@ export async function handleSendChat(
   });
 }
 
-export async function refreshChat(host: ChatHost) {
+export async function refreshChat(host: AppViewState) {
   await Promise.all([
     loadChatHistory(host as unknown as OpenClawApp),
     loadSessions(host as unknown as OpenClawApp, {
@@ -219,7 +220,7 @@ type SessionDefaultsSnapshot = {
   defaultAgentId?: string;
 };
 
-function resolveAgentIdForSession(host: ChatHost): string | null {
+function resolveAgentIdForSession(host: AppViewState): string | null {
   const parsed = parseAgentSessionKey(host.sessionKey);
   if (parsed?.agentId) {
     return parsed.agentId;
@@ -237,7 +238,7 @@ function buildAvatarMetaUrl(basePath: string, agentId: string): string {
   return base ? `${base}/avatar/${encoded}?meta=1` : `/avatar/${encoded}?meta=1`;
 }
 
-export async function refreshChatAvatar(host: ChatHost) {
+export async function refreshChatAvatar(host: AppViewState) {
   if (!host.connected) {
     host.chatAvatarUrl = null;
     return;
