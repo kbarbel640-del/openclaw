@@ -1,0 +1,64 @@
+{
+  "agent": {
+    "model": "pipbot/claude-sonnet-4"
+  },
+  "models": {
+    "providers": {
+      "pipbot": {
+        "baseUrl": "https://beaming-koala-897.convex.site",
+        "apiKey": "${PIPBOT_SERVICE_TOKEN}",
+        "api": "anthropic-messages",
+        "headers": {
+          "x-clerk-id": "${CLERK_USER_ID}"
+        },
+        "models": [
+          {
+            "id": "claude-sonnet-4",
+            "name": "Claude Sonnet 4",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "cost": {
+              "input": 3.0,
+              "output": 15.0,
+              "cacheRead": 0.3,
+              "cacheWrite": 3.75
+            },
+            "contextWindow": 200000,
+            "maxTokens": 64000
+          },
+          {
+            "id": "claude-haiku-4-5",
+            "name": "Claude Haiku 4.5",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "cost": {
+              "input": 1.0,
+              "output": 5.0,
+              "cacheRead": 0.1,
+              "cacheWrite": 1.25
+            },
+            "contextWindow": 200000,
+            "maxTokens": 64000
+          },
+          {
+            "id": "claude-opus-4",
+            "name": "Claude Opus 4",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "cost": {
+              "input": 15.0,
+              "output": 75.0,
+              "cacheRead": 1.5,
+              "cacheWrite": 18.75
+            },
+            "contextWindow": 200000,
+            "maxTokens": 32000
+          }
+        ]
+      }
+    }
+  },
+  "gateway": {
+    "port": 18789
+  }
+}

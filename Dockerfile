@@ -1,40 +1,19 @@
-FROM node:22-bookworm
+FROM node:22-slim
 
-# Install Bun (required for build scripts)
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
+# Install git (required for some npm dependencies)
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
-RUN corepack enable
+# Install OpenClaw globally - pin version for reproducibility
+RUN npm install -g openclaw@2026.1.30
 
-WORKDIR /app
+# Create config directory
+RUN mkdir -p /root/.openclaw
 
-ARG CLAWDBOT_DOCKER_APT_PACKAGES=""
-RUN if [ -n "$CLAWDBOT_DOCKER_APT_PACKAGES" ]; then \
-      apt-get update && \
-      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $CLAWDBOT_DOCKER_APT_PACKAGES && \
-      apt-get clean && \
-      rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
-    fi
+# Copy OpenClaw configuration
+COPY openclaw.json /root/.openclaw/openclaw.json
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-COPY ui/package.json ./ui/package.json
-COPY patches ./patches
-COPY scripts ./scripts
+# Expose gateway port
+EXPOSE 18789
 
-RUN pnpm install --frozen-lockfile
-
-COPY . .
-RUN CLAWDBOT_A2UI_SKIP_MISSING=1 pnpm build
-# Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
-ENV CLAWDBOT_PREFER_PNPM=1
-RUN pnpm ui:install
-RUN pnpm ui:build
-
-ENV NODE_ENV=production
-
-# Security hardening: Run as non-root user
-# The node:22-bookworm image includes a 'node' user (uid 1000)
-# This reduces the attack surface by preventing container escape via root privileges
-USER node
-
-CMD ["node", "dist/index.js"]
+# Run OpenClaw gateway
+CMD ["openclaw", "gateway", "--port", "18789"]
