@@ -13,6 +13,12 @@ import {
 import { loadWebMedia } from "../../web/media.js";
 import { createActionGate, jsonResult, readReactionParams, readStringParam } from "./common.js";
 
+function validateGroupJid(jid: string): void {
+  if (!jid.endsWith("@g.us")) {
+    throw new Error(`Invalid group JID: ${jid}. Group JIDs must end with @g.us`);
+  }
+}
+
 export async function handleWhatsAppAction(
   params: Record<string, unknown>,
   cfg: OpenClawConfig,
@@ -55,10 +61,16 @@ export async function handleWhatsAppAction(
       throw new Error("WhatsApp group admin actions are disabled.");
     }
     const chatJid = readStringParam(params, "chatJid", { required: true });
+    validateGroupJid(chatJid);
     const subject = readStringParam(params, "subject", { required: true });
     const accountId = readStringParam(params, "accountId");
-    await updateGroupSubjectWhatsApp(chatJid, subject, { accountId: accountId ?? undefined });
-    return jsonResult({ ok: true, action: "updateGroupSubject", chatJid, subject });
+    try {
+      await updateGroupSubjectWhatsApp(chatJid, subject, { accountId: accountId ?? undefined });
+      return jsonResult({ ok: true, action: "updateGroupSubject", chatJid, subject });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to update group subject: ${message}`);
+    }
   }
 
   if (action === "updateGroupDescription") {
@@ -66,12 +78,18 @@ export async function handleWhatsAppAction(
       throw new Error("WhatsApp group admin actions are disabled.");
     }
     const chatJid = readStringParam(params, "chatJid", { required: true });
+    validateGroupJid(chatJid);
     const description = readStringParam(params, "description");
     const accountId = readStringParam(params, "accountId");
-    await updateGroupDescriptionWhatsApp(chatJid, description ?? undefined, {
-      accountId: accountId ?? undefined,
-    });
-    return jsonResult({ ok: true, action: "updateGroupDescription", chatJid });
+    try {
+      await updateGroupDescriptionWhatsApp(chatJid, description ?? undefined, {
+        accountId: accountId ?? undefined,
+      });
+      return jsonResult({ ok: true, action: "updateGroupDescription", chatJid });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to update group description: ${message}`);
+    }
   }
 
   if (action === "updateGroupPhoto") {
@@ -79,12 +97,17 @@ export async function handleWhatsAppAction(
       throw new Error("WhatsApp group admin actions are disabled.");
     }
     const chatJid = readStringParam(params, "chatJid", { required: true });
+    validateGroupJid(chatJid);
     const image = readStringParam(params, "image", { required: true });
     const accountId = readStringParam(params, "accountId");
-    // Load image from URL or base64
-    const media = await loadWebMedia(image);
-    await updateGroupPhotoWhatsApp(chatJid, media.buffer, { accountId: accountId ?? undefined });
-    return jsonResult({ ok: true, action: "updateGroupPhoto", chatJid });
+    try {
+      const media = await loadWebMedia(image);
+      await updateGroupPhotoWhatsApp(chatJid, media.buffer, { accountId: accountId ?? undefined });
+      return jsonResult({ ok: true, action: "updateGroupPhoto", chatJid });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to update group photo: ${message}`);
+    }
   }
 
   if (action === "updateGroupParticipants") {
@@ -92,6 +115,7 @@ export async function handleWhatsAppAction(
       throw new Error("WhatsApp group admin actions are disabled.");
     }
     const chatJid = readStringParam(params, "chatJid", { required: true });
+    validateGroupJid(chatJid);
     const participantsRaw = params.participants;
     if (!Array.isArray(participantsRaw) || participantsRaw.length === 0) {
       throw new Error("participants must be a non-empty array of phone numbers or JIDs");
@@ -103,13 +127,18 @@ export async function handleWhatsAppAction(
       throw new Error(`Invalid operation: ${operation}. Must be one of: ${validOperations.join(", ")}`);
     }
     const accountId = readStringParam(params, "accountId");
-    const result = await updateGroupParticipantsWhatsApp(
-      chatJid,
-      participants,
-      operation as GroupParticipantAction,
-      { accountId: accountId ?? undefined },
-    );
-    return jsonResult({ ok: true, action: "updateGroupParticipants", chatJid, operation, result });
+    try {
+      const result = await updateGroupParticipantsWhatsApp(
+        chatJid,
+        participants,
+        operation as GroupParticipantAction,
+        { accountId: accountId ?? undefined },
+      );
+      return jsonResult({ ok: true, action: "updateGroupParticipants", chatJid, operation, result });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to update group participants: ${message}`);
+    }
   }
 
   if (action === "updateGroupSettings") {
@@ -117,16 +146,22 @@ export async function handleWhatsAppAction(
       throw new Error("WhatsApp group admin actions are disabled.");
     }
     const chatJid = readStringParam(params, "chatJid", { required: true });
+    validateGroupJid(chatJid);
     const setting = readStringParam(params, "setting", { required: true });
     const validSettings: GroupSettingValue[] = ["announcement", "not_announcement", "locked", "unlocked"];
     if (!validSettings.includes(setting as GroupSettingValue)) {
       throw new Error(`Invalid setting: ${setting}. Must be one of: ${validSettings.join(", ")}`);
     }
     const accountId = readStringParam(params, "accountId");
-    await updateGroupSettingsWhatsApp(chatJid, setting as GroupSettingValue, {
-      accountId: accountId ?? undefined,
-    });
-    return jsonResult({ ok: true, action: "updateGroupSettings", chatJid, setting });
+    try {
+      await updateGroupSettingsWhatsApp(chatJid, setting as GroupSettingValue, {
+        accountId: accountId ?? undefined,
+      });
+      return jsonResult({ ok: true, action: "updateGroupSettings", chatJid, setting });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to update group settings: ${message}`);
+    }
   }
 
   throw new Error(`Unsupported WhatsApp action: ${action}`);
