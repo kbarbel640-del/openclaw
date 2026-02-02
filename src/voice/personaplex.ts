@@ -161,10 +161,10 @@ function buildPersonaPlexUrl(config: ResolvedPersonaPlexConfig, pathSuffix: stri
   return new URL(`${protocol}://localhost:${config.port}${pathSuffix}`);
 }
 
-async function requestJson<T>(
+async function requestOk(
   url: URL,
   opts: { method: "GET" | "POST"; body?: string; timeoutMs: number },
-): Promise<{ ok: boolean; status: number; data?: T }> {
+): Promise<{ ok: boolean; status: number; body?: string }> {
   return new Promise((resolve, reject) => {
     const baseOptions = {
       method: opts.method,
@@ -189,16 +189,7 @@ async function requestJson<T>(
           raw += chunk;
         });
         res.on("end", () => {
-          if (!raw) {
-            resolve({ ok: res.statusCode === 200, status: res.statusCode ?? 0 });
-            return;
-          }
-          try {
-            const parsed = JSON.parse(raw) as T;
-            resolve({ ok: res.statusCode === 200, status: res.statusCode ?? 0, data: parsed });
-          } catch (err) {
-            reject(err);
-          }
+          resolve({ ok: res.statusCode === 200, status: res.statusCode ?? 0, body: raw });
         });
       },
     );
@@ -222,7 +213,7 @@ export async function isPersonaPlexRunning(config: ResolvedPersonaPlexConfig): P
     // moshi.server does not expose a /health endpoint upstream.
     // We use GET / as a lightweight readiness probe.
     const url = buildPersonaPlexUrl(config, "/");
-    const result = await requestJson(url, { method: "GET", timeoutMs: 2000 });
+    const result = await requestOk(url, { method: "GET", timeoutMs: 2000 });
     return result.ok;
   } catch {
     return false;
