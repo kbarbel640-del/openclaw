@@ -1,6 +1,9 @@
 import type { WebClient } from "@slack/web-api";
 import { createSlackWebClient } from "./client.js";
 
+/** Matches Slack channel_id required by files.uploadV2: C/G/D/Z prefix + 8+ alphanumeric. */
+const SLACK_CHANNEL_ID_REGEX = /^[CGDZ][A-Z0-9]{8,}$/i;
+
 export type SlackChannelLookup = {
   id: string;
   name: string;
@@ -88,6 +91,48 @@ function resolveByName(
   }
   const active = matches.find((channel) => !channel.archived);
   return active ?? matches[0];
+}
+
+/**
+ * Resolves a channel identifier (ID or name) to a valid channel_id for files.uploadV2.
+ * Accepts: raw ID (C/G/D/Z + 8+ chars), "#name", "name", "channel:<id>", "<#id|name>".
+ * Uses conversations.list to resolve by name; bot must be a member of private channels.
+ */
+export async function resolveChannelIdForUpload(
+  client: WebClient,
+  channelIdOrName: string,
+): Promise<string> {
+  const input = channelIdOrName.trim();
+  if (!input) {
+    throw new Error("Slack channel identifier is required");
+  }
+
+  if (SLACK_CHANNEL_ID_REGEX.test(input)) {
+    return input;
+  }
+
+  const parsed = parseSlackChannelMention(input);
+
+  const idCandidate = (parsed.id ?? "").trim();
+  if (idCandidate && SLACK_CHANNEL_ID_REGEX.test(idCandidate)) {
+    return idCandidate;
+  }
+
+  const nameCandidateRaw = (parsed.name ?? "").trim() || input.replace(/^#/, "").trim();
+  const nameToResolve = nameCandidateRaw.toLowerCase();
+  if (!nameToResolve) {
+    throw new Error(
+      `Invalid Slack channel identifier: "${input}" (use #channel-name, <#C...|name>, or channel:<id>)`,
+    );
+  }
+
+  const channels = await listSlackChannels(client);
+  const match = resolveByName(nameToResolve, channels);
+  if (match) return match.id;
+
+  throw new Error(
+    `Slack channel not found or bot not a member: "${nameToResolve}" (use channel:<id> or ensure bot is in #${nameToResolve})`,
+  );
 }
 
 export async function resolveSlackChannelAllowlist(params: {
