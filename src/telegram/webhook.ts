@@ -37,7 +37,8 @@ export async function startTelegramWebhook(opts: {
   const hasExternalPublicUrl =
     opts.publicUrl &&
     !opts.publicUrl.includes("localhost") &&
-    !opts.publicUrl.includes("127.0.0.1");
+    !opts.publicUrl.includes("127.0.0.1") &&
+    !opts.publicUrl.includes("[::1]");
   const host = opts.host ?? (hasExternalPublicUrl ? "0.0.0.0" : "127.0.0.1");
   const runtime = opts.runtime ?? defaultRuntime;
   const diagnosticsEnabled = isDiagnosticsEnabled(opts.config);
