@@ -400,4 +400,13 @@ export async function shutdownAllMcpServers(): Promise<void> {
 
 export const __testing = {
   mcpPiToolName,
+  normalizeToolComponent,
+  stringifyToolResultContent,
+  stableStringify,
+  stableHash,
+  buildMcpPiTool,
+  McpConnection,
+  agentStates,
+  ensureAgentState,
+  getOrCreateConnection,
 };
