@@ -79,34 +79,24 @@ const isGetUpdatesConflict = (err: unknown) => {
   return haystack.includes("getupdates");
 };
 
-const NETWORK_ERROR_SNIPPETS = [
-  "fetch failed",
-  "network",
-  "timeout",
-  "socket",
-  "econnreset",
-  "econnrefused",
-  "undici",
-];
-
-const isNetworkRelatedError = (err: unknown) => {
-  if (!err) {
+/** Check if error is a Grammy HttpError (used to scope unhandled rejection handling) */
+const isGrammyHttpError = (err: unknown): boolean => {
+  if (!err || typeof err !== "object") {
     return false;
   }
-  const message = formatErrorMessage(err).toLowerCase();
-  if (!message) {
-    return false;
-  }
-  return NETWORK_ERROR_SNIPPETS.some((snippet) => message.includes(snippet));
+  return (err as { name?: string }).name === "HttpError";
 };
 
 export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
+  const log = opts.runtime?.error ?? console.error;
+
   // Register handler for Grammy HttpError unhandled rejections.
   // This catches network errors that escape the polling loop's try-catch
   // (e.g., from setMyCommands during bot setup).
+  // We gate on isGrammyHttpError to avoid suppressing non-Telegram errors.
   const unregisterHandler = registerUnhandledRejectionHandler((err) => {
-    if (isRecoverableTelegramNetworkError(err, { context: "polling" })) {
-      console.warn(`[telegram] Suppressed network error: ${formatErrorMessage(err)}`);
+    if (isGrammyHttpError(err) && isRecoverableTelegramNetworkError(err, { context: "polling" })) {
+      log(`[telegram] Suppressed network error: ${formatErrorMessage(err)}`);
       return true; // handled - don't crash
     }
     return false;
@@ -197,8 +187,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         }
         const isConflict = isGetUpdatesConflict(err);
         const isRecoverable = isRecoverableTelegramNetworkError(err, { context: "polling" });
-        const isNetworkError = isNetworkRelatedError(err);
-        if (!isConflict && !isRecoverable && !isNetworkError) {
+        if (!isConflict && !isRecoverable) {
           throw err;
         }
         restartAttempts += 1;
