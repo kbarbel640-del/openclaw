@@ -30,6 +30,11 @@
     "failOpen": {
       "label": "Fail Open",
       "help": "Allow requests on API errors"
+    },
+    "guardrailPriority": {
+      "label": "Guardrail Priority",
+      "advanced": true,
+      "help": "Higher runs earlier when multiple guardrails are enabled"
     }
   },
   "configSchema": {
@@ -66,6 +71,9 @@
       },
       "failOpen": {
         "type": "boolean"
+      },
+      "guardrailPriority": {
+        "type": "integer"
       },
       "stages": {
         "type": "object",

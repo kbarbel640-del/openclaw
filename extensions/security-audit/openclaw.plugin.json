@@ -18,6 +18,10 @@
         "type": "boolean",
         "description": "Allow access through if evaluation fails (default: true)"
       },
+      "guardrailPriority": {
+        "type": "integer",
+        "description": "Higher runs earlier when multiple guardrails are enabled"
+      },
       "extraPaths": {
         "type": "array",
         "items": { "type": "string" },
