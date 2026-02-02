@@ -110,4 +110,25 @@ describe("archive utils", () => {
     const siblingFile = path.join(siblingDir, "sibling.txt");
     await expect(fs.stat(siblingFile)).rejects.toThrow();
   });
+
+  it("allows filenames starting with dots (e.g., ..evil)", async () => {
+    const workDir = await makeTempDir();
+    const archivePath = path.join(workDir, "dotfiles.zip");
+    const extractDir = path.join(workDir, "extract");
+
+    // Create a zip with legitimate filenames that start with ".."
+    // These should NOT be rejected as path traversal
+    const zip = new JSZip();
+    zip.file("..evil", "not malicious, just oddly named");
+    zip.file("...dots", "three dots");
+    zip.file("package/..config", "nested dotfile");
+    await fs.writeFile(archivePath, await zip.generateAsync({ type: "nodebuffer" }));
+
+    await fs.mkdir(extractDir, { recursive: true });
+    await extractArchive({ archivePath, destDir: extractDir, timeoutMs: 5_000 });
+
+    // Verify the files were extracted
+    const content = await fs.readFile(path.join(extractDir, "..evil"), "utf-8");
+    expect(content).toBe("not malicious, just oddly named");
+  });
 });

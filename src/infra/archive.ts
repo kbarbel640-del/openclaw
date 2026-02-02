@@ -12,8 +12,15 @@ export type ArchiveKind = "tar" | "zip";
  */
 function isPathContained(destDir: string, targetPath: string): boolean {
   const relative = path.relative(destDir, targetPath);
-  // Path escapes if it starts with '..' or is absolute
-  return !relative.startsWith("..") && !path.isAbsolute(relative);
+  // Path escapes if:
+  // - it's exactly ".." (parent dir)
+  // - it starts with "../" (traversal to parent)
+  // - it's an absolute path
+  // Note: filenames starting with ".." (e.g., "..evil") are allowed
+  if (relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) {
+    return false;
+  }
+  return true;
 }
 
 export type ArchiveLogger = {
