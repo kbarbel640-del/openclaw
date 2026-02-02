@@ -432,6 +432,8 @@ async function runTavilySearch(params: {
     headers: {
       "Content-Type": "application/json",
     },
+    // Note: Tavily API expects api_key in the request body, not as a header.
+    // See: https://docs.tavily.com/documentation/api-reference/search
     body: JSON.stringify({
       api_key: params.apiKey,
       query: params.query,
@@ -533,7 +535,11 @@ async function runWebSearch(params: {
   }
 
   if (params.provider !== "brave") {
-    throw new Error("Unsupported web search provider.");
+    return {
+      error: "unsupported_provider",
+      message: `Unsupported web search provider: ${params.provider}`,
+      docs: "https://docs.openclaw.ai/tools/web",
+    };
   }
 
   const url = new URL(BRAVE_SEARCH_ENDPOINT);
@@ -642,7 +648,7 @@ export function createWebSearchTool(options?: {
         });
       }
       // Guard: country, search_lang, ui_lang are Brave-only parameters
-      if ((country || search_lang || ui_lang) && (provider === "tavily" || provider === "perplexity")) {
+      if ((country || search_lang || ui_lang) && provider !== "brave") {
         const unsupportedParams = [
           country && "country",
           search_lang && "search_lang",
