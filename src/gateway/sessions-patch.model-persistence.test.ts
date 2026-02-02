@@ -27,7 +27,9 @@ describe("sessions.patch model persistence (#6817)", () => {
     });
 
     expect(res.ok).toBe(true);
-    if (!res.ok) return;
+    if (!res.ok) {
+      return;
+    }
 
     // Verify the model override is stored correctly
     expect(res.entry.providerOverride).toBe("openrouter");
@@ -59,7 +61,9 @@ describe("sessions.patch model persistence (#6817)", () => {
     });
 
     expect(res.ok).toBe(true);
-    if (!res.ok) return;
+    if (!res.ok) {
+      return;
+    }
 
     // Model should be set
     expect(res.entry.modelOverride).toBe("gemini-2.5-flash");
@@ -87,7 +91,9 @@ describe("sessions.patch model persistence (#6817)", () => {
     });
 
     expect(res.ok).toBe(true);
-    if (!res.ok) return;
+    if (!res.ok) {
+      return;
+    }
 
     expect(res.entry.providerOverride).toBe("openai");
     expect(res.entry.modelOverride).toBe("gpt-5.2");
@@ -111,7 +117,9 @@ describe("sessions.patch model persistence (#6817)", () => {
 
     // Sessions.patch accepts the model - validation happens at agent runtime
     expect(res.ok).toBe(true);
-    if (!res.ok) return;
+    if (!res.ok) {
+      return;
+    }
 
     expect(res.entry.providerOverride).toBe("unknown");
     expect(res.entry.modelOverride).toBe("fake-model-xyz");
