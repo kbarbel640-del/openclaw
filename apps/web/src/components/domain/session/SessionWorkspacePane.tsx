@@ -183,6 +183,7 @@ export function SessionWorkspacePane({
     <div
       className={cn(
         "flex flex-col border border-border rounded-xl bg-card overflow-hidden",
+        isMaximized && "fixed inset-x-4 bottom-24 top-20 z-50 shadow-2xl",
         className
       )}
     >
