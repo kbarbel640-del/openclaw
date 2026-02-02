@@ -242,10 +242,10 @@ export async function inworldTTS(
   let modelId: string;
   try {
     modelId = normalizeModelId(inworldConfig.modelId);
-  } catch (err: any) {
+  } catch (err: unknown) {
     return {
       success: false,
-      error: err.message,
+      error: err instanceof Error ? err.message : String(err),
       provider: "inworld",
     };
   }
@@ -283,7 +283,9 @@ export async function inworldTTS(
         const errorJson = JSON.parse(errorText) as InworldApiResponse;
         errorMessage = errorJson.message ?? errorJson.error ?? errorMessage;
       } catch {
-        if (errorText) errorMessage = errorText;
+        if (errorText) {
+          errorMessage = errorText;
+        }
       }
 
       // Provide user-friendly messages for common errors
