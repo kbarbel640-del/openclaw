@@ -37,9 +37,11 @@ export type AppViewState = {
   handleChatScroll(event: Event): void;
   handleSplitRatioChange(ratio: number): void;
   handleOpenSidebar(content?: string): void;
+  handleCloseSidebar(): void;
   splitRatio: number | undefined;
   sidebarError: string | null | undefined;
-  sidebarOpen?: boolean | string | null;
+  sidebarOpen?: boolean | null;
+  sidebarContent: string | null;
   removeQueuedMessage(id: string): void;
   handleAbortChat(): unknown;
   handleSendChat(arg0?: string, arg1?: object): void;

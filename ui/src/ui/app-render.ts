@@ -477,11 +477,11 @@ export function renderApp(state: AppViewState) {
         onScrollToBottom: () => state.scrollToBottom(),
         // Sidebar props for tool output viewing
         sidebarOpen: state.sidebarOpen,
-        sidebarContent: state.sidebarOpen,
+        sidebarContent: state.sidebarContent ?? undefined,
         sidebarError: state.sidebarError,
         splitRatio: state.splitRatio,
         onOpenSidebar: (content: string) => state.handleOpenSidebar(content),
-        onCloseSidebar: () => state.handleOpenSidebar(),
+        onCloseSidebar: () => state.handleCloseSidebar(),
         onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
         assistantName: state.assistantName,
         assistantAvatar: state.assistantAvatar,

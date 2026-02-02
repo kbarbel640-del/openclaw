@@ -262,9 +262,7 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
       updatedAt: now,
       message: {},
     };
-    if (entry !== undefined) {
-      host.toolStreamById.set(toolCallId, entry);
-    }
+    host.toolStreamById.set(toolCallId, entry);
     host.toolStreamOrder.push(toolCallId);
   } else {
     entry.name = name;
