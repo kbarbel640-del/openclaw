@@ -1,0 +1,29 @@
+{
+  "name": "@openclaw/lark",
+  "version": "2026.1.30",
+  "description": "OpenClaw Lark/Feishu channel plugin",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "lark",
+      "label": "Lark (飞书)",
+      "selectionLabel": "Lark (飞书 Bot)",
+      "docsPath": "/channels/lark",
+      "docsLabel": "lark",
+      "blurb": "飞书机器人集成，支持单聊、群聊、富文本消息和卡片消息。",
+      "order": 80,
+      "quickstartAllowFrom": true
+    },
+    "install": {
+      "npmSpec": "@openclaw/lark",
+      "localPath": "extensions/lark",
+      "defaultChoice": "npm"
+    }
+  }
+}
