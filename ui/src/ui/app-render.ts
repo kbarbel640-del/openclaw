@@ -46,7 +46,7 @@ import {
   updateSkillEnabled,
 } from "./controllers/skills";
 import { icons } from "./icons";
-import { TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation";
+import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation";
 import { renderChannels } from "./views/channels";
 import { renderChat } from "./views/chat";
 import { renderConfig } from "./views/config";
@@ -90,6 +90,8 @@ export function renderApp(state: AppViewState) {
   const showThinking = state.onboarding ? false : state.settings.chatShowThinking;
   const assistantAvatarUrl = resolveAssistantAvatarUrl(state);
   const chatAvatarUrl = state.chatAvatarUrl ?? assistantAvatarUrl ?? null;
+  const logoBase = normalizeBasePath(state.basePath);
+  const logoHref = logoBase ? `${logoBase}/favicon.svg` : "/favicon.svg";
 
   return html`
     <div class="shell ${isChat ? "shell--chat" : ""} ${chatFocus ? "shell--chat-focus" : ""} ${state.settings.navCollapsed ? "shell--nav-collapsed" : ""} ${state.onboarding ? "shell--onboarding" : ""}">
@@ -109,7 +111,7 @@ export function renderApp(state: AppViewState) {
           </button>
           <div class="brand">
             <div class="brand-logo">
-              <img src="${state.basePath ? `${state.basePath}/` : "/"}favicon.svg" alt="OpenClaw" />
+              <img src="${logoHref}" alt="OpenClaw" />
             </div>
             <div class="brand-text">
               <div class="brand-title">OPENCLAW</div>
