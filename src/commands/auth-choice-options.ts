@@ -13,7 +13,6 @@ export type AuthChoiceGroupId =
   | "google"
   | "copilot"
   | "openrouter"
-  | "baseten"
   | "ai-gateway"
   | "moonshot"
   | "zai"
@@ -22,6 +21,7 @@ export type AuthChoiceGroupId =
   | "minimax"
   | "synthetic"
   | "venice"
+  | "baseten"
   | "qwen";
 
 export type AuthChoiceGroup = {
@@ -122,58 +122,10 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["venice-api-key"],
   },
   {
-    value: "google",
-    label: "Google",
-    hint: "Gemini API key + OAuth",
-    choices: ["gemini-api-key", "google-antigravity", "google-gemini-cli"],
-  },
-  {
-    value: "copilot",
-    label: "Copilot",
-    hint: "GitHub + local proxy",
-    choices: ["github-copilot", "copilot-proxy"],
-  },
-  {
-    value: "openrouter",
-    label: "OpenRouter",
-    hint: "API key",
-    choices: ["openrouter-api-key"],
-  },
-  {
     value: "baseten",
     label: "Baseten",
     hint: "Model APIs for high-performance LLMs",
     choices: ["baseten-api-key"],
-  },
-  {
-    value: "ai-gateway",
-    label: "Vercel AI Gateway",
-    hint: "API key",
-    choices: ["ai-gateway-api-key"],
-  },
-  {
-    value: "moonshot",
-    label: "Moonshot AI",
-    hint: "Kimi K2 + Kimi Code",
-    choices: ["moonshot-api-key", "kimi-code-api-key"],
-  },
-  {
-    value: "zai",
-    label: "Z.AI (GLM 4.7)",
-    hint: "API key",
-    choices: ["zai-api-key"],
-  },
-  {
-    value: "xiaomi",
-    label: "Xiaomi",
-    hint: "API key",
-    choices: ["xiaomi-api-key"],
-  },
-  {
-    value: "opencode-zen",
-    label: "OpenCode Zen",
-    hint: "API key",
-    choices: ["opencode-zen"],
   },
 ];
 
@@ -198,11 +150,6 @@ export function buildAuthChoiceOptions(params: {
   options.push({ value: "openai-api-key", label: "OpenAI API key" });
   options.push({ value: "openrouter-api-key", label: "OpenRouter API key" });
   options.push({
-    value: "baseten-api-key",
-    label: "Baseten API key",
-    hint: "Model APIs for high-performance LLMs",
-  });
-  options.push({
     value: "ai-gateway-api-key",
     label: "Vercel AI Gateway API key",
   });
@@ -213,6 +160,11 @@ export function buildAuthChoiceOptions(params: {
     value: "venice-api-key",
     label: "Venice AI API key",
     hint: "Privacy-focused inference (uncensored models)",
+  });
+  options.push({
+    value: "baseten-api-key",
+    label: "Baseten API key",
+    hint: "Model APIs for high-performance LLMs",
   });
   options.push({
     value: "github-copilot",
