@@ -348,7 +348,6 @@ export type GuardrailEvaluationContext = {
  * Base configuration shared by all guardrail plugins.
  */
 export type GuardrailBaseConfig = {
-  enabled?: boolean;
   /** If true, allow content through when guardrail evaluation fails (default: true). */
   failOpen?: boolean;
   stages?: {
@@ -435,10 +434,6 @@ export function createGuardrailPlugin<TConfig extends GuardrailBaseConfig>(
 
     register(api) {
       const config = (api.pluginConfig ?? {}) as TConfig;
-      if (config.enabled === false) {
-        api.logger.debug?.(`${definition.name} disabled or not configured`);
-        return;
-      }
 
       // Run custom initialization
       definition.onRegister?.(api, config);

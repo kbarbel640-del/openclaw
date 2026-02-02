@@ -6,10 +6,6 @@
   "configSchema": {
     "type": "object",
     "properties": {
-      "enabled": {
-        "type": "boolean",
-        "description": "Enable command safety guard"
-      },
       "failOpen": {
         "type": "boolean",
         "description": "Allow commands through if evaluation fails (default: true)"
@@ -43,7 +39,6 @@
       }
     },
     "uiHints": {
-      "enabled": { "label": "Enable" },
       "extraPatterns": { "label": "Extra Block Patterns", "advanced": true },
       "allowPatterns": { "label": "Allow Patterns", "advanced": true },
       "disabledRules": { "label": "Disabled Rules", "advanced": true }

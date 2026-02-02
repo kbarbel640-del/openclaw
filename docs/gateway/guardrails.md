@@ -100,7 +100,6 @@ Configuration example:
       "grayswan-cygnal-guardrail": {
         "enabled": true,
         "config": {
-          "enabled": true,
           "apiKey": "${GRAYSWAN_API_KEY}",
           "apiBase": "https://api.grayswan.ai",
           "policyId": "pol_example",
@@ -147,7 +146,6 @@ Configuration example:
       "llamaguard": {
         "enabled": true,
         "config": {
-          "enabled": true,
           "provider": "ollama",
           "model": "llama-guard3:8b",
           "timeoutMs": 30000,
@@ -184,8 +182,7 @@ Configuration example:
       "gpt-oss-safeguard": {
         "enabled": true,
         "config": {
-          "enabled": true,
-          "provider": "ollama",
+          "provider": "openrouter",
           "model": "openai/gpt-oss-safeguard-120b",
           "policy": "Your custom safety policy here...",
           "reasoningEffort": "medium",

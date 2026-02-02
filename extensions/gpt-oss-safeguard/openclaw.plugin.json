@@ -42,9 +42,6 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "enabled": {
-        "type": "boolean"
-      },
       "provider": {
         "type": "string"
       },
