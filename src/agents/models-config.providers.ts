@@ -65,17 +65,6 @@ const NVIDIA_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
-const DMXAPI_BASE_URL = "https://www.dmxapi.cn/v1";
-const DMXAPI_DEFAULT_MODEL_ID = "claude-sonnet-4-20250514";
-const DMXAPI_DEFAULT_CONTEXT_WINDOW = 200000;
-const DMXAPI_DEFAULT_MAX_TOKENS = 8192;
-const DMXAPI_DEFAULT_COST = {
-  input: 3.0,
-  output: 15.0,
-  cacheRead: 0.3,
-  cacheWrite: 1.5,
-};
-
 const QWEN_PORTAL_BASE_URL = "https://portal.qwen.ai/v1";
 const QWEN_PORTAL_OAUTH_PLACEHOLDER = "qwen-oauth";
 const QWEN_PORTAL_DEFAULT_CONTEXT_WINDOW = 128000;
@@ -363,24 +352,6 @@ function buildNvidiaProvider(): ProviderConfig {
   };
 }
 
-function buildDmxapiProvider(): ProviderConfig {
-  return {
-    baseUrl: DMXAPI_BASE_URL,
-    api: "openai-completions",
-    models: [
-      {
-        id: DMXAPI_DEFAULT_MODEL_ID,
-        name: "Claude Sonnet 4 (DMXAPI)",
-        reasoning: false,
-        input: ["text"],
-        cost: DMXAPI_DEFAULT_COST,
-        contextWindow: DMXAPI_DEFAULT_CONTEXT_WINDOW,
-        maxTokens: DMXAPI_DEFAULT_MAX_TOKENS,
-      },
-    ],
-  };
-}
-
 function buildQwenPortalProvider(): ProviderConfig {
   return {
     baseUrl: QWEN_PORTAL_BASE_URL,
@@ -487,13 +458,6 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "nvidia", store: authStore });
   if (nvidiaKey) {
     providers.nvidia = { ...buildNvidiaProvider(), apiKey: nvidiaKey };
-  }
-
-  const dmxapiKey =
-    resolveEnvApiKeyVarName("dmxapi") ??
-    resolveApiKeyFromProfiles({ provider: "dmxapi", store: authStore });
-  if (dmxapiKey) {
-    providers.dmxapi = { ...buildDmxapiProvider(), apiKey: dmxapiKey };
   }
 
   const syntheticKey =
