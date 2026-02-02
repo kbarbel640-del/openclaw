@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   removeAckReactionAfterReply,
+  resolveAckReactionChoice,
   shouldAckReaction,
   shouldAckReactionForWhatsApp,
 } from "./ack-reactions.js";
@@ -264,5 +265,22 @@ describe("removeAckReactionAfterReply", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(remove).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveAckReactionChoice", () => {
+  it("returns unconfigured when undefined", () => {
+    expect(resolveAckReactionChoice(undefined)).toEqual({ configured: false, value: "" });
+  });
+
+  it("trims and picks a random emoji from a list", () => {
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    expect(resolveAckReactionChoice([" 👀 ", "✅"])).toEqual({ configured: true, value: "👀" });
+    randomSpy.mockRestore();
+  });
+
+  it("treats empty strings as disabled", () => {
+    expect(resolveAckReactionChoice("   ")).toEqual({ configured: true, value: "" });
+    expect(resolveAckReactionChoice([" ", ""])).toEqual({ configured: true, value: "" });
   });
 });
