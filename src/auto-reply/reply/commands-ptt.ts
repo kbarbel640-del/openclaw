@@ -189,7 +189,7 @@ export const handlePTTCommand: CommandHandler = async (params, allowTextCommands
     });
     const payload =
       res.payload && typeof res.payload === "object"
-        ? (res.payload as Record<string, unknown>)
+        ? (res.payload)
         : {};
 
     const lines = [`PTT ${actionKey} → ${nodeId}`];
