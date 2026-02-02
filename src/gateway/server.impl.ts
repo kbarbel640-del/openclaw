@@ -27,6 +27,7 @@ import {
   setSkillsRemoteRegistry,
 } from "../infra/skills-remote.js";
 import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
+import { markLifecycleRunning, markLifecycleStarting } from "../infra/lifecycle-state.js";
 import { setGatewaySigusr1RestartPolicy } from "../infra/restart.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
@@ -148,6 +149,14 @@ export async function startGatewayServer(
   port = 18789,
   opts: GatewayServerOptions = {},
 ): Promise<GatewayServer> {
+  // Track lifecycle state for crash detection
+  const previousShutdown = await markLifecycleStarting();
+  if (previousShutdown?.reason === "crash") {
+    console.warn(
+      `[gateway] Detected previous crash at ${new Date(previousShutdown.time).toISOString()} (uptime: ${Math.round((previousShutdown.uptime ?? 0) / 1000)}s)`,
+    );
+  }
+
   // Ensure all default port derivations (browser/canvas) see the actual runtime port.
   process.env.OPENCLAW_GATEWAY_PORT = String(port);
   logAcceptedEnvOption({
@@ -484,6 +493,8 @@ export async function startGatewayServer(
     log,
     isNixMode,
   });
+  // Mark lifecycle as running after successful startup
+  await markLifecycleRunning();
   scheduleGatewayUpdateCheck({ cfg: cfgAtStart, log, isNixMode });
   const tailscaleCleanup = await startGatewayTailscaleExposure({
     tailscaleMode,

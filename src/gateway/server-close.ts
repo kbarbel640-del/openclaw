@@ -4,6 +4,7 @@ import type { CanvasHostHandler, CanvasHostServer } from "../canvas-host/server.
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
 import { stopGmailWatcher } from "../hooks/gmail-watcher.js";
 import type { HeartbeatRunner } from "../infra/heartbeat-runner.js";
+import { markLifecycleStopping, markLifecycleStopped } from "../infra/lifecycle-state.js";
 import type { PluginServicesHandle } from "../plugins/services.js";
 
 export function createGatewayCloseHandler(params: {
@@ -31,6 +32,9 @@ export function createGatewayCloseHandler(params: {
   httpServers?: HttpServer[];
 }) {
   return async (opts?: { reason?: string; restartExpectedMs?: number | null }) => {
+    // Mark lifecycle as stopping for crash detection
+    await markLifecycleStopping();
+
     const reasonRaw = typeof opts?.reason === "string" ? opts.reason.trim() : "";
     const reason = reasonRaw || "gateway stopping";
     const restartExpectedMs =
@@ -124,5 +128,8 @@ export function createGatewayCloseHandler(params: {
         httpServer.close((err) => (err ? reject(err) : resolve())),
       );
     }
+
+    // Mark lifecycle as cleanly stopped
+    await markLifecycleStopped();
   };
 }
