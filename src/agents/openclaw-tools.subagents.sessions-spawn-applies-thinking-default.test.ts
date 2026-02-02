@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 
 vi.mock("../config/config.js", async () => {
-  const actual = (await vi.importActual("../config/config.js")) as Record<string, unknown>;
+  const actual = await vi.importActual("../config/config.js");
   return {
     ...actual,
     loadConfig: () => ({
