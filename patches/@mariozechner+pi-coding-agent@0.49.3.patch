@@ -1,0 +1,46 @@
+diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
+index 6d54bbf289a36b84aa340277e35852522f67542f..fec6874ea982bcdbf1e456bc2d70e9d7265b795c 100644
+--- a/dist/core/agent-session.js
++++ b/dist/core/agent-session.js
+@@ -1111,7 +1111,7 @@ export class AgentSession {
+         // The error shouldn't trigger another compaction since we already compacted.
+         // Example: opus fails → switch to codex → compact → switch back to opus → opus error
+         // is still in context but shouldn't trigger compaction again.
+-        const compactionEntry = this.sessionManager.getBranch().find((e) => e.type === "compaction");
++        const compactionEntry = [...this.sessionManager.getBranch()].reverse().find((e) => e.type === "compaction");
+         const errorIsFromBeforeCompaction = compactionEntry && assistantMessage.timestamp < new Date(compactionEntry.timestamp).getTime();
+         // Case 1: Overflow - LLM returned context overflow error
+         if (sameModel && !errorIsFromBeforeCompaction && isContextOverflow(assistantMessage, contextWindow)) {
+@@ -1129,6 +1129,9 @@ export class AgentSession {
+         if (assistantMessage.stopReason === "error")
+             return;
+         const contextTokens = calculateContextTokens(assistantMessage.usage);
++        if (compactionEntry && assistantMessage.timestamp < new Date(compactionEntry.timestamp).getTime()) {
++            return;
++        }
+         if (shouldCompact(contextTokens, contextWindow, settings)) {
+             await this._runAutoCompaction("threshold", false);
+         }
+diff --git a/dist/core/compaction/compaction.js b/dist/core/compaction/compaction.js
+index 0889a4f3ec1df3c94362851613edcb08850b6658..73bbe69be16fda37a30226160c9f37fccfd4124a 100644
+--- a/dist/core/compaction/compaction.js
++++ b/dist/core/compaction/compaction.js
+@@ -455,7 +455,17 @@ export async function generateSummary(currentMessages, model, reserveTokens, api
+     return textContent;
+ }
+ export function prepareCompaction(pathEntries, settings) {
+-    if (pathEntries.length > 0 && pathEntries[pathEntries.length - 1].type === "compaction") {
++    let lastMeaningfulEntry = undefined;
++    for (let i = pathEntries.length - 1; i >= 0; i--) {
++        const entry = pathEntries[i];
++        if (!entry)
++            continue;
++        if (entry.type === "custom")
++            continue;
++        lastMeaningfulEntry = entry;
++        break;
++    }
++    if (!lastMeaningfulEntry || lastMeaningfulEntry.type === "compaction") {
+         return undefined;
+     }
+     let prevCompactionIndex = -1;
