@@ -360,6 +360,7 @@ function buildMcpPiTool(params: {
   serverLabel?: string;
   tool: McpRemoteToolDef;
   connection: McpConnection;
+  serverConfig?: McpServerConfig;
 }): AnyAgentTool {
   const rawName = mcpPiToolName(params.serverId, params.tool.name);
   const normalizedName = normalizeToolName(rawName);
@@ -370,6 +371,15 @@ function buildMcpPiTool(params: {
   // MCP servers return JSON Schema; this is compatible enough for our tool
   // validation + provider schema normalization pipeline.
   const parameters = (params.tool.inputSchema ?? { type: "object" }) as any;
+
+  // Build enhanced description when serverConfig is provided
+  const description = params.serverConfig
+    ? buildEnhancedDescription(
+        params.tool.description || "",
+        params.serverConfig,
+        params.serverLabel || params.serverId,
+      )
+    : (params.tool.description ?? `MCP tool: ${params.tool.name}`);
 
   const execute: AnyAgentTool["execute"] = async (toolCallId, toolParams, signal) => {
     const result = await params.connection.callTool({
@@ -405,7 +415,7 @@ function buildMcpPiTool(params: {
   return {
     name: normalizedName,
     label,
-    description: params.tool.description ?? `MCP tool: ${params.tool.name}`,
+    description,
     parameters,
     execute,
   } as AnyAgentTool;
@@ -459,6 +469,7 @@ export async function resolveMcpToolsForAgent(params: {
               serverLabel: (server as any).label,
               tool,
               connection: conn,
+              serverConfig: server,
             }),
           );
         }

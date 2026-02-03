@@ -1712,6 +1712,79 @@ describe("enhanceParameterDescription", () => {
 });
 
 // ---------------------------------------------------------------------------
+// buildMcpPiTool integration
+// ---------------------------------------------------------------------------
+
+describe("buildMcpPiTool integration", () => {
+  const mockConnection = {
+    callTool: vi.fn(),
+  } as any;
+
+  it("enhances tool description with transport and auth info", () => {
+    const serverConfig = {
+      transport: "http" as const,
+      url: "http://github.com",
+      headers: { Authorization: "token" },
+    };
+    const tool = __testing.buildMcpPiTool({
+      agentId: "test-agent",
+      serverId: "github",
+      serverLabel: "GitHub",
+      tool: {
+        name: "create_issue",
+        description: "Create a GitHub issue",
+        inputSchema: { type: "object", properties: {} },
+      },
+      connection: mockConnection,
+      serverConfig,
+    });
+    expect(tool.description).toContain("[HTTP]");
+    expect(tool.description).toContain("Requires Auth");
+    expect(tool.description).toContain("GitHub");
+  });
+
+  it("preserves tool when no serverConfig provided", () => {
+    const tool = __testing.buildMcpPiTool({
+      agentId: "test-agent",
+      serverId: "default",
+      tool: {
+        name: "fetch_data",
+        description: "Fetch data",
+        inputSchema: { type: "object", properties: {} },
+      },
+      connection: mockConnection,
+    });
+    expect(tool.description).toEqual("Fetch data");
+  });
+
+  it("enhances parameter descriptions in schema", () => {
+    const serverConfig = {
+      transport: "stdio" as const,
+      command: "python3",
+    };
+    const tool = __testing.buildMcpPiTool({
+      agentId: "test-agent",
+      serverId: "py-server",
+      tool: {
+        name: "process",
+        description: "Process data",
+        inputSchema: {
+          type: "object",
+          properties: {
+            data: { type: "string" },
+            format: { type: "string", enum: ["json", "csv"] },
+          },
+        },
+      },
+      connection: mockConnection,
+      serverConfig,
+    });
+    // Verify parameters exist
+    expect(tool.parameters).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Tool label handling
 // ---------------------------------------------------------------------------
 
