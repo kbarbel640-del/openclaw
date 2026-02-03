@@ -451,6 +451,17 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
       const messageId = event.event_id ?? "";
       const replyToEventId = content["m.relates_to"]?.["m.in_reply_to"]?.event_id;
       const threadRootId = resolveMatrixThreadRootId({ event, content });
+
+      // DEBUG: Log thread detection
+      console.log("[matrix-thread-debug]", {
+        messageId,
+        roomId,
+        isDirectMessage,
+        threadRootId,
+        relatesTo: content["m.relates_to"],
+        relType: content["m.relates_to"]?.rel_type,
+      });
+
       const threadTarget = resolveMatrixThreadTarget({
         threadReplies,
         messageId,
@@ -475,6 +486,10 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
             ? `${baseRoute.sessionKey}:thread:${threadRootId}`
             : baseRoute.sessionKey,
       };
+
+      // DEBUG: Log session key
+      console.log("[matrix-thread-debug] sessionKey:", route.sessionKey);
+
       const envelopeFrom = isDirectMessage ? senderName : (roomName ?? roomId);
       const textWithId =
         threadRootId && !isDirectMessage
