@@ -13,6 +13,7 @@ import { getApiKeyForModel, requireApiKey, resolveEnvApiKey } from "../model-aut
 import { runWithImageModelFallback } from "../model-fallback.js";
 import { resolveConfiguredModelRef } from "../model-selection.js";
 import { ensureOpenClawModelsJson } from "../models-config.js";
+import { resolveExtraParams } from "../pi-embedded-runner/extra-params.js";
 import { discoverAuthStorage, discoverModels } from "../pi-model-discovery.js";
 import { assertSandboxPath } from "../sandbox-paths.js";
 import {
@@ -271,9 +272,18 @@ async function runImagePrompt(params: {
       }
 
       const context = buildImageContext(params.prompt, params.base64, params.mimeType);
+      // Resolve maxTokens from agents.defaults.models[provider/model].params, falling back to 512.
+      // See: https://github.com/openclaw/openclaw/issues/8096
+      const modelExtraParams = resolveExtraParams({
+        cfg: effectiveCfg,
+        provider: model.provider,
+        modelId: model.id,
+      });
+      const configuredMaxTokens =
+        typeof modelExtraParams?.maxTokens === "number" ? modelExtraParams.maxTokens : 512;
       const message = await complete(model, context, {
         apiKey,
-        maxTokens: 512,
+        maxTokens: configuredMaxTokens,
       });
       const text = coerceImageAssistantText({
         message,
