@@ -239,6 +239,14 @@ const entries: SubCliEntry[] = [
       mod.registerCompletionCli(program);
     },
   },
+  {
+    name: "providers",
+    description: "LLM provider detection and usage monitoring",
+    register: async (program) => {
+      const mod = await import("../providers-cli.js");
+      mod.registerProvidersCli(program);
+    },
+  },
 ];
 
 export function getSubCliEntries(): SubCliEntry[] {
