@@ -1,7 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Types
 export type GoalStatus = "not_started" | "in_progress" | "completed" | "paused";
+export type GoalPriority = "low" | "medium" | "high" | "critical";
 
 export interface Milestone {
   id: string;
@@ -17,10 +18,22 @@ export interface Goal {
   progress: number; // 0-100
   milestones: Milestone[];
   status: GoalStatus;
+  priority?: GoalPriority;
   dueDate?: string;
   createdAt: string;
   updatedAt: string;
   tags?: string[];
+}
+
+export interface GoalDetail extends Goal {
+  assignedTo?: string;
+  completedMilestones: number;
+  totalMilestones: number;
+  logs?: Array<{
+    timestamp: string;
+    message: string;
+    type: "info" | "warning" | "error";
+  }>;
 }
 
 // Query keys factory
@@ -140,4 +153,12 @@ export function useGoalsByStatus(status: GoalStatus) {
     queryFn: () => fetchGoalsByStatus(status),
     enabled: !!status,
   });
+}
+
+/**
+ * Hook to invalidate all goal queries
+ */
+export function useInvalidateGoals() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: goalKeys.all });
 }
