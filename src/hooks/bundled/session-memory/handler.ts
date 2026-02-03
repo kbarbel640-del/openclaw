@@ -15,6 +15,18 @@ import { resolveAgentWorkspaceDir } from "../../../agents/agent-scope.js";
 import { resolveAgentIdFromSessionKey } from "../../../routing/session-key.js";
 import { resolveHookConfig } from "../../config.js";
 
+/** Text content block from session JSONL entries */
+type SessionTextBlock = { type: "text"; text: string };
+
+/** Type guard for text content blocks in session messages */
+function isSessionTextBlock(block: unknown): block is SessionTextBlock {
+  if (!block || typeof block !== "object") {
+    return false;
+  }
+  const rec = block as Record<string, unknown>;
+  return rec.type === "text" && typeof rec.text === "string";
+}
+
 /**
  * Read recent messages from session file for slug generation
  */
@@ -38,8 +50,7 @@ async function getRecentSessionContent(
           if ((role === "user" || role === "assistant") && msg.content) {
             // Extract text content
             const text = Array.isArray(msg.content)
-              ? // oxlint-disable-next-line typescript/no-explicit-any
-                msg.content.find((c: any) => c.type === "text")?.text
+              ? msg.content.find(isSessionTextBlock)?.text
               : msg.content;
             if (text && !text.startsWith("/")) {
               allMessages.push(`${role}: ${text}`);
