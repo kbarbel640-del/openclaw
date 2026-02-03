@@ -124,10 +124,10 @@ Without a shell, debugging requires:
 
 DHI images are compatible with:
 
-- ✅ Standard Docker commands
-- ✅ Docker Compose
-- ✅ Kubernetes
-- ✅ All major container runtimes
+- Standard Docker commands
+- Docker Compose
+- Kubernetes
+- All major container runtimes
 
 ## Migration Checklist
 
