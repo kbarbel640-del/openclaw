@@ -25,6 +25,26 @@ function shouldSuppressHeartbeatBroadcast(runId: string): boolean {
   }
 }
 
+/**
+ * Check if compaction events should be broadcast to WebSocket clients.
+ * Compaction events are internal lifecycle events and should NOT be
+ * sent to external messaging channels (Slack, Discord, etc.).
+ *
+ * Returns true if compaction events should be broadcast (e.g., to Web UI).
+ * Returns false to suppress broadcast to external channels.
+ */
+function shouldBroadcastCompactionEvents(): boolean {
+  // Compaction events are internal-only.
+  // They should be consumed by:
+  // - Internal event listeners (agent-runner-execution.ts, etc.)
+  // - Web UI via nodeSendToSession (if needed for status UI)
+  //
+  // They should NOT go to:
+  // - Slack/Discord/Telegram channels
+  // - External messaging surfaces
+  return false;
+}
+
 export type ChatRunEntry = {
   sessionKey: string;
   clientRunId: string;
@@ -248,6 +268,19 @@ export function createAgentEventHandler({
       agentRunSeq.set(evt.runId, evt.seq);
       return;
     }
+
+    // Filter compaction events from broadcast.
+    // Compaction events are internal lifecycle events and should NOT
+    // be broadcast to WebSocket clients (which includes external channels).
+    if (evt.stream === "compaction" && !shouldBroadcastCompactionEvents()) {
+      agentRunSeq.set(evt.runId, evt.seq);
+      // Still send to session-specific handlers (Web UI status, etc.)
+      if (sessionKey) {
+        nodeSendToSession(sessionKey, "agent", agentPayload);
+      }
+      return;
+    }
+
     if (evt.seq !== last + 1) {
       broadcast("agent", {
         runId: evt.runId,

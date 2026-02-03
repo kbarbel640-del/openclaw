@@ -39,4 +39,79 @@ describe("agent event handler", () => {
     expect(sessionChatCalls).toHaveLength(1);
     nowSpy.mockRestore();
   });
+
+  it("filters compaction events from broadcast but sends to session", () => {
+    const broadcast = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const agentRunSeq = new Map<string, number>();
+    const chatRunState = createChatRunState();
+
+    const handler = createAgentEventHandler({
+      broadcast,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => "session-1",
+      clearAgentRunContext: vi.fn(),
+    });
+
+    // Send a compaction event
+    handler({
+      runId: "run-1",
+      seq: 1,
+      stream: "compaction",
+      ts: Date.now(),
+      data: {
+        action: "compacting",
+        reason: "token_threshold",
+      },
+    });
+
+    // Verify compaction event was NOT broadcast to WebSocket clients
+    const agentBroadcasts = broadcast.mock.calls.filter(([event]) => event === "agent");
+    const compactionBroadcasts = agentBroadcasts.filter(
+      ([, payload]: [string, { stream?: string }]) => payload.stream === "compaction",
+    );
+    expect(compactionBroadcasts).toHaveLength(0);
+
+    // Verify compaction event WAS sent to session-specific handler
+    const sessionAgentCalls = nodeSendToSession.mock.calls.filter(
+      ([sessionKey, event]) => sessionKey === "session-1" && event === "agent",
+    );
+    expect(sessionAgentCalls).toHaveLength(1);
+    const sessionPayload = sessionAgentCalls[0]?.[2] as { stream?: string };
+    expect(sessionPayload.stream).toBe("compaction");
+  });
+
+  it("allows other event types through broadcast", () => {
+    const broadcast = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const agentRunSeq = new Map<string, number>();
+    const chatRunState = createChatRunState();
+
+    const handler = createAgentEventHandler({
+      broadcast,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => "session-1",
+      clearAgentRunContext: vi.fn(),
+    });
+
+    // Send a lifecycle event (should be broadcast)
+    handler({
+      runId: "run-1",
+      seq: 1,
+      stream: "lifecycle",
+      ts: Date.now(),
+      data: { phase: "start" },
+    });
+
+    // Verify lifecycle event WAS broadcast
+    const agentBroadcasts = broadcast.mock.calls.filter(([event]) => event === "agent");
+    const lifecycleBroadcasts = agentBroadcasts.filter(
+      ([, payload]: [string, { stream?: string }]) => payload.stream === "lifecycle",
+    );
+    expect(lifecycleBroadcasts).toHaveLength(1);
+  });
 });
