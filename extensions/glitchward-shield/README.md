@@ -36,13 +36,13 @@ openclaw config set plugins.glitchward-shield.warnThreshold 0.5
 
 ### Configuration Options
 
-| Option           | Type    | Default                             | Description                            |
-| ---------------- | ------- | ----------------------------------- | -------------------------------------- |
-| `apiUrl`         | string  | `https://glitchward.com/api/shield` | Shield API endpoint                    |
-| `apiToken`       | string  | -                                   | Your Shield API token                  |
-| `blockThreshold` | number  | 0.8                                 | Risk score to inject security warning  |
-| `warnThreshold`  | number  | 0.5                                 | Risk score to log warnings (0-1)       |
-| `scanIncoming`   | boolean | true                                | Scan incoming messages                 |
+| Option           | Type    | Default                             | Description                           |
+| ---------------- | ------- | ----------------------------------- | ------------------------------------- |
+| `apiUrl`         | string  | `https://glitchward.com/api/shield` | Shield API endpoint                   |
+| `apiToken`       | string  | -                                   | Your Shield API token                 |
+| `blockThreshold` | number  | 0.8                                 | Risk score to inject security warning |
+| `warnThreshold`  | number  | 0.5                                 | Risk score to log warnings (0-1)      |
+| `scanIncoming`   | boolean | true                                | Scan incoming messages                |
 
 ## Usage
 
