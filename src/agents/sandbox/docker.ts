@@ -33,13 +33,9 @@ export const SETUP_COMMAND_DENIED_PATTERNS: Array<{ pattern: RegExp; reason: str
   { pattern: /\n/, reason: "newline in command is not allowed" },
   { pattern: /\r/, reason: "carriage return in command is not allowed" },
 
-  // Subshell syntax
-  { pattern: /\(/, reason: "subshell syntax (() is not allowed" },
-
   // Dangerous commands that enable remote code execution or data exfiltration
-  { pattern: /\bcurl\b.*https?:\/\//i, reason: "curl with URLs is not allowed" },
-  { pattern: /\bwget\b.*https?:\/\//i, reason: "wget with URLs is not allowed" },
-  { pattern: /\bcurl\b.*-[a-z]*[dFT]/i, reason: "curl with data transfer flags is not allowed" },
+  // Block curl and wget entirely to prevent data exfiltration and remote code download
+  { pattern: /\bcurl\b/i, reason: "curl is not allowed (potential data exfiltration)" },
   { pattern: /\bwget\b/i, reason: "wget is not allowed (use apt-get for package installation)" },
   { pattern: /\beval\b/, reason: "eval command is not allowed" },
   { pattern: /\bnc\b/, reason: "nc (netcat) is not allowed" },
