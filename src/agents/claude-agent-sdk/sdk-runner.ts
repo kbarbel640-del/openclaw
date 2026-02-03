@@ -457,6 +457,8 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
   let assistantSoFar = "";
   let didAssistantMessageStart = false;
   let returnedSessionId: string | undefined;
+  let assistantMessageCount = 0;
+  let userMessageCount = 0;
 
   // Usage and turn tracking
   let accumulatedUsage: NormalizedUsage | undefined;
@@ -499,22 +501,27 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
 
       eventCount += 1;
 
-      // Diagnostic: log raw event types for debugging stream issues.
-      const eventType = isRecord(event) ? String(event.type) : "non-object";
-      log.trace(`Event #${eventCount}: type=${eventType}`);
-
       // Best-effort assistant message boundary detection.
       // Some SDK versions emit `type: "message_start"`; otherwise, we fall back
       // to calling this once when we see the first assistant text.
-      if (!didAssistantMessageStart && isRecord(event) && event.type === "message_start") {
-        didAssistantMessageStart = true;
-        turnCount += 1;
-        try {
-          void Promise.resolve(params.onAssistantMessageStart?.()).catch((err) => {
-            log.trace(`onAssistantMessageStart callback error: ${String(err)}`);
-          });
-        } catch (err) {
-          log.trace(`onAssistantMessageStart callback error: ${String(err)}`);
+      if (isRecord(event) && event.type === "message_start") {
+        const message = isRecord(event.message) ? event.message : undefined;
+        const role = typeof message?.role === "string" ? message.role : event.role;
+        if (role === "assistant") {
+          assistantMessageCount += 1;
+          if (!didAssistantMessageStart) {
+            didAssistantMessageStart = true;
+            turnCount += 1;
+            try {
+              void Promise.resolve(params.onAssistantMessageStart?.()).catch((err) => {
+                log.trace(`onAssistantMessageStart callback error: ${String(err)}`);
+              });
+            } catch (err) {
+              log.trace(`onAssistantMessageStart callback error: ${String(err)}`);
+            }
+          }
+        } else if (role === "user") {
+          userMessageCount += 1;
         }
       }
 
@@ -536,9 +543,6 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
                 undefined,
               total: Math.max(accumulatedUsage?.total ?? 0, normalized.total ?? 0) || undefined,
             };
-            log.trace(
-              `Accumulated usage: input=${accumulatedUsage.input} output=${accumulatedUsage.output}`,
-            );
           }
         }
       }
@@ -681,6 +685,9 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
 
         if (!didAssistantMessageStart) {
           didAssistantMessageStart = true;
+          if (assistantMessageCount === 0) {
+            assistantMessageCount = 1;
+          }
           try {
             void Promise.resolve(params.onAssistantMessageStart?.()).catch((err) => {
               log.trace(`onAssistantMessageStart callback error: ${String(err)}`);
@@ -723,8 +730,10 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
       }
     }
 
+    const finalUserMessageCount = userMessageCount === 0 ? 1 : userMessageCount;
+    const finalAssistantMessageCount = assistantMessageCount;
     log.debug(
-      `Event stream completed: events=${eventCount} extractedChars=${extractedChars} truncated=${truncated} aborted=${aborted}`,
+      `Event stream completed: events=${eventCount} extractedChars=${extractedChars} truncated=${truncated} aborted=${aborted} assistantMsgs=${finalAssistantMessageCount} userMsgs=${finalUserMessageCount}`,
     );
   } catch (err) {
     if (timeoutId) {
