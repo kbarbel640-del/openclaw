@@ -518,13 +518,19 @@ export async function resolveImplicitProviders(params: {
     providers.moonshot = { ...buildMoonshotProvider(), apiKey: moonshotKey };
   }
 
-  const nebiusTokenFactoryKey =
-    resolveEnvApiKey("nebius-token-factory")?.apiKey ??
-    resolveApiKeyFromProfiles({ provider: "nebius-token-factory", store: authStore });
+  const nebiusTokenFactoryEnv = resolveEnvApiKey("nebius-token-factory");
+  const nebiusTokenFactoryProfileKey = resolveApiKeyFromProfiles({
+    provider: "nebius-token-factory",
+    store: authStore,
+  });
+  const nebiusTokenFactoryKey = nebiusTokenFactoryEnv?.apiKey ?? nebiusTokenFactoryProfileKey;
   if (nebiusTokenFactoryKey) {
+    const apiKeyForConfig =
+      nebiusTokenFactoryEnv?.source.match(/(?:env: |shell env: )([A-Z0-9_]+)/)?.[1] ??
+      nebiusTokenFactoryProfileKey;
     providers["nebius-token-factory"] = {
       ...(await buildNebiusTokenFactoryProvider(nebiusTokenFactoryKey)),
-      apiKey: nebiusTokenFactoryKey,
+      apiKey: apiKeyForConfig,
     };
   }
 

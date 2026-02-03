@@ -31,7 +31,7 @@ openclaw onboard
 
 ## Models and defaults
 
-- Base URL: `https://api.tokenfactory.nebius.com/v1/`
+- Base URL: `https://api.tokenfactory.nebius.com/v1`
 - Default model: `nebius-token-factory/zai-org/GLM-4.7-FP8`
 - Models auto-populate from `GET /models`; OpenClaw falls back to the default
   if discovery fails.

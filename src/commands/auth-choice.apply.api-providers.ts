@@ -297,7 +297,7 @@ export async function applyAuthChoiceApiProviders(
     const envKey = resolveEnvApiKey("nebius-token-factory");
     if (envKey) {
       const useExisting = await params.prompter.confirm({
-        message: `Use existing NEBIUS_TOKEN_FACTORY (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+        message: `Use existing Nebius Token Factory API key from NEBIUS_TOKEN_FACTORY (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
         initialValue: true,
       });
       if (useExisting) {
