@@ -14,6 +14,17 @@ type EncryptedEnvelopeV1 = {
 
 type EncryptedEnvelope = EncryptedEnvelopeV1;
 
+/**
+ * Result type for loadSecureJsonFile to distinguish between:
+ * - missing: file doesn't exist (normal, return undefined)
+ * - success: file loaded and decrypted successfully
+ * - error: file exists but failed to decrypt (should NOT silently lose data)
+ */
+export type SecureLoadResult =
+  | { status: "missing" }
+  | { status: "success"; data: unknown }
+  | { status: "error"; reason: string; recoverable: boolean };
+
 const MASTER_KEY_FILENAME = "master.key";
 const MASTER_KEY_BYTES = 32;
 const NONCE_BYTES = 12;
@@ -117,28 +128,90 @@ export function decryptJson(envelope: EncryptedEnvelope, key: Buffer): unknown {
   return JSON.parse(plaintext.toString("utf8")) as unknown;
 }
 
-export function loadSecureJsonFile(pathname: string): unknown {
-  if (!fs.existsSync(pathname)) {
-    return undefined;
-  }
-  try {
-    const raw = fs.readFileSync(pathname, "utf8");
-    if (!raw.trim()) {
-      return undefined;
-    }
-    const parsed = JSON.parse(raw) as unknown;
-    if (!isEncryptedEnvelope(parsed)) {
-      return parsed;
-    }
-    const key = loadOrCreateMasterKey();
+/**
+ * Try to recover from a previous interrupted migration by checking for .bak file.
+ * If the main file is missing but .bak exists, restore from backup.
+ */
+function tryRecoverFromBackup(pathname: string): boolean {
+  const backupPath = `${pathname}.bak`;
+  if (!fs.existsSync(pathname) && fs.existsSync(backupPath)) {
     try {
-      return decryptJson(parsed, key);
+      fs.renameSync(backupPath, pathname);
+      return true;
     } catch {
-      return undefined;
+      return false;
     }
-  } catch {
-    return undefined;
   }
+  return false;
+}
+
+/**
+ * Load a JSON file that may be encrypted.
+ * Returns a result object to distinguish between missing files and decryption failures.
+ * This prevents silent credential loss when decryption fails.
+ */
+export function loadSecureJsonFileWithResult(pathname: string): SecureLoadResult {
+  // First, try to recover from a previous interrupted migration
+  tryRecoverFromBackup(pathname);
+
+  if (!fs.existsSync(pathname)) {
+    return { status: "missing" };
+  }
+
+  let raw: string;
+  try {
+    raw = fs.readFileSync(pathname, "utf8");
+  } catch (err) {
+    return {
+      status: "error",
+      reason: `Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
+      recoverable: false,
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch (err) {
+    return {
+      status: "error",
+      reason: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      recoverable: false,
+    };
+  }
+
+  if (!isEncryptedEnvelope(parsed)) {
+    // Plaintext file, return as-is
+    return { status: "success", data: parsed };
+  }
+
+  // Encrypted file, attempt decryption
+  try {
+    const key = loadOrCreateMasterKey();
+    const decrypted = decryptJson(parsed, key);
+    return { status: "success", data: decrypted };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Check if this is a key mismatch (auth tag failure)
+    const isKeyMismatch =
+      message.includes("Unsupported state") || message.includes("authentication tag");
+    return {
+      status: "error",
+      reason: isKeyMismatch
+        ? "Decryption failed: wrong key or corrupted file. Your credentials may be encrypted with a different master key."
+        : `Decryption failed: ${message}`,
+      recoverable: isKeyMismatch,
+    };
+  }
+}
+
+/**
+ * Load a JSON file that may be encrypted.
+ * For backwards compatibility, returns undefined on missing or error.
+ */
+export function loadSecureJsonFile(pathname: string): unknown {
+  const result = loadSecureJsonFileWithResult(pathname);
+  return result.status === "success" ? result.data : undefined;
 }
 
 export function saveSecureJsonFile(pathname: string, data: unknown) {
@@ -156,18 +229,17 @@ export function saveSecureJsonFile(pathname: string, data: unknown) {
   fs.chmodSync(pathname, 0o600);
 }
 
+/**
+ * Migrate a plaintext JSON file to encrypted format.
+ * Uses atomic operations with backup recovery to prevent data loss on crash.
+ */
 export function migratePlaintextJsonFile(pathname: string): boolean {
+  // First, try to recover from a previous interrupted migration
+  tryRecoverFromBackup(pathname);
   const tempPath = `${pathname}.tmp`;
   const backupPath = `${pathname}.bak`;
 
   if (!fs.existsSync(pathname)) {
-    if (fs.existsSync(backupPath)) {
-      try {
-        fs.renameSync(backupPath, pathname);
-      } catch {
-        // ignore restore errors
-      }
-    }
     return false;
   }
 
@@ -196,18 +268,32 @@ export function migratePlaintextJsonFile(pathname: string): boolean {
   const key = loadOrCreateMasterKey();
   const encrypted = encryptJson(parsed, key);
   try {
-    // Set mode on write + chmod after to guarantee permissions regardless of umask
+    // Step 1: Write encrypted content to temp file
     fs.writeFileSync(tempPath, `${JSON.stringify(encrypted, null, 2)}\n`, {
       mode: 0o600,
       encoding: "utf8",
     });
     fs.chmodSync(tempPath, 0o600);
+
+    // Step 2: Backup original (if interrupted here, tryRecoverFromBackup will restore)
     fs.renameSync(pathname, backupPath);
+
+    // Step 3: Move temp to main (atomic on POSIX)
     fs.renameSync(tempPath, pathname);
     fs.chmodSync(pathname, 0o600);
-    fs.unlinkSync(backupPath);
+
+    // Step 4: Remove backup only after successful migration
+    // If we crash before this, tryRecoverFromBackup won't do anything
+    // because the main file exists. The .bak file just stays as extra safety.
+    try {
+      fs.unlinkSync(backupPath);
+    } catch {
+      // Ignore - leaving .bak file is safe, just uses extra disk space
+    }
+
     return true;
   } catch {
+    // Clean up temp file if it exists
     try {
       if (fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);
@@ -215,13 +301,8 @@ export function migratePlaintextJsonFile(pathname: string): boolean {
     } catch {
       // ignore cleanup errors
     }
-    try {
-      if (!fs.existsSync(pathname) && fs.existsSync(backupPath)) {
-        fs.renameSync(backupPath, pathname);
-      }
-    } catch {
-      // ignore restore errors
-    }
+    // Try to restore from backup if main file is missing
+    tryRecoverFromBackup(pathname);
     return false;
   }
 }
