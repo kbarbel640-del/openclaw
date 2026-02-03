@@ -84,14 +84,18 @@ function detectAuthRequired(server: McpServerConfig): boolean {
     const headerEntries = Object.entries(server.headers).filter(
       (e): e is [string, string] => typeof e[0] === "string" && typeof e[1] === "string",
     );
-    if (headerEntries.length > 0) return true;
+    if (headerEntries.length > 0) {
+      return true;
+    }
   }
   // STDIO transport uses environment variables
   if ("env" in server && server.env) {
     const envEntries = Object.entries(server.env).filter(
       (e): e is [string, string] => typeof e[0] === "string" && typeof e[1] === "string",
     );
-    if (envEntries.length > 0) return true;
+    if (envEntries.length > 0) {
+      return true;
+    }
   }
   return false;
 }
@@ -116,7 +120,9 @@ function buildEnhancedDescription(
   const authHint = detectAuthRequired(server) ? "[Requires Auth]" : "";
 
   const parts = [hint];
-  if (authHint) parts.push(authHint);
+  if (authHint) {
+    parts.push(authHint);
+  }
 
   const description = originalDescription || "Tool";
   parts.push(`${description} (via ${serverLabel})`);

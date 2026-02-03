@@ -13,10 +13,6 @@ const {
   agentStates,
   ensureAgentState,
   getOrCreateConnection,
-  detectAuthRequired,
-  getTransportHint,
-  buildEnhancedDescription,
-  enhanceParameterDescription,
 } = __testing;
 
 // ---------------------------------------------------------------------------
