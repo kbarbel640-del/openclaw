@@ -325,9 +325,7 @@ export function removeOrphanedToolResults(
     }
 
     if (msg.role === "assistant") {
-      const toolCalls = extractToolCallsFromAssistant(
-        msg as Extract<AgentMessage, { role: "assistant" }>,
-      );
+      const toolCalls = extractToolCallsFromAssistant(msg);
       for (const call of toolCalls) {
         validToolUseIds.add(call.id);
       }
@@ -345,8 +343,7 @@ export function removeOrphanedToolResults(
     }
 
     if (msg.role === "toolResult") {
-      const toolResult = msg as Extract<AgentMessage, { role: "toolResult" }>;
-      const id = extractToolResultId(toolResult);
+      const id = extractToolResultId(msg);
 
       if (id && !validToolUseIds.has(id)) {
         orphansRemoved += 1;
