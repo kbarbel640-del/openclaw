@@ -220,7 +220,24 @@ export async function recordTelegramHistoryMessage(params: {
   }
 }
 
-function mapRow(row: any): TelegramHistoryMessage {
+type TelegramMessageRow = {
+  id: number;
+  account_id: string;
+  chat_id: string;
+  thread_id: string | null;
+  message_id: number | null;
+  direction: TelegramHistoryDirection;
+  date_ms: number;
+  sender_id: string | null;
+  sender_username: string | null;
+  sender_name: string | null;
+  text: string;
+  was_mention: number | null;
+  is_group: number | null;
+  session_key: string | null;
+};
+
+function mapRow(row: TelegramMessageRow): TelegramHistoryMessage {
   return {
     id: row.id,
     accountId: row.account_id,
@@ -249,7 +266,7 @@ export async function readTelegramHistoryMessages(params: {
 }): Promise<TelegramHistoryMessage[]> {
   const handle = await openDb({ env: params.env });
   const limit = Math.max(1, Math.min(500, Math.floor(params.limit)));
-  const rows =
+  const rows: TelegramMessageRow[] =
     typeof params.beforeMessageId === "number"
       ? (handle.prepared.readBeforeMessageId.all(
           params.accountId,
@@ -257,14 +274,14 @@ export async function readTelegramHistoryMessages(params: {
           params.threadId != null ? String(params.threadId) : null,
           params.beforeMessageId,
           limit,
-        ) as any[])
+        ) as unknown as TelegramMessageRow[])
       : (handle.prepared.readRecent.all(
           params.accountId,
           String(params.chatId),
           params.threadId != null ? String(params.threadId) : null,
           limit,
-        ) as any[]);
+        ) as unknown as TelegramMessageRow[]);
 
   // Return in chronological order (oldest -> newest) for easier prompting
-  return rows.map(mapRow).reverse();
+  return rows.map(mapRow).toReversed();
 }
