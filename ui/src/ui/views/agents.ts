@@ -17,6 +17,7 @@ import {
   resolveToolProfilePolicy,
 } from "../../../../src/agents/tool-policy.js";
 import { formatAgo } from "../format";
+import { t } from "../i18n";
 import {
   formatCronPayload,
   formatCronSchedule,
@@ -547,11 +548,11 @@ export function renderAgents(props: AgentsProps) {
       <section class="card agents-sidebar">
         <div class="row" style="justify-content: space-between;">
           <div>
-            <div class="card-title">Agents</div>
-            <div class="card-sub">${agents.length} configured.</div>
+            <div class="card-title">${t().ui.views.agents.title}</div>
+            <div class="card-sub">${t().ui.views.agents.configured(agents.length)}</div>
           </div>
           <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
-            ${props.loading ? "Loading…" : "Refresh"}
+            ${props.loading ? t().ui.views.agents.loading : t().ui.views.agents.refresh}
           </button>
         </div>
         ${
@@ -563,7 +564,7 @@ export function renderAgents(props: AgentsProps) {
           ${
             agents.length === 0
               ? html`
-                  <div class="muted">No agents found.</div>
+                  <div class="muted">${t().ui.views.agents.noAgents}</div>
                 `
               : agents.map((agent) => {
                   const badge = agentBadgeText(agent.id, defaultId);
@@ -593,8 +594,8 @@ export function renderAgents(props: AgentsProps) {
           !selectedAgent
             ? html`
                 <div class="card">
-                  <div class="card-title">Select an agent</div>
-                  <div class="card-sub">Pick an agent to inspect its workspace and tools.</div>
+                  <div class="card-title">${t().ui.views.agents.selectAgent}</div>
+                  <div class="card-sub">${t().ui.views.agents.selectAgentSub}</div>
                 </div>
               `
             : html`
@@ -750,12 +751,12 @@ function renderAgentHeader(
 
 function renderAgentTabs(active: AgentsPanel, onSelect: (panel: AgentsPanel) => void) {
   const tabs: Array<{ id: AgentsPanel; label: string }> = [
-    { id: "overview", label: "Overview" },
-    { id: "files", label: "Files" },
-    { id: "tools", label: "Tools" },
-    { id: "skills", label: "Skills" },
-    { id: "channels", label: "Channels" },
-    { id: "cron", label: "Cron Jobs" },
+    { id: "overview", label: t().ui.views.agents.tabs.overview },
+    { id: "files", label: t().ui.views.agents.tabs.files },
+    { id: "tools", label: t().ui.views.agents.tabs.tools },
+    { id: "skills", label: t().ui.views.agents.tabs.skills },
+    { id: "channels", label: t().ui.views.agents.tabs.channels },
+    { id: "cron", label: t().ui.views.agents.tabs.cron },
   ];
   return html`
     <div class="agent-tabs">
@@ -1115,7 +1116,7 @@ function renderAgentChannels(params: {
             <div class="card-sub">Gateway-wide channel status snapshot.</div>
           </div>
           <button class="btn btn--sm" ?disabled=${params.loading} @click=${params.onRefresh}>
-            ${params.loading ? "Refreshing…" : "Refresh"}
+            ${params.loading ? "Refreshing..." : t().ui.views.agents.refresh}
           </button>
         </div>
         <div class="muted" style="margin-top: 8px;">
@@ -1207,7 +1208,7 @@ function renderAgentCron(params: {
             <div class="card-sub">Gateway cron status.</div>
           </div>
           <button class="btn btn--sm" ?disabled=${params.loading} @click=${params.onRefresh}>
-            ${params.loading ? "Refreshing…" : "Refresh"}
+            ${params.loading ? "Refreshing..." : t().ui.views.agents.refresh}
           </button>
         </div>
         <div class="stat-grid" style="margin-top: 16px;">
@@ -1306,7 +1307,7 @@ function renderAgentFiles(params: {
           ?disabled=${params.agentFilesLoading}
           @click=${() => params.onLoadFiles(params.agentId)}
         >
-          ${params.agentFilesLoading ? "Loading…" : "Refresh"}
+          ${params.agentFilesLoading ? t().ui.views.agents.loading : t().ui.views.agents.refresh}
         </button>
       </div>
       ${list ? html`<div class="muted mono" style="margin-top: 8px;">Workspace: ${list.workspace}</div>` : nothing}
@@ -1362,7 +1363,7 @@ function renderAgentFiles(params: {
                                 ?disabled=${params.agentFileSaving || !isDirty}
                                 @click=${() => params.onFileSave(activeEntry.name)}
                               >
-                                ${params.agentFileSaving ? "Saving…" : "Save"}
+                                ${params.agentFileSaving ? t().ui.saving : t().ui.save}
                               </button>
                             </div>
                           </div>
@@ -1550,7 +1551,7 @@ function renderAgentTools(params: {
             ?disabled=${params.configSaving || !params.configDirty}
             @click=${params.onConfigSave}
           >
-            ${params.configSaving ? "Saving…" : "Save"}
+            ${params.configSaving ? t().ui.saving : t().ui.save}
           </button>
         </div>
       </div>
@@ -1633,7 +1634,7 @@ function renderAgentTools(params: {
           (section) =>
             html`
             <div class="agent-tools-section">
-              <div class="agent-tools-header">${section.label}</div>
+              <div class="agent-tools-header">${(t().ui.views.agents.tools.sections as Record<string, string>)[section.id] || section.label}</div>
               <div class="agent-tools-list">
                 ${section.tools.map((tool) => {
                   const { allowed } = resolveAllowed(tool.id);
@@ -1743,7 +1744,7 @@ function renderAgentSkills(params: {
     <section class="card">
       <div class="row" style="justify-content: space-between;">
         <div>
-          <div class="card-title">Skills</div>
+          <div class="card-title">${t().ui.views.agents.tabs.skills}</div>
           <div class="card-sub">
             Per-agent skill allowlist and workspace skills.
             ${totalCount > 0 ? html`<span class="mono">${enabledCount}/${totalCount}</span>` : nothing}
@@ -1764,14 +1765,14 @@ function renderAgentSkills(params: {
             Reload Config
           </button>
           <button class="btn btn--sm" ?disabled=${params.loading} @click=${params.onRefresh}>
-            ${params.loading ? "Loading…" : "Refresh"}
+            ${params.loading ? t().ui.views.agents.loading : t().ui.views.agents.refresh}
           </button>
           <button
             class="btn btn--sm primary"
             ?disabled=${params.configSaving || !params.configDirty}
             @click=${params.onConfigSave}
           >
-            ${params.configSaving ? "Saving…" : "Save"}
+            ${params.configSaving ? t().ui.saving : t().ui.save}
           </button>
         </div>
       </div>
