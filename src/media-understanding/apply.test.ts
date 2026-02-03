@@ -641,6 +641,36 @@ describe("applyMediaUnderstanding", () => {
     expect(ctx.Body).not.toContain("<file");
   });
 
+  it("never treats text-like audio as a file block when audio understanding is disabled", async () => {
+    const { applyMediaUnderstanding } = await loadApply();
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-media-"));
+    const filePath = path.join(dir, "note.ogg");
+    // Content that strongly looks like UTF-8/CSV text
+    await fs.writeFile(filePath, '"col1","col2"\n"v1","v2"');
+
+    const ctx: MsgContext = {
+      Body: "<media:audio>",
+      MediaPath: filePath,
+      MediaType: "audio/ogg",
+    };
+    const cfg: OpenClawConfig = {
+      tools: {
+        media: {
+          audio: { enabled: false },
+          image: { enabled: false },
+          video: { enabled: false },
+        },
+      },
+    };
+
+    const result = await applyMediaUnderstanding({ ctx, cfg });
+
+    expect(result.appliedFile).toBe(false);
+    expect(result.appliedAudio).toBe(false);
+    expect(ctx.Body).toBe("<media:audio>");
+    expect(ctx.Body).not.toContain("<file");
+  });
+
   it("respects configured allowedMimes for text-like attachments", async () => {
     const { applyMediaUnderstanding } = await loadApply();
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-media-"));
