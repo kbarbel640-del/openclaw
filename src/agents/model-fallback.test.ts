@@ -161,8 +161,9 @@ describe("runWithModelFallback", () => {
         return "ok";
       }
       // Simulate a rate limit error so the fallback logic catches it and moves to the next candidate
-      const error = new Error(`simulated rate limit: ${providerId}/${modelId}`);
-      (error as any).status = 429;
+      const error = Object.assign(new Error(`simulated rate limit: ${providerId}/${modelId}`), {
+        status: 429,
+      });
       throw error;
     });
 
