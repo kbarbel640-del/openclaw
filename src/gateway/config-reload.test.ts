@@ -85,6 +85,32 @@ describe("buildGatewayReloadPlan", () => {
     expect(plan.reloadHooks).toBe(true);
   });
 
+  it("restarts heartbeat when agents.list changes", () => {
+    const plan = buildGatewayReloadPlan(["agents.list"]);
+    expect(plan.restartGateway).toBe(false);
+    expect(plan.restartHeartbeat).toBe(true);
+  });
+
+  it("restarts heartbeat when agent is added to agents.list (end-to-end)", () => {
+    // agents.list is an array; diffConfigPaths returns "agents.list" for array changes
+    const prev = { agents: { list: [{ id: "user-001" }] } };
+    const next = { agents: { list: [{ id: "user-001" }, { id: "user-002" }] } };
+    const paths = diffConfigPaths(prev, next);
+    expect(paths).toContain("agents.list");
+    const plan = buildGatewayReloadPlan(paths);
+    expect(plan.restartGateway).toBe(false);
+    expect(plan.restartHeartbeat).toBe(true);
+  });
+
+  it("restarts heartbeat when agent is removed from agents.list", () => {
+    const prev = { agents: { list: [{ id: "user-001" }, { id: "user-002" }] } };
+    const next = { agents: { list: [{ id: "user-001" }] } };
+    const paths = diffConfigPaths(prev, next);
+    expect(paths).toContain("agents.list");
+    const plan = buildGatewayReloadPlan(paths);
+    expect(plan.restartHeartbeat).toBe(true);
+  });
+
   it("restarts providers when provider config prefixes change", () => {
     const changedPaths = ["web.enabled", "channels.telegram.botToken"];
     const plan = buildGatewayReloadPlan(changedPaths);
