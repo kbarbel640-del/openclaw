@@ -33,12 +33,121 @@ export async function getConfig(): Promise<ConfigSnapshot> {
   return client.request<ConfigSnapshot>("config.get", {});
 }
 
+// Schema caching for performance
+const SCHEMA_CACHE_KEY = "clawdbrain:config-schema";
+
+type CachedSchema = {
+  schema: unknown;
+  uiHints: Record<string, unknown>;
+  version: string;
+  generatedAt: string;
+  cachedAt: number;
+};
+
 /**
- * Get the configuration schema (for form building)
+ * Load cached schema from localStorage
  */
-export async function getConfigSchema(): Promise<unknown> {
+function loadCachedSchema(): CachedSchema | null {
+  try {
+    const raw = localStorage.getItem(SCHEMA_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedSchema;
+    if (!parsed.version || !parsed.schema) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save schema to localStorage
+ */
+function saveCachedSchema(cache: CachedSchema) {
+  try {
+    localStorage.setItem(SCHEMA_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // localStorage might be unavailable or full
+  }
+}
+
+/**
+ * Clear the schema cache
+ */
+export function clearConfigSchemaCache() {
+  try {
+    localStorage.removeItem(SCHEMA_CACHE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+type ConfigSchemaResponse = {
+  schema: unknown;
+  uiHints?: Record<string, unknown>;
+  version: string;
+  generatedAt: string;
+  notModified?: boolean;
+};
+
+/**
+ * Get the configuration schema (for form building).
+ *
+ * Uses caching to avoid re-fetching the large schema on every load:
+ * 1. First, returns cached schema from localStorage if available
+ * 2. Then, checks with server using ifNoneMatch for 304-style caching
+ * 3. Only fetches full schema when version changes
+ *
+ * @param options.forceRefresh - Bypass cache and fetch fresh schema
+ * @param options.section - Only fetch schema for a specific section (e.g., "agents", "channels")
+ */
+export async function getConfigSchema(options?: {
+  forceRefresh?: boolean;
+  section?: string;
+}): Promise<ConfigSchemaResponse> {
   const client = getGatewayClient();
-  return client.request("config.schema", {});
+
+  // Try to load from cache first
+  const cached = !options?.forceRefresh ? loadCachedSchema() : null;
+
+  // Build request params
+  const params: { ifNoneMatch?: string; section?: string; full?: boolean } = {};
+
+  // Use ifNoneMatch for 304-style caching
+  if (cached?.version && !options?.forceRefresh) {
+    params.ifNoneMatch = cached.version;
+  }
+
+  // Support section filtering
+  if (options?.section) {
+    params.section = options.section;
+  } else {
+    params.full = true;
+  }
+
+  const response = await client.request<ConfigSchemaResponse>("config.schema", params);
+
+  // Handle 304-style "not modified" response
+  if (response.notModified && cached) {
+    return {
+      schema: cached.schema,
+      uiHints: cached.uiHints,
+      version: cached.version,
+      generatedAt: cached.generatedAt,
+    };
+  }
+
+  // Cache the new schema (only if full schema, not section)
+  if (!options?.section && response.schema) {
+    saveCachedSchema({
+      schema: response.schema,
+      uiHints: response.uiHints ?? {},
+      version: response.version,
+      generatedAt: response.generatedAt,
+      cachedAt: Date.now(),
+    });
+  }
+
+  return response;
 }
 
 /**

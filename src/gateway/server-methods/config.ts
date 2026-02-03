@@ -86,6 +86,114 @@ function requireConfigBaseHash(
   return true;
 }
 
+/**
+ * Extract a value at a dot-notation path from an object.
+ * Returns undefined if path doesn't exist.
+ */
+function getPathValue(obj: unknown, path: string): unknown {
+  if (!obj || typeof obj !== "object") return undefined;
+  const parts = path.split(".");
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (!current || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+/**
+ * Extract a section from a JSON schema by navigating to properties.<section>.
+ * Returns the sub-schema for that section, or undefined if not found.
+ */
+function getSchemaSection(schema: unknown, section: string): unknown {
+  if (!schema || typeof schema !== "object") return undefined;
+  const s = schema as Record<string, unknown>;
+  const props = s.properties as Record<string, unknown> | undefined;
+  if (!props) return undefined;
+  return props[section];
+}
+
+/**
+ * Extract schema at a dot-notation path.
+ * Navigates through properties at each level.
+ */
+function getSchemaAtPath(schema: unknown, path: string): unknown {
+  if (!schema || typeof schema !== "object") return undefined;
+  const parts = path.split(".");
+  let current: unknown = schema;
+  for (const part of parts) {
+    if (!current || typeof current !== "object") return undefined;
+    const c = current as Record<string, unknown>;
+    const props = c.properties as Record<string, unknown> | undefined;
+    if (!props) return undefined;
+    current = props[part];
+  }
+  return current;
+}
+
+/**
+ * Filter uiHints to only include hints for paths under the given prefix.
+ */
+function filterUiHints(hints: Record<string, unknown>, prefix: string): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const prefixDot = prefix + ".";
+  for (const [key, value] of Object.entries(hints)) {
+    if (key === prefix || key.startsWith(prefixDot)) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+// Cache for config schema to avoid regenerating on every request.
+// The schema only changes when plugins/channels are added, which requires a restart.
+let cachedConfigSchema: {
+  schema: unknown;
+  uiHints: Record<string, unknown>;
+  version: string;
+  generatedAt: string;
+} | null = null;
+
+function getOrBuildConfigSchema(): NonNullable<typeof cachedConfigSchema> {
+  if (cachedConfigSchema) {
+    return cachedConfigSchema;
+  }
+  const cfg = loadConfig();
+  const workspaceDir = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
+  const pluginRegistry = loadOpenClawPlugins({
+    config: cfg,
+    workspaceDir,
+    logger: {
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      debug: () => {},
+    },
+  });
+  cachedConfigSchema = buildConfigSchema({
+    plugins: pluginRegistry.plugins.map((plugin) => ({
+      id: plugin.id,
+      name: plugin.name,
+      description: plugin.description,
+      configUiHints: plugin.configUiHints,
+      configSchema: plugin.configJsonSchema,
+    })),
+    channels: listChannelPlugins().map((entry) => ({
+      id: entry.id,
+      label: entry.meta.label,
+      description: entry.meta.blurb,
+      configSchema: entry.configSchema?.schema,
+      configUiHints: entry.configSchema?.uiHints,
+    })),
+  });
+  return cachedConfigSchema;
+}
+
+/** Clear cached schema (call on reload/restart). */
+export function clearConfigSchemaCache() {
+  cachedConfigSchema = null;
+}
+
 export const configHandlers: GatewayRequestHandlers = {
   "config.get": async ({ params, respond }) => {
     if (!validateConfigGetParams(params)) {
@@ -99,7 +207,43 @@ export const configHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+
+    const typedParams = params as { path?: string; section?: string; full?: boolean };
     const snapshot = await readConfigFileSnapshot();
+
+    // If filtering is requested, extract the relevant portion
+    if (typedParams.path) {
+      const value = getPathValue(snapshot.config, typedParams.path);
+      respond(
+        true,
+        {
+          ...snapshot,
+          config: value,
+          raw: undefined, // Don't include raw when filtering
+          filtered: { path: typedParams.path },
+        },
+        undefined,
+      );
+      return;
+    }
+
+    if (typedParams.section) {
+      const config = snapshot.config as Record<string, unknown> | undefined;
+      const value = config?.[typedParams.section];
+      respond(
+        true,
+        {
+          ...snapshot,
+          config: value !== undefined ? { [typedParams.section]: value } : undefined,
+          raw: undefined, // Don't include raw when filtering
+          filtered: { section: typedParams.section },
+        },
+        undefined,
+      );
+      return;
+    }
+
+    // Return full snapshot (backwards compatible)
     respond(true, snapshot, undefined);
   },
   "config.schema": ({ params, respond }) => {
@@ -114,35 +258,81 @@ export const configHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const cfg = loadConfig();
-    const workspaceDir = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
-    const pluginRegistry = loadOpenClawPlugins({
-      config: cfg,
-      workspaceDir,
-      logger: {
-        info: () => {},
-        warn: () => {},
-        error: () => {},
-        debug: () => {},
-      },
-    });
-    const schema = buildConfigSchema({
-      plugins: pluginRegistry.plugins.map((plugin) => ({
-        id: plugin.id,
-        name: plugin.name,
-        description: plugin.description,
-        configUiHints: plugin.configUiHints,
-        configSchema: plugin.configJsonSchema,
-      })),
-      channels: listChannelPlugins().map((entry) => ({
-        id: entry.id,
-        label: entry.meta.label,
-        description: entry.meta.blurb,
-        configSchema: entry.configSchema?.schema,
-        configUiHints: entry.configSchema?.uiHints,
-      })),
-    });
-    respond(true, schema, undefined);
+
+    const typedParams = params as {
+      section?: string;
+      path?: string;
+      full?: boolean;
+      ifNoneMatch?: string;
+    };
+
+    const fullSchema = getOrBuildConfigSchema();
+
+    // Check if client already has current version (304-style caching)
+    if (typedParams.ifNoneMatch && typedParams.ifNoneMatch === fullSchema.version) {
+      respond(
+        true,
+        {
+          notModified: true,
+          version: fullSchema.version,
+        },
+        undefined,
+      );
+      return;
+    }
+
+    // If filtering by section
+    if (typedParams.section) {
+      const sectionSchema = getSchemaSection(fullSchema.schema, typedParams.section);
+      if (sectionSchema === undefined) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, `unknown config section: ${typedParams.section}`),
+        );
+        return;
+      }
+      respond(
+        true,
+        {
+          schema: sectionSchema,
+          uiHints: filterUiHints(fullSchema.uiHints, typedParams.section),
+          version: fullSchema.version,
+          generatedAt: fullSchema.generatedAt,
+          filtered: { section: typedParams.section },
+        },
+        undefined,
+      );
+      return;
+    }
+
+    // If filtering by path
+    if (typedParams.path) {
+      const pathSchema = getSchemaAtPath(fullSchema.schema, typedParams.path);
+      if (pathSchema === undefined) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, `unknown config path: ${typedParams.path}`),
+        );
+        return;
+      }
+      respond(
+        true,
+        {
+          schema: pathSchema,
+          uiHints: filterUiHints(fullSchema.uiHints, typedParams.path),
+          version: fullSchema.version,
+          generatedAt: fullSchema.generatedAt,
+          filtered: { path: typedParams.path },
+        },
+        undefined,
+      );
+      return;
+    }
+
+    // Return full schema (backwards compatible)
+    respond(true, fullSchema, undefined);
   },
   "config.set": async ({ params, respond }) => {
     if (!validateConfigSetParams(params)) {

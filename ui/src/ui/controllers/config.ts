@@ -48,18 +48,118 @@ export async function loadConfig(state: ConfigState) {
   }
 }
 
-export async function loadConfigSchema(state: ConfigState) {
+// Local storage key for persisted schema cache
+const SCHEMA_CACHE_KEY = "openclaw:config-schema-cache";
+
+type PersistedSchemaCache = {
+  schema: unknown;
+  uiHints: ConfigUiHints;
+  version: string;
+  generatedAt: string;
+  cachedAt: number;
+};
+
+/**
+ * Load schema from localStorage if available.
+ */
+function loadPersistedSchemaCache(): PersistedSchemaCache | null {
+  try {
+    const raw = localStorage.getItem(SCHEMA_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedSchemaCache;
+    // Validate shape
+    if (!parsed.version || !parsed.schema) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save schema to localStorage for persistence across sessions.
+ */
+function savePersistedSchemaCache(cache: PersistedSchemaCache) {
+  try {
+    localStorage.setItem(SCHEMA_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // localStorage might be unavailable or full
+  }
+}
+
+/**
+ * Load config schema with caching support.
+ *
+ * Uses ifNoneMatch to avoid re-fetching when the cached version matches.
+ * The schema is also persisted to localStorage for cross-session caching.
+ *
+ * @param forceRefresh - If true, bypasses cache and fetches fresh schema
+ */
+export async function loadConfigSchema(state: ConfigState, forceRefresh = false) {
   if (!state.client || !state.connected) return;
   if (state.configSchemaLoading) return;
+
+  // Try to load from persistent cache first (for fast initial load)
+  if (!state.configSchema && !forceRefresh) {
+    const persisted = loadPersistedSchemaCache();
+    if (persisted) {
+      state.configSchema = persisted.schema;
+      state.configUiHints = persisted.uiHints;
+      state.configSchemaVersion = persisted.version;
+    }
+  }
+
   state.configSchemaLoading = true;
   try {
-    const res = (await state.client.request("config.schema", {})) as ConfigSchemaResponse;
-    applyConfigSchema(state, res);
+    // Use ifNoneMatch for 304-style caching when we have a cached version
+    const params: { ifNoneMatch?: string; full?: boolean } = {};
+    if (state.configSchemaVersion && !forceRefresh) {
+      params.ifNoneMatch = state.configSchemaVersion;
+    }
+    // Always request full schema for UI (we need everything for form rendering)
+    params.full = true;
+
+    const res = (await state.client.request("config.schema", params)) as
+      | ConfigSchemaResponse
+      | { notModified: true; version: string };
+
+    // Handle 304-style "not modified" response
+    if ("notModified" in res && res.notModified) {
+      // Schema hasn't changed, keep using cached version
+      return;
+    }
+
+    // Apply new schema
+    const schemaRes = res as ConfigSchemaResponse;
+    applyConfigSchema(state, schemaRes);
+
+    // Persist to localStorage for cross-session caching
+    savePersistedSchemaCache({
+      schema: schemaRes.schema,
+      uiHints: schemaRes.uiHints ?? {},
+      version: schemaRes.version,
+      generatedAt: schemaRes.generatedAt,
+      cachedAt: Date.now(),
+    });
   } catch (err) {
     state.lastError = String(err);
   } finally {
     state.configSchemaLoading = false;
   }
+}
+
+/**
+ * Clear the persisted schema cache.
+ * Call this when you need to force a fresh schema fetch (e.g., after plugin changes).
+ */
+export function clearSchemaCache(state: ConfigState) {
+  try {
+    localStorage.removeItem(SCHEMA_CACHE_KEY);
+  } catch {
+    // ignore
+  }
+  state.configSchema = null;
+  state.configSchemaVersion = null;
+  state.configUiHints = {};
 }
 
 export function applyConfigSchema(state: ConfigState, res: ConfigSchemaResponse) {
