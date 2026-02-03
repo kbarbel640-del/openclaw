@@ -160,7 +160,6 @@ export type AppViewState = {
   logsFile: string | null;
   logsEntries: LogEntry[];
   logsFilterText: string;
-  logsLevelFilters: Record<LogLevel, boolean>;
   logsAutoFollow: boolean;
   logsTruncated: boolean;
   client: GatewayBrowserClient | null;
