@@ -95,6 +95,20 @@ export async function loadModelCatalog(params?: {
         models.push({ id, name, provider, contextWindow, reasoning, input });
       }
 
+      // Inject Dify models
+      models.push({
+        id: "chat-flow",
+        name: "Dify ChatFlow",
+        provider: "dify",
+        contextWindow: 4096,
+      });
+      models.push({
+        id: "agent",
+        name: "Dify Agent",
+        provider: "dify",
+        contextWindow: 4096,
+      });
+
       if (models.length === 0) {
         // If we found nothing, don't cache this result so we can try again.
         modelCatalogPromise = null;

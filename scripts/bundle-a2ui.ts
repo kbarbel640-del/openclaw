@@ -1,7 +1,7 @@
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -29,7 +29,7 @@ async function walk(entryPath: string, files: string[]) {
     } else {
       files.push(entryPath);
     }
-  } catch (e) {
+  } catch {
     // Ignore missing files if any
   }
 }
@@ -63,11 +63,14 @@ function run(command: string, args: string[]) {
     const child = spawn(command, args, {
       cwd: ROOT_DIR,
       stdio: "inherit",
-      shell: true, 
+      shell: true,
     });
     child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Command failed: ${command} ${args.join(" ")}`));
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Command failed: ${command} ${args.join(" ")}`));
+      }
     });
   });
 }
@@ -89,26 +92,26 @@ async function main() {
 
   if (previousHash === currentHash) {
     try {
-        await fs.access(OUTPUT_FILE);
-        console.log("A2UI bundle up to date; skipping.");
-        return;
+      await fs.access(OUTPUT_FILE);
+      console.log("A2UI bundle up to date; skipping.");
+      return;
     } catch {}
   }
-  
+
   console.log("Bundling A2UI...");
   try {
-      await run("pnpm", ["exec", "tsc", "-p", path.join(A2UI_RENDERER_DIR, "tsconfig.json")]);
-      await run("pnpm", ["exec", "rolldown", "-c", path.join(A2UI_APP_DIR, "rolldown.config.mjs")]);
-      
-      await fs.writeFile(HASH_FILE, currentHash);
+    await run("pnpm", ["exec", "tsc", "-p", path.join(A2UI_RENDERER_DIR, "tsconfig.json")]);
+    await run("pnpm", ["exec", "rolldown", "-c", path.join(A2UI_APP_DIR, "rolldown.config.mjs")]);
+
+    await fs.writeFile(HASH_FILE, currentHash);
   } catch (e) {
-      console.error("A2UI bundling failed.");
-      console.error(e);
-      process.exit(1);
+    console.error("A2UI bundling failed.");
+    console.error(e);
+    process.exit(1);
   }
 }
 
-main().catch(e => {
-    console.error(e);
-    process.exit(1);
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
 });
