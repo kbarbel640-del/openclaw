@@ -1,5 +1,6 @@
 import { LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { createDictationController, isDictationSupported } from "./dictation";
 import type { EventLogEntry } from "./app-events";
 import type { AppViewState } from "./app-view-state";
 import type { DevicePairingList } from "./controllers/devices";
@@ -275,6 +276,9 @@ export class OpenClawApp extends LitElement {
   private chatHasAutoScrolled = false;
   private chatUserNearBottom = true;
   @state() chatNewMessagesBelow = false;
+  @state() dictationListening = false;
+  @state() dictationError: string | null = null;
+  private dictationController: ReturnType<typeof import("./dictation").createDictationController> | null = null;
   private nodesPollInterval: number | null = null;
   private logsPollInterval: number | null = null;
   private debugPollInterval: number | null = null;
@@ -375,6 +379,30 @@ export class OpenClawApp extends LitElement {
 
   async handleAbortChat() {
     await handleAbortChatInternal(this as unknown as Parameters<typeof handleAbortChatInternal>[0]);
+  }
+
+  handleDictationToggle() {
+    if (!this.dictationController) {
+      if (!isDictationSupported()) {
+        this.dictationError = "Speech recognition not supported";
+        return;
+      }
+      this.dictationController = createDictationController({
+        onTranscript: (text, isFinal) => {
+          if (isFinal) {
+            // Append final transcript to chat message
+            const separator = this.chatMessage && !this.chatMessage.endsWith(" ") ? " " : "";
+            this.chatMessage = this.chatMessage + separator + text;
+          }
+          // For interim results, we could show a preview, but for simplicity we just wait for final
+        },
+        onStateChange: (state) => {
+          this.dictationListening = state.isListening;
+          this.dictationError = state.error;
+        },
+      });
+    }
+    this.dictationController.toggle();
   }
 
   removeQueuedMessage(id: string) {

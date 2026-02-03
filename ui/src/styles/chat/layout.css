@@ -284,6 +284,85 @@
   box-sizing: border-box;
 }
 
+/* Dictation button */
+.btn--dictate {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 150ms ease-out;
+}
+
+.btn--dictate:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text);
+}
+
+.btn--dictate svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5px;
+}
+
+.btn--dictate-active {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+.btn--dictate-active:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+/* Pulsing animation when recording */
+.btn--dictate-active::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  top: 6px;
+  right: 6px;
+  animation: dictate-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dictate-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+/* Light theme dictation overrides */
+:root[data-theme="light"] .btn--dictate {
+  background: #ffffff;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+:root[data-theme="light"] .btn--dictate:hover {
+  background: #f8fafc;
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+:root[data-theme="light"] .btn--dictate-active {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+}
+
 /* Chat controls - moved to content-header area, left aligned */
 .chat-controls {
   display: flex;

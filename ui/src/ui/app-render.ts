@@ -850,6 +850,13 @@ export function renderApp(state: AppViewState) {
                 onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
                 assistantName: state.assistantName,
                 assistantAvatar: state.assistantAvatar,
+                // Dictation
+                dictationState: {
+                  isListening: state.dictationListening,
+                  isSupported: true,
+                  error: state.dictationError,
+                },
+                onDictationToggle: () => state.handleDictationToggle(),
               })
             : nothing
         }

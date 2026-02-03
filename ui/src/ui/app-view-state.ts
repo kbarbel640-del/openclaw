@@ -223,4 +223,8 @@ export type AppViewState = {
   handleLogsLevelFilterToggle: (level: LogLevel) => void;
   handleLogsAutoFollowToggle: (next: boolean) => void;
   handleCallDebugMethod: (method: string, params: string) => Promise<void>;
+  // Dictation
+  dictationListening: boolean;
+  dictationError: string | null;
+  handleDictationToggle: () => void;
 };

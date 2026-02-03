@@ -13,6 +13,7 @@ import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-norm
 import { icons } from "../icons";
 import { renderMarkdownSidebar } from "./markdown-sidebar";
 import "../components/resizable-divider";
+import { isDictationSupported, type DictationState } from "../dictation";
 
 export type CompactionIndicatorStatus = {
   active: boolean;
@@ -68,6 +69,9 @@ export type ChatProps = {
   onCloseSidebar?: () => void;
   onSplitRatioChange?: (ratio: number) => void;
   onChatScroll?: (event: Event) => void;
+  // Dictation
+  dictationState?: DictationState;
+  onDictationToggle?: () => void;
 };
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
@@ -393,6 +397,22 @@ export function renderChat(props: ChatProps) {
               placeholder=${composePlaceholder}
             ></textarea>
           </label>
+          ${
+            isDictationSupported() && props.onDictationToggle
+              ? html`
+                <button
+                  class="btn btn--icon btn--dictate ${props.dictationState?.isListening ? "btn--dictate-active" : ""}"
+                  type="button"
+                  ?disabled=${!props.connected}
+                  @click=${props.onDictationToggle}
+                  title=${props.dictationState?.isListening ? "Stop dictation" : "Start dictation"}
+                  aria-label=${props.dictationState?.isListening ? "Stop dictation" : "Start dictation"}
+                >
+                  ${props.dictationState?.isListening ? icons.micOff : icons.mic}
+                </button>
+              `
+              : nothing
+          }
           <div class="chat-compose__actions">
             <button
               class="btn"
