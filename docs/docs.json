@@ -30,6 +30,10 @@
       "destination": "/cron-jobs"
     },
     {
+      "source": "/model",
+      "destination": "/models"
+    },
+    {
       "source": "/model/",
       "destination": "/models"
     },
@@ -54,8 +58,16 @@
       "destination": "/providers/xiaomi"
     },
     {
+      "source": "/openai",
+      "destination": "/providers/openai"
+    },
+    {
       "source": "/openai/",
       "destination": "/providers/openai"
+    },
+    {
+      "source": "/anthropic",
+      "destination": "/providers/anthropic"
     },
     {
       "source": "/anthropic/",
@@ -676,6 +688,10 @@
     {
       "source": "/install/railway",
       "destination": "/railway"
+    },
+    {
+      "source": "/install/northflank",
+      "destination": "/northflank"
     },
     {
       "source": "/install/northflank/",
