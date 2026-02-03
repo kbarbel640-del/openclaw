@@ -25,7 +25,12 @@ import { firstDefined, isSenderAllowed, normalizeAllowFromWithStore } from "./bo
 import { RegisterTelegramHandlerParams } from "./bot-native-commands.js";
 import { MEDIA_GROUP_TIMEOUT_MS, type MediaGroupEntry } from "./bot-updates.js";
 import { resolveMedia } from "./bot/delivery.js";
-import { buildTelegramGroupPeerId, resolveTelegramForumThreadId } from "./bot/helpers.js";
+import {
+  buildForwardPrefix,
+  buildTelegramGroupPeerId,
+  normalizeForwardedContext,
+  resolveTelegramForumThreadId,
+} from "./bot/helpers.js";
 import { migrateTelegramGroupConfig } from "./group-migration.js";
 import { resolveTelegramInlineButtonsScope } from "./inline-buttons.js";
 import {
@@ -102,7 +107,15 @@ export const registerTelegramHandlers = ({
         return;
       }
       const combinedText = entries
-        .map((entry) => entry.msg.text ?? entry.msg.caption ?? "")
+        .map((entry) => {
+          const text = entry.msg.text ?? entry.msg.caption ?? "";
+          const fwd = normalizeForwardedContext(entry.msg);
+          if (fwd) {
+            const prefix = buildForwardPrefix(fwd).trimEnd();
+            return text ? `${prefix}\n${text}` : prefix;
+          }
+          return text;
+        })
         .filter(Boolean)
         .join("\n");
       if (!combinedText.trim()) {
@@ -112,8 +125,17 @@ export const registerTelegramHandlers = ({
       const baseCtx = first.ctx;
       const getFile =
         typeof baseCtx.getFile === "function" ? baseCtx.getFile.bind(baseCtx) : async () => ({});
+      const {
+        forward_origin: _forward_origin,
+        forward_from: _forward_from,
+        forward_from_chat: _forward_from_chat,
+        forward_sender_name: _forward_sender_name,
+        forward_date: _forward_date,
+        forward_signature: _forward_signature,
+        ...baseMsg
+      } = first.msg;
       const syntheticMessage: Message = {
-        ...first.msg,
+        ...baseMsg,
         text: combinedText,
         caption: undefined,
         caption_entities: undefined,
