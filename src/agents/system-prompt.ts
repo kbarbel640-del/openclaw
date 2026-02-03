@@ -1,4 +1,4 @@
-import { createHmac, createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
 import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import type { MemoryCitationsMode } from "../config/types.memory.js";
@@ -7,6 +7,7 @@ import type { ResolvedTimeFormat } from "./date-time.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import type { EmbeddedSandboxInfo } from "./pi-embedded-runner/types.js";
 import { sanitizeForPromptLiteral } from "./sanitize-for-prompt.js";
+import { buildSecureCodingSection } from "./system-prompt-secure-coding.js";
 
 /**
  * Controls which hardcoded sections are included in the system prompt.
@@ -237,6 +238,8 @@ export function buildAgentSystemPrompt(params: {
     channel: string;
   };
   memoryCitationsMode?: MemoryCitationsMode;
+  /** Enable secure coding guidelines in system prompt. Defaults to true when coding tools are available. */
+  secureCodingGuidelines?: boolean;
 }) {
   const coreToolSummaries: Record<string, string> = {
     read: "Read file contents",
@@ -453,6 +456,11 @@ export function buildAgentSystemPrompt(params: {
     "Use plain human language for narration unless in a technical context.",
     "",
     ...safetySection,
+    ...buildSecureCodingSection({
+      isMinimal,
+      availableTools,
+      secureCodingEnabled: params.secureCodingGuidelines,
+    }),
     "## OpenClaw CLI Quick Reference",
     "OpenClaw is controlled via subcommands. Do not invent commands.",
     "To manage the Gateway daemon service (start/stop/restart):",
