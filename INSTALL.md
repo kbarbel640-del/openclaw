@@ -1,11 +1,33 @@
 # Install ldraney-openclaw
 
-## Prerequisites
+## Quick Start (npx)
+
+```bash
+# Set your API key
+export ANTHROPIC_API_KEY="your-anthropic-key-here"
+
+# Run it
+npx ldraney-openclaw onboard --non-interactive --accept-risk \
+  --auth-choice apiKey \
+  --anthropic-api-key "$ANTHROPIC_API_KEY" \
+  --install-daemon \
+  --skip-channels --skip-skills --skip-ui
+
+# Use it
+npx ldraney-openclaw tui
+```
+
+That's it. For persistent env vars and more options, see below.
+
+---
+
+## Full Setup
+
+### Prerequisites
 
 - **Node.js 22+** (`node --version` to check)
-- **pnpm** (optional but recommended): `npm install -g pnpm`
 
-## 1. Set Environment Variables
+### 1. Set Environment Variables
 
 Add to `~/.zshrc` (or `~/.bashrc`):
 
