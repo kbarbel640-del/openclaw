@@ -317,6 +317,8 @@ export async function runPreparedReply(
     sessionKey,
     storePath,
     abortKey: command.abortKey,
+    messageId: sessionCtx.MessageSid,
+    includeMessageIdHints: cfg?.agents?.defaults?.includeMessageIdHints,
   });
   const isGroupSession = sessionEntry?.chatType === "group" || sessionEntry?.chatType === "channel";
   const isMainSession = !isGroupSession && sessionKey === normalizeMainKey(sessionCfg?.mainKey);
@@ -409,9 +411,16 @@ export async function runPreparedReply(
     resolveSessionFilePathOptions({ agentId, storePath }),
   );
   const queueBodyBase = [threadContextNote, effectiveBaseBody].filter(Boolean).join("\n\n");
-  const queuedBody = mediaNote
-    ? [mediaNote, mediaReplyHint, queueBodyBase].filter(Boolean).join("\n").trim()
+  const queueMessageId = sessionCtx.MessageSid?.trim();
+  const shouldIncludeMessageIdHints = cfg?.agents?.defaults?.includeMessageIdHints !== false;
+  const queueMessageIdHint =
+    shouldIncludeMessageIdHints && queueMessageId ? `[message_id: ${queueMessageId}]` : "";
+  const queueBodyWithId = queueMessageIdHint
+    ? `${queueBodyBase}\n${queueMessageIdHint}`
     : queueBodyBase;
+  const queuedBody = mediaNote
+    ? [mediaNote, mediaReplyHint, queueBodyWithId].filter(Boolean).join("\n").trim()
+    : queueBodyWithId;
   const resolvedQueue = resolveQueueSettings({
     cfg,
     channel: sessionCtx.Provider,
