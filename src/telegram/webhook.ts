@@ -1,4 +1,5 @@
 import { webhookCallback } from "grammy";
+import { timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
@@ -15,6 +16,23 @@ import { defaultRuntime } from "../runtime.js";
 import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
 import { createTelegramBot } from "./bot.js";
+
+const TELEGRAM_SECRET_HEADER = "x-telegram-bot-api-secret-token";
+
+/**
+ * Timing-safe comparison for webhook secrets.
+ * Prevents timing side-channel attacks (CWE-208).
+ */
+function safeEqualSecret(received: string, expected: string): boolean {
+  const receivedBuffer = Buffer.from(received, "utf-8");
+  const expectedBuffer = Buffer.from(expected, "utf-8");
+
+  if (receivedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(receivedBuffer, expectedBuffer);
+}
 
 export async function startTelegramWebhook(opts: {
   token: string;
@@ -43,9 +61,9 @@ export async function startTelegramWebhook(opts: {
     config: opts.config,
     accountId: opts.accountId,
   });
-  const handler = webhookCallback(bot, "http", {
-    secretToken: opts.secret,
-  });
+  // Don't pass secretToken to grammy - we validate it ourselves using timing-safe comparison
+  // to prevent timing side-channel attacks (CWE-208).
+  const handler = webhookCallback(bot, "http");
 
   if (diagnosticsEnabled) {
     startDiagnosticHeartbeat();
@@ -62,6 +80,17 @@ export async function startTelegramWebhook(opts: {
       res.end();
       return;
     }
+
+    // Validate webhook secret using timing-safe comparison (CWE-208 fix)
+    if (opts.secret) {
+      const receivedSecret = req.headers[TELEGRAM_SECRET_HEADER];
+      if (typeof receivedSecret !== "string" || !safeEqualSecret(receivedSecret, opts.secret)) {
+        res.writeHead(401);
+        res.end("Unauthorized");
+        return;
+      }
+    }
+
     const startTime = Date.now();
     if (diagnosticsEnabled) {
       logWebhookReceived({ channel: "telegram", updateType: "telegram-post" });
