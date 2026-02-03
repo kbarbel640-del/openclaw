@@ -29,6 +29,8 @@ export async function startTelegramWebhook(opts: {
   abortSignal?: AbortSignal;
   healthPath?: string;
   publicUrl?: string;
+  /** Webhook handler timeout in milliseconds. Default: Infinity (no timeout). */
+  webhookTimeoutMs?: number;
 }) {
   const path = opts.path ?? "/telegram-webhook";
   const healthPath = opts.healthPath ?? "/healthz";
@@ -45,6 +47,8 @@ export async function startTelegramWebhook(opts: {
   });
   const handler = webhookCallback(bot, "http", {
     secretToken: opts.secret,
+    timeoutMilliseconds: opts.webhookTimeoutMs ?? Infinity,
+    onTimeout: "ignore",
   });
 
   if (diagnosticsEnabled) {
