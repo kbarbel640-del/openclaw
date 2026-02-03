@@ -2694,7 +2694,7 @@ clawdbot onboard --auth-choice sambanova-api-key
   models: {
     mode: "merge",
     providers: {
-      cerebras: {
+      sambanova: {
         baseUrl: "https://api.sambanova.ai/v1",
         apiKey: "${SAMBANOVA_API_KEY}",
         api: "openai-completions",

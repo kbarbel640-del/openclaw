@@ -21,7 +21,7 @@ clawdbot onboard --sambanova-api-key "$SAMBANOVA_API_KEY"
 
 ```json5
 {
-  env: { SAMBANOVA_API_KEY: "csk-..." },
+  env: { SAMBANOVA_API_KEY: "......" },
   agents: {
     defaults: {
       model: { primary: "sambanova/llama3.1-8b" },
