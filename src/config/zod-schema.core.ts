@@ -418,11 +418,11 @@ const DeepgramAudioSchema = z
 
 const SarvamAudioSchema = z
   .object({
-    languageCode: z.string().optional(),
-    withTimestamps: z.boolean().optional(),
-    withDiarization: z.boolean().optional(),
-    numSpeakers: z.number().int().positive().optional(),
-    inputAudioCodec: z.string().optional(),
+    language_code: z.string().optional(),
+    with_timestamps: z.boolean().optional(),
+    with_diarization: z.boolean().optional(),
+    num_speakers: z.number().int().positive().optional(),
+    input_audio_codec: z.string().optional(),
     mode: z.union([
       z.literal("transcribe"),
       z.literal("translate"),
