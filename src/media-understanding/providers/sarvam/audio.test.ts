@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { transcribeSarvamAudio, DEFAULT_SARVAM_AUDIO_MODEL } from "./audio.js";
 
 const resolveRequestUrl = (input: RequestInfo | URL) => {
@@ -49,7 +49,7 @@ describe("transcribeSarvamAudio", () => {
     const form = seenInit?.body as FormData;
     expect(form).toBeInstanceOf(FormData);
     expect(form.get("model")).toBe(DEFAULT_SARVAM_AUDIO_MODEL);
-    
+
     const file = form.get("file") as Blob;
     expect(file).not.toBeNull();
     expect(file.type).toBe("application/octet-stream");
