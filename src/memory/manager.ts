@@ -42,7 +42,6 @@ import {
   ensureDir,
   hashText,
   isLtmOptedIn,
-  isLtmOptedInSync,
   isMemoryPath,
   listMemoryFiles,
   normalizeExtraMemoryPaths,
