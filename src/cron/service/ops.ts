@@ -127,6 +127,12 @@ export async function run(state: CronServiceState, id: string, mode?: "due" | "f
     await ensureLoaded(state);
     const job = findJobOrThrow(state, id);
     const now = state.deps.nowMs();
+    // Recompute nextRunAtMs from the schedule so that stale or missing
+    // persisted state (e.g. after a restart with cron disabled, or a
+    // manual store edit) does not cause the job to appear not-due.
+    if (job.enabled && job.state.nextRunAtMs === undefined) {
+      job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
+    }
     const due = isJobDue(job, now, { forced: mode === "force" });
     if (!due) {
       return { ok: true, ran: false, reason: "not-due" as const };

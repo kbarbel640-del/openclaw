@@ -33,4 +33,24 @@ describe("cron schedule", () => {
     const next = computeNextRunAtMs({ kind: "every", everyMs: 30_000, anchorMs: anchor }, anchor);
     expect(next).toBe(anchor + 30_000);
   });
+
+  it("returns atMs for at schedule when in the future", () => {
+    const now = Date.parse("2025-12-13T00:00:00.000Z");
+    const atMs = now + 60_000;
+    const next = computeNextRunAtMs({ kind: "at", atMs }, now);
+    expect(next).toBe(atMs);
+  });
+
+  it("returns undefined for at schedule when atMs is in the past", () => {
+    const now = Date.parse("2025-12-13T00:00:00.000Z");
+    const atMs = now - 60_000;
+    const next = computeNextRunAtMs({ kind: "at", atMs }, now);
+    expect(next).toBeUndefined();
+  });
+
+  it("returns undefined for at schedule when atMs equals now", () => {
+    const now = Date.parse("2025-12-13T00:00:00.000Z");
+    const next = computeNextRunAtMs({ kind: "at", atMs: now }, now);
+    expect(next).toBeUndefined();
+  });
 });
