@@ -5,6 +5,7 @@ import { resolveOpenClawAgentDir } from "../agent-paths.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { normalizeModelCompat } from "../model-compat.js";
 import { normalizeProviderId } from "../model-selection.js";
+import { resolveOpencodeZenAlias } from "../opencode-zen-models.js";
 import {
   discoverAuthStorage,
   discoverModels,
@@ -66,10 +67,14 @@ export function resolveModel(
   authStorage: AuthStorage;
   modelRegistry: ModelRegistry;
 } {
+  const normalizedProvider = normalizeProviderId(provider);
+  const resolvedModelId =
+    normalizedProvider === "opencode" ? resolveOpencodeZenAlias(modelId) : modelId;
+
   const resolvedAgentDir = agentDir ?? resolveOpenClawAgentDir();
   const authStorage = discoverAuthStorage(resolvedAgentDir);
   const modelRegistry = discoverModels(authStorage, resolvedAgentDir);
-  const model = modelRegistry.find(provider, modelId) as Model<Api> | null;
+  const model = modelRegistry.find(provider, resolvedModelId) as Model<Api> | null;
   if (!model) {
     const providers = cfg?.models?.providers ?? {};
     const inlineModels = buildInlineProviderModels(providers);
@@ -86,9 +91,9 @@ export function resolveModel(
       };
     }
     const providerCfg = providers[provider];
-    if (providerCfg || modelId.startsWith("mock-")) {
+    if (providerCfg || resolvedModelId.startsWith("mock-")) {
       const fallbackModel: Model<Api> = normalizeModelCompat({
-        id: modelId,
+        id: resolvedModelId,
         name: modelId,
         api: providerCfg?.api ?? "openai-responses",
         provider,
@@ -102,7 +107,7 @@ export function resolveModel(
       return { model: fallbackModel, authStorage, modelRegistry };
     }
     return {
-      error: `Unknown model: ${provider}/${modelId}`,
+      error: `Unknown model: ${provider}/${resolvedModelId}`,
       authStorage,
       modelRegistry,
     };

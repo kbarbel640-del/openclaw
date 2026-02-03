@@ -415,9 +415,14 @@ export class MemoryIndexManager {
     if (!rawPath) {
       throw new Error("path required");
     }
-    const absPath = path.isAbsolute(rawPath)
-      ? path.resolve(rawPath)
-      : path.resolve(this.workspaceDir, rawPath);
+    // Expand ~ to home directory if present
+    const expandedPath =
+      rawPath.startsWith("~/") || rawPath === "~"
+        ? rawPath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || "")
+        : rawPath;
+    const absPath = path.isAbsolute(expandedPath)
+      ? path.resolve(expandedPath)
+      : path.resolve(this.workspaceDir, expandedPath);
     const relPath = path.relative(this.workspaceDir, absPath).replace(/\\/g, "/");
     const inWorkspace =
       relPath.length > 0 && !relPath.startsWith("..") && !path.isAbsolute(relPath);

@@ -222,6 +222,24 @@ export const dispatchTelegramMessage = async ({
   const deliveryState = {
     delivered: false,
     skippedNonSilent: 0,
+    typingShown: false,
+  };
+
+  // Only show typing indicator when we're actually about to send a message
+  const showTypingWhenDelivering = async () => {
+    if (!deliveryState.typingShown) {
+      deliveryState.typingShown = true;
+      try {
+        await sendTyping();
+      } catch (err) {
+        logTypingFailure({
+          log: logVerbose,
+          channel: "telegram",
+          target: String(chatId),
+          error: err,
+        });
+      }
+    }
   };
 
   const { queuedFinal } = await dispatchReplyWithBufferedBlockDispatcher({
@@ -231,6 +249,8 @@ export const dispatchTelegramMessage = async ({
       responsePrefix: prefixContext.responsePrefix,
       responsePrefixContextProvider: prefixContext.responsePrefixContextProvider,
       deliver: async (payload, info) => {
+        // Only show typing indicator when we're actually about to send a message
+        await showTypingWhenDelivering();
         if (info.kind === "final") {
           await flushDraft();
           draftStream?.stop();
@@ -263,7 +283,10 @@ export const dispatchTelegramMessage = async ({
         runtime.error?.(danger(`telegram ${info.kind} reply failed: ${String(err)}`));
       },
       onReplyStart: createTypingCallbacks({
-        start: sendTyping,
+        start: async () => {
+          // Don't show typing here - wait until we're actually delivering
+          // This callback is kept for typing controller compatibility
+        },
         onStartError: (err) => {
           logTypingFailure({
             log: logVerbose,

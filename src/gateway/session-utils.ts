@@ -9,7 +9,8 @@ import type {
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { lookupContextTokens } from "../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL, DEFAULT_PROVIDER } from "../agents/defaults.js";
-import { resolveConfiguredModelRef } from "../agents/model-selection.js";
+import { normalizeProviderId, resolveConfiguredModelRef } from "../agents/model-selection.js";
+import { resolveOpencodeZenAlias } from "../agents/opencode-zen-models.js";
 import { type OpenClawConfig, loadConfig } from "../config/config.js";
 import { resolveStateDir } from "../config/paths.js";
 import {
@@ -534,6 +535,9 @@ export function resolveSessionModelRef(
   if (storedModelOverride) {
     provider = entry?.providerOverride?.trim() || provider;
     model = storedModelOverride;
+  }
+  if (normalizeProviderId(provider) === "opencode") {
+    model = resolveOpencodeZenAlias(model);
   }
   return { provider, model };
 }

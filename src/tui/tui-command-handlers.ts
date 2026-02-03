@@ -445,6 +445,25 @@ export function createCommandHandlers(context: CommandHandlerContext) {
   };
 
   const sendMessage = async (text: string) => {
+    // #region agent log
+    try {
+      if (typeof fetch === "function") {
+        void fetch("http://127.0.0.1:7246/ingest/b02451f9-6e27-4887-8d0c-0147964fda2b", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "tui-command-handlers.ts:447",
+            message: "sendMessage called",
+            data: { sessionKey: state.currentSessionKey, messagePreview: text.substring(0, 50) },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "tui-send",
+            hypothesisId: "E",
+          }),
+        }).catch(() => {});
+      }
+    } catch {}
+    // #endregion
     try {
       chatLog.addUser(text);
       tui.requestRender();

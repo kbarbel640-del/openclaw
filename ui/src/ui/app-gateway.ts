@@ -199,12 +199,23 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
       const runId = payload?.runId;
       if (runId && host.refreshSessionsAfterChat.has(runId)) {
         host.refreshSessionsAfterChat.delete(runId);
-        if (state === "final") {
-          void loadSessions(host as unknown as OpenClawApp, {
-            activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES,
-          });
-        }
       }
+      if (state === "final") {
+        void loadSessions(host as unknown as OpenClawApp, {
+          activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES,
+        });
+      }
+    }
+    // Refresh session list when a message completes in another session (e.g. Telegram)
+    // so that session appears in the sidebar and the user can switch to it.
+    if (
+      payload?.sessionKey &&
+      (payload.state === "final" || payload.state === "error") &&
+      state === null
+    ) {
+      void loadSessions(host as unknown as OpenClawApp, {
+        activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES,
+      });
     }
     if (state === "final") {
       void loadChatHistory(host as unknown as OpenClawApp);

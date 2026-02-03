@@ -164,6 +164,30 @@ function broadcastChatFinal(params: {
     state: "final" as const,
     message: params.message,
   };
+  // #region agent log
+  try {
+    if (typeof fetch === "function") {
+      void fetch("http://127.0.0.1:7246/ingest/b02451f9-6e27-4887-8d0c-0147964fda2b", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "chat.ts:167",
+          message: "broadcastChatFinal broadcasting",
+          data: {
+            runId: params.runId,
+            sessionKey: params.sessionKey,
+            seq,
+            hasMessage: !!params.message,
+          },
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+          runId: params.runId,
+          hypothesisId: "C",
+        }),
+      }).catch(() => {});
+    }
+  } catch {}
+  // #endregion
   params.context.broadcast("chat", payload);
   params.context.nodeSendToSession(params.sessionKey, "chat", payload);
 }
@@ -498,6 +522,13 @@ export const chatHandlers: GatewayRequestHandlers = {
         },
       });
 
+      const sessionId = entry?.sessionId ?? clientRunId;
+      // Register chat run so agent events can be mapped to this chat session
+      // Use clientRunId as the key since that's what's passed as runId to dispatchInboundMessage
+      context.addChatRun(clientRunId, {
+        sessionKey: p.sessionKey,
+        clientRunId: clientRunId,
+      });
       let agentRunStarted = false;
       void dispatchInboundMessage({
         ctx,

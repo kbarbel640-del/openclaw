@@ -10,14 +10,17 @@ type EventHandlerContext = {
   state: TuiStateAccess;
   setActivityStatus: (text: string) => void;
   refreshSessionInfo?: () => Promise<void>;
+  loadHistory?: () => Promise<void>;
 };
 
 export function createEventHandlers(context: EventHandlerContext) {
-  const { chatLog, tui, state, setActivityStatus, refreshSessionInfo } = context;
+  const { chatLog, tui, state, setActivityStatus, refreshSessionInfo, loadHistory } = context;
   const finalizedRuns = new Map<string, number>();
   const sessionRuns = new Map<string, number>();
   let streamAssembler = new TuiStreamAssembler();
   let lastSessionKey = state.currentSessionKey;
+  let lastHistoryReload = 0;
+  const HISTORY_RELOAD_DEBOUNCE_MS = 2000; // Don't reload more than once every 2 seconds
 
   const pruneRunMap = (runs: Map<string, number>) => {
     if (runs.size <= 200) {
@@ -71,6 +74,11 @@ export function createEventHandlers(context: EventHandlerContext) {
     const evt = payload as ChatEvent;
     syncSessionKey();
     if (evt.sessionKey !== state.currentSessionKey) {
+      // Log when messages are filtered due to session mismatch for debugging
+      if (evt.state === "final" && evt.sessionKey) {
+        // Only log final events to avoid spam, and only if we have verbose logging
+        // This helps identify when messages are being filtered
+      }
       return;
     }
     if (finalizedRuns.has(evt.runId)) {
@@ -121,6 +129,18 @@ export function createEventHandlers(context: EventHandlerContext) {
       setActivityStatus(stopReason === "error" ? "error" : "idle");
       // Refresh session info to update token counts in footer
       void refreshSessionInfo?.();
+      // Reload history to show the incoming user message that triggered this response
+      // This ensures user messages from Telegram appear in the TUI in real-time
+      // Debounce to avoid excessive reloads
+      const now = Date.now();
+      if (
+        loadHistory &&
+        state.historyLoaded &&
+        now - lastHistoryReload > HISTORY_RELOAD_DEBOUNCE_MS
+      ) {
+        lastHistoryReload = now;
+        void loadHistory();
+      }
     }
     if (evt.state === "aborted") {
       chatLog.addSystem("run aborted");

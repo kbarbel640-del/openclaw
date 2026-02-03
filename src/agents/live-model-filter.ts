@@ -68,6 +68,9 @@ export function isModernModelRef(ref: ModelRef): boolean {
     return matchesPrefix(id, XAI_PREFIXES);
   }
 
+  if (provider === "opencode" && (id === "kimi-k2.5-free" || id === "kimi-2.5-free")) {
+    return true;
+  }
   if (provider === "opencode" && id.endsWith("-free")) {
     return false;
   }

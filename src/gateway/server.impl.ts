@@ -24,6 +24,7 @@ import { createExecApprovalForwarder } from "../infra/exec-approval-forwarder.js
 import { onHeartbeatEvent } from "../infra/heartbeat-events.js";
 import { startHeartbeatRunner } from "../infra/heartbeat-runner.js";
 import { getMachineDisplayName } from "../infra/machine-name.js";
+import { createMemoryMonitor, loadMemoryThresholdsFromEnv } from "../infra/memory-monitor.js";
 import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
 import { setGatewaySigusr1RestartPolicy } from "../infra/restart.js";
 import {
@@ -87,6 +88,7 @@ const logReload = log.child("reload");
 const logHooks = log.child("hooks");
 const logPlugins = log.child("plugins");
 const logWsControl = log.child("ws");
+const logMemory = log.child("memory");
 const canvasRuntime = runtimeForLogger(logCanvas);
 
 export type GatewayServer = {
@@ -396,6 +398,98 @@ export async function startGatewayServer(
     nodeSendToSession,
   });
 
+  // Memory monitoring and graceful degradation
+  // Load thresholds from environment or use defaults
+  const envThresholds = loadMemoryThresholdsFromEnv();
+  const memoryThresholds = {
+    warning: envThresholds.warning ?? 0.75,
+    critical: envThresholds.critical ?? 0.85,
+    fatal: envThresholds.fatal ?? 0.95,
+    maxHeapSize: envThresholds.maxHeapSize,
+  };
+
+  const performMemoryCleanup = () => {
+    logMemory.info("Performing aggressive memory cleanup");
+    // Clear old dedupe entries
+    const now = Date.now();
+    const DEDUPE_AGGRESSIVE_TTL_MS = 5 * 60_000; // 5 minutes
+    for (const [k, v] of dedupe) {
+      if (now - v.ts > DEDUPE_AGGRESSIVE_TTL_MS) {
+        dedupe.delete(k);
+      }
+    }
+    // Trim dedupe to half size if still too large
+    if (dedupe.size > 1000) {
+      const entries = [...dedupe.entries()].toSorted((a, b) => a[1].ts - b[1].ts);
+      const targetSize = Math.floor(dedupe.size / 2);
+      for (let i = 0; i < targetSize; i++) {
+        dedupe.delete(entries[i][0]);
+      }
+    }
+    // Clear old chat run buffers
+    const BUFFER_TTL_MS = 10 * 60_000; // 10 minutes
+    for (const [runId, timestamp] of chatRunState.deltaSentAt) {
+      if (now - timestamp > BUFFER_TTL_MS) {
+        chatRunBuffers.delete(runId);
+        chatRunState.deltaSentAt.delete(runId);
+      }
+    }
+    // Clear old aborted runs
+    const ABORTED_TTL_MS = 30 * 60_000; // 30 minutes
+    for (const [runId, abortedAt] of chatRunState.abortedRuns) {
+      if (now - abortedAt > ABORTED_TTL_MS) {
+        chatRunState.abortedRuns.delete(runId);
+        chatRunBuffers.delete(runId);
+        chatRunState.deltaSentAt.delete(runId);
+      }
+    }
+  };
+
+  const memoryMonitor = createMemoryMonitor({
+    thresholds: memoryThresholds,
+    checkIntervalMs: 30000, // Check every 30 seconds
+    enableAutoGC: true,
+    onWarning: (stats) => {
+      logMemory.warn("Memory usage warning - performing cleanup", {
+        heapUsed: `${(stats.heapUsed / 1024 / 1024).toFixed(2)} MB`,
+        heapTotal: `${(stats.heapTotal / 1024 / 1024).toFixed(2)} MB`,
+        rss: `${(stats.rss / 1024 / 1024).toFixed(2)} MB`,
+        usageRatio: `${(stats.usageRatio * 100).toFixed(1)}%`,
+      });
+      performMemoryCleanup();
+    },
+    onCritical: (stats) => {
+      logMemory.error("Memory usage critical - aggressive cleanup", {
+        heapUsed: `${(stats.heapUsed / 1024 / 1024).toFixed(2)} MB`,
+        heapTotal: `${(stats.heapTotal / 1024 / 1024).toFixed(2)} MB`,
+        rss: `${(stats.rss / 1024 / 1024).toFixed(2)} MB`,
+        usageRatio: `${(stats.usageRatio * 100).toFixed(1)}%`,
+      });
+      performMemoryCleanup();
+      // Force GC if available
+      memoryMonitor.forceGC();
+    },
+    onFatal: (stats) => {
+      logMemory.error("Memory usage FATAL - initiating graceful shutdown", {
+        heapUsed: `${(stats.heapUsed / 1024 / 1024).toFixed(2)} MB`,
+        heapTotal: `${(stats.heapTotal / 1024 / 1024).toFixed(2)} MB`,
+        rss: `${(stats.rss / 1024 / 1024).toFixed(2)} MB`,
+        usageRatio: `${(stats.usageRatio * 100).toFixed(1)}%`,
+      });
+      performMemoryCleanup();
+      memoryMonitor.forceGC();
+      // Schedule graceful shutdown after a short delay to allow cleanup
+      setTimeout(() => {
+        logMemory.error("Memory fatal threshold exceeded - shutting down gracefully");
+        void close({ reason: "memory_fatal_threshold_exceeded" }).catch((err) => {
+          logMemory.error("Error during memory-triggered shutdown", { error: String(err) });
+          process.exit(1);
+        });
+      }, 5000); // 5 second grace period
+    },
+  });
+  memoryMonitor.start();
+
   const agentUnsub = onAgentEvent(
     createAgentEventHandler({
       broadcast,
@@ -576,6 +670,7 @@ export async function startGatewayServer(
 
   return {
     close: async (opts) => {
+      memoryMonitor.stop();
       if (diagnosticsEnabled) {
         stopDiagnosticHeartbeat();
       }
