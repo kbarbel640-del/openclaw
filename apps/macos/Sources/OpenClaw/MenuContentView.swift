@@ -62,6 +62,14 @@ struct MenuContent: View {
             }
             .disabled(self.state.connectionMode == .unconfigured)
 
+            if self.state.connectionMode == .unconfigured {
+                Button {
+                    DebugActions.restartOnboarding()
+                } label: {
+                    Label("Run Setup…", systemImage: "arrow.counterclockwise")
+                }
+            }
+
             Divider()
             Toggle(isOn: self.heartbeatsBinding) {
                 HStack(spacing: 8) {

@@ -131,7 +131,7 @@ enum GatewayEnvironment {
                     nodeVersion: runtime.version.description,
                     gatewayVersion: nil,
                     requiredGateway: expectedString,
-                    message: "openclaw CLI not found in PATH; install the CLI.")
+                    message: "openclaw CLI not found. Install it (npm i -g openclaw) or add it to your PATH.")
             }
 
             let installed = gatewayBin.flatMap { self.readGatewayVersion(binary: $0) }

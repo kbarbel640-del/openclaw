@@ -379,6 +379,8 @@ final class GatewayProcessManager {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if !self.desiredActive { return false }
+            // Bail early if the gateway startup already failed (e.g. CLI not found).
+            if case .failed = self.status { return false }
             do {
                 _ = try await self.connection.requestRaw(method: .health, timeoutMs: 1500)
                 self.clearLastFailure()

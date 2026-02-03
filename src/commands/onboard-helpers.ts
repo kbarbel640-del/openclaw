@@ -360,7 +360,7 @@ export async function probeGatewayReachable(params: {
   token?: string;
   password?: string;
   timeoutMs?: number;
-}): Promise<{ ok: boolean; detail?: string }> {
+}): Promise<{ ok: boolean; detail?: string; resolvedUrl?: string }> {
   const url = params.url.trim();
   const timeoutMs = params.timeoutMs ?? 1500;
   try {
@@ -375,6 +375,24 @@ export async function probeGatewayReachable(params: {
     });
     return { ok: true };
   } catch (err) {
+    // IPv4 failed — try IPv6 loopback if the URL targets 127.0.0.1.
+    if (url.includes("127.0.0.1")) {
+      const ipv6Url = url.replace("127.0.0.1", "[::1]");
+      try {
+        await callGateway({
+          url: ipv6Url,
+          token: params.token,
+          password: params.password,
+          method: "health",
+          timeoutMs,
+          clientName: GATEWAY_CLIENT_NAMES.PROBE,
+          mode: GATEWAY_CLIENT_MODES.PROBE,
+        });
+        return { ok: true, resolvedUrl: ipv6Url };
+      } catch {
+        // IPv6 also failed — fall through to original error.
+      }
+    }
     return { ok: false, detail: summarizeError(err) };
   }
 }

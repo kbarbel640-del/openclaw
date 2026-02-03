@@ -14,6 +14,10 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- macOS: fix gateway readiness detection — bail early when startup fails instead of polling until timeout; surface actual failure reason. (#6156)
+- macOS: make "Configure later" reversible — show "Run Setup…" button in menu bar when unconfigured. (#6156)
+- macOS: improve error message when openclaw CLI is missing — suggest installation or adding to PATH. (#6156)
+- CLI: add IPv6 loopback fallback to gateway probe during onboarding. (#6156)
 - Security: Matrix allowlists now require full MXIDs; ambiguous name resolution no longer grants access. Thanks @MegaManSec.
 - Security: enforce access-group gating for Slack slash commands when channel type lookup fails.
 - Security: require validated shared-secret auth before skipping device identity on gateway connect.
