@@ -1,0 +1,29 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(C:\\projects\\clawdbot\\.worktrees\\001-rag-memory-integration/**)",
+      "Write(C:\\projects\\clawdbot\\.worktrees\\001-rag-memory-integration/**)",
+      "Edit(C:\\projects\\clawdbot\\.worktrees\\001-rag-memory-integration/**)",
+      "Glob(C:\\projects\\clawdbot\\.worktrees\\001-rag-memory-integration/**)",
+      "Grep(C:\\projects\\clawdbot\\.worktrees\\001-rag-memory-integration/**)",
+      "Read(C:\\projects\\clawdbot\\.worktrees\\001-rag-memory-integration\\.daedalus\\specs\\001-rag-memory-integration/**)",
+      "Write(C:\\projects\\clawdbot\\.worktrees\\001-rag-memory-integration\\.daedalus\\specs\\001-rag-memory-integration/**)",
+      "Edit(C:\\projects\\clawdbot\\.worktrees\\001-rag-memory-integration\\.daedalus\\specs\\001-rag-memory-integration/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__get-library-docs(*)"
+    ]
+  }
+}

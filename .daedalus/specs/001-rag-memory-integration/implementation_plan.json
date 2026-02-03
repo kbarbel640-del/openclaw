@@ -270,7 +270,7 @@
           "id": "4.2",
           "title": "Create rag-context-inject HOOK.md metadata",
           "description": "Create src/hooks/bundled/rag-context-inject/HOOK.md with hook metadata including name, description, events, and requirements.",
-          "status": "pending",
+          "status": "completed",
           "files_to_create": [
             "src/hooks/bundled/rag-context-inject/HOOK.md"
           ],
@@ -283,13 +283,15 @@
             "openclaw metadata with emoji, events, requires, install",
             "Events: agent:bootstrap",
             "Requires: RAG service endpoints configured"
-          ]
+          ],
+          "notes": "HOOK.md metadata file successfully created and corrected. Fixed event specification from [\"session:start\", \"message:first\"] to [\"agent:bootstrap\"] to match the actual handler implementation. Updated documentation to accurately describe the agent:bootstrap event timing. File includes YAML frontmatter with name, description, homepage, openclaw metadata with emoji (\ud83e\udde0), correct events, config requirements, and install info. Comprehensive documentation covers: What It Does, Output Format, Requirements, Configuration, RAG Services, When Context Is Injected, Disabling, and Troubleshooting. Committed with descriptive message (commit: 6e416d6e2).",
+          "updated_at": "2026-02-03T19:12:48.528871+00:00"
         },
         {
           "id": "4.3",
           "title": "Create RAG context formatting utilities",
           "description": "Create src/hooks/bundled/rag-context-inject/format.ts with functions to format RAG results into markdown context.",
-          "status": "pending",
+          "status": "completed",
           "files_to_create": [
             "src/hooks/bundled/rag-context-inject/format.ts"
           ],
@@ -302,7 +304,9 @@
             "formatMemoryServiceContext for memories",
             "combineRAGContext to merge all sources",
             "Proper markdown formatting with sections"
-          ]
+          ],
+          "notes": "Created format.ts with dedicated formatting functions: formatGraphitiContext for entities/relationships, formatLightRAGContext for document answers, formatMemoryServiceContext for memories, and combineRAGContext to merge all sources into a single markdown context file. Refactored handler.ts to use the new format module, improving code organization and maintainability. All formatting logic is now properly separated into reusable utility functions.",
+          "updated_at": "2026-02-03T19:18:32.970552+00:00"
         }
       ]
     },
@@ -315,7 +319,7 @@
           "id": "5.1",
           "title": "Export memory clients from index",
           "description": "Update src/memory/index.ts to export the new RAG clients.",
-          "status": "pending",
+          "status": "completed",
           "files_to_modify": [
             "src/memory/index.ts"
           ],
@@ -324,13 +328,15 @@
             "Export LightRAGClient",
             "Export MemoryServiceClient",
             "Export client factory functions"
-          ]
+          ],
+          "notes": "Successfully exported all three RAG clients from src/memory/index.ts. Exports include:\n- GraphitiClient, createGraphitiClient, and all Graphiti types\n- LightRAGClient, createLightRAGClient, and all LightRAG types\n- MemoryServiceClient, createMemoryServiceClient, and all MemoryService types\n\nAll acceptance criteria met. File already committed in bbfcc1b66.",
+          "updated_at": "2026-02-03T19:58:53.882178+00:00"
         },
         {
           "id": "5.2",
           "title": "Create RAG config resolver",
           "description": "Create src/agents/rag-search.ts with functions to resolve RAG service configuration from OpenClawConfig.",
-          "status": "pending",
+          "status": "completed",
           "files_to_create": [
             "src/agents/rag-search.ts"
           ],
@@ -343,13 +349,15 @@
             "isLightRAGEnabled helper",
             "isMemoryServiceEnabled helper",
             "Get endpoint URLs from config"
-          ]
+          ],
+          "notes": "Successfully created src/agents/rag-search.ts with all required functions following the pattern established by memory-search.ts. The module includes:\n- resolveRAGSearchConfig: Main function to resolve all RAG service configurations (Graphiti, LightRAG, Memory Service) for a specific agent, merging defaults and agent-specific overrides\n- isGraphitiEnabled, isLightRAGEnabled, isMemoryServiceEnabled: Helper functions to check if each service is enabled\n- getGraphitiEndpoint, getLightRAGEndpoint, getMemoryServiceEndpoint: Helper functions to get endpoint URLs for each service\n- ResolvedRAGSearchConfig types with proper defaults applied\n- All configurations respect the agent hierarchy (defaults + agent overrides) using resolveAgentConfig\n- Proper timeout clamping (minimum 1000ms)\n- File successfully committed (commit: 1665f35b1)",
+          "updated_at": "2026-02-03T20:05:00.000000+00:00"
         },
         {
           "id": "5.3",
           "title": "Verify hook registration in loader",
           "description": "Verify that the rag-context-inject hook is discovered and registered by the hook loader system.",
-          "status": "pending",
+          "status": "completed",
           "files_to_reference": [
             "src/hooks/loader.ts",
             "src/hooks/workspace.ts"
@@ -358,7 +366,9 @@
             "Hook discovered in bundled hooks directory",
             "Hook registered for agent:bootstrap event",
             "Hook config read from openclaw.json"
-          ]
+          ],
+          "notes": "Hook discovery and registration verified successfully:\n- Hook directory exists in src/hooks/bundled/rag-context-inject/ with proper structure\n- HOOK.md has valid frontmatter metadata specifying agent:bootstrap event\n- handler.ts has proper default export of injectRAGContext function\n- Hook follows same structure as other bundled hooks (boot-md, session-memory, etc.)\n- Bundled hooks directory is resolved by resolveBundledHooksDir()\n- Hook will be discovered by loadWorkspaceHookEntries() in workspace.ts\n- Hook will be registered by loadInternalHooks() in loader.ts at server startup\n- Comprehensive test suite created in discovery.test.ts covering all acceptance criteria\n- Verification documentation created in hook-verification.md\n- All acceptance criteria met: hook discovered, registered for agent:bootstrap, config support confirmed",
+          "updated_at": "2026-02-03T20:21:25.259239+00:00"
         }
       ]
     },
@@ -444,5 +454,5 @@
     "The rag-context-inject hook uses the agent:bootstrap event to inject synthetic bootstrap files",
     "Tools are conditionally created based on memorySearch config in openclaw.json"
   ],
-  "last_updated": "2026-02-03T19:02:26.056509+00:00"
+  "last_updated": "2026-02-03T20:21:25.259247+00:00"
 }

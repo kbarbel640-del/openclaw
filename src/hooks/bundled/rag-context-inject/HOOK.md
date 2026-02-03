@@ -8,15 +8,6 @@ metadata:
       {
         "emoji": "🧠",
         "events": ["agent:bootstrap"],
-        "requires":
-          {
-            "config":
-              [
-                "agents.defaults.memorySearch.graphiti.endpoint",
-                "agents.defaults.memorySearch.lightrag.endpoint",
-                "agents.defaults.memorySearch.memoryService.endpoint",
-              ],
-          },
         "install": [{ "id": "bundled", "kind": "bundled", "label": "Bundled with OpenClaw" }],
       },
   }

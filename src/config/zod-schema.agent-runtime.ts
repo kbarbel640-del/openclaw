@@ -306,6 +306,37 @@ export const AgentToolsSchema = z
   })
   .optional();
 
+// RAG service configuration schemas
+export const GraphitiConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    endpoint: z.string().optional(),
+    timeout: z.number().int().positive().optional(),
+  })
+  .strict()
+  .optional();
+
+export const LightRAGConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    endpoint: z.string().optional(),
+    timeout: z.number().int().positive().optional(),
+    defaultMode: z
+      .union([z.literal("naive"), z.literal("local"), z.literal("global"), z.literal("hybrid")])
+      .optional(),
+  })
+  .strict()
+  .optional();
+
+export const MemoryServiceConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    endpoint: z.string().optional(),
+    timeout: z.number().int().positive().optional(),
+  })
+  .strict()
+  .optional();
+
 export const MemorySearchSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -408,6 +439,9 @@ export const MemorySearchSchema = z
       })
       .strict()
       .optional(),
+    graphiti: GraphitiConfigSchema,
+    lightrag: LightRAGConfigSchema,
+    memoryService: MemoryServiceConfigSchema,
   })
   .strict()
   .optional();
