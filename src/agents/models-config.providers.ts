@@ -77,9 +77,9 @@ const OLLAMA_DEFAULT_COST = {
 };
 
 const QIANFAN_BASE_URL = "https://qianfan.baidubce.com/v2";
-export const QIANFAN_DEFAULT_MODEL_ID = "ernie-5.0-thinking-latest";
+export const QIANFAN_DEFAULT_MODEL_ID = "ernie-5.0-thinking-preview";
 const QIANFAN_DEFAULT_CONTEXT_WINDOW = 128000;
-const QIANFAN_DEFAULT_MAX_TOKENS = 8192;
+const QIANFAN_DEFAULT_MAX_TOKENS = 65536;
 const QIANFAN_DEFAULT_COST = {
   input: 0,
   output: 0,
@@ -412,7 +412,7 @@ export function buildQianfanProvider(): ProviderConfig {
     models: [
       {
         id: QIANFAN_DEFAULT_MODEL_ID,
-        name: "ERNIE 5.0 Thinking",
+        name: "ERNIE 5.0",
         reasoning: true,
         input: ["text"],
         cost: QIANFAN_DEFAULT_COST,

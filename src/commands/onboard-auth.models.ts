@@ -16,10 +16,10 @@ export const KIMI_CODING_MODEL_ID = "k2p5";
 export const KIMI_CODING_MODEL_REF = `kimi-coding/${KIMI_CODING_MODEL_ID}`;
 
 export const QIANFAN_BASE_URL = "https://qianfan.baidubce.com/v2";
-export const QIANFAN_DEFAULT_MODEL_ID = "ernie-5.0-thinking-latest";
+export const QIANFAN_DEFAULT_MODEL_ID = "ernie-5.0-thinking-preview";
 export const QIANFAN_DEFAULT_MODEL_REF = `qianfan/${QIANFAN_DEFAULT_MODEL_ID}`;
 export const QIANFAN_DEFAULT_CONTEXT_WINDOW = 128000;
-export const QIANFAN_DEFAULT_MAX_TOKENS = 8192;
+export const QIANFAN_DEFAULT_MAX_TOKENS = 65536;
 export const QIANFAN_DEFAULT_COST = {
   input: 0,
   output: 0,
@@ -107,7 +107,7 @@ export function buildMoonshotModelDefinition(): ModelDefinitionConfig {
 export function buildQianfanModelDefinition(): ModelDefinitionConfig {
   return {
     id: QIANFAN_DEFAULT_MODEL_ID,
-    name: "ERNIE 5.0 Thinking",
+    name: "ERNIE 5.0",
     reasoning: true,
     input: ["text"],
     cost: QIANFAN_DEFAULT_COST,
