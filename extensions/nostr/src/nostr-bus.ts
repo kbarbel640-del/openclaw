@@ -6,7 +6,7 @@ import {
   nip19,
   type Event,
 } from "nostr-tools";
-import * as nip59 from "nostr-tools/nip59";
+import { wrapEvent, unwrapEvent, type Rumor } from "nostr-tools/nip59";
 import type { NostrProfile } from "./config-schema.js";
 import {
   createMetrics,
@@ -449,11 +449,11 @@ export async function startNostrBus(options: NostrBusOptions): Promise<NostrBusH
       metrics.emit("memory.seen_tracker_size", seen.size());
 
       // Unwrap the gift wrap (NIP-59)
-      let rumor: nip59.Rumor;
+      let rumor: Rumor;
       let senderPubkey: string;
       let plaintext: string;
       try {
-        rumor = nip59.unwrapEvent(event, sk);
+        rumor = unwrapEvent(event, sk);
         senderPubkey = rumor.pubkey;
         plaintext = rumor.content;
         metrics.emit("decrypt.success");
@@ -609,7 +609,7 @@ async function sendEncryptedDm(
   onError?: (error: Error, context: string) => void,
 ): Promise<void> {
   // Create a gift-wrapped message (NIP-17/NIP-59)
-  const wrap = nip59.wrapEvent(
+  const wrap = wrapEvent(
     {
       kind: 14, // NIP-17 chat message
       content: text,
