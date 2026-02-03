@@ -20,6 +20,8 @@ import {
   extractText,
 } from "./extract.js";
 import { downloadInboundMedia } from "./media.js";
+import { getPoll } from "./poll-store.js";
+import { decryptPollVote, matchPollOptions } from "./poll-vote.js";
 import { createWebSendApi } from "./send-api.js";
 
 export async function monitorWebInbox(options: {
@@ -242,6 +244,46 @@ export async function monitorWebInbox(options: {
       let body = extractText(msg.message ?? undefined);
       if (locationText) {
         body = [body, locationText].filter(Boolean).join("\n").trim();
+      }
+      // --- Poll vote detection ---
+      const rawMsg = msg.message as Record<string, unknown> | undefined;
+      const pollUpdate = rawMsg?.pollUpdateMessage as
+        | {
+            pollCreationMessageKey?: { id?: string; remoteJid?: string };
+            vote?: { encPayload?: Uint8Array; encIv?: Uint8Array };
+            senderTimestampMs?: number;
+          }
+        | undefined;
+      if (
+        pollUpdate?.pollCreationMessageKey?.id &&
+        pollUpdate.vote?.encPayload &&
+        pollUpdate.vote?.encIv
+      ) {
+        const creationMsgId = pollUpdate.pollCreationMessageKey.id;
+        const storedPoll = getPoll(creationMsgId);
+        if (storedPoll) {
+          try {
+            const voterJid = group ? (participantJid ?? remoteJid) : remoteJid;
+            const pollCreatorJid = selfJid ?? "";
+            const decrypted = decryptPollVote(
+              { encPayload: pollUpdate.vote.encPayload, encIv: pollUpdate.vote.encIv },
+              {
+                pollEncKey: Buffer.from(storedPoll.messageSecret, "base64"),
+                pollCreatorJid,
+                pollMsgId: creationMsgId,
+                voterJid,
+              },
+            );
+            const selectedNames = matchPollOptions(decrypted.selectedOptions ?? [], storedPoll);
+            body = `[poll vote] "${storedPoll.question}" → ${selectedNames.join(", ")}`;
+          } catch (err) {
+            logVerbose(`Poll vote decrypt failed: ${String(err)}`);
+            continue;
+          }
+        } else {
+          logVerbose(`Poll vote for unknown poll ${creationMsgId}, skipping`);
+          continue;
+        }
       }
       if (!body) {
         body = extractMediaPlaceholder(msg.message ?? undefined);
