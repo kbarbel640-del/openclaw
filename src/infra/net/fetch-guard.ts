@@ -23,6 +23,10 @@ export type GuardedFetchOptions = {
   lookupFn?: LookupFn;
   pinDns?: boolean;
   auditContext?: string;
+  /** HTTP/HTTPS proxy URL. If not provided, reads from HTTP_PROXY/HTTPS_PROXY env vars. */
+  proxyUrl?: string;
+  /** Set to true to disable automatic proxy detection from environment. */
+  noProxy?: boolean;
 };
 
 export type GuardedFetchResult = {
@@ -32,6 +36,39 @@ export type GuardedFetchResult = {
 };
 
 const DEFAULT_MAX_REDIRECTS = 3;
+
+/**
+ * Resolve proxy URL from options or environment variables.
+ * Checks HTTP_PROXY, HTTPS_PROXY, http_proxy, https_proxy in order.
+ */
+function resolveProxyUrl(params: {
+  proxyUrl?: string;
+  noProxy?: boolean;
+  protocol?: string;
+}): string | undefined {
+  if (params.noProxy) {
+    return undefined;
+  }
+  if (params.proxyUrl) {
+    return params.proxyUrl;
+  }
+  // Check environment variables (both uppercase and lowercase conventions)
+  const isHttps = params.protocol === "https:";
+  if (isHttps) {
+    return (
+      process.env.HTTPS_PROXY ||
+      process.env.https_proxy ||
+      process.env.HTTP_PROXY ||
+      process.env.http_proxy
+    );
+  }
+  return (
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy ||
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy
+  );
+}
 
 function isRedirectStatus(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
@@ -121,7 +158,12 @@ export async function fetchWithSsrFGuard(params: GuardedFetchOptions): Promise<G
         policy: params.policy,
       });
       if (params.pinDns !== false) {
-        dispatcher = createPinnedDispatcher(pinned);
+        const proxyUrl = resolveProxyUrl({
+          proxyUrl: params.proxyUrl,
+          noProxy: params.noProxy,
+          protocol: parsedUrl.protocol,
+        });
+        dispatcher = createPinnedDispatcher(pinned, { proxyUrl });
       }
 
       const init: RequestInit & { dispatcher?: Dispatcher } = {
