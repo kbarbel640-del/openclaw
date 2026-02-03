@@ -1,7 +1,7 @@
 /**
- * Fork-specific thinking budget integration.
+ * OpenClaw-specific thinking budget integration.
  *
- * This file isolates OpenClaw fork extensions for budget-aware warnings
+ * This file isolates OpenClaw OpenClaw extensions for budget-aware warnings
  * to minimize merge conflicts with upstream code.
  */
 

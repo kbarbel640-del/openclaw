@@ -452,7 +452,7 @@ export async function runEmbeddedAttempt(
         minReserveTokens: compactionReserve,
       });
 
-      // Check thinking budget vs available context space (fork extension)
+      // Check thinking budget vs available context space (OpenClaw extension)
       warnIfThinkingBudgetConflict({
         provider: params.provider,
         modelId: params.modelId,

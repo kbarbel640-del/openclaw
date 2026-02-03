@@ -1,7 +1,7 @@
 /**
- * Fork-specific agent configuration overrides.
+ * OpenClaw-specific agent configuration overrides.
  *
- * This file isolates OpenClaw fork extensions from upstream code to minimize
+ * This file isolates OpenClaw OpenClaw extensions from upstream code to minimize
  * merge conflicts. All per-agent thinking/verbose level resolution logic lives here.
  */
 
@@ -13,12 +13,12 @@ import { resolveAgentThinkingDefault, resolveAgentVerboseDefault } from "../agen
 export { resolveAgentThinkingDefault, resolveAgentVerboseDefault };
 
 /**
- * Resolve effective thinking level with fork-specific per-agent override support.
+ * Resolve effective thinking level with OpenClaw-specific per-agent override support.
  *
  * Resolution order:
  * 1. Directive override (e.g., /think medium)
  * 2. Session-level override (persisted from previous directive)
- * 3. **Per-agent default (FORK EXTENSION)**
+ * 3. **Per-agent default (OPENCLAW EXTENSION)**
  * 4. Global agent default
  * 5. Model-based fallback (if async callback provided)
  *
@@ -42,7 +42,7 @@ export function resolveForkThinkingLevel(params: {
     return fromSession;
   }
 
-  // FORK EXTENSION: Check per-agent override
+  // OPENCLAW EXTENSION: Check per-agent override
   const perAgent = resolveAgentThinkingDefault(params.cfg, params.agentId);
   if (perAgent) {
     return perAgent;
@@ -82,7 +82,7 @@ export function resolveForkThinkingLevelSync(params: {
     return fromSession;
   }
 
-  // FORK EXTENSION: Check per-agent override
+  // OPENCLAW EXTENSION: Check per-agent override
   if (params.agentId) {
     const perAgent = resolveAgentThinkingDefault(params.cfg, params.agentId);
     if (perAgent) {
@@ -95,12 +95,12 @@ export function resolveForkThinkingLevelSync(params: {
 }
 
 /**
- * Resolve effective verbose level with fork-specific per-agent override support.
+ * Resolve effective verbose level with OpenClaw-specific per-agent override support.
  *
  * Resolution order:
  * 1. Directive override (e.g., /verbose on)
  * 2. Session-level override
- * 3. **Per-agent default (FORK EXTENSION)**
+ * 3. **Per-agent default (OPENCLAW EXTENSION)**
  * 4. Global agent default
  */
 export function resolveForkVerboseLevel(params: {
@@ -120,7 +120,7 @@ export function resolveForkVerboseLevel(params: {
     return fromSession;
   }
 
-  // FORK EXTENSION: Check per-agent override
+  // OPENCLAW EXTENSION: Check per-agent override
   if (params.agentId) {
     const perAgent = resolveAgentVerboseDefault(params.cfg, params.agentId);
     if (perAgent) {
