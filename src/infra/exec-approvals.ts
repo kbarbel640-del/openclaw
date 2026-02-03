@@ -585,10 +585,10 @@ export type ExecCommandAnalysis = {
 };
 
 const DISALLOWED_PIPELINE_TOKENS = new Set([">", "<", "`", "\n", "\r", "(", ")"]);
-const DOUBLE_QUOTE_ESCAPES = new Set(["\\", '"', "$", "`", "\n", "\r"]);
+const DOUBLE_QUOTE_ESCAPABLE_AFTER_BACKSLASH = new Set(["\\", '"', "$", "`", "\n", "\r"]);
 
-function isDoubleQuoteEscape(next: string | undefined): next is string {
-  return Boolean(next && DOUBLE_QUOTE_ESCAPES.has(next));
+function isDoubleQuoteEscapableAfterBackslash(next: string | undefined): next is string {
+  return Boolean(next && DOUBLE_QUOTE_ESCAPABLE_AFTER_BACKSLASH.has(next));
 }
 
 type IteratorAction = "split" | "skip" | "include" | { reject: string };
@@ -642,7 +642,7 @@ function iterateQuoteAware(
       continue;
     }
     if (inDouble) {
-      if (ch === "\\" && isDoubleQuoteEscape(next)) {
+      if (ch === "\\" && isDoubleQuoteEscapableAfterBackslash(next)) {
         buf += ch;
         buf += next;
         i += 1;
@@ -770,7 +770,7 @@ function tokenizeShellSegment(segment: string): string[] | null {
     }
     if (inDouble) {
       const next = segment[i + 1];
-      if (ch === "\\" && isDoubleQuoteEscape(next)) {
+      if (ch === "\\" && isDoubleQuoteEscapableAfterBackslash(next)) {
         buf += next;
         i += 1;
         continue;
@@ -1112,7 +1112,7 @@ function splitCommandChain(command: string): string[] | null {
       continue;
     }
     if (inDouble) {
-      if (ch === "\\" && isDoubleQuoteEscape(next)) {
+      if (ch === "\\" && isDoubleQuoteEscapableAfterBackslash(next)) {
         buf += ch;
         buf += next;
         i += 1;
