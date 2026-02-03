@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { TelnyxConfig } from "../config.js";
 import type {
+  AnswerCallInput,
   EndReason,
   HangupCallInput,
   InitiateCallInput,
@@ -156,7 +157,7 @@ export class TelnyxProvider implements VoiceCallProvider {
    * Convert Telnyx event to normalized event format.
    */
   private normalizeEvent(data: TelnyxEvent): NormalizedEvent | null {
-    // Decode client_state from Base64 (we encode it in initiateCall)
+    // Decode client_state from Base64 (we encode it in initiateCall/answerCall)
     let callId = "";
     if (data.payload?.client_state) {
       try {
@@ -170,11 +171,19 @@ export class TelnyxProvider implements VoiceCallProvider {
       callId = data.payload?.call_control_id || "";
     }
 
+    // Map Telnyx direction to our format
+    const telnyxDirection = data.payload?.direction;
+    const direction = telnyxDirection === "incoming" ? "inbound" : "outbound";
+
     const baseEvent = {
       id: data.id || crypto.randomUUID(),
       callId,
       providerCallId: data.payload?.call_control_id,
       timestamp: Date.now(),
+      // Include direction and caller info for inbound call handling
+      direction: direction as "inbound" | "outbound",
+      from: data.payload?.from,
+      to: data.payload?.to,
     };
 
     switch (data.event_type) {
@@ -283,6 +292,18 @@ export class TelnyxProvider implements VoiceCallProvider {
   }
 
   /**
+   * Answer an inbound call via Telnyx API.
+   * Telnyx requires explicit answer action for incoming calls.
+   */
+  async answerCall(input: AnswerCallInput): Promise<boolean> {
+    await this.apiRequest(`/calls/${input.providerCallId}/actions/answer`, {
+      command_id: crypto.randomUUID(),
+      client_state: Buffer.from(input.callId).toString("base64"),
+    });
+    return true;
+  }
+
+  /**
    * Hang up a call via Telnyx API.
    */
   async hangupCall(input: HangupCallInput): Promise<void> {
@@ -337,6 +358,9 @@ interface TelnyxEvent {
   payload?: {
     call_control_id?: string;
     client_state?: string;
+    direction?: string;
+    from?: string;
+    to?: string;
     text?: string;
     transcription?: string;
     is_final?: boolean;
