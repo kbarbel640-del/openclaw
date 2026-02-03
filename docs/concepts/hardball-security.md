@@ -80,8 +80,10 @@ def send_otp(target_email, code, action, origin):
 
 if __name__ == "__main__":
     # Usage: python3 send_otp.py <email> <code> <action> <origin>
-    if len(sys.argv) > 4:
-        send_otp(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    if len(sys.argv) != 5:
+        print("Usage: python3 send_otp.py <email> <code> <action> <origin>", file=sys.stderr)
+        sys.exit(1)
+    send_otp(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
 ```
 
 ---
