@@ -30,7 +30,7 @@ export async function fetchGeminiUsage(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: Object.keys(body).length > 0 ? JSON.stringify(body) : "{}",
+      body: JSON.stringify(body),
     },
     timeoutMs,
     fetchFn,
