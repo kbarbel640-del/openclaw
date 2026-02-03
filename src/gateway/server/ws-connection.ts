@@ -13,6 +13,7 @@ import type { GatewayRequestContext, GatewayRequestHandlers } from "../server-me
 import { formatError } from "../server-utils.js";
 import { logWs } from "../ws-log.js";
 import { getHealthVersion, getPresenceVersion, incrementPresenceVersion } from "./health-state.js";
+import { AuthRateLimiter } from "../auth.js";
 import { attachGatewayWsMessageHandler } from "./ws-connection/message-handler.js";
 import type { GatewayWsClient } from "./ws-types.js";
 
@@ -59,6 +60,10 @@ export function attachGatewayWsConnectionHandler(params: {
     broadcast,
     buildRequestContext,
   } = params;
+
+  const rateLimiter = new AuthRateLimiter();
+  const pruneInterval = setInterval(() => rateLimiter.prune(), 60_000);
+  pruneInterval.unref();
 
   wss.on("connection", (socket, upgradeReq) => {
     let client: GatewayWsClient | null = null;
@@ -236,6 +241,7 @@ export function attachGatewayWsConnectionHandler(params: {
       canvasHostUrl,
       connectNonce,
       resolvedAuth,
+      rateLimiter,
       gatewayMethods,
       events,
       extraHandlers,

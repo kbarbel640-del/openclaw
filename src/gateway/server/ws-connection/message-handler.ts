@@ -23,7 +23,7 @@ import { rawDataToString } from "../../../infra/ws.js";
 import type { createSubsystemLogger } from "../../../logging/subsystem.js";
 import { isGatewayCliClient, isWebchatClient } from "../../../utils/message-channel.js";
 import type { ResolvedGatewayAuth } from "../../auth.js";
-import { authorizeGatewayConnect, isLocalDirectRequest } from "../../auth.js";
+import { type AuthRateLimiter, authorizeGatewayConnect, isLocalDirectRequest } from "../../auth.js";
 import { loadConfig } from "../../../config/config.js";
 import { buildDeviceAuthPayload } from "../../device-auth.js";
 import { isLoopbackAddress, isTrustedProxyAddress, resolveGatewayClientIp } from "../../net.js";
@@ -141,6 +141,7 @@ export function attachGatewayWsMessageHandler(params: {
   canvasHostUrl?: string;
   connectNonce: string;
   resolvedAuth: ResolvedGatewayAuth;
+  rateLimiter: AuthRateLimiter;
   gatewayMethods: string[];
   events: string[];
   extraHandlers: GatewayRequestHandlers;
@@ -171,6 +172,7 @@ export function attachGatewayWsMessageHandler(params: {
     canvasHostUrl,
     connectNonce,
     resolvedAuth,
+    rateLimiter,
     gatewayMethods,
     events,
     extraHandlers,
@@ -566,6 +568,33 @@ export function attachGatewayWsMessageHandler(params: {
           }
         }
 
+        // Rate limit check before auth (skip if IP is unknown to avoid shared-key blocking)
+        const rateLimitIp = clientIp ?? remoteAddr;
+        const rateCheck = rateLimitIp
+          ? rateLimiter.check(rateLimitIp)
+          : { allowed: true, retryAfterMs: 0 };
+        if (!rateCheck.allowed && rateLimitIp) {
+          setHandshakeState("failed");
+          const retryAfterSec = Math.ceil(rateCheck.retryAfterMs / 1000);
+          logWsControl.warn(
+            `rate-limited conn=${connId} ip=${rateLimitIp} retryAfter=${retryAfterSec}s`,
+          );
+          setCloseCause("rate-limited", {
+            ip: rateLimitIp,
+            retryAfterMs: rateCheck.retryAfterMs,
+          });
+          send({
+            type: "res",
+            id: frame.id,
+            ok: false,
+            error: errorShape(ErrorCodes.INVALID_REQUEST, "too many failed auth attempts", {
+              details: { retryAfterMs: rateCheck.retryAfterMs },
+            }),
+          });
+          close(1008, "rate limited");
+          return;
+        }
+
         const authResult = await authorizeGatewayConnect({
           auth: resolvedAuth,
           connectAuth: connectParams.auth,
@@ -588,6 +617,7 @@ export function attachGatewayWsMessageHandler(params: {
           }
         }
         if (!authOk) {
+          if (rateLimitIp) rateLimiter.recordFailure(rateLimitIp);
           setHandshakeState("failed");
           logWsControl.warn(
             `unauthorized conn=${connId} remote=${remoteAddr ?? "?"} client=${clientLabel} ${connectParams.client.mode} v${connectParams.client.version} reason=${authResult.reason ?? "unknown"}`,
@@ -622,6 +652,8 @@ export function attachGatewayWsMessageHandler(params: {
           close(1008, truncateCloseReason(authMessage));
           return;
         }
+
+        if (rateLimitIp) rateLimiter.recordSuccess(rateLimitIp);
 
         const skipPairing = allowControlUiBypass && hasSharedAuth;
         if (device && devicePublicKey && !skipPairing) {

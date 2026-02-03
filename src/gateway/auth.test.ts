@@ -169,6 +169,37 @@ describe("AuthRateLimiter", () => {
     expect(limiter.check("2.2.2.2", now + 100).allowed).toBe(true);
   });
 
+  it("applies exponential backoff on repeated failures", () => {
+    const limiter = new AuthRateLimiter({ maxFailures: 2, baseDelayMs: 1000, maxDelayMs: 8000 });
+    const now = Date.now();
+    // 2 failures -> blocked with 1s delay (base * 2^0)
+    for (let i = 0; i < 2; i++) limiter.recordFailure("1.2.3.4", now);
+    const r1 = limiter.check("1.2.3.4", now + 1);
+    expect(r1.allowed).toBe(false);
+    expect(r1.retryAfterMs).toBeLessThanOrEqual(1000);
+
+    // 3rd failure -> 2s delay (base * 2^1)
+    limiter.recordFailure("1.2.3.4", now + 1001);
+    const r2 = limiter.check("1.2.3.4", now + 1002);
+    expect(r2.allowed).toBe(false);
+    expect(r2.retryAfterMs).toBeLessThanOrEqual(2000);
+
+    // 4th failure -> 4s delay (base * 2^2)
+    limiter.recordFailure("1.2.3.4", now + 3003);
+    const r3 = limiter.check("1.2.3.4", now + 3004);
+    expect(r3.allowed).toBe(false);
+    expect(r3.retryAfterMs).toBeLessThanOrEqual(4000);
+  });
+
+  it("caps delay at maxDelayMs", () => {
+    const limiter = new AuthRateLimiter({ maxFailures: 1, baseDelayMs: 1000, maxDelayMs: 2000 });
+    const now = Date.now();
+    for (let i = 0; i < 10; i++) limiter.recordFailure("1.2.3.4", now);
+    const result = limiter.check("1.2.3.4", now + 1);
+    expect(result.allowed).toBe(false);
+    expect(result.retryAfterMs).toBeLessThanOrEqual(2000);
+  });
+
   it("prunes expired entries", () => {
     const limiter = new AuthRateLimiter({ windowMs: 1000 });
     const now = Date.now();
