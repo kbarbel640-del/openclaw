@@ -324,6 +324,7 @@ export async function handleToolsInvokeHttpRequest(
 
   const requestId = `tool_${randomUUID()}`;
   const toolArgs = mergeActionIntoArgsIfSupported({
+    // oxlint-disable-next-line typescript/no-explicit-any
     toolSchema: (tool as any).parameters,
     action,
     args,
@@ -372,6 +373,10 @@ export async function handleToolsInvokeHttpRequest(
         });
         return true;
       }
+      // Apply modified params if plugin sanitized them
+      if (preHook?.modifiedParams !== undefined) {
+        Object.assign(toolArgs, preHook.modifiedParams);
+      }
     } catch (hookError) {
       console.error("[tools-invoke-http] http_tool_invoke hook error:", hookError);
       sendJson(res, 500, {
@@ -384,12 +389,6 @@ export async function handleToolsInvokeHttpRequest(
 
   const startTime = Date.now();
   try {
-    const toolArgs = mergeActionIntoArgsIfSupported({
-      // oxlint-disable-next-line typescript/no-explicit-any
-      toolSchema: (tool as any).parameters,
-      action,
-      args,
-    });
     // oxlint-disable-next-line typescript/no-explicit-any
     const result = await (tool as any).execute?.(`http-${Date.now()}`, toolArgs);
     const durationMs = Date.now() - startTime;
@@ -419,6 +418,11 @@ export async function handleToolsInvokeHttpRequest(
               message: postHook.blockReason || "Tool result blocked by security plugin",
             },
           });
+          return true;
+        }
+        // Use modified result if plugin sanitized it
+        if (postHook?.modifiedResult !== undefined) {
+          sendJson(res, 200, { ok: true, result: postHook.modifiedResult });
           return true;
         }
       } catch (hookError) {

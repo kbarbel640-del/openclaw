@@ -52,7 +52,12 @@ type OpenAiChatCompletionRequest = {
 };
 
 function writeSse(res: ServerResponse, data: unknown) {
-  res.write(`data: ${JSON.stringify(data)}\n\n`);
+  try {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  } catch {
+    // Fallback for non-serializable data (bigint, circular refs)
+    res.write(`data: ${JSON.stringify({ error: "payload_not_serializable" })}\n\n`);
+  }
 }
 
 function asMessages(val: unknown): OpenAiChatMessage[] {
@@ -75,8 +80,8 @@ function extractTextContent(content: unknown): string {
         if (type === "text" && typeof text === "string") {
           return text;
         }
-        if (type === "input_text" && typeof text === "string") {
-          return text;
+        if (type === "input_text" && typeof inputText === "string") {
+          return inputText;
         }
         if (typeof inputText === "string") {
           return inputText;
@@ -305,6 +310,10 @@ export async function handleOpenAiHttpRequest(
           },
         });
         return true;
+      }
+      // Apply modified request body if plugin sanitized it
+      if (hookResult?.modifiedRequestBody) {
+        Object.assign(payload, hookResult.modifiedRequestBody);
       }
     } catch (hookError) {
       // FAIL-CLOSED: On hook error, block the request for security

@@ -481,6 +481,10 @@ export async function handleOpenResponsesHttpRequest(
         sendJson(res, hookResult.blockStatusCode ?? 400, response);
         return true;
       }
+      // Apply modified request body if plugin sanitized it
+      if (hookResult?.modifiedRequestBody) {
+        Object.assign(payload, hookResult.modifiedRequestBody);
+      }
     } catch (hookError) {
       console.error("[openresponses-http] http_request_received hook error:", hookError);
       const response = createResponseResource({
