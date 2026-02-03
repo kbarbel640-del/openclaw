@@ -583,11 +583,16 @@ export async function runAgentTurnWithFallback(params: {
 
       // Suppress raw API errors for non-owners to prevent leaking internal details
       if (!isContextOverflow && !isRoleOrderingError) {
-        const isApiError = /HTTP\s*\d{3}|api_error|internal server error|overloaded/i.test(message);
+        // [P3] Tightened regex to target specific provider/protocol errors
+        const isApiError =
+          /Anthropic|Claude|HTTP\s*(500|502|503|504|429)|api_error|overloaded/i.test(message);
+
         if (isApiError) {
           const ownerNumbers = params.followupRun.run.ownerNumbers ?? [];
-          const senderE164 = params.sessionCtx.SenderE164;
-          const senderId = params.sessionCtx.SenderId;
+          // [P1] Use .trim() to ensure matching works even with whitespace
+          const senderE164 = params.sessionCtx.SenderE164?.trim();
+          const senderId = params.sessionCtx.SenderId?.trim();
+
           const isOwner =
             (senderE164 && ownerNumbers.includes(senderE164)) ||
             (senderId && ownerNumbers.includes(senderId));
