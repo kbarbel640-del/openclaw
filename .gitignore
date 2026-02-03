@@ -71,7 +71,3 @@ USER.md
 
 # local tooling
 .serena/
-
-# docs-chat vector database
-.lancedb
-.lance-db
