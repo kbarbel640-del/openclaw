@@ -18,8 +18,23 @@ function extractToolCallsFromAssistant(
     if (!block || typeof block !== "object") {
       continue;
     }
-    const rec = block as { type?: unknown; id?: unknown; name?: unknown };
-    if (typeof rec.id !== "string" || !rec.id) {
+    const rec = block as {
+      type?: unknown;
+      id?: unknown;
+      tool_use_id?: unknown;
+      toolUseId?: unknown;
+      toolCallId?: unknown;
+      name?: unknown;
+    };
+
+    // Support multiple ID field formats across providers
+    const idValue =
+      (typeof rec.id === "string" && rec.id) ||
+      (typeof rec.tool_use_id === "string" && rec.tool_use_id) ||
+      (typeof rec.toolUseId === "string" && rec.toolUseId) ||
+      (typeof rec.toolCallId === "string" && rec.toolCallId);
+
+    if (!idValue) {
       continue;
     }
 
@@ -30,7 +45,7 @@ function extractToolCallsFromAssistant(
       rec.type === "functionCall"
     ) {
       toolCalls.push({
-        id: rec.id,
+        id: idValue,
         name: typeof rec.name === "string" ? rec.name : undefined,
       });
     }

@@ -909,6 +909,7 @@ export async function ensureOutboundSessionEntry(params: {
   // See: https://github.com/openclaw/openclaw/issues/8154
   if (
     params.requesterSessionKey &&
+    params.route.sessionKey &&
     params.route.sessionKey.toLowerCase() === params.requesterSessionKey.toLowerCase()
   ) {
     // Outbound route resolved to the same session as the requester.
