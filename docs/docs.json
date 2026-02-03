@@ -732,7 +732,7 @@
               {
                 "group": "Platforms",
                 "pages": [
-                  "platforms",
+                  "platforms/index",
                   "platforms/macos",
                   "platforms/linux",
                   "platforms/windows",
@@ -833,7 +833,7 @@
               {
                 "group": "Overview",
                 "pages": [
-                  "tools"
+                  "tools/index"
                 ]
               },
               {
@@ -894,7 +894,7 @@
               {
                 "group": "Media and devices",
                 "pages": [
-                  "nodes",
+                  "nodes/index",
                   "nodes/images",
                   "nodes/audio",
                   "nodes/camera",
@@ -967,7 +967,7 @@
                   {
                     "group": "Security and sandboxing",
                     "pages": [
-                      "gateway/security",
+                      "gateway/security/index",
                       "gateway/sandboxing",
                       "gateway/sandbox-vs-tool-policy-vs-elevated"
                     ]
@@ -1018,7 +1018,7 @@
               {
                 "group": "Web interfaces",
                 "pages": [
-                  "web",
+                  "web/index",
                   "web/control-ui",
                   "web/dashboard",
                   "web/webchat",
