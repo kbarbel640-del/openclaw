@@ -1,0 +1,31 @@
+{
+  "repo": "owner/repo-name",
+  "repoDir": "/home/user/src/repo-name",
+  "displayName": "Human Readable Name",
+  
+  "projectOwner": "github-username",
+  "projectNum": 1,
+  "projectId": "PVT_xxx",
+  "statusField": "PVTSSF_xxx",
+  "statusOptions": {
+    "ready": "option-id-for-ready",
+    "inProgress": "option-id-for-in-progress",
+    "inReview": "option-id-for-in-review",
+    "done": "option-id-for-done"
+  },
+  
+  "discordChannel": "channel-id",
+  "discordChannelName": "#channel-name",
+  
+  "worktreePrefix": "/tmp/repo-name",
+  "branchPrefix": "fix",
+  
+  "codingStandardsFile": "CODING-STANDARDS.md",
+  
+  "forbiddenPaths": [
+    "/home/user/clawd"
+  ],
+  
+  "maxSubAgents": 3,
+  "subAgentModel": "moonshot/kimi-for-coding"
+}
