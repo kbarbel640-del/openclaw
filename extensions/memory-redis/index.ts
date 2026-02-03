@@ -27,16 +27,15 @@
  * - **custom**: Use a custom extraction prompt for specialized use cases
  */
 
+import type { MemoryMessage } from "agent-memory-client";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { Type } from "@sinclair/typebox";
 import { MemoryAPIClient, MemoryNotFoundError } from "agent-memory-client";
-import type { MemoryMessage } from "agent-memory-client";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import * as path from "node:path";
 import { stringEnum } from "openclaw/plugin-sdk";
-
 import { type MemoryConfig, memoryConfigSchema } from "./config.js";
 
 // ============================================================================
@@ -55,7 +54,14 @@ export function readSessionIdFromStore(sessionKey: string): string | null {
     const parts = sessionKey.split(":");
     const agentId = parts.length >= 2 ? parts[1] : "main";
 
-    const storePath = path.join(os.homedir(), ".openclaw", "agents", agentId, "sessions", "sessions.json");
+    const storePath = path.join(
+      os.homedir(),
+      ".openclaw",
+      "agents",
+      agentId,
+      "sessions",
+      "sessions.json",
+    );
 
     if (!fs.existsSync(storePath)) {
       return null;
@@ -167,8 +173,7 @@ export function convertToMemoryMessages(messages: unknown[]): MemoryMessage[] {
     if (content.includes("<relevant-memories>")) continue;
 
     // Preserve original timestamp from pi-ai message (Unix ms), fallback to now
-    const msgTimestamp =
-      typeof msgObj.timestamp === "number" ? msgObj.timestamp : Date.now();
+    const msgTimestamp = typeof msgObj.timestamp === "number" ? msgObj.timestamp : Date.now();
 
     result.push({
       role,
@@ -274,9 +279,7 @@ const redisMemoryPlugin = {
               .join("\n");
 
             return {
-              content: [
-                { type: "text", text: `Found ${filtered.length} memories:\n\n${text}` },
-              ],
+              content: [{ type: "text", text: `Found ${filtered.length} memories:\n\n${text}` }],
               details: { count: filtered.length, memories: filtered },
             };
           } catch (err) {
@@ -387,20 +390,9 @@ const redisMemoryPlugin = {
 
           try {
             if (memoryId) {
-              // Direct fetch workaround for SDK issue
-              const deleteUrl = new URL("/v1/long-term-memory", cfg.serverUrl);
-              deleteUrl.searchParams.set("memory_ids", memoryId);
-              const deleteRes = await fetch(deleteUrl.toString(), {
-                method: "DELETE",
-                headers: {
-                  "Content-Type": "application/json",
-                  ...(cfg.apiKey && { "X-API-Key": cfg.apiKey }),
-                  ...(cfg.bearerToken && { Authorization: `Bearer ${cfg.bearerToken}` }),
-                },
+              await client.deleteLongTermMemories([memoryId], {
+                namespace: cfg.namespace,
               });
-              if (!deleteRes.ok) {
-                throw new Error(`Delete failed: ${deleteRes.status} ${deleteRes.statusText}`);
-              }
               return {
                 content: [{ type: "text", text: `Memory ${memoryId} forgotten.` }],
                 details: { action: "deleted", id: memoryId },
@@ -429,20 +421,9 @@ const redisMemoryPlugin = {
               }));
 
               if (scored.length === 1 && scored[0].score > 0.9) {
-                // Direct fetch workaround for SDK issue
-                const deleteUrl = new URL("/v1/long-term-memory", cfg.serverUrl);
-                deleteUrl.searchParams.set("memory_ids", scored[0].id);
-                const deleteRes = await fetch(deleteUrl.toString(), {
-                  method: "DELETE",
-                  headers: {
-                    "Content-Type": "application/json",
-                    ...(cfg.apiKey && { "X-API-Key": cfg.apiKey }),
-                    ...(cfg.bearerToken && { Authorization: `Bearer ${cfg.bearerToken}` }),
-                  },
+                await client.deleteLongTermMemories([scored[0].id], {
+                  namespace: cfg.namespace,
                 });
-                if (!deleteRes.ok) {
-                  throw new Error(`Delete failed: ${deleteRes.status} ${deleteRes.statusText}`);
-                }
                 return {
                   content: [{ type: "text", text: `Forgotten: "${scored[0].text}"` }],
                   details: { action: "deleted", id: scored[0].id },
@@ -588,9 +569,7 @@ const redisMemoryPlugin = {
           });
           if (wm && wm.messages && wm.messages.length > 0) {
             const maxTs = Math.max(
-              ...wm.messages.map((m) =>
-                m.created_at ? new Date(m.created_at).getTime() : 0,
-              ),
+              ...wm.messages.map((m) => (m.created_at ? new Date(m.created_at).getTime() : 0)),
             );
             sessionMaxTimestamps.set(sessionId, maxTs);
           } else {
@@ -611,14 +590,15 @@ const redisMemoryPlugin = {
               userId: cfg.userId,
             });
 
-            const partition = partitions.find((p) => {
-              const groupBy = cfg.summaryGroupBy ?? ["user_id"];
-              for (const field of groupBy) {
-                if (field === "user_id" && p.group.user_id !== cfg.userId) return false;
-                if (field === "namespace" && p.group.namespace !== cfg.namespace) return false;
-              }
-              return true;
-            }) ?? partitions[0];
+            const partition =
+              partitions.find((p) => {
+                const groupBy = cfg.summaryGroupBy ?? ["user_id"];
+                for (const field of groupBy) {
+                  if (field === "user_id" && p.group.user_id !== cfg.userId) return false;
+                  if (field === "namespace" && p.group.namespace !== cfg.namespace) return false;
+                }
+                return true;
+              }) ?? partitions[0];
 
             if (partition && partition.summary && partition.memory_count > 0) {
               contextParts.push(
@@ -741,9 +721,7 @@ const redisMemoryPlugin = {
           if (summaryViewId) {
             try {
               const task = await client.runSummaryView(summaryViewId);
-              api.logger.debug?.(
-                `redis-memory: triggered summary refresh (task: ${task.id})`,
-              );
+              api.logger.debug?.(`redis-memory: triggered summary refresh (task: ${task.id})`);
             } catch (refreshErr) {
               if (refreshErr instanceof MemoryNotFoundError) {
                 api.logger.info?.("redis-memory: summary view not found, re-creating...");
@@ -777,9 +755,7 @@ const redisMemoryPlugin = {
           // Initialize summary view
           summaryViewId = await ensureSummaryView();
         } catch (err) {
-          api.logger.warn(
-            `redis-memory: server not reachable at ${cfg.serverUrl}: ${String(err)}`,
-          );
+          api.logger.warn(`redis-memory: server not reachable at ${cfg.serverUrl}: ${String(err)}`);
         }
       },
       stop: () => {
