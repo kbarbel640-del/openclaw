@@ -16,6 +16,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- iOS: prevent connection status flicker by guarding state reset in connection polling loop.
 - Onboarding: keep TUI flow exclusive (skip completion prompt + background Web UI seed).
 - TUI: block onboarding output while TUI is active and restore terminal state on exit.
 - Agents: repair malformed tool calls and session transcripts. (#7473) Thanks @justinhuangcode.
