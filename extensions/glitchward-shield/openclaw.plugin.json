@@ -14,7 +14,7 @@
       },
       "blockThreshold": {
         "type": "number",
-        "description": "Risk score threshold to block messages (0-1)",
+        "description": "Risk score threshold to inject security warning (0-1)",
         "minimum": 0,
         "maximum": 1
       },
@@ -27,10 +27,6 @@
       "scanIncoming": {
         "type": "boolean",
         "description": "Scan incoming messages for prompt injection"
-      },
-      "scanOutgoing": {
-        "type": "boolean",
-        "description": "Scan outgoing messages for sensitive data leakage"
       }
     }
   }

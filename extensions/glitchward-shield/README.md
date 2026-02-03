@@ -5,9 +5,9 @@ Protect your OpenClaw agents from prompt injection attacks with Glitchward Shiel
 ## Features
 
 - **Real-time prompt scanning** - Analyzes incoming messages before they reach the LLM
-- **Configurable thresholds** - Set custom block and warning levels
+- **Configurable thresholds** - Set custom warning levels via config
 - **Pattern detection** - Identifies known injection techniques
-- **Audit logging** - All scans are logged for security review
+- **Security context injection** - Warns the LLM about risky prompts
 - **Dashboard integration** - View detailed reports at glitchward.com
 
 ## Installation
@@ -15,6 +15,7 @@ Protect your OpenClaw agents from prompt injection attacks with Glitchward Shiel
 The Glitchward Shield extension is included with OpenClaw. To enable it:
 
 ```bash
+openclaw plugins enable glitchward-shield
 openclaw connect glitchward-shield
 ```
 
@@ -22,28 +23,26 @@ You'll be prompted for:
 
 - Your Glitchward Shield API URL (default: https://glitchward.com/api/shield)
 - Your API token (get one at https://glitchward.com/shield)
-- Block threshold (0-1, default: 0.8)
-- Warning threshold (0-1, default: 0.5)
 
 ## Configuration
 
-After setup, Shield configuration is stored in your OpenClaw config. You can modify it:
+After setup, configure Shield thresholds in your OpenClaw config:
 
 ```bash
-openclaw config set plugins.glitchward-shield.blockThreshold 0.9
-openclaw config set plugins.glitchward-shield.warnThreshold 0.6
+openclaw config set plugins.glitchward-shield.apiToken "your-token"
+openclaw config set plugins.glitchward-shield.blockThreshold 0.8
+openclaw config set plugins.glitchward-shield.warnThreshold 0.5
 ```
 
 ### Configuration Options
 
-| Option           | Type    | Default                             | Description                          |
-| ---------------- | ------- | ----------------------------------- | ------------------------------------ |
-| `apiUrl`         | string  | `https://glitchward.com/api/shield` | Shield API endpoint                  |
-| `apiToken`       | string  | -                                   | Your Shield API token                |
-| `blockThreshold` | number  | 0.8                                 | Risk score to trigger blocking (0-1) |
-| `warnThreshold`  | number  | 0.5                                 | Risk score to trigger warnings (0-1) |
-| `scanIncoming`   | boolean | true                                | Scan incoming messages               |
-| `scanOutgoing`   | boolean | false                               | Scan outgoing messages               |
+| Option           | Type    | Default                             | Description                            |
+| ---------------- | ------- | ----------------------------------- | -------------------------------------- |
+| `apiUrl`         | string  | `https://glitchward.com/api/shield` | Shield API endpoint                    |
+| `apiToken`       | string  | -                                   | Your Shield API token                  |
+| `blockThreshold` | number  | 0.8                                 | Risk score to inject security warning  |
+| `warnThreshold`  | number  | 0.5                                 | Risk score to log warnings (0-1)       |
+| `scanIncoming`   | boolean | true                                | Scan incoming messages                 |
 
 ## Usage
 
@@ -70,9 +69,11 @@ Runs a test scan with a known injection pattern to verify Shield is working.
 1. **Message Received** - When OpenClaw receives a message, Shield scans it for injection patterns
 2. **Risk Assessment** - The Shield API returns a risk score (0-1) and detected patterns
 3. **Action** - Based on thresholds:
-   - Risk >= block threshold: Message flagged, agent warned
+   - Risk >= block threshold: Security warning injected into LLM context
    - Risk >= warn threshold: Warning logged
    - Risk < warn threshold: Message passes normally
+
+**Note:** Shield injects security context to warn the LLM about risky prompts. It does not hard-block message delivery, as the available hooks don't support cancellation at the agent level.
 
 ### Detection Categories
 
