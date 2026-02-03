@@ -116,6 +116,29 @@ describe("sanitizeSessionHistory", () => {
     );
   });
 
+  it("sanitizes tool call ids for openai-responses when routed via openrouter", async () => {
+    vi.mocked(helpers.isGoogleModelApi).mockReturnValue(false);
+
+    await sanitizeSessionHistory({
+      messages: mockMessages,
+      modelApi: "openai-responses",
+      provider: "openrouter",
+      modelId: "gpt-4o-mini",
+      sessionManager: mockSessionManager,
+      sessionId: "test-session",
+    });
+
+    expect(helpers.sanitizeSessionMessagesImages).toHaveBeenCalledWith(
+      mockMessages,
+      "session:history",
+      expect.objectContaining({
+        sanitizeMode: "full",
+        sanitizeToolCallIds: true,
+        toolCallIdMode: "strict",
+      }),
+    );
+  });
+
   it("keeps reasoning-only assistant messages for openai-responses", async () => {
     vi.mocked(helpers.isGoogleModelApi).mockReturnValue(false);
 
