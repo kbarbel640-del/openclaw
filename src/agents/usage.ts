@@ -20,6 +20,8 @@ export type UsageLike = {
   total_tokens?: number;
   cache_read?: number;
   cache_write?: number;
+  reasoningTokens?: number;
+  reasoning_tokens?: number;
 };
 
 export type NormalizedUsage = {
@@ -27,6 +29,7 @@ export type NormalizedUsage = {
   output?: number;
   cacheRead?: number;
   cacheWrite?: number;
+  reasoning?: number;
   total?: number;
 };
 
@@ -68,6 +71,7 @@ export function normalizeUsage(raw?: UsageLike | null): NormalizedUsage | undefi
   const cacheWrite = asFiniteNumber(
     raw.cacheWrite ?? raw.cache_write ?? raw.cache_creation_input_tokens,
   );
+  const reasoning = asFiniteNumber(raw.reasoningTokens ?? raw.reasoning_tokens);
   const total = asFiniteNumber(raw.total ?? raw.totalTokens ?? raw.total_tokens);
 
   if (
@@ -75,6 +79,7 @@ export function normalizeUsage(raw?: UsageLike | null): NormalizedUsage | undefi
     output === undefined &&
     cacheRead === undefined &&
     cacheWrite === undefined &&
+    reasoning === undefined &&
     total === undefined
   ) {
     return undefined;
@@ -85,6 +90,7 @@ export function normalizeUsage(raw?: UsageLike | null): NormalizedUsage | undefi
     output,
     cacheRead,
     cacheWrite,
+    reasoning,
     total,
   };
 }
