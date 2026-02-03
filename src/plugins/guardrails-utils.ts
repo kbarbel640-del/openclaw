@@ -118,10 +118,10 @@ export function appendWarningToToolResult(
   result: AgentToolResult<unknown>,
   warning: string,
 ): AgentToolResult<unknown> {
-  const content = Array.isArray(result.content)
+  const content: AgentToolResult<unknown>["content"] = Array.isArray(result.content)
     ? [...result.content]
     : result.content
-      ? [{ type: "text", text: String(result.content) }]
+      ? [{ type: "text" as const, text: String(result.content) }]
       : [];
   content.push({ type: "text", text: warning });
   return { ...result, content };
