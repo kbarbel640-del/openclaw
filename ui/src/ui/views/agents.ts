@@ -1586,19 +1586,19 @@ function renderAgentTools(params: {
 
       <div class="agent-tools-meta" style="margin-top: 16px;">
         <div class="agent-kv">
-          <div class="label">Profile</div>
+          <div class="label">${t().ui.views.agents.tools.profile}</div>
           <div class="mono">${profile}</div>
         </div>
         <div class="agent-kv">
-          <div class="label">Source</div>
+          <div class="label">${t().ui.views.agents.tools.source}</div>
           <div>${profileSource}</div>
         </div>
         ${
           params.configDirty
             ? html`
                 <div class="agent-kv">
-                  <div class="label">Status</div>
-                  <div class="mono">unsaved</div>
+                  <div class="label">${t().ui.views.agents.tools.status}</div>
+                  <div class="mono">${t().ui.views.agents.tools.unsaved}</div>
                 </div>
               `
             : nothing
@@ -1606,7 +1606,7 @@ function renderAgentTools(params: {
       </div>
 
       <div class="agent-tools-presets" style="margin-top: 16px;">
-        <div class="label">Quick Presets</div>
+        <div class="label">${t().ui.views.agents.tools.quickPresets}</div>
         <div class="agent-tools-buttons">
           ${PROFILE_OPTIONS.map(
             (option) => html`
@@ -1642,7 +1642,7 @@ function renderAgentTools(params: {
                     <div class="agent-tool-row">
                       <div>
                         <div class="agent-tool-title mono">${tool.label}</div>
-                        <div class="agent-tool-sub">${tool.description}</div>
+                        <div class="agent-tool-sub">${(t().ui.views.agents.tools.descriptions as Record<string, string>)[tool.id] || tool.description}</div>
                       </div>
                       <label class="cfg-toggle">
                         <input
