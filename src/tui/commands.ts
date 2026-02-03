@@ -146,7 +146,7 @@ export function helpText(options: SlashCommandOptions = {}): string {
     "/model <provider/model> (or /models)",
     `/think <${thinkLevels}>`,
     "/verbose <on|off>",
-    "/reasoning <on|off>",
+    "/reasoning <on|off|stream>",
     "/usage <off|tokens|full>",
     "/elevated <on|off|ask|full>",
     "/elev <on|off|ask|full>",
