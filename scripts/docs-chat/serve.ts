@@ -18,6 +18,8 @@ const port = Number(process.env.PORT || 3001);
 const RATE_LIMIT = Number(process.env.RATE_LIMIT || 20); // requests per window
 const RATE_WINDOW_MS = Number(process.env.RATE_WINDOW_MS || 60_000); // 1 minute
 const TRUST_PROXY = process.env.TRUST_PROXY === "1"; // only trust X-Forwarded-For behind a proxy
+// CORS: comma-separated allowed origins, or "*" for any (local dev only)
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(",").map((o) => o.trim()) ?? [];
 const MAX_MESSAGE_LENGTH = 2000; // characters
 const MAX_BODY_SIZE = 8192; // bytes
 
@@ -85,18 +87,28 @@ let storeMode: StoreMode;
 let retriever: Retriever;
 const embeddings = new Embeddings(apiKey);
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+/**
+ * Build CORS headers for a request. Only allows origins in ALLOWED_ORIGINS.
+ */
+function getCorsHeaders(req: http.IncomingMessage): Record<string, string> {
+  const origin = req.headers.origin;
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+  if (origin && (ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin))) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return headers;
+}
 
 function sendJson(
   res: http.ServerResponse,
   status: number,
   body: Record<string, unknown>,
+  req: http.IncomingMessage,
 ) {
-  res.writeHead(status, { ...corsHeaders, "Content-Type": "application/json" });
+  res.writeHead(status, { ...getCorsHeaders(req), "Content-Type": "application/json" });
   res.end(JSON.stringify(body));
 }
 
@@ -155,7 +167,7 @@ async function handleChat(req: http.IncomingMessage, res: http.ServerResponse) {
   for await (const chunk of req) {
     bodySize += chunk.length;
     if (bodySize > MAX_BODY_SIZE) {
-      sendJson(res, 413, { error: "Request too large" });
+      sendJson(res, 413, { error: "Request too large" }, req);
       return;
     }
     body += chunk;
@@ -165,25 +177,25 @@ async function handleChat(req: http.IncomingMessage, res: http.ServerResponse) {
   try {
     message = JSON.parse(body || "{}").message;
   } catch {
-    sendJson(res, 400, { error: "Invalid JSON" });
+    sendJson(res, 400, { error: "Invalid JSON" }, req);
     return;
   }
 
   if (!message || typeof message !== "string") {
-    sendJson(res, 400, { error: "message required" });
+    sendJson(res, 400, { error: "message required" }, req);
     return;
   }
 
   // Validate message length to prevent token stuffing
   const trimmedMessage = message.trim();
   if (!trimmedMessage) {
-    sendJson(res, 400, { error: "message required" });
+    sendJson(res, 400, { error: "message required" }, req);
     return;
   }
   if (trimmedMessage.length > MAX_MESSAGE_LENGTH) {
     sendJson(res, 400, {
       error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters)`,
-    });
+    }, req);
     return;
   }
   message = trimmedMessage;
@@ -193,7 +205,7 @@ async function handleChat(req: http.IncomingMessage, res: http.ServerResponse) {
 
   if (results.length === 0) {
     res.writeHead(200, {
-      ...corsHeaders,
+      ...getCorsHeaders(req),
       "Content-Type": "text/plain; charset=utf-8",
     });
     res.end(
@@ -218,7 +230,7 @@ async function handleChat(req: http.IncomingMessage, res: http.ServerResponse) {
     context;
 
   res.writeHead(200, {
-    ...corsHeaders,
+    ...getCorsHeaders(req),
     "Content-Type": "text/plain; charset=utf-8",
     "Transfer-Encoding": "chunked",
   });
@@ -236,14 +248,14 @@ async function handleChat(req: http.IncomingMessage, res: http.ServerResponse) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
-    res.writeHead(204, corsHeaders);
+    res.writeHead(204, getCorsHeaders(req));
     res.end();
     return;
   }
 
   if (req.method === "GET" && (req.url === "/" || req.url === "/health")) {
     const count = await store.count();
-    sendJson(res, 200, { ok: true, chunks: count, mode: storeMode });
+    sendJson(res, 200, { ok: true, chunks: count, mode: storeMode }, req);
     return;
   }
 
@@ -263,7 +275,7 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 429, {
           error: "Too many requests. Please wait before trying again.",
           retryAfter,
-        });
+        }, req);
         return;
       }
     }
@@ -272,7 +284,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  sendJson(res, 404, { error: "Not found" });
+  sendJson(res, 404, { error: "Not found" }, req);
 });
 
 // Initialize store and start server
