@@ -23,13 +23,14 @@ services:
     restart: unless-stopped
     # Enable AOF persistence + memory limits
     # maxmemory: 512MB default, override with REDIS_MAXMEMORY env var
-    # eviction: allkeys-lru removes least-recently-used keys when full
+    # eviction: noeviction - reject writes when full (safest for important memories)
+    # The memory plugin should handle cleanup of old entries if needed
     command: >
       redis-server 
       --appendonly yes 
       --appendfsync everysec
       --maxmemory ${REDIS_MAXMEMORY:-512mb}
-      --maxmemory-policy allkeys-lru
+      --maxmemory-policy noeviction
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
