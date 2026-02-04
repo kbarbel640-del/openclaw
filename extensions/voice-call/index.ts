@@ -45,16 +45,6 @@ const voiceCallConfigSchema = {
     "telnyx.publicKey": { label: "Telnyx Public Key", sensitive: true },
     "twilio.accountSid": { label: "Twilio Account SID" },
     "twilio.authToken": { label: "Twilio Auth Token", sensitive: true },
-    "twilio.incomingPhoneNumberSid": {
-      label: "Twilio Incoming Phone SID",
-      help: "IncomingPhoneNumbers SID to update for inbound webhook auto-sync (recommended).",
-      advanced: true,
-    },
-    "twilio.incomingPhoneNumber": {
-      label: "Twilio Incoming Phone Number",
-      help: "E.164 number to look up for inbound webhook auto-sync (less precise than SID).",
-      advanced: true,
-    },
     "twilio.webhookSync.enabled": {
       label: "Auto-sync Twilio Voice Webhook",
       help: "Updates the Twilio inbound Voice webhook URL on every gateway start.",

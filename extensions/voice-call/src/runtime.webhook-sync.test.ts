@@ -36,7 +36,6 @@ describe("createVoiceCallRuntime Twilio webhook auto-sync", () => {
       twilio: {
         accountSid: "AC123",
         authToken: "secret",
-        incomingPhoneNumberSid: "PN123",
       },
       serve: { port, bind: "127.0.0.1", path: "/voice/webhook" },
       publicUrl: "https://example.ngrok.app/voice/webhook",
@@ -77,7 +76,6 @@ describe("createVoiceCallRuntime Twilio webhook auto-sync", () => {
       twilio: {
         accountSid: "AC123",
         authToken: "secret",
-        incomingPhoneNumberSid: "PN123",
         webhookSync: { required: true },
       },
       serve: { port, bind: "127.0.0.1", path: "/voice/webhook" },

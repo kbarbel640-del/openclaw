@@ -48,10 +48,6 @@ export const TwilioConfigSchema = z
     accountSid: z.string().min(1).optional(),
     /** Twilio Auth Token */
     authToken: z.string().min(1).optional(),
-    /** Twilio IncomingPhoneNumbers SID to update for inbound webhook auto-sync */
-    incomingPhoneNumberSid: z.string().min(1).optional(),
-    /** Twilio IncomingPhoneNumbers phone number (E.164) to look up for inbound webhook auto-sync */
-    incomingPhoneNumber: E164Schema.optional(),
     /** Control automatic updates of the inbound Voice webhook URL on gateway start */
     webhookSync: z
       .object({
@@ -60,7 +56,7 @@ export const TwilioConfigSchema = z
         /** If true, fail startup when webhook update fails */
         required: z.boolean().default(false),
         /**
-         * If multiple incoming numbers match `incomingPhoneNumber`, allow picking the first.
+         * If multiple incoming numbers match `fromNumber`, allow picking the first.
          * When false, multiple matches cause a failure.
          */
         allowMultipleMatches: z.boolean().default(false),

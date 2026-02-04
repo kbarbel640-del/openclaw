@@ -29,32 +29,6 @@ describe("TwilioProvider.syncIncomingNumberVoiceWebhook", () => {
     vi.restoreAllMocks();
   });
 
-  it("updates IncomingPhoneNumbers by SID", async () => {
-    const fetchMock = vi.mocked(globalThis.fetch);
-    fetchMock.mockResolvedValue(okResponse());
-
-    const provider = new TwilioProvider({ accountSid: "AC123", authToken: "secret" });
-
-    const result = await provider.syncIncomingNumberVoiceWebhook({
-      webhookUrl: "https://example.ngrok.app/voice/webhook",
-      incomingPhoneNumberSid: "PN123",
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.targetSid).toBe("PN123");
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toContain("/IncomingPhoneNumbers/PN123.json");
-    expect((init as RequestInit).method).toBe("POST");
-
-    const body = (init as RequestInit).body as URLSearchParams;
-    expect(body).toBeInstanceOf(URLSearchParams);
-    expect(body.get("VoiceUrl")).toBe("https://example.ngrok.app/voice/webhook");
-    expect(body.get("VoiceMethod")).toBe("POST");
-  });
-
   it("looks up IncomingPhoneNumbers by phone number and then updates by SID", async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock
@@ -69,7 +43,7 @@ describe("TwilioProvider.syncIncomingNumberVoiceWebhook", () => {
 
     const result = await provider.syncIncomingNumberVoiceWebhook({
       webhookUrl: "https://example.ngrok.app/voice/webhook",
-      incomingPhoneNumber: "+15550001234",
+      phoneNumber: "+15550001234",
     });
 
     expect(result.ok).toBe(true);
@@ -87,6 +61,11 @@ describe("TwilioProvider.syncIncomingNumberVoiceWebhook", () => {
     const [updateUrl, updateInit] = fetchMock.mock.calls[1]!;
     expect(String(updateUrl)).toContain("/IncomingPhoneNumbers/PN999.json");
     expect((updateInit as RequestInit).method).toBe("POST");
+
+    const body = (updateInit as RequestInit).body as URLSearchParams;
+    expect(body).toBeInstanceOf(URLSearchParams);
+    expect(body.get("VoiceUrl")).toBe("https://example.ngrok.app/voice/webhook");
+    expect(body.get("VoiceMethod")).toBe("POST");
   });
 
   it("fails on multiple matches unless allowMultipleMatches is true", async () => {
@@ -101,7 +80,7 @@ describe("TwilioProvider.syncIncomingNumberVoiceWebhook", () => {
 
     const result = await provider.syncIncomingNumberVoiceWebhook({
       webhookUrl: "https://example.ngrok.app/voice/webhook",
-      incomingPhoneNumber: "+15550001234",
+      phoneNumber: "+15550001234",
       allowMultipleMatches: false,
     });
 
@@ -122,7 +101,7 @@ describe("TwilioProvider.syncIncomingNumberVoiceWebhook", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.reason).toContain("Missing Twilio incoming phone number identifier");
+    expect(result.reason).toContain("Missing Twilio phone number");
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
@@ -133,7 +112,7 @@ describe("TwilioProvider.syncIncomingNumberVoiceWebhook", () => {
     const provider = new TwilioProvider({ accountSid: "AC123", authToken: "secret" });
     const result = await provider.syncIncomingNumberVoiceWebhook({
       webhookUrl: "https://example.ngrok.app/voice/webhook",
-      incomingPhoneNumber: "+15550001234",
+      phoneNumber: "+15550001234",
     });
 
     expect(result.ok).toBe(false);

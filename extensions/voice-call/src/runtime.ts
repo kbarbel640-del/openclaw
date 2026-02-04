@@ -223,8 +223,7 @@ export async function createVoiceCallRuntime(params: {
       const twilioProvider = provider as TwilioProvider;
       const result = await twilioProvider.syncIncomingNumberVoiceWebhook({
         webhookUrl,
-        incomingPhoneNumberSid: config.twilio?.incomingPhoneNumberSid,
-        incomingPhoneNumber: config.twilio?.incomingPhoneNumber,
+        phoneNumber: config.fromNumber,
         allowMultipleMatches,
       });
 
@@ -252,7 +251,7 @@ export async function createVoiceCallRuntime(params: {
 
         const message =
           `[voice-call] Twilio webhook auto-sync failed: ${result.reason} ` +
-          `(set plugins.entries.voice-call.config.twilio.incomingPhoneNumberSid or incomingPhoneNumber)`;
+          `(set plugins.entries.voice-call.config.fromNumber)`;
         if (syncRequired) {
           if (tunnelResult) {
             await tunnelResult.stop();
