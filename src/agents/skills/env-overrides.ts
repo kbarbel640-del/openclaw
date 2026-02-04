@@ -43,11 +43,13 @@ const DANGEROUS_ENV_VARS = new Set([
  * Matches exact names in the blocklist plus patterns like LD_*, DYLD_*, etc.
  */
 function isDangerousEnvVar(key: string): boolean {
-  if (DANGEROUS_ENV_VARS.has(key)) {
+  // Normalize to uppercase for case-insensitive matching
+  // (env vars like NODE_OPTIONS can be bypassed with node_options otherwise)
+  const upperKey = key.toUpperCase();
+  if (DANGEROUS_ENV_VARS.has(upperKey)) {
     return true;
   }
   // Block pattern-based dangerous variables
-  const upperKey = key.toUpperCase();
   if (upperKey.startsWith("LD_") || upperKey.startsWith("DYLD_") || upperKey.startsWith("_LD_")) {
     return true;
   }

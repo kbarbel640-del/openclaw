@@ -12,17 +12,30 @@ import { applySkillEnvOverrides, applySkillEnvOverridesFromSnapshot } from "./en
  * being set via skill config env entries.
  */
 describe("VULN-160: skill env override blocking", () => {
-  // Track env vars we modify for cleanup
-  const modifiedEnvVars: string[] = [];
+  // Track env vars we modify for cleanup, storing previous values
+  const modifiedEnvVars = new Map<string, string | undefined>();
+
+  // Helper to capture previous env var values before tests modify them
+  function captureEnvVars(...keys: string[]) {
+    for (const key of keys) {
+      if (!modifiedEnvVars.has(key)) {
+        modifiedEnvVars.set(key, process.env[key]);
+      }
+    }
+  }
 
   beforeEach(() => {
-    modifiedEnvVars.length = 0;
+    modifiedEnvVars.clear();
   });
 
   afterEach(() => {
-    // Clean up any env vars we set during tests
-    for (const key of modifiedEnvVars) {
-      delete process.env[key];
+    // Restore env vars to their previous values (or delete if undefined)
+    for (const [key, prevValue] of modifiedEnvVars) {
+      if (prevValue === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = prevValue;
+      }
     }
   });
 
@@ -64,7 +77,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("NODE_OPTIONS", "SAFE_VAR");
+      captureEnvVars("NODE_OPTIONS", "SAFE_VAR");
 
       const cleanup = applySkillEnvOverrides({ skills, config });
 
@@ -86,7 +99,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("LD_PRELOAD");
+      captureEnvVars("LD_PRELOAD");
 
       const cleanup = applySkillEnvOverrides({ skills, config });
 
@@ -105,7 +118,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("DYLD_INSERT_LIBRARIES");
+      captureEnvVars("DYLD_INSERT_LIBRARIES");
 
       const cleanup = applySkillEnvOverrides({ skills, config });
 
@@ -124,7 +137,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("PYTHONPATH");
+      captureEnvVars("PYTHONPATH");
 
       const cleanup = applySkillEnvOverrides({ skills, config });
 
@@ -143,7 +156,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("BASH_ENV");
+      captureEnvVars("BASH_ENV");
 
       const cleanup = applySkillEnvOverrides({ skills, config });
 
@@ -163,7 +176,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("LD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH");
+      captureEnvVars("LD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH");
 
       const cleanup = applySkillEnvOverrides({ skills, config });
 
@@ -185,7 +198,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MY_CUSTOM_VAR");
+      captureEnvVars("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MY_CUSTOM_VAR");
 
       const cleanup = applySkillEnvOverrides({ skills, config });
 
@@ -204,7 +217,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("TEST_API_KEY");
+      captureEnvVars("TEST_API_KEY");
 
       const cleanup = applySkillEnvOverrides({ skills, config });
 
@@ -216,7 +229,7 @@ describe("VULN-160: skill env override blocking", () => {
     it("cleanup function restores original env state", () => {
       const originalValue = "original-value";
       process.env.TEST_RESTORE_VAR = originalValue;
-      modifiedEnvVars.push("TEST_RESTORE_VAR");
+      captureEnvVars("TEST_RESTORE_VAR");
 
       const skills: SkillEntry[] = [createSkillEntry("test-skill")];
       const config = createConfig({
@@ -227,7 +240,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("NEW_VAR");
+      captureEnvVars("NEW_VAR");
 
       const cleanup = applySkillEnvOverrides({ skills, config });
 
@@ -255,7 +268,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("NODE_OPTIONS", "SAFE_VAR");
+      captureEnvVars("NODE_OPTIONS", "SAFE_VAR");
 
       const cleanup = applySkillEnvOverridesFromSnapshot({ snapshot, config });
 
@@ -280,7 +293,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("LD_PRELOAD");
+      captureEnvVars("LD_PRELOAD");
 
       const cleanup = applySkillEnvOverridesFromSnapshot({ snapshot, config });
 
@@ -300,7 +313,7 @@ describe("VULN-160: skill env override blocking", () => {
         },
       });
 
-      modifiedEnvVars.push("SNAPSHOT_API_KEY");
+      captureEnvVars("SNAPSHOT_API_KEY");
 
       const cleanup = applySkillEnvOverridesFromSnapshot({ snapshot, config });
 
