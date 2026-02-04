@@ -511,47 +511,97 @@ export async function runSubagentAnnounceFlow(params: {
       "You can respond with NO_REPLY if no announcement is needed (e.g., internal task with no user-facing result).",
     ].join("\n");
 
-    const queued = await maybeQueueSubagentAnnounce({
-      requesterSessionKey: params.requesterSessionKey,
-      triggerMessage,
-      summaryLine: taskLabel,
-      requesterOrigin,
-    });
-    if (queued === "steered") {
-      didAnnounce = true;
-      return true;
-    }
-    if (queued === "queued") {
-      didAnnounce = true;
-      return true;
+    const MAX_ANNOUNCE_ATTEMPTS = 3;
+    const ANNOUNCE_RETRY_DELAY_MS = 2000;
+
+    for (let attempt = 0; attempt < MAX_ANNOUNCE_ATTEMPTS; attempt++) {
+      try {
+        const queued = await maybeQueueSubagentAnnounce({
+          requesterSessionKey: params.requesterSessionKey,
+          triggerMessage,
+          summaryLine: taskLabel,
+          requesterOrigin,
+        });
+        if (queued === "steered") {
+          didAnnounce = true;
+          return true;
+        }
+        if (queued === "queued") {
+          didAnnounce = true;
+          return true;
+        }
+
+        // Send to main agent - it will respond in its own voice
+        let directOrigin = requesterOrigin;
+        if (!directOrigin) {
+          const { entry } = loadRequesterSessionEntry(params.requesterSessionKey);
+          directOrigin = deliveryContextFromSession(entry);
+        }
+        await callGateway({
+          method: "agent",
+          params: {
+            sessionKey: params.requesterSessionKey,
+            message: triggerMessage,
+            deliver: true,
+            channel: directOrigin?.channel,
+            accountId: directOrigin?.accountId,
+            to: directOrigin?.to,
+            threadId:
+              directOrigin?.threadId != null && directOrigin.threadId !== ""
+                ? String(directOrigin.threadId)
+                : undefined,
+            idempotencyKey: crypto.randomUUID(),
+          },
+          expectFinal: true,
+          timeoutMs: 60_000,
+        });
+
+        didAnnounce = true;
+        break;
+      } catch (attemptErr) {
+        defaultRuntime.error?.(
+          `Subagent announce attempt ${attempt + 1}/${MAX_ANNOUNCE_ATTEMPTS} failed: ${String(attemptErr)}`,
+        );
+        if (attempt < MAX_ANNOUNCE_ATTEMPTS - 1) {
+          await new Promise((resolve) => setTimeout(resolve, ANNOUNCE_RETRY_DELAY_MS));
+        }
+      }
     }
 
-    // Send to main agent - it will respond in its own voice
-    let directOrigin = requesterOrigin;
-    if (!directOrigin) {
-      const { entry } = loadRequesterSessionEntry(params.requesterSessionKey);
-      directOrigin = deliveryContextFromSession(entry);
+    // If all announce attempts failed, send a brief fallback notification
+    if (!didAnnounce) {
+      try {
+        let fallbackOrigin = requesterOrigin;
+        if (!fallbackOrigin) {
+          const { entry } = loadRequesterSessionEntry(params.requesterSessionKey);
+          fallbackOrigin = deliveryContextFromSession(entry);
+        }
+        await callGateway({
+          method: "agent",
+          params: {
+            sessionKey: params.requesterSessionKey,
+            message: `A background task "${taskLabel}" completed but results could not be delivered. Check the subagent session for details.`,
+            deliver: true,
+            channel: fallbackOrigin?.channel,
+            accountId: fallbackOrigin?.accountId,
+            to: fallbackOrigin?.to,
+            threadId:
+              fallbackOrigin?.threadId != null && fallbackOrigin.threadId !== ""
+                ? String(fallbackOrigin.threadId)
+                : undefined,
+            idempotencyKey: crypto.randomUUID(),
+          },
+          expectFinal: true,
+          timeoutMs: 30_000,
+        });
+        didAnnounce = true;
+      } catch (fallbackErr) {
+        defaultRuntime.error?.(
+          `Subagent announce fallback notification also failed: ${String(fallbackErr)}`,
+        );
+        // "retry on wake" in finalizeSubagentCleanup still applies as last resort
+      }
     }
-    await callGateway({
-      method: "agent",
-      params: {
-        sessionKey: params.requesterSessionKey,
-        message: triggerMessage,
-        deliver: true,
-        channel: directOrigin?.channel,
-        accountId: directOrigin?.accountId,
-        to: directOrigin?.to,
-        threadId:
-          directOrigin?.threadId != null && directOrigin.threadId !== ""
-            ? String(directOrigin.threadId)
-            : undefined,
-        idempotencyKey: crypto.randomUUID(),
-      },
-      expectFinal: true,
-      timeoutMs: 60_000,
-    });
-
-    didAnnounce = true;
   } catch (err) {
     defaultRuntime.error?.(`Subagent announce failed: ${String(err)}`);
     // Best-effort follow-ups; ignore failures to avoid breaking the caller response.

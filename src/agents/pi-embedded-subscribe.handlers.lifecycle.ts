@@ -27,9 +27,12 @@ export function handleAgentStart(ctx: EmbeddedPiSubscribeContext) {
 
 export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
   const lastAssistant = ctx.state.lastAssistant;
-  const isError = isAssistantMessage(lastAssistant) && lastAssistant.stopReason === "error";
+  const isError =
+    isAssistantMessage(lastAssistant) && lastAssistant.stopReason === "error";
 
-  ctx.log.debug(`embedded run agent end: runId=${ctx.params.runId} isError=${isError}`);
+  ctx.log.debug(
+    `embedded run agent end: runId=${ctx.params.runId} isError=${isError}`,
+  );
 
   if (isError && lastAssistant) {
     const friendlyError = formatAssistantErrorText(lastAssistant, {
@@ -41,7 +44,8 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
       stream: "lifecycle",
       data: {
         phase: "error",
-        error: friendlyError || lastAssistant.errorMessage || "LLM request failed.",
+        error:
+          friendlyError || lastAssistant.errorMessage || "LLM request failed.",
         endedAt: Date.now(),
       },
     });
@@ -49,7 +53,8 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
       stream: "lifecycle",
       data: {
         phase: "error",
-        error: friendlyError || lastAssistant.errorMessage || "LLM request failed.",
+        error:
+          friendlyError || lastAssistant.errorMessage || "LLM request failed.",
       },
     });
   } else {

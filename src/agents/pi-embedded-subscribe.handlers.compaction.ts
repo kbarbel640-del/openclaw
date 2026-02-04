@@ -3,6 +3,8 @@ import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handler
 import { emitAgentEvent } from "../infra/agent-events.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 
+const MAX_COMPACTION_RETRIES = 3;
+
 export function handleAutoCompactionStart(ctx: EmbeddedPiSubscribeContext) {
   ctx.state.compactionInFlight = true;
   ctx.incrementCompactionCount();
@@ -41,9 +43,19 @@ export function handleAutoCompactionEnd(
   ctx.state.compactionInFlight = false;
   const willRetry = Boolean(evt.willRetry);
   if (willRetry) {
-    ctx.noteCompactionRetry();
-    ctx.resetForCompactionRetry();
-    ctx.log.debug(`embedded run compaction retry: runId=${ctx.params.runId}`);
+    if (ctx.state.pendingCompactionRetry >= MAX_COMPACTION_RETRIES) {
+      ctx.state.compactionRetryExhausted = true;
+      // Force-resolve: reset pending count so maybeResolveCompactionWait unblocks
+      ctx.state.pendingCompactionRetry = 0;
+      ctx.maybeResolveCompactionWait();
+      ctx.log.warn(
+        `embedded run compaction retries exhausted (${MAX_COMPACTION_RETRIES}): runId=${ctx.params.runId}`,
+      );
+    } else {
+      ctx.noteCompactionRetry();
+      ctx.resetForCompactionRetry();
+      ctx.log.debug(`embedded run compaction retry: runId=${ctx.params.runId}`);
+    }
   } else {
     ctx.maybeResolveCompactionWait();
   }

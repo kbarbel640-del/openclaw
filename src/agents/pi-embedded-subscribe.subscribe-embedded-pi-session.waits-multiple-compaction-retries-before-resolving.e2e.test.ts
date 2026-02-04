@@ -6,6 +6,8 @@ type StubSession = {
   subscribe: (fn: (evt: unknown) => void) => () => void;
 };
 
+type SessionEventHandler = (evt: unknown) => void;
+
 describe("subscribeEmbeddedPiSession", () => {
   const _THINKING_TAG_CASES = [
     { tag: "think", open: "<think>", close: "</think>" },
@@ -205,6 +207,40 @@ describe("subscribeEmbeddedPiSession", () => {
     expect(payload.text).toContain("Browser");
     expect(payload.text).toContain("snapshot");
     expect(payload.text).toContain("https://example.com");
+  });
+
+  it("marks compaction retries as exhausted after MAX_COMPACTION_RETRIES", async () => {
+    let handler: ((evt: unknown) => void) | undefined;
+    const session: StubSession = {
+      subscribe: (fn) => {
+        handler = fn;
+        return () => {};
+      },
+    };
+
+    const subscription = subscribeEmbeddedPiSession({
+      session: session as unknown as Parameters<typeof subscribeEmbeddedPiSession>[0]["session"],
+      runId: "run-exhausted",
+    });
+
+    expect(subscription.isCompactionRetryExhausted()).toBe(false);
+
+    // Send 4 auto_compaction_end events with willRetry: true (MAX is 3)
+    handler?.({ type: "auto_compaction_end", willRetry: true }); // retry 1
+    handler?.({ type: "auto_compaction_end", willRetry: true }); // retry 2
+    handler?.({ type: "auto_compaction_end", willRetry: true }); // retry 3
+    handler?.({ type: "auto_compaction_end", willRetry: true }); // 4th: should exhaust
+
+    expect(subscription.isCompactionRetryExhausted()).toBe(true);
+
+    // waitForCompactionRetry should resolve (not hang)
+    let resolved = false;
+    const waitPromise = subscription.waitForCompactionRetry().then(() => {
+      resolved = true;
+    });
+
+    await waitPromise;
+    expect(resolved).toBe(true);
   });
 
   it("emits exec output in full verbose mode and includes PTY indicator", async () => {
