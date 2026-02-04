@@ -1,13 +1,12 @@
-import { WecomWebhook } from "./webhook.js";
-import { logger } from "./logger.js";
-import { streamManager } from "./stream-manager.js";
 import {
   generateAgentId,
   getDynamicAgentConfig,
   shouldTriggerGroupResponse,
   extractGroupMessageContent,
 } from "./dynamic-agent.js";
-
+import { logger } from "./logger.js";
+import { streamManager } from "./stream-manager.js";
+import { WecomWebhook } from "./webhook.js";
 
 const DEFAULT_ACCOUNT_ID = "default";
 
@@ -17,10 +16,10 @@ const DEFAULT_ACCOUNT_ID = "default";
 
 // 默认允许的斜杠命令（用户操作安全的命令）
 const DEFAULT_COMMAND_ALLOWLIST = [
-  "/new",      // 新建会话
+  "/new", // 新建会话
   "/compact", // 压缩会话
-  "/help",    // 帮助
-  "/status",  // 状态
+  "/help", // 帮助
+  "/status", // 状态
 ];
 
 // 默认拦截消息
@@ -41,7 +40,7 @@ function getCommandConfig(config) {
   return {
     allowlist: commands.allowlist || DEFAULT_COMMAND_ALLOWLIST,
     blockMessage: commands.blockMessage || DEFAULT_COMMAND_BLOCK_MESSAGE,
-    enabled: commands.enabled !== false,  // 默认启用白名单
+    enabled: commands.enabled !== false, // 默认启用白名单
   };
 }
 
@@ -70,9 +69,7 @@ function checkCommandAllowlist(message, config) {
   }
 
   // 检查是否在白名单中
-  const allowed = cmdConfig.allowlist.some(cmd =>
-    cmd.toLowerCase() === command
-  );
+  const allowed = cmdConfig.allowlist.some((cmd) => cmd.toLowerCase() === command);
 
   return { isCommand: true, allowed, command };
 }
@@ -98,7 +95,7 @@ function getRuntime() {
 // Webhook targets registry (similar to Google Chat)
 const webhookTargets = new Map();
 
-// Track active stream for each user, so outbound messages (like reset confirmation) 
+// Track active stream for each user, so outbound messages (like reset confirmation)
 // can be added to the correct stream instead of using response_url
 const activeStreams = new Map();
 
@@ -106,21 +103,26 @@ function normalizeWecomAllowFromEntry(raw) {
   const trimmed = String(raw ?? "").trim();
   if (!trimmed) return null;
   if (trimmed === "*") return "*";
-  return trimmed.replace(/^(wecom|wework):/i, "").replace(/^user:/i, "").toLowerCase();
+  return trimmed
+    .replace(/^(wecom|wework):/i, "")
+    .replace(/^user:/i, "")
+    .toLowerCase();
 }
 
 function resolveWecomAllowFrom(cfg, accountId) {
   const wecom = cfg?.channels?.wecom;
   if (!wecom) return [];
 
-  const normalizedAccountId = String(accountId || DEFAULT_ACCOUNT_ID).trim().toLowerCase();
+  const normalizedAccountId = String(accountId || DEFAULT_ACCOUNT_ID)
+    .trim()
+    .toLowerCase();
   const accounts = wecom.accounts;
   const account =
     accounts && typeof accounts === "object"
-      ? accounts[accountId] ??
-      accounts[
-      Object.keys(accounts).find((key) => key.toLowerCase() === normalizedAccountId) ?? ""
-      ]
+      ? (accounts[accountId] ??
+        accounts[
+          Object.keys(accounts).find((key) => key.toLowerCase() === normalizedAccountId) ?? ""
+        ])
       : undefined;
 
   const allowFromRaw =
@@ -128,13 +130,13 @@ function resolveWecomAllowFrom(cfg, accountId) {
 
   if (!Array.isArray(allowFromRaw)) return [];
 
-  return allowFromRaw
-    .map(normalizeWecomAllowFromEntry)
-    .filter((entry) => Boolean(entry));
+  return allowFromRaw.map(normalizeWecomAllowFromEntry).filter((entry) => Boolean(entry));
 }
 
 function resolveWecomCommandAuthorized({ cfg, accountId, senderId }) {
-  const sender = String(senderId ?? "").trim().toLowerCase();
+  const sender = String(senderId ?? "")
+    .trim()
+    .toLowerCase();
   if (!sender) return false;
 
   const allowFrom = resolveWecomAllowFrom(cfg, accountId);
@@ -181,7 +183,7 @@ const wecomChannelPlugin = {
     aliases: ["wecom", "wework"],
   },
   capabilities: {
-    chatTypes: ["direct", "group"],  // 支持私聊和群聊
+    chatTypes: ["direct", "group"], // 支持私聊和群聊
     reactions: false,
     threads: false,
     media: false,
@@ -239,7 +241,11 @@ const wecomChannelPlugin = {
       const streamId = activeStreams.get(userId);
 
       if (streamId && streamManager.hasStream(streamId)) {
-        logger.debug("Appending outbound text to stream", { userId, streamId, text: text.substring(0, 30) });
+        logger.debug("Appending outbound text to stream", {
+          userId,
+          streamId,
+          text: text.substring(0, 30),
+        });
         // 使用 appendStream 追加内容，保留之前的内容
         const stream = streamManager.getStream(streamId);
         const separator = stream && stream.content.length > 0 ? "\n\n" : "";
@@ -288,7 +294,10 @@ const wecomChannelPlugin = {
   gateway: {
     startAccount: async (ctx) => {
       const account = ctx.account;
-      logger.info("WeCom gateway starting", { accountId: account.accountId, webhookPath: account.webhookPath });
+      logger.info("WeCom gateway starting", {
+        accountId: account.accountId,
+        webhookPath: account.webhookPath,
+      });
 
       const unregister = registerWebhookTarget({
         path: account.webhookPath || "/webhooks/wecom",
@@ -397,13 +406,17 @@ async function wecomHttpHandler(req, res) {
         "", // 初始内容为空
         false, // 未完成
         timestamp,
-        nonce
+        nonce,
       );
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(streamResponse);
 
-      logger.info("Stream initiated", { streamId, from: msg.fromUser, isCommand: content.startsWith("/") });
+      logger.info("Stream initiated", {
+        streamId,
+        from: msg.fromUser,
+        isCommand: content.startsWith("/"),
+      });
       // 异步处理消息 - 调用AI并更新流内容
       processInboundMessage({
         message: msg,
@@ -437,7 +450,7 @@ async function wecomHttpHandler(req, res) {
           "会话已过期",
           true,
           timestamp,
-          nonce
+          nonce,
         );
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(streamResponse);
@@ -450,7 +463,7 @@ async function wecomHttpHandler(req, res) {
         stream.content,
         stream.finished,
         timestamp,
-        nonce
+        nonce,
       );
 
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -459,7 +472,7 @@ async function wecomHttpHandler(req, res) {
       logger.debug("Stream refresh response sent", {
         streamId,
         contentLength: stream.content.length,
-        finished: stream.finished
+        finished: stream.finished,
       });
 
       // 如果流已完成,在一段时间后清理
@@ -500,9 +513,9 @@ async function wecomHttpHandler(req, res) {
         const streamResponse = webhook.buildStreamResponse(
           streamId,
           welcomeMessage,
-          true,  // 直接完成
+          true, // 直接完成
           timestamp,
-          nonce
+          nonce,
         );
 
         logger.info("Sending welcome message", { fromUser, streamId });
@@ -537,8 +550,8 @@ async function processInboundMessage({ message, streamId, timestamp, nonce, acco
   const senderId = message.fromUser;
   const rawContent = message.content || "";
   const responseUrl = message.responseUrl;
-  const chatType = message.chatType || "single";  // "single" 或 "group"
-  const chatId = message.chatId || "";  // 群聊 ID
+  const chatType = message.chatType || "single"; // "single" 或 "group"
+  const chatId = message.chatId || ""; // 群聊 ID
   const isGroupChat = chatType === "group" && chatId;
 
   // 确定 peerId：群聊用 chatId，私聊用 senderId
@@ -586,12 +599,29 @@ async function processInboundMessage({ message, streamId, timestamp, nonce, acco
     logger.warn("WeCom: blocked command", {
       command: commandCheck.command,
       from: senderId,
-      chatType: peerKind
+      chatType: peerKind,
     });
 
     // 通过流式响应返回拦截消息
     if (streamId) {
       streamManager.appendStream(streamId, cmdConfig.blockMessage);
+      streamManager.finishStream(streamId);
+      activeStreams.delete(streamKey);
+    }
+    return;
+  }
+
+  // 命令在白名单中，但用户未授权
+  if (commandCheck.isCommand && !commandAuthorized) {
+    logger.warn("WeCom: command from unauthorized user", {
+      command: commandCheck.command,
+      from: senderId,
+      chatType: peerKind,
+    });
+
+    // 通过流式响应返回未授权消息
+    if (streamId) {
+      streamManager.appendStream(streamId, "⚠️ 您没有权限执行该命令。");
       streamManager.finishStream(streamId);
       activeStreams.delete(streamKey);
     }
@@ -605,7 +635,7 @@ async function processInboundMessage({ message, streamId, timestamp, nonce, acco
     content: rawBody.substring(0, 50),
     streamId,
     isCommand: commandCheck.isCommand,
-    command: commandCheck.command
+    command: commandCheck.command,
   });
 
   // ========================================================================
@@ -639,7 +669,6 @@ async function processInboundMessage({ message, streamId, timestamp, nonce, acco
     route.agentId = targetAgentId;
     route.sessionKey = `agent:${targetAgentId}:${peerKind}:${peerId}`;
   }
-
 
   // Build inbound context
   const storePath = core.session.resolveStorePath(config.session?.store, {
@@ -683,13 +712,15 @@ async function processInboundMessage({ message, streamId, timestamp, nonce, acco
   });
 
   // Record session meta
-  void core.session.recordSessionMetaFromInbound({
-    storePath,
-    sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
-    ctx: ctxPayload,
-  }).catch((err) => {
-    logger.error("WeCom: failed updating session meta", { error: err.message });
-  });
+  void core.session
+    .recordSessionMetaFromInbound({
+      storePath,
+      sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
+      ctx: ctxPayload,
+    })
+    .catch((err) => {
+      logger.error("WeCom: failed updating session meta", { error: err.message });
+    });
 
   // Dispatch reply with AI processing
   await core.reply.dispatchReplyWithBufferedBlockDispatcher({
@@ -707,7 +738,7 @@ async function processInboundMessage({ message, streamId, timestamp, nonce, acco
           payload,
           account,
           responseUrl,
-          senderId: streamKey,  // 使用 streamKey（群聊时是 chatId）
+          senderId: streamKey, // 使用 streamKey（群聊时是 chatId）
           streamId,
         });
 
@@ -730,7 +761,7 @@ async function processInboundMessage({ message, streamId, timestamp, nonce, acco
   // 确保在dispatch完成后标记流为完成（兜底机制）
   if (streamId) {
     streamManager.finishStream(streamId);
-    activeStreams.delete(streamKey);  // 清理活跃流映射
+    activeStreams.delete(streamKey); // 清理活跃流映射
     logger.info("WeCom stream finished (dispatch complete)", { streamId });
   }
 }
@@ -764,9 +795,9 @@ async function deliverWecomReply({ payload, account, responseUrl, senderId, stre
     if (stream.content.includes(content.trim())) {
       logger.debug("WeCom: duplicate content, skipping", {
         streamId: targetStreamId,
-        contentPreview: content.substring(0, 30)
+        contentPreview: content.substring(0, 30),
       });
-      return true;  // 返回 true 表示不需要再发送
+      return true; // 返回 true 表示不需要再发送
     }
 
     const separator = stream.content.length > 0 ? "\n\n" : "";
@@ -798,7 +829,7 @@ async function deliverWecomReply({ payload, account, responseUrl, senderId, stre
   logger.debug("WeCom stream appended", {
     streamId,
     contentLength: text.length,
-    to: senderId
+    to: senderId,
   });
 }
 

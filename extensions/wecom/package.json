@@ -4,11 +4,13 @@
   "description": "OpenClaw WeCom (Enterprise WeChat) channel plugin",
   "type": "module",
   "dependencies": {
-    "fast-xml-parser": "^4.2.0",
-    "openclaw": "workspace:*"
+    "fast-xml-parser": "^4.2.0"
   },
   "devDependencies": {
     "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
   },
   "openclaw": {
     "extensions": [
