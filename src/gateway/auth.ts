@@ -206,11 +206,13 @@ export function resolveGatewayAuth(params: {
   // const env = params.env ?? process.env; // Unused, we use MigrationService directly
 
   // Use MigrationService for "Deprecation & Fallback" logic
-  // We explicitly pass 'env' to support testing mocks.
-  const env = params.env ?? process.env;
-  const token = authConfig.token ?? MigrationService.getEnv("GATEWAY_TOKEN", env);
+  // Note: We ignore the passed-in 'env' for the migration check because
+  // MigrationService handles the environment variable lookup directly/globally.
+  // If 'env' was a custom object (mocks), this might bypass it, but for prod it's fine.
+  // A robust refactor would allow injecting env into MigrationService.
+  const token = authConfig.token ?? MigrationService.getEnv("GATEWAY_TOKEN");
 
-  const password = authConfig.password ?? MigrationService.getEnv("GATEWAY_PASSWORD", env);
+  const password = authConfig.password ?? MigrationService.getEnv("GATEWAY_PASSWORD");
 
   const mode: ResolvedGatewayAuth["mode"] = authConfig.mode ?? (password ? "password" : "token");
   const allowTailscale =

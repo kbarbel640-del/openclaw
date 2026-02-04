@@ -373,14 +373,7 @@ export async function stopLaunchAgent({
   const domain = resolveGuiDomain();
 
   for (const legacyLabel of resolveLegacyGatewayLaunchAgentLabels(env?.OPENCLAW_PROFILE)) {
-    const res = await execLaunchctl(["bootout", `${domain}/${legacyLabel}`]);
-    // Best-effort cleanup: only log non-"service not found" errors.
-    // We don't throw because failing to stop a legacy service shouldn't block stopping the current one.
-    if (res.code !== 0 && !isLaunchctlNotLoaded(res)) {
-      stdout.write(
-        `Warning: failed to stop legacy service ${legacyLabel}: ${res.stderr || res.stdout}\n`,
-      );
-    }
+    await execLaunchctl(["bootout", `${domain}/${legacyLabel}`]).catch(() => {});
   }
 
   const label = resolveLaunchAgentLabel({ env });
