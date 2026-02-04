@@ -253,6 +253,16 @@ importers:
 
   extensions/bluebubbles: {}
 
+  extensions/composio-direct:
+    dependencies:
+      '@sinclair/typebox':
+        specifier: 0.34.47
+        version: 0.34.47
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
   extensions/copilot-proxy: {}
 
   extensions/diagnostics-otel:
@@ -315,6 +325,16 @@ importers:
       openclaw:
         specifier: '>=2026.1.26'
         version: 2026.2.23(@napi-rs/canvas@0.1.94)(@types/express@5.0.6)(audio-decode@2.2.3)(hono@4.11.10)(node-llama-cpp@3.15.1(typescript@5.9.3))
+
+  extensions/image-gen:
+    dependencies:
+      '@sinclair/typebox':
+        specifier: 0.34.47
+        version: 0.34.47
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
 
   extensions/imessage: {}
 
