@@ -50,7 +50,9 @@ export class McpClientManager {
         const executeResult = (await this.client.callTool({
           name: tool.name,
           arguments: args as Record<string, unknown>,
-        })) as unknown as { content: Array<{ type: string; text?: string; data?: string; mimeType?: string }> };
+        })) as unknown as {
+          content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+        };
 
         // Convert MCP result to OpenClaw AgentToolResult
         const content = executeResult.content.map((item) => {
