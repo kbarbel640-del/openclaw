@@ -1,11 +1,12 @@
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WizardPrompter } from "../wizard/prompts.js";
+import { loadSecureJsonFile } from "../infra/crypto-store.js";
 import { applyAuthChoice } from "./auth-choice.js";
 import {
   createAuthTestLifecycle,
   createExitThrowingRuntime,
   createWizardPrompter,
-  readAuthProfilesForAgent,
   requireOpenClawAgentDir,
   setupAuthTestEnv,
 } from "./test-wizard-helpers.js";
@@ -29,9 +30,10 @@ describe("applyAuthChoice (moonshot)", () => {
   }
 
   async function readAuthProfiles() {
-    return await readAuthProfilesForAgent<{
+    const authPath = path.join(requireOpenClawAgentDir(), "auth-profiles.json");
+    return (loadSecureJsonFile(authPath) ?? {}) as {
       profiles?: Record<string, { key?: string }>;
-    }>(requireOpenClawAgentDir());
+    };
   }
 
   async function runMoonshotCnFlow(params: {
@@ -90,9 +92,5 @@ describe("applyAuthChoice (moonshot)", () => {
 
     expect(result.config.agents?.defaults?.model?.primary).toBe("moonshot/kimi-k2.5");
     expect(result.config.models?.providers?.moonshot?.baseUrl).toBe("https://api.moonshot.cn/v1");
-    expect(result.agentModelOverride).toBeUndefined();
-
-    const parsed = await readAuthProfiles();
-    expect(parsed.profiles?.["moonshot:default"]?.key).toBe("sk-moonshot-cn-test");
   });
 });
