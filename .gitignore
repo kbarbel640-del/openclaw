@@ -71,3 +71,16 @@ USER.md
 
 # local tooling
 .serena/
+
+# Vlad workspace files (personal, not part of Moltbot)
+MEMORY.md
+memory/
+notes/
+SESSION-STATE.md
+PREFLIGHT.md
+SOUL.md
+IDENTITY.md
+USER.md
+HEARTBEAT.md
+TOOLS.md
+.clawdhub/
