@@ -1,5 +1,10 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { DiscordActionConfig } from "../../config/config.js";
+import { loadConfig } from "../../config/config.js";
+import {
+  resolveDiscordInlineButtonsScope,
+  resolveDiscordTargetChatType,
+} from "../../discord/inline-buttons.js";
 import {
   createThreadDiscord,
   deleteMessageDiscord,
@@ -241,8 +246,37 @@ export async function handleDiscordMessagingAction(
           ? params.components
           : undefined;
 
-      // Use sendMessageWithButtonsDiscord if components are provided
+      // Validate inline buttons scope if components are provided
       if (components) {
+        const cfg = loadConfig();
+        const inlineButtonsScope = resolveDiscordInlineButtonsScope({
+          cfg,
+          accountId: accountId ?? undefined,
+        });
+
+        if (inlineButtonsScope === "off") {
+          throw new Error(
+            'Discord inline buttons are disabled. Set channels.discord.capabilities.inlineButtons to "dm", "group", "all", or "allowlist".',
+          );
+        }
+
+        if (inlineButtonsScope === "dm" || inlineButtonsScope === "group") {
+          const targetType = resolveDiscordTargetChatType(to);
+          if (targetType === "unknown") {
+            throw new Error(
+              `Discord inline buttons require explicit target type (user: or channel:) when inlineButtons="${inlineButtonsScope}".`,
+            );
+          }
+          if (inlineButtonsScope === "dm" && targetType !== "direct") {
+            throw new Error('Discord inline buttons are limited to DMs when inlineButtons="dm".');
+          }
+          if (inlineButtonsScope === "group" && targetType !== "group") {
+            throw new Error(
+              'Discord inline buttons are limited to channels when inlineButtons="group".',
+            );
+          }
+        }
+
         const result = await sendMessageWithButtonsDiscord(to, content, components, {
           ...(accountId ? { accountId } : {}),
           replyTo,
