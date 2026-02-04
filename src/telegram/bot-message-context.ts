@@ -1,7 +1,7 @@
 import type { Bot } from "grammy";
 import type { OpenClawConfig } from "../config/config.js";
 import type { DmPolicy, TelegramGroupConfig, TelegramTopicConfig } from "../config/types.js";
-import type { StickerMetadata, TelegramContext } from "./bot/types.js";
+import type { AnimationMetadata, StickerMetadata, TelegramContext } from "./bot/types.js";
 import { resolveAckReaction } from "../agents/identity.js";
 import {
   findModelInCatalog,
@@ -58,6 +58,7 @@ export type TelegramMediaRef = {
   path: string;
   contentType?: string;
   stickerMetadata?: StickerMetadata;
+  animationMetadata?: AnimationMetadata;
 };
 
 type TelegramMessageContextOptions = {
@@ -344,6 +345,10 @@ export const buildTelegramMessageContext = async ({
     placeholder = "<media:video>";
   } else if (msg.audio || msg.voice) {
     placeholder = "<media:audio>";
+  } else if (msg.animation) {
+    // Format animation (GIF) with file name if available
+    const fileName = allMedia[0]?.animationMetadata?.fileName;
+    placeholder = fileName ? `<media:gif "${fileName}">` : "<media:gif>";
   } else if (msg.document) {
     placeholder = "<media:document>";
   } else if (msg.sticker) {

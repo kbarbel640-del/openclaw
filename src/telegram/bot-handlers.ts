@@ -202,6 +202,7 @@ export const registerTelegramHandlers = ({
             path: media.path,
             contentType: media.contentType,
             stickerMetadata: media.stickerMetadata,
+            animationMetadata: media.animationMetadata,
           });
         }
       }
@@ -882,6 +883,7 @@ export const registerTelegramHandlers = ({
               path: media.path,
               contentType: media.contentType,
               stickerMetadata: media.stickerMetadata,
+              animationMetadata: media.animationMetadata,
             },
           ]
         : [];
