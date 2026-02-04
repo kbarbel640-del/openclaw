@@ -6,6 +6,7 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Discord: improve forum post creation (tags parsing, schema flexibility, clearer errors). (#7674) Thanks @dongsjoa-byte.
 - Web UI: add Agents dashboard for managing agent files, tools, skills, models, channels, and cron jobs.
 - Security: add healthcheck skill and bootstrap audit guidance. (#7641) Thanks @Takhoffman.
 - Docs: seed zh-CN translations. (#6619) Thanks @joshp123.
