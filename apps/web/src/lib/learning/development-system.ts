@@ -159,8 +159,8 @@ export class DevelopmentSystem {
   initializeState(soulState: SoulState, learningState: LearningState): DevelopmentState {
     // Crafting from action + will
     const craftingSkill = (
-      soulState.actionPo.current * 0.6 +
-      soulState.willHun.current * 0.4
+      soulState.queYin.current * 0.6 +
+      soulState.youJing.current * 0.4
     )
 
     // Artistic from emotion + yin
@@ -171,7 +171,7 @@ export class DevelopmentSystem {
 
     // Engineering from intellect + yang
     const engineeringSkill = (
-      soulState.intellectPo.current * 0.6 +
+      soulState.fuShi.current * 0.6 +
       soulState.yangAspect * 0.4
     )
 

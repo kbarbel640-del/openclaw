@@ -202,7 +202,7 @@ export class TraumaFragilitySystem {
     // Base resilience from guardian + will + coherence
     const resilience = (
       soulState.tunZei.current * 0.4 +
-      soulState.willHun.current * 0.3 +
+      soulState.youJing.current * 0.3 +
       soulState.coherence * 0.3
     )
 
@@ -369,8 +369,8 @@ export class TraumaFragilitySystem {
     const guardianDamage = severity * 0.3
     const willDamage = severity * 0.4
     permanentChanges['tunZei'] = -guardianDamage
-    permanentChanges['willHun'] = -willDamage
-    aspectsShattered.push('tunZei', 'willHun')
+    permanentChanges['youJing'] = -willDamage
+    aspectsShattered.push('tunZei', 'youJing')
 
     // Coherence loss
     const coherenceLoss = severity * 0.5

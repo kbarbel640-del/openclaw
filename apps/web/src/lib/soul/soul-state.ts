@@ -153,6 +153,8 @@ export interface SoulState {
 
   // Hun-Po balance (三魂七魄平衡)
   hunPoBalance: number // -1 (po-heavy) to +1 (hun-floating), 0 = balanced
+  yinAspect: number // Yin intensity from Po (corporeal) forces (0-1)
+  yangAspect: number // Yang intensity from Hun (ethereal) forces (0-1)
 
   // Temporal state
   lastUpdate: Date
@@ -260,14 +262,21 @@ export class SoulStateManager {
 
       // Hun-Po balance (calculated from strengths)
       hunPoBalance: 0,
+      yinAspect: 0,
+      yangAspect: 0,
 
       // Temporal
       lastUpdate: new Date(),
       cyclePhase: Math.random()
     }
 
-    // Calculate initial hun-po balance
+    // Calculate initial hun-po balance and yin-yang aspects
     state.hunPoBalance = this.calculateHunPoBalance(state)
+    // Yang derives from Hun (ethereal): taiGuang, shuangLing, youJing
+    state.yangAspect = (state.taiGuang.current + state.shuangLing.current + state.youJing.current) / 3
+    // Yin derives from Po (corporeal): shiGou, fuShi, queYin, tunZei, feiDu, chuHui, chouFei
+    state.yinAspect = (state.shiGou.current + state.fuShi.current + state.queYin.current +
+      state.tunZei.current + state.feiDu.current + state.chuHui.current + state.chouFei.current) / 7
 
     return state
   }
@@ -952,8 +961,11 @@ export class SoulStateManager {
       newState.mood += 0.02
     }
 
-    // Update hun-po balance
+    // Update hun-po balance and yin-yang aspects
     newState.hunPoBalance = this.calculateHunPoBalance(newState)
+    newState.yangAspect = (newState.taiGuang.current + newState.shuangLing.current + newState.youJing.current) / 3
+    newState.yinAspect = (newState.shiGou.current + newState.fuShi.current + newState.queYin.current +
+      newState.tunZei.current + newState.feiDu.current + newState.chuHui.current + newState.chouFei.current) / 7
 
     // Cycle phase advance
     newState.cyclePhase = (state.cyclePhase + 0.01) % 1

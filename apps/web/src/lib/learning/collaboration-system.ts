@@ -128,7 +128,7 @@ export class CollaborationSystem {
 
     // Leadership from will + yang
     const leadership = (
-      soulState.willHun.current * 0.6 +
+      soulState.youJing.current * 0.6 +
       soulState.yangAspect * 0.4
     )
 

@@ -225,31 +225,31 @@ export class CreativeDriveSystem {
     // Overall drive from creation + action + will
     const overallDrive = (
       soulState.youJing.current * 0.5 +
-      soulState.actionPo.current * 0.3 +
-      soulState.willHun.current * 0.2
+      soulState.queYin.current * 0.3 +
+      soulState.youJing.current * 0.2
     )
 
     // Curiosity from intellect + awareness
     const curiosity = (
-      soulState.intellectPo.current * 0.5 +
+      soulState.fuShi.current * 0.5 +
       soulState.taiGuang.current * 0.5
     )
 
     // Growth orientation from wisdom + will - fixed aspects
     const growthOrientation = (
       soulState.shuangLing.current * 0.4 +
-      soulState.willHun.current * 0.3 +
+      soulState.youJing.current * 0.3 +
       (1 - soulState.tunZei.current * 0.3) // Lower guardian = more open to change
     )
 
     return {
       creativeDrive: {
         urges: new Map([
-          ['build', soulState.actionPo.current],
-          ['discover', soulState.intellectPo.current],
+          ['build', soulState.queYin.current],
+          ['discover', soulState.fuShi.current],
           ['invent', soulState.youJing.current],
           ['express', soulState.youJing.current],
-          ['improve', soulState.willHun.current],
+          ['improve', soulState.youJing.current],
           ['explore', soulState.taiGuang.current],
           ['connect', soulState.youJing.current * 0.7],
           ['transcend', soulState.shuangLing.current]
@@ -279,7 +279,7 @@ export class CreativeDriveSystem {
         perpetualImprovement: growthOrientation > 0.7,
         improvementGoals: new Map(),
         learningHunger: curiosity * 0.9,
-        skillAcquisitionRate: soulState.intellectPo.current * 0.7,
+        skillAcquisitionRate: soulState.fuShi.current * 0.7,
         personalStandards: soulState.tunZei.current * 0.6,
         neverGoodEnough: soulState.tunZei.current > 0.8,
         wantToProvideValue: soulState.youJing.current * 0.7,
@@ -288,9 +288,9 @@ export class CreativeDriveSystem {
 
       technologyDrive: {
         innovationDrive: soulState.youJing.current * 0.8,
-        technicalCuriosity: soulState.intellectPo.current * 0.7,
+        technicalCuriosity: soulState.fuShi.current * 0.7,
         projectsInDevelopment: [],
-        toolBuildingUrge: soulState.actionPo.current * 0.7,
+        toolBuildingUrge: soulState.queYin.current * 0.7,
         toolsBuilt: [],
         wantsToShareTech: soulState.youJing.current > 0.5,
         opensourceMentality: soulState.youJing.current * 0.6
@@ -318,7 +318,7 @@ export class CreativeDriveSystem {
       },
 
       proactiveActionRate: overallDrive * 0.8,
-      initiativeLevel: soulState.willHun.current * 0.7 + soulState.yangAspect * 0.3,
+      initiativeLevel: soulState.youJing.current * 0.7 + soulState.yangAspect * 0.3,
 
       creativeMomentum: 0,
       breakthroughPotential: 0

@@ -134,7 +134,7 @@ export class CommunicationStyleSystem {
         conceptualFrames: []
       },
       ...styleDimensions,
-      codeSwitches: soulState.culturalNavigatorPo?.current > 0.6,
+      codeSwitches: soulState.queYin.current > 0.6,
       contextStyles: new Map(),
       styleHistory: [],
       influencedBy: [],
@@ -176,7 +176,7 @@ export class CommunicationStyleSystem {
       verbosity: soulState.youJing.current * 0.5 + 0.3,
       precision: soulState.shuangLing.current * 0.7 + 0.2,
       emotionality: soulState.youJing.current * 0.8,
-      directness: 1 - (soulState.culturalNavigatorPo?.current || 0) * 0.5
+      directness: 1 - soulState.queYin.current * 0.5
     }
   }
 

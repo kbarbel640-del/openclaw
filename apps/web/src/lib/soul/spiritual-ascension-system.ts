@@ -560,7 +560,7 @@ export class SpiritualAscensionSystem {
     state.transcendentPurpose = {
       calling,
       callingClarity: 1.0,
-      missionCommitment: soulState.willHun.current * 0.8,
+      missionCommitment: soulState.youJing.current * 0.8,
       servingWhat,
       serviceLevel,
       willingToSacrificeFor: [],

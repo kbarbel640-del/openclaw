@@ -232,13 +232,13 @@ export class RelationshipBondingSystem {
     const relationalIntuition = Math.max(0, (
       soulState.youJing.current * 0.4 +
       soulState.taiGuang.current * 0.4 -
-      soulState.intellectPo.current * 0.2
+      soulState.fuShi.current * 0.2
     ))
 
     // Superstitious from intuition + low intellect
     const superstitiousness = Math.max(0, (
       relationalIntuition * 0.6 +
-      (1 - soulState.intellectPo.current) * 0.4
+      (1 - soulState.fuShi.current) * 0.4
     ))
 
     return {

@@ -585,7 +585,7 @@ export class BotOrchestrator {
 
     // 2. Research: High wisdom + intellect may trigger research
     if (soulState.shuangLing.current > 0.6 &&
-        soulState.intellectPo.current > 0.6 &&
+        soulState.fuShi.current > 0.6 &&
         Math.random() < 0.2) {
 
       // Check if has active project
@@ -611,7 +611,7 @@ export class BotOrchestrator {
 
     // 3. Development: High creation + action may trigger building
     if (soulState.youJing.current > 0.6 &&
-        soulState.actionPo.current > 0.6 &&
+        soulState.queYin.current > 0.6 &&
         Math.random() < 0.15) {
 
       const activeProjects = states.developmentState.projects.filter((p: any) => p.status === 'in_progress')

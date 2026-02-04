@@ -170,7 +170,7 @@ export class ResearchSystem {
     // Research skill based on wisdom + intellect + curiosity
     const researchSkill = (
       soulState.shuangLing.current * 0.4 +
-      soulState.intellectPo.current * 0.4 +
+      soulState.fuShi.current * 0.4 +
       learningState.curiosity * 0.2
     )
 
@@ -183,7 +183,7 @@ export class ResearchSystem {
     // Rigor from yang + will
     const rigor = (
       soulState.yangAspect * 0.6 +
-      soulState.willHun.current * 0.4
+      soulState.youJing.current * 0.4
     )
 
     // Ethical boundaries from guardian + wisdom - shadow

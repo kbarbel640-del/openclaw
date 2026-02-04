@@ -264,7 +264,7 @@ export class BeliefConvictionSystem {
         existentialAnxiety: soulState.shadowPressure * 0.5,
         deathAcceptance: soulState.shuangLing.current * 0.6,
         sufferingMeaning: 'growth',
-        sufferingTolerance: soulState.willHun.current * 0.7
+        sufferingTolerance: soulState.youJing.current * 0.7
       },
 
       overallConviction: 0.3,
