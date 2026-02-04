@@ -416,7 +416,13 @@ class GatewaySession(
     }
 
     private suspend fun handleMessage(text: String) {
-      val frame = json.parseToJsonElement(text).asObjectOrNull() ?: return
+      val frame =
+        try {
+          json.parseToJsonElement(text).asObjectOrNull()
+        } catch (err: Throwable) {
+          Log.w(loggerTag, "failed to parse gateway frame: ${err.message ?: err::class.java.simpleName}")
+          null
+        } ?: return
       when (frame["type"].asStringOrNull()) {
         "res" -> handleResponse(frame)
         "event" -> handleEvent(frame)
@@ -473,12 +479,27 @@ class GatewaySession(
       val payload =
         try {
           json.parseToJsonElement(payloadJson).asObjectOrNull()
-        } catch (_: Throwable) {
+        } catch (err: Throwable) {
+          Log.w(loggerTag, "invalid node.invoke.request payload: ${err.message ?: err::class.java.simpleName}")
           null
         } ?: return
-      val id = payload["id"].asStringOrNull() ?: return
-      val nodeId = payload["nodeId"].asStringOrNull() ?: return
-      val command = payload["command"].asStringOrNull() ?: return
+      val id = payload["id"].asStringOrNull()
+      val nodeId = payload["nodeId"].asStringOrNull()
+      if (id.isNullOrBlank() || nodeId.isNullOrBlank()) {
+        Log.w(loggerTag, "node.invoke.request missing id/nodeId")
+        return
+      }
+      val command = payload["command"].asStringOrNull()
+      if (command.isNullOrBlank()) {
+        scope.launch {
+          sendInvokeResult(
+            id = id,
+            nodeId = nodeId,
+            result = InvokeResult.error("INVALID_REQUEST", "INVALID_REQUEST: missing command"),
+          )
+        }
+        return
+      }
       val params =
         payload["paramsJSON"].asStringOrNull()
           ?: payload["params"]?.let { value -> if (value is JsonNull) null else value.toString() }

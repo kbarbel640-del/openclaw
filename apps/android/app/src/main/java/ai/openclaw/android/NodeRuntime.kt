@@ -143,6 +143,7 @@ class NodeRuntime(context: Context) {
 
   private val _isForeground = MutableStateFlow(true)
   val isForeground: StateFlow<Boolean> = _isForeground.asStateFlow()
+  @Volatile private var backgroundAtElapsedMs: Long? = null
 
   private var lastAutoA2uiUrl: String? = null
   private var operatorConnected = false
@@ -163,6 +164,8 @@ class NodeRuntime(context: Context) {
         _remoteAddress.value = remote
         _seamColorArgb.value = DEFAULT_SEAM_COLOR_ARGB
         applyMainSessionKey(mainSessionKey)
+        chat.load(resolveMainSessionKey())
+        chat.refreshSessions(limit = 200)
         updateStatus()
         scope.launch { refreshBrandingFromGateway() }
         scope.launch { refreshWakeWordsFromGateway() }
@@ -389,7 +392,19 @@ class NodeRuntime(context: Context) {
   }
 
   fun setForeground(value: Boolean) {
+    if (value) {
+      backgroundAtElapsedMs = null
+    } else if (backgroundAtElapsedMs == null) {
+      backgroundAtElapsedMs = SystemClock.elapsedRealtime()
+    }
     _isForeground.value = value
+  }
+
+  private fun canHandleForegroundOnlyInvoke(): Boolean {
+    if (_isForeground.value) return true
+    val backgroundAt = backgroundAtElapsedMs ?: return false
+    // Allow a short grace window so transient lifecycle churn does not flap invoke behavior.
+    return SystemClock.elapsedRealtime() - backgroundAt < FOREGROUND_GRACE_MS
   }
 
   fun setDisplayName(value: String) {
@@ -541,7 +556,7 @@ class NodeRuntime(context: Context) {
       caps = emptyList(),
       commands = emptyList(),
       permissions = emptyMap(),
-      client = buildClientInfo(clientId = "openclaw-control-ui", clientMode = "ui"),
+      client = buildClientInfo(clientId = "openclaw-android", clientMode = "ui"),
       userAgent = buildUserAgent(),
     )
   }
@@ -832,7 +847,7 @@ class NodeRuntime(context: Context) {
         command.startsWith(OpenClawCameraCommand.NamespacePrefix) ||
         command.startsWith(OpenClawScreenCommand.NamespacePrefix)
       ) {
-      if (!isForeground.value) {
+      if (!canHandleForegroundOnlyInvoke()) {
         return GatewaySession.InvokeResult.error(
           code = "NODE_BACKGROUND_UNAVAILABLE",
           message = "NODE_BACKGROUND_UNAVAILABLE: canvas/camera/screen commands require foreground",
@@ -975,7 +990,7 @@ class NodeRuntime(context: Context) {
       }
       OpenClawLocationCommand.Get.rawValue -> {
         val mode = locationMode.value
-        if (!isForeground.value && mode != LocationMode.Always) {
+        if (!canHandleForegroundOnlyInvoke() && mode != LocationMode.Always) {
           return GatewaySession.InvokeResult.error(
             code = "LOCATION_BACKGROUND_UNAVAILABLE",
             message = "LOCATION_BACKGROUND_UNAVAILABLE: background location requires Always",
@@ -987,7 +1002,7 @@ class NodeRuntime(context: Context) {
             message = "LOCATION_PERMISSION_REQUIRED: grant Location permission",
           )
         }
-        if (!isForeground.value && mode == LocationMode.Always && !hasBackgroundLocationPermission()) {
+        if (!canHandleForegroundOnlyInvoke() && mode == LocationMode.Always && !hasBackgroundLocationPermission()) {
           return GatewaySession.InvokeResult.error(
             code = "LOCATION_PERMISSION_REQUIRED",
             message = "LOCATION_PERMISSION_REQUIRED: enable Always in system Settings",
@@ -1202,6 +1217,7 @@ class NodeRuntime(context: Context) {
 private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 private const val DEFAULT_SEAM_COLOR_ARGB: Long = 0xFF4F7A9A
+private const val FOREGROUND_GRACE_MS: Long = 1_500L
 
 private const val a2uiReadyCheckJS: String =
   """
