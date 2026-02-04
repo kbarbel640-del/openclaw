@@ -22,8 +22,6 @@ const mockPrimary = {
   close: vi.fn(async () => {}),
 };
 
-const mockMemoryIndexGet = vi.fn(async () => null);
-
 vi.mock("./qmd-manager.js", () => ({
   QmdMemoryManager: {
     create: vi.fn(async () => mockPrimary),
@@ -32,7 +30,7 @@ vi.mock("./qmd-manager.js", () => ({
 
 vi.mock("./manager.js", () => ({
   MemoryIndexManager: {
-    get: mockMemoryIndexGet,
+    get: vi.fn(async () => null),
   },
 }));
 
@@ -48,9 +46,9 @@ beforeEach(() => {
   mockPrimary.probeEmbeddingAvailability.mockClear();
   mockPrimary.probeVectorAvailability.mockClear();
   mockPrimary.close.mockClear();
-  QmdMemoryManager.create.mockClear();
-  mockMemoryIndexGet.mockClear();
-  mockMemoryIndexGet.mockResolvedValue(null);
+  vi.mocked(QmdMemoryManager.create).mockClear();
+  vi.mocked(MemoryIndexManager.get).mockClear();
+  vi.mocked(MemoryIndexManager.get).mockResolvedValue(null);
 });
 
 describe("getMemorySearchManager caching", () => {
@@ -81,7 +79,9 @@ describe("getMemorySearchManager caching", () => {
     mockPrimary.search.mockRejectedValueOnce(new Error("QMD search failed"));
 
     // Mock builtin index to fail due to missing auth (simulating no OpenAI key)
-    mockMemoryIndexGet.mockRejectedValueOnce(new Error("No API key found for provider: openai"));
+    vi.mocked(MemoryIndexManager.get).mockRejectedValueOnce(
+      new Error("No API key found for provider: openai"),
+    );
 
     const result = await getMemorySearchManager({ cfg, agentId });
     expect(result.manager).toBeTruthy();
