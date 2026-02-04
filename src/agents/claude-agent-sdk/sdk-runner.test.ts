@@ -550,4 +550,25 @@ describe("runSdkAgent", () => {
       }
     });
   });
+
+  describe("compaction handoff stripping", () => {
+    it("removes compaction handoff boilerplate from final text", async () => {
+      const queryFn = vi.fn().mockReturnValue(
+        eventsFrom([
+          {
+            text: [
+              "Summary line.",
+              "Please continue the conversation from where we left it off without asking the user any further questions.",
+              "More details that should be stripped.",
+            ].join("\n"),
+          },
+        ]),
+      );
+      mockLoadSdk.mockResolvedValue({ query: queryFn });
+
+      const result = await runSdkAgent(baseParams());
+
+      expect(result.payloads[0].text).toBe("Summary line.");
+    });
+  });
 });

@@ -19,6 +19,7 @@ import type { SdkRunnerQueryOptions } from "./tool-bridge.types.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { formatMcpToolNamesForLog } from "../../mcp/tool-name-format.js";
 import { stripReasoningTagsFromText } from "../../shared/text/reasoning-tags.js";
+import { stripCompactionHandoffText } from "../pi-embedded-utils.js";
 import { normalizeToolName } from "../tool-policy.js";
 
 const log = createSubsystemLogger("sdk-runner");
@@ -903,10 +904,12 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
   );
 
   // Strip thinking/reasoning tags from the final text before delivering to channels.
-  const text = stripReasoningTagsFromText((resultText ?? chunks.join("\n\n")).trim(), {
-    mode: "strict",
-    trim: "both",
-  });
+  const text = stripCompactionHandoffText(
+    stripReasoningTagsFromText((resultText ?? chunks.join("\n\n")).trim(), {
+      mode: "strict",
+      trim: "both",
+    }),
+  );
 
   if (!text) {
     log.warn("No text output after stream — returning error");

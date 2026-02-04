@@ -20,6 +20,7 @@ import {
   isLikelyContextOverflowError,
   sanitizeUserFacingText,
 } from "../../agents/pi-embedded-helpers.js";
+import { stripCompactionHandoffText } from "../../agents/pi-embedded-utils.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import {
   resolveAgentIdFromSessionKey,
@@ -135,12 +136,13 @@ export async function runAgentTurnWithFallback(params: {
           return { skip: true };
         }
         const sanitized = sanitizeUserFacingText(text);
-        if (!sanitized.trim()) {
+        const withoutCompaction = stripCompactionHandoffText(sanitized);
+        if (!withoutCompaction.trim()) {
           return { skip: true };
         }
         // Strip thinking/reasoning tags to prevent them from leaking into channel deliveries.
         // This covers both SDK and Pi runtime streamed block replies.
-        const reasoningStripped = stripReasoningTagsFromText(sanitized, {
+        const reasoningStripped = stripReasoningTagsFromText(withoutCompaction, {
           mode: "strict",
           trim: "both",
         });
