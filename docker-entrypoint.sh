@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Force OpenClaw to use /data as HOME
-export HOME=/data
+# Prefer /data for persistence, but fall back when not writable
+OPENCLAW_DATA_DIR=/data
+mkdir -p /data/.openclaw 2>/dev/null || true
+if [ ! -w /data/.openclaw ]; then
+    OPENCLAW_DATA_DIR=/tmp/openclaw
+    mkdir -p "$OPENCLAW_DATA_DIR/.openclaw" 2>/dev/null || true
+    echo "[entrypoint] /data is not writable; falling back to $OPENCLAW_DATA_DIR"
+fi
+
+# Force OpenClaw to use the selected data dir as HOME
+export HOME="$OPENCLAW_DATA_DIR"
+export OPENCLAW_DATA_DIR
 
 # Config path follows OpenClaw convention: ~/.openclaw/openclaw.json
 : "${OPENCLAW_CONFIG_PATH:=${HOME}/.openclaw/openclaw.json}"
@@ -13,7 +23,7 @@ export OPENCLAW_CONFIG_PATH
 export OPENCLAW_GATEWAY_PORT
 
 # Create directories
-mkdir -p /data/.openclaw /data/workspace 2>/dev/null || true
+mkdir -p "$OPENCLAW_DATA_DIR/.openclaw" "$OPENCLAW_DATA_DIR/workspace" 2>/dev/null || true
 
 # Generate a gateway token if not already set (required for non-loopback binding)
 if [ -z "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
@@ -44,6 +54,7 @@ if [ "${1:-}" = "gateway" ] || [ "${1:-}" = "node" ]; then
     node -e "
 const fs = require('fs');
 const configPath = '$OPENCLAW_CONFIG_PATH';
+const dataDir = process.env.OPENCLAW_DATA_DIR || '/data';
 let cfg = {};
 try { cfg = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
 
@@ -60,31 +71,31 @@ delete cfg.gateway.customBindHost;
 cfg.browser = cfg.browser || {};
 cfg.browser.profiles = cfg.browser.profiles || {};
 cfg.browser.profiles.main = {
-  userDataDir: '/data/browser-profiles/main',
+  userDataDir: `${dataDir}/browser-profiles/main`,
   headless: true
 };
 cfg.browser.profiles.google = {
-  userDataDir: '/data/browser-profiles/google',
+  userDataDir: `${dataDir}/browser-profiles/google`,
   headless: true
 };
 cfg.browser.profiles.facebook = {
-  userDataDir: '/data/browser-profiles/facebook',
+  userDataDir: `${dataDir}/browser-profiles/facebook`,
   headless: true
 };
 cfg.browser.profiles.instagram = {
-  userDataDir: '/data/browser-profiles/instagram',
+  userDataDir: `${dataDir}/browser-profiles/instagram`,
   headless: true
 };
 cfg.browser.profiles.linkedin = {
-  userDataDir: '/data/browser-profiles/linkedin',
+  userDataDir: `${dataDir}/browser-profiles/linkedin`,
   headless: true
 };
 cfg.browser.profiles.tiktok = {
-  userDataDir: '/data/browser-profiles/tiktok',
+  userDataDir: `${dataDir}/browser-profiles/tiktok`,
   headless: true
 };
 cfg.browser.profiles.github = {
-  userDataDir: '/data/browser-profiles/github',
+  userDataDir: `${dataDir}/browser-profiles/github`,
   headless: true
 };
 
@@ -107,13 +118,13 @@ console.log('[entrypoint] Browser profiles:', Object.keys(cfg.browser.profiles).
 "
 
     # Create browser profile directories
-    mkdir -p /data/browser-profiles/main \
-             /data/browser-profiles/google \
-             /data/browser-profiles/facebook \
-             /data/browser-profiles/instagram \
-             /data/browser-profiles/linkedin \
-             /data/browser-profiles/tiktok \
-             /data/browser-profiles/github
+    mkdir -p "$OPENCLAW_DATA_DIR/browser-profiles/main" \
+             "$OPENCLAW_DATA_DIR/browser-profiles/google" \
+             "$OPENCLAW_DATA_DIR/browser-profiles/facebook" \
+             "$OPENCLAW_DATA_DIR/browser-profiles/instagram" \
+             "$OPENCLAW_DATA_DIR/browser-profiles/linkedin" \
+             "$OPENCLAW_DATA_DIR/browser-profiles/tiktok" \
+             "$OPENCLAW_DATA_DIR/browser-profiles/github"
 
     exec node /app/openclaw.mjs gateway run \
         --bind lan \
