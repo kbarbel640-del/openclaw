@@ -31,7 +31,9 @@ describe("execDocker", () => {
     };
     spawnMock.mockReturnValue(mockChild);
 
-    await expect(execDocker(["version"])).rejects.toThrow("Docker is not installed or not in PATH");
+    await expect(execDocker(["version"])).rejects.toThrow(
+      "Docker is not installed or not in PATH. Install Docker to use sandbox mode.",
+    );
   });
 
   it("handles successful docker execution", async () => {

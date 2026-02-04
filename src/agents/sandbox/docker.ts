@@ -11,19 +11,9 @@ const HOT_CONTAINER_WINDOW_MS = 5 * 60 * 1000;
 
 export function execDocker(args: string[], opts?: { allowFailure?: boolean }) {
   return new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
-    let child: ReturnType<typeof spawn>;
-    try {
-      child = spawn("docker", args, {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error && err.message.includes("ENOENT")
-          ? "Docker is not installed or not in PATH. Install Docker to use sandbox mode."
-          : `Failed to spawn docker: ${err instanceof Error ? err.message : String(err)}`;
-      reject(new Error(message));
-      return;
-    }
+    const child = spawn("docker", args, {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let stdout = "";
     let stderr = "";
     let resolved = false;
