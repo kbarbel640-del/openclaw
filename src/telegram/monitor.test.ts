@@ -166,6 +166,26 @@ describe("monitorTelegramProvider (grammY)", () => {
     );
   });
 
+  it("matches default token sources when accounts are configured", async () => {
+    loadConfig.mockReturnValue({
+      agents: { defaults: { maxConcurrent: 2 } },
+      channels: {
+        telegram: {
+          botToken: "tok-default",
+          accounts: {
+            brainworms: { botToken: "tok-brainworms" },
+          },
+        },
+      },
+    });
+
+    await monitorTelegramProvider({ token: "tok-default" });
+
+    expect(createTelegramBotSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: "default" }),
+    );
+  });
+
   it("requires mention in groups by default", async () => {
     Object.values(api).forEach((fn) => {
       fn?.mockReset?.();

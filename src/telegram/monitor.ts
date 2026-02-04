@@ -7,6 +7,7 @@ import { computeBackoff, sleepWithAbort } from "../infra/backoff.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import { formatDurationMs } from "../infra/format-duration.js";
 import { registerUnhandledRejectionHandler } from "../infra/unhandled-rejections.js";
+import { DEFAULT_ACCOUNT_ID } from "../routing/session-key.js";
 import { listTelegramAccountIds, resolveTelegramAccount } from "./accounts.js";
 import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { createTelegramBot } from "./bot.js";
@@ -108,7 +109,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
     const tokenOverride = opts.token?.trim();
     let accountId = opts.accountId;
     if (tokenOverride && !accountId) {
-      const ids = listTelegramAccountIds(cfg);
+      const ids = [DEFAULT_ACCOUNT_ID, ...listTelegramAccountIds(cfg)];
       const match = ids.find(
         (candidate) => resolveTelegramToken(cfg, { accountId: candidate }).token === tokenOverride,
       );
