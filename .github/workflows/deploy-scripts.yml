@@ -48,12 +48,13 @@ jobs:
             --parameters 'commands=[
               "sudo rm -r /opt/openclaw/runtime"
               "sudo mkdir -p /opt/openclaw/runtime",
-              "sudo git clone --depth 1 https://github.com/aron98/openclaw.git /opt/openclaw/runtime"
-              "sudo pnpm install --frozen-lockfile"
-              "sudo pnpm ui:build || echo "UI build skipped or failed, continuing..."
-              "sudo pnpm build"
+              "sudo git clone --depth 1 https://github.com/aron98/openclaw.git /opt/openclaw/runtime",
+              "sudo pnpm install --frozen-lockfile",
+              "sudo pnpm ui:build || echo "UI build skipped or failed, continuing...",
+              "sudo pnpm build",
               "sudo chown -R root:openclaw /opt/openclaw",
-              "sudo chmod -R 755 /opt/openclaw/runtime"
+              "sudo chmod -R 755 /opt/openclaw/runtime",
+              "sudo chmod +x "/opt/openclaw/runtime/openclaw.mjs" 2>/dev/null || true"
               "sudo bash /opt/openclaw/runtime/infra/bootstrap/deploy.sh"
             ]' \
             --comment "Deploy OpenClaw bootstrap scripts"
