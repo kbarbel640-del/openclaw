@@ -177,39 +177,33 @@ export async function resolveOAuthToken(
   registry: SecretRegistry,
   profileId: string,
 ): Promise<string | null> {
-  // Get the credential directly from the store
+  // Get the credential to check provider type
   const cred = registry.oauthProfiles.get(profileId);
   if (!cred) {
     return null;
   }
   
-  // Check if token is expired and needs refresh
-  if (Date.now() >= cred.expires) {
-    // Let resolveApiKeyForProfile handle the refresh
-    const result = await resolveApiKeyForProfile({
-      store: registry.authStore,
-      profileId,
-      agentDir: registry.agentDir,
-    });
-    
-    if (!result?.apiKey) {
-      return null;
-    }
-    
-    // For google-gemini-cli, the apiKey is JSON - extract the token
-    if (cred.provider === "google-gemini-cli" || cred.provider === "google-antigravity") {
-      try {
-        const parsed = JSON.parse(result.apiKey);
-        return parsed.token ?? null;
-      } catch {
-        // If not JSON, return as-is
-        return result.apiKey;
-      }
-    }
-    
-    return result.apiKey;
+  // Always call resolveApiKeyForProfile - it handles refresh internally
+  const result = await resolveApiKeyForProfile({
+    store: registry.authStore,
+    profileId,
+    agentDir: registry.agentDir,
+  });
+  
+  if (!result?.apiKey) {
+    return null;
   }
   
-  // Token is still valid, return the access token directly
-  return cred.access;
+  // For google-gemini-cli, the apiKey is JSON - extract the token
+  if (cred.provider === "google-gemini-cli" || cred.provider === "google-antigravity") {
+    try {
+      const parsed = JSON.parse(result.apiKey);
+      return parsed.token ?? null;
+    } catch {
+      // If not JSON, return as-is
+      return result.apiKey;
+    }
+  }
+  
+  return result.apiKey;
 }
