@@ -55,13 +55,14 @@ beforeEach(() => {
 
 describe("getMemorySearchManager caching", () => {
   it("reuses the same QMD manager instance for repeated calls", async () => {
+    const agentId = "agent-cache-test-1";
     const cfg = {
       memory: { backend: "qmd", qmd: {} },
-      agents: { list: [{ id: "main", default: true, workspace: "/tmp/workspace" }] },
+      agents: { list: [{ id: agentId, default: true, workspace: "/tmp/workspace" }] },
     } as const;
 
-    const first = await getMemorySearchManager({ cfg, agentId: "main" });
-    const second = await getMemorySearchManager({ cfg, agentId: "main" });
+    const first = await getMemorySearchManager({ cfg, agentId });
+    const second = await getMemorySearchManager({ cfg, agentId });
 
     expect(first.manager).toBe(second.manager);
     // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -69,20 +70,20 @@ describe("getMemorySearchManager caching", () => {
   });
 
   it("handles fallback errors gracefully when QMD fails and builtin requires auth", async () => {
+    // Use unique agent ID to avoid cache interference from other tests
+    const agentId = "agent-fallback-test-1";
     const cfg = {
       memory: { backend: "qmd", qmd: {} },
-      agents: { list: [{ id: "main", default: true, workspace: "/tmp/workspace" }] },
+      agents: { list: [{ id: agentId, default: true, workspace: "/tmp/workspace" }] },
     } as const;
 
     // Mock QMD primary to fail on search
     mockPrimary.search.mockRejectedValueOnce(new Error("QMD search failed"));
 
     // Mock builtin index to fail due to missing auth (simulating no OpenAI key)
-    mockMemoryIndexGet.mockRejectedValueOnce(
-      new Error("No API key found for provider: openai"),
-    );
+    mockMemoryIndexGet.mockRejectedValueOnce(new Error("No API key found for provider: openai"));
 
-    const result = await getMemorySearchManager({ cfg, agentId: "main" });
+    const result = await getMemorySearchManager({ cfg, agentId });
     expect(result.manager).toBeTruthy();
 
     // First search should try QMD and fail
