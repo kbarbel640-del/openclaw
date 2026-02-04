@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WizardPrompter } from "../wizard/prompts.js";
+import { loadSecureJsonFile } from "../infra/crypto-store.js";
 import { applyAuthChoice, resolvePreferredProviderForAuthChoice } from "./auth-choice.js";
 import { GOOGLE_GEMINI_DEFAULT_MODEL } from "./google-gemini-model-default.js";
 import {
@@ -15,7 +16,6 @@ import {
   createAuthTestLifecycle,
   createExitThrowingRuntime,
   createWizardPrompter,
-  readAuthProfilesForAgent,
   requireOpenClawAgentDir,
   setupAuthTestEnv,
 } from "./test-wizard-helpers.js";
@@ -109,9 +109,10 @@ describe("applyAuthChoice", () => {
     };
   }
   async function readAuthProfiles() {
-    return await readAuthProfilesForAgent<{
+    const authPath = authProfilePathForAgent(requireOpenClawAgentDir());
+    return (loadSecureJsonFile(authPath) ?? {}) as {
       profiles?: Record<string, StoredAuthProfile>;
-    }>(requireOpenClawAgentDir());
+    };
   }
   async function readAuthProfile(profileId: string) {
     return (await readAuthProfiles()).profiles?.[profileId];
