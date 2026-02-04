@@ -30,6 +30,8 @@ import {
   listChannelSupportedActions,
   resolveChannelMessageToolHints,
 } from "../../channel-tools.js";
+import { estimateMessagesTokens } from "../../compaction.js";
+import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
@@ -873,6 +875,9 @@ export async function runEmbeddedAttempt(
           workspaceDir: params.workspaceDir,
           messageProvider: params.messageProvider ?? undefined,
         };
+        // Calculate context usage for mid-session memory refresh
+        const contextWindowTokens = params.model.contextWindow ?? DEFAULT_CONTEXT_TOKENS;
+        const estimatedUsedTokens = estimateMessagesTokens(activeSession.messages);
         const promptBuildResult = hookRunner?.hasHooks("before_prompt_build")
           ? await hookRunner
               .runBeforePromptBuild(
@@ -893,6 +898,8 @@ export async function runEmbeddedAttempt(
                 {
                   prompt: params.prompt,
                   messages: activeSession.messages,
+                  contextWindowTokens,
+                  estimatedUsedTokens,
                 },
                 hookCtx,
               )
