@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { cancel, confirm, isCancel, spinner } from "@clack/prompts";
 import fs from "node:fs";
 import path from "node:path";
 import { openUrl } from "../commands/onboard-helpers.js";
@@ -16,7 +17,7 @@ import {
 import { loginOba, saveObaToken } from "../security/oba/login.js";
 import { loginOba, saveObaToken } from "../security/oba/login.js";
 import { validateOwnerUrl } from "../security/oba/owner-url.js";
-import { registerAgent } from "../security/oba/register.js";
+import { registerKey } from "../security/oba/register.js";
 import {
   parseSkillMetadataObject,
   signPluginManifest,
@@ -24,6 +25,7 @@ import {
 } from "../security/oba/sign.js";
 import { verifyObaContainer } from "../security/oba/verify.js";
 import { formatDocsLink } from "../terminal/links.js";
+import { stylePromptMessage, stylePromptTitle } from "../terminal/prompt-style.js";
 import { isRich, theme } from "../terminal/theme.js";
 
 function resolveKey(kid?: string): ObaKeyFile {
@@ -57,6 +59,138 @@ function resolveToken(tokenOpt?: string): string {
   throw new Error(
     "No API token. Run `openclaw oba login`, provide --token, or set OPENBOTAUTH_TOKEN",
   );
+}
+
+/** Non-throwing version of resolveToken — returns undefined when no token is available. */
+function tryResolveToken(tokenOpt?: string): string | undefined {
+  try {
+    return resolveToken(tokenOpt);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Ensure OBA signing prerequisites are met (key exists + registered).
+ * When run interactively, prompts the user to set up missing pieces (login → keygen → register).
+ * Returns the resolved key, or null if setup was cancelled or failed.
+ */
+async function ensureObaSetup(opts: {
+  kid?: string;
+  ownerOverride?: string;
+}): Promise<ObaKeyFile | null> {
+  // Check existing state.
+  let key: ObaKeyFile | null;
+  try {
+    key = opts.kid ? loadObaKey(opts.kid) : loadMostRecentObaKey();
+  } catch {
+    key = null;
+  }
+  const hasOwner = !!key?.owner || !!opts.ownerOverride;
+
+  // If key exists and has an owner (or caller provides --owner override), no setup needed.
+  if (key && hasOwner) {
+    return key;
+  }
+
+  // Non-interactive: show descriptive errors.
+  if (!process.stdin.isTTY) {
+    if (!key) {
+      defaultRuntime.error("Error: No OBA keys found. Run: openclaw oba keygen");
+    } else {
+      defaultRuntime.error("Error: Key not registered. Run: openclaw oba register");
+    }
+    process.exitCode = 1;
+    return null;
+  }
+
+  // Figure out what's missing.
+  let currentToken = tryResolveToken();
+  const needsLogin = !currentToken;
+  const needsKeygen = !key;
+  const needsRegister = !hasOwner;
+
+  const steps: string[] = [];
+  if (needsLogin) {
+    steps.push("login");
+  }
+  if (needsKeygen) {
+    steps.push("keygen");
+  }
+  if (needsRegister) {
+    steps.push("register");
+  }
+
+  const proceed = await confirm({
+    message: stylePromptMessage(`OBA signing setup incomplete. Run ${steps.join(" \u2192 ")} now?`),
+  });
+
+  if (isCancel(proceed) || !proceed) {
+    cancel(stylePromptTitle("Signing cancelled.") ?? "Signing cancelled.");
+    return null;
+  }
+
+  // Step 1: Login (obtain API token).
+  if (needsLogin) {
+    const spin = spinner();
+    spin.start(theme.accent("Opening browser for login..."));
+
+    const loginResult = await loginOba({
+      apiUrl: "https://api.openbotauth.org",
+      openBrowser: async (url) => {
+        const opened = await openUrl(url);
+        if (opened) {
+          spin.message(theme.accent("Waiting for authentication..."));
+        } else {
+          spin.message(theme.accent(`Waiting for login... Visit: ${url}`));
+        }
+      },
+    });
+
+    if (!loginResult.ok || !loginResult.token) {
+      spin.stop(theme.error(`Login failed: ${loginResult.error ?? "no token returned"}`));
+      process.exitCode = 1;
+      return null;
+    }
+
+    saveObaToken(loginResult.token);
+    currentToken = loginResult.token;
+    spin.stop(theme.success("Logged in"));
+  }
+
+  // Step 2: Generate key pair.
+  if (needsKeygen) {
+    const spin = spinner();
+    spin.start(theme.accent("Generating key pair..."));
+    key = generateObaKeyPair();
+    saveObaKey(key);
+    spin.stop(theme.success(`Key generated (kid: ${key.kid})`));
+  }
+
+  // Step 3: Register key with OpenBotAuth.
+  if (needsRegister && key && currentToken) {
+    const spin = spinner();
+    spin.start(theme.accent("Registering key with OpenBotAuth..."));
+
+    const regResult = await registerKey({
+      publicKeyPem: key.publicKeyPem,
+      token: currentToken,
+    });
+
+    if (!regResult.ok) {
+      spin.stop(theme.error(`Registration failed: ${regResult.error}`));
+      process.exitCode = 1;
+      return null;
+    }
+
+    if (regResult.ownerUrl) {
+      key.owner = regResult.ownerUrl;
+    }
+    saveObaKey(key);
+    spin.stop(theme.success(`Key registered (owner: ${key.owner})`));
+  }
+
+  return key;
 }
 
 export function registerObaCli(program: Command): void {
@@ -116,7 +250,9 @@ export function registerObaCli(program: Command): void {
       }
       const tokenFile = saveObaToken(result.token);
       defaultRuntime.log(`Login successful! Token saved to ${tokenFile}`);
-      defaultRuntime.log(theme.muted("Next: openclaw oba keygen && openclaw oba register"));
+      defaultRuntime.log(
+        theme.muted("Next: openclaw oba keygen && openclaw oba register && openclaw oba sign"),
+      );
     });
 
   // --- keygen ---
@@ -166,17 +302,8 @@ export function registerObaCli(program: Command): void {
       }
       lines.push("");
       lines.push(muted("Next steps:"));
-      if (!key.owner) {
-        lines.push(
-          muted("  1. Set owner URL when signing: openclaw oba sign plugin <path> --owner <url>"),
-        );
-      }
-      lines.push(
-        muted(`  ${key.owner ? "1" : "2"}. Register key: openclaw oba register --token <pat>`),
-      );
-      lines.push(
-        muted(`  ${key.owner ? "2" : "3"}. Sign a manifest: openclaw oba sign plugin <path>`),
-      );
+      lines.push(muted("  1. Register key: openclaw oba register"));
+      lines.push(muted("  2. Sign a manifest: openclaw oba sign plugin <path>"));
       defaultRuntime.log(lines.join("\n"));
     });
 
@@ -241,7 +368,11 @@ export function registerObaCli(program: Command): void {
           return;
         }
 
-        const key = resolveKey(opts.kid);
+        const key = await ensureObaSetup({ kid: opts.kid, ownerOverride: opts.owner });
+        if (!key) {
+          return;
+        }
+
         const { kid, sig } = signPluginManifest({
           manifestPath: resolved,
           key,
@@ -291,7 +422,11 @@ export function registerObaCli(program: Command): void {
           return;
         }
 
-        const key = resolveKey(opts.kid);
+        const key = await ensureObaSetup({ kid: opts.kid, ownerOverride: opts.owner });
+        if (!key) {
+          return;
+        }
+
         const { kid, sig } = signSkillMetadata({
           skillPath: resolved,
           key,
@@ -329,59 +464,44 @@ export function registerObaCli(program: Command): void {
   // --- register ---
   oba
     .command("register")
-    .description("Register key as an agent with OpenBotAuth registry")
+    .description("Register public key with OpenBotAuth registry")
     .option("--kid <id>", "Key ID to register (default: most recent)")
-    .option("--name <name>", "Agent name (default: key kid)")
-    .option("--agent-type <type>", "Agent type (default: publisher)")
+    .option("--update", "Rotate key (deactivates previous keys)", false)
     .option("--token <pat>", "OpenBotAuth API token")
     .option("--api-url <url>", "API base URL", "https://api.openbotauth.org")
-    .action(
-      async (opts: {
-        kid?: string;
-        name?: string;
-        agentType?: string;
-        token?: string;
-        apiUrl?: string;
-      }) => {
-        const key = resolveKey(opts.kid);
-        const token = resolveToken(opts.token);
+    .action(async (opts: { kid?: string; update?: boolean; token?: string; apiUrl?: string }) => {
+      const key = resolveKey(opts.kid);
+      const token = resolveToken(opts.token);
 
-        const action = key.agentId ? "Updating" : "Registering";
-        defaultRuntime.log(`${action} agent for key ${key.kid}...`);
+      const action = opts.update ? "Rotating" : "Registering";
+      defaultRuntime.log(`${action} key ${key.kid}...`);
 
-        const result = await registerAgent({
-          kid: key.kid,
-          publicKeyPem: key.publicKeyPem,
-          name: opts.name,
-          agentType: opts.agentType,
-          agentId: key.agentId,
-          token,
-          apiUrl: opts.apiUrl,
-        });
+      const result = await registerKey({
+        publicKeyPem: key.publicKeyPem,
+        isUpdate: opts.update,
+        token,
+        apiUrl: opts.apiUrl,
+      });
 
-        if (!result.ok) {
-          defaultRuntime.error(`Error: ${result.error}`);
-          process.exitCode = 1;
-          return;
-        }
+      if (!result.ok) {
+        defaultRuntime.error(`Error: ${result.error}`);
+        process.exitCode = 1;
+        return;
+      }
 
-        // Update key file with agentId + owner URL.
-        if (result.agentId) {
-          key.agentId = result.agentId;
-        }
-        if (result.ownerUrl) {
-          key.owner = result.ownerUrl;
-        }
-        saveObaKey(key);
+      // Update key file with owner URL.
+      if (result.ownerUrl) {
+        key.owner = result.ownerUrl;
+      }
+      saveObaKey(key);
 
-        defaultRuntime.log(`Agent registered successfully.`);
-        defaultRuntime.log(`  kid:   ${key.kid}`);
-        if (key.agentId) {
-          defaultRuntime.log(`  agent: ${key.agentId}`);
-        }
-        if (key.owner) {
-          defaultRuntime.log(`  owner: ${key.owner}`);
-        }
-      },
-    );
+      defaultRuntime.log(`Key registered successfully.`);
+      defaultRuntime.log(`  kid:   ${key.kid}`);
+      if (result.username) {
+        defaultRuntime.log(`  user:  ${result.username}`);
+      }
+      if (key.owner) {
+        defaultRuntime.log(`  owner: ${key.owner}`);
+      }
+    });
 }

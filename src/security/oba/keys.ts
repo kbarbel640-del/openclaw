@@ -9,7 +9,6 @@ export type ObaKeyFile = {
   publicKeyPem: string;
   privateKeyPem: string;
   owner?: string;
-  agentId?: string;
   createdAt: string;
 };
 
@@ -27,15 +26,30 @@ function extractRawPublicKey(publicKeyPem: string): Buffer {
   throw new Error("unexpected SPKI format: not an Ed25519 public key");
 }
 
+/**
+ * Derive a kid (Key ID) from a PEM public key.
+ * Matches OBA's generateKidFromJWK: SHA-256 of canonical JWK thumbprint
+ * `{"kty":"OKP","crv":"Ed25519","x":"<base64url>"}`, base64url-encoded,
+ * truncated to 16 characters.
+ */
 export function deriveKid(publicKeyPem: string): string {
   const raw = extractRawPublicKey(publicKeyPem);
-  const hash = crypto.createHash("sha256").update(raw).digest();
+  const x = base64UrlEncode(raw);
+  const thumbprint = JSON.stringify({ kty: "OKP", crv: "Ed25519", x });
+  const hash = crypto.createHash("sha256").update(thumbprint).digest();
   return base64UrlEncode(hash).slice(0, 16);
 }
 
 export function publicKeyToJwkX(publicKeyPem: string): string {
   const raw = extractRawPublicKey(publicKeyPem);
   return base64UrlEncode(raw);
+}
+
+/** Convert PEM public key to base64-encoded SPKI DER (for OBA POST /keys). */
+export function pemToBase64Spki(publicKeyPem: string): string {
+  const key = crypto.createPublicKey(publicKeyPem);
+  const der = key.export({ type: "spki", format: "der" });
+  return Buffer.from(der).toString("base64");
 }
 
 export function getObaKeysDir(): string {
