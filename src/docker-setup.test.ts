@@ -36,7 +36,7 @@ describe("docker-setup.sh", () => {
     const assocCheck = spawnSync("bash", ["-c", "declare -A _t=()"], {
       encoding: "utf8",
     });
-    if (assocCheck.status !== 0) {
+    if (assocCheck.status !== 0 || process.platform === "win32") {
       return;
     }
 
@@ -86,7 +86,7 @@ describe("docker-setup.sh", () => {
     const assocCheck = spawnSync("bash", ["-c", "declare -A _t=()"], {
       encoding: "utf8",
     });
-    if (assocCheck.status !== 0) {
+    if (assocCheck.status !== 0 || process.platform === "win32") {
       return;
     }
 

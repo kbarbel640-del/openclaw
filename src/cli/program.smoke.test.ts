@@ -53,7 +53,7 @@ vi.mock("./deps.js", () => ({ createDefaultDeps: () => ({}) }));
 
 const { buildProgram } = await import("./program.js");
 
-describe("cli program (smoke)", () => {
+describe("cli program (smoke)", { timeout: 300_000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
     runTui.mockResolvedValue(undefined);

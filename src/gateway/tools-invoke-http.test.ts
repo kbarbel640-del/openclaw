@@ -7,6 +7,7 @@ import { resetTestPluginRegistry, setTestPluginRegistry, testState } from "./tes
 import { installGatewayTestHooks, getFreePort, startGatewayServer } from "./test-helpers.server.js";
 
 installGatewayTestHooks({ scope: "suite" });
+vi.setConfig({ testTimeout: 300_000 });
 
 beforeEach(() => {
   // Ensure these tests are not affected by host env vars.

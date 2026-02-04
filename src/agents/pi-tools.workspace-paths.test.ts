@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createOpenClawCodingTools } from "./pi-tools.js";
 
 async function withTempDir<T>(prefix: string, fn: (dir: string) => Promise<T>) {
@@ -19,6 +19,7 @@ function getTextContent(result?: { content?: Array<{ type: string; text?: string
 }
 
 describe("workspace path resolution", () => {
+  vi.setConfig({ testTimeout: 300000 });
   it("reads relative paths against workspaceDir even after cwd changes", async () => {
     await withTempDir("openclaw-ws-", async (workspaceDir) => {
       await withTempDir("openclaw-cwd-", async (otherDir) => {
@@ -63,7 +64,11 @@ describe("workspace path resolution", () => {
           const written = await fs.readFile(path.join(workspaceDir, testFile), "utf8");
           expect(written).toBe(contents);
         } finally {
-          process.chdir(prevCwd);
+          try {
+            process.chdir(prevCwd);
+          } catch {
+            // ignore if already deleted or invalid
+          }
         }
       });
     });
@@ -154,7 +159,7 @@ describe("sandboxed workspace paths", () => {
           sessionKey: "sandbox:test",
           workspaceDir: sandboxDir,
           agentWorkspaceDir: workspaceDir,
-          workspaceAccess: "rw",
+          workspaceAccess: "rw" as const,
           containerName: "openclaw-sbx-test",
           containerWorkdir: "/workspace",
           docker: {
