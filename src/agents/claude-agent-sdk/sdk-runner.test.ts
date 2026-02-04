@@ -459,4 +459,95 @@ describe("runSdkAgent", () => {
       expect(result.meta.durationMs).toBeGreaterThanOrEqual(0);
     });
   });
+
+  describe("thinking/reasoning content filtering", () => {
+    it("does not extract text from thinking events", async () => {
+      const queryFn = vi
+        .fn()
+        .mockReturnValue(
+          eventsFrom([
+            { type: "thinking", text: "I need to think about this" },
+            { text: "Final answer" },
+            { type: "result", result: "Final answer" },
+          ]),
+        );
+      mockLoadSdk.mockResolvedValue({ query: queryFn });
+
+      const onPartialReply = vi.fn();
+      const result = await runSdkAgent(baseParams({ onPartialReply }));
+
+      expect(result.payloads[0].text).toBe("Final answer");
+      // Should only have been called once for the actual text, not for thinking
+      expect(onPartialReply).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not extract text from thinking_delta events", async () => {
+      const queryFn = vi
+        .fn()
+        .mockReturnValue(
+          eventsFrom([
+            { type: "thinking_delta", delta: "Reasoning step 1" },
+            { type: "thinking_delta", delta: "Reasoning step 2" },
+            { text: "Answer" },
+          ]),
+        );
+      mockLoadSdk.mockResolvedValue({ query: queryFn });
+
+      const result = await runSdkAgent(baseParams());
+
+      expect(result.payloads[0].text).toBe("Answer");
+    });
+
+    it("strips thinking tags from final text", async () => {
+      const queryFn = vi
+        .fn()
+        .mockReturnValue(
+          eventsFrom([{ text: "<thinking>Let me consider this</thinking>The answer is 42" }]),
+        );
+      mockLoadSdk.mockResolvedValue({ query: queryFn });
+
+      const result = await runSdkAgent(baseParams());
+
+      expect(result.payloads[0].text).toBe("The answer is 42");
+    });
+
+    it("strips thinking tags from result text", async () => {
+      const queryFn = vi.fn().mockReturnValue(
+        eventsFrom([
+          {
+            type: "result",
+            result: "<think>reasoning</think>Clean answer",
+          },
+        ]),
+      );
+      mockLoadSdk.mockResolvedValue({ query: queryFn });
+
+      const result = await runSdkAgent(baseParams());
+
+      expect(result.payloads[0].text).toBe("Clean answer");
+    });
+
+    it("classifies thinking events as system, not assistant", async () => {
+      const queryFn = vi.fn().mockReturnValue(
+        eventsFrom([
+          { type: "thinking", text: "Reasoning content" },
+          { type: "result", result: "ok" },
+        ]),
+      );
+      mockLoadSdk.mockResolvedValue({ query: queryFn });
+
+      const onAgentEvent = vi.fn();
+      await runSdkAgent(baseParams({ onAgentEvent }));
+
+      // Should not emit assistant events for thinking
+      const assistantEvents = onAgentEvent.mock.calls
+        .map((c) => c[0] as { stream?: string; data?: { text?: string } })
+        .filter((evt) => evt.stream === "assistant");
+
+      // No assistant events should contain thinking content
+      for (const evt of assistantEvents) {
+        expect(evt.data?.text).not.toContain("Reasoning");
+      }
+    });
+  });
 });

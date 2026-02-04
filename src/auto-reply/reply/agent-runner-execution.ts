@@ -32,6 +32,7 @@ import { logVerbose } from "../../globals.js";
 import { emitAgentEvent, registerAgentRunContext } from "../../infra/agent-events.js";
 import { logPerformanceOutlier, getPerformanceThresholds } from "../../logging/enhanced-events.js";
 import { defaultRuntime } from "../../runtime.js";
+import { stripReasoningTagsFromText } from "../../shared/text/reasoning-tags.js";
 import {
   isMarkdownCapableMessageChannel,
   resolveMessageChannel,
@@ -137,7 +138,16 @@ export async function runAgentTurnWithFallback(params: {
         if (!sanitized.trim()) {
           return { skip: true };
         }
-        return { text: sanitized, skip: false };
+        // Strip thinking/reasoning tags to prevent them from leaking into channel deliveries.
+        // This covers both SDK and Pi runtime streamed block replies.
+        const reasoningStripped = stripReasoningTagsFromText(sanitized, {
+          mode: "strict",
+          trim: "both",
+        });
+        if (!reasoningStripped.trim()) {
+          return { skip: true };
+        }
+        return { text: reasoningStripped, skip: false };
       };
       const handlePartialForTyping = async (payload: ReplyPayload): Promise<string | undefined> => {
         const { text, skip } = normalizeStreamingText(payload);

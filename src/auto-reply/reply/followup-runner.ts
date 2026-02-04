@@ -7,6 +7,10 @@ import type { TypingController } from "./typing.js";
 import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
 import { lookupContextTokens } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
+import {
+  createSdkMainAgentRuntime,
+  resolveSessionRuntimeKind,
+} from "../../agents/main-agent-runtime-factory.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import { resolveAgentIdFromSessionKey, type SessionEntry } from "../../config/sessions.js";
@@ -124,17 +128,71 @@ export function createFollowupRunner(params: {
       let runResult: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
       let fallbackProvider = queued.run.provider;
       let fallbackModel = queued.run.model;
+      // Resolve runtime kind for the followup to use the same runtime as the parent session.
+      const agentId = resolveAgentIdFromSessionKey(queued.run.sessionKey);
+      const runtimeKind = resolveSessionRuntimeKind(
+        queued.run.config,
+        agentId,
+        queued.run.sessionKey,
+      );
+      const onCompactionEvent = (evt: { stream: string; data: Record<string, unknown> }) => {
+        if (evt.stream !== "compaction") {
+          return;
+        }
+        const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
+        const willRetry = Boolean(evt.data.willRetry);
+        if (phase === "end" && !willRetry) {
+          autoCompactionCompleted = true;
+        }
+      };
       try {
         const fallbackResult = await runWithModelFallback({
           cfg: queued.run.config,
           provider: queued.run.provider,
           model: queued.run.model,
           agentDir: queued.run.agentDir,
-          fallbacksOverride: resolveAgentModelFallbacksOverride(
-            queued.run.config,
-            resolveAgentIdFromSessionKey(queued.run.sessionKey),
-          ),
-          run: (provider, model) => {
+          fallbacksOverride: resolveAgentModelFallbacksOverride(queued.run.config, agentId),
+          runtimeKind,
+          run: async (provider, model) => {
+            // If using Claude Code SDK runtime, create and use SDK runtime
+            if (runtimeKind === "claude") {
+              const claudeSdkSessionId = sessionEntry?.claudeSdkSessionId?.trim() || undefined;
+              const sdkRuntime = await createSdkMainAgentRuntime({
+                config: queued.run.config,
+                sessionKey: queued.run.sessionKey,
+                sessionFile: queued.run.sessionFile,
+                workspaceDir: queued.run.workspaceDir,
+                agentDir: queued.run.agentDir,
+                messageProvider: queued.run.messageProvider,
+                agentAccountId: queued.run.agentAccountId,
+                messageTo: queued.originatingTo,
+                messageThreadId: queued.originatingThreadId,
+                groupId: queued.run.groupId,
+                groupChannel: queued.run.groupChannel,
+                groupSpace: queued.run.groupSpace,
+                senderId: queued.run.senderId,
+                senderName: queued.run.senderName,
+                senderUsername: queued.run.senderUsername,
+                senderE164: queued.run.senderE164,
+                claudeSessionId: claudeSdkSessionId,
+              });
+              return sdkRuntime.run({
+                sessionId: queued.run.sessionId,
+                sessionKey: queued.run.sessionKey,
+                sessionFile: queued.run.sessionFile,
+                workspaceDir: queued.run.workspaceDir,
+                agentDir: queued.run.agentDir,
+                config: queued.run.config,
+                prompt: queued.prompt,
+                extraSystemPrompt: queued.run.extraSystemPrompt,
+                ownerNumbers: queued.run.ownerNumbers,
+                timeoutMs: queued.run.timeoutMs,
+                runId,
+                onAgentEvent: onCompactionEvent,
+              });
+            }
+
+            // Otherwise, use Pi agent runtime (existing code path)
             const authProfileId =
               provider === queued.run.provider ? queued.run.authProfileId : undefined;
             return runEmbeddedPiAgent({
@@ -171,16 +229,7 @@ export function createFollowupRunner(params: {
               timeoutMs: queued.run.timeoutMs,
               runId,
               blockReplyBreak: queued.run.blockReplyBreak,
-              onAgentEvent: (evt) => {
-                if (evt.stream !== "compaction") {
-                  return;
-                }
-                const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
-                const willRetry = Boolean(evt.data.willRetry);
-                if (phase === "end" && !willRetry) {
-                  autoCompactionCompleted = true;
-                }
-              },
+              onAgentEvent: onCompactionEvent,
             });
           },
         });
@@ -202,6 +251,9 @@ export function createFollowupRunner(params: {
           sessionEntry?.contextTokens ??
           DEFAULT_CONTEXT_TOKENS;
 
+        // Extract Claude SDK session ID for native session resume (SDK runtime only)
+        const claudeSdkSessionId = runResult.meta.agentMeta?.claudeSessionId?.trim() || undefined;
+
         await persistSessionUsageUpdate({
           storePath,
           sessionKey,
@@ -209,6 +261,7 @@ export function createFollowupRunner(params: {
           modelUsed,
           providerUsed: fallbackProvider,
           contextTokensUsed,
+          claudeSdkSessionId,
           logLabel: "followup",
         });
       }

@@ -1,3 +1,5 @@
+import { stripReasoningTagsFromText } from "../../shared/text/reasoning-tags.js";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -16,6 +18,11 @@ function extractTextFromContent(value: unknown): string | undefined {
         continue;
       }
       if (!isRecord(entry)) {
+        continue;
+      }
+      // Skip thinking/reasoning blocks - these should not leak into user-facing text
+      const type = entry.type;
+      if (type === "thinking" || type === "reasoning") {
         continue;
       }
       const text = entry.text;
@@ -63,10 +70,13 @@ function extractTextFromContent(value: unknown): string | undefined {
 /**
  * Best-effort extraction of human-readable text from Claude Agent SDK events.
  * We keep this defensive because the SDK event shapes may evolve.
+ *
+ * IMPORTANT: This function strips thinking/reasoning tags to prevent them from
+ * leaking into channel deliveries.
  */
 export function extractTextFromClaudeAgentSdkEvent(event: unknown): string | undefined {
   if (typeof event === "string") {
-    return event;
+    return stripReasoningTagsFromText(event, { mode: "strict", trim: "both" });
   }
   if (!isRecord(event)) {
     return undefined;
@@ -75,33 +85,33 @@ export function extractTextFromClaudeAgentSdkEvent(event: unknown): string | und
   // Direct text-ish fields.
   const direct = extractTextFromContent(event);
   if (direct) {
-    return direct;
+    return stripReasoningTagsFromText(direct, { mode: "strict", trim: "both" });
   }
 
   // Common wrapper shapes: {message:{...}}, {data:{...}}.
   const message = event.message;
   const fromMessage = extractTextFromContent(message);
   if (fromMessage) {
-    return fromMessage;
+    return stripReasoningTagsFromText(fromMessage, { mode: "strict", trim: "both" });
   }
 
   const data = event.data;
   const fromData = extractTextFromContent(data);
   if (fromData) {
-    return fromData;
+    return stripReasoningTagsFromText(fromData, { mode: "strict", trim: "both" });
   }
 
   // Nested message/data objects with content.
   if (isRecord(message)) {
     const fromMessageContent = extractTextFromContent(message.content);
     if (fromMessageContent) {
-      return fromMessageContent;
+      return stripReasoningTagsFromText(fromMessageContent, { mode: "strict", trim: "both" });
     }
   }
   if (isRecord(data)) {
     const fromDataContent = extractTextFromContent(data.content);
     if (fromDataContent) {
-      return fromDataContent;
+      return stripReasoningTagsFromText(fromDataContent, { mode: "strict", trim: "both" });
     }
   }
 

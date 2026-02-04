@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { MessagingToolSend } from "../../agents/pi-embedded-messaging.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AgentDefaultsConfig } from "../../config/types.js";
@@ -18,6 +20,10 @@ import {
   resolveUserTimezone,
 } from "../../agents/date-time.js";
 import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL, DEFAULT_PROVIDER } from "../../agents/defaults.js";
+import {
+  createSdkMainAgentRuntime,
+  resolveSessionRuntimeKind,
+} from "../../agents/main-agent-runtime-factory.js";
 import { loadModelCatalog } from "../../agents/model-catalog.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
 import {
@@ -34,6 +40,7 @@ import { getSkillsSnapshotVersion } from "../../agents/skills/refresh.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { hasNonzeroUsage } from "../../agents/usage.js";
 import { ensureAgentWorkspace } from "../../agents/workspace.js";
+import { isHeartbeatContentEffectivelyEmpty } from "../../auto-reply/heartbeat.js";
 import {
   formatXHighModelHint,
   normalizeThinkLevel,
@@ -139,6 +146,25 @@ export async function runCronIsolatedAgentTurn(params: {
     ensureBootstrapFiles: !agentCfg?.skipBootstrap,
   });
   const workspaceDir = workspace.dir;
+
+  // Avoid creating "empty" heartbeat sessions when HEARTBEAT.md exists but has no tasks.
+  // A missing file is not skipped (the model may still decide what to do).
+  const isHeartbeatPrompt =
+    typeof params.message === "string" &&
+    params.message.trim().toLowerCase().startsWith("read heartbeat.md");
+  if (isHeartbeatPrompt) {
+    const heartbeatPath = path.join(workspaceDir, "HEARTBEAT.md");
+    if (fs.existsSync(heartbeatPath)) {
+      try {
+        const content = fs.readFileSync(heartbeatPath, "utf-8");
+        if (isHeartbeatContentEffectivelyEmpty(content)) {
+          return { status: "skipped", summary: "Heartbeat skipped (HEARTBEAT.md is empty)." };
+        }
+      } catch (err) {
+        logWarn(`Failed to read HEARTBEAT.md for emptiness check: ${String(err)}`);
+      }
+    }
+  }
 
   const resolvedDefault = resolveConfiguredModelRef({
     cfg: cfgWithAgentDefaults,
@@ -331,13 +357,16 @@ export async function runCronIsolatedAgentTurn(params: {
       verboseLevel: resolvedVerboseLevel,
     });
     const messageChannel = resolvedDelivery.channel;
+    // Resolve runtime kind before runWithModelFallback so auth filtering is aware of claude SDK
+    const runtimeKind = resolveSessionRuntimeKind(cfgWithAgentDefaults, agentId, agentSessionKey);
     const fallbackResult = await runWithModelFallback({
       cfg: cfgWithAgentDefaults,
       provider,
       model,
       agentDir,
       fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
-      run: (providerOverride, modelOverride) => {
+      runtimeKind,
+      run: async (providerOverride, modelOverride) => {
         if (isCliProvider(providerOverride, cfgWithAgentDefaults)) {
           const cliSessionId = getCliSessionId(cronSession.sessionEntry, providerOverride);
           return runCliAgent({
@@ -355,6 +384,35 @@ export async function runCronIsolatedAgentTurn(params: {
             cliSessionId,
           });
         }
+
+        // If using Claude Code SDK runtime, create and use SDK runtime
+        if (runtimeKind === "claude") {
+          const claudeSdkSessionId =
+            cronSession.sessionEntry.claudeSdkSessionId?.trim() || undefined;
+          const sdkRuntime = await createSdkMainAgentRuntime({
+            config: cfgWithAgentDefaults,
+            sessionKey: agentSessionKey,
+            sessionFile,
+            workspaceDir,
+            agentDir,
+            messageProvider: messageChannel,
+            agentAccountId: resolvedDelivery.accountId,
+            claudeSessionId: claudeSdkSessionId,
+          });
+          return sdkRuntime.run({
+            sessionId: cronSession.sessionEntry.sessionId,
+            sessionKey: agentSessionKey,
+            sessionFile,
+            workspaceDir,
+            agentDir,
+            config: cfgWithAgentDefaults,
+            prompt: commandBody,
+            timeoutMs,
+            runId: cronSession.sessionEntry.sessionId,
+          });
+        }
+
+        // Otherwise, use Pi agent runtime (existing code path)
         return runEmbeddedPiAgent({
           sessionId: cronSession.sessionEntry.sessionId,
           sessionKey: agentSessionKey,
@@ -400,6 +458,11 @@ export async function runCronIsolatedAgentTurn(params: {
       if (cliSessionId) {
         setCliSessionId(cronSession.sessionEntry, providerUsed, cliSessionId);
       }
+    }
+    // Persist Claude SDK session ID for native session resume on next cron run.
+    const returnedClaudeSdkSessionId = runResult.meta.agentMeta?.claudeSessionId?.trim();
+    if (returnedClaudeSdkSessionId) {
+      cronSession.sessionEntry.claudeSdkSessionId = returnedClaudeSdkSessionId;
     }
     if (hasNonzeroUsage(usage)) {
       const input = usage.input ?? 0;
