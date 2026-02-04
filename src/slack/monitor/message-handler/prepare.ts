@@ -27,6 +27,7 @@ import {
 import { formatAllowlistMatchMeta } from "../../../channels/allowlist-match.js";
 import { resolveControlCommandGate } from "../../../channels/command-gating.js";
 import { resolveConversationLabel } from "../../../channels/conversation-label.js";
+import { createLifecycleManager } from "../../../channels/lifecycle-reactions.js";
 import { logInboundDrop } from "../../../channels/logging.js";
 import { resolveMentionGatingWithBypass } from "../../../channels/mention-gating.js";
 import { recordInboundSession } from "../../../channels/session.js";
@@ -37,7 +38,7 @@ import { buildPairingReply } from "../../../pairing/pairing-messages.js";
 import { upsertChannelPairingRequest } from "../../../pairing/pairing-store.js";
 import { resolveAgentRoute } from "../../../routing/resolve-route.js";
 import { resolveThreadSessionKeys } from "../../../routing/session-key.js";
-import { reactSlackMessage } from "../../actions.js";
+import { reactSlackMessage, removeSlackReaction } from "../../actions.js";
 import { sendMessageSlack } from "../../send.js";
 import { resolveSlackThreadContext } from "../../threading.js";
 import { resolveSlackAllowListMatch, resolveSlackUserAllowed } from "../allow-list.js";
@@ -353,10 +354,11 @@ export async function prepareSlackMessage(params: {
 
   const ackReaction = resolveAckReaction(cfg, route.agentId);
   const ackReactionValue = ackReaction ?? "";
+  const lifecycleConfig = cfg.messages?.lifecycleReactions;
 
   const shouldAckReaction = () =>
     Boolean(
-      ackReaction &&
+      (ackReaction || lifecycleConfig?.received) &&
       shouldAckReactionGate({
         scope: ctx.ackReactionScope as AckReactionScope | undefined,
         isDirect: isDirectMessage,
@@ -370,19 +372,41 @@ export async function prepareSlackMessage(params: {
     );
 
   const ackReactionMessageTs = message.ts;
-  const ackReactionPromise =
-    shouldAckReaction() && ackReactionMessageTs && ackReactionValue
-      ? reactSlackMessage(message.channel, ackReactionMessageTs, ackReactionValue, {
-          token: ctx.botToken,
-          client: ctx.app.client,
-        }).then(
-          () => true,
-          (err) => {
-            logVerbose(`slack react failed for channel ${message.channel}: ${String(err)}`);
-            return false;
+
+  // Create lifecycle manager for stage-aware reactions
+  const lifecycleManager =
+    shouldAckReaction() && ackReactionMessageTs
+      ? createLifecycleManager({
+          config: lifecycleConfig,
+          fallbackAckReaction: ackReaction,
+          adapter: {
+            addReaction: async (emoji: string) => {
+              try {
+                await reactSlackMessage(message.channel, ackReactionMessageTs, emoji, {
+                  token: ctx.botToken,
+                  client: ctx.app.client,
+                });
+                return true;
+              } catch (err) {
+                logVerbose(`slack react failed for channel ${message.channel}: ${String(err)}`);
+                return false;
+              }
+            },
+            removeReaction: async (emoji: string) => {
+              await removeSlackReaction(message.channel, ackReactionMessageTs, emoji, {
+                token: ctx.botToken,
+                client: ctx.app.client,
+              });
+            },
+            onError: (stage, action, err) => {
+              logVerbose(`slack lifecycle ${action} (${stage}) failed: ${String(err)}`);
+            },
           },
-        )
-      : null;
+        })
+      : undefined;
+
+  // Start at "received" stage
+  const ackReactionPromise = lifecycleManager?.received() ?? null;
 
   const roomLabel = channelName ? `#${channelName}` : `#${message.channel}`;
   const preview = rawBody.replace(/\s+/g, " ").slice(0, 160);
@@ -587,5 +611,6 @@ export async function prepareSlackMessage(params: {
     ackReactionMessageTs,
     ackReactionValue,
     ackReactionPromise,
+    lifecycleManager,
   };
 }

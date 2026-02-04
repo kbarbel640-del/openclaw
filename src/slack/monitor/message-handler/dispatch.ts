@@ -122,6 +122,9 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     onIdle: typingCallbacks.onIdle,
   });
 
+  // Transition to "processing" stage when model starts
+  void prepared.lifecycleManager?.processing();
+
   const { queuedFinal, counts } = await dispatchInboundMessage({
     ctx: prepared.ctxPayload,
     cfg,
@@ -161,29 +164,35 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     );
   }
 
-  removeAckReactionAfterReply({
-    removeAfterReply: ctx.removeAckAfterReply,
-    ackReactionPromise: prepared.ackReactionPromise,
-    ackReactionValue: prepared.ackReactionValue,
-    remove: () =>
-      removeSlackReaction(
-        message.channel,
-        prepared.ackReactionMessageTs ?? "",
-        prepared.ackReactionValue,
-        {
-          token: ctx.botToken,
-          client: ctx.app.client,
-        },
-      ),
-    onError: (err) => {
-      logAckFailure({
-        log: logVerbose,
-        channel: "slack",
-        target: `${message.channel}/${message.ts}`,
-        error: err,
-      });
-    },
-  });
+  // Transition to "complete" stage when reply is done
+  if (prepared.lifecycleManager) {
+    void prepared.lifecycleManager.complete();
+  } else {
+    // Fall back to legacy removeAckReactionAfterReply when no lifecycle manager
+    removeAckReactionAfterReply({
+      removeAfterReply: ctx.removeAckAfterReply,
+      ackReactionPromise: prepared.ackReactionPromise,
+      ackReactionValue: prepared.ackReactionValue,
+      remove: () =>
+        removeSlackReaction(
+          message.channel,
+          prepared.ackReactionMessageTs ?? "",
+          prepared.ackReactionValue,
+          {
+            token: ctx.botToken,
+            client: ctx.app.client,
+          },
+        ),
+      onError: (err) => {
+        logAckFailure({
+          log: logVerbose,
+          channel: "slack",
+          target: `${message.channel}/${message.ts}`,
+          error: err,
+        });
+      },
+    });
+  }
 
   if (prepared.isRoomish) {
     clearHistoryEntriesIfEnabled({
