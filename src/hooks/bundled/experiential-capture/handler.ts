@@ -9,7 +9,6 @@ import type {
   MeridiaTraceEvent,
 } from "../../../meridia/types.js";
 import type { HookHandler } from "../../hooks.js";
-import { MERIDIA_DEFAULT_EVALUATION_MODEL } from "../../../meridia/constants.js";
 import { evaluateHeuristic, evaluateWithLlm } from "../../../meridia/evaluate.js";
 import {
   appendExperientialRecord,
@@ -99,27 +98,52 @@ function pruneOld(buffer: MeridiaBuffer, nowMs: number): MeridiaBuffer {
   };
 }
 
-const experientialCapture: HookHandler = async (event) => {
-  if (event.type !== "agent" || event.action !== "tool:result") {
-    return;
-  }
+// ─── Shared helpers ─────────────────────────────────────────────────
 
-  const context = asObject(event.context) ?? {};
-  const cfg = (context.cfg as OpenClawConfig | undefined) ?? undefined;
-  const hookCfg = resolveHookConfig(cfg, "experiential-capture");
-  if (hookCfg?.enabled !== true) {
-    return;
-  }
+function resolveSessionContext(
+  event: Parameters<HookHandler>[0],
+  context: Record<string, unknown>,
+) {
+  const sessionId = typeof context.sessionId === "string" ? context.sessionId : undefined;
+  const sessionKey = typeof context.sessionKey === "string" ? context.sessionKey : event.sessionKey;
+  const runId = typeof context.runId === "string" ? context.runId : undefined;
+  return { sessionId, sessionKey, runId };
+}
 
+function resolveBufferPath(
+  meridiaDir: string,
+  sessionId?: string,
+  sessionKey?: string,
+  eventSessionKey?: string,
+) {
+  const bufferKey = safeFileKey(sessionId ?? sessionKey ?? eventSessionKey ?? "unknown");
+  return path.join(meridiaDir, "buffers", `${bufferKey}.json`);
+}
+
+async function loadBuffer(
+  bufferPath: string,
+  sessionId?: string,
+  sessionKey?: string,
+): Promise<MeridiaBuffer> {
+  const existing = await readJsonIfExists<MeridiaBuffer>(bufferPath);
+  return ensureBuffer(existing ?? { sessionId, sessionKey });
+}
+
+// ─── Tool Result handler (original) ─────────────────────────────────
+
+async function handleToolResult(
+  event: Parameters<HookHandler>[0],
+  context: Record<string, unknown>,
+  cfg: OpenClawConfig | undefined,
+  hookCfg: HookConfig | undefined,
+): Promise<void> {
   const toolName = typeof context.toolName === "string" ? context.toolName : "";
   const toolCallId = typeof context.toolCallId === "string" ? context.toolCallId : "";
   if (!toolName || !toolCallId) {
     return;
   }
 
-  const sessionId = typeof context.sessionId === "string" ? context.sessionId : undefined;
-  const sessionKey = typeof context.sessionKey === "string" ? context.sessionKey : event.sessionKey;
-  const runId = typeof context.runId === "string" ? context.runId : undefined;
+  const { sessionId, sessionKey, runId } = resolveSessionContext(event, context);
   const meta = typeof context.meta === "string" ? context.meta : undefined;
   const isError = Boolean(context.isError);
   const args = context.args;
@@ -129,9 +153,7 @@ const experientialCapture: HookHandler = async (event) => {
   const dateKey = dateKeyUtc(event.timestamp);
   const tracePath = path.join(meridiaDir, "trace", `${dateKey}.jsonl`);
   const recordPath = path.join(meridiaDir, "records", "experiential", `${dateKey}.jsonl`);
-
-  const bufferKey = safeFileKey(sessionId ?? sessionKey ?? event.sessionKey);
-  const bufferPath = path.join(meridiaDir, "buffers", `${bufferKey}.json`);
+  const bufferPath = resolveBufferPath(meridiaDir, sessionId, sessionKey, event.sessionKey);
   const now = nowIso();
   const nowMs = Date.now();
 
@@ -163,9 +185,7 @@ const experientialCapture: HookHandler = async (event) => {
     result,
   };
 
-  let buffer = ensureBuffer(
-    (await readJsonIfExists<MeridiaBuffer>(bufferPath)) ?? { sessionId, sessionKey },
-  );
+  let buffer = await loadBuffer(bufferPath, sessionId, sessionKey);
   buffer = pruneOld(buffer, nowMs);
   buffer.toolResultsSeen += 1;
   buffer.lastSeenAt = now;
@@ -239,6 +259,7 @@ const experientialCapture: HookHandler = async (event) => {
     const record: MeridiaExperienceRecord = {
       id: recordId,
       ts: now,
+      kind: "tool_result",
       sessionKey,
       sessionId,
       runId,
@@ -284,6 +305,252 @@ const experientialCapture: HookHandler = async (event) => {
   };
   await appendTraceEvent(tracePath, traceEvent, cfg);
   await writeJson(bufferPath, buffer);
+}
+
+// ─── PreCompact handler ─────────────────────────────────────────────
+// CRITICAL priority — always capture, bypass rate limiting.
+// This is the last chance to save experiential state before context loss.
+
+async function handlePreCompact(
+  event: Parameters<HookHandler>[0],
+  context: Record<string, unknown>,
+  cfg: OpenClawConfig | undefined,
+): Promise<void> {
+  const { sessionId, sessionKey, runId } = resolveSessionContext(event, context);
+
+  const meridiaDir = resolveMeridiaDir(cfg, "experiential-capture");
+  const dateKey = dateKeyUtc(event.timestamp);
+  const tracePath = path.join(meridiaDir, "trace", `${dateKey}.jsonl`);
+  const recordPath = path.join(meridiaDir, "records", "experiential", `${dateKey}.jsonl`);
+  const bufferPath = resolveBufferPath(meridiaDir, sessionId, sessionKey, event.sessionKey);
+  const now = nowIso();
+  const nowMs = Date.now();
+
+  // Load current buffer to include state in the checkpoint
+  let buffer = await loadBuffer(bufferPath, sessionId, sessionKey);
+  buffer = pruneOld(buffer, nowMs);
+
+  const assistantTextCount =
+    typeof context.assistantTextCount === "number" ? context.assistantTextCount : undefined;
+  const toolMetaCount =
+    typeof context.toolMetaCount === "number" ? context.toolMetaCount : undefined;
+  const assistantTextsTail = context.assistantTextsTail;
+  const toolMetasTail = context.toolMetasTail;
+
+  // Always capture — PreCompact is CRITICAL, no significance evaluation needed
+  const recordId = crypto.randomUUID();
+  const record: MeridiaExperienceRecord = {
+    id: recordId,
+    ts: now,
+    kind: "precompact",
+    sessionKey,
+    sessionId,
+    runId,
+    tool: { name: "precompact", callId: `precompact-${recordId}`, isError: false },
+    data: {
+      args: {
+        trigger: "precompact",
+        assistantTextCount,
+        toolMetaCount,
+      },
+      result: {
+        assistantTextsTail,
+        toolMetasTail,
+        bufferSnapshot: {
+          toolResultsSeen: buffer.toolResultsSeen,
+          captured: buffer.captured,
+          recentCaptureCount: buffer.recentCaptures.length,
+          recentCaptures: buffer.recentCaptures.slice(-5),
+        },
+      },
+    },
+    evaluation: {
+      kind: "heuristic",
+      score: 1.0,
+      recommendation: "capture",
+      reason: "precompact_checkpoint_always_capture",
+    },
+  };
+  await appendExperientialRecord(recordPath, record, cfg);
+
+  // Update buffer
+  buffer.captured += 1;
+  buffer.lastCapturedAt = now;
+  buffer.updatedAt = now;
+  buffer.recentCaptures.push({
+    ts: now,
+    toolName: "precompact",
+    score: 1.0,
+    recordId,
+  });
+  buffer = pruneOld(buffer, nowMs);
+  await writeJson(bufferPath, buffer);
+
+  // Trace event
+  const traceEvent: MeridiaTraceEvent = {
+    type: "experiential_precompact",
+    ts: now,
+    sessionId,
+    sessionKey,
+    runId,
+    recordId,
+    assistantTextCount,
+    toolMetaCount,
+    bufferSnapshot: {
+      toolResultsSeen: buffer.toolResultsSeen,
+      captured: buffer.captured,
+      recentCaptureCount: buffer.recentCaptures.length,
+    },
+  };
+  await appendTraceEvent(tracePath, traceEvent, cfg);
+}
+
+// ─── SessionEnd / command:new handler ───────────────────────────────
+// HIGH priority — always capture, bypass rate limiting.
+// Captures a session summary synthesis when the session ends or transitions.
+
+function resolveSessionIdFromEntry(value: unknown): string | undefined {
+  const obj = asObject(value);
+  if (!obj) {
+    return undefined;
+  }
+  const sessionId = obj.sessionId;
+  return typeof sessionId === "string" && sessionId.trim() ? sessionId.trim() : undefined;
+}
+
+async function handleSessionEnd(
+  event: Parameters<HookHandler>[0],
+  context: Record<string, unknown>,
+  cfg: OpenClawConfig | undefined,
+): Promise<void> {
+  const sessionKey = typeof context.sessionKey === "string" ? context.sessionKey : event.sessionKey;
+  const sessionId =
+    (typeof context.sessionId === "string" && context.sessionId.trim()
+      ? context.sessionId.trim()
+      : undefined) ??
+    resolveSessionIdFromEntry(context.previousSessionEntry) ??
+    resolveSessionIdFromEntry(context.sessionEntry);
+  const runId = typeof context.runId === "string" ? context.runId : undefined;
+
+  const meridiaDir = resolveMeridiaDir(cfg, "experiential-capture");
+  const dateKey = dateKeyUtc(event.timestamp);
+  const tracePath = path.join(meridiaDir, "trace", `${dateKey}.jsonl`);
+  const recordPath = path.join(meridiaDir, "records", "experiential", `${dateKey}.jsonl`);
+  const bufferPath = resolveBufferPath(meridiaDir, sessionId, sessionKey, event.sessionKey);
+  const now = nowIso();
+  const nowMs = Date.now();
+
+  // Load buffer to capture accumulated session state
+  let buffer = await loadBuffer(bufferPath, sessionId, sessionKey);
+  buffer = pruneOld(buffer, nowMs);
+
+  const action = event.action as "new" | "stop";
+  const kind = action === "new" ? "session_transition" : "session_end";
+
+  // Always capture — session boundaries are HIGH priority, no evaluation needed
+  const recordId = crypto.randomUUID();
+  const record: MeridiaExperienceRecord = {
+    id: recordId,
+    ts: now,
+    kind,
+    sessionKey,
+    sessionId,
+    runId,
+    tool: {
+      name: `command:${action}`,
+      callId: `session-${action}-${recordId}`,
+      isError: false,
+    },
+    data: {
+      args: {
+        action,
+        trigger: kind,
+      },
+      result: {
+        sessionSummary: {
+          toolResultsSeen: buffer.toolResultsSeen,
+          captured: buffer.captured,
+          recentCaptureCount: buffer.recentCaptures.length,
+          recentCaptures: buffer.recentCaptures.slice(-10),
+          recentEvaluations: buffer.recentEvaluations.slice(-10),
+          sessionCreatedAt: buffer.createdAt,
+          lastSeenAt: buffer.lastSeenAt,
+          lastCapturedAt: buffer.lastCapturedAt,
+        },
+      },
+    },
+    evaluation: {
+      kind: "heuristic",
+      score: 1.0,
+      recommendation: "capture",
+      reason: `${kind}_always_capture`,
+    },
+  };
+  await appendExperientialRecord(recordPath, record, cfg);
+
+  // Update buffer
+  buffer.captured += 1;
+  buffer.lastCapturedAt = now;
+  buffer.updatedAt = now;
+  buffer.recentCaptures.push({
+    ts: now,
+    toolName: `command:${action}`,
+    score: 1.0,
+    recordId,
+  });
+  buffer = pruneOld(buffer, nowMs);
+  await writeJson(bufferPath, buffer);
+
+  // Trace event — use appropriate type based on action
+  const traceEvent: MeridiaTraceEvent =
+    action === "new"
+      ? {
+          type: "experiential_session_transition",
+          ts: now,
+          sessionId,
+          sessionKey,
+          recordId,
+        }
+      : {
+          type: "experiential_session_end",
+          ts: now,
+          action,
+          sessionId,
+          sessionKey,
+          recordId,
+          bufferSnapshot: {
+            toolResultsSeen: buffer.toolResultsSeen,
+            captured: buffer.captured,
+            recentCaptureCount: buffer.recentCaptures.length,
+          },
+        };
+  await appendTraceEvent(tracePath, traceEvent, cfg);
+}
+
+// ─── Main handler (dispatch) ────────────────────────────────────────
+
+const experientialCapture: HookHandler = async (event) => {
+  const context = asObject(event.context) ?? {};
+  const cfg = (context.cfg as OpenClawConfig | undefined) ?? undefined;
+  const hookCfg = resolveHookConfig(cfg, "experiential-capture");
+  if (hookCfg?.enabled !== true) {
+    return;
+  }
+
+  // Dispatch based on event type and action
+  if (event.type === "agent" && event.action === "tool:result") {
+    return handleToolResult(event, context, cfg, hookCfg);
+  }
+
+  if (event.type === "agent" && event.action === "precompact") {
+    return handlePreCompact(event, context, cfg);
+  }
+
+  if (event.type === "command" && (event.action === "new" || event.action === "stop")) {
+    return handleSessionEnd(event, context, cfg);
+  }
+
+  // Unknown event type — ignore silently
 };
 
 export default experientialCapture;
