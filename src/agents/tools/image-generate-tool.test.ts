@@ -14,15 +14,11 @@ describe("image-generate-tool", () => {
   });
 
   it("requires a prompt parameter", async () => {
-    const result = await tool.execute("test-call", {});
-    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
-    expect(text).toContain("prompt required");
+    await expect(tool.execute("test-call", {})).rejects.toThrow("prompt required");
   });
 
   it("rejects empty prompt", async () => {
-    const result = await tool.execute("test-call", { prompt: "   " });
-    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? "";
-    expect(text).toContain("prompt required");
+    await expect(tool.execute("test-call", { prompt: "   " })).rejects.toThrow("prompt required");
   });
 
   it("returns error for unsupported provider", async () => {
