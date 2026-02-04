@@ -32,3 +32,4 @@ export { modelsScanCommand } from "./models/scan.js";
 export { modelsSetCommand } from "./models/set.js";
 export { modelsSetImageCommand } from "./models/set-image.js";
 export { modelsDiscoverCommand } from "./models/discover.js";
+export { computeDailyRotation, applyRotationToConfig } from "../agents/model-rotation.js";
