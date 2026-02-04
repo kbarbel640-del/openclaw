@@ -57,6 +57,13 @@ const DEFAULT_CHATTERBOX_EXAGGERATION = 0.5;
 const DEFAULT_CHATTERBOX_CFG_WEIGHT = 0.5;
 const DEFAULT_CHATTERBOX_SPEED = 1.0;
 
+const DEFAULT_PIPER_BASE_URL = "http://localhost:8101";
+const DEFAULT_PIPER_VOICE = "en_US-lessac-high";
+const DEFAULT_PIPER_LENGTH_SCALE = 1.0;
+const DEFAULT_PIPER_NOISE_SCALE = 0.667;
+const DEFAULT_PIPER_NOISE_W = 0.8;
+const DEFAULT_PIPER_SENTENCE_SILENCE = 0.2;
+
 const DEFAULT_ELEVENLABS_VOICE_SETTINGS = {
   stability: 0.5,
   similarityBoost: 0.75,
@@ -139,6 +146,17 @@ export type ResolvedTtsConfig = {
     exaggeration: number;
     cfgWeight: number;
     speed: number;
+  };
+  piper: {
+    enabled: boolean;
+    baseUrl: string;
+    apiKey?: string;
+    voice: string;
+    speakerId?: number;
+    lengthScale: number;
+    noiseScale: number;
+    noiseW: number;
+    sentenceSilence: number;
   };
   prefsPath?: string;
   maxTextLength: number;
@@ -324,6 +342,17 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
       exaggeration: raw.chatterbox?.exaggeration ?? DEFAULT_CHATTERBOX_EXAGGERATION,
       cfgWeight: raw.chatterbox?.cfgWeight ?? DEFAULT_CHATTERBOX_CFG_WEIGHT,
       speed: raw.chatterbox?.speed ?? DEFAULT_CHATTERBOX_SPEED,
+    },
+    piper: {
+      enabled: raw.piper?.enabled ?? false,
+      baseUrl: raw.piper?.baseUrl?.trim() || DEFAULT_PIPER_BASE_URL,
+      apiKey: raw.piper?.apiKey?.trim() || undefined,
+      voice: raw.piper?.voice?.trim() || DEFAULT_PIPER_VOICE,
+      speakerId: raw.piper?.speakerId,
+      lengthScale: raw.piper?.lengthScale ?? DEFAULT_PIPER_LENGTH_SCALE,
+      noiseScale: raw.piper?.noiseScale ?? DEFAULT_PIPER_NOISE_SCALE,
+      noiseW: raw.piper?.noiseW ?? DEFAULT_PIPER_NOISE_W,
+      sentenceSilence: raw.piper?.sentenceSilence ?? DEFAULT_PIPER_SENTENCE_SILENCE,
     },
     prefsPath: raw.prefsPath,
     maxTextLength: raw.maxTextLength ?? DEFAULT_MAX_TEXT_LENGTH,
@@ -542,6 +571,9 @@ export function isTtsProviderConfigured(config: ResolvedTtsConfig, provider: Tts
   }
   if (provider === "chatterbox") {
     return config.chatterbox.enabled;
+  }
+  if (provider === "piper") {
+    return config.piper.enabled;
   }
   return Boolean(resolveTtsApiKey(config, provider));
 }
@@ -1256,6 +1288,74 @@ async function chatterboxTTS(params: {
   }
 }
 
+/**
+ * Piper TTS - fast, local neural text-to-speech with high-quality voices.
+ * Lightweight and privacy-focused, runs entirely offline.
+ * See: https://github.com/rhasspy/piper
+ */
+async function piperTTS(params: {
+  text: string;
+  config: ResolvedTtsConfig["piper"];
+  responseFormat: "mp3" | "opus" | "wav";
+  timeoutMs: number;
+}): Promise<Buffer> {
+  const { text, config, responseFormat, timeoutMs } = params;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  const baseUrl = config.baseUrl.replace(/\/+$/, "");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (config.apiKey) {
+    headers["Authorization"] = `Bearer ${config.apiKey}`;
+  }
+
+  // Build request body - Piper uses OpenAI-compatible format
+  const body: Record<string, unknown> = {
+    model: config.voice, // Piper uses voice name as model
+    input: text,
+    voice: config.voice,
+    response_format: responseFormat,
+  };
+
+  // Add Piper-specific parameters if provided
+  if (config.speakerId !== undefined) {
+    body.speaker_id = config.speakerId;
+  }
+  if (config.lengthScale !== undefined) {
+    body.length_scale = config.lengthScale;
+  }
+  if (config.noiseScale !== undefined) {
+    body.noise_scale = config.noiseScale;
+  }
+  if (config.noiseW !== undefined) {
+    body.noise_w = config.noiseW;
+  }
+  if (config.sentenceSilence !== undefined) {
+    body.sentence_silence = config.sentenceSilence;
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}/v1/audio/speech`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      throw new Error(`Piper TTS API error (${response.status}): ${errorText}`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function textToSpeech(params: {
   text: string;
   cfg: OpenClawConfig;
@@ -1363,6 +1463,40 @@ export async function textToSpeech(params: {
         const audioBuffer = await chatterboxTTS({
           text: params.text,
           config: config.chatterbox,
+          responseFormat: responseFormat as "mp3" | "opus" | "wav",
+          timeoutMs: config.timeoutMs,
+        });
+
+        const latencyMs = Date.now() - providerStart;
+        const extension = responseFormat === "opus" ? ".opus" : ".mp3";
+
+        const tempDir = mkdtempSync(path.join(tmpdir(), "tts-"));
+        const audioPath = path.join(tempDir, `voice-${Date.now()}${extension}`);
+        writeFileSync(audioPath, audioBuffer);
+        scheduleCleanup(tempDir);
+
+        const voiceCompatible = responseFormat === "opus";
+
+        return {
+          success: true,
+          audioPath,
+          latencyMs,
+          provider,
+          outputFormat: responseFormat,
+          voiceCompatible,
+        };
+      }
+
+      if (provider === "piper") {
+        if (!config.piper.enabled) {
+          lastError = "piper: disabled";
+          continue;
+        }
+
+        const responseFormat = channelId === "telegram" ? "opus" : "mp3";
+        const audioBuffer = await piperTTS({
+          text: params.text,
+          config: config.piper,
           responseFormat: responseFormat as "mp3" | "opus" | "wav",
           timeoutMs: config.timeoutMs,
         });
