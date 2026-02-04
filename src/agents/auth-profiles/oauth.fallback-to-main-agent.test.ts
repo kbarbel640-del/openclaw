@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadSecureJsonFile } from "../../infra/crypto-store.js";
+import { loadSecureJsonFile, saveSecureJsonFile } from "../../infra/crypto-store.js";
 import { captureEnv } from "../../test-utils/env.js";
 import { resolveApiKeyForProfile } from "./oauth.js";
 import { ensureAuthProfileStore } from "./store.js";
@@ -53,7 +53,7 @@ describe("resolveApiKeyForProfile fallback to main agent", () => {
   }
 
   async function writeAuthProfilesStore(agentDir: string, store: AuthProfileStore) {
-    await fs.writeFile(path.join(agentDir, "auth-profiles.json"), JSON.stringify(store));
+    await saveSecureJsonFile(path.join(agentDir, "auth-profiles.json"), store);
   }
 
   function stubOAuthRefreshFailure() {
