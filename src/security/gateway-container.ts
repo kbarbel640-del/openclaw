@@ -61,6 +61,12 @@ const SECRET_EXACT_MATCHES = new Set([
   "PRIVATE_KEY",
   "SECRET",
   "CREDENTIALS",
+  // Path-related (prevent host paths in container)
+  "HOME",
+  "OPENCLAW_STATE_DIR",
+  "OPENCLAW_CONFIG_PATH",
+  "CLAWDBOT_STATE_DIR",
+  "CLAWDBOT_CONFIG_PATH",
 ]);
 
 /**
