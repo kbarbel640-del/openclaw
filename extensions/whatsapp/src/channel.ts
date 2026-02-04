@@ -56,7 +56,7 @@ export const whatsappPlugin: ChannelPlugin<ResolvedWhatsAppAccount> = {
     media: true,
   },
   reload: { configPrefixes: ["web"], noopPrefixes: ["channels.whatsapp"] },
-  gatewayMethods: ["web.login.start", "web.login.wait"],
+  gatewayMethods: ["web.login.start", "web.login.pairing.start", "web.login.wait"],
   configSchema: buildChannelConfigSchema(WhatsAppConfigSchema),
   config: {
     listAccountIds: (cfg) => listWhatsAppAccountIds(cfg),
