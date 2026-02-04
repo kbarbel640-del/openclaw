@@ -560,8 +560,13 @@ export function matchAllowlist(
     if (!pattern) {
       continue;
     }
+    // Treat "*" or "**" as a universal "allow all" pattern
+    if (pattern === "*" || pattern === "**") {
+      return entry;
+    }
     const hasPath = pattern.includes("/") || pattern.includes("\\") || pattern.includes("~");
-    if (!hasPath) {
+    const hasWildcard = pattern.includes("*") || pattern.includes("?");
+    if (!hasPath && !hasWildcard) {
       continue;
     }
     if (matchesPattern(pattern, resolvedPath)) {
