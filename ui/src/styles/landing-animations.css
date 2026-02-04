@@ -250,8 +250,18 @@
    ============================================ */
 
 .parallax-layer {
-  will-change: transform;
+  /*
+   * will-change: transform is set only while the layer is in-viewport
+   * to avoid permanent GPU memory allocation. The animation-utils.ts
+   * parallax handler uses CSS custom properties so transform composition
+   * is preserved.
+   */
   --parallax-y: 0px;
+  contain: layout style;
+}
+
+.parallax-layer.in-viewport {
+  will-change: transform;
 }
 
 .parallax-slow {

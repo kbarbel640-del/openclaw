@@ -8,14 +8,10 @@
 
 import { html, css, LitElement, TemplateResult } from "lit";
 import { customElement, state } from "lit/decorators.js";
-// Import all section components
+// Hero is above the fold — load eagerly
 import "./sections/hero-section";
-import "./sections/understanding-section";
-import "./sections/activity-section";
-import "./sections/control-section";
-import "./sections/features-section";
-import "./sections/social-proof-section";
-import "./sections/footer-section";
+// Below-fold sections are lazy-loaded via IntersectionObserver
+import { observeSection, preloadAllSections, cleanupLazyObserver } from "./lazy-section";
 // SEO meta management
 import { resetSeoMeta } from "./seo-meta";
 
@@ -33,6 +29,29 @@ export class LandingPage extends LitElement {
     .landing-wrapper {
       display: flex;
       flex-direction: column;
+    }
+    
+    /*
+         * Below-fold sections use content-visibility: auto to skip
+         * rendering until they enter the viewport. contain-intrinsic-size
+         * reserves approximate space to minimise layout shift (CLS).
+         */
+    .landing-wrapper > landing-features,
+    .landing-wrapper > landing-understanding,
+    .landing-wrapper > landing-control,
+    .landing-wrapper > landing-activity,
+    .landing-wrapper > landing-social-proof,
+    .landing-wrapper > landing-footer {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 600px;
+    }
+    
+    /* The nav only needs will-change while scrolling */
+    .landing-nav {
+      will-change: auto;
+    }
+    .landing-nav.scrolled {
+      will-change: background-color, padding;
     }
     
     /* Skip-to-content for accessibility */
@@ -383,22 +402,77 @@ export class LandingPage extends LitElement {
   private mobileMenuOpen = false;
 
   private scrollHandler?: () => void;
+  private scrollRafId = 0;
+  private idleCallbackId = 0;
 
   connectedCallback(): void {
     super.connectedCallback();
     // Ensure landing page SEO meta tags are set when the landing page mounts
     resetSeoMeta();
+
+    // Throttle scroll handler with requestAnimationFrame for 60fps perf
     this.scrollHandler = () => {
-      this.navScrolled = window.scrollY > 50;
-      this.showBackToTop = window.scrollY > 600;
+      if (this.scrollRafId) return; // already scheduled
+      this.scrollRafId = requestAnimationFrame(() => {
+        this.scrollRafId = 0;
+        const scrollY = window.scrollY;
+        this.navScrolled = scrollY > 50;
+        this.showBackToTop = scrollY > 600;
+      });
     };
     window.addEventListener("scroll", this.scrollHandler, { passive: true });
+
+    // After first paint, observe lazy sections
+    this.updateComplete.then(() => {
+      this.observeLazySections();
+    });
+
+    // Prefetch all sections on idle so they're ready for fast scroll
+    if ("requestIdleCallback" in window) {
+      this.idleCallbackId = requestIdleCallback(
+        () => {
+          preloadAllSections();
+        },
+        { timeout: 5000 },
+      );
+    } else {
+      // Fallback: preload after 3s
+      setTimeout(() => preloadAllSections(), 3000);
+    }
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
     if (this.scrollHandler) {
       window.removeEventListener("scroll", this.scrollHandler);
+    }
+    if (this.scrollRafId) {
+      cancelAnimationFrame(this.scrollRafId);
+    }
+    if (this.idleCallbackId && "cancelIdleCallback" in window) {
+      cancelIdleCallback(this.idleCallbackId);
+    }
+    cleanupLazyObserver();
+  }
+
+  /**
+   * Observe below-fold section elements for lazy loading.
+   * The elements are in the Shadow DOM render root.
+   */
+  private observeLazySections(): void {
+    const lazySections = [
+      "landing-features",
+      "landing-understanding",
+      "landing-control",
+      "landing-activity",
+      "landing-social-proof",
+      "landing-footer",
+    ];
+    for (const tagName of lazySections) {
+      const el = this.renderRoot.querySelector(tagName);
+      if (el) {
+        observeSection(el, tagName);
+      }
     }
   }
 
@@ -567,5 +641,11 @@ export { LandingSocialProof } from "./sections/social-proof-section";
 export { LandingFooter } from "./sections/footer-section";
 
 // SEO utilities
-export { updateSeoMeta, resetSeoMeta, injectJsonLd, removeJsonLd, LANDING_SEO_DEFAULTS } from "./seo-meta";
+export {
+  updateSeoMeta,
+  resetSeoMeta,
+  injectJsonLd,
+  removeJsonLd,
+  LANDING_SEO_DEFAULTS,
+} from "./seo-meta";
 export type { SeoMeta } from "./seo-meta";
