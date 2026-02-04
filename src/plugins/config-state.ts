@@ -21,6 +21,7 @@ export const BUNDLED_ENABLED_BY_DEFAULT = new Set<string>([
   "google-gemini-cli-auth",
   "google-antigravity-auth",
   "anthropic-auth",
+  "openai-codex-auth",
 ]);
 
 const normalizeList = (value: unknown): string[] => {

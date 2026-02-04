@@ -13,7 +13,7 @@ export const PROVIDER_REGISTRY: ProviderDefinition[] = [
     id: "openai",
     name: "OpenAI",
     envVars: ["OPENAI_API_KEY"],
-    authModes: ["api-key"],
+    authModes: ["api-key", "oauth"],
     defaultBaseUrl: "https://api.openai.com/v1",
   },
   {
