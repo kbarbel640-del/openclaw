@@ -4,6 +4,7 @@ import path from "node:path";
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
+import { loadSecureJsonFile } from "../infra/crypto-store.js";
 import {
   applyAuthProfileConfig,
   applyLitellmProviderConfig,
@@ -33,11 +34,7 @@ import {
   ZAI_CODING_CN_BASE_URL,
   ZAI_GLOBAL_BASE_URL,
 } from "./onboard-auth.js";
-import {
-  createAuthTestLifecycle,
-  readAuthProfilesForAgent,
-  setupAuthTestEnv,
-} from "./test-wizard-helpers.js";
+import { createAuthTestLifecycle, setupAuthTestEnv } from "./test-wizard-helpers.js";
 
 function createLegacyProviderConfig(params: {
   providerId: string;
@@ -134,9 +131,9 @@ describe("writeOAuthCredentials", () => {
 
     await writeOAuthCredentials("openai-codex", creds);
 
-    const parsed = await readAuthProfilesForAgent<{
+    const parsed = loadSecureJsonFile(authProfilePathFor(env.agentDir)) as {
       profiles?: Record<string, OAuthCredentials & { type?: string }>;
-    }>(env.agentDir);
+    };
     expect(parsed.profiles?.["openai-codex:default"]).toMatchObject({
       refresh: "refresh-token",
       access: "access-token",
@@ -173,8 +170,7 @@ describe("writeOAuthCredentials", () => {
     });
 
     for (const dir of [mainAgentDir, kidAgentDir, workerAgentDir]) {
-      const raw = await fs.readFile(authProfilePathFor(dir), "utf8");
-      const parsed = JSON.parse(raw) as {
+      const parsed = loadSecureJsonFile(authProfilePathFor(dir)) as {
         profiles?: Record<string, OAuthCredentials & { type?: string }>;
       };
       expect(parsed.profiles?.["openai-codex:default"]).toMatchObject({
@@ -205,8 +201,7 @@ describe("writeOAuthCredentials", () => {
 
     await writeOAuthCredentials("openai-codex", creds, kidAgentDir);
 
-    const kidRaw = await fs.readFile(authProfilePathFor(kidAgentDir), "utf8");
-    const kidParsed = JSON.parse(kidRaw) as {
+    const kidParsed = loadSecureJsonFile(authProfilePathFor(kidAgentDir)) as {
       profiles?: Record<string, OAuthCredentials & { type?: string }>;
     };
     expect(kidParsed.profiles?.["openai-codex:default"]).toMatchObject({
@@ -242,8 +237,7 @@ describe("writeOAuthCredentials", () => {
 
     // All siblings under the external root should have credentials
     for (const dir of [extMain, extKid, extWorker]) {
-      const raw = await fs.readFile(authProfilePathFor(dir), "utf8");
-      const parsed = JSON.parse(raw) as {
+      const parsed = loadSecureJsonFile(authProfilePathFor(dir)) as {
         profiles?: Record<string, OAuthCredentials & { type?: string }>;
       };
       expect(parsed.profiles?.["openai-codex:default"]).toMatchObject({
@@ -276,9 +270,9 @@ describe("setMinimaxApiKey", () => {
 
     await setMinimaxApiKey("sk-minimax-test");
 
-    const parsed = await readAuthProfilesForAgent<{
+    const parsed = loadSecureJsonFile(authProfilePathFor(env.agentDir)) as {
       profiles?: Record<string, { type?: string; provider?: string; key?: string }>;
-    }>(env.agentDir);
+    };
     expect(parsed.profiles?.["minimax:default"]).toMatchObject({
       type: "api_key",
       provider: "minimax",
