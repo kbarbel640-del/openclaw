@@ -149,7 +149,8 @@ export function createAgentEventHandler({
     chatRunState.buffers.set(clientRunId, text);
     const now = Date.now();
     const last = chatRunState.deltaSentAt.get(clientRunId) ?? 0;
-    if (now - last < 150) {
+    // Reduced from 150ms to 50ms to prevent losing updates under load
+    if (now - last < 50) {
       return;
     }
     chatRunState.deltaSentAt.set(clientRunId, now);
@@ -179,6 +180,32 @@ export function createAgentEventHandler({
     error?: unknown,
   ) => {
     const text = chatRunState.buffers.get(clientRunId)?.trim() ?? "";
+
+    // Flush any buffered content that wasn't sent due to throttling
+    // This ensures the client receives all content before the final event
+    if (text) {
+      const lastSent = chatRunState.deltaSentAt.get(clientRunId) ?? 0;
+      const now = Date.now();
+      // If we haven't sent recently, or if there's content, force a flush
+      if (now - lastSent >= 50) {
+        const flushPayload = {
+          runId: clientRunId,
+          sessionKey,
+          seq: seq - 1,
+          state: "delta" as const,
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text }],
+            timestamp: now,
+          },
+        };
+        if (!shouldSuppressHeartbeatBroadcast(clientRunId)) {
+          broadcast("chat", flushPayload, { dropIfSlow: false });
+        }
+        nodeSendToSession(sessionKey, "chat", flushPayload);
+      }
+    }
+
     chatRunState.buffers.delete(clientRunId);
     chatRunState.deltaSentAt.delete(clientRunId);
     if (jobState === "done") {
