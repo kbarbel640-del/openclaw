@@ -30,7 +30,12 @@ export function createWebSendApi(params: {
             ...(viewOnce ? { viewOnce: true } : {}),
           };
         } else if (mediaType.startsWith("audio/")) {
-          payload = { audio: mediaBuffer, ptt: true, mimetype: mediaType, ...(viewOnce ? { viewOnce: true } : {}) };
+          payload = {
+            audio: mediaBuffer,
+            ptt: true,
+            mimetype: mediaType,
+            ...(viewOnce ? { viewOnce: true } : {}),
+          };
         } else if (mediaType.startsWith("video/")) {
           const gifPlayback = sendOptions?.gifPlayback;
           payload = {

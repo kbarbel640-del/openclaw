@@ -149,6 +149,7 @@ function createPluginHandler(params: {
             replyToId: params.replyToId,
             threadId: params.threadId,
             gifPlayback: params.gifPlayback,
+            viewOnce: params.viewOnce,
             deps: params.deps,
             payload,
           })
