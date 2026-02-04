@@ -7,6 +7,7 @@ import {
 } from "../agents/model-selection.js";
 import type { CliDeps } from "../cli/deps.js";
 import type { loadConfig } from "../config/config.js";
+import { autoCleanDiskSpace } from "../infra/disk-space.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import { startGmailWatcher } from "../hooks/gmail-watcher.js";
 import {
@@ -29,7 +30,7 @@ export async function startGatewaySidecars(params: {
   defaultWorkspaceDir: string;
   deps: CliDeps;
   startChannels: () => Promise<void>;
-  log: { warn: (msg: string) => void };
+  log: { warn: (msg: string) => void; info: (msg: string) => void };
   logHooks: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -38,6 +39,19 @@ export async function startGatewaySidecars(params: {
   logChannels: { info: (msg: string) => void; error: (msg: string) => void };
   logBrowser: { error: (msg: string) => void };
 }) {
+  // Check disk space and auto-clean if needed (before anything else).
+  if (!isTruthyEnvValue(process.env.OPENCLAW_SKIP_DISK_CLEANUP)) {
+    try {
+      autoCleanDiskSpace({
+        checkPath: params.defaultWorkspaceDir,
+        thresholdPercent: 85,
+        log: params.log,
+      });
+    } catch (err) {
+      params.log.warn(`disk space check failed: ${String(err)}`);
+    }
+  }
+
   // Start OpenClaw browser control server (unless disabled via config).
   let browserControl: Awaited<ReturnType<typeof startBrowserControlServerIfEnabled>> = null;
   try {
