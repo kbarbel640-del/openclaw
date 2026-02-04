@@ -1,7 +1,7 @@
 {
   "name": "openclaw",
   "version": "2026.2.2",
-  "description": "WhatsApp gateway CLI (Baileys web) with Pi RPC agent",
+  "description": "Personal AI assistant with multi-channel support (WhatsApp, Telegram, Slack, Discord, DingTalk, Feishu, WeChat Work) and Pi RPC agent",
   "keywords": [],
   "license": "MIT",
   "author": "",
