@@ -1,11 +1,11 @@
-import { CoreMemories } from "./index.js";
+import { CoreMemories, FlashEntry } from "./index.js";
 
 export interface SessionContinuationConfig {
   enabled: boolean;
   thresholds: {
-    silent: number; // hours - no mention
-    hint: number; // hours - brief context
-    prompt: number; // hours - explicit prompt
+    silent: number;
+    hint: number;
+    prompt: number;
   };
   prioritizeFlagged: boolean;
   maxMemoriesToShow: number;
@@ -16,9 +16,9 @@ export interface ContinuationResult {
   shouldPrompt: boolean;
   message?: string;
   context: {
-    topMemories: any[];
+    topMemories: FlashEntry[];
     lastTopic?: string;
-    unfinishedTasks: any[];
+    unfinishedTasks: FlashEntry[];
   };
 }
 
@@ -37,10 +37,6 @@ export class SessionContinuation {
     };
   }
 
-  /**
-   * Check if we should continue a previous session
-   * Called on session start (HEARTBEAT or gateway open)
-   */
   async checkSession(userId: string, lastSessionTimestamp: number): Promise<ContinuationResult> {
     if (!this.config.enabled) {
       return {
@@ -52,7 +48,6 @@ export class SessionContinuation {
 
     const gapHours = (Date.now() - lastSessionTimestamp) / (1000 * 60 * 60);
 
-    // Determine mode based on gap
     let mode: "silent" | "hint" | "prompt";
     if (gapHours < this.config.thresholds.silent) {
       mode = "silent";
@@ -62,28 +57,22 @@ export class SessionContinuation {
       mode = "prompt";
     }
 
-    // Get context from Flash layer (0-48h)
-    const flash = await this.cm.loadFlash();
+    const flashEntries = this.cm.getFlashEntries();
 
-    // Filter high-priority memories
-    let topMemories = flash.entries
-      .filter((e) =>
+    const topMemories = flashEntries
+      .filter((e: FlashEntry) =>
         this.config.prioritizeFlagged ? e.userFlagged || e.emotionalSalience > 0.7 : true,
       )
-      .sort((a, b) => b.emotionalSalience - a.emotionalSalience)
+      .toSorted((a: FlashEntry, b: FlashEntry) => b.emotionalSalience - a.emotionalSalience)
       .slice(0, this.config.maxMemoriesToShow);
 
-    // Get unfinished tasks
-    const unfinishedTasks = flash.entries
-      .filter((e) => e.type === "action" && !e.completed)
+    const unfinishedTasks = flashEntries
+      .toSorted((a, b) => b.emotionalSalience - a.emotionalSalience)
       .slice(0, 2);
 
-    // Get last topic from most recent entry
-    const lastTopic = flash.entries[0]?.content;
-
+    const lastTopic = flashEntries[0]?.content;
     const context = { topMemories, lastTopic, unfinishedTasks };
 
-    // Build message based on mode
     let message: string | undefined;
     if (mode === "hint") {
       message = this.buildHintMessage(context);
@@ -91,63 +80,46 @@ export class SessionContinuation {
       message = this.buildPromptMessage(context);
     }
 
-    return {
-      mode,
-      shouldPrompt: mode === "prompt",
-      message,
-      context,
-    };
+    return { mode, shouldPrompt: mode === "prompt", message, context };
   }
 
-  /**
-   * Build hint message (2-6 hour gap)
-   * Brief, assumes continuity
-   */
-  private buildHintMessage(context: any): string | undefined {
+  private buildHintMessage(context: { topMemories: FlashEntry[] }): string | undefined {
     const { topMemories } = context;
+    if (topMemories.length === 0) {
+      return undefined;
+    }
 
-    if (topMemories.length === 0) return undefined;
-
-    // Pick the highest priority memory
     const top = topMemories[0];
-
-    // Keep it conversational, not robotic
     if (top.emotionalSalience > 0.8) {
       return `👋 Hey! Still working on ${this.extractTopic(top.content)}?`;
     }
-
-    return `👋 Hey!`; // Silent fallback
+    return `👋 Hey!`;
   }
 
-  /**
-   * Build prompt message (6+ hour gap)
-   * Explicit continuation offer
-   */
-  private buildPromptMessage(context: any): string {
+  private buildPromptMessage(context: {
+    topMemories: FlashEntry[];
+    unfinishedTasks: FlashEntry[];
+  }): string {
     const { topMemories, unfinishedTasks } = context;
-
     let message = `👋 Welcome back!\n\n`;
 
-    // Show top memories
     if (topMemories.length > 0) {
       message += `**Last time we were working on:**\n`;
-      topMemories.forEach((m) => {
+      topMemories.forEach((m: FlashEntry) => {
         const icon = m.emotionalSalience > 0.8 ? "🎯" : "📝";
         message += `${icon} ${this.summarizeEntry(m)}\n`;
       });
       message += `\n`;
     }
 
-    // Show unfinished tasks
     if (unfinishedTasks.length > 0) {
       message += `**Unfinished:**\n`;
-      unfinishedTasks.forEach((t) => {
+      unfinishedTasks.forEach((t: FlashEntry) => {
         message += `⏳ ${this.summarizeEntry(t)}\n`;
       });
       message += `\n`;
     }
 
-    // Offer options
     if (topMemories.length > 0) {
       message += `Want to continue with ${this.extractTopic(topMemories[0].content)} or start fresh?`;
     } else {
@@ -157,33 +129,32 @@ export class SessionContinuation {
     return message;
   }
 
-  /**
-   * Extract a concise topic from memory content
-   */
   private extractTopic(content: string): string {
-    // Simple extraction - could use LLM for better results
-    const match = content.match(/(?:working on|building|launching|focus on)\s+([^\.\?\!]+)/i);
-    return match ? match[1].trim() : content.substring(0, 40) + "...";
+    // Extract first sentence or first 40 chars as topic
+    const stopChars = /[.?!]/;
+    let topic = content.split(stopChars, 1)[0];
+    const match = content.match(/(?:working on|building|launching|focus on)\s+(.+)/i);
+    if (match) {
+      topic = match[1].trim().split(stopChars, 1)[0];
+    }
+    if (topic.length > 40) {
+      topic = topic.substring(0, 40) + "...";
+    }
+    return topic;
   }
 
-  /**
-   * Summarize a memory entry for display
-   */
-  private summarizeEntry(entry: any): string {
+  private summarizeEntry(entry: FlashEntry): string {
     let text = entry.content;
     if (text.length > 60) {
       text = text.substring(0, 57) + "...";
     }
-
     if (entry.emotionalSalience > 0.8) {
       text += " (high priority)";
     }
-
     return text;
   }
 }
 
-// Convenience function for HEARTBEAT integration
 export async function getSessionContinuationMessage(
   coreMemories: CoreMemories,
   lastSessionTime: number,

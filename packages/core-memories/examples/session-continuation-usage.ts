@@ -4,6 +4,8 @@
  * This shows how to integrate session continuation into OpenClaw
  */
 
+/* eslint-disable no-unused-vars */
+
 import { CoreMemories } from "./index.js";
 import { onSessionStart, heartbeatSessionCheck } from "./session-continuation-integration.js";
 

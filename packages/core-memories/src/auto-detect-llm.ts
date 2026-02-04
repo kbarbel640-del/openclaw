@@ -1,12 +1,11 @@
 /**
  * Auto-detect Local LLM Configuration
- * Dynamically discovers available local models for CoreMemories
  */
 
 export interface DetectedLLM {
   provider: "ollama" | "llamacpp" | "localai";
   model: string;
-  size: number; // GB
+  size: number;
   contextWindow: number;
   recommended: boolean;
   reason: string;
@@ -18,9 +17,6 @@ export interface LLMDetectorConfig {
   preferredModels: string[];
 }
 
-/**
- * Auto-detect available local LLMs
- */
 export async function detectLocalLLMs(
   config: Partial<LLMDetectorConfig> = {},
 ): Promise<DetectedLLM[]> {
@@ -33,7 +29,6 @@ export async function detectLocalLLMs(
 
   const detected: DetectedLLM[] = [];
 
-  // Try Ollama
   try {
     const ollamaModels = await detectOllamaModels(cfg);
     detected.push(...ollamaModels);
@@ -41,13 +36,9 @@ export async function detectLocalLLMs(
     // Ollama not available
   }
 
-  // Sort by recommendation priority
   return sortByRecommendation(detected, cfg.preferredModels);
 }
 
-/**
- * Detect Ollama models
- */
 async function detectOllamaModels(config: LLMDetectorConfig): Promise<DetectedLLM[]> {
   const response = await fetch(`${config.ollamaBaseUrl}/api/tags`);
 
@@ -76,9 +67,6 @@ async function detectOllamaModels(config: LLMDetectorConfig): Promise<DetectedLL
   return models;
 }
 
-/**
- * Analyze model capabilities
- */
 function analyzeModel(
   name: string,
   sizeBytes: number,
@@ -89,7 +77,6 @@ function analyzeModel(
 } {
   const sizeGB = sizeBytes / 1e9;
 
-  // Known model families
   if (name.includes("kimi") || name.includes("k2.5")) {
     return {
       contextWindow: 256000,
@@ -131,7 +118,6 @@ function analyzeModel(
     };
   }
 
-  // Default for unknown models
   return {
     contextWindow: estimateContextWindow(sizeGB),
     recommended: sizeGB >= 4,
@@ -139,45 +125,45 @@ function analyzeModel(
   };
 }
 
-/**
- * Estimate context window from model size
- */
 function estimateContextWindow(sizeGB: number): number {
-  if (sizeGB > 40) return 128000;
-  if (sizeGB > 20) return 65536;
-  if (sizeGB > 10) return 32768;
-  if (sizeGB > 5) return 16000;
+  if (sizeGB > 40) {
+    return 128000;
+  }
+  if (sizeGB > 20) {
+    return 65536;
+  }
+  if (sizeGB > 10) {
+    return 32768;
+  }
+  if (sizeGB > 5) {
+    return 16000;
+  }
   return 8192;
 }
 
-/**
- * Sort models by recommendation
- */
 function sortByRecommendation(models: DetectedLLM[], preferred: string[]): DetectedLLM[] {
-  return models.sort((a, b) => {
-    // Recommended first
+  return models.toSorted((a, b) => {
     if (a.recommended !== b.recommended) {
       return a.recommended ? -1 : 1;
     }
 
-    // Preferred models first
     const aPref = preferred.findIndex((p) => a.model.includes(p));
     const bPref = preferred.findIndex((p) => b.model.includes(p));
 
     if (aPref !== -1 || bPref !== -1) {
-      if (aPref === -1) return 1;
-      if (bPref === -1) return -1;
+      if (aPref === -1) {
+        return 1;
+      }
+      if (bPref === -1) {
+        return -1;
+      }
       return aPref - bPref;
     }
 
-    // Larger context window next
     return b.contextWindow - a.contextWindow;
   });
 }
 
-/**
- * Select best available model for CoreMemories
- */
 export async function selectBestLLM(
   purpose: "compression" | "summarization" | "analysis" = "compression",
 ): Promise<DetectedLLM | null> {
@@ -187,7 +173,6 @@ export async function selectBestLLM(
     return null;
   }
 
-  // For compression: prefer fast, medium-context models
   if (purpose === "compression") {
     const fastModels = models.filter(
       (m) => m.model.includes("phi") || m.model.includes("llama3.1:8b") || m.size < 15,
@@ -195,18 +180,13 @@ export async function selectBestLLM(
     return fastModels[0] || models[0];
   }
 
-  // For analysis: prefer large context
   if (purpose === "analysis") {
-    return models.sort((a, b) => b.contextWindow - a.contextWindow)[0];
+    return models.toSorted((a, b) => b.contextWindow - a.contextWindow)[0];
   }
 
-  // Default: first recommended
   return models.find((m) => m.recommended) || models[0];
 }
 
-/**
- * Generate CoreMemories configuration
- */
 export async function generateConfig(): Promise<{
   enabled: boolean;
   compression: string;
@@ -223,7 +203,6 @@ export async function generateConfig(): Promise<{
   const best = await selectBestLLM("compression");
 
   if (!best) {
-    // Fallback: rules-based only
     return {
       enabled: true,
       compression: "rules",
