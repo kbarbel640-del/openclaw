@@ -325,7 +325,6 @@ export function startGatewayConfigReloader(opts: {
         if (!restartQueued) {
           if (opts.isRestartRecentlyScheduled?.()) {
             opts.log.info("config reload skipped (restart already scheduled)");
-            restartQueued = true;
             return;
           }
           restartQueued = true;
@@ -345,7 +344,6 @@ export function startGatewayConfigReloader(opts: {
         if (!restartQueued) {
           if (opts.isRestartRecentlyScheduled?.()) {
             opts.log.info("config reload skipped (restart already scheduled)");
-            restartQueued = true;
             return;
           }
           restartQueued = true;
