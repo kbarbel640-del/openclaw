@@ -439,7 +439,7 @@ export async function runSubagentAnnounceFlow(params: {
     const cfg = loadConfig();
     logSpawnComplete(
       cfg,
-      spawnedAgentId || params.agentId || "subagent",
+      spawnedAgentId || "subagent",
       params.label || params.task,
       params.childSessionKey,
       outcome.status,

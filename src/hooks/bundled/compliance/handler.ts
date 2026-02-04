@@ -232,13 +232,16 @@ export function logSpawnStart(
  * Sanitize summary text for logging (security: prevent PII/injection)
  */
 function sanitizeSummary(text: string, maxChars: number = 200): string {
-  if (!text) return "";
+  if (!text) {
+    return "";
+  }
 
   // 1. Byte limit before processing (DoS prevention)
   let sanitized = text.slice(0, 2048);
 
   // 2. Strip control characters (log injection prevention)
-  sanitized = sanitized.replace(/[\x00-\x1F\x7F]/g, " ");
+  // eslint-disable-next-line no-control-regex
+  sanitized = sanitized.replace(/[\u0000-\u001F\u007F]/g, " ");
 
   // 3. Strip file paths (cross-platform)
   sanitized = sanitized.replace(/\/Users\/[^\s]+/g, "[PATH]");
