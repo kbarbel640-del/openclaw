@@ -534,6 +534,19 @@ export async function runHeartbeatOnce(opts: {
   const { entry, sessionKey, storePath } = resolveHeartbeatSession(cfg, agentId, heartbeat);
   const previousUpdatedAt = entry?.updatedAt;
   const delivery = resolveHeartbeatDeliveryTarget({ cfg, entry, heartbeat });
+  const heartbeatAccountId = heartbeat?.accountId?.trim();
+  if (delivery.reason === "unknown-account") {
+    log.warn("heartbeat: unknown accountId", {
+      accountId: delivery.accountId ?? heartbeatAccountId ?? null,
+      target: heartbeat?.target ?? "last",
+    });
+  } else if (heartbeatAccountId) {
+    log.info("heartbeat: using explicit accountId", {
+      accountId: delivery.accountId ?? heartbeatAccountId,
+      target: heartbeat?.target ?? "last",
+      channel: delivery.channel,
+    });
+  }
   const visibility =
     delivery.channel !== "none"
       ? resolveHeartbeatVisibility({

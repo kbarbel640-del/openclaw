@@ -282,6 +282,24 @@ describe("resolveHeartbeatDeliveryTarget", () => {
     });
   });
 
+  it("skips when explicit heartbeat accountId is unknown", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          heartbeat: { target: "telegram", to: "123", accountId: "missing" },
+        },
+      },
+      channels: { telegram: { accounts: { work: { botToken: "token" } } } },
+    };
+    expect(resolveHeartbeatDeliveryTarget({ cfg, entry: baseEntry })).toEqual({
+      channel: "none",
+      reason: "unknown-account",
+      accountId: "missing",
+      lastChannel: undefined,
+      lastAccountId: undefined,
+    });
+  });
+
   it("prefers per-agent heartbeat overrides when provided", () => {
     const cfg: OpenClawConfig = {
       agents: { defaults: { heartbeat: { target: "telegram", to: "123" } } },

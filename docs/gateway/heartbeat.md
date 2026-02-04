@@ -137,6 +137,35 @@ Example: two agents, only the second agent runs heartbeats.
 }
 ```
 
+### Multi account example
+
+Use `accountId` to target a specific account on multi-account channels like Telegram:
+
+```json5
+{
+  agents: {
+    list: [
+      {
+        id: "ops",
+        heartbeat: {
+          every: "1h",
+          target: "telegram",
+          to: "12345678",
+          accountId: "ops-bot",
+        },
+      },
+    ],
+  },
+  channels: {
+    telegram: {
+      accounts: {
+        "ops-bot": { botToken: "YOUR_TELEGRAM_BOT_TOKEN" },
+      },
+    },
+  },
+}
+```
+
 ### Field notes
 
 - `every`: heartbeat interval (duration string; default unit = minutes).
@@ -151,7 +180,7 @@ Example: two agents, only the second agent runs heartbeats.
   - explicit channel: `whatsapp` / `telegram` / `discord` / `googlechat` / `slack` / `msteams` / `signal` / `imessage`.
   - `none`: run the heartbeat but **do not deliver** externally.
 - `to`: optional recipient override (channel-specific id, e.g. E.164 for WhatsApp or a Telegram chat id).
-- `accountId`: optional account id for multi-account channels. When `target: "last"`, the account id applies to the resolved last channel if it supports accounts; otherwise it is ignored.
+- `accountId`: optional account id for multi-account channels. When `target: "last"`, the account id applies to the resolved last channel if it supports accounts; otherwise it is ignored. If the account id does not match a configured account for the resolved channel, delivery is skipped.
 - `prompt`: overrides the default prompt body (not merged).
 - `ackMaxChars`: max chars allowed after `HEARTBEAT_OK` before delivery.
 

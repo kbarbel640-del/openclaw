@@ -8,6 +8,7 @@ import type {
 } from "../../utils/message-channel.js";
 import { getChannelPlugin, normalizeChannelId } from "../../channels/plugins/index.js";
 import { formatCliCommand } from "../../cli/command-format.js";
+import { normalizeAccountId } from "../../routing/session-key.js";
 import { deliveryContextFromSession } from "../../utils/delivery-context.js";
 import {
   INTERNAL_MESSAGE_CHANNEL,
@@ -209,7 +210,29 @@ export function resolveHeartbeatDeliveryTarget(params: {
 
   const heartbeatAccountId = heartbeat?.accountId?.trim();
   // Use explicit accountId from heartbeat config if provided, otherwise fall back to session
-  const effectiveAccountId = heartbeatAccountId || resolvedTarget.accountId;
+  let effectiveAccountId = heartbeatAccountId || resolvedTarget.accountId;
+
+  if (heartbeatAccountId && resolvedTarget.channel) {
+    const plugin = getChannelPlugin(resolvedTarget.channel);
+    const listAccountIds = plugin?.config.listAccountIds;
+    const accountIds = listAccountIds ? listAccountIds(cfg) : [];
+    if (accountIds.length > 0) {
+      const normalizedAccountId = normalizeAccountId(heartbeatAccountId);
+      const normalizedAccountIds = new Set(
+        accountIds.map((accountId) => normalizeAccountId(accountId)),
+      );
+      if (!normalizedAccountIds.has(normalizedAccountId)) {
+        return {
+          channel: "none",
+          reason: "unknown-account",
+          accountId: normalizedAccountId,
+          lastChannel: resolvedTarget.lastChannel,
+          lastAccountId: resolvedTarget.lastAccountId,
+        };
+      }
+      effectiveAccountId = normalizedAccountId;
+    }
+  }
 
   if (!resolvedTarget.channel || !resolvedTarget.to) {
     return {
