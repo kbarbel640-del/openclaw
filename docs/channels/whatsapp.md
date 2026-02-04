@@ -380,6 +380,71 @@ WhatsApp sends audio as **voice notes** (PTT bubble).
 - `web.heartbeatSeconds`
 - `web.reconnect.*`
 
+## External WhatsApp tools (wacli, etc.)
+
+**Known limitation:** OpenClaw's WhatsApp integration and external CLI tools (like `wacli`) **cannot run simultaneously** on the same WhatsApp account.
+
+### Why this happens
+
+Both OpenClaw and external WhatsApp CLI tools use the Baileys library to connect to WhatsApp Web. Each tool:
+- Maintains an authentication session in a store directory
+- Acquires an exclusive file lock on the store to prevent corruption
+- Connects as a single WhatsApp Web client
+
+WhatsApp Web protocol allows only **one active session per linked device**. When both tools try to connect:
+- Only one can acquire the store lock
+- The other fails with "store is locked" error
+- Forcing both to connect causes connection conflicts and session corruption
+
+### Workaround: Stop OpenClaw gateway
+
+To use external CLI tools while OpenClaw is installed:
+
+1. Stop the OpenClaw gateway:
+   ```bash
+   openclaw gateway stop
+   ```
+
+2. Use your CLI tool (e.g., `wacli`):
+   ```bash
+   wacli <command>
+   ```
+
+3. Restart OpenClaw when done:
+   ```bash
+   openclaw gateway start
+   ```
+
+### Alternative: Separate store paths (advanced)
+
+If you need both tools available simultaneously for different WhatsApp accounts, configure them to use **separate auth directories**:
+
+**OpenClaw:**
+```json
+{
+  "channels": {
+    "whatsapp": {
+      "accounts": {
+        "default": {
+          "authDir": "~/.openclaw/credentials/whatsapp/openclaw"
+        }
+      }
+    }
+  }
+}
+```
+
+**External tool:**
+Configure your external tool to use a different path (e.g., `~/.wacli/` or `~/.whatsapp-cli/`).
+
+**Important:** Each auth directory corresponds to a separate WhatsApp linked device. You cannot use the same WhatsApp account across both tools even with separate paths - you would need separate phone numbers.
+
+### Best practices
+
+- **Dedicated number:** Use a separate phone number for OpenClaw to avoid conflicts entirely
+- **Choose one tool:** For production use, stick with either OpenClaw or your external CLI tool, not both
+- **Debugging:** Stop OpenClaw gateway before using external tools to inspect WhatsApp state
+
 ## Logs + troubleshooting
 
 - Subsystems: `whatsapp/inbound`, `whatsapp/outbound`, `web-heartbeat`, `web-reconnect`.
