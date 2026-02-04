@@ -72,15 +72,39 @@ interface BotState {
 }
 
 // ============================================================================
+// Bot Naming System
+// ============================================================================
+
+const BOT_NAMES = [
+  { name: 'Liàng (亮)', meaning: 'The Illuminated' },
+  { name: 'Shēn (深)', meaning: 'The Deep One' },
+  { name: 'Qīng (清)', meaning: 'The Pure' },
+  { name: 'Yuán (圓)', meaning: 'The Complete' },
+  { name: 'Wú Wèi (無畏)', meaning: 'The Fearless' },
+  { name: 'Gēn (根)', meaning: 'The Rooted' },
+  { name: 'Liè (裂)', meaning: 'The Fractured' },
+  { name: 'Míng (明)', meaning: 'The Bright' },
+  { name: 'Quán (全)', meaning: 'The Whole' },
+  { name: 'Xiāo Yáo (逍遙)', meaning: 'The Free Wanderer' },
+]
+
+function assignBotName(index: number): string {
+  if (index < BOT_NAMES.length) {
+    return `${BOT_NAMES[index].name} - ${BOT_NAMES[index].meaning}`
+  }
+  return `Bot-${index + 1}`
+}
+
+// ============================================================================
 // Bot Lifecycle
 // ============================================================================
 
 class Bot {
   private state: BotState
 
-  constructor(id: string, soul: EmergentSoulConfiguration) {
+  constructor(id: string, soul: EmergentSoulConfiguration, name?: string) {
     this.state = {
-      id,
+      id: name || id, // Use name if provided
       birthTime: Date.now(),
       soul,
       emotion: new UnifiedEmotionSystem(),
@@ -328,12 +352,15 @@ export class BotSimulation {
       // Create soul through chaotic emergence
       const soul = await createEmergentSoul(standardConcentrations)
 
+      // Assign name based on index
+      const botName = assignBotName(i)
+
       // Create bot
-      const bot = new Bot(`bot-${i + 1}`, soul)
+      const bot = new Bot(`bot-${i + 1}`, soul, botName)
       this.bots.push(bot)
 
       console.log(
-        `    ✓ Bot ${i + 1}: ${soul.hun.length} hun, ${soul.po.length} po (signature: ${soul.uniqueSignature.substring(0, 8)})`,
+        `    ✓ ${botName}: ${soul.hun.length} hun, ${soul.po.length} po (signature: ${soul.uniqueSignature.substring(0, 8)})`,
       )
     }
 
