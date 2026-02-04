@@ -333,7 +333,7 @@ export async function prepareSlackMessage(params: {
 
   const media = await resolveSlackMedia({
     files: message.files,
-    token: ctx.botToken,
+    token: ctx.userToken || ctx.botToken,
     maxBytes: ctx.mediaMaxBytes,
   });
   const rawBody = (message.text ?? "").trim() || media?.placeholder || "";
