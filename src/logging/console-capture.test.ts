@@ -136,14 +136,26 @@ describe("enableConsoleCapture", () => {
     // Full payload should still be written to stdout
     expect(log).toHaveBeenCalledWith(largePayload);
 
-    // Give the file logger time to flush
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Check file log is truncated
+    // Give the file logger time to flush (use retries for flaky CI)
     const fs = await import("node:fs/promises");
-    const content = await fs.readFile(logFile, "utf-8");
-    expect(content.length).toBeLessThan(largePayload.length);
+    let content = "";
+    for (let i = 0; i < 10; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      try {
+        content = await fs.readFile(logFile, "utf-8");
+        if (content.includes("[truncated")) break;
+      } catch {
+        // File may not exist yet
+      }
+    }
+
+    // Verify truncation by checking:
+    // 1. The truncation marker is present
     expect(content).toContain("[truncated");
+    // 2. The full 5000-char payload is NOT in the file (proves it was actually truncated)
+    expect(content).not.toContain(largePayload);
+    // 3. The file is smaller than the original payload
+    expect(content.length).toBeLessThan(largePayload.length);
   });
 });
 
