@@ -53,7 +53,7 @@
   },
   {
     "source": "FAQ",
-    "target": "常见问题"
+    "target": "常见问答集"
   },
   {
     "source": "onboarding",
@@ -61,7 +61,7 @@
   },
   {
     "source": "wizard",
-    "target": "向导"
+    "target": "设置向导"
   },
   {
     "source": "environment variables",
