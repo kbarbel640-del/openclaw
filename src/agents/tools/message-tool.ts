@@ -1,5 +1,4 @@
 import { Type } from "@sinclair/typebox";
-import { fileURLToPath } from "node:url";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { BLUEBUBBLES_GROUP_ACTIONS } from "../../channels/plugins/bluebubbles-actions.js";
@@ -20,7 +19,6 @@ import { normalizeAccountId } from "../../routing/session-key.js";
 import { normalizeMessageChannel } from "../../utils/message-channel.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { listChannelSupportedActions } from "../channel-tools.js";
-import { assertSandboxPath } from "../sandbox-paths.js";
 import { channelTargetSchema, channelTargetsSchema, stringEnum } from "../schema/typebox.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 
@@ -423,27 +421,6 @@ export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
         }
       }
 
-      // Validate file paths against sandbox root to prevent host file access.
-      const sandboxRoot = options?.sandboxRoot;
-      if (sandboxRoot) {
-        for (const key of ["filePath", "path"] as const) {
-          const raw = readStringParam(params, key, { trim: false });
-          if (raw) {
-            await assertSandboxPath({ filePath: raw, cwd: sandboxRoot, root: sandboxRoot });
-          }
-        }
-        const mediaRaw = readStringParam(params, "media", { trim: false });
-        if (mediaRaw) {
-          const media = mediaRaw.trim();
-          const isHttpUrl = /^https?:\/\//i.test(media);
-          const isDataUrl = /^data:/i.test(media);
-          if (!isHttpUrl && !isDataUrl) {
-            const candidate = media.startsWith("file://") ? fileURLToPath(media) : media;
-            await assertSandboxPath({ filePath: candidate, cwd: sandboxRoot, root: sandboxRoot });
-          }
-        }
-      }
-
       const accountId = readStringParam(params, "accountId") ?? agentAccountId;
       if (accountId) {
         params.accountId = accountId;
@@ -486,6 +463,7 @@ export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
         agentId: options?.agentSessionKey
           ? resolveSessionAgentId({ sessionKey: options.agentSessionKey, config: cfg })
           : undefined,
+        sandboxRoot: options?.sandboxRoot,
         abortSignal: signal,
       });
 
