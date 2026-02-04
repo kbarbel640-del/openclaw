@@ -321,6 +321,17 @@ export type MemorySearchConfig = {
     /** Optional cap on cached embeddings (best-effort). */
     maxEntries?: number;
   };
+  /** Proactive memory injection settings. */
+  proactive?: {
+    /** Enable proactive memory injection before agent runs (default: false). */
+    enabled?: boolean;
+    /** Max results to inject (default: 3). */
+    maxResults?: number;
+    /** Min score threshold for injection (default: 0.3). */
+    minScore?: number;
+    /** Timeout in ms for proactive search (default: 1000). */
+    timeoutMs?: number;
+  };
 };
 
 export type ToolsConfig = {
