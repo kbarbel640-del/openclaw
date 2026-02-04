@@ -56,6 +56,15 @@ export function linkifyUrls(text: string): string {
   const escaped = escapeHtml(text);
   const urlRegex = /(https?:\/\/[^\s"'<>]+)/g;
   return escaped.replace(urlRegex, (url) => {
-    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link">${url}</a>`;
+    let trailing = "";
+    // Trim common trailing punctuation chars that might be part of the sentence
+    while (url.length > 0 && /[.,)\]?!:;]$/.test(url)) {
+      trailing = url.charAt(url.length - 1) + trailing;
+      url = url.slice(0, -1);
+    }
+    if (url.length === 0) {
+      return trailing;
+    }
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link">${url}</a>${trailing}`;
   });
 }

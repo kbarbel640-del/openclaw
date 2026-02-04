@@ -183,5 +183,46 @@ describe("tool-helpers", () => {
       const result = linkifyUrls(input);
       expect(result).toBe("file:///tmp/test");
     });
+
+    it("excludes trailing punctuation from url", () => {
+      const cases = [
+        [
+          "(https://example.com)",
+          '(<a href="https://example.com" target="_blank" rel="noopener noreferrer" class="chat-link">https://example.com</a>)',
+        ],
+        [
+          "https://example.com.",
+          '<a href="https://example.com" target="_blank" rel="noopener noreferrer" class="chat-link">https://example.com</a>.',
+        ],
+        [
+          "https://example.com,",
+          '<a href="https://example.com" target="_blank" rel="noopener noreferrer" class="chat-link">https://example.com</a>,',
+        ],
+        [
+          "https://example.com!",
+          '<a href="https://example.com" target="_blank" rel="noopener noreferrer" class="chat-link">https://example.com</a>!',
+        ],
+        [
+          "End with https://example.com?",
+          'End with <a href="https://example.com" target="_blank" rel="noopener noreferrer" class="chat-link">https://example.com</a>?',
+        ],
+        [
+          "[Link](https://example.com)",
+          '[Link](<a href="https://example.com" target="_blank" rel="noopener noreferrer" class="chat-link">https://example.com</a>)',
+        ],
+      ];
+
+      cases.forEach(([input, expected]) => {
+        expect(linkifyUrls(input)).toBe(expected);
+      });
+    });
+
+    it("preserves newlines", () => {
+      const input = "Line 1\nhttps://example.com\nLine 3";
+      const result = linkifyUrls(input);
+      expect(result).toBe(
+        'Line 1\n<a href="https://example.com" target="_blank" rel="noopener noreferrer" class="chat-link">https://example.com</a>\nLine 3',
+      );
+    });
   });
 });
