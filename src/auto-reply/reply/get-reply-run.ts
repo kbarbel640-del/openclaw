@@ -309,6 +309,9 @@ export async function runPreparedReply(
   const effectiveBaseBody = baseBodyTrimmed
     ? baseBodyForPrompt
     : "[User sent media without caption]";
+  // Disable message ID hints for webchat (platform web UI) - no threading needed
+  const isWebchatSession =
+    sessionCtx.OriginatingChannel === "webchat" || sessionCtx.Provider === "webchat";
   let prefixedBodyBase = await applySessionHints({
     baseBody: effectiveBaseBody,
     abortedLastRun,
@@ -318,7 +321,7 @@ export async function runPreparedReply(
     storePath,
     abortKey: command.abortKey,
     messageId: sessionCtx.MessageSid,
-    includeMessageIdHints: cfg?.agents?.defaults?.includeMessageIdHints,
+    includeMessageIdHints: isWebchatSession ? false : cfg?.agents?.defaults?.includeMessageIdHints,
   });
   const isGroupSession = sessionEntry?.chatType === "group" || sessionEntry?.chatType === "channel";
   const isMainSession = !isGroupSession && sessionKey === normalizeMainKey(sessionCfg?.mainKey);
@@ -412,7 +415,11 @@ export async function runPreparedReply(
   );
   const queueBodyBase = [threadContextNote, effectiveBaseBody].filter(Boolean).join("\n\n");
   const queueMessageId = sessionCtx.MessageSid?.trim();
-  const shouldIncludeMessageIdHints = cfg?.agents?.defaults?.includeMessageIdHints !== false;
+  // Disable message ID hints for webchat (platform web UI) - no threading needed
+  const isWebchat =
+    sessionCtx.OriginatingChannel === "webchat" || sessionCtx.Provider === "webchat";
+  const shouldIncludeMessageIdHints =
+    !isWebchat && cfg?.agents?.defaults?.includeMessageIdHints !== false;
   const queueMessageIdHint =
     shouldIncludeMessageIdHints && queueMessageId ? `[message_id: ${queueMessageId}]` : "";
   const queueBodyWithId = queueMessageIdHint
