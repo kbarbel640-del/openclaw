@@ -28,6 +28,8 @@ export type MeridiaExperienceRecord = {
   sessionKey?: string;
   sessionId?: string;
   runId?: string;
+  /** The kind of experience captured. Defaults to "tool_result" for backward compat. */
+  kind?: "tool_result" | "precompact" | "session_end" | "session_transition";
   tool: {
     name: string;
     callId: string;
@@ -106,4 +108,39 @@ export type MeridiaTraceEvent =
       sessionId?: string;
       sessionKey?: string;
       summaryPath?: string;
+    }
+  | {
+      type: "experiential_precompact";
+      ts: string;
+      sessionId?: string;
+      sessionKey?: string;
+      runId?: string;
+      recordId: string;
+      assistantTextCount?: number;
+      toolMetaCount?: number;
+      bufferSnapshot?: {
+        toolResultsSeen: number;
+        captured: number;
+        recentCaptureCount: number;
+      };
+    }
+  | {
+      type: "experiential_session_end";
+      ts: string;
+      action: "new" | "stop";
+      sessionId?: string;
+      sessionKey?: string;
+      recordId: string;
+      bufferSnapshot?: {
+        toolResultsSeen: number;
+        captured: number;
+        recentCaptureCount: number;
+      };
+    }
+  | {
+      type: "experiential_session_transition";
+      ts: string;
+      sessionId?: string;
+      sessionKey?: string;
+      recordId: string;
     };

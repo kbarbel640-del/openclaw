@@ -1,14 +1,13 @@
 ---
 name: experiential-capture
-description: "Capture significant tool results as Meridia experiential records"
+description: "Capture significant experiential moments as Meridia records — tool results, pre-compaction checkpoints, session summaries, and session transitions"
 metadata:
   {
     "openclaw":
       {
         "emoji": "🧠",
-        "events": ["agent:tool:result"],
-        "requires":
-          { "config": ["hooks.internal.entries.experiential-capture.enabled"] },
+        "events": ["agent:tool:result", "agent:precompact", "command:new", "command:stop"],
+        "requires": { "config": ["hooks.internal.entries.experiential-capture.enabled"] },
         "install": [{ "id": "bundled", "kind": "bundled", "label": "Bundled with OpenClaw" }],
       },
   }
@@ -16,7 +15,16 @@ metadata:
 
 # Experiential Capture (Meridia)
 
-Captures significant tool results into a local, append-only record stream (JSONL).
+Captures significant experiential moments into a local, append-only record stream (JSONL + SQLite).
+
+## Capture Triggers
+
+| Event               | Priority | Rate Limited | Description                                                 |
+| ------------------- | -------- | ------------ | ----------------------------------------------------------- |
+| `agent:tool:result` | HIGH     | Yes          | Significant tool results evaluated by heuristic + LLM       |
+| `agent:precompact`  | CRITICAL | No           | Pre-compaction checkpoint — last chance before context loss |
+| `command:new`       | HIGH     | No           | Session transition — captures session summary synthesis     |
+| `command:stop`      | HIGH     | No           | Session end — captures session summary synthesis            |
 
 ## Configuration
 
@@ -40,4 +48,3 @@ Captures significant tool results into a local, append-only record stream (JSONL
   }
 }
 ```
-
