@@ -1,4 +1,3 @@
-import { webhookCallback } from "grammy";
 import { createServer } from "node:http";
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
@@ -43,15 +42,16 @@ export async function startTelegramWebhook(opts: {
     config: opts.config,
     accountId: opts.accountId,
   });
-  const handler = webhookCallback(bot, "http", {
-    secretToken: opts.secret,
-  });
+
+  // Duplicate detection cache (Telegram may retry on timeout)
+  const recentUpdates = new Set<number>();
+  const UPDATE_CACHE_TTL = 60000; // 1 minute
 
   if (diagnosticsEnabled) {
     startDiagnosticHeartbeat();
   }
 
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     if (req.url === healthPath) {
       res.writeHead(200);
       res.end("ok");
@@ -62,38 +62,86 @@ export async function startTelegramWebhook(opts: {
       res.end();
       return;
     }
+
     const startTime = Date.now();
     if (diagnosticsEnabled) {
       logWebhookReceived({ channel: "telegram", updateType: "telegram-post" });
     }
-    const handled = handler(req, res);
-    if (handled && typeof handled.catch === "function") {
-      void handled
-        .then(() => {
-          if (diagnosticsEnabled) {
-            logWebhookProcessed({
-              channel: "telegram",
-              updateType: "telegram-post",
-              durationMs: Date.now() - startTime,
-            });
-          }
-        })
-        .catch((err) => {
-          const errMsg = formatErrorMessage(err);
-          if (diagnosticsEnabled) {
-            logWebhookError({
-              channel: "telegram",
-              updateType: "telegram-post",
-              error: errMsg,
-            });
-          }
-          runtime.log?.(`webhook handler failed: ${errMsg}`);
-          if (!res.headersSent) {
-            res.writeHead(500);
-          }
-          res.end();
-        });
+
+    // Read request body
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
     }
+    const body = Buffer.concat(chunks).toString();
+
+    // Parse update
+    let update;
+    try {
+      update = JSON.parse(body);
+    } catch (err) {
+      runtime.log?.(`Invalid JSON in webhook: ${formatErrorMessage(err)}`);
+      res.writeHead(400);
+      res.end();
+      return;
+    }
+
+    // Check for duplicate (Telegram retries on timeout)
+    const updateId = update.update_id;
+    if (updateId !== undefined && recentUpdates.has(updateId)) {
+      runtime.log?.(`Duplicate update ${updateId}, skipping`);
+      res.writeHead(200);
+      res.end("ok");
+      return;
+    }
+
+    // Validate secret token
+    if (opts.secret) {
+      const token = req.headers["x-telegram-bot-api-secret-token"];
+      if (token !== opts.secret) {
+        res.writeHead(403);
+        res.end();
+        return;
+      }
+    }
+
+    // Add to duplicate cache
+    if (updateId !== undefined) {
+      recentUpdates.add(updateId);
+      setTimeout(() => recentUpdates.delete(updateId), UPDATE_CACHE_TTL);
+    }
+
+    // CRITICAL FIX: Respond immediately (< 1 second)
+    // Telegram requires response within ~5 seconds
+    res.writeHead(200);
+    res.end("ok");
+
+    // Process asynchronously (don't await!)
+    // This allows LLM processing to take as long as needed
+    void (async () => {
+      try {
+        // Process update through bot handlers
+        await bot.handleUpdate(update);
+
+        if (diagnosticsEnabled) {
+          logWebhookProcessed({
+            channel: "telegram",
+            updateType: "telegram-post",
+            durationMs: Date.now() - startTime,
+          });
+        }
+      } catch (err) {
+        const errMsg = formatErrorMessage(err);
+        if (diagnosticsEnabled) {
+          logWebhookError({
+            channel: "telegram",
+            updateType: "telegram-post",
+            error: errMsg,
+          });
+        }
+        runtime.log?.(`webhook processing failed: ${errMsg}`);
+      }
+    })();
   });
 
   const publicUrl =
