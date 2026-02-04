@@ -1,46 +1,25 @@
 /**
- * Meridia Query API.
+ * Meridia Query API — backward-compatibility layer.
  *
  * Provides structured query functions over the SQLite-backed experiential
  * record store.  All functions accept a `DatabaseSync` handle obtained
  * via `openMeridiaDb()`.
+ *
+ * @deprecated New code should use `createBackend()` from `./backends/index.js`.
+ *   The backend interface provides all these query methods as instance methods.
  */
 
 import type { DatabaseSync } from "node:sqlite";
 import type { MeridiaRecordRow, MeridiaSessionRow, MeridiaTraceRow } from "./db.js";
 import type { MeridiaExperienceRecord } from "./types.js";
 
-// ─── Result types ────────────────────────────────────────────────────
+// ─── Result types (re-exported from backend for backward compat) ────
 
-export type RecordQueryResult = {
-  /** Parsed record (from data_json) */
-  record: MeridiaExperienceRecord;
-  /** FTS rank (lower = more relevant).  Only present for search results. */
-  rank?: number;
-};
+// Re-export canonical types from backend.ts
+export type { RecordQueryResult, RecordQueryFilters, SessionSummary } from "./backend.js";
 
-export type RecordQueryFilters = {
-  sessionKey?: string;
-  toolName?: string;
-  minScore?: number;
-  maxScore?: number;
-  isError?: boolean;
-  evalKind?: "heuristic" | "llm";
-  limit?: number;
-  offset?: number;
-};
-
-export type SessionSummary = {
-  sessionKey: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  turnCount: number | null;
-  toolsUsed: string[];
-  topics: string[];
-  emotionalArc: unknown;
-  summary: string | null;
-  recordCount: number;
-};
+// Import them for local use
+import type { RecordQueryResult, RecordQueryFilters, SessionSummary } from "./backend.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 

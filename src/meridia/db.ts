@@ -1,9 +1,11 @@
 /**
- * Meridia SQLite storage engine.
+ * Meridia SQLite storage engine — backward-compatibility layer.
  *
- * Uses Node.js built-in `node:sqlite` (DatabaseSync) following the same
- * patterns as `src/memory/`.  The database lives at
- * `~/.openclaw/meridia/meridia.sqlite` by default.
+ * This module re-exports functions that match the original `DatabaseSync`-based
+ * API for backward compatibility. New code should import from
+ * `./backends/index.js` (using `createBackend()`) instead.
+ *
+ * @deprecated Import from `./backends/index.js` for new code.
  */
 
 import type { DatabaseSync } from "node:sqlite";
@@ -14,16 +16,19 @@ import type { MeridiaExperienceRecord, MeridiaTraceEvent } from "./types.js";
 import { requireNodeSqlite } from "../memory/sqlite.js";
 import { resolveMeridiaDir } from "./storage.js";
 
-// ─── Types ───────────────────────────────────────────────────────────
+// Re-export types for backward compatibility
+export type { RecordQueryResult, RecordQueryFilters, SessionSummary } from "./backend.js";
+
+// ─── Row types (kept for backward compat with test imports) ──────────
 
 export type MeridiaSessionRow = {
   session_key: string;
   started_at: string | null;
   ended_at: string | null;
   turn_count: number | null;
-  tools_used: string | null; // JSON array
-  topics: string | null; // JSON array
-  emotional_arc: string | null; // JSON
+  tools_used: string | null;
+  topics: string | null;
+  emotional_arc: string | null;
   summary: string | null;
   created_at: string;
 };
@@ -36,14 +41,14 @@ export type MeridiaRecordRow = {
   run_id: string | null;
   tool_name: string | null;
   tool_call_id: string | null;
-  is_error: number; // 0 or 1
+  is_error: number;
   score: number | null;
   recommendation: string | null;
   reason: string | null;
   eval_kind: string | null;
   eval_model: string | null;
-  data_json: string; // Full record JSON
-  data_text: string | null; // Searchable text
+  data_json: string;
+  data_text: string | null;
   created_at: string;
 };
 
@@ -71,22 +76,21 @@ export function getMeridiaDbPath(cfg?: OpenClawConfig): string {
 
 /**
  * Open (or return cached) Meridia SQLite database.
- * Creates the DB file and parent directories if needed.
+ *
+ * @deprecated Use `createBackend()` from `./backends/index.js` instead.
  */
 export function openMeridiaDb(params?: { cfg?: OpenClawConfig; dbPath?: string }): DatabaseSync {
   const targetPath = params?.dbPath ?? getMeridiaDbPath(params?.cfg);
 
-  // Return cached if same path
   if (_db && _dbPath === targetPath) {
     return _db;
   }
 
-  // Close previous if different path
   if (_db) {
     try {
       _db.close();
     } catch {
-      // ignore
+      /* ignore */
     }
   }
 
@@ -95,7 +99,6 @@ export function openMeridiaDb(params?: { cfg?: OpenClawConfig; dbPath?: string }
   const { DatabaseSync: DbSync } = requireNodeSqlite();
   const db = new DbSync(targetPath);
 
-  // Enable WAL mode for better concurrent read performance
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA synchronous = NORMAL");
   db.exec("PRAGMA foreign_keys = ON");
@@ -115,7 +118,7 @@ export function closeMeridiaDb(): void {
     try {
       _db.close();
     } catch {
-      // ignore
+      /* ignore */
     }
     _db = undefined;
     _dbPath = undefined;
@@ -128,7 +131,6 @@ export function ensureMeridiaSchema(db: DatabaseSync): {
   ftsAvailable: boolean;
   ftsError?: string;
 } {
-  // Schema version tracking
   db.exec(`
     CREATE TABLE IF NOT EXISTS meridia_meta (
       key TEXT PRIMARY KEY,
@@ -136,7 +138,6 @@ export function ensureMeridiaSchema(db: DatabaseSync): {
     );
   `);
 
-  // Experiential records
   db.exec(`
     CREATE TABLE IF NOT EXISTS meridia_records (
       id TEXT PRIMARY KEY,
@@ -158,14 +159,12 @@ export function ensureMeridiaSchema(db: DatabaseSync): {
     );
   `);
 
-  // Indexes for common queries
   db.exec(`CREATE INDEX IF NOT EXISTS idx_records_ts ON meridia_records(ts);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_records_session_key ON meridia_records(session_key);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_records_tool_name ON meridia_records(tool_name);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_records_score ON meridia_records(score);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_records_run_id ON meridia_records(run_id);`);
 
-  // Session summaries
   db.exec(`
     CREATE TABLE IF NOT EXISTS meridia_sessions (
       session_key TEXT PRIMARY KEY,
@@ -180,7 +179,6 @@ export function ensureMeridiaSchema(db: DatabaseSync): {
     );
   `);
 
-  // Trace events
   db.exec(`
     CREATE TABLE IF NOT EXISTS meridia_trace (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -194,7 +192,6 @@ export function ensureMeridiaSchema(db: DatabaseSync): {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_trace_type ON meridia_trace(type);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_trace_session_key ON meridia_trace(session_key);`);
 
-  // FTS5 for full-text search
   let ftsAvailable = false;
   let ftsError: string | undefined;
   try {
@@ -212,7 +209,6 @@ export function ensureMeridiaSchema(db: DatabaseSync): {
     ftsError = err instanceof Error ? err.message : String(err);
   }
 
-  // Store schema version
   const stmt = db.prepare(
     `INSERT OR REPLACE INTO meridia_meta (key, value) VALUES ('schema_version', ?)`,
   );
@@ -221,23 +217,19 @@ export function ensureMeridiaSchema(db: DatabaseSync): {
   return { ftsAvailable, ...(ftsError ? { ftsError } : {}) };
 }
 
-// ─── Insert operations ──────────────────────────────────────────────
+// ─── Insert operations (backward compat) ────────────────────────────
 
-/**
- * Build a searchable text blob from a record for FTS indexing.
- */
 function buildSearchableText(record: MeridiaExperienceRecord): string {
   const parts: string[] = [];
   parts.push(record.tool.name);
   if (record.tool.meta) parts.push(record.tool.meta);
   if (record.evaluation.reason) parts.push(record.evaluation.reason);
-  // Include a summary of args/result for searchability
   if (record.data.args) {
     try {
       const argsStr = JSON.stringify(record.data.args);
       parts.push(argsStr.length > 500 ? argsStr.slice(0, 500) : argsStr);
     } catch {
-      // skip
+      /* skip */
     }
   }
   if (record.data.result) {
@@ -245,7 +237,7 @@ function buildSearchableText(record: MeridiaExperienceRecord): string {
       const resultStr = JSON.stringify(record.data.result);
       parts.push(resultStr.length > 1000 ? resultStr.slice(0, 1000) : resultStr);
     } catch {
-      // skip
+      /* skip */
     }
   }
   return parts.join(" ");
@@ -253,7 +245,7 @@ function buildSearchableText(record: MeridiaExperienceRecord): string {
 
 /**
  * Insert an experiential record into SQLite.
- * Returns true if inserted, false if duplicate (id already exists).
+ * @deprecated Use `createBackend().insertRecord()` instead.
  */
 export function insertRecord(db: DatabaseSync, record: MeridiaExperienceRecord): boolean {
   const dataText = buildSearchableText(record);
@@ -287,10 +279,8 @@ export function insertRecord(db: DatabaseSync, record: MeridiaExperienceRecord):
 
   const inserted = (result.changes ?? 0) > 0;
 
-  // Update FTS index
   if (inserted) {
     try {
-      // Get the rowid of the just-inserted record
       const row = db.prepare(`SELECT rowid FROM meridia_records WHERE id = ?`).get(record.id) as
         | { rowid: number }
         | undefined;
@@ -302,7 +292,7 @@ export function insertRecord(db: DatabaseSync, record: MeridiaExperienceRecord):
         `).run(row.rowid, record.tool.name, record.evaluation.reason ?? "", dataText);
       }
     } catch {
-      // FTS might not be available — that's OK
+      /* FTS might not be available */
     }
   }
 
@@ -311,7 +301,7 @@ export function insertRecord(db: DatabaseSync, record: MeridiaExperienceRecord):
 
 /**
  * Insert multiple records in a transaction.
- * Returns the count of newly inserted records.
+ * @deprecated Use `createBackend().insertRecordsBatch()` instead.
  */
 export function insertRecordsBatch(db: DatabaseSync, records: MeridiaExperienceRecord[]): number {
   let count = 0;
@@ -337,7 +327,6 @@ export function insertRecordsBatch(db: DatabaseSync, records: MeridiaExperienceR
     }
   })();
 
-  // Wrap in a transaction for performance
   db.exec("BEGIN");
   try {
     for (const record of records) {
@@ -364,7 +353,6 @@ export function insertRecordsBatch(db: DatabaseSync, records: MeridiaExperienceR
 
       if ((result.changes ?? 0) > 0) {
         count++;
-
         if (ftsStmt) {
           try {
             const row = getRowidStmt.get(record.id) as { rowid: number } | undefined;
@@ -372,7 +360,7 @@ export function insertRecordsBatch(db: DatabaseSync, records: MeridiaExperienceR
               ftsStmt.run(row.rowid, record.tool.name, record.evaluation.reason ?? "", dataText);
             }
           } catch {
-            // FTS insert failed — skip
+            /* FTS insert failed — skip */
           }
         }
       }
@@ -388,6 +376,7 @@ export function insertRecordsBatch(db: DatabaseSync, records: MeridiaExperienceR
 
 /**
  * Insert a trace event.
+ * @deprecated Use `createBackend().insertTraceEvent()` instead.
  */
 export function insertTraceEvent(db: DatabaseSync, event: MeridiaTraceEvent): void {
   const stmt = db.prepare(`
@@ -404,6 +393,7 @@ export function insertTraceEvent(db: DatabaseSync, event: MeridiaTraceEvent): vo
 
 /**
  * Insert multiple trace events in a transaction.
+ * @deprecated Use `createBackend().insertTraceEventsBatch()` instead.
  */
 export function insertTraceEventsBatch(db: DatabaseSync, events: MeridiaTraceEvent[]): number {
   const stmt = db.prepare(`
@@ -433,6 +423,7 @@ export function insertTraceEventsBatch(db: DatabaseSync, events: MeridiaTraceEve
 
 /**
  * Upsert a session summary.
+ * @deprecated Use `createBackend().upsertSession()` instead.
  */
 export function upsertSession(
   db: DatabaseSync,
@@ -474,6 +465,7 @@ export function upsertSession(
 
 /**
  * Get database statistics.
+ * @deprecated Use `createBackend().getStats()` instead.
  */
 export function getMeridiaDbStats(db: DatabaseSync): {
   recordCount: number;
