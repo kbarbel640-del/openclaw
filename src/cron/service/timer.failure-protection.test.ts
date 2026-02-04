@@ -49,7 +49,7 @@ describe("CronService - Failure Protection for Isolated Tasks", () => {
       },
       store: { jobs: [testJob], version: 1 },
       running: false,
-    } as any;
+    } as unknown as CronServiceState;
   });
 
   it("should increment consecutiveFailures on error", async () => {
@@ -89,7 +89,11 @@ describe("CronService - Failure Protection for Isolated Tasks", () => {
     testJob.state.consecutiveFailures = 2;
 
     // Mock success
-    (mockState.deps as any).runIsolatedAgentJob = async () => ({
+    (
+      mockState.deps as unknown as {
+        runIsolatedAgentJob: () => Promise<{ status: string; summary: string }>;
+      }
+    ).runIsolatedAgentJob = async () => ({
       status: "ok",
       summary: "Job completed successfully",
     });
@@ -143,7 +147,11 @@ describe("CronService - Failure Protection for Isolated Tasks", () => {
 
   it("should not increment counter on skipped status", async () => {
     // Skipped jobs should not increment failure counter
-    (mockState.deps as any).runIsolatedAgentJob = async () => ({
+    (
+      mockState.deps as unknown as {
+        runIsolatedAgentJob: () => Promise<{ status: string; summary: string }>;
+      }
+    ).runIsolatedAgentJob = async () => ({
       status: "skipped",
       summary: "Skipped",
     });

@@ -75,7 +75,7 @@ export async function runDueJobs(state: CronServiceState) {
 export async function executeJob(
   state: CronServiceState,
   job: CronJob,
-  nowMs: number,
+  _nowMs: number,
   opts: { forced: boolean },
 ) {
   const startedAt = state.deps.nowMs();
@@ -87,7 +87,7 @@ export async function executeJob(
 
   const finish = async (
     status: "ok" | "error" | "skipped",
-    err?: string,
+    err?: unknown,
     summary?: string,
     outputText?: string,
   ) => {
@@ -96,7 +96,27 @@ export async function executeJob(
     job.state.lastRunAtMs = startedAt;
     job.state.lastStatus = status;
     job.state.lastDurationMs = Math.max(0, endedAt - startedAt);
-    job.state.lastError = err;
+
+    // Safely convert error to string
+    if (err === undefined) {
+      job.state.lastError = undefined;
+    } else if (typeof err === "string") {
+      job.state.lastError = err;
+    } else if (err instanceof Error) {
+      job.state.lastError = err.message;
+    } else if (err !== null && typeof err === "object" && "message" in err) {
+      // Handle error-like objects with a message property
+      const errObj = err as { message: unknown };
+      job.state.lastError =
+        typeof errObj.message === "string" ? errObj.message : String(errObj.message);
+    } else {
+      try {
+        job.state.lastError = JSON.stringify(err);
+      } catch {
+        // Last resort: use a generic error message when we can't serialize
+        job.state.lastError = "Unknown error (could not serialize)";
+      }
+    }
 
     // Track consecutive failures
     if (status === "error") {
@@ -152,7 +172,7 @@ export async function executeJob(
       jobId: job.id,
       action: "finished",
       status,
-      error: err,
+      error: job.state.lastError,
       summary,
       runAtMs: startedAt,
       durationMs: job.state.lastDurationMs,
@@ -169,7 +189,7 @@ export async function executeJob(
       const prefix = job.isolation?.postToMainPrefix?.trim() || "Cron";
       const mode = job.isolation?.postToMainMode ?? "summary";
 
-      let body = (summary ?? err ?? status).trim();
+      let body = (summary ?? job.state.lastError ?? status).trim();
       if (mode === "full") {
         // Prefer full agent output if available; fall back to summary.
         const maxCharsRaw = job.isolation?.postToMainMaxChars;
@@ -261,12 +281,16 @@ export async function executeJob(
       await finish("error", res.error ?? "cron job failed", res.summary, res.outputText);
     }
   } catch (err) {
-    await finish("error", String(err));
+    await finish("error", err);
   } finally {
     // Use current time for updatedAtMs to reflect actual completion time
     job.updatedAtMs = state.deps.nowMs();
-    // Note: Do not override job.state.nextRunAtMs here, as it has already been
-    // set correctly in the finish() callback with proper failure protection logic.
+    // Sync nextRunAtMs for non-failure cases (preserving failure protection backoff timing)
+    if (!opts.forced && job.enabled && !deleted && job.state.lastStatus !== "error") {
+      // Keep nextRunAtMs in sync in case the schedule advanced during a long run.
+      // Skip for error status since failure protection has already set the backoff time.
+      job.state.nextRunAtMs = computeJobNextRunAtMs(job, state.deps.nowMs());
+    }
   }
 }
 
