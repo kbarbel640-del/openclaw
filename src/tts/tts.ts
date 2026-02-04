@@ -1189,6 +1189,12 @@ async function applyPostProcessing(params: {
   const command = resolveUserPath(postProcess.command.trim());
   const timeoutMs = postProcess.timeoutMs ?? DEFAULT_POST_PROCESS_TIMEOUT_MS;
 
+  // Validate timeout range
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 100 || timeoutMs > 30000) {
+    logVerbose(`TTS: invalid post-process timeout ${timeoutMs}ms, using default.`);
+    return inputPath;
+  }
+
   const tempDir = mkdtempSync(path.join(tmpdir(), "tts-post-"));
   const outputPath = path.join(tempDir, `processed-${Date.now()}${path.extname(inputPath)}`);
 
@@ -1204,20 +1210,28 @@ async function applyPostProcessing(params: {
       const proc = spawn(command, [], {
         env,
         stdio: "pipe",
-        timeout: timeoutMs,
       });
 
       let stderr = "";
+      let didResolve = false;
 
       proc.stderr?.on("data", (chunk) => {
         stderr += chunk.toString();
       });
 
       proc.on("error", (err) => {
-        reject(new Error(`Post-process spawn failed: ${err.message}`));
+        if (!didResolve) {
+          didResolve = true;
+          reject(new Error(`Post-process spawn failed: ${err.message}`));
+        }
       });
 
       proc.on("exit", (code, signal) => {
+        if (didResolve) {
+          return;
+        }
+        didResolve = true;
+
         if (signal) {
           reject(new Error(`Post-process killed by signal ${signal}`));
         } else if (code !== 0) {
@@ -1229,10 +1243,18 @@ async function applyPostProcessing(params: {
         }
       });
 
-      setTimeout(() => {
-        proc.kill();
-        reject(new Error("Post-process timeout"));
+      const timer = setTimeout(() => {
+        if (!didResolve) {
+          didResolve = true;
+          proc.kill();
+          reject(new Error("Post-process timeout"));
+        }
       }, timeoutMs);
+
+      // Clear timer on exit to prevent dangling timeout
+      proc.on("exit", () => {
+        clearTimeout(timer);
+      });
     });
 
     scheduleCleanup(tempDir);

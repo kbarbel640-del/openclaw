@@ -1,4 +1,5 @@
 import type { PluginApi } from "openclaw/plugin-sdk";
+import { fileURLToPath } from "node:url";
 
 export default function register(api: PluginApi) {
   api.logger.info("TTS FFmpeg Pitch plugin loaded");
@@ -34,11 +35,8 @@ export default function register(api: PluginApi) {
             process.exit(1);
           }
 
-          const scriptPath = path.join(
-            path.dirname(import.meta.url.replace("file://", "")),
-            "bin",
-            "process-audio.sh",
-          );
+          const pluginDir = path.dirname(fileURLToPath(import.meta.url));
+          const scriptPath = path.join(pluginDir, "bin", "process-audio.sh");
 
           const env = {
             ...process.env,
