@@ -16,6 +16,8 @@ import "./sections/control-section";
 import "./sections/features-section";
 import "./sections/social-proof-section";
 import "./sections/footer-section";
+// SEO meta management
+import { resetSeoMeta } from "./seo-meta";
 
 @customElement("landing-page")
 export class LandingPage extends LitElement {
@@ -384,6 +386,8 @@ export class LandingPage extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    // Ensure landing page SEO meta tags are set when the landing page mounts
+    resetSeoMeta();
     this.scrollHandler = () => {
       this.navScrolled = window.scrollY > 50;
       this.showBackToTop = window.scrollY > 600;
@@ -461,7 +465,7 @@ export class LandingPage extends LitElement {
         </button>
       </div>
 
-      <div class="landing-wrapper" id="main-content" @landing-navigate=${this.handleLandingNavigate}>
+      <main class="landing-wrapper" id="main-content" @landing-navigate=${this.handleLandingNavigate}>
         <landing-hero
           @get-started=${this.handleGetStarted}
           @learn-more=${() => this.scrollToSection("features")}
@@ -481,7 +485,7 @@ export class LandingPage extends LitElement {
         ></landing-social-proof>
 
         <landing-footer></landing-footer>
-      </div>
+      </main>
 
       <!-- Back-to-top button -->
       <button
@@ -561,3 +565,7 @@ export { LandingControl } from "./sections/control-section";
 export { LandingFeatures } from "./sections/features-section";
 export { LandingSocialProof } from "./sections/social-proof-section";
 export { LandingFooter } from "./sections/footer-section";
+
+// SEO utilities
+export { updateSeoMeta, resetSeoMeta, injectJsonLd, removeJsonLd, LANDING_SEO_DEFAULTS } from "./seo-meta";
+export type { SeoMeta } from "./seo-meta";
