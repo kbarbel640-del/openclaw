@@ -207,11 +207,14 @@ export function resolveHeartbeatDeliveryTarget(params: {
     mode: "heartbeat",
   });
 
+  // Use explicit accountId from heartbeat config if provided, otherwise fall back to session
+  const effectiveAccountId = heartbeat?.accountId ?? resolvedTarget.accountId;
+
   if (!resolvedTarget.channel || !resolvedTarget.to) {
     return {
       channel: "none",
       reason: "no-target",
-      accountId: resolvedTarget.accountId,
+      accountId: effectiveAccountId,
       lastChannel: resolvedTarget.lastChannel,
       lastAccountId: resolvedTarget.lastAccountId,
     };
@@ -221,14 +224,14 @@ export function resolveHeartbeatDeliveryTarget(params: {
     channel: resolvedTarget.channel,
     to: resolvedTarget.to,
     cfg,
-    accountId: resolvedTarget.accountId,
+    accountId: effectiveAccountId,
     mode: "heartbeat",
   });
   if (!resolved.ok) {
     return {
       channel: "none",
       reason: "no-target",
-      accountId: resolvedTarget.accountId,
+      accountId: effectiveAccountId,
       lastChannel: resolvedTarget.lastChannel,
       lastAccountId: resolvedTarget.lastAccountId,
     };
@@ -241,7 +244,7 @@ export function resolveHeartbeatDeliveryTarget(params: {
       channel: resolvedTarget.channel,
       to: resolvedTarget.to,
       cfg,
-      accountId: resolvedTarget.accountId,
+      accountId: effectiveAccountId,
       mode: "explicit",
     });
     if (explicit.ok && explicit.to !== resolved.to) {
@@ -253,7 +256,7 @@ export function resolveHeartbeatDeliveryTarget(params: {
     channel: resolvedTarget.channel,
     to: resolved.to,
     reason,
-    accountId: resolvedTarget.accountId,
+    accountId: effectiveAccountId,
     lastChannel: resolvedTarget.lastChannel,
     lastAccountId: resolvedTarget.lastAccountId,
   };
