@@ -438,11 +438,12 @@ export async function installLaunchAgent({
   await execLaunchctl(["enable", `${domain}/${label}`]);
   const boot = await execLaunchctl(["bootstrap", domain, plistPath]);
   if (boot.code !== 0) {
-    const detail = (boot.stderr || boot.stdout || "").trim();
-    const isGuiDomainError = detail.toLowerCase().includes("could not find domain");
+    const detail = (boot.stderr || boot.stdout).trim() || undefined;
+    const isGuiDomainError = detail?.toLowerCase().includes("could not find domain") ?? false;
+    const detailSuffix = detail ? `: ${detail}` : "";
     if (isGuiDomainError) {
       throw new Error(
-        `launchctl bootstrap failed: ${detail}\n\n` +
+        `launchctl bootstrap failed${detailSuffix}\n\n` +
           `This error typically occurs when:\n` +
           `  • Running via SSH without a GUI session\n` +
           `  • Running in a container or non-standard environment\n` +
@@ -451,7 +452,7 @@ export async function installLaunchAgent({
           `or use 'openclaw gateway start' to run the gateway directly.`,
       );
     }
-    throw new Error(`launchctl bootstrap failed: ${detail}`);
+    throw new Error(`launchctl bootstrap failed${detailSuffix}`);
   }
   await execLaunchctl(["kickstart", "-k", `${domain}/${label}`]);
 
