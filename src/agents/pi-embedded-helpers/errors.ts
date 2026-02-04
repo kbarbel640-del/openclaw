@@ -414,7 +414,10 @@ export function sanitizeUserFacingText(text: string): string {
   }
 
   if (ERROR_PREFIX_RE.test(trimmed)) {
-    if (isOverloadedErrorMessage(trimmed) || isRateLimitErrorMessage(trimmed)) {
+    if (isRateLimitErrorMessage(trimmed)) {
+      return "Rate limit exceeded. Please wait a moment before trying again.";
+    }
+    if (isOverloadedErrorMessage(trimmed)) {
       return "The AI service is temporarily overloaded. Please try again in a moment.";
     }
     if (isTimeoutErrorMessage(trimmed)) {
