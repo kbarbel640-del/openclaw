@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GatewayRequestContext } from "./types.js";
 import { agentHandlers } from "./agent.js";
 
@@ -66,6 +66,11 @@ const makeContext = (): GatewayRequestContext =>
   }) as unknown as GatewayRequestContext;
 
 describe("gateway agent handler", () => {
+  // Ensure fake timers are always restored, even if a test fails mid-execution
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   /**
    * Test for issue #5369: Verify that modelOverride from sessions.patch is preserved.
    *

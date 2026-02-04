@@ -235,31 +235,27 @@ export const agentHandlers: GatewayRequestHandlers = {
       resolvedGroupId = resolvedGroupId || inheritedGroup?.groupId;
       resolvedGroupChannel = resolvedGroupChannel || inheritedGroup?.groupChannel;
       resolvedGroupSpace = resolvedGroupSpace || inheritedGroup?.groupSpace;
-      // Policy check uses initial entry (acceptable for pre-flight validation)
-      const sendPolicy = resolveSendPolicy({
-        cfg,
-        entry,
-        sessionKey: requestedSessionKey,
-        channel: entry?.channel,
-        chatType: entry?.chatType,
-      });
-      if (sendPolicy === "deny") {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "send blocked by session policy"),
-        );
-        return;
-      }
       const canonicalSessionKey = canonicalKey;
       const agentId = resolveAgentIdFromSessionKey(canonicalSessionKey);
       const mainSessionKey = resolveAgentMainSessionKey({ cfg, agentId });
       if (storePath) {
         // Build entry inside updateSessionStore to use fresh store data.
         // This avoids race conditions where sessions.patch sets modelOverride
-        // between our initial read and this write (issue #5369).
-        sessionEntry = await updateSessionStore(storePath, (store) => {
+        // or sendPolicy between our initial read and this write (issue #5369).
+        const storeResult = await updateSessionStore(storePath, (store) => {
           const freshEntry = store[canonicalSessionKey];
+          // Check send policy using fresh data to avoid stale policy decisions
+          const sendPolicy = resolveSendPolicy({
+            cfg,
+            entry: freshEntry,
+            sessionKey: requestedSessionKey,
+            channel: freshEntry?.channel,
+            chatType: freshEntry?.chatType,
+          });
+          if (sendPolicy === "deny") {
+            // Don't write to store, return denial indicator
+            return { denied: true as const };
+          }
           const deliveryFields = normalizeSessionDeliveryFields(freshEntry);
           const nextEntry: SessionEntry = {
             sessionId: freshEntry?.sessionId ?? generatedSessionId,
@@ -286,10 +282,34 @@ export const agentHandlers: GatewayRequestHandlers = {
             claudeCliSessionId: freshEntry?.claudeCliSessionId,
           };
           store[canonicalSessionKey] = nextEntry;
-          return nextEntry;
+          return { denied: false as const, entry: nextEntry };
         });
+        if (storeResult.denied) {
+          respond(
+            false,
+            undefined,
+            errorShape(ErrorCodes.INVALID_REQUEST, "send blocked by session policy"),
+          );
+          return;
+        }
+        sessionEntry = storeResult.entry;
       } else {
-        // No store path - build entry from initial read (fallback)
+        // No store path - use initial entry for policy check and build (fallback)
+        const sendPolicy = resolveSendPolicy({
+          cfg,
+          entry,
+          sessionKey: requestedSessionKey,
+          channel: entry?.channel,
+          chatType: entry?.chatType,
+        });
+        if (sendPolicy === "deny") {
+          respond(
+            false,
+            undefined,
+            errorShape(ErrorCodes.INVALID_REQUEST, "send blocked by session policy"),
+          );
+          return;
+        }
         const deliveryFields = normalizeSessionDeliveryFields(entry);
         sessionEntry = {
           sessionId: generatedSessionId,
