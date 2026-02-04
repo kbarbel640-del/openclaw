@@ -12,6 +12,7 @@ import {
 import type { CoreConfig } from "./types.js";
 import { ZulipConfigSchema } from "./config-schema.js";
 import { looksLikeZulipTargetId, normalizeZulipMessagingTarget } from "./normalize.js";
+import { getZulipRuntime } from "./runtime.js";
 import {
   listZulipAccountIds,
   resolveDefaultZulipAccountId,
@@ -19,6 +20,7 @@ import {
   type ResolvedZulipAccount,
 } from "./zulip/accounts.js";
 import { monitorZulipProvider } from "./zulip/monitor.js";
+import { probeZulip } from "./zulip/probe.js";
 import { sendMessageZulip } from "./zulip/send.js";
 
 const meta = {
@@ -89,14 +91,34 @@ export const zulipPlugin: ChannelPlugin<ResolvedZulipAccount> = {
       ),
   },
   security: {
-    resolveDmPolicy: ({ account }) => ({
-      policy: account.config.dmPolicy ?? "pairing",
-      allowFrom: account.config.allowFrom ?? [],
-      policyPath: "channels.zulip.dmPolicy",
-      allowFromPath: "channels.zulip.allowFrom",
-      approveHint: formatPairingApproveHint("zulip"),
-      normalizeEntry: (raw) => normalizeAllowEntry(raw),
-    }),
+    resolveDmPolicy: ({ cfg, accountId, account }) => {
+      const resolvedAccountId = accountId ?? account.accountId ?? DEFAULT_ACCOUNT_ID;
+      const useAccountPath = Boolean(cfg.channels?.zulip?.accounts?.[resolvedAccountId]);
+      const basePath = useAccountPath
+        ? `channels.zulip.accounts.${resolvedAccountId}.`
+        : "channels.zulip.";
+      return {
+        policy: account.config.dmPolicy ?? "pairing",
+        allowFrom: account.config.allowFrom ?? [],
+        policyPath: `${basePath}dmPolicy`,
+        allowFromPath: `${basePath}allowFrom`,
+        approveHint: formatPairingApproveHint("zulip"),
+        normalizeEntry: (raw) => normalizeAllowEntry(raw),
+      };
+    },
+    collectWarnings: ({ account, cfg }) => {
+      const warnings: string[] = [];
+      const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
+      const groupPolicy = account.config.groupPolicy ?? defaultGroupPolicy ?? "allowlist";
+
+      if (groupPolicy === "open") {
+        warnings.push(
+          '- Zulip channels: groupPolicy="open" allows any stream message (subject to requireMention) to trigger. Prefer groupPolicy="allowlist" and configure channels.zulip.groupAllowFrom / channels.zulip.channels for tighter control.',
+        );
+      }
+
+      return warnings;
+    },
   },
   messaging: {
     normalizeTarget: normalizeZulipMessagingTarget,
@@ -124,6 +146,8 @@ export const zulipPlugin: ChannelPlugin<ResolvedZulipAccount> = {
   },
   outbound: {
     deliveryMode: "direct",
+    chunker: (text, limit) => getZulipRuntime().channel.text.chunkMarkdownText(text, limit),
+    chunkerMode: "markdown",
     textChunkLimit: 9000,
     resolveTarget: ({ to }) => {
       const trimmed = to?.trim();
@@ -239,7 +263,15 @@ export const zulipPlugin: ChannelPlugin<ResolvedZulipAccount> = {
       lastInboundAt: snapshot.lastInboundAt ?? null,
       lastOutboundAt: snapshot.lastOutboundAt ?? null,
     }),
-    probeAccount: async () => ({ ok: false, error: "probe not implemented" }),
+    probeAccount: async ({ account, timeoutMs }) => {
+      const baseUrl = account.baseUrl?.trim();
+      const email = account.email?.trim();
+      const apiKey = account.apiKey?.trim();
+      if (!baseUrl || !email || !apiKey) {
+        return { ok: false, error: "baseUrl/email/apiKey missing" };
+      }
+      return await probeZulip({ baseUrl, email, apiKey }, timeoutMs);
+    },
     buildAccountSnapshot: ({ account, runtime, probe }) => ({
       accountId: account.accountId,
       name: account.name,

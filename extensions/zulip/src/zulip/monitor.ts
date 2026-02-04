@@ -10,6 +10,7 @@ import {
   recordPendingHistoryEntryIfEnabled,
   clearHistoryEntriesIfEnabled,
   buildPendingHistoryContextFromMap,
+  logInboundDrop,
   resolveControlCommandGate,
   type HistoryEntry,
 } from "openclaw/plugin-sdk";
@@ -243,6 +244,12 @@ export async function monitorZulipProvider(opts: MonitorZulipOpts = {}): Promise
       : commandGate.commandAuthorized;
 
     if (!isDm && commandGate.shouldBlock) {
+      logInboundDrop({
+        log: logVerboseMessage,
+        channel: "zulip",
+        reason: "control command (unauthorized)",
+        target: senderEmail,
+      });
       return;
     }
 
