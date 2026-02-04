@@ -14,41 +14,6 @@ import {
 import { getCompactionSafeguardRuntime } from "./compaction-safeguard-runtime.js";
 const FALLBACK_SUMMARY =
   "Summary unavailable due to context limits. Older messages were truncated.";
-const MAX_PRESERVED_USER_MSG_CHARS = 2000;
-
-function extractLastUserMessageText(messages: AgentMessage[]): string | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (!msg || typeof msg !== "object") continue;
-    if ((msg as { role?: unknown }).role !== "user") continue;
-
-    const content = (msg as { content?: unknown }).content;
-    let text: string | null = null;
-
-    if (typeof content === "string") {
-      text = content;
-    } else if (Array.isArray(content)) {
-      const parts: string[] = [];
-      for (const block of content) {
-        if (block && typeof block === "object") {
-          const rec = block as { type?: unknown; text?: unknown };
-          if (rec.type === "text" && typeof rec.text === "string") {
-            parts.push(rec.text);
-          }
-        }
-      }
-      text = parts.length > 0 ? parts.join("\n") : null;
-    }
-
-    if (text && text.trim()) {
-      if (text.length > MAX_PRESERVED_USER_MSG_CHARS) {
-        return text.slice(0, MAX_PRESERVED_USER_MSG_CHARS) + "...";
-      }
-      return text.trim();
-    }
-  }
-  return null;
-}
 const TURN_PREFIX_INSTRUCTIONS =
   "This summary covers the prefix of a split turn. Focus on the original request," +
   " early progress, and any details needed to understand the retained suffix.";
@@ -67,16 +32,12 @@ function normalizeFailureText(text: string): string {
 }
 
 function truncateFailureText(text: string, maxChars: number): string {
-  if (text.length <= maxChars) {
-    return text;
-  }
+  if (text.length <= maxChars) return text;
   return `${text.slice(0, Math.max(0, maxChars - 3))}...`;
 }
 
 function formatToolFailureMeta(details: unknown): string | undefined {
-  if (!details || typeof details !== "object") {
-    return undefined;
-  }
+  if (!details || typeof details !== "object") return undefined;
   const record = details as Record<string, unknown>;
   const status = typeof record.status === "string" ? record.status : undefined;
   const exitCode =
@@ -84,24 +45,16 @@ function formatToolFailureMeta(details: unknown): string | undefined {
       ? record.exitCode
       : undefined;
   const parts: string[] = [];
-  if (status) {
-    parts.push(`status=${status}`);
-  }
-  if (exitCode !== undefined) {
-    parts.push(`exitCode=${exitCode}`);
-  }
+  if (status) parts.push(`status=${status}`);
+  if (exitCode !== undefined) parts.push(`exitCode=${exitCode}`);
   return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
 function extractToolResultText(content: unknown): string {
-  if (!Array.isArray(content)) {
-    return "";
-  }
+  if (!Array.isArray(content)) return "";
   const parts: string[] = [];
   for (const block of content) {
-    if (!block || typeof block !== "object") {
-      continue;
-    }
+    if (!block || typeof block !== "object") continue;
     const rec = block as { type?: unknown; text?: unknown };
     if (rec.type === "text" && typeof rec.text === "string") {
       parts.push(rec.text);
@@ -115,13 +68,9 @@ function collectToolFailures(messages: AgentMessage[]): ToolFailure[] {
   const seen = new Set<string>();
 
   for (const message of messages) {
-    if (!message || typeof message !== "object") {
-      continue;
-    }
+    if (!message || typeof message !== "object") continue;
     const role = (message as { role?: unknown }).role;
-    if (role !== "toolResult") {
-      continue;
-    }
+    if (role !== "toolResult") continue;
     const toolResult = message as {
       toolCallId?: unknown;
       toolName?: unknown;
@@ -129,13 +78,9 @@ function collectToolFailures(messages: AgentMessage[]): ToolFailure[] {
       details?: unknown;
       isError?: unknown;
     };
-    if (toolResult.isError !== true) {
-      continue;
-    }
+    if (toolResult.isError !== true) continue;
     const toolCallId = typeof toolResult.toolCallId === "string" ? toolResult.toolCallId : "";
-    if (!toolCallId || seen.has(toolCallId)) {
-      continue;
-    }
+    if (!toolCallId || seen.has(toolCallId)) continue;
     seen.add(toolCallId);
 
     const toolName =
@@ -156,9 +101,7 @@ function collectToolFailures(messages: AgentMessage[]): ToolFailure[] {
 }
 
 function formatToolFailuresSection(failures: ToolFailure[]): string {
-  if (failures.length === 0) {
-    return "";
-  }
+  if (failures.length === 0) return "";
   const lines = failures.slice(0, MAX_TOOL_FAILURES).map((failure) => {
     const meta = failure.meta ? ` (${failure.meta})` : "";
     return `- ${failure.toolName}${meta}: ${failure.summary}`;
@@ -174,8 +117,8 @@ function computeFileLists(fileOps: FileOperations): {
   modifiedFiles: string[];
 } {
   const modified = new Set([...fileOps.edited, ...fileOps.written]);
-  const readFiles = [...fileOps.read].filter((f) => !modified.has(f)).toSorted();
-  const modifiedFiles = [...modified].toSorted();
+  const readFiles = [...fileOps.read].filter((f) => !modified.has(f)).sort();
+  const modifiedFiles = [...modified].sort();
   return { readFiles, modifiedFiles };
 }
 
@@ -187,9 +130,7 @@ function formatFileOperations(readFiles: string[], modifiedFiles: string[]): str
   if (modifiedFiles.length > 0) {
     sections.push(`<modified-files>\n${modifiedFiles.join("\n")}\n</modified-files>`);
   }
-  if (sections.length === 0) {
-    return "";
-  }
+  if (sections.length === 0) return "";
   return `\n\n${sections.join("\n\n")}`;
 }
 
@@ -207,25 +148,40 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
 
     const model = ctx.model;
     if (!model) {
-      // ctx.model may be undefined when extensionRunner.initialize() was not called
-      // (e.g. embedded runner mode). Fall through to built-in compaction which has
-      // correct model access via AgentSession.model.
-      return undefined;
+      // getModel is initialized on the extensionRunner after session creation
+      // (see attempt.ts and compact.ts). If ctx.model is still undefined, return
+      // the fallback summary with tool failures and file ops rather than bypassing
+      // the extension entirely.
+      return {
+        compaction: {
+          summary: fallbackSummary,
+          firstKeptEntryId: preparation.firstKeptEntryId,
+          tokensBefore: preparation.tokensBefore,
+          details: { readFiles, modifiedFiles },
+        },
+      };
     }
 
     const apiKey = await ctx.modelRegistry.getApiKey(model);
     if (!apiKey) {
-      // Fall through to built-in compaction rather than producing an empty summary.
-      return undefined;
+      // Return fallback summary with tool failures and file ops rather than
+      // bypassing the extension.
+      return {
+        compaction: {
+          summary: fallbackSummary,
+          firstKeptEntryId: preparation.firstKeptEntryId,
+          tokensBefore: preparation.tokensBefore,
+          details: { readFiles, modifiedFiles },
+        },
+      };
     }
 
     try {
-      const runtime = getCompactionSafeguardRuntime(ctx.sessionManager);
-      const modelContextWindow = resolveContextWindowTokens(model);
-      const contextWindowTokens = runtime?.contextWindowTokens ?? modelContextWindow;
+      const contextWindowTokens = resolveContextWindowTokens(model);
       const turnPrefixMessages = preparation.turnPrefixMessages ?? [];
       let messagesToSummarize = preparation.messagesToSummarize;
 
+      const runtime = getCompactionSafeguardRuntime(ctx.sessionManager);
       const maxHistoryShare = runtime?.maxHistoryShare ?? 0.5;
 
       const tokensBefore =
@@ -334,12 +290,6 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
       summary += toolFailureSection;
       summary += fileOpsSummary;
 
-      // Preserve the last user message verbatim so it survives compaction
-      const lastUserText = extractLastUserMessageText(preparation.messagesToSummarize);
-      if (lastUserText) {
-        summary += `\n\n## Last User Message (Verbatim)\n\n${lastUserText}`;
-      }
-
       return {
         compaction: {
           summary,
@@ -354,14 +304,9 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
           error instanceof Error ? error.message : String(error)
         }`,
       );
-      // Preserve the last user message even in fallback
-      const lastUserTextFallback = extractLastUserMessageText(preparation.messagesToSummarize);
-      const fallbackWithUser = lastUserTextFallback
-        ? `${fallbackSummary}\n\n## Last User Message (Verbatim)\n\n${lastUserTextFallback}`
-        : fallbackSummary;
       return {
         compaction: {
-          summary: fallbackWithUser,
+          summary: fallbackSummary,
           firstKeptEntryId: preparation.firstKeptEntryId,
           tokensBefore: preparation.tokensBefore,
           details: { readFiles, modifiedFiles },
