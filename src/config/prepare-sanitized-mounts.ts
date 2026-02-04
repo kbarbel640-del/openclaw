@@ -60,6 +60,18 @@ export async function prepareSanitizedMounts(): Promise<SanitizedMounts> {
       // Load config (sanitizeConfigSecrets is applied automatically)
       const config = loadConfig();
       
+      // Disable device auth for Control UI in container mode.
+      // Docker connections come from 172.17.0.1, not localhost, so
+      // auto-pairing for local connections doesn't work.
+      // Token auth is still enforced, so this is safe.
+      if (!config.gateway) {
+        (config as any).gateway = {};
+      }
+      if (!config.gateway.controlUi) {
+        (config.gateway as any).controlUi = {};
+      }
+      (config.gateway.controlUi as any).dangerouslyDisableDeviceAuth = true;
+      
       const ext = path.extname(configPath);
       const sanitizedConfigPath = path.join(sanitizedDir, `openclaw${ext}`);
       
