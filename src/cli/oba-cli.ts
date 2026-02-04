@@ -108,7 +108,12 @@ export function registerObaCli(program: Command): void {
         return;
       }
 
-      const tokenFile = saveObaToken(result.token!);
+      if (!result.token) {
+        defaultRuntime.log("Login succeeded but no token was returned");
+        process.exitCode = 1;
+        return;
+      }
+      const tokenFile = saveObaToken(result.token);
       defaultRuntime.log(`Login successful! Token saved to ${tokenFile}`);
       defaultRuntime.log(theme.muted("Next: openclaw oba keygen && openclaw oba register"));
     });

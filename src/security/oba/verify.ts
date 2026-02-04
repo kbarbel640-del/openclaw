@@ -3,6 +3,7 @@ import type { ObaVerificationResult } from "./types.js";
 import { base64UrlDecode } from "./base64url.js";
 import { CanonicalizeError, preparePayloadForSigning } from "./canonicalize.js";
 import { classifyObaOffline } from "./extract.js";
+import { validateOwnerUrl } from "./owner-url.js";
 
 type JwkEntry = {
   kty: string;
@@ -62,7 +63,16 @@ function isValidJwkEntry(entry: unknown): entry is JwkEntry {
   );
 }
 
+const JWKS_MAX_BODY_BYTES = 512 * 1024; // 512 KB
+
 async function fetchJwks(ownerUrl: string): Promise<{ keys: JwkEntry[] }> {
+  // Defense-in-depth: validate owner URL even if callers already checked,
+  // so resolveJwks (exported) is safe to call directly.
+  const urlCheck = validateOwnerUrl(ownerUrl);
+  if (!urlCheck.ok) {
+    throw new Error(`invalid owner URL: ${urlCheck.error}`);
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), JWKS_FETCH_TIMEOUT_MS);
   try {
@@ -71,7 +81,16 @@ async function fetchJwks(ownerUrl: string): Promise<{ keys: JwkEntry[] }> {
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
-    const body = (await res.json()) as { keys?: unknown };
+    // Guard against oversized responses (DoS via huge JWKS payload).
+    const contentLength = res.headers.get("content-length");
+    if (contentLength && Number(contentLength) > JWKS_MAX_BODY_BYTES) {
+      throw new Error("JWKS response too large");
+    }
+    const text = await res.text();
+    if (text.length > JWKS_MAX_BODY_BYTES) {
+      throw new Error("JWKS response too large");
+    }
+    const body = JSON.parse(text) as { keys?: unknown };
     if (!body || !Array.isArray(body.keys)) {
       throw new Error("invalid JWKS response: missing keys array");
     }

@@ -124,16 +124,41 @@ describe("loginOba", () => {
       openBrowser: async (url) => {
         const parsed = new URL(url);
         const port = parsed.searchParams.get("port");
+        const state = parsed.searchParams.get("state");
 
         await new Promise((r) => setTimeout(r, 50));
 
-        await fetch(`http://127.0.0.1:${port}/callback?error=auth_failed`);
+        await fetch(`http://127.0.0.1:${port}/callback?error=auth_failed&state=${state}`);
       },
       onProgress: () => {},
     });
 
     expect(result.ok).toBe(false);
     expect(result.error).toBe("auth_failed");
+  });
+
+  it("rejects error callback without valid state", async () => {
+    let fetchStatus = 0;
+
+    const result = await loginOba({
+      apiUrl: "http://localhost:9999",
+      timeoutMs: 1000,
+      openBrowser: async (url) => {
+        const parsed = new URL(url);
+        const port = parsed.searchParams.get("port");
+
+        await new Promise((r) => setTimeout(r, 50));
+
+        // Send error without valid state — should be rejected
+        const res = await fetch(`http://127.0.0.1:${port}/callback?error=auth_failed`);
+        fetchStatus = res.status;
+      },
+      onProgress: () => {},
+    });
+
+    expect(fetchStatus).toBe(400);
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("Login timed out");
   });
 
   it("returns 404 for non-callback paths", async () => {

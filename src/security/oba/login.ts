@@ -97,18 +97,21 @@ function waitForCallback(
       const state = url.searchParams.get("state");
       const error = url.searchParams.get("error");
 
+      // Validate state FIRST — before trusting error or token params.
+      // Without this, an unauthenticated caller could terminate the login
+      // flow by hitting /callback?error=anything without a valid state.
+      if (!state || state !== expectedState) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "text/plain");
+        res.end("Invalid state");
+        return;
+      }
+
       if (error) {
         res.statusCode = 200;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.end(errorPage(error));
         finish({ ok: false, error });
-        return;
-      }
-
-      if (!state || state !== expectedState) {
-        res.statusCode = 400;
-        res.setHeader("Content-Type", "text/plain");
-        res.end("Invalid state");
         return;
       }
 

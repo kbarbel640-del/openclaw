@@ -137,9 +137,11 @@ describe("verifyObaContainer", () => {
   });
 
   function mockFetch(jwk: Record<string, unknown>) {
+    const body = JSON.stringify({ keys: [jwk] });
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ keys: [jwk] }),
+      headers: new Map([["content-length", String(body.length)]]),
+      text: async () => body,
     }) as unknown as typeof fetch;
   }
 

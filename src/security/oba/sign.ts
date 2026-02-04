@@ -145,7 +145,7 @@ export function signSkillMetadata(params: {
   const { metadataRaw, metaStart, metaEnd } = extractSkillMetadata(normalized);
 
   const parsed = JSON5.parse(metadataRaw);
-  if (!parsed || typeof parsed !== "object") {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error(`Invalid metadata JSON5 in ${params.skillPath}`);
   }
 

@@ -64,7 +64,12 @@ export async function registerAgent(params: {
       };
     }
 
-    // 404 or other error → fall through to POST.
+    // Only fall through to POST on 404 (agent gone). Other errors
+    // (500, timeout, network) should surface rather than silently
+    // creating a duplicate agent via POST.
+    if (!putResult.notFound) {
+      return { ok: false, error: putResult.error };
+    }
   }
 
   return postAgent({
@@ -77,6 +82,8 @@ export async function registerAgent(params: {
 }
 
 // --- internal helpers ---
+
+type PutResult = { ok: boolean; notFound?: boolean; authError?: boolean; error?: string };
 
 type JwkPayload = {
   kty: string;
@@ -94,7 +101,7 @@ async function putAgent(params: {
   name?: string;
   agentType?: string;
   token: string;
-}): Promise<{ ok: boolean; authError?: boolean; error?: string }> {
+}): Promise<PutResult> {
   const url = `${params.apiUrl}/agents/${params.agentId}`;
 
   // Minimal PUT body: only public_key by default.
@@ -123,6 +130,10 @@ async function putAgent(params: {
     if (res.status === 401 || res.status === 403) {
       const text = await res.text().catch(() => "");
       return { ok: false, authError: true, error: `HTTP ${res.status}: ${text}` };
+    }
+
+    if (res.status === 404) {
+      return { ok: false, notFound: true, error: "agent not found" };
     }
 
     if (!res.ok) {

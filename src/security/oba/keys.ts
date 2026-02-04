@@ -24,7 +24,7 @@ function extractRawPublicKey(publicKeyPem: string): Buffer {
   ) {
     return spki.subarray(ED25519_SPKI_PREFIX.length);
   }
-  return spki;
+  throw new Error("unexpected SPKI format: not an Ed25519 public key");
 }
 
 export function deriveKid(publicKeyPem: string): string {
