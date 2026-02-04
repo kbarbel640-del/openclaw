@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { PreparedSlackMessage } from "./types.js";
 import { resolveHumanDelayConfig } from "../../../agents/identity.js";
 import { dispatchInboundMessage } from "../../../auto-reply/dispatch.js";
@@ -9,14 +10,19 @@ import { createReplyPrefixContext } from "../../../channels/reply-prefix.js";
 import { createTypingCallbacks } from "../../../channels/typing.js";
 import { resolveStorePath, updateLastRoute } from "../../../config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose } from "../../../globals.js";
+import { createSubsystemLogger } from "../../../logging/subsystem.js";
 import { removeSlackReaction } from "../../actions.js";
 import { resolveSlackThreadTargets } from "../../threading.js";
 import { createSlackReplyDeliveryPlan, deliverReplies } from "../replies.js";
+
+const log = createSubsystemLogger("slack/dispatch");
 
 export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessage) {
   const { ctx, account, message, route } = prepared;
   const cfg = ctx.cfg;
   const runtime = ctx.runtime;
+  // Stable per-inbound-message id for correlating Slack outbound sends with agent stream traces.
+  const runId = crypto.randomUUID();
 
   if (prepared.isDirectMessage) {
     const sessionCfg = cfg.session;
@@ -101,8 +107,23 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     responsePrefix: prefixContext.responsePrefix,
     responsePrefixContextProvider: prefixContext.responsePrefixContextProvider,
     humanDelay: resolveHumanDelayConfig(cfg, route.agentId),
-    deliver: async (payload) => {
+    deliver: async (payload, info) => {
       const replyThreadTs = replyPlan.nextThreadTs();
+      const mediaList = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
+      const text = payload.text ?? "";
+      log.trace("slack deliver", {
+        runId,
+        kind: info.kind,
+        target: prepared.replyTarget,
+        channelId: message.channel,
+        incomingThreadTs: incomingThreadTs ?? undefined,
+        replyThreadTs: replyThreadTs ?? undefined,
+        replyToId: payload.replyToId ?? undefined,
+        textLen: text.length,
+        mediaCount: mediaList.length,
+        startsWithReasoning: text.trimStart().startsWith("Reasoning:"),
+        preview: text ? text.slice(0, 120).replace(/\\s+/g, " ").trim() : undefined,
+      });
       await deliverReplies({
         replies: [payload],
         target: prepared.replyTarget,
@@ -128,6 +149,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     dispatcher,
     replyOptions: {
       ...replyOptions,
+      runId,
       skillFilter: prepared.channelConfig?.skills,
       hasRepliedRef,
       disableBlockStreaming:
