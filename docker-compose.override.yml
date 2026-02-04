@@ -1,3 +1,4 @@
 services:
-  clawdbot-gateway:
-    command: ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789"]
+  openclaw-gateway:
+    network_mode: host
+    command: ["node", "dist/index.js", "gateway", "--bind", "loopback", "--port", "18789"]

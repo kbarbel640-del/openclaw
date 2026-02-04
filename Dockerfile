@@ -63,16 +63,25 @@ RUN curl -fsSL https://github.com/steipete/gogcli/releases/download/v0.9.0/gogcl
 RUN curl -fsSL https://github.com/steipete/goplaces/releases/download/v0.2.1/goplaces_0.2.1_linux_amd64.tar.gz | \
     tar -xz -C /usr/local/bin && chmod +x /usr/local/bin/goplaces
 
-# SSH (for git operations)
-RUN apt-get update && apt-get install -y openssh-client && rm -rf /var/lib/apt/lists/*
+# Chrome/Playwright deps for headless browser screenshots (Sparky + Scout)
+# These MUST be in the Dockerfile so they survive container rebuilds
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    openssh-client \
+    libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libdbus-1-3 \
+    libcups2 libxkbcommon0 libatspi2.0-0 libxcomposite1 libxdamage1 \
+    libxfixes3 libxrandr2 libgbm1 libasound2 libdrm2 libpango-1.0-0 \
+    libcairo2 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Allow non-root user to write temp files during runtime/tests.
 RUN chown -R node:node /app
 
 # Security hardening: Run as non-root user
-# The node:22-bookworm image includes a 'node' user (uid 1000)
-# This reduces the attack surface by preventing container escape via root privileges
 USER node
+
+# Install Playwright Chromium browser (as node user so paths are correct)
+RUN cd /app && node node_modules/playwright-core/cli.js install chromium
 
 # Start gateway server with default config.
 # Binds to loopback (127.0.0.1) by default for security.
