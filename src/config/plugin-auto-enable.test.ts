@@ -62,8 +62,40 @@ describe("applyPluginAutoEnable", () => {
       env: {},
     });
 
-    expect(result.config.plugins?.entries?.slack?.enabled).toBeUndefined();
+    // Built-in channels use channels.<id>.enabled, not plugins.entries.
+    // When plugins are globally disabled, nothing should be auto-enabled.
+    const slackChannel = (result.config.channels as Record<string, unknown>)?.slack;
+    expect((slackChannel as Record<string, unknown> | undefined)?.enabled).toBeUndefined();
     expect(result.changes).toEqual([]);
+  });
+
+  describe("channel alias handling", () => {
+    it("respects explicit disable on alias key", () => {
+      // User uses "imsg" alias instead of canonical "imessage"
+      const result = applyPluginAutoEnable({
+        config: {
+          channels: { imsg: { cliPath: "/usr/bin/imsg", enabled: false } },
+        },
+        env: {},
+      });
+
+      // Should not auto-enable since the alias key has enabled: false
+      expect(result.changes).toEqual([]);
+    });
+
+    it("enables channel using canonical ID when alias is configured", () => {
+      const result = applyPluginAutoEnable({
+        config: {
+          channels: { imsg: { cliPath: "/usr/bin/imsg" } },
+        },
+        env: {},
+      });
+
+      // enablePluginEntry normalizes the alias to canonical ID when writing
+      const imessageChannel = (result.config.channels as Record<string, unknown>)?.imessage;
+      expect((imessageChannel as Record<string, unknown> | undefined)?.enabled).toBe(true);
+      expect(result.changes.join("\n")).toContain("iMessage configured, not enabled yet.");
+    });
   });
 
   describe("preferOver channel prioritization", () => {
