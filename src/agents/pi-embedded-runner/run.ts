@@ -168,6 +168,8 @@ export async function runEmbeddedPiAgent(
       const initialThinkLevel = params.thinkLevel ?? "off";
       let thinkLevel = initialThinkLevel;
       const attemptedThinking = new Set<ThinkLevel>();
+      let terminatedRetries = 0;
+      const MAX_TERMINATED_RETRIES = 2;
       let apiKeyInfo: ApiKeyInfo | null = null;
       let lastProfileId: string | undefined;
 
@@ -531,6 +533,22 @@ export async function runEmbeddedPiAgent(
               `unsupported thinking level for ${provider}/${modelId}; retrying with ${fallbackThinking}`,
             );
             thinkLevel = fallbackThinking;
+            continue;
+          }
+
+          // Auto-retry on Anthropic "terminated" errors (API-side abort with
+          // minimal output tokens). These are transient and usually succeed on retry.
+          if (
+            !aborted &&
+            lastAssistant?.errorMessage === "terminated" &&
+            terminatedRetries < MAX_TERMINATED_RETRIES
+          ) {
+            terminatedRetries += 1;
+            const delayMs = terminatedRetries * 2000;
+            log.warn(
+              `API terminated response (attempt ${terminatedRetries}/${MAX_TERMINATED_RETRIES}), retrying in ${delayMs}ms...`,
+            );
+            await new Promise((r) => setTimeout(r, delayMs));
             continue;
           }
 

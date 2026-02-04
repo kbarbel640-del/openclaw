@@ -48,6 +48,7 @@ import { resolveSandboxContext } from "../../sandbox.js";
 import { resolveSandboxRuntimeStatus } from "../../sandbox/runtime-status.js";
 import { repairSessionFileIfNeeded } from "../../session-file-repair.js";
 import { guardSessionManager } from "../../session-tool-result-guard-wrapper.js";
+import { sanitizeToolUseResultPairing } from "../../session-transcript-repair.js";
 import { acquireSessionWriteLock } from "../../session-write-lock.js";
 import {
   applySkillEnvOverrides,
@@ -751,7 +752,11 @@ export async function runEmbeddedAttempt(
             sessionManager.resetLeaf();
           }
           const sessionContext = sessionManager.buildSessionContext();
-          activeSession.agent.replaceMessages(sessionContext.messages);
+          // Re-sanitize after rebuilding context to maintain tool_use/tool_result pairing.
+          const repairedOrphan = transcriptPolicy.repairToolUseResultPairing
+            ? sanitizeToolUseResultPairing(sessionContext.messages)
+            : sessionContext.messages;
+          activeSession.agent.replaceMessages(repairedOrphan);
           log.warn(
             `Removed orphaned user message to prevent consecutive user turns. ` +
               `runId=${params.runId} sessionId=${params.sessionId}`,
