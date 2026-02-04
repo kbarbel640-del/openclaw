@@ -9,9 +9,6 @@ import { createAgentsListTool } from "./tools/agents-list-tool.js";
 import { createBrowserTool } from "./tools/browser-tool.js";
 import { createCanvasTool } from "./tools/canvas-tool.js";
 import { createCronTool } from "./tools/cron-tool.js";
-import { createExperienceCaptureTool } from "./tools/experience-capture-tool.js";
-import { createExperienceReflectTool } from "./tools/experience-reflect-tool.js";
-import { createExperienceSearchTool } from "./tools/experience-search-tool.js";
 import { createGatewayTool } from "./tools/gateway-tool.js";
 import { createImageGenerateTool } from "./tools/image-generate-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
@@ -172,22 +169,6 @@ export function createOpenClawTools(options?: {
     }),
     createImageGenerateTool(),
   ];
-
-  // Meridia experiential continuity tools — search, capture, and reflect on experiences.
-  const experienceTools = [
-    createExperienceSearchTool({
-      config: options?.config,
-    }),
-    createExperienceCaptureTool({
-      config: options?.config,
-      agentSessionKey: options?.agentSessionKey,
-    }),
-    createExperienceReflectTool({
-      config: options?.config,
-      agentSessionKey: options?.agentSessionKey,
-    }),
-  ].filter((tool): tool is AnyAgentTool => tool !== null);
-  tools.push(...experienceTools);
 
   // Progressive memory tools — only registered when memory.progressive.enabled = true.
   // Each factory returns null if the feature is disabled, so we filter nulls.

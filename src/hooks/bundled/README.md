@@ -4,45 +4,10 @@ This directory contains hooks that ship with OpenClaw. These hooks are automatic
 
 ## Available Hooks
 
-### 🧠 experiential-capture (Meridia)
-
-Captures significant tool results into an append-only Meridia record stream.
-
-**Events**: `agent:tool:result`
-**What it does**: Scores tool results (heuristic or LLM) and writes JSONL records + trace.
-**Output**: `~/.openclaw/meridia/records/experiential/YYYY-MM-DD.jsonl`
-
-**Enable**:
-
-```bash
-openclaw hooks enable experiential-capture
-```
-
-### 🧩 compaction (Meridia)
-
-Writes a snapshot before embedded-agent auto-compaction.
-
-**Events**: `agent:precompact`, `agent:compaction:end`
-**Output**: `~/.openclaw/meridia/snapshots/YYYY-MM-DD/*.json`
-
-**Enable**:
-
-```bash
-openclaw hooks enable compaction
-```
-
-### 📦 session-end (Meridia)
-
-Archives the current Meridia buffer on `/new` and `/stop`.
-
-**Events**: `command:new`, `command:stop`
-**Output**: `~/.openclaw/meridia/sessions/YYYY-MM-DD/*.json`
-
-**Enable**:
-
-```bash
-openclaw hooks enable session-end
-```
+Meridia’s internal hooks now ship via the `meridia` bundled plugin (see `extensions/meridia/`).
+They are configured under `hooks.internal.entries.*` and **cannot** be toggled via
+`openclaw hooks enable/disable` (plugin-managed hooks are intentionally config-driven).
+Use `openclaw meridia doctor` for a quick configuration check.
 
 ### 💾 session-memory
 

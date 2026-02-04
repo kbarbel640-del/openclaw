@@ -1,0 +1,8 @@
+{
+  "id": "meridia",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
