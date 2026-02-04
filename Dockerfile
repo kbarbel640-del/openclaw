@@ -27,7 +27,7 @@ COPY --chown=node:node . .
 RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build && chown -R node:node dist
 # Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
 ENV OPENCLAW_PREFER_PNPM=1
-RUN pnpm ui:build && chown -R node:node dist/plugin-sdk
+RUN pnpm ui:build && chown -R node:node dist/control-ui ui/node_modules
 
 ENV NODE_ENV=production
 
