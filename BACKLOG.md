@@ -24,7 +24,7 @@ Branch: `landing-page-ux` | Design doc: `docs/plans/2026-01-25-landing-page-desi
 - [ ] Implement interactive demos/previews (live Overseer visualization, chat preview)
 - [~] Responsive breakpoints (mobile, tablet, desktop) — mobile hamburger menu + back-to-top added
 - [ ] Wire CTA flows (signup, waitlist, demo request)
-- [ ] SEO optimization (meta tags, structured data, og tags)
+- [~] SEO optimization (meta tags, structured data, og tags) — branch `autodev-seo-optimization`
 - [ ] Performance pass (lazy load sections, optimize animations)
 
 ---
