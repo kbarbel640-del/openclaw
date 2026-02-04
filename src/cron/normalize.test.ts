@@ -1,7 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { normalizeCronJobCreate } from "./normalize.js";
+import { normalizeCronJobCreate, normalizeCronJobPatch } from "./normalize.js";
 
 describe("normalizeCronJobCreate", () => {
+  it("defaults enabled to true when not specified", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "test-job",
+      schedule: { kind: "cron", expr: "* * * * *" },
+      sessionTarget: "main",
+      wakeMode: "next-heartbeat",
+      payload: { kind: "systemEvent", text: "hello" },
+    }) as unknown as Record<string, unknown>;
+
+    expect(normalized.enabled).toBe(true);
+  });
+
+  it("preserves enabled=false when explicitly set", () => {
+    const normalized = normalizeCronJobCreate({
+      name: "disabled-job",
+      enabled: false,
+      schedule: { kind: "cron", expr: "* * * * *" },
+      sessionTarget: "main",
+      wakeMode: "next-heartbeat",
+      payload: { kind: "systemEvent", text: "hello" },
+    }) as unknown as Record<string, unknown>;
+
+    expect(normalized.enabled).toBe(false);
+  });
+
   it("maps legacy payload.provider to payload.channel and strips provider", () => {
     const normalized = normalizeCronJobCreate({
       name: "legacy",
@@ -233,5 +258,15 @@ describe("normalizeCronJobCreate", () => {
     const delivery = normalized.delivery as Record<string, unknown>;
     expect(delivery.mode).toBe("announce");
     expect((normalized as { isolation?: unknown }).isolation).toBeUndefined();
+  });
+});
+
+describe("normalizeCronJobPatch", () => {
+  it("does not default enabled for patches (only updates explicit fields)", () => {
+    const normalized = normalizeCronJobPatch({
+      name: "updated-name",
+    }) as unknown as Record<string, unknown>;
+
+    expect("enabled" in normalized).toBe(false);
   });
 });

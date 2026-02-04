@@ -203,6 +203,10 @@ export function normalizeCronJobInput(
   }
 
   if (options.applyDefaults) {
+    // Default enabled to true when creating new jobs (not patches).
+    if (!("enabled" in next) || next.enabled === undefined) {
+      next.enabled = true;
+    }
     if (!next.wakeMode) {
       next.wakeMode = "next-heartbeat";
     }
