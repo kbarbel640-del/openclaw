@@ -298,12 +298,10 @@ export function applyAgentDefaults(cfg: OpenClawConfig): OpenClawConfig {
   const hasSubMax =
     typeof defaults?.subagents?.maxConcurrent === "number" &&
     Number.isFinite(defaults.subagents.maxConcurrent);
-  if (hasMax && hasSubMax) {
-    return cfg;
-  }
 
   let mutated = false;
   const nextDefaults = defaults ? { ...defaults } : {};
+
   if (!hasMax) {
     nextDefaults.maxConcurrent = DEFAULT_AGENT_MAX_CONCURRENT;
     mutated = true;
@@ -312,6 +310,21 @@ export function applyAgentDefaults(cfg: OpenClawConfig): OpenClawConfig {
   const nextSubagents = defaults?.subagents ? { ...defaults.subagents } : {};
   if (!hasSubMax) {
     nextSubagents.maxConcurrent = DEFAULT_SUBAGENT_MAX_CONCURRENT;
+    mutated = true;
+  }
+
+  // OPENCLAW_MODEL env var override: allows setting default model via environment
+  const envModel = process.env.OPENCLAW_MODEL?.trim();
+  const existingModel = defaults?.model;
+  const existingPrimary =
+    typeof existingModel === "string"
+      ? existingModel.trim()
+      : typeof existingModel === "object" && existingModel !== null
+        ? (existingModel as { primary?: string }).primary?.trim()
+        : undefined;
+
+  if (envModel && !existingPrimary) {
+    nextDefaults.model = { primary: envModel };
     mutated = true;
   }
 
