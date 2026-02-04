@@ -1,24 +1,12 @@
+import type { ChannelAccountSnapshot } from "../channels/plugins/types.js";
+import type { OpenClawConfig } from "../config/config.js";
+import type { createSubsystemLogger } from "../logging/subsystem.js";
+import type { RuntimeEnv } from "../runtime.js";
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import { type ChannelId, getChannelPlugin, listChannelPlugins } from "../channels/plugins/index.js";
-import type { ChannelAccountSnapshot } from "../channels/plugins/types.js";
-import type { MoltbotConfig } from "../config/config.js";
-import { computeBackoff, sleepWithAbort } from "../infra/backoff.js";
 import { formatErrorMessage } from "../infra/errors.js";
-import { formatDurationMs } from "../infra/format-duration.js";
 import { resetDirectoryCache } from "../infra/outbound/target-resolver.js";
-import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { DEFAULT_ACCOUNT_ID } from "../routing/session-key.js";
-import type { RuntimeEnv } from "../runtime.js";
-
-const CHANNEL_RESTART_POLICY = {
-  initialMs: 3000,
-  maxMs: 60_000,
-  factor: 2,
-  jitter: 0.25,
-};
-
-/** Max consecutive auto-restarts before giving up (requires manual restart). */
-const MAX_AUTO_RESTARTS = 10;
 
 export type ChannelRuntimeSnapshot = {
   channels: Partial<Record<ChannelId, ChannelAccountSnapshot>>;
@@ -42,7 +30,9 @@ function createRuntimeStore(): ChannelRuntimeStore {
 }
 
 function isAccountEnabled(account: unknown): boolean {
-  if (!account || typeof account !== "object") return true;
+  if (!account || typeof account !== "object") {
+    return true;
+  }
   const enabled = (account as { enabled?: boolean }).enabled;
   return enabled !== false;
 }
@@ -57,7 +47,7 @@ function cloneDefaultRuntime(channelId: ChannelId, accountId: string): ChannelAc
 }
 
 type ChannelManagerOptions = {
-  loadConfig: () => MoltbotConfig;
+  loadConfig: () => OpenClawConfig;
   channelLogs: Record<ChannelId, SubsystemLogger>;
   channelRuntimeEnvs: Record<ChannelId, RuntimeEnv>;
 };
@@ -75,11 +65,12 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
   const { loadConfig, channelLogs, channelRuntimeEnvs } = opts;
 
   const channelStores = new Map<ChannelId, ChannelRuntimeStore>();
-  const autoRestartAttempts = new Map<ChannelId, Map<string, number>>();
 
   const getStore = (channelId: ChannelId): ChannelRuntimeStore => {
     const existing = channelStores.get(channelId);
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
     const next = createRuntimeStore();
     channelStores.set(channelId, next);
     return next;
@@ -105,16 +96,22 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
   const startChannel = async (channelId: ChannelId, accountId?: string) => {
     const plugin = getChannelPlugin(channelId);
     const startAccount = plugin?.gateway?.startAccount;
-    if (!startAccount) return;
+    if (!startAccount) {
+      return;
+    }
     const cfg = loadConfig();
     resetDirectoryCache({ channel: channelId, accountId });
     const store = getStore(channelId);
     const accountIds = accountId ? [accountId] : plugin.config.listAccountIds(cfg);
-    if (accountIds.length === 0) return;
+    if (accountIds.length === 0) {
+      return;
+    }
 
     await Promise.all(
       accountIds.map(async (id) => {
-        if (store.tasks.has(id)) return;
+        if (store.tasks.has(id)) {
+          return;
+        }
         const account = plugin.config.resolveAccount(cfg, id);
         const enabled = plugin.config.isEnabled
           ? plugin.config.isEnabled(account, cfg)
@@ -149,8 +146,6 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
           lastStartAt: Date.now(),
           lastError: null,
         });
-        // Reset auto-restart counter on successful start
-        autoRestartAttempts.get(channelId)?.delete(id);
 
         const log = channelLogs[channelId];
         const task = startAccount({
@@ -172,43 +167,11 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
           .finally(() => {
             store.aborts.delete(id);
             store.tasks.delete(id);
-            const wasAborted = abort.signal.aborted;
             setRuntime(channelId, id, {
               accountId: id,
               running: false,
               lastStopAt: Date.now(),
             });
-
-            // Auto-restart crashed channels (unless intentionally stopped).
-            if (!wasAborted) {
-              const attempts = (autoRestartAttempts.get(channelId)?.get(id) ?? 0) + 1;
-              if (!autoRestartAttempts.has(channelId))
-                autoRestartAttempts.set(channelId, new Map());
-              autoRestartAttempts.get(channelId)!.set(id, attempts);
-
-              if (attempts <= MAX_AUTO_RESTARTS) {
-                const delayMs = computeBackoff(CHANNEL_RESTART_POLICY, attempts);
-                log.info?.(
-                  `[${id}] auto-restarting in ${formatDurationMs(delayMs)} (attempt ${attempts}/${MAX_AUTO_RESTARTS})`,
-                );
-                void sleepWithAbort(delayMs)
-                  .then(() => {
-                    if (store.tasks.has(id)) return; // already restarted externally
-                    log.info?.(`[${id}] auto-restart starting`);
-                    return startChannel(channelId, id);
-                  })
-                  .catch((restartErr) => {
-                    log.error?.(`[${id}] auto-restart failed: ${formatErrorMessage(restartErr)}`);
-                  });
-              } else {
-                log.error?.(
-                  `[${id}] exceeded max auto-restarts (${MAX_AUTO_RESTARTS}); manual restart required`,
-                );
-              }
-            } else {
-              // Reset counter on intentional stop
-              autoRestartAttempts.get(channelId)?.delete(id);
-            }
           });
         store.tasks.set(id, tracked);
       }),
@@ -233,7 +196,9 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
       Array.from(knownIds.values()).map(async (id) => {
         const abort = store.aborts.get(id);
         const task = store.tasks.get(id);
-        if (!abort && !task && !plugin?.gateway?.stopAccount) return;
+        if (!abort && !task && !plugin?.gateway?.stopAccount) {
+          return;
+        }
         abort?.abort();
         if (plugin?.gateway?.stopAccount) {
           const account = plugin.config.resolveAccount(cfg, id);
@@ -272,7 +237,9 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
 
   const markChannelLoggedOut = (channelId: ChannelId, cleared: boolean, accountId?: string) => {
     const plugin = getChannelPlugin(channelId);
-    if (!plugin) return;
+    if (!plugin) {
+      return;
+    }
     const cfg = loadConfig();
     const resolvedId =
       accountId ??
