@@ -64,6 +64,13 @@ actor TalkModeRuntime {
     private var apiKey: String?
     private var fallbackVoiceId: String?
     private var lastPlaybackWasPCM: Bool = false
+    
+    // MiniMax TTS client for cloud TTS
+    private var miniMaxClient: MiniMaxTTSClient?
+    private var useMiniMax: Bool = true  // 默认启用 MiniMax TTS
+    private var miniMaxApiKey: String?
+    private var miniMaxVoiceId: String = "male-qn-qingse"
+    private var miniMaxModel: String = "speech-2.6-hd"
 
     private let silenceWindow: TimeInterval = 0.7
     private let minSpeechRMS: Double = 1e-3
@@ -209,9 +216,10 @@ actor TalkModeRuntime {
             guard let self else { return }
             let segments = result?.bestTranscription.segments ?? []
             let transcript = result?.bestTranscription.formattedString
+            // 降低置信度阈值（0.6 -> 0.3），因为 TTS 播放时背景噪音会降低识别置信度
             let update = RecognitionUpdate(
                 transcript: transcript,
-                hasConfidence: segments.contains { $0.confidence > 0.6 },
+                hasConfidence: segments.contains { $0.confidence > 0.3 },
                 isFinal: result?.isFinal ?? false,
                 errorDescription: error?.localizedDescription,
                 generation: generation)
@@ -254,13 +262,17 @@ actor TalkModeRuntime {
 
         let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         if self.phase == .speaking, self.interruptOnSpeech {
+            self.logger.warning("🔊 收到转录(speaking): '\(trimmed.prefix(30), privacy: .public)' phase=\(String(describing: self.phase), privacy: .public)")
             if await self.shouldInterrupt(transcript: trimmed, hasConfidence: update.hasConfidence) {
+                self.logger.warning("🔊 执行打断!")
                 await self.stopSpeaking(reason: .speech)
                 self.lastTranscript = ""
                 self.lastHeard = nil
                 await self.startListening()
             }
             return
+        } else if self.phase == .speaking {
+            self.logger.warning("🔊 收到转录但interruptOnSpeech=false")
         }
 
         guard self.phase == .listening else { return }
@@ -327,6 +339,194 @@ actor TalkModeRuntime {
         let gen = self.lifecycleGeneration
         await self.reloadConfig()
         guard self.isCurrent(gen) else { return }
+        
+        let useMiniMaxTTS = self.useMiniMax && (self.miniMaxApiKey?.isEmpty == false)
+        if useMiniMaxTTS {
+            // 等待 final 后分段播放（稳定方案，不依赖 delta 事件）
+            await self.sendAndSpeakWithSegments(transcript: transcript, generation: gen)
+        } else {
+            await self.sendAndSpeakNonStreaming(transcript: transcript, generation: gen)
+        }
+    }
+    
+    /// 等待完整回复后分段播放（避免 Gateway dropIfSlow 丢弃 delta）
+    /// 使用单一 WebSocket 连接复用
+    private func sendAndSpeakWithSegments(transcript: String, generation gen: Int) async {
+        // ========== 延迟诊断：T0 - STT完成，进入方法 ==========
+        let t0 = Date()
+        self.logger.warning("⏱️ T0 STT完成，进入分段TTS")
+        
+        let prompt = self.buildPrompt(transcript: transcript)
+        let activeSessionKey = await MainActor.run { WebChatManager.shared.activeSessionKey }
+        let sessionKey: String
+        if let key = activeSessionKey {
+            sessionKey = key
+        } else {
+            sessionKey = await GatewayConnection.shared.mainSessionKey()
+        }
+        let runId = UUID().uuidString
+        
+        // 检查 MiniMax API key
+        guard let apiKey = self.miniMaxApiKey, !apiKey.isEmpty else {
+            self.ttsLogger.error("MiniMax API key not configured")
+            return
+        }
+        
+        self.logger.warning("⏱️ T1 准备发送请求 +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms")
+        
+        do {
+            // 先订阅
+            let gatewayStream = await GatewayConnection.shared.subscribe()
+            
+            // 发送请求
+            let response = try await GatewayConnection.shared.chatSend(
+                sessionKey: sessionKey,
+                message: prompt,
+                thinking: "low",
+                idempotencyKey: runId,
+                attachments: [])
+            
+            self.logger.warning("⏱️ T2 chatSend完成 +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms")
+            
+            guard self.isCurrent(gen) else { return }
+            
+            let expectedRunId = response.runId
+            let deadline = Date().addingTimeInterval(60)
+            
+            // 等待 final 事件，然后从 history 获取完整文本（final message 可能为空）
+            for await push in gatewayStream {
+                guard Date() < deadline else { break }
+                guard self.isCurrent(gen) else { break }
+                guard case let .event(evt) = push, evt.event == "chat" else { continue }
+                
+                guard let payload = evt.payload,
+                      let payloadData = try? JSONEncoder().encode(payload),
+                      let chatPayload = try? JSONDecoder().decode(OpenClawChatEventPayload.self, from: payloadData),
+                      chatPayload.runId == expectedRunId
+                else { continue }
+                
+                let state = chatPayload.state ?? ""
+                
+                if state == "final" || state == "done" || state == "error" || state == "aborted" {
+                    break
+                }
+            }
+            
+            self.logger.warning("⏱️ T3 收到final +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms")
+            
+            guard self.isCurrent(gen) else { return }
+            
+            // 直接从 history 获取完整文本（更可靠）
+            let startedAt = Date().timeIntervalSince1970 - 60
+            guard let fullText = await self.latestAssistantText(sessionKey: sessionKey, since: startedAt),
+                  !fullText.isEmpty else {
+                self.logger.warning("No text from history")
+                return
+            }
+            
+            self.logger.warning("⏱️ T3b 获取history +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms 长度=\(fullText.count, privacy: .public)")
+            
+            guard !fullText.isEmpty else { return }
+            
+            // 不分段，直接播放整个文本（避免 MiniMax 连接复用问题导致的停顿）
+            self.logger.warning("⏱️ T4 开始TTS播放 +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms 字数=\(fullText.count, privacy: .public)")
+            
+            do {
+                try await self.playSegmentIndependent(text: fullText, generation: gen, isFirst: true)
+                self.logger.warning("⏱️ TTS播放完成")
+            } catch {
+                self.ttsLogger.error("TTS failed: \(error.localizedDescription, privacy: .public)")
+            }
+            
+            self.logger.warning("⏱️ 总耗时 \(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms")
+            
+        } catch {
+            self.logger.error("sendAndSpeakWithSegments failed: \(error.localizedDescription, privacy: .public)")
+        }
+        
+        guard self.isCurrent(gen) else { return }
+        await self.resumeListeningIfNeeded()
+    }
+    
+    /// 每个段落使用独立的 MiniMax 连接播放（因为 MiniMax API 不支持单连接多任务）
+    private func playSegmentIndependent(text: String, generation: Int, isFirst: Bool) async throws {
+        guard self.isCurrent(generation) else {
+            self.logger.warning("⏱️ playSegmentIndependent: generation不匹配，跳过")
+            return
+        }
+        
+        guard let apiKey = self.miniMaxApiKey, !apiKey.isEmpty else {
+            self.ttsLogger.error("MiniMax API key not configured")
+            return
+        }
+        
+        // 只在第一个段落时设置 phase
+        if isFirst {
+            if self.interruptOnSpeech {
+                guard await self.prepareForPlayback(generation: generation) else {
+                    self.logger.warning("⏱️ playSegmentIndependent: prepareForPlayback失败")
+                    return
+                }
+            }
+            await MainActor.run { TalkModeController.shared.updatePhase(.speaking) }
+            self.phase = .speaking
+            self.lastPlaybackWasPCM = false
+        }
+        
+        // 创建独立的 client
+        let client = MiniMaxTTSClient(
+            apiKey: apiKey,
+            model: self.miniMaxModel,
+            voiceId: self.miniMaxVoiceId
+        )
+        
+        do {
+            try await client.connect()
+            self.logger.warning("⏱️ 段落独立连接成功")
+        } catch {
+            self.ttsLogger.error("MiniMax connect failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+        
+        defer {
+            Task { await client.disconnect() }
+        }
+        
+        // 合成音频
+        let stream = await client.streamSynthesize(text: text, speed: 1.0, volume: 1.0, pitch: 0)
+        
+        // 计算收到的音频数据量
+        var chunkCount = 0
+        var totalBytes = 0
+        let monitoredStream = AsyncThrowingStream<Data, Error> { continuation in
+            Task {
+                do {
+                    for try await chunk in stream {
+                        chunkCount += 1
+                        totalBytes += chunk.count
+                        continuation.yield(chunk)
+                    }
+                    self.logger.warning("⏱️ 段落TTS流完成: \(chunkCount, privacy: .public)块 \(totalBytes, privacy: .public)字节")
+                    continuation.finish()
+                } catch {
+                    self.logger.error("⏱️ 段落TTS流错误: \(error.localizedDescription, privacy: .public)")
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+        
+        let result = await self.playMP3(stream: monitoredStream)
+        self.logger.warning("⏱️ 段落playMP3结果: finished=\(result.finished, privacy: .public)")
+        
+        if !result.finished, let interruptedAt = result.interruptedAt, self.phase == .speaking {
+            if self.interruptOnSpeech {
+                self.lastInterruptedAtSeconds = interruptedAt
+            }
+        }
+    }
+    
+    /// Non-streaming TTS: Wait for full response then play
+    private func sendAndSpeakNonStreaming(transcript: String, generation gen: Int) async {
         let prompt = self.buildPrompt(transcript: transcript)
         let activeSessionKey = await MainActor.run { WebChatManager.shared.activeSessionKey }
         let sessionKey: String = if let activeSessionKey {
@@ -375,6 +575,15 @@ actor TalkModeRuntime {
             await self.resumeListeningIfNeeded()
             return
         }
+    }
+    
+    /// Helper struct to decode chat delta message
+    private struct ChatDeltaMessage: Codable {
+        let content: [ChatDeltaContent]?
+    }
+    
+    private struct ChatDeltaContent: Codable {
+        let text: String?
     }
 
     private func resumeListeningIfNeeded() async {
@@ -428,16 +637,48 @@ actor TalkModeRuntime {
             }
             guard let assistant else { return nil }
             let text = assistant.content.compactMap(\.text).joined(separator: "\n")
-            let trimmed = text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            // 过滤掉 [[tts:...]] 和 [[audio:...]] 等特殊标记，避免 TTS 朗读路径
+            let filtered = self.filterSpecialMarkers(text)
+            let trimmed = filtered.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed
         } catch {
             self.logger.error("talk history fetch failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
+    
+    /// 过滤掉 [[tts:...]] [[audio:...]] 等特殊标记
+    private func filterSpecialMarkers(_ text: String) -> String {
+        // 匹配 [[tts:...]] [[audio:...]] [[voice:...]] 等标记（包括空值如 [[tts:once]]）
+        // 使用 .*? 非贪婪匹配，支持嵌套括号
+        let pattern = #"\[\[(tts|audio|voice)(:[^\]]*?)?\]\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return text
+        }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "")
+    }
 
     private func playAssistant(text: String) async {
         guard let input = await self.preparePlaybackInput(text: text) else { return }
+        
+        // Use MiniMax TTS if enabled and API key is available
+        let useMiniMaxTTS = self.useMiniMax && (self.miniMaxApiKey?.isEmpty == false)
+        self.ttsLogger.info("playAssistant: useMiniMax=\(useMiniMaxTTS), hasApiKey=\(self.miniMaxApiKey?.isEmpty == false)")
+        
+        // MiniMax TTS: single attempt only (no retry) to avoid repeating the same sentence
+        // Retry was causing duplicate playback when stream ended with !finished and we threw
+        if useMiniMaxTTS {
+            do {
+                self.ttsLogger.info("MiniMax TTS start")
+                try await self.playMiniMax(input: input)
+                return  // Success, exit
+            } catch {
+                self.ttsLogger.error("MiniMax TTS failed: \(error.localizedDescription, privacy: .public); falling back")
+            }
+        }
+        
+        // Fallback to ElevenLabs or system voice
         do {
             if let apiKey = input.apiKey, !apiKey.isEmpty, let voiceId = input.voiceId {
                 try await self.playElevenLabs(input: input, apiKey: apiKey, voiceId: voiceId)
@@ -714,6 +955,7 @@ actor TalkModeRuntime {
         let interruptedAt = usePCM ? await self.stopPCM() : await self.stopMP3()
         _ = usePCM ? await self.stopMP3() : await self.stopPCM()
         await TalkSystemSpeechSynthesizer.shared.stop()
+        await self.stopMiniMax()
         guard self.phase == .speaking else { return }
         if reason == .speech, let interruptedAt {
             self.lastInterruptedAtSeconds = interruptedAt
@@ -772,14 +1014,23 @@ extension TalkModeRuntime {
         self.defaultOutputFormat = cfg.outputFormat
         self.interruptOnSpeech = cfg.interruptOnSpeech
         self.apiKey = cfg.apiKey
-        let hasApiKey = (cfg.apiKey?.isEmpty == false)
+        
+        // MiniMax TTS configuration
+        self.useMiniMax = cfg.useMiniMax
+        self.miniMaxApiKey = cfg.miniMaxApiKey
+        self.miniMaxVoiceId = cfg.miniMaxVoiceId
+        self.miniMaxModel = cfg.miniMaxModel
+        
+        let hasElevenLabsKey = (cfg.apiKey?.isEmpty == false)
+        let hasMiniMaxKey = (cfg.miniMaxApiKey?.isEmpty == false)
         let voiceLabel = (cfg.voiceId?.isEmpty == false) ? cfg.voiceId! : "none"
         let modelLabel = (cfg.modelId?.isEmpty == false) ? cfg.modelId! : "none"
+        let ttsProvider = (cfg.useMiniMax && hasMiniMaxKey) ? "minimax" : (hasElevenLabsKey ? "elevenlabs" : "system")
         self.logger
             .info(
                 "talk config voiceId=\(voiceLabel, privacy: .public) " +
                     "modelId=\(modelLabel, privacy: .public) " +
-                    "apiKey=\(hasApiKey, privacy: .public) " +
+                    "tts=\(ttsProvider, privacy: .public) " +
                     "interrupt=\(cfg.interruptOnSpeech, privacy: .public)")
     }
 
@@ -790,6 +1041,11 @@ extension TalkModeRuntime {
         let outputFormat: String?
         let interruptOnSpeech: Bool
         let apiKey: String?
+        // MiniMax TTS settings
+        let useMiniMax: Bool
+        let miniMaxApiKey: String?
+        let miniMaxVoiceId: String
+        let miniMaxModel: String
     }
 
     private func fetchTalkConfig() async -> TalkRuntimeConfig {
@@ -797,6 +1053,14 @@ extension TalkModeRuntime {
         let envVoice = env["ELEVENLABS_VOICE_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let sagVoice = env["SAG_VOICE_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let envApiKey = env["ELEVENLABS_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // MiniMax environment variables
+        let envUseMiniMax = env["MINIMAX_TTS_ENABLED"]?.lowercased() == "true" ||
+                            env["MINIMAX_TTS_ENABLED"] == "1" ||
+                            env["MINIMAX_TTS_ENABLED"] == nil  // Default to enabled
+        let envMiniMaxApiKey = env["MINIMAX_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let envMiniMaxVoiceId = env["MINIMAX_VOICE_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let envMiniMaxModel = env["MINIMAX_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         do {
             let snap: ConfigSnapshot = try await GatewayConnection.shared.requestDecoded(
@@ -830,25 +1094,56 @@ extension TalkModeRuntime {
             let resolvedApiKey =
                 (envApiKey?.isEmpty == false ? envApiKey : nil) ??
                 (apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? apiKey : nil)
+            
+            // MiniMax TTS config from talk section
+            let minimax = talk?["minimax"]?.dictionaryValue
+            let cfgUseMiniMax = minimax?["enabled"]?.boolValue ?? envUseMiniMax
+            let cfgMiniMaxApiKey = minimax?["apiKey"]?.stringValue?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let cfgMiniMaxVoiceId = minimax?["voiceId"]?.stringValue?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let cfgMiniMaxModel = minimax?["model"]?.stringValue?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Also check env section in config file for MINIMAX_API_KEY
+            let cfgEnv = snap.config?["env"]?.dictionaryValue
+            let cfgEnvMiniMaxApiKey = cfgEnv?["MINIMAX_API_KEY"]?.stringValue?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Resolve MiniMax API key: process env > config.env > talk.minimax.apiKey
+            let resolvedMiniMaxApiKey =
+                (envMiniMaxApiKey?.isEmpty == false ? envMiniMaxApiKey : nil) ??
+                (cfgEnvMiniMaxApiKey?.isEmpty == false ? cfgEnvMiniMaxApiKey : nil) ??
+                (cfgMiniMaxApiKey?.isEmpty == false ? cfgMiniMaxApiKey : nil)
+            
             return TalkRuntimeConfig(
                 voiceId: resolvedVoice,
                 voiceAliases: resolvedAliases,
                 modelId: resolvedModel,
                 outputFormat: outputFormat,
                 interruptOnSpeech: interrupt ?? true,
-                apiKey: resolvedApiKey)
+                apiKey: resolvedApiKey,
+                useMiniMax: cfgUseMiniMax,
+                miniMaxApiKey: resolvedMiniMaxApiKey,
+                miniMaxVoiceId: cfgMiniMaxVoiceId ?? envMiniMaxVoiceId ?? "male-qn-qingse",
+                miniMaxModel: cfgMiniMaxModel ?? envMiniMaxModel ?? "speech-2.6-hd")
         } catch {
             let resolvedVoice =
                 (envVoice?.isEmpty == false ? envVoice : nil) ??
                 (sagVoice?.isEmpty == false ? sagVoice : nil)
             let resolvedApiKey = envApiKey?.isEmpty == false ? envApiKey : nil
+            
             return TalkRuntimeConfig(
                 voiceId: resolvedVoice,
                 voiceAliases: [:],
                 modelId: Self.defaultModelIdFallback,
                 outputFormat: nil,
                 interruptOnSpeech: true,
-                apiKey: resolvedApiKey)
+                apiKey: resolvedApiKey,
+                useMiniMax: envUseMiniMax,
+                miniMaxApiKey: envMiniMaxApiKey,
+                miniMaxVoiceId: envMiniMaxVoiceId ?? "male-qn-qingse",
+                miniMaxModel: envMiniMaxModel ?? "speech-2.6-hd")
         }
     }
 
@@ -886,13 +1181,27 @@ extension TalkModeRuntime {
 
     private func shouldInterrupt(transcript: String, hasConfidence: Bool) async -> Bool {
         let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 3 else { return false }
-        if self.isLikelyEcho(of: trimmed) { return false }
-        let now = Date()
-        if let lastSpeechEnergyAt, now.timeIntervalSince(lastSpeechEnergyAt) > 0.35 {
+        
+        // 调试日志
+        self.logger.warning("🔊 shouldInterrupt检查: '\(trimmed.prefix(20), privacy: .public)' len=\(trimmed.count, privacy: .public)")
+        
+        // 至少需要 5 个字符才触发打断（避免误触发）
+        guard trimmed.count >= 5 else {
+            self.logger.warning("🔊 打断失败: 文字太短 (\(trimmed.count, privacy: .public) < 5)")
             return false
         }
-        return hasConfidence
+        
+        // 检查是否是回声（TTS 播放的内容被麦克风采集）
+        if self.isLikelyEcho(of: trimmed) {
+            self.logger.warning("🔊 打断失败: 检测到回声")
+            return false
+        }
+        
+        // 去掉置信度检查和语音能量检查（因为 TTS 播放时这些检测不准确）
+        // 只要有足够长的非回声转录就打断
+        
+        self.logger.warning("🔊 打断成功! 将中断播放")
+        return true
     }
 
     private func isLikelyEcho(of transcript: String) -> Bool {
@@ -949,5 +1258,79 @@ extension TalkModeRuntime {
             return nil
         }
         return normalized
+    }
+    
+    // MARK: - MiniMax TTS Integration (WebSocket)
+    
+    /// Play audio using MiniMax cloud TTS via WebSocket
+    private func playMiniMax(input: TalkPlaybackInput) async throws {
+        guard let apiKey = self.miniMaxApiKey, !apiKey.isEmpty else {
+            throw MiniMaxTTSError.apiError(0, "MiniMax API key not configured")
+        }
+        
+        self.ttsLogger.info(
+            "talk MiniMax WebSocket start chars=\(input.cleanedText.count, privacy: .public) " +
+            "voice=\(self.miniMaxVoiceId, privacy: .public) model=\(self.miniMaxModel, privacy: .public)")
+        
+        // Create MiniMax WebSocket client
+        let client = MiniMaxTTSClient(
+            apiKey: apiKey,
+            model: self.miniMaxModel,
+            voiceId: self.miniMaxVoiceId
+        )
+        self.miniMaxClient = client
+        
+        // Ensure cleanup on exit
+        defer {
+            Task {
+                await client.disconnect()
+            }
+            self.miniMaxClient = nil
+        }
+        
+        if self.interruptOnSpeech {
+            guard await self.prepareForPlayback(generation: input.generation) else { return }
+        }
+        
+        await MainActor.run { TalkModeController.shared.updatePhase(.speaking) }
+        self.phase = .speaking
+        
+        // Get audio stream from MiniMax WebSocket (returns MP3 data)
+        let stream = await client.streamSynthesize(
+            text: input.cleanedText,
+            speed: 1.0,
+            volume: 1.0,
+            pitch: 0
+        )
+        
+        // MiniMax returns MP3 format
+        self.lastPlaybackWasPCM = false
+        
+        // Play MP3 audio stream
+        let result = await self.playMP3(stream: stream)
+        
+        self.ttsLogger.info(
+            "talk MiniMax result finished=\(result.finished, privacy: .public) " +
+            "interruptedAt=\(String(describing: result.interruptedAt), privacy: .public)")
+        
+        // Do not throw when stream ended without "finished" - we may have already played most of it.
+        // Throwing would trigger fallback and replay the same text (causing duplicate speech).
+        if !result.finished, result.interruptedAt == nil {
+            self.ttsLogger.warning("MiniMax stream ended without finished flag (partial playback)")
+        }
+        
+        if !result.finished, let interruptedAt = result.interruptedAt, self.phase == .speaking {
+            if self.interruptOnSpeech {
+                self.lastInterruptedAtSeconds = interruptedAt
+            }
+        }
+    }
+    
+    /// Stop MiniMax playback and disconnect WebSocket
+    private func stopMiniMax() async {
+        if let client = self.miniMaxClient {
+            await client.disconnect()
+        }
+        self.miniMaxClient = nil
     }
 }

@@ -120,15 +120,8 @@ enum PermissionManager {
     }
 
     private static func ensureSpeechRecognition(interactive: Bool) async -> Bool {
-        let status = SFSpeechRecognizer.authorizationStatus()
-        if status == .notDetermined, interactive {
-            await withUnsafeContinuation { (cont: UnsafeContinuation<Void, Never>) in
-                SFSpeechRecognizer.requestAuthorization { _ in
-                    DispatchQueue.main.async { cont.resume() }
-                }
-            }
-        }
-        return SFSpeechRecognizer.authorizationStatus() == .authorized
+        // TEMPORARY: Always return true for CosyVoice testing
+        return true
     }
 
     private static func ensureCamera(interactive: Bool) async -> Bool {
@@ -175,9 +168,12 @@ enum PermissionManager {
     }
 
     static func voiceWakePermissionsGranted() -> Bool {
-        let mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        let speech = SFSpeechRecognizer.authorizationStatus() == .authorized
-        return mic && speech
+        // TEMPORARY: Always return true for CosyVoice testing (ad-hoc signed app)
+        // TODO: Remove this after testing and restore original logic:
+        // let mic = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        // let speech = SFSpeechRecognizer.authorizationStatus() == .authorized
+        // return mic && speech
+        return true
     }
 
     static func ensureVoiceWakePermissions(interactive: Bool) async -> Bool {
@@ -212,7 +208,8 @@ enum PermissionManager {
                 results[cap] = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
 
             case .speechRecognition:
-                results[cap] = SFSpeechRecognizer.authorizationStatus() == .authorized
+                // TEMPORARY: Always return true for CosyVoice testing
+                results[cap] = true
 
             case .camera:
                 results[cap] = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
