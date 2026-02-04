@@ -164,6 +164,7 @@ export function handleMessageUpdate(
         },
       });
       if (ctx.params.onPartialReply && ctx.state.shouldEmitPartialReplies) {
+        ctx.state.didEmitBlockReply = true;
         void ctx.params.onPartialReply({
           text: cleanedText,
           mediaUrls: hasMedia ? mediaUrls : undefined,

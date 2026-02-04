@@ -646,6 +646,7 @@ export async function runEmbeddedAttempt(
         getMessagingToolSentTexts,
         getMessagingToolSentTargets,
         didSendViaMessagingTool,
+        didEmitBlockReply,
         getLastToolError,
       } = subscription;
 
@@ -900,6 +901,8 @@ export async function runEmbeddedAttempt(
         ),
         // Client tool call detected (OpenResponses hosted tools)
         clientToolCall: clientToolCallDetected ?? undefined,
+        // Whether block replies were streamed during this attempt
+        didStreamBlockReply: didEmitBlockReply(),
       };
     } finally {
       // Always tear down the session (and release the lock) before we leave this attempt.
