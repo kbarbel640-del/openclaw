@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical"
+  android:padding="16dp">
+
+  <TextView
+    android:id="@+id/statusText"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="Status: idle"
+    android:textSize="18sp"
+    android:textStyle="bold" />
+
+  <TextView
+    android:id="@+id/lastFileText"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:text="Last file: (none)" />
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="16dp"
+    android:orientation="horizontal">
+
+    <Button
+      android:id="@+id/startBtn"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:text="START" />
+
+    <Button
+      android:id="@+id/stopBtn"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginStart="8dp"
+      android:text="STOP" />
+  </LinearLayout>
+
+  <TextView
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:text="Wake: 'hey jarvis' → Start recording | 'alexa' → Stop"
+    android:textSize="12sp" />
+
+  <TextView
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="16dp"
+    android:text="Debug Log:"
+    android:textStyle="bold" />
+
+  <ScrollView
+    android:id="@+id/logScroll"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:layout_marginTop="4dp"
+    android:background="#1a1a1a"
+    android:padding="8dp">
+
+    <TextView
+      android:id="@+id/logText"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:fontFamily="monospace"
+      android:textColor="#00ff00"
+      android:textSize="11sp"
+      android:text="[waiting for logs...]" />
+  </ScrollView>
+
+  <Button
+    android:id="@+id/clearLogBtn"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:text="Clear Log" />
+
+  <Button
+    android:id="@+id/debugBtn"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:text="Debug Transcribe (Google)"
+    android:visibility="gone" />
+</LinearLayout>

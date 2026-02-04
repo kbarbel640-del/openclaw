@@ -1,0 +1,7 @@
+{
+  "pid": 3065064,
+  "port": 34995,
+  "owner_id": "android-wake-test",
+  "command": "am",
+  "started_at": "2026-02-03T18:28:41.970394491-05:00"
+}
