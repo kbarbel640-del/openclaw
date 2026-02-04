@@ -150,14 +150,24 @@ async function ensureScriptInjected(page: Page): Promise<void> {
 export async function getInteractiveRegionsViaScript(opts: {
   cdpUrl: string;
   targetId?: string;
+  locator?: Awaited<ReturnType<typeof import("playwright-core").Page.locator>>;
 }): Promise<Record<string, InteractiveRegion>> {
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
   await ensureScriptInjected(page);
 
-  const result = (await page.evaluate(
-    "OpenClawEnhancedDetection.getInteractiveRects();",
-  )) as Record<string, unknown>;
+  // Evaluate script within locator context if provided, otherwise use document
+  const result = opts.locator
+    ? ((await opts.locator.evaluate(
+        (el) => {
+          return OpenClawEnhancedDetection.getInteractiveRects(el);
+        },
+      )) as Record<string, unknown>)
+    : ((await page.evaluate(
+        () => {
+          return OpenClawEnhancedDetection.getInteractiveRects(document);
+        },
+      )) as Record<string, unknown>);
 
   const regions: Record<string, InteractiveRegion> = {};
   for (const [key, value] of Object.entries(result)) {
@@ -367,10 +377,22 @@ export async function snapshotEnhancedViaPlaywright(opts: {
   ensurePageState(page);
   await ensureScriptInjected(page);
 
-  // Get interactive regions via script
+  // Build locator for scoping (same pattern as snapshotRoleViaPlaywright)
+  const frameSelector = opts.frameSelector?.trim() || "";
+  const selector = opts.selector?.trim() || "";
+  const locator = frameSelector
+    ? selector
+      ? page.frameLocator(frameSelector).locator(selector)
+      : page.frameLocator(frameSelector).locator(":root")
+    : selector
+      ? page.locator(selector)
+      : page.locator(":root");
+
+  // Get interactive regions via script, scoped to locator
   const interactiveRegions = await getInteractiveRegionsViaScript({
     cdpUrl: opts.cdpUrl,
     targetId: opts.targetId,
+    locator,
   });
 
   // Get viewport info
@@ -449,11 +471,12 @@ export async function snapshotHybridViaPlaywright(opts: {
   const ariaSnapshot = await locator.ariaSnapshot();
   const built = buildRoleSnapshotFromAriaSnapshot(String(ariaSnapshot ?? ""), opts.options);
 
-  // Get enhanced regions for additional elements
+  // Get enhanced regions for additional elements (scoped to same locator)
   await ensureScriptInjected(page);
   const enhancedRegions = await getInteractiveRegionsViaScript({
     cdpUrl: opts.cdpUrl,
     targetId: opts.targetId,
+    locator,
   });
 
   // Merge: use Playwright's refs as primary, add any missing from enhanced detection

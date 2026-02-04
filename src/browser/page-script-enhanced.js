@@ -29,19 +29,20 @@ var OpenClawEnhancedDetection = OpenClawEnhancedDetection || (function() {
       return window.getComputedStyle(elm)["cursor"];
   };
 
-  let getInteractiveElements = function() {
+  let getInteractiveElements = function(root) {
+      root = root || document;
       let results = []
       let roles = ["scrollbar", "searchbox", "slider", "spinbutton", "switch", "tab", "treeitem", "button", "checkbox", "gridcell", "link", "menuitem", "menuitemcheckbox", "menuitemradio", "option", "progressbar", "radio", "textbox", "combobox", "menu", "tree", "treegrid", "grid", "listbox", "radiogroup", "widget"];
       let inertCursors = ["auto", "default", "none", "text", "vertical-text", "not-allowed", "no-drop"];
 
       // Get the main interactive elements
-      let nodeList = document.querySelectorAll("input, select, textarea, button, [href], [onclick], [contenteditable], [tabindex]:not([tabindex='-1'])");
+      let nodeList = root.querySelectorAll("input, select, textarea, button, [href], [onclick], [contenteditable], [tabindex]:not([tabindex='-1'])");
       for (let i=0; i<nodeList.length; i++) {
           results.push(nodeList[i]);
       }
 
       // Anything not already included that has a suitable role
-      nodeList = document.querySelectorAll("[role]");
+      nodeList = root.querySelectorAll("[role]");
       for (let i=0; i<nodeList.length; i++) {
           if (results.indexOf(nodeList[i]) == -1) {
               let role = nodeList[i].getAttribute("role");
@@ -52,7 +53,7 @@ var OpenClawEnhancedDetection = OpenClawEnhancedDetection || (function() {
       }
 
       // Any element that changes the cursor to something implying interactivity
-      nodeList = document.querySelectorAll("*");
+      nodeList = root.querySelectorAll("*");
       for (let i=0; i<nodeList.length; i++) {
          let node = nodeList[i];
 
@@ -188,9 +189,10 @@ var OpenClawEnhancedDetection = OpenClawEnhancedDetection || (function() {
       }
   };
 
-  let getInteractiveRects = function() {
-      labelElements(getInteractiveElements());
-      let elements = document.querySelectorAll("[__openclaw_elementId]");
+  let getInteractiveRects = function(root) {
+      root = root || document;
+      labelElements(getInteractiveElements(root));
+      let elements = root.querySelectorAll("[__openclaw_elementId]");
       let results = {};
       for (let i=0; i<elements.length; i++) {
          let key = elements[i].getAttribute("__openclaw_elementId");
