@@ -324,6 +324,74 @@ export async function listAzureFoundryDeployments(
     }
   }
 
+  // If data plane API failed, try Azure Management API for AI Services resources
+  // Extract resource name from endpoint (e.g., btcar-m9lelf55-eastus2 from https://btcar-m9lelf55-eastus2.services.ai.azure.com)
+  const resourceNameMatch = endpoint.match(/https:\/\/([^.]+)\.services\.ai\.azure\.com/);
+  if (resourceNameMatch) {
+    const resourceName = resourceNameMatch[1];
+    try {
+      const { exec } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execAsync = promisify(exec);
+
+      // Get resource details to find resource group
+      const { stdout: resourceStdout } = await execAsync(
+        `az resource list --name "${resourceName}" --query '[0].{id:id,resourceGroup:resourceGroup}' -o json`,
+        { timeout: 10000 },
+      );
+      const resource = JSON.parse(resourceStdout.trim()) as {
+        id: string;
+        resourceGroup: string;
+      } | null;
+
+      if (resource?.resourceGroup) {
+        // List deployments via Management API
+        const { stdout: deploymentsStdout } = await execAsync(
+          `az cognitiveservices account deployment list --name "${resourceName}" --resource-group "${resource.resourceGroup}" --query '[].{name:name,model:properties.model.name,version:properties.model.version,format:properties.model.format,status:properties.provisioningState,sku:sku.name,capacity:sku.capacity}' -o json`,
+          { timeout: 15000 },
+        );
+        const mgmtDeployments = JSON.parse(deploymentsStdout.trim()) as Array<{
+          name: string;
+          model: string;
+          version?: string;
+          format?: string;
+          status?: string;
+          sku?: string;
+          capacity?: number;
+        }>;
+
+        if (mgmtDeployments.length > 0) {
+          // Convert to AzureFoundryDeployment format
+          return mgmtDeployments
+            .filter((d) => !d.status || d.status.toLowerCase() === "succeeded")
+            .map((d) => ({
+              id: `${resource.id}/deployments/${d.name}`,
+              name: d.name,
+              model: {
+                name: d.model,
+                version: d.version,
+              },
+              sku: d.sku
+                ? {
+                    name: d.sku,
+                    capacity: d.capacity,
+                  }
+                : undefined,
+              // Infer API type from model name
+              api: d.model.toLowerCase().includes("claude")
+                ? "anthropic-messages"
+                : d.model.toLowerCase().includes("embed")
+                  ? "embeddings"
+                  : "openai-completions",
+            }));
+        }
+      }
+    } catch (mgmtError) {
+      // Management API failed too, continue to throw original error
+      lastError = lastError ?? (mgmtError as Error);
+    }
+  }
+
   // If we got here, all attempts failed
   if (lastError) {
     throw new Error(`Could not discover models: ${lastError.message}`);

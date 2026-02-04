@@ -1182,11 +1182,10 @@ export async function applyAuthChoiceApiProviders(
           const commonClaude = await params.prompter.select({
             message: "Select your Claude deployment (or choose 'Custom')",
             options: [
-              { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet (latest)" },
-              { value: "claude-3-5-sonnet-20240620", label: "Claude 3.5 Sonnet (June 2024)" },
-              { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
-              { value: "claude-3-7-sonnet-20250219", label: "Claude 3.7 Sonnet" },
-              { value: "claude-opus-4-20250514", label: "Claude Opus 4" },
+              { value: "claude-opus-4-5", label: "claude-opus-4-5 (Opus 4)" },
+              { value: "claude-sonnet-4-5", label: "claude-sonnet-4-5 (Sonnet 4)" },
+              { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet (Oct 2024)" },
+              { value: "claude-3-opus-20240229", label: "Claude 3 Opus (Feb 2024)" },
               { value: "custom", label: "Custom deployment name..." },
             ],
           });
