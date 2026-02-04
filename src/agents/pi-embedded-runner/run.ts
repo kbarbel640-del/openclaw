@@ -52,6 +52,8 @@ import { runEmbeddedAttempt } from "./run/attempt.js";
 import { buildEmbeddedRunPayloads } from "./run/payloads.js";
 import { describeUnknownError } from "./utils.js";
 
+const FAILOVER_HISTORY_LIMIT = 5;
+
 type ApiKeyInfo = ResolvedProviderAuth;
 
 // Avoid Anthropic's refusal test token poisoning session transcripts.
@@ -89,6 +91,7 @@ export async function runEmbeddedPiAgent(
 
   return enqueueSession(() =>
     enqueueGlobal(async () => {
+      console.log("[DEBUG] Starting embedded run");
       const started = Date.now();
       const resolvedWorkspace = resolveUserPath(params.workspaceDir);
       const prevCwd = process.cwd();
@@ -366,7 +369,7 @@ export async function runEmbeddedPiAgent(
             streamParams: params.streamParams,
             ownerNumbers: params.ownerNumbers,
             enforceFinalTag: params.enforceFinalTag,
-            limitHistoryTurns: hasRotated ? 5 : undefined,
+            limitHistoryTurns: hasRotated ? FAILOVER_HISTORY_LIMIT : undefined,
           });
 
           const { aborted, promptError, timedOut, sessionIdUsed, lastAssistant } = attempt;

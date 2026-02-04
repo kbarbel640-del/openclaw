@@ -1,5 +1,19 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+
+### Breaking Changes
+
+- **XML Protocol**: Updated the XML protocol structure. This is a breaking change for existing XML-based integrations.
+- **Templates**: Simplified template handling logic.
+
+### Added
+
+- **Validation**: Added strict runtime validation and error logging for `routing.json` loading.
+- **Refactor**: Extracted `FAILOVER_HISTORY_LIMIT` constant in embedded agent runner.
+
 Docs: https://docs.openclaw.ai
 
 ## 2026.2.3

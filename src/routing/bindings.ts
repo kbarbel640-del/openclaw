@@ -1,11 +1,28 @@
-import { readFileSync, existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import * as fs from "fs";
+import { homedir } from "os";
+import { join } from "path";
+import { z } from "zod";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AgentBinding } from "../config/types.agents.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { normalizeChatChannelId } from "../channels/registry.js";
 import { normalizeAccountId, normalizeAgentId } from "./session-key.js";
+
+const AgentBindingSchema = z.object({
+  agentId: z.string(),
+  match: z.object({
+    channel: z.string(),
+    accountId: z.string().optional(),
+    peer: z
+      .object({
+        kind: z.enum(["dm", "group", "channel"]),
+        id: z.string(),
+      })
+      .optional(),
+    guildId: z.string().optional(),
+    teamId: z.string().optional(),
+  }),
+});
 
 function normalizeBindingChannelId(raw?: string | null): string | null {
   const normalized = normalizeChatChannelId(raw);
@@ -18,25 +35,43 @@ function normalizeBindingChannelId(raw?: string | null): string | null {
 
 let cachedExtraBindings: AgentBinding[] | null = null;
 
-function loadExtraBindings(): AgentBinding[] {
+export function loadExtraBindings(): AgentBinding[] {
+  // console.log("[DEBUG] loadExtraBindings called, cache:", cachedExtraBindings);
   if (cachedExtraBindings !== null) {
     return cachedExtraBindings;
   }
   try {
     const path = join(homedir(), ".openclaw", "routing.json");
-    if (existsSync(path)) {
-      const content = readFileSync(path, "utf-8");
+    // console.log("[DEBUG] Checking path:", path, "exists:", fs.existsSync(path));
+    if (fs.existsSync(path)) {
+      const content = fs.readFileSync(path, "utf-8");
+      // console.log("[DEBUG] Content:", content);
       const json = JSON.parse(content);
       if (Array.isArray(json)) {
-        cachedExtraBindings = json as AgentBinding[];
+        const bindings: AgentBinding[] = [];
+        for (let i = 0; i < json.length; i++) {
+          const result = AgentBindingSchema.safeParse(json[i]);
+          if (result.success) {
+            bindings.push(result.data as AgentBinding);
+          } else {
+            console.error(`[bindings] Invalid binding at index ${i}:`, result.error.format());
+          }
+        }
+        cachedExtraBindings = bindings;
         return cachedExtraBindings;
+      } else {
+        console.error("[bindings] routing.json root must be an array");
       }
     }
-  } catch {
-    // ignore
+  } catch (error) {
+    console.error("[bindings] Failed to load routing.json:", error);
   }
   cachedExtraBindings = [];
   return cachedExtraBindings;
+}
+
+export function resetBindingsCacheForTest() {
+  cachedExtraBindings = null;
 }
 
 export function listBindings(cfg: OpenClawConfig): AgentBinding[] {
