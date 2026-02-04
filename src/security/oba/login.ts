@@ -83,6 +83,10 @@ function waitForCallback(
     server.on("request", (req: IncomingMessage, res: ServerResponse) => {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
 
+      // Prevent caching on all callback responses (token may be in URL).
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+
       if (url.pathname !== "/callback") {
         res.statusCode = 404;
         res.setHeader("Content-Type", "text/plain");
@@ -97,8 +101,6 @@ function waitForCallback(
       if (error) {
         res.statusCode = 200;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.setHeader("Cache-Control", "no-store");
-        res.setHeader("Pragma", "no-cache");
         res.end(errorPage(error));
         finish({ ok: false, error });
         return;
@@ -127,8 +129,6 @@ function waitForCallback(
 
       res.statusCode = 200;
       res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.setHeader("Cache-Control", "no-store");
-      res.setHeader("Pragma", "no-cache");
       res.end(successPage());
       finish({ ok: true, token });
     });
