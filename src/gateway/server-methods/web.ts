@@ -9,7 +9,6 @@ import {
   validateWebLoginWaitParams,
 } from "../protocol/index.js";
 import { formatForLog } from "../ws-log.js";
-import { startWebLoginWithPairingCode } from "../../web/login-qr.js";
 
 const WEB_LOGIN_METHODS = new Set([
   "web.login.start",
@@ -155,7 +154,18 @@ export const webHandlers: GatewayRequestHandlers = {
         return;
       }
       await context.stopChannel(provider.id, accountId);
-      const result = await startWebLoginWithPairingCode({
+      if (!provider.gateway?.loginWithPairingCodeStart) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `pairing code login is not supported by provider ${provider.id}`,
+          ),
+        );
+        return;
+      }
+      const result = await provider.gateway.loginWithPairingCodeStart({
         phoneNumber,
         force: Boolean((params as { force?: boolean }).force),
         timeoutMs:

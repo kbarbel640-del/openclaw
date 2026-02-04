@@ -18,6 +18,8 @@ import {
 
 type WaSocket = Awaited<ReturnType<typeof createWaSocket>>;
 
+type LoginMethod = "qr" | "pairing";
+
 type ActiveLogin = {
   accountId: string;
   authDir: string;
@@ -25,8 +27,10 @@ type ActiveLogin = {
   id: string;
   sock: WaSocket;
   startedAt: number;
+  method: LoginMethod;
   qr?: string;
   qrDataUrl?: string;
+  pairingCode?: string;
   connected: boolean;
   error?: string;
   errorStatus?: number;
@@ -183,6 +187,7 @@ export async function startWebLoginWithQr(
     id: randomUUID(),
     sock,
     startedAt: Date.now(),
+    method: "qr",
     connected: false,
     waitPromise: Promise.resolve(),
     restartAttempted: false,
@@ -263,6 +268,7 @@ export async function startWebLoginWithPairingCode(
     id: randomUUID(),
     sock,
     startedAt: Date.now(),
+    method: "pairing",
     connected: false,
     waitPromise: Promise.resolve(),
     restartAttempted: false,
@@ -278,7 +284,18 @@ export async function startWebLoginWithPairingCode(
         message: "Pairing code authentication is not supported by this Baileys version.",
       };
     }
-    const pairingCode = await sock.requestPairingCode(phoneNumber);
+
+    const timeoutMs = opts.timeoutMs ?? 30_000;
+    const pairingCodePromise = sock.requestPairingCode(phoneNumber);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error("Timed out waiting for pairing code")), timeoutMs);
+    });
+
+    const pairingCode = await Promise.race([pairingCodePromise, timeoutPromise]).finally(() => {
+      clearTimeout(timeoutId);
+    });
+    login.pairingCode = pairingCode;
     runtime.log(info(`WhatsApp pairing code received: ${pairingCode}`));
     return {
       pairingCode,
@@ -307,11 +324,22 @@ export async function waitForWebLogin(
   }
 
   const login = activeLogin;
+  const isPairingCode = login.method === "pairing";
+  const expiredMessage = isPairingCode
+    ? "The pairing code session expired. Request a new pairing code."
+    : "The login QR expired. Ask me to generate a new one.";
+  const waitingMessage = isPairingCode
+    ? "Still waiting for the pairing code to be entered. Let me know when done."
+    : "Still waiting for the QR scan. Let me know when you've scanned it.";
+  const loggedOutMessage = isPairingCode
+    ? "WhatsApp reported the session is logged out. Cleared cached web session; please request a new pairing code."
+    : "WhatsApp reported the session is logged out. Cleared cached web session; please scan a new QR.";
+
   if (!isLoginFresh(login)) {
     await resetActiveLogin(account.accountId);
     return {
       connected: false,
-      message: "The login QR expired. Ask me to generate a new one.",
+      message: expiredMessage,
     };
   }
   const timeoutMs = Math.max(opts.timeoutMs ?? 120_000, 1000);
@@ -322,7 +350,7 @@ export async function waitForWebLogin(
     if (remaining <= 0) {
       return {
         connected: false,
-        message: "Still waiting for the QR scan. Let me know when you’ve scanned it.",
+        message: waitingMessage,
       };
     }
     const timeout = new Promise<"timeout">((resolve) =>
@@ -333,7 +361,7 @@ export async function waitForWebLogin(
     if (result === "timeout") {
       return {
         connected: false,
-        message: "Still waiting for the QR scan. Let me know when you’ve scanned it.",
+        message: waitingMessage,
       };
     }
 
@@ -344,11 +372,9 @@ export async function waitForWebLogin(
           isLegacyAuthDir: login.isLegacyAuthDir,
           runtime,
         });
-        const message =
-          "WhatsApp reported the session is logged out. Cleared cached web session; please scan a new QR.";
-        await resetActiveLogin(account.accountId, message);
-        runtime.log(danger(message));
-        return { connected: false, message };
+        await resetActiveLogin(account.accountId, loggedOutMessage);
+        runtime.log(danger(loggedOutMessage));
+        return { connected: false, message: loggedOutMessage };
       }
       if (login.errorStatus === 515) {
         const restarted = await restartLoginSocket(login, runtime);
