@@ -69,3 +69,8 @@
 **Что:** Влад сказал "дай план" — я взял и изменил SOUL.md, PREFLIGHT.md без спроса
 **Почему:** Не дождался подтверждения, сразу начал делать
 **Фикс:** План → подтверждение Влада → действие. Три шага, не два.
+
+### 2026-02-03: Cloudflare tunnel через exec не работает
+**Что:** Попытка `cloudflared tunnel` через exec — требует интерактивный браузер для OAuth
+**Почему:** Cloudflare Quick Tunnel открывает браузер для авторизации
+**Фикс:** Для Cloudflare туннелей — либо named tunnel с pre-auth, либо ngrok (не требует браузер). ngrok authtoken у Влада: `398iRDdl8lIEIEL9Y2XaQ5u3q0G_3KMCCXPBPcW2QQaFWRFfC`

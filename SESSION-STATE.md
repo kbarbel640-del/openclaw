@@ -1,7 +1,7 @@
 # SESSION-STATE.md — Active Working Memory
 
 ## Current Task
-Ожидание решения Влада по обновлению Moltbot.
+План на завтра записан → notes/projects/2026-02-04-plan.md
 
 ## Pending Question (от 07:52)
 Влад спросил как обновлять Moltbot не теряя наши изменения. Дал план:
