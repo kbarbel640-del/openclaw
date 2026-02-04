@@ -1,0 +1,14 @@
+{
+  "name": "@openclaw/2fa-github",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "GitHub Mobile 2FA gate for sensitive tool calls",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  }
+}
