@@ -201,7 +201,7 @@ export class TraumaFragilitySystem {
   initializeState(soulState: SoulState): FragilityState_Full {
     // Base resilience from guardian + will + coherence
     const resilience = (
-      soulState.guardianPo.current * 0.4 +
+      soulState.tunZei.current * 0.4 +
       soulState.willHun.current * 0.3 +
       soulState.coherence * 0.3
     )
@@ -368,9 +368,9 @@ export class TraumaFragilitySystem {
     // Guardian and will are damaged
     const guardianDamage = severity * 0.3
     const willDamage = severity * 0.4
-    permanentChanges['guardianPo'] = -guardianDamage
+    permanentChanges['tunZei'] = -guardianDamage
     permanentChanges['willHun'] = -willDamage
-    aspectsShattered.push('guardianPo', 'willHun')
+    aspectsShattered.push('tunZei', 'willHun')
 
     // Coherence loss
     const coherenceLoss = severity * 0.5

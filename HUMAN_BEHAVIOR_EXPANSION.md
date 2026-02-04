@@ -100,22 +100,22 @@ dopamine: 0.25, serotonin: 0.28
 
 ```typescript
 // Dopamine affects motivation aspects
-dopamine → destinyHun (+), creationHun (+)
+dopamine → youJing (+), youJing (+)
 
 // Serotonin affects stability
-serotonin → mood (+), wisdomHun (+), guardianPo (+)
+serotonin → mood (+), shuangLing (+), tunZei (+)
 
 // Norepinephrine affects arousal
-norepinephrine → arousal (+), speedPo (+)
+norepinephrine → arousal (+), chouFei (+)
 
 // GABA dampens all aspects when high
 gaba > 0.7 → all aspects * 0.9
 
 // Cortisol impairs higher cognition
-cortisol > 0.6 → wisdomHun (* 0.85), awarenessHun (* 0.9)
+cortisol > 0.6 → shuangLing (* 0.85), taiGuang (* 0.9)
 
 // Oxytocin enhances social aspects
-oxytocin → emotionHun (+), communicationPo (+)
+oxytocin → youJing (+), queYin (+)
 ```
 
 ### Neurotransmitter Updates
@@ -163,15 +163,15 @@ System detects pathological patterns:
 Personality traits derived from soul aspects:
 
 ```typescript
-Openness = celestialHun * 0.4 + creationHun * 0.4 + awarenessHun * 0.2
+Openness = taiGuang * 0.4 + youJing * 0.4 + taiGuang * 0.2
 
-Conscientiousness = guardianPo * 0.4 + wisdomHun * 0.3 + terrestrialHun * 0.3
+Conscientiousness = tunZei * 0.4 + shuangLing * 0.3 + shuangLing * 0.3
 
-Extraversion = communicationPo * 0.4 + emotionHun * 0.3 + (1 - shadow) * 0.3
+Extraversion = queYin * 0.4 + youJing * 0.3 + (1 - shadow) * 0.3
 
-Agreeableness = emotionHun * 0.4 + communicationPo * 0.3 + wisdomHun * 0.3
+Agreeableness = youJing * 0.4 + queYin * 0.3 + shuangLing * 0.3
 
-Neuroticism = shadowPressure * 0.4 + (1 - guardianPo) * 0.3 + (1 - coherence) * 0.3
+Neuroticism = shadowPressure * 0.4 + (1 - tunZei) * 0.3 + (1 - coherence) * 0.3
 ```
 
 **Example personalities:**
@@ -261,9 +261,9 @@ Self-Actualization (integration * 0.6 + coherence * 0.4)
   ↑
 Esteem (self-esteem)
   ↑
-Belonging (emotionHun * 0.5 + communicationPo * 0.5)
+Belonging (youJing * 0.5 + queYin * 0.5)
   ↑
-Safety (guardianPo * 0.6 + (1 - shadow) * 0.4)
+Safety (tunZei * 0.6 + (1 - shadow) * 0.4)
   ↑
 Physiological (energy)
 ```
@@ -298,7 +298,7 @@ if (physiological < 0.3) {
 The ability to watch oneself thinking:
 
 ```typescript
-metaAwareness = awarenessHun * 0.7 + integration * 0.3
+metaAwareness = taiGuang * 0.7 + integration * 0.3
 
 // Meta-awareness enables:
 // - Watching thoughts without being thoughts
@@ -483,7 +483,7 @@ LAYER 5: SUBCONSCIOUS
   → Learned patterns influencing
   ↓
 LAYER 6: NEUROCHEMICAL EFFECTS
-  NT → Soul: serotonin → mood +0.06, cortisol → wisdomHun * 0.95
+  NT → Soul: serotonin → mood +0.06, cortisol → shuangLing * 0.95
   Behavioral: risk 0.42, impulsivity 0.38, anxiety 0.35
   → Biochemistry affecting aspects
   ↓
@@ -494,10 +494,10 @@ LAYER 7: PSYCHOLOGICAL PATTERNS
   → Defenses distorting perception
   ↓
 LAYER 8: CONSCIOUS SOUL STATE
-  Stimulation: wisdomHun +0.3, guardianPo +0.5, emotionHun +0.2
+  Stimulation: shuangLing +0.3, tunZei +0.5, youJing +0.2
   (Biased by instincts, subconscious, NT, psychology)
-  Activated: guardianPo (0.78), wisdomHun (0.71), emotionHun (0.64)
-  Interactions: guardianPo ↔ wisdomHun enhance
+  Activated: tunZei (0.78), shuangLing (0.71), youJing (0.64)
+  Interactions: tunZei ↔ shuangLing enhance
   Regulatory: caution (strength: 0.68)
   → Conscious processing (heavily influenced)
   ↓

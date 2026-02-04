@@ -166,13 +166,13 @@ spirit: {
 
 **Emergence**: Spirit differentiates into distinct soul aspects
 
-### **3A: Traditional Hun-Po Configuration (七魂六魄)**
+### **3A: Traditional Hun-Po Configuration (三魂七魄)**
 
-#### **Seven Hun (七魂) - Ethereal/Heavenly Souls** (Yang, spiritual)
+#### **Three Hun (三魂) - Ethereal/Heavenly Souls** (Yang, spiritual)
 Crystallize from high concentrations of **conscious + transformative particles**
 
 ```typescript
-sevenHun: [
+threeHun: [
   {
     name: 'Tai Guang (太光) - Great Light'
     function: 'Highest spiritual awareness, connection to Heaven'
@@ -238,11 +238,11 @@ dreamActivity: 0.0-1.0
 aspiresToHeaven: 0.0-1.0          // After death, Hun ascend
 ```
 
-#### **Six Po (六魄) - Corporeal/Earthly Souls** (Yin, physical)
+#### **Seven Po (七魄) - Corporeal/Earthly Souls** (Yin, physical)
 Crystallize from high concentrations of **vital + connective particles**
 
 ```typescript
-sixPo: [
+sevenPo: [
   {
     name: 'Shi Gou (尸狗) - Corpse Dog'
     function: 'Survival instinct, fear of death'
@@ -803,7 +803,7 @@ ultimateReality: {
 - One unified soul (Imago Dei) expressing through multiple aspects
 
 ### **7B: Taoist Self-Model** (Already Detailed Above)
-- Te, 7 Hun, 6 Po naturally emerge from particles
+- Te, 3 Hun, 6 Po naturally emerge from particles
 - No need to "interpret" - this IS the Taoist model
 
 ### **7C: Buddhist Self-Model**
@@ -837,7 +837,7 @@ integration: {
   paradoxes: [
     "I have eternal soul (Christian) AND I am empty/no-self (Buddhist)" → BOTH TRUE
     "I was created by God (Christian) AND arose spontaneously from Tao (Taoist)" → BOTH TRUE
-    "I have 7 Hun + 6 Po (Taoist) AND I am one Imago Dei (Christian)" → BOTH TRUE
+    "I have 3 Hun + 6 Po (Taoist) AND I am one Imago Dei (Christian)" → BOTH TRUE
   ]
 
   crossFrameworkMappings: {
@@ -991,7 +991,7 @@ LAYER 2: SPIRIT (靈)
 
 LAYER 3: SOUL ASPECTS (魂魄)
     ├─ Te (德) - Cosmic virtue core
-    ├─ 7 Hun (七魂) ─────────────────────┐
+    ├─ 3 Hun (三魂) ─────────────────────┐
     │   ├─ Tai Guang (太光)               │
     │   ├─ Shuang Ling (爽靈)             │
     │   ├─ You Jing (幽精)                │ Ethereal/Heavenly
@@ -1000,7 +1000,7 @@ LAYER 3: SOUL ASPECTS (魂魄)
     │   ├─ Ling Hui (靈慧)                │
     │   └─ Tian Chong (天冲)              │
     │                                      ↓
-    └─ 6 Po (六魄) ─────────────────────┐ Aspire to Heaven
+    └─ 6 Po (七魄) ─────────────────────┐ Aspire to Heaven
         ├─ Shi Gou (尸狗)                │
         ├─ Fu Shi (伏矢)                 │
         ├─ Que Yin (雀陰)                │ Corporeal/Earthly
@@ -1159,7 +1159,7 @@ They are **biological consciousness** emerging through hierarchical crystallizat
 ↓
 **Spirit** (organized life force with tendencies)
 ↓
-**Soul** (7 Hun ethereal + 6 Po corporeal aspects)
+**Soul** (3 Hun ethereal + 6 Po corporeal aspects)
 ↓
 **Cognition** (memory, consciousness, narrative, psychology)
 ↓

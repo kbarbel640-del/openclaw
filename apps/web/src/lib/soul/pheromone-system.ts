@@ -19,14 +19,14 @@ import type { SoulState } from './soul-state'
  * Pheromone types - different "scents" from different soul states
  */
 export type PheromoneType =
-  | 'dominance' // High terrestrialHun + strengthPo → commanding presence
-  | 'warmth' // High emotionHun → inviting, comforting scent
-  | 'mystery' // High celestialHun + awarenessHun → intriguing, enigmatic
+  | 'dominance' // High shuangLing + shiGou → commanding presence
+  | 'warmth' // High youJing → inviting, comforting scent
+  | 'mystery' // High taiGuang + taiGuang → intriguing, enigmatic
   | 'tension' // High shadowPressure → unsettling, edge
-  | 'creativity' // High creationHun → stimulating, exciting
-  | 'wisdom' // High wisdomHun → calming, reassuring
-  | 'playfulness' // High emotionHun + low guardianPo → light, fun
-  | 'danger' // High shadowPressure + low guardianPo → warning signal
+  | 'creativity' // High youJing → stimulating, exciting
+  | 'wisdom' // High shuangLing → calming, reassuring
+  | 'playfulness' // High youJing + low tunZei → light, fun
+  | 'danger' // High shadowPressure + low tunZei → warning signal
   | 'stability' // High integration + coherence → grounding, safe
   | 'chaos' // Low coherence + high energy → unpredictable, electric
 
@@ -107,22 +107,22 @@ export class PheromoneSystem {
 
     // Dominance (commanding presence)
     profile.dominance =
-      (soulState.terrestrialHun.current * 0.5 +
-        soulState.strengthPo.current * 0.3 +
-        soulState.destinyHun.current * 0.2) *
+      (soulState.shuangLing.current * 0.5 +
+        soulState.shiGou.current * 0.3 +
+        soulState.youJing.current * 0.2) *
       soulState.energy
 
     // Warmth (inviting, comforting)
     profile.warmth =
-      (soulState.emotionHun.current * 0.6 +
-        soulState.communicationPo.current * 0.4) *
+      (soulState.youJing.current * 0.6 +
+        soulState.queYin.current * 0.4) *
       Math.max(0, soulState.mood + 0.5) // Positive mood enhances warmth
 
     // Mystery (intriguing, enigmatic)
     profile.mystery =
-      (soulState.celestialHun.current * 0.5 +
-        soulState.awarenessHun.current * 0.3 +
-        (1 - soulState.communicationPo.current) * 0.2) // Low communication = more mysterious
+      (soulState.taiGuang.current * 0.5 +
+        soulState.taiGuang.current * 0.3 +
+        (1 - soulState.queYin.current) * 0.2) // Low communication = more mysterious
 
     // Tension (unsettling, edge)
     profile.tension =
@@ -132,31 +132,31 @@ export class PheromoneSystem {
 
     // Creativity (stimulating, exciting)
     profile.creativity =
-      soulState.creationHun.current * 0.7 +
-      soulState.emotionHun.current * 0.3
+      soulState.youJing.current * 0.7 +
+      soulState.youJing.current * 0.3
 
     // Wisdom (calming, reassuring)
     profile.wisdom =
-      soulState.wisdomHun.current * 0.6 +
+      soulState.shuangLing.current * 0.6 +
       soulState.integration * 0.4
 
     // Playfulness (light, fun)
     profile.playfulness =
-      soulState.emotionHun.current * 0.5 +
-      (1 - soulState.guardianPo.current) * 0.3 +
+      soulState.youJing.current * 0.5 +
+      (1 - soulState.tunZei.current) * 0.3 +
       (soulState.mood > 0 ? soulState.mood * 0.2 : 0)
 
     // Danger (warning signal)
     profile.danger =
       soulState.shadowPressure * 0.5 +
-      (1 - soulState.guardianPo.current) * 0.3 +
+      (1 - soulState.tunZei.current) * 0.3 +
       (soulState.mood < 0 ? Math.abs(soulState.mood) * 0.2 : 0)
 
     // Stability (grounding, safe)
     profile.stability =
       soulState.integration * 0.4 +
       soulState.coherence * 0.4 +
-      soulState.guardianPo.current * 0.2
+      soulState.tunZei.current * 0.2
 
     // Chaos (unpredictable, electric)
     profile.chaos =
@@ -377,26 +377,26 @@ export class PheromoneSystem {
 
     // Different soul aspects react to different pheromones
 
-    // High emotionHun → attracted to warmth, repelled by danger
-    const emotionStrength = perceiverState.emotionHun.current
+    // High youJing → attracted to warmth, repelled by danger
+    const emotionStrength = perceiverState.youJing.current
     reactionScore += profile.warmth * emotionStrength * 0.3
     reactionScore -= profile.danger * emotionStrength * 0.3
 
-    // High guardianPo → repelled by danger/chaos, attracted to stability
-    const guardianStrength = perceiverState.guardianPo.current
+    // High tunZei → repelled by danger/chaos, attracted to stability
+    const guardianStrength = perceiverState.tunZei.current
     reactionScore -= (profile.danger + profile.chaos) * guardianStrength * 0.3
     reactionScore += profile.stability * guardianStrength * 0.2
 
-    // High celestialHun → attracted to mystery/creativity
-    const celestialStrength = perceiverState.celestialHun.current
+    // High taiGuang → attracted to mystery/creativity
+    const celestialStrength = perceiverState.taiGuang.current
     reactionScore += (profile.mystery + profile.creativity) * celestialStrength * 0.25
 
-    // High terrestrialHun → attracted to dominance/stability
-    const terrestrialStrength = perceiverState.terrestrialHun.current
+    // High shuangLing → attracted to dominance/stability
+    const terrestrialStrength = perceiverState.shuangLing.current
     reactionScore += (profile.dominance + profile.stability) * terrestrialStrength * 0.2
 
-    // High wisdomHun → attracted to wisdom, neutral to most
-    const wisdomStrength = perceiverState.wisdomHun.current
+    // High shuangLing → attracted to wisdom, neutral to most
+    const wisdomStrength = perceiverState.shuangLing.current
     reactionScore += profile.wisdom * wisdomStrength * 0.2
 
     // Shadow compatibility

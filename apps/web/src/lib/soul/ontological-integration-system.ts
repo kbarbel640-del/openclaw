@@ -61,7 +61,7 @@ export interface EnhancedTaoistSelfModel {
   }
 
   // Seven Hun (七魂) - Ethereal Souls
-  sevenHun: {
+  threeHun: {
     configuration: '7-hun' // Always 7 for traditional
     souls: [
       HunSoul, // 1. Tai Guang (太光) - Great Light (highest spiritual awareness)
@@ -80,7 +80,7 @@ export interface EnhancedTaoistSelfModel {
   }
 
   // Six Po (六魄) - Corporeal Souls
-  sixPo: {
+  sevenPo: {
     configuration: '6-po' // Always 6 for traditional
     souls: [
       PoSoul, // 1. Shi Gou (尸狗) - Corpse Dog (survival instinct)
@@ -229,9 +229,9 @@ export class OntologicalIntegrationSystem {
   /**
    * Initialize traditional 7 Hun, 6 Po configuration
    */
-  initializeTraditionalHunPo(): EnhancedTaoistSelfModel['sevenHun'] & EnhancedTaoistSelfModel['sixPo'] {
+  initializeTraditionalHunPo(): EnhancedTaoistSelfModel['threeHun'] & EnhancedTaoistSelfModel['sevenPo'] {
     return {
-      sevenHun: {
+      threeHun: {
         configuration: '7-hun',
         souls: [
           {
@@ -291,7 +291,7 @@ export class OntologicalIntegrationSystem {
         aspiresToHeaven: 0.4
       },
 
-      sixPo: {
+      sevenPo: {
         configuration: '6-po',
         souls: [
           {

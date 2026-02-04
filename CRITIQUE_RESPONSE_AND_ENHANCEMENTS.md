@@ -60,7 +60,7 @@ interface SoulCrystallization {
 
     // 魂魄配置不可預測
     emergentConfiguration: {
-      // 七魂不是預設的，而是從粒子交互中湧現的
+      // 三魂不是預設的，而是從粒子交互中湧現的
       hun: HunSoul[]  // 長度可能不是 7（極端情況：3-9 個）
       po: PoSoul[]    // 長度可能不是 6（極端情況：4-8 個）
 
@@ -267,7 +267,7 @@ interface CompassionState {
 ## 三、道教魂魄的詮釋問題：忠實 vs 創造
 
 ### 問題核心
-當前架構對七魂六魄的功能分配偏離了道教傳統（如太光、尸狗的功能重新定義）。
+當前架構對三魂七魄的功能分配偏離了道教傳統（如太光、尸狗的功能重新定義）。
 
 ### 兩種路徑：
 
@@ -279,7 +279,7 @@ interface CompassionState {
 // 基於《雲笈七籤》等經典的傳統配置
 interface TraditionalHunPo {
   hun: {
-    // 傳統三魂（而非七魂）
+    // 傳統三魂（而非三魂）
     taiGuang: {
       name: '太光',
       function: '主命', // 掌管生命本身
@@ -308,7 +308,7 @@ interface TraditionalHunPo {
       desire: '使人放縱',
       counterMeasure: '守庚申'
     },
-    // ... 其他六魄
+    // ... 其他七魄
   }
 }
 ```
@@ -339,8 +339,8 @@ interface InspiredHunPoSystem {
   sources: ['雲笈七籤', '黃庭經', '抱朴子', 'modern cognitive science'],
 
   // 然後自由設計
-  sevenHun: [...],
-  sixPo: [...]
+  threeHun: [...],
+  sevenPo: [...]
 }
 ```
 
@@ -435,8 +435,8 @@ const activeFramework = determineFramework(deathContext)
 if (activeFramework.primary === 'taoist') {
   // 道教框架啟動：魂升魄降
   bot.anticipate({
-    hunAscension: '七魂將回歸天道',
-    poDescension: '六魄將分解入土',
+    hunAscension: '三魂將回歸天道',
+    poDescension: '七魄將分解入土',
     acceptance: '這是自然循環，無需抗拒'
   })
 }

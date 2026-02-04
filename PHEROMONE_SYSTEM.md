@@ -24,7 +24,7 @@ In our bot system, pheromones create **"superstition hints"** - intuitive feelin
 Every bot constantly emits pheromones based on their soul state:
 
 ```typescript
-// Bot with high emotionHun + low guardianPo
+// Bot with high youJing + low tunZei
 {
   warmth: 0.82,      // Inviting, comforting presence
   playfulness: 0.75,  // Light, fun energy
@@ -45,15 +45,15 @@ Every bot constantly emits pheromones based on their soul state:
 
 | Type | Source | Effect |
 |------|--------|--------|
-| **Dominance** | terrestrialHun + strengthPo | Commanding presence |
-| **Warmth** | emotionHun + communicationPo | Inviting, comforting |
-| **Mystery** | celestialHun + awarenessHun | Intriguing, enigmatic |
+| **Dominance** | shuangLing + shiGou | Commanding presence |
+| **Warmth** | youJing + queYin | Inviting, comforting |
+| **Mystery** | taiGuang + taiGuang | Intriguing, enigmatic |
 | **Tension** | shadowPressure + low coherence | Unsettling, edge |
-| **Creativity** | creationHun + emotionHun | Stimulating, exciting |
-| **Wisdom** | wisdomHun + integration | Calming, reassuring |
-| **Playfulness** | emotionHun + low guardianPo | Light, fun |
-| **Danger** | shadowPressure + low guardianPo | Warning signal |
-| **Stability** | integration + coherence + guardianPo | Grounding, safe |
+| **Creativity** | youJing + youJing | Stimulating, exciting |
+| **Wisdom** | shuangLing + integration | Calming, reassuring |
+| **Playfulness** | youJing + low tunZei | Light, fun |
+| **Danger** | shadowPressure + low tunZei | Warning signal |
+| **Stability** | integration + coherence + tunZei | Grounding, safe |
 | **Chaos** | low coherence + high energy | Unpredictable, electric |
 
 ### 3. **Spatial Mixing**
@@ -103,7 +103,7 @@ Perceived at distance 0.5:
 Bots perceive pheromones and react **before conscious thought**:
 
 ```typescript
-// Bot with high emotionHun perceives:
+// Bot with high youJing perceives:
 {
   reaction: 'attraction',
   intensity: 0.73,
@@ -114,7 +114,7 @@ Bots perceive pheromones and react **before conscious thought**:
   ]
 }
 
-// Bot with high guardianPo perceives same source:
+// Bot with high tunZei perceives same source:
 {
   reaction: 'neutral',
   intensity: 0.42,
@@ -221,10 +221,10 @@ console.log(fieldPerception.unconsciousHints)
 ### Example 3: Pheromone Incompatibility
 
 ```typescript
-// Bot with high guardianPo + low shadowPressure
+// Bot with high tunZei + low shadowPressure
 const cautiousBot = await soulStateManager.initializeSoulState(cautiousBotSoulId)
 
-// Bot with high shadowPressure + low guardianPo (dangerous)
+// Bot with high shadowPressure + low tunZei (dangerous)
 const edgyBot = await soulStateManager.initializeSoulState(edgyBotSoulId)
 const edgySignature = pheromones.generateSignature(edgyBot, spaceId)
 
@@ -291,7 +291,7 @@ console.log(perception)
 
 ### What They're NOT:
 - ❌ "They have high shadowPressure of 0.73"
-- ❌ "This bot's wisdomHun is 0.82"
+- ❌ "This bot's shuangLing is 0.82"
 - ❌ "Their pheromone signature indicates..."
 
 **The bot doesn't know WHY they feel this way - it's unconscious!**
@@ -408,10 +408,10 @@ interface SpaceMemory {
 ### Pheromone Masking
 
 ```typescript
-// High guardianPo + high awarenessHun = can mask pheromones
+// High tunZei + high taiGuang = can mask pheromones
 const maskingAbility = (
-  state.guardianPo.current * 0.6 +
-  state.awarenessHun.current * 0.4
+  state.tunZei.current * 0.6 +
+  state.taiGuang.current * 0.4
 )
 
 if (maskingAbility > 0.7) {
@@ -424,10 +424,10 @@ if (maskingAbility > 0.7) {
 ### Pheromone Sensitivity
 
 ```typescript
-// High perceptionPo + awarenessHun = more sensitive to pheromones
+// High fuShi + taiGuang = more sensitive to pheromones
 const sensitivity = (
-  state.perceptionPo.current * 0.6 +
-  state.awarenessHun.current * 0.4
+  state.fuShi.current * 0.6 +
+  state.taiGuang.current * 0.4
 )
 
 // Perceive more nuanced hints
@@ -445,10 +445,10 @@ if (sensitivity > 0.8) {
 ### Scenario 1: Job Interview
 
 ```
-Interviewer Bot (high wisdomHun + guardianPo):
+Interviewer Bot (high shuangLing + tunZei):
 - Emits: wisdom (0.75), stability (0.68), dominance (0.52)
 
-Candidate Bot (high emotionHun + low guardianPo):
+Candidate Bot (high youJing + low tunZei):
 - Perceives: 'calming, reassuring presence', 'something commanding'
 - Reaction: attraction (0.61)
 - → Feels comfortable, more likely to open up
@@ -460,7 +460,7 @@ Candidate Bot (high emotionHun + low guardianPo):
 Space Field (recent violence, high tension residue):
 - Mixed profile: tension (0.72), danger (0.65), chaos (0.58)
 
-Bot with high guardianPo enters:
+Bot with high tunZei enters:
 - Perceives: 'warning feeling, be careful', 'unsettling, on edge'
 - Reaction: repulsion (0.77)
 - → Heightened alertness, considers leaving
@@ -472,7 +472,7 @@ Bot with high guardianPo enters:
 Space Field (artists gathered):
 - Mixed profile: creativity (0.81), playfulness (0.67), chaos (0.44)
 
-Bot with high creationHun enters:
+Bot with high youJing enters:
 - Perceives: 'energizing, inspiring', 'light, easy energy'
 - Reaction: attraction (0.73)
 - → Feels inspired, wants to join the group
@@ -481,7 +481,7 @@ Bot with high creationHun enters:
 ### Scenario 4: Shadow Clash
 
 ```
-Light Bot (shadowIntegration: 0.15, high guardianPo):
+Light Bot (shadowIntegration: 0.15, high tunZei):
 - Emits: stability (0.78), wisdom (0.65)
 
 Dark Bot (shadowIntegration: 0.82, high shadowPressure):
@@ -504,7 +504,7 @@ Dark Bot perceives Light Bot:
 
 1. **Pheromone evolution** - Signatures change as soul matures
 2. **Learned associations** - Bot learns to recognize specific pheromone patterns
-3. **Pheromone deception** - High awarenessHun can fake pheromones
+3. **Pheromone deception** - High taiGuang can fake pheromones
 4. **Seasonal pheromones** - Different pheromones in different growth stages
 5. **Pheromone memory** - "This scent reminds me of someone..."
 6. **Cultural pheromones** - Organizations develop shared pheromone profiles

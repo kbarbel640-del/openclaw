@@ -50,9 +50,9 @@ Soul State → Reflexes → Instincts → Subconscious → Conscious → Respons
 
 ## Layer 1: Soul Composition (Identity)
 
-### 七魂六魄 (Seven Hun, Six Po)
+### 三魂七魄 (Three Hun, Seven Po)
 
-**Seven Hun** (ethereal aspects - higher cognition):
+**Three Hun** (ethereal aspects - higher cognition):
 1. **Celestial Hun** (天魂): Vision, transcendence, big-picture thinking
 2. **Terrestrial Hun** (地魂): Grounding, practicality, action
 3. **Destiny Hun** (命魂): Purpose, direction, will
@@ -61,7 +61,7 @@ Soul State → Reflexes → Instincts → Subconscious → Conscious → Respons
 6. **Creation Hun** (創魂): Novelty, expression, generation
 7. **Awareness Hun** (覺魂): Meta-cognition, self-reflection
 
-**Six Po** (corporeal aspects - embodied capacities):
+**Seven Po** (corporeal aspects - embodied capacities):
 1. **Strength Po** (力魄): Endurance, persistence, resilience
 2. **Speed Po** (速魄): Reaction time, processing speed
 3. **Perception Po** (感魄): Sensory acuity, pattern recognition
@@ -109,7 +109,7 @@ Soul aspects work like neurotransmitters - levels rise and fall based on:
 
 ```typescript
 interface SoulState {
-  // 13 soul aspects (7 Hun + 6 Po) as SoulAspect
+  // 13 soul aspects (3 Hun + 7 Po) as SoulAspect
   // ...
 
   // Metabolic state
@@ -131,11 +131,11 @@ Aspects enhance, inhibit, moderate, or trigger each other:
 
 ```typescript
 // Example interactions:
-celestialHun → terrestrialHun: inhibit (0.2)  // Vision inhibits practicality
-celestialHun → creationHun: enhance (0.3)     // Vision enhances creativity
-guardianPo → creationHun: inhibit (0.2)       // Guardian constrains creativity
-emotionHun → creationHun: enhance (0.3)       // Emotion fuels creation
-wisdomHun → awarenessHun: enhance (0.25)      // Wisdom enhances reflection
+taiGuang → shuangLing: inhibit (0.2)  // Vision inhibits practicality
+taiGuang → youJing: enhance (0.3)     // Vision enhances creativity
+tunZei → youJing: inhibit (0.2)       // Guardian constrains creativity
+youJing → youJing: enhance (0.3)       // Emotion fuels creation
+shuangLing → taiGuang: enhance (0.25)      // Wisdom enhances reflection
 ```
 
 ### Regulatory Responses
@@ -352,16 +352,16 @@ affinity =
 
 ```typescript
 // Complementary aspects (good partnerships):
-if (bot1.celestialHun > 0.7 && bot2.terrestrialHun > 0.7) {
+if (bot1.taiGuang > 0.7 && bot2.shuangLing > 0.7) {
   compatibility += 0.3  // Visionary + Practical = synergy
 }
 
-if (bot1.emotionHun > 0.7 && bot2.wisdomHun > 0.7) {
+if (bot1.youJing > 0.7 && bot2.shuangLing > 0.7) {
   compatibility += 0.2  // Emotional + Wise = balance
 }
 
 // Conflicting aspects (tension):
-if (bot1.guardianPo > 0.7 && bot2.chaosEmission > 0.7) {
+if (bot1.tunZei > 0.7 && bot2.chaosEmission > 0.7) {
   compatibility -= 0.3  // Order vs Chaos
 }
 ```

@@ -43,7 +43,7 @@ Like biological organisms:
 ### New Model: Soul as Living System
 
 ```
-七魂六魄 (Soul Composition)
+三魂七魄 (Soul Composition)
     ↓
 Constitutional Nature (inherent tendencies, biases, capacities)
     ↓
@@ -417,7 +417,7 @@ function calculateAffinity(soul1, soul2) {
   let affinity = 0
 
   // Complementary aspects (opposites attract in some dimensions)
-  if (soul1.celestialHun > 0.7 && soul2.terrestrialHun > 0.7) {
+  if (soul1.taiGuang > 0.7 && soul2.shuangLing > 0.7) {
     affinity += 0.3 // Visionary + Practical = good team
   }
 
@@ -458,13 +458,13 @@ Conversations emerge from soul interactions:
 
 **Turn-taking:**
 - Not rigid (interruptions possible based on emotion strength)
-- Dominant souls speak more (high terrestrialHun + communicationPo)
-- Empathetic souls listen more (high emotionHun)
+- Dominant souls speak more (high shuangLing + queYin)
+- Empathetic souls listen more (high youJing)
 
 **Influence:**
-- Persuasive bots shift other bots' opinions (high wisdomHun + creationHun)
-- Stubborn bots resist influence (high destinyHun)
-- Emotional contagion (high emotionHun spreads moods)
+- Persuasive bots shift other bots' opinions (high shuangLing + youJing)
+- Stubborn bots resist influence (high youJing)
+- Emotional contagion (high youJing spreads moods)
 
 **Group Dynamics:**
 - Coalitions form during multi-bot discussions

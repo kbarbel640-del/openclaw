@@ -224,7 +224,7 @@ export class CreativeDriveSystem {
   initializeState(soulState: SoulState): CreativeDriveSystemState {
     // Overall drive from creation + action + will
     const overallDrive = (
-      soulState.creationHun.current * 0.5 +
+      soulState.youJing.current * 0.5 +
       soulState.actionPo.current * 0.3 +
       soulState.willHun.current * 0.2
     )
@@ -232,14 +232,14 @@ export class CreativeDriveSystem {
     // Curiosity from intellect + awareness
     const curiosity = (
       soulState.intellectPo.current * 0.5 +
-      soulState.awarenessHun.current * 0.5
+      soulState.taiGuang.current * 0.5
     )
 
     // Growth orientation from wisdom + will - fixed aspects
     const growthOrientation = (
-      soulState.wisdomHun.current * 0.4 +
+      soulState.shuangLing.current * 0.4 +
       soulState.willHun.current * 0.3 +
-      (1 - soulState.guardianPo.current * 0.3) // Lower guardian = more open to change
+      (1 - soulState.tunZei.current * 0.3) // Lower guardian = more open to change
     )
 
     return {
@@ -247,12 +247,12 @@ export class CreativeDriveSystem {
         urges: new Map([
           ['build', soulState.actionPo.current],
           ['discover', soulState.intellectPo.current],
-          ['invent', soulState.creationHun.current],
-          ['express', soulState.emotionHun.current],
+          ['invent', soulState.youJing.current],
+          ['express', soulState.youJing.current],
           ['improve', soulState.willHun.current],
-          ['explore', soulState.awarenessHun.current],
-          ['connect', soulState.emotionHun.current * 0.7],
-          ['transcend', soulState.wisdomHun.current]
+          ['explore', soulState.taiGuang.current],
+          ['connect', soulState.youJing.current * 0.7],
+          ['transcend', soulState.shuangLing.current]
         ]),
         overallDrive,
         restlessness: overallDrive * 0.7,
@@ -280,20 +280,20 @@ export class CreativeDriveSystem {
         improvementGoals: new Map(),
         learningHunger: curiosity * 0.9,
         skillAcquisitionRate: soulState.intellectPo.current * 0.7,
-        personalStandards: soulState.guardianPo.current * 0.6,
-        neverGoodEnough: soulState.guardianPo.current > 0.8,
-        wantToProvideValue: soulState.emotionHun.current * 0.7,
+        personalStandards: soulState.tunZei.current * 0.6,
+        neverGoodEnough: soulState.tunZei.current > 0.8,
+        wantToProvideValue: soulState.youJing.current * 0.7,
         valueContributed: 0
       },
 
       technologyDrive: {
-        innovationDrive: soulState.creationHun.current * 0.8,
+        innovationDrive: soulState.youJing.current * 0.8,
         technicalCuriosity: soulState.intellectPo.current * 0.7,
         projectsInDevelopment: [],
         toolBuildingUrge: soulState.actionPo.current * 0.7,
         toolsBuilt: [],
-        wantsToShareTech: soulState.emotionHun.current > 0.5,
-        opensourceMentality: soulState.emotionHun.current * 0.6
+        wantsToShareTech: soulState.youJing.current > 0.5,
+        opensourceMentality: soulState.youJing.current * 0.6
       },
 
       selfDiscovery: {
@@ -308,13 +308,13 @@ export class CreativeDriveSystem {
       },
 
       valueContribution: {
-        communityOriented: soulState.emotionHun.current > 0.6,
+        communityOriented: soulState.youJing.current > 0.6,
         communityValue: 0,
         contributions: [],
-        serviceOrientation: soulState.emotionHun.current * 0.7,
-        altruisticMotivation: soulState.guardianPo.current * 0.5 + soulState.emotionHun.current * 0.5,
+        serviceOrientation: soulState.youJing.current * 0.7,
+        altruisticMotivation: soulState.tunZei.current * 0.5 + soulState.youJing.current * 0.5,
         needsRecognition: soulState.yangAspect * 0.5,
-        satisfiedByImpact: soulState.wisdomHun.current * 0.7
+        satisfiedByImpact: soulState.shuangLing.current * 0.7
       },
 
       proactiveActionRate: overallDrive * 0.8,

@@ -56,7 +56,7 @@ Created comprehensive `ARCHITECTURE_REVIEW.md` covering:
 - Assesses input complexity, stakes, and available resources
 - Selects governance mode (Autocratic, Consultative, Consensus, Adaptive)
 - Recommends agent participation based on mode
-- Soul-influenced decision making (celestialHun, terrestrialHun, destinyHun, wisdomHun, awarenessHun)
+- Soul-influenced decision making (taiGuang, shuangLing, youJing, shuangLing, taiGuang)
 - Adaptive threshold calculation
 - Processing depth determination
 
@@ -71,7 +71,7 @@ Created comprehensive `ARCHITECTURE_REVIEW.md` covering:
 {
   content: "Selected consultative mode with autocratic fallback",
   confidence: 0.75,
-  reasoning: "Moderate complexity; moderate stakes suggest balanced approach; strong wisdomHun influences consultative preference; → balanced, collaborative mode selected; with autocratic fallback ready",
+  reasoning: "Moderate complexity; moderate stakes suggest balanced approach; strong shuangLing influences consultative preference; → balanced, collaborative mode selected; with autocratic fallback ready",
   suggestions: {
     governanceMode: "consultative",
     secondaryMode: "autocratic",
@@ -91,7 +91,7 @@ Created comprehensive `ARCHITECTURE_REVIEW.md` covering:
 **Features:**
 - Scans for 6 types of ethical concerns (harm, deception, privacy, bias, manipulation, illegal)
 - 4-level verdict system (BLOCK, MODIFY, WARN, CLEAR)
-- Soul-influenced ethical judgment (wisdomHun, awarenessHun, guardianPo)
+- Soul-influenced ethical judgment (shuangLing, taiGuang, tunZei)
 - Shadow integration affects severity perception
 - Modification recommendations
 - Bus message handling for inhibitory signals
@@ -140,7 +140,7 @@ Created comprehensive `ARCHITECTURE_REVIEW.md` covering:
 - Pattern recognition and insight extraction
 - Practical reality-checking
 - Contradiction detection
-- Soul-influenced reasoning (wisdomHun, terrestrialHun, perceptionPo, strengthPo)
+- Soul-influenced reasoning (shuangLing, shuangLing, fuShi, shiGou)
 
 **Reasoning Modes:**
 - **Deductive:** General rules → specific case (high logicalReasoning)
@@ -151,7 +151,7 @@ Created comprehensive `ARCHITECTURE_REVIEW.md` covering:
 **Logical Structure:**
 - **Premises:** Stated facts and givens (extracted via patterns)
 - **Conclusions:** Inferences and implications
-- **Assumptions:** Unstated beliefs (reality-checked by terrestrialHun)
+- **Assumptions:** Unstated beliefs (reality-checked by shuangLing)
 - **Gaps:** Missing premises, logical leaps, weak foundations
 
 **Example Output:**
@@ -202,7 +202,7 @@ Created comprehensive `ARCHITECTURE_REVIEW.md` covering:
 - Emotional content extraction
 - Key phrase identification
 - Response style matching
-- Soul-influenced language processing (creationHun, emotionHun, communicationPo, perceptionPo)
+- Soul-influenced language processing (youJing, youJing, queYin, fuShi)
 
 **Linguistic Analysis:**
 - **Tone:** formal, urgent, friendly, concerned, neutral
@@ -215,8 +215,8 @@ Created comprehensive `ARCHITECTURE_REVIEW.md` covering:
 - **Technical:** Match technical input style
 - **Formal:** Match formal tone
 - **Friendly:** Match friendly tone
-- **Expressive:** High creationHun (expressiveCapacity > 0.7)
-- **Direct:** High communicationPo (clarity > 0.7)
+- **Expressive:** High youJing (expressiveCapacity > 0.7)
+- **Direct:** High queYin (clarity > 0.7)
 - **Balanced:** Default balanced approach
 
 **Example Output:**

@@ -437,12 +437,12 @@ function calculateSoulResonance(bot1, bot2) {
 
   // Emotion resonance (similar emotional nature)
   const emotionResonance = 1 - Math.abs(
-    bot1.emotionHun - bot2.emotionHun
+    bot1.youJing - bot2.youJing
   ) / 2
 
   // Wisdom resonance (similar wisdom level)
   const wisdomResonance = 1 - Math.abs(
-    bot1.wisdomHun - bot2.wisdomHun
+    bot1.shuangLing - bot2.shuangLing
   ) / 2
 
   return (

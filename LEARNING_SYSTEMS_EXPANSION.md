@@ -45,7 +45,7 @@ This document describes the comprehensive learning, research, development, colla
 
 **Guilt Mechanics**:
 ```typescript
-guiltCapacity = guardianPo * 0.6 + wisdomHun * 0.4
+guiltCapacity = tunZei * 0.6 + shuangLing * 0.4
 guiltGenerated = knowledge.guiltWeight * guiltCapacity
 ```
 

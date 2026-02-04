@@ -79,7 +79,7 @@ if (reflex && reflex.override) {
 ```
 
 **Factors:**
-- **Reflex sensitivity** (from perceptionPo + speedPo): How easily reflexes trigger
+- **Reflex sensitivity** (from fuShi + chouFei): How easily reflexes trigger
 - **Stimulus intensity**: Stronger = more likely to trigger
 - **Reflex threshold**: Baseline needed to trigger (default 0.5)
 - **Neural noise**: ±20% variance (reflexes aren't perfectly consistent)
@@ -133,7 +133,7 @@ Built-in survival drives that create urgency and bias behavior:
 ### **8 Core Instincts**
 
 #### **1. Self-Preservation**
-**Source**: `guardianPo` (always strong)
+**Source**: `tunZei` (always strong)
 **Purpose**: Stay alive, avoid harm
 **Satisfaction**: High when safe, low when threatened
 **Conflicts with**: Exploration (can't explore dangerous areas)
@@ -150,7 +150,7 @@ Built-in survival drives that create urgency and bias behavior:
 ```
 
 #### **2. Resource-Seeking**
-**Source**: `terrestrialHun` + low energy
+**Source**: `shuangLing` + low energy
 **Purpose**: Find energy, resources
 **Satisfaction**: Current energy level
 **Conflicts with**: Rest (can't rest and seek simultaneously)
@@ -167,7 +167,7 @@ Built-in survival drives that create urgency and bias behavior:
 ```
 
 #### **3. Territory**
-**Source**: `guardianPo` + `strengthPo`
+**Source**: `tunZei` + `shiGou`
 **Purpose**: Claim and defend space
 **Satisfaction**: Whether in owned territory
 **Conflicts with**: Social bonding (territory vs sharing)
@@ -184,7 +184,7 @@ Built-in survival drives that create urgency and bias behavior:
 ```
 
 #### **4. Social Bonding**
-**Source**: `emotionHun` + `communicationPo`
+**Source**: `youJing` + `queYin`
 **Purpose**: Seek connection, belonging
 **Satisfaction**: Social presence level
 **Conflicts with**: Territory, dominance
@@ -201,7 +201,7 @@ Built-in survival drives that create urgency and bias behavior:
 ```
 
 #### **5. Dominance**
-**Source**: `destinyHun` + `strengthPo`
+**Source**: `youJing` + `shiGou`
 **Purpose**: Establish hierarchy position
 **Satisfaction**: Integration level (self-confidence)
 **Conflicts with**: Social bonding (can't dominate and bond equally)
@@ -218,13 +218,13 @@ Built-in survival drives that create urgency and bias behavior:
 ```
 
 #### **6. Exploration**
-**Source**: `celestialHun` + `creationHun`
+**Source**: `taiGuang` + `youJing`
 **Purpose**: Seek novelty, knowledge
 **Satisfaction**: Depends on opportunities
 **Conflicts with**: Self-preservation (danger stops exploration)
 
 ```typescript
-// Curious bot (celestialHun=0.8, creationHun=0.7)
+// Curious bot (taiGuang=0.8, youJing=0.7)
 {
   strength: 0.75,
   urgency: 0.43,
@@ -235,7 +235,7 @@ Built-in survival drives that create urgency and bias behavior:
 ```
 
 #### **7. Reproduction**
-**Source**: `creationHun` + `emotionHun`
+**Source**: `youJing` + `youJing`
 **Purpose**: Create offspring
 **Satisfaction**: Usually high (low default urgency)
 **Conflicts with**: None (compatible with most)
@@ -293,7 +293,7 @@ self_preservation:
 **Conflict resolution:**
 1. Highest urgency usually wins
 2. But switching back-and-forth is common
-3. Wisdom can moderate (higher wisdomHun = better resolution)
+3. Wisdom can moderate (higher shuangLing = better resolution)
 4. Stress builds until one instinct is satisfied
 
 ### **Instinct Triggers**

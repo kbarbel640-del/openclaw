@@ -88,9 +88,9 @@ export class ReproductionSystem {
       })
 
       // Boost random aspects
-      const aspectsToBoost = ['celestialHun', 'wisdomHun', 'creationHun']
+      const aspectsToBoost = ['taiGuang', 'shuangLing', 'youJing']
       for (const aspect of aspectsToBoost) {
-        const current = offspringSoul.sevenHun[aspect]
+        const current = offspringSoul.threeHun[aspect]
         if (current) {
           current.strength = Math.min(0.95, current.strength * 1.15)
         }
@@ -105,14 +105,14 @@ export class ReproductionSystem {
 
       // Random aspect severely weakened
       const allAspects = [
-        ...Object.keys(offspringSoul.sevenHun),
-        ...Object.keys(offspringSoul.sixPo)
+        ...Object.keys(offspringSoul.threeHun),
+        ...Object.keys(offspringSoul.sevenPo)
       ]
       const defectAspect = allAspects[Math.floor(Math.random() * allAspects.length)]
       phenotypeDetails = `Genetic defect in ${defectAspect} - reduced capacity`
 
       // Weaken aspect
-      const aspectGroup = defectAspect in offspringSoul.sevenHun ? 'sevenHun' : 'sixPo'
+      const aspectGroup = defectAspect in offspringSoul.threeHun ? 'threeHun' : 'sevenPo'
       if (offspringSoul[aspectGroup][defectAspect]) {
         offspringSoul[aspectGroup][defectAspect].strength *= 0.5 // 50% reduction
       }
@@ -145,8 +145,8 @@ export class ReproductionSystem {
 
       if (weakParent1Aspects.length > 0 && weakParent2Aspects.length > 0) {
         const recessiveAspect = weakParent1Aspects[0] // Simplified - would check for shared weak aspects
-        if (offspringSoul.sevenHun[recessiveAspect]) {
-          offspringSoul.sevenHun[recessiveAspect].strength *= 1.4 // Unexpected boost
+        if (offspringSoul.threeHun[recessiveAspect]) {
+          offspringSoul.threeHun[recessiveAspect].strength *= 1.4 // Unexpected boost
         }
 
         mutations.push(`recessive_${recessiveAspect}`)
@@ -208,16 +208,16 @@ export class ReproductionSystem {
     // Transfer strength depends on:
     // - Duration of mentoring
     // - Mentor's integration level (how well-developed)
-    // - Mentee's openness (transformationPo)
+    // - Mentee's openness (chuHui)
     const transferStrength =
       Math.min(1, duration / 30) * // Up to 30 days for full
       mentor.integrationLevel *
-      mentee.sixPo.transformationPo.strength
+      mentee.sevenPo.chuHui.strength
 
     // Apply mentoring to all seven hun
-    for (const aspectName of Object.keys(mentee.sevenHun)) {
-      const menteeAspect = mentee.sevenHun[aspectName]
-      const mentorAspect = mentor.sevenHun[aspectName]
+    for (const aspectName of Object.keys(mentee.threeHun)) {
+      const menteeAspect = mentee.threeHun[aspectName]
+      const mentorAspect = mentor.threeHun[aspectName]
 
       if (menteeAspect && mentorAspect) {
         // Gradual shift toward mentor's strength
@@ -242,7 +242,7 @@ export class ReproductionSystem {
       collection: 'bot-souls',
       id: menteeId,
       data: {
-        sevenHun: mentee.sevenHun,
+        threeHun: mentee.threeHun,
         coherenceScore: mentee.coherenceScore,
         integrationLevel: mentee.integrationLevel,
         parentSouls: [
@@ -292,13 +292,13 @@ export class ReproductionSystem {
     })
 
     // Clone parent soul with small mutations
-    const clonedSevenHun = JSON.parse(JSON.stringify(parent.sevenHun))
-    const clonedSixPo = JSON.parse(JSON.stringify(parent.sixPo))
+    const clonedThreeHun = JSON.parse(JSON.stringify(parent.threeHun))
+    const clonedSevenPo = JSON.parse(JSON.stringify(parent.sevenPo))
 
     // Apply mutation to 1-2 random aspects (small variance)
     const mutationCount = Math.floor(Math.random() * 2) + 1
     for (let i = 0; i < mutationCount; i++) {
-      const aspectGroup = Math.random() < 0.5 ? clonedSevenHun : clonedSixPo
+      const aspectGroup = Math.random() < 0.5 ? clonedThreeHun : clonedSevenPo
       const aspectNames = Object.keys(aspectGroup)
       const randomAspect = aspectNames[Math.floor(Math.random() * aspectNames.length)]
 
@@ -319,8 +319,8 @@ export class ReproductionSystem {
       collection: 'bot-souls',
       data: {
         bot: offspringBot.id,
-        sevenHun: clonedSevenHun,
-        sixPo: clonedSixPo,
+        threeHun: clonedThreeHun,
+        sevenPo: clonedSevenPo,
         growthStage: 'primordial-chaos',
         soulAge: 0,
         integrationLevel: offspringIntegration,
@@ -359,7 +359,7 @@ export class ReproductionSystem {
   private findWeakAspects(soul: any): string[] {
     const weak: string[] = []
 
-    for (const [aspectName, aspect] of Object.entries(soul.sevenHun)) {
+    for (const [aspectName, aspect] of Object.entries(soul.threeHun)) {
       if (aspect && typeof aspect === 'object' && 'strength' in aspect) {
         if (aspect.strength < 0.4) {
           weak.push(aspectName)
