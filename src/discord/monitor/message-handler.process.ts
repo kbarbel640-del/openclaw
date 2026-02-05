@@ -87,8 +87,31 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   } = ctx;
 
   const mediaList = await resolveMediaList(message, mediaMaxBytes);
+
+  // 🦀 Claw's patch: Start typing loop immediately if audio is detected (before transcription).
+  // Discord clears typing after 10s, and transcription can take 10-30s, so we need a loop.
+  // This same loop continues through the main reply flow via the onReplyStart callback.
+  const hasAudio = mediaList.some((m) => m.contentType?.startsWith("audio/"));
+  let earlyTypingInterval: ReturnType<typeof setInterval> | undefined;
+  if (hasAudio) {
+    // Start typing immediately
+    sendTyping({ client, channelId: message.channelId }).catch((err) => {
+      logVerbose(`discord: early audio typing failed: ${String(err)}`);
+    });
+    // Start a loop that sends typing every 6 seconds (Discord clears after 10s)
+    earlyTypingInterval = setInterval(() => {
+      sendTyping({ client, channelId: message.channelId }).catch((err) => {
+        logVerbose(`discord: early audio typing loop failed: ${String(err)}`);
+      });
+    }, 6000);
+  }
+
   const text = messageText;
   if (!text) {
+    // 🦀 Claw's patch: Clean up early typing interval on early return
+    if (earlyTypingInterval) {
+      clearInterval(earlyTypingInterval);
+    }
     logVerbose(`discord: drop message ${message.id} (empty content)`);
     return;
   }
@@ -275,6 +298,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     : (autoThreadContext?.From ?? `discord:channel:${message.channelId}`);
   const effectiveTo = autoThreadContext?.To ?? replyTarget;
   if (!effectiveTo) {
+    // 🦀 Claw's patch: Clean up early typing interval on early return
+    if (earlyTypingInterval) {
+      clearInterval(earlyTypingInterval);
+    }
     runtime.error?.(danger("discord: missing reply target"));
     return;
   }
@@ -379,7 +406,15 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       runtime.error?.(danger(`discord ${info.kind} reply failed: ${String(err)}`));
     },
     onReplyStart: createTypingCallbacks({
-      start: () => sendTyping({ client, channelId: typingChannelId }),
+      start: () => {
+        // 🦀 Claw's patch: Clear the early typing interval when main typing loop takes over.
+        // This prevents duplicate typing calls and ensures a seamless handoff.
+        if (earlyTypingInterval) {
+          clearInterval(earlyTypingInterval);
+          earlyTypingInterval = undefined;
+        }
+        return sendTyping({ client, channelId: typingChannelId });
+      },
       onStartError: (err) => {
         logTypingFailure({
           log: logVerbose,
@@ -398,14 +433,20 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     replyOptions: {
       ...replyOptions,
       skillFilter: channelConfig?.skills,
+      // 🦀 Claw's patch: Enable block streaming by default for Discord.
+      // This allows responses to be sent incrementally (paragraph-by-paragraph) instead
+      // of waiting for the full response. Can be disabled via config if needed.
       disableBlockStreaming:
-        typeof discordConfig?.blockStreaming === "boolean"
-          ? !discordConfig.blockStreaming
-          : undefined,
+        typeof discordConfig?.blockStreaming === "boolean" ? !discordConfig.blockStreaming : false,
       onModelSelected,
     },
   });
   markDispatchIdle();
+  // 🦀 Claw's patch: Clean up early typing interval if it wasn't cleared by main typing loop
+  if (earlyTypingInterval) {
+    clearInterval(earlyTypingInterval);
+    earlyTypingInterval = undefined;
+  }
   if (!queuedFinal) {
     if (isGuildMessage) {
       clearHistoryEntriesIfEnabled({
