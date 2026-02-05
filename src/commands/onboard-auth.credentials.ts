@@ -203,3 +203,18 @@ export async function setOpencodeZenApiKey(key: string, agentDir?: string) {
     agentDir: resolveAuthAgentDir(agentDir),
   });
 }
+
+export const BEDROCK_MANTLE_DEFAULT_MODEL_REF =
+  "bedrock-mantle/anthropic.claude-sonnet-4-20250514-v1:0";
+
+export async function setBedrockMantleApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "bedrock-mantle:default",
+    credential: {
+      type: "api_key",
+      provider: "bedrock-mantle",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
