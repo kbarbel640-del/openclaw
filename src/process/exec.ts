@@ -89,8 +89,8 @@ export async function runCommandWithTimeout(
   if (!argv[0] || typeof argv[0] !== "string" || argv[0].trim() === "") {
     throw new Error("argv[0] (command) must be a non-empty string");
   }
-  // Filter out any null/undefined arguments
-  const cleanArgv = argv.filter((arg) => arg != null);
+  // Filter out any null/undefined arguments with type guard to maintain string[] type
+  const cleanArgv = argv.filter((arg): arg is string => typeof arg === "string" && arg != null);
   if (cleanArgv.length === 0) {
     throw new Error("argv must contain at least one valid argument");
   }
@@ -129,7 +129,7 @@ export async function runCommandWithTimeout(
   // This is especially important for npm/pnpm/yarn commands
   const needsShell =
     process.platform === "win32" &&
-    path.extname(resolveCommand(cleanArgv[0])).toLowerCase() === ".cmd";
+    [".cmd", ".bat"].includes(path.extname(resolveCommand(cleanArgv[0])).toLowerCase());
 
   const child = spawn(resolveCommand(cleanArgv[0]), cleanArgv.slice(1), {
     stdio,
