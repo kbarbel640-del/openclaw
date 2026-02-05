@@ -622,7 +622,7 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
     }
 
     const kind = mediaKindFromMime(mediaType ?? undefined);
-    if (kind) {
+    if (kind && kind !== "unknown") {
       placeholder = `<media:${kind}>`;
     } else if (dataMessage.attachments?.length) {
       placeholder = "<media:attachment>";
