@@ -45,10 +45,13 @@ export async function setupConvosWithInvite(
     accountId: params.accountId,
   });
 
-  // Create SDK client (generates new identity if no privateKey)
+  // Create SDK client (generates new identity if no privateKey).
+  // Use in-memory DB — setup is temporary; the runtime client will use a
+  // persistent dbPath once the identity is saved to config.
   const client = await ConvosSDKClient.create({
     privateKey: account.privateKey,
     env: params.env ?? account.env,
+    dbPath: null,
     debug: false,
     onInvite: params.onInvite,
   });

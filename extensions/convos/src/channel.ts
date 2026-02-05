@@ -14,7 +14,7 @@ import {
   type CoreConfig,
   type ResolvedConvosAccount,
 } from "./accounts.js";
-import { ConvosSDKClient, type InboundMessage } from "./sdk-client.js";
+import { ConvosSDKClient, resolveConvosDbPath, type InboundMessage } from "./sdk-client.js";
 import { convosChannelConfigSchema } from "./config-schema.js";
 import { convosOnboardingAdapter } from "./onboarding.js";
 import { convosMessageActions } from "./actions.js";
@@ -226,6 +226,7 @@ export const convosPlugin: ChannelPlugin<ResolvedConvosAccount> = {
           ConvosSDKClient.create({
             privateKey: account.privateKey,
             env: account.env,
+            dbPath: null, // in-memory for probe — no persistent state needed
             debug: account.debug,
           }),
           new Promise<never>((_, reject) =>
@@ -275,10 +276,22 @@ export const convosPlugin: ChannelPlugin<ResolvedConvosAccount> = {
 
       log?.info(`[${account.accountId}] starting Convos provider (env: ${account.env})`);
 
+      // Compute a deterministic dbPath under the OpenClaw state directory so
+      // the XMTP local DB survives restarts but rotates when the key changes.
+      const stateDir = runtime.state.resolveStateDir();
+      const dbPath = resolveConvosDbPath({
+        stateDir,
+        env: account.env,
+        accountId: account.accountId,
+        privateKey: account.privateKey,
+      });
+      log?.info(`[${account.accountId}] XMTP dbPath: ${dbPath}`);
+
       // Create SDK client with message handling
       const client = await ConvosSDKClient.create({
         privateKey: account.privateKey,
         env: account.env,
+        dbPath,
         debug: account.debug,
         onMessage: (msg: InboundMessage) => {
           // Handle async message processing with error logging

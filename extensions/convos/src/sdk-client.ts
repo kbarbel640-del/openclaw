@@ -3,6 +3,8 @@
  * Replaces the daemon HTTP client with direct SDK integration
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import { Agent, createUser, createSigner, type MessageContext } from "@xmtp/agent-sdk";
 import { ConvosMiddleware, type InviteContext } from "convos-node-sdk";
 import type {
@@ -18,6 +20,13 @@ export interface ConvosSDKClientOptions {
   privateKey?: string;
   /** XMTP environment */
   env?: "production" | "dev";
+  /**
+   * Path to the XMTP local database directory.
+   * - `string`: persistent DB at that path (directory created if missing).
+   * - `null`: in-memory DB (for setup/probe temporary clients).
+   * - `undefined`: SDK default (avoid — prefer explicit path or null).
+   */
+  dbPath?: string | null;
   /** Handler for incoming messages */
   onMessage?: (msg: InboundMessage) => void;
   /** Handler for incoming invite/join requests */
@@ -60,6 +69,29 @@ function readSentAtNs(obj: unknown): unknown {
   if (!obj || typeof obj !== "object") return undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (obj as any).sentAtNs;
+}
+
+/**
+ * Derive a short hash from the private key so that changing the key
+ * produces a fresh DB directory, avoiding "identity rowid=1" crashes.
+ */
+function keyHash8(privateKey: string): string {
+  const hex = privateKey.startsWith("0x") ? privateKey.slice(2) : privateKey;
+  return hex.slice(0, 8).toLowerCase();
+}
+
+/**
+ * Build a deterministic dbPath under the OpenClaw state directory:
+ *   <stateDir>/convos/xmtp/<env>/<accountId>/<keyHash8>/
+ */
+export function resolveConvosDbPath(params: {
+  stateDir: string;
+  env: "production" | "dev";
+  accountId: string;
+  privateKey: string;
+}): string {
+  const hash = keyHash8(params.privateKey);
+  return path.join(params.stateDir, "convos", "xmtp", params.env, params.accountId, hash);
 }
 
 /**
@@ -108,7 +140,18 @@ export class ConvosSDKClient {
 
     const resolvedEnv = options.env ?? "production";
     const signer = createSigner(user);
-    const agent = await Agent.create(signer, { env: resolvedEnv });
+
+    // Build Agent options with explicit dbPath when provided.
+    // string → persistent (ensure dir exists); null → in-memory; undefined → SDK default.
+    const agentOpts: Record<string, unknown> = { env: resolvedEnv };
+    if (options.dbPath !== undefined) {
+      if (typeof options.dbPath === "string") {
+        fs.mkdirSync(options.dbPath, { recursive: true });
+      }
+      agentOpts.dbPath = options.dbPath;
+    }
+
+    const agent = await Agent.create(signer, agentOpts);
     const convos = ConvosMiddleware.create(agent, { privateKey: user.key, env: resolvedEnv });
     agent.use(convos.middleware());
 
