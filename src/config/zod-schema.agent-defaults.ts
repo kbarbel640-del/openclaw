@@ -151,6 +151,7 @@ export const AgentDefaultsSchema = z
           ])
           .optional(),
         thinking: z.string().optional(),
+        bootstrapFiles: z.array(z.string()).optional(),
       })
       .strict()
       .optional(),
