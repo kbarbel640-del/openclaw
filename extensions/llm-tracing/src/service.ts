@@ -191,10 +191,7 @@ function formatLlmInput(messages: AgentMessage[], systemPrompt?: string): string
       content: systemPrompt,
     });
   }
-
-  return JSON.stringify(formattedMessages);
-}
-
+  const inputMessages = lastAssistantIndex >= 0 ? messages.slice(0, lastAssistantIndex) : messages;
 function formatLlmOutput(message: AgentMessage): string {
   const base: Record<string, unknown> = {
     role: message.role,
