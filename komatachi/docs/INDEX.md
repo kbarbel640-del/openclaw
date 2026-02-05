@@ -11,6 +11,7 @@ These are the essential documents for understanding and contributing to Komatach
 | Document | Purpose | When to Read |
 |----------|---------|--------------|
 | [PROGRESS.md](../PROGRESS.md) | Current state, completed work, next steps | **Start here** - read first in every session |
+| [ROADMAP.md](../ROADMAP.md) | Phased plan, decision authority, session protocol | When picking next work item or making decisions |
 | [DISTILLATION.md](../DISTILLATION.md) | Principles and process for distillation | When making design decisions |
 | [CLAUDE.md](../CLAUDE.md) | Project context and conventions | When starting work on Komatachi |
 
@@ -57,6 +58,7 @@ Each distilled module has its own DECISIONS.md:
 komatachi/
 ├── CLAUDE.md              # Entry point for AI assistants
 ├── PROGRESS.md            # Source of truth for project state
+├── ROADMAP.md             # Phased plan and decision framework
 ├── DISTILLATION.md        # Core principles
 ├── docs/
 │   ├── INDEX.md           # This file

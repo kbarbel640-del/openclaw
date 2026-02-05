@@ -9,6 +9,8 @@
 ```
 PROGRESS.md          <- Start here (current state, next actions)
     │
+    ├── ROADMAP.md           <- Phased plan, decision authority, session protocol
+    │
     ├── DISTILLATION.md      <- Core principles (read when making decisions)
     │
     ├── docs/

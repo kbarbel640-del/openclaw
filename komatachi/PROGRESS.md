@@ -6,9 +6,9 @@
 
 | Aspect | State |
 |--------|-------|
-| **Phase** | Embeddings validated; continuing memory sub-modules |
-| **Last completed** | Embeddings module (47 tests passing) |
-| **Next action** | Distill next memory sub-module (storage or search) |
+| **Phase** | Roadmap established; beginning Phase 1 (Storage & Session) |
+| **Last completed** | Distillation roadmap and autonomous execution framework |
+| **Next action** | Distill Storage module (Phase 1.1) |
 | **Blockers** | None |
 
 ### What Exists Now
@@ -18,12 +18,8 @@
 - [x] Embeddings sub-module: `src/embeddings/` (47 tests)
 - [x] Key architectural decisions (TypeScript+Rust, minimal viable agent, no gateway)
 
-### Current Focus: Memory Sub-modules
-Long-term Memory & Search is being distilled as sub-modules rather than monolithically. Embeddings is complete. Remaining sub-modules:
-- Storage/Schema (~128 lines) - SQLite schema, vector extension
-- Hybrid search (~293 lines) - Vector + BM25 merging
-- File sync (~337 lines) - Memory and session file synchronization
-- Manager (~2,232 lines) - Orchestrator (distill last)
+### Current Focus: Roadmap Execution
+A phased distillation roadmap has been established. See [ROADMAP.md](./ROADMAP.md) for the full plan, decision authority framework, and session protocol. The roadmap covers 5 phases leading to a minimal viable single-agent, single-session system.
 
 ---
 
@@ -201,23 +197,38 @@ Traced cross-agent communication in OpenClaw. The gateway is a WebSocket-based J
 
 ## Next Steps
 
-1. ~~**Write compaction tests**~~ - Done (44 tests passing)
+See [ROADMAP.md](./ROADMAP.md) for the full sequenced plan. Summary:
 
-2. ~~**Distill embeddings sub-module**~~ - Done (47 tests passing)
-
-3. **Continue memory sub-modules** (next)
-   - Storage/Schema - SQLite tables for chunks, embeddings, cache
-   - Hybrid search - Vector similarity + BM25 merging
-   - File sync - Memory file watching and indexing
-   - Manager - Final orchestrator (depends on above)
-
-4. **Integration checkpoint** - After memory is complete, verify compaction + embeddings + storage compose toward minimal viable agent
+- [ ] **Phase 1**: Storage & Session Foundation (Storage, Session Store, Session State)
+- [ ] **Phase 2**: Context Pipeline (Context Window with History Management folded in)
+- [ ] **Phase 3**: Agent Alignment (System Prompt, Tool Policy, Workspace Bootstrap)
+- [ ] **Phase 4**: Routing Stub (single-agent dispatch)
+- [ ] **Phase 5**: Integration Validation (end-to-end pipeline test)
 
 ---
 
+### 9. Distillation Roadmap (Complete)
+
+Established a phased roadmap and autonomous execution framework:
+
+- 5 phases covering Storage, Context, Agent Alignment, Routing, and Integration
+- Decision authority boundaries (what Claude decides vs. what needs discussion)
+- Session protocol for autonomous execution
+- 7 pre-resolved architectural decisions (file-based storage, single-session, single-agent, etc.)
+- Explicit deferral list with reasoning (vector search, file sync, memory manager, cross-agent access, multi-session, gateway)
+
+Key scope decisions:
+- File-based storage (JSON/JSONL) instead of SQLite -- matches OpenClaw's session layer; SQLite only needed for deferred vector search
+- Single-session and single-agent assumptions -- interfaces designed for multi, implementations start simple
+- History Management folded into Context Window -- separate module unnecessary with modern context sizes
+- Agent Alignment is thin -- plugin/extension machinery dropped per existing decisions
+
+Files created:
+- `ROADMAP.md` - Full roadmap, decision framework, and session protocol
+
 ## Open Questions
 
-None currently. Cross-agent session access question resolved—deferred until requirements demand it (see decisions #4 and #7).
+None currently.
 
 ---
 
@@ -227,12 +238,14 @@ None currently. Cross-agent session access question resolved—deferred until re
 komatachi/
 ├── CLAUDE.md           # Project context (includes document map)
 ├── PROGRESS.md         # This file - update as work progresses
+├── ROADMAP.md          # Phased plan, decision authority, session protocol
 ├── DISTILLATION.md     # Principles and process
 ├── package.json        # Dependencies (vitest, typescript)
 ├── tsconfig.json       # TypeScript config
 ├── vitest.config.ts    # Test runner config
 ├── docs/               # Supplementary documentation
 │   ├── INDEX.md        # Central navigation hub
+│   ├── testing-strategy.md # Layer-based testing approach
 │   └── rust-porting.md # Rust migration guide (from validation)
 ├── scouting/           # Analysis of OpenClaw components
 │   ├── context-management.md
