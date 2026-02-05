@@ -206,6 +206,18 @@ async function loadWebMediaInternal(
     return await clampAndFinalize({ buffer, contentType, kind, fileName });
   }
 
+  // Handle data: URIs (RFC 2397) - data:mime;filename=name;base64,data
+  if (/^data:/i.test(mediaUrl)) {
+    const match = mediaUrl.match(/^data:([^;]*);(?:filename=([^;]*);)?base64,(.+)$/i);
+    if (!match) {
+      throw new Error("Invalid data: URI format. Expected: data:<mime>;filename=<name>;base64,<data>");
+    }
+    const [, contentType, fileName, base64Data] = match;
+    const buffer = Buffer.from(base64Data, "base64");
+    const kind = mediaKindFromMime(contentType || undefined);
+    return await clampAndFinalize({ buffer, contentType: contentType || undefined, kind, fileName });
+  }
+
   // Expand tilde paths to absolute paths (e.g., ~/Downloads/photo.jpg)
   if (mediaUrl.startsWith("~")) {
     mediaUrl = resolveUserPath(mediaUrl);
