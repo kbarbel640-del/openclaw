@@ -43,6 +43,11 @@ export class UrbitSSEClient {
   isConnected = false;
   logger: UrbitSseLogger;
 
+  // Event ack tracking - must ack every ~50 events to keep channel healthy
+  private lastHeardEventId = -1;
+  private lastAcknowledgedEventId = -1;
+  private readonly ackThreshold = 20;
+
   constructor(url: string, cookie: string, options: UrbitSseOptions = {}) {
     this.url = url;
     this.cookie = cookie.split(";")[0];
@@ -114,7 +119,6 @@ export class UrbitSSEClient {
         Cookie: this.cookie,
       },
       body: JSON.stringify([subscription]),
-      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok && response.status !== 204) {
@@ -131,7 +135,6 @@ export class UrbitSSEClient {
         Cookie: this.cookie,
       },
       body: JSON.stringify(this.subscriptions),
-      signal: AbortSignal.timeout(30_000),
     });
 
     if (!createResp.ok && createResp.status !== 204) {
@@ -154,7 +157,6 @@ export class UrbitSSEClient {
           json: "Opening API channel",
         },
       ]),
-      signal: AbortSignal.timeout(30_000),
     });
 
     if (!pokeResp.ok && pokeResp.status !== 204) {
@@ -167,22 +169,13 @@ export class UrbitSSEClient {
   }
 
   async openStream() {
-    // Use AbortController with manual timeout so we only abort during initial connection,
-    // not after the SSE stream is established and actively streaming.
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60_000);
-
     const response = await fetch(this.channelUrl, {
       method: "GET",
       headers: {
         Accept: "text/event-stream",
         Cookie: this.cookie,
       },
-      signal: controller.signal,
     });
-
-    // Clear timeout once connection established (headers received)
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`Stream connection failed: ${response.status}`);
@@ -232,15 +225,31 @@ export class UrbitSSEClient {
   processEvent(eventData: string) {
     const lines = eventData.split("\n");
     let data: string | null = null;
+    let eventId: number | null = null;
 
     for (const line of lines) {
       if (line.startsWith("data: ")) {
         data = line.substring(6);
       }
+      if (line.startsWith("id: ")) {
+        eventId = parseInt(line.substring(4), 10);
+      }
     }
 
     if (!data) {
       return;
+    }
+
+    // Track event ID and send ack if needed
+    if (eventId !== null && !isNaN(eventId)) {
+      if (eventId > this.lastHeardEventId) {
+        this.lastHeardEventId = eventId;
+        if (eventId - this.lastAcknowledgedEventId > this.ackThreshold) {
+          this.ack(eventId).catch((err) => {
+            this.logger.error?.(`Failed to ack event ${eventId}: ${String(err)}`);
+          });
+        }
+      }
     }
 
     try {
@@ -273,6 +282,30 @@ export class UrbitSSEClient {
     }
   }
 
+  private async ack(eventId: number): Promise<void> {
+    this.lastAcknowledgedEventId = eventId;
+
+    const ackData = {
+      action: "ack",
+      "event-id": eventId,
+    };
+
+    const response = await fetch(this.channelUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: this.cookie,
+      },
+      body: JSON.stringify([ackData]),
+    });
+
+    if (!response.ok && response.status !== 204) {
+      throw new Error(`Ack failed: ${response.status}`);
+    }
+
+    this.logger.log?.(`[SSE] Acked event ${eventId}`);
+  }
+
   async poke(params: { app: string; mark: string; json: unknown }) {
     const pokeId = Date.now();
     const pokeData = {
@@ -291,7 +324,6 @@ export class UrbitSSEClient {
         Cookie: this.cookie,
       },
       body: JSON.stringify([pokeData]),
-      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok && response.status !== 204) {
@@ -309,7 +341,6 @@ export class UrbitSSEClient {
       headers: {
         Cookie: this.cookie,
       },
-      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {
@@ -325,11 +356,16 @@ export class UrbitSSEClient {
       return;
     }
 
+    // Reset after max attempts with extended backoff, then continue trying forever
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.logger.error?.(
-        `[SSE] Max reconnection attempts (${this.maxReconnectAttempts}) reached. Giving up.`,
+      this.logger.log?.(
+        `[SSE] Max reconnection attempts (${this.maxReconnectAttempts}) reached. Will reset and retry after extended backoff...`,
       );
-      return;
+      // Wait 10 seconds before resetting and trying again
+      const extendedBackoff = 10000; // 10 seconds
+      await new Promise((resolve) => setTimeout(resolve, extendedBackoff));
+      this.reconnectAttempts = 0; // Reset counter to continue trying
+      this.logger.log?.("[SSE] Reconnection attempts reset, resuming reconnection...");
     }
 
     this.reconnectAttempts += 1;
@@ -378,7 +414,6 @@ export class UrbitSSEClient {
           Cookie: this.cookie,
         },
         body: JSON.stringify(unsubscribes),
-        signal: AbortSignal.timeout(30_000),
       });
 
       await fetch(this.channelUrl, {
@@ -386,7 +421,6 @@ export class UrbitSSEClient {
         headers: {
           Cookie: this.cookie,
         },
-        signal: AbortSignal.timeout(30_000),
       });
     } catch (error) {
       this.logger.error?.(`Error closing channel: ${String(error)}`);

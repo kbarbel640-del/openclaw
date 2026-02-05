@@ -14,8 +14,56 @@ import { monitorTlonProvider } from "./monitor/index.js";
 import { tlonOnboardingAdapter } from "./onboarding.js";
 import { formatTargetHint, normalizeShip, parseTlonTarget } from "./targets.js";
 import { resolveTlonAccount, listTlonAccountIds } from "./types.js";
+import { authenticate } from "./urbit/auth.js";
 import { ensureUrbitConnectPatched, Urbit } from "./urbit/http-api.js";
-import { buildMediaText, sendDm, sendGroupMessage } from "./urbit/send.js";
+import {
+  buildMediaStory,
+  sendDm,
+  sendGroupMessage,
+  sendDmWithStory,
+  sendGroupMessageWithStory,
+} from "./urbit/send.js";
+
+// Simple HTTP-only poke that doesn't open an EventSource (avoids conflict with monitor's SSE)
+async function createHttpPokeApi(params: { url: string; code: string; ship: string }) {
+  const cookie = await authenticate(params.url, params.code);
+  const channelId = `${Math.floor(Date.now() / 1000)}-${Math.random().toString(36).substring(2, 8)}`;
+  const channelUrl = `${params.url}/~/channel/${channelId}`;
+  const shipName = params.ship.replace(/^~/, "");
+
+  return {
+    poke: async (pokeParams: { app: string; mark: string; json: unknown }) => {
+      const pokeId = Date.now();
+      const pokeData = {
+        id: pokeId,
+        action: "poke",
+        ship: shipName,
+        app: pokeParams.app,
+        mark: pokeParams.mark,
+        json: pokeParams.json,
+      };
+
+      const response = await fetch(channelUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookie.split(";")[0],
+        },
+        body: JSON.stringify([pokeData]),
+      });
+
+      if (!response.ok && response.status !== 204) {
+        const errorText = await response.text();
+        throw new Error(`Poke failed: ${response.status} - ${errorText}`);
+      }
+
+      return pokeId;
+    },
+    delete: async () => {
+      // No-op for HTTP-only client
+    },
+  };
+}
 
 const TLON_CHANNEL_ID = "tlon" as const;
 
@@ -117,12 +165,11 @@ const tlonOutbound: ChannelOutboundAdapter = {
       throw new Error(`Invalid Tlon target. Use ${formatTargetHint()}`);
     }
 
-    ensureUrbitConnectPatched();
-    const api = await Urbit.authenticate({
-      ship: account.ship.replace(/^~/, ""),
+    // Use HTTP-only poke (no EventSource) to avoid conflicts with monitor's SSE connection
+    const api = await createHttpPokeApi({
       url: account.url,
+      ship: account.ship,
       code: account.code,
-      verbose: false,
     });
 
     try {
@@ -153,15 +200,50 @@ const tlonOutbound: ChannelOutboundAdapter = {
     }
   },
   sendMedia: async ({ cfg, to, text, mediaUrl, accountId, replyToId, threadId }) => {
-    const mergedText = buildMediaText(text, mediaUrl);
-    return await tlonOutbound.sendText({
-      cfg,
-      to,
-      text: mergedText,
-      accountId,
-      replyToId,
-      threadId,
+    const account = resolveTlonAccount(cfg, accountId ?? undefined);
+    if (!account.configured || !account.ship || !account.url || !account.code) {
+      throw new Error("Tlon account not configured");
+    }
+
+    const parsed = parseTlonTarget(to);
+    if (!parsed) {
+      throw new Error(`Invalid Tlon target. Use ${formatTargetHint()}`);
+    }
+
+    const api = await createHttpPokeApi({
+      url: account.url,
+      ship: account.ship,
+      code: account.code,
     });
+
+    try {
+      const fromShip = normalizeShip(account.ship);
+      const story = buildMediaStory(text, mediaUrl);
+
+      if (parsed.kind === "dm") {
+        return await sendDmWithStory({
+          api,
+          fromShip,
+          toShip: parsed.ship,
+          story,
+        });
+      }
+      const replyId = (replyToId ?? threadId) ? String(replyToId ?? threadId) : undefined;
+      return await sendGroupMessageWithStory({
+        api,
+        fromShip,
+        hostShip: parsed.hostShip,
+        channelName: parsed.channelName,
+        story,
+        replyToId: replyId,
+      });
+    } finally {
+      try {
+        await api.delete();
+      } catch {
+        // ignore cleanup errors
+      }
+    }
   },
 };
 
@@ -198,7 +280,7 @@ export const tlonPlugin: ChannelPlugin = {
           channels: {
             ...cfg.channels,
             tlon: {
-              ...(cfg.channels?.tlon as Record<string, unknown>),
+              ...cfg.channels?.tlon,
               enabled,
             },
           },
@@ -209,7 +291,7 @@ export const tlonPlugin: ChannelPlugin = {
         channels: {
           ...cfg.channels,
           tlon: {
-            ...(cfg.channels?.tlon as Record<string, unknown>),
+            ...cfg.channels?.tlon,
             accounts: {
               ...cfg.channels?.tlon?.accounts,
               [accountId]: {
@@ -224,9 +306,13 @@ export const tlonPlugin: ChannelPlugin = {
     deleteAccount: ({ cfg, accountId }) => {
       const useDefault = !accountId || accountId === "default";
       if (useDefault) {
-        // @ts-expect-error
-        // oxlint-disable-next-line no-unused-vars
-        const { ship, code, url, name, ...rest } = cfg.channels?.tlon ?? {};
+        const {
+          ship: _ship,
+          code: _code,
+          url: _url,
+          name: _name,
+          ...rest
+        } = cfg.channels?.tlon ?? {};
         return {
           ...cfg,
           channels: {
@@ -235,15 +321,13 @@ export const tlonPlugin: ChannelPlugin = {
           },
         } as OpenClawConfig;
       }
-      // @ts-expect-error
-      // oxlint-disable-next-line no-unused-vars
-      const { [accountId]: removed, ...remainingAccounts } = cfg.channels?.tlon?.accounts ?? {};
+      const { [accountId]: _removed, ...remainingAccounts } = cfg.channels?.tlon?.accounts ?? {};
       return {
         ...cfg,
         channels: {
           ...cfg.channels,
           tlon: {
-            ...(cfg.channels?.tlon as Record<string, unknown>),
+            ...cfg.channels?.tlon,
             accounts: remainingAccounts,
           },
         },
@@ -355,7 +439,8 @@ export const tlonPlugin: ChannelPlugin = {
         } finally {
           await api.delete();
         }
-      } catch (error) {
+        // oxlint-disable-next-line typescript/no-explicit-any
+      } catch (error: any) {
         return { ok: false, error: error?.message ?? String(error) };
       }
     },
