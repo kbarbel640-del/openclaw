@@ -81,8 +81,11 @@ function keyHash8(privateKey: string): string {
 }
 
 /**
- * Build a deterministic dbPath under the OpenClaw state directory:
- *   <stateDir>/convos/xmtp/<env>/<accountId>/<keyHash8>/
+ * Build a deterministic dbPath under the OpenClaw state directory.
+ * Returns a **file** path (not a directory) because the XMTP Agent SDK
+ * passes dbPath directly to SQLite as the database filename.
+ *
+ *   <stateDir>/convos/xmtp/<env>/<accountId>/<keyHash8>/xmtp.db
  */
 export function resolveConvosDbPath(params: {
   stateDir: string;
@@ -91,7 +94,7 @@ export function resolveConvosDbPath(params: {
   privateKey: string;
 }): string {
   const hash = keyHash8(params.privateKey);
-  return path.join(params.stateDir, "convos", "xmtp", params.env, params.accountId, hash);
+  return path.join(params.stateDir, "convos", "xmtp", params.env, params.accountId, hash, "xmtp.db");
 }
 
 /**
@@ -146,7 +149,7 @@ export class ConvosSDKClient {
     const agentOpts: Record<string, unknown> = { env: resolvedEnv };
     if (options.dbPath !== undefined) {
       if (typeof options.dbPath === "string") {
-        fs.mkdirSync(options.dbPath, { recursive: true });
+        fs.mkdirSync(path.dirname(options.dbPath), { recursive: true });
       }
       agentOpts.dbPath = options.dbPath;
     }
