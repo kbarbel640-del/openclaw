@@ -73,13 +73,15 @@ export function extractHookToken(req: IncomingMessage, url: URL): HookTokenResul
 
 export async function readBody(
   req: IncomingMessage,
-  maxBytes: number
+  maxBytes: number,
 ): Promise<{ ok: true; value: string } | { ok: false; error: string }> {
   const cl = req.headers["content-length"];
   if (cl) {
     const length = Number(cl);
     if (Number.isFinite(length) && length > maxBytes) {
-      try { req.destroy(); } catch {}
+      try {
+        req.destroy();
+      } catch {}
       return { ok: false, error: "payload too large" };
     }
   }
@@ -129,7 +131,7 @@ export async function readJsonBody(
   }
   try {
     const parsed = JSON.parse(trimmed) as unknown;
-    return { ok: true, value: parsed }; 
+    return { ok: true, value: parsed };
   } catch (err) {
     return { ok: false, error: String(err) };
   }
