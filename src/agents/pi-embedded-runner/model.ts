@@ -12,6 +12,37 @@ import {
   type ModelRegistry,
 } from "../pi-model-discovery.js";
 
+/**
+ * Known Anthropic model fallbacks for when the upstream pi-ai catalog
+ * has not yet been updated with newly released models.
+ * These are only used when ModelRegistry.find() returns nothing.
+ */
+const ANTHROPIC_MODEL_FALLBACKS: Record<
+  string,
+  Omit<Model<Api>, "id" | "provider">
+> = {
+  "claude-opus-4-6": {
+    name: "Claude Opus 4.6 (latest)",
+    api: "anthropic-messages" as Api,
+    baseUrl: "https://api.anthropic.com",
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+    contextWindow: 1_000_000,
+    maxTokens: 64000,
+  },
+  "claude-opus-4-5": {
+    name: "Claude Opus 4.5 (latest)",
+    api: "anthropic-messages" as Api,
+    baseUrl: "https://api.anthropic.com",
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+    contextWindow: 200_000,
+    maxTokens: 64000,
+  },
+};
+
 type InlineModelEntry = ModelDefinitionConfig & { provider: string; baseUrl?: string };
 type InlineProviderConfig = {
   baseUrl?: string;
@@ -101,6 +132,22 @@ export function resolveModel(
       } as Model<Api>);
       return { model: fallbackModel, authStorage, modelRegistry };
     }
+
+    // Fallback: check known Anthropic models when upstream catalog is behind.
+    // This prevents crashes when a new model is released but pi-ai hasn't
+    // been updated yet.
+    if (normalizeProviderId(provider) === "anthropic") {
+      const knownFallback = ANTHROPIC_MODEL_FALLBACKS[modelId];
+      if (knownFallback) {
+        const fallbackModel: Model<Api> = normalizeModelCompat({
+          id: modelId,
+          provider,
+          ...knownFallback,
+        } as Model<Api>);
+        return { model: fallbackModel, authStorage, modelRegistry };
+      }
+    }
+
     return {
       error: `Unknown model: ${provider}/${modelId}`,
       authStorage,

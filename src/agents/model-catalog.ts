@@ -11,6 +11,22 @@ export type ModelCatalogEntry = {
   input?: Array<"text" | "image">;
 };
 
+/**
+ * Known model entries that should always be present in the catalog,
+ * even if the upstream pi-ai package hasn't been updated yet.
+ * These are merged in only when the upstream catalog is missing them.
+ */
+const KNOWN_MODEL_FALLBACKS: ModelCatalogEntry[] = [
+  {
+    id: "claude-opus-4-6",
+    name: "Claude Opus 4.6 (latest)",
+    provider: "anthropic",
+    contextWindow: 1_000_000,
+    reasoning: true,
+    input: ["text", "image"],
+  },
+];
+
 type DiscoveredModel = {
   id: string;
   name?: string;
@@ -98,6 +114,17 @@ export async function loadModelCatalog(params?: {
       if (models.length === 0) {
         // If we found nothing, don't cache this result so we can try again.
         modelCatalogPromise = null;
+      }
+
+      // Merge known model fallbacks for entries missing from the upstream catalog.
+      const existingKeys = new Set(
+        models.map((m) => `${m.provider}/${m.id}`),
+      );
+      for (const fallback of KNOWN_MODEL_FALLBACKS) {
+        const key = `${fallback.provider}/${fallback.id}`;
+        if (!existingKeys.has(key)) {
+          models.push(fallback);
+        }
       }
 
       return sortModels(models);
