@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import type { ExecToolDefaults } from "../../agents/bash-tools.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
@@ -199,7 +201,22 @@ export async function runPreparedReply(
   const isBareSessionReset =
     isNewSession &&
     ((baseBodyTrimmedRaw.length === 0 && rawBodyTrimmed.length > 0) || isBareNewOrReset);
-  const baseBodyFinal = isBareSessionReset ? BARE_SESSION_RESET_PROMPT : baseBody;
+  let baseBodyFinal = isBareSessionReset ? BARE_SESSION_RESET_PROMPT : baseBody;
+
+  // Auto-inject BOOTSTRAP.md content on /new or /reset
+  if (isBareSessionReset && workspaceDir) {
+    const bootstrapPath = path.join(workspaceDir, "BOOTSTRAP.md");
+    try {
+      if (fs.existsSync(bootstrapPath)) {
+        const bootstrapContent = fs.readFileSync(bootstrapPath, "utf-8").trim();
+        if (bootstrapContent) {
+          baseBodyFinal = `${baseBodyFinal}\n\n---\n\n## BOOTSTRAP.md (auto-loaded)\n\n${bootstrapContent}`;
+        }
+      }
+    } catch {
+      // Ignore read errors - bootstrap is optional
+    }
+  }
   const baseBodyTrimmed = baseBodyFinal.trim();
   if (!baseBodyTrimmed) {
     await typing.onReplyStart();
