@@ -72,7 +72,7 @@ export PADDLEOCR_ACCESS_TOKEN="your_access_token"
         "prunedResult": [...],
         "markdown": {
           "text": "# Document Title\n\nParagraph content...",
-          "images": {},
+          "images": {}
         },
         "outputImages": [...],
         "inputImage": "http://input-image"
