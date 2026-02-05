@@ -84,7 +84,7 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
         sessionFile: params.previousSessionEntry.sessionFile,
         commandSource: params.command.surface,
         senderId: params.command.senderId,
-        reason: "reset", // Session ended due to /new or /reset command
+        reason: commandAction, // "new" or "reset" depending on which command was used
         cfg: params.cfg,
       });
       await triggerInternalHook(sessionEndEvent);
@@ -112,7 +112,7 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
           sessionFile: params.sessionEntry.sessionFile,
           commandSource: params.command.surface,
           senderId: params.command.senderId,
-          isReset: true, // Session started due to /new or /reset command
+          isReset: commandAction === "reset", // true only for /reset, false for /new
           cfg: params.cfg,
         },
       );

@@ -251,11 +251,11 @@ These hooks are not event-stream listeners; they let plugins synchronously adjus
 Session lifecycle events fire when sessions are created or reset:
 
 - **`session:end`**: Fires **before** `/new` or `/reset` clears the session
-  - Context: `sessionEntry` (previous session), `sessionId`, `sessionFile`, `reason` ("reset"), etc.
+  - Context: `sessionEntry` (previous session), `sessionId`, `sessionFile`, `reason` (`"new"` or `"reset"`), etc.
   - Use case: Save session context/transcripts to external memory systems before they're cleared
 
 - **`session:start`**: Fires when a new session begins (after `/new` or `/reset`)
-  - Context: `sessionEntry`, `sessionId`, `sessionFile`, `isReset` (true if triggered by reset command), etc.
+  - Context: `sessionEntry`, `sessionId`, `sessionFile`, `isReset` (`true` for `/reset`, `false` for `/new`), etc.
   - Use case: Initialize session-specific resources, audit session lifecycle events
 
 ### Future Events
