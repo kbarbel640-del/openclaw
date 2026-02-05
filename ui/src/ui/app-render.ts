@@ -329,6 +329,7 @@ export function renderApp(state: AppViewState) {
                 selectedSessions: state.usageSelectedSessions,
                 selectedDays: state.usageSelectedDays,
                 chartMode: state.usageChartMode,
+                dailyChartMode: state.usageDailyChartMode,
                 timeSeriesMode: state.usageTimeSeriesMode,
                 timeSeries: state.usageTimeSeries,
                 timeSeriesLoading: state.usageTimeSeriesLoading,
@@ -440,6 +441,9 @@ export function renderApp(state: AppViewState) {
                 },
                 onChartModeChange: (mode) => {
                   state.usageChartMode = mode;
+                },
+                onDailyChartModeChange: (mode) => {
+                  state.usageDailyChartMode = mode;
                 },
                 onTimeSeriesModeChange: (mode) => {
                   state.usageTimeSeriesMode = mode;

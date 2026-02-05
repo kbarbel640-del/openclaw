@@ -33,6 +33,7 @@ type ParsedTranscriptEntry = {
   message: Record<string, unknown>;
   role?: "user" | "assistant";
   timestamp?: Date;
+  durationMs?: number;
   usage?: NormalizedUsage;
   costTotal?: number;
   costBreakdown?: CostBreakdown;
@@ -85,6 +86,27 @@ export type SessionDailyMessageCounts = {
   errors: number;
 };
 
+export type SessionLatencyStats = {
+  count: number;
+  avgMs: number;
+  p95Ms: number;
+  minMs: number;
+  maxMs: number;
+};
+
+export type SessionDailyLatency = SessionLatencyStats & {
+  date: string; // YYYY-MM-DD
+};
+
+export type SessionDailyModelUsage = {
+  date: string; // YYYY-MM-DD
+  provider?: string;
+  model?: string;
+  tokens: number;
+  cost: number;
+  count: number;
+};
+
 export type SessionMessageCounts = {
   total: number;
   user: number;
@@ -116,9 +138,12 @@ export type SessionCostSummary = CostUsageTotals & {
   activityDates?: string[]; // YYYY-MM-DD dates when session had activity
   dailyBreakdown?: SessionDailyUsage[]; // Per-day token/cost breakdown
   dailyMessageCounts?: SessionDailyMessageCounts[];
+  dailyLatency?: SessionDailyLatency[];
+  dailyModelUsage?: SessionDailyModelUsage[];
   messageCounts?: SessionMessageCounts;
   toolUsage?: SessionToolUsage;
   modelUsage?: SessionModelUsage[];
+  latency?: SessionLatencyStats;
 };
 
 const emptyTotals = (): CostUsageTotals => ({
@@ -213,11 +238,13 @@ const parseTranscriptEntry = (entry: Record<string, unknown>): ParsedTranscriptE
 
   const costBreakdown = extractCostBreakdown(usageRaw);
   const stopReason = typeof message.stopReason === "string" ? message.stopReason : undefined;
+  const durationMs = toFiniteNumber(message.durationMs ?? entry.durationMs);
 
   return {
     message,
     role,
     timestamp: parseTimestamp(entry),
+    durationMs,
     usage,
     costTotal: costBreakdown?.total,
     costBreakdown,
@@ -231,6 +258,23 @@ const parseTranscriptEntry = (entry: Record<string, unknown>): ParsedTranscriptE
 
 const formatDayKey = (date: Date): string =>
   date.toLocaleDateString("en-CA", { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+
+const computeLatencyStats = (values: number[]): SessionLatencyStats | undefined => {
+  if (!values.length) {
+    return undefined;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const total = sorted.reduce((sum, v) => sum + v, 0);
+  const count = sorted.length;
+  const p95Index = Math.max(0, Math.ceil(count * 0.95) - 1);
+  return {
+    count,
+    avgMs: total / count,
+    p95Ms: sorted[p95Index] ?? sorted[count - 1],
+    minMs: sorted[0],
+    maxMs: sorted[count - 1],
+  };
+};
 
 const applyUsageTotals = (totals: CostUsageTotals, usage: NormalizedUsage) => {
   totals.input += usage.input ?? 0;
@@ -533,6 +577,8 @@ export async function loadSessionCostSummary(params: {
   const activityDatesSet = new Set<string>();
   const dailyMap = new Map<string, { tokens: number; cost: number }>();
   const dailyMessageMap = new Map<string, SessionDailyMessageCounts>();
+  const dailyLatencyMap = new Map<string, number[]>();
+  const dailyModelUsageMap = new Map<string, SessionDailyModelUsage>();
   const messageCounts: SessionMessageCounts = {
     total: 0,
     user: 0,
@@ -544,6 +590,9 @@ export async function loadSessionCostSummary(params: {
   const toolUsageMap = new Map<string, number>();
   const modelUsageMap = new Map<string, SessionModelUsage>();
   const errorStopReasons = new Set(["error", "aborted", "timeout"]);
+  const latencyValues: number[] = [];
+  let lastUserTimestamp: number | undefined;
+  const MAX_LATENCY_MS = 12 * 60 * 60 * 1000;
 
   await scanTranscriptFile({
     filePath: sessionFile,
@@ -571,10 +620,30 @@ export async function loadSessionCostSummary(params: {
       if (entry.role === "user") {
         messageCounts.user += 1;
         messageCounts.total += 1;
+        if (entry.timestamp) {
+          lastUserTimestamp = entry.timestamp.getTime();
+        }
       }
       if (entry.role === "assistant") {
         messageCounts.assistant += 1;
         messageCounts.total += 1;
+        const ts = entry.timestamp?.getTime();
+        if (ts !== undefined) {
+          const latencyMs =
+            entry.durationMs ??
+            (lastUserTimestamp !== undefined ? Math.max(0, ts - lastUserTimestamp) : undefined);
+          if (
+            latencyMs !== undefined &&
+            Number.isFinite(latencyMs) &&
+            latencyMs <= MAX_LATENCY_MS
+          ) {
+            latencyValues.push(latencyMs);
+            const dayKey = formatDayKey(entry.timestamp);
+            const dailyLatencies = dailyLatencyMap.get(dayKey) ?? [];
+            dailyLatencies.push(latencyMs);
+            dailyLatencyMap.set(dayKey, dailyLatencies);
+          }
+        }
       }
 
       if (entry.toolNames.length > 0) {
@@ -652,6 +721,24 @@ export async function loadSessionCostSummary(params: {
           tokens: existing.tokens + entryTokens,
           cost: existing.cost + entryCost,
         });
+
+        if (entry.provider || entry.model) {
+          const modelKey = `${dayKey}::${entry.provider ?? "unknown"}::${entry.model ?? "unknown"}`;
+          const dailyModel =
+            dailyModelUsageMap.get(modelKey) ??
+            ({
+              date: dayKey,
+              provider: entry.provider,
+              model: entry.model,
+              tokens: 0,
+              cost: 0,
+              count: 0,
+            } as SessionDailyModelUsage);
+          dailyModel.tokens += entryTokens;
+          dailyModel.cost += entryCost;
+          dailyModel.count += 1;
+          dailyModelUsageMap.set(modelKey, dailyModel);
+        }
       }
 
       if (entry.provider || entry.model) {
@@ -685,6 +772,21 @@ export async function loadSessionCostSummary(params: {
     dailyMessageMap.values(),
   ).toSorted((a, b) => a.date.localeCompare(b.date));
 
+  const dailyLatency: SessionDailyLatency[] = Array.from(dailyLatencyMap.entries())
+    .map(([date, values]) => {
+      const stats = computeLatencyStats(values);
+      if (!stats) {
+        return null;
+      }
+      return { date, ...stats };
+    })
+    .filter((entry): entry is SessionDailyLatency => Boolean(entry))
+    .toSorted((a, b) => a.date.localeCompare(b.date));
+
+  const dailyModelUsage: SessionDailyModelUsage[] = Array.from(
+    dailyModelUsageMap.values(),
+  ).toSorted((a, b) => a.date.localeCompare(b.date) || b.cost - a.cost);
+
   const toolUsage: SessionToolUsage | undefined = toolUsageMap.size
     ? {
         totalCalls: Array.from(toolUsageMap.values()).reduce((sum, count) => sum + count, 0),
@@ -717,9 +819,12 @@ export async function loadSessionCostSummary(params: {
     activityDates: Array.from(activityDatesSet).toSorted(),
     dailyBreakdown,
     dailyMessageCounts,
+    dailyLatency: dailyLatency.length ? dailyLatency : undefined,
+    dailyModelUsage: dailyModelUsage.length ? dailyModelUsage : undefined,
     messageCounts,
     toolUsage,
     modelUsage,
+    latency: computeLatencyStats(latencyValues),
     ...totals,
   };
 }

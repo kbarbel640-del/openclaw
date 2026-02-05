@@ -239,6 +239,43 @@ const usageStylesString = `
     color: var(--text-muted);
     margin-top: 6px;
   }
+  .usage-trend-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .usage-trend-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1.3fr) minmax(80px, 2fr) minmax(60px, 0.7fr);
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+  }
+  .usage-trend-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .usage-trend-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .usage-trend-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 32px;
+  }
+  .usage-trend-bar {
+    width: 6px;
+    border-radius: 3px 3px 0 0;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+  .usage-trend-value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
 
   /* ===== CHART TOGGLE ===== */
   .chart-toggle {
@@ -263,6 +300,17 @@ const usageStylesString = `
   .chart-toggle .toggle-btn.active {
     background: #ff4d4d;
     color: white;
+  }
+  .chart-toggle.small .toggle-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .daily-chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
   }
 
   /* ===== DAILY BAR CHART ===== */
@@ -305,6 +353,7 @@ const usageStylesString = `
     border-radius: 3px 3px 0 0;
     min-height: 2px;
     transition: all 0.15s;
+    overflow: hidden;
   }
   .daily-bar-wrapper:hover .daily-bar {
     background: #cc3d3d;
@@ -1155,6 +1204,22 @@ export type UsageSessionEntry = {
       toolResults: number;
       errors: number;
     }>;
+    dailyLatency?: Array<{
+      date: string;
+      count: number;
+      avgMs: number;
+      p95Ms: number;
+      minMs: number;
+      maxMs: number;
+    }>;
+    dailyModelUsage?: Array<{
+      date: string;
+      provider?: string;
+      model?: string;
+      tokens: number;
+      cost: number;
+      count: number;
+    }>;
     messageCounts?: {
       total: number;
       user: number;
@@ -1174,6 +1239,13 @@ export type UsageSessionEntry = {
       count: number;
       totals: UsageTotals;
     }>;
+    latency?: {
+      count: number;
+      avgMs: number;
+      p95Ms: number;
+      minMs: number;
+      maxMs: number;
+    };
   } | null;
   contextWeight?: {
     systemPrompt: { chars: number; projectContextChars: number; nonProjectContextChars: number };
@@ -1237,6 +1309,29 @@ export type UsageAggregates = {
   }>;
   byAgent: Array<{ agentId: string; totals: UsageTotals }>;
   byChannel: Array<{ channel: string; totals: UsageTotals }>;
+  latency?: {
+    count: number;
+    avgMs: number;
+    p95Ms: number;
+    minMs: number;
+    maxMs: number;
+  };
+  dailyLatency?: Array<{
+    date: string;
+    count: number;
+    avgMs: number;
+    p95Ms: number;
+    minMs: number;
+    maxMs: number;
+  }>;
+  modelDaily?: Array<{
+    date: string;
+    provider?: string;
+    model?: string;
+    tokens: number;
+    cost: number;
+    count: number;
+  }>;
   daily: Array<{
     date: string;
     tokens: number;
@@ -1282,6 +1377,7 @@ export type UsageProps = {
   selectedSessions: string[]; // Support multiple session selection
   selectedDays: string[]; // Support multiple day selection
   chartMode: "tokens" | "cost";
+  dailyChartMode: "total" | "by-type";
   timeSeriesMode: "cumulative" | "per-turn";
   timeSeries: { points: TimeSeriesPoint[] } | null;
   timeSeriesLoading: boolean;
@@ -1294,6 +1390,7 @@ export type UsageProps = {
   onRefresh: () => void;
   onSelectSession: (key: string, shiftKey: boolean) => void;
   onChartModeChange: (mode: "tokens" | "cost") => void;
+  onDailyChartModeChange: (mode: "total" | "by-type") => void;
   onTimeSeriesModeChange: (mode: "cumulative" | "per-turn") => void;
   onSelectDay: (day: string, shiftKey: boolean) => void; // Support shift-click
   onClearDays: () => void;
@@ -1331,6 +1428,19 @@ function formatTokens(n: number): string {
 
 function formatCost(n: number, decimals = 2): string {
   return `$${n.toFixed(decimals)}`;
+}
+
+function formatDurationShort(ms?: number): string {
+  if (!ms || ms <= 0) {
+    return "0s";
+  }
+  if (ms >= 60_000) {
+    return `${Math.round(ms / 60000)}m`;
+  }
+  if (ms >= 1000) {
+    return `${Math.round(ms / 1000)}s`;
+  }
+  return `${Math.round(ms)}ms`;
 }
 
 function parseYmdDate(dateStr: string): Date | null {
@@ -1691,6 +1801,15 @@ const buildAggregatesFromSessions = (
       errors: number;
     }
   >();
+  const dailyLatencyMap = new Map<
+    string,
+    { date: string; count: number; sum: number; min: number; max: number; p95Max: number }
+  >();
+  const modelDailyMap = new Map<
+    string,
+    { date: string; provider?: string; model?: string; tokens: number; cost: number; count: number }
+  >();
+  const latencyTotals = { count: 0, sum: 0, min: Number.POSITIVE_INFINITY, max: 0, p95Max: 0 };
 
   for (const session of sessions) {
     const usage = session.usage;
@@ -1738,6 +1857,17 @@ const buildAggregatesFromSessions = (
       }
     }
 
+    if (usage.latency) {
+      const { count, avgMs, minMs, maxMs, p95Ms } = usage.latency;
+      if (count > 0) {
+        latencyTotals.count += count;
+        latencyTotals.sum += avgMs * count;
+        latencyTotals.min = Math.min(latencyTotals.min, minMs);
+        latencyTotals.max = Math.max(latencyTotals.max, maxMs);
+        latencyTotals.p95Max = Math.max(latencyTotals.p95Max, p95Ms);
+      }
+    }
+
     if (session.agentId) {
       const totals = agentMap.get(session.agentId) ?? emptyUsageTotals();
       mergeUsageTotals(totals, usage);
@@ -1776,6 +1906,37 @@ const buildAggregatesFromSessions = (
       daily.errors += day.errors;
       dailyMap.set(day.date, daily);
     }
+    for (const day of usage.dailyLatency ?? []) {
+      const existing = dailyLatencyMap.get(day.date) ?? {
+        date: day.date,
+        count: 0,
+        sum: 0,
+        min: Number.POSITIVE_INFINITY,
+        max: 0,
+        p95Max: 0,
+      };
+      existing.count += day.count;
+      existing.sum += day.avgMs * day.count;
+      existing.min = Math.min(existing.min, day.minMs);
+      existing.max = Math.max(existing.max, day.maxMs);
+      existing.p95Max = Math.max(existing.p95Max, day.p95Ms);
+      dailyLatencyMap.set(day.date, existing);
+    }
+    for (const day of usage.dailyModelUsage ?? []) {
+      const key = `${day.date}::${day.provider ?? "unknown"}::${day.model ?? "unknown"}`;
+      const existing = modelDailyMap.get(key) ?? {
+        date: day.date,
+        provider: day.provider,
+        model: day.model,
+        tokens: 0,
+        cost: 0,
+        count: 0,
+      };
+      existing.tokens += day.tokens;
+      existing.cost += day.cost;
+      existing.count += day.count;
+      modelDailyMap.set(key, existing);
+    }
   }
 
   return {
@@ -1799,7 +1960,161 @@ const buildAggregatesFromSessions = (
     byChannel: Array.from(channelMap.entries())
       .map(([channel, totals]) => ({ channel, totals }))
       .toSorted((a, b) => b.totals.totalCost - a.totals.totalCost),
+    latency:
+      latencyTotals.count > 0
+        ? {
+            count: latencyTotals.count,
+            avgMs: latencyTotals.sum / latencyTotals.count,
+            minMs: latencyTotals.min === Number.POSITIVE_INFINITY ? 0 : latencyTotals.min,
+            maxMs: latencyTotals.max,
+            p95Ms: latencyTotals.p95Max,
+          }
+        : undefined,
+    dailyLatency: Array.from(dailyLatencyMap.values())
+      .map((entry) => ({
+        date: entry.date,
+        count: entry.count,
+        avgMs: entry.count ? entry.sum / entry.count : 0,
+        minMs: entry.min === Number.POSITIVE_INFINITY ? 0 : entry.min,
+        maxMs: entry.max,
+        p95Ms: entry.p95Max,
+      }))
+      .toSorted((a, b) => a.date.localeCompare(b.date)),
+    modelDaily: Array.from(modelDailyMap.values()).toSorted(
+      (a, b) => a.date.localeCompare(b.date) || b.cost - a.cost,
+    ),
     daily: Array.from(dailyMap.values()).toSorted((a, b) => a.date.localeCompare(b.date)),
+  };
+};
+
+type UsageInsightStats = {
+  durationSumMs: number;
+  durationCount: number;
+  avgDurationMs: number;
+  throughputTokensPerMin?: number;
+  throughputCostPerMin?: number;
+  errorRate: number;
+  peakErrorDay?: { date: string; errors: number; messages: number; rate: number };
+};
+
+const buildUsageInsightStats = (
+  sessions: UsageSessionEntry[],
+  totals: UsageTotals | null,
+  aggregates: UsageAggregates,
+): UsageInsightStats => {
+  let durationSumMs = 0;
+  let durationCount = 0;
+  for (const session of sessions) {
+    const duration = session.usage?.durationMs ?? 0;
+    if (duration > 0) {
+      durationSumMs += duration;
+      durationCount += 1;
+    }
+  }
+
+  const avgDurationMs = durationCount ? durationSumMs / durationCount : 0;
+  const throughputTokensPerMin =
+    totals && durationSumMs > 0 ? totals.totalTokens / (durationSumMs / 60000) : undefined;
+  const throughputCostPerMin =
+    totals && durationSumMs > 0 ? totals.totalCost / (durationSumMs / 60000) : undefined;
+
+  const errorRate = aggregates.messages.total
+    ? aggregates.messages.errors / aggregates.messages.total
+    : 0;
+  const peakErrorDay = aggregates.daily
+    .filter((day) => day.messages > 0 && day.errors > 0)
+    .map((day) => ({
+      date: day.date,
+      errors: day.errors,
+      messages: day.messages,
+      rate: day.errors / day.messages,
+    }))
+    .toSorted((a, b) => b.rate - a.rate || b.errors - a.errors)[0];
+
+  return {
+    durationSumMs,
+    durationCount,
+    avgDurationMs,
+    throughputTokensPerMin,
+    throughputCostPerMin,
+    errorRate,
+    peakErrorDay,
+  };
+};
+
+type ModelDailyTrend = {
+  key: string;
+  label: string;
+  provider?: string;
+  model?: string;
+  totalCost: number;
+  totalTokens: number;
+  series: number[];
+  maxCost: number;
+};
+
+const buildModelDailyTrends = (
+  modelDaily: UsageAggregates["modelDaily"] | undefined,
+  days: string[],
+): { days: string[]; trends: ModelDailyTrend[] } => {
+  if (!modelDaily || modelDaily.length === 0) {
+    return { days, trends: [] };
+  }
+
+  const resolvedDays =
+    days.length > 0
+      ? days
+      : Array.from(new Set(modelDaily.map((entry) => entry.date))).toSorted((a, b) =>
+          a.localeCompare(b),
+        );
+
+  const modelMap = new Map<
+    string,
+    {
+      provider?: string;
+      model?: string;
+      totalCost: number;
+      totalTokens: number;
+      costByDay: Map<string, number>;
+    }
+  >();
+
+  for (const entry of modelDaily) {
+    const key = `${entry.provider ?? "unknown"}::${entry.model ?? "unknown"}`;
+    const existing = modelMap.get(key) ?? {
+      provider: entry.provider,
+      model: entry.model,
+      totalCost: 0,
+      totalTokens: 0,
+      costByDay: new Map<string, number>(),
+    };
+    existing.totalCost += entry.cost;
+    existing.totalTokens += entry.tokens;
+    existing.costByDay.set(entry.date, (existing.costByDay.get(entry.date) ?? 0) + entry.cost);
+    modelMap.set(key, existing);
+  }
+
+  const trends = Array.from(modelMap.entries()).map(([key, entry]) => {
+    const series = resolvedDays.map((day) => entry.costByDay.get(day) ?? 0);
+    const maxCost = Math.max(...series, 0.0001);
+    const label = entry.provider
+      ? `${entry.provider} / ${entry.model ?? "unknown"}`
+      : (entry.model ?? "unknown");
+    return {
+      key,
+      label,
+      provider: entry.provider,
+      model: entry.model,
+      totalCost: entry.totalCost,
+      totalTokens: entry.totalTokens,
+      series,
+      maxCost,
+    };
+  });
+
+  return {
+    days: resolvedDays,
+    trends: trends.toSorted((a, b) => b.totalCost - a.totalCost),
   };
 };
 
@@ -2013,6 +2328,8 @@ function renderDailyChartCompact(
   daily: CostDailyEntry[],
   selectedDays: string[],
   chartMode: "tokens" | "cost",
+  dailyChartMode: "total" | "by-type",
+  onDailyChartModeChange: (mode: "total" | "by-type") => void,
   onSelectDay: (day: string, shiftKey: boolean) => void,
 ) {
   if (!daily.length) {
@@ -2033,7 +2350,23 @@ function renderDailyChartCompact(
 
   return html`
     <div class="daily-chart-compact">
-      <div class="card-title">Daily ${isTokenMode ? "Token" : "Cost"} Usage</div>
+      <div class="daily-chart-header">
+        <div class="card-title">Daily ${isTokenMode ? "Token" : "Cost"} Usage</div>
+        <div class="chart-toggle small">
+          <button
+            class="toggle-btn ${dailyChartMode === "total" ? "active" : ""}"
+            @click=${() => onDailyChartModeChange("total")}
+          >
+            Total
+          </button>
+          <button
+            class="toggle-btn ${dailyChartMode === "by-type" ? "active" : ""}"
+            @click=${() => onDailyChartModeChange("by-type")}
+          >
+            By Type
+          </button>
+        </div>
+      </div>
       <div class="daily-chart">
         <div class="daily-chart-bars" style="--bar-max-width: ${barMaxWidth}px">
           ${daily.map((d, idx) => {
@@ -2044,17 +2377,77 @@ function renderDailyChartCompact(
             // Shorter label for many days (just day number)
             const shortLabel = daily.length > 20 ? String(parseInt(d.date.slice(8), 10)) : label;
             const labelStyle = daily.length > 20 ? "font-size: 8px" : "";
+            const segments =
+              dailyChartMode === "by-type"
+                ? isTokenMode
+                  ? [
+                      { value: d.output, class: "output" },
+                      { value: d.input, class: "input" },
+                      { value: d.cacheWrite, class: "cache-write" },
+                      { value: d.cacheRead, class: "cache-read" },
+                    ]
+                  : [
+                      { value: d.outputCost ?? 0, class: "output" },
+                      { value: d.inputCost ?? 0, class: "input" },
+                      { value: d.cacheWriteCost ?? 0, class: "cache-write" },
+                      { value: d.cacheReadCost ?? 0, class: "cache-read" },
+                    ]
+                : [];
+            const breakdownLines =
+              dailyChartMode === "by-type"
+                ? isTokenMode
+                  ? [
+                      `Output ${formatTokens(d.output)}`,
+                      `Input ${formatTokens(d.input)}`,
+                      `Cache write ${formatTokens(d.cacheWrite)}`,
+                      `Cache read ${formatTokens(d.cacheRead)}`,
+                    ]
+                  : [
+                      `Output ${formatCost(d.outputCost ?? 0)}`,
+                      `Input ${formatCost(d.inputCost ?? 0)}`,
+                      `Cache write ${formatCost(d.cacheWriteCost ?? 0)}`,
+                      `Cache read ${formatCost(d.cacheReadCost ?? 0)}`,
+                    ]
+                : [];
             return html`
               <div
                 class="daily-bar-wrapper ${isSelected ? "selected" : ""}"
                 @click=${(e: MouseEvent) => onSelectDay(d.date, e.shiftKey)}
               >
-                <div class="daily-bar" style="height: ${heightPct.toFixed(1)}%"></div>
+                ${
+                  dailyChartMode === "by-type"
+                    ? html`
+                        <div
+                          class="daily-bar"
+                          style="height: ${heightPct.toFixed(1)}%; display: flex; flex-direction: column;"
+                        >
+                          ${(() => {
+                            const total = segments.reduce((sum, seg) => sum + seg.value, 0) || 1;
+                            return segments.map(
+                              (seg) => html`
+                                <div
+                                  class="cost-segment ${seg.class}"
+                                  style="height: ${(seg.value / total) * 100}%"
+                                ></div>
+                              `,
+                            );
+                          })()}
+                        </div>
+                      `
+                    : html`
+                        <div class="daily-bar" style="height: ${heightPct.toFixed(1)}%"></div>
+                      `
+                }
                 <div class="daily-bar-label" style="${labelStyle}">${shortLabel}</div>
                 <div class="daily-bar-tooltip">
                   <strong>${formatFullDate(d.date)}</strong><br />
                   ${formatTokens(d.totalTokens)} tokens<br />
                   ${formatCost(d.totalCost)}
+                  ${
+                    breakdownLines.length
+                      ? html`${breakdownLines.map((line) => html`<div>${line}</div>`)}`
+                      : nothing
+                  }
                 </div>
               </div>
             `;
@@ -2130,9 +2523,56 @@ function renderInsightList(
   `;
 }
 
+function renderModelCostTrends(aggregates: UsageAggregates, days: string[]) {
+  const { trends } = buildModelDailyTrends(aggregates.modelDaily, days);
+  const topTrends = trends.slice(0, 5);
+
+  return html`
+    <div class="usage-insight-card">
+      <div class="usage-insight-title">Model Cost Over Time</div>
+      ${
+        topTrends.length === 0
+          ? html`
+              <div class="muted">No model trend data</div>
+            `
+          : html`
+              <div class="usage-trend-list">
+                ${topTrends.map(
+                  (trend) => html`
+                    <div class="usage-trend-row">
+                      <div class="usage-trend-label">
+                        <div>${trend.label}</div>
+                        <div class="usage-trend-meta">
+                          ${formatTokens(Math.round(trend.totalTokens))} tokens
+                        </div>
+                      </div>
+                      <div class="usage-trend-bars">
+                        ${trend.series.map(
+                          (value) => html`
+                            <div
+                              class="usage-trend-bar"
+                              style="height: ${(value / trend.maxCost) * 100}%"
+                              title=${formatCost(value)}
+                            ></div>
+                          `,
+                        )}
+                      </div>
+                      <div class="usage-trend-value">${formatCost(trend.totalCost)}</div>
+                    </div>
+                  `,
+                )}
+              </div>
+            `
+      }
+    </div>
+  `;
+}
+
 function renderUsageInsights(
   totals: UsageTotals | null,
   aggregates: UsageAggregates,
+  stats: UsageInsightStats,
+  days: string[],
   sessionCount: number,
   totalSessions: number,
 ) {
@@ -2144,6 +2584,37 @@ function renderUsageInsights(
     ? Math.round(totals.totalTokens / aggregates.messages.total)
     : 0;
   const avgCost = aggregates.messages.total ? totals.totalCost / aggregates.messages.total : 0;
+  const errorRatePct = stats.errorRate * 100;
+  const latencyLabel = aggregates.latency
+    ? `${formatDurationShort(aggregates.latency.p95Ms)} p95`
+    : "—";
+  const avgLatencyLabel = aggregates.latency
+    ? `${formatDurationShort(aggregates.latency.avgMs)} avg`
+    : "—";
+  const throughputLabel =
+    stats.throughputTokensPerMin !== undefined
+      ? `${formatTokens(Math.round(stats.throughputTokensPerMin))} tok/min`
+      : "—";
+  const throughputCostLabel =
+    stats.throughputCostPerMin !== undefined
+      ? `${formatCost(stats.throughputCostPerMin, 4)} / min`
+      : "—";
+  const avgDurationLabel = stats.durationCount > 0 ? formatDurationShort(stats.avgDurationMs) : "—";
+
+  const errorDays = aggregates.daily
+    .filter((day) => day.messages > 0)
+    .map((day) => {
+      const rate = day.errors / day.messages;
+      return {
+        label: formatDayLabel(day.date),
+        value: `${(rate * 100).toFixed(2)}%`,
+        sub: `${day.errors} errors / ${day.messages} msgs`,
+        rate,
+      };
+    })
+    .toSorted((a, b) => b.rate - a.rate)
+    .slice(0, 5)
+    .map(({ rate: _rate, ...rest }) => rest);
 
   const topModels = aggregates.byModel.slice(0, 5).map((entry) => ({
     label: entry.model ?? "unknown",
@@ -2207,6 +2678,23 @@ function renderUsageInsights(
           <div class="usage-summary-value">${sessionCount}</div>
           <div class="usage-summary-sub">of ${totalSessions} in range</div>
         </div>
+        <div class="usage-summary-card">
+          <div class="usage-summary-title">Latency</div>
+          <div class="usage-summary-value">${latencyLabel}</div>
+          <div class="usage-summary-sub">${avgLatencyLabel}</div>
+        </div>
+        <div class="usage-summary-card">
+          <div class="usage-summary-title">Throughput</div>
+          <div class="usage-summary-value">${throughputLabel}</div>
+          <div class="usage-summary-sub">${throughputCostLabel}</div>
+        </div>
+        <div class="usage-summary-card">
+          <div class="usage-summary-title">Error Rate</div>
+          <div class="usage-summary-value">${errorRatePct.toFixed(2)}%</div>
+          <div class="usage-summary-sub">
+            ${aggregates.messages.errors} errors · ${avgDurationLabel} avg session
+          </div>
+        </div>
       </div>
       <div class="usage-insights-grid">
         ${renderInsightList("Top Models", topModels, "No model data")}
@@ -2214,6 +2702,8 @@ function renderUsageInsights(
         ${renderInsightList("Top Tools", topTools, "No tool calls")}
         ${renderInsightList("Top Agents", topAgents, "No agent data")}
         ${renderInsightList("Top Channels", topChannels, "No channel data")}
+        ${renderModelCostTrends(aggregates, days)}
+        ${renderInsightList("Peak Error Days", errorDays, "No error data")}
       </div>
     </section>
   `;
@@ -2336,33 +2826,7 @@ function renderSessionsCard(
 }
 
 function renderEmptyDetailState() {
-  return html`
-    <div class="session-detail-empty">
-      <div class="session-detail-empty-title">Select a session to explore</div>
-      <div class="session-detail-empty-desc">
-        Click any session above to see detailed usage analytics, conversation history, and context
-        breakdown.
-      </div>
-      <div class="session-detail-empty-features">
-        <div class="session-detail-empty-feature">
-          <span class="icon">📊</span>
-          <span>Usage timeline</span>
-        </div>
-        <div class="session-detail-empty-feature">
-          <span class="icon">💬</span>
-          <span>Conversation logs</span>
-        </div>
-        <div class="session-detail-empty-feature">
-          <span class="icon">⚙️</span>
-          <span>Context weight</span>
-        </div>
-        <div class="session-detail-empty-feature">
-          <span class="icon">🔧</span>
-          <span>Skills & tools</span>
-        </div>
-      </div>
-    </div>
-  `;
+  return nothing;
 }
 
 function renderSessionSummary(session: UsageSessionEntry) {
@@ -2979,6 +3443,10 @@ export function renderUsage(props: UsageProps) {
         })()
       : props.costDaily;
 
+  const insightDays =
+    props.selectedDays.length > 0 ? props.selectedDays : filteredDaily.map((entry) => entry.date);
+  const insightStats = buildUsageInsightStats(aggregateSessions, displayTotals, activeAggregates);
+
   return html`
     <style>${usageStylesString}</style>
 
@@ -3139,7 +3607,14 @@ export function renderUsage(props: UsageProps) {
       }
     </section>
 
-    ${renderUsageInsights(displayTotals, activeAggregates, displaySessionCount, totalSessions)}
+    ${renderUsageInsights(
+      displayTotals,
+      activeAggregates,
+      insightStats,
+      insightDays,
+      displaySessionCount,
+      totalSessions,
+    )}
 
     <!-- Two-column layout: Daily+Breakdown on left, Sessions on right -->
     <div class="usage-grid">
@@ -3149,6 +3624,8 @@ export function renderUsage(props: UsageProps) {
             filteredDaily,
             props.selectedDays,
             props.chartMode,
+            props.dailyChartMode,
+            props.onDailyChartModeChange,
             props.onSelectDay,
           )}
           ${displayTotals ? renderCostBreakdownCompact(displayTotals, props.chartMode) : nothing}

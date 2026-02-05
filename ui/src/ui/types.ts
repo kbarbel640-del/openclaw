@@ -470,6 +470,22 @@ export type SessionsUsageEntry = {
       toolResults: number;
       errors: number;
     }>;
+    dailyLatency?: Array<{
+      date: string;
+      count: number;
+      avgMs: number;
+      p95Ms: number;
+      minMs: number;
+      maxMs: number;
+    }>;
+    dailyModelUsage?: Array<{
+      date: string;
+      provider?: string;
+      model?: string;
+      tokens: number;
+      cost: number;
+      count: number;
+    }>;
     messageCounts?: {
       total: number;
       user: number;
@@ -489,6 +505,13 @@ export type SessionsUsageEntry = {
       count: number;
       totals: SessionsUsageTotals;
     }>;
+    latency?: {
+      count: number;
+      avgMs: number;
+      p95Ms: number;
+      minMs: number;
+      maxMs: number;
+    };
   } | null;
   contextWeight?: {
     systemPrompt: { chars: number; projectContextChars: number; nonProjectContextChars: number };
@@ -556,6 +579,29 @@ export type SessionsUsageResult = {
     }>;
     byAgent: Array<{ agentId: string; totals: SessionsUsageTotals }>;
     byChannel: Array<{ channel: string; totals: SessionsUsageTotals }>;
+    latency?: {
+      count: number;
+      avgMs: number;
+      p95Ms: number;
+      minMs: number;
+      maxMs: number;
+    };
+    dailyLatency?: Array<{
+      date: string;
+      count: number;
+      avgMs: number;
+      p95Ms: number;
+      minMs: number;
+      maxMs: number;
+    }>;
+    modelDaily?: Array<{
+      date: string;
+      provider?: string;
+      model?: string;
+      tokens: number;
+      cost: number;
+      count: number;
+    }>;
     daily: Array<{
       date: string;
       tokens: number;

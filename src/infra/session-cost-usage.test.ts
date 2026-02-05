@@ -204,6 +204,13 @@ describe("session cost usage", () => {
     expect(summary?.modelUsage?.[0]?.provider).toBe("openai");
     expect(summary?.modelUsage?.[0]?.model).toBe("gpt-5.2");
     expect(summary?.durationMs).toBe(5 * 60 * 1000);
+    expect(summary?.latency?.count).toBe(1);
+    expect(summary?.latency?.avgMs).toBe(5 * 60 * 1000);
+    expect(summary?.latency?.p95Ms).toBe(5 * 60 * 1000);
+    expect(summary?.dailyLatency?.[0]?.date).toBe("2026-02-01");
+    expect(summary?.dailyLatency?.[0]?.count).toBe(1);
+    expect(summary?.dailyModelUsage?.[0]?.date).toBe("2026-02-01");
+    expect(summary?.dailyModelUsage?.[0]?.model).toBe("gpt-5.2");
   });
 
   it("does not exclude sessions with mtime after endMs during discovery", async () => {

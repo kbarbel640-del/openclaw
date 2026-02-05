@@ -240,6 +240,7 @@ export class OpenClawApp extends LitElement {
   @state() usageSelectedSessions: string[] = [];
   @state() usageSelectedDays: string[] = [];
   @state() usageChartMode: "tokens" | "cost" = "cost";
+  @state() usageDailyChartMode: "total" | "by-type" = "total";
   @state() usageTimeSeriesMode: "cumulative" | "per-turn" = "per-turn";
   @state() usageTimeSeries: import("./types.js").SessionUsageTimeSeries | null = null;
   @state() usageTimeSeriesLoading = false;

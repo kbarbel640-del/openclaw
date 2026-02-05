@@ -3,7 +3,10 @@ import type { SessionEntry, SessionSystemPromptReport } from "../../config/sessi
 import type {
   CostUsageSummary,
   SessionCostSummary,
+  SessionDailyLatency,
+  SessionDailyModelUsage,
   SessionMessageCounts,
+  SessionLatencyStats,
   SessionModelUsage,
   SessionToolUsage,
 } from "../../infra/session-cost-usage.js";
@@ -191,6 +194,9 @@ export type SessionsUsageAggregates = {
   byProvider: SessionModelUsage[];
   byAgent: Array<{ agentId: string; totals: CostUsageSummary["totals"] }>;
   byChannel: Array<{ channel: string; totals: CostUsageSummary["totals"] }>;
+  latency?: SessionLatencyStats;
+  dailyLatency?: SessionDailyLatency[];
+  modelDaily?: SessionDailyModelUsage[];
   daily: Array<{
     date: string;
     tokens: number;
@@ -374,6 +380,18 @@ export const usageHandlers: GatewayRequestHandlers = {
         errors: number;
       }
     >();
+    const latencyTotals = {
+      count: 0,
+      sum: 0,
+      min: Number.POSITIVE_INFINITY,
+      max: 0,
+      p95Max: 0,
+    };
+    const dailyLatencyMap = new Map<
+      string,
+      { date: string; count: number; sum: number; min: number; max: number; p95Max: number }
+    >();
+    const modelDailyMap = new Map<string, SessionDailyModelUsage>();
 
     const emptyTotals = (): CostUsageSummary["totals"] => ({
       input: 0,
@@ -479,6 +497,56 @@ export const usageHandlers: GatewayRequestHandlers = {
           }
         }
 
+        if (usage.latency) {
+          const { count, avgMs, minMs, maxMs, p95Ms } = usage.latency;
+          if (count > 0) {
+            latencyTotals.count += count;
+            latencyTotals.sum += avgMs * count;
+            latencyTotals.min = Math.min(latencyTotals.min, minMs);
+            latencyTotals.max = Math.max(latencyTotals.max, maxMs);
+            latencyTotals.p95Max = Math.max(latencyTotals.p95Max, p95Ms);
+          }
+        }
+
+        if (usage.dailyLatency) {
+          for (const day of usage.dailyLatency) {
+            const existing = dailyLatencyMap.get(day.date) ?? {
+              date: day.date,
+              count: 0,
+              sum: 0,
+              min: Number.POSITIVE_INFINITY,
+              max: 0,
+              p95Max: 0,
+            };
+            existing.count += day.count;
+            existing.sum += day.avgMs * day.count;
+            existing.min = Math.min(existing.min, day.minMs);
+            existing.max = Math.max(existing.max, day.maxMs);
+            existing.p95Max = Math.max(existing.p95Max, day.p95Ms);
+            dailyLatencyMap.set(day.date, existing);
+          }
+        }
+
+        if (usage.dailyModelUsage) {
+          for (const entry of usage.dailyModelUsage) {
+            const key = `${entry.date}::${entry.provider ?? "unknown"}::${entry.model ?? "unknown"}`;
+            const existing =
+              modelDailyMap.get(key) ??
+              ({
+                date: entry.date,
+                provider: entry.provider,
+                model: entry.model,
+                tokens: 0,
+                cost: 0,
+                count: 0,
+              } as SessionDailyModelUsage);
+            existing.tokens += entry.tokens;
+            existing.cost += entry.cost;
+            existing.count += entry.count;
+            modelDailyMap.set(key, existing);
+          }
+        }
+
         if (agentId) {
           const agentTotals = byAgentMap.get(agentId) ?? emptyTotals();
           mergeTotals(agentTotals, usage);
@@ -580,6 +648,29 @@ export const usageHandlers: GatewayRequestHandlers = {
       byChannel: Array.from(byChannelMap.entries())
         .map(([name, totals]) => ({ channel: name, totals }))
         .toSorted((a, b) => b.totals.totalCost - a.totals.totalCost),
+      latency:
+        latencyTotals.count > 0
+          ? {
+              count: latencyTotals.count,
+              avgMs: latencyTotals.sum / latencyTotals.count,
+              minMs: latencyTotals.min === Number.POSITIVE_INFINITY ? 0 : latencyTotals.min,
+              maxMs: latencyTotals.max,
+              p95Ms: latencyTotals.p95Max,
+            }
+          : undefined,
+      dailyLatency: Array.from(dailyLatencyMap.values())
+        .map((entry) => ({
+          date: entry.date,
+          count: entry.count,
+          avgMs: entry.count ? entry.sum / entry.count : 0,
+          minMs: entry.min === Number.POSITIVE_INFINITY ? 0 : entry.min,
+          maxMs: entry.max,
+          p95Ms: entry.p95Max,
+        }))
+        .toSorted((a, b) => a.date.localeCompare(b.date)),
+      modelDaily: Array.from(modelDailyMap.values()).toSorted(
+        (a, b) => a.date.localeCompare(b.date) || b.cost - a.cost,
+      ),
       daily: Array.from(dailyAggregateMap.values()).toSorted((a, b) =>
         a.date.localeCompare(b.date),
       ),
