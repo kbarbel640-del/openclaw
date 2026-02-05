@@ -86,13 +86,13 @@ export function recomputeNextRuns(state: CronServiceState) {
 
 export function nextWakeAtMs(state: CronServiceState) {
   const jobs = state.store?.jobs ?? [];
-  const enabled = jobs.filter((j) => j.enabled && typeof j.state.nextRunAtMs === "number");
+  const enabled = jobs.filter((j) => j.enabled && typeof j.state?.nextRunAtMs === "number");
   if (enabled.length === 0) {
     return undefined;
   }
   return enabled.reduce(
-    (min, j) => Math.min(min, j.state.nextRunAtMs as number),
-    enabled[0].state.nextRunAtMs as number,
+    (min, j) => Math.min(min, j.state!.nextRunAtMs as number),
+    enabled[0].state!.nextRunAtMs as number,
   );
 }
 
@@ -326,7 +326,7 @@ export function isJobDue(job: CronJob, nowMs: number, opts: { forced: boolean })
   if (opts.forced) {
     return true;
   }
-  return job.enabled && typeof job.state.nextRunAtMs === "number" && nowMs >= job.state.nextRunAtMs;
+  return job.enabled && typeof job.state?.nextRunAtMs === "number" && nowMs >= job.state!.nextRunAtMs;
 }
 
 export function resolveJobPayloadTextForMain(job: CronJob): string | undefined {
