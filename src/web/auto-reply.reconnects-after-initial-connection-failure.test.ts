@@ -114,14 +114,10 @@ describe("web auto-reply", () => {
       runError = err;
     });
 
-    const waitForSecondCall = async () => {
-      const started = Date.now();
-      while (listenerFactory.mock.calls.length < 2 && Date.now() - started < 200) {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-    };
-
-    await waitForSecondCall();
+    await vi.waitFor(() => expect(listenerFactory).toHaveBeenCalledTimes(2), {
+      timeout: 1000,
+    });
+    expect(sleep).toHaveBeenCalled();
     expect(listenerFactory).toHaveBeenCalledTimes(2);
     expect(runError).toBeNull();
 
