@@ -3,6 +3,8 @@ import { loadConfig } from "../config/config.js";
 import { defaultRuntime } from "../runtime.js";
 import { runSecurityAudit } from "../security/audit.js";
 import { fixSecurityFootguns } from "../security/fix.js";
+import { runGraspAssessment } from "../security/grasp/index.js";
+import { formatGraspReport } from "../security/grasp/format.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { isRich, theme } from "../terminal/theme.js";
 import { shortenHomeInString, shortenHomePath } from "../utils.js";
@@ -12,6 +14,14 @@ type SecurityAuditOptions = {
   json?: boolean;
   deep?: boolean;
   fix?: boolean;
+};
+
+type SecurityGraspOptions = {
+  agent?: string;
+  model?: string;
+  verbose?: boolean;
+  noCache?: boolean;
+  json?: boolean;
 };
 
 function formatSummary(summary: { critical: number; warn: number; info: number }): string {
@@ -29,7 +39,7 @@ function formatSummary(summary: { critical: number; warn: number; info: number }
 export function registerSecurityCli(program: Command) {
   const security = program
     .command("security")
-    .description("Security tools (audit)")
+    .description("Security tools (audit, grasp)")
     .addHelpText(
       "after",
       () =>
@@ -154,5 +164,46 @@ export function registerSecurityCli(program: Command) {
       render("info");
 
       defaultRuntime.log(lines.join("\n"));
+    });
+
+  security
+    .command("grasp")
+    .description("AI-driven self-assessment of agent risk profile (GRASP)")
+    .option("--agent <id>", "Analyze specific agent only (default: all)")
+    .option("--model <model>", "Model to use for analysis")
+    .option("--verbose", "Show AI reasoning for each dimension", false)
+    .option("--no-cache", "Force fresh analysis (ignore cache)")
+    .option("--json", "Output as JSON", false)
+    .action(async (opts: SecurityGraspOptions) => {
+      const cfg = loadConfig();
+
+      const report = await runGraspAssessment({
+        config: cfg,
+        agentId: opts.agent,
+        model: opts.model,
+        verbose: opts.verbose,
+        noCache: opts.noCache,
+      });
+
+      if (opts.json) {
+        defaultRuntime.log(JSON.stringify(report, null, 2));
+        return;
+      }
+
+      defaultRuntime.log(formatGraspReport(report, { verbose: opts.verbose }));
+
+      // Exit code based on overall risk level
+      const exitCode =
+        report.overallLevel === "critical"
+          ? 3
+          : report.overallLevel === "high"
+            ? 2
+            : report.overallLevel === "medium"
+              ? 1
+              : 0;
+
+      if (exitCode > 0) {
+        process.exitCode = exitCode;
+      }
     });
 }
