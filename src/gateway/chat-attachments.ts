@@ -193,14 +193,12 @@ export async function parseMessageWithAttachments(
     const sniffedIsAudio = isAudioMime(sniffedMime);
     const providedIsAudio = isAudioMime(providedMime);
     if (sniffedMime && !isImageMime(sniffedMime)) {
-      // If the payload is audio, drop it silently here; audio is handled separately.
       if (!sniffedIsAudio) {
         log?.warn(`attachment ${label}: detected non-image (${sniffedMime}), dropping`);
       }
       continue;
     }
     if (!sniffedMime && !isImageMime(providedMime)) {
-      // If the declared type is audio, drop it silently for image parsing.
       if (!providedIsAudio) {
         log?.warn(`attachment ${label}: unable to detect image mime type, dropping`);
       }
