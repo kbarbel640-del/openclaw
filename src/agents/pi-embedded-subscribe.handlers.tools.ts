@@ -19,8 +19,8 @@ const LOOP_DETECTION_FAILURE_THRESHOLD = 2;
 const LOOP_DETECTION_TIME_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
 /* eslint-disable no-bitwise */
-function hashToolArgs(args: any): string {
-  const str = args ? JSON.stringify(args) : "null";
+function hashToolArgs(args: unknown): string {
+  const str = args ? JSON.stringify(args as any) : "null";
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
     hash = (hash * 33) ^ str.charCodeAt(i);
@@ -59,7 +59,7 @@ function checkForLoop(
   // Count recent failures for this specific action
   const recentFailures = ctx.state.toolExecutionHistory.filter(
     (entry) =>
-      entry.toolName === toolName && entry.argsHash === argsHash && entry.success === false,
+      entry.toolName === toolName && entry.argsHash === argsHash && !entry.success,
   );
 
   const failureCount = recentFailures.length;
