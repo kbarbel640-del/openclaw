@@ -134,7 +134,6 @@ export function isDomainAllowed(url: string, allowedDomains: string[]): boolean 
 }
 
 export function addToAllowlist(domain: string): void {
-  const current = loadAllowlist();
   const normalized = domain.trim().toLowerCase();
 
   // We only save user domains to the file, not the defaults
