@@ -366,6 +366,24 @@ export class MediaAttachmentCache {
     return { path: tmpPath, cleanup: entry.tempCleanup };
   }
 
+  async getSize(attachmentIndex: number): Promise<number | undefined> {
+    const entry = await this.ensureEntry(attachmentIndex);
+
+    // If we have a buffer, return its size
+    if (entry.buffer) {
+      return entry.buffer.length;
+    }
+
+    // If we have a local path, stat it
+    if (entry.resolvedPath) {
+      return await this.ensureLocalStat(entry);
+    }
+
+    // For remote URLs, we can't determine size without fetching
+    // Return undefined to indicate unknown size
+    return undefined;
+  }
+
   async cleanup(): Promise<void> {
     const cleanups: Array<Promise<void> | void> = [];
     for (const entry of this.entries.values()) {

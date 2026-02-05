@@ -1205,38 +1205,80 @@ export async function runCapability(params: {
 
   // Skip image understanding when the primary model supports vision natively.
   // The image will be injected directly into the model context instead.
-  const activeProvider = params.activeModel?.provider?.trim();
-  if (capability === "image" && activeProvider) {
-    const catalog = await loadModelCatalog({ config: cfg });
-    const entry = findModelInCatalog(catalog, activeProvider, params.activeModel?.model ?? "");
-    if (modelSupportsVision(entry)) {
-      if (shouldLogVerbose()) {
-        logVerbose("Skipping image understanding: primary model supports vision natively");
+  // However, check attachment sizes first - don't skip CLI for oversized images.
+  // Anthropic's limit is 5MB for base64-encoded images.
+  // Base64 adds ~33% overhead, so we check against 3.75MB (5MB / 1.33) to be safe.
+  const MAX_NATIVE_VISION_BYTES = 3_750_000; // ~3.75MB to account for base64 overhead
+  let hasOversizedAttachment = false;
+
+  console.error(
+    `[image-size-check] ENTERING size check, capability=${capability}, selected=${selected.length}`,
+  );
+
+  if (capability === "image") {
+    for (const att of selected) {
+      try {
+        const size = await params.attachments.getSize(att.index);
+        console.error(
+          `[image-size-check] attachment ${att.index}: size=${size}, threshold=${MAX_NATIVE_VISION_BYTES}`,
+        );
+        if (size === undefined) {
+          // Can't determine size (likely remote URL) - be conservative and use CLI
+          console.error(`[image-size-check] size unknown, forcing CLI`);
+          hasOversizedAttachment = true;
+          break;
+        }
+        if (size > MAX_NATIVE_VISION_BYTES) {
+          console.error(`[image-size-check] size exceeds threshold, forcing CLI`);
+          hasOversizedAttachment = true;
+          break;
+        }
+      } catch (err) {
+        // If we can't determine size, be conservative and use CLI
+        console.error(`[image-size-check] error getting size: ${err}, forcing CLI`);
+        hasOversizedAttachment = true;
+        break;
       }
-      const model = params.activeModel?.model?.trim();
-      const reason = "primary model supports vision natively";
-      return {
-        outputs: [],
-        decision: {
-          capability,
-          outcome: "skipped",
-          attachments: selected.map((item) => {
-            const attempt = {
-              type: "provider" as const,
-              provider: activeProvider,
-              model: model || undefined,
-              outcome: "skipped" as const,
-              reason,
-            };
-            return {
-              attachmentIndex: item.index,
-              attempts: [attempt],
-              chosen: attempt,
-            };
-          }),
-        },
-      };
     }
+  }
+  console.error(`[image-size-check] hasOversizedAttachment=${hasOversizedAttachment}`);
+
+  if (!hasOversizedAttachment) {
+    const activeProvider = params.activeModel?.provider?.trim();
+    if (capability === "image" && activeProvider) {
+      const catalog = await loadModelCatalog({ config: cfg });
+      const entry = findModelInCatalog(catalog, activeProvider, params.activeModel?.model ?? "");
+      if (modelSupportsVision(entry)) {
+        if (shouldLogVerbose()) {
+          logVerbose("Skipping image understanding: primary model supports vision natively");
+        }
+        const model = params.activeModel?.model?.trim();
+        const reason = "primary model supports vision natively";
+        return {
+          outputs: [],
+          decision: {
+            capability,
+            outcome: "skipped",
+            attachments: selected.map((item) => {
+              const attempt = {
+                type: "provider" as const,
+                provider: activeProvider,
+                model: model || undefined,
+                outcome: "skipped" as const,
+                reason,
+              };
+              return {
+                attachmentIndex: item.index,
+                attempts: [attempt],
+                chosen: attempt,
+              };
+            }),
+          },
+        };
+      }
+    }
+  } else if (shouldLogVerbose()) {
+    logVerbose("Using CLI for image understanding: attachment exceeds native vision size limit");
   }
 
   const entries = resolveModelEntries({
