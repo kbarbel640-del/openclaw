@@ -21,6 +21,17 @@ MVP (current):
 - 🚧 planner + safe actions
 - 🚧 CoreMemories ingestion of wave outcomes
 
+## Autonomy policy
+
+NeuronWaves uses a policy gate for actions.
+
+- Default behavior is **prepare-then-ask** for ASK actions (generate drafts/artifacts first, then ask before external execution).
+- A "Dev Approval Mode" can be enabled via policy (more permissive defaults), while still keeping hard limits (rate/spend caps) + audit logs.
+
+Policy file (per workspace):
+
+- `.openclaw/neuronwaves/policy.json`
+
 ## Enable (env vars)
 
 NeuronWaves is **disabled by default**.
