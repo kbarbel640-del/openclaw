@@ -92,3 +92,27 @@ export function buildMoonshotModelDefinition(): ModelDefinitionConfig {
     maxTokens: MOONSHOT_DEFAULT_MAX_TOKENS,
   };
 }
+
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
+export const DEEPSEEK_DEFAULT_MODEL_ID = "deepseek-chat";
+export const DEEPSEEK_DEFAULT_MODEL_REF = `deepseek/${DEEPSEEK_DEFAULT_MODEL_ID}`;
+export const DEEPSEEK_DEFAULT_CONTEXT_WINDOW = 64000;
+export const DEEPSEEK_DEFAULT_MAX_TOKENS = 8192;
+export const DEEPSEEK_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+export function buildDeepSeekModelDefinition(): ModelDefinitionConfig {
+  return {
+    id: DEEPSEEK_DEFAULT_MODEL_ID,
+    name: "DeepSeek Chat",
+    reasoning: false,
+    input: ["text"],
+    cost: DEEPSEEK_DEFAULT_COST,
+    contextWindow: DEEPSEEK_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DEEPSEEK_DEFAULT_MAX_TOKENS,
+  };
+}

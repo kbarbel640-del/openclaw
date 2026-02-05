@@ -22,7 +22,8 @@ export type AuthChoiceGroupId =
   | "minimax"
   | "synthetic"
   | "venice"
-  | "qwen";
+  | "qwen"
+  | "deepseek";
 
 export type AuthChoiceGroup = {
   value: AuthChoiceGroupId;
@@ -127,6 +128,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     hint: "Account ID + Gateway ID + API key",
     choices: ["cloudflare-ai-gateway-api-key"],
   },
+  {
+    value: "deepseek",
+    label: "DeepSeek",
+    hint: "API key",
+    choices: ["deepseek-api-key"],
+  },
 ];
 
 export function buildAuthChoiceOptions(params: {
@@ -218,6 +225,7 @@ export function buildAuthChoiceOptions(params: {
     label: "MiniMax M2.1 Lightning",
     hint: "Faster, higher output cost",
   });
+  options.push({ value: "deepseek-api-key", label: "DeepSeek API key" });
   if (params.includeSkip) {
     options.push({ value: "skip", label: "Skip for now" });
   }

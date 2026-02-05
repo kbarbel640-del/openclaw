@@ -203,3 +203,17 @@ export async function setOpencodeZenApiKey(key: string, agentDir?: string) {
     agentDir: resolveAuthAgentDir(agentDir),
   });
 }
+
+export const DEEPSEEK_DEFAULT_MODEL_REF = "deepseek/deepseek-chat";
+
+export async function setDeepSeekApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "deepseek:default",
+    credential: {
+      type: "api_key",
+      provider: "deepseek",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
