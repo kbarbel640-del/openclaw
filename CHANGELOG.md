@@ -8,6 +8,7 @@ Docs: https://docs.openclaw.ai
 
 - Docs: onboarding/install/i18n/exec-approvals/Control UI/exe.dev/cacheRetention updates + misc nav/typos.
 - Telegram: use shared pairing store. (#6127) Thanks @obviyus.
+- Telegram: label forum topic sessions with topic names. (#9439) Thanks @BrennerSpear.
 - Agents: add OpenRouter app attribution headers. (#5050) Thanks @alexanderatallah.
 - Agents: add system prompt safety guardrails. (#5445) Thanks @joshp123.
 - Agents: update pi-ai to 0.50.9 and rename cacheControlTtl -> cacheRetention (with back-compat mapping).
