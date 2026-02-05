@@ -62,7 +62,13 @@ export type MatrixTextContent = TextualMessageEventContent & MatrixReplyMeta;
 // 注意：MatrixMediaContent 使用 Exclude 排除 TextualMessageEventContent，
 // 因为 TextualMessageEventContent 是 MessageEventContent 的子类型，
 // 这样可以避免联合类型中出现重复类型成员
-export type MatrixMediaContent = Exclude<MessageEventContent, TextualMessageEventContent> &
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+export type MatrixMediaContent = (Exclude<
+  MessageEventContent,
+  TextualMessageEventContent
+> extends never
+  ? MessageEventContent
+  : Exclude<MessageEventContent, TextualMessageEventContent>) &
   MatrixReplyMeta & {
     info?: MatrixMediaInfo;
     url?: string;
@@ -72,6 +78,7 @@ export type MatrixMediaContent = Exclude<MessageEventContent, TextualMessageEven
     "org.matrix.msc1767.audio"?: { duration: number };
   };
 
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 export type MatrixOutboundContent = MatrixTextContent | MatrixMediaContent;
 
 export type ReactionEventContent = {
