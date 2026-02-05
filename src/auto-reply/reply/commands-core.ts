@@ -17,6 +17,7 @@ import {
   handleContextCommand,
   handleHelpCommand,
   handleStatusCommand,
+  handleViperCommand,
   handleWhoamiCommand,
 } from "./commands-info.js";
 import { handleModelsCommand } from "./commands-models.js";
@@ -49,6 +50,7 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
       handleHelpCommand,
       handleCommandsListCommand,
       handleStatusCommand,
+      handleViperCommand,
       handleAllowlistCommand,
       handleApproveCommand,
       handleContextCommand,

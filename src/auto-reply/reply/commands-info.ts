@@ -202,3 +202,34 @@ export const handleWhoamiCommand: CommandHandler = async (params, allowTextComma
   }
   return { shouldContinue: false, reply: { text: lines.join("\n") } };
 };
+
+const VIPERR_MESSAGE = `📋 VIPERR — Обязательный старт сессии
+
+📖 ПРОЧИТАЙ:
+1. SOUL.md — алгоритм работы
+2. PREFLIGHT.md — чеклист до/после ответа
+3. SESSION-STATE.md — что делали
+4. memory/learnings/global.md — твои ошибки
+5. memory/YYYY-MM-DD.md — сегодняшний контекст
+
+✅ СДЕЛАЙ:
+• Следуй SOUL.md для каждого ответа
+• Не повторяй ошибки из learnings
+• Стримь прогресс, не молчи`;
+
+export const handleViperCommand: CommandHandler = async (params, allowTextCommands) => {
+  if (!allowTextCommands) {
+    return null;
+  }
+  if (params.command.commandBodyNormalized !== "/viperr") {
+    return null;
+  }
+  if (!params.command.isAuthorizedSender) {
+    logVerbose(
+      `Ignoring /viperr from unauthorized sender: ${params.command.senderId || "<unknown>"}`,
+    );
+    return { shouldContinue: false };
+  }
+  // Inject into agent context instead of replying to user
+  return { shouldContinue: true, injectContent: VIPERR_MESSAGE };
+};

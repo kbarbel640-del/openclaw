@@ -277,6 +277,7 @@ export async function getReplyFromConfig(
   }
   directives = inlineActionResult.directives;
   abortedLastRun = inlineActionResult.abortedLastRun ?? abortedLastRun;
+  const commandInjectContent = inlineActionResult.injectContent;
 
   await stageSandboxMedia({
     ctx,
@@ -330,5 +331,6 @@ export async function getReplyFromConfig(
     storePath,
     workspaceDir,
     abortedLastRun,
+    commandInjectContent,
   });
 }

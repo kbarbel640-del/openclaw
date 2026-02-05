@@ -173,6 +173,13 @@ function buildChatCommands(): ChatCommandDefinition[] {
       category: "status",
     }),
     defineChatCommand({
+      key: "viperr",
+      nativeName: "viperr",
+      description: "Show session startup checklist.",
+      textAlias: "/viperr",
+      category: "status",
+    }),
+    defineChatCommand({
       key: "allowlist",
       description: "List/add/remove allowlist entries.",
       textAlias: "/allowlist",

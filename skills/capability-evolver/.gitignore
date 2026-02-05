@@ -1,0 +1,6 @@
+node_modules/
+.env
+memory/
+assets/gep/candidates.jsonl
+dist-public/
+

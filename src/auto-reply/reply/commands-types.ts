@@ -55,6 +55,8 @@ export type HandleCommandsParams = {
 export type CommandHandlerResult = {
   reply?: ReplyPayload;
   shouldContinue: boolean;
+  /** Content to inject into agent context (user message) without sending reply to user */
+  injectContent?: string;
 };
 
 export type CommandHandler = (

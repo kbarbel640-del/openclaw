@@ -106,6 +106,8 @@ type RunPreparedReplyParams = {
   storePath?: string;
   workspaceDir: string;
   abortedLastRun: boolean;
+  /** Content injected by commands (e.g. /viperr) to append to agent context */
+  commandInjectContent?: string;
 };
 
 export async function runPreparedReply(
@@ -148,6 +150,7 @@ export async function runPreparedReply(
     storePath,
     workspaceDir,
     sessionStore,
+    commandInjectContent,
   } = params;
   let {
     sessionEntry,
@@ -226,6 +229,12 @@ export async function runPreparedReply(
       }
     }
   }
+
+  // Inject content from commands (e.g. /viperr) into agent context
+  if (commandInjectContent) {
+    baseBodyFinal = `${baseBodyFinal}\n\n---\n\n## Command Instructions (auto-injected)\n\n${commandInjectContent}`;
+  }
+
   const baseBodyTrimmed = baseBodyFinal.trim();
   if (!baseBodyTrimmed) {
     await typing.onReplyStart();

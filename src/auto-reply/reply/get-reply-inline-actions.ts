@@ -23,6 +23,8 @@ export type InlineActionResult =
       kind: "continue";
       directives: InlineDirectives;
       abortedLastRun: boolean;
+      /** Content injected by commands to append to agent context */
+      injectContent?: string;
     };
 
 // oxlint-disable-next-line typescript/no-explicit-any
@@ -380,5 +382,6 @@ export async function handleInlineActions(params: {
     kind: "continue",
     directives,
     abortedLastRun,
+    injectContent: commandResult.injectContent,
   };
 }
