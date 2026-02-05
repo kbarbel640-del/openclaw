@@ -3,6 +3,7 @@ import type { ChannelOutboundAdapter } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { sendMessageDiscord } from "../../discord/send.js";
 import type { sendMessageIMessage } from "../../imessage/send.js";
+import type { PluginHookMessageContext } from "../../plugins/types.js";
 import type { sendMessageSlack } from "../../slack/send.js";
 import type { sendMessageTelegram } from "../../telegram/send.js";
 import type { sendMessageWhatsApp } from "../../web/outbound.js";
@@ -21,6 +22,8 @@ import {
   appendAssistantMessageToSessionTranscript,
   resolveMirroredTranscriptText,
 } from "../../config/sessions.js";
+import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
+import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { markdownToSignalTextChunks, type SignalTextStyleRange } from "../../signal/format.js";
 import { sendMessageSignal } from "../../signal/send.js";
 import { normalizeReplyPayloadsForDelivery } from "./payloads.js";
@@ -371,5 +374,49 @@ export async function deliverOutboundPayloads(params: {
       });
     }
   }
+
+  // Trigger message_sent hooks (plugin and internal) - refs #8807
+  if (results.length > 0) {
+    const lastResult = results.at(-1);
+    const sentContent = normalizedPayloads.map((p) => p.text ?? "").join("\n");
+    const hookContext: PluginHookMessageContext = {
+      channelId: channel,
+      accountId: accountId ?? undefined,
+      conversationId: to,
+    };
+
+    // Trigger plugin hooks (fire-and-forget)
+    const hookRunner = getGlobalHookRunner();
+    if (hookRunner?.hasHooks("message_sent")) {
+      void hookRunner
+        .runMessageSent(
+          {
+            to,
+            content: sentContent,
+            success: true,
+          },
+          hookContext,
+        )
+        .catch(() => {
+          // Swallow plugin hook errors - they shouldn't break message delivery
+        });
+    }
+
+    // Bridge to internal hooks (HOOK.md discovery system)
+    void triggerInternalHook(
+      createInternalHookEvent("message", "sent", params.mirror?.sessionKey ?? "", {
+        to,
+        content: sentContent,
+        success: true,
+        channelId: channel,
+        accountId: accountId ?? undefined,
+        conversationId: to,
+        messageId: lastResult?.messageId,
+      }),
+    ).catch(() => {
+      // Swallow internal hook errors - they shouldn't break message delivery
+    });
+  }
+
   return results;
 }
