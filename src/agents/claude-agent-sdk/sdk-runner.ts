@@ -395,9 +395,7 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
 
   let sdk;
   try {
-    log.trace("Loading Claude Agent SDK...");
     sdk = await loadClaudeAgentSdk();
-    log.trace("Claude Agent SDK loaded successfully");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
@@ -440,7 +438,6 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
 
   let bridgeResult;
   try {
-    log.trace(`Bridging ${params.tools.length} tools to MCP server "${mcpServerName}"...`);
     bridgeResult = await bridgeClawdbrainToolsToMcpServer({
       name: mcpServerName,
       tools: params.tools,
@@ -670,8 +667,6 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
 
   try {
     emitEvent("sdk", { type: "query_start" });
-    const promptLen = typeof prompt === "string" ? prompt.length : "(async)";
-    log.trace(`Starting SDK query (prompt: ${promptLen} chars, maxTurns: ${sdkOptions.maxTurns})`);
 
     const stream = await coerceAsyncIterable(
       sdk.query({
@@ -679,7 +674,6 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
         options: sdkOptions as Record<string, unknown>,
       }),
     );
-    log.trace("SDK query stream created, iterating events...");
 
     for await (const event of stream) {
       // Check abort before processing each event.
@@ -882,7 +876,6 @@ export async function runSdkAgent(params: SdkRunnerParams): Promise<SdkRunnerRes
         const sessionId = event.session_id ?? event.sessionId;
         if (typeof sessionId === "string" && sessionId) {
           returnedSessionId = sessionId;
-          log.trace(`SDK session ID from system event: ${sessionId}`);
         }
       }
 

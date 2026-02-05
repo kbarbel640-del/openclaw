@@ -47,28 +47,28 @@ const PROVIDER_AUTH_PROFILES: Record<string, string> = {
 async function tryAsyncOAuthResolution(
   entry: SdkProviderEntry,
   params: { config?: OpenClawConfig; agentDir?: string },
-): Promise<SdkProviderEntry> {
+): Promise<{ entry: SdkProviderEntry; authSource?: string }> {
   // Only attempt if we still don't have an auth token.
   if (entry.config.env?.ANTHROPIC_AUTH_TOKEN) {
-    return entry;
+    return { entry };
   }
 
   // Skip for anthropic provider — OAuth tokens don't work via env var.
   // The anthropic provider should use Claude Code's built-in auth or keychain fallback.
   if (entry.key === "anthropic") {
-    return entry;
+    return { entry };
   }
 
   const profileId = PROVIDER_AUTH_PROFILES[entry.key];
   if (!profileId) {
-    return entry;
+    return { entry };
   }
 
   let store;
   try {
     store = ensureAuthProfileStore(params.agentDir);
   } catch {
-    return entry;
+    return { entry };
   }
 
   try {
@@ -79,23 +79,25 @@ async function tryAsyncOAuthResolution(
       agentDir: params.agentDir,
     });
     if (resolved?.apiKey) {
-      log.trace(`Resolved API key via async OAuth for ${entry.key}`);
       return {
-        ...entry,
-        config: {
-          ...entry.config,
-          env: {
-            ...entry.config.env,
-            ANTHROPIC_AUTH_TOKEN: resolved.apiKey,
+        entry: {
+          ...entry,
+          config: {
+            ...entry.config,
+            env: {
+              ...entry.config.env,
+              ANTHROPIC_AUTH_TOKEN: resolved.apiKey,
+            },
           },
         },
+        authSource: "OAuth",
       };
     }
   } catch (err) {
     log.warn(`Async OAuth resolution failed for ${entry.key}: ${String(err)}`);
   }
 
-  return entry;
+  return { entry };
 }
 
 // ---------------------------------------------------------------------------
@@ -115,18 +117,21 @@ async function tryAsyncOAuthResolution(
  *
  * Only attempts when no auth token is already configured.
  */
-function tryPlatformCredentialResolution(entry: SdkProviderEntry): SdkProviderEntry {
+function tryPlatformCredentialResolution(entry: SdkProviderEntry): {
+  entry: SdkProviderEntry;
+  authSource?: string;
+} {
   // Only attempt if we still don't have an auth token.
   if (entry.config.env?.ANTHROPIC_AUTH_TOKEN) {
-    return entry;
+    return { entry };
   }
   if (entry.config.env?.ANTHROPIC_API_KEY) {
-    return entry;
+    return { entry };
   }
 
   // Only for the default anthropic provider (subscription auth).
   if (entry.key !== "anthropic") {
-    return entry;
+    return { entry };
   }
 
   const platform = os.platform();
@@ -143,21 +148,24 @@ function tryPlatformCredentialResolution(entry: SdkProviderEntry): SdkProviderEn
     return tryFileBasedCredentialResolution(entry);
   }
 
-  return entry;
+  return { entry };
 }
 
 /**
  * Try to read Claude Code's OAuth access token from macOS Keychain.
  * Uses service name "Claude Code-credentials" (the name keytar uses).
  */
-function tryMacOsKeychainResolution(entry: SdkProviderEntry): SdkProviderEntry {
+function tryMacOsKeychainResolution(entry: SdkProviderEntry): {
+  entry: SdkProviderEntry;
+  authSource?: string;
+} {
   try {
     const username = os.userInfo().username;
     const cmd = `security find-generic-password -s "Claude Code-credentials" -a "${username}" -w 2>/dev/null`;
     const output = execSync(cmd, { encoding: "utf-8", timeout: 5000 }).trim();
 
     if (!output) {
-      return entry;
+      return { entry };
     }
 
     const parsed = JSON.parse(output);
@@ -168,7 +176,7 @@ function tryMacOsKeychainResolution(entry: SdkProviderEntry): SdkProviderEntry {
     log.trace(`macOS Keychain resolution failed: ${String(err)}`);
   }
 
-  return entry;
+  return { entry };
 }
 
 /**
@@ -182,7 +190,10 @@ function tryMacOsKeychainResolution(entry: SdkProviderEntry): SdkProviderEntry {
  * The CredentialManager PowerShell module may not be installed on all systems,
  * so we fall back to file-based credentials which Claude Code also supports.
  */
-function tryWindowsCredentialResolution(entry: SdkProviderEntry): SdkProviderEntry {
+function tryWindowsCredentialResolution(entry: SdkProviderEntry): {
+  entry: SdkProviderEntry;
+  authSource?: string;
+} {
   // First, try Windows Credential Manager via PowerShell.
   // This requires the CredentialManager module: Install-Module -Name CredentialManager
   try {
@@ -253,14 +264,14 @@ if ($result) { Write-Output $result }
         const parsed = JSON.parse(output);
         const accessToken = parsed?.claudeAiOauth?.accessToken;
         const result = processAccessToken(entry, accessToken, "Windows Credential Manager");
-        if (result !== entry) {
+        if (result.authSource) {
           return result;
         }
       } catch {
         // Output wasn't JSON, try as raw token
         if (output.startsWith("sk-ant-")) {
           const result = processAccessToken(entry, output, "Windows Credential Manager");
-          if (result !== entry) {
+          if (result.authSource) {
             return result;
           }
         }
@@ -279,7 +290,10 @@ if ($result) { Write-Output $result }
  * Claude Code stores credentials at ~/.claude/.credentials.json on Linux
  * and can also use this as a fallback on Windows.
  */
-function tryFileBasedCredentialResolution(entry: SdkProviderEntry): SdkProviderEntry {
+function tryFileBasedCredentialResolution(entry: SdkProviderEntry): {
+  entry: SdkProviderEntry;
+  authSource?: string;
+} {
   try {
     const fs = require("node:fs") as typeof import("node:fs");
     const path = require("node:path") as typeof import("node:path");
@@ -289,12 +303,12 @@ function tryFileBasedCredentialResolution(entry: SdkProviderEntry): SdkProviderE
 
     if (!fs.existsSync(credPath)) {
       log.trace(`No credentials file at ${credPath}`);
-      return entry;
+      return { entry };
     }
 
     const content = fs.readFileSync(credPath, "utf-8").trim();
     if (!content) {
-      return entry;
+      return { entry };
     }
 
     const parsed = JSON.parse(content);
@@ -305,7 +319,7 @@ function tryFileBasedCredentialResolution(entry: SdkProviderEntry): SdkProviderE
     log.trace(`File-based credential resolution failed: ${String(err)}`);
   }
 
-  return entry;
+  return { entry };
 }
 
 /**
@@ -317,30 +331,31 @@ function processAccessToken(
   entry: SdkProviderEntry,
   accessToken: unknown,
   source: string,
-): SdkProviderEntry {
+): { entry: SdkProviderEntry; authSource?: string } {
   if (typeof accessToken !== "string" || !accessToken.startsWith("sk-ant-")) {
-    return entry;
+    return { entry };
   }
 
   // Credentials exist. For OAuth tokens (sk-ant-oat*), we can't pass them
   // as ANTHROPIC_API_KEY because they're not API keys. Instead, don't set any auth
   // env var and let Claude Code access the credential store itself.
   if (accessToken.startsWith("sk-ant-oat")) {
-    log.debug(`Found OAuth token in ${source} - letting Claude Code handle auth`);
-    return entry;
+    return { entry, authSource: source };
   }
 
   // For actual API keys stored in credential store (unlikely but possible), pass them through.
-  log.debug(`Resolved API key from ${source}`);
   return {
-    ...entry,
-    config: {
-      ...entry.config,
-      env: {
-        ...entry.config.env,
-        ANTHROPIC_API_KEY: accessToken,
+    entry: {
+      ...entry,
+      config: {
+        ...entry.config,
+        env: {
+          ...entry.config.env,
+          ANTHROPIC_API_KEY: accessToken,
+        },
       },
     },
+    authSource: source,
   };
 }
 
@@ -502,6 +517,7 @@ export async function runSdkAgentAdapted(
     config: params.config,
     agentId,
   });
+  let authSource: string | undefined;
 
   // Enrich with auth profile keys.
   if (providerEntry && authStore) {
@@ -514,28 +530,34 @@ export async function runSdkAgentAdapted(
 
   // Fall back to async OAuth resolution if sync enrichment didn't produce a key.
   if (providerEntry && !providerEntry.config.env?.ANTHROPIC_AUTH_TOKEN) {
-    providerEntry = await tryAsyncOAuthResolution(providerEntry, {
+    const result = await tryAsyncOAuthResolution(providerEntry, {
       config: params.config,
       agentDir: params.agentDir,
     });
+    providerEntry = result.entry;
+    authSource = result.authSource;
   }
 
   // Fall back to platform credential store for Claude Code subscription auth.
   // This validates credentials exist and lets Claude Code use its own credential access.
-  if (providerEntry && !providerEntry.config.env?.ANTHROPIC_AUTH_TOKEN) {
-    providerEntry = tryPlatformCredentialResolution(providerEntry);
+  if (providerEntry && !providerEntry.config.env?.ANTHROPIC_AUTH_TOKEN && !authSource) {
+    const result = tryPlatformCredentialResolution(providerEntry);
+    providerEntry = result.entry;
+    authSource = result.authSource;
   } else if (!providerEntry) {
     // Create a default anthropic provider entry for credential resolution
     const defaultEntry: SdkProviderEntry = {
       key: "anthropic",
       config: { name: "Anthropic (Claude Code)" },
     };
-    providerEntry = tryPlatformCredentialResolution(defaultEntry);
+    const result = tryPlatformCredentialResolution(defaultEntry);
+    providerEntry = result.entry;
+    authSource = result.authSource;
   }
 
   log.debug(
-    `Running SDK agent` +
-      (providerEntry ? ` with provider "${providerEntry.config.name}"` : " (default provider)"),
+    `Running SDK agent with provider "${providerEntry?.config.name ?? "default"}"` +
+      (authSource ? ` (auth: ${authSource})` : ""),
   );
 
   const sdkResult = await runSdkAgent({

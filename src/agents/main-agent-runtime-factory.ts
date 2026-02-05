@@ -177,9 +177,6 @@ export async function createSdkMainAgentRuntime(
     `sessionKey=${params.sessionKey ?? "n/a"}`,
     `agentId=${agentIdForMcp ?? "n/a"}`,
   ].join(" ");
-  log.debug(
-    `SDK runtime tool override: ${params.tools ? params.tools.length : "undefined"}; mcpTools=${mcpTools.length} ${logContext}`,
-  );
 
   const tools =
     params.tools ??
@@ -210,7 +207,9 @@ export async function createSdkMainAgentRuntime(
       isToolBridgeContext: true,
     });
 
-  log.debug(`SDK runtime final tool count: ${tools.length} ${logContext}`);
+  log.debug(
+    `SDK runtime initialized: tools=${tools.length} (mcp=${mcpTools.length}, override=${params.tools ? params.tools.length : "none"}) ${logContext}`,
+  );
 
   const sdkCfg = params.config?.agents?.main?.sdk;
 
