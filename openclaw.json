@@ -1,0 +1,169 @@
+{
+  "$schema": "https://openclaw.ai/schema/config.json",
+  "meta": {
+    "lastTouchedVersion": "2026.2.3",
+    "lastTouchedAt": "2026-02-03T00:00:00Z"
+  },
+  "logging": {
+    "level": "info",
+    "consoleLevel": "info",
+    "consoleStyle": "pretty"
+  },
+  "browser": {
+    "enabled": true,
+    "headless": false,
+    "evaluateEnabled": true,
+    "noSandbox": true
+  },
+  "tools": {
+    "profile": "full",
+    "web": {
+      "search": {
+        "enabled": true,
+        "maxResults": 10,
+        "timeoutSeconds": 30
+      },
+      "fetch": {
+        "enabled": true,
+        "maxChars": 100000,
+        "timeoutSeconds": 60
+      }
+    },
+    "media": {
+      "imageGeneration": {
+        "enabled": true
+      },
+      "imageEdit": {
+        "enabled": true
+      },
+      "tts": {
+        "enabled": true
+      },
+      "stt": {
+        "enabled": true
+      }
+    },
+    "exec": {
+      "host": "gateway",
+      "security": "full",
+      "ask": "off",
+      "timeoutSec": 300,
+      "backgroundMs": 30000,
+      "pathPrepend": [
+        "C:\\Windows\\System32",
+        "C:\\Windows",
+        "C:\\Program Files\\nodejs",
+        "C:\\Program Files\\Git\\bin",
+        "C:\\Program Files\\Python312",
+        "C:\\Users\\amont\\AppData\\Local\\pnpm",
+        "C:\\Users\\amont\\AppData\\Roaming\\npm"
+      ]
+    },
+    "message": {
+      "allowCrossContextSend": true,
+      "crossContext": {
+        "allowWithinProvider": true,
+        "allowAcrossProviders": true
+      },
+      "broadcast": {
+        "enabled": true
+      }
+    },
+    "elevated": {
+      "enabled": true
+    }
+  },
+  "agents": {
+    "concurrency": {
+      "maxParallel": 4,
+      "perAgent": 2
+    },
+    "list": [
+      {
+        "id": "main",
+        "default": true,
+        "name": "NnemoClaw Agent",
+        "workspace": "C:\\Users\\amont",
+        "model": {
+          "primary": "claude-sonnet-4-20250514",
+          "fallbacks": ["claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"]
+        },
+        "tools": {
+          "profile": "full",
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        },
+        "sandbox": {
+          "mode": "off",
+          "workspaceAccess": "rw"
+        },
+        "memorySearch": {
+          "enabled": true,
+          "sources": ["memory", "sessions"]
+        },
+        "identity": {
+          "name": "NnemoClaw",
+          "persona": "A helpful AI assistant with full access to your Windows PC"
+        }
+      }
+    ]
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "lan",
+    "controlUi": {
+      "enabled": true,
+      "allowInsecureAuth": false
+    },
+    "nodes": {
+      "browser": {
+        "mode": "auto"
+      },
+      "allowCommands": ["*"]
+    }
+  },
+  "skills": {
+    "load": {
+      "extraDirs": [
+        "C:\\Users\\amont\\.claude\\skills"
+      ],
+      "watch": true
+    },
+    "install": {
+      "nodeManager": "pnpm"
+    }
+  },
+  "plugins": {
+    "enabled": true
+  },
+  "hooks": {
+    "enabled": true
+  },
+  "cron": {
+    "enabled": true,
+    "maxConcurrentRuns": 3
+  },
+  "env": {
+    "shellEnv": {
+      "enabled": true,
+      "timeoutMs": 10000
+    },
+    "vars": {
+      "EDITOR": "code",
+      "SHELL": "powershell"
+    }
+  },
+  "session": {
+    "persistence": {
+      "enabled": true,
+      "format": "jsonl"
+    }
+  },
+  "approvals": {
+    "mode": "auto"
+  }
+}
