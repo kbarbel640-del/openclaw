@@ -987,6 +987,10 @@ export function createExecTool(
                 if (DANGEROUS_HOST_ENV_PREFIXES.some((prefix) => upperKey.startsWith(prefix))) {
                   continue;
                 }
+                // Skip PATH to prevent binary hijacking - it will be set properly later
+                if (upperKey === "PATH") {
+                  continue;
+                }
                 sanitized[key] = value;
               }
               return sanitized;
