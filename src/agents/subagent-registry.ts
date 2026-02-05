@@ -416,8 +416,8 @@ export function releaseSubagentRun(runId: string) {
   }
 }
 
-export function listSubagentRunsForRequester(requesterSessionKey: string): SubagentRunRecord[] {
-  const key = requesterSessionKey.trim();
+export function listSubagentRunsForRequester(requesterSessionKey: string | undefined): SubagentRunRecord[] {
+  const key = (requesterSessionKey ?? "").trim();
   if (!key) {
     return [];
   }

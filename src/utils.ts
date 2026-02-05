@@ -233,7 +233,11 @@ export function truncateUtf16Safe(input: string, maxLen: number): string {
   return sliceUtf16Safe(input, 0, limit);
 }
 
-export function resolveUserPath(input: string): string {
+export function resolveUserPath(input: string | null | undefined): string {
+  // Handle nullish input gracefully - callers may pass undefined during cleanup/teardown
+  if (input == null) {
+    return "";
+  }
   const trimmed = input.trim();
   if (!trimmed) {
     return trimmed;

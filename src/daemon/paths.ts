@@ -12,7 +12,11 @@ export function resolveHomeDir(env: Record<string, string | undefined>): string 
   return home;
 }
 
-export function resolveUserPathWithHome(input: string, home?: string): string {
+export function resolveUserPathWithHome(input: string | null | undefined, home?: string): string {
+  // Handle nullish input gracefully - callers may pass undefined during cleanup/teardown
+  if (input == null) {
+    return "";
+  }
   const trimmed = input.trim();
   if (!trimmed) {
     return trimmed;

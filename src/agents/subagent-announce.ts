@@ -147,9 +147,9 @@ async function sendAnnounce(item: AnnounceQueueItem) {
 
 function resolveRequesterStoreKey(
   cfg: ReturnType<typeof loadConfig>,
-  requesterSessionKey: string,
+  requesterSessionKey: string | undefined,
 ): string {
-  const raw = requesterSessionKey.trim();
+  const raw = (requesterSessionKey ?? "").trim();
   if (!raw) {
     return raw;
   }

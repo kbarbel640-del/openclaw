@@ -22,9 +22,9 @@ export function getCliSessionId(
   return undefined;
 }
 
-export function setCliSessionId(entry: SessionEntry, provider: string, sessionId: string): void {
+export function setCliSessionId(entry: SessionEntry, provider: string, sessionId: string | undefined): void {
   const normalized = normalizeProviderId(provider);
-  const trimmed = sessionId.trim();
+  const trimmed = (sessionId ?? "").trim();
   if (!trimmed) {
     return;
   }
