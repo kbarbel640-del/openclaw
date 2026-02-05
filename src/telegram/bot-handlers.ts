@@ -652,13 +652,30 @@ export const registerTelegramHandlers = ({
       runtime.error?.(danger(`[telegram] Group migration handler failed: ${String(err)}`));
     }
   });
-
+const __lastStickerByChat =
+((globalThis as any).__lastStickerByChat ??= new Map<string, string>()) as Map<string, string>;
+ 
   bot.on("message", async (ctx) => {
     try {
       const msg = ctx.message;
       if (!msg) {
         return;
       }
+      const chatId = String((msg as any)?.chat?.id ?? "");
+const stickerFileId = (msg as any)?.sticker?.file_id;
+if (chatId && stickerFileId) {
+__lastStickerByChat.set(chatId, stickerFileId);
+}
+
+const text = ((msg as any)?.text ?? "").trim().toLowerCase();
+if (text === "echo") {
+const last = chatId ? __lastStickerByChat.get(chatId) : null;
+if (!last) {
+await ctx.reply("No sticker saved yet — send me one first.");
+return;
+}
+await (ctx as any).replyWithSticker(last);
+return;
       // openVB3: aff auto-touch for Boss (Telegram)
 // Deterministic + non-blocking: keeps affection/lastMessageAt fresh without involving the model.
 try {
