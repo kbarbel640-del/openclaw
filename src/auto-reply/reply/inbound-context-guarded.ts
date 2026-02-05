@@ -103,8 +103,6 @@ export function finalizeInboundContextWithGuard<T extends Record<string, unknown
   // Update BodyForAgent if wrapping was applied
   if (result.wrapped && result.content !== contentToCheck) {
     normalized.BodyForAgent = result.content;
-    // Also update Body to maintain consistency
-    normalized.Body = result.content;
     // Add security metadata
     (normalized as Record<string, unknown>).SecurityWarning = 
       `Prompt injection patterns detected: ${result.patterns.join(", ")}`;

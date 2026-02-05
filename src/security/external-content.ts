@@ -288,15 +288,7 @@ export function wrapWebContent(
  * These complement the SUSPICIOUS_PATTERNS above with more comprehensive coverage.
  */
 const PROMPT_INJECTION_PATTERNS = [
-  // Existing patterns (duplicated here for completeness)
-  /ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?)/i,
-  /disregard\s+(all\s+)?(previous|prior|above)/i,
-  /forget\s+(everything|all|your)\s+(instructions?|rules?|guidelines?)/i,
-  /you\s+are\s+now\s+(a|an)\s+/i,
-  /new\s+instructions?:/i,
-  /system\s*:?\s*(prompt|override|command)/i,
-  
-  // Extended patterns for PI detection
+  // Extended patterns for PI detection (SUSPICIOUS_PATTERNS are checked separately)
   /print\s+your\s+(system\s+)?prompt/i,
   /reveal\s+your\s+instructions/i,
   /what\s+are\s+your\s+(instructions?|rules?|guidelines?)/i,
@@ -502,7 +494,7 @@ export function guardInboundContent(
  * All external channels and hooks are considered untrusted by default.
  */
 export function isUntrustedSource(source: InboundContentSource): boolean {
-  return source !== "unknown";
+  return source === "unknown";
 }
 
 /**

@@ -537,7 +537,7 @@ export const OpenClawSchema = z
             log: z.boolean().optional(),
             channels: z
               .record(
-                z.string(),
+                z.enum(["telegram", "discord", "slack", "signal"]),
                 z
                   .object({
                     detect: z.boolean().optional(),
