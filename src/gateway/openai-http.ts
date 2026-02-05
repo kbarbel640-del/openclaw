@@ -4,6 +4,7 @@ import { buildHistoryContextFromEntries, type HistoryEntry } from "../auto-reply
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
+import { logError } from "../logger.js";
 import { defaultRuntime } from "../runtime.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
 import {
@@ -261,8 +262,11 @@ export async function handleOpenAiHttpRequest(
         usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       });
     } catch (err) {
+      logError(
+        `openai-http: response failed: ${err instanceof Error ? err.stack ?? err.message : String(err)}`,
+      );
       sendJson(res, 500, {
-        error: { message: String(err), type: "api_error" },
+        error: { message: "Internal server error", type: "api_error" },
       });
     }
     return true;
@@ -391,6 +395,9 @@ export async function handleOpenAiHttpRequest(
         });
       }
     } catch (err) {
+      logError(
+        `openai-http: streaming response failed: ${err instanceof Error ? err.stack ?? err.message : String(err)}`,
+      );
       if (closed) {
         return;
       }
@@ -402,7 +409,7 @@ export async function handleOpenAiHttpRequest(
         choices: [
           {
             index: 0,
-            delta: { content: `Error: ${String(err)}` },
+            delta: { content: "Error: Internal server error" },
             finish_reason: "stop",
           },
         ],

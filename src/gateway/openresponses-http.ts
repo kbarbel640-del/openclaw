@@ -15,6 +15,7 @@ import { buildHistoryContextFromEntries, type HistoryEntry } from "../auto-reply
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
+import { logError, logWarn } from "../logger.js";
 import {
   DEFAULT_INPUT_FILE_MAX_BYTES,
   DEFAULT_INPUT_FILE_MAX_CHARS,
@@ -37,6 +38,7 @@ import { defaultRuntime } from "../runtime.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
 import {
   readJsonBodyOrError,
+  sendInvalidRequest,
   sendJson,
   sendMethodNotAllowed,
   sendUnauthorized,
@@ -63,6 +65,44 @@ type OpenResponsesHttpOptions = {
 };
 
 const DEFAULT_BODY_BYTES = 20 * 1024 * 1024;
+
+const INVALID_REQUEST_MESSAGE_PATTERNS = [
+  /^input_(image|file) must have 'source\.url' or 'source\.data'$/,
+  /^input_(image|file) base64 source missing 'data' field$/,
+  /^input_(image|file) URL sources are disabled by config$/,
+  /^input_file missing media type$/,
+  /^Unsupported (image|file) MIME type(?::| from URL:).+$/,
+  /^Invalid URL protocol: .+ Only HTTP\/HTTPS allowed\.$/,
+  /^Redirect missing location header \(\d+\)$/,
+  /^Too many redirects \(limit: \d+\)$/,
+  /^Failed to fetch: \d+ .+$/,
+  /^Content too large: \d+ bytes \(limit: \d+ bytes\)$/,
+  /^File too large: \d+ bytes \(limit: \d+ bytes\)$/,
+];
+
+function formatInvalidRequestMessage(err: unknown): string {
+  const raw =
+    typeof err === "string"
+      ? err
+      : err instanceof Error
+        ? err.message
+        : "";
+  const message = raw.trim();
+  if (!message || message.length > 200 || message.includes("\n")) {
+    return "Invalid request";
+  }
+  if (INVALID_REQUEST_MESSAGE_PATTERNS.some((pattern) => pattern.test(message))) {
+    return message;
+  }
+  return "Invalid request";
+}
+
+function formatErrorForLog(err: unknown): string {
+  if (err instanceof Error) {
+    return err.stack ?? err.message;
+  }
+  return String(err);
+}
 
 function writeSseEvent(res: ServerResponse, event: StreamingEvent) {
   res.write(`event: ${event.type}\n`);
@@ -451,9 +491,8 @@ export async function handleOpenResponsesHttpRequest(
       }
     }
   } catch (err) {
-    sendJson(res, 400, {
-      error: { message: String(err), type: "invalid_request_error" },
-    });
+    logWarn(`openresponses: invalid request while parsing input: ${formatErrorForLog(err)}`);
+    sendInvalidRequest(res, formatInvalidRequestMessage(err));
     return true;
   }
 
@@ -468,9 +507,8 @@ export async function handleOpenResponsesHttpRequest(
     resolvedClientTools = toolChoiceResult.tools;
     toolChoicePrompt = toolChoiceResult.extraSystemPrompt;
   } catch (err) {
-    sendJson(res, 400, {
-      error: { message: String(err), type: "invalid_request_error" },
-    });
+    logWarn(`openresponses: invalid request in tool choice: ${formatErrorForLog(err)}`);
+    sendInvalidRequest(res, formatInvalidRequestMessage(err));
     return true;
   }
   const agentId = resolveAgentIdForRequest({ req, model });
@@ -583,12 +621,13 @@ export async function handleOpenResponsesHttpRequest(
 
       sendJson(res, 200, response);
     } catch (err) {
+      logError(`openresponses: response failed: ${formatErrorForLog(err)}`);
       const response = createResponseResource({
         id: responseId,
         model,
         status: "failed",
         output: [],
-        error: { code: "api_error", message: String(err) },
+        error: { code: "api_error", message: "Internal server error" },
       });
       sendJson(res, 500, response);
     }
@@ -878,6 +917,7 @@ export async function handleOpenResponsesHttpRequest(
         });
       }
     } catch (err) {
+      logError(`openresponses: streaming response failed: ${formatErrorForLog(err)}`);
       if (closed) {
         return;
       }
@@ -888,7 +928,7 @@ export async function handleOpenResponsesHttpRequest(
         model,
         status: "failed",
         output: [],
-        error: { code: "api_error", message: String(err) },
+        error: { code: "api_error", message: "Internal server error" },
         usage: finalUsage,
       });
 
