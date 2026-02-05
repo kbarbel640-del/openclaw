@@ -404,8 +404,9 @@ export class QmdMemoryManager implements MemorySearchManager {
             await this.runQmd(["embed"], { timeoutMs: embedTimeoutMs });
             this.lastEmbedAt = Date.now();
           } catch (err) {
-            this.embedRunning = false;
             log.warn(`qmd embed failed (${reason}): ${String(err)}`);
+          } finally {
+            this.embedRunning = false;
           }
         }
       }
