@@ -84,7 +84,7 @@ export class ConvosSDKClient {
       env: options.env ?? "production",
     });
 
-    const convos = ConvosMiddleware.create(agent, { privateKey: user.key });
+    const convos = ConvosMiddleware.create(agent, { privateKey: user.key, env: options.env ?? "production" });
     agent.use(convos.middleware());
 
     const client = new ConvosSDKClient(agent, convos, user.key, debug);
