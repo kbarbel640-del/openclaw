@@ -966,21 +966,20 @@ try {
           }, MEDIA_GROUP_TIMEOUT_MS);
         } else {
           const entry: MediaGroupEntry = {
-            messages: [{ msg, ctx }],
-            timer: setTimeout(async () => {
-              mediaGroupBuffer.delete(mediaGroupId);
-              mediaGroupProcessing = mediaGroupProcessing
-                .then(async () => {
-                  await processMediaGroup(entry);
-                })
-                .catch(() => undefined);
-              await mediaGroupProcessing;
-            }, MEDIA_GROUP_TIMEOUT_MS),
-          };
-          mediaGroupBuffer.set(mediaGroupId, entry);
-        }
-        return;
-      }
+messages: [{ msg, ctx }],
+timer: setTimeout(async () => {
+mediaGroupBuffer.delete(mediaGroupId);
+mediaGroupProcessing = mediaGroupProcessing
+.then(async () => {
+await processMediaGroup(entry);
+})
+.catch(() => undefined);
+await mediaGroupProcessing;
+}, MEDIA_GROUP_TIMEOUT_MS),
+};
+
+mediaGroupBuffer.set(mediaGroupId, entry);
+return;
 
       let media: Awaited<ReturnType<typeof resolveMedia>> = null;
       try {
