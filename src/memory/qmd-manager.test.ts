@@ -152,4 +152,48 @@ describe("QmdMemoryManager", () => {
 
     await manager.close();
   });
+
+  it("resolves results via qmd:// file path when docid lookup fails", async () => {
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+    const manager = await QmdMemoryManager.create({ cfg, agentId, resolved });
+    expect(manager).toBeTruthy();
+    if (!manager) {
+      throw new Error("manager missing");
+    }
+
+    // Mock qmd query to return result with file path but no valid docid
+    const mockResult = JSON.stringify([
+      {
+        docid: "#invalid",
+        score: 0.95,
+        file: "qmd://workspace/test.md",
+        snippet: "test snippet",
+      },
+    ]);
+    spawnMock.mockImplementationOnce(() => {
+      const stdout = new EventEmitter();
+      const stderr = new EventEmitter();
+      const child = new EventEmitter() as {
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+        kill: () => void;
+      };
+      child.stdout = stdout;
+      child.stderr = stderr;
+      child.kill = () => {};
+      setImmediate(() => {
+        stdout.emit("data", mockResult);
+        child.emit("close", 0);
+      });
+      return child;
+    });
+
+    // search() should resolve the file path even with invalid docid
+    const results = await manager.search("test query");
+    expect(results.length).toBe(1);
+    expect(results[0]?.snippet).toBe("test snippet");
+    expect(results[0]?.score).toBe(0.95);
+
+    await manager.close();
+  });
 });

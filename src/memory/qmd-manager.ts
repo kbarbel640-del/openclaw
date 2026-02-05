@@ -253,7 +253,7 @@ export class QmdMemoryManager implements MemorySearchManager {
     }
     const results: MemorySearchResult[] = [];
     for (const entry of parsed) {
-      const doc = await this.resolveDocLocation(entry.docid);
+      const doc = await this.resolveDocLocation(entry.docid, entry.file);
       if (!doc) {
         continue;
       }
@@ -517,31 +517,69 @@ export class QmdMemoryManager implements MemorySearchManager {
 
   private async resolveDocLocation(
     docid?: string,
+    file?: string,
   ): Promise<{ rel: string; abs: string; source: MemorySource } | null> {
-    if (!docid) {
+    // Try docid lookup first if available
+    if (docid) {
+      const normalized = docid.startsWith("#") ? docid.slice(1) : docid;
+      if (normalized) {
+        const cached = this.docPathCache.get(normalized);
+        if (cached) {
+          return cached;
+        }
+        try {
+          const db = this.ensureDb();
+          const row = db
+            .prepare(
+              "SELECT collection, path FROM documents WHERE hash LIKE ? AND active = 1 LIMIT 1",
+            )
+            .get(`${normalized}%`) as { collection: string; path: string } | undefined;
+          if (row) {
+            const location = this.toDocLocation(row.collection, row.path);
+            if (location) {
+              this.docPathCache.set(normalized, location);
+              return location;
+            }
+          }
+        } catch {
+          // DB lookup failed; fall through to file-based resolution
+        }
+      }
+    }
+
+    // Fallback: parse qmd:// path from file field if available
+    // Note: We don't cache file-based lookups by docid since the docid may be
+    // stale or mismatched. Only DB lookups (which verify the hash) are cached.
+    if (file) {
+      const qmdPath = this.parseQmdPath(file);
+      if (qmdPath) {
+        return this.toDocLocation(qmdPath.collection, qmdPath.path);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse a qmd:// path into collection and relative path components.
+   * Format: qmd://collection/path/to/file.md
+   */
+  private parseQmdPath(qmdPath: string): { collection: string; path: string } | null {
+    const prefix = "qmd://";
+    if (!qmdPath?.startsWith(prefix)) {
       return null;
     }
-    const normalized = docid.startsWith("#") ? docid.slice(1) : docid;
-    if (!normalized) {
+    const rest = qmdPath.slice(prefix.length);
+    const slashIndex = rest.indexOf("/");
+    if (slashIndex <= 0) {
       return null;
     }
-    const cached = this.docPathCache.get(normalized);
-    if (cached) {
-      return cached;
-    }
-    const db = this.ensureDb();
-    const row = db
-      .prepare("SELECT collection, path FROM documents WHERE hash LIKE ? AND active = 1 LIMIT 1")
-      .get(`${normalized}%`) as { collection: string; path: string } | undefined;
-    if (!row) {
+    const collection = rest.slice(0, slashIndex);
+    const filePath = rest.slice(slashIndex + 1);
+    if (!collection || !filePath) {
       return null;
     }
-    const location = this.toDocLocation(row.collection, row.path);
-    if (!location) {
-      return null;
-    }
-    this.docPathCache.set(normalized, location);
-    return location;
+    return { collection, path: filePath };
   }
 
   private extractSnippetLines(snippet: string): { startLine: number; endLine: number } {
