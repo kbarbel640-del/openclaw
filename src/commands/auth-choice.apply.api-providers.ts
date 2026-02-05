@@ -17,6 +17,8 @@ import {
   applyCloudflareAiGatewayProviderConfig,
   applyKimiCodeConfig,
   applyKimiCodeProviderConfig,
+  applyMistralConfig,
+  applyMistralProviderConfig,
   applyMoonshotConfig,
   applyMoonshotConfigCn,
   applyMoonshotProviderConfig,
@@ -36,6 +38,7 @@ import {
   applyZaiConfig,
   CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF,
   KIMI_CODING_MODEL_REF,
+  MISTRAL_DEFAULT_MODEL_REF,
   MOONSHOT_DEFAULT_MODEL_REF,
   OPENROUTER_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_REF,
@@ -45,6 +48,7 @@ import {
   setCloudflareAiGatewayConfig,
   setGeminiApiKey,
   setKimiCodingApiKey,
+  setMistralApiKey,
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
@@ -102,6 +106,8 @@ export async function applyAuthChoiceApiProviders(
       authChoice = "synthetic-api-key";
     } else if (params.opts.tokenProvider === "venice") {
       authChoice = "venice-api-key";
+    } else if (params.opts.tokenProvider === "mistral") {
+      authChoice = "mistral-api-key";
     } else if (params.opts.tokenProvider === "opencode") {
       authChoice = "opencode-zen";
     }
@@ -788,6 +794,64 @@ export async function applyAuthChoiceApiProviders(
         applyDefaultConfig: applyOpencodeZenConfig,
         applyProviderConfig: applyOpencodeZenProviderConfig,
         noteDefault: OPENCODE_ZEN_DEFAULT_MODEL,
+        noteAgentModel,
+        prompter: params.prompter,
+      });
+      nextConfig = applied.config;
+      agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
+    }
+    return { config: nextConfig, agentModelOverride };
+  }
+
+  if (authChoice === "mistral-api-key") {
+    let hasCredential = false;
+
+    if (!hasCredential && params.opts?.token && params.opts?.tokenProvider === "mistral") {
+      await setMistralApiKey(normalizeApiKeyInput(params.opts.token), params.agentDir);
+      hasCredential = true;
+    }
+
+    if (!hasCredential) {
+      await params.prompter.note(
+        [
+          "Mistral provides high-performance models including Mistral Large, Codestral, and Devstral.",
+          "Get your API key at: https://console.mistral.ai/api-keys",
+        ].join("\n"),
+        "Mistral AI",
+      );
+    }
+
+    const envKey = resolveEnvApiKey("mistral");
+    if (envKey) {
+      const useExisting = await params.prompter.confirm({
+        message: `Use existing MISTRAL_API_KEY (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+        initialValue: true,
+      });
+      if (useExisting) {
+        await setMistralApiKey(envKey.apiKey, params.agentDir);
+        hasCredential = true;
+      }
+    }
+    if (!hasCredential) {
+      const key = await params.prompter.text({
+        message: "Enter Mistral API key",
+        validate: validateApiKeyInput,
+      });
+      await setMistralApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "mistral:default",
+      provider: "mistral",
+      mode: "api_key",
+    });
+    {
+      const applied = await applyDefaultModelChoice({
+        config: nextConfig,
+        setDefaultModel: params.setDefaultModel,
+        defaultModel: MISTRAL_DEFAULT_MODEL_REF,
+        applyDefaultConfig: applyMistralConfig,
+        applyProviderConfig: applyMistralProviderConfig,
+        noteDefault: MISTRAL_DEFAULT_MODEL_REF,
         noteAgentModel,
         prompter: params.prompter,
       });

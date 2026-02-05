@@ -38,14 +38,17 @@ export {
   applyOpencodeZenConfig,
   applyOpencodeZenProviderConfig,
 } from "./onboard-auth.config-opencode.js";
+export { applyMistralConfig, applyMistralProviderConfig } from "./onboard-auth.config-mistral.js";
 export {
   CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF,
+  MISTRAL_DEFAULT_MODEL_REF,
   OPENROUTER_DEFAULT_MODEL_REF,
   setAnthropicApiKey,
   setCloudflareAiGatewayConfig,
   setGeminiApiKey,
   setKimiCodingApiKey,
   setMinimaxApiKey,
+  setMistralApiKey,
   setMoonshotApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,

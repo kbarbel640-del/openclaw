@@ -10,6 +10,7 @@ export type AuthChoiceOption = {
 export type AuthChoiceGroupId =
   | "openai"
   | "anthropic"
+  | "mistral"
   | "google"
   | "copilot"
   | "openrouter"
@@ -48,6 +49,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     label: "Anthropic",
     hint: "setup-token + API key",
     choices: ["token", "apiKey"],
+  },
+  {
+    value: "mistral",
+    label: "Mistral",
+    hint: "API key",
+    choices: ["mistral-api-key"],
   },
   {
     value: "minimax",
@@ -166,7 +173,10 @@ export function buildAuthChoiceOptions(params: {
     value: "moonshot-api-key-cn",
     label: "Kimi API key (.cn)",
   });
-  options.push({ value: "kimi-code-api-key", label: "Kimi Code API key (subscription)" });
+  options.push({
+    value: "kimi-code-api-key",
+    label: "Kimi Code API key (subscription)",
+  });
   options.push({ value: "synthetic-api-key", label: "Synthetic API key" });
   options.push({
     value: "venice-api-key",
@@ -206,6 +216,11 @@ export function buildAuthChoiceOptions(params: {
     hint: "Local proxy for VS Code Copilot models",
   });
   options.push({ value: "apiKey", label: "Anthropic API key" });
+  options.push({
+    value: "mistral-api-key",
+    label: "Mistral API key",
+    hint: "Mistral Large, Codestral, Devstral",
+  });
   // Token flow is currently Anthropic-only; use CLI for advanced providers.
   options.push({
     value: "opencode-zen",

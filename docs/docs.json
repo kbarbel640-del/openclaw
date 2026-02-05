@@ -941,6 +941,7 @@
                 "pages": [
                   "providers/anthropic",
                   "providers/openai",
+                  "providers/mistral",
                   "providers/openrouter",
                   "bedrock",
                   "providers/vercel-ai-gateway",

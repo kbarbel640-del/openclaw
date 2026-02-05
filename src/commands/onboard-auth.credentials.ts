@@ -203,3 +203,17 @@ export async function setOpencodeZenApiKey(key: string, agentDir?: string) {
     agentDir: resolveAuthAgentDir(agentDir),
   });
 }
+
+export const MISTRAL_DEFAULT_MODEL_REF = "mistral/mistral-large-latest";
+
+export async function setMistralApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "mistral:default",
+    credential: {
+      type: "api_key",
+      provider: "mistral",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
