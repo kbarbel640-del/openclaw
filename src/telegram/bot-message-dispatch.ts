@@ -251,6 +251,22 @@ export const dispatchTelegramMessage = async ({
     skippedNonSilent: 0,
   };
 
+  // Send thinking indicator if enabled
+  let thinkingMessageId: number | undefined;
+  if (telegramCfg.thinkingIndicator && telegramCfg.thinkingIndicator !== "off") {
+    try {
+      const result = await bot.api.sendMessage(chatId, "🤔 Thinking...", {
+        message_thread_id: threadSpec.id,
+        disable_notification: true,
+      });
+      if (telegramCfg.thinkingIndicator === "transient") {
+        thinkingMessageId = result.message_id;
+      }
+    } catch {
+      // Ignore send errors
+    }
+  }
+
   const { queuedFinal } = await dispatchReplyWithBufferedBlockDispatcher({
     ctx: ctxPayload,
     cfg,
@@ -260,6 +276,15 @@ export const dispatchTelegramMessage = async ({
         if (info.kind === "final") {
           await flushDraft();
           draftStream?.stop();
+          // Delete transient thinking indicator when response arrives
+          if (thinkingMessageId) {
+            try {
+              await bot.api.deleteMessage(chatId, thinkingMessageId);
+            } catch {
+              // Ignore deletion errors
+            }
+            thinkingMessageId = undefined;
+          }
         }
         const result = await deliverReplies({
           replies: [payload],

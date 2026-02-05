@@ -139,6 +139,14 @@ export type TelegramAccountConfig = {
    */
   toolActivity?: "off" | "persist" | "transient";
   /**
+   * Controls thinking indicator message (shows when agent starts processing):
+   * - "off": no thinking indicator
+   * - "persist": show message that stays in chat history
+   * - "transient": show message that auto-deletes after response arrives
+   * Default: "off"
+   */
+  thinkingIndicator?: "off" | "persist" | "transient";
+  /**
    * Per-channel outbound response prefix override.
    *
    * When set, this takes precedence over the global `messages.responsePrefix`.

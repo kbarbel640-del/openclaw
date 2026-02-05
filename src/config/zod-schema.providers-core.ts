@@ -138,6 +138,7 @@ export const TelegramAccountSchemaBase = z
     heartbeat: ChannelHeartbeatVisibilitySchema,
     linkPreview: z.boolean().optional(),
     toolActivity: z.enum(["off", "persist", "transient"]).optional(),
+    thinkingIndicator: z.enum(["off", "persist", "transient"]).optional(),
     responsePrefix: z.string().optional(),
   })
   .strict();
