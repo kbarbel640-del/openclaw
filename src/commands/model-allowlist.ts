@@ -12,7 +12,7 @@ export function ensureModelAllowlistEntry(params: {
     return params.cfg;
   }
 
-  const models = { ...params.cfg.agents?.defaults?.models };
+  const models = { ...(params.cfg.agents?.defaults?.models ?? {}) };
   const keySet = new Set<string>([rawModelRef]);
   const canonicalKey = resolveAllowlistModelKey(
     rawModelRef,
