@@ -10,8 +10,9 @@ import { createTypingCallbacks } from "../../../channels/typing.js";
 import { resolveStorePath, updateLastRoute } from "../../../config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose } from "../../../globals.js";
 import { removeSlackReaction } from "../../actions.js";
-import { clearAssistantStatus } from "../../assistant.js";
+import { clearAssistantStatus, setAssistantThreadTitle } from "../../assistant.js";
 import { resolveSlackThreadTargets } from "../../threading.js";
+import { isAssistantThread } from "../assistant-context.js";
 import { createSlackReplyDeliveryPlan, deliverReplies } from "../replies.js";
 
 export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessage) {
@@ -201,6 +202,25 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
         });
       }
     });
+  }
+
+  // Auto-title assistant threads after the first reply.
+  // Uses the user's original message (truncated) as the thread title for the
+  // History tab in the Slack AI interface.
+  const threadTsForTitle = incomingThreadTs ?? messageTs;
+  if (threadTsForTitle && isAssistantThread(message.channel, threadTsForTitle)) {
+    const rawBody = (message.text ?? "").replace(/\s+/g, " ").trim();
+    const titleText = rawBody.length > 60 ? `${rawBody.slice(0, 57)}...` : rawBody;
+    if (titleText) {
+      void setAssistantThreadTitle({
+        client: ctx.app.client,
+        channelId: message.channel,
+        threadTs: threadTsForTitle,
+        title: titleText,
+      }).catch((err) => {
+        logVerbose(`slack assistant thread title failed: ${String(err)}`);
+      });
+    }
   }
 
   if (prepared.isRoomish) {
