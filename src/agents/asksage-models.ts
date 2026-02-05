@@ -1,6 +1,6 @@
 import type { ModelDefinitionConfig } from "../config/types.js";
 
-export const ASKSAGE_BASE_URL = "https://api.asksage.ai/server/anthropic/v1/messages";
+export const ASKSAGE_BASE_URL = "https://api.asksage.ai/server/anthropic";
 export const ASKSAGE_DEFAULT_MODEL_ID = "claude-4-sonnet";
 export const ASKSAGE_DEFAULT_MODEL_REF = `asksage/${ASKSAGE_DEFAULT_MODEL_ID}`;
 
