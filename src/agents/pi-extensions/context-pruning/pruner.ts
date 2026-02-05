@@ -231,7 +231,7 @@ export async function pruneContextMessages(params: {
   contextWindowTokensOverride?: number;
   sessionKey?: string;
   sessionId?: string;
-}): AgentMessage[] {
+}): Promise<AgentMessage[]> {
   const { messages, settings, ctx } = params;
   const contextWindowTokens =
     typeof params.contextWindowTokensOverride === "number" &&
