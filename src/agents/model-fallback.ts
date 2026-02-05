@@ -57,7 +57,9 @@ function shouldRethrowAbort(err: unknown): boolean {
  * Format milliseconds into a human-readable duration string.
  */
 function formatCooldownDuration(ms: number): string {
-  if (ms <= 0) return "0s";
+  if (ms <= 0) {
+    return "0s";
+  }
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
