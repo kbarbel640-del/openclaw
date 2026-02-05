@@ -203,18 +203,27 @@ export async function runPreparedReply(
     ((baseBodyTrimmedRaw.length === 0 && rawBodyTrimmed.length > 0) || isBareNewOrReset);
   let baseBodyFinal = isBareSessionReset ? BARE_SESSION_RESET_PROMPT : baseBody;
 
-  // Auto-inject BOOTSTRAP.md content on /new or /reset
+  // Auto-inject critical files on /new or /reset
   if (isBareSessionReset && workspaceDir) {
-    const bootstrapPath = path.join(workspaceDir, "BOOTSTRAP.md");
-    try {
-      if (fs.existsSync(bootstrapPath)) {
-        const bootstrapContent = fs.readFileSync(bootstrapPath, "utf-8").trim();
-        if (bootstrapContent) {
-          baseBodyFinal = `${baseBodyFinal}\n\n---\n\n## BOOTSTRAP.md (auto-loaded)\n\n${bootstrapContent}`;
+    const criticalFiles = [
+      "BOOTSTRAP.md",
+      "SOUL.md",
+      "PREFLIGHT.md",
+      "SESSION-STATE.md",
+      "memory/learnings/global.md",
+    ];
+    for (const file of criticalFiles) {
+      const filePath = path.join(workspaceDir, file);
+      try {
+        if (fs.existsSync(filePath)) {
+          const content = fs.readFileSync(filePath, "utf-8").trim();
+          if (content) {
+            baseBodyFinal = `${baseBodyFinal}\n\n---\n\n## ${file} (auto-loaded)\n\n${content}`;
+          }
         }
+      } catch {
+        // Ignore read errors - files are optional
       }
-    } catch {
-      // Ignore read errors - bootstrap is optional
     }
   }
   const baseBodyTrimmed = baseBodyFinal.trim();
