@@ -4,6 +4,8 @@ import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs/promises";
 import os from "node:os";
+import type { AnyAgentTool } from "../../tools/common.js";
+import type { ExtensionToolDefinition } from "./params.js";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
@@ -71,7 +73,7 @@ import {
   sanitizeSessionHistory,
   sanitizeToolsForGoogle,
 } from "../google.js";
-import { getDmHistoryLimitFromSessionKey, limitHistoryTurns } from "../history.js";
+import { getHistoryLimitForContext, limitHistoryTurns } from "../history.js";
 import { log } from "../logger.js";
 import { buildModelAliasLines } from "../model.js";
 import {
@@ -90,6 +92,32 @@ import {
 import { splitSdkTools } from "../tool-split.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
 import { detectAndLoadPromptImages } from "./images.js";
+
+/**
+ * Convert extension-provided tools to the AnyAgentTool format.
+ * This allows extensions (like voice-call) to provide custom tools.
+ */
+function convertExtensionToolsToAgentTools(
+  extensionTools: ExtensionToolDefinition[] | undefined,
+): AnyAgentTool[] {
+  if (!extensionTools || extensionTools.length === 0) {
+    return [];
+  }
+
+  return extensionTools.map((tool) => ({
+    name: tool.name,
+    label: tool.name,
+    description: tool.description ?? `Extension tool: ${tool.name}`,
+    parameters: tool.parameters,
+    execute: async (_toolCallId: string, params: unknown) => {
+      const result = await tool.execute(params);
+      return {
+        content: [{ type: "text" as const, text: result }],
+        details: undefined,
+      };
+    },
+  }));
+}
 
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
@@ -222,6 +250,17 @@ export async function runEmbeddedAttempt(
           abortSignal: runAbortController.signal,
         });
 
+    // Convert extension-provided tools (e.g., voice recall_conversation) to agent format
+    const extensionTools = convertExtensionToolsToAgentTools(params.extraTools);
+    if (extensionTools.length > 0) {
+      log.info(
+        `extension tools enabled: runId=${params.runId} sessionKey=${params.sessionKey ?? params.sessionId} tools=${extensionTools.map((t) => t.name).join(",")}`,
+      );
+    }
+
+    // Combine MCP tools and extension tools
+    const allExtraTools = [...mcpTools, ...extensionTools];
+
     const toolsRaw = params.disableTools
       ? []
       : createOpenClawCodingTools({
@@ -256,7 +295,7 @@ export async function runEmbeddedAttempt(
           replyToMode: params.replyToMode,
           hasRepliedRef: params.hasRepliedRef,
           modelHasVision,
-          extraTools: mcpTools,
+          extraTools: allExtraTools,
           requireExplicitMessageTarget:
             params.requireExplicitMessageTarget ?? isSubagentSessionKey(params.sessionKey),
           disableMessageTool: params.disableMessageTool,
@@ -588,10 +627,14 @@ export async function runEmbeddedAttempt(
         const validated = transcriptPolicy.validateAnthropicTurns
           ? validateAnthropicTurns(validatedGemini)
           : validatedGemini;
-        const limited = limitHistoryTurns(
-          validated,
-          getDmHistoryLimitFromSessionKey(params.sessionKey, params.config),
+        // Get history limits (voice calls pass explicit options, other channels use config lookup)
+        const { turnLimit } = getHistoryLimitForContext(
+          params.sessionKey,
+          params.config,
+          params.historyOptions,
         );
+        // Apply turn-based limiting
+        const limited = limitHistoryTurns(validated, turnLimit);
         cacheTrace?.recordStage("session:limited", { messages: limited });
         if (limited.length > 0) {
           activeSession.agent.replaceMessages(limited);

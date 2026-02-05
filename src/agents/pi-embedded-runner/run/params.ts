@@ -17,6 +17,17 @@ export type ClientToolDefinition = {
   };
 };
 
+/**
+ * Simplified tool definition for extension-provided tools.
+ * These are converted to AnyAgentTool format before being passed to the agent.
+ */
+export type ExtensionToolDefinition = {
+  name: string;
+  description?: string;
+  parameters: Record<string, unknown>;
+  execute: (params: unknown) => Promise<string>;
+};
+
 export type RunEmbeddedPiAgentParams = {
   sessionId: string;
   sessionKey?: string;
@@ -101,4 +112,6 @@ export type RunEmbeddedPiAgentParams = {
   streamParams?: AgentStreamParams;
   ownerNumbers?: string[];
   enforceFinalTag?: boolean;
+  /** Extension-provided tools (e.g., voice recall_conversation). */
+  extraTools?: ExtensionToolDefinition[];
 };
