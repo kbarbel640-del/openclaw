@@ -126,6 +126,11 @@ export function resolveSkillEnvForAgent(params: {
       continue;
     }
 
+    // Skip disabled skills
+    if (skillConfig.enabled === false) {
+      continue;
+    }
+
     // If agent has specific skills list, check if this skill is included
     if (agentSkills !== undefined && !agentSkills.includes(skillKey)) {
       continue;

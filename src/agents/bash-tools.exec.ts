@@ -1041,6 +1041,11 @@ export function createExecTool(
         const cfg = loadConfig();
         const skillEnv = agentId ? resolveSkillEnvForAgent({ agentId, config: cfg }) : {};
 
+        // Validate skill env vars through host env sanitizer to prevent security bypass
+        if (Object.keys(skillEnv).length > 0) {
+          validateHostEnv(skillEnv);
+        }
+
         // Merge skill env vars with user-provided env vars (user env takes precedence)
         const nodeEnv =
           params.env || Object.keys(skillEnv).length > 0
