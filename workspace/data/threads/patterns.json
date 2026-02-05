@@ -1,0 +1,35 @@
+{
+  "tool_recommendation": {
+    "structure": [
+      "問題引入",
+      "工具列表",
+      "行動建議"
+    ],
+    "emoji_pattern": "🛠️📋🚀",
+    "example": "想學 AI 開發？這 5 個工具讓你少走半年彎路...",
+    "success_rate": 1,
+    "avg_engagement": 148787.0
+  },
+  "trend_analysis": {
+    "structure": [
+      "現象描述",
+      "深度分析",
+      "機會點"
+    ],
+    "emoji_pattern": "📈🔍💡",
+    "example": "Google/微軟同時出手，AI 基礎設施大升級意味著什麼？",
+    "success_rate": 0,
+    "avg_engagement": 0
+  },
+  "story_sharing": {
+    "structure": [
+      "故事背景",
+      "關鍵做法",
+      "心得啟發"
+    ],
+    "emoji_pattern": "📖🎯🤝",
+    "example": "我的 AI 自動化系統滿月報告：每週省下 20 小時...",
+    "success_rate": 0,
+    "avg_engagement": 0
+  }
+}

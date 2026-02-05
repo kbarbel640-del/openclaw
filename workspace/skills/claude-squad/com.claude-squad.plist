@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.claude-squad</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/sulaxd/clawd/skills/claude-squad/venv/bin/python</string>
+        <string>/Users/sulaxd/clawd/skills/claude-squad/scripts/squad_server.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/sulaxd/clawd/skills/claude-squad</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/sulaxd/clawd/skills/claude-squad/logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/sulaxd/clawd/skills/claude-squad/logs/stderr.log</string>
+</dict>
+</plist>

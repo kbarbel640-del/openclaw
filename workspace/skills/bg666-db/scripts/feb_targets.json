@@ -1,0 +1,62 @@
+{
+  "2026-02": {
+    "growth_assumption": "3%",
+    "targets": {
+      "expected_register": 29308,
+      "expected_first_charge": 21056,
+      "expected_deposit": 112878928,
+      "expected_bet": 938142562
+    },
+    "weekly_checkpoints": [
+      {"date": "2026-02-01", "progress": 3.6, "deposit_target": 4031390},
+      {"date": "2026-02-08", "progress": 28.6, "deposit_target": 32251122},
+      {"date": "2026-02-15", "progress": 53.6, "deposit_target": 60470855},
+      {"date": "2026-02-22", "progress": 78.6, "deposit_target": 88690587},
+      {"date": "2026-02-28", "progress": 100.0, "deposit_target": 112878928}
+    ],
+    "events": [
+      {"name": "ICC Men's T20 World Cup 2026", "start": "2026-02-07", "end": "2026-03-08", "impact": "投注額顯著上升"}
+    ],
+    "base_metrics": {
+      "daily_register": 1016,
+      "daily_deposit": 3998636,
+      "daily_withdraw": 3471051,
+      "first_charge_rate": 0.718,
+      "first_charge_avg": 636,
+      "monthly_churn_rate": 0.467
+    }
+  },
+  "2026-03": {
+    "growth_assumption": "4%",
+    "targets": {
+      "expected_register": 32763,
+      "expected_first_charge": 23538,
+      "expected_deposit": 106823125,
+      "expected_bet": 887812468
+    },
+    "weekly_checkpoints": [
+      {"date": "2026-03-01", "progress": 3.2, "deposit_target": 3445907},
+      {"date": "2026-03-08", "progress": 25.8, "deposit_target": 27567258},
+      {"date": "2026-03-15", "progress": 48.4, "deposit_target": 51688609},
+      {"date": "2026-03-22", "progress": 71.0, "deposit_target": 75809960},
+      {"date": "2026-03-29", "progress": 93.5, "deposit_target": 99931310},
+      {"date": "2026-03-31", "progress": 100.0, "deposit_target": 106823125}
+    ]
+  },
+  "2026-04": {
+    "growth_assumption": "5%",
+    "targets": {
+      "expected_register": 32011,
+      "expected_first_charge": 22998,
+      "expected_deposit": 106982407,
+      "expected_bet": 889136268
+    },
+    "weekly_checkpoints": [
+      {"date": "2026-04-05", "progress": 16.7, "deposit_target": 17830401},
+      {"date": "2026-04-12", "progress": 40.0, "deposit_target": 42792963},
+      {"date": "2026-04-19", "progress": 63.3, "deposit_target": 67755524},
+      {"date": "2026-04-26", "progress": 86.7, "deposit_target": 92718086},
+      {"date": "2026-04-30", "progress": 100.0, "deposit_target": 106982407}
+    ]
+  }
+}

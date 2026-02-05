@@ -1,0 +1,65 @@
+cdp:
+  base_url: "http://127.0.0.1:9222"
+  new_target_url: "https://sora.com"
+
+sora:
+  submit_url: "https://sora.com"
+  library_url: "https://sora.com/library"
+
+selectors:
+  # TODO: update to match Sora UI
+  prompt: "textarea, [contenteditable='true']"
+  generate: "text=Generate"
+  new_prompt: null
+
+scripts:
+  # Return array of tasks: [{id, status, title, url}]
+  status_js: |
+    return []
+  # Best-effort: open menu (⋯) then click "Download" on a draft page.
+  # This is intentionally heuristic to survive minor UI changes.
+  download_js: |
+    (function(){
+      function findDownloadItem(){
+        const items=[...document.querySelectorAll('[role="menuitem"],button,div')];
+        return items.find(el=>/\bdownload\b/i.test((el.innerText||'').trim()));
+      }
+      const downloadItem = findDownloadItem();
+      if (downloadItem) { downloadItem.click(); return {clicked:'download'}; }
+
+      // Try to open the overflow/menu button.
+      const buttons=[...document.querySelectorAll('button')];
+      // Prefer aria-label hints.
+      const candidates = buttons.filter(b=>{
+        const a=(b.getAttribute('aria-label')||'').toLowerCase();
+        return a.includes('more') || a.includes('menu') || a.includes('options') || a.includes('more options');
+      });
+      if (candidates.length){ candidates[candidates.length-1].click(); return {clicked:'menu_by_aria'}; }
+
+      // Fallback: click one of the small icon-only buttons near the top (often 3-dot).
+      const iconButtons = buttons.filter(b=>{
+        const r=b.getBoundingClientRect();
+        const hasSvg=!!b.querySelector('svg');
+        const txt=(b.innerText||'').trim();
+        return hasSvg && !txt && r.width<80 && r.height<80 && r.top<200;
+      });
+      if (iconButtons.length){ iconButtons[iconButtons.length-1].click(); return {clicked:'menu_icon'}; }
+
+      return {clicked:null, reason:'menu_not_found'};
+    })();
+
+network:
+  capture_mime_types:
+    - "video/mp4"
+  capture_url_substrings:
+    - ".mp4"
+    - "videoplayback"
+
+timing:
+  wait_after_submit_sec: 8
+  poll_interval_sec: 10
+
+downloads:
+  # Recommended: set a dedicated download directory to make downloads deterministic.
+  # Example (mac): "/Users/sulaxd/clawd/skills/sora-factory/output/raw_downloads"
+  download_dir: ""

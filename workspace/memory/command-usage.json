@@ -1,0 +1,11 @@
+{
+  "created": "2026-01-27T13:45:00+08:00",
+  "commands": {
+    "topics": 0,
+    "dashboard": 0,
+    "podcast": 0,
+    "context": 0,
+    "zt": 0
+  },
+  "note": "統計各指令使用次數，決定保留價值"
+}

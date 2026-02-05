@@ -1,0 +1,44 @@
+{
+  "date": "2026-02-02",
+  "collected_at": "2026-02-02T23:56:37.861195+08:00",
+  "memory": {
+    "daily_lines": 161,
+    "daily_entries": 24,
+    "importance_tagged": 0,
+    "importance_untagged": 24,
+    "importance_distribution": {},
+    "memory_md_lines": 256,
+    "memory_md_size_bytes": 9860,
+    "memory_md_last_modified": "2026-02-01T01:27:33.926896+08:00",
+    "total_memory_files": 20
+  },
+  "errors": {
+    "corrections_today": 5,
+    "total_registered": 5,
+    "repeated": 0,
+    "today_errors": [
+      "- **教訓**：第一版漏了很多需求（Dave入職、招聘、Albert留存文檔等），被杜甫指出",
+      "- **教訓2**：lusu Lark 對話只看列表預覽「好」沒點進去，實際有完整渠道成功率需求",
+      "- **授權**：杜甫不管開發過程，100次修正機會，半夜動工",
+      "- **觸發**：指令 + 糾正",
+      "- **教訓**：Lion 在數據需求群聯繫，不要再問"
+    ]
+  },
+  "skills": {
+    "total": 33,
+    "used_today": [],
+    "used_count": 0
+  },
+  "git": {
+    "commits_today": 0
+  },
+  "recall": {
+    "searches": 0,
+    "results_used": 0,
+    "precision": null,
+    "_note": "Phase 2: will be populated when recall logging is active"
+  },
+  "sessions": {
+    "_note": "Phase 2: will be populated from sessions_list API"
+  }
+}

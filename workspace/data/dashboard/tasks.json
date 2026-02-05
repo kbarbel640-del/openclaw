@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "version": "1.0",
+    "lastUpdated": "2026-01-28T18:35:00+08:00",
+    "updatedBy": "system"
+  },
+  "columns": {
+    "backlog": { "name": "待處理", "emoji": "📋", "order": 0 },
+    "todo": { "name": "待辦", "emoji": "⬜", "order": 1 },
+    "in_progress": { "name": "進行中", "emoji": "🔄", "order": 2 },
+    "done": { "name": "完成", "emoji": "✅", "order": 3 },
+    "archived": { "name": "歸檔", "emoji": "📦", "order": 4 }
+  },
+  "tasks": [
+    {
+      "id": "task-001",
+      "title": "幣塔員工 ID 建立",
+      "description": "為幣塔 7 位員工建立 ID 系統",
+      "column": "done",
+      "priority": "high",
+      "project": "幣塔",
+      "createdAt": "2026-01-28T17:00:00+08:00",
+      "completedAt": "2026-01-28T18:35:00+08:00",
+      "dueDate": null,
+      "tags": ["setup", "urgent"],
+      "assignee": "main"
+    },
+    {
+      "id": "task-002",
+      "title": "24Bet Cohort 日報整合",
+      "description": "整合設備分布到 Cohort 日報",
+      "column": "in_progress",
+      "priority": "high",
+      "project": "24Bet",
+      "createdAt": "2026-01-28T10:00:00+08:00",
+      "dueDate": null,
+      "tags": ["report", "automation"],
+      "assignee": "andrew"
+    },
+    {
+      "id": "task-003",
+      "title": "系統維運部 MVP",
+      "description": "error-recovery hook + cron jobs",
+      "column": "done",
+      "priority": "high",
+      "project": "系統維運",
+      "createdAt": "2026-01-28T17:30:00+08:00",
+      "completedAt": "2026-01-28T18:00:00+08:00",
+      "tags": ["ops", "infrastructure"],
+      "assignee": "main"
+    }
+  ]
+}

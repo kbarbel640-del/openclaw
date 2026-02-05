@@ -1,0 +1,130 @@
+{
+  "errors": [
+    {
+      "date": "2026-02-02",
+      "text": "- **教訓**：第一版漏了很多需求（Dave入職、招聘、Albert留存文檔等），被杜甫指出",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-02",
+      "text": "- **教訓2**：lusu Lark 對話只看列表預覽「好」沒點進去，實際有完整渠道成功率需求",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-02",
+      "text": "- **授權**：杜甫不管開發過程，100次修正機會，半夜動工",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-02",
+      "text": "- **觸發**：指令 + 糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-02",
+      "text": "- **教訓**：Lion 在數據需求群聯繫，不要再問",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "2. **幣塔日報 SQL 修正**",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "### 修正方式",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **觸發**：糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "2. **幣塔日報 SQL 修正**",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "### 修正方式",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **觸發**：糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "2. **幣塔日報 SQL 修正**",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "### 修正方式",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **觸發**：糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **觸發**：糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **觸發**：糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **行動**：靜態 code review（full_pipeline/sora_batch_submit/sora_browser_driver/qc/assemble），整理問題清單+修正計劃",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **觸發**：糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **觸發**：糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **行動**：提出可落地的監控與回饋流程（下班匯總新增校準統計、常見錯誤清單、抽樣複核），並建立每週回顧節奏。",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **觸發**：糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **行動**：提出可落地的監控與回饋流程（下班匯總新增校準統計、常見錯誤清單、抽樣複核），並建立每週回顧節奏。",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-04",
+      "text": "- **觸發**：糾正",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-05",
+      "text": "- **內容**：Telegram 不應直接顯示限流錯誤；要有自動切換 LLM 模型層",
+      "repeated": false
+    },
+    {
+      "date": "2026-02-05",
+      "text": "- **行動**：規劃在錯誤處理加訊息遮罩與模型 failover",
+      "repeated": false
+    }
+  ],
+  "last_updated": "2026-02-05T11:26:38.924389+08:00"
+}

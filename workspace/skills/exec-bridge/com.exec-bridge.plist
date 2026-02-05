@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.exec-bridge</string>
+
+    <key>Comment</key>
+    <string>Exec HTTP Bridge - 繞過 Node.js spawn EBADF</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/opt/homebrew/bin/python3</string>
+      <string>/Users/sulaxd/clawd/skills/exec-bridge/scripts/exec_bridge.py</string>
+      <string>--host</string>
+      <string>0.0.0.0</string>
+      <string>--port</string>
+      <string>18793</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/sulaxd/clawd/skills/exec-bridge</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/sulaxd/clawd/logs/exec-bridge.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/sulaxd/clawd/logs/exec-bridge.err.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>HOME</key>
+      <string>/Users/sulaxd</string>
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+  </dict>
+</plist>

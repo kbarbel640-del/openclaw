@@ -1,0 +1,37 @@
+# Sora Prompt Template
+
+Use case: short cinematic story clip
+Primary request: 小明 presses Enter. Instantly, every computer screen in the office
+displays the same popup notification. Quick cuts showing:
+- Multiple screens lighting up simultaneously
+- Coworkers turning to look at their screens in surprise
+- 王總's face transforming from confusion to shock to panic
+The screens show what appears to be salary information or financial records
+
+Scene/background: Modern open-plan office space with floor-to-ceiling windows,
+city skyline visible in the background through the glass,
+rows of minimalist white desks with dual monitors,
+neutral gray carpet and white ceiling with recessed lighting
+. Lighting: natural daylight streaming from the right side, creating soft shadows
+Subject: 小明: 30-year-old East Asian man with short neat black hair,
+wearing black-framed rectangular glasses,
+dressed in a dark navy blue collared shirt,
+clean-shaven with sharp observant eyes
+. Expression conveys: calm and collected, with a hint of suppressed intensity; 王總: 50-year-old East Asian man with balding head,
+wearing an expensive gray business suit with a red tie,
+slightly overweight, with a condescending expression
+. Expression conveys: arrogant, dismissive, entitled
+Action: 小明 presses Enter. Instantly, every computer screen in the office
+displays the same popup notification. Quick cuts showing:
+- Multiple screens lighting up simultaneously
+- Coworkers turning to look at their screens in surprise
+- 王總's face transforming from confusion to shock to panic
+The screens show what appears to be salary information or financial records
+
+Camera: rapid montage: screen CU → wide office reaction → 王總 face progression
+Lighting/mood: natural daylight streaming from the right side, creating soft shadows; revelation, catharsis, justice
+Color palette: neutral gray, deep navy, warm highlights
+Style/format: cinematic, dramatic lighting, shallow depth of field, 4K resolution
+Timing/beats: 7 seconds
+Constraints: consistent character design; maintaining visual continuity; same lighting and color grade
+Avoid: flicker, jitter, warped faces, inconsistent clothing

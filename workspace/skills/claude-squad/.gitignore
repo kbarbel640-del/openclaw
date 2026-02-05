@@ -1,0 +1,6 @@
+worktrees/
+logs/
+venv/
+.pid
+state.json
+__pycache__/

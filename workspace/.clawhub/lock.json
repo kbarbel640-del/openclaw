@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "clawhub-wotp2": {
+      "version": "1.0.0",
+      "installedAt": 1769957149595
+    },
+    "imap-smtp-email": {
+      "version": "0.0.1",
+      "installedAt": 1769957325547
+    },
+    "clip-it": {
+      "version": "1.0.0",
+      "installedAt": 1770137685763
+    },
+    "ffmpeg-cli": {
+      "version": "1.0.0",
+      "installedAt": 1770137706274
+    }
+  }
+}

@@ -1,0 +1,47 @@
+# docker-compose.yml
+# This file defines the services for the OpenClaw (clawd) project.
+# It's configured for deployment on platforms like Railway.
+
+version: '3.8'
+
+services:
+  # The main OpenClaw application
+  app:
+    build: .
+    # I need to determine the command to start the application.
+    # command: ??? 
+    ports:
+      - "8000:8000" # Assuming the app runs on port 8000
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/clawd_db
+      - REDIS_URL=redis://redis:6379
+      # Other environment variables for the application
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - .:/app # Mount the current directory into the container
+
+  # PostgreSQL database with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg15 # Using a pgvector-enabled image
+    environment:
+      POSTGRES_DB: clawd_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,41 @@
+{
+  "date": "2026-02-03",
+  "collected_at": "2026-02-03T06:00:53.836776+08:00",
+  "memory": {
+    "daily_lines": 42,
+    "daily_entries": 3,
+    "importance_tagged": 1,
+    "importance_untagged": 2,
+    "importance_distribution": {
+      "10": 1
+    },
+    "memory_md_lines": 284,
+    "memory_md_size_bytes": 11297,
+    "memory_md_last_modified": "2026-02-03T01:00:53.628866+08:00",
+    "total_memory_files": 21
+  },
+  "errors": {
+    "corrections_today": 0,
+    "total_registered": 5,
+    "repeated": 0,
+    "today_errors": []
+  },
+  "skills": {
+    "total": 33,
+    "used_today": [],
+    "used_count": 0
+  },
+  "git": {
+    "commits_today": 0
+  },
+  "recall": {
+    "searches": 0,
+    "results_used": 0,
+    "precision": null,
+    "_note": "Phase 2: will be populated when recall logging is active"
+  },
+  "sessions": {
+    "_note": "Phase 2: will be populated from sessions_list API"
+  },
+  "_previous_snapshots": 1
+}

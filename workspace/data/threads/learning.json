@@ -1,0 +1,54 @@
+{
+  "platform_characteristics": {
+    "emoji_usage": "精簡、有節奏、視覺引導",
+    "paragraph_structure": "短段落、空行分隔",
+    "content_preferences": [
+      "工具推薦",
+      "趨勢分析",
+      "經驗分享"
+    ],
+    "interaction_patterns": [
+      "提問結尾",
+      "邀請討論",
+      "價值分享"
+    ],
+    "no_multi_tags": true
+  },
+  "successful_patterns": [
+    {
+      "timestamp": "2026-01-31T16:43:32.036921",
+      "content_preview": "🛠️ 想開始 AI 開發但不知道從哪入手？\n\n這 5 個工具讓我少走半年彎路...",
+      "analysis": {
+        "length": 41,
+        "paragraph_count": 2,
+        "emoji_count": 2,
+        "has_question": false,
+        "has_call_to_action": false,
+        "engagement_ratio": 148787,
+        "pattern_match": [
+          "tool_recommendation"
+        ]
+      },
+      "engagement": 148787
+    },
+    {
+      "timestamp": "2026-01-31T16:43:32.038846",
+      "content_preview": "📈 Google 和微軟同時出手了！\n\n這週兩件大事：\n1. Google LiteRT - 跨平台 AI 加速架構\n2. 微軟 Copilot - Windows 11 系統級整合",
+      "analysis": {
+        "length": 91,
+        "paragraph_count": 2,
+        "emoji_count": 1,
+        "has_question": false,
+        "has_call_to_action": false,
+        "engagement_ratio": 110555,
+        "pattern_match": [
+          "unknown"
+        ]
+      },
+      "engagement": 110555
+    }
+  ],
+  "failed_patterns": [],
+  "engagement_metrics": {},
+  "last_updated": "2026-01-31T16:43:32.038854"
+}

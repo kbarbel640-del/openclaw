@@ -1,0 +1,6 @@
+{"timestamp": "2026-01-28T18:00:00+08:00", "actor": "system", "action": "init", "details": "Dashboard system initialized"}
+{"timestamp": "2026-01-28T18:00:00+08:00", "actor": "main", "action": "task_create", "taskId": "task-001", "details": "Created: 幣塔員工 ID 建立"}
+{"timestamp": "2026-01-28T18:00:00+08:00", "actor": "main", "action": "task_create", "taskId": "task-002", "details": "Created: 24Bet Cohort 日報整合"}
+{"timestamp": "2026-01-28T18:00:00+08:00", "actor": "main", "action": "task_complete", "taskId": "task-003", "details": "Completed: 系統維運部 MVP"}
+{"timestamp": "2026-01-28T18:35:00+08:00", "actor": "main", "action": "task_complete", "taskId": "task-001", "details": "Completed: 幣塔員工 ID 建立 - BT-001~007"}
+{"timestamp":"2026-01-30T19:00:00Z","agent":"organizer","action":"scan","result":"no_changes","details":"0 archived, 0 flagged stale. 2 done (2.5d), 1 in_progress (2.7d). All within thresholds."}

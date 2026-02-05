@@ -1,0 +1,31 @@
+{
+  "timestamp": "2026-01-31T16:43:32.040262",
+  "total_posts_analyzed": 2,
+  "platform_characteristics": {
+    "emoji_usage": "精簡、有節奏、視覺引導",
+    "paragraph_structure": "短段落、空行分隔",
+    "content_preferences": [
+      "工具推薦",
+      "趨勢分析",
+      "經驗分享"
+    ],
+    "interaction_patterns": [
+      "提問結尾",
+      "邀請討論",
+      "價值分享"
+    ],
+    "no_multi_tags": true
+  },
+  "pattern_performance": {
+    "tool_recommendation": {
+      "success_rate": 1,
+      "avg_engagement": 148787.0,
+      "recommended_emoji": "🛠️📋🚀"
+    }
+  },
+  "recommendations": [
+    "最有效的模式：tool_recommendation (平均互動：148787.0)",
+    "建議 emoji 模式：🛠️📋🚀",
+    "Threads 沒有 multi tags 功能，使用單一精準標籤即可"
+  ]
+}

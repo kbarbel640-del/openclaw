@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>BG666 轉化漏斗分析</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 40px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 40px;
+        }
+        .funnels {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .funnel-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 30px;
+            width: 450px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .funnel-title {
+            font-size: 1.4em;
+            margin-bottom: 25px;
+            text-align: center;
+            color: #00d2ff;
+        }
+        .stage {
+            margin: 15px 0;
+            position: relative;
+        }
+        .stage-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        .stage-name {
+            font-weight: bold;
+        }
+        .stage-stats {
+            color: #aaa;
+        }
+        .bar-container {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            height: 40px;
+        }
+        .bar {
+            height: 100%;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 15px;
+            font-weight: bold;
+            transition: width 1s ease;
+        }
+        .bar-1 { background: linear-gradient(90deg, #3498db, #2980b9); }
+        .bar-2 { background: linear-gradient(90deg, #2ecc71, #27ae60); }
+        .bar-3 { background: linear-gradient(90deg, #f39c12, #e67e22); }
+        .bar-4 { background: linear-gradient(90deg, #e74c3c, #c0392b); }
+        .bar-5 { background: linear-gradient(90deg, #9b59b6, #8e44ad); }
+        
+        .comparison {
+            margin-top: 40px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .comparison h2 {
+            color: #00d2ff;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        th {
+            color: #00d2ff;
+            font-weight: bold;
+        }
+        .up { color: #2ecc71; }
+        .down { color: #e74c3c; }
+        
+        .insights {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .insight-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 25px;
+            border-left: 4px solid;
+        }
+        .insight-good { border-color: #2ecc71; }
+        .insight-warn { border-color: #e74c3c; }
+        .insight-card h3 {
+            margin: 0 0 15px 0;
+            font-size: 1.1em;
+        }
+        .insight-card p {
+            margin: 0;
+            color: #aaa;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 BG666 轉化漏斗分析</h1>
+        <p class="subtitle">數據更新時間：2026-02-03</p>
+        
+        <div class="funnels">
+            <div class="funnel-card">
+                <div class="funnel-title">📈 全量歷史數據</div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">註冊</span>
+                        <span class="stage-stats">949,211</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-1" style="width: 100%">100%</div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">首充</span>
+                        <span class="stage-stats">332,535 (35.0%)</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-2" style="width: 35%">35%</div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">二充</span>
+                        <span class="stage-stats">178,579 (53.7%)</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-3" style="width: 53.7%">53.7%</div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">三充</span>
+                        <span class="stage-stats">126,525 (70.9%)</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-4" style="width: 70.9%">70.9%</div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">四充</span>
+                        <span class="stage-stats">99,553 (78.7%)</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-5" style="width: 78.7%">78.7%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="funnel-card">
+                <div class="funnel-title">🆕 近 30 天新用戶</div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">註冊</span>
+                        <span class="stage-stats">30,234</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-1" style="width: 100%">100%</div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">首充</span>
+                        <span class="stage-stats">14,047 (46.5%)</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-2" style="width: 46.5%">46.5%</div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">二充</span>
+                        <span class="stage-stats">7,199 (51.2%)</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-3" style="width: 51.2%">51.2%</div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">三充</span>
+                        <span class="stage-stats">4,573 (63.5%)</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-4" style="width: 63.5%">63.5%</div>
+                    </div>
+                </div>
+                
+                <div class="stage">
+                    <div class="stage-label">
+                        <span class="stage-name">四充</span>
+                        <span class="stage-stats">3,147 (68.8%)</span>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar bar-5" style="width: 68.8%">68.8%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="comparison">
+            <h2>📊 轉化率對比</h2>
+            <table>
+                <tr>
+                    <th>轉化環節</th>
+                    <th>全量歷史</th>
+                    <th>近30天</th>
+                    <th>變化</th>
+                </tr>
+                <tr>
+                    <td>註冊 → 首充</td>
+                    <td>35.0%</td>
+                    <td>46.5%</td>
+                    <td class="up">↑ 11.5%</td>
+                </tr>
+                <tr>
+                    <td>首充 → 二充</td>
+                    <td>53.7%</td>
+                    <td>51.2%</td>
+                    <td class="down">↓ 2.5%</td>
+                </tr>
+                <tr>
+                    <td>二充 → 三充</td>
+                    <td>70.9%</td>
+                    <td>63.5%</td>
+                    <td class="down">↓ 7.4%</td>
+                </tr>
+                <tr>
+                    <td>三充 → 四充</td>
+                    <td>78.7%</td>
+                    <td>68.8%</td>
+                    <td class="down">↓ 9.9%</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div class="insights">
+            <div class="insight-card insight-good">
+                <h3>✅ 好消息：首充轉化提升</h3>
+                <p>近30天「註冊→首充」從 35% 提升到 46.5%，提升 11.5 個百分點。首充激勵策略有效，建議持續。</p>
+            </div>
+            <div class="insight-card insight-warn">
+                <h3>⚠️ 警示：後續留存下降</h3>
+                <p>近30天新用戶的二充、三充、四充轉化率均低於歷史水平。需調查原因：遊戲體驗？支付問題？獎勵不足？</p>
+            </div>
+            <div class="insight-card insight-warn">
+                <h3>🔴 最大流失：註冊未首充</h3>
+                <p>全量數據顯示 65% 用戶註冊後未首充（616,676 人）。這是流失最嚴重的環節，但近期已有改善。</p>
+            </div>
+            <div class="insight-card insight-good">
+                <h3>📌 建議行動</h3>
+                <p>1. 保持首充激勵策略<br>2. 加強 T+1 二充觸達<br>3. 分析近期留存下降原因<br>4. 考慮二充/三充專屬獎勵</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

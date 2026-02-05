@@ -1,0 +1,177 @@
+{
+  "recordings": [
+    {
+      "id": "intro_片頭",
+      "source": "Documents/片頭.wav",
+      "date": "2025-09-01",
+      "duration_sec": 10,
+      "raw_path": "raw/片頭.wav",
+      "transcript_path": "transcripts/intro_片頭.txt",
+      "topics": [
+        "片頭",
+        "訂閱"
+      ],
+      "status": "transcribed",
+      "type": "jingle"
+    },
+    {
+      "id": "frk_01",
+      "source": "field-rhythm-kit",
+      "date": "2025-05-31",
+      "duration_sec": 71,
+      "raw_path": "raw/3ca93ee0-3868-4db4-ac41-bcdf5e48781f_voice.ogg",
+      "transcript_path": "transcripts/frk_01_靈性思考.txt",
+      "topics": [
+        "與神對話",
+        "靈性",
+        "冥想",
+        "頭腦酸脹"
+      ],
+      "status": "transcribed",
+      "series": "與神對話筆記",
+      "tasted": true
+    },
+    {
+      "id": "frk_02",
+      "source": "field-rhythm-kit",
+      "date": "2025-05-31",
+      "duration_sec": 23,
+      "raw_path": "raw/43f71f55-c65c-475a-a845-5f030e87ff9a_voice.ogg",
+      "transcript_path": "transcripts/frk_02_測試流程.txt",
+      "topics": [
+        "AI Agent",
+        "測試流程"
+      ],
+      "status": "transcribed",
+      "series": "AI工作法"
+    },
+    {
+      "id": "frk_03",
+      "source": "field-rhythm-kit",
+      "date": "2025-05-31",
+      "duration_sec": 67,
+      "raw_path": "raw/5e1175ac-1df0-4813-9bfd-59de10b61c98_voice.ogg",
+      "transcript_path": "transcripts/frk_03_天賦與刺激.txt",
+      "topics": [
+        "天賦",
+        "弱點",
+        "潛能",
+        "感官刺激"
+      ],
+      "status": "transcribed",
+      "series": "與神對話筆記"
+    },
+    {
+      "id": "frk_04",
+      "source": "field-rhythm-kit",
+      "date": "2025-06-10",
+      "duration_sec": 95,
+      "raw_path": "raw/a840ab15-b04b-49b0-a792-a782af995cad_voice.ogg",
+      "transcript_path": "transcripts/frk_04_日誌0610.txt",
+      "topics": [
+        "日誌",
+        "聯合創始人",
+        "VVM合約",
+        "工作節奏"
+      ],
+      "status": "transcribed",
+      "series": "創業日誌"
+    },
+    {
+      "id": "frk_05",
+      "source": "field-rhythm-kit",
+      "date": "2025-05-31",
+      "duration_sec": 95,
+      "raw_path": "raw/b3129c34-2b73-4f47-9a92-1f2524363185_voice.ogg",
+      "transcript_path": "transcripts/frk_05_AI助理願景.txt",
+      "topics": [
+        "AI助理",
+        "人格動件",
+        "自我成長",
+        "鏡子與老師"
+      ],
+      "status": "transcribed",
+      "series": "AI工作法"
+    },
+    {
+      "id": "frk_06",
+      "source": "field-rhythm-kit",
+      "date": "2025-06-17",
+      "duration_sec": 7,
+      "raw_path": "raw/c8086dab-c5d7-4ebf-bfca-9d68b1737c91_voice.ogg",
+      "transcript_path": "transcripts/frk_06_測試Claude.txt",
+      "topics": [
+        "Claude Code",
+        "測試"
+      ],
+      "status": "transcribed",
+      "type": "test"
+    },
+    {
+      "id": "frk_07",
+      "source": "field-rhythm-kit",
+      "date": "2025-06-17",
+      "duration_sec": 63,
+      "raw_path": "raw/f836ff2f-4f9b-45bf-99ac-368bbe2ecd28_voice.ogg",
+      "transcript_path": "transcripts/frk_07_提示詞驅動開發.txt",
+      "topics": [
+        "提示詞",
+        "產品經理",
+        "無工程師開發",
+        "AI工作流"
+      ],
+      "status": "transcribed",
+      "series": "AI工作法"
+    },
+    {
+      "id": "rec_20260201_001",
+      "source": "telegram_voice",
+      "date": "2026-02-01",
+      "duration_sec": 89,
+      "raw_path": "raw/voice_2026-02-01_06-12-00.ogg",
+      "transcript_path": "transcripts/rec_20260201_001_與神對話.txt",
+      "topics": [
+        "思考者咖啡開場",
+        "與神對話",
+        "一魚多吃",
+        "自媒體"
+      ],
+      "status": "transcribed",
+      "series": "與神對話筆記"
+    }
+  ],
+  "series": {
+    "與神對話筆記": {
+      "description": "重讀《與神對話》的感悟與反思，連結靈性與科技",
+      "recordings": [
+        "frk_01",
+        "frk_03",
+        "rec_20260201_001"
+      ],
+      "status": "累積中"
+    },
+    "AI工作法": {
+      "description": "AI 如何改變工作方式：從助理到產品經理",
+      "recordings": [
+        "frk_02",
+        "frk_05",
+        "frk_07"
+      ],
+      "status": "累積中"
+    },
+    "創業日誌": {
+      "description": "ThinkerCafe 創業過程的語音日誌",
+      "recordings": [
+        "frk_04"
+      ],
+      "status": "累積中"
+    }
+  },
+  "stats": {
+    "total_recordings": 9,
+    "total_duration_sec": 520,
+    "content_recordings": 7,
+    "jingles": 1,
+    "tests": 1
+  }
+}

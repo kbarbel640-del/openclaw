@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "defaults": {
+    "tasks_dir": "~/clawd/tasks",
+    "summary_limit": 5,
+    "update_on_new_only": true
+  },
+  "sessions": {
+    "bg666": {
+      "task_file": "~/clawd/BG666_TASKS.md"
+    },
+    "main": {
+      "task_file": "~/clawd/TASKS.md"
+    },
+    "bita": {},
+    "24bet": {}
+  }
+}

@@ -1,0 +1,17 @@
+shots:
+- duration: 10
+  file: shot_001.txt
+  id: 1
+  scene: restaurant
+  source_id: 1
+- duration: 10
+  file: shot_002.txt
+  id: 2
+  scene: restaurant
+  source_id: 2
+- duration: 10
+  file: shot_003.txt
+  id: 3
+  scene: entrance
+  source_id: 3
+total_duration: 30

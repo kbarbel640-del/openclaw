@@ -1,0 +1,29 @@
+{
+  "2026-02-04": {
+    "sessions": [
+      {
+        "sessionKey": "agent:main:telegram:group:-5135725975",
+        "bootstrapped": false,
+        "ts": 1770182100,
+        "note": "Session started via /new, did not read memory until asked"
+      },
+      {
+        "sessionKey": "agent:main:telegram:group:-5135725975",
+        "bootstrapped": true,
+        "ts": 1770184800,
+        "filesRead": ["memory/2026-02-04.md"],
+        "note": "Read memory after 杜甫 asked '有用嗎'"
+      }
+    ],
+    "rate": 0.5,
+    "memoryLossEvents": [
+      {
+        "ts": 1770182100,
+        "sessionKey": "agent:main:telegram:group:-5135725975",
+        "whatWasForgotten": "今天做了 group-context hook、TableauTPE 加入",
+        "whereItShouldBe": "memory/2026-02-04.md",
+        "rootCause": "Session /new 後沒執行 bootstrap 流程，直接打招呼"
+      }
+    ]
+  }
+}

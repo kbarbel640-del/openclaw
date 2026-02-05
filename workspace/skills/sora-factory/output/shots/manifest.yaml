@@ -1,0 +1,26 @@
+shots:
+- color_palette: neutral gray, deep navy, warm highlights
+  duration: 8
+  file: shot_001.txt
+  id: 1
+  scene: office
+  source_id: 1
+  style: cinematic, dramatic lighting, shallow depth of field, 4K resolution
+  template_used: true
+- color_palette: neutral gray, deep navy, warm highlights
+  duration: 5
+  file: shot_002.txt
+  id: 2
+  scene: office
+  source_id: 2
+  style: cinematic, dramatic lighting, shallow depth of field, 4K resolution
+  template_used: true
+- color_palette: neutral gray, deep navy, warm highlights
+  duration: 7
+  file: shot_003.txt
+  id: 3
+  scene: office
+  source_id: 3
+  style: cinematic, dramatic lighting, shallow depth of field, 4K resolution
+  template_used: true
+total_duration: 20

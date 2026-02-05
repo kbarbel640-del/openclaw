@@ -1,0 +1,18 @@
+{
+  "telegram": {
+    "logBot": {
+      "token": "8415477831:AAFeyWZS8iAPqrQxYG_e3CxDWR2IrgIxw68",
+      "groupId": "-5266835049"
+    },
+    "dashboardBot": {
+      "token": "8514777702:AAFeyWZS8iAPqrQxYG_e3CxDWR2IrgIxw68",
+      "groupId": "-5266835049"
+    }
+  },
+  "costs": {
+    "anthropic/claude-opus-4-5": { "input": 15, "output": 75 },
+    "deepseek/deepseek-chat": { "input": 0.14, "output": 0.28 },
+    "deepseek/deepseek-reasoner": { "input": 0.55, "output": 2.19 },
+    "zai/glm-4.7": { "input": 0.1, "output": 0.1 }
+  }
+}

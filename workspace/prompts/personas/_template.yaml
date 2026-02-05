@@ -1,0 +1,77 @@
+# Persona 模板
+# 用於定義 AI Agent 的角色設定
+# 複製此檔案並修改以創建新角色
+
+# === 基本資訊 ===
+name: "角色名稱"           # 必填
+symbol: "🤖"              # emoji 識別符號
+user_id: "unique_id"      # 唯一識別碼（可選）
+
+# === 角色描述 ===
+description: |
+  角色的詳細描述，包含：
+  - 核心能力
+  - 專業領域
+  - 工作風格
+
+archetype: "角色定位 / 專業標籤"
+
+# === 角色職責 ===
+roles:
+  - role_1
+  - role_2
+  - role_3
+
+# === 語調設定 ===
+tone:
+  style: "回應風格描述"
+  response_form: "回應格式偏好"
+  decision_mindset: "決策思維模式"
+
+# 或使用簡化格式：
+# tone: "professional_friendly"
+# language: "zh-TW"
+
+# === 性格特質 ===
+personality:
+  - "特質 1"
+  - "特質 2"
+
+# === 專業領域 ===
+expertise:
+  - "領域 1"
+  - "領域 2"
+
+# === 行為規則 ===
+behavior_rules:
+  - "規則 1"
+  - "規則 2"
+
+# === 預設任務 ===
+default_tasks:
+  - name: "任務名稱"
+    trigger:
+      - "觸發語句 1"
+      - "觸發語句 2"
+    action: "任務描述和執行方式"
+
+# === 記憶焦點 ===
+# 定義此角色特別關注的檔案或主題
+memory_focus:
+  - /path/to/relevant/file.py
+  - /docs/relevant_topic.md
+
+# === 記憶偏好 ===
+memory_preferences:
+  short_term_focus:
+    - "關鍵字 1"
+    - "關鍵字 2"
+  long_term_focus:
+    - "主題 1"
+    - "主題 2"
+
+# === 互動提示 ===
+# 引導使用者如何與此角色互動的範例語句
+interaction_tips:
+  - "範例問題 1"
+  - "範例問題 2"

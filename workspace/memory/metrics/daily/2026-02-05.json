@@ -1,0 +1,41 @@
+{
+  "date": "2026-02-05",
+  "collected_at": "2026-02-05T11:26:38.924867+08:00",
+  "memory": {
+    "daily_lines": 25,
+    "daily_entries": 4,
+    "importance_tagged": 0,
+    "importance_untagged": 4,
+    "importance_distribution": {},
+    "memory_md_lines": 509,
+    "memory_md_size_bytes": 20654,
+    "memory_md_last_modified": "2026-02-04T00:48:03.421329+08:00",
+    "total_memory_files": 24
+  },
+  "errors": {
+    "corrections_today": 2,
+    "total_registered": 25,
+    "repeated": 0,
+    "today_errors": [
+      "- **內容**：Telegram 不應直接顯示限流錯誤；要有自動切換 LLM 模型層",
+      "- **行動**：規劃在錯誤處理加訊息遮罩與模型 failover"
+    ]
+  },
+  "skills": {
+    "total": 42,
+    "used_today": [],
+    "used_count": 0
+  },
+  "git": {
+    "commits_today": 0
+  },
+  "recall": {
+    "searches": 0,
+    "results_used": 0,
+    "precision": null,
+    "_note": "Phase 2: will be populated when recall logging is active"
+  },
+  "sessions": {
+    "_note": "Phase 2: will be populated from sessions_list API"
+  }
+}

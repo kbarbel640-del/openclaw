@@ -1,0 +1,28 @@
+# Sora Prompt Template
+
+Use case: short cinematic story clip
+Primary request: Close-up on 小明's face as his expression shifts from resignation to determination.
+His eyes narrow slightly with newfound resolve.
+Cut to extreme close-up of his finger hovering over the Enter key
+
+Scene/background: Modern open-plan office space with floor-to-ceiling windows,
+city skyline visible in the background through the glass,
+rows of minimalist white desks with dual monitors,
+neutral gray carpet and white ceiling with recessed lighting
+. Lighting: natural daylight streaming from the right side, creating soft shadows
+Subject: 小明: 30-year-old East Asian man with short neat black hair,
+wearing black-framed rectangular glasses,
+dressed in a dark navy blue collared shirt,
+clean-shaven with sharp observant eyes
+. Expression conveys: calm and collected, with a hint of suppressed intensity
+Action: Close-up on 小明's face as his expression shifts from resignation to determination.
+His eyes narrow slightly with newfound resolve.
+Cut to extreme close-up of his finger hovering over the Enter key
+
+Camera: tight close-up on face, then cut to extreme close-up of finger on keyboard
+Lighting/mood: natural daylight streaming from the right side, creating soft shadows; transformation, cold determination
+Color palette: neutral gray, deep navy, warm highlights
+Style/format: cinematic, dramatic lighting, shallow depth of field, 4K resolution
+Timing/beats: 5 seconds
+Constraints: consistent character design; maintaining visual continuity; same lighting and color grade
+Avoid: flicker, jitter, warped faces, inconsistent clothing

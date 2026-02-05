@@ -1,0 +1,93 @@
+# Sora 影片工廠 - 範例專案
+# 30 秒「職場復仇」短片
+
+project:
+  name: "職場復仇"
+  duration: 30
+  style: "cinematic, dramatic lighting, shallow depth of field, 4K resolution"
+  aspect_ratio: "16:9"
+  
+# 角色設定（視覺錨點）
+characters:
+  protagonist:
+    name: "小明"
+    appearance: |
+      30-year-old East Asian man with short neat black hair,
+      wearing black-framed rectangular glasses,
+      dressed in a dark navy blue collared shirt,
+      clean-shaven with sharp observant eyes
+    trait: "calm and collected, with a hint of suppressed intensity"
+    
+  antagonist:
+    name: "王總"
+    appearance: |
+      50-year-old East Asian man with balding head,
+      wearing an expensive gray business suit with a red tie,
+      slightly overweight, with a condescending expression
+    trait: "arrogant, dismissive, entitled"
+
+# 場景設定（環境錨點）
+scenes:
+  office:
+    description: |
+      Modern open-plan office space with floor-to-ceiling windows,
+      city skyline visible in the background through the glass,
+      rows of minimalist white desks with dual monitors,
+      neutral gray carpet and white ceiling with recessed lighting
+    lighting: "natural daylight streaming from the right side, creating soft shadows"
+    time: "late afternoon"
+    
+# 鏡頭分解
+shots:
+  # === Hook: 建立衝突 (0-8秒) ===
+  - id: 1
+    scene: office
+    characters: [protagonist, antagonist]
+    action: |
+      王總 stands in front of 小明's desk with arms crossed,
+      looking down with a smirk while saying something dismissive.
+      小明 sits at his desk, staring at his monitor screen,
+      his jaw slightly clenched, suppressing his emotions
+    duration: 8
+    camera: "medium shot, slow dolly push towards 小明's face"
+    emotion: "humiliation, suppressed anger"
+    audio_cue: "office ambient, muffled talking"
+    
+  # === 轉折: 決定反擊 (8-13秒) ===
+  - id: 2
+    scene: office
+    characters: [protagonist]
+    action: |
+      Close-up on 小明's face as his expression shifts from resignation to determination.
+      His eyes narrow slightly with newfound resolve.
+      Cut to extreme close-up of his finger hovering over the Enter key
+    duration: 5
+    camera: "tight close-up on face, then cut to extreme close-up of finger on keyboard"
+    emotion: "transformation, cold determination"
+    audio_cue: "tension building, heartbeat sound"
+    
+  # === 高潮: 真相曝光 (13-20秒) ===
+  - id: 3
+    scene: office
+    characters: [protagonist, antagonist]
+    action: |
+      小明 presses Enter. Instantly, every computer screen in the office
+      displays the same popup notification. Quick cuts showing:
+      - Multiple screens lighting up simultaneously
+      - Coworkers turning to look at their screens in surprise
+      - 王總's face transforming from confusion to shock to panic
+      The screens show what appears to be salary information or financial records
+    duration: 7
+    camera: "rapid montage: screen CU → wide office reaction → 王總 face progression"
+    emotion: "revelation, catharsis, justice"
+    audio_cue: "notification sound, gasps, dramatic score hit"
+
+# 後製提示
+post_production:
+  transitions:
+    - type: "cut"
+      between: [1, 2]
+    - type: "hard_cut"
+      between: [2, 3]
+  color_grade: "slightly desaturated with teal shadows, warm highlights"
+  music_style: "tension building to triumphant release"

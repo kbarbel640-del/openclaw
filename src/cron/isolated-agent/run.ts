@@ -347,6 +347,7 @@ export async function runCronIsolatedAgentTurn(params: {
       provider,
       model,
       agentDir,
+      sessionKey: agentSessionKey,
       fallbacksOverride: resolveAgentModelFallbacksOverride(params.cfg, agentId),
       run: (providerOverride, modelOverride) => {
         if (isCliProvider(providerOverride, cfgWithAgentDefaults)) {

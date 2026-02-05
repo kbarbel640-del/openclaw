@@ -1,0 +1,115 @@
+# 老領班風控偵測系統 - 數據庫配置
+# 優先使用環境變數，其次使用此配置文件
+
+bg666:
+  # BG666 RDS 數據庫 (需 ZeroTier)
+  host: "bg666-market-readonly.czsks2mguhd5.ap-south-1.rds.amazonaws.com"
+  port: 3306
+  database: "ry-cloud"
+  user: "readonly_user"
+  password: ""  # 從環境變數 BG666_DB_PASSWORD 讀取
+  
+  # 表名映射（根據實際數據庫結構調整）
+  tables:
+    bet_logs: "bet_logs"  # 注單記錄表
+    deposits: "player_recharge_order"  # 充值訂單表
+    players: "sys_player"  # 玩家主表
+
+matomo:
+  # Matomo API 配置
+  url: "https://your-matomo.com/index.php"  # Matomo 實例 URL
+  token: ""  # Matomo API token，從環境變數 MATOMO_TOKEN 讀取
+  site_id: "1"  # Matomo 網站 ID
+  
+  # 事件追蹤配置
+  events:
+    deposit_click: "Click_Deposit"  # 充值按鈕點擊事件
+    register_complete: "Register_Complete"  # 註冊完成事件
+    first_deposit: "First_Deposit"  # 首充事件
+
+telegram:
+  # Telegram Bot 配置
+  bot_token: ""  # 從環境變數 TELEGRAM_BOT_TOKEN 讀取
+  
+  # 頻道配置
+  channels:
+    boss_report: "-1001234567890"  # 老領班私密頻道（杜甫專用）
+    data_team: "-1003337225655"   # 666数据需求群
+    daily_report: "-5173465395"   # 666数据日报群
+    
+  # 消息格式
+  message_format: |
+    🕵️ 老領班風控報告 - {timestamp}
+    
+    【風險摘要】
+    {summary}
+    
+    【詳細分析】
+    {analysis}
+    
+    【建議行動】
+    {actions}
+
+ai:
+  # AI 推理配置
+  provider: "anthropic"  # anthropic | openai | deepseek
+  model: "claude-3-opus-20240229"
+  api_key: ""  # 從環境變數 AI_API_KEY 讀取
+  
+  # 老領班角色設定
+  persona: |
+    你是在柬埔寨西港做了15年的老領班，黑白兩道通吃，一眼看穿盤口貓膩。
+    說話風格：江湖口吻、直接了當、帶點黑色幽默。
+    專業領域：打水偵測、腳本識別、通道漏水分析、玩家行為模式。
+
+detection:
+  # 風控偵測參數
+  thresholds:
+    flash_bets: 3  # 同一秒內下注筆數閾值
+    pattern_count: 5  # 整數下注模式次數閾值
+    time_window_minutes: 10  # 極速注單偵測時間窗口
+    pattern_window_hours: 1  # 下注模式偵測時間窗口
+    
+  # 金額模式偵測
+  amount_patterns:
+    - 1000
+    - 2000
+    - 5000
+    - 10000
+    - 20000
+    - 50000
+
+scheduling:
+  # 定時任務配置
+  cron_expression: "*/15 * * * *"  # 每15分鐘執行一次
+  run_on_startup: true  # 啟動時立即執行一次
+  max_runtime_minutes: 5  # 最大運行時間（防止卡住）
+
+logging:
+  # 日誌配置
+  level: "INFO"  # DEBUG | INFO | WARNING | ERROR
+  file_retention_days: 7  # 日誌文件保留天數
+  report_retention_days: 30  # 報告文件保留天數
+  
+  # 日誌格式
+  format: "[{asctime}] [{levelname}] {message}"
+  date_format: "%Y-%m-%d %H:%M:%S"
+
+output:
+  # 輸出配置
+  save_reports: true  # 是否保存報告到文件
+  reports_directory: "./reports"  # 報告保存目錄
+  compress_old_reports: true  # 是否壓縮舊報告
+  
+  # 通知方式
+  notifications:
+    - telegram  # 發送到 Telegram
+    - log_file  # 寫入日誌文件
+    - console   # 輸出到控制台
+
+# 環境變數映射（優先級最高）
+environment_mapping:
+  BG666_DB_PASSWORD: "bg666.password"
+  MATOMO_TOKEN: "matomo.token"
+  TELEGRAM_BOT_TOKEN: "telegram.bot_token"
+  AI_API_KEY: "ai.api_key"

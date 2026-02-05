@@ -1,0 +1,31 @@
+# Locks
+.awareness.lock
+.dev_loop.lock
+.dev_loop_last_msg_id
+
+# Secrets
+.env
+skills/*/config.json
+scripts/__pycache__/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+skills/*/venv/
+skills/*/.venv/
+
+# Telegram
+skills/telegram-userbot/downloads/
+skills/telegram-userbot/logs/
+skills/telegram-userbot/.bridge.pid
+skills/telegram-userbot/context/
+
+# Logs (keep structure, ignore content)
+logs/**/*.log
+logs/**/*.jsonl
+
+# State files
+.awareness_state.json
+skills/imap-smtp-email/.env

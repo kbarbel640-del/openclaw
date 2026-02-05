@@ -391,6 +391,7 @@ export async function agentCommand(
         provider,
         model,
         agentDir,
+        sessionKey,
         fallbacksOverride: resolveAgentModelFallbacksOverride(cfg, sessionAgentId),
         run: (providerOverride, modelOverride) => {
           if (isCliProvider(providerOverride, cfg)) {

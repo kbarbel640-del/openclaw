@@ -417,6 +417,9 @@ export const AgentModelSchema = z.union([
     .object({
       primary: z.string().optional(),
       fallbacks: z.array(z.string()).optional(),
+      strategy: z
+        .union([z.literal("primary"), z.literal("round_robin"), z.literal("sticky_session")])
+        .optional(),
     })
     .strict(),
 ]);
@@ -444,6 +447,13 @@ export const AgentEntrySchema = z
               .object({
                 primary: z.string().optional(),
                 fallbacks: z.array(z.string()).optional(),
+                strategy: z
+                  .union([
+                    z.literal("primary"),
+                    z.literal("round_robin"),
+                    z.literal("sticky_session"),
+                  ])
+                  .optional(),
               })
               .strict(),
           ])

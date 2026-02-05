@@ -21,6 +21,13 @@ export type AgentModelEntryConfig = {
 export type AgentModelListConfig = {
   primary?: string;
   fallbacks?: string[];
+  /**
+   * Model selection strategy for this list.
+   * - "primary": always start with primary (default behavior)
+   * - "round_robin": rotate across primary+fallbacks per request
+   * - "sticky_session": pick a stable model per sessionKey
+   */
+  strategy?: "primary" | "round_robin" | "sticky_session";
 };
 
 export type AgentContextPruningConfig = {

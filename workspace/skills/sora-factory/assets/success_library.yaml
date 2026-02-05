@@ -1,0 +1,13 @@
+# Prompt success library (seed examples)
+# Fill in proven anchors/phrases you want reused.
+style:
+  - "cinematic, dramatic lighting, shallow depth of field, 4K"
+  - "film look, soft contrast, subtle grain"
+color_palette:
+  - "neutral gray, deep navy, warm highlights"
+  - "teal shadows, warm highlights"
+continuity_phrases:
+  - "consistent character design throughout"
+  - "maintaining visual continuity"
+  - "cinematic continuity"
+  - "same lighting and color grade"

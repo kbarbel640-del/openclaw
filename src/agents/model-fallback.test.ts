@@ -513,6 +513,72 @@ describe("runWithModelFallback", () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
+  it("rotates models when round_robin strategy is enabled", async () => {
+    const cfg = makeCfg({
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai/gpt-4.1-mini",
+            fallbacks: ["anthropic/claude-haiku-3-5", "zai/glm-4.7"],
+            strategy: "round_robin",
+          },
+        },
+      },
+    });
+    const run = vi.fn().mockResolvedValue("ok");
+
+    await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      run,
+    });
+    await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      run,
+    });
+
+    expect(run.mock.calls[0]?.[0]).toBe("openai");
+    expect(run.mock.calls[0]?.[1]).toBe("gpt-4.1-mini");
+    expect(run.mock.calls[1]?.[0]).toBe("anthropic");
+    expect(run.mock.calls[1]?.[1]).toBe("claude-haiku-3-5");
+  });
+
+  it("keeps a stable model per session when sticky_session is enabled", async () => {
+    const cfg = makeCfg({
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai/gpt-4.1-mini",
+            fallbacks: ["anthropic/claude-haiku-3-5", "zai/glm-4.7"],
+            strategy: "sticky_session",
+          },
+        },
+      },
+    });
+    const run = vi.fn().mockResolvedValue("ok");
+
+    const first = await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      sessionKey: "agent:main:main",
+      run,
+    });
+    const second = await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      sessionKey: "agent:main:main",
+      run,
+    });
+
+    expect(first.provider).toBe(second.provider);
+    expect(first.model).toBe(second.model);
+  });
+
   it("appends the configured primary as a last fallback", async () => {
     const cfg = makeCfg({
       agents: {

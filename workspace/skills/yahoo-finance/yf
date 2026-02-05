@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["yfinance>=0.2.36", "rich>=13.7"]
+# ///
+"""Yahoo Finance CLI - stock prices, quotes, fundamentals, earnings, options, dividends, ratings."""
+
+import sys, json
+
+def main():
+    try:
+        import yfinance as yf
+        from rich.console import Console
+        from rich.table import Table
+    except ImportError:
+        print("Installing dependencies... run again with: uv run yf")
+        sys.exit(1)
+
+    console = Console()
+    args = sys.argv[1:]
+    if not args:
+        console.print("[bold red]Usage:[/] yf <symbol> | yf <command> <symbol>")
+        console.print("Commands: price, quote, fundamentals, earnings, profile, dividends, ratings, options, history, compare, search")
+        sys.exit(1)
+
+    commands = {"price","quote","fundamentals","earnings","profile","dividends","ratings","options","history","compare","search"}
+    if args[0].lower() in commands:
+        cmd = args[0].lower()
+        rest = args[1:]
+    else:
+        cmd = "price"
+        rest = args
+
+    if not rest:
+        console.print("[red]Missing symbol[/]")
+        sys.exit(1)
+
+    symbol = rest[0].upper()
+
+    if cmd == "search":
+        query = " ".join(rest)
+        results = yf.Search(query)
+        if hasattr(results, 'quotes') and results.quotes:
+            table = Table(title=f"Search: {query}")
+            table.add_column("Symbol"); table.add_column("Name"); table.add_column("Type"); table.add_column("Exchange")
+            for q in results.quotes[:10]:
+                table.add_row(q.get('symbol',''), q.get('shortname',''), q.get('quoteType',''), q.get('exchange',''))
+            console.print(table)
+        else:
+            console.print(f"[yellow]No results for '{query}'[/]")
+        return
+
+    if cmd == "compare":
+        symbols = symbol.split(",")
+        table = Table(title="Comparison")
+        table.add_column("Symbol"); table.add_column("Price"); table.add_column("Change %"); table.add_column("Market Cap"); table.add_column("52W Range")
+        for s in symbols:
+            t = yf.Ticker(s)
+            info = t.info
+            price = info.get('currentPrice') or info.get('regularMarketPrice', 'N/A')
+            chg = info.get('regularMarketChangePercent', 'N/A')
+            mcap = info.get('marketCap', 'N/A')
+            if isinstance(mcap, (int,float)): mcap = f"${mcap/1e9:.1f}B" if mcap > 1e9 else f"${mcap/1e6:.0f}M"
+            lo = info.get('fiftyTwoWeekLow', '?')
+            hi = info.get('fiftyTwoWeekHigh', '?')
+            table.add_row(s, str(price), f"{chg:.2f}%" if isinstance(chg,(int,float)) else str(chg), str(mcap), f"{lo} - {hi}")
+        console.print(table)
+        return
+
+    t = yf.Ticker(symbol)
+    info = t.info
+
+    if cmd == "price":
+        price = info.get('currentPrice') or info.get('regularMarketPrice', 'N/A')
+        prev = info.get('previousClose', 'N/A')
+        chg = info.get('regularMarketChangePercent', None)
+        name = info.get('shortName', symbol)
+        console.print(f"[bold]{name}[/] ({symbol})")
+        console.print(f"  Price: [bold green]${price}[/]" if isinstance(price,(int,float)) else f"  Price: {price}")
+        if isinstance(chg,(int,float)):
+            color = "green" if chg >= 0 else "red"
+            console.print(f"  Change: [{color}]{chg:+.2f}%[/{color}]")
+        console.print(f"  Prev Close: ${prev}")
+
+    elif cmd == "quote":
+        table = Table(title=f"{symbol} Quote")
+        table.add_column("Metric"); table.add_column("Value")
+        fields = [("Name","shortName"),("Price","currentPrice"),("Open","open"),("High","dayHigh"),("Low","dayLow"),
+                  ("Volume","volume"),("Market Cap","marketCap"),("52W High","fiftyTwoWeekHigh"),("52W Low","fiftyTwoWeekLow"),
+                  ("P/E","trailingPE"),("EPS","trailingEps"),("Dividend Yield","dividendYield")]
+        for label,key in fields:
+            val = info.get(key, 'N/A')
+            if key == "marketCap" and isinstance(val,(int,float)):
+                val = f"${val/1e9:.1f}B" if val > 1e9 else f"${val/1e6:.0f}M"
+            elif key == "dividendYield" and isinstance(val,(int,float)):
+                val = f"{val*100:.2f}%"
+            elif key == "volume" and isinstance(val,(int,float)):
+                val = f"{val:,.0f}"
+            table.add_row(label, str(val))
+        console.print(table)
+
+    elif cmd == "fundamentals":
+        table = Table(title=f"{symbol} Fundamentals")
+        table.add_column("Metric"); table.add_column("Value")
+        fields = [("P/E (Trailing)","trailingPE"),("P/E (Forward)","forwardPE"),("EPS","trailingEps"),
+                  ("Market Cap","marketCap"),("Revenue","totalRevenue"),("Profit Margin","profitMargins"),
+                  ("ROE","returnOnEquity"),("ROA","returnOnAssets"),("Debt/Equity","debtToEquity"),
+                  ("Target Mean","targetMeanPrice"),("Target High","targetHighPrice"),("Target Low","targetLowPrice")]
+        for label,key in fields:
+            val = info.get(key, 'N/A')
+            if key in ("marketCap","totalRevenue") and isinstance(val,(int,float)):
+                val = f"${val/1e9:.1f}B" if val > 1e9 else f"${val/1e6:.0f}M"
+            elif key in ("profitMargins","returnOnEquity","returnOnAssets") and isinstance(val,(int,float)):
+                val = f"{val*100:.1f}%"
+            table.add_row(label, str(val))
+        console.print(table)
+
+    elif cmd == "earnings":
+        console.print(f"[bold]{symbol} Earnings[/]")
+        cal = t.calendar
+        if cal is not None and not (hasattr(cal,'empty') and cal.empty):
+            console.print(f"  Calendar: {cal}")
+        hist = t.earnings_history
+        if hist is not None and not (hasattr(hist,'empty') and hist.empty):
+            console.print(hist.to_string())
+
+    elif cmd == "dividends":
+        divs = t.dividends
+        yld = info.get('dividendYield')
+        rate = info.get('dividendRate')
+        console.print(f"[bold]{symbol} Dividends[/]")
+        console.print(f"  Rate: ${rate}" if rate else "  Rate: N/A")
+        console.print(f"  Yield: {yld*100:.2f}%" if isinstance(yld,(int,float)) else "  Yield: N/A")
+        if len(divs) > 0:
+            console.print(f"\n  Recent ({len(divs)} total):")
+            for date, val in list(divs.items())[-5:]:
+                console.print(f"    {date.strftime('%Y-%m-%d')}: ${val:.4f}")
+
+    elif cmd == "ratings":
+        recs = t.recommendations
+        console.print(f"[bold]{symbol} Analyst Ratings[/]")
+        target = info.get('targetMeanPrice')
+        if target: console.print(f"  Target: ${target}")
+        if recs is not None and len(recs) > 0:
+            console.print(recs.tail(10).to_string())
+
+    elif cmd == "options":
+        try:
+            dates = t.options
+            if dates:
+                console.print(f"[bold]{symbol} Options[/] — Expiry: {dates[0]}")
+                chain = t.option_chain(dates[0])
+                console.print("\n[bold]Calls (near ATM):[/]")
+                console.print(chain.calls[['strike','lastPrice','bid','ask','volume','openInterest','impliedVolatility']].head(10).to_string())
+                console.print("\n[bold]Puts (near ATM):[/]")
+                console.print(chain.puts[['strike','lastPrice','bid','ask','volume','openInterest','impliedVolatility']].head(10).to_string())
+        except Exception as e:
+            console.print(f"[red]Options error: {e}[/]")
+
+    elif cmd == "history":
+        period = rest[1] if len(rest) > 1 else "1mo"
+        hist = t.history(period=period)
+        console.print(f"[bold]{symbol} History ({period})[/]")
+        console.print(hist.to_string())
+
+    elif cmd == "profile":
+        console.print(f"[bold]{info.get('shortName', symbol)}[/]")
+        console.print(f"  Sector: {info.get('sector', 'N/A')}")
+        console.print(f"  Industry: {info.get('industry', 'N/A')}")
+        console.print(f"  Employees: {info.get('fullTimeEmployees', 'N/A')}")
+        console.print(f"  Website: {info.get('website', 'N/A')}")
+        desc = info.get('longBusinessSummary', '')
+        if desc: console.print(f"\n  {desc[:300]}...")
+
+if __name__ == "__main__":
+    main()

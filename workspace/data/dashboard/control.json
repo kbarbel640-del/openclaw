@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "version": "1.0",
+    "description": "Organizer 管控系統設定"
+  },
+  "organizer": {
+    "enabled": true,
+    "model": "haiku",
+    "schedule": "0 3 * * *",
+    "timezone": "Asia/Taipei",
+    "maxTasksPerRun": 10,
+    "permissions": {
+      "canCreateTasks": true,
+      "canMoveTasks": true,
+      "canArchiveTasks": true,
+      "canDeleteTasks": false,
+      "canModifyHighPriority": false,
+      "canNotifyUser": true
+    }
+  },
+  "rules": [
+    {
+      "id": "rule-001",
+      "name": "auto-archive-old-done",
+      "description": "完成超過 7 天的任務自動歸檔",
+      "enabled": true,
+      "condition": {
+        "column": "done",
+        "completedDaysAgo": 7
+      },
+      "action": {
+        "moveTo": "archived"
+      }
+    },
+    {
+      "id": "rule-002",
+      "name": "flag-stale-in-progress",
+      "description": "進行中超過 3 天的任務標記警告",
+      "enabled": true,
+      "condition": {
+        "column": "in_progress",
+        "inColumnDaysAgo": 3
+      },
+      "action": {
+        "addTag": "stale",
+        "notify": true
+      }
+    },
+    {
+      "id": "rule-003",
+      "name": "daily-summary",
+      "description": "每日生成任務摘要",
+      "enabled": true,
+      "trigger": "scheduled",
+      "action": {
+        "generateSummary": true,
+        "notifyChannel": "-5266835049"
+      }
+    }
+  ],
+  "notifications": {
+    "channel": "telegram",
+    "chatId": "-5266835049",
+    "quietHours": {
+      "start": "23:00",
+      "end": "08:00"
+    }
+  },
+  "agents": {
+    "main": {
+      "canAccess": ["all"],
+      "defaultModel": "sonnet"
+    },
+    "organizer": {
+      "canAccess": ["tasks.json", "control.json"],
+      "defaultModel": "haiku",
+      "restrictions": ["no-external-api", "no-file-write-outside-dashboard"]
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "date": "2026-02-04",
+  "collected_at": "2026-02-04T23:15:06.928947+08:00",
+  "memory": {
+    "daily_lines": 41,
+    "daily_entries": 7,
+    "importance_tagged": 0,
+    "importance_untagged": 7,
+    "importance_distribution": {},
+    "memory_md_lines": 509,
+    "memory_md_size_bytes": 20654,
+    "memory_md_last_modified": "2026-02-04T00:48:03.421329+08:00",
+    "total_memory_files": 23
+  },
+  "errors": {
+    "corrections_today": 3,
+    "total_registered": 23,
+    "repeated": 0,
+    "today_errors": [
+      "- **觸發**：糾正",
+      "- **行動**：提出可落地的監控與回饋流程（下班匯總新增校準統計、常見錯誤清單、抽樣複核），並建立每週回顧節奏。",
+      "- **觸發**：糾正"
+    ]
+  },
+  "skills": {
+    "total": 42,
+    "used_today": [],
+    "used_count": 0
+  },
+  "git": {
+    "commits_today": 0
+  },
+  "recall": {
+    "searches": 0,
+    "results_used": 0,
+    "precision": null,
+    "_note": "Phase 2: will be populated when recall logging is active"
+  },
+  "sessions": {
+    "_note": "Phase 2: will be populated from sessions_list API"
+  },
+  "_previous_snapshots": 6
+}
