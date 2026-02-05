@@ -36,6 +36,56 @@ Policy file (per workspace):
 
 - `.openclaw/neuronwaves/policy.json`
 
+### Sample policies
+
+**Safe (default)** — internal auto, external high-impact ask:
+
+```json
+{
+  "mode": "safe",
+  "limits": {
+    "outboundPerHour": 5,
+    "spendUsdPerDay": 0
+  },
+  "rules": {
+    "send.email": "ask",
+    "post.x": "ask",
+    "spend.money": "ask"
+  }
+}
+```
+
+**Dev Level 2** — auto external with caps (recommended):
+
+```json
+{
+  "mode": "dev",
+  "devLevel": 2,
+  "limits": {
+    "outboundPerHour": 20,
+    "spendUsdPerDay": 25
+  },
+  "rules": {
+    "send.email": "auto",
+    "post.x": "auto",
+    "spend.money": "auto"
+  }
+}
+```
+
+**Dev Level 3** — full auto + unlimited (user assumes full responsibility):
+
+```json
+{
+  "mode": "dev",
+  "devLevel": 3,
+  "limits": {
+    "outboundPerHour": null,
+    "spendUsdPerDay": null
+  }
+}
+```
+
 ## Enable (env vars)
 
 NeuronWaves is **disabled by default**.
