@@ -17,6 +17,18 @@ metadata:
               "bins": ["himalaya"],
               "label": "Install Himalaya (brew)",
             },
+            {
+              "id": "download-linux-x64",
+              "kind": "download",
+              "os": ["linux"],
+              "url": "https://github.com/pimalaya/himalaya/releases/latest/download/himalaya.x86_64-linux.tgz",
+              "archive": "tar.gz",
+              "extract": true,
+              "stripComponents": 0,
+              "targetDir": "~/.local/bin",
+              "bins": ["himalaya"],
+              "label": "Download Himalaya (Linux x64)",
+            },
           ],
       },
   }
