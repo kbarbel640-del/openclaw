@@ -12,6 +12,7 @@ import {
 } from "./app-settings.ts";
 import { handleAgentEvent, resetToolStream, type AgentEventPayload } from "./app-tool-stream.ts";
 import type { OpenClawApp } from "./app.ts";
+import { extractText } from "./chat/message-extract.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import { loadAssistantIdentity } from "./controllers/assistant-identity.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
@@ -37,6 +38,51 @@ import type {
   StatusSummary,
   UpdateAvailable,
 } from "./types.ts";
+
+/** Chat-loop: after assistant reply, forward full history to a second model and fill the input box. */
+async function triggerChatLoop(host: GatewayHost) {
+  const app = host as unknown as Record<string, unknown>;
+  const chatMessages = app.chatMessages as Array<{ role: string; content: unknown }> | undefined;
+  if (!chatMessages || chatMessages.length === 0) return;
+
+  // Build OpenAI-compatible messages array from full chat history
+  const apiMessages: Array<{ role: string; content: string }> = [];
+  for (const msg of chatMessages) {
+    const role = msg.role === "assistant" ? "assistant" : "user";
+    const text = extractText(msg);
+    if (text) {
+      apiMessages.push({ role, content: text });
+    }
+  }
+  if (apiMessages.length === 0) return;
+
+  try {
+    const token = host.settings.token?.trim() || "";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${window.location.origin}/v1/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: "openai/gpt-5.2",
+        messages: apiMessages,
+        max_tokens: 4096,
+      }),
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const reply = data.choices?.[0]?.message?.content;
+    if (reply) {
+      app.chatMessage = reply;
+    }
+  } catch {
+    // silently ignore loop errors
+  }
+}
 
 type GatewayHost = {
   settings: UiSettings;
@@ -239,7 +285,11 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
       }
     }
     if (state === "final") {
-      void loadChatHistory(host as unknown as OpenClawApp);
+      void loadChatHistory(host as unknown as OpenClawApp).then(() => {
+        if (host.tab === "chatloop") {
+          void triggerChatLoop(host);
+        }
+      });
     }
     return;
   }
