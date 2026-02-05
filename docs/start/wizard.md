@@ -4,7 +4,7 @@ read_when:
   - Running or configuring the onboarding wizard
   - Setting up a new machine
 title: "Onboarding Wizard (CLI)"
-sidebarTitle: "Wizard (CLI)"
+sidebarTitle: "Onboarding: CLI"
 ---
 
 # Onboarding Wizard (CLI)
