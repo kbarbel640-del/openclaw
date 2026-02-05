@@ -4,7 +4,6 @@ import type { CronServiceState } from "./state.js";
 import { parseAbsoluteTimeMs } from "../parse.js";
 import { migrateLegacyCronPayload } from "../payload-migration.js";
 import { loadCronStore, saveCronStore } from "../store.js";
-import { recomputeNextRuns } from "./jobs.js";
 import { inferLegacyName, normalizeOptionalText } from "./normalize.js";
 
 function hasLegacyDeliveryHints(payload: Record<string, unknown>) {
@@ -255,8 +254,9 @@ export async function ensureLoaded(state: CronServiceState, opts?: { forceReload
   state.storeLoadedAtMs = state.deps.nowMs();
   state.storeFileMtimeMs = fileMtimeMs;
 
-  // Recompute next runs after loading to ensure accuracy
-  recomputeNextRuns(state);
+  // NOTE: recomputeNextRuns removed here - it was causing jobs to be skipped
+  // when timer fires because nextRunAtMs gets recalculated to future time.
+  // recomputeNextRuns is called in start() which is sufficient.
 
   if (mutated) {
     await persist(state);
