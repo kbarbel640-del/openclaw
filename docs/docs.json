@@ -335,6 +335,14 @@
       "destination": "/start/getting-started"
     },
     {
+      "source": "/quickstart",
+      "destination": "/start/getting-started"
+    },
+    {
+      "source": "/start/quickstart",
+      "destination": "/start/getting-started"
+    },
+    {
       "source": "/gmail-pubsub",
       "destination": "/automation/gmail-pubsub"
     },
@@ -732,43 +740,46 @@
                 "pages": ["index", "concepts/features", "start/showcase", "start/lore"]
               },
               {
-                "group": "Installation",
-                "pages": [
-                  "install/index",
-                  "install/installer",
-                  "install/docker",
-                  "install/bun",
-                  "install/nix",
-                  "install/ansible",
-                  "install/development-channels",
-                  "install/updating",
-                  "install/uninstall"
-                ]
-              },
-              {
-                "group": "Setup",
+                "group": "First run",
                 "pages": [
                   "start/getting-started",
-                  "start/quickstart",
-                  "start/wizard",
-                  "start/setup",
-                  "start/onboarding",
-                  "start/pairing",
-                  "start/openclaw",
-                  "start/hubs",
-                  "start/docs-directory"
+                  {
+                    "group": "Onboarding",
+                    "pages": ["start/wizard", "start/onboarding"]
+                  },
+                  "start/pairing"
                 ]
               },
               {
-                "group": "Platforms",
+                "group": "Use cases",
+                "pages": ["start/openclaw"]
+              }
+            ]
+          },
+          {
+            "tab": "Install",
+            "groups": [
+              {
+                "group": "Install overview",
+                "pages": ["install/index", "install/installer"]
+              },
+              {
+                "group": "Install methods",
                 "pages": [
-                  "platforms/index",
-                  "platforms/macos",
-                  "platforms/linux",
-                  "platforms/windows",
-                  "platforms/android",
-                  "platforms/ios"
+                  "install/node",
+                  "install/docker",
+                  "install/nix",
+                  "install/ansible",
+                  "install/bun"
                 ]
+              },
+              {
+                "group": "Maintenance",
+                "pages": ["install/updating", "install/migrating", "install/uninstall"]
+              },
+              {
+                "group": "Advanced",
+                "pages": ["install/development-channels"]
               }
             ]
           },
@@ -955,7 +966,7 @@
             ]
           },
           {
-            "tab": "Infrastructure",
+            "tab": "Gateway & Ops",
             "groups": [
               {
                 "group": "Gateway",
@@ -1030,6 +1041,22 @@
               {
                 "group": "Web interfaces",
                 "pages": ["web/index", "web/control-ui", "web/dashboard", "web/webchat", "tui"]
+              }
+            ]
+          },
+          {
+            "tab": "Platforms",
+            "groups": [
+              {
+                "group": "Platforms overview",
+                "pages": [
+                  "platforms/index",
+                  "platforms/macos",
+                  "platforms/linux",
+                  "platforms/windows",
+                  "platforms/android",
+                  "platforms/ios"
+                ]
               },
               {
                 "group": "macOS companion app",
@@ -1155,6 +1182,14 @@
                   "scripts",
                   "reference/session-management-compaction"
                 ]
+              },
+              {
+                "group": "Developer workflows",
+                "pages": ["start/setup"]
+              },
+              {
+                "group": "Docs meta",
+                "pages": ["start/hubs", "start/docs-directory"]
               }
             ]
           }
@@ -1168,44 +1203,57 @@
             "groups": [
               {
                 "group": "Overview",
-                "pages": ["zh-CN/index", "zh-CN/start/showcase", "zh-CN/start/lore"]
+                "pages": [
+                  "zh-CN/index",
+                  "zh-CN/concepts/features",
+                  "zh-CN/start/showcase",
+                  "zh-CN/start/lore"
+                ]
               },
               {
-                "group": "Installation",
+                "group": "First run",
                 "pages": [
-                  "zh-CN/install/index",
-                  "zh-CN/install/installer",
+                  "zh-CN/start/getting-started",
+                  "zh-CN/start/quickstart",
+                  "zh-CN/start/wizard",
+                  "zh-CN/start/onboarding",
+                  "zh-CN/start/pairing"
+                ]
+              },
+              {
+                "group": "Use cases",
+                "pages": ["zh-CN/start/openclaw"]
+              }
+            ]
+          },
+          {
+            "tab": "Install",
+            "groups": [
+              {
+                "group": "Install overview",
+                "pages": ["zh-CN/install/index", "zh-CN/install/installer"]
+              },
+              {
+                "group": "Install methods",
+                "pages": [
+                  "zh-CN/install/node",
                   "zh-CN/install/docker",
-                  "zh-CN/install/bun",
                   "zh-CN/install/nix",
                   "zh-CN/install/ansible",
-                  "zh-CN/install/development-channels",
+                  "zh-CN/install/bun"
+                ]
+              },
+              {
+                "group": "Maintenance",
+                "pages": [
                   "zh-CN/install/updating",
+                  "zh-CN/install/migrating",
                   "zh-CN/install/uninstall"
                 ]
               },
               {
-                "group": "Setup",
-                "pages": [
-                  "zh-CN/start/getting-started",
-                  "zh-CN/start/wizard",
-                  "zh-CN/start/setup",
-                  "zh-CN/start/onboarding",
-                  "zh-CN/start/pairing",
-                  "zh-CN/start/openclaw",
-                  "zh-CN/start/hubs"
-                ]
-              },
-              {
-                "group": "Platforms",
-                "pages": [
-                  "zh-CN/platforms/index",
-                  "zh-CN/platforms/macos",
-                  "zh-CN/platforms/linux",
-                  "zh-CN/platforms/windows",
-                  "zh-CN/platforms/android",
-                  "zh-CN/platforms/ios"
-                ]
+                "group": "Advanced",
+                "pages": ["zh-CN/install/development-channels"]
               }
             ]
           },
@@ -1400,7 +1448,7 @@
             ]
           },
           {
-            "tab": "Infrastructure",
+            "tab": "Gateway & Ops",
             "groups": [
               {
                 "group": "Gateway",
@@ -1444,6 +1492,7 @@
                   {
                     "group": "Networking and discovery",
                     "pages": [
+                      "zh-CN/gateway/network-model",
                       "zh-CN/gateway/pairing",
                       "zh-CN/gateway/discovery",
                       "zh-CN/gateway/bonjour"
@@ -1479,6 +1528,22 @@
                   "zh-CN/web/dashboard",
                   "zh-CN/web/webchat",
                   "zh-CN/tui"
+                ]
+              }
+            ]
+          },
+          {
+            "tab": "Platforms",
+            "groups": [
+              {
+                "group": "Platforms overview",
+                "pages": [
+                  "zh-CN/platforms/index",
+                  "zh-CN/platforms/macos",
+                  "zh-CN/platforms/linux",
+                  "zh-CN/platforms/windows",
+                  "zh-CN/platforms/android",
+                  "zh-CN/platforms/ios"
                 ]
               },
               {
@@ -1601,6 +1666,14 @@
                   "zh-CN/scripts",
                   "zh-CN/reference/session-management-compaction"
                 ]
+              },
+              {
+                "group": "Developer workflows",
+                "pages": ["zh-CN/start/setup"]
+              },
+              {
+                "group": "Docs meta",
+                "pages": ["zh-CN/start/hubs", "zh-CN/start/docs-directory"]
               }
             ]
           }
