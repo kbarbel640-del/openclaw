@@ -3,7 +3,7 @@ import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
-import { resolveUserPath } from "../../utils.js";
+import { resolveUserPath, sleep } from "../../utils.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
 import { resolveOpenClawAgentDir } from "../agent-paths.js";
 import {
@@ -38,7 +38,9 @@ import {
   isFailoverErrorMessage,
   parseImageSizeError,
   parseImageDimensionError,
+  isOverloadedErrorMessage,
   isRateLimitAssistantError,
+  isRateLimitErrorMessage,
   isTimeoutErrorMessage,
   pickFallbackThinkingLevel,
   type FailoverReason,
@@ -170,6 +172,12 @@ export async function runEmbeddedPiAgent(
       const attemptedThinking = new Set<ThinkLevel>();
       let apiKeyInfo: ApiKeyInfo | null = null;
       let lastProfileId: string | undefined;
+      let profileRetryCount = 0;
+      // Add sane upper bound to prevent effectively infinite retries
+      const MAX_PROFILE_RETRIES = Math.min(
+        params.config?.agents?.defaults?.model?.maxRetries ?? 2,
+        5,
+      );
 
       const resolveAuthProfileFailoverReason = (params: {
         allInCooldown: boolean;
@@ -262,6 +270,7 @@ export async function runEmbeddedPiAgent(
             profileIndex = nextIndex;
             thinkLevel = initialThinkLevel;
             attemptedThinking.clear();
+            profileRetryCount = 0;
             return true;
           } catch (err) {
             if (candidate && candidate === lockedProfileId) {
@@ -368,10 +377,30 @@ export async function runEmbeddedPiAgent(
             enforceFinalTag: params.enforceFinalTag,
           });
 
+          if (!attempt) {
+            throw new Error("Embedded run attempt returned no result");
+          }
+
           const { aborted, promptError, timedOut, sessionIdUsed, lastAssistant } = attempt;
 
           if (promptError && !aborted) {
             const errorText = describeUnknownError(promptError);
+
+            // Handle rate limit / overload with exponential backoff before rotating profile
+            const isRateLimit =
+              isRateLimitErrorMessage(errorText) || isOverloadedErrorMessage(errorText);
+            if (isRateLimit && profileRetryCount < MAX_PROFILE_RETRIES) {
+              profileRetryCount++;
+              const delay = 1000 * Math.pow(2, profileRetryCount - 1);
+              const jitter = delay * 0.2 * (Math.random() * 2 - 1);
+              const finalDelay = Math.max(0, Math.round(delay + jitter));
+              log.warn(
+                `LLM rate limit/overload for ${lastProfileId}. Retrying attempt ${profileRetryCount}/${MAX_PROFILE_RETRIES} in ${finalDelay}ms...`,
+              );
+              await sleep(finalDelay);
+              continue;
+            }
+
             if (isContextOverflowError(errorText)) {
               const isCompactionFailure = isCompactionFailureError(errorText);
               // Attempt auto-compaction on context overflow (not compaction_failure)
@@ -538,7 +567,27 @@ export async function runEmbeddedPiAgent(
 
           const authFailure = isAuthAssistantError(lastAssistant);
           const rateLimitFailure = isRateLimitAssistantError(lastAssistant);
+          const overloadedFailure =
+            lastAssistant && isOverloadedErrorMessage(lastAssistant.errorMessage ?? "");
           const failoverFailure = isFailoverAssistantError(lastAssistant);
+
+          // Handle rate limit / overload with exponential backoff before rotating profile
+          if (
+            (rateLimitFailure || overloadedFailure) &&
+            !aborted &&
+            profileRetryCount < MAX_PROFILE_RETRIES
+          ) {
+            profileRetryCount++;
+            const delay = 1000 * Math.pow(2, profileRetryCount - 1);
+            const jitter = delay * 0.2 * (Math.random() * 2 - 1);
+            const finalDelay = Math.max(0, Math.round(delay + jitter));
+            log.warn(
+              `LLM rate limit/overload for ${lastProfileId} (assistant error). Retrying attempt ${profileRetryCount}/${MAX_PROFILE_RETRIES} in ${finalDelay}ms...`,
+            );
+            await sleep(finalDelay);
+            continue;
+          }
+
           const assistantFailoverReason = classifyFailoverReason(lastAssistant?.errorMessage ?? "");
           const cloudCodeAssistFormatError = attempt.cloudCodeAssistFormatError;
           const imageDimensionError = parseImageDimensionError(lastAssistant?.errorMessage ?? "");

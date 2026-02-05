@@ -63,7 +63,20 @@ jobs:
           which node
           node -v
           pnpm -v
-          pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true
+          if pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true; then
+            echo "Dependencies installed with frozen lockfile."
+            exit 0
+          fi
+          echo "ERROR: pnpm frozen install failed due to lockfile/config mismatch."
+          echo "Attempting to regenerate lockfile locally to show diffs (will not push):"
+          pnpm install --no-frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true --lockfile-only
+          echo "Changed files:"
+          git --no-pager diff --name-only || true
+          echo "If pnpm-lock.yaml changed, regenerate it locally with the same pnpm version and commit it:"
+          echo " corepack enable && corepack prepare pnpm @10.23.0 --activate"
+          echo " pnpm install --no-frozen-lockfile"
+          echo " git add pnpm-lock.yaml && git commit -m 'chore: update pnpm lockfile' && git push"
+          exit 1
 
   checks:
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -151,7 +164,20 @@ jobs:
           which node
           node -v
           pnpm -v
-          pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true || pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true
+          if pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true; then
+            echo "Dependencies installed with frozen lockfile."
+            exit 0
+          fi
+          echo "ERROR: pnpm frozen install failed due to lockfile/config mismatch."
+          echo "Attempting to regenerate lockfile locally to show diffs (will not push):"
+          pnpm install --no-frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true --lockfile-only
+          echo "Changed files:"
+          git --no-pager diff --name-only || true
+          echo "If pnpm-lock.yaml changed, regenerate it locally with the same pnpm version and commit it:"
+          echo " corepack enable && corepack prepare pnpm @10.23.0 --activate"
+          echo " pnpm install --no-frozen-lockfile"
+          echo " git add pnpm-lock.yaml && git commit -m 'chore: update pnpm lockfile' && git push"
+          exit 1
 
       - name: Run ${{ matrix.task }} (${{ matrix.runtime }})
         run: ${{ matrix.command }}
@@ -264,7 +290,20 @@ jobs:
           which node
           node -v
           pnpm -v
-          pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true || pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true
+          if pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true; then
+            echo "Dependencies installed with frozen lockfile."
+            exit 0
+          fi
+          echo "ERROR: pnpm frozen install failed due to lockfile/config mismatch."
+          echo "Attempting to regenerate lockfile locally to show diffs (will not push):"
+          pnpm install --no-frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true --lockfile-only
+          echo "Changed files:"
+          git --no-pager diff --name-only || true
+          echo "If pnpm-lock.yaml changed, regenerate it locally with the same pnpm version and commit it:"
+          echo " corepack enable && corepack prepare pnpm @10.23.0 --activate"
+          echo " pnpm install --no-frozen-lockfile"
+          echo " git add pnpm-lock.yaml && git commit -m 'chore: update pnpm lockfile' && git push"
+          exit 1
 
       - name: Run ${{ matrix.task }} (${{ matrix.runtime }})
         run: ${{ matrix.command }}
@@ -334,7 +373,20 @@ jobs:
           which node
           node -v
           pnpm -v
-          pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true || pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true
+          if pnpm install --frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true; then
+            echo "Dependencies installed with frozen lockfile."
+            exit 0
+          fi
+          echo "ERROR: pnpm frozen install failed due to lockfile/config mismatch."
+          echo "Attempting to regenerate lockfile locally to show diffs (will not push):"
+          pnpm install --no-frozen-lockfile --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true --lockfile-only
+          echo "Changed files:"
+          git --no-pager diff --name-only || true
+          echo "If pnpm-lock.yaml changed, regenerate it locally with the same pnpm version and commit it:"
+          echo " corepack enable && corepack prepare pnpm @10.23.0 --activate"
+          echo " pnpm install --no-frozen-lockfile"
+          echo " git add pnpm-lock.yaml && git commit -m 'chore: update pnpm lockfile' && git push"
+          exit 1
 
       - name: Run ${{ matrix.task }}
         env:
