@@ -168,6 +168,8 @@ Files created:
 7. **Backend-first, gateway-deferred** - Start with a single-process backend. Design session storage and tool execution so they *could* support multi-agent later, but don't build it until needed. If/when we need multi-agent communication, prefer local-first IPC (ZeroMQ, Unix sockets) over web-oriented tech (WebSocket, HTTP). Note: ZeroMQ supports broker-less patterns (direct peer-to-peer)—a central broker may not be required at all.
 8. **Validate before advancing** - Write tests for each distilled component before moving to the next. Unvalidated foundations are risky; tests often reveal design issues early. This implements "Phase 4: Validate" from DISTILLATION.md.
 9. **One agent per process** - Each agent runs in its own OS process. No shared in-process state between agents. Inter-agent communication, when needed, is explicit message passing (IPC), not shared memory. This eliminates file locking, cross-agent access control, session namespacing, and shared registries. OpenClaw's own agent-to-agent communication is already asynchronous message passing through session transcripts -- separate processes makes the existing logical isolation physical. OS process boundaries provide security isolation, failure isolation, and a natural scaling model (separate processes can become separate machines).
+10. **One conversation per agent, no sessions** - There are no "sessions." Each agent has one conversation that persists indefinitely, compacted as needed. OpenClaw's session concept (daily resets, idle timeouts, compound session keys) exists to multiplex many conversations in one process. With one-agent-per-process, that multiplexing is unnecessary. Want a separate conversation? Start another agent.
+11. **Claude API message types** - Komatachi is built for Claude. Transcript messages use Claude's API format directly. No provider-agnostic abstraction.
 
 ---
 
@@ -202,10 +204,10 @@ Traced cross-agent communication in OpenClaw. The gateway is a WebSocket-based J
 
 See [ROADMAP.md](./ROADMAP.md) for the full sequenced plan. Summary:
 
-- [ ] **Phase 1**: Storage & Session Foundation (Storage, Session Store, Session State)
+- [ ] **Phase 1**: Storage & Conversation Foundation (Storage, Conversation Store)
 - [ ] **Phase 2**: Context Pipeline (Context Window with History Management folded in)
 - [ ] **Phase 3**: Agent Alignment (System Prompt, Tool Policy, Workspace Bootstrap)
-- [ ] **Phase 4**: Routing Stub (single-agent dispatch)
+- [ ] **Phase 4**: Agent Loop (main execution loop wiring everything together)
 - [ ] **Phase 5**: Integration Validation (end-to-end pipeline test)
 
 ---

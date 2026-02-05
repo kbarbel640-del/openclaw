@@ -85,7 +85,7 @@ These were discussed during roadmap creation and are settled:
 
 1. **File-based storage, not SQLite** -- OpenClaw uses file-based storage (JSON metadata, JSONL transcripts) for sessions and conversation history. SQLite is only used for the derived memory search index. Since we are deferring vector search, there is no need for SQLite in the initial system. Storage is JSON/JSONL files with atomic writes (no locking needed -- see decision #8).
 
-2. **Single-session assumption** -- The initial system manages one session at a time. Session Store is implemented, but multi-session management is deferred. The interface must support future multi-session without breaking callers.
+2. **One conversation per agent** -- There are no "sessions." Each agent has exactly one conversation that persists indefinitely, compacted as needed. No session IDs, no session listing, no reset policies. This follows from one-agent-per-process: one agent, one conversation, one process. If the user wants a separate conversation thread, they start another agent. OpenClaw's session concept (daily resets, idle timeouts, session keys) exists to multiplex many conversations within one process -- with that multiplexing eliminated, sessions have no purpose. The "Conversation Store" replaces "Session Store."
 
 3. **Single-agent, routing as stub** -- Routing resolves every message to the one active session. The interface is designed for multi-agent dispatch so it can be replaced later, but the implementation is trivial.
 
@@ -104,6 +104,8 @@ These were discussed during roadmap creation and are settled:
 10. **JSONL for transcripts, JSON for metadata** -- Transcripts are append-only logs (JSONL): O(1) append, no read-modify-write. Session metadata is a single JSON document: small, read-modify-write is fine with atomic writes. This matches OpenClaw's approach and the tradeoffs are sound for both current and future scale.
 
 11. **Base directory injection, no platform conventions** -- Storage accepts a base directory as a constructor parameter. No XDG, no ~/.config defaults, no platform detection. The caller decides where files live. This keeps Storage focused on I/O and makes testing trivial (use a temp directory).
+
+12. **Claude API message types, not a custom format** -- Komatachi is explicitly built for Claude. Transcript messages use Claude's API message format (user/assistant roles, content blocks with text/tool_use/tool_result). No provider-agnostic abstraction layer. This eliminates a translation layer and means the transcript is directly usable as API input. If Rust portability requires it, we define a minimal mirror of Claude's types rather than an abstraction over multiple providers.
 
 ---
 
@@ -132,43 +134,23 @@ What to omit:
 - Migration logic (no legacy data to migrate)
 - Session/message/metadata awareness (that's Session Store's job -- see Pre-Resolved Decision #9)
 
-**1.2 -- Session Store**
+**1.2 -- Conversation Store**
 
-Scope: Session lifecycle management. Create, resume, end sessions. Persist session metadata and message history. Single-session to start.
+Scope: Persist and load the single conversation for this agent. Append messages, read history, store metadata. No session IDs, no lifecycle state machine, no multi-conversation management.
 
-Source material: `scouting/session-management.md` (store.ts ~440 lines, lifecycle in state machine).
-
-What to build:
-- Session creation with metadata (ID, timestamps, status)
-- Message appending (to JSONL transcript via Storage)
-- Session resume (load metadata + transcript)
-- Session end (mark status, finalize transcript)
-- Interface designed for multi-session (list, get-by-ID) even if only one exists
-
-What to omit:
-- Multi-session management (deferred -- see Pre-Resolved Decision #2)
-- Session search/filtering
-- Auto-cleanup / TTL
-- Session forking or branching
-
-**1.3 -- Session State**
-
-Scope: State machine for session lifecycle. Tracks current state and enforces valid transitions.
-
-Source material: `scouting/session-management.md` (state tracking sections).
+Source material: `scouting/session-management.md` (store.ts ~440 lines, transcript.ts ~133 lines). Study for file format patterns; discard session multiplexing, reset policies, and key resolution.
 
 What to build:
-- State enum: Created, Active, Compacting, Ended
-- Transition rules (Created->Active, Active->Compacting, Compacting->Active, Active->Ended)
-- Invalid transition rejection (fail clearly)
-- State change logging for auditability
+- Conversation metadata: JSON file with timestamps, compaction count, model config
+- Message appending: append Claude API messages to JSONL transcript via Storage
+- Conversation loading: read metadata + full transcript into memory on startup
+- Conversation initialization: create metadata + empty transcript if none exists
 
 What to omit:
-- Complex state like "paused", "error-recovery", "migrating"
-- Undo/rollback of state transitions
-- State persistence separate from session metadata (state is a field on the session, not its own store)
-
-Open question: Session State might be thin enough to fold into Session Store as an internal detail rather than a standalone module. Claude should make this call during design. If it's fewer than ~50 lines of logic, fold it in. If the state machine has meaningful complexity, keep it separate.
+- Session IDs, session keys, session listing (see Pre-Resolved Decision #2)
+- Lifecycle state machine (no Created/Active/Compacting/Ended -- the conversation just exists)
+- Reset policies (daily/idle timeouts -- see Pre-Resolved Decision #2)
+- Session search/filtering, auto-cleanup, TTL, forking
 
 ---
 
@@ -256,26 +238,24 @@ What to omit:
 
 ---
 
-### Phase 4: Routing (Stub)
+### Phase 4: Agent Loop
 
-**4.1 -- Routing Stub**
+**4.1 -- Agent Loop**
 
-Scope: Accept an incoming message and resolve it to the active session.
+Scope: The main execution loop that ties everything together. Accept user input, build context, call Claude, process response, persist to conversation.
 
-Source material: `scouting/session-management.md` (routing sections).
+With one agent, one conversation, and no routing, this is not a "routing stub" -- it's the agent's main loop. It wires together Conversation Store, Context Window, System Prompt, Tool Policy, and the Claude API.
 
 What to build:
-- Router interface: `resolve(message) -> session` (designed for multi-agent/multi-session)
-- Single-agent implementation: always returns the one active session
-- Message dispatch: pass resolved message to session for processing
+- Main loop: read input -> build context (system prompt + history within budget) -> call Claude API -> handle response (text, tool calls) -> append to conversation -> repeat
+- Tool execution dispatch: when Claude returns tool_use, execute the tool and return the result
+- Graceful shutdown: persist conversation state on exit
 
 What to omit:
-- Multi-agent dispatch logic
-- Session creation on first message (session already exists)
-- Load balancing or queue management
-- Channel-specific routing (Telegram, Discord, etc.)
-
-Design note: The Router interface should be defined during Phase 1 alongside Session Store, even though the implementation waits until Phase 4. This ensures Session Store exposes what Router needs.
+- Multi-agent dispatch
+- Channel-specific routing
+- Message queue or load balancing
+- Background processing or async job handling
 
 ---
 
@@ -305,8 +285,8 @@ Explicitly not on this roadmap. Documented here so future sessions don't re-deri
 | Memory Manager | Orchestrator for search + sync + embeddings. Deferred with its dependencies. |
 | Cross-Agent Access | Multi-agent feature. Single-agent assumption for now (PROGRESS.md Decision #4). |
 | BM25 / hybrid search | Already decided against (PROGRESS.md Decision #3). Vector-only when search is added. |
-| Multi-session management | Single-session assumption. Interface supports it; implementation deferred. |
-| Multi-agent routing | Single-agent assumption. Router interface supports it; implementation is a stub. |
+| Multi-conversation management | One conversation per agent. Want another thread? Start another agent. |
+| Multi-agent routing | One agent per process. Inter-agent communication is IPC, not in-process routing. |
 | Gateway / IPC broker | Only needed for multi-agent or multi-client. Single-process for now (PROGRESS.md Decision #7). |
 
 ---
