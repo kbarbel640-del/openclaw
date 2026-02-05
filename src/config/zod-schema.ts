@@ -543,22 +543,6 @@ export const OpenClawSchema = z
       .strict()
       .optional(),
     memory: MemorySchema,
-    execution: z
-      .object({
-        enabled: z.boolean().optional(),
-        useNewLayer: z
-          .object({
-            cli: z.boolean().optional(),
-            autoReply: z.boolean().optional(),
-            followup: z.boolean().optional(),
-            cron: z.boolean().optional(),
-            hybridPlanner: z.boolean().optional(),
-          })
-          .strict()
-          .optional(),
-      })
-      .strict()
-      .optional(),
     skills: z
       .object({
         allowBundled: z.array(z.string()).optional(),
