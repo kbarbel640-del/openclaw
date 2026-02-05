@@ -76,6 +76,16 @@ export function lookupContextTokens(modelIdOrRef?: string, provider?: string): n
     return undefined;
   }
 
+  const normalizeRef = (ref: string): string | undefined => {
+    const [providerRaw, ...idParts] = ref.split("/");
+    const providerPart = providerRaw?.trim();
+    const idPart = idParts.join("/").trim();
+    if (!providerPart || !idPart) {
+      return undefined;
+    }
+    return modelRefKey(providerPart, idPart);
+  };
+
   // Preferred: explicit provider + id.
   if (provider && provider.trim() && !raw.includes("/")) {
     return MODEL_CACHE_BY_REF.get(modelRefKey(provider.trim(), raw));
@@ -83,7 +93,11 @@ export function lookupContextTokens(modelIdOrRef?: string, provider?: string): n
 
   // If caller passed a fully-qualified ref already.
   if (raw.includes("/")) {
-    return MODEL_CACHE_BY_REF.get(raw);
+    const normalized = normalizeRef(raw);
+    if (!normalized) {
+      return undefined;
+    }
+    return MODEL_CACHE_BY_REF.get(normalized);
   }
 
   // Last resort: bare id only if unambiguous across providers.
