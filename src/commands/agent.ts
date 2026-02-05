@@ -2,6 +2,7 @@ import type { AgentCommandOpts } from "./agent/types.js";
 import {
   listAgentIds,
   resolveAgentDir,
+  resolveAgentIdentityDir,
   resolveAgentModelFallbacksOverride,
   resolveAgentModelPrimary,
   resolveAgentSkillsFilter,
@@ -96,9 +97,11 @@ export async function agentCommand(
   const agentCfg = cfg.agents?.defaults;
   const sessionAgentId = agentIdOverride ?? resolveAgentIdFromSessionKey(opts.sessionKey?.trim());
   const workspaceDirRaw = resolveAgentWorkspaceDir(cfg, sessionAgentId);
+  const identityDirRaw = resolveAgentIdentityDir(cfg, sessionAgentId ?? "default");
   const agentDir = resolveAgentDir(cfg, sessionAgentId);
   const workspace = await ensureAgentWorkspace({
     dir: workspaceDirRaw,
+    identityDir: identityDirRaw !== workspaceDirRaw ? identityDirRaw : undefined,
     ensureBootstrapFiles: !agentCfg?.skipBootstrap,
   });
   const workspaceDir = workspace.dir;

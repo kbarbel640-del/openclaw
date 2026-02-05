@@ -11,8 +11,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { OpenClawConfig } from "../../../config/config.js";
 import type { HookHandler } from "../../hooks.js";
-import { resolveAgentWorkspaceDir } from "../../../agents/agent-scope.js";
-import { resolveAgentIdFromSessionKey } from "../../../routing/session-key.js";
+import { resolveAgentIdentityDir } from "../../../agents/agent-scope.js";
+import { resolveAgentIdFromSessionKey, normalizeAgentId } from "../../../routing/session-key.js";
 import { resolveHookConfig } from "../../config.js";
 
 /**
@@ -74,10 +74,13 @@ const saveSessionToMemory: HookHandler = async (event) => {
     const context = event.context || {};
     const cfg = context.cfg as OpenClawConfig | undefined;
     const agentId = resolveAgentIdFromSessionKey(event.sessionKey);
-    const workspaceDir = cfg
-      ? resolveAgentWorkspaceDir(cfg, agentId)
-      : path.join(os.homedir(), ".openclaw", "workspace");
-    const memoryDir = path.join(workspaceDir, "memory");
+    // Use identityDir for memory files (so they go to bots/morty/identity/memory/, not root).
+    // When cfg is unavailable, fall back to a per-agent workspace path to maintain
+    // isolation (mirrors resolveAgentWorkspaceDir's non-default agent behavior).
+    const identityDir = cfg
+      ? resolveAgentIdentityDir(cfg, agentId)
+      : path.join(os.homedir(), ".openclaw", `workspace-${normalizeAgentId(agentId)}`);
+    const memoryDir = path.join(identityDir, "memory");
     await fs.mkdir(memoryDir, { recursive: true });
 
     // Get today's date for filename

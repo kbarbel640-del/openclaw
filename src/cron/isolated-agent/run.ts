@@ -5,6 +5,7 @@ import type { CronJob } from "../types.js";
 import {
   resolveAgentConfig,
   resolveAgentDir,
+  resolveAgentIdentityDir,
   resolveAgentModelFallbacksOverride,
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
@@ -143,9 +144,11 @@ export async function runCronIsolatedAgentTurn(params: {
   });
 
   const workspaceDirRaw = resolveAgentWorkspaceDir(params.cfg, agentId);
+  const identityDirRaw = resolveAgentIdentityDir(params.cfg, agentId);
   const agentDir = resolveAgentDir(params.cfg, agentId);
   const workspace = await ensureAgentWorkspace({
     dir: workspaceDirRaw,
+    identityDir: identityDirRaw !== workspaceDirRaw ? identityDirRaw : undefined,
     ensureBootstrapFiles: !agentCfg?.skipBootstrap,
   });
   const workspaceDir = workspace.dir;

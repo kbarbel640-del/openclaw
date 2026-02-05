@@ -124,6 +124,8 @@ async function ensureGitRepo(dir: string, isBrandNewWorkspace: boolean) {
 
 export async function ensureAgentWorkspace(params?: {
   dir?: string;
+  /** Optional identity directory for bootstrap files. When set, bootstrap files are created here instead of in `dir`. */
+  identityDir?: string;
   ensureBootstrapFiles?: boolean;
 }): Promise<{
   dir: string;
@@ -143,13 +145,21 @@ export async function ensureAgentWorkspace(params?: {
     return { dir };
   }
 
-  const agentsPath = path.join(dir, DEFAULT_AGENTS_FILENAME);
-  const soulPath = path.join(dir, DEFAULT_SOUL_FILENAME);
-  const toolsPath = path.join(dir, DEFAULT_TOOLS_FILENAME);
-  const identityPath = path.join(dir, DEFAULT_IDENTITY_FILENAME);
-  const userPath = path.join(dir, DEFAULT_USER_FILENAME);
-  const heartbeatPath = path.join(dir, DEFAULT_HEARTBEAT_FILENAME);
-  const bootstrapPath = path.join(dir, DEFAULT_BOOTSTRAP_FILENAME);
+  // Bootstrap files go to identityDir when configured, otherwise workspace dir.
+  const bootstrapDir = params?.identityDir?.trim()
+    ? resolveUserPath(params.identityDir.trim())
+    : dir;
+  if (bootstrapDir !== dir) {
+    await fs.mkdir(bootstrapDir, { recursive: true });
+  }
+
+  const agentsPath = path.join(bootstrapDir, DEFAULT_AGENTS_FILENAME);
+  const soulPath = path.join(bootstrapDir, DEFAULT_SOUL_FILENAME);
+  const toolsPath = path.join(bootstrapDir, DEFAULT_TOOLS_FILENAME);
+  const identityPath = path.join(bootstrapDir, DEFAULT_IDENTITY_FILENAME);
+  const userPath = path.join(bootstrapDir, DEFAULT_USER_FILENAME);
+  const heartbeatPath = path.join(bootstrapDir, DEFAULT_HEARTBEAT_FILENAME);
+  const bootstrapPath = path.join(bootstrapDir, DEFAULT_BOOTSTRAP_FILENAME);
 
   const isBrandNewWorkspace = await (async () => {
     const paths = [agentsPath, soulPath, toolsPath, identityPath, userPath, heartbeatPath];
