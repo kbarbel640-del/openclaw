@@ -22,6 +22,8 @@ type AuthChoiceFlagOptions = Pick<
   | "xiaomiApiKey"
   | "minimaxApiKey"
   | "opencodeZenApiKey"
+  | "deepseekApiKey"
+  | "xaiApiKey"
 >;
 
 const AUTH_CHOICE_FLAG_MAP = [
@@ -41,6 +43,8 @@ const AUTH_CHOICE_FLAG_MAP = [
   { flag: "veniceApiKey", authChoice: "venice-api-key", label: "--venice-api-key" },
   { flag: "zaiApiKey", authChoice: "zai-api-key", label: "--zai-api-key" },
   { flag: "xiaomiApiKey", authChoice: "xiaomi-api-key", label: "--xiaomi-api-key" },
+  { flag: "deepseekApiKey", authChoice: "deepseek-api-key", label: "--deepseek-api-key" },
+  { flag: "xaiApiKey", authChoice: "xai-api-key", label: "--xai-api-key" },
   { flag: "minimaxApiKey", authChoice: "minimax-api", label: "--minimax-api-key" },
   { flag: "opencodeZenApiKey", authChoice: "opencode-zen", label: "--opencode-zen-api-key" },
 ] satisfies ReadonlyArray<AuthChoiceFlag>;
