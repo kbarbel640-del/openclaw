@@ -170,7 +170,9 @@ export async function fetchClaudeUsage(
       windows.push({
         label: "5h",
         usedPercent: clampPercent(data.five_hour.utilization),
-        resetAt: data.five_hour.resets_at ? new Date(data.five_hour.resets_at).getTime() : undefined,
+        resetAt: data.five_hour.resets_at
+          ? new Date(data.five_hour.resets_at).getTime()
+          : undefined,
       });
     }
 
@@ -178,7 +180,9 @@ export async function fetchClaudeUsage(
       windows.push({
         label: "Week",
         usedPercent: clampPercent(data.seven_day.utilization),
-        resetAt: data.seven_day.resets_at ? new Date(data.seven_day.resets_at).getTime() : undefined,
+        resetAt: data.seven_day.resets_at
+          ? new Date(data.seven_day.resets_at).getTime()
+          : undefined,
       });
     }
 
