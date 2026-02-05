@@ -25,6 +25,7 @@ export type VoiceResponseParams = {
 export type VoiceResponseResult = {
   text: string | null;
   error?: string;
+  endCall?: boolean;
 };
 
 type SessionEntry = {
@@ -115,7 +116,9 @@ IMPORTANT: Your responses will be read aloud by a text-to-speech engine. Write e
 - Dates: "February 5th" not "2026-02-05"
 - URLs/paths: skip or describe them, don't read raw URLs
 - Abbreviations: spell out or use spoken form
-- No markdown, bullet points, or special formatting`;
+- No markdown, bullet points, or special formatting
+
+You have an end_call tool. Use it when the conversation is naturally over or the caller says goodbye. Always say a brief farewell before ending the call.`;
 
   let extraSystemPrompt = basePrompt;
   if (transcript.length > 0) {
@@ -130,6 +133,20 @@ IMPORTANT: Your responses will be read aloud by a text-to-speech engine. Write e
   const runId = `voice:${callId}:${Date.now()}`;
 
   try {
+    // Inject end_call tool so the agent can hang up
+    let endCallRequested = false;
+    const clientTools = [
+      {
+        type: "function" as const,
+        function: {
+          name: "end_call",
+          description:
+            "End the phone call. Use when the conversation is naturally over, the caller says goodbye, or there is nothing more to discuss. Always say a brief goodbye before calling this.",
+          parameters: { type: "object", properties: {} },
+        },
+      },
+    ];
+
     const result = await deps.runEmbeddedPiAgent({
       sessionId,
       sessionKey,
@@ -147,6 +164,7 @@ IMPORTANT: Your responses will be read aloud by a text-to-speech engine. Write e
       lane: "voice",
       extraSystemPrompt,
       agentDir,
+      clientTools,
     });
 
     // Extract text from payloads
@@ -161,7 +179,11 @@ IMPORTANT: Your responses will be read aloud by a text-to-speech engine. Write e
       return { text: null, error: "Response generation was aborted" };
     }
 
-    return { text };
+    // Check if the agent called end_call
+    const pendingCalls = result.meta?.pendingToolCalls as Array<{ name: string }> | undefined;
+    endCallRequested = pendingCalls?.some((tc) => tc.name === "end_call") ?? false;
+
+    return { text, endCall: endCallRequested };
   } catch (err) {
     console.error(`[voice-call] Response generation failed:`, err);
     return { text: null, error: String(err) };
