@@ -98,7 +98,11 @@ async function getLastSessionTime(userId: string): Promise<SessionRecord | null>
 
   // Back-compat: legacy shared sessions.json
   try {
-    const legacyFile = path.join(path.resolve(resolveWorkspaceRoot()), ".openclaw", "sessions.json");
+    const legacyFile = path.join(
+      path.resolve(resolveWorkspaceRoot()),
+      ".openclaw",
+      "sessions.json",
+    );
     const data = await fs.readFile(legacyFile, "utf-8");
     const sessions = JSON.parse(data) as Record<string, SessionRecord>;
     return sessions[userId] || null;
