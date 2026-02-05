@@ -749,35 +749,14 @@
             "groups": [
               {
                 "group": "Overview",
-                "pages": ["index", "concepts/features", "start/showcase", "start/lore"]
+                "pages": ["index", "concepts/features", "start/showcase"]
               },
               {
-                "group": "First run",
-                "pages": [
-                  "start/getting-started",
-                  {
-                    "group": "Onboarding",
-                    "pages": [
-                      {
-                        "group": "CLI onboarding",
-                        "pages": [
-                          "start/wizard",
-                          "start/wizard-cli-reference",
-                          "start/wizard-cli-automation"
-                        ]
-                      },
-                      {
-                        "group": "macOS onboarding",
-                        "pages": ["start/onboarding"]
-                      }
-                    ]
-                  },
-                  "start/bootstrapping",
-                  "start/pairing"
-                ]
+                "group": "First steps",
+                "pages": ["start/getting-started", "start/wizard"]
               },
               {
-                "group": "Use cases",
+                "group": "Guides",
                 "pages": ["start/openclaw"]
               }
             ]
@@ -839,6 +818,7 @@
               {
                 "group": "Configuration",
                 "pages": [
+                  "start/pairing",
                   "concepts/group-messages",
                   "concepts/groups",
                   "broadcast-groups",
@@ -861,6 +841,7 @@
                   "concepts/system-prompt",
                   "concepts/context",
                   "concepts/agent-workspace",
+                  "start/bootstrapping",
                   "concepts/oauth"
                 ]
               },
@@ -1087,6 +1068,7 @@
               {
                 "group": "macOS companion app",
                 "pages": [
+                  "start/onboarding",
                   "platforms/mac/dev-setup",
                   "platforms/mac/menu-bar",
                   "platforms/mac/voicewake",
@@ -1174,6 +1156,7 @@
               {
                 "group": "Technical reference",
                 "pages": [
+                  "reference/wizard",
                   "concepts/typebox",
                   "concepts/markdown-formatting",
                   "concepts/typing-indicators",
@@ -1198,6 +1181,10 @@
               {
                 "group": "Help",
                 "pages": ["help/index", "help/troubleshooting", "help/faq"]
+              },
+              {
+                "group": "Community",
+                "pages": ["start/lore"]
               },
               {
                 "group": "Environment and debugging",
@@ -1229,26 +1216,14 @@
             "groups": [
               {
                 "group": "概览",
-                "pages": [
-                  "zh-CN/index",
-                  "zh-CN/concepts/features",
-                  "zh-CN/start/showcase",
-                  "zh-CN/start/lore"
-                ]
+                "pages": ["zh-CN/index", "zh-CN/concepts/features", "zh-CN/start/showcase"]
               },
               {
-                "group": "首次运行",
-                "pages": [
-                  "zh-CN/start/getting-started",
-                  {
-                    "group": "新手引导",
-                    "pages": ["zh-CN/start/wizard", "zh-CN/start/onboarding"]
-                  },
-                  "zh-CN/start/pairing"
-                ]
+                "group": "第一步",
+                "pages": ["zh-CN/start/getting-started", "zh-CN/start/wizard"]
               },
               {
-                "group": "使用场景",
+                "group": "指南",
                 "pages": ["zh-CN/start/openclaw"]
               }
             ]
@@ -1314,6 +1289,7 @@
               {
                 "group": "配置",
                 "pages": [
+                  "zh-CN/start/pairing",
                   "zh-CN/concepts/group-messages",
                   "zh-CN/concepts/groups",
                   "zh-CN/broadcast-groups",
@@ -1576,6 +1552,7 @@
               {
                 "group": "macOS 配套应用",
                 "pages": [
+                  "zh-CN/start/onboarding",
                   "zh-CN/platforms/mac/dev-setup",
                   "zh-CN/platforms/mac/menu-bar",
                   "zh-CN/platforms/mac/voicewake",
@@ -1687,6 +1664,10 @@
               {
                 "group": "帮助",
                 "pages": ["zh-CN/help/index", "zh-CN/help/troubleshooting", "zh-CN/help/faq"]
+              },
+              {
+                "group": "社区",
+                "pages": ["zh-CN/start/lore"]
               },
               {
                 "group": "环境与调试",
