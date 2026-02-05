@@ -6,9 +6,9 @@
 
 | Aspect | State |
 |--------|-------|
-| **Phase** | Resolving decision points for each roadmap item |
-| **Last completed** | Distillation roadmap and autonomous execution framework |
-| **Next action** | Continue decision resolution (see ROADMAP.md per-module decisions) |
+| **Phase** | Decision resolution complete. Ready for Phase 1 implementation. |
+| **Last completed** | Per-module decision resolution (20 pre-resolved decisions in ROADMAP.md) |
+| **Next action** | Begin Phase 1.1 -- Storage module implementation |
 | **Blockers** | None |
 
 ### What Exists Now
@@ -18,10 +18,10 @@
 - [x] Embeddings sub-module: `src/embeddings/` (47 tests)
 - [x] Key architectural decisions (TypeScript+Rust, minimal viable agent, no gateway)
 - [x] Phased roadmap with autonomous execution framework (ROADMAP.md)
-- [ ] Per-module decision resolution (in progress -- may span multiple sessions)
+- [x] Per-module decision resolution (20 pre-resolved decisions)
 
-### Current Focus: Roadmap Execution
-A phased distillation roadmap has been established. See [ROADMAP.md](./ROADMAP.md) for the full plan, decision authority framework, and session protocol. The roadmap covers 5 phases leading to a minimal viable single-agent, single-session system.
+### Current Focus: Phase 1 Implementation
+All decision points have been resolved. The roadmap (ROADMAP.md) contains 20 pre-resolved decisions covering every phase. Claude can now execute the distillation cycle autonomously, following the session protocol. Next: Phase 1.1 -- Storage module.
 
 ---
 
@@ -230,6 +230,25 @@ Key scope decisions:
 
 Files created:
 - `ROADMAP.md` - Full roadmap, decision framework, and session protocol
+
+### 10. Per-Module Decision Resolution (Complete)
+
+Walked through every roadmap phase and pre-resolved all decision points. Total: 20 pre-resolved decisions in ROADMAP.md. Key decisions made during this phase:
+
+- **Komatachi's purpose recorded** -- Not a developer tool; an agentic LLM loop for persistent AI entities with identity, memory, and continuity. Recorded in CLAUDE.md, DISTILLATION.md, and ROADMAP.md.
+- **Phase 3 restructured** -- Renamed from "Agent Alignment" to "Agent Identity." Workspace Bootstrap (3.3) eliminated. Two modules remain: System Prompt (with identity file loading) and Tool Registry.
+- **Identity files are user-editable markdown** -- SOUL.md, IDENTITY.md, USER.md, MEMORY.md, AGENTS.md, TOOLS.md. No template initialization; human creates them.
+- **No project detection** -- Coding-assistant concern, deferred.
+- **Tool registry is flat** -- Array of definitions, no profiles or permissions.
+- **System prompt is a simple function** -- Section builders in order, string interpolation, no registry or template engine.
+- **@anthropic-ai/sdk directly** -- No provider abstraction (OpenClaw uses pi-ai wrapper; Komatachi doesn't need it).
+- **Non-streaming initially** -- Complete response before processing.
+
+Files updated:
+- `ROADMAP.md` - 20 pre-resolved decisions, restructured Phase 3, detailed Phase 4-5
+- `PROGRESS.md` - This file
+- `CLAUDE.md` - Komatachi vision context
+- `DISTILLATION.md` - "Why Komatachi Exists" section added
 
 ## Open Questions
 

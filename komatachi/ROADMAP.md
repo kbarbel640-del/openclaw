@@ -121,6 +121,10 @@ These were discussed during roadmap creation and are settled:
 
 18. **No project detection in the minimal agent** -- Project awareness (git root, project type, project config) is a coding-assistant concern, not core agent identity. The minimal agent has identity, memory, conversation, and tools. "I can look at this codebase" is a capability module for later, not a system prompt section. This eliminates Phase 3.3 (Workspace Bootstrap) entirely.
 
+19. **Use @anthropic-ai/sdk directly** -- OpenClaw uses `@mariozechner/pi-ai`, a provider-agnostic wrapper. Komatachi is built for Claude (decision #13), so we use the official Anthropic SDK directly. It handles retries, types, and error handling. No wrapper, no abstraction. The Rust version will need a different client anyway, so there's no portability benefit to abstracting now.
+
+20. **Non-streaming initially** -- The agent loop gets the complete response before processing it. Streaming is better UX (text appears incrementally) but adds complexity to response handling, tool dispatch, and conversation persistence. Non-streaming keeps the loop simple: call -> get response -> process -> persist. Streaming can be added later without changing the loop's logical structure.
+
 ---
 
 ## The Roadmap
@@ -249,18 +253,26 @@ What to omit:
 
 Scope: The main execution loop that ties everything together. Accept user input, build context, call Claude, process response, persist to conversation.
 
-With one agent, one conversation, and no routing, this is not a "routing stub" -- it's the agent's main loop. It wires together Conversation Store, Context Window, System Prompt, Tool Policy, and the Claude API.
+With one agent, one conversation, and no routing, this is the agent's main loop. It wires together Conversation Store, Context Window, System Prompt, Tool Registry, and the Claude API.
+
+Source material: OpenClaw uses `@mariozechner/pi-ai` (a provider-agnostic wrapper). Komatachi uses `@anthropic-ai/sdk` directly -- no abstraction layer needed (see Pre-Resolved Decision #13). Study OpenClaw's agent loop structure for the execution pattern; discard the provider abstraction.
 
 What to build:
+- Claude API client: use `@anthropic-ai/sdk` directly. Non-streaming initially (see Pre-Resolved Decision #20). The SDK handles retries, types, and error handling.
 - Main loop: read input -> build context (system prompt + history within budget) -> call Claude API -> handle response (text, tool calls) -> append to conversation -> repeat
-- Tool execution dispatch: when Claude returns tool_use, execute the tool and return the result
+- Tool execution dispatch: when Claude returns tool_use, execute the handler from the Tool Registry, format as tool_result, append both to conversation, call Claude again. Simple sequential loop.
+- Compaction triggering: when Context Window reports overflow (messages dropped), trigger compaction via the existing `src/compaction/` module. Simplest policy: compact when any messages are dropped.
+- Error handling: surface Claude API errors to the caller. No retries beyond what the SDK provides. Fail clearly (Principle 7).
 - Graceful shutdown: persist conversation state on exit
 
 What to omit:
+- Provider abstraction layer (see Pre-Resolved Decision #19)
+- Streaming (see Pre-Resolved Decision #20)
 - Multi-agent dispatch
 - Channel-specific routing
 - Message queue or load balancing
 - Background processing or async job handling
+- Parallel tool execution (sequential is sufficient initially)
 
 ---
 
@@ -271,8 +283,10 @@ What to omit:
 Scope: Verify that all modules compose correctly into a working agent loop.
 
 What to build:
-- Integration test: message in -> routing -> session -> context window -> LLM call (mocked) -> response -> session append
-- Verify the full pipeline works end-to-end with mocked LLM
+- Integration test: user message in -> conversation store append -> context window selection -> system prompt assembly -> Claude API call (mocked) -> response handling -> conversation store append
+- Tool dispatch test: mock Claude returning tool_use -> tool handler executes -> tool_result appended -> mock Claude called again with result
+- Compaction trigger test: simulate overflow -> verify compaction is triggered
+- Verify the full pipeline works end-to-end with mocked Claude API
 - Identify any interface mismatches between modules
 
 This is the checkpoint where we verify the architecture holds together. Any interface friction discovered here gets resolved before building further.
