@@ -12,10 +12,17 @@ import { parseSendPolicyCommand } from "./send-policy.js";
 beforeEach(() => {
   setActivePluginRegistry(
     createTestRegistry([
-      createOutboundTestPlugin({
-        id: "discord",
-        outbound: { send: async () => ({}) },
-      }),
+      {
+        pluginId: "discord",
+        source: "test",
+        plugin: createOutboundTestPlugin({
+          id: "discord",
+          outbound: {
+            deliveryMode: "direct",
+            sendText: async () => ({ ok: true, id: "1" }),
+          },
+        }),
+      },
     ]),
   );
 });
