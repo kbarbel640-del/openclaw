@@ -167,6 +167,9 @@ export const zulipPlugin: ChannelPlugin<ResolvedZulipAccount> = {
       });
       return { channel: "zulip", messageId: String(result.id ?? "unknown") };
     },
+    sendMedia: async () => {
+      throw new Error("Zulip channel does not support media yet.");
+    },
   },
   status: {
     defaultRuntime: {
