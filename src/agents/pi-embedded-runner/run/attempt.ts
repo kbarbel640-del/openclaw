@@ -143,6 +143,7 @@ export async function runEmbeddedAttempt(
   const resolvedWorkspace = resolveUserPath(params.workspaceDir);
   const prevCwd = process.cwd();
   const runAbortController = new AbortController();
+  // createInternalHookEvent(type, action, sessionKey, context): third arg is session key.
   const hookSessionKey = params.sessionKey ?? `session:${params.sessionId}`;
   const emitInternalAgentHook = async (action: string, context: Record<string, unknown>) => {
     try {
