@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 
 import type { Message } from "@grammyjs/types";
 import type { TelegramMediaRef } from "./bot-message-context.js";
@@ -661,6 +662,81 @@ const __lastStickerByChat =
       if (!msg) {
         return;
       }
+      // --- native /aff (fast, no model) ---
+const textRaw = ((msg as any)?.text ?? "") as string;
+
+if (textRaw.trim().startsWith("/aff")) {
+const ws =
+cfg?.agents?.default?.workspace ??
+process.env.OPENCLAW_WORKSPACE ??
+"/home/node/.openclaw/workspace";
+
+const statePath = path.join(ws, "affection", "state.json");
+const auditPath = path.join(ws, "affection", "audit.jsonl");
+const affScript = path.join(ws, "affection", "aff_log.mjs");
+
+const parts = textRaw.trim().split(/\s+/);
+const sub = (parts[1] ?? "status").toLowerCase();
+
+const replyStatus = async () => {
+const state = JSON.parse(await fs.promises.readFile(statePath, "utf8"));
+const block =
+`Affection (V3b — skill/state)\n\n` +
+`- label: ${state.label} | aff: ${state.aff}\n` +
+`- closeness: ${Number(state.closeness).toFixed(3)}\n` +
+`- trust: ${Number(state.trust).toFixed(3)}\n` +
+`- reliabilityTrust: ${Number(state.reliabilityTrust).toFixed(3)}\n` +
+`- irritation: ${Number(state.irritation).toFixed(3)}\n` +
+`- cooldown: ${state.cooldownUntil ? state.cooldownUntil : "none"}\n` +
+`- today affGain: ${state.today?.affGain ?? 0}/12\n` +
+`- lastMessageAt: ${state.lastMessageAt}`;
+await ctx.reply(block);
+};
+
+const runAffLog = async (type: string, reason: string) => {
+await new Promise<void>((resolve, reject) => {
+const child = spawn("node", [affScript, "log", type, reason], { stdio: "ignore" });
+child.on("error", reject);
+child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`aff_log exit ${code}`))));
+});
+};
+
+try {
+if (sub === "" || sub === "status") {
+await replyStatus();
+return;
+}
+
+if (sub === "debug") {
+const raw = await fs.promises.readFile(auditPath, "utf8").catch(() => "");
+const lines = raw.trim().split("\n").filter(Boolean).slice(-10);
+const out =
+`Affection (V3b — debug last ${lines.length})\n\n` +
+lines.map((l) => {
+try {
+const j = JSON.parse(l);
+return `- ${j.id ?? "?"} ${j.type ?? "?"} ${j.reason ?? ""}`.trim();
+} catch {
+return `- ${l.slice(0, 200)}`;
+}
+}).join("\n");
+await ctx.reply(out);
+return;
+}
+
+if (sub === "sorry") {
+await runAffLog("bot_repair", "aff_sorry");
+await replyStatus();
+return;
+}
+
+await ctx.reply("Usage: /aff [status|debug|sorry]");
+return;
+} catch (e: any) {
+await ctx.reply(`/aff failed: ${String(e?.message ?? e)}`);
+return;
+}
+}
       const chatId = String((msg as any)?.chat?.id ?? "");
 const stickerFileId = (msg as any)?.sticker?.file_id;
 if (chatId && stickerFileId) {
