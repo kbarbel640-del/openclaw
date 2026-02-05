@@ -101,7 +101,9 @@ async function* streamElevenLabsTelephony(
   const reader = response.body.getReader();
   // Cancel the reader when abort fires — otherwise reader.read() blocks
   // indefinitely waiting for more data from ElevenLabs, hanging processQueue.
-  const onAbort = () => reader.cancel();
+  const onAbort = () => {
+    reader.cancel().catch(() => {});
+  };
   signal?.addEventListener("abort", onAbort, { once: true });
   try {
     while (true) {
@@ -113,9 +115,15 @@ async function* streamElevenLabsTelephony(
         yield Buffer.from(value);
       }
     }
+  } catch {
+    // AbortError or stream cancelled — expected during barge-in
   } finally {
     signal?.removeEventListener("abort", onAbort);
-    reader.releaseLock();
+    try {
+      reader.releaseLock();
+    } catch {
+      // Reader may already be released after cancel
+    }
   }
 }
 
