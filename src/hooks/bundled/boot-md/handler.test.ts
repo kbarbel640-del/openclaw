@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { InternalHookEvent } from "../../../hooks/internal-hooks.js";
+import type { HookHandler } from "../../hooks.js";
 
 const mockRunBootOnce = vi.fn();
 vi.mock("../../../gateway/boot.js", () => ({
@@ -10,15 +11,19 @@ vi.mock("../../../cli/deps.js", () => ({
   createDefaultDeps: () => ({}),
 }));
 
-// Import after mocking
-const handler = (await import("./handler.js")).default;
-
 describe("boot-md handler", () => {
-  beforeEach(() => {
+  let handler: HookHandler;
+
+  beforeEach(async () => {
     vi.clearAllMocks();
-    // Use fake timers with a fixed system time to make Date.now() deterministic
-    // Start each test at a fresh time (2024-01-01) to reset rate limiter state
+    // Set up fake timers BEFORE importing the handler module
+    // This ensures Date.now() is mocked when the module-level lastBootTime is initialized
     vi.useFakeTimers({ now: new Date("2024-01-01T00:00:00Z") });
+
+    // Re-import handler for each test to reset module-level state
+    // This clears the rate limiter's lastBootTime between tests
+    vi.resetModules();
+    handler = (await import("./handler.js")).default;
   });
 
   afterEach(() => {
