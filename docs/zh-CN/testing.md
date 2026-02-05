@@ -316,6 +316,11 @@ OPENCLAW_LIVE_CLI_BACKEND=1 \
 - 测试：`src/media-understanding/providers/deepgram/audio.live.test.ts`
 - 启用：`DEEPGRAM_API_KEY=... DEEPGRAM_LIVE_TEST=1 pnpm test:live src/media-understanding/providers/deepgram/audio.live.test.ts`
 
+## DashScope 实时测试（音频转录）
+
+- 测试：`src/media-understanding/providers/dashscope/audio.live.test.ts`
+- 启用：`DASHSCOPE_API_KEY=... DASHSCOPE_LIVE_TEST=1 pnpm test:live src/media-understanding/providers/dashscope/audio.live.test.ts`
+
 ## Docker 运行器（可选的"在 Linux 中工作"检查）
 
 这些在仓库 Docker 镜像内运行 `pnpm test:live`，挂载你的本地配置目录和工作区（如果挂载了 `~/.profile` 则会加载它）：

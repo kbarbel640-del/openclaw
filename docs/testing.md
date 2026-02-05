@@ -309,6 +309,11 @@ If you want to rely on env keys (e.g. exported in your `~/.profile`), run local 
 - Test: `src/media-understanding/providers/deepgram/audio.live.test.ts`
 - Enable: `DEEPGRAM_API_KEY=... DEEPGRAM_LIVE_TEST=1 pnpm test:live src/media-understanding/providers/deepgram/audio.live.test.ts`
 
+## DashScope live (audio transcription)
+
+- Test: `src/media-understanding/providers/dashscope/audio.live.test.ts`
+- Enable: `DASHSCOPE_API_KEY=... DASHSCOPE_LIVE_TEST=1 pnpm test:live src/media-understanding/providers/dashscope/audio.live.test.ts`
+
 ## Docker runners (optional “works in Linux” checks)
 
 These run `pnpm test:live` inside the repo Docker image, mounting your local config dir and workspace (and sourcing `~/.profile` if mounted):

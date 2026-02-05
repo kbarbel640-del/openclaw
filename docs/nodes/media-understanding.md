@@ -140,7 +140,7 @@ working option**:
    - `whisper` (Python CLI; downloads models automatically)
 2. **Gemini CLI** (`gemini`) using `read_many_files`
 3. **Provider keys**
-   - Audio: OpenAI → Groq → Deepgram → Google
+   - Audio: OpenAI → Groq → Deepgram → Google → DashScope
    - Image: OpenAI → Anthropic → Google → MiniMax
    - Video: Google
 
@@ -169,6 +169,7 @@ lists, OpenClaw can infer defaults:
 - `google` (Gemini API): **image + audio + video**
 - `groq`: **audio**
 - `deepgram`: **audio**
+- `dashscope`: **audio**
 
 For CLI entries, **set `capabilities` explicitly** to avoid surprising matches.
 If you omit `capabilities`, the entry is eligible for the list it appears in.
@@ -178,7 +179,7 @@ If you omit `capabilities`, the entry is eligible for the list it appears in.
 | Capability | Provider integration                             | Notes                                             |
 | ---------- | ------------------------------------------------ | ------------------------------------------------- |
 | Image      | OpenAI / Anthropic / Google / others via `pi-ai` | Any image-capable model in the registry works.    |
-| Audio      | OpenAI, Groq, Deepgram, Google                   | Provider transcription (Whisper/Deepgram/Gemini). |
+| Audio      | OpenAI, Groq, Deepgram, Google, DashScope        | Provider transcription (Whisper/Deepgram/Gemini). |
 | Video      | Google (Gemini API)                              | Provider video understanding.                     |
 
 ## Recommended providers

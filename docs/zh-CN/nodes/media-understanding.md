@@ -143,7 +143,7 @@ CLI 模板还可以使用：
    - `whisper`（Python CLI；自动下载模型）
 2. **Gemini CLI**（`gemini`）使用 `read_many_files`
 3. **提供商密钥**
-   - 音频：OpenAI → Groq → Deepgram → Google
+   - 音频：OpenAI → Groq → Deepgram → Google -> DashScope
    - 图片：OpenAI → Anthropic → Google → MiniMax
    - 视频：Google
 
@@ -171,6 +171,7 @@ CLI 模板还可以使用：
 - `google`（Gemini API）：**图片 + 音频 + 视频**
 - `groq`：**音频**
 - `deepgram`：**音频**
+- `dashscope`: **音频**
 
 对于 CLI 条目，**显式设置 `capabilities`** 以避免意外匹配。如果你省略 `capabilities`，该条目对它出现的列表都符合条件。
 
@@ -179,7 +180,7 @@ CLI 模板还可以使用：
 | 能力 | 提供商集成                                     | 说明                                    |
 | ---- | ---------------------------------------------- | --------------------------------------- |
 | 图片 | OpenAI / Anthropic / Google / 其他通过 `pi-ai` | 注册表中任何支持图片的模型都可用。      |
-| 音频 | OpenAI、Groq、Deepgram、Google                 | 提供商转录（Whisper/Deepgram/Gemini）。 |
+| 音频 | OpenAI、Groq、Deepgram、Google、DashScope      | 提供商转录（Whisper/Deepgram/Gemini）。 |
 | 视频 | Google（Gemini API）                           | 提供商视频理解。                        |
 
 ## 推荐提供商

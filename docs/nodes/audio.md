@@ -28,7 +28,7 @@ OpenClaw auto-detects in this order and stops at the first working option:
    - `whisper-cli` (from `whisper-cpp`; uses `WHISPER_CPP_MODEL` or the bundled tiny model)
    - `whisper` (Python CLI; downloads models automatically)
 2. **Gemini CLI** (`gemini`) using `read_many_files`
-3. **Provider keys** (OpenAI → Groq → Deepgram → Google)
+3. **Provider keys** (OpenAI → Groq → Deepgram → Google → DashScope)
 
 To disable auto-detection, set `tools.media.audio.enabled: false`.
 To customize, set `tools.media.audio.models`.
@@ -106,6 +106,8 @@ Note: Binary detection is best-effort across macOS/Linux/Windows; ensure the CLI
 - Use `tools.media.audio.attachments` to process multiple voice notes (`mode: "all"` + `maxAttachments`).
 - Transcript is available to templates as `{{Transcript}}`.
 - CLI stdout is capped (5MB); keep CLI output concise.
+- DashScope picks up `DASHSCOPE_API_KEY` when `provider: "dashscope"` is used.
+- DashScope default speech-to-text model is `qwen3-asr-flash`(Optimized for Chinese Native Speaker); set `model: "qwen3-asr-flash-filetrans"` for longer audio duration (Over 10 min)
 
 ## Gotchas
 

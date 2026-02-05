@@ -34,7 +34,7 @@ x-i18n:
    - `whisper-cli`（来自 `whisper-cpp`；使用 `WHISPER_CPP_MODEL` 或内置的 tiny 模型）
    - `whisper`（Python CLI；自动下载模型）
 2. **Gemini CLI**（`gemini`）使用 `read_many_files`
-3. **提供商密钥**（OpenAI → Groq → Deepgram → Google）
+3. **提供商密钥**（OpenAI → Groq → Deepgram → Google → DashScope）
 
 要禁用自动检测，请设置 `tools.media.audio.enabled: false`。
 要自定义，请设置 `tools.media.audio.models`。
@@ -112,6 +112,8 @@ x-i18n:
 - 使用 `tools.media.audio.attachments` 处理多条语音消息（`mode: "all"` + `maxAttachments`）。
 - 转录文本可在模板中通过 `{{Transcript}}` 使用。
 - CLI 标准输出有上限（5MB）；请保持 CLI 输出简洁。
+- 当使用 `provider: "dashscope"` 时，DashScope 会读取 `DASHSCOPE_API_KEY`
+- DashScope 默认的语音识别模型是 `qwen3-asr-flash`(针对中文母语口音进行优化); 如果音频较长（超过10分钟），建议使用 `model: "qwen3-asr-flash-filetrans"` 用于转录长音频
 
 ## 常见陷阱
 
