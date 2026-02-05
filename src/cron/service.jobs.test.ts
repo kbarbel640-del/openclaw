@@ -57,6 +57,48 @@ function makeEveryJob(opts: {
   };
 }
 
+describe("runDueJobs - priority sorting", () => {
+  it("runs shorter-interval jobs before longer-interval jobs", async () => {
+    const executionOrder: string[] = [];
+    const now = 1_000_000;
+
+    // Create a state where the isolated job runner records execution order.
+    const state = makeFakeState([], now);
+    state.deps.onEvent = (evt) => {
+      if (evt.action === "started") {
+        executionOrder.push(evt.jobId);
+      }
+    };
+    // Make runIsolatedAgentJob record order and return immediately.
+    state.deps.runIsolatedAgentJob = async ({ job }) => {
+      return { status: "ok", summary: job.name };
+    };
+
+    // 2-hour analysis (should run SECOND)
+    const slowJob = makeEveryJob({
+      id: "slow-2h",
+      everyMs: 2 * 60 * 60 * 1000,
+      nextRunAtMs: now - 100,
+    });
+    // 5-minute heartbeat (should run FIRST)
+    const fastJob = makeEveryJob({ id: "fast-5m", everyMs: 5 * 60 * 1000, nextRunAtMs: now - 100 });
+
+    // Insert slow job first to ensure sort is doing the work (not insertion order)
+    state.store = { version: 1, jobs: [slowJob, fastJob] };
+
+    // Make both jobs isolated so executeJob calls runIsolatedAgentJob
+    slowJob.sessionTarget = "isolated";
+    slowJob.payload = { kind: "agentTurn", message: "analyze" };
+    fastJob.sessionTarget = "isolated";
+    fastJob.payload = { kind: "agentTurn", message: "heartbeat" };
+
+    const { runDueJobs } = await import("./service/timer.js");
+    await runDueJobs(state);
+
+    expect(executionOrder).toEqual(["fast-5m", "slow-2h"]);
+  });
+});
+
 describe("recomputeNextRuns", () => {
   it("preserves existing nextRunAtMs (does not push due jobs into the future)", () => {
     // Simulate: timer fires at T=300_000. The job was scheduled at T=300_000.

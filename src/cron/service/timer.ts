@@ -46,6 +46,23 @@ export async function onTimer(state: CronServiceState) {
   }
 }
 
+/**
+ * Returns the effective interval in milliseconds for sorting purposes.
+ * Shorter intervals run first so fast jobs (heartbeats) aren't blocked
+ * behind slow ones (multi-hour analyses) when several are due at once.
+ */
+function jobSortIntervalMs(job: CronJob): number {
+  if (job.schedule.kind === "every") {
+    return job.schedule.everyMs;
+  }
+  // "at" (one-shot) jobs: treat as highest priority (run immediately).
+  if (job.schedule.kind === "at") {
+    return 0;
+  }
+  // "cron" expression: use a large default so "every" jobs sort first.
+  return Number.MAX_SAFE_INTEGER;
+}
+
 export async function runDueJobs(state: CronServiceState) {
   if (!state.store) {
     return;
@@ -61,6 +78,10 @@ export async function runDueJobs(state: CronServiceState) {
     const next = j.state.nextRunAtMs;
     return typeof next === "number" && now >= next;
   });
+  // Sort by interval ascending so fast jobs (e.g. 5-minute heartbeat)
+  // always run before slow ones (e.g. 2-hour analysis) when multiple
+  // jobs are due simultaneously (common after gateway restarts).
+  due.sort((a, b) => jobSortIntervalMs(a) - jobSortIntervalMs(b));
   for (const job of due) {
     await executeJob(state, job, now, { forced: false });
   }

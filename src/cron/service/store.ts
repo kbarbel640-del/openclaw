@@ -132,10 +132,20 @@ export async function ensureLoaded(state: CronServiceState, opts?: { forceReload
   if (state.store && !opts?.forceReload) {
     return;
   }
-  // Force reload always re-reads the file to avoid missing cross-service
-  // edits on filesystems with coarse mtime resolution.
 
+  // When the store is already in memory, check file mtime before doing a
+  // full disk read.  This avoids re-parsing and re-migrating the store on
+  // every timer tick when no external process has touched the file.
   const fileMtimeMs = await getFileMtimeMs(state.deps.storePath);
+  if (
+    opts?.forceReload &&
+    state.store &&
+    state.storeFileMtimeMs !== null &&
+    fileMtimeMs !== null &&
+    fileMtimeMs === state.storeFileMtimeMs
+  ) {
+    return;
+  }
   const loaded = await loadCronStore(state.deps.storePath);
   const jobs = (loaded.jobs ?? []) as unknown as Array<Record<string, unknown>>;
   let mutated = false;
