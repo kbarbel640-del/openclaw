@@ -6,9 +6,9 @@
 
 | Aspect | State |
 |--------|-------|
-| **Phase** | Phase 1 complete. Ready for Phase 2 implementation. |
-| **Last completed** | Phase 1: Storage & Conversation Foundation (Storage module + Conversation Store) |
-| **Next action** | Begin Phase 2.1 -- Context Window implementation |
+| **Phase** | Phase 2 complete. Ready for Phase 3 implementation. |
+| **Last completed** | Phase 2: Context Pipeline (Context Window module) |
+| **Next action** | Begin Phase 3.1 -- System Prompt implementation |
 | **Blockers** | None |
 
 ### What Exists Now
@@ -21,9 +21,10 @@
 - [x] Per-module decision resolution (20 pre-resolved decisions)
 - [x] Storage module: `src/storage/` (49 tests)
 - [x] Conversation Store module: `src/conversation/` (41 tests)
+- [x] Context Window module: `src/context/` (24 tests)
 
-### Current Focus: Phase 2 Implementation
-Phase 1 is complete. The persistence layer (Storage + Conversation Store) is built and validated. Next: Phase 2.1 -- Context Window (pure function for message selection within token budgets).
+### Current Focus: Phase 3 Implementation
+Phases 1-2 complete. Persistence layer and context pipeline are built. Next: Phase 3 -- Agent Identity (System Prompt with identity file loading, Tool Registry).
 
 ---
 
@@ -207,7 +208,7 @@ Traced cross-agent communication in OpenClaw. The gateway is a WebSocket-based J
 See [ROADMAP.md](./ROADMAP.md) for the full sequenced plan. Summary:
 
 - [x] **Phase 1**: Storage & Conversation Foundation (Storage, Conversation Store)
-- [ ] **Phase 2**: Context Pipeline (Context Window with History Management folded in)
+- [x] **Phase 2**: Context Pipeline (Context Window with History Management folded in)
 - [ ] **Phase 3**: Agent Identity (System Prompt with identity loading, Tool Registry)
 - [ ] **Phase 4**: Agent Loop (main execution loop wiring everything together)
 - [ ] **Phase 5**: Integration Validation (end-to-end pipeline test)
@@ -348,6 +349,36 @@ Files created:
 - `src/conversation/index.test.ts` - 41 tests
 - `src/conversation/DECISIONS.md` - Architectural decision record
 
+### 14. Phase 2.1: Context Window Module (Complete)
+
+Distilled context window management from OpenClaw's context management system:
+
+| Metric | OpenClaw | Distilled |
+|--------|----------|-----------|
+| Lines of code (context + pruning + history + guard) | ~915 | ~90 |
+| Pruning subsystem | Soft trim, hard clear, TTL, tool matching (553 LOC) | None (compaction handles size) |
+| History limiting | Per-session turn limits (85 LOC) | None (token budget is the policy) |
+| Model registry | Context window lookup (38 LOC) | None (caller provides budget) |
+| Dependencies | Multiple modules | Zero (pure function) |
+
+**What was built**:
+- `selectMessages<T>()` -- generic pure function, selects most-recent contiguous block within token budget
+- `OverflowReport` -- count and estimated tokens of dropped messages
+- `estimateStringTokens()` -- utility for Agent Loop to estimate system prompt token count
+- 24 tests covering selection logic, overflow reporting, edge cases, generic type usage
+
+**Key decisions**:
+- Generic type parameter `<T>` instead of importing Message type -- zero module dependencies
+- Token estimation injected as parameter, not imported from compaction (resolves integration trace Gap #2)
+- `estimateStringTokens` co-located here for Agent Loop's budget computation (resolves integration trace Gap #6)
+- Contiguous selection from end only -- no skipping messages to preserve conversation coherence
+- Empty selection is valid (Agent Loop handles force-include policy)
+
+Files created:
+- `src/context/index.ts` - selectMessages + estimateStringTokens
+- `src/context/index.test.ts` - 24 tests
+- `src/context/DECISIONS.md` - Architectural decision record
+
 ## Open Questions
 
 None currently.
@@ -388,9 +419,13 @@ komatachi/
     │   ├── index.ts        # Storage interface + createStorage()
     │   ├── index.test.ts   # 49 tests
     │   └── DECISIONS.md
-    └── conversation/   # Phase 1.2: Conversation persistence
-        ├── index.ts        # ConversationStore + Claude API message types
-        ├── index.test.ts   # 41 tests
+    ├── conversation/   # Phase 1.2: Conversation persistence
+    │   ├── index.ts        # ConversationStore + Claude API message types
+    │   ├── index.test.ts   # 41 tests
+    │   └── DECISIONS.md
+    └── context/        # Phase 2.1: Context window management
+        ├── index.ts        # selectMessages + estimateStringTokens
+        ├── index.test.ts   # 24 tests
         └── DECISIONS.md
 ```
 
