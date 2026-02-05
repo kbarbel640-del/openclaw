@@ -14,6 +14,7 @@ import { createSlackWebClient } from "./client.js";
 import { markdownToSlackMrkdwnChunks } from "./format.js";
 import { parseSlackTarget } from "./targets.js";
 import { resolveSlackBotToken } from "./token.js";
+import { parseSlackChannelMention, listSlackChannels, resolveByName } from "./resolve-channels.js";
 
 const SLACK_TEXT_LIMIT = 4000;
 
@@ -94,57 +95,6 @@ async function resolveChannelId(
 }
 
 const SLACK_CHANNEL_ID_REGEX = /^[CGDZ][A-Z0-9]{8,}$/i;
-
-interface SlackChannelInfo {
-  id: string;
-  name: string;
-  isArchived: boolean;
-}
-
-function parseSlackChannelMention(
-  raw: string,
-): { id?: string; name?: string } {
-  const trimmed = raw.trim();
-  if (!trimmed) return {};
-  if (trimmed.startsWith("<#") && trimmed.includes("|")) {
-    const match = trimmed.match(/<#([A-Z0-9]+)\|([^>]+)>/i);
-    if (match) return { id: match[1], name: match[2].replace(/^#/, "") };
-  }
-  const prefixed = trimmed.replace(/^(slack:|channel:)/i, "");
-  if (SLACK_CHANNEL_ID_REGEX.test(prefixed)) {
-    return { id: prefixed.toUpperCase() };
-  }
-  const name = prefixed.replace(/^#/, "").trim();
-  return name ? { name } : {};
-}
-
-async function listSlackChannels(
-  client: WebClient,
-): Promise<SlackChannelInfo[]> {
-  const response = await client.conversations.list({ limit: 1000 });
-  return (
-    response.channels?.map((ch) => ({
-      id: ch.id ?? "",
-      name: ch.name ?? "",
-      isArchived: ch.is_archived ?? false,
-    })) ?? []
-  );
-}
-
-function resolveByName(
-  name: string,
-  channels: SlackChannelInfo[],
-): SlackChannelInfo | undefined {
-  const normalized = name.toLowerCase();
-  const active = channels.find(
-    (ch) => ch.name.toLowerCase() === normalized && !ch.isArchived,
-  );
-  if (active) return active;
-  const matches = channels.filter(
-    (ch) => ch.name.toLowerCase() === normalized,
-  );
-  return matches[0];
-}
 
 async function resolveChannelIdForUpload(
   client: WebClient,
