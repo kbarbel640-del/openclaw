@@ -25,8 +25,10 @@ export type ConvosAccountConfig = {
   allowFrom?: Array<string | number>;
   /** Optional allowlist for group senders. */
   groupAllowFrom?: Array<string | number>;
-  /** Controls how group messages are handled. */
+  /** Controls how group messages are handled (default: open). */
   groupPolicy?: GroupPolicy;
+  /** Allowlist of conversation IDs the agent listens in (used when groupPolicy is "allowlist"). */
+  groups?: string[];
   /** Max group messages to keep as history context (0 disables). */
   historyLimit?: number;
   /** Max per-sender turns to keep as history context. */

@@ -338,6 +338,31 @@ async function handleInboundMessage(
     );
   }
 
+  // Enforce group policy before doing any work.
+  // Owner conversation always passes so you can't lock yourself out.
+  const groupPolicy = account.config.groupPolicy ?? "open";
+  const isOwnerConversation = msg.conversationId === account.ownerConversationId;
+
+  if (!isOwnerConversation) {
+    if (groupPolicy === "disabled") {
+      if (account.debug) {
+        log?.info(`[${account.accountId}] Dropped message: groupPolicy is disabled`);
+      }
+      return;
+    }
+    if (groupPolicy === "allowlist") {
+      const allowed = account.config.groups ?? [];
+      if (!allowed.includes(msg.conversationId)) {
+        if (account.debug) {
+          log?.info(
+            `[${account.accountId}] Dropped message: conversation ${msg.conversationId.slice(0, 12)} not in groups allowlist`,
+          );
+        }
+        return;
+      }
+    }
+  }
+
   const cfg = runtime.config.loadConfig() as OpenClawConfig;
   const rawBody = msg.content;
 
