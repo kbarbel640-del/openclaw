@@ -38,8 +38,8 @@ const formatLine = (label: string, value: string) => {
  * Handles both synchronous throws and asynchronous error events from stream.write().
  */
 function safeWriteToStdout(stream: NodeJS.WritableStream, data: string): void {
-  // Check if stream is writable and not already closed/destroyed
-  if (!stream.writable || stream.destroyed) {
+  // Check if stream is writable and not already closed
+  if (!stream.writable) {
     return;
   }
 
