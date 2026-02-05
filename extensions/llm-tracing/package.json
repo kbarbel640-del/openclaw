@@ -1,6 +1,6 @@
 {
   "name": "@openclaw/llm-tracing",
-  "version": "2026.2.2",
+  "version": "2026.2.3",
   "description": "LLM content tracing for OpenTelemetry-compatible platforms",
   "type": "module",
   "dependencies": {
