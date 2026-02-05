@@ -12,6 +12,7 @@ import type { ExecElevatedDefaults } from "../bash-tools.js";
 import type { EmbeddedPiCompactResult } from "./types.js";
 import { resolveHeartbeatPrompt } from "../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../config/channel-capabilities.js";
+import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { getMachineDisplayName } from "../../infra/machine-name.js";
 import { type enqueueCommand, enqueueCommandInLane } from "../../process/command-queue.js";
 import { isSubagentSessionKey } from "../../routing/session-key.js";
@@ -446,6 +447,22 @@ export async function compactEmbeddedPiSessionDirect(
         } catch {
           // If estimation fails, leave tokensAfter undefined
           tokensAfter = undefined;
+        }
+        const hookSessionKey = params.sessionKey ?? params.sessionId;
+        if (hookSessionKey) {
+          const hookEvent = createInternalHookEvent(
+            "session",
+            "compaction_summary",
+            hookSessionKey,
+            {
+              sessionId: params.sessionId,
+              sessionKey: params.sessionKey,
+              summary: result.summary,
+              tokensBefore: result.tokensBefore,
+              tokensAfter,
+            },
+          );
+          await triggerInternalHook(hookEvent);
         }
         return {
           ok: true,

@@ -15,7 +15,10 @@ import { createGatewayTool } from "./tools/gateway-tool.js";
 import { createImageGenerateTool } from "./tools/image-generate-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
 import { createMemoryAuditTool } from "./tools/memory-audit-tool.js";
+import { createMemoryContextPackTool } from "./tools/memory-context-pack-tool.js";
 import { createMemoryIndexStatusTool } from "./tools/memory-index-status-tool.js";
+import { createMemoryIngestTool } from "./tools/memory-ingest-tool.js";
+import { createMemoryQueryTool } from "./tools/memory-query-tool.js";
 import { createMemoryRecallTool } from "./tools/memory-recall-tool.js";
 import { createMemoryStoreTool } from "./tools/memory-store-tool.js";
 import { createMessageTool } from "./tools/message-tool.js";
@@ -182,6 +185,9 @@ export function createOpenClawTools(options?: {
       agentSessionKey: options?.agentSessionKey,
       config: options?.config,
     }),
+    createMemoryIngestTool(),
+    createMemoryQueryTool(),
+    createMemoryContextPackTool(),
     ...(webSearchTool ? [webSearchTool] : []),
     ...(webFetchTool ? [webFetchTool] : []),
     ...(imageTool ? [imageTool] : []),
