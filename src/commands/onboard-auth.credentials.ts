@@ -2,6 +2,7 @@ import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
 import { upsertAuthProfile } from "../agents/auth-profiles.js";
 export { CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF } from "../agents/cloudflare-ai-gateway.js";
+export { DEEPSEEK_DEFAULT_MODEL_REF } from "./onboard-auth.models.js";
 
 const resolveAuthAgentDir = (agentDir?: string) => agentDir ?? resolveOpenClawAgentDir();
 
@@ -203,8 +204,6 @@ export async function setOpencodeZenApiKey(key: string, agentDir?: string) {
     agentDir: resolveAuthAgentDir(agentDir),
   });
 }
-
-export const DEEPSEEK_DEFAULT_MODEL_REF = "deepseek/deepseek-chat";
 
 export async function setDeepSeekApiKey(key: string, agentDir?: string) {
   upsertAuthProfile({
