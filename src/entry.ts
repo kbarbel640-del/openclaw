@@ -42,8 +42,9 @@ function ensureExperimentalWarningSuppressed(): boolean {
     return false;
   }
 
+  // Respawn guard (and keep recursion bounded if something goes wrong).
   process.env.OPENCLAW_NODE_OPTIONS_READY = "1";
-  // Pass flag via execArgv, not NODE_OPTIONS (--disable-warning is disallowed in NODE_OPTIONS).
+  // Pass flag as a Node CLI option, not via NODE_OPTIONS (--disable-warning is disallowed in NODE_OPTIONS).
   const child = spawn(
     process.execPath,
     [EXPERIMENTAL_WARNING_FLAG, ...process.execArgv, ...process.argv.slice(1)],
