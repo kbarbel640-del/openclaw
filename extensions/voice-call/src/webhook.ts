@@ -140,7 +140,9 @@ export class VoiceCallWebhookServer {
         }
         // Stop filler on barge-in
         const streamSid = this.callStreamSids.get(providerCallId);
-        if (streamSid) this.silenceFiller?.stop(streamSid);
+        if (streamSid) {
+          this.silenceFiller?.stop(streamSid);
+        }
       },
       onPartialTranscript: (callId, partial) => {
         console.log(`[voice-call] Partial for ${callId}: ${partial}`);
@@ -180,7 +182,9 @@ export class VoiceCallWebhookServer {
         }
         // Clean up silence filler
         const streamSid = this.callStreamSids.get(callId);
-        if (streamSid) this.silenceFiller?.stop(streamSid);
+        if (streamSid) {
+          this.silenceFiller?.stop(streamSid);
+        }
         this.callStreamSids.delete(callId);
       },
     };
@@ -188,7 +192,7 @@ export class VoiceCallWebhookServer {
     this.mediaStreamHandler = new MediaStreamHandler(streamConfig);
     this.silenceFiller = new SilenceFiller(this.mediaStreamHandler, {
       thresholdMs: this.config.silenceFiller?.thresholdMs,
-      sfxSet: this.config.silenceFiller?.sfxSet as "typing" | "processing" | undefined,
+      sfxSet: this.config.silenceFiller?.sfxSet,
       enabled: this.config.silenceFiller?.enabled,
     });
     console.log("[voice-call] Media streaming initialized");
@@ -409,7 +413,9 @@ export class VoiceCallWebhookServer {
     const streamSid = call.providerCallId
       ? this.callStreamSids.get(call.providerCallId)
       : undefined;
-    if (streamSid) this.silenceFiller?.start(streamSid);
+    if (streamSid) {
+      this.silenceFiller?.start(streamSid);
+    }
 
     try {
       const { generateVoiceResponse } = await import("./response-generator.js");
@@ -424,7 +430,9 @@ export class VoiceCallWebhookServer {
       });
 
       // Stop filler before speaking the response
-      if (streamSid) this.silenceFiller?.stop(streamSid);
+      if (streamSid) {
+        this.silenceFiller?.stop(streamSid);
+      }
 
       if (result.error) {
         console.error(`[voice-call] Response generation error: ${result.error}`);
@@ -447,11 +455,15 @@ export class VoiceCallWebhookServer {
         }
 
         // Restart filler after speaking (in case next turn also needs tools)
-        if (streamSid) this.silenceFiller?.start(streamSid);
+        if (streamSid) {
+          this.silenceFiller?.start(streamSid);
+        }
       }
     } catch (err) {
       // Stop filler on error too
-      if (streamSid) this.silenceFiller?.stop(streamSid);
+      if (streamSid) {
+        this.silenceFiller?.stop(streamSid);
+      }
       console.error(`[voice-call] Auto-response error:`, err);
     }
   }

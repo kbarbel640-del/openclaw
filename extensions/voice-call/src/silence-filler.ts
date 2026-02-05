@@ -38,7 +38,9 @@ interface StreamState {
 let sfxCache: Map<string, Buffer> | null = null;
 
 function loadSfx(): Map<string, Buffer> {
-  if (sfxCache) return sfxCache;
+  if (sfxCache) {
+    return sfxCache;
+  }
   sfxCache = new Map();
 
   const files = ["typing.raw", "processing.raw"];
@@ -56,12 +58,14 @@ function loadSfx(): Map<string, Buffer> {
  * Mu-law is logarithmic, so we blend toward the mu-law silence value (0xFF).
  */
 function attenuate(buf: Buffer, factor: number): Buffer {
-  if (factor <= 1) return buf;
+  if (factor <= 1) {
+    return buf;
+  }
   const out = Buffer.alloc(buf.length);
   const silence = 0xff; // mu-law silence
   for (let i = 0; i < buf.length; i++) {
     // Linear interpolation toward silence
-    out[i] = Math.round(buf[i]! + (silence - buf[i]!) * (1 - 1 / factor));
+    out[i] = Math.round(buf[i] + (silence - buf[i]) * (1 - 1 / factor));
   }
   return out;
 }
@@ -86,7 +90,9 @@ export class SilenceFiller {
    * Call this after TTS finishes or when waiting for a response.
    */
   start(streamSid: string): void {
-    if (!this.config.enabled) return;
+    if (!this.config.enabled) {
+      return;
+    }
     this.stop(streamSid); // Clear any existing timer
 
     const state: StreamState = {
@@ -102,7 +108,9 @@ export class SilenceFiller {
    */
   stop(streamSid: string): void {
     const state = this.streams.get(streamSid);
-    if (!state) return;
+    if (!state) {
+      return;
+    }
 
     if (state.timer) {
       clearTimeout(state.timer);
@@ -130,14 +138,18 @@ export class SilenceFiller {
 
   private async playFiller(streamSid: string): Promise<void> {
     const state = this.streams.get(streamSid);
-    if (!state) return;
+    if (!state) {
+      return;
+    }
 
     const sfx = loadSfx();
     const clips = this.config.sfxSet === "processing" ? ["processing"] : ["typing"];
 
-    const clip = clips[Math.floor(Math.random() * clips.length)]!;
-    let audio = sfx.get(clip);
-    if (!audio) return;
+    const clip = clips[Math.floor(Math.random() * clips.length)];
+    let audio = clip ? sfx.get(clip) : undefined;
+    if (!audio) {
+      return;
+    }
 
     // Attenuate so it's clearly background, not competing with speech
     if (this.config.volumeReduction > 1) {
@@ -159,14 +171,18 @@ export class SilenceFiller {
         if (chunk.length === 0) {
           // End of clip — pause briefly, pick another clip, restart
           await new Promise((r) => setTimeout(r, 500));
-          if (signal.aborted) break;
+          if (signal.aborted) {
+            break;
+          }
 
-          const nextClip = clips[Math.floor(Math.random() * clips.length)]!;
-          let nextAudio = sfx.get(nextClip);
+          const nextClip = clips[Math.floor(Math.random() * clips.length)];
+          let nextAudio = nextClip ? sfx.get(nextClip) : undefined;
           if (nextAudio && this.config.volumeReduction > 1) {
             nextAudio = attenuate(nextAudio, this.config.volumeReduction);
           }
-          if (nextAudio) audio = nextAudio;
+          if (nextAudio) {
+            audio = nextAudio;
+          }
           offset = 0;
           continue;
         }
