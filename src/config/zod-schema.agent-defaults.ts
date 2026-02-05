@@ -131,6 +131,16 @@ export const AgentDefaultsSchema = z
       })
       .strict()
       .optional(),
+    replyPipeline: z
+      .object({
+        enabled: z.boolean().optional(),
+        brainModel: z.string().optional(),
+        muscleModels: z.array(z.string()).optional(),
+        plannerPrompt: z.string().optional(),
+        musclePrompt: z.string().optional(),
+      })
+      .strict()
+      .optional(),
     timeoutSeconds: z.number().int().positive().optional(),
     mediaMaxMb: z.number().positive().optional(),
     typingIntervalSeconds: z.number().int().positive().optional(),

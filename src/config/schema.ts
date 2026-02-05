@@ -294,6 +294,12 @@ const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.replySynthesis.allowRemoteBrain": "Reply Synthesis Allow Remote Brain",
   "agents.defaults.replySynthesis.includeMediaUrls": "Reply Synthesis Include Media URLs",
   "agents.defaults.replySynthesis.includeErrors": "Reply Synthesis Include Errors",
+  "agents.defaults.replyPipeline": "Reply Pipeline",
+  "agents.defaults.replyPipeline.enabled": "Reply Pipeline Enabled",
+  "agents.defaults.replyPipeline.brainModel": "Reply Pipeline Brain Model",
+  "agents.defaults.replyPipeline.muscleModels": "Reply Pipeline Muscle Models",
+  "agents.defaults.replyPipeline.plannerPrompt": "Reply Pipeline Planner Prompt",
+  "agents.defaults.replyPipeline.musclePrompt": "Reply Pipeline Muscle Prompt",
   "agents.defaults.cliBackends": "CLI Backends",
   "commands.native": "Native Commands",
   "commands.nativeSkills": "Native Skill Commands",
@@ -655,6 +661,18 @@ const FIELD_HELP: Record<string, string> = {
     "Include media URLs in the synthesis prompt (default: false).",
   "agents.defaults.replySynthesis.includeErrors":
     "Include error payload text/flags in the synthesis prompt (default: false).",
+  "agents.defaults.replyPipeline":
+    "Brain -> muscle -> brain pipeline for interactive turns (default: disabled).",
+  "agents.defaults.replyPipeline.enabled":
+    "Enable the brain -> muscle -> brain pipeline (default: false).",
+  "agents.defaults.replyPipeline.brainModel":
+    "Override the brain model for the pipeline (provider/model). Defaults to the resolved model.",
+  "agents.defaults.replyPipeline.muscleModels":
+    "Muscle model list (provider/model). Defaults to agents.defaults.model.fallbacks.",
+  "agents.defaults.replyPipeline.plannerPrompt":
+    "Optional system prompt override for the brain planner step.",
+  "agents.defaults.replyPipeline.musclePrompt":
+    "Optional system prompt override for the muscle execution step.",
   "commands.native":
     "Register native commands with channels that support it (Discord/Slack/Telegram).",
   "commands.nativeSkills":

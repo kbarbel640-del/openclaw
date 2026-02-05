@@ -75,6 +75,8 @@ export async function runAgentTurnWithFallback(params: {
   shouldEmitToolResult: () => boolean;
   shouldEmitToolOutput: () => boolean;
   pendingToolTasks: Set<Promise<void>>;
+  fallbacksOverride?: string[];
+  suppressUserOutput?: boolean;
   resetSessionAfterCompactionFailure: (reason: string) => Promise<boolean>;
   resetSessionAfterRoleOrderingConflict: (reason: string) => Promise<boolean>;
   isHeartbeat: boolean;
@@ -165,13 +167,16 @@ export async function runAgentTurnWithFallback(params: {
         provider: params.followupRun.run.provider,
         model: params.followupRun.run.model,
         agentDir: params.followupRun.run.agentDir,
-        fallbacksOverride: resolveAgentModelFallbacksOverride(
-          params.followupRun.run.config,
-          resolveAgentIdFromSessionKey(params.followupRun.run.sessionKey),
-        ),
+        fallbacksOverride:
+          params.fallbacksOverride ??
+          resolveAgentModelFallbacksOverride(
+            params.followupRun.run.config,
+            resolveAgentIdFromSessionKey(params.followupRun.run.sessionKey),
+          ),
         run: (provider, model) => {
           const isBrainRun = isConfiguredBrainModel(provider, model);
-          const allowUserOutput = isBrainRun || !canUseBrainSynthesis;
+          const allowUserOutput =
+            !params.suppressUserOutput && (isBrainRun || !canUseBrainSynthesis);
           // Notify that model selection is complete (including after fallback).
           // This allows responsePrefix template interpolation with the actual model.
           params.opts?.onModelSelected?.({
@@ -297,6 +302,7 @@ export async function runAgentTurnWithFallback(params: {
             agentDir: params.followupRun.run.agentDir,
             config: params.followupRun.run.config,
             skillsSnapshot: params.followupRun.run.skillsSnapshot,
+            disableTools: params.followupRun.run.disableTools,
             prompt: params.commandBody,
             extraSystemPrompt: params.followupRun.run.extraSystemPrompt,
             ownerNumbers: params.followupRun.run.ownerNumbers,
@@ -521,6 +527,7 @@ export async function runAgentTurnWithFallback(params: {
           agentDir: params.followupRun.run.agentDir,
           config: params.followupRun.run.config,
           skillsSnapshot: params.followupRun.run.skillsSnapshot,
+          disableTools: params.followupRun.run.disableTools,
           prompt: buildMuscleSynthesisPrompt(runResult.payloads ?? [], synthesisPolicy),
           extraSystemPrompt: params.followupRun.run.extraSystemPrompt,
           ownerNumbers: params.followupRun.run.ownerNumbers,

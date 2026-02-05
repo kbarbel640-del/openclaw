@@ -166,6 +166,19 @@ export type AgentDefaultsConfig = {
     /** Include error payload text/flags in synthesis prompt (default: false). */
     includeErrors?: boolean;
   };
+  /** Brain -> muscle -> brain pipeline for interactive turns. */
+  replyPipeline?: {
+    /** Enable brain -> muscle -> brain pipeline (default: false). */
+    enabled?: boolean;
+    /** Optional brain model ref (provider/model). Defaults to the resolved model. */
+    brainModel?: string;
+    /** Muscle model refs (provider/model). Defaults to agents.defaults.model.fallbacks. */
+    muscleModels?: string[];
+    /** Optional planner system prompt override. */
+    plannerPrompt?: string;
+    /** Optional muscle system prompt override. */
+    musclePrompt?: string;
+  };
   timeoutSeconds?: number;
   /** Max inbound media size in MB for agent-visible attachments (text note or future image attach). */
   mediaMaxMb?: number;
