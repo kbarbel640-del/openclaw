@@ -34,7 +34,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node ./scripts/rewrite-dist-imports.mjs",
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write",
     "lint": "oxlint --type-aware --tsconfig tsconfig.json",

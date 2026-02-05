@@ -1,5 +1,5 @@
-import { CoreMemories, FlashEntry, KeywordSearchResult } from "./index.js";
-import { SessionContinuation } from "./session-continuation.js";
+import { CoreMemories, FlashEntry, KeywordSearchResult } from "./index";
+import { SessionContinuation } from "./session-continuation";
 
 export interface SessionContinuationIntegration {
   enabled: boolean;

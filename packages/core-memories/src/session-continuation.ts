@@ -1,4 +1,4 @@
-import { CoreMemories, FlashEntry } from "./index.js";
+import { CoreMemories, FlashEntry } from "./index";
 
 export interface SessionContinuationConfig {
   enabled: boolean;
