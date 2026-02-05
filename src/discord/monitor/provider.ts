@@ -42,6 +42,7 @@ import {
   createDiscordCommandArgFallbackButton,
   createDiscordNativeCommand,
 } from "./native-command.js";
+import { runStartupRecovery } from "./startup-recovery.js";
 
 export type MonitorDiscordOpts = {
   token?: string;
@@ -612,6 +613,24 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   // Start exec approvals handler after client is ready
   if (execApprovalsHandler) {
     await execApprovalsHandler.start();
+  }
+
+  // Check for unanswered messages from before startup (crash recovery)
+  if (discordCfg.startupRecovery) {
+    const rest = client.rest;
+    await runStartupRecovery({
+      rest,
+      cfg,
+      discordConfig: discordCfg,
+      accountId: account.accountId,
+      botUserId,
+      runtime,
+      messageHandler,
+      client,
+      allowFrom,
+    }).catch((err) => {
+      runtime.log?.(`discord startup-recovery failed: ${formatErrorMessage(err)}`);
+    });
   }
 
   const gateway = client.getPlugin<GatewayPlugin>("gateway");
