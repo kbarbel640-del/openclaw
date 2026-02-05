@@ -21,6 +21,7 @@ import type {
   HealthSnapshot,
   LogEntry,
   LogLevel,
+  ModelChoice,
   PresenceEntry,
   ChannelsStatusSnapshot,
   SessionsListResult,
@@ -120,6 +121,10 @@ export class OpenClawApp extends LitElement {
   @state() assistantName = injectedAssistantIdentity.name;
   @state() assistantAvatar = injectedAssistantIdentity.avatar;
   @state() assistantAgentId = injectedAssistantIdentity.agentId ?? null;
+
+  @state() modelsLoading = false;
+  @state() modelsError: string | null = null;
+  @state() modelsList: ModelChoice[] = [];
 
   @state() sessionKey = this.settings.sessionKey;
   @state() chatLoading = false;

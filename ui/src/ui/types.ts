@@ -553,3 +553,12 @@ export type LogEntry = {
   message?: string | null;
   meta?: Record<string, unknown> | null;
 };
+
+// Gateway model catalog entry from `models.list`
+export type ModelChoice = {
+  id: string;
+  name: string;
+  provider: string;
+  contextWindow?: number;
+  reasoning?: boolean;
+};

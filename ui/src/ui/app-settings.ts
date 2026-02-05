@@ -21,6 +21,7 @@ import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
+import { loadModels } from "./controllers/models.ts";
 import {
   inferBasePathFromPathname,
   normalizeBasePath,
@@ -243,6 +244,11 @@ export async function refreshActiveTab(host: SettingsHost) {
   }
   if (host.tab === "chat") {
     await refreshChat(host as unknown as Parameters<typeof refreshChat>[0]);
+    // Chat controls expose a model picker; keep the catalog warm.
+    const modelsList = (host as unknown as { modelsList?: unknown[] }).modelsList;
+    if (!Array.isArray(modelsList) || modelsList.length === 0) {
+      await loadModels(host as unknown as Parameters<typeof loadModels>[0]);
+    }
     scheduleChatScroll(
       host as unknown as Parameters<typeof scheduleChatScroll>[0],
       !host.chatHasAutoScrolled,

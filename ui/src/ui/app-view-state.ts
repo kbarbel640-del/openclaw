@@ -12,6 +12,7 @@ import type {
   AgentsListResult,
   AgentsFilesListResult,
   AgentIdentityResult,
+  ModelChoice,
   ChannelsStatusSnapshot,
   ConfigSnapshot,
   CronJob,
@@ -44,6 +45,9 @@ export type AppViewState = {
   assistantName: string;
   assistantAvatar: string | null;
   assistantAgentId: string | null;
+  modelsLoading: boolean;
+  modelsError: string | null;
+  modelsList: ModelChoice[];
   sessionKey: string;
   chatLoading: boolean;
   chatSending: boolean;

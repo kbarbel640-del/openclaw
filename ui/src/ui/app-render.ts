@@ -41,6 +41,7 @@ import {
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
 import { loadLogs, LogsState } from "./controllers/logs.ts";
+import { restartGateway } from "./controllers/gateway.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { deleteSession, loadSessions, patchSession } from "./controllers/sessions.ts";
@@ -52,7 +53,7 @@ import {
   updateSkillEnabled,
 } from "./controllers/skills.ts";
 import { icons } from "./icons.ts";
-import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
+import { normalizeBasePath, pathForTab, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
 import { ConfigUiHints } from "./types.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
@@ -249,6 +250,15 @@ export function renderApp(state: AppViewState) {
                 },
                 onConnect: () => state.connect(),
                 onRefresh: () => state.loadOverview(),
+                onRestartGateway: () =>
+                  restartGateway(state as unknown as OpenClawApp, {
+                    reason: "dashboard.quick-actions",
+                    sessionKey: state.sessionKey,
+                  }),
+                onOpenConfig: () => {
+                  window.location.href = pathForTab("config", state.basePath);
+                },
+                onRunUpdate: () => runUpdate(state as unknown as OpenClawApp),
               })
             : nothing
         }

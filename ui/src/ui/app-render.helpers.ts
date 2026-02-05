@@ -8,6 +8,7 @@ import { refreshChat } from "./app-chat.ts";
 import { syncUrlWithSessionKey } from "./app-settings.ts";
 import { OpenClawApp } from "./app.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
+import { patchSession } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
 
@@ -46,6 +47,15 @@ export function renderChatControls(state: AppViewState) {
     state.sessionsResult,
     mainSessionKey,
   );
+  const activeSession = state.sessionsResult?.sessions?.find((row) => row.key === state.sessionKey);
+  const defaults = state.sessionsResult?.defaults ?? null;
+  const defaultRef =
+    defaults?.modelProvider && defaults?.model ? `${defaults.modelProvider}/${defaults.model}` : "";
+  const currentRef =
+    activeSession?.modelProvider && activeSession?.model
+      ? `${activeSession.modelProvider}/${activeSession.model}`
+      : "";
+  const currentModelValue = defaultRef && currentRef === defaultRef ? "" : currentRef;
   const disableThinkingToggle = state.onboarding;
   const disableFocusToggle = state.onboarding;
   const showThinking = state.onboarding ? false : state.settings.chatShowThinking;
@@ -119,6 +129,27 @@ export function renderChatControls(state: AppViewState) {
           )}
         </select>
       </label>
+      <label class="field chat-controls__model">
+        <select
+          .value=${currentModelValue}
+          ?disabled=${!state.connected || state.modelsLoading}
+          @change=${(e: Event) => {
+            const next = (e.target as HTMLSelectElement).value.trim();
+            // Empty value means "inherit defaults" (clear override).
+            void patchSession(state, state.sessionKey, { model: next ? next : null });
+          }}
+          title="Model for this session"
+        >
+          <option value="">${defaultRef ? `Default: ${defaultRef}` : "Default model"}</option>
+          ${groupModelsForSelect(state.modelsList).map(
+            (group) => html`
+              <optgroup label=${group.provider}>
+                ${group.models.map((m) => html`<option value=${m.ref}>${m.name}</option>`)}
+              </optgroup>
+            `,
+          )}
+        </select>
+      </label>
       <button
         class="btn btn--sm btn--icon"
         ?disabled=${state.chatLoading || !state.connected}
@@ -175,6 +206,28 @@ export function renderChatControls(state: AppViewState) {
       </button>
     </div>
   `;
+}
+
+function groupModelsForSelect(models: AppViewState["modelsList"]) {
+  const groups = new Map<string, Array<{ ref: string; name: string }>>();
+  for (const m of models ?? []) {
+    const provider = typeof m?.provider === "string" ? m.provider.trim() : "";
+    const id = typeof m?.id === "string" ? m.id.trim() : "";
+    const name = typeof m?.name === "string" ? m.name.trim() : "";
+    if (!provider || !id) {
+      continue;
+    }
+    const ref = `${provider}/${id}`;
+    const list = groups.get(provider) ?? [];
+    list.push({ ref, name: name || ref });
+    groups.set(provider, list);
+  }
+  const out = Array.from(groups.entries()).map(([provider, list]) => ({
+    provider,
+    models: list.slice().sort((a, b) => a.name.localeCompare(b.name)),
+  }));
+  out.sort((a, b) => a.provider.localeCompare(b.provider));
+  return out;
 }
 
 type SessionDefaultsSnapshot = {

@@ -1,4 +1,4 @@
-import { html } from "lit";
+import { html, nothing } from "lit";
 import type { GatewayHelloOk } from "../gateway.ts";
 import type { UiSettings } from "../storage.ts";
 import { formatAgo, formatDurationMs } from "../format.ts";
@@ -20,9 +20,14 @@ export type OverviewProps = {
   onSessionKeyChange: (next: string) => void;
   onConnect: () => void;
   onRefresh: () => void;
+  onRestartGateway?: () => void;
+  onOpenConfig?: () => void;
+  onRunUpdate?: () => void;
 };
 
 export function renderOverview(props: OverviewProps) {
+  const showQuickActions =
+    Boolean(props.onRestartGateway) || Boolean(props.onOpenConfig) || Boolean(props.onRunUpdate);
   const snapshot = props.hello?.snapshot as
     | { uptimeMs?: number; policy?: { tickIntervalMs?: number } }
     | undefined;
@@ -259,5 +264,40 @@ export function renderOverview(props: OverviewProps) {
         </div>
       </div>
     </section>
+
+    ${showQuickActions
+      ? html`
+          <section class="card" style="margin-top: 18px;">
+            <div class="card-title">Quick Actions</div>
+            <div class="card-sub">Common CLI tasks, accessible as buttons.</div>
+            <div class="row" style="margin-top: 14px; flex-wrap: wrap;">
+              ${props.onRestartGateway
+                ? html`
+                    <button
+                      class="btn"
+                      ?disabled=${!props.connected}
+                      @click=${props.onRestartGateway}
+                    >
+                      Restart gateway
+                    </button>
+                  `
+                : nothing}
+              ${props.onRunUpdate
+                ? html`
+                    <button class="btn" ?disabled=${!props.connected} @click=${props.onRunUpdate}>
+                      Run update
+                    </button>
+                  `
+                : nothing}
+              ${props.onOpenConfig
+                ? html`<button class="btn" @click=${props.onOpenConfig}>Open config</button>`
+                : nothing}
+              <span class="muted">
+                Restart triggers an in-place restart; the dashboard will reconnect automatically.
+              </span>
+            </div>
+          </section>
+        `
+      : nothing}
   `;
 }
