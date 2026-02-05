@@ -21,6 +21,7 @@ export type ProvidersProps = {
   agentRunning: boolean;
   modelAllowlist: Set<string>;
   primaryModel: string | null;
+  modelFallbacks: string[];
   modelsSaving: boolean;
   modelsCostFilter: "all" | "high" | "medium" | "low" | "free";
   authConfigProvider: string | null;
@@ -69,6 +70,8 @@ export function renderProviders(props: ProvidersProps) {
         <div class="muted">${props.agentRunning ? "An agent run is in progress." : "No active agent run."}</div>
       </div>
     </section>
+
+    ${renderSystemModelConfig(props)}
 
     <section class="card">
       <div class="row" style="justify-content: space-between; align-items: flex-start;">
@@ -1046,6 +1049,134 @@ function renderUsageBar(window: UsageWindowEntry) {
         ></div>
       </div>
     </div>
+  `;
+}
+
+function renderSystemModelConfig(props: ProvidersProps) {
+  const detectedProviderIds = new Set(
+    props.entries.filter((e) => e.detected).map((e) => e.id.toLowerCase()),
+  );
+
+  // Check if primary model is from a detected provider
+  const primaryProvider = props.primaryModel?.split("/")[0]?.toLowerCase();
+  const isPrimaryValid = primaryProvider ? detectedProviderIds.has(primaryProvider) : false;
+
+  // Check which fallbacks are from detected providers
+  const fallbacksInfo = props.modelFallbacks.map((fb) => {
+    const provider = fb.split("/")[0]?.toLowerCase();
+    const isValid = provider ? detectedProviderIds.has(provider) : false;
+    return { key: fb, isValid };
+  });
+
+  const validFallbacks = fallbacksInfo.filter((f) => f.isValid);
+  const invalidFallbacks = fallbacksInfo.filter((f) => !f.isValid);
+
+  return html`
+    <section class="card" style="margin-bottom: 18px;">
+      <div class="card-title">System Default Model</div>
+      <div class="card-sub" style="margin-bottom: 12px;">
+        The default model used for all agents unless overridden. All other models in the allowlist
+        become fallbacks automatically.
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div>
+          <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px;">Primary</div>
+          ${
+            props.primaryModel
+              ? html`
+                  <div
+                    class="chip"
+                    style="font-size: 12px; padding: 4px 10px; ${
+                      isPrimaryValid
+                        ? "background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 25%, transparent);"
+                        : "background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 25%, transparent);"
+                    }"
+                    title=${isPrimaryValid ? "Provider is configured" : "Provider not configured!"}
+                  >
+                    ${props.primaryModel}
+                    ${
+                      !isPrimaryValid
+                        ? html`
+                            <span style="margin-left: 6px">⚠️ Provider not detected</span>
+                          `
+                        : nothing
+                    }
+                  </div>
+                `
+              : html`
+                  <span class="muted" style="font-size: 13px">No default model set</span>
+                `
+          }
+        </div>
+
+        <div>
+          <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px;">
+            Fallbacks (${props.modelFallbacks.length})
+          </div>
+          ${
+            props.modelFallbacks.length === 0
+              ? html`
+                  <span class="muted" style="font-size: 13px">No fallbacks configured</span>
+                `
+              : html`
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    ${validFallbacks.map(
+                      (fb) => html`
+                        <span
+                          class="chip"
+                          style="font-size: 11px; background: color-mix(in srgb, var(--ok) 10%, transparent); color: var(--ok);"
+                          title="Provider is configured"
+                        >
+                          ${fb.key}
+                        </span>
+                      `,
+                    )}
+                    ${invalidFallbacks.map(
+                      (fb) => html`
+                        <span
+                          class="chip"
+                          style="font-size: 11px; background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); text-decoration: line-through; opacity: 0.7;"
+                          title="Provider not configured - will be skipped"
+                        >
+                          ${fb.key}
+                        </span>
+                      `,
+                    )}
+                  </div>
+                  ${
+                    invalidFallbacks.length > 0
+                      ? html`
+                          <div
+                            class="muted"
+                            style="font-size: 11px; margin-top: 6px; color: var(--warn);"
+                          >
+                            ⚠️ ${invalidFallbacks.length} fallback(s) from unconfigured providers will
+                            be skipped.
+                          </div>
+                        `
+                      : nothing
+                  }
+                `
+          }
+        </div>
+      </div>
+
+      ${
+        !isPrimaryValid && props.primaryModel
+          ? html`
+              <div
+                class="callout danger"
+                style="margin-top: 12px; font-size: 13px;"
+              >
+                <strong>Warning:</strong> The current default model
+                <code>${props.primaryModel}</code> is from a provider that is not configured. Select
+                a model from a detected provider below to fix this.
+              </div>
+            `
+          : nothing
+      }
+    </section>
   `;
 }
 

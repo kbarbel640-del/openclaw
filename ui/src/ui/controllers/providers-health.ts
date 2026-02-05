@@ -58,6 +58,7 @@ export type ProvidersHealthHost = {
   providersHealthExpanded: string | null;
   providersModelAllowlist: Set<string>;
   providersPrimaryModel: string | null;
+  providersModelFallbacks: string[];
   providersConfigHash: string | null;
   providersModelsSaving: boolean;
   providersModelsDirty: boolean;
@@ -197,6 +198,36 @@ function resolveModelCostTier(modelId: string): ModelCostTier {
   return "moderate";
 }
 
+// Lightweight loader for the primary model (used in header display).
+// Loads only the model config, not full providers health.
+export async function loadPrimaryModel(
+  host: Pick<
+    ProvidersHealthHost,
+    "client" | "connected" | "providersPrimaryModel" | "providersModelFallbacks"
+  >,
+): Promise<void> {
+  if (!host.client || !host.connected) {
+    return;
+  }
+  try {
+    const configRes = await host.client.request("config.get", {});
+    const config = (configRes as { config?: Record<string, unknown> } | null)?.config;
+    const agentsDefaults = (config?.agents as { defaults?: Record<string, unknown> } | undefined)
+      ?.defaults;
+    const primaryRaw = agentsDefaults?.model;
+    host.providersPrimaryModel =
+      typeof primaryRaw === "string"
+        ? primaryRaw
+        : ((primaryRaw as { primary?: string } | undefined)?.primary ?? null);
+    const modelConfig = primaryRaw as { fallbacks?: string[] } | undefined;
+    host.providersModelFallbacks = Array.isArray(modelConfig?.fallbacks)
+      ? modelConfig.fallbacks
+      : [];
+  } catch {
+    // Ignore errors - header will just not show model
+  }
+}
+
 export async function loadProvidersHealth(host: ProvidersHealthHost): Promise<void> {
   if (!host.client || !host.connected) {
     return;
@@ -233,6 +264,11 @@ export async function loadProvidersHealth(host: ProvidersHealthHost): Promise<vo
         typeof primaryRaw === "string"
           ? primaryRaw
           : ((primaryRaw as { primary?: string } | undefined)?.primary ?? null);
+      // Extract fallbacks array from config
+      const modelConfig = primaryRaw as { fallbacks?: string[] } | undefined;
+      host.providersModelFallbacks = Array.isArray(modelConfig?.fallbacks)
+        ? modelConfig.fallbacks
+        : [];
     }
     host.providersConfigHash = (configRes as { hash?: string } | null)?.hash ?? null;
 
@@ -277,6 +313,14 @@ export async function loadProvidersHealth(host: ProvidersHealthHost): Promise<vo
   }
 }
 
+// Cost tier priority for auto-selection (lower number = higher priority)
+const COST_TIER_PRIORITY: Record<ModelCostTier, number> = {
+  free: 0,
+  cheap: 1,
+  moderate: 2,
+  expensive: 3,
+};
+
 export async function saveModelSelection(host: ProvidersHealthHost): Promise<void> {
   if (!host.client || !host.providersConfigHash) {
     return;
@@ -288,11 +332,46 @@ export async function saveModelSelection(host: ProvidersHealthHost): Promise<voi
       models[key] = {};
     }
 
+    // If no primary model is selected, auto-select the cheapest model from allowlist
+    let primaryModel = host.providersPrimaryModel;
+    if (!primaryModel && host.providersModelAllowlist.size > 0) {
+      // Build a list of models in allowlist with their cost tiers
+      const allowlistModels: Array<{ key: string; costTier: ModelCostTier }> = [];
+      for (const entry of host.providersHealthEntries) {
+        if (!entry.detected) {
+          continue;
+        }
+        for (const model of entry.models) {
+          if (host.providersModelAllowlist.has(model.key)) {
+            allowlistModels.push({ key: model.key, costTier: model.costTier });
+          }
+        }
+      }
+      // Sort by cost tier (cheapest first)
+      allowlistModels.sort(
+        (a, b) => COST_TIER_PRIORITY[a.costTier] - COST_TIER_PRIORITY[b.costTier],
+      );
+      if (allowlistModels.length > 0) {
+        primaryModel = allowlistModels[0].key;
+        host.providersPrimaryModel = primaryModel;
+      }
+    }
+
+    // Build fallbacks from allowlist excluding primary model
+    const fallbacks: string[] = [];
+    if (primaryModel) {
+      for (const key of host.providersModelAllowlist) {
+        if (key !== primaryModel) {
+          fallbacks.push(key);
+        }
+      }
+    }
+
     const patch: Record<string, unknown> = {
       agents: {
         defaults: {
           models: Object.keys(models).length > 0 ? models : null,
-          ...(host.providersPrimaryModel ? { model: { primary: host.providersPrimaryModel } } : {}),
+          ...(primaryModel ? { model: { primary: primaryModel, fallbacks } } : {}),
         },
       },
     };
@@ -306,7 +385,7 @@ export async function saveModelSelection(host: ProvidersHealthHost): Promise<voi
     // Clear dirty flag before reloading so the fresh config is accepted
     host.providersModelsDirty = false;
 
-    // Reload to get new hash
+    // Reload to get new hash and updated fallbacks
     await loadProvidersHealth(host);
   } catch (err) {
     host.providersHealthError = String(err);
