@@ -72,7 +72,9 @@ export class CallManager {
 
     fs.mkdirSync(this.storePath, { recursive: true });
 
-    const persisted = loadActiveCallsFromStore(this.storePath);
+    const persisted = loadActiveCallsFromStore(this.storePath, {
+      maxAgeMs: this.config.maxDurationSeconds * 1000,
+    });
     this.activeCalls = persisted.activeCalls;
     this.providerCallIdMap = persisted.providerCallIdMap;
     this.processedEventIds = persisted.processedEventIds;
