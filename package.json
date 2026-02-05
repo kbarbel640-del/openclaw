@@ -43,6 +43,7 @@
 		"docs:list": "node scripts/docs-list.js",
 		"format": "oxfmt --check",
 		"format:all": "pnpm format && pnpm format:swift",
+		"format:diff": "oxfmt --write && git --no-pager diff",
 		"format:fix": "oxfmt --write",
 		"format:list": "oxfmt --list-different",
 		"format:swift": "swiftformat --lint --config .swiftformat apps/macos/Sources apps/ios/Sources apps/shared/OpenClawKit/Sources",
