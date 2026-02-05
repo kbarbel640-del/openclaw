@@ -1,0 +1,38 @@
+{
+  "name": "@openclaw/webex",
+  "version": "2026.2.4",
+  "description": "OpenClaw Cisco Webex Teams channel plugin - bidirectional messaging with Webex bot API",
+  "type": "module",
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "channel",
+    "webex", 
+    "cisco",
+    "teams",
+    "chat",
+    "bot"
+  ],
+  "author": "OpenClaw Contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/nichochar/openclaw",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nichochar/openclaw.git",
+    "directory": "extensions/webex"
+  },
+  "bugs": {
+    "url": "https://github.com/nichochar/openclaw/issues"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
