@@ -19,6 +19,55 @@ type InlineProviderConfig = {
   models?: ModelDefinitionConfig[];
 };
 
+const OPENAI_CODEX_FORWARD_COMPAT_MODEL_ID = /^gpt-5(?:\.\d+)?(?:-codex(?:-(?:mini|max))?)?$/i;
+
+const OPENAI_CODEX_TEMPLATE_MODEL_IDS = [
+  "gpt-5.2-codex",
+  "gpt-5.2",
+  "gpt-5.1-codex-max",
+  "gpt-5.1",
+] as const;
+
+function resolveOpenAICodexForwardCompatModel(
+  provider: string,
+  modelId: string,
+  modelRegistry: ModelRegistry,
+): Model<Api> | undefined {
+  const normalizedProvider = normalizeProviderId(provider);
+  const trimmedModelId = modelId.trim();
+  if (
+    normalizedProvider !== "openai-codex" ||
+    !OPENAI_CODEX_FORWARD_COMPAT_MODEL_ID.test(trimmedModelId)
+  ) {
+    return undefined;
+  }
+
+  for (const templateId of OPENAI_CODEX_TEMPLATE_MODEL_IDS) {
+    const template = modelRegistry.find(normalizedProvider, templateId) as Model<Api> | null;
+    if (!template) {
+      continue;
+    }
+    return normalizeModelCompat({
+      ...template,
+      id: trimmedModelId,
+      name: trimmedModelId,
+    } as Model<Api>);
+  }
+
+  return normalizeModelCompat({
+    id: trimmedModelId,
+    name: trimmedModelId,
+    api: "openai-codex-responses",
+    provider: normalizedProvider,
+    baseUrl: "https://chatgpt.com/backend-api",
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: DEFAULT_CONTEXT_TOKENS,
+    maxTokens: DEFAULT_CONTEXT_TOKENS,
+  } as Model<Api>);
+}
+
 export function buildInlineProviderModels(
   providers: Record<string, InlineProviderConfig>,
 ): InlineModelEntry[] {
@@ -100,6 +149,14 @@ export function resolveModel(
         maxTokens: providerCfg?.models?.[0]?.maxTokens ?? DEFAULT_CONTEXT_TOKENS,
       } as Model<Api>);
       return { model: fallbackModel, authStorage, modelRegistry };
+    }
+    const codexForwardCompat = resolveOpenAICodexForwardCompatModel(
+      provider,
+      modelId,
+      modelRegistry,
+    );
+    if (codexForwardCompat) {
+      return { model: codexForwardCompat, authStorage, modelRegistry };
     }
     return {
       error: `Unknown model: ${provider}/${modelId}`,
