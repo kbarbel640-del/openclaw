@@ -10,66 +10,66 @@ type MockChatLog = Pick<
 >;
 type MockTui = Pick<TUI, "requestRender">;
 
-describe("tui-event-handlers: handleAgentEvent", () => {
-  const makeState = (overrides?: Partial<TuiStateAccess>): TuiStateAccess => ({
-    agentDefaultId: "main",
-    sessionMainKey: "agent:main:main",
-    sessionScope: "global",
-    agents: [],
-    currentAgentId: "main",
-    currentSessionKey: "agent:main:main",
-    currentSessionId: "session-1",
-    activeChatRunId: "run-1",
-    historyLoaded: true,
-    sessionInfo: { verboseLevel: "on" },
-    initialSessionApplied: true,
-    isConnected: true,
-    autoMessageSent: false,
-    toolsExpanded: false,
-    showThinking: false,
-    connectionStatus: "connected",
-    activityStatus: "idle",
-    statusTimeout: null,
-    lastCtrlCAt: 0,
-    ...overrides,
-  });
+const makeState = (overrides?: Partial<TuiStateAccess>): TuiStateAccess => ({
+  agentDefaultId: "main",
+  sessionMainKey: "agent:main:main",
+  sessionScope: "global",
+  agents: [],
+  currentAgentId: "main",
+  currentSessionKey: "agent:main:main",
+  currentSessionId: "session-1",
+  activeChatRunId: "run-1",
+  historyLoaded: true,
+  sessionInfo: { verboseLevel: "on" },
+  initialSessionApplied: true,
+  isConnected: true,
+  autoMessageSent: false,
+  toolsExpanded: false,
+  showThinking: false,
+  connectionStatus: "connected",
+  activityStatus: "idle",
+  statusTimeout: null,
+  lastCtrlCAt: 0,
+  ...overrides,
+});
 
-  const makeContext = (state: TuiStateAccess) => {
-    const chatLog: MockChatLog = {
-      startTool: vi.fn(),
-      updateToolResult: vi.fn(),
-      addSystem: vi.fn(),
-      updateAssistant: vi.fn(),
-      finalizeAssistant: vi.fn(),
-    };
-    const tui: MockTui = { requestRender: vi.fn() };
-    const setActivityStatus = vi.fn();
-    const loadHistory = vi.fn();
-    const localRunIds = new Set<string>();
-    const noteLocalRunId = (runId: string) => {
-      localRunIds.add(runId);
-    };
-    const forgetLocalRunId = (runId: string) => {
-      localRunIds.delete(runId);
-    };
-    const isLocalRunId = (runId: string) => localRunIds.has(runId);
-    const clearLocalRunIds = () => {
-      localRunIds.clear();
-    };
-
-    return {
-      chatLog,
-      tui,
-      state,
-      setActivityStatus,
-      loadHistory,
-      noteLocalRunId,
-      forgetLocalRunId,
-      isLocalRunId,
-      clearLocalRunIds,
-    };
+const makeContext = (state: TuiStateAccess) => {
+  const chatLog: MockChatLog = {
+    startTool: vi.fn(),
+    updateToolResult: vi.fn(),
+    addSystem: vi.fn(),
+    updateAssistant: vi.fn(),
+    finalizeAssistant: vi.fn(),
+  };
+  const tui: MockTui = { requestRender: vi.fn() };
+  const setActivityStatus = vi.fn();
+  const loadHistory = vi.fn();
+  const localRunIds = new Set<string>();
+  const noteLocalRunId = (runId: string) => {
+    localRunIds.add(runId);
+  };
+  const forgetLocalRunId = (runId: string) => {
+    localRunIds.delete(runId);
+  };
+  const isLocalRunId = (runId: string) => localRunIds.has(runId);
+  const clearLocalRunIds = () => {
+    localRunIds.clear();
   };
 
+  return {
+    chatLog,
+    tui,
+    state,
+    setActivityStatus,
+    loadHistory,
+    noteLocalRunId,
+    forgetLocalRunId,
+    isLocalRunId,
+    clearLocalRunIds,
+  };
+};
+
+describe("tui-event-handlers: handleAgentEvent", () => {
   it("processes tool events when runId matches activeChatRunId (even if sessionId differs)", () => {
     const state = makeState({ currentSessionId: "session-xyz", activeChatRunId: "run-123" });
     const { chatLog, tui, setActivityStatus } = makeContext(state);
@@ -356,5 +356,82 @@ describe("tui-event-handlers: handleAgentEvent", () => {
     });
 
     expect(loadHistory).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Issue #9203: TUI drops API responses silently when runID already finalized
+// The handler was returning early for BOTH "delta" AND "final" events when the
+// runId exists in finalizedRuns. This silently discards the actual API response
+// if events arrive out of order, there are duplicate/retry events, or any race
+// condition causes the runId to be marked finalized before the final event.
+describe("tui-event-handlers: handleChatEvent finalized runs (issue #9203)", () => {
+  it("skips delta events for already-finalized runs", () => {
+    const state = makeState({ activeChatRunId: null });
+    const { chatLog, tui, setActivityStatus } = makeContext(state);
+    const { handleChatEvent } = createEventHandlers({
+      chatLog,
+      tui,
+      state,
+      setActivityStatus,
+    });
+
+    // First, process a final event to mark the run as finalized
+    handleChatEvent({
+      runId: "run-1",
+      sessionKey: state.currentSessionKey,
+      state: "final",
+      message: { content: "done" },
+    });
+
+    chatLog.updateAssistant.mockClear();
+    chatLog.finalizeAssistant.mockClear();
+    tui.requestRender.mockClear();
+
+    // Now send a late delta for the same run - should be ignored
+    handleChatEvent({
+      runId: "run-1",
+      sessionKey: state.currentSessionKey,
+      state: "delta",
+      message: { content: "late delta" },
+    });
+
+    // Delta should be skipped for finalized runs
+    expect(chatLog.updateAssistant).not.toHaveBeenCalled();
+  });
+
+  it("processes final events even for already-finalized runs", () => {
+    const state = makeState({ activeChatRunId: null });
+    const { chatLog, tui, setActivityStatus } = makeContext(state);
+    const { handleChatEvent } = createEventHandlers({
+      chatLog,
+      tui,
+      state,
+      setActivityStatus,
+    });
+
+    // First, process a final event to mark the run as finalized
+    handleChatEvent({
+      runId: "run-1",
+      sessionKey: state.currentSessionKey,
+      state: "final",
+      message: { content: "first response" },
+    });
+
+    chatLog.finalizeAssistant.mockClear();
+    setActivityStatus.mockClear();
+    tui.requestRender.mockClear();
+
+    // Now simulate a duplicate/retry final event arriving (race condition scenario)
+    // This should still be processed, not silently dropped
+    handleChatEvent({
+      runId: "run-1",
+      sessionKey: state.currentSessionKey,
+      state: "final",
+      message: { content: "retry response" },
+    });
+
+    // The final event MUST still render - this is the bug fix
+    expect(chatLog.finalizeAssistant).toHaveBeenCalled();
+    expect(tui.requestRender).toHaveBeenCalled();
   });
 });

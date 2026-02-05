@@ -89,12 +89,13 @@ export function createEventHandlers(context: EventHandlerContext) {
       return;
     }
     if (finalizedRuns.has(evt.runId)) {
+      // Skip delta events for already-finalized runs (duplicate/late deltas)
       if (evt.state === "delta") {
         return;
       }
-      if (evt.state === "final") {
-        return;
-      }
+      // Don't skip "final" events - they contain the actual response and must render.
+      // Race conditions or server retries can cause final events to arrive after
+      // the run was already marked finalized. (Issue #9203)
     }
     noteSessionRun(evt.runId);
     if (!state.activeChatRunId) {
