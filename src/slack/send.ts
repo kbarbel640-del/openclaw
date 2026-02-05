@@ -12,9 +12,9 @@ import { loadWebMedia } from "../web/media.js";
 import { resolveSlackAccount } from "./accounts.js";
 import { createSlackWebClient } from "./client.js";
 import { markdownToSlackMrkdwnChunks } from "./format.js";
+import { parseSlackChannelMention, listSlackChannels, resolveByName } from "./resolve-channels.js";
 import { parseSlackTarget } from "./targets.js";
 import { resolveSlackBotToken } from "./token.js";
-import { parseSlackChannelMention, listSlackChannels, resolveByName } from "./resolve-channels.js";
 
 const SLACK_TEXT_LIMIT = 4000;
 
@@ -112,8 +112,7 @@ async function resolveChannelIdForUpload(
   if (idCandidate && SLACK_CHANNEL_ID_REGEX.test(idCandidate)) {
     return idCandidate.toUpperCase();
   }
-  const nameCandidateRaw =
-    (parsed.name ?? "").trim() || input.replace(/^#/, "").trim();
+  const nameCandidateRaw = (parsed.name ?? "").trim() || input.replace(/^#/, "").trim();
   const nameToResolve = nameCandidateRaw.toLowerCase();
   if (!nameToResolve) {
     throw new Error(`Invalid Slack channel identifier: "${input}"`);
@@ -123,9 +122,7 @@ async function resolveChannelIdForUpload(
   if (match) {
     return match.id;
   }
-  throw new Error(
-    `Slack channel not found or bot not a member: "${nameToResolve}"`,
-  );
+  throw new Error(`Slack channel not found or bot not a member: "${nameToResolve}"`);
 }
 
 async function uploadSlackFile(params: {
