@@ -21,12 +21,7 @@ export async function modelsAuthSwitchCommand(
   },
   runtime: RuntimeEnv,
 ) {
-  const rawProvider = opts.provider?.trim();
-  if (!rawProvider) {
-    throw new Error("Missing --provider.");
-  }
-  const provider = normalizeProviderId(rawProvider);
-
+  const provider = normalizeProviderId(opts.provider.trim());
   const cfg = loadConfig();
   const agentId = resolveKnownAgentId({ cfg, rawAgentId: opts.agent });
   const agentDir = agentId ? resolveAgentDir(cfg, agentId) : resolveOpenClawAgentDir();

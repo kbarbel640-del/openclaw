@@ -38,7 +38,7 @@ import { renderTable } from "../../terminal/table.js";
 import { colorize, theme } from "../../terminal/theme.js";
 import { shortenHomePath } from "../../utils.js";
 import { resolveProfileDisplayInfos, resolveProviderAuthOverview } from "./list.auth-overview.js";
-import { isRich } from "./list.format.js";
+import { formatProfileStatus, isRich } from "./list.format.js";
 import {
   describeProbeSummary,
   formatProbeLatency,
@@ -477,28 +477,6 @@ export async function modelsStatusCommand(
     )}${applied.length ? colorize(rich, theme.muted, ` (applied: ${applied.join(", ")})`) : ""}`,
   );
 
-  const formatProfileStatus = (status: string) => {
-    if (status === "ok") {
-      return colorize(rich, theme.success, "ok");
-    }
-    if (status === "static") {
-      return colorize(rich, theme.muted, "static");
-    }
-    if (status === "expiring") {
-      return colorize(rich, theme.warn, "expiring");
-    }
-    if (status === "cooldown") {
-      return colorize(rich, theme.warn, "cooldown");
-    }
-    if (status === "disabled") {
-      return colorize(rich, theme.warn, "disabled");
-    }
-    if (status === "missing") {
-      return colorize(rich, theme.warn, "unknown");
-    }
-    return colorize(rich, theme.error, status);
-  };
-
   for (const entry of providerAuth) {
     const profileInfos = resolveProfileDisplayInfos({ provider: entry.provider, cfg, store });
     const sourceLabel =
@@ -522,7 +500,7 @@ export async function modelsStatusCommand(
         return {
           Profile: `${colorize(rich, theme.accent, info.profileId)} ${activeMarker}`,
           Type: colorize(rich, theme.info, info.type),
-          Status: formatProfileStatus(info.status),
+          Status: formatProfileStatus(info.status, rich),
           Detail: info.detail
             ? colorize(rich, theme.muted, info.detail)
             : colorize(rich, theme.muted, "-"),
