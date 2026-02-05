@@ -1,0 +1,5 @@
+gateway:
+  http:
+    endpoints:
+      chatCompletions:
+        enabled: true
