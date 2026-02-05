@@ -29,6 +29,7 @@ import {
 } from "../../channel-tools.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
+import { buildHotState, enforceHotStateTokenCap } from "../../hot-state.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
 import { resolveDefaultModelForAgent } from "../../model-selection.js";
 import {
@@ -38,7 +39,6 @@ import {
   validateGeminiTurns,
 } from "../../pi-embedded-helpers.js";
 import { subscribeEmbeddedPiSession } from "../../pi-embedded-subscribe.js";
-import { buildHotState, enforceHotStateTokenCap } from "../../hot-state.js";
 import {
   ensurePiCompactionReserveTokens,
   resolveCompactionReserveTokensFloor,
@@ -347,11 +347,24 @@ export async function runEmbeddedAttempt(
     });
     const ttsHint = params.config ? buildTtsSystemPromptHint(params.config) : undefined;
 
+    // Hot State: dispatcher-owned JSON blob, always included (size capped).
+    // Important: keep this OUT of the user prompt so transcript persistence/order tests stay stable.
+    const hotState = buildHotState({
+      session_id: params.sessionId,
+      session_key: params.sessionKey ?? undefined,
+      run_id: params.runId,
+      risk_level: "low",
+    });
+    const cappedHotState = enforceHotStateTokenCap({ hotState, maxTokens: 1000 });
+    const extraSystemPrompt = [params.extraSystemPrompt, cappedHotState.json]
+      .filter(Boolean)
+      .join("\n\n");
+
     const appendPrompt = buildEmbeddedSystemPrompt({
       workspaceDir: effectiveWorkspace,
       defaultThinkLevel: params.thinkLevel,
       reasoningLevel: params.reasoningLevel ?? "off",
-      extraSystemPrompt: params.extraSystemPrompt,
+      extraSystemPrompt,
       ownerNumbers: params.ownerNumbers,
       reasoningTagHint,
       heartbeatPrompt: isDefaultAgent
@@ -738,18 +751,7 @@ export async function runEmbeddedAttempt(
           }
         }
 
-        // Hot State: dispatcher-owned JSON blob, always included (size capped)
-        const hotState = buildHotState({
-          session_id: params.sessionId,
-          session_key: params.sessionKey ?? undefined,
-          run_id: params.runId,
-          risk_level: "low",
-        });
-        const cappedHotState = enforceHotStateTokenCap({ hotState, maxTokens: 1000 });
-        effectivePrompt = `${cappedHotState.json}\n\n${effectivePrompt}`;
-        cacheTrace?.recordStage("prompt:hot_state", {
-          note: `hot_state_tokens=${cappedHotState.tokens} truncated=${cappedHotState.wasTruncated}`,
-        });
+        // Hot State is injected into the system prompt (see above). Keep user prompt stable.
 
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
         cacheTrace?.recordStage("prompt:before", {
