@@ -332,9 +332,9 @@ async function installPluginFromPackageDir(params: {
       return { ok: false, error: `npm install failed: ${String(err)}` };
     } finally {
       // Restore original package.json no matter what.
+      const hadBackup = await fileExists(packageJsonBackupPath);
       try {
-        const hasBackup = await fileExists(packageJsonBackupPath);
-        if (hasBackup) {
+        if (hadBackup) {
           await fs.rm(packageJsonPath, { force: true }).catch(() => undefined);
           await fs.rename(packageJsonBackupPath, packageJsonPath);
           restoredPackageJson = true;
@@ -342,7 +342,7 @@ async function installPluginFromPackageDir(params: {
       } catch {
         // ignore restore failures; caller gets the original install error
       }
-      if (await fileExists(packageJsonBackupPath)) {
+      if (hadBackup && !restoredPackageJson) {
         logger.warn?.(
           `Failed to restore ${packageJsonPath} after dependency install; plugin may not load.`,
         );
