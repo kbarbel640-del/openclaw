@@ -41,7 +41,7 @@ function loadSfx(): Map<string, Buffer> {
   if (sfxCache) return sfxCache;
   sfxCache = new Map();
 
-  const files = ["typing.raw", "typing-short.raw", "processing.raw"];
+  const files = ["typing.raw", "processing.raw"];
   for (const file of files) {
     const filePath = path.join(ASSETS_DIR, file);
     if (fs.existsSync(filePath)) {
@@ -133,7 +133,7 @@ export class SilenceFiller {
     if (!state) return;
 
     const sfx = loadSfx();
-    const clips = this.config.sfxSet === "processing" ? ["processing"] : ["typing", "typing-short"];
+    const clips = this.config.sfxSet === "processing" ? ["processing"] : ["typing"];
 
     const clip = clips[Math.floor(Math.random() * clips.length)]!;
     let audio = sfx.get(clip);
