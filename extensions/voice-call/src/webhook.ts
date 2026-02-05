@@ -148,7 +148,7 @@ export class VoiceCallWebhookServer {
           this.manager.speakInitialMessage(callId).catch((err) => {
             console.warn(`[voice-call] Failed to speak initial message:`, err);
           });
-        }, 500);
+        }, 100);
       },
       onDisconnect: (callId) => {
         console.log(`[voice-call] Media stream disconnected: ${callId}`);
