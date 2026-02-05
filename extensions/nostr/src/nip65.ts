@@ -98,8 +98,8 @@ async function queryRelays(
       resolve(events);
     }, timeoutMs);
 
-    // subscribeMany expects (relays, filters[], opts)
-    const sub = pool.subscribeMany(relays, [filter] as Filter[], {
+    // subscribeMany expects (relays, filter, opts)
+    const sub = pool.subscribeMany(relays, filter, {
       onevent: (event: import("nostr-tools").Event) => {
         events.push(event);
       },

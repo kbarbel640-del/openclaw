@@ -5,11 +5,14 @@ import {
   verifyEvent,
   nip19,
   type Event,
+  type EventTemplate,
+  type VerifiedEvent,
 } from "nostr-tools";
 import { decrypt as nip04Decrypt, encrypt as nip04Encrypt } from "nostr-tools/nip04";
 import { createGiftWrap, unwrapGiftWrap } from "./nip17.js";
 import { getRelaysForDm } from "./nip65.js";
-import { createAuthHandler, type AuthHandler } from "./nip42.js";
+// NIP-42 module available but not needed - nostr-tools handles auth internally
+// We just provide a signer callback
 import type { NostrProfile } from "./config-schema.js";
 import {
   createMetrics,
@@ -348,15 +351,11 @@ export async function startNostrBus(options: NostrBusOptions): Promise<NostrBusH
   const accountId = options.accountId ?? pk.slice(0, 16);
   const gatewayStartedAt = Math.floor(Date.now() / 1000);
 
-  // NIP-42 auth handler for relays that require authentication
-  // SimplePool accepts an onauth callback that signs AUTH events
-  const authHandler = createAuthHandler(sk);
-  
-  // Auth signer function for SimplePool - signs AUTH events when challenged
-  const onauth = async (challenge: string, relay: string) => {
-    const response = authHandler.handleChallenge(challenge, relay);
-    authHandler.markAuthenticated(relay);
-    return response.event;
+  // NIP-42 auth signer function for SimplePool
+  // nostr-tools calls this with an EventTemplate when a relay requires auth
+  // We just need to sign it and return the VerifiedEvent
+  const onauth = async (eventTemplate: EventTemplate): Promise<VerifiedEvent> => {
+    return finalizeEvent(eventTemplate, sk);
   };
 
   // Initialize metrics
@@ -553,7 +552,7 @@ export async function startNostrBus(options: NostrBusOptions): Promise<NostrBusH
   const dmKinds = useNip17 ? [1059] : [4];
   
   const dmFilter = { kinds: dmKinds, "#p": [pk], since };
-  const sub = pool.subscribeMany(relays, [dmFilter] as import("nostr-tools").Filter[], {
+  const sub = pool.subscribeMany(relays, dmFilter, {
     onevent: handleEvent,
     oneose: () => {
       // EOSE handler - called when all stored events have been received
@@ -673,7 +672,7 @@ async function sendEncryptedDm(
   circuitBreakers: Map<string, CircuitBreaker>,
   healthTracker: RelayHealthTracker,
   onError?: (error: Error, context: string) => void,
-  onauth?: (challenge: string, relay: string) => Promise<Event>,
+  onauth?: (eventTemplate: EventTemplate) => Promise<VerifiedEvent>,
 ): Promise<void> {
   // NIP-65: Discover recipient's preferred relays
   let relays: string[];
@@ -793,10 +792,8 @@ export function normalizePubkey(input: string): string {
     if (decoded.type !== "npub") {
       throw new Error("Invalid npub key");
     }
-    // Convert Uint8Array to hex string
-    return Array.from(decoded.data as Uint8Array)
-      .map((b: number) => b.toString(16).padStart(2, "0"))
-      .join("");
+    // decoded.data is already a hex string for npub type
+    return (decoded.data as string).toLowerCase();
   }
 
   // Already hex - validate and return lowercase
