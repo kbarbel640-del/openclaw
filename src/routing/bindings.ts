@@ -1,4 +1,3 @@
-import createDebug from "debug";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -7,9 +6,10 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { AgentBinding } from "../config/types.agents.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { normalizeChatChannelId } from "../channels/registry.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import { normalizeAccountId, normalizeAgentId } from "./session-key.js";
 
-const debug = createDebug("openclaw:routing:bindings");
+const log = createSubsystemLogger("routing/bindings");
 
 const AgentBindingSchema = z.object({
   agentId: z.string(),
@@ -54,17 +54,17 @@ export function loadExtraBindings(): AgentBinding[] {
           if (result.success) {
             bindings.push(result.data as AgentBinding);
           } else {
-            debug(`Invalid binding at index ${i}: %O`, result.error.format());
+            log.debug(`Invalid binding at index ${i}: ${JSON.stringify(result.error.format())}`);
           }
         }
         cachedExtraBindings = bindings;
         return cachedExtraBindings;
       } else {
-        debug("routing.json root must be an array");
+        log.debug("routing.json root must be an array");
       }
     }
   } catch (error) {
-    debug("Failed to load routing.json: %O", error);
+    log.debug(`Failed to load routing.json: ${String(error)}`);
   }
   cachedExtraBindings = [];
   return cachedExtraBindings;
