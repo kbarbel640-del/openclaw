@@ -40,6 +40,9 @@ const CronToolSchema = Type.Object({
   contextMessages: Type.Optional(
     Type.Number({ minimum: 0, maximum: REMINDER_CONTEXT_MESSAGES_MAX }),
   ),
+  deliver: Type.Optional(Type.Boolean()),
+  channel: Type.Optional(Type.String()),
+  to: Type.Optional(Type.String()),
 });
 
 type CronToolOptions = {
@@ -361,6 +364,31 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
                 const baseText = stripExistingContext(payload.text);
                 payload.text = `${baseText}${REMINDER_CONTEXT_MARKER}${contextLines.join("\n")}`;
               }
+            }
+          }
+          // Add delivery config if deliver/channel/to are specified
+          const deliver = typeof params.deliver === "boolean" ? params.deliver : undefined;
+          const channel = readStringParam(params, "channel");
+          const to = readStringParam(params, "to");
+          if (job && typeof job === "object") {
+            const jobRec = job as Record<string, unknown>;
+            const sessionTarget = typeof jobRec.sessionTarget === "string" ? jobRec.sessionTarget : "";
+            const payloadKind = jobRec.payload && typeof jobRec.payload === "object" 
+              ? (jobRec.payload as { kind?: string }).kind 
+              : "";
+            const isIsolatedAgentTurn = sessionTarget === "isolated" || payloadKind === "agentTurn";
+            if (isIsolatedAgentTurn && (deliver !== undefined || channel || to)) {
+              const delivery: Record<string, unknown> = { mode: "announce" };
+              if (deliver === false) {
+                delivery.mode = "none";
+              }
+              if (channel) {
+                delivery.channel = channel;
+              }
+              if (to) {
+                delivery.to = to;
+              }
+              jobRec.delivery = delivery;
             }
           }
           return jsonResult(await callGatewayTool("cron.add", gatewayOpts, job));
