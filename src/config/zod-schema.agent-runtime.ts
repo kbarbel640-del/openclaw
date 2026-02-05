@@ -465,6 +465,12 @@ export const ToolsSchema = z
     alsoAllow: z.array(z.string()).optional(),
     deny: z.array(z.string()).optional(),
     byProvider: z.record(z.string(), ToolPolicyWithProfileSchema).optional(),
+    computer: z
+      .object({
+        confirm: z.enum(["off", "dangerous", "always"]).optional(),
+      })
+      .strict()
+      .optional(),
     web: ToolsWebSchema,
     media: ToolsMediaSchema,
     links: ToolsLinksSchema,

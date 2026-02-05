@@ -332,6 +332,10 @@ export type ToolsConfig = {
   deny?: string[];
   /** Optional tool policy overrides keyed by provider id or "provider/model". */
   byProvider?: Record<string, ToolPolicyConfig>;
+  computer?: {
+    /** Confirmation policy for computer tool actions (default: always). */
+    confirm?: "off" | "dangerous" | "always";
+  };
   web?: {
     search?: {
       /** Enable web search tool (default: true when API key is present). */

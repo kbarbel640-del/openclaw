@@ -48,6 +48,9 @@ const ComputerToolSchema = Type.Object({
   gatewayToken: Type.Optional(Type.String()),
   timeoutMs: Type.Optional(Type.Number()),
 
+  // approvals
+  confirm: Type.Optional(stringEnum(["always", "dangerous", "off"] as const)),
+
   // snapshot
   overlay: Type.Optional(stringEnum(["none", "grid"] as const)),
 
@@ -296,7 +299,13 @@ async function ensureApproval(params: {
   gatewayOpts: GatewayCallOptions;
   command: string;
   timeoutMs?: number;
+  allowAlwaysCache: Set<string>;
 }): Promise<void> {
+  const key = crypto.createHash("sha256").update(params.command, "utf8").digest("hex");
+  if (params.allowAlwaysCache.has(key)) {
+    return;
+  }
+
   const res = await callGatewayTool<{ decision?: string }>(
     "exec.approval.request",
     params.gatewayOpts,
@@ -313,19 +322,58 @@ async function ensureApproval(params: {
   if (decision === "deny") {
     throw new Error("computer action denied by user");
   }
-  if (decision !== "allow-once" && decision !== "allow-always") {
+  if (decision === "allow-always") {
+    params.allowAlwaysCache.add(key);
+    return;
+  }
+  if (decision !== "allow-once") {
     throw new Error("computer action approval missing");
   }
 }
 
-function shouldApproveAction(action: ComputerToolAction): boolean {
+type ComputerConfirmMode = "always" | "dangerous" | "off";
+
+function isDangerousAction(action: ComputerToolAction, params: Record<string, unknown>): boolean {
+  if (action === "hotkey" || action === "press") {
+    return true;
+  }
+  if (action === "type") {
+    const text = typeof params.text === "string" ? params.text : "";
+    return text.trim().length > 0;
+  }
+  if (action === "drag") {
+    return true;
+  }
+  if (action === "click") {
+    const button = typeof params.button === "string" ? params.button.trim().toLowerCase() : "left";
+    const clicks = typeof params.clicks === "number" && Number.isFinite(params.clicks) ? params.clicks : 1;
+    return button !== "left" || clicks > 1;
+  }
+  if (action === "dblclick" || action === "right_click") {
+    return true;
+  }
+  return false;
+}
+
+function shouldApproveAction(params: {
+  action: ComputerToolAction;
+  confirm: ComputerConfirmMode;
+  rawParams: Record<string, unknown>;
+}): boolean {
+  const { action, confirm, rawParams } = params;
+  if (confirm === "off") {
+    return false;
+  }
   if (action === "snapshot" || action === "wait") {
     return false;
   }
   if (action.startsWith("teach_")) {
     return false;
   }
-  return true;
+  if (confirm === "always") {
+    return true;
+  }
+  return isDangerousAction(action, rawParams);
 }
 
 function formatApprovalCommand(action: string, params: Record<string, unknown>): string {
@@ -943,6 +991,8 @@ export function createComputerTool(options?: {
   const agentDir = options?.agentDir?.trim() || undefined;
   const workspaceDir = options?.workspaceDir?.trim() || undefined;
 
+  const allowAlwaysCache = new Set<string>();
+
   return {
     label: "Computer",
     name: "computer",
@@ -961,6 +1011,14 @@ export function createComputerTool(options?: {
         gatewayToken: readStringParam(params, "gatewayToken", { trim: false }),
         timeoutMs: typeof params.timeoutMs === "number" ? params.timeoutMs : undefined,
       };
+
+      const confirmRaw = readStringParam(params, "confirm", { required: false });
+      const confirmFromConfig = options?.config?.tools?.computer?.confirm;
+      const confirmValue = (confirmRaw ?? confirmFromConfig ?? "always").trim();
+      const confirm: ComputerConfirmMode =
+        confirmValue === "off" || confirmValue === "dangerous" || confirmValue === "always"
+          ? (confirmValue as ComputerConfirmMode)
+          : "always";
 
       if (action === "snapshot") {
         const overlayRaw = readStringParam(params, "overlay", { required: false });
@@ -1043,9 +1101,20 @@ export function createComputerTool(options?: {
         return jsonResult({ ok: true, status: "teach-renamed", toName: path.basename(renamed.toDir) });
       }
 
-      if (shouldApproveAction(action)) {
+      if (
+        shouldApproveAction({
+          action,
+          confirm,
+          rawParams: params,
+        })
+      ) {
         const approvalText = formatApprovalCommand(`computer.${action}`, params);
-        await ensureApproval({ gatewayOpts, command: approvalText, timeoutMs: 120_000 });
+        await ensureApproval({
+          gatewayOpts,
+          command: approvalText,
+          timeoutMs: 120_000,
+          allowAlwaysCache,
+        });
       }
 
       const delayMs =
