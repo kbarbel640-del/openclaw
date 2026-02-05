@@ -513,7 +513,7 @@ export function getSessionDefaults(cfg: OpenClawConfig): GatewaySessionsDefaults
   });
   const contextTokens =
     cfg.agents?.defaults?.contextTokens ??
-    lookupContextTokens(resolved.model) ??
+    lookupContextTokens(resolved.model, resolved.provider) ??
     DEFAULT_CONTEXT_TOKENS;
   return {
     modelProvider: resolved.provider ?? null,
