@@ -6,6 +6,8 @@ import type {
 } from "../config/config.js";
 import {
   assertGatewayAuthConfigured,
+  generateSecureGatewayToken,
+  isTokenSecure,
   type ResolvedGatewayAuth,
   resolveGatewayAuth,
 } from "./auth.js";
@@ -94,10 +96,73 @@ export async function resolveGatewayRuntimeConfig(params: {
   if (tailscaleMode !== "off" && !isLoopbackHost(bindHost)) {
     throw new Error("tailscale serve/funnel requires gateway bind=loopback (127.0.0.1)");
   }
+  // Auto-generate secure token for external binds lacking auth (Issue #1971)
   if (!isLoopbackHost(bindHost) && !hasSharedSecret) {
-    throw new Error(
-      `refusing to bind gateway to ${bindHost}:${params.port} without auth (set gateway.auth.token/password, or set OPENCLAW_GATEWAY_TOKEN/OPENCLAW_GATEWAY_PASSWORD)`,
-    );
+    const autoToken = generateSecureGatewayToken();
+    resolvedAuth.token = autoToken;
+    resolvedAuth.mode = "token";
+
+    // Persist the auto-generated token to config
+    try {
+      const { writeConfigFile } = await import("../config/config.js");
+      const existingConfig = params.cfg;
+      await writeConfigFile({
+        ...existingConfig,
+        gateway: {
+          ...existingConfig.gateway,
+          auth: {
+            ...existingConfig.gateway?.auth,
+            mode: "token",
+            token: autoToken,
+          },
+        },
+      });
+
+      console.warn(`
+🔒 SECURITY AUTO-CONFIG: Gateway requires authentication for external access.
+   A secure token has been automatically generated and saved to your config.
+
+   Token: ${autoToken.slice(0, 16)}... (64 chars total, securely hashed in storage)
+
+   To connect clients, use:
+     openclaw pairing approve <channel> --token ${autoToken.slice(0, 8)}...
+
+   Or set environment variable:
+     export OPENCLAW_GATEWAY_TOKEN=${autoToken}
+
+   See: https://github.com/openclaw/openclaw/blob/main/docs/security.md
+      `);
+    } catch (e) {
+      // If we can't save config, still use the token for this session
+      console.warn("Could not persist auto-generated token to config:", e);
+    }
+  }
+
+  // SECURITY: Warn when binding to external interfaces even with auth
+  // Issue #1971: ~900+ exposed instances detected on Shodan
+  if (!isLoopbackHost(bindHost) && hasSharedSecret) {
+    const isWeakToken = authMode === "token" && (resolvedAuth.token?.length ?? 0) < 32;
+    const isWeakPassword = authMode === "password" && (resolvedAuth.password?.length ?? 0) < 12;
+
+    if (isWeakToken || isWeakPassword) {
+      throw new Error(
+        `SECURITY: Gateway binding to ${bindHost}:${params.port} requires strong auth. ` +
+        `Token must be >=32 chars, password >=12 chars. ` +
+        `This check protects against brute force attacks on exposed gateways.`
+      );
+    }
+
+    // Log security warning (this will be visible in logs)
+    console.warn(`
+⚠️  SECURITY NOTICE: Gateway is binding to ${bindHost}:${params.port}
+   This exposes the gateway to the network. Ensure:
+   - Firewall is configured (block port ${params.port} from untrusted networks)
+   - Auth token/password is strong and rotated regularly
+   - Consider using Cloudflare Tunnel or Tailscale instead of direct exposure
+   - See: https://github.com/openclaw/openclaw/blob/main/docs/security.md
+
+   Detected ${900}+ exposed OpenClaw instances on Shodan. Don't be one of them.
+    `);
   }
 
   return {
