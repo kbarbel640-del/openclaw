@@ -36,6 +36,27 @@ export interface InboundMessage {
 }
 
 /**
+ * XMTP message timestamps are often exposed as nanoseconds (sentAtNs) and may be bigint.
+ * This helper normalizes to a safe JS Date.
+ */
+function dateFromSentAtNs(sentAtNs: unknown): Date {
+  try {
+    if (typeof sentAtNs === "bigint") {
+      const ms = sentAtNs / 1_000_000n;
+      const n = Number(ms);
+      return Number.isFinite(n) ? new Date(n) : new Date();
+    }
+    if (typeof sentAtNs === "number") {
+      const n = Math.floor(sentAtNs / 1_000_000);
+      return Number.isFinite(n) ? new Date(n) : new Date();
+    }
+    return new Date();
+  } catch {
+    return new Date();
+  }
+}
+
+/**
  * Convos SDK Client - wraps convos-node-sdk for OpenClaw use
  */
 export class ConvosSDKClient {
@@ -105,7 +126,7 @@ export class ConvosSDKClient {
           senderId: ctx.message.senderInboxId,
           senderName: ctx.message.senderInboxId, // SDK doesn't expose display name directly
           content: typeof ctx.message.content === "string" ? ctx.message.content : "",
-          timestamp: new Date(ctx.message.sentAtNs / 1_000_000),
+          timestamp: dateFromSentAtNs((ctx.message as unknown as { sentAtNs?: unknown }).sentAtNs),
         };
         options.onMessage!(msg);
       });
@@ -265,7 +286,7 @@ export class ConvosSDKClient {
       senderId: msg.senderInboxId,
       senderName: msg.senderInboxId,
       content: typeof msg.content === "string" ? msg.content : "",
-      timestamp: new Date(msg.sentAtNs / 1_000_000).toISOString(),
+      timestamp: dateFromSentAtNs((msg as unknown as { sentAtNs?: unknown }).sentAtNs).toISOString(),
     }));
   }
 
