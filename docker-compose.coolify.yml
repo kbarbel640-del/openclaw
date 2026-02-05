@@ -34,11 +34,24 @@ services:
       - -c
       - |
         mkdir -p /home/node/.openclaw
-        # Clean up any invalid config files
-        rm -f /home/node/.openclaw/openclaw.json
-        rm -rf /home/node/.openclaw/config.yaml
-        # Create fresh openclaw.yaml (correct filename!)
-        printf 'gateway:\n  mode: local\n  http:\n    endpoints:\n      chatCompletions:\n        enabled: true\n' > /home/node/.openclaw/openclaw.yaml
+        # Clean up any old config files
+        rm -f /home/node/.openclaw/openclaw.yaml
+        rm -f /home/node/.openclaw/config.yaml
+        # Create fresh openclaw.json (correct filename and format!)
+        cat > /home/node/.openclaw/openclaw.json << 'EOF'
+        {
+          "gateway": {
+            "mode": "local",
+            "http": {
+              "endpoints": {
+                "chatCompletions": {
+                  "enabled": true
+                }
+              }
+            }
+          }
+        }
+        EOF
         exec node dist/index.js gateway --allow-unconfigured --bind lan
     environment:
       - NODE_ENV=production
