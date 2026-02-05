@@ -347,8 +347,14 @@ export const buildTelegramMessageContext = async ({
   } else if (msg.document) {
     placeholder = "<media:document>";
   } else if (msg.sticker) {
-    placeholder = "<media:sticker>";
-  }
+  const isAnimated = allMedia[0]?.stickerMetadata?.isAnimated === true;
+  const isVideo = allMedia[0]?.stickerMetadata?.isVideo === true;
+  placeholder = isVideo
+    ? "<media:video_sticker>"
+    : isAnimated
+      ? "<media:animated_sticker>"
+      : "<media:sticker>";
+}
 
   // Check if sticker has a cached description - if so, use it instead of sending the image
   const cachedStickerDescription = allMedia[0]?.stickerMetadata?.cachedDescription;
