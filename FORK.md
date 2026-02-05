@@ -38,10 +38,43 @@ This document tracks custom modifications made to this OpenClaw fork.
 6. If draft streaming is unavailable: sends an actual message (silent notification), then auto-deletes after 3 seconds
 7. When response text starts streaming, it replaces the tool activity
 
-**Requirements:**
+**Config options:**
 
-- `streamMode` must not be `"off"` in config
-- Works in both private chats and groups (fallback mode uses actual messages)
+```json
+"telegram": {
+  "toolActivity": "persist"  // "off" | "persist" | "transient"
+}
+```
+
+---
+
+### 2. Thinking Indicator (Agent Start Visibility)
+
+**Date Added:** 2026-02-05
+**Status:** Local modification (not submitted upstream yet)
+**Purpose:** Show when the agent starts processing a message
+
+**Problem:** Users don't know when the agent begins working on their message until tool calls start or the response streams.
+
+**Solution:** Added `thinkingIndicator` config that sends "🤔 Thinking..." when processing begins.
+
+**Config options:**
+
+```json
+"telegram": {
+  "thinkingIndicator": "persist"  // "off" | "persist" | "transient"
+}
+```
+
+- `"off"` (default): no indicator
+- `"persist"`: message stays in chat history
+- `"transient"`: message auto-deletes when response arrives
+
+**Files Modified:**
+
+- `src/config/types.telegram.ts` - Added `thinkingIndicator` config type
+- `src/config/zod-schema.providers-core.ts` - Schema validation
+- `src/telegram/bot-message-dispatch.ts` - Send indicator and cleanup
 
 ---
 
@@ -67,3 +100,5 @@ git merge upstream/main
 - `src/auto-reply/types.ts`
 - `src/auto-reply/reply/agent-runner-execution.ts`
 - `src/telegram/bot-message-dispatch.ts`
+- `src/config/types.telegram.ts`
+- `src/config/zod-schema.providers-core.ts`
