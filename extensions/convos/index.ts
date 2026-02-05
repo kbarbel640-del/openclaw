@@ -135,6 +135,17 @@ async function handleComplete() {
     | undefined;
   const existingConvos = (existingChannels?.convos ?? {}) as Record<string, unknown>;
 
+  // Auto-add the joiner's inbox ID to allowFrom so the operator can
+  // message the agent immediately after setup (no pairing prompt).
+  const existingAllowFrom = (
+    Array.isArray(existingConvos.allowFrom) ? existingConvos.allowFrom : []
+  ) as Array<string | number>;
+  const joinerInboxId = setupJoinState.joinerInboxId;
+  const allowFrom =
+    joinerInboxId && !existingAllowFrom.includes(joinerInboxId)
+      ? [...existingAllowFrom, joinerInboxId]
+      : existingAllowFrom;
+
   const updatedCfg = {
     ...cfg,
     channels: {
@@ -145,6 +156,7 @@ async function handleComplete() {
         ownerConversationId: setupResult.conversationId,
         env: setupResult.env,
         enabled: true,
+        ...(allowFrom.length > 0 ? { allowFrom } : {}),
       },
     },
   };
