@@ -1,4 +1,5 @@
 import type { EventLogEntry } from "./app-events.ts";
+import type { CronFilterState } from "./controllers/cron.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
@@ -28,7 +29,6 @@ import type {
 } from "./types.ts";
 import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
-import type { CronFilterState } from "./controllers/cron.ts";
 
 export type AppViewState = {
   settings: UiSettings;

@@ -43,10 +43,7 @@ function createState(jobs: CronJob[] = []): CronState {
   };
 }
 
-function createJob(
-  id: string,
-  overrides: Partial<CronJob> = {},
-): CronJob {
+function createJob(id: string, overrides: Partial<CronJob> = {}): CronJob {
   return {
     id,
     name: "Test Job",
@@ -107,7 +104,10 @@ describe("cron controller", () => {
 
     it("filters by schedule kind", () => {
       const jobs = [
-        createJob("job-1", { name: "Job One", schedule: { kind: "at", at: "2024-01-01T00:00:00Z" } }),
+        createJob("job-1", {
+          name: "Job One",
+          schedule: { kind: "at", at: "2024-01-01T00:00:00Z" },
+        }),
         createJob("job-2", { name: "Job Two", schedule: { kind: "every", everyMs: 60000 } }),
         createJob("job-3", { name: "Job Three", schedule: { kind: "cron", expr: "0 9 * * *" } }),
       ];

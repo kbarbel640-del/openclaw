@@ -1,7 +1,7 @@
 import { html, nothing } from "lit";
+import type { CronFilterState } from "../controllers/cron.ts";
 import type { ChannelUiMetaEntry, CronJob, CronRunLogEntry, CronStatus } from "../types.ts";
 import type { CronFormState } from "../ui-types.ts";
-import type { CronFilterState } from "../controllers/cron.ts";
 import { formatMs } from "../format.ts";
 import {
   formatCronPayload,
@@ -86,7 +86,9 @@ function renderFilterBar(props: CronProps) {
           <select
             .value=${props.filter.enabled}
             @change=${(e: Event) =>
-              props.onFilterChange({ enabled: (e.target as HTMLSelectElement).value as CronFilterState["enabled"] })}
+              props.onFilterChange({
+                enabled: (e.target as HTMLSelectElement).value as CronFilterState["enabled"],
+              })}
           >
             <option value="all">All</option>
             <option value="enabled">Enabled</option>
@@ -98,7 +100,10 @@ function renderFilterBar(props: CronProps) {
           <select
             .value=${props.filter.scheduleKind}
             @change=${(e: Event) =>
-              props.onFilterChange({ scheduleKind: (e.target as HTMLSelectElement).value as CronFilterState["scheduleKind"] })}
+              props.onFilterChange({
+                scheduleKind: (e.target as HTMLSelectElement)
+                  .value as CronFilterState["scheduleKind"],
+              })}
           >
             <option value="all">All</option>
             <option value="at">At</option>
@@ -111,7 +116,9 @@ function renderFilterBar(props: CronProps) {
           <select
             .value=${props.filter.lastStatus}
             @change=${(e: Event) =>
-              props.onFilterChange({ lastStatus: (e.target as HTMLSelectElement).value as CronFilterState["lastStatus"] })}
+              props.onFilterChange({
+                lastStatus: (e.target as HTMLSelectElement).value as CronFilterState["lastStatus"],
+              })}
           >
             <option value="all">All</option>
             <option value="ok">OK</option>

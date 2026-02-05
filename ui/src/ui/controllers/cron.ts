@@ -243,25 +243,35 @@ export function getFilteredCronJobs(state: CronState): CronJob[] {
   return state.cronJobs.filter((job) => {
     // Filter by enabled/disabled
     if (enabled !== "all") {
-      if (enabled === "enabled" && !job.enabled) return false;
-      if (enabled === "disabled" && job.enabled) return false;
+      if (enabled === "enabled" && !job.enabled) {
+        return false;
+      }
+      if (enabled === "disabled" && job.enabled) {
+        return false;
+      }
     }
 
     // Filter by schedule kind
     if (scheduleKind !== "all") {
-      if (job.schedule.kind !== scheduleKind) return false;
+      if (job.schedule.kind !== scheduleKind) {
+        return false;
+      }
     }
 
     // Filter by last status
     if (lastStatus !== "all") {
-      if (job.state?.lastStatus !== lastStatus) return false;
+      if (job.state?.lastStatus !== lastStatus) {
+        return false;
+      }
     }
 
     // Filter by search text (name or jobId)
     if (searchLower) {
       const matchesName = job.name.toLowerCase().includes(searchLower);
       const matchesId = job.id.toLowerCase().includes(searchLower);
-      if (!matchesName && !matchesId) return false;
+      if (!matchesName && !matchesId) {
+        return false;
+      }
     }
 
     return true;
