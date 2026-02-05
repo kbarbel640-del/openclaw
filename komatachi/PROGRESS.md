@@ -6,9 +6,9 @@
 
 | Aspect | State |
 |--------|-------|
-| **Phase** | Phase 2 complete. Ready for Phase 3 implementation. |
-| **Last completed** | Phase 2: Context Pipeline (Context Window module) |
-| **Next action** | Begin Phase 3.1 -- System Prompt implementation |
+| **Phase** | Phase 3 complete. Ready for Phase 4 implementation. |
+| **Last completed** | Phase 3: Agent Identity (System Prompt + Tool Registry) |
+| **Next action** | Begin Phase 4.1 -- Agent Loop implementation |
 | **Blockers** | None |
 
 ### What Exists Now
@@ -22,9 +22,11 @@
 - [x] Storage module: `src/storage/` (49 tests)
 - [x] Conversation Store module: `src/conversation/` (41 tests)
 - [x] Context Window module: `src/context/` (24 tests)
+- [x] System Prompt module: `src/identity/` (28 tests)
+- [x] Tool Registry module: `src/tools/` (17 tests)
 
-### Current Focus: Phase 3 Implementation
-Phases 1-2 complete. Persistence layer and context pipeline are built. Next: Phase 3 -- Agent Identity (System Prompt with identity file loading, Tool Registry).
+### Current Focus: Phase 4 Implementation
+Phases 1-3 complete. All component modules are built. Next: Phase 4 -- Agent Loop (main execution loop wiring everything together with Claude API).
 
 ---
 
@@ -209,7 +211,7 @@ See [ROADMAP.md](./ROADMAP.md) for the full sequenced plan. Summary:
 
 - [x] **Phase 1**: Storage & Conversation Foundation (Storage, Conversation Store)
 - [x] **Phase 2**: Context Pipeline (Context Window with History Management folded in)
-- [ ] **Phase 3**: Agent Identity (System Prompt with identity loading, Tool Registry)
+- [x] **Phase 3**: Agent Identity (System Prompt with identity loading, Tool Registry)
 - [ ] **Phase 4**: Agent Loop (main execution loop wiring everything together)
 - [ ] **Phase 5**: Integration Validation (end-to-end pipeline test)
 
@@ -379,6 +381,67 @@ Files created:
 - `src/context/index.test.ts` - 24 tests
 - `src/context/DECISIONS.md` - Architectural decision record
 
+### 15. Phase 3.1: System Prompt Module (Complete)
+
+Distilled system prompt assembly from OpenClaw's agent alignment system:
+
+| Metric | OpenClaw | Distilled |
+|--------|----------|-----------|
+| Lines of code (system-prompt + workspace) | ~879 | ~171 |
+| Section registration | Dynamic registry with add/replace | Fixed ordered list |
+| Plugin hooks | Yes | None |
+| Template engine | Partial | Template literals only |
+| Project detection | Yes (288 LOC) | None (deferred) |
+
+**What was built**:
+- `loadIdentityFiles(homeDir)` -- reads SOUL.md, IDENTITY.md, USER.md, MEMORY.md, AGENTS.md, TOOLS.md
+- `buildSystemPrompt(identityFiles, tools, runtime)` -- assembles system prompt from sections
+- `ToolSummary` type for prompt rendering (decoupled from full ToolDefinition)
+- 28 tests covering file loading, section building, ordering, integration
+
+**Key decisions**:
+- Module named `identity/` not `system-prompt/` -- reflects the agent's sense of self
+- Missing identity files return null (not error) -- agent starts minimal and grows
+- `loadIdentityFiles` reads filesystem directly, not through Storage -- identity files are user-edited
+- `ToolSummary` instead of `ToolDefinition` keeps identity module independent of tools module
+- Fixed section order: identity, tools, runtime, memory, guidelines
+
+Files created:
+- `src/identity/index.ts` - loadIdentityFiles + buildSystemPrompt
+- `src/identity/index.test.ts` - 28 tests
+- `src/identity/DECISIONS.md` - Architectural decision record
+
+### 16. Phase 3.2: Tool Registry Module (Complete)
+
+Distilled tool management from OpenClaw's tool policy system:
+
+| Metric | OpenClaw | Distilled |
+|--------|----------|-----------|
+| Lines of code (tool-policy + types.tools) | ~684 | ~106 |
+| Tool organization | Groups + profiles + allow/deny | Flat array |
+| Permissions | Channel/user/agent gating | None (array is policy) |
+| Dynamic enabling | Yes | No |
+| Plugin discovery | Yes | No |
+
+**What was built**:
+- `ToolDefinition` -- name, description, input schema, handler
+- `ToolResult` -- discriminated union: `{ ok: true, content }` or `{ ok: false, error }`
+- `exportForApi()` -- strips handlers, maps to Claude API tool format
+- `findTool()` -- lookup by name
+- `executeTool()` -- wraps handler exceptions as error results
+- 17 tests covering API export, tool lookup, execution, error handling
+
+**Key decisions**:
+- Flat array, no registry class -- functions operate on the array directly
+- `executeTool` catches handler exceptions, always returns structured ToolResult
+- `JsonSchema` type is minimal subset sufficient for Claude API
+- `inputSchema` (camelCase) mapped to `input_schema` (snake_case) in API export
+
+Files created:
+- `src/tools/index.ts` - ToolDefinition + ToolResult + utility functions
+- `src/tools/index.test.ts` - 17 tests
+- `src/tools/DECISIONS.md` - Architectural decision record
+
 ## Open Questions
 
 None currently.
@@ -423,9 +486,17 @@ komatachi/
     │   ├── index.ts        # ConversationStore + Claude API message types
     │   ├── index.test.ts   # 41 tests
     │   └── DECISIONS.md
-    └── context/        # Phase 2.1: Context window management
-        ├── index.ts        # selectMessages + estimateStringTokens
-        ├── index.test.ts   # 24 tests
+    ├── context/        # Phase 2.1: Context window management
+    │   ├── index.ts        # selectMessages + estimateStringTokens
+    │   ├── index.test.ts   # 24 tests
+    │   └── DECISIONS.md
+    ├── identity/       # Phase 3.1: System prompt / agent identity
+    │   ├── index.ts        # loadIdentityFiles + buildSystemPrompt
+    │   ├── index.test.ts   # 28 tests
+    │   └── DECISIONS.md
+    └── tools/          # Phase 3.2: Tool registry
+        ├── index.ts        # ToolDefinition + exportForApi + executeTool
+        ├── index.test.ts   # 17 tests
         └── DECISIONS.md
 ```
 
