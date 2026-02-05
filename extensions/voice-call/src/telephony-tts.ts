@@ -22,7 +22,10 @@ export type TelephonyTtsProvider = {
    * Stream TTS audio as mu-law 8kHz chunks for real-time playback.
    * Falls back to non-streaming synthesis if direct streaming is unavailable.
    */
-  streamForTelephony?: (text: string) => AsyncGenerator<Buffer, void, unknown>;
+  streamForTelephony?: (
+    text: string,
+    signal?: AbortSignal,
+  ) => AsyncGenerator<Buffer, void, unknown>;
 };
 
 /**
@@ -32,6 +35,7 @@ export type TelephonyTtsProvider = {
 async function* streamElevenLabsTelephony(
   text: string,
   config: NonNullable<VoiceCallTtsConfig>,
+  signal?: AbortSignal,
 ): AsyncGenerator<Buffer, void, unknown> {
   const elevenlabs = config.elevenlabs;
   if (!elevenlabs?.apiKey || !elevenlabs?.voiceId) {
@@ -76,6 +80,7 @@ async function* streamElevenLabsTelephony(
       "xi-api-key": elevenlabs.apiKey,
     },
     body: JSON.stringify(body),
+    signal,
   });
 
   if (!response.ok) {
@@ -135,7 +140,8 @@ export function createTelephonyTtsProvider(params: {
 
     // Streaming TTS: stream audio chunks as they arrive from the TTS provider
     ...(canStreamElevenLabs && {
-      streamForTelephony: (text: string) => streamElevenLabsTelephony(text, ttsConfig),
+      streamForTelephony: (text: string, signal?: AbortSignal) =>
+        streamElevenLabsTelephony(text, ttsConfig, signal),
     }),
   };
 }

@@ -434,12 +434,20 @@ export class TwilioProvider implements VoiceCallProvider {
    * @param streamUrl - WebSocket URL (wss://...) for the media stream
    */
   getStreamConnectXml(streamUrl: string, token?: string): string {
-    const paramXml = token ? `\n      <Parameter name="token" value="${escapeXml(token)}" />` : "";
+    if (token) {
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="${escapeXml(streamUrl)}">
+      <Parameter name="token" value="${escapeXml(token)}" />
+    </Stream>
+  </Connect>
+</Response>`;
+    }
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
-    <Stream url="${escapeXml(streamUrl)}">${paramXml}
-    </Stream>
+    <Stream url="${escapeXml(streamUrl)}" />
   </Connect>
 </Response>`;
   }
@@ -576,7 +584,7 @@ export class TwilioProvider implements VoiceCallProvider {
         let audioSent = false;
 
         try {
-          for await (const chunk of ttsProvider.streamForTelephony(text)) {
+          for await (const chunk of ttsProvider.streamForTelephony(text, signal)) {
             if (signal.aborted) {
               break;
             }
