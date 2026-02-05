@@ -644,7 +644,7 @@ export async function runEmbeddedAttempt(
 						messageChannel: params.messageChannel,
 					});
 				}
-				params.onAssistantMessageStart?.();
+				void params.onAssistantMessageStart?.();
 			};
 
 			const subscription = subscribeEmbeddedPiSession({
