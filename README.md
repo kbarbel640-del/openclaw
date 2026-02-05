@@ -121,7 +121,7 @@ OpenCray/
 │   │   │   ├── card.ts       # 卡片消息构建
 │   │   │   ├── channel.ts    # 渠道适配器
 │   │   │   ├── monitor.ts    # 消息监听
-│   │   │   └── send.ts       # 消息发送
+│   │   │   ├── send.ts       # 消息发送
 │   │   └── openclaw.plugin.json
 │   ├── feishu-unofficial/     # 飞书扩展（非官方）
 │   │   ├── src/
@@ -144,12 +144,12 @@ OpenCray/
 │   │   │   ├── gateway.ts    # WebSocket 事件监听
 │   │   │   └── image-server.ts # 图片服务器
 │   │   └── openclaw.plugin.json
-│   └── wecom/                 # 企业微信扩展
-│       ├── src/
-│       │   ├── bot.ts
-│       │   ├── crypto.ts     # 消息加解密
-│       │   └── monitor.ts
-│       └── openclaw.plugin.json
+│   ├── wecom/                 # 企业微信扩展
+│   │       ├── src/
+│   │       │   ├── bot.ts
+│   │       │   ├── crypto.ts     # 消息加解密
+│   │       │   └── monitor.ts
+│   │       └── openclaw.plugin.json
 └── ... (OpenClaw 核心文件)
 ```
 
