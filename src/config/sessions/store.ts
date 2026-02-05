@@ -174,6 +174,36 @@ export function loadSessionStore(
   return structuredClone(store);
 }
 
+export function readSessionEntry(sessionKey: string): SessionEntry | null {
+  try {
+    const storePath = path.join(process.env.HOME || "/home/node", ".openclaw", "sessions.json");
+    const store = loadSessionStore(storePath);
+    return store[sessionKey] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateSessionEntry(
+  sessionKey: string,
+  update: Partial<SessionEntry>,
+): Promise<SessionEntry | null> {
+  try {
+    const storePath = path.join(process.env.HOME || "/home/node", ".openclaw", "sessions.json");
+    return await updateSessionStore(storePath, (store) => {
+      const existing = store[sessionKey];
+      if (!existing) {
+        return null;
+      }
+      const next = mergeSessionEntry(existing, update);
+      store[sessionKey] = next;
+      return next;
+    });
+  } catch {
+    return null;
+  }
+}
+
 export function readSessionUpdatedAt(params: {
   storePath: string;
   sessionKey: string;
