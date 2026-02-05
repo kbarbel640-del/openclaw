@@ -114,4 +114,4 @@ uv run {baseDir}/scripts/recraft.py user-info
 - The script prints a `MEDIA:` line for OpenClaw to auto-attach on supported chat providers.
 - Do not read the image back; report the saved path only.
 - Vector art and Icon styles output SVG format.
-- Rate limits: 100 requests per minute; 5 requests seconds.
+- Rate limits: 100 requests per minute; 5 requests per second.

@@ -113,13 +113,34 @@ def make_request(
     return response.json()
 
 
+def process_request(
+    endpoint: str,
+    token: str,
+    output_path: Path,
+    json_data: dict | None = None,
+    files: dict | None = None,
+    data: dict | None = None,
+) -> None:
+    try:
+        result = make_request(endpoint, token, json_data=json_data, files=files, data=data)
+    except Exception as e:
+        print(f"Error: Unable to process request: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    image_data = extract_image_data(result)
+    if image_data:
+        save_image(image_data, output_path)
+    else:
+        print("Error: No image data in response.", file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_generate(args, token: str) -> None:
     """Generate an image from a text prompt."""
     style = args.style or DEFAULT_STYLE
     size = args.size or "1:1"
 
     print(f"Generating image with style '{style}' and size {size}...")
-
     json_data = {
         "prompt": args.prompt,
         "style": style,
@@ -127,15 +148,7 @@ def cmd_generate(args, token: str) -> None:
         "n": 1,
         "response_format": "b64_json",
     }
-
-    result = make_request("/images/generations", token, json_data=json_data)
-
-    image_data = (result.get('image') or result.get("data", [{}])[0]).get("b64_json")
-    if image_data:
-        save_image(image_data, Path(args.filename))
-    else:
-        print("Error: No image data in response.", file=sys.stderr)
-        sys.exit(1)
+    process_request("/images/generations", token, Path(args.filename), json_data=json_data)
 
 
 def cmd_image_to_image(args, token: str) -> None:
@@ -143,9 +156,8 @@ def cmd_image_to_image(args, token: str) -> None:
     style = args.style or DEFAULT_STYLE
 
     print(f"Transforming image with strength {args.strength}...")
-
     with open(args.input, "rb") as f:
-        files = {"image": (Path(args.input).name, f, "image/png")}
+        files = {"image": f}
         data = {
             "prompt": args.prompt,
             "strength": str(args.strength),
@@ -153,14 +165,7 @@ def cmd_image_to_image(args, token: str) -> None:
             "response_format": "b64_json",
             "style": style,
         }
-        result = make_request("/images/imageToImage", token, files=files, data=data)
-
-    image_data = extract_image_data(result)
-    if image_data:
-        save_image(image_data, Path(args.filename))
-    else:
-        print("Error: No image data in response.", file=sys.stderr)
-        sys.exit(1)
+        process_request("/images/imageToImage", token, Path(args.filename), files=files, data=data)
 
 
 def cmd_replace_background(args, token: str) -> None:
@@ -168,23 +173,15 @@ def cmd_replace_background(args, token: str) -> None:
     style = args.style or DEFAULT_STYLE
 
     print("Replacing background...")
-
     with open(args.input, "rb") as f:
-        files = {"image": (Path(args.input).name, f, "image/png")}
+        files = {"image": f}
         data = {
             "prompt": args.prompt,
             "n": "1",
             "response_format": "b64_json",
             "style": style,
         }
-        result = make_request("/images/replaceBackground", token, files=files, data=data)
-
-    image_data = extract_image_data(result)
-    if image_data:
-        save_image(image_data, Path(args.filename))
-    else:
-        print("Error: No image data in response.", file=sys.stderr)
-        sys.exit(1)
+        process_request("/images/replaceBackground", token, Path(args.filename), files=files, data=data)
 
 
 def cmd_vectorize(args, token: str) -> None:
@@ -192,50 +189,27 @@ def cmd_vectorize(args, token: str) -> None:
     print("Vectorizing image...")
 
     with open(args.input, "rb") as f:
-        files = {"file": (Path(args.input).name, f, "image/png")}
+        files = {"file": f}
         data = {"response_format": "b64_json"}
-        result = make_request("/images/vectorize", token, files=files, data=data)
-
-    image_data = extract_image_data(result)
-    if image_data:
-        save_image(image_data, Path(args.filename))
-    else:
-        print("Error: No image data in response.", file=sys.stderr)
-        sys.exit(1)
+        process_request("/images/vectorize", token, Path(args.filename), files=files, data=data)
 
 
 def cmd_remove_background(args, token: str) -> None:
     """Remove the background from an image."""
     print("Removing background...")
-
     with open(args.input, "rb") as f:
-        files = {"file": (Path(args.input).name, f, "image/png")}
+        files = {"file": f}
         data = {"response_format": "b64_json"}
-        result = make_request("/images/removeBackground", token, files=files, data=data)
-
-    image_data = extract_image_data(result)
-    if image_data:
-        save_image(image_data, Path(args.filename))
-    else:
-        print("Error: No image data in response.", file=sys.stderr)
-        sys.exit(1)
+        process_request("/images/removeBackground", token, Path(args.filename), files=files, data=data)
 
 
 def cmd_crisp_upscale(args, token: str) -> None:
     """Upscale an image with crisp enhancement."""
     print("Crisp upscaling image...")
-
     with open(args.input, "rb") as f:
-        files = {"file": (Path(args.input).name, f, "image/png")}
+        files = {"file": f}
         data = {"response_format": "b64_json"}
-        result = make_request("/images/crispUpscale", token, files=files, data=data)
-
-    image_data = extract_image_data(result)
-    if image_data:
-        save_image(image_data, Path(args.filename))
-    else:
-        print("Error: No image data in response.", file=sys.stderr)
-        sys.exit(1)
+        process_request("/images/crispUpscale", token, Path(args.filename), files=files, data=data)
 
 
 def cmd_creative_upscale(args, token: str) -> None:
@@ -243,16 +217,9 @@ def cmd_creative_upscale(args, token: str) -> None:
     print("Creative upscaling image...")
 
     with open(args.input, "rb") as f:
-        files = {"file": (Path(args.input).name, f, "image/png")}
+        files = {"file": f}
         data = {"response_format": "b64_json"}
-        result = make_request("/images/creativeUpscale", token, files=files, data=data)
-
-    image_data = extract_image_data(result)
-    if image_data:
-        save_image(image_data, Path(args.filename))
-    else:
-        print("Error: No image data in response.", file=sys.stderr)
-        sys.exit(1)
+        process_request("/images/creativeUpscale", token, Path(args.filename), files=files, data=data)
 
 
 def cmd_variate(args, token: str) -> None:
@@ -260,28 +227,19 @@ def cmd_variate(args, token: str) -> None:
     size = args.size or "1:1"
 
     print("Generating image variation...")
-
     with open(args.input, "rb") as f:
-        files = {"image": (Path(args.input).name, f, "image/png")}
+        files = {"image": f}
         data = {
             "n": "1",
             "size": size,
             "response_format": "b64_json",
         }
-        result = make_request("/images/variateImage", token, files=files, data=data)
-
-    image_data = extract_image_data(result)
-    if image_data:
-        save_image(image_data, Path(args.filename))
-    else:
-        print("Error: No image data in response.", file=sys.stderr)
-        sys.exit(1)
+        process_request("/images/variateImage", token, Path(args.filename), files=files, data=data)
 
 
 def cmd_user_info(args, token: str) -> None:
     """Get user account information."""
     print("Fetching user information...")
-
     result = make_request("/users/me", token, method="GET")
 
     print("\nUser Information:")
