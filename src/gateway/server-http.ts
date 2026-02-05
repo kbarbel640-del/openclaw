@@ -27,6 +27,7 @@ import {
   normalizeAgentPayload,
   normalizeHookHeaders,
   normalizeWakePayload,
+  readFormUrlEncodedBody,
   readJsonBody,
   resolveHookChannel,
   resolveHookDeliver,
@@ -113,7 +114,13 @@ export function createHooksRequestHandler(
       return true;
     }
 
-    const body = await readJsonBody(req, hooksConfig.maxBodyBytes);
+    let body;
+    const ct = (req.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+    if (ct === "application/x-www-form-urlencoded") {
+      body = await readFormUrlEncodedBody(req, hooksConfig.maxBodyBytes);
+    } else {
+      body = await readJsonBody(req, hooksConfig.maxBodyBytes);
+    }
     if (!body.ok) {
       const status = body.error === "payload too large" ? 413 : 400;
       sendJson(res, status, { ok: false, error: body.error });
