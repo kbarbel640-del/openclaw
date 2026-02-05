@@ -2,7 +2,7 @@
  * Environment variable and secret substitution for config values.
  *
  * Supports two syntaxes in string values, substituted at config load time:
- * 
+ *
  * 1. Environment variables: `${VAR_NAME}`
  *    - Only uppercase env vars are matched: `[A-Z_][A-Z0-9_]*`
  *    - Escape with `$${}` to output literal `${}`
@@ -32,7 +32,7 @@
  * ```
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 // Pattern for valid uppercase env var names: starts with letter or underscore,
 // followed by letters, numbers, or underscores (all uppercase)
@@ -87,7 +87,7 @@ function getPassSecret(secretPath: string, configPath: string): string {
   }
 
   try {
-    const result = execSync(`pass show "${secretPath}"`, {
+    const result = execFileSync("pass", ["show", secretPath], {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 5000,
@@ -130,14 +130,18 @@ function substituteString(value: string, env: NodeJS.ProcessEnv, configPath: str
     const next = value[i + 1];
     const afterNext = value[i + 2];
 
-    // Escaped: $${VAR} -> ${VAR}
+    // Escaped: $${VAR} or $${pass:path} -> ${VAR} or ${pass:path}
     if (next === "$" && afterNext === "{") {
       const start = i + 3;
       const end = value.indexOf("}", start);
       if (end !== -1) {
-        const name = value.slice(start, end);
-        if (ENV_VAR_NAME_PATTERN.test(name)) {
-          chunks.push(`\${${name}}`);
+        const content = value.slice(start, end);
+        // Allow escaping env vars (${VAR}) or pass refs (${pass:path})
+        if (
+          ENV_VAR_NAME_PATTERN.test(content) ||
+          (content.startsWith("pass:") && PASS_PATH_PATTERN.test(content.slice(5)))
+        ) {
+          chunks.push(`\${${content}}`);
           i = end;
           continue;
         }
@@ -150,7 +154,7 @@ function substituteString(value: string, env: NodeJS.ProcessEnv, configPath: str
       const end = value.indexOf("}", start);
       if (end !== -1) {
         const content = value.slice(start, end);
-        
+
         // Check for pass: prefix
         if (content.startsWith("pass:")) {
           const passPath = content.slice(5); // Remove "pass:" prefix
@@ -161,7 +165,7 @@ function substituteString(value: string, env: NodeJS.ProcessEnv, configPath: str
             continue;
           }
         }
-        
+
         // Standard env var substitution: ${VAR} -> value
         if (ENV_VAR_NAME_PATTERN.test(content)) {
           const envValue = env[content];
@@ -212,7 +216,7 @@ export function clearPassCache(): void {
 }
 
 /**
- * Resolves `${VAR_NAME}` environment variable references and 
+ * Resolves `${VAR_NAME}` environment variable references and
  * `${pass:path}` password-store references in config values.
  *
  * @param obj - The parsed config object (after JSON5 parse and $include resolution)
