@@ -84,8 +84,14 @@ export function createTypingController(params: {
       if (!typingTimer) {
         return;
       }
-      log?.(`typing TTL reached (${formatTypingTtl(typingTtlMs)}); stopping typing indicator`);
-      cleanup();
+      log?.(`typing TTL reached (${formatTypingTtl(typingTtlMs)}); pausing typing indicator`);
+      // Pause the typing loop instead of sealing the controller. Long model thinking
+      // periods (>2min) caused the old cleanup() call to permanently seal the controller,
+      // preventing typing from ever restarting even though the run was still active.
+      // Now we just clear the interval so new signals can restart it.
+      clearInterval(typingTimer);
+      typingTimer = undefined;
+      started = false;
     }, typingTtlMs);
   };
 
@@ -93,6 +99,12 @@ export function createTypingController(params: {
 
   const triggerTyping = async () => {
     if (sealed) {
+      return;
+    }
+    // Don't send another typing signal after the run has completed. Prevents the
+    // "typing briefly after message sent" issue caused by the interval firing one
+    // last time between delivery and cleanup.
+    if (runComplete) {
       return;
     }
     await onReplyStart?.();
@@ -168,6 +180,13 @@ export function createTypingController(params: {
 
   const markRunComplete = () => {
     runComplete = true;
+    // Immediately stop the typing interval when the run completes. This eliminates
+    // the race window where a stale typing signal could fire between the run
+    // completing and the dispatcher going idle.
+    if (typingTimer) {
+      clearInterval(typingTimer);
+      typingTimer = undefined;
+    }
     maybeStopOnIdle();
   };
 

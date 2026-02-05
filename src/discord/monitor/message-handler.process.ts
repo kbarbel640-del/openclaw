@@ -88,7 +88,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
 
   const mediaList = await resolveMediaList(message, mediaMaxBytes);
 
-  // 🦀 Claw's patch: Start typing loop immediately if audio is detected (before transcription).
+  // Start typing loop immediately if audio is detected (before transcription).
   // Discord clears typing after 10s, and transcription can take 10-30s, so we need a loop.
   // This same loop continues through the main reply flow via the onReplyStart callback.
   const hasAudio = mediaList.some((m) => m.contentType?.startsWith("audio/"));
@@ -108,7 +108,6 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
 
   const text = messageText;
   if (!text) {
-    // 🦀 Claw's patch: Clean up early typing interval on early return
     if (earlyTypingInterval) {
       clearInterval(earlyTypingInterval);
     }
@@ -298,7 +297,6 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     : (autoThreadContext?.From ?? `discord:channel:${message.channelId}`);
   const effectiveTo = autoThreadContext?.To ?? replyTarget;
   if (!effectiveTo) {
-    // 🦀 Claw's patch: Clean up early typing interval on early return
     if (earlyTypingInterval) {
       clearInterval(earlyTypingInterval);
     }
@@ -407,8 +405,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     },
     onReplyStart: createTypingCallbacks({
       start: () => {
-        // 🦀 Claw's patch: Clear the early typing interval when main typing loop takes over.
-        // This prevents duplicate typing calls and ensures a seamless handoff.
+        // Clear the early typing interval when main typing loop takes over.
         if (earlyTypingInterval) {
           clearInterval(earlyTypingInterval);
           earlyTypingInterval = undefined;
@@ -433,16 +430,15 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     replyOptions: {
       ...replyOptions,
       skillFilter: channelConfig?.skills,
-      // 🦀 Claw's patch: Enable block streaming by default for Discord.
-      // This allows responses to be sent incrementally (paragraph-by-paragraph) instead
-      // of waiting for the full response. Can be disabled via config if needed.
+      // Enable block streaming by default for Discord. Responses are sent incrementally
+      // (paragraph-by-paragraph) instead of waiting for the full response.
       disableBlockStreaming:
         typeof discordConfig?.blockStreaming === "boolean" ? !discordConfig.blockStreaming : false,
       onModelSelected,
     },
   });
   markDispatchIdle();
-  // 🦀 Claw's patch: Clean up early typing interval if it wasn't cleared by main typing loop
+  // Clean up early typing interval if it wasn't cleared by main typing loop.
   if (earlyTypingInterval) {
     clearInterval(earlyTypingInterval);
     earlyTypingInterval = undefined;
