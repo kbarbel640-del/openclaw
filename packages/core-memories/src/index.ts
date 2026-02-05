@@ -386,9 +386,9 @@ const MAX_TIP_COUNT = 3;
 
 async function maybeShowOllamaTip(): Promise<void> {
   const tipPath = path.join(".openclaw", "memory", ".tip-state.json");
-  
+
   let tipState: TipState = { lastOllamaTipShown: "", tipCount: 0 };
-  
+
   // Load existing tip state
   if (fs.existsSync(tipPath)) {
     try {
@@ -398,13 +398,13 @@ async function maybeShowOllamaTip(): Promise<void> {
       // Invalid state, reset
     }
   }
-  
+
   const now = new Date();
   const lastShown = tipState.lastOllamaTipShown ? new Date(tipState.lastOllamaTipShown) : null;
-  const daysSinceLastTip = lastShown 
+  const daysSinceLastTip = lastShown
     ? (now.getTime() - lastShown.getTime()) / (1000 * 60 * 60 * 24)
     : Infinity;
-  
+
   // Show tip if:
   // 1. Never shown before, OR
   // 2. Cooldown period passed (7 days), AND
@@ -412,11 +412,11 @@ async function maybeShowOllamaTip(): Promise<void> {
   if (daysSinceLastTip >= TIP_COOLDOWN_DAYS && tipState.tipCount < MAX_TIP_COUNT) {
     console.log("  💡 Tip: Install Ollama for smarter memory compression");
     console.log("     → https://ollama.com/download");
-    
+
     // Update state
     tipState.lastOllamaTipShown = now.toISOString();
     tipState.tipCount++;
-    
+
     ensureDir(path.dirname(tipPath));
     fs.writeFileSync(tipPath, JSON.stringify(tipState, null, 2));
   }
