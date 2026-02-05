@@ -124,8 +124,8 @@ describe("subagent announce retry", () => {
     expect(didAnnounce).toBe(false);
   });
 
-  it("truncates large subagent reply to prevent context overflow", async () => {
-    // Create a reply that exceeds MAX_REPLY_CHARS (8000)
+  it("uses brief summary to prevent context overflow", async () => {
+    // Create a reply that exceeds brief summary limit (300 chars)
     const largeReply = "x".repeat(10000);
     const { readLatestAssistantReply } = await import("./tools/agent-step.js");
     vi.mocked(readLatestAssistantReply).mockResolvedValueOnce(largeReply);
@@ -144,9 +144,11 @@ describe("subagent announce retry", () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
     await runSubagentAnnounceFlow(baseParams);
 
-    // The message should contain the truncation marker
-    expect(capturedMessage).toContain("[output truncated due to length]");
-    // The message should be shorter than the original large reply
+    // The message should contain "Brief summary:" and be truncated with "..."
+    expect(capturedMessage).toContain("Brief summary:");
+    expect(capturedMessage).toContain("...");
+    // The message should be much shorter than the original large reply (brief summary is ~300 chars)
     expect(capturedMessage.length).toBeLessThan(largeReply.length);
+    expect(capturedMessage.length).toBeLessThan(1000); // Brief summary keeps it compact
   });
 });

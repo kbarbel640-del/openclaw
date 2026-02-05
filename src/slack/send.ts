@@ -203,6 +203,49 @@ async function uploadSlackFile(params: {
   return fileId;
 }
 
+export type SlackThreadResult = {
+  threadTs: string;
+  channelId: string;
+};
+
+export async function createSlackThread(params: {
+  to: string;
+  accountId?: string;
+  token?: string;
+  initialMessage: string;
+}): Promise<SlackThreadResult> {
+  const cfg = loadConfig();
+  const account = resolveSlackAccount({
+    cfg,
+    accountId: params.accountId,
+  });
+  const token = resolveToken({
+    explicit: params.token,
+    accountId: account.accountId,
+    fallbackToken: account.botToken,
+    fallbackSource: account.botTokenSource,
+  });
+  const client = createSlackWebClient(token);
+  const recipient = parseRecipient(params.to);
+  const { channelId } = await resolveChannelId(client, recipient);
+
+  // Post the initial message which becomes the thread parent
+  const response = await client.chat.postMessage({
+    channel: channelId,
+    text: params.initialMessage,
+  });
+
+  const threadTs = response.ts;
+  if (!threadTs) {
+    throw new Error("Failed to create Slack thread: no message ts returned");
+  }
+
+  return {
+    threadTs,
+    channelId,
+  };
+}
+
 export async function sendMessageSlack(
   to: string,
   message: string,

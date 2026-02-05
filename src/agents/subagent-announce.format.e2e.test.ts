@@ -102,7 +102,8 @@ describe("subagent announce formatting", () => {
     expect(msg).toContain("subagent task");
     expect(msg).toContain("failed");
     expect(msg).toContain("boom");
-    expect(msg).toContain("Findings:");
+    // Now uses brief summary format instead of full findings
+    expect(msg).toContain("Brief summary:");
     expect(msg).toContain("raw subagent reply");
     expect(msg).toContain("Stats:");
   });
