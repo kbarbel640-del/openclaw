@@ -86,7 +86,10 @@ describe("extractChatbotMessage", () => {
       ...BASIC_CHATBOT_MESSAGE,
       headers: { ...BASIC_CHATBOT_MESSAGE.headers, messageId: undefined, message_id: "snake-id" },
     };
-    expect(extractChatbotMessage(snakeCase as any)?.messageId).toBe("snake-id");
+    expect(
+      extractChatbotMessage(snakeCase as unknown as Parameters<typeof extractChatbotMessage>[0])
+        ?.messageId,
+    ).toBe("snake-id");
   });
 
   it("extracts conversation ID from various paths", () => {

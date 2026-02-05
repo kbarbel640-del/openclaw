@@ -2,7 +2,7 @@
  * DingTalk monitor - starts the stream client and dispatches messages to Clawdbot.
  */
 
-import { loadWebMedia, type OpenClawConfig } from "openclaw/plugin-sdk";
+import { loadWebMedia, type OpenClawConfig, type PluginRuntime } from "openclaw/plugin-sdk";
 import type { ResolvedDingTalkAccount } from "./accounts.js";
 import type { ChatbotMessage, StreamClientHandle, StreamLogger } from "./stream/types.js";
 import { uploadMediaToOAPI } from "./api/media-upload.js";
@@ -35,6 +35,13 @@ export interface MonitorDingTalkOpts {
   abortSignal?: AbortSignal;
   log?: StreamLogger;
 }
+
+type ReplyDispatchParams = Parameters<
+  PluginRuntime["channel"]["reply"]["dispatchReplyWithBufferedBlockDispatcher"]
+>[0];
+
+type ReplyDispatchContext = ReplyDispatchParams["ctx"];
+type ReplyDispatchOptions = ReplyDispatchParams["dispatcherOptions"];
 
 type VerboseOverride = "off" | "on" | "full";
 
@@ -212,16 +219,13 @@ export async function monitorDingTalkProvider(
   }
 
   async function dispatchReply(opts: {
-    ctx: Record<string, unknown>;
-    dispatcherOptions: {
-      deliver: (...args: any[]) => Promise<void> | void;
-      onError?: (...args: any[]) => void;
-    };
+    ctx: ReplyDispatchContext;
+    dispatcherOptions: ReplyDispatchOptions;
   }): Promise<void> {
     await runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
       ctx: opts.ctx,
       cfg: dispatchConfig,
-      dispatcherOptions: opts.dispatcherOptions as any,
+      dispatcherOptions: opts.dispatcherOptions,
       replyOptions: {
         onReasoningStream: async (payload) => {
           if (!payload?.text && (!payload?.mediaUrls || payload.mediaUrls.length === 0)) {
