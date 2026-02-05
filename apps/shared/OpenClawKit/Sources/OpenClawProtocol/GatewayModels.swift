@@ -1143,6 +1143,7 @@ public struct ConfigApplyParams: Codable, Sendable {
     public let raw: String
     public let basehash: String?
     public let sessionkey: String?
+    public let resumemessage: String?
     public let note: String?
     public let restartdelayms: Int?
 
@@ -1150,12 +1151,14 @@ public struct ConfigApplyParams: Codable, Sendable {
         raw: String,
         basehash: String?,
         sessionkey: String?,
+        resumemessage: String?,
         note: String?,
         restartdelayms: Int?
     ) {
         self.raw = raw
         self.basehash = basehash
         self.sessionkey = sessionkey
+        self.resumemessage = resumemessage
         self.note = note
         self.restartdelayms = restartdelayms
     }
@@ -1163,6 +1166,7 @@ public struct ConfigApplyParams: Codable, Sendable {
         case raw
         case basehash = "baseHash"
         case sessionkey = "sessionKey"
+        case resumemessage = "resumeMessage"
         case note
         case restartdelayms = "restartDelayMs"
     }
@@ -1172,6 +1176,7 @@ public struct ConfigPatchParams: Codable, Sendable {
     public let raw: String
     public let basehash: String?
     public let sessionkey: String?
+    public let resumemessage: String?
     public let note: String?
     public let restartdelayms: Int?
 
@@ -1179,12 +1184,14 @@ public struct ConfigPatchParams: Codable, Sendable {
         raw: String,
         basehash: String?,
         sessionkey: String?,
+        resumemessage: String?,
         note: String?,
         restartdelayms: Int?
     ) {
         self.raw = raw
         self.basehash = basehash
         self.sessionkey = sessionkey
+        self.resumemessage = resumemessage
         self.note = note
         self.restartdelayms = restartdelayms
     }
@@ -1192,6 +1199,7 @@ public struct ConfigPatchParams: Codable, Sendable {
         case raw
         case basehash = "baseHash"
         case sessionkey = "sessionKey"
+        case resumemessage = "resumeMessage"
         case note
         case restartdelayms = "restartDelayMs"
     }
@@ -2525,23 +2533,27 @@ public struct ChatEvent: Codable, Sendable {
 
 public struct UpdateRunParams: Codable, Sendable {
     public let sessionkey: String?
+    public let resumemessage: String?
     public let note: String?
     public let restartdelayms: Int?
     public let timeoutms: Int?
 
     public init(
         sessionkey: String?,
+        resumemessage: String?,
         note: String?,
         restartdelayms: Int?,
         timeoutms: Int?
     ) {
         self.sessionkey = sessionkey
+        self.resumemessage = resumemessage
         self.note = note
         self.restartdelayms = restartdelayms
         self.timeoutms = timeoutms
     }
     private enum CodingKeys: String, CodingKey {
         case sessionkey = "sessionKey"
+        case resumemessage = "resumeMessage"
         case note
         case restartdelayms = "restartDelayMs"
         case timeoutms = "timeoutMs"
