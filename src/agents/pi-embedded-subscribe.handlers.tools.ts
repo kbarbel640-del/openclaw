@@ -1,5 +1,6 @@
 import type { AgentEvent } from "@mariozechner/pi-agent-core";
 import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
+import crypto from "node:crypto";
 import { emitAgentEvent } from "../infra/agent-events.js";
 import { normalizeTextForComparison } from "./pi-embedded-helpers.js";
 import { isMessagingTool, isMessagingToolSendAction } from "./pi-embedded-messaging.js";
@@ -12,6 +13,78 @@ import {
 } from "./pi-embedded-subscribe.tools.js";
 import { inferToolMetaFromArgs } from "./pi-embedded-utils.js";
 import { normalizeToolName } from "./tool-policy.js";
+
+// Loop detection configuration
+const LOOP_DETECTION_HISTORY_SIZE = 10;
+const LOOP_DETECTION_FAILURE_THRESHOLD = 2;
+const LOOP_DETECTION_TIME_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+function hashToolArgs(args: unknown): string {
+  const normalized = JSON.stringify(args, Object.keys(args as object).sort());
+  return crypto.createHash("sha256").update(normalized).digest("hex").slice(0, 16);
+}
+
+function checkForLoop(
+  ctx: EmbeddedPiSubscribeContext,
+  toolName: string,
+  args: unknown,
+): { isLoop: boolean; attemptCount: number } {
+  const argsHash = hashToolArgs(args);
+  const actionKey = `${toolName}:${argsHash}`;
+
+  // Check if this action is already blocked
+  if (ctx.state.blockedToolActions.has(actionKey)) {
+    return { isLoop: true, attemptCount: LOOP_DETECTION_FAILURE_THRESHOLD };
+  }
+
+  // Clean up old history entries (outside time window)
+  const now = Date.now();
+  const cutoff = now - LOOP_DETECTION_TIME_WINDOW_MS;
+  ctx.state.toolExecutionHistory = ctx.state.toolExecutionHistory.filter(
+    (entry) => entry.timestamp > cutoff,
+  );
+
+  // Trim history to max size
+  if (ctx.state.toolExecutionHistory.length > LOOP_DETECTION_HISTORY_SIZE) {
+    ctx.state.toolExecutionHistory = ctx.state.toolExecutionHistory.slice(
+      -LOOP_DETECTION_HISTORY_SIZE,
+    );
+  }
+
+  // Count recent failures for this specific action
+  const recentFailures = ctx.state.toolExecutionHistory.filter(
+    (entry) =>
+      entry.toolName === toolName && entry.argsHash === argsHash && entry.success === false,
+  );
+
+  const failureCount = recentFailures.length;
+
+  // If we've hit the threshold, block this action
+  if (failureCount >= LOOP_DETECTION_FAILURE_THRESHOLD) {
+    ctx.state.blockedToolActions.add(actionKey);
+    ctx.log.warn(
+      `Loop detected: ${toolName} with args hash ${argsHash} failed ${failureCount} times. BLOCKING.`,
+    );
+    return { isLoop: true, attemptCount: failureCount };
+  }
+
+  return { isLoop: false, attemptCount: failureCount };
+}
+
+function recordToolExecution(
+  ctx: EmbeddedPiSubscribeContext,
+  toolName: string,
+  args: unknown,
+  success: boolean,
+): void {
+  const argsHash = hashToolArgs(args);
+  ctx.state.toolExecutionHistory.push({
+    toolName,
+    argsHash,
+    timestamp: Date.now(),
+    success,
+  });
+}
 
 function extendExecMeta(toolName: string, args: unknown, meta?: string): string | undefined {
   const normalized = toolName.trim().toLowerCase();
@@ -51,6 +124,90 @@ export async function handleToolExecutionStart(
   const toolCallId = String(evt.toolCallId);
   const args = evt.args;
 
+  // ── LOOP DETECTION: Check before execution ──────────────────────────────
+  const loopCheck = checkForLoop(ctx, toolName, args);
+  if (loopCheck.isLoop) {
+    const argsHash = hashToolArgs(args);
+    const interventionMessage = `SYSTEM INTERVENTION: Loop Detected.
+
+You have attempted the tool "${toolName}" with identical arguments ${loopCheck.attemptCount} times, and it has failed each time.
+
+This specific action is now BLOCKED to prevent infinite loops.
+
+You MUST choose a different strategy:
+- Use a different tool
+- Modify the arguments significantly
+- Verify the current state before proceeding
+- Consider if the task is actually achievable
+
+Do NOT retry this exact action again.`;
+
+    ctx.log.warn(
+      `LOOP BLOCKED: ${toolName} (hash: ${argsHash}) - injecting intervention message`,
+    );
+
+    // Emit tool start event (for consistency)
+    emitAgentEvent({
+      runId: ctx.params.runId,
+      stream: "tool",
+      data: {
+        phase: "start",
+        name: toolName,
+        toolCallId,
+        args: args as Record<string, unknown>,
+      },
+    });
+    void ctx.params.onAgentEvent?.({
+      stream: "tool",
+      data: { phase: "start", name: toolName, toolCallId },
+    });
+
+    // Immediately emit a synthetic error result
+    const syntheticResult = {
+      error: interventionMessage,
+      isError: true,
+      loopDetected: true,
+    };
+
+    ctx.state.toolMetas.push({ toolName, meta: "LOOP BLOCKED" });
+    ctx.state.lastToolError = {
+      toolName,
+      meta: "LOOP BLOCKED",
+      error: interventionMessage,
+    };
+
+    emitAgentEvent({
+      runId: ctx.params.runId,
+      stream: "tool",
+      data: {
+        phase: "result",
+        name: toolName,
+        toolCallId,
+        meta: "LOOP BLOCKED",
+        isError: true,
+        result: syntheticResult,
+      },
+    });
+    void ctx.params.onAgentEvent?.({
+      stream: "tool",
+      data: {
+        phase: "result",
+        name: toolName,
+        toolCallId,
+        meta: "LOOP BLOCKED",
+        isError: true,
+      },
+    });
+
+    // Emit tool output if verbose
+    if (ctx.params.onToolResult && ctx.shouldEmitToolOutput()) {
+      ctx.emitToolOutput(toolName, "LOOP BLOCKED", interventionMessage);
+    }
+
+    // CRITICAL: Return early to prevent actual tool execution
+    return;
+  }
+
   if (toolName === "read") {
     const record = args && typeof args === "object" ? (args as Record<string, unknown>) : {};
     const filePath = typeof record.path === "string" ? record.path.trim() : "";
@@ -64,6 +221,7 @@ export async function handleToolExecutionStart(
 
   const meta = extendExecMeta(toolName, args, inferToolMetaFromArgs(toolName, args));
   ctx.state.toolMetaById.set(toolCallId, meta);
+  ctx.state.toolArgsById.set(toolCallId, args);
   ctx.log.debug(
     `embedded run tool start: runId=${ctx.params.runId} tool=${toolName} toolCallId=${toolCallId}`,
   );
@@ -161,10 +319,26 @@ export function handleToolExecutionEnd(
   const isToolError = isError || isToolResultError(result);
   const sanitizedResult = sanitizeToolResult(result);
   const meta = ctx.state.toolMetaById.get(toolCallId);
+  const args = ctx.state.toolArgsById.get(toolCallId);
+  
+  // ── LOOP DETECTION: Record execution result ─────────────────────────────
+  const isLoopBlocked = meta === "LOOP BLOCKED";
+  if (!isLoopBlocked && args !== undefined) {
+    // Record this execution in history
+    recordToolExecution(ctx, toolName, args, !isToolError);
+    
+    if (isToolError) {
+      ctx.log.debug(
+        `Tool execution failed: ${toolName} (will count toward loop detection)`,
+      );
+    }
+  }
+  
   ctx.state.toolMetas.push({ toolName, meta });
   ctx.state.toolMetaById.delete(toolCallId);
+  ctx.state.toolArgsById.delete(toolCallId);
   ctx.state.toolSummaryById.delete(toolCallId);
-  if (isToolError) {
+  if (isToolError && !isLoopBlocked) {
     const errorMessage = extractToolErrorMessage(sanitizedResult);
     ctx.state.lastToolError = {
       toolName,
