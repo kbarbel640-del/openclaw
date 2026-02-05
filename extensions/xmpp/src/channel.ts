@@ -188,18 +188,13 @@ async function handleSubscriptionRequest(
   // Check if JID is in allowFrom list
   const allowFrom = xmppCfg?.allowFrom ?? [];
   const isAllowed = allowFrom.some((entry) => {
-    const pattern = String(entry).toLowerCase();
-    if (pattern === "*") {
-      return true;
-    }
-    return bareJid.toLowerCase() === pattern || bareJid.toLowerCase().includes(pattern);
+    return jidMatchesPattern(bareJid, String(entry));
   });
 
   // Check pairing store
   const storeAllowFrom = await core.channel.pairing.readAllowFromStore("xmpp").catch(() => []);
   const isInStore = storeAllowFrom.some((entry) => {
-    const pattern = String(entry).toLowerCase();
-    return bareJid.toLowerCase() === pattern || bareJid.toLowerCase().includes(pattern);
+    return jidMatchesPattern(bareJid, String(entry));
   });
 
   const dmPolicy = xmppCfg?.dmPolicy ?? "pairing";
