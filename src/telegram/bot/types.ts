@@ -26,4 +26,7 @@ export interface StickerMetadata {
   fileUniqueId?: string;
   /** Cached description from previous vision processing (skip re-processing if present). */
   cachedDescription?: string;
+    /** Sticker type flags from Telegram. */
+  isAnimated?: boolean;
+  isVideo?: boolean;
 }
