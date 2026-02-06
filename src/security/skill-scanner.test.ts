@@ -2,7 +2,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   isScannable,
   scanDirectory,
@@ -236,6 +236,17 @@ describe("scanDirectory", () => {
     const findings = await scanDirectory(root);
     expect(findings.some((f) => f.ruleId === "dynamic-code-execution")).toBe(false);
   });
+
+  it("scans hidden entry files when explicitly included", async () => {
+    const root = makeTmpDir();
+    const hidden = path.join(root, ".hidden");
+    fsSync.mkdirSync(hidden, { recursive: true });
+
+    fsSync.writeFileSync(path.join(hidden, "entry.js"), `const x = eval("hack");`);
+
+    const findings = await scanDirectory(root, { includeFiles: [".hidden/entry.js"] });
+    expect(findings.some((f) => f.ruleId === "dynamic-code-execution")).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -261,5 +272,74 @@ describe("scanDirectoryWithSummary", () => {
     expect(summary.warn).toBe(0);
     expect(summary.info).toBe(0);
     expect(summary.findings).toHaveLength(2);
+  });
+
+  it("caps scanned file count with maxFiles", async () => {
+    const root = makeTmpDir();
+    fsSync.writeFileSync(path.join(root, "a.js"), `const x = eval("a");`);
+    fsSync.writeFileSync(path.join(root, "b.js"), `const x = eval("b");`);
+    fsSync.writeFileSync(path.join(root, "c.js"), `const x = eval("c");`);
+
+    const summary = await scanDirectoryWithSummary(root, { maxFiles: 2 });
+    expect(summary.scannedFiles).toBe(2);
+    expect(summary.findings.length).toBeLessThanOrEqual(2);
+  });
+
+  it("skips files above maxFileBytes", async () => {
+    const root = makeTmpDir();
+    const largePayload = "A".repeat(4096);
+    fsSync.writeFileSync(path.join(root, "large.js"), `eval("${largePayload}");`);
+
+    const summary = await scanDirectoryWithSummary(root, { maxFileBytes: 64 });
+    expect(summary.scannedFiles).toBe(0);
+    expect(summary.findings).toEqual([]);
+  });
+
+  it("ignores missing included files", async () => {
+    const root = makeTmpDir();
+    fsSync.writeFileSync(path.join(root, "clean.js"), `export const ok = true;`);
+
+    const summary = await scanDirectoryWithSummary(root, {
+      includeFiles: ["missing.js"],
+    });
+    expect(summary.scannedFiles).toBe(1);
+    expect(summary.findings).toEqual([]);
+  });
+
+  it("prioritizes included entry files when maxFiles is reached", async () => {
+    const root = makeTmpDir();
+    fsSync.writeFileSync(path.join(root, "regular.js"), `export const ok = true;`);
+    fsSync.mkdirSync(path.join(root, ".hidden"), { recursive: true });
+    fsSync.writeFileSync(path.join(root, ".hidden", "entry.js"), `const x = eval("hack");`);
+
+    const summary = await scanDirectoryWithSummary(root, {
+      maxFiles: 1,
+      includeFiles: [".hidden/entry.js"],
+    });
+    expect(summary.scannedFiles).toBe(1);
+    expect(summary.findings.some((f) => f.ruleId === "dynamic-code-execution")).toBe(true);
+  });
+
+  it("throws when reading a scannable file fails", async () => {
+    const root = makeTmpDir();
+    const filePath = path.join(root, "bad.js");
+    fsSync.writeFileSync(filePath, "export const ok = true;\n");
+
+    const realReadFile = fs.readFile;
+    const spy = vi.spyOn(fs, "readFile").mockImplementation(async (...args) => {
+      const pathArg = args[0];
+      if (typeof pathArg === "string" && pathArg === filePath) {
+        const err = new Error("EACCES: permission denied") as NodeJS.ErrnoException;
+        err.code = "EACCES";
+        throw err;
+      }
+      return await realReadFile(...args);
+    });
+
+    try {
+      await expect(scanDirectoryWithSummary(root)).rejects.toMatchObject({ code: "EACCES" });
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

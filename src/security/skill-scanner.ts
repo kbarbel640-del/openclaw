@@ -24,6 +24,12 @@ export type SkillScanSummary = {
   findings: SkillScanFinding[];
 };
 
+export type SkillScanOptions = {
+  includeFiles?: string[];
+  maxFiles?: number;
+  maxFileBytes?: number;
+};
+
 // ---------------------------------------------------------------------------
 // Scannable extensions
 // ---------------------------------------------------------------------------
@@ -39,8 +45,21 @@ const SCANNABLE_EXTENSIONS = new Set([
   ".tsx",
 ]);
 
+const DEFAULT_MAX_SCAN_FILES = 500;
+const DEFAULT_MAX_FILE_BYTES = 1024 * 1024;
+
 export function isScannable(filePath: string): boolean {
   return SCANNABLE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+}
+
+function isErrno(err: unknown, code: string): boolean {
+  if (!err || typeof err !== "object") {
+    return false;
+  }
+  if (!("code" in err)) {
+    return false;
+  }
+  return (err as { code?: unknown }).code === code;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +153,7 @@ function truncateEvidence(evidence: string, maxLen = 120): string {
   if (evidence.length <= maxLen) {
     return evidence;
   }
-  return evidence.slice(0, maxLen);
+  return `${evidence.slice(0, maxLen)}…`;
 }
 
 export function scanSource(source: string, filePath: string): SkillScanFinding[] {
@@ -234,34 +253,158 @@ export function scanSource(source: string, filePath: string): SkillScanFinding[]
 // Directory scanner
 // ---------------------------------------------------------------------------
 
-async function walkDir(dirPath: string): Promise<string[]> {
-  const files: string[] = [];
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
+function normalizeScanOptions(opts?: SkillScanOptions): Required<SkillScanOptions> {
+  return {
+    includeFiles: opts?.includeFiles ?? [],
+    maxFiles: Math.max(1, opts?.maxFiles ?? DEFAULT_MAX_SCAN_FILES),
+    maxFileBytes: Math.max(1, opts?.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES),
+  };
+}
 
-  for (const entry of entries) {
-    // Skip hidden dirs and node_modules
-    if (entry.name.startsWith(".") || entry.name === "node_modules") {
-      continue;
+function isPathInside(basePath: string, candidatePath: string): boolean {
+  const base = path.resolve(basePath);
+  const candidate = path.resolve(candidatePath);
+  const rel = path.relative(base, candidate);
+  return rel === "" || (!rel.startsWith(`..${path.sep}`) && rel !== ".." && !path.isAbsolute(rel));
+}
+
+async function walkDirWithLimit(dirPath: string, maxFiles: number): Promise<string[]> {
+  const files: string[] = [];
+  const stack: string[] = [dirPath];
+
+  while (stack.length > 0 && files.length < maxFiles) {
+    const currentDir = stack.pop();
+    if (!currentDir) {
+      break;
     }
 
-    const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      const nested = await walkDir(fullPath);
-      files.push(...nested);
-    } else if (isScannable(entry.name)) {
-      files.push(fullPath);
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (files.length >= maxFiles) {
+        break;
+      }
+      // Skip hidden dirs and node_modules
+      if (entry.name.startsWith(".") || entry.name === "node_modules") {
+        continue;
+      }
+
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (isScannable(entry.name)) {
+        files.push(fullPath);
+      }
     }
   }
 
   return files;
 }
 
-export async function scanDirectory(dirPath: string): Promise<SkillScanFinding[]> {
-  const files = await walkDir(dirPath);
+async function resolveForcedFiles(params: {
+  rootDir: string;
+  includeFiles: string[];
+}): Promise<string[]> {
+  if (params.includeFiles.length === 0) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const rawIncludePath of params.includeFiles) {
+    const includePath = path.resolve(params.rootDir, rawIncludePath);
+    if (!isPathInside(params.rootDir, includePath)) {
+      continue;
+    }
+    if (!isScannable(includePath)) {
+      continue;
+    }
+    if (seen.has(includePath)) {
+      continue;
+    }
+
+    let st: Awaited<ReturnType<typeof fs.stat>> | null = null;
+    try {
+      st = await fs.stat(includePath);
+    } catch (err) {
+      if (isErrno(err, "ENOENT")) {
+        continue;
+      }
+      throw err;
+    }
+    if (!st?.isFile()) {
+      continue;
+    }
+
+    out.push(includePath);
+    seen.add(includePath);
+  }
+
+  return out;
+}
+
+async function collectScannableFiles(dirPath: string, opts: Required<SkillScanOptions>) {
+  const forcedFiles = await resolveForcedFiles({
+    rootDir: dirPath,
+    includeFiles: opts.includeFiles,
+  });
+  if (forcedFiles.length >= opts.maxFiles) {
+    return forcedFiles.slice(0, opts.maxFiles);
+  }
+
+  const walkedFiles = await walkDirWithLimit(dirPath, opts.maxFiles);
+  const seen = new Set(forcedFiles.map((f) => path.resolve(f)));
+  const out = [...forcedFiles];
+  for (const walkedFile of walkedFiles) {
+    if (out.length >= opts.maxFiles) {
+      break;
+    }
+    const resolved = path.resolve(walkedFile);
+    if (seen.has(resolved)) {
+      continue;
+    }
+    out.push(walkedFile);
+    seen.add(resolved);
+  }
+  return out;
+}
+
+async function readScannableSource(filePath: string, maxFileBytes: number): Promise<string | null> {
+  let st: Awaited<ReturnType<typeof fs.stat>> | null = null;
+  try {
+    st = await fs.stat(filePath);
+  } catch (err) {
+    if (isErrno(err, "ENOENT")) {
+      return null;
+    }
+    throw err;
+  }
+  if (!st?.isFile() || st.size > maxFileBytes) {
+    return null;
+  }
+  try {
+    return await fs.readFile(filePath, "utf-8");
+  } catch (err) {
+    if (isErrno(err, "ENOENT")) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function scanDirectory(
+  dirPath: string,
+  opts?: SkillScanOptions,
+): Promise<SkillScanFinding[]> {
+  const scanOptions = normalizeScanOptions(opts);
+  const files = await collectScannableFiles(dirPath, scanOptions);
   const allFindings: SkillScanFinding[] = [];
 
   for (const file of files) {
-    const source = await fs.readFile(file, "utf-8");
+    const source = await readScannableSource(file, scanOptions.maxFileBytes);
+    if (source == null) {
+      continue;
+    }
     const findings = scanSource(source, file);
     allFindings.push(...findings);
   }
@@ -269,18 +412,27 @@ export async function scanDirectory(dirPath: string): Promise<SkillScanFinding[]
   return allFindings;
 }
 
-export async function scanDirectoryWithSummary(dirPath: string): Promise<SkillScanSummary> {
-  const files = await walkDir(dirPath);
+export async function scanDirectoryWithSummary(
+  dirPath: string,
+  opts?: SkillScanOptions,
+): Promise<SkillScanSummary> {
+  const scanOptions = normalizeScanOptions(opts);
+  const files = await collectScannableFiles(dirPath, scanOptions);
   const allFindings: SkillScanFinding[] = [];
+  let scannedFiles = 0;
 
   for (const file of files) {
-    const source = await fs.readFile(file, "utf-8");
+    const source = await readScannableSource(file, scanOptions.maxFileBytes);
+    if (source == null) {
+      continue;
+    }
+    scannedFiles += 1;
     const findings = scanSource(source, file);
     allFindings.push(...findings);
   }
 
   return {
-    scannedFiles: files.length,
+    scannedFiles,
     critical: allFindings.filter((f) => f.severity === "critical").length,
     warn: allFindings.filter((f) => f.severity === "warn").length,
     info: allFindings.filter((f) => f.severity === "info").length,
