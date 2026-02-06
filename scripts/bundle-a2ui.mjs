@@ -132,7 +132,7 @@ async function main() {
 
     console.log("A2UI bundle completed successfully.");
   } catch (err) {
-    onError(err.message);
+    onError(err instanceof Error ? err.message : String(err));
   }
 }
 

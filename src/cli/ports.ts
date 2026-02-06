@@ -85,14 +85,16 @@ function parseNetstatOutput(output: string, port: number): PortProcess[] {
     if (!line.toLowerCase().includes("listening")) {
       continue;
     }
-    // Check if this line contains our port
-    if (!line.includes(portToken)) {
-      continue;
-    }
 
     // netstat output format: Proto  Local Address  Foreign Address  State  PID
     const parts = line.split(/\s+/);
     if (parts.length < 5) {
+      continue;
+    }
+
+    // Check if the Local Address (index 1) contains our port
+    const localAddr = parts[1];
+    if (!localAddr || !localAddr.includes(portToken)) {
       continue;
     }
 
