@@ -15,6 +15,7 @@ import {
   normalizeControlUiBasePath,
   resolveAssistantAvatarUrl,
 } from "./control-ui-shared.js";
+import { getHeader } from "./http-utils.js";
 
 const ROOT_PREFIX = "/";
 
@@ -200,14 +201,17 @@ function injectControlUiConfig(html: string, opts: ControlUiInjectionOpts): stri
   const { basePath, assistantName, assistantAvatar, token } = opts;
   // Build token injection snippet: pre-populate localStorage so the Control UI
   // picks up the gateway token without requiring ?token= in the URL.
-  // This merges with any existing settings to avoid clobbering user prefs.
+  // Precedence: ?token= query param (client-side) > header injection (server-side).
+  // The snippet only sets the token when localStorage doesn't already have one,
+  // so the client-side applySettingsFromUrl() always wins if ?token= is present.
   const tokenSnippet = token
     ? `(function(){try{` +
       `var k="openclaw.control.settings.v1",s={};` +
       `try{s=JSON.parse(localStorage.getItem(k)||"{}")}catch(e){}` +
+      `if(!s.token){` +
       `s.token=${JSON.stringify(token)};` +
       `localStorage.setItem(k,JSON.stringify(s));` +
-      `}catch(e){}})();`
+      `}}catch(e){}})();`
     : "";
   const script =
     `<script>` +
@@ -298,13 +302,14 @@ export function handleControlUiHttpRequest(
   }
 
   // Extract token from reverse proxy header when configured.
+  // Uses getHeader() which handles both string and string[] header values.
   const injectionConfig = opts?.config?.gateway?.auth?.injectTokenFromHeader;
   let injectedToken: string | undefined;
   if (injectionConfig?.enabled) {
-    const headerName = (injectionConfig.headerName ?? "x-openclaw-token").toLowerCase();
-    const headerValue = req.headers[headerName];
-    if (typeof headerValue === "string" && headerValue.trim()) {
-      injectedToken = headerValue.trim();
+    const headerName = injectionConfig.headerName ?? "x-openclaw-token";
+    const headerValue = getHeader(req, headerName)?.trim();
+    if (headerValue) {
+      injectedToken = headerValue;
     }
   }
 
