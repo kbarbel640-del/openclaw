@@ -21,8 +21,21 @@ export type NodeHealthEntry = {
 // In-memory latest-frame store per node. ("Persist" here means "retain in gateway memory".)
 const latestByNode = new Map<string, NodeHealthEntry>();
 
+// Backstop eviction for transient/ephemeral node IDs.
+const NODE_HEALTH_TTL_MS = 10 * 60 * 1000;
+
+function evictStaleNodeHealthEntries(now = Date.now()) {
+  for (const [nodeId, entry] of latestByNode.entries()) {
+    if (now - entry.receivedAtMs > NODE_HEALTH_TTL_MS) {
+      latestByNode.delete(nodeId);
+    }
+  }
+}
+
 export function upsertNodeHealthFrame(params: { nodeId: string; frame: NodeHealthFrame }) {
   const now = Date.now();
+  evictStaleNodeHealthEntries(now);
+
   const entry: NodeHealthEntry = {
     nodeId: params.nodeId,
     receivedAtMs: now,
@@ -39,6 +52,7 @@ export function upsertNodeHealthFrame(params: { nodeId: string; frame: NodeHealt
 }
 
 export function getLatestNodeHealthFrames(): NodeHealthEntry[] {
+  evictStaleNodeHealthEntries();
   return [...latestByNode.values()];
 }
 
