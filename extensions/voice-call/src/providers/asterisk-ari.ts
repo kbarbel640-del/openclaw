@@ -297,6 +297,18 @@ export class AsteriskAriProvider implements VoiceCallProvider {
         return;
       }
 
+      // Outbound race guard:
+      // If Asterisk emits StasisStart before the /channels POST returns (so pending isn't set yet),
+      // use appArgs to map back to providerCallId and treat it as outbound.
+      const arg0 = evt.args?.[0];
+      if (arg0 && this.callMap.has(arg0)) {
+        const st = this.callMap.get(arg0);
+        if (st && !st.sipChannelId) {
+          st.sipChannelId = evt.channel.id;
+        }
+        return;
+      }
+
       // Inbound classification: only treat real inbound SIP calls as inbound.
       // ExternalMedia (UnicastRTP/...) also enters Stasis and must be ignored,
       // otherwise we'd recursively create more ExternalMedia channels and leak resources.
@@ -598,6 +610,9 @@ export class AsteriskAriProvider implements VoiceCallProvider {
       query: {
         endpoint,
         app: this.cfg.app,
+        // Tag the originated channel so we can reliably map StasisStart -> providerCallId,
+        // even if the StasisStart event arrives before the /channels POST returns.
+        appArgs: providerCallId,
         callerId: input.fromName ? `${input.fromName} <${input.from}>` : undefined,
       },
     });
@@ -616,25 +631,30 @@ export class AsteriskAriProvider implements VoiceCallProvider {
       }),
     );
 
-    // Wait until channel is actually in our Stasis app (avoids 422 Channel not in Stasis application).
-    // Best-effort: if it never enters Stasis, we still let the outbound call ring (basic telephony works).
+    // Prefer an immediate setup attempt: if StasisStart already happened (race), this succeeds.
+    // If the channel isn't in Stasis yet, we'll fall back to waiting for StasisStart.
     try {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          const pending = this.pendingStasisStart.get(sipChannelId);
-          if (pending) {
-            clearTimeout(pending.timeout);
-          }
-          this.pendingStasisStart.delete(sipChannelId);
-          reject(new Error("Timed out waiting for StasisStart"));
-        }, 8000);
-        this.pendingStasisStart.set(sipChannelId, { resolve, reject, timeout });
-      });
-
-      // setup extMedia + (optional) STT session
       await this.setupConversation({ providerCallId, sipChannelId, isOutbound: true });
     } catch {
-      // Degrade gracefully: call may still be ringing/answered outside Stasis.
+      // Wait until channel is actually in our Stasis app (avoids 422 Channel not in Stasis application).
+      // Best-effort: if it never enters Stasis, we still let the outbound call ring (basic telephony works).
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            const pending = this.pendingStasisStart.get(sipChannelId);
+            if (pending) {
+              clearTimeout(pending.timeout);
+            }
+            this.pendingStasisStart.delete(sipChannelId);
+            reject(new Error("Timed out waiting for StasisStart"));
+          }, 8000);
+          this.pendingStasisStart.set(sipChannelId, { resolve, reject, timeout });
+        });
+
+        await this.setupConversation({ providerCallId, sipChannelId, isOutbound: true });
+      } catch {
+        // Degrade gracefully: call may still be ringing/answered outside Stasis.
+      }
     }
 
     return { providerCallId, status: "initiated" };

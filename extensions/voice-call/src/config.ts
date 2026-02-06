@@ -444,12 +444,14 @@ export function resolveVoiceCallConfig(config: VoiceCallConfig): VoiceCallConfig
 
   // Asterisk ARI
   if (resolved.provider === "asterisk-ari") {
+    const trunkEnv = (process.env.ASTERISK_ARI_TRUNK || "").trim();
+
     resolved.asteriskAri = resolved.asteriskAri ?? {
       baseUrl: process.env.ASTERISK_ARI_BASE_URL || "",
       username: process.env.ASTERISK_ARI_USERNAME || "",
       password: process.env.ASTERISK_ARI_PASSWORD || "",
       app: process.env.ASTERISK_ARI_APP || "",
-      trunk: process.env.ASTERISK_ARI_TRUNK || "",
+      ...(trunkEnv ? { trunk: trunkEnv } : {}),
       rtpHost: process.env.ASTERISK_ARI_RTP_HOST || "",
       rtpPort: process.env.ASTERISK_ARI_RTP_PORT
         ? Number(process.env.ASTERISK_ARI_RTP_PORT)
