@@ -128,6 +128,28 @@ export const GroupPolicySchema = z.enum(["open", "disabled", "allowlist"]);
 
 export const DmPolicySchema = z.enum(["pairing", "allowlist", "open", "disabled"]);
 
+export const PersonalityToneSchema = z.enum([
+  "friendly",
+  "professional",
+  "casual",
+  "witty",
+  "empathetic",
+  "enthusiastic",
+  "voice",
+]);
+
+export const PersonalitySchema = z
+  .object({
+    tone: PersonalityToneSchema.optional(),
+    verbosity: z.enum(["minimal", "concise", "normal", "verbose"]).optional(),
+    useContractions: z.boolean().optional(),
+    useFragments: z.boolean().optional(),
+    emojiLevel: z.enum(["none", "minimal", "moderate", "high"]).optional(),
+    useResponseVariation: z.boolean().optional(),
+    useSpeechPatterns: z.boolean().optional(),
+  })
+  .strict();
+
 export const BlockStreamingCoalesceSchema = z
   .object({
     minChars: z.number().int().positive().optional(),

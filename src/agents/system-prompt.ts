@@ -1,4 +1,5 @@
 import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
+import type { PersonalityConfig, PersonalityTone } from "../config/types.base.js";
 import type { MemoryCitationsMode } from "../config/types.memory.js";
 import type { ResolvedTimeFormat } from "./date-time.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
@@ -161,6 +162,72 @@ function buildDocsSection(params: { docsPath?: string; isMinimal: boolean; readT
   ];
 }
 
+const personalityToneDescriptions: Record<PersonalityTone, string> = {
+  friendly: "warm and approachable",
+  professional: "clear and professional",
+  casual: "relaxed and informal",
+  witty: "clever and engaging",
+  empathetic: "supportive and understanding",
+  enthusiastic: "energetic and engaged",
+  voice: "conversational and natural (optimized for speech)",
+};
+
+function buildPersonalitySection(params: { personality?: PersonalityConfig; isMinimal: boolean }) {
+  if (params.isMinimal || !params.personality) {
+    return [];
+  }
+
+  const tone = params.personality.tone ?? "friendly";
+  const lines: string[] = [
+    "## Personality & Communication Style",
+    `Tone: ${personalityToneDescriptions[tone]}`,
+  ];
+
+  const verbosity = params.personality.verbosity ?? "normal";
+  const verbosityGuidance: Record<string, string> = {
+    minimal: "Keep responses extremely brief — single sentences or phrases.",
+    concise: "Keep responses brief and to the point — 1-2 sentences.",
+    normal: "Provide balanced responses — thorough but not verbose.",
+    verbose: "Provide comprehensive, detailed responses when helpful.",
+  };
+  if (verbosityGuidance[verbosity]) {
+    lines.push(verbosityGuidance[verbosity]);
+  }
+
+  const styles: string[] = [];
+  if (params.personality.useContractions !== false) {
+    styles.push("use contractions (I'm, you're)");
+  }
+  if (params.personality.useFragments) {
+    styles.push("occasional sentence fragments are okay");
+  }
+  if (styles.length > 0) {
+    lines.push(`Style: ${styles.join(", ")}`);
+  }
+
+  if (params.personality.useSpeechPatterns) {
+    lines.push("Voice mode: Use natural speech patterns. Keep responses brief and conversational.");
+  }
+
+  const emojiLevel = params.personality.emojiLevel ?? "minimal";
+  const emojiGuidance: Record<string, string> = {
+    none: "Avoid emojis entirely.",
+    minimal: "Use emojis sparingly — only when they add clear value.",
+    moderate: "Use emojis occasionally to express tone.",
+    high: "Feel free to use emojis liberally to express personality.",
+  };
+  if (emojiGuidance[emojiLevel]) {
+    lines.push(emojiGuidance[emojiLevel]);
+  }
+
+  if (params.personality.useResponseVariation !== false) {
+    lines.push("Vary your responses — avoid repeating the same phrases.");
+  }
+
+  lines.push("");
+  return lines;
+}
+
 export function buildAgentSystemPrompt(params: {
   workspaceDir: string;
   defaultThinkLevel?: ThinkLevel;
@@ -182,6 +249,8 @@ export function buildAgentSystemPrompt(params: {
   ttsHint?: string;
   /** Controls which hardcoded sections to include. Defaults to "full". */
   promptMode?: PromptMode;
+  /** Personality configuration for natural conversation style. */
+  personality?: PersonalityConfig;
   runtimeInfo?: {
     agentId?: string;
     host?: string;
@@ -454,6 +523,10 @@ export function buildAgentSystemPrompt(params: {
     ...workspaceNotes,
     "",
     ...docsSection,
+    ...buildPersonalitySection({
+      personality: params.personality,
+      isMinimal,
+    }),
     params.sandboxInfo?.enabled ? "## Sandbox" : "",
     params.sandboxInfo?.enabled
       ? [

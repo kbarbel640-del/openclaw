@@ -1,4 +1,5 @@
 import type { SessionEntry } from "../../config/sessions.js";
+import type { PersonalityTone } from "../../config/types.base.js";
 import type { CommandHandler } from "./commands-types.js";
 import { abortEmbeddedPiRun } from "../../agents/pi-embedded.js";
 import { updateSessionStore } from "../../config/sessions.js";
@@ -6,6 +7,7 @@ import { logVerbose } from "../../globals.js";
 import { createInternalHookEvent, triggerInternalHook } from "../../hooks/internal-hooks.js";
 import { scheduleGatewaySigusr1Restart, triggerOpenClawRestart } from "../../infra/restart.js";
 import { loadCostUsageSummary, loadSessionCostSummary } from "../../infra/session-cost-usage.js";
+import { personalityProfiles } from "../../personality/index.js";
 import { formatTokenCount, formatUsd } from "../../utils/usage-format.js";
 import { parseActivationCommand } from "../group-activation.js";
 import { parseSendPolicyCommand } from "../send-policy.js";
@@ -376,4 +378,67 @@ export const handleAbortTrigger: CommandHandler = async (params, allowTextComman
     setAbortMemory(params.command.abortKey, true);
   }
   return { shouldContinue: false, reply: { text: "⚙️ Agent was aborted." } };
+};
+
+export const handlePersonalityCommand: CommandHandler = async (params, allowTextCommands) => {
+  if (!allowTextCommands) {
+    return null;
+  }
+
+  const normalized = params.command.commandBodyNormalized;
+  if (normalized !== "/personality" && !normalized.startsWith("/personality ")) {
+    return null;
+  }
+  if (!params.command.isAuthorizedSender) {
+    logVerbose(
+      `Ignoring /personality from unauthorized sender: ${params.command.senderId || "<unknown>"}`,
+    );
+    return { shouldContinue: false };
+  }
+
+  const sortedIds = (Object.keys(personalityProfiles) as PersonalityTone[]).toSorted();
+  const listText = sortedIds.map((id, i) => `${i + 1}. ${id}`).join("\n");
+
+  const arg = normalized.slice("/personality".length).trim().toLowerCase();
+  if (!arg) {
+    return {
+      shouldContinue: false,
+      reply: {
+        text: `Available personalities:\n${listText}\n\nUse /personality <name> to switch.`,
+      },
+    };
+  }
+
+  // Match by name or number
+  let tone: PersonalityTone | undefined;
+  const num = parseInt(arg, 10);
+  if (!isNaN(num) && num > 0 && num <= sortedIds.length) {
+    tone = sortedIds[num - 1];
+  } else if (arg in personalityProfiles) {
+    tone = arg as PersonalityTone;
+  }
+
+  if (!tone) {
+    return {
+      shouldContinue: false,
+      reply: { text: `Unknown personality "${arg}".\n\nAvailable:\n${listText}` },
+    };
+  }
+
+  const profile = personalityProfiles[tone];
+  if (params.sessionEntry && params.sessionStore && params.sessionKey) {
+    params.sessionEntry.personality = { ...profile.defaults };
+    params.sessionEntry.updatedAt = Date.now();
+    params.sessionStore[params.sessionKey] = params.sessionEntry;
+    if (params.storePath) {
+      await updateSessionStore(params.storePath, (store) => {
+        store[params.sessionKey] = params.sessionEntry as SessionEntry;
+      });
+    }
+  }
+
+  return {
+    shouldContinue: false,
+    reply: { text: `Personality switched to ${profile.name} for this session.` },
+  };
 };

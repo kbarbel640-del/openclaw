@@ -1,5 +1,6 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { PersonalityConfig } from "../../config/types.base.js";
 import type { MemoryCitationsMode } from "../../config/types.memory.js";
 import type { ResolvedTimeFormat } from "../date-time.js";
 import type { EmbeddedContextFile } from "../pi-embedded-helpers.js";
@@ -26,6 +27,8 @@ export function buildEmbeddedSystemPrompt(params: {
   workspaceNotes?: string[];
   /** Controls which hardcoded sections to include. Defaults to "full". */
   promptMode?: PromptMode;
+  /** Personality configuration for natural conversation style. */
+  personality?: PersonalityConfig;
   runtimeInfo: {
     agentId?: string;
     host: string;
@@ -63,6 +66,7 @@ export function buildEmbeddedSystemPrompt(params: {
     workspaceNotes: params.workspaceNotes,
     reactionGuidance: params.reactionGuidance,
     promptMode: params.promptMode,
+    personality: params.personality,
     runtimeInfo: params.runtimeInfo,
     messageToolHints: params.messageToolHints,
     sandboxInfo: params.sandboxInfo,

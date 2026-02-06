@@ -3,6 +3,7 @@ import type {
   BlockStreamingChunkConfig,
   BlockStreamingCoalesceConfig,
   HumanDelayConfig,
+  PersonalityConfig,
   TypingMode,
 } from "./types.base.js";
 import type {
@@ -198,6 +199,8 @@ export type AgentDefaultsConfig = {
      */
     includeReasoning?: boolean;
   };
+  /** Personality configuration for natural conversation style. */
+  personality?: PersonalityConfig;
   /** Max concurrent agent runs across all conversations. Default: 1 (sequential). */
   maxConcurrent?: number;
   /** Sub-agent defaults (spawned via sessions_spawn). */

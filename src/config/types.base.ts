@@ -166,3 +166,29 @@ export type IdentityConfig = {
   /** Avatar image: workspace-relative path, http(s) URL, or data URI. */
   avatar?: string;
 };
+
+export type PersonalityTone =
+  | "friendly"
+  | "professional"
+  | "casual"
+  | "witty"
+  | "empathetic"
+  | "enthusiastic"
+  | "voice";
+
+export type PersonalityConfig = {
+  /** Base personality tone. Default: "friendly" */
+  tone?: PersonalityTone;
+  /** Response verbosity. Default: "normal" */
+  verbosity?: "minimal" | "concise" | "normal" | "verbose";
+  /** Whether to use contractions (I'm vs I am). Default: true */
+  useContractions?: boolean;
+  /** Whether to allow sentence fragments. Default: false */
+  useFragments?: boolean;
+  /** Emoji usage level. Default: "minimal" */
+  emojiLevel?: "none" | "minimal" | "moderate" | "high";
+  /** Whether to vary response phrasing. Default: true */
+  useResponseVariation?: boolean;
+  /** Whether to use natural speech patterns (for voice). Default: false */
+  useSpeechPatterns?: boolean;
+};

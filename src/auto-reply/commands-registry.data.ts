@@ -346,6 +346,21 @@ function buildChatCommands(): ChatCommandDefinition[] {
       argsMenu: "auto",
     }),
     defineChatCommand({
+      key: "personality",
+      nativeName: "personality",
+      description: "Set agent personality tone.",
+      textAlias: "/personality",
+      category: "options",
+      args: [
+        {
+          name: "tone",
+          description: "Personality tone name or number",
+          type: "string",
+        },
+      ],
+      argsMenu: "auto",
+    }),
+    defineChatCommand({
       key: "stop",
       nativeName: "stop",
       description: "Stop the current run.",

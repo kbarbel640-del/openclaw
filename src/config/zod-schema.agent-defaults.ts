@@ -11,6 +11,7 @@ import {
   BlockStreamingCoalesceSchema,
   CliBackendSchema,
   HumanDelaySchema,
+  PersonalitySchema,
 } from "./zod-schema.core.js";
 
 export const AgentDefaultsSchema = z
@@ -136,6 +137,7 @@ export const AgentDefaultsSchema = z
       ])
       .optional(),
     heartbeat: HeartbeatSchema,
+    personality: PersonalitySchema.optional(),
     maxConcurrent: z.number().int().positive().optional(),
     subagents: z
       .object({
