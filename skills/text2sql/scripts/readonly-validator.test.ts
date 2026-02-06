@@ -32,4 +32,19 @@ describe("isReadOnlySelect", () => {
   it("rejects when forbidden keyword appears in string literal (validator limitation)", () => {
     expect(isReadOnlySelect("SELECT * FROM t WHERE name = 'DELETE me'")).toBe(false);
   });
+
+  it("allows column names comment and lock (multi-word COMMENT ON / LOCK TABLE used in validator)", () => {
+    expect(isReadOnlySelect("SELECT comment FROM posts")).toBe(true);
+    expect(isReadOnlySelect("SELECT lock FROM jobs")).toBe(true);
+  });
+
+  it("rejects COMMENT ON, LOCK TABLE, and DO $$ (harmful forms)", () => {
+    expect(isReadOnlySelect("COMMENT ON TABLE t IS 'x'")).toBe(false);
+    expect(isReadOnlySelect("LOCK TABLE t")).toBe(false);
+    expect(isReadOnlySelect("DO $$ SELECT 1 $$")).toBe(false);
+  });
+
+  it("comment stripping does not account for -- or /* */ inside string literals (known limitation)", () => {
+    expect(isReadOnlySelect("SELECT * FROM t WHERE url = 'http://x.com'")).toBe(true);
+  });
 });
