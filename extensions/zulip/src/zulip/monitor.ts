@@ -513,9 +513,12 @@ export async function monitorZulipProvider(
             lastEventId = events.last_event_id;
           }
 
-          // Defensive throttle: if Zulip responds immediately with no events (e.g. dont_block behavior,
-          // proxies, or aggressive server settings), avoid a tight loop that can hit 429s.
-          if (list.length === 0) {
+          const messages = list.map((evt) => evt.message).filter(Boolean);
+
+          // Defensive throttle: if Zulip responds immediately without any message payloads (e.g.
+          // heartbeat-only events, proxies, or aggressive server settings), avoid a tight loop that can
+          // hit 429s.
+          if (messages.length === 0) {
             const jitterMs = Math.floor(Math.random() * 250);
             await sleep(2000 + jitterMs, abortSignal).catch(() => undefined);
             retry = 0;
@@ -523,11 +526,7 @@ export async function monitorZulipProvider(
           }
 
           stage = "handle";
-          for (const evt of list) {
-            const msg = evt.message;
-            if (!msg) {
-              continue;
-            }
+          for (const msg of messages) {
             await handleMessage(msg);
           }
 
