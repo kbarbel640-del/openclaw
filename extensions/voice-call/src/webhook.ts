@@ -10,6 +10,7 @@ import type { TwilioProvider } from "./providers/twilio.js";
 import type { NormalizedEvent, WebhookContext } from "./types.js";
 import { MediaStreamHandler } from "./media-stream.js";
 import { OpenAIRealtimeSTTProvider } from "./providers/stt-openai-realtime.js";
+import { DeepgramSTTProvider } from "./providers/stt-deepgram.js";
 
 const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
 
@@ -52,22 +53,47 @@ export class VoiceCallWebhookServer {
   }
 
   /**
-   * Initialize media streaming with OpenAI Realtime STT.
+   * Initialize media streaming with OpenAI Realtime STT or Deepgram.
    */
   private initializeMediaStreaming(): void {
-    const apiKey = this.config.streaming?.openaiApiKey || process.env.OPENAI_API_KEY;
+    const sttProviderType = this.config.streaming?.sttProvider || "openai-realtime";
 
-    if (!apiKey) {
-      console.warn("[voice-call] Streaming enabled but no OpenAI API key found");
-      return;
+    let sttProvider: OpenAIRealtimeSTTProvider | DeepgramSTTProvider;
+
+    if (sttProviderType === "deepgram") {
+      const apiKey = this.config.streaming?.deepgramApiKey || process.env.DEEPGRAM_API_KEY;
+
+      if (!apiKey) {
+        console.warn("[voice-call] Streaming enabled but no Deepgram API key found");
+        return;
+      }
+
+      sttProvider = new DeepgramSTTProvider({
+        apiKey,
+        model: this.config.streaming?.deepgramModel,
+        language: this.config.streaming?.deepgramLanguage,
+        utteranceEndMs: this.config.streaming?.utteranceEndMs,
+      });
+
+      console.log("[voice-call] Using Deepgram STT provider");
+    } else {
+      // Default to OpenAI Realtime
+      const apiKey = this.config.streaming?.openaiApiKey || process.env.OPENAI_API_KEY;
+
+      if (!apiKey) {
+        console.warn("[voice-call] Streaming enabled but no OpenAI API key found");
+        return;
+      }
+
+      sttProvider = new OpenAIRealtimeSTTProvider({
+        apiKey,
+        model: this.config.streaming?.sttModel,
+        silenceDurationMs: this.config.streaming?.silenceDurationMs,
+        vadThreshold: this.config.streaming?.vadThreshold,
+      });
+
+      console.log("[voice-call] Using OpenAI Realtime STT provider");
     }
-
-    const sttProvider = new OpenAIRealtimeSTTProvider({
-      apiKey,
-      model: this.config.streaming?.sttModel,
-      silenceDurationMs: this.config.streaming?.silenceDurationMs,
-      vadThreshold: this.config.streaming?.vadThreshold,
-    });
 
     const streamConfig: MediaStreamConfig = {
       sttProvider,

@@ -68,6 +68,13 @@ Put under `plugins.entries.voice-call.config`:
   streaming: {
     enabled: true,
     streamPath: "/voice/stream",
+    // STT provider: "openai-realtime" (default) or "deepgram"
+    sttProvider: "openai-realtime",
+    // Deepgram-specific options (when sttProvider: "deepgram")
+    // deepgramApiKey: "your_key", // or use DEEPGRAM_API_KEY env
+    // deepgramModel: "nova-2",
+    // deepgramLanguage: "en-US",
+    // utteranceEndMs: 1500,
   },
 }
 ```
@@ -136,4 +143,7 @@ Actions:
 
 - Uses webhook signature verification for Twilio/Telnyx/Plivo.
 - `responseModel` / `responseSystemPrompt` control AI auto-responses.
-- Media streaming requires `ws` and OpenAI Realtime API key.
+- Media streaming requires `ws` package.
+- STT options:
+  - **OpenAI Realtime** (default): Requires OpenAI API key with Realtime API access.
+  - **Deepgram**: Requires Deepgram API key. Uses Nova-2 model by default with real-time streaming.

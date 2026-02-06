@@ -3,7 +3,7 @@
  *
  * Handles bidirectional audio streaming between Twilio and the AI services.
  * - Receives mu-law audio from Twilio via WebSocket
- * - Forwards to OpenAI Realtime STT for transcription
+ * - Forwards to OpenAI Realtime STT or Deepgram for transcription
  * - Sends TTS audio back to Twilio
  */
 
@@ -14,13 +14,27 @@ import type {
   OpenAIRealtimeSTTProvider,
   RealtimeSTTSession,
 } from "./providers/stt-openai-realtime.js";
+import type {
+  DeepgramSTTProvider,
+  DeepgramSTTSession,
+} from "./providers/stt-deepgram.js";
+
+/**
+ * Unified STT session interface for both providers.
+ */
+type STTSession = RealtimeSTTSession | DeepgramSTTSession;
+
+/**
+ * Unified STT provider interface.
+ */
+type STTProvider = OpenAIRealtimeSTTProvider | DeepgramSTTProvider;
 
 /**
  * Configuration for the media stream handler.
  */
 export interface MediaStreamConfig {
-  /** STT provider for transcription */
-  sttProvider: OpenAIRealtimeSTTProvider;
+  /** STT provider for transcription (OpenAI Realtime or Deepgram) */
+  sttProvider: STTProvider;
   /** Validate whether to accept a media stream for the given call ID */
   shouldAcceptStream?: (params: { callId: string; streamSid: string; token?: string }) => boolean;
   /** Callback when transcript is received */
@@ -42,7 +56,7 @@ interface StreamSession {
   callId: string;
   streamSid: string;
   ws: WebSocket;
-  sttSession: RealtimeSTTSession;
+  sttSession: STTSession;
 }
 
 type TtsQueueEntry = {

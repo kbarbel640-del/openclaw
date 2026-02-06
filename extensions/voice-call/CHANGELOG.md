@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added Deepgram STT provider as an alternative to OpenAI Realtime for real-time speech-to-text.
+- New config options under `streaming`: `sttProvider`, `deepgramApiKey`, `deepgramModel`, `deepgramLanguage`, `utteranceEndMs`.
+- Deepgram uses Nova-2 model by default with built-in VAD and utterance detection.
+
 ## 2026.2.2
 
 ### Changes

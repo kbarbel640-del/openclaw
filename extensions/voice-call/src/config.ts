@@ -274,13 +274,21 @@ export const VoiceCallStreamingConfigSchema = z
     /** Enable real-time audio streaming (requires WebSocket support) */
     enabled: z.boolean().default(false),
     /** STT provider for real-time transcription */
-    sttProvider: z.enum(["openai-realtime"]).default("openai-realtime"),
+    sttProvider: z.enum(["openai-realtime", "deepgram"]).default("openai-realtime"),
     /** OpenAI API key for Realtime API (uses OPENAI_API_KEY env if not set) */
     openaiApiKey: z.string().min(1).optional(),
+    /** Deepgram API key (uses DEEPGRAM_API_KEY env if not set) */
+    deepgramApiKey: z.string().min(1).optional(),
     /** OpenAI transcription model (default: gpt-4o-transcribe) */
     sttModel: z.string().min(1).default("gpt-4o-transcribe"),
+    /** Deepgram model (default: nova-2) */
+    deepgramModel: z.string().min(1).default("nova-2"),
+    /** Deepgram language (default: en-US) */
+    deepgramLanguage: z.string().min(1).default("en-US"),
     /** VAD silence duration in ms before considering speech ended */
     silenceDurationMs: z.number().int().positive().default(800),
+    /** Deepgram utterance end detection in ms (default: 1500) */
+    utteranceEndMs: z.number().int().positive().default(1500),
     /** VAD threshold 0-1 (higher = less sensitive) */
     vadThreshold: z.number().min(0).max(1).default(0.5),
     /** WebSocket path for media stream connections */
@@ -291,7 +299,10 @@ export const VoiceCallStreamingConfigSchema = z
     enabled: false,
     sttProvider: "openai-realtime",
     sttModel: "gpt-4o-transcribe",
+    deepgramModel: "nova-2",
+    deepgramLanguage: "en-US",
     silenceDurationMs: 800,
+    utteranceEndMs: 1500,
     vadThreshold: 0.5,
     streamPath: "/voice/stream",
   });
@@ -436,6 +447,23 @@ export function resolveVoiceCallConfig(config: VoiceCallConfig): VoiceCallConfig
     resolved.tunnel.allowNgrokFreeTierLoopbackBypass ?? false;
   resolved.tunnel.ngrokAuthToken = resolved.tunnel.ngrokAuthToken ?? process.env.NGROK_AUTHTOKEN;
   resolved.tunnel.ngrokDomain = resolved.tunnel.ngrokDomain ?? process.env.NGROK_DOMAIN;
+
+  // Streaming STT Config
+  resolved.streaming = resolved.streaming ?? {
+    enabled: false,
+    sttProvider: "openai-realtime",
+    sttModel: "gpt-4o-transcribe",
+    deepgramModel: "nova-2",
+    deepgramLanguage: "en-US",
+    silenceDurationMs: 800,
+    utteranceEndMs: 1500,
+    vadThreshold: 0.5,
+    streamPath: "/voice/stream",
+  };
+  resolved.streaming.openaiApiKey =
+    resolved.streaming.openaiApiKey ?? process.env.OPENAI_API_KEY;
+  resolved.streaming.deepgramApiKey =
+    resolved.streaming.deepgramApiKey ?? process.env.DEEPGRAM_API_KEY;
 
   // Webhook Security Config
   resolved.webhookSecurity = resolved.webhookSecurity ?? {
