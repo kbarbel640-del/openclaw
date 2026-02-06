@@ -18,6 +18,30 @@ import { formatAbortReplyText, tryFastAbortFromMessage } from "./abort.js";
 import { shouldSkipDuplicateInbound } from "./inbound-dedupe.js";
 import { isRoutableChannel, routeReply } from "./route-reply.js";
 
+async function maybeRecordCoreMemoriesEntry(params: {
+  text: string;
+  speaker: string;
+  type: string;
+}): Promise<void> {
+  try {
+    const trimmed = params.text.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const mod = (await import("@openclaw/core-memories")) as {
+      getCoreMemories: () => Promise<{
+        addFlashEntry: (text: string, speaker?: string, type?: string) => unknown;
+      }>;
+    };
+
+    const cm = await mod.getCoreMemories();
+    cm.addFlashEntry(trimmed, params.speaker, params.type);
+  } catch {
+    // Best-effort: CoreMemories may not be built/available in some installs.
+  }
+}
+
 const AUDIO_PLACEHOLDER_RE = /^<media:audio>(\s*\([^)]*\))?$/i;
 const AUDIO_HEADER_RE = /^\[Audio\b/i;
 
@@ -145,6 +169,25 @@ export async function dispatchReplyFromConfig(params: {
     return { queuedFinal: false, counts: dispatcher.getQueuedCounts() };
   }
 
+  // CoreMemories ingestion (best-effort): record inbound message text.
+  {
+    const inboundText =
+      typeof ctx.BodyForCommands === "string"
+        ? ctx.BodyForCommands
+        : typeof ctx.RawBody === "string"
+          ? ctx.RawBody
+          : typeof ctx.Body === "string"
+            ? ctx.Body
+            : "";
+    const inboundSpeaker =
+      typeof ctx.SenderName === "string" && ctx.SenderName.trim() ? ctx.SenderName.trim() : "user";
+    void maybeRecordCoreMemoriesEntry({
+      text: inboundText,
+      speaker: inboundSpeaker,
+      type: "conversation",
+    });
+  }
+
   const inboundAudio = isInboundAudioContext(ctx);
   const sessionTtsAuto = resolveSessionTtsAuto(ctx, cfg);
   const hookRunner = getGlobalHookRunner();
@@ -256,6 +299,16 @@ export async function dispatchReplyFromConfig(params: {
       } satisfies ReplyPayload;
       let queuedFinal = false;
       let routedFinalCount = 0;
+
+      // CoreMemories ingestion (best-effort): record abort reply text.
+      if (payload.text) {
+        void maybeRecordCoreMemoriesEntry({
+          text: payload.text,
+          speaker: "assistant",
+          type: "assistant_reply",
+        });
+      }
+
       if (shouldRouteToOriginating && originatingChannel && originatingTo) {
         const result = await routeReply({
           payload,
@@ -308,6 +361,16 @@ export async function dispatchReplyFromConfig(params: {
                     inboundAudio,
                     ttsAuto: sessionTtsAuto,
                   });
+
+                  // CoreMemories ingestion (best-effort): record assistant tool-result text.
+                  if (ttsPayload.text) {
+                    void maybeRecordCoreMemoriesEntry({
+                      text: ttsPayload.text,
+                      speaker: "assistant",
+                      type: "assistant_reply",
+                    });
+                  }
+
                   if (shouldRouteToOriginating) {
                     await sendPayloadAsync(ttsPayload, undefined, false);
                   } else {
@@ -335,6 +398,16 @@ export async function dispatchReplyFromConfig(params: {
               inboundAudio,
               ttsAuto: sessionTtsAuto,
             });
+
+            // CoreMemories ingestion (best-effort): record assistant block-stream text.
+            if (ttsPayload.text) {
+              void maybeRecordCoreMemoriesEntry({
+                text: ttsPayload.text,
+                speaker: "assistant",
+                type: "assistant_reply",
+              });
+            }
+
             if (shouldRouteToOriginating) {
               await sendPayloadAsync(ttsPayload, context?.abortSignal, false);
             } else {
@@ -360,6 +433,15 @@ export async function dispatchReplyFromConfig(params: {
         inboundAudio,
         ttsAuto: sessionTtsAuto,
       });
+
+      // CoreMemories ingestion (best-effort): record assistant final reply text.
+      if (ttsReply.text) {
+        void maybeRecordCoreMemoriesEntry({
+          text: ttsReply.text,
+          speaker: "assistant",
+          type: "assistant_reply",
+        });
+      }
       if (shouldRouteToOriginating && originatingChannel && originatingTo) {
         // Route final reply to originating channel.
         const result = await routeReply({
