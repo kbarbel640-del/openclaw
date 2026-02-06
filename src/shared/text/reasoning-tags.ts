@@ -65,8 +65,10 @@ export function stripReasoningTagsFromText(
   const trimMode = options?.trim ?? "both";
 
   let cleaned = text;
+  // Reset lastIndex before test() to avoid stale state from previous calls
+  FINAL_TAG_RE.lastIndex = 0;
   if (FINAL_TAG_RE.test(cleaned)) {
-    FINAL_TAG_RE.lastIndex = 0;
+    FINAL_TAG_RE.lastIndex = 0; // Reset again after test() for matchAll()
     const finalMatches: Array<{ start: number; length: number; inCode: boolean }> = [];
     const preCodeRegions = findCodeRegions(cleaned);
     for (const match of cleaned.matchAll(FINAL_TAG_RE)) {
@@ -84,8 +86,6 @@ export function stripReasoningTagsFromText(
         cleaned = cleaned.slice(0, m.start) + cleaned.slice(m.start + m.length);
       }
     }
-  } else {
-    FINAL_TAG_RE.lastIndex = 0;
   }
 
   const codeRegions = findCodeRegions(cleaned);
