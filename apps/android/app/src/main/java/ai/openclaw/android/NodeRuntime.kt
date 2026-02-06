@@ -284,6 +284,7 @@ class NodeRuntime(context: Context) {
   val manualHost: StateFlow<String> = prefs.manualHost
   val manualPort: StateFlow<Int> = prefs.manualPort
   val manualTls: StateFlow<Boolean> = prefs.manualTls
+  val manualToken: StateFlow<String> = prefs.manualToken
   val lastDiscoveredStableId: StateFlow<String> = prefs.lastDiscoveredStableId
   val canvasDebugStatusEnabled: StateFlow<Boolean> = prefs.canvasDebugStatusEnabled
 
@@ -358,7 +359,8 @@ class NodeRuntime(context: Context) {
           val port = manualPort.value
           if (host.isNotEmpty() && port in 1..65535) {
             didAutoConnect = true
-            connect(GatewayEndpoint.manual(host = host, port = port))
+            val token = manualToken.value.trim().takeIf { it.isNotEmpty() }
+            connect(GatewayEndpoint.manual(host = host, port = port), token)
           }
           return@collect
         }
@@ -426,6 +428,10 @@ class NodeRuntime(context: Context) {
 
   fun setManualTls(value: Boolean) {
     prefs.setManualTls(value)
+  }
+
+  fun setManualToken(value: String) {
+    prefs.setManualToken(value)
   }
 
   fun setCanvasDebugStatusEnabled(value: Boolean) {
@@ -548,13 +554,29 @@ class NodeRuntime(context: Context) {
 
   fun refreshGatewayConnection() {
     val endpoint = connectedEndpoint ?: return
-    val token = prefs.loadGatewayToken()
+    val token = if (manualEnabled.value) {
+      manualToken.value.trim().takeIf { it.isNotEmpty() } ?: prefs.loadGatewayToken()
+    } else {
+      prefs.loadGatewayToken()
+    }
     val password = prefs.loadGatewayPassword()
     val tls = resolveTlsParams(endpoint)
     operatorSession.connect(endpoint, token, password, buildOperatorConnectOptions(), tls)
     nodeSession.connect(endpoint, token, password, buildNodeConnectOptions(), tls)
     operatorSession.reconnect()
     nodeSession.reconnect()
+  }
+
+  private fun connect(endpoint: GatewayEndpoint, tokenOverride: String?) {
+    connectedEndpoint = endpoint
+    operatorStatusText = "Connecting…"
+    nodeStatusText = "Connecting…"
+    updateStatus()
+    val token = tokenOverride?.takeIf { it.isNotEmpty() } ?: prefs.loadGatewayToken()
+    val password = prefs.loadGatewayPassword()
+    val tls = resolveTlsParams(endpoint)
+    operatorSession.connect(endpoint, token, password, buildOperatorConnectOptions(), tls)
+    nodeSession.connect(endpoint, token, password, buildNodeConnectOptions(), tls)
   }
 
   fun connect(endpoint: GatewayEndpoint) {
@@ -604,7 +626,8 @@ class NodeRuntime(context: Context) {
       _statusText.value = "Failed: invalid manual host/port"
       return
     }
-    connect(GatewayEndpoint.manual(host = host, port = port))
+    val token = manualToken.value.trim().takeIf { it.isNotEmpty() }
+    connect(GatewayEndpoint.manual(host = host, port = port), token)
   }
 
   fun disconnect() {
