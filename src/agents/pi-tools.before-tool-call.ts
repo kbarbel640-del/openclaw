@@ -184,7 +184,7 @@ export function wrapToolWithBeforeToolCallHook(
         throw new Error(outcome.reason);
       }
       try {
-        const result = await execute(hookToolCallId, outcome.params, signal, onUpdate);
+        const result = await execute(toolCallId, outcome.params, signal, onUpdate);
         await runAfterToolCallHook({
           toolName,
           params: outcome.params,

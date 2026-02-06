@@ -106,5 +106,5 @@ export type EmbeddedRunAttemptResult = {
   messagingToolSentTargets: MessagingToolSend[];
   cloudCodeAssistFormatError: boolean;
   /** Client tool call detected (OpenResponses hosted tools). */
-  clientToolCall?: { name: string; params: Record<string, unknown> };
+  clientToolCall?: { name: string; params: Record<string, unknown>; toolCallId?: string };
 };
