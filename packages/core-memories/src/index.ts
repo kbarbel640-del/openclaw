@@ -610,7 +610,7 @@ Output only valid JSON:`;
         userFlagged: flashEntry.userFlagged,
         type: flashEntry.type,
       };
-    } catch (e) {
+    } catch {
       // LLM compression failed; fall back to rule-based compression.
       const fallback = new RuleBasedCompression();
       return fallback.compress(flashEntry);
