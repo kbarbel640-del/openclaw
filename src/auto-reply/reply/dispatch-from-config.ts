@@ -128,7 +128,13 @@ export async function dispatchReplyFromConfig(params: {
     }
     const agentId = resolveSessionAgentId({ sessionKey: key, config: cfg });
     const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
-    return path.join(workspaceDir, ".openclaw", "memory");
+
+    const safeSession = key
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, "_")
+      .slice(0, 120);
+
+    return path.join(workspaceDir, ".openclaw", "memory", "sessions", safeSession);
   })();
 
   const startTime = diagnosticsEnabled ? Date.now() : 0;
