@@ -53,12 +53,39 @@ describe("validateAnthropicRefreshToken", () => {
 });
 
 describe("tryParseClaudeCredentials", () => {
-  it("parses valid credentials JSON", () => {
+  it("parses full credentials JSON with all fields", () => {
     const result = tryParseClaudeCredentials(makeCredentialsJson());
     expect(result).not.toBeNull();
     expect(result!.accessToken).toBe(VALID_ACCESS_TOKEN);
     expect(result!.refreshToken).toBe(VALID_REFRESH_TOKEN);
     expect(typeof result!.expiresAt).toBe("number");
+  });
+
+  it("parses JSON with access token only (no refresh token)", () => {
+    const json = JSON.stringify({
+      claudeAiOauth: { accessToken: VALID_ACCESS_TOKEN },
+    });
+    const result = tryParseClaudeCredentials(json);
+    expect(result).not.toBeNull();
+    expect(result!.accessToken).toBe(VALID_ACCESS_TOKEN);
+    expect(result!.refreshToken).toBeNull();
+    expect(result!.expiresAt).toBeNull();
+  });
+
+  it("parses JSON with access token and invalid refresh token prefix", () => {
+    const json = makeCredentialsJson({ refreshToken: "not-a-valid-prefix" });
+    const result = tryParseClaudeCredentials(json);
+    expect(result).not.toBeNull();
+    expect(result!.accessToken).toBe(VALID_ACCESS_TOKEN);
+    expect(result!.refreshToken).toBeNull();
+  });
+
+  it("parses JSON with access token and non-string expiresAt", () => {
+    const json = makeCredentialsJson({ expiresAt: "not-a-number" });
+    const result = tryParseClaudeCredentials(json);
+    expect(result).not.toBeNull();
+    expect(result!.accessToken).toBe(VALID_ACCESS_TOKEN);
+    expect(result!.expiresAt).toBeNull();
   });
 
   it("returns null for non-JSON input", () => {
@@ -75,16 +102,6 @@ describe("tryParseClaudeCredentials", () => {
 
   it("returns null when accessToken has wrong prefix", () => {
     const json = makeCredentialsJson({ accessToken: "wrong-prefix-token" });
-    expect(tryParseClaudeCredentials(json)).toBeNull();
-  });
-
-  it("returns null when refreshToken has wrong prefix", () => {
-    const json = makeCredentialsJson({ refreshToken: "wrong-prefix-token" });
-    expect(tryParseClaudeCredentials(json)).toBeNull();
-  });
-
-  it("returns null when expiresAt is not a number", () => {
-    const json = makeCredentialsJson({ expiresAt: "not-a-number" });
     expect(tryParseClaudeCredentials(json)).toBeNull();
   });
 
@@ -109,8 +126,15 @@ describe("validateAnthropicSetupToken", () => {
     expect(validateAnthropicSetupToken(VALID_ACCESS_TOKEN)).toBeUndefined();
   });
 
-  it("accepts valid JSON credentials blob", () => {
+  it("accepts full JSON credentials blob", () => {
     expect(validateAnthropicSetupToken(makeCredentialsJson())).toBeUndefined();
+  });
+
+  it("accepts JSON with access token only (no refresh token)", () => {
+    const json = JSON.stringify({
+      claudeAiOauth: { accessToken: VALID_ACCESS_TOKEN },
+    });
+    expect(validateAnthropicSetupToken(json)).toBeUndefined();
   });
 
   it("rejects empty string", () => {
@@ -132,8 +156,16 @@ describe("validateAnthropicSetupToken", () => {
     expect(result).toContain("Invalid JSON");
   });
 
-  it("rejects JSON with missing fields", () => {
+  it("rejects JSON without claudeAiOauth.accessToken", () => {
     const result = validateAnthropicSetupToken(JSON.stringify({ claudeAiOauth: {} }));
+    expect(result).toContain("Invalid JSON");
+  });
+
+  it("rejects JSON with wrong accessToken prefix", () => {
+    const json = JSON.stringify({
+      claudeAiOauth: { accessToken: "wrong-prefix" },
+    });
+    const result = validateAnthropicSetupToken(json);
     expect(result).toContain("Invalid JSON");
   });
 });

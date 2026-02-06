@@ -52,8 +52,8 @@ export async function applyAuthChoiceAnthropic(
     // Check if user pasted full JSON credentials (with refresh token)
     const parsedCreds = tryParseClaudeCredentials(tokenInput);
 
-    if (parsedCreds) {
-      // Store as type: "oauth" with refresh token for auto-refresh
+    if (parsedCreds && parsedCreds.refreshToken) {
+      // Full JSON credentials with refresh token — store as type: "oauth"
       upsertAuthProfile({
         profileId: namedProfileId,
         agentDir: params.agentDir,
@@ -62,7 +62,7 @@ export async function applyAuthChoiceAnthropic(
           provider,
           access: parsedCreds.accessToken,
           refresh: parsedCreds.refreshToken,
-          expires: parsedCreds.expiresAt,
+          expires: parsedCreds.expiresAt ?? Date.now() + 3600 * 1000,
         },
       });
 
@@ -72,7 +72,11 @@ export async function applyAuthChoiceAnthropic(
         mode: "oauth",
       });
     } else {
-      // Plain access token — ask for optional refresh token
+      // Either plain access token or JSON with access token only.
+      // Resolve the actual token string from parsed JSON or raw input.
+      const accessToken = parsedCreds ? parsedCreds.accessToken : tokenInput;
+
+      // Ask for optional refresh token
       const refreshRaw = await params.prompter.text({
         message: "Paste refresh token (sk-ant-ort01-...) for auto-refresh, or leave blank to skip",
         placeholder: "(optional)",
@@ -88,7 +92,7 @@ export async function applyAuthChoiceAnthropic(
           credential: {
             type: "oauth",
             provider,
-            access: tokenInput,
+            access: accessToken,
             refresh: refreshToken,
             expires: Date.now() + 3600 * 1000, // assume 1h if not provided
           },
@@ -107,7 +111,7 @@ export async function applyAuthChoiceAnthropic(
           credential: {
             type: "token",
             provider,
-            token: tokenInput,
+            token: accessToken,
           },
         });
 

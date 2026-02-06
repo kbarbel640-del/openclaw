@@ -44,12 +44,13 @@ export function validateAnthropicRefreshToken(raw: string): string | undefined {
 
 /**
  * Try to parse a JSON credentials blob (from ~/.claude/.credentials.json).
- * Returns { accessToken, refreshToken, expiresAt } or null if not valid JSON credentials.
+ * Returns extracted credentials or null if not valid JSON credentials.
+ * The refreshToken and expiresAt fields are null when only an access token is present.
  */
 export function tryParseClaudeCredentials(raw: string): {
   accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
+  refreshToken: string | null;
+  expiresAt: number | null;
 } | null {
   try {
     const data = JSON.parse(raw.trim());
@@ -57,15 +58,15 @@ export function tryParseClaudeCredentials(raw: string): {
     if (
       oauth &&
       typeof oauth.accessToken === "string" &&
-      typeof oauth.refreshToken === "string" &&
-      typeof oauth.expiresAt === "number" &&
-      oauth.accessToken.startsWith(ANTHROPIC_SETUP_TOKEN_PREFIX) &&
-      oauth.refreshToken.startsWith(ANTHROPIC_REFRESH_TOKEN_PREFIX)
+      oauth.accessToken.startsWith(ANTHROPIC_SETUP_TOKEN_PREFIX)
     ) {
+      const hasRefresh =
+        typeof oauth.refreshToken === "string" &&
+        oauth.refreshToken.startsWith(ANTHROPIC_REFRESH_TOKEN_PREFIX);
       return {
         accessToken: oauth.accessToken,
-        refreshToken: oauth.refreshToken,
-        expiresAt: oauth.expiresAt,
+        refreshToken: hasRefresh ? oauth.refreshToken : null,
+        expiresAt: typeof oauth.expiresAt === "number" ? oauth.expiresAt : null,
       };
     }
   } catch {

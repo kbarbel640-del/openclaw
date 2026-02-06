@@ -102,8 +102,8 @@ export async function modelsAuthSetupTokenCommand(
   // Check if user pasted full JSON credentials (with refresh token)
   const parsedCreds = tryParseClaudeCredentials(tokenStr);
 
-  if (parsedCreds) {
-    // Store as type: "oauth" with refresh token for auto-refresh
+  if (parsedCreds && parsedCreds.refreshToken) {
+    // Full JSON credentials with refresh token — store as type: "oauth"
     upsertAuthProfile({
       profileId,
       credential: {
@@ -111,7 +111,7 @@ export async function modelsAuthSetupTokenCommand(
         provider,
         access: parsedCreds.accessToken,
         refresh: parsedCreds.refreshToken,
-        expires: parsedCreds.expiresAt,
+        expires: parsedCreds.expiresAt ?? Date.now() + 3600 * 1000,
       },
     });
 
@@ -126,7 +126,11 @@ export async function modelsAuthSetupTokenCommand(
     logConfigUpdated(runtime);
     runtime.log(`Auth profile: ${profileId} (${provider}/oauth, auto-refresh enabled)`);
   } else {
-    // Plain token — ask for optional refresh token
+    // Either plain access token or JSON with access token only.
+    // Resolve the actual token string from parsed JSON or raw input.
+    const accessToken = parsedCreds ? parsedCreds.accessToken : tokenStr;
+
+    // Ask for optional refresh token
     const refreshInput = await text({
       message: "Paste refresh token (sk-ant-ort01-...) for auto-refresh, or leave blank",
       validate: (value) => validateAnthropicRefreshToken(String(value ?? "")),
@@ -139,7 +143,7 @@ export async function modelsAuthSetupTokenCommand(
         credential: {
           type: "oauth",
           provider,
-          access: tokenStr,
+          access: accessToken,
           refresh: refreshToken,
           expires: Date.now() + 3600 * 1000,
         },
@@ -161,7 +165,7 @@ export async function modelsAuthSetupTokenCommand(
         credential: {
           type: "token",
           provider,
-          token: tokenStr,
+          token: accessToken,
         },
       });
 
