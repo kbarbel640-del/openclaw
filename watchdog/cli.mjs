@@ -84,7 +84,7 @@ async function cmdStart() {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  const started = monitor.start();
+  const started = await monitor.start();
   if (!started) {
     process.exit(1);
   }
@@ -228,7 +228,7 @@ async function cmdRun() {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  monitor.start();
+  await monitor.start();
 
   // Step 3: Poll for updates
   setInterval(async () => {

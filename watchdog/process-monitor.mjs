@@ -6,8 +6,9 @@
  * and handles restarts and rollbacks on failure.
  */
 
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { WebSocket } from "ws";
 import {
@@ -69,13 +70,67 @@ export class ProcessMonitor {
   }
 
   /**
+   * Check if a process is listening on the gateway port and kill it.
+   * Returns true if a stale process was found and killed.
+   */
+  async killStalePortProcess() {
+    const inUse = await new Promise((resolve) => {
+      const sock = net.createConnection({ port: this.port, host: "127.0.0.1" });
+      sock.on("connect", () => {
+        sock.destroy();
+        resolve(true);
+      });
+      sock.on("error", () => {
+        resolve(false);
+      });
+    });
+
+    if (!inUse) {
+      return false;
+    }
+
+    this.onProgress(`Port ${this.port} is in use. Killing stale process...`);
+
+    try {
+      // Find the PID using the port (macOS/Linux compatible)
+      const output = execSync(`lsof -ti tcp:${this.port}`, { encoding: "utf-8" }).trim();
+      if (output) {
+        const pids = output
+          .split("\n")
+          .map((p) => p.trim())
+          .filter(Boolean);
+        for (const pid of pids) {
+          this.onProgress(`Killing stale process ${pid} on port ${this.port}`);
+          try {
+            process.kill(Number(pid), "SIGKILL");
+          } catch (err) {
+            if (err.code !== "ESRCH") {
+              this.onError(`Failed to kill process ${pid}: ${err.message}`);
+            }
+          }
+        }
+        // Give the OS a moment to release the port
+        await new Promise((r) => setTimeout(r, 1000));
+        return true;
+      }
+    } catch {
+      // lsof found nothing or failed; port may have been released already
+    }
+
+    return false;
+  }
+
+  /**
    * Start the OpenClaw gateway process.
    */
-  start() {
+  async start() {
     if (this.process) {
       this.onError("Process already running");
       return false;
     }
+
+    // Kill any stale process occupying the gateway port
+    await this.killStalePortProcess();
 
     const entryPoint = this.getEntryPoint();
     if (!entryPoint) {
@@ -230,7 +285,7 @@ export class ProcessMonitor {
     await new Promise((r) => setTimeout(r, RESTART_COOLDOWN_MS));
 
     if (!this.stopped) {
-      this.start();
+      await this.start();
     }
   }
 
