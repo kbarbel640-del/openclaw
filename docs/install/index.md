@@ -24,15 +24,15 @@ Looking for first-time setup? Start with [Getting Started](/start/getting-starte
 
 ## Choose your install method
 
-| Method                                    | When to use                                                                       |
-| ----------------------------------------- | --------------------------------------------------------------------------------- |
-| [Installer](/install/installer) (default) | First-time setup — [Getting Started](/start/getting-started) walks you through it |
-| [npm/pnpm global](#global-install)        | You manage Node yourself and prefer a manual global install                       |
-| [From source](#from-source)               | Contributors and local development                                                |
-| [Docker](/install/docker)                 | Containerized or headless deployments                                             |
-| [Nix](/install/nix)                       | You already use Nix                                                               |
-| [Ansible](/install/ansible)               | Automated fleet provisioning                                                      |
-| [Bun](/install/bun)                       | CLI-only usage via Bun runtime                                                    |
+| Method                                        | When to use                                                       |
+| --------------------------------------------- | ----------------------------------------------------------------- |
+| [Installer](/start/getting-started) (default) | First-time setup — the Getting Started guide walks you through it |
+| [npm/pnpm global](#global-install)            | You manage Node yourself and prefer a manual global install       |
+| [From source](#from-source)                   | Contributors and local development                                |
+| [Docker](/install/docker)                     | Containerized or headless deployments                             |
+| [Nix](/install/nix)                           | You already use Nix                                               |
+| [Ansible](/install/ansible)                   | Automated fleet provisioning                                      |
+| [Bun](/install/bun)                           | CLI-only usage via Bun runtime                                    |
 
 ## Global install
 
