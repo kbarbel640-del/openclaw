@@ -105,17 +105,26 @@ export const registerTelegramHandlers = ({
         await processMessage(last.ctx, last.allMedia, last.storeAllowFrom);
         return;
       }
-      const combinedText = entries
+      // Sort entries by message_id to ensure stable ordering of text and media
+      // (debouncer may flush in non-deterministic order)
+      const sortedEntries = entries.slice().sort((a, b) => {
+        const aId = a.msg.message_id ?? 0;
+        const bId = b.msg.message_id ?? 0;
+        return aId - bId;
+      });
+
+      const combinedText = sortedEntries
         .map((entry) => entry.msg.text ?? entry.msg.caption ?? "")
         .filter(Boolean)
         .join("\n");
-      // Collect all media from all entries
-      const allCombinedMedia = entries.flatMap((entry) => entry.allMedia);
+      // Collect all media from all entries (now in message_id order)
+      const allCombinedMedia = sortedEntries.flatMap((entry) => entry.allMedia);
       // Skip only if there's no text AND no media (completely empty message)
       if (!combinedText.trim() && allCombinedMedia.length === 0) {
         return;
       }
-      const first = entries[0];
+      const first = sortedEntries[0];
+      const last = sortedEntries[sortedEntries.length - 1];
       const baseCtx = first.ctx;
       const getFile =
         typeof baseCtx.getFile === "function" ? baseCtx.getFile.bind(baseCtx) : async () => ({});
