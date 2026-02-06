@@ -89,6 +89,7 @@ function scheduleAnnounceDrain(key: string) {
   void (async () => {
     try {
       let forceIndividualCollect = false;
+      // Budget: allows ~4 sequential sends at the 30s per-send timeout before bailing out.
       const DRAIN_DEADLINE_MS = 120_000;
       const deadline = Date.now() + DRAIN_DEADLINE_MS;
       while ((queue.items.length > 0 || queue.droppedCount > 0) && Date.now() < deadline) {
@@ -156,6 +157,10 @@ function scheduleAnnounceDrain(key: string) {
         defaultRuntime.error?.(
           `announce queue drain timed out for ${key}: ${queue.items.length} items remaining, ${queue.droppedCount} dropped`,
         );
+        // Discard remaining items to prevent infinite reschedule loop.
+        queue.items.length = 0;
+        queue.droppedCount = 0;
+        queue.summaryLines.length = 0;
       }
     } catch (err) {
       defaultRuntime.error?.(`announce queue drain failed for ${key}: ${String(err)}`);
