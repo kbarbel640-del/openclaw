@@ -185,6 +185,31 @@ describe("isRetryableError", () => {
   });
 });
 
+describe("boundary status codes", () => {
+  it("does not classify 399 as any HTTP category (below 4xx range)", () => {
+    const r = classifyError({ status: 399 });
+    expect(r.category).toBe("unknown");
+  });
+
+  it("classifies 499 as fatal (generic 4xx catch-all)", () => {
+    const r = classifyError({ status: 499 });
+    expect(r.category).toBe("fatal");
+    expect(r.retryable).toBe(false);
+  });
+
+  it("classifies 501 as fatal before generic 5xx", () => {
+    const r = classifyError({ status: 501 });
+    expect(r.category).toBe("fatal");
+    expect(r.reason).toContain("Not Implemented");
+  });
+
+  it("classifies 502 as retryable (generic 5xx)", () => {
+    const r = classifyError({ status: 502 });
+    expect(r.category).toBe("retryable");
+    expect(r.retryable).toBe(true);
+  });
+});
+
 describe("retryAfterMs", () => {
   it("returns cooldown for rate limit", () => {
     expect(retryAfterMs({ status: 429 })).toBe(60_000);
