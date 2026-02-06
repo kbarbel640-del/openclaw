@@ -28,8 +28,8 @@ Looking for first-time setup? Start with [Getting Started](/start/getting-starte
   <Card title="Installer" href="/start/getting-started" icon="rocket">
     Default. The Getting Started guide walks you through it.
   </Card>
-  <Card title="npm / pnpm" href="#global-install" icon="package">
-    You manage Node yourself and prefer a manual global install.
+  <Card title="Global install" href="#global-install" icon="package">
+    Install via curl / PowerShell with platform-specific commands.
   </Card>
   <Card title="From source" href="#from-source" icon="github">
     Contributors and local development.
@@ -50,15 +50,39 @@ Looking for first-time setup? Start with [Getting Started](/start/getting-starte
 
 ## Global install
 
-If you already have Node 22+:
-
 <Tabs>
-  <Tab title="npm">
+  <Tab title="macOS">
     ```bash
-    npm install -g openclaw@latest
+    curl -fsSL https://openclaw.ai/install.sh | bash
     ```
+  </Tab>
+  <Tab title="Linux / WSL2">
+    ```bash
+    curl -fsSL https://openclaw.ai/install.sh | bash
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```powershell
+    iwr -useb https://openclaw.ai/install.ps1 | iex
+    ```
+  </Tab>
+</Tabs>
 
-    <Accordion title="sharp build errors?">
+The installer sets up the CLI globally and runs onboarding. To skip onboarding:
+
+```bash
+curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
+```
+
+<Accordion title="Prefer a manual npm / pnpm install?">
+  If you already have Node 22+ and want to skip the installer script:
+
+  <Tabs>
+    <Tab title="npm">
+      ```bash
+      npm install -g openclaw@latest
+      ```
+
       If you have libvips installed globally (common on macOS via Homebrew) and `sharp` fails to install, force prebuilt binaries:
 
       ```bash
@@ -66,25 +90,25 @@ If you already have Node 22+:
       ```
 
       If you see `sharp: Please add node-gyp to your dependencies`, either install build tooling (macOS: Xcode CLT + `npm install -g node-gyp`) or use the `SHARP_IGNORE_GLOBAL_LIBVIPS=1` workaround above to skip the native build.
-    </Accordion>
+    </Tab>
+    <Tab title="pnpm">
+      ```bash
+      pnpm add -g openclaw@latest
+      pnpm approve-builds -g                # approve openclaw, node-llama-cpp, sharp, etc.
+      ```
 
-  </Tab>
-  <Tab title="pnpm">
-    ```bash
-    pnpm add -g openclaw@latest
-    pnpm approve-builds -g                # approve openclaw, node-llama-cpp, sharp, etc.
-    ```
+      pnpm requires explicit approval for packages with build scripts. After the first install shows the "Ignored build scripts" warning, run `pnpm approve-builds -g` and select the listed packages.
+    </Tab>
 
-    pnpm requires explicit approval for packages with build scripts. After the first install shows the "Ignored build scripts" warning, run `pnpm approve-builds -g` and select the listed packages.
-
-  </Tab>
-</Tabs>
+  </Tabs>
 
 Then run onboarding:
 
 ```bash
 openclaw onboard --install-daemon
 ```
+
+</Accordion>
 
 ## From source
 
