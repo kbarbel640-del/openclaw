@@ -204,7 +204,8 @@ export async function replaceMediaTags(
     const matches = [...result.matchAll(regex)];
 
     // Process matches from end to start to avoid index shifting affecting subsequent replacements
-    for (const match of matches.toReversed()) {
+    for (let i = matches.length - 1; i >= 0; i -= 1) {
+      const match = matches[i];
       const fullTag = match[0];
       const filePath = match[1];
       const fileName = match[2];

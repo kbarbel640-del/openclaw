@@ -101,7 +101,9 @@ export const dingtalkPlugin: ChannelPlugin<ResolvedDingTalkAccount> = {
   id: DINGTALK_CHANNEL_ID,
   meta,
   capabilities,
-  reload: { configPrefixes: [`channels.${DINGTALK_CHANNEL_ID}`] },
+  reload: {
+    configPrefixes: [`channels.${DINGTALK_CHANNEL_ID}`, `channels.${DINGTALK_LEGACY_CHANNEL_ID}`],
+  },
 
   // Config schema for Control UI
   configSchema: {

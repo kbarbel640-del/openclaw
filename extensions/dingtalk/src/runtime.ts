@@ -23,7 +23,16 @@ export function getDingTalkRuntime(): PluginRuntime {
 /**
  * Token manager cache keyed by accountId.
  */
-const tokenManagerCache = new Map<string, TokenManager>();
+type TokenManagerEntry = {
+  manager: TokenManager;
+  cacheKey: string;
+};
+
+const tokenManagerCache = new Map<string, TokenManagerEntry>();
+
+function buildTokenManagerCacheKey(account: ResolvedDingTalkAccount): string {
+  return `${account.clientId}\u0000${account.clientSecret}\u0000${account.apiBase}`;
+}
 
 /**
  * Get or create a token manager for a DingTalk account.
@@ -33,13 +42,17 @@ export function getOrCreateTokenManager(
   account: ResolvedDingTalkAccount,
   logger?: StreamLogger,
 ): TokenManager {
+  const cacheKey = buildTokenManagerCacheKey(account);
   const existing = tokenManagerCache.get(account.accountId);
+  if (existing && existing.cacheKey === cacheKey) {
+    return existing.manager;
+  }
   if (existing) {
-    return existing;
+    existing.manager.invalidate();
   }
 
   const manager = createTokenManagerFromAccount(account, logger);
-  tokenManagerCache.set(account.accountId, manager);
+  tokenManagerCache.set(account.accountId, { manager, cacheKey });
   return manager;
 }
 
@@ -48,9 +61,9 @@ export function getOrCreateTokenManager(
  * Call this when credentials are rotated.
  */
 export function invalidateTokenManager(accountId: string): void {
-  const manager = tokenManagerCache.get(accountId);
-  if (manager) {
-    manager.invalidate();
+  const entry = tokenManagerCache.get(accountId);
+  if (entry) {
+    entry.manager.invalidate();
     tokenManagerCache.delete(accountId);
   }
 }
@@ -60,8 +73,8 @@ export function invalidateTokenManager(accountId: string): void {
  * Useful for cleanup or testing.
  */
 export function clearTokenManagers(): void {
-  for (const manager of tokenManagerCache.values()) {
-    manager.invalidate();
+  for (const entry of tokenManagerCache.values()) {
+    entry.manager.invalidate();
   }
   tokenManagerCache.clear();
   clearAllTokens();
