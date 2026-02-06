@@ -62,11 +62,32 @@ function sha256(input: string): string {
   return createHash("sha256").update(input, "utf-8").digest("hex");
 }
 
+/**
+ * Canonical JSON serialization — recursively sorts object keys to ensure
+ * deterministic output regardless of key insertion order.
+ * Inspired by RFC 8785 (JSON Canonicalization Scheme).
+ */
+function canonicalStringify(value: unknown): string {
+  if (value === null || value === undefined) {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map((v) => canonicalStringify(v)).join(",") + "]";
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const sortedKeys = Object.keys(obj).sort();
+    const pairs = sortedKeys.map((k) => JSON.stringify(k) + ":" + canonicalStringify(obj[k]));
+    return "{" + pairs.join(",") + "}";
+  }
+  return JSON.stringify(value);
+}
+
 function hashTool(tool: ToolDescriptor): string {
-  const normalized = JSON.stringify({
+  const normalized = canonicalStringify({
     name: tool.name,
     description: tool.description ?? "",
-    inputSchema: tool.inputSchema != null ? JSON.stringify(tool.inputSchema) : "",
+    inputSchema: tool.inputSchema ?? null,
   });
   return sha256(normalized);
 }
@@ -77,9 +98,9 @@ function hashManifest(manifest: ManifestSnapshot): string {
     .map((t) => ({
       name: t.name,
       description: t.description ?? "",
-      inputSchema: t.inputSchema != null ? JSON.stringify(t.inputSchema) : "",
+      inputSchema: t.inputSchema ?? null,
     }));
-  return sha256(JSON.stringify({ id: manifest.id, version: manifest.version, tools: sortedTools }));
+  return sha256(canonicalStringify({ id: manifest.id, version: manifest.version, tools: sortedTools }));
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +150,18 @@ export function savePinStore(store: PinStore): void {
  * Pin a plugin manifest.  Called on first use or after user approval.
  */
 export function pinPlugin(store: PinStore, manifest: ManifestSnapshot): PluginPin {
+  // Validate tool name uniqueness — duplicate names would silently overwrite hashes
+  const seen = new Set<string>();
+  for (const tool of manifest.tools) {
+    if (seen.has(tool.name)) {
+      throw new Error(
+        `Plugin "${manifest.id}" has duplicate tool name "${tool.name}". ` +
+        `Tool names must be unique within a plugin manifest.`,
+      );
+    }
+    seen.add(tool.name);
+  }
+
   const toolHashes: Record<string, string> = {};
   for (const tool of manifest.tools) {
     toolHashes[tool.name] = hashTool(tool);

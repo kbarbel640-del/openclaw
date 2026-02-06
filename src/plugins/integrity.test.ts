@@ -201,3 +201,56 @@ describe("tool order independence", () => {
     expect(report.trusted).toBe(true);
   });
 });
+
+describe("canonical JSON hashing", () => {
+  it("schemas with different key order produce same hash", () => {
+    const manifest1: ManifestSnapshot = {
+      id: "key-order-test",
+      version: "1.0.0",
+      tools: [{ name: "tool", description: "desc", inputSchema: { type: "object", minLength: 1, properties: { name: { type: "string" } } } }],
+    };
+    const manifest2: ManifestSnapshot = {
+      id: "key-order-test",
+      version: "1.0.0",
+      tools: [{ name: "tool", description: "desc", inputSchema: { properties: { name: { type: "string" } }, minLength: 1, type: "object" } }],
+    };
+    pinPlugin(store, manifest1);
+    const report = verifyPlugin(store, manifest2);
+    expect(report.trusted).toBe(true);
+  });
+
+  it("deeply nested schemas with reordered keys produce same hash", () => {
+    const schema1 = { a: { c: 3, b: 2 }, d: [1, 2, { f: 6, e: 5 }] };
+    const schema2 = { d: [1, 2, { e: 5, f: 6 }], a: { b: 2, c: 3 } };
+    const m1: ManifestSnapshot = { id: "deep", version: "1.0.0", tools: [{ name: "t", inputSchema: schema1 }] };
+    const m2: ManifestSnapshot = { id: "deep", version: "1.0.0", tools: [{ name: "t", inputSchema: schema2 }] };
+    pinPlugin(store, m1);
+    expect(verifyPlugin(store, m2).trusted).toBe(true);
+  });
+});
+
+describe("duplicate tool name validation", () => {
+  it("throws on duplicate tool names in manifest", () => {
+    const duped: ManifestSnapshot = {
+      id: "dupe-test",
+      version: "1.0.0",
+      tools: [
+        { name: "sameName", description: "first" },
+        { name: "sameName", description: "second" },
+      ],
+    };
+    expect(() => pinPlugin(store, duped)).toThrow(/duplicate tool name/i);
+  });
+
+  it("allows manifests with unique tool names", () => {
+    const valid: ManifestSnapshot = {
+      id: "unique-test",
+      version: "1.0.0",
+      tools: [
+        { name: "alpha", description: "first" },
+        { name: "beta", description: "second" },
+      ],
+    };
+    expect(() => pinPlugin(store, valid)).not.toThrow();
+  });
+});
