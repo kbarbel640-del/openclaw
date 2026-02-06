@@ -36,7 +36,7 @@ export function armTimer(state: CronServiceState) {
 
   state.deps.log.debug(
     { nextWakeAtMs: nextAt, delayMs: clampedDelay, clamped: delay > MAX_TIMEOUT_MS },
-    "cron: timer armed"
+    "cron: timer armed",
   );
 
   state.timer = setTimeout(() => {
@@ -65,14 +65,14 @@ export async function onTimer(state: CronServiceState) {
     if (runningFor > MAX_RUNNING_MS) {
       state.deps.log.warn(
         { runningForMs: runningFor, maxMs: MAX_RUNNING_MS },
-        "cron: clearing stale running state (scheduler was stuck)"
+        "cron: clearing stale running state (scheduler was stuck)",
       );
       state.running = false;
       state.runningStartedAtMs = undefined;
     } else {
       state.deps.log.debug(
         { runningForMs: runningFor },
-        "cron: timer fired but scheduler busy, re-arming"
+        "cron: timer fired but scheduler busy, re-arming",
       );
       // Re-arm to try again later instead of silently dropping
       armTimer(state);
