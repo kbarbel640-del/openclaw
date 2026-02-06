@@ -33,13 +33,6 @@ exit 0
 
 describe("docker-setup.sh", () => {
   it("handles unset optional env vars under strict mode", async () => {
-    const assocCheck = spawnSync("bash", ["-c", "declare -A _t=()"], {
-      encoding: "utf8",
-    });
-    if (assocCheck.status !== 0) {
-      return;
-    }
-
     const rootDir = await mkdtemp(join(tmpdir(), "openclaw-docker-setup-"));
     const scriptPath = join(rootDir, "docker-setup.sh");
     const dockerfilePath = join(rootDir, "Dockerfile");
@@ -83,13 +76,6 @@ describe("docker-setup.sh", () => {
   });
 
   it("plumbs OPENCLAW_DOCKER_APT_PACKAGES into .env and docker build args", async () => {
-    const assocCheck = spawnSync("bash", ["-c", "declare -A _t=()"], {
-      encoding: "utf8",
-    });
-    if (assocCheck.status !== 0) {
-      return;
-    }
-
     const rootDir = await mkdtemp(join(tmpdir(), "openclaw-docker-setup-"));
     const scriptPath = join(rootDir, "docker-setup.sh");
     const dockerfilePath = join(rootDir, "Dockerfile");
@@ -131,6 +117,53 @@ describe("docker-setup.sh", () => {
 
     const log = await readFile(logPath, "utf8");
     expect(log).toContain("--build-arg OPENCLAW_DOCKER_APT_PACKAGES=ffmpeg build-essential");
+  });
+
+  it("upsert_env is bash 3.2 compatible and handles missing + existing keys (#10316)", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "openclaw-docker-setup-"));
+    const scriptPath = join(rootDir, "test-upsert.sh");
+
+    // Extract upsert_env from docker-setup.sh and test it in isolation
+    const script = await readFile(join(repoRoot, "docker-setup.sh"), "utf8");
+    const fnMatch = script.match(/^upsert_env\(\)[\s\S]*?^\}/m);
+    expect(fnMatch).not.toBeNull();
+
+    const envFile = join(rootDir, "test.env");
+    const testScript = `#!/usr/bin/env bash
+set -euo pipefail
+${fnMatch![0]}
+
+export KEY_A=alpha
+export KEY_B=beta
+export KEY_C=gamma
+
+# Seed .env with one existing key and a comment
+printf '# header\nKEY_A=old\n' > "${envFile}"
+
+upsert_env "${envFile}" KEY_A KEY_B KEY_C
+`;
+
+    await writeFile(scriptPath, testScript, { mode: 0o755 });
+
+    const result = spawnSync("bash", [scriptPath], {
+      cwd: rootDir,
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(0);
+
+    const content = await readFile(envFile, "utf8");
+    const lines = content.split("\n").filter(Boolean);
+
+    // Comment preserved
+    expect(lines[0]).toBe("# header");
+    // KEY_A updated in place
+    expect(lines[1]).toBe("KEY_A=alpha");
+    // KEY_B and KEY_C appended (were missing)
+    expect(lines[2]).toBe("KEY_B=beta");
+    expect(lines[3]).toBe("KEY_C=gamma");
+    // No duplicates
+    expect(lines.filter((l: string) => l.startsWith("KEY_A="))).toHaveLength(1);
   });
 
   it("keeps docker-compose gateway command in sync", async () => {
