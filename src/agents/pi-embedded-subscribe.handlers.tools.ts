@@ -202,7 +202,9 @@ export function handleToolExecutionEnd(
       toolCallId,
       meta,
       isError: isToolError,
-      result: sanitizedResult,
+      // Omit full result for errors to prevent stderr/stdout from leaking
+      // through event consumers that may bridge to external channels.
+      result: isToolError ? undefined : sanitizedResult,
     },
   });
   void ctx.params.onAgentEvent?.({

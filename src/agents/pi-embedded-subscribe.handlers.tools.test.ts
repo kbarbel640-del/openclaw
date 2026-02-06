@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
-import { handleToolExecutionEnd } from "./pi-embedded-subscribe.handlers.tools.js";
+
+const mockEmitAgentEvent = vi.fn();
+vi.mock("../infra/agent-events.js", () => ({
+  emitAgentEvent: (...args: unknown[]) => mockEmitAgentEvent(...args),
+}));
+
+// Must import AFTER vi.mock to get the mocked version
+const { handleToolExecutionEnd } = await import("./pi-embedded-subscribe.handlers.tools.js");
 
 function createMinimalContext(overrides?: {
   onToolResult?: (payload: unknown) => void;
@@ -124,6 +131,44 @@ describe("handleToolExecutionEnd", () => {
     } as never);
 
     expect(ctx.emitToolOutput).not.toHaveBeenCalled();
+  });
+
+  it("omits result from emitAgentEvent for error tool results", () => {
+    mockEmitAgentEvent.mockClear();
+    const ctx = createMinimalContext();
+    handleToolExecutionEnd(ctx, {
+      type: "tool_execution_end",
+      toolName: "exec",
+      toolCallId: "call-agent-evt",
+      isError: true,
+      result: {
+        content: [{ type: "text", text: "sensitive stderr output" }],
+      },
+    } as never);
+
+    expect(mockEmitAgentEvent).toHaveBeenCalled();
+    const eventData = mockEmitAgentEvent.mock.calls[0][0].data;
+    expect(eventData.isError).toBe(true);
+    expect(eventData.result).toBeUndefined();
+  });
+
+  it("includes result in emitAgentEvent for successful tool results", () => {
+    mockEmitAgentEvent.mockClear();
+    const ctx = createMinimalContext();
+    handleToolExecutionEnd(ctx, {
+      type: "tool_execution_end",
+      toolName: "exec",
+      toolCallId: "call-agent-evt-ok",
+      isError: false,
+      result: {
+        content: [{ type: "text", text: "normal output" }],
+      },
+    } as never);
+
+    expect(mockEmitAgentEvent).toHaveBeenCalled();
+    const eventData = mockEmitAgentEvent.mock.calls[0][0].data;
+    expect(eventData.isError).toBe(false);
+    expect(eventData.result).toBeDefined();
   });
 
   it("records lastToolError for error results", () => {
