@@ -500,12 +500,14 @@ export async function runTui(opts: TuiOptions) {
       if (usage?.daily?.length) {
         const today = usage.daily[usage.daily.length - 1];
         dailyCost = today?.totalCost ?? null;
-        updateFooter();
-        tui.requestRender();
+      } else {
+        dailyCost = null;
       }
     } catch {
-      // Silently ignore errors
+      dailyCost = null;
     }
+    updateFooter();
+    tui.requestRender();
   };
 
   const updateFooter = () => {
