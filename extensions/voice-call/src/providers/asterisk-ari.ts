@@ -23,6 +23,60 @@ import type {
 } from "../types.js";
 import type { VoiceCallProvider } from "./base.js";
 import { convertPcmToMulaw8k, chunkAudio } from "../telephony-audio.js";
+
+function alawToMulawByte(aLaw: number): number {
+  // Standard G.711 A-law to linear PCM conversion, then PCM to mu-law.
+  // Implementation based on common reference algorithms (no deps).
+  let a = aLaw ^ 0x55;
+  let t = (a & 0x0f) << 4;
+  const seg = (a & 0x70) >> 4;
+  switch (seg) {
+    case 0:
+      t += 8;
+      break;
+    case 1:
+      t += 0x108;
+      break;
+    default:
+      t += 0x108;
+      t <<= seg - 1;
+      break;
+  }
+  const pcm = a & 0x80 ? t : -t;
+
+  // PCM16 -> mu-law
+  const MU_LAW_MAX = 0x1fff;
+  const BIAS = 0x84;
+  let p = pcm;
+  let mask = 0x7f;
+  if (p < 0) {
+    p = -p;
+    mask = 0xff;
+  }
+  if (p > MU_LAW_MAX) {
+    p = MU_LAW_MAX;
+  }
+  p += BIAS;
+
+  let seg2 = 0;
+  let tmp = p >> 7;
+  while (tmp) {
+    seg2++;
+    tmp >>= 1;
+  }
+
+  const uval = (seg2 << 4) | ((p >> (seg2 + 3)) & 0x0f);
+  return (uval ^ mask) & 0xff;
+}
+
+function alawToMulaw(buf: Buffer): Buffer {
+  const out = Buffer.allocUnsafe(buf.length);
+  for (let i = 0; i < buf.length; i++) {
+    out[i] = alawToMulawByte(buf[i]);
+  }
+  return out;
+}
+
 import { OpenAIRealtimeSTTProvider } from "./stt-openai-realtime.js";
 import { OpenAITTSProvider } from "./tts-openai.js";
 
@@ -408,10 +462,14 @@ export class AsteriskAriProvider implements VoiceCallProvider {
       return;
     }
 
-    const payload = msg.subarray(12);
+    let payload = msg.subarray(12);
 
     // Always feed RTP into STT, even while we're speaking.
+    // OpenAI Realtime STT session here is configured for G.711 mu-law.
     if (st.stt) {
+      if (this.cfg.codec === "alaw") {
+        payload = alawToMulaw(payload);
+      }
       st.stt.sendAudio(payload);
     }
   }
