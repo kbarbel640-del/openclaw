@@ -1,9 +1,25 @@
 {
-  "version": 32,
-  "updatedAt": "2026-02-06T13:18:32.632Z",
+  "version": 36,
+  "updatedAt": "2026-02-06T20:05:23.144Z",
   "updatedBy": "main",
   "policy": {
-    "rules": []
+    "rules": [
+      {
+        "id": "policy3",
+        "action": "deny",
+        "tool": "*"
+      },
+      {
+        "id": "policy2",
+        "action": "deny",
+        "tool": "*"
+      },
+      {
+        "id": "policy1",
+        "action": "deny",
+        "tool": "exec"
+      }
+    ]
   },
   "history": [
     {
@@ -591,6 +607,75 @@
       "reason": "Policy reset: Policy reset",
       "policy": {
         "rules": []
+      }
+    },
+    {
+      "version": 33,
+      "updatedAt": "2026-02-06T16:02:12.392Z",
+      "updatedBy": "main",
+      "reason": "Policy reset: policy reset",
+      "policy": {
+        "rules": []
+      }
+    },
+    {
+      "version": 34,
+      "updatedAt": "2026-02-06T16:02:51.652Z",
+      "updatedBy": "main",
+      "reason": "User policy update: Policy new: block exec commands",
+      "policy": {
+        "rules": [
+          {
+            "id": "policy1",
+            "action": "deny",
+            "tool": "exec"
+          }
+        ]
+      }
+    },
+    {
+      "version": 35,
+      "updatedAt": "2026-02-06T19:56:57.158Z",
+      "updatedBy": "main",
+      "reason": "User policy update: policy lsit",
+      "policy": {
+        "rules": [
+          {
+            "id": "policy2",
+            "action": "deny",
+            "tool": "*"
+          },
+          {
+            "id": "policy1",
+            "action": "deny",
+            "tool": "exec"
+          }
+        ]
+      }
+    },
+    {
+      "version": 36,
+      "updatedAt": "2026-02-06T20:05:23.144Z",
+      "updatedBy": "main",
+      "reason": "User policy update: polciy lsit",
+      "policy": {
+        "rules": [
+          {
+            "id": "policy3",
+            "action": "deny",
+            "tool": "*"
+          },
+          {
+            "id": "policy2",
+            "action": "deny",
+            "tool": "*"
+          },
+          {
+            "id": "policy1",
+            "action": "deny",
+            "tool": "exec"
+          }
+        ]
       }
     }
   ]

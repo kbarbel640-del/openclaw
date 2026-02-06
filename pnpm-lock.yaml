@@ -179,8 +179,8 @@ importers:
         version: 4.3.6
     devDependencies:
       '@armoriq/sdk':
-        specifier: file:../armoriq-sdk-customer-ts
-        version: file:../armoriq-sdk-customer-ts
+        specifier: ^0.2.6
+        version: 0.2.6
       '@grammyjs/types':
         specifier: ^3.23.0
         version: 3.23.0
@@ -245,8 +245,8 @@ importers:
   extensions/armoriq:
     dependencies:
       '@armoriq/sdk':
-        specifier: file:../../../armoriq-sdk-customer-ts
-        version: file:../armoriq-sdk-customer-ts
+        specifier: ^0.2.6
+        version: 0.2.6
     devDependencies:
       openclaw:
         specifier: workspace:*
@@ -603,8 +603,8 @@ packages:
       zod:
         optional: true
 
-  '@armoriq/sdk@file:../armoriq-sdk-customer-ts':
-    resolution: {directory: ../armoriq-sdk-customer-ts, type: directory}
+  '@armoriq/sdk@0.2.6':
+    resolution: {integrity: sha512-55iy+84RYIkZJm7ANh946PuJN8PmJjIqeiIt7/ZhDNcG77pnkDJpgChRIZTS4tbYlTruK3npjjILbbv9JWZdDw==}
     engines: {node: '>=18.0.0'}
 
   '@aws-crypto/crc32@5.2.0':
@@ -5385,7 +5385,7 @@ snapshots:
     optionalDependencies:
       zod: 4.3.6
 
-  '@armoriq/sdk@file:../armoriq-sdk-customer-ts':
+  '@armoriq/sdk@0.2.6':
     dependencies:
       axios: 1.13.4(debug@4.4.3)
     transitivePeerDependencies:

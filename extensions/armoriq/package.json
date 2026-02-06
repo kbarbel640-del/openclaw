@@ -4,7 +4,7 @@
   "description": "OpenClaw ArmorIQ intent enforcement plugin",
   "type": "module",
   "dependencies": {
-    "@armoriq/sdk": "file:../../../armoriq-sdk-customer-ts"
+    "@armoriq/sdk": "^0.2.6"
   },
   "devDependencies": {
     "openclaw": "workspace:*"
