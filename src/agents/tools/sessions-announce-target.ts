@@ -1,11 +1,16 @@
 import { getChannelPlugin, normalizeChannelId } from "../../channels/plugins/index.js";
 import { callGateway } from "../../gateway/call.js";
+import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { isInternalMessageChannel } from "../../utils/message-channel.js";
 import type { AnnounceTarget } from "./sessions-send-helpers.js";
 import { resolveAnnounceTargetFromKey } from "./sessions-send-helpers.js";
+
+const log = createSubsystemLogger("agents/announce-target");
 
 export async function resolveAnnounceTarget(params: {
   sessionKey: string;
   displayKey: string;
+  requesterSessionKey?: string;
 }): Promise<AnnounceTarget | null> {
   const parsed = resolveAnnounceTargetFromKey(params.sessionKey);
   const parsedDisplay = resolveAnnounceTargetFromKey(params.displayKey);
@@ -46,10 +51,29 @@ export async function resolveAnnounceTarget(params: {
     const accountId =
       (typeof deliveryContext?.accountId === "string" ? deliveryContext.accountId : undefined) ??
       (typeof match?.lastAccountId === "string" ? match.lastAccountId : undefined);
-    if (channel && to) return { channel, to, accountId };
+    if (channel && to && !isInternalMessageChannel(channel)) {
+      return { channel, to, accountId };
+    }
+    if (channel && isInternalMessageChannel(channel)) {
+      log.debug("skipping internal channel from sessions.list", {
+        sessionKey: params.sessionKey,
+        channel,
+      });
+    }
   } catch {
     // ignore
   }
 
+  // Fallback: use requester's session key (e.g. SENA's group chat) so the
+  // target agent can announce into the chat room the request originated from.
+  if (params.requesterSessionKey) {
+    const requesterParsed = resolveAnnounceTargetFromKey(params.requesterSessionKey);
+    if (requesterParsed) return requesterParsed;
+  }
+
+  // Don't return internal channels (webchat) as announce targets
+  if (fallback && isInternalMessageChannel(fallback.channel)) {
+    return null;
+  }
   return fallback;
 }

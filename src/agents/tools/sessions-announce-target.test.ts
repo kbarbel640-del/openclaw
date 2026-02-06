@@ -33,6 +33,25 @@ const installRegistry = async () => {
         },
       },
       {
+        pluginId: "telegram",
+        source: "test",
+        plugin: {
+          id: "telegram",
+          meta: {
+            id: "telegram",
+            label: "Telegram",
+            selectionLabel: "Telegram",
+            docsPath: "/channels/telegram",
+            blurb: "Telegram test stub.",
+          },
+          capabilities: { chatTypes: ["direct", "group", "channel"] },
+          config: {
+            listAccountIds: () => ["default"],
+            resolveAccount: () => ({}),
+          },
+        },
+      },
+      {
         pluginId: "whatsapp",
         source: "test",
         plugin: {
@@ -101,5 +120,72 @@ describe("resolveAnnounceTarget", () => {
     const first = callGatewayMock.mock.calls[0]?.[0] as { method?: string } | undefined;
     expect(first).toBeDefined();
     expect(first?.method).toBe("sessions.list");
+  });
+
+  it("skips webchat (internal) channel from sessions.list and falls back to requesterSessionKey", async () => {
+    const { resolveAnnounceTarget } = await loadResolveAnnounceTarget();
+    // sessions.list returns webchat as lastChannel for agent:yuri:main
+    callGatewayMock.mockResolvedValueOnce({
+      sessions: [
+        {
+          key: "agent:yuri:main",
+          lastChannel: "webchat",
+          lastTo: "agent:yuri:main",
+        },
+      ],
+    });
+
+    const target = await resolveAnnounceTarget({
+      sessionKey: "agent:yuri:main",
+      displayKey: "agent:yuri:main",
+      requesterSessionKey: "agent:sena:telegram:group:-1003708523054",
+    });
+    // Should resolve to telegram group from requesterSessionKey, not webchat
+    expect(target).toBeTruthy();
+    expect(target?.channel).toBe("telegram");
+    expect(target?.to).toContain("-1003708523054");
+  });
+
+  it("skips webchat deliveryContext and falls back to requesterSessionKey", async () => {
+    const { resolveAnnounceTarget } = await loadResolveAnnounceTarget();
+    callGatewayMock.mockResolvedValueOnce({
+      sessions: [
+        {
+          key: "agent:yuri:main",
+          deliveryContext: {
+            channel: "webchat",
+            to: "agent:yuri:main",
+          },
+        },
+      ],
+    });
+
+    const target = await resolveAnnounceTarget({
+      sessionKey: "agent:yuri:main",
+      displayKey: "agent:yuri:main",
+      requesterSessionKey: "agent:sena:telegram:group:-1003708523054",
+    });
+    expect(target?.channel).toBe("telegram");
+    expect(target?.to).toContain("-1003708523054");
+  });
+
+  it("returns null when sessions.list has webchat and no requesterSessionKey", async () => {
+    const { resolveAnnounceTarget } = await loadResolveAnnounceTarget();
+    callGatewayMock.mockResolvedValueOnce({
+      sessions: [
+        {
+          key: "agent:yuri:main",
+          lastChannel: "webchat",
+          lastTo: "agent:yuri:main",
+        },
+      ],
+    });
+
+    const target = await resolveAnnounceTarget({
+      sessionKey: "agent:yuri:main",
+      displayKey: "agent:yuri:main",
+      // no requesterSessionKey
+    });
+    expect(target).toBeNull();
   });
 });
