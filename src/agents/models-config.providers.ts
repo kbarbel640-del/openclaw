@@ -459,7 +459,7 @@ export async function resolveImplicitProviders(params: {
   });
 
   const anthropicKey =
-    resolveEnvApiKeyVarName("anthropic") ??
+    resolveEnvApiKey("anthropic")?.apiKey ??
     resolveApiKeyFromProfiles({ provider: "anthropic", store: authStore });
   if (anthropicKey) {
     providers.anthropic = { ...buildAnthropicProvider(), apiKey: anthropicKey };
