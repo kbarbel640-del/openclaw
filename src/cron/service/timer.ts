@@ -1,12 +1,7 @@
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
 import type { CronJob } from "../types.js";
 import type { CronEvent, CronServiceState } from "./state.js";
-import {
-  computeJobNextRunAtMs,
-  nextWakeAtMs,
-  recomputeNextRuns,
-  resolveJobPayloadTextForMain,
-} from "./jobs.js";
+import { computeJobNextRunAtMs, nextWakeAtMs, resolveJobPayloadTextForMain } from "./jobs.js";
 import { locked } from "./locked.js";
 import { ensureLoaded, persist } from "./store.js";
 
@@ -36,22 +31,20 @@ export function armTimer(state: CronServiceState) {
 
 export async function onTimer(state: CronServiceState) {
   if (state.running) {
-    return;
+    // Safety: if running flag is stuck true (e.g., from disable/enable cycle),
+    // reset it to prevent deadlock. This handles race conditions where a timer
+    // tick occurs during the disable/enable window.
+    state.running = false;
   }
   state.running = true;
   try {
     await locked(state, async () => {
-      // Reload persisted due-times without recomputing so runDueJobs sees
-      // the original nextRunAtMs values.  Recomputing first would advance
-      // every/cron slots past the current tick when the timer fires late (#9788).
-      await ensureLoaded(state, { forceReload: true, skipRecompute: true });
+      await ensureLoaded(state, { forceReload: true });
       await runDueJobs(state);
-      recomputeNextRuns(state);
       await persist(state);
     });
   } finally {
     state.running = false;
-    // Always re-arm so transient errors (e.g. ENOSPC) don't kill the scheduler.
     armTimer(state);
   }
 }
@@ -192,6 +185,7 @@ export async function executeJob(
     const res = await state.deps.runIsolatedAgentJob({
       job,
       message: job.payload.message,
+      jobName: job.name,
     });
 
     // Post a short summary back to the main session so the user sees
