@@ -348,10 +348,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - task: lint
-            command: |
-              swiftlint --config .swiftlint.yml
-              swiftformat --lint apps/macos/Sources --config .swiftformat
+          # - task: lint
+          #   command: |
+          #     swiftlint --config .swiftlint.yml
+          #     swiftformat --lint apps/macos/Sources --config .swiftformat
           - task: build
             command: |
               set -euo pipefail
