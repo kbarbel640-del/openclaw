@@ -286,7 +286,7 @@ export async function doctorCommand(
   if (shouldWriteConfig) {
     cfg = applyWizardMetadata(cfg, { command: "doctor", mode: resolveMode(cfg) });
     const configToWrite = restoreConfigEnvTemplates({
-      rawConfig: configResult.sourceParsedConfig,
+      rawConfig: configResult.sourceTemplateConfig,
       config: cfg,
       env: process.env,
     });

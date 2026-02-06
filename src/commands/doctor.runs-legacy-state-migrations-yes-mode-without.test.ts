@@ -465,8 +465,7 @@ describe("doctor command", () => {
       readConfigFileSnapshot.mockResolvedValue({
         path: "/tmp/openclaw.json",
         exists: true,
-        raw: "{}",
-        parsed: {
+        raw: JSON.stringify({
           models: {
             providers: {
               openai: {
@@ -474,7 +473,8 @@ describe("doctor command", () => {
               },
             },
           },
-        },
+        }),
+        parsed: undefined,
         valid: true,
         config: {
           models: {

@@ -8,6 +8,7 @@ import {
   OpenClawSchema,
   CONFIG_PATH,
   migrateLegacyConfig,
+  parseConfigJson5,
   readConfigFileSnapshot,
 } from "../config/config.js";
 import { resolveConfigEnvVars } from "../config/env-substitution.js";
@@ -418,10 +419,20 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
   noteOpencodeProviderOverrides(cfg);
 
+  let sourceTemplateConfig: unknown = snapshot.parsed;
+  if (
+    sourceTemplateConfig === undefined ||
+    sourceTemplateConfig === null ||
+    typeof sourceTemplateConfig !== "object"
+  ) {
+    const parsed = typeof snapshot.raw === "string" ? parseConfigJson5(snapshot.raw) : null;
+    sourceTemplateConfig = parsed?.ok ? parsed.parsed : {};
+  }
+
   return {
     cfg,
     path: snapshot.path ?? CONFIG_PATH,
     shouldWriteConfig,
-    sourceParsedConfig: snapshot.parsed,
+    sourceTemplateConfig,
   };
 }
