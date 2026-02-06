@@ -5,12 +5,23 @@ import { makeMissingToolResult, sanitizeToolCallInputs } from "./session-transcr
 
 type ToolCall = { id: string; name?: string };
 
+type PendingToolCall = {
+  name: string | undefined;
+  deadline: number;
+};
+
+type PendingDeadlineInfo = {
+  toolCallId: string;
+  name: string | undefined;
+  deadline: number;
+  remainingMs: number;
+};
+
 function extractAssistantToolCalls(msg: Extract<AgentMessage, { role: "assistant" }>): ToolCall[] {
   const content = msg.content;
   if (!Array.isArray(content)) {
     return [];
   }
-
   const toolCalls: ToolCall[] = [];
   for (const block of content) {
     if (!block || typeof block !== "object") {
@@ -45,26 +56,91 @@ function extractToolResultId(msg: Extract<AgentMessage, { role: "toolResult" }>)
 export function installSessionToolResultGuard(
   sessionManager: SessionManager,
   opts?: {
-    /**
-     * Optional, synchronous transform applied to toolResult messages *before* they are
-     * persisted to the session transcript.
-     */
     transformToolResultForPersistence?: (
       message: AgentMessage,
       meta: { toolCallId?: string; toolName?: string; isSynthetic?: boolean },
     ) => AgentMessage;
-    /**
-     * Whether to synthesize missing tool results to satisfy strict providers.
-     * Defaults to true.
-     */
     allowSyntheticToolResults?: boolean;
+    toolCallTimeoutMs?: number;
+    timeoutCheckIntervalMs?: number;
   },
 ): {
   flushPendingToolResults: () => void;
   getPendingIds: () => string[];
+  getPendingDeadlines: () => PendingDeadlineInfo[];
 } {
   const originalAppend = sessionManager.appendMessage.bind(sessionManager);
-  const pending = new Map<string, string | undefined>();
+  const pending = new Map<string, PendingToolCall>();
+  let timeoutTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const DEFAULT_TOOL_TIMEOUT_MS = opts?.toolCallTimeoutMs ?? 30000;
+  const TIMEOUT_CHECK_INTERVAL_MS = opts?.timeoutCheckIntervalMs ?? 1000;
+
+  function clearTimeoutCheck() {
+    if (timeoutTimer) {
+      clearTimeout(timeoutTimer);
+      timeoutTimer = null;
+    }
+  }
+
+  function startTimeoutCheck() {
+    clearTimeoutCheck();
+    if (pending.size === 0) {
+      return;
+    }
+
+    let nearestDeadline = Infinity;
+    for (const toolCall of pending.values()) {
+      if (toolCall.deadline < nearestDeadline) {
+        nearestDeadline = toolCall.deadline;
+      }
+    }
+
+    if (nearestDeadline !== Infinity) {
+      const delay = Math.max(0, nearestDeadline - Date.now());
+      timeoutTimer = setTimeout(checkExpiredToolCalls, Math.min(delay, TIMEOUT_CHECK_INTERVAL_MS));
+    }
+  }
+
+  function checkExpiredToolCalls() {
+    const now = Date.now();
+    const expiredToolCallIds: string[] = [];
+
+    for (const [id, toolCall] of pending.entries()) {
+      if (now >= toolCall.deadline) {
+        expiredToolCallIds.push(id);
+      }
+    }
+
+    for (const id of expiredToolCallIds) {
+      const toolCall = pending.get(id);
+      if (toolCall) {
+        pending.delete(id);
+
+        const timeoutResult = {
+          role: "toolResult" as const,
+          toolCallId: id,
+          content: [
+            {
+              type: "text" as const,
+              text: `Tool "${toolCall.name ?? "unknown"}" timed out after ${DEFAULT_TOOL_TIMEOUT_MS}ms`,
+            },
+          ],
+          isError: true,
+        };
+
+        originalAppend(
+          persistToolResult(timeoutResult as unknown as AgentMessage, {
+            toolCallId: id,
+            toolName: toolCall.name,
+            isSynthetic: true,
+          }) as never,
+        );
+      }
+    }
+
+    startTimeoutCheck();
+  }
 
   const persistToolResult = (
     message: AgentMessage,
@@ -77,22 +153,40 @@ export function installSessionToolResultGuard(
   const allowSyntheticToolResults = opts?.allowSyntheticToolResults ?? true;
 
   const flushPendingToolResults = () => {
+    clearTimeoutCheck();
     if (pending.size === 0) {
       return;
     }
     if (allowSyntheticToolResults) {
-      for (const [id, name] of pending.entries()) {
-        const synthetic = makeMissingToolResult({ toolCallId: id, toolName: name });
+      for (const [id, toolCall] of pending.entries()) {
+        const synthetic = makeMissingToolResult({
+          toolCallId: id,
+          toolName: toolCall.name,
+        });
         originalAppend(
           persistToolResult(synthetic, {
             toolCallId: id,
-            toolName: name,
+            toolName: toolCall.name,
             isSynthetic: true,
           }) as never,
         );
       }
     }
     pending.clear();
+  };
+
+  const getPendingDeadlines = (): PendingDeadlineInfo[] => {
+    const now = Date.now();
+    const result: PendingDeadlineInfo[] = [];
+    for (const [id, toolCall] of pending.entries()) {
+      result.push({
+        toolCallId: id,
+        name: toolCall.name,
+        deadline: toolCall.deadline,
+        remainingMs: Math.max(0, toolCall.deadline - now),
+      });
+    }
+    return result;
   };
 
   const guardedAppend = (message: AgentMessage) => {
@@ -108,18 +202,19 @@ export function installSessionToolResultGuard(
       }
       nextMessage = sanitized[0];
     }
-    const nextRole = (nextMessage as { role?: unknown }).role;
 
+    const nextRole = (nextMessage as { role?: unknown }).role;
     if (nextRole === "toolResult") {
       const id = extractToolResultId(nextMessage as Extract<AgentMessage, { role: "toolResult" }>);
-      const toolName = id ? pending.get(id) : undefined;
+      const toolCall = id ? pending.get(id) : undefined;
       if (id) {
         pending.delete(id);
       }
+      startTimeoutCheck();
       return originalAppend(
         persistToolResult(nextMessage, {
           toolCallId: id ?? undefined,
-          toolName,
+          toolName: toolCall?.name,
           isSynthetic: false,
         }) as never,
       );
@@ -129,41 +224,37 @@ export function installSessionToolResultGuard(
       nextRole === "assistant"
         ? extractAssistantToolCalls(nextMessage as Extract<AgentMessage, { role: "assistant" }>)
         : [];
-
     if (allowSyntheticToolResults) {
-      // If previous tool calls are still pending, flush before non-tool results.
       if (pending.size > 0 && (toolCalls.length === 0 || nextRole !== "assistant")) {
         flushPendingToolResults();
       }
-      // If new tool calls arrive while older ones are pending, flush the old ones first.
       if (pending.size > 0 && toolCalls.length > 0) {
         flushPendingToolResults();
       }
     }
-
     const result = originalAppend(nextMessage as never);
-
     const sessionFile = (
       sessionManager as { getSessionFile?: () => string | null }
     ).getSessionFile?.();
     if (sessionFile) {
       emitSessionTranscriptUpdate(sessionFile);
     }
-
     if (toolCalls.length > 0) {
       for (const call of toolCalls) {
-        pending.set(call.id, call.name);
+        pending.set(call.id, {
+          name: call.name,
+          deadline: Date.now() + DEFAULT_TOOL_TIMEOUT_MS,
+        });
       }
+      startTimeoutCheck();
     }
-
     return result;
   };
 
-  // Monkey-patch appendMessage with our guarded version.
   sessionManager.appendMessage = guardedAppend as SessionManager["appendMessage"];
-
   return {
     flushPendingToolResults,
     getPendingIds: () => Array.from(pending.keys()),
+    getPendingDeadlines,
   };
 }
