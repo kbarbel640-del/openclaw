@@ -25,7 +25,7 @@ import {
  * This is the preferred adapter for the web UI as it uses the same
  * connection as chat and other features.
  *
- * NOTE: Requires gateway backend to implement worktree.* RPC methods.
+ * The gateway already registers worktree.* RPC handlers with proper scopes.
  */
 export function createWorktreeGatewayAdapter(): WorktreeAdapter {
   return {

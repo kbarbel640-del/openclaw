@@ -7,8 +7,9 @@
  * - Writing files
  * - File operations (move, delete, mkdir)
  *
- * NOTE: These gateway RPC methods need to be implemented on the backend.
- * Currently, the gateway does not have worktree.* methods registered.
+ * The gateway registers worktree.* RPC handlers (server-methods.ts) with
+ * operator.read / operator.write scopes. They are callable but not yet
+ * listed in BASE_METHODS (server-methods-list.ts).
  */
 
 import { getGatewayClient } from "./gateway-client";

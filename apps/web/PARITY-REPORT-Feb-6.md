@@ -287,21 +287,27 @@ The new `apps/web/` UI has **strong scaffolding** (routes, components, API adapt
 
 ---
 
-### 16. Filesystem/Worktree UI is mock-only
+### 16. Filesystem/Worktree UI is mock-only (NOT backend-blocked)
 
 | Field | Value |
 |-------|-------|
-| **Complexity** | 7/10 (depends on backend) |
-| **Impact** | 3/10 |
+| **Complexity** | 5/10 |
+| **Impact** | 4/10 |
 | **Analyses** | #1-12, #2-10 |
 
-**Problem:** `apps/web/src/integrations/worktree/` has explicit `mock.ts` and notes that `worktree.*` RPCs are not registered on the gateway. The `/filesystem` route uses mock file trees.
+**Problem:** `apps/web/src/integrations/worktree/` has `mock.ts` and ~~notes that `worktree.*` RPCs are not registered on the gateway~~ (stale comment, now corrected). The `/filesystem` route uses mock file trees instead of the gateway adapter.
 
-**Proposed fix:** This is **backend-blocked**. Options:
-- **Option A:** Register `worktree.*` RPCs on the gateway (requires backend work)
-- **Option B:** Use `agent.files.*` or similar existing RPCs if available
-- **Option C:** Defer this feature and hide the route in production
-- **Recommended:** Option C for now, with Option A tracked as a backend task
+**Verification (2026-02-06):** The gateway **does** register all 6 worktree RPCs:
+- `worktree.list`, `worktree.read` (scope: `operator.read`)
+- `worktree.write`, `worktree.delete`, `worktree.move`, `worktree.mkdir` (scope: `operator.write`)
+- Handlers: imported and spread in `src/gateway/server-methods.ts` (lines 35, 243)
+- Note: these methods are missing from `BASE_METHODS` in `server-methods-list.ts`, so `listGatewayMethods()` won't advertise them, but they are callable.
+- The stale "not registered" comments in `lib/api/worktree.ts` and `integrations/worktree/gateway.ts` have been corrected.
+
+**Proposed fix:**
+1. Switch `/filesystem` route from mock adapter to `createWorktreeGatewayAdapter()` (already implemented in `integrations/worktree/gateway.ts`)
+2. Add `worktree.*` methods to `BASE_METHODS` in `server-methods-list.ts` so they appear in method discovery
+3. Verify request/response shapes match between gateway handler and web UI types
 
 ---
 
@@ -347,6 +353,19 @@ The new `apps/web/` UI has **strong scaffolding** (routes, components, API adapt
 3. **Phase 3:** Build missing API adapters (automations, logs, presence, sessions)
 4. **Phase 4:** Remove mock data files entirely once all routes are wired
 
+### `BASE_METHODS` Omission Pattern
+Several handler groups are **registered and callable** in `server-methods.ts` but **omitted from `BASE_METHODS`** in `server-methods-list.ts`, making them invisible to `listGatewayMethods()`:
+
+| Handler Group | Methods Registered | In BASE_METHODS? |
+|---|---|---|
+| `worktreeHandlers` | `worktree.{list,read,write,delete,move,mkdir}` | No |
+| `automationsHandlers` | `automations.{list,history,create,update,delete,run,cancel}` | No |
+| `securityHandlers` | `security.{getState,getHistory,unlock,lock,setupPassword,changePassword,disable,setup2fa,verify2fa,disable2fa}` | No |
+| `tokensHandlers` | `tokens.{list,create,revoke}` | No |
+| `auditHandlers` | `audit.query` | No |
+
+This means these RPCs work at runtime but won't appear in any client-side method discovery. Consider adding them to `BASE_METHODS` as part of a follow-up task.
+
 ### Shared Infrastructure Needs
 Several items would benefit from shared work:
 - **Unified gateway connection state** in `GatewayProvider` with auto-reconnect
@@ -376,7 +395,7 @@ Several items would benefit from shared work:
 | 15 | Onboarding validation | 4 | 4 | **P3** |
 | 17 | Event coverage | 5 | 4 | **P3** |
 | 18 | Cron RPC alignment | 2 | 3 | **P3** |
-| 16 | Filesystem/Worktree | 7 | 3 | **P3 (blocked)** |
+| 16 | Filesystem/Worktree | 5 | 4 | **P2** |
 
 ---
 
