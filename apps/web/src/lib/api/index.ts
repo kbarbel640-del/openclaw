@@ -217,3 +217,27 @@ export {
   type SkillInstallParams,
   type SkillInstallResult,
 } from "./skills";
+
+// Nodes, Devices, and Exec Approvals API functions
+export {
+  listNodes,
+  listDevices,
+  approveDevice,
+  rejectDevice,
+  rotateDeviceToken,
+  revokeDeviceToken,
+  getExecApprovals,
+  setExecApprovals,
+  type NodeEntry,
+  type NodeListResult,
+  type PairedDevice,
+  type PendingDevice,
+  type DeviceTokenSummary,
+  type DevicePairingList,
+  type ExecApprovalsSnapshot,
+  type ExecApprovalsFile,
+  type ExecApprovalsDefaults,
+  type ExecApprovalsAgent,
+  type ExecApprovalsAllowlistEntry,
+  type NodeBindings,
+} from "./nodes";

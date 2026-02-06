@@ -219,3 +219,24 @@ export {
   skillKeys,
 } from "./useSkills";
 export type { SkillStatusEntry, SkillsStatusReport } from "./useSkills";
+
+// Nodes, Devices, Exec Approvals
+export {
+  useNodes,
+  useDevices,
+  useExecApprovals,
+  nodeKeys,
+} from "./useNodes";
+export type {
+  NodeEntry,
+  NodeListResult,
+  DevicePairingList,
+  PairedDevice,
+  PendingDevice,
+  DeviceTokenSummary,
+  ExecApprovalsSnapshot,
+  ExecApprovalsFile,
+  ExecApprovalsDefaults,
+  ExecApprovalsAgent,
+  ExecApprovalsAllowlistEntry,
+} from "./useNodes";

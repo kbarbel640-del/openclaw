@@ -5,19 +5,26 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/useUIStore";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import { useNodes, useDevices, useExecApprovals } from "@/hooks/queries/useNodes";
+import { useAgents } from "@/hooks/queries/useAgents";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  useApproveDevice,
+  useRejectDevice,
+  useRotateDeviceToken,
+  useRevokeDeviceToken,
+  useSaveExecApprovals,
+} from "@/hooks/mutations/useNodeMutations";
+
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -26,629 +33,758 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DetailPanel } from "@/components/composed/DetailPanel";
 import {
-  Monitor,
-  Smartphone,
-  Tablet,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import { NodeCard } from "@/components/domain/nodes/NodeCard";
+import { DeviceCard } from "@/components/domain/nodes/DeviceCard";
+import { DefaultsEditor } from "@/components/domain/nodes/DefaultsEditor";
+import { AgentPermissionsSheet } from "@/components/domain/nodes/AgentPermissionsSheet";
+import { InheritedBadge } from "@/components/domain/nodes/InheritedValue";
+
+import type {
+  ExecApprovalsAgent,
+  ExecApprovalsDefaults,
+  ExecApprovalsFile,
+  NodeEntry,
+} from "@/lib/api/nodes";
+
+import {
+  Shield,
   Server,
-  Laptop,
-  Plus,
-  Settings,
-  Wifi,
-  WifiOff,
-  QrCode,
-  Check,
+  Fingerprint,
+  ChevronDown,
   ChevronRight,
+  Search,
+  RefreshCw,
+  Check,
   Clock,
-  Unlink,
-  MessageSquare,
-  Bell,
-  Calendar,
-  Brain,
+  AlertTriangle,
+  Wifi,
+  ListChecks,
 } from "lucide-react";
 
 export const Route = createFileRoute("/nodes/")({
   component: NodesPage,
 });
 
-type DeviceType = "desktop" | "laptop" | "mobile" | "tablet" | "server";
-type DeviceStatus = "online" | "offline" | "syncing";
+// ---------------------------------------------------------------------------
+// Collapsible section helper
+// ---------------------------------------------------------------------------
 
-interface DeviceCapability {
-  id: string;
-  name: string;
-  enabled: boolean;
-  icon: React.ReactNode;
+function CollapsibleSection({
+  title,
+  description,
+  icon: Icon,
+  count,
+  defaultOpen = true,
+  children,
+  action,
+}: {
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  count?: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  const [open, setOpen] = React.useState(defaultOpen);
+
+  return (
+    <section className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-3 w-full text-left group"
+      >
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+          <Icon className="h-4 w-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-foreground">{title}</h2>
+            {count !== undefined && (
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                {count}
+              </Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        {action && (
+          <div
+            className="shrink-0"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {action}
+          </div>
+        )}
+        <motion.div
+          animate={{ rotate: open ? 0 : -90 }}
+          transition={{ duration: 0.15 }}
+          className="shrink-0"
+        >
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        </motion.div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
+  );
 }
 
-interface Device {
-  id: string;
-  name: string;
-  type: DeviceType;
-  status: DeviceStatus;
-  lastSeen: Date;
-  paired: Date;
-  capabilities: string[];
-  allowlist: string[];
+// ---------------------------------------------------------------------------
+// Agent permission summary row (click to open sheet)
+// ---------------------------------------------------------------------------
+
+function AgentPermissionRow({
+  agentId,
+  agentName,
+  defaults,
+  overrides,
+  onClick,
+}: {
+  agentId: string;
+  agentName?: string;
+  defaults: ExecApprovalsDefaults;
+  overrides: ExecApprovalsAgent;
+  onClick: () => void;
+}) {
+  const hasSecurity = overrides.security !== undefined;
+  const hasAsk = overrides.ask !== undefined;
+  const hasAskFallback = overrides.askFallback !== undefined;
+  const hasAutoAllow = overrides.autoAllowSkills !== undefined;
+  const hasAllowlist = (overrides.allowlist ?? []).length > 0;
+
+  const overrideCount = [hasSecurity, hasAsk, hasAskFallback, hasAutoAllow, hasAllowlist].filter(
+    Boolean,
+  ).length;
+
+  const effectiveSecurity = overrides.security ?? defaults.security ?? "deny";
+  const effectiveAsk = overrides.ask ?? defaults.ask ?? "on-miss";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center justify-between w-full py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors text-left group"
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center shrink-0">
+          <span className="text-xs font-medium text-muted-foreground">
+            {(agentName ?? agentId).charAt(0).toUpperCase()}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-medium truncate">
+            {agentName ?? agentId}
+          </div>
+          <div className="text-[10px] text-muted-foreground font-mono">
+            {agentId}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Quick summary chips */}
+        <div className="hidden sm:flex items-center gap-1.5">
+          <Badge
+            variant={hasSecurity ? "default" : "outline"}
+            className={cn(
+              "text-[10px] h-5 px-1.5",
+              !hasSecurity && "text-muted-foreground",
+            )}
+          >
+            {effectiveSecurity}
+          </Badge>
+          <Badge
+            variant={hasAsk ? "default" : "outline"}
+            className={cn(
+              "text-[10px] h-5 px-1.5",
+              !hasAsk && "text-muted-foreground",
+            )}
+          >
+            ask: {effectiveAsk}
+          </Badge>
+          {hasAllowlist && (
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 gap-0.5">
+              <ListChecks className="h-2.5 w-2.5" />
+              {overrides.allowlist!.length}
+            </Badge>
+          )}
+        </div>
+
+        {overrideCount > 0 && (
+          <Badge variant="secondary" className="text-[10px] h-5 px-1.5 sm:hidden">
+            {overrideCount} override{overrideCount !== 1 ? "s" : ""}
+          </Badge>
+        )}
+
+        {overrideCount === 0 && (
+          <InheritedBadge />
+        )}
+
+        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </button>
+  );
 }
 
-// Mock device data
-const initialDevices: Device[] = [
-  {
-    id: "1",
-    name: "MacBook Pro",
-    type: "laptop",
-    status: "online",
-    lastSeen: new Date(),
-    paired: new Date(Date.now() - 2592000000),
-    capabilities: ["messaging", "notifications", "calendar", "memory"],
-    allowlist: ["send.message", "list.agents", "create.goal"],
-  },
-  {
-    id: "2",
-    name: "iPhone 15 Pro",
-    type: "mobile",
-    status: "online",
-    lastSeen: new Date(Date.now() - 300000),
-    paired: new Date(Date.now() - 1209600000),
-    capabilities: ["messaging", "notifications"],
-    allowlist: ["send.message"],
-  },
-  {
-    id: "3",
-    name: "iPad Pro",
-    type: "tablet",
-    status: "offline",
-    lastSeen: new Date(Date.now() - 86400000),
-    paired: new Date(Date.now() - 604800000),
-    capabilities: ["messaging", "notifications", "calendar"],
-    allowlist: ["send.message", "list.agents"],
-  },
-  {
-    id: "4",
-    name: "Home Server",
-    type: "server",
-    status: "syncing",
-    lastSeen: new Date(Date.now() - 60000),
-    paired: new Date(Date.now() - 5184000000),
-    capabilities: ["messaging", "notifications", "calendar", "memory"],
-    allowlist: ["*"],
-  },
-];
+// ---------------------------------------------------------------------------
+// Pending device card
+// ---------------------------------------------------------------------------
 
-const allCapabilities: DeviceCapability[] = [
-  { id: "messaging", name: "Messaging", enabled: false, icon: <MessageSquare className="h-4 w-4" /> },
-  { id: "notifications", name: "Notifications", enabled: false, icon: <Bell className="h-4 w-4" /> },
-  { id: "calendar", name: "Calendar Access", enabled: false, icon: <Calendar className="h-4 w-4" /> },
-  { id: "memory", name: "Memory Sync", enabled: false, icon: <Brain className="h-4 w-4" /> },
-];
+function PendingDeviceCard({
+  device,
+  onApprove,
+  onReject,
+}: {
+  device: { requestId: string; deviceId: string; displayName?: string; role?: string; remoteIp?: string };
+  onApprove: (requestId: string) => void;
+  onReject: (requestId: string) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-warning/30 bg-warning/5 p-4 space-y-3">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+          <div>
+            <div className="text-sm font-medium">
+              {device.displayName ?? "Unknown device"}
+            </div>
+            <code className="text-[10px] text-muted-foreground font-mono">
+              {device.deviceId.slice(0, 12)}...
+            </code>
+          </div>
+        </div>
+        {device.role && (
+          <Badge variant="outline" className="text-[10px]">
+            {device.role}
+          </Badge>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          onClick={() => onReject(device.requestId)}
+        >
+          Reject
+        </Button>
+        <Button
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => onApprove(device.requestId)}
+        >
+          <Check className="h-3 w-3 mr-1" />
+          Approve
+        </Button>
+      </div>
+    </div>
+  );
+}
 
-const availableCommands = [
-  "send.message",
-  "list.agents",
-  "create.goal",
-  "update.goal",
-  "trigger.ritual",
-  "search.memory",
-  "list.conversations",
-  "create.reminder",
-];
+// ---------------------------------------------------------------------------
+// Loading skeleton
+// ---------------------------------------------------------------------------
+
+function SectionSkeleton() {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-8 w-48" />
+      <div className="space-y-2">
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <Skeleton className="h-16 w-full rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 
 function NodesPage() {
   const powerUserMode = useUIStore((s) => s.powerUserMode);
-  const [devices, setDevices] = React.useState<Device[]>(initialDevices);
-  const [selectedDevice, setSelectedDevice] = React.useState<Device | null>(null);
-  const [isConfigOpen, setIsConfigOpen] = React.useState(false);
-  const [isPairingOpen, setIsPairingOpen] = React.useState(false);
-  const [pairingStep, setPairingStep] = React.useState(1);
-  const [pairingCode, setPairingCode] = React.useState("");
-  const [unpairDialogOpen, setUnpairDialogOpen] = React.useState(false);
-  const [deviceToUnpair, setDeviceToUnpair] = React.useState<Device | null>(null);
-  const [baseNow] = React.useState(() => Date.now());
 
-  // Config panel state
-  const [configName, setConfigName] = React.useState("");
-  const [configCapabilities, setConfigCapabilities] = React.useState<string[]>([]);
-  const [configAllowlist, setConfigAllowlist] = React.useState("");
+  // Approvals target: gateway or a specific node
+  const [approvalsTarget, setApprovalsTarget] = React.useState<"gateway" | "node">("gateway");
+  const [approvalsNodeId, setApprovalsNodeId] = React.useState<string | undefined>(undefined);
+
+  // Data queries
+  const nodesQuery = useNodes();
+  const devicesQuery = useDevices();
+  const approvalsQuery = useExecApprovals(
+    approvalsTarget,
+    approvalsTarget === "node" ? approvalsNodeId : undefined,
+  );
+  const agentsQuery = useAgents();
+
+  // Mutations
+  const approveDevice = useApproveDevice();
+  const rejectDevice = useRejectDevice();
+  const rotateToken = useRotateDeviceToken();
+  const revokeToken = useRevokeDeviceToken();
+  const saveApprovals = useSaveExecApprovals();
+
+  // Local state
+  const [selectedAgentId, setSelectedAgentId] = React.useState<string | null>(null);
+  const [agentSearch, setAgentSearch] = React.useState("");
+  const [confirmRevoke, setConfirmRevoke] = React.useState<{
+    deviceId: string;
+    role: string;
+  } | null>(null);
 
   if (!powerUserMode) {
     return <Navigate to="/" />;
   }
 
-  const getDeviceIcon = (type: DeviceType) => {
-    switch (type) {
-      case "desktop":
-        return <Monitor className="h-6 w-6" />;
-      case "laptop":
-        return <Laptop className="h-6 w-6" />;
-      case "mobile":
-        return <Smartphone className="h-6 w-6" />;
-      case "tablet":
-        return <Tablet className="h-6 w-6" />;
-      case "server":
-        return <Server className="h-6 w-6" />;
-    }
-  };
+  // Derived data
+  const nodes = nodesQuery.data ?? [];
+  const devices = devicesQuery.data ?? { pending: [], paired: [] };
+  const snapshot = approvalsQuery.data;
+  const file = snapshot?.file ?? {};
+  const defaults: ExecApprovalsDefaults = file.defaults ?? {};
+  const agentApprovals = file.agents ?? {};
+  const agents = agentsQuery.data ?? [];
+  const execNodes = nodes.filter((n) =>
+    n.commands.includes("system.run"),
+  );
 
-  const getStatusBadge = (status: DeviceStatus) => {
-    switch (status) {
-      case "online":
-        return (
-          <Badge variant="success" className="gap-1">
-            <Wifi className="h-3 w-3" />
-            Online
-          </Badge>
-        );
-      case "offline":
-        return (
-          <Badge variant="secondary" className="gap-1">
-            <WifiOff className="h-3 w-3" />
-            Offline
-          </Badge>
-        );
-      case "syncing":
-        return (
-          <Badge className="gap-1">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            >
-              <Wifi className="h-3 w-3" />
-            </motion.div>
-            Syncing
-          </Badge>
-        );
-    }
-  };
+  // Build a merged list of agent IDs (from config agents + approval overrides)
+  const allAgentIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    agents.forEach((a) => ids.add(a.id));
+    Object.keys(agentApprovals).forEach((id) => ids.add(id));
+    return Array.from(ids).sort();
+  }, [agents, agentApprovals]);
 
-  const formatLastSeen = (date: Date) => {
-    const diff = baseNow - date.getTime();
-    if (diff < 60000) {return "Just now";}
-    if (diff < 3600000) {return `${Math.floor(diff / 60000)}m ago`;}
-    if (diff < 86400000) {return `${Math.floor(diff / 3600000)}h ago`;}
-    return `${Math.floor(diff / 86400000)}d ago`;
-  };
+  const filteredAgentIds = React.useMemo(() => {
+    if (!agentSearch.trim()) return allAgentIds;
+    const q = agentSearch.toLowerCase();
+    return allAgentIds.filter((id) => {
+      const name = agents.find((a) => a.id === id)?.name ?? id;
+      return id.toLowerCase().includes(q) || name.toLowerCase().includes(q);
+    });
+  }, [allAgentIds, agentSearch, agents]);
 
-  const openConfig = (device: Device) => {
-    setSelectedDevice(device);
-    setConfigName(device.name);
-    setConfigCapabilities([...device.capabilities]);
-    setConfigAllowlist(device.allowlist.join("\n"));
-    setIsConfigOpen(true);
-  };
+  // Selected agent data for the sheet
+  const selectedAgent = selectedAgentId
+    ? agents.find((a) => a.id === selectedAgentId)
+    : null;
+  const selectedAgentOverrides: ExecApprovalsAgent =
+    selectedAgentId ? (agentApprovals[selectedAgentId] ?? {}) : {};
 
-  const saveConfig = () => {
-    if (!selectedDevice) {return;}
+  // Nodes that could be targeted for exec approvals
+  const targetableNodes = nodes.filter((n) =>
+    n.caps.includes("exec") && n.connected,
+  );
 
-    setDevices((prev) =>
-      prev.map((d) =>
-        d.id === selectedDevice.id
-          ? {
-              ...d,
-              name: configName,
-              capabilities: configCapabilities,
-              allowlist: configAllowlist.split("\n").filter(Boolean),
-            }
-          : d
-      )
-    );
-    setIsConfigOpen(false);
-    setSelectedDevice(null);
-  };
-
-  const toggleCapability = (capId: string) => {
-    setConfigCapabilities((prev) =>
-      prev.includes(capId)
-        ? prev.filter((c) => c !== capId)
-        : [...prev, capId]
-    );
-  };
-
-  const startPairing = () => {
-    setPairingCode(Math.random().toString(36).substring(2, 8).toUpperCase());
-    setPairingStep(1);
-    setIsPairingOpen(true);
-  };
-
-  const confirmPairing = () => {
-    setPairingStep(2);
-    // Simulate pairing delay
-    setTimeout(() => setPairingStep(3), 2000);
-  };
-
-  const finishPairing = () => {
-    const newDevice: Device = {
-      id: `device-${Date.now()}`,
-      name: "New Device",
-      type: "mobile",
-      status: "online",
-      lastSeen: new Date(),
-      paired: new Date(),
-      capabilities: ["messaging", "notifications"],
-      allowlist: ["send.message"],
+  // Handlers
+  const handleSaveDefaults = (newDefaults: ExecApprovalsDefaults) => {
+    if (!snapshot) return;
+    const updatedFile: ExecApprovalsFile = {
+      ...file,
+      defaults: newDefaults,
     };
-    setDevices((prev) => [...prev, newDevice]);
-    setIsPairingOpen(false);
-    setPairingStep(1);
+    saveApprovals.mutate({
+      file: updatedFile,
+      hash: snapshot.hash,
+      target: approvalsTarget,
+      nodeId: approvalsTarget === "node" ? approvalsNodeId : undefined,
+    });
   };
 
-  const confirmUnpair = (device: Device) => {
-    setDeviceToUnpair(device);
-    setUnpairDialogOpen(true);
-  };
-
-  const handleUnpair = () => {
-    if (deviceToUnpair) {
-      setDevices((prev) => prev.filter((d) => d.id !== deviceToUnpair.id));
-      setUnpairDialogOpen(false);
-      setDeviceToUnpair(null);
-      if (selectedDevice?.id === deviceToUnpair.id) {
-        setIsConfigOpen(false);
-        setSelectedDevice(null);
-      }
+  const handleSaveAgentOverrides = (
+    agentId: string,
+    overrides: ExecApprovalsAgent,
+  ) => {
+    if (!snapshot) return;
+    const updatedAgents = { ...agentApprovals };
+    // If all values are undefined/empty, remove the agent entry entirely
+    const isEmpty =
+      overrides.security === undefined &&
+      overrides.ask === undefined &&
+      overrides.askFallback === undefined &&
+      overrides.autoAllowSkills === undefined &&
+      (!overrides.allowlist || overrides.allowlist.length === 0);
+    if (isEmpty) {
+      delete updatedAgents[agentId];
+    } else {
+      updatedAgents[agentId] = overrides;
     }
+    const updatedFile: ExecApprovalsFile = {
+      ...file,
+      agents: updatedAgents,
+    };
+    saveApprovals.mutate({
+      file: updatedFile,
+      hash: snapshot.hash,
+      target: approvalsTarget,
+      nodeId: approvalsTarget === "node" ? approvalsNodeId : undefined,
+    });
   };
+
+  const handleConfirmRevoke = () => {
+    if (!confirmRevoke) return;
+    revokeToken.mutate(confirmRevoke);
+    setConfirmRevoke(null);
+  };
+
+  const isLoading =
+    nodesQuery.isLoading || devicesQuery.isLoading || approvalsQuery.isLoading;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Header */}
+      <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+        {/* Page header */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="mb-8"
+          className="flex items-center justify-between"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                <Monitor className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                  Connected Nodes
-                </h1>
-                <p className="text-muted-foreground">
-                  Manage paired devices and their capabilities
-                </p>
-              </div>
-            </div>
-            <Button onClick={startPairing} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Pair Device
-            </Button>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Nodes & Permissions
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Manage connected nodes, devices, and execution policies.
+            </p>
           </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => {
+                    nodesQuery.refetch();
+                    devicesQuery.refetch();
+                    approvalsQuery.refetch();
+                  }}
+                >
+                  <RefreshCw
+                    className={cn(
+                      "h-3.5 w-3.5",
+                      isLoading && "animate-spin",
+                    )}
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh all</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </motion.div>
 
-        {/* Device Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <AnimatePresence>
-            {devices.map((device) => (
-              <motion.div
-                key={device.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                layout
-              >
-                <Card
-                  className={cn(
-                    "cursor-pointer transition-all hover:shadow-md",
-                    device.status === "offline" && "opacity-70"
-                  )}
-                  onClick={() => openConfig(device)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            "flex h-12 w-12 items-center justify-center rounded-xl",
-                            device.status === "online"
-                              ? "bg-success/10 text-success"
-                              : device.status === "syncing"
-                                ? "bg-primary/10 text-primary"
-                                : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {getDeviceIcon(device.type)}
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{device.name}</CardTitle>
-                          <CardDescription className="capitalize">
-                            {device.type}
-                          </CardDescription>
-                        </div>
-                      </div>
-                      {getStatusBadge(device.status)}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Last Seen */}
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4" />
-                      <span>Last seen {formatLastSeen(device.lastSeen)}</span>
-                    </div>
-
-                    {/* Capabilities */}
-                    <div className="flex flex-wrap gap-1">
-                      {device.capabilities.map((cap) => (
-                        <Badge key={cap} variant="secondary" className="text-xs">
-                          {cap}
-                        </Badge>
-                      ))}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openConfig(device);
-                        }}
-                        className="gap-1"
-                      >
-                        <Settings className="h-4 w-4" />
-                        Configure
-                      </Button>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-
-        {/* Device Config Panel */}
-        <DetailPanel
-          open={isConfigOpen}
-          onClose={() => setIsConfigOpen(false)}
-          title="Device Configuration"
-          width="lg"
-        >
-          {selectedDevice && (
-            <div className="space-y-6">
-              {/* Device Info */}
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
-                <div
-                  className={cn(
-                    "flex h-14 w-14 items-center justify-center rounded-xl",
-                    selectedDevice.status === "online"
-                      ? "bg-success/10 text-success"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {getDeviceIcon(selectedDevice.type)}
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium">{selectedDevice.name}</div>
-                  <div className="text-sm text-muted-foreground capitalize">
-                    {selectedDevice.type} - Paired{" "}
-                    {selectedDevice.paired.toLocaleDateString()}
-                  </div>
-                </div>
-                {getStatusBadge(selectedDevice.status)}
-              </div>
-
-              {/* Name */}
-              <div className="space-y-2">
-                <Label htmlFor="device-name">Device Name</Label>
-                <Input
-                  id="device-name"
-                  value={configName}
-                  onChange={(e) => setConfigName(e.target.value)}
-                  placeholder="Enter device name"
-                />
-              </div>
-
-              {/* Capabilities */}
-              <div className="space-y-3">
-                <Label>Capabilities</Label>
-                <div className="space-y-2">
-                  {allCapabilities.map((cap) => (
-                    <div
-                      key={cap.id}
-                      className="flex items-center justify-between p-3 rounded-lg border"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
-                          {cap.icon}
-                        </div>
-                        <span className="font-medium">{cap.name}</span>
-                      </div>
-                      <Switch
-                        checked={configCapabilities.includes(cap.id)}
-                        onCheckedChange={() => toggleCapability(cap.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Command Allowlist */}
-              <div className="space-y-2">
-                <Label htmlFor="allowlist">Command Allowlist</Label>
-                <div className="text-xs text-muted-foreground mb-2">
-                  Enter one command per line. Use * to allow all commands.
-                </div>
-                <Textarea
-                  id="allowlist"
-                  value={configAllowlist}
-                  onChange={(e) => setConfigAllowlist(e.target.value)}
-                  placeholder="send.message\nlist.agents"
-                  className="font-mono text-sm min-h-[120px]"
-                />
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {availableCommands.map((cmd) => (
-                    <Button
-                      key={cmd}
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-7"
-                      onClick={() => {
-                        const current = configAllowlist.split("\n").filter(Boolean);
-                        if (!current.includes(cmd)) {
-                          setConfigAllowlist([...current, cmd].join("\n"));
+        {isLoading ? (
+          <div className="space-y-8">
+            <SectionSkeleton />
+            <SectionSkeleton />
+            <SectionSkeleton />
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {/* ============================================================
+                Section 1: Exec Approvals (Permissions)
+                ============================================================ */}
+            <CollapsibleSection
+              title="Execution Policy"
+              description="Security, prompt, and allowlist settings for agent commands"
+              icon={Shield}
+              count={allAgentIds.length}
+            >
+              <div className="space-y-5">
+                {/* Target selector: Gateway vs Node */}
+                {targetableNodes.length > 0 && (
+                  <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
+                    <span className="text-xs font-medium text-muted-foreground shrink-0">
+                      Target
+                    </span>
+                    <Select
+                      value={approvalsTarget === "node" && approvalsNodeId ? `node:${approvalsNodeId}` : "gateway"}
+                      onValueChange={(v) => {
+                        if (v === "gateway") {
+                          setApprovalsTarget("gateway");
+                          setApprovalsNodeId(undefined);
+                        } else {
+                          setApprovalsTarget("node");
+                          setApprovalsNodeId(v.replace("node:", ""));
                         }
                       }}
                     >
-                      {cmd}
-                    </Button>
-                  ))}
+                      <SelectTrigger className="h-8 text-sm w-[200px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gateway">Gateway</SelectItem>
+                        {targetableNodes.map((n) => (
+                          <SelectItem key={n.nodeId} value={`node:${n.nodeId}`}>
+                            {n.displayName ?? n.nodeId}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-[10px] text-muted-foreground">
+                      {approvalsTarget === "gateway"
+                        ? "Gateway edits local approvals"
+                        : "Node edits the selected node"}
+                    </span>
+                  </div>
+                )}
+
+                {/* Defaults */}
+                <DefaultsEditor
+                  defaults={defaults}
+                  onSave={handleSaveDefaults}
+                />
+
+                {/* Agent-specific overrides */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Per-Agent Overrides
+                    </span>
+                  </div>
+
+                  {/* Search */}
+                  {allAgentIds.length > 5 && (
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        value={agentSearch}
+                        onChange={(e) => setAgentSearch(e.target.value)}
+                        placeholder="Filter agents..."
+                        className="h-8 pl-8 text-sm"
+                      />
+                    </div>
+                  )}
+
+                  {/* Agent list */}
+                  <div className="rounded-lg border bg-card divide-y divide-border/50">
+                    {filteredAgentIds.length === 0 && (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        {agentSearch
+                          ? "No matching agents"
+                          : "No agents configured"}
+                      </div>
+                    )}
+                    {filteredAgentIds.map((id) => (
+                      <AgentPermissionRow
+                        key={id}
+                        agentId={id}
+                        agentName={agents.find((a) => a.id === id)?.name}
+                        defaults={defaults}
+                        overrides={agentApprovals[id] ?? {}}
+                        onClick={() => setSelectedAgentId(id)}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
+            </CollapsibleSection>
 
-              {/* Actions */}
-              <div className="flex items-center justify-between pt-4 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => confirmUnpair(selectedDevice)}
-                  className="gap-2 text-destructive hover:text-destructive"
-                >
-                  <Unlink className="h-4 w-4" />
-                  Unpair Device
-                </Button>
-                <Button onClick={saveConfig}>Save Changes</Button>
+            {/* ============================================================
+                Section 2: Connected Nodes
+                ============================================================ */}
+            <CollapsibleSection
+              title="Connected Nodes"
+              description="Paired nodes and their capabilities"
+              icon={Server}
+              count={nodes.length}
+            >
+              {nodes.length === 0 ? (
+                <div className="rounded-lg border bg-card p-6 text-center">
+                  <Server className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    No nodes connected
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {nodes.map((node) => (
+                    <NodeCard key={node.nodeId} node={node} />
+                  ))}
+                </div>
+              )}
+
+              {/* Exec node binding */}
+              {execNodes.length > 0 && allAgentIds.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Exec Node Binding
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Pin agents to a specific node when using <code className="bg-muted px-1 rounded">exec host=node</code>.
+                  </p>
+                  <div className="rounded-lg border bg-card divide-y divide-border/50">
+                    {/* Default binding row */}
+                    <div className="flex items-center justify-between py-2.5 px-3">
+                      <div>
+                        <div className="text-sm font-medium">Default binding</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          Used when agents do not override
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-foreground/70">Any node</span>
+                        {execNodes.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            ({execNodes.length} available)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Per-agent bindings */}
+                    {allAgentIds.map((id) => (
+                      <div key={id} className="flex items-center justify-between py-2 px-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Server className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-sm truncate">
+                            {agents.find((a) => a.id === id)?.name ?? id}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-sm text-foreground/70">Any node</span>
+                          <InheritedBadge />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CollapsibleSection>
+
+            {/* ============================================================
+                Section 3: Devices
+                ============================================================ */}
+            <CollapsibleSection
+              title="Devices"
+              description="Pairing requests and role tokens"
+              icon={Fingerprint}
+              count={devices.paired.length}
+              action={
+                devices.pending.length > 0 ? (
+                  <Badge variant="warning" className="text-[10px] gap-1">
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    {devices.pending.length} pending
+                  </Badge>
+                ) : undefined
+              }
+            >
+              <div className="space-y-4">
+                {/* Pending requests */}
+                {devices.pending.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Pending Requests
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {devices.pending.map((d) => (
+                        <PendingDeviceCard
+                          key={d.requestId}
+                          device={d}
+                          onApprove={(id) => approveDevice.mutate(id)}
+                          onReject={(id) => rejectDevice.mutate(id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Paired devices */}
+                {devices.paired.length === 0 ? (
+                  <div className="rounded-lg border bg-card p-6 text-center">
+                    <Fingerprint className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No paired devices
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {devices.paired.map((d) => (
+                      <DeviceCard
+                        key={d.deviceId}
+                        device={d}
+                        onRotateToken={(deviceId, role, scopes) =>
+                          rotateToken.mutate({ deviceId, role, scopes })
+                        }
+                        onRevokeToken={(deviceId, role) =>
+                          setConfirmRevoke({ deviceId, role })
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
-        </DetailPanel>
+            </CollapsibleSection>
+          </div>
+        )}
 
-        {/* Pairing Wizard Modal */}
-        <Dialog open={isPairingOpen} onOpenChange={setIsPairingOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Pair New Device</DialogTitle>
-              <DialogDescription>
-                {pairingStep === 1 && "Enter this code on your device to pair"}
-                {pairingStep === 2 && "Waiting for device confirmation..."}
-                {pairingStep === 3 && "Device paired successfully!"}
-              </DialogDescription>
-            </DialogHeader>
+        {/* ================================================================
+            Agent Permissions Sheet (slide-out)
+            ================================================================ */}
+        <AgentPermissionsSheet
+          open={!!selectedAgentId}
+          onOpenChange={(open) => {
+            if (!open) setSelectedAgentId(null);
+          }}
+          agentId={selectedAgentId ?? ""}
+          agentName={selectedAgent?.name}
+          defaults={defaults}
+          agentOverrides={selectedAgentOverrides}
+          onSave={handleSaveAgentOverrides}
+        />
 
-            <div className="py-6">
-              <AnimatePresence mode="wait">
-                {pairingStep === 1 && (
-                  <motion.div
-                    key="step1"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="space-y-6"
-                  >
-                    {/* QR Code placeholder */}
-                    <div className="flex flex-col items-center">
-                      <div className="flex h-48 w-48 items-center justify-center rounded-xl border-2 border-dashed bg-muted">
-                        <QrCode className="h-24 w-24 text-muted-foreground" />
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-4">
-                        Scan QR code or enter code manually
-                      </p>
-                    </div>
-
-                    {/* Pairing Code */}
-                    <div className="text-center">
-                      <div className="text-3xl font-mono font-bold tracking-widest text-primary">
-                        {pairingCode}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {pairingStep === 2 && (
-                  <motion.div
-                    key="step2"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="flex flex-col items-center py-8"
-                  >
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: "linear",
-                      }}
-                    >
-                      <Wifi className="h-16 w-16 text-primary" />
-                    </motion.div>
-                    <p className="text-muted-foreground mt-4">
-                      Confirming pairing...
-                    </p>
-                  </motion.div>
-                )}
-
-                {pairingStep === 3 && (
-                  <motion.div
-                    key="step3"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="flex flex-col items-center py-8"
-                  >
-                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-success/10">
-                      <Check className="h-10 w-10 text-success" />
-                    </div>
-                    <p className="text-lg font-medium mt-4">
-                      Device Paired Successfully!
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      You can now configure device capabilities
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <DialogFooter>
-              {pairingStep === 1 && (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsPairingOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={confirmPairing}>
-                    Device Ready
-                  </Button>
-                </>
-              )}
-              {pairingStep === 3 && (
-                <Button onClick={finishPairing} className="w-full">
-                  Configure Device
-                </Button>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Unpair Confirmation Dialog */}
-        <Dialog open={unpairDialogOpen} onOpenChange={setUnpairDialogOpen}>
+        {/* ================================================================
+            Revoke Confirmation Dialog
+            ================================================================ */}
+        <Dialog
+          open={!!confirmRevoke}
+          onOpenChange={(open) => {
+            if (!open) setConfirmRevoke(null);
+          }}
+        >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Unpair Device</DialogTitle>
+              <DialogTitle>Revoke Token</DialogTitle>
               <DialogDescription>
-                Are you sure you want to unpair{" "}
+                Are you sure you want to revoke this{" "}
                 <span className="font-medium text-foreground">
-                  {deviceToUnpair?.name}
-                </span>
-                ? You will need to pair it again to restore access.
+                  {confirmRevoke?.role}
+                </span>{" "}
+                token? The device will need to re-authenticate.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => setUnpairDialogOpen(false)}
+                onClick={() => setConfirmRevoke(null)}
               >
                 Cancel
               </Button>
-              <Button variant="destructive" onClick={handleUnpair}>
-                Unpair
+              <Button variant="destructive" onClick={handleConfirmRevoke}>
+                Revoke
               </Button>
             </DialogFooter>
           </DialogContent>
