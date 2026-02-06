@@ -6,4 +6,5 @@ PORT="${PORT:-8080}"
 exec node dist/index.js gateway \
   --allow-unconfigured \
   --bind lan \
-  --port "$PORT"
+  --port "$PORT" \
+  --config /app/openclaw.config.json
