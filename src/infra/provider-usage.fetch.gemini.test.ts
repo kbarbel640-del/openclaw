@@ -159,4 +159,65 @@ describe("fetchGeminiUsage", () => {
         expect(proWindow?.usedPercent).toBe(60);
         expect(proWindow?.resetAt).toBeUndefined();
     });
+
+    it("returns 'Quota exhausted' for 429 with QUOTA_EXHAUSTED reason", async () => {
+        const mockFetch = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>(async () => {
+            return makeResponse(429, {
+                error: {
+                    message: "Quota exceeded",
+                    details: [{ reason: "QUOTA_EXHAUSTED" }],
+                },
+            });
+        });
+
+        const snapshot = await fetchGeminiUsage("token-123", 5000, mockFetch, "google-gemini-cli");
+
+        expect(snapshot.error).toBe("Quota exhausted");
+        expect(snapshot.windows).toHaveLength(0);
+    });
+
+    it("returns 'Rate limited' for 429 with RATE_LIMIT_EXCEEDED reason", async () => {
+        const mockFetch = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>(async () => {
+            return makeResponse(429, {
+                error: {
+                    message: "Rate limit exceeded",
+                    details: [{ reason: "RATE_LIMIT_EXCEEDED" }],
+                },
+            });
+        });
+
+        const snapshot = await fetchGeminiUsage("token-123", 5000, mockFetch, "google-gemini-cli");
+
+        expect(snapshot.error).toBe("Rate limited");
+        expect(snapshot.windows).toHaveLength(0);
+    });
+
+    it("returns 'Quota exceeded' for generic 429", async () => {
+        const mockFetch = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>(async () => {
+            return makeResponse(429, { error: { message: "Too many requests" } });
+        });
+
+        const snapshot = await fetchGeminiUsage("token-123", 5000, mockFetch, "google-gemini-cli");
+
+        expect(snapshot.error).toBe("Quota exceeded");
+    });
+
+    it("marks exhausted models with warning emoji", async () => {
+        const mockFetch = vi.fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>(async () => {
+            return makeResponse(200, {
+                buckets: [
+                    { modelId: "gemini-pro", remainingFraction: 0, resetTime: "2026-01-08T00:00:00Z" },
+                    { modelId: "gemini-flash", remainingFraction: 0.5 },
+                ],
+            });
+        });
+
+        const snapshot = await fetchGeminiUsage("token-123", 5000, mockFetch, "google-gemini-cli");
+
+        expect(snapshot.windows).toHaveLength(2);
+        expect(snapshot.windows[0]?.label).toBe("gemini-pro ⚠️");
+        expect(snapshot.windows[0]?.usedPercent).toBe(100);
+        expect(snapshot.windows[1]?.label).toBe("gemini-flash");
+        expect(snapshot.windows[1]?.usedPercent).toBe(50);
+    });
 });

@@ -10,6 +10,32 @@ type GeminiUsageResponse = {
   buckets?: Array<{ modelId?: string; remainingFraction?: number; resetTime?: string }>;
 };
 
+/**
+ * Parse quota error details from API response
+ */
+function parseQuotaError(status: number, data: unknown): string | undefined {
+  if (status === 401) {
+    return "Token expired";
+  }
+  if (status === 429) {
+    // Try to extract detailed error info
+    const errorData = data as { error?: { message?: string; details?: Array<{ reason?: string }> } };
+    const details = errorData?.error?.details;
+    if (details) {
+      const hasQuotaExhausted = details.some((d) => d.reason === "QUOTA_EXHAUSTED");
+      if (hasQuotaExhausted) {
+        return "Quota exhausted";
+      }
+      const hasRateLimit = details.some((d) => d.reason === "RATE_LIMIT_EXCEEDED");
+      if (hasRateLimit) {
+        return "Rate limited";
+      }
+    }
+    return "Quota exceeded";
+  }
+  return `HTTP ${status}`;
+}
+
 export async function fetchGeminiUsage(
   token: string,
   timeoutMs: number,
@@ -31,11 +57,17 @@ export async function fetchGeminiUsage(
   );
 
   if (!res.ok) {
+    let errorData: unknown;
+    try {
+      errorData = await res.json();
+    } catch {
+      errorData = undefined;
+    }
     return {
       provider,
       displayName: PROVIDER_LABELS[provider],
       windows: [],
-      error: res.status === 401 ? "Token expired" : `HTTP ${res.status}`,
+      error: parseQuotaError(res.status, errorData),
     };
   }
 
@@ -57,7 +89,11 @@ export async function fetchGeminiUsage(
     const frac = bucket.remainingFraction ?? 1;
     const usedPercent = clampPercent((1 - frac) * 100);
 
-    const window: UsageWindow = { label: modelId, usedPercent };
+    // Mark exhausted models with a special label
+    const isExhausted = frac === 0;
+    const label = isExhausted ? `${modelId} ⚠️` : modelId;
+
+    const window: UsageWindow = { label, usedPercent };
     if (bucket.resetTime) {
       const resetMs = Date.parse(bucket.resetTime);
       if (Number.isFinite(resetMs)) {
