@@ -325,7 +325,7 @@ export async function dispatchReplyFromConfig(params: {
               }
               dispatcher.sendBlockReply(payload);
             }
-          : undefined,
+          : params.replyOptions?.onToolStatus,
         onToolResult:
           ctx.ChatType !== "group" && ctx.CommandSource !== "native"
             ? (payload: ReplyPayload) => {

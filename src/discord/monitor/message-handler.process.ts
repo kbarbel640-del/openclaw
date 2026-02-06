@@ -451,13 +451,61 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     });
   }
 
+  // Unified status message: a single Discord message that gets edited in-place for all
+  // interim feedback (tool status, progress timer, smart ack). Prevents message spam.
+  let statusMessageId: string | undefined;
+  let statusChannelId: string | undefined;
+  let statusLastText: string | undefined;
+  let statusSending = false;
+
+  const updateStatusMessage = async (text: string) => {
+    if (statusSending) {
+      return;
+    }
+    if (text === statusLastText) {
+      return;
+    }
+    statusLastText = text;
+    statusSending = true;
+    try {
+      if (statusMessageId && statusChannelId) {
+        await editMessageDiscord(
+          statusChannelId,
+          statusMessageId,
+          { content: text },
+          { rest: client.rest },
+        );
+      } else {
+        const result = await sendMessageDiscord(deliverTarget, text, {
+          token,
+          accountId,
+          rest: client.rest,
+        });
+        statusMessageId = result.messageId !== "unknown" ? result.messageId : undefined;
+        statusChannelId = result.channelId;
+      }
+    } catch (err) {
+      logVerbose(`discord: status message update failed: ${String(err)}`);
+    } finally {
+      statusSending = false;
+    }
+  };
+
+  const deleteStatusMessage = () => {
+    if (statusMessageId && statusChannelId) {
+      deleteMessageDiscord(statusChannelId, statusMessageId, { rest: client.rest }).catch((err) => {
+        logVerbose(`discord: failed to delete status message: ${String(err)}`);
+      });
+      statusMessageId = undefined;
+      statusChannelId = undefined;
+    }
+  };
+
   // Set up periodic progress updates for long-running requests.
-  // Instead of spamming new messages, we edit a single progress message.
+  // Edits the single status message instead of sending new messages.
   const progressUpdates = discordConfig?.progressUpdates;
   let progressInterval: ReturnType<typeof setInterval> | undefined;
   const progressStartTime = Date.now();
-  let progressMessageId: string | undefined;
-  let progressChannelId: string | undefined;
   if (progressUpdates) {
     const intervalSec = typeof progressUpdates === "number" ? Math.max(15, progressUpdates) : 60;
 
@@ -466,32 +514,54 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       const minutes = Math.floor(elapsedSec / 60);
       const seconds = elapsedSec % 60;
       const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${elapsedSec}s`;
-      const progressText = `*Still working... (${timeStr})*`;
-
-      try {
-        if (progressMessageId && progressChannelId) {
-          // Edit the existing progress message
-          await editMessageDiscord(
-            progressChannelId,
-            progressMessageId,
-            { content: progressText },
-            { rest: client.rest },
-          );
-        } else {
-          // Send the first progress message and capture its ID for subsequent edits
-          const result = await sendMessageDiscord(deliverTarget, progressText, {
-            token,
-            accountId,
-            rest: client.rest,
-          });
-          progressMessageId = result.messageId !== "unknown" ? result.messageId : undefined;
-          progressChannelId = result.channelId;
-        }
-      } catch (err) {
-        logVerbose(`discord: progress update failed: ${String(err)}`);
-      }
+      await updateStatusMessage(`*Still working... (${timeStr})*`);
     }, intervalSec * 1000);
   }
+
+  // Tool feedback: instead of sending each tool status as a new block reply,
+  // edit the single status message. This prevents message spam in the channel.
+  const toolFeedbackEnabled = discordConfig?.toolFeedback === true;
+  const onToolStatusDirect = toolFeedbackEnabled
+    ? (info: { toolName: string; toolCallId: string }) => {
+        // Reset the progress timer since we have fresh tool feedback.
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+        const labels: Record<string, string> = {
+          exec: "Running a command",
+          Bash: "Running a command",
+          bash: "Running a command",
+          read_file: "Reading a file",
+          Read: "Reading a file",
+          write_file: "Writing a file",
+          Write: "Writing a file",
+          Edit: "Editing a file",
+          Glob: "Searching files",
+          Grep: "Searching code",
+          web_search: "Searching the web",
+          WebSearch: "Searching the web",
+          WebFetch: "Fetching a webpage",
+          memory_search: "Searching memory",
+          memory_get: "Reading memory",
+          computer_use: "Using the computer",
+          Task: "Running a subagent",
+        };
+        const label = labels[info.toolName] ?? `Using ${info.toolName.replace(/_/g, " ")}`;
+        void updateStatusMessage(`*${label}...*`);
+        // Restart the progress timer so elapsed time updates resume after tool feedback.
+        if (progressUpdates) {
+          const intervalSec =
+            typeof progressUpdates === "number" ? Math.max(15, progressUpdates) : 60;
+          progressInterval = setInterval(async () => {
+            const elapsedSec = Math.round((Date.now() - progressStartTime) / 1000);
+            const minutes = Math.floor(elapsedSec / 60);
+            const seconds = elapsedSec % 60;
+            const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${elapsedSec}s`;
+            await updateStatusMessage(`*Still working... (${timeStr})*`);
+          }, intervalSec * 1000);
+        }
+      }
+    : undefined;
 
   // Start smart acknowledgment generation in parallel (uses Haiku for fast contextual response).
   // Only sends if main response takes longer than the configured delay.
@@ -511,42 +581,17 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   // Set up listener to send smart ack when delay passes (if not cancelled).
   // For simple messages (greetings, etc.), the smart ack IS the full response (not italic).
   // For complex messages, it's an italic interim acknowledgment.
+  // Uses the unified status message so it edits in-place instead of spamming.
   if (smartAckController) {
     void smartAckController.result.then((ackResult) => {
       if (ackResult) {
-        // Smart ack gave the user feedback, so suppress progress messages.
+        // Smart ack gave the user feedback, so suppress progress timer.
         if (progressInterval) {
           clearInterval(progressInterval);
           progressInterval = undefined;
         }
-        // Delete any existing progress message since the smart ack replaces it.
-        if (progressMessageId && progressChannelId) {
-          deleteMessageDiscord(progressChannelId, progressMessageId, { rest: client.rest }).catch(
-            (err) => {
-              logVerbose(
-                `discord: failed to delete progress message after smart ack: ${String(err)}`,
-              );
-            },
-          );
-          progressMessageId = undefined;
-          progressChannelId = undefined;
-        }
-        // Full responses are sent as-is; interim acks are italicized.
         const displayText = ackResult.isFull ? ackResult.text : `*${ackResult.text}*`;
-        deliverDiscordReply({
-          replies: [{ text: displayText }],
-          target: deliverTarget,
-          token,
-          accountId,
-          rest: client.rest,
-          runtime,
-          textLimit,
-          maxLinesPerMessage: discordConfig?.maxLinesPerMessage,
-          tableMode,
-          chunkMode: resolveChunkMode(cfg, "discord", accountId),
-        }).catch((err) => {
-          logVerbose(`discord: smart ack delivery failed: ${String(err)}`);
-        });
+        void updateStatusMessage(displayText);
       }
     });
   }
@@ -562,7 +607,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       // (paragraph-by-paragraph) instead of waiting for the full response.
       disableBlockStreaming:
         typeof discordConfig?.blockStreaming === "boolean" ? !discordConfig.blockStreaming : false,
-      toolFeedback: discordConfig?.toolFeedback === true,
+      // Use the direct onToolStatus callback to edit the status message instead of
+      // sending tool feedback as separate block replies.
+      toolFeedback: false,
+      onToolStatus: onToolStatusDirect,
       onModelSelected,
     },
   });
@@ -572,19 +620,12 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     clearInterval(earlyTypingInterval);
     earlyTypingInterval = undefined;
   }
-  // Clean up progress interval and delete the progress message.
+  // Clean up progress interval and delete the status message.
   if (progressInterval) {
     clearInterval(progressInterval);
     progressInterval = undefined;
   }
-  // Delete the progress message since the real response arrived.
-  if (progressMessageId && progressChannelId) {
-    deleteMessageDiscord(progressChannelId, progressMessageId, { rest: client.rest }).catch(
-      (err) => {
-        logVerbose(`discord: failed to delete progress message: ${String(err)}`);
-      },
-    );
-  }
+  deleteStatusMessage();
   // Cancel smart ack (main response arrived).
   if (smartAckController) {
     smartAckController.cancel();
