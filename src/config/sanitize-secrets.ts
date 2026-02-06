@@ -51,12 +51,15 @@ export function sanitizeConfigSecrets(
     }
 
     // Feishu
-    if (sanitized.channels.feishu) {
-      if (sanitized.channels.feishu.appId) {
-        sanitized.channels.feishu.appId = "{{CONFIG:channels.feishu.appId}}";
+    const feishu = sanitized.channels.feishu as
+      | import("./types.feishu.js").FeishuConfig
+      | undefined;
+    if (feishu) {
+      if (feishu.appId) {
+        feishu.appId = "{{CONFIG:channels.feishu.appId}}";
       }
-      if (sanitized.channels.feishu.appSecret) {
-        sanitized.channels.feishu.appSecret = "{{CONFIG:channels.feishu.appSecret}}";
+      if (feishu.appSecret) {
+        feishu.appSecret = "{{CONFIG:channels.feishu.appSecret}}";
       }
     }
 

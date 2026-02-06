@@ -117,10 +117,13 @@ function loadConfigSecrets(
     };
   }
 
-  if (config.channels?.feishu) {
+  const feishu = config.channels?.feishu as
+    | import("../config/types.feishu.js").FeishuConfig
+    | undefined;
+  if (feishu) {
     channelSecrets.feishu = {
-      appId: config.channels.feishu.appId,
-      appSecret: config.channels.feishu.appSecret,
+      appId: feishu.appId,
+      appSecret: feishu.appSecret,
     };
   }
 
