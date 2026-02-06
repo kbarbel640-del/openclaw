@@ -159,6 +159,12 @@ async function startAccount(ctx: {
 
     // Subscribe to messages
     client.onMessage((message: XmppMessage | XmppRoomMessage) => {
+      const core = getXmppRuntime();
+      core.channel.activity.record({
+        channel: "xmpp",
+        accountId,
+        direction: "inbound",
+      });
       void handleInboundMessage(accountId, message, cfg, log);
     });
 
@@ -839,6 +845,14 @@ export const xmppPlugin: ChannelPlugin<ResolvedXmppAccount> = {
 
       const messageId = await client.sendMessage(to, text, messageType, { mediaUrl });
 
+      // Record outbound activity
+      const core = getXmppRuntime();
+      core.channel.activity.record({
+        channel: "xmpp",
+        accountId: id,
+        direction: "outbound",
+      });
+
       if (mediaUrl) {
         log(
           `[XMPP] Sent ${messageType} message with media to ${to}: ${text.substring(0, 40)}... [${mediaUrl}]`,
@@ -915,6 +929,14 @@ export const xmppPlugin: ChannelPlugin<ResolvedXmppAccount> = {
 
         const messageId = await client.sendMessage(to, messageText, messageType, {
           mediaUrl: finalMediaUrl,
+        });
+
+        // Record outbound activity
+        const core = getXmppRuntime();
+        core.channel.activity.record({
+          channel: "xmpp",
+          accountId: id,
+          direction: "outbound",
         });
 
         log(`[XMPP] Sent ${messageType} message with media to ${to}: ${finalMediaUrl}`);
