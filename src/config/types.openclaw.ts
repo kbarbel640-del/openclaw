@@ -121,3 +121,6 @@ export type ConfigFileSnapshot = {
   warnings: ConfigValidationIssue[];
   legacyIssues: LegacyConfigIssue[];
 };
+
+/** Type alias for backward compatibility; use GenSparxConfig in new code. */
+export type GenSparxConfig = OpenClawConfig;
