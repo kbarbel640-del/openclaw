@@ -1,6 +1,65 @@
 # Changelog
 
-Docs: https://docs.openclaw.ai
+Docs: https://docs.gensparx.ai
+
+## 1.0.0-gensparx
+
+### Major Changes: Complete Rebranding from OpenClaw to GenSparx
+
+**Package & Binary:**
+
+- Renamed npm package from `openclaw` to `gensparx`
+- Renamed CLI binary from `openclaw` to `gensparx`
+- Created unified entry point: `gensparx.mjs`
+
+**Environment Variables:**
+
+- All env vars now use `GENSPARX_*` prefix (e.g., `GENSPARX_GATEWAY_TOKEN`, `GENSPARX_STATE_DIR`)
+- Automatic fallback to legacy `OPENCLAW_*` and `CLAWDBOT_*` variables for backward compatibility
+- Migration path: Code checks `GENSPARX_*` first, then legacy prefixes
+
+**File Paths & Configuration:**
+
+- Default state directory: `~/.openclaw/` → `~/.gensparx/`
+- Config file: `openclaw.json` → `gensparx.json`
+- Gateway OAuth directory: `~/.openclaw/oauth/` → `~/.gensparx/oauth/`
+- Automatic migration: code looks for new path first, falls back to legacy location
+- All relative paths and config references updated to use new naming
+
+**Platform Bundle IDs:**
+
+- macOS: `ai.openclaw.mac` → `ai.gensparx.mac`
+- iOS: `ai.openclaw.ios` → `ai.gensparx.ios`
+- Android: `ai.openclaw.android` → `ai.gensparx.android`
+- Daemon services: `ai.openclaw.gateway` → `ai.gensparx.gateway`, `ai.openclaw.node` → `ai.gensparx.node`
+- LaunchD labels, systemd service names, and Windows task names updated
+- Backward compatibility: legacy labels are recognized during migration
+
+**UI & Branding:**
+
+- System prompt updated with GenSparx identity
+- Control UI global variables: `__OPENCLAW_*__` → `__GENSPARX_*__`
+- Assistant identity in UI now shows GenSparx
+- Documentation links updated: `docs.openclaw.ai` → `docs.gensparx.ai`
+
+**Build & Infrastructure:**
+
+- Created cross-platform Node.js bundler (`scripts/bundle-a2ui.mjs`) to replace shell-based bundling
+- Fixed native rolldown binding issue on Windows by using pnpm exec
+- Gateway auth now checks `GENSPARX_GATEWAY_TOKEN` first with automatic `OPENCLAW_GATEWAY_TOKEN` fallback
+- Test infrastructure updated to support both new and legacy environment variable names
+
+**Backward Compatibility:**
+
+- All legacy code paths preserved with fallback chains
+- Existing OpenClaw users can continue using old env var names and paths
+- Automatic directory migration when users upgrade
+- Legacy service labels recognized alongside new GenSparx labels
+
+### Known Issues
+
+- Test suite: Some tests still expect legacy paths (`~/.openclaw/`, `openclaw.json`) - will be addressed in maintenance release
+- API key configuration: Users must provide their own provider credentials (Anthropic, etc.) - unchanged from OpenClaw
 
 ## 2026.2.4
 
