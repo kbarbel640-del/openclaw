@@ -53,6 +53,26 @@ export type CronIsolation = {
   postToMainMaxChars?: number;
 };
 
+export type CronReplayPolicy = {
+  /**
+   * Whether to replay missed occurrences when gateway restarts.
+   * - never: don't replay (default)
+   * - on_recovery: replay if within window
+   */
+  mode: "never" | "on_recovery";
+  /**
+   * How long after scheduled time to still replay (in ms).
+   * Default: 3600000 (1 hour)
+   */
+  windowMs?: number;
+  /**
+   * Max number of occurrences to replay per recovery.
+   * Prevents spam if many jobs were missed.
+   * Default: 5
+   */
+  maxReplaysPerRecovery?: number;
+};
+
 export type CronJobState = {
   nextRunAtMs?: number;
   runningAtMs?: number;
@@ -76,6 +96,7 @@ export type CronJob = {
   wakeMode: CronWakeMode;
   payload: CronPayload;
   isolation?: CronIsolation;
+  replay?: CronReplayPolicy;
   state: CronJobState;
 };
 
