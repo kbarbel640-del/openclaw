@@ -221,6 +221,84 @@ describe("session-start-memory hook", () => {
     expect(event.context.bootstrapFiles).toBeUndefined();
   });
 
+  it("respects enabled=false flag", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-session-start-");
+    
+    await writeWorkspaceFile(tempDir, "MEMORY.md", "Test content");
+
+    const cfg: Partial<OpenClawConfig> = {
+      hooks: {
+        internal: {
+          entries: {
+            "session-start-memory": {
+              enabled: false,
+            },
+          },
+        },
+      },
+    };
+
+    const event = createBootstrapEvent(tempDir, cfg as OpenClawConfig);
+    await handler(event);
+
+    // Should not inject anything when disabled
+    expect(event.context.bootstrapFiles).toHaveLength(0);
+  });
+
+  it("rejects path traversal attempts", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-session-start-");
+    
+    // Create a file outside workspace
+    const parentDir = path.dirname(tempDir);
+    const secretPath = path.join(parentDir, "secret.txt");
+    await fs.writeFile(secretPath, "secret data");
+
+    const cfg: Partial<OpenClawConfig> = {
+      hooks: {
+        internal: {
+          entries: {
+            "session-start-memory": {
+              enabled: true,
+              paths: ["../secret.txt"],
+            },
+          },
+        },
+      },
+    };
+
+    const event = createBootstrapEvent(tempDir, cfg as OpenClawConfig);
+    await handler(event);
+
+    // Should not inject the secret file
+    expect(event.context.bootstrapFiles).toHaveLength(0);
+    
+    // Cleanup
+    await fs.unlink(secretPath);
+  });
+
+  it("rejects absolute paths", async () => {
+    const tempDir = await makeTempWorkspace("openclaw-session-start-");
+    
+    const cfg: Partial<OpenClawConfig> = {
+      hooks: {
+        internal: {
+          entries: {
+            "session-start-memory": {
+              enabled: true,
+              paths: ["/etc/passwd"],
+            },
+          },
+        },
+      },
+    };
+
+    const event = createBootstrapEvent(tempDir, cfg as OpenClawConfig);
+    await handler(event);
+
+    // Should not inject absolute paths
+    expect(event.context.bootstrapFiles).toHaveLength(0);
+  });
+
   it("sorts recent files newest-first", async () => {
     const tempDir = await makeTempWorkspace("openclaw-session-start-");
     

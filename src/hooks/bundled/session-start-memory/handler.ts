@@ -19,6 +19,15 @@ interface SessionStartMemoryConfig {
 }
 
 /**
+ * Validate that a path stays within workspace bounds
+ */
+function isPathWithinWorkspace(workspaceDir: string, targetPath: string): boolean {
+  const resolved = path.resolve(workspaceDir, targetPath);
+  const normalized = path.normalize(resolved);
+  return normalized.startsWith(path.normalize(workspaceDir));
+}
+
+/**
  * Get recent memory files from memory/ directory
  */
 async function getRecentMemoryFiles(
@@ -29,8 +38,13 @@ async function getRecentMemoryFiles(
   
   try {
     const entries = await fs.readdir(memoryDir);
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - recentDays);
+    // Use UTC for consistent date comparison
+    const now = new Date();
+    const cutoffDate = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - recentDays
+    ));
     
     const recentFiles: Array<{ path: string; content: string }> = [];
     
@@ -39,7 +53,8 @@ async function getRecentMemoryFiles(
       const match = entry.match(/^(\d{4}-\d{2}-\d{2}).*\.md$/);
       if (!match) continue;
       
-      const fileDate = new Date(match[1]);
+      // Parse as UTC to match cutoff date basis
+      const fileDate = new Date(match[1] + "T00:00:00Z");
       if (fileDate >= cutoffDate) {
         const filePath = path.join(memoryDir, entry);
         try {
@@ -85,6 +100,11 @@ const handler = async (event: AgentBootstrapHookEvent) => {
       event.context.cfg,
     );
 
+    // Respect enabled flag
+    if (config.enabled === false) {
+      return;
+    }
+
     const paths = config.paths || ["MEMORY.md", "memory/continuity-test.md"];
     const recentDays = config.recentDays ?? 2;
 
@@ -92,6 +112,12 @@ const handler = async (event: AgentBootstrapHookEvent) => {
 
     // Load configured paths
     for (const relPath of paths) {
+      // Validate path stays within workspace
+      if (!isPathWithinWorkspace(workspaceDir, relPath)) {
+        console.error(`[session-start-memory] Skipping path outside workspace: ${relPath}`);
+        continue;
+      }
+      
       const fullPath = path.join(workspaceDir, relPath);
       try {
         const content = await fs.readFile(fullPath, "utf-8");
@@ -136,8 +162,6 @@ ${sections.join("\n\n---\n\n")}
         source: "hook:session-start-memory",
       });
     }
-
-    console.log("[session-start-memory] ✅ Workspace memory loaded into session context");
     
   } catch (err) {
     console.error(
