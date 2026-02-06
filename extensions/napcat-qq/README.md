@@ -1,6 +1,7 @@
 # OpenClaw NapCatQQ Channel Plugin (OneBot v11)
 
 通过 NapCatQQ/OneBot v11 协议实现的 QQ 消息渠道插件。
+原作者：https://github.com/Taki-Ta/moltbot/tree/feat/qq-channel
 
 ## 原始项目信息
 
