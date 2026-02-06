@@ -5,45 +5,53 @@
 
 // 模型能力定义
 const MODEL_PROFILES = {
-  'anthropic/claude-opus-4-5': {
+  "anthropic/claude-opus-4-5": {
     contextWindow: 200000,
-    strengths: ['code', 'reasoning', 'complex'],
-    cost: 'high'
+    strengths: ["code", "reasoning", "complex"],
+    cost: "high",
   },
-  'deepseek/deepseek-chat': {
-    contextWindow: 128000,
-    strengths: ['chat', 'translation', 'simple'],
-    cost: 'low'
+  "anthropic/claude-sonnet-4-5": {
+    contextWindow: 200000,
+    strengths: ["chat", "fast", "general"],
+    cost: "medium",
   },
-  'deepseek/deepseek-reasoner': {
+  "deepseek/deepseek-chat": {
     contextWindow: 128000,
-    strengths: ['reasoning', 'math', 'complex'],
-    cost: 'medium'
+    strengths: ["chat", "translation", "simple"],
+    cost: "low",
   },
-  'zai/glm-4.7': {
+  "deepseek/deepseek-reasoner": {
     contextWindow: 128000,
-    strengths: ['chat', 'chinese', 'simple'],
-    cost: 'low'
-  }
+    strengths: ["reasoning", "math", "complex"],
+    cost: "medium",
+  },
+  "zai/glm-4.7": {
+    contextWindow: 128000,
+    strengths: ["chat", "chinese", "simple"],
+    cost: "low",
+  },
 };
+
+// LINE 專用：強制使用 Sonnet 快速回覆
+const LINE_FAST_MODEL = "anthropic/claude-sonnet-4-5";
 
 // 任务类型 -> 推荐模型
 const TASK_MODEL_MAP = {
-  'code': 'anthropic/claude-opus-4-5',
-  'reasoning': 'anthropic/claude-opus-4-5',
-  'complex': 'anthropic/claude-opus-4-5',
-  'chat': 'deepseek/deepseek-chat',
-  'translation': 'deepseek/deepseek-chat',
-  'simple': 'deepseek/deepseek-chat',
-  'chinese': 'zai/glm-4.7',
-  'math': 'deepseek/deepseek-reasoner'
+  code: "anthropic/claude-opus-4-5",
+  reasoning: "anthropic/claude-opus-4-5",
+  complex: "anthropic/claude-opus-4-5",
+  chat: "deepseek/deepseek-chat",
+  translation: "deepseek/deepseek-chat",
+  simple: "deepseek/deepseek-chat",
+  chinese: "zai/glm-4.7",
+  math: "deepseek/deepseek-reasoner",
 };
 
 // Context 长度阈值
 const CONTEXT_THRESHOLDS = {
-  SHORT: 4000,      // 短 context，用便宜模型
-  MEDIUM: 32000,    // 中等 context，按任务选
-  LONG: 64000       // 长 context，用大模型
+  SHORT: 4000, // 短 context，用便宜模型
+  MEDIUM: 32000, // 中等 context，按任务选
+  LONG: 64000, // 长 context，用大模型
 };
 
 /**
@@ -56,9 +64,7 @@ function selectByContextLength(contextLength, candidates) {
 
   // 长 context 优先大模型
   if (contextLength > CONTEXT_THRESHOLDS.LONG) {
-    const claude = candidates.find(c =>
-      c.provider === 'anthropic' && c.model.includes('claude')
-    );
+    const claude = candidates.find((c) => c.provider === "anthropic" && c.model.includes("claude"));
     if (claude) {
       return `${claude.provider}/${claude.model}`;
     }
@@ -66,8 +72,8 @@ function selectByContextLength(contextLength, candidates) {
 
   // 短 context 用便宜模型
   if (contextLength < CONTEXT_THRESHOLDS.SHORT) {
-    const cheap = candidates.find(c =>
-      MODEL_PROFILES[`${c.provider}/${c.model}`]?.cost === 'low'
+    const cheap = candidates.find(
+      (c) => MODEL_PROFILES[`${c.provider}/${c.model}`]?.cost === "low",
     );
     if (cheap) {
       return `${cheap.provider}/${cheap.model}`;
@@ -89,10 +95,8 @@ function selectByTaskHint(taskHint, candidates) {
   const recommendedModel = TASK_MODEL_MAP[hint];
 
   if (recommendedModel) {
-    const [provider, model] = recommendedModel.split('/');
-    const found = candidates.find(c =>
-      c.provider === provider && c.model === model
-    );
+    const [provider, model] = recommendedModel.split("/");
+    const found = candidates.find((c) => c.provider === provider && c.model === model);
     if (found) {
       return recommendedModel;
     }
@@ -112,7 +116,7 @@ function selectByTaskHint(taskHint, candidates) {
  */
 async function handler(event) {
   // 只处理 model:select 事件
-  if (event.type !== 'model' || event.action !== 'select') {
+  if (event.type !== "model" || event.action !== "select") {
     return;
   }
 
@@ -124,11 +128,20 @@ async function handler(event) {
     sessionKey,
     agentId,
     contextLength,
-    taskHint
+    taskHint,
+    channel,
   } = event.context;
 
+  // LINE 專用：強制使用 Sonnet 快速回覆（Reply Token 只有 30 秒）
+  if (channel === "line" || sessionKey?.includes(":line:")) {
+    console.log(`[smart-router] LINE detected -> forcing ${LINE_FAST_MODEL} for speed`);
+    return {
+      overrideModel: LINE_FAST_MODEL,
+    };
+  }
+
   // 如果已经指定了特定模型（非默认），不干预
-  if (requestedModel && !requestedModel.includes('claude-opus-4-5')) {
+  if (requestedModel && !requestedModel.includes("claude-opus-4-5")) {
     // 用户明确指定了非默认模型，尊重用户选择
     return;
   }
@@ -147,9 +160,11 @@ async function handler(event) {
     const currentKey = `${currentFirst?.provider}/${currentFirst?.model}`;
 
     if (selectedModel !== currentKey) {
-      console.log(`[smart-router] Routing: ${currentKey} -> ${selectedModel} (task: ${taskHint || 'none'}, context: ${contextLength || 'unknown'})`);
+      console.log(
+        `[smart-router] Routing: ${currentKey} -> ${selectedModel} (task: ${taskHint || "none"}, context: ${contextLength || "unknown"})`,
+      );
       return {
-        overrideModel: selectedModel
+        overrideModel: selectedModel,
       };
     }
   }
