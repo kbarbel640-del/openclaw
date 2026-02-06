@@ -1,19 +1,19 @@
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
-import type { SessionsListResult } from "../types";
-import type { ChatItem, MessageGroup } from "../types/chat-types";
-import type { ChatAttachment, ChatQueueItem } from "../ui-types";
+import type { SessionsListResult } from "../types.ts";
+import type { ChatItem, MessageGroup } from "../types/chat-types.ts";
+import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import {
   renderMessageGroup,
   renderReadingIndicatorGroup,
   renderStreamingGroup,
   hasToolResultImages,
-} from "../chat/grouped-render";
-import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-normalizer";
-import { icons } from "../icons";
-import { renderMarkdownSidebar } from "./markdown-sidebar";
-import "../components/resizable-divider";
+} from "../chat/grouped-render.ts";
+import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-normalizer.ts";
+import { icons } from "../icons.ts";
+import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
+import "../components/resizable-divider.ts";
 
 export type CompactionIndicatorStatus = {
   active: boolean;
@@ -484,7 +484,7 @@ export function renderChat(props: ChatProps) {
         props.showNewMessages
           ? html`
             <button
-              class="chat-new-messages"
+              class="btn chat-new-messages"
               type="button"
               @click=${props.onScrollToBottom}
             >
