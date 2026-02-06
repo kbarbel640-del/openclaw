@@ -513,9 +513,11 @@ export async function runEmbeddedAttempt(
 
       // Prevent compaction cascades: if Pi compacts due to overflow and retries internally,
       // downgrade the system prompt (drop injected workspace files) when needed to fit.
-      let restoreOneShotRetryPromptOverride: (() => void) | null = null;
+      const restoreOneShotRetryPromptOverride: { current: (() => void) | null } = {
+        current: null,
+      };
       const downgradeSystemPromptOneShot = () => {
-        if (restoreOneShotRetryPromptOverride) {
+        if (restoreOneShotRetryPromptOverride.current) {
           return;
         }
         const mutableSession = activeSession as unknown as {
@@ -525,7 +527,7 @@ export async function runEmbeddedAttempt(
         const previousBasePrompt = mutableSession._baseSystemPrompt;
         const previousRebuild = mutableSession._rebuildSystemPrompt;
         applySystemPromptOverrideToSession(activeSession, getRetrySystemPromptText());
-        restoreOneShotRetryPromptOverride = () => {
+        restoreOneShotRetryPromptOverride.current = () => {
           mutableSession._baseSystemPrompt = previousBasePrompt;
           mutableSession._rebuildSystemPrompt = previousRebuild;
           activeSession.agent.setSystemPrompt(previousBasePrompt ?? systemPromptText);
@@ -894,8 +896,8 @@ export async function runEmbeddedAttempt(
             throw err;
           }
         } finally {
-          const restore = restoreOneShotRetryPromptOverride;
-          restoreOneShotRetryPromptOverride = null;
+          const restore = restoreOneShotRetryPromptOverride.current;
+          restoreOneShotRetryPromptOverride.current = null;
           if (restore) {
             restore();
           }
