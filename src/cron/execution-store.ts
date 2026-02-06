@@ -5,9 +5,9 @@
  * replayed (with "Late — gateway was down..." prefix) when the gateway restarts.
  */
 
-import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import { requireNodeSqlite } from "../memory/sqlite.js";
 
 export type OccurrenceStatus = "scheduled" | "fired" | "missed" | "replayed" | "skipped_stale";
 
@@ -20,7 +20,7 @@ export type OccurrenceRecord = {
 };
 
 export class ExecutionStore {
-  private db: Database.Database;
+  private db;
 
   constructor(storePath: string) {
     const dir = path.dirname(storePath);
@@ -28,7 +28,8 @@ export class ExecutionStore {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    this.db = new Database(storePath);
+    const { DatabaseSync } = requireNodeSqlite();
+    this.db = new DatabaseSync(storePath);
     this.initSchema();
   }
 

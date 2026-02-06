@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -7,10 +7,24 @@ import { recoverMissedRuns } from "./service/recovery.js";
 import type { CronServiceState } from "./service/state.js";
 import type { CronJob } from "./types.js";
 
+const tempDirs: string[] = [];
+
+afterEach(() => {
+  for (const dir of tempDirs) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+  }
+  tempDirs.length = 0;
+});
+
 describe("cron recovery", () => {
   it("should recover missed jobs within replay window", async () => {
     // Setup: Create temp directory for test
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cron-recovery-test-"));
+    tempDirs.push(tmpDir);
     const storePath = path.join(tmpDir, "execution-store.sqlite");
     const executionStore = new ExecutionStore(storePath);
 
@@ -94,13 +108,12 @@ describe("cron recovery", () => {
     const missed = executionStore.getMissedOccurrences(now);
     expect(missed).toHaveLength(0); // Should be empty because we processed it
 
-    // Cleanup
     executionStore.close();
-    fs.rmSync(tmpDir, { recursive: true });
   });
 
   it("should skip missed jobs outside replay window", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cron-recovery-test-"));
+    tempDirs.push(tmpDir);
     const storePath = path.join(tmpDir, "execution-store.sqlite");
     const executionStore = new ExecutionStore(storePath);
 
@@ -176,11 +189,11 @@ describe("cron recovery", () => {
     expect(missed).toHaveLength(0);
 
     executionStore.close();
-    fs.rmSync(tmpDir, { recursive: true });
   });
 
   it("should respect maxReplaysPerRecovery limit", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cron-recovery-test-"));
+    tempDirs.push(tmpDir);
     const storePath = path.join(tmpDir, "execution-store.sqlite");
     const executionStore = new ExecutionStore(storePath);
 
@@ -256,6 +269,5 @@ describe("cron recovery", () => {
     expect(enqueuedEvents).toHaveLength(3);
 
     executionStore.close();
-    fs.rmSync(tmpDir, { recursive: true });
   });
 });
