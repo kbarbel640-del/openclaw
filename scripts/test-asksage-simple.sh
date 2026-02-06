@@ -56,7 +56,7 @@ docker run --rm \
     echo ''
     echo 'Step 3: Test chat'
     echo 'Creating agent...'
-    node openclaw.mjs agents add asksage-test --workspace /tmp/asksage-workspace --model asksage/aws-bedrock-claude-45-sonnet-gov || echo 'Agent creation failed or already exists'
+    node openclaw.mjs agents add asksage-test --workspace /tmp/asksage-workspace --model asksage/google-claude-45-sonnet || echo 'Agent creation failed or already exists'
     echo 'Running agent...'
     node openclaw.mjs agent --agent asksage-test --to +15555550123 --message 'Say hello and confirm you are working through Ask Sage. Say which model is currently running' --local --json
   "

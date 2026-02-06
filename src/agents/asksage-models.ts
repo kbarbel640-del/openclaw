@@ -31,7 +31,7 @@ export const ASKSAGE_MODEL_CATALOG = [
     reasoning: true,
     input: ["text"],
     contextWindow: 200000,
-    maxTokens: 8192,
+    maxTokens: 16000,
   },
   {
     id: "google-claude-4-opus",
@@ -39,7 +39,7 @@ export const ASKSAGE_MODEL_CATALOG = [
     reasoning: true,
     input: ["text"],
     contextWindow: 200000,
-    maxTokens: 8192,
+    maxTokens: 16000,
   },
   {
     id: "google-claude-45-haiku",
@@ -47,7 +47,7 @@ export const ASKSAGE_MODEL_CATALOG = [
     reasoning: true,
     input: ["text"],
     contextWindow: 200000,
-    maxTokens: 8192,
+    maxTokens: 16000,
   },
   {
     id: "google-claude-45-sonnet",
@@ -55,7 +55,7 @@ export const ASKSAGE_MODEL_CATALOG = [
     reasoning: true,
     input: ["text"],
     contextWindow: 200000,
-    maxTokens: 8192,
+    maxTokens: 16000,
   },
   {
     id: "google-claude-45-opus",
@@ -63,7 +63,15 @@ export const ASKSAGE_MODEL_CATALOG = [
     reasoning: true,
     input: ["text"],
     contextWindow: 200000,
-    maxTokens: 8192,
+    maxTokens: 16000,
+  },
+  {
+    id: "google-claude-46-opus",
+    name: "Claude 4.6 Opus (Google Cloud)",
+    reasoning: true,
+    input: ["text"],
+    contextWindow: 1000000,
+    maxTokens: 16000,
   },
 
   // AWS Bedrock Claude models (Government)
@@ -73,7 +81,7 @@ export const ASKSAGE_MODEL_CATALOG = [
     reasoning: false,
     input: ["text"],
     contextWindow: 200000,
-    maxTokens: 8192,
+    maxTokens: 16000,
   },
   {
     id: "aws-bedrock-claude-37-sonnet-gov",
@@ -81,7 +89,7 @@ export const ASKSAGE_MODEL_CATALOG = [
     reasoning: false,
     input: ["text"],
     contextWindow: 200000,
-    maxTokens: 8192,
+    maxTokens: 16000,
   },
   {
     id: "aws-bedrock-claude-45-sonnet-gov",
@@ -89,7 +97,7 @@ export const ASKSAGE_MODEL_CATALOG = [
     reasoning: true,
     input: ["text"],
     contextWindow: 200000,
-    maxTokens: 8192,
+    maxTokens: 16000,
   }
 ]
 
