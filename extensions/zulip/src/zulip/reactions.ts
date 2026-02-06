@@ -1,5 +1,5 @@
 import type { ZulipApiSuccess, ZulipAuth } from "./client.js";
-import { zulipRequest } from "./client.js";
+import { zulipRequestWithRetry } from "./client.js";
 import { normalizeEmojiName } from "./normalize.js";
 
 export async function addZulipReaction(params: {
@@ -9,12 +9,17 @@ export async function addZulipReaction(params: {
   abortSignal?: AbortSignal;
 }): Promise<ZulipApiSuccess> {
   const emojiName = normalizeEmojiName(params.emojiName);
-  return await zulipRequest<ZulipApiSuccess>({
+  return await zulipRequestWithRetry<ZulipApiSuccess>({
     auth: params.auth,
     method: "POST",
     path: `/api/v1/messages/${params.messageId}/reactions`,
     form: {
       emoji_name: emojiName,
+    },
+    retry: {
+      maxRetries: 2,
+      baseDelayMs: 1000,
+      maxDelayMs: 10_000,
     },
     abortSignal: params.abortSignal,
   });
@@ -27,7 +32,7 @@ export async function removeZulipReaction(params: {
   abortSignal?: AbortSignal;
 }): Promise<ZulipApiSuccess> {
   const emojiName = normalizeEmojiName(params.emojiName);
-  return await zulipRequest<ZulipApiSuccess>({
+  return await zulipRequestWithRetry<ZulipApiSuccess>({
     auth: params.auth,
     method: "DELETE",
     path: `/api/v1/messages/${params.messageId}/reactions`,
@@ -35,6 +40,11 @@ export async function removeZulipReaction(params: {
     // Send identifiers as query params so reactions reliably clear.
     query: {
       emoji_name: emojiName,
+    },
+    retry: {
+      maxRetries: 2,
+      baseDelayMs: 1000,
+      maxDelayMs: 10_000,
     },
     abortSignal: params.abortSignal,
   });
