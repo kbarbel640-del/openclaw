@@ -539,6 +539,83 @@ describe("ExecutionKernel", () => {
       await kernel.abort("non-existent-run-id");
     });
 
+    it("should pass abortSignal from kernel AbortController to executor", async () => {
+      let capturedAbortSignal: AbortSignal | undefined;
+      mockExecutor = {
+        execute: vi.fn().mockImplementation(async (_ctx: RuntimeContext, req: ExecutionRequest) => {
+          capturedAbortSignal = req.abortSignal;
+          return createMockExecutor().execute(
+            {} as RuntimeContext,
+            {} as ExecutionRequest,
+            {} as EventRouter,
+          );
+        }),
+      };
+
+      const kernel = createExecutionKernel({
+        resolver: mockResolver,
+        executor: mockExecutor,
+        stateService: mockStateService,
+      });
+
+      const request = createValidRequest();
+      await kernel.execute(request);
+
+      // The kernel should have set abortSignal on the request
+      expect(capturedAbortSignal).toBeDefined();
+      expect(capturedAbortSignal).toBeInstanceOf(AbortSignal);
+      // Signal should not be aborted (execution completed normally)
+      expect(capturedAbortSignal!.aborted).toBe(false);
+    });
+
+    it("should abort the signal when kernel.abort() is called during execution", async () => {
+      let capturedAbortSignal: AbortSignal | undefined;
+      let resolveExecution: () => void;
+      const executionPromise = new Promise<void>((resolve) => {
+        resolveExecution = resolve;
+      });
+
+      mockExecutor = {
+        execute: vi.fn().mockImplementation(async (_ctx: RuntimeContext, req: ExecutionRequest) => {
+          capturedAbortSignal = req.abortSignal;
+          await executionPromise;
+          return createMockExecutor().execute(
+            {} as RuntimeContext,
+            {} as ExecutionRequest,
+            {} as EventRouter,
+          );
+        }),
+      };
+
+      const kernel = createExecutionKernel({
+        resolver: mockResolver,
+        executor: mockExecutor,
+        stateService: mockStateService,
+      });
+
+      const request = createValidRequest({ runId: "abort-signal-test" });
+
+      // Start execution in background
+      const resultPromise = kernel.execute(request);
+
+      // Wait for executor to capture the signal
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // The signal should exist and not be aborted yet
+      expect(capturedAbortSignal).toBeDefined();
+      expect(capturedAbortSignal!.aborted).toBe(false);
+
+      // Abort the execution
+      await kernel.abort("abort-signal-test");
+
+      // The signal should now be aborted
+      expect(capturedAbortSignal!.aborted).toBe(true);
+
+      // Let execution finish
+      resolveExecution!();
+      await resultPromise;
+    });
+
     it("should track active runs correctly", async () => {
       const kernel = createExecutionKernel({
         resolver: mockResolver,

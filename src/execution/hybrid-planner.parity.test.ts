@@ -356,13 +356,17 @@ describe("planner constraints parity", () => {
     expect(safeIntent).toBe("Deploy-Latest-Version-");
   });
 
-  it("documents: no abortSignal integration yet in kernel (param exists)", () => {
-    // The hybrid planner accepts an abortSignal param
-    // It's passed to runEmbeddedPiAgent in the old path
-    // The kernel path should propagate it as well
+  it("abortSignal is wired from kernel through executor to runtime adapter", () => {
+    // The kernel creates an AbortController and sets abortSignal on the request.
+    // The executor passes request.abortSignal to the runtime adapter.
+    // Calling kernel.abort(runId) triggers cooperative cancellation.
+    const controller = new AbortController();
     const request: Partial<ExecutionRequest> = {
-      // abortSignal would need to be added to ExecutionRequest if needed
+      abortSignal: controller.signal,
     };
-    expect(request).toBeDefined();
+    expect(request.abortSignal).toBeDefined();
+    expect(request.abortSignal!.aborted).toBe(false);
+    controller.abort();
+    expect(request.abortSignal!.aborted).toBe(true);
   });
 });

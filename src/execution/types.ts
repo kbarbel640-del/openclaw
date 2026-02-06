@@ -201,6 +201,8 @@ export interface ExecutionRequest {
   timeoutMs?: number;
   /** Maximum tokens for the response. */
   maxTokens?: number;
+  /** Abort signal for cooperative cancellation (set by ExecutionKernel). */
+  abortSignal?: AbortSignal;
 
   // --- Callbacks (optional, for streaming) ---
 

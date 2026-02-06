@@ -247,8 +247,12 @@ export class DefaultExecutionKernel implements ExecutionKernel {
       // Step 5: Execute turn
       let outcome: TurnOutcome;
       try {
-        // Create a request with the runId set
-        const requestWithRunId: ExecutionRequest = { ...request, runId };
+        // Create a request with the runId and abort signal set
+        const requestWithRunId: ExecutionRequest = {
+          ...request,
+          runId,
+          abortSignal: abortController.signal,
+        };
         outcome = await this.executor.execute(context, requestWithRunId, emitter);
       } catch (err) {
         const error = this.buildExecutionError("runtime_error", err);

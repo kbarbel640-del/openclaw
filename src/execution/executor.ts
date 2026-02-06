@@ -277,7 +277,7 @@ export class DefaultTurnExecutor implements TurnExecutor {
       const result = await adapter.run({
         prompt: request.prompt,
         runId,
-        abortSignal: undefined, // TODO: Wire abort signal
+        abortSignal: request.abortSignal,
         timeoutMs: request.timeoutMs,
         images: request.images,
         onPartialReply: (payload) => this.handlePartialReply(state, payload, request, emitter),
