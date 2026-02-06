@@ -35,6 +35,7 @@
   },
   "scripts": {
     "build": "tsc && node ./scripts/rewrite-dist-imports.mjs",
+    "postinstall": "pnpm -s build",
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write",
     "lint": "oxlint --type-aware --tsconfig tsconfig.json",
