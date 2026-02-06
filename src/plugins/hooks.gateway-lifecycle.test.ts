@@ -51,7 +51,7 @@ describe("gateway lifecycle hooks", () => {
     ]);
     const runner = createHookRunner(registry, { catchErrors: true });
 
-    await runner.runGatewayStart({ port: 18789 }, { port: 18789 });
+    await runner.runGatewayStart({ port: 18789 }, {});
 
     expect(calls).toHaveLength(2);
     expect(calls[0]!.port).toBe(18789);
@@ -100,7 +100,7 @@ describe("gateway lifecycle hooks", () => {
     const runner = createHookRunner(registry, { catchErrors: true });
 
     // Should resolve without errors
-    await expect(runner.runGatewayStart({ port: 3000 }, { port: 3000 })).resolves.toBeUndefined();
+    await expect(runner.runGatewayStart({ port: 3000 }, {})).resolves.toBeUndefined();
   });
 
   it("is a no-op when no gateway_stop handlers are registered", async () => {
@@ -137,7 +137,7 @@ describe("gateway lifecycle hooks", () => {
     const runner = createHookRunner(registry, { catchErrors: true, logger: errorLogger });
 
     // Should not throw
-    await expect(runner.runGatewayStart({ port: 5000 }, { port: 5000 })).resolves.toBeUndefined();
+    await expect(runner.runGatewayStart({ port: 5000 }, {})).resolves.toBeUndefined();
 
     // Error should have been logged
     expect(errorLogger.error).toHaveBeenCalledWith(expect.stringContaining("bad-plugin"));

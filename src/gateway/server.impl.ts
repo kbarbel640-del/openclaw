@@ -562,7 +562,7 @@ export async function startGatewayServer(
   try {
     const hookRunner = getGlobalHookRunner();
     if (hookRunner) {
-      await hookRunner.runGatewayStart({ port }, { port });
+      await hookRunner.runGatewayStart({ port }, {});
     }
   } catch (err) {
     log.warn(`gateway_start hook failed: ${String(err)}`);
