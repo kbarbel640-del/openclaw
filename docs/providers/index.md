@@ -13,9 +13,9 @@ default model as `provider/model`.
 
 Looking for chat channel docs (WhatsApp/Telegram/Discord/Slack/Mattermost (plugin)/etc.)? See [Channels](/channels).
 
-## Highlight: Venius (Venice AI)
+## Highlight: Venice (Venice AI)
 
-Venius is our recommended Venice AI setup for privacy-first inference with an option to use Opus for hard tasks.
+Venice is our recommended Venice AI setup for privacy-first inference with an option to use Opus for hard tasks.
 
 - Default: `venice/llama-3.3-70b`
 - Best overall: `venice/claude-opus-45` (Opus remains the strongest)
@@ -29,7 +29,7 @@ See [Venice AI](/providers/venice).
 
 ```json5
 {
-  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-5" } } },
+  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-6" } } },
 }
 ```
 
@@ -41,6 +41,7 @@ See [Venice AI](/providers/venice).
 - [OpenRouter](/providers/openrouter)
 - [Vercel AI Gateway](/providers/vercel-ai-gateway)
 - [Together AI](/providers/together)
+- [Cloudflare AI Gateway](/providers/cloudflare-ai-gateway)
 - [Moonshot AI (Kimi + Kimi Coding)](/providers/moonshot)
 - [OpenCode Zen](/providers/opencode)
 - [Amazon Bedrock](/bedrock)
@@ -48,7 +49,7 @@ See [Venice AI](/providers/venice).
 - [Xiaomi](/providers/xiaomi)
 - [GLM models](/providers/glm)
 - [MiniMax](/providers/minimax)
-- [Venius (Venice AI, privacy-focused)](/providers/venice)
+- [Venice (Venice AI, privacy-focused)](/providers/venice)
 - [Ollama (local models)](/providers/ollama)
 
 ## Transcription providers

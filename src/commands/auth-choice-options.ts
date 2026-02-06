@@ -14,6 +14,7 @@ export type AuthChoiceGroupId =
   | "copilot"
   | "openrouter"
   | "ai-gateway"
+  | "cloudflare-ai-gateway"
   | "moonshot"
   | "zai"
   | "xiaomi"
@@ -22,7 +23,8 @@ export type AuthChoiceGroupId =
   | "synthetic"
   | "venice"
   | "qwen"
-  | "together";
+  | "together"
+  | "xai";
 
 export type AuthChoiceGroup = {
   value: AuthChoiceGroupId;
@@ -37,6 +39,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
   hint?: string;
   choices: AuthChoice[];
 }[] = [
+  {
+    value: "xai",
+    label: "xAI (Grok)",
+    hint: "API key",
+    choices: ["xai-api-key"],
+  },
   {
     value: "openai",
     label: "OpenAI",
@@ -57,9 +65,9 @@ const AUTH_CHOICE_GROUP_DEFS: {
   },
   {
     value: "moonshot",
-    label: "Moonshot AI",
-    hint: "Kimi K2 + Kimi Coding",
-    choices: ["moonshot-api-key", "kimi-code-api-key"],
+    label: "Moonshot AI (Kimi K2.5)",
+    hint: "Kimi K2.5 + Kimi Coding",
+    choices: ["moonshot-api-key", "moonshot-api-key-cn", "kimi-code-api-key"],
   },
   {
     value: "google",
@@ -127,6 +135,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     hint: "Privacy-focused (uncensored models)",
     choices: ["venice-api-key"],
   },
+  {
+    value: "cloudflare-ai-gateway",
+    label: "Cloudflare AI Gateway",
+    hint: "Account ID + Gateway ID + API key",
+    choices: ["cloudflare-ai-gateway-api-key"],
+  },
 ];
 
 export function buildAuthChoiceOptions(params: {
@@ -149,12 +163,28 @@ export function buildAuthChoiceOptions(params: {
   options.push({ value: "chutes", label: "Chutes (OAuth)" });
   options.push({ value: "openai-api-key", label: "OpenAI API key" });
   options.push({ value: "openrouter-api-key", label: "OpenRouter API key" });
+  options.push({ value: "xai-api-key", label: "xAI (Grok) API key" });
   options.push({
     value: "ai-gateway-api-key",
     label: "Vercel AI Gateway API key",
   });
-  options.push({ value: "moonshot-api-key", label: "Moonshot AI API key" });
-  options.push({ value: "kimi-code-api-key", label: "Kimi Coding API key" });
+  options.push({
+    value: "cloudflare-ai-gateway-api-key",
+    label: "Cloudflare AI Gateway",
+    hint: "Account ID + Gateway ID + API key",
+  });
+  options.push({
+    value: "moonshot-api-key",
+    label: "Kimi API key (.ai)",
+  });
+  options.push({
+    value: "moonshot-api-key-cn",
+    label: "Kimi API key (.cn)",
+  });
+  options.push({
+    value: "kimi-code-api-key",
+    label: "Kimi Code API key (subscription)",
+  });
   options.push({ value: "synthetic-api-key", label: "Synthetic API key" });
   options.push({
     value: "venice-api-key",
@@ -190,7 +220,7 @@ export function buildAuthChoiceOptions(params: {
   options.push({
     value: "minimax-portal",
     label: "MiniMax OAuth",
-    hint: "OAuth new users enjoy a 3-day free trial of the MiniMax Coding Plan!",
+    hint: "Oauth plugin for MiniMax",
   });
   options.push({ value: "qwen-portal", label: "Qwen OAuth" });
   options.push({

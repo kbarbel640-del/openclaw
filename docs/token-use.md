@@ -93,11 +93,11 @@ https://docs.anthropic.com/docs/build-with-claude/prompt-caching
 agents:
   defaults:
     model:
-      primary: "anthropic/claude-opus-4-5"
+      primary: "anthropic/claude-opus-4-6"
     models:
-      "anthropic/claude-opus-4-5":
+      "anthropic/claude-opus-4-6":
         params:
-          cacheControlTtl: "1h"
+          cacheRetention: "long"
     heartbeat:
       every: "55m"
 ```

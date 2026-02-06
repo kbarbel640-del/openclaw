@@ -13,7 +13,9 @@ export type AuthChoice =
   | "openai-api-key"
   | "openrouter-api-key"
   | "ai-gateway-api-key"
+  | "cloudflare-ai-gateway-api-key"
   | "moonshot-api-key"
+  | "moonshot-api-key-cn"
   | "kimi-code-api-key"
   | "synthetic-api-key"
   | "venice-api-key"
@@ -34,6 +36,7 @@ export type AuthChoice =
   | "github-copilot"
   | "copilot-proxy"
   | "qwen-portal"
+  | "xai-api-key"
   | "skip";
 export type GatewayAuthChoice = "token" | "password";
 export type ResetScope = "config" | "config+creds+sessions" | "full";
@@ -66,6 +69,9 @@ export type OnboardOptions = {
   openaiApiKey?: string;
   openrouterApiKey?: string;
   aiGatewayApiKey?: string;
+  cloudflareAiGatewayAccountId?: string;
+  cloudflareAiGatewayGatewayId?: string;
+  cloudflareAiGatewayApiKey?: string;
   moonshotApiKey?: string;
   kimiCodeApiKey?: string;
   geminiApiKey?: string;
@@ -76,6 +82,7 @@ export type OnboardOptions = {
   veniceApiKey?: string;
   togetherApiKey?: string;
   opencodeZenApiKey?: string;
+  xaiApiKey?: string;
   gatewayPort?: number;
   gatewayBind?: GatewayBind;
   gatewayAuth?: GatewayAuthChoice;
