@@ -119,10 +119,18 @@ const MemoryGraphitiSchema = z
   })
   .strict();
 
+const MemoryModelSchema = z
+  .object({
+    primary: z.string().optional(),
+    fallbacks: z.array(z.string()).optional(),
+  })
+  .strict();
+
 const MemorySchema = z
   .object({
     backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
     citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
+    model: MemoryModelSchema.optional(),
     qmd: MemoryQmdSchema.optional(),
     progressive: MemoryProgressiveSchema.optional(),
     graphiti: MemoryGraphitiSchema.optional(),

@@ -282,6 +282,9 @@ const FIELD_LABELS: Record<string, string> = {
   memory: "Memory",
   "memory.backend": "Memory Backend",
   "memory.citations": "Memory Citations Mode",
+  "memory.model": "Memory Model",
+  "memory.model.primary": "Memory Primary Model",
+  "memory.model.fallbacks": "Memory Model Fallbacks",
   "memory.qmd.command": "QMD Binary",
   "memory.qmd.includeDefaultMemory": "QMD Include Default Memory",
   "memory.qmd.paths": "QMD Extra Paths",
@@ -634,6 +637,12 @@ const FIELD_HELP: Record<string, string> = {
   memory: "Memory backend configuration (global).",
   "memory.backend": 'Memory backend ("builtin" for OpenClaw embeddings, "qmd" for QMD sidecar).',
   "memory.citations": 'Default citation behavior ("auto", "on", or "off").',
+  "memory.model":
+    "Model preferences for memory subsystem runs (e.g. memory flush). Defaults to agents.defaults.model.",
+  "memory.model.primary":
+    "Primary model for memory subsystem runs (provider/model format, e.g. 'openai/gpt-4o').",
+  "memory.model.fallbacks":
+    "Ordered fallback models for memory subsystem runs (provider/model format).",
   "memory.qmd.command": "Path to the qmd binary (default: resolves from PATH).",
   "memory.qmd.includeDefaultMemory":
     "Whether to automatically index MEMORY.md + memory/**/*.md (default: true).",

@@ -16,6 +16,13 @@ export type MemoryGraphitiConfig = {
   timeoutMs?: number; // default: 10000
 };
 
+export type MemoryModelConfig = {
+  /** Primary model for memory subsystem runs (e.g. memory flush). Format: provider/model. */
+  primary?: string;
+  /** Ordered fallback models for memory subsystem runs. Format: provider/model. */
+  fallbacks?: string[];
+};
+
 export type MemoryEntityExtractionConfig = {
   /** Enable/disable entity extraction in the ingestion pipeline. Default: true. */
   enabled?: boolean;
@@ -28,6 +35,8 @@ export type MemoryEntityExtractionConfig = {
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
+  /** Model preferences for memory subsystem runs (e.g. memory flush). Defaults to agents.defaults.model. */
+  model?: MemoryModelConfig;
   qmd?: MemoryQmdConfig;
   progressive?: MemoryProgressiveConfig;
   graphiti?: MemoryGraphitiConfig;

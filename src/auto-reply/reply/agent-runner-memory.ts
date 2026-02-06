@@ -6,12 +6,18 @@ import type { VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions } from "../types.js";
 import type { FollowupRun } from "./queue.js";
 import { resolveAgentModelFallbacksOverride } from "../../agents/agent-scope.js";
+import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../../agents/defaults.js";
 import {
   resolveModelRefFromConfigString,
   resolveUtilityModelRef,
 } from "../../agents/micro-model.js";
 import { hasConfiguredModelFallback, runWithModelFallback } from "../../agents/model-fallback.js";
-import { isCliProvider } from "../../agents/model-selection.js";
+import {
+  buildModelAliasIndex,
+  isCliProvider,
+  resolveConfiguredModelRef,
+  resolveModelRefFromString,
+} from "../../agents/model-selection.js";
 import { resolveSandboxConfigForAgent, resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
 import {
   resolveAgentIdFromSessionKey,
@@ -94,18 +100,46 @@ export async function runMemoryFlushIfNeeded(params: {
     return params.sessionEntry;
   }
 
-  // Resolve the flush model via the utility chain instead of the main run's (potentially expensive) model.
-  // Precedence: compaction.memoryFlush.model > utility.memoryFlush.model > utilityModel > micro-auto > primary
+  // Resolve the flush model. Precedence:
+  //   1. compaction.memoryFlush.model (inline override)
+  //   2. memory.model.primary (dedicated memory model config)
+  //   3. utility.memoryFlush.model > utilityModel > micro-auto (utility chain)
+  //   4. primary run model (fallback)
   const flushAgentId = resolveAgentIdFromSessionKey(params.followupRun.run.sessionKey);
   let flushProvider = params.followupRun.run.provider;
   let flushModel = params.followupRun.run.model;
+
+  const memoryModelCfg = params.cfg.memory?.model;
+
   if (memoryFlushSettings.model) {
+    // 1. Inline override from compaction.memoryFlush.model
     const inlineRef = resolveModelRefFromConfigString(params.cfg, memoryFlushSettings.model);
     if (inlineRef) {
       flushProvider = inlineRef.provider;
       flushModel = inlineRef.model;
     }
+  } else if (memoryModelCfg?.primary?.trim()) {
+    // 2. Dedicated memory.model.primary
+    const configuredPrimary = resolveConfiguredModelRef({
+      cfg: params.cfg,
+      defaultProvider: DEFAULT_PROVIDER,
+      defaultModel: DEFAULT_MODEL,
+    });
+    const aliasIndex = buildModelAliasIndex({
+      cfg: params.cfg,
+      defaultProvider: configuredPrimary.provider,
+    });
+    const resolved = resolveModelRefFromString({
+      raw: memoryModelCfg.primary.trim(),
+      defaultProvider: configuredPrimary.provider,
+      aliasIndex,
+    });
+    if (resolved?.ref) {
+      flushProvider = resolved.ref.provider;
+      flushModel = resolved.ref.model;
+    }
   } else {
+    // 3. Utility model chain
     try {
       const utilityRef = await resolveUtilityModelRef({
         cfg: params.cfg,
@@ -119,10 +153,17 @@ export async function runMemoryFlushIfNeeded(params: {
     }
   }
 
-  const flushFallbacksOverride = resolveAgentModelFallbacksOverride(
+  // Resolve fallbacks: memory.model.fallbacks > agent fallbacks
+  const agentFallbacksOverride = resolveAgentModelFallbacksOverride(
     params.followupRun.run.config,
     flushAgentId,
   );
+  const flushFallbacksOverride = (() => {
+    if (memoryModelCfg && Object.hasOwn(memoryModelCfg, "fallbacks")) {
+      return Array.isArray(memoryModelCfg.fallbacks) ? memoryModelCfg.fallbacks : [];
+    }
+    return agentFallbacksOverride;
+  })();
   const flushRuntimeKind = "pi" as const;
   if (
     !hasConfiguredModelFallback({
