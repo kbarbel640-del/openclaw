@@ -93,7 +93,7 @@ function createRun(params?: {
     sessionCtx,
     sessionEntry: params?.sessionEntry,
     sessionKey,
-    defaultModel: "anthropic/claude-opus-4-5",
+    defaultModel: "anthropic/claude-opus-4-6",
     agentCfgContextTokens: params?.agentCfgContextTokens,
     resolvedVerboseLevel: "off",
     isNewSession: false,

@@ -45,12 +45,12 @@ OpenClaw 附带 pi-ai 目录。这些提供商**不需要** `models.providers` �
 
 - 提供商：`anthropic`
 - 认证：`ANTHROPIC_API_KEY` 或 `claude setup-token`
-- 示例模型：`anthropic/claude-opus-4-5`
+- 示例模型：`anthropic/claude-opus-4-6`
 - CLI：`openclaw onboard --auth-choice token`（粘贴 setup-token）或 `openclaw models auth paste-token --provider anthropic`
 
 ```json5
 {
-  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-5" } } },
+  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-6" } } },
 }
 ```
 

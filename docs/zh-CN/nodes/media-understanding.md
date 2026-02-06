@@ -187,7 +187,7 @@ CLI 模板还可以使用：
 **图片**
 
 - 如果支持图片，优先使用你的活动模型。
-- 良好的默认值：`openai/gpt-5.2`、`anthropic/claude-opus-4-5`、`google/gemini-3-pro-preview`。
+- 良好的默认值：`openai/gpt-5.2`、`anthropic/claude-opus-4-6`、`google/gemini-3-pro-preview`。
 
 **音频**
 

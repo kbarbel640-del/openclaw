@@ -17,7 +17,7 @@ describe("applyOpencodeZenModelDefault", () => {
 
   it("overrides existing model", () => {
     const cfg = {
-      agents: { defaults: { model: "anthropic/claude-opus-4-5" } },
+      agents: { defaults: { model: "anthropic/claude-opus-4-6" } },
     } as OpenClawConfig;
     const applied = applyOpencodeZenModelDefault(cfg);
     expect(applied.changed).toBe(true);
@@ -49,7 +49,7 @@ describe("applyOpencodeZenModelDefault", () => {
       agents: {
         defaults: {
           model: {
-            primary: "anthropic/claude-opus-4-5",
+            primary: "anthropic/claude-opus-4-6",
             fallbacks: ["google/gemini-3-pro"],
           },
         },

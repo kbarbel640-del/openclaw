@@ -170,7 +170,7 @@ describe("runReplyAgent memory flush", () => {
       sessionStore: { [sessionKey]: sessionEntry },
       sessionKey,
       storePath,
-      defaultModel: "anthropic/claude-opus-4-5",
+      defaultModel: "anthropic/claude-opus-4-6",
       agentCfgContextTokens: 100_000,
       resolvedVerboseLevel: "off",
       isNewSession: false,

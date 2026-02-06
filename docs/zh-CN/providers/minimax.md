@@ -105,11 +105,11 @@ openclaw onboard --auth-choice minimax-portal
   agents: {
     defaults: {
       models: {
-        "anthropic/claude-opus-4-5": { alias: "opus" },
+        "anthropic/claude-opus-4-6": { alias: "opus" },
         "minimax/MiniMax-M2.1": { alias: "minimax" },
       },
       model: {
-        primary: "anthropic/claude-opus-4-5",
+        primary: "anthropic/claude-opus-4-6",
         fallbacks: ["minimax/MiniMax-M2.1"],
       },
     },

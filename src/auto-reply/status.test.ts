@@ -108,7 +108,7 @@ describe("buildStatusMessage", () => {
 
   it("shows verbose/elevated labels only when enabled", () => {
     const text = buildStatusMessage({
-      agent: { model: "anthropic/claude-opus-4-5" },
+      agent: { model: "anthropic/claude-opus-4-6" },
       sessionEntry: { sessionId: "v1", updatedAt: 0 },
       sessionKey: "agent:main:main",
       sessionScope: "per-sender",
@@ -124,7 +124,7 @@ describe("buildStatusMessage", () => {
 
   it("includes media understanding decisions when present", () => {
     const text = buildStatusMessage({
-      agent: { model: "anthropic/claude-opus-4-5" },
+      agent: { model: "anthropic/claude-opus-4-6" },
       sessionEntry: { sessionId: "media", updatedAt: 0 },
       sessionKey: "agent:main:main",
       queue: { mode: "none" },
@@ -177,7 +177,7 @@ describe("buildStatusMessage", () => {
 
   it("omits media line when all decisions are none", () => {
     const text = buildStatusMessage({
-      agent: { model: "anthropic/claude-opus-4-5" },
+      agent: { model: "anthropic/claude-opus-4-6" },
       sessionEntry: { sessionId: "media-none", updatedAt: 0 },
       sessionKey: "agent:main:main",
       queue: { mode: "none" },
@@ -193,7 +193,7 @@ describe("buildStatusMessage", () => {
 
   it("does not show elevated label when session explicitly disables it", () => {
     const text = buildStatusMessage({
-      agent: { model: "anthropic/claude-opus-4-5", elevatedDefault: "on" },
+      agent: { model: "anthropic/claude-opus-4-6", elevatedDefault: "on" },
       sessionEntry: { sessionId: "v1", updatedAt: 0, elevatedLevel: "off" },
       sessionKey: "agent:main:main",
       sessionScope: "per-sender",
@@ -210,7 +210,7 @@ describe("buildStatusMessage", () => {
   it("prefers model overrides over last-run model", () => {
     const text = buildStatusMessage({
       agent: {
-        model: "anthropic/claude-opus-4-5",
+        model: "anthropic/claude-opus-4-6",
         contextTokens: 32_000,
       },
       sessionEntry: {
@@ -298,7 +298,7 @@ describe("buildStatusMessage", () => {
 
   it("inserts usage summary beneath context line", () => {
     const text = buildStatusMessage({
-      agent: { model: "anthropic/claude-opus-4-5", contextTokens: 32_000 },
+      agent: { model: "anthropic/claude-opus-4-6", contextTokens: 32_000 },
       sessionEntry: { sessionId: "u1", updatedAt: 0, totalTokens: 1000 },
       sessionKey: "agent:main:main",
       sessionScope: "per-sender",
@@ -334,7 +334,7 @@ describe("buildStatusMessage", () => {
           },
         },
       } as OpenClawConfig,
-      agent: { model: "anthropic/claude-opus-4-5" },
+      agent: { model: "anthropic/claude-opus-4-6" },
       sessionEntry: { sessionId: "c1", updatedAt: 0, inputTokens: 10 },
       sessionKey: "agent:main:main",
       sessionScope: "per-sender",
@@ -385,7 +385,7 @@ describe("buildStatusMessage", () => {
 
         const text = buildStatusMessageDynamic({
           agent: {
-            model: "anthropic/claude-opus-4-5",
+            model: "anthropic/claude-opus-4-6",
             contextTokens: 32_000,
           },
           sessionEntry: {

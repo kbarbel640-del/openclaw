@@ -33,7 +33,7 @@ Venice 是我们推荐的 Venice AI 设置，用于隐私优先的推理，并�
 
 ```json5
 {
-  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-5" } } },
+  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-6" } } },
 }
 ```
 

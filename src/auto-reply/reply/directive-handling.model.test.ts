@@ -64,7 +64,7 @@ describe("/model chat UX", () => {
   });
 
   it("auto-applies closest match for typos", () => {
-    const directives = parseInlineDirectives("/model anthropic/claud-opus-4-5");
+    const directives = parseInlineDirectives("/model anthropic/claud-opus-4-6");
     const cfg = { commands: { text: true } } as unknown as OpenClawConfig;
 
     const resolved = resolveModelSelectionFromDirective({
@@ -72,16 +72,16 @@ describe("/model chat UX", () => {
       cfg,
       agentDir: "/tmp/agent",
       defaultProvider: "anthropic",
-      defaultModel: "claude-opus-4-5",
+      defaultModel: "claude-opus-4-6",
       aliasIndex: baseAliasIndex(),
-      allowedModelKeys: new Set(["anthropic/claude-opus-4-5"]),
-      allowedModelCatalog: [{ provider: "anthropic", id: "claude-opus-4-5" }],
+      allowedModelKeys: new Set(["anthropic/claude-opus-4-6"]),
+      allowedModelCatalog: [{ provider: "anthropic", id: "claude-opus-4-6" }],
       provider: "anthropic",
     });
 
     expect(resolved.modelSelection).toEqual({
       provider: "anthropic",
-      model: "claude-opus-4-5",
+      model: "claude-opus-4-6",
       isDefault: true,
     });
     expect(resolved.errorText).toBeUndefined();
@@ -89,7 +89,7 @@ describe("/model chat UX", () => {
 });
 
 describe("handleDirectiveOnly model persist behavior (fixes #1435)", () => {
-  const allowedModelKeys = new Set(["anthropic/claude-opus-4-5", "openai/gpt-4o"]);
+  const allowedModelKeys = new Set(["anthropic/claude-opus-4-6", "openai/gpt-4o"]);
   const allowedModelCatalog = [
     { provider: "anthropic", id: "claude-opus-4-5" },
     { provider: "openai", id: "gpt-4o" },
@@ -120,7 +120,7 @@ describe("handleDirectiveOnly model persist behavior (fixes #1435)", () => {
       resetModelOverride: false,
       provider: "anthropic",
       model: "claude-opus-4-5",
-      initialModelLabel: "anthropic/claude-opus-4-5",
+      initialModelLabel: "anthropic/claude-opus-4-6",
       formatModelSwitchEvent: (label) => `Switched to ${label}`,
     });
 
@@ -154,7 +154,7 @@ describe("handleDirectiveOnly model persist behavior (fixes #1435)", () => {
       resetModelOverride: false,
       provider: "anthropic",
       model: "claude-opus-4-5",
-      initialModelLabel: "anthropic/claude-opus-4-5",
+      initialModelLabel: "anthropic/claude-opus-4-6",
       formatModelSwitchEvent: (label) => `Switched to ${label}`,
     });
 

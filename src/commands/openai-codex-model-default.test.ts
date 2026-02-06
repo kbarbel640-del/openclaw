@@ -38,7 +38,7 @@ describe("applyOpenAICodexModelDefault", () => {
 
   it("does not override non-openai models", () => {
     const cfg: OpenClawConfig = {
-      agents: { defaults: { model: "anthropic/claude-opus-4-5" } },
+      agents: { defaults: { model: "anthropic/claude-opus-4-6" } },
     };
     const applied = applyOpenAICodexModelDefault(cfg);
     expect(applied.changed).toBe(false);

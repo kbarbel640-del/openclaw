@@ -50,7 +50,7 @@ describe("directive behavior", () => {
   beforeEach(() => {
     vi.mocked(runEmbeddedPiAgent).mockReset();
     vi.mocked(loadModelCatalog).mockResolvedValue([
-      { id: "claude-opus-4-5", name: "Opus 4.5", provider: "anthropic" },
+      { id: "claude-opus-4-6", name: "Opus 4.6", provider: "anthropic" },
       { id: "claude-sonnet-4-1", name: "Sonnet 4.1", provider: "anthropic" },
       { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai" },
     ]);
@@ -90,7 +90,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -135,7 +135,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -161,7 +161,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -184,7 +184,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -208,7 +208,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -234,7 +234,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
               thinkingDefault: "high",
             },
@@ -259,7 +259,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },

@@ -94,7 +94,7 @@ function createRun(
     sessionCtx,
     sessionKey,
     storePath: opts.storePath,
-    defaultModel: "anthropic/claude-opus-4-5",
+    defaultModel: "anthropic/claude-opus-4-6",
     resolvedVerboseLevel: "off",
     isNewSession: false,
     blockStreamingEnabled: false,

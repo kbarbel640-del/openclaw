@@ -78,7 +78,7 @@ x-i18n:
     defaults: {
       heartbeat: {
         every: "30m", // 默认：30m（0m 禁用）
-        model: "anthropic/claude-opus-4-5",
+        model: "anthropic/claude-opus-4-6",
         includeReasoning: false, // 默认：false（可用时发送单独的 Reasoning: 消息）
         target: "last", // last | none | <channel id>（核心或插件，例如 "bluebubbles"）
         to: "+15551234567", // 可选的渠道特定覆盖

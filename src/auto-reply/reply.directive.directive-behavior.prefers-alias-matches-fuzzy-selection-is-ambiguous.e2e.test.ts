@@ -52,7 +52,7 @@ describe("directive behavior", () => {
   beforeEach(() => {
     vi.mocked(runEmbeddedPiAgent).mockReset();
     vi.mocked(loadModelCatalog).mockResolvedValue([
-      { id: "claude-opus-4-5", name: "Opus 4.5", provider: "anthropic" },
+      { id: "claude-opus-4-6", name: "Opus 4.6", provider: "anthropic" },
       { id: "claude-sonnet-4-1", name: "Sonnet 4.1", provider: "anthropic" },
       { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai" },
     ]);
@@ -73,10 +73,10 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
+              model: { primary: "anthropic/claude-opus-4-6" },
               workspace: path.join(home, "openclaw"),
               models: {
-                "anthropic/claude-opus-4-5": {},
+                "anthropic/claude-opus-4-6": {},
                 "moonshot/kimi-k2-0905-preview": { alias: "Kimi" },
                 "lmstudio/kimi-k2-0905-preview": {},
               },
@@ -146,7 +146,7 @@ describe("directive behavior", () => {
               workspace: path.join(home, "openclaw"),
               models: {
                 "openai/gpt-4.1-mini": {},
-                "anthropic/claude-opus-4-5": { alias: "Opus" },
+                "anthropic/claude-opus-4-6": { alias: "Opus" },
               },
             },
           },
@@ -178,7 +178,7 @@ describe("directive behavior", () => {
               workspace: path.join(home, "openclaw"),
               models: {
                 "openai/gpt-4.1-mini": {},
-                "anthropic/claude-opus-4-5": { alias: "Opus" },
+                "anthropic/claude-opus-4-6": { alias: "Opus" },
               },
             },
           },
@@ -187,7 +187,7 @@ describe("directive behavior", () => {
       );
 
       const events = drainSystemEvents(MAIN_SESSION_KEY);
-      expect(events).toContain("Model switched to Opus (anthropic/claude-opus-4-5).");
+      expect(events).toContain("Model switched to Opus (anthropic/claude-opus-4-6).");
       expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
     });
   });

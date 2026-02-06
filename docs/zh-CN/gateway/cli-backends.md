@@ -66,11 +66,11 @@ openclaw agent --message "hi" --model codex-cli/gpt-5.2-codex
   agents: {
     defaults: {
       model: {
-        primary: "anthropic/claude-opus-4-5",
+        primary: "anthropic/claude-opus-4-6",
         fallbacks: ["claude-cli/opus-4.5"],
       },
       models: {
-        "anthropic/claude-opus-4-5": { alias: "Opus" },
+        "anthropic/claude-opus-4-6": { alias: "Opus" },
         "claude-cli/opus-4.5": {},
       },
     },

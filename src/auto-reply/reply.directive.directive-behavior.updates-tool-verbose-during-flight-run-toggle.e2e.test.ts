@@ -50,7 +50,7 @@ describe("directive behavior", () => {
   beforeEach(() => {
     vi.mocked(runEmbeddedPiAgent).mockReset();
     vi.mocked(loadModelCatalog).mockResolvedValue([
-      { id: "claude-opus-4-5", name: "Opus 4.5", provider: "anthropic" },
+      { id: "claude-opus-4-6", name: "Opus 4.6", provider: "anthropic" },
       { id: "claude-sonnet-4-1", name: "Sonnet 4.1", provider: "anthropic" },
       { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai" },
     ]);
@@ -100,7 +100,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -158,7 +158,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -173,7 +173,7 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -198,10 +198,10 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
+              model: { primary: "anthropic/claude-opus-4-6" },
               workspace: path.join(home, "openclaw"),
               models: {
-                "anthropic/claude-opus-4-5": {},
+                "anthropic/claude-opus-4-6": {},
                 "openai/gpt-4.1-mini": {},
               },
             },
@@ -211,7 +211,7 @@ describe("directive behavior", () => {
       );
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toContain("Current: anthropic/claude-opus-4-5");
+      expect(text).toContain("Current: anthropic/claude-opus-4-6");
       expect(text).toContain("Switch: /model <provider/model>");
       expect(text).toContain("Browse: /models (providers) or /models <provider> (models)");
       expect(text).toContain("More: /model status");
@@ -230,10 +230,10 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
+              model: { primary: "anthropic/claude-opus-4-6" },
               workspace: path.join(home, "openclaw"),
               models: {
-                "anthropic/claude-opus-4-5": {},
+                "anthropic/claude-opus-4-6": {},
                 "openai/gpt-4.1-mini": {},
               },
             },
@@ -243,7 +243,7 @@ describe("directive behavior", () => {
       );
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toContain("anthropic/claude-opus-4-5");
+      expect(text).toContain("anthropic/claude-opus-4-6");
       expect(text).toContain("openai/gpt-4.1-mini");
       expect(text).not.toContain("claude-sonnet-4-1");
       expect(text).toContain("auth:");

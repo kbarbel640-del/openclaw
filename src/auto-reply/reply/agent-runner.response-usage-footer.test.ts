@@ -89,7 +89,7 @@ function createRun(params: { responseUsage: "tokens" | "full"; sessionKey: strin
     sessionCtx,
     sessionEntry,
     sessionKey: params.sessionKey,
-    defaultModel: "anthropic/claude-opus-4-5",
+    defaultModel: "anthropic/claude-opus-4-6",
     resolvedVerboseLevel: "off",
     isNewSession: false,
     blockStreamingEnabled: false,

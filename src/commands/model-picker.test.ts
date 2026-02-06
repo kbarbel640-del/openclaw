@@ -130,12 +130,12 @@ describe("promptModelAllowlist", () => {
     await promptModelAllowlist({
       config,
       prompter,
-      allowedKeys: ["anthropic/claude-opus-4-5"],
+      allowedKeys: ["anthropic/claude-opus-4-6"],
     });
 
     const options = multiselect.mock.calls[0]?.[0]?.options ?? [];
     expect(options.map((opt: { value: string }) => opt.value)).toEqual([
-      "anthropic/claude-opus-4-5",
+      "anthropic/claude-opus-4-6",
     ]);
   });
 });
@@ -147,7 +147,7 @@ describe("applyModelAllowlist", () => {
         defaults: {
           models: {
             "openai/gpt-5.2": { alias: "gpt" },
-            "anthropic/claude-opus-4-5": { alias: "opus" },
+            "anthropic/claude-opus-4-6": { alias: "opus" },
           },
         },
       },
@@ -180,17 +180,17 @@ describe("applyModelFallbacksFromSelection", () => {
     const config = {
       agents: {
         defaults: {
-          model: { primary: "anthropic/claude-opus-4-5" },
+          model: { primary: "anthropic/claude-opus-4-6" },
         },
       },
     } as OpenClawConfig;
 
     const next = applyModelFallbacksFromSelection(config, [
-      "anthropic/claude-opus-4-5",
+      "anthropic/claude-opus-4-6",
       "anthropic/claude-sonnet-4-5",
     ]);
     expect(next.agents?.defaults?.model).toEqual({
-      primary: "anthropic/claude-opus-4-5",
+      primary: "anthropic/claude-opus-4-6",
       fallbacks: ["anthropic/claude-sonnet-4-5"],
     });
   });
@@ -199,14 +199,14 @@ describe("applyModelFallbacksFromSelection", () => {
     const config = {
       agents: {
         defaults: {
-          model: { primary: "anthropic/claude-opus-4-5", fallbacks: ["openai/gpt-5.2"] },
+          model: { primary: "anthropic/claude-opus-4-6", fallbacks: ["openai/gpt-5.2"] },
         },
       },
     } as OpenClawConfig;
 
     const next = applyModelFallbacksFromSelection(config, ["openai/gpt-5.2"]);
     expect(next.agents?.defaults?.model).toEqual({
-      primary: "anthropic/claude-opus-4-5",
+      primary: "anthropic/claude-opus-4-6",
       fallbacks: ["openai/gpt-5.2"],
     });
   });

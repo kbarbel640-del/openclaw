@@ -17,7 +17,7 @@ describe("applyGoogleGeminiModelDefault", () => {
 
   it("overrides existing model", () => {
     const cfg: OpenClawConfig = {
-      agents: { defaults: { model: "anthropic/claude-opus-4-5" } },
+      agents: { defaults: { model: "anthropic/claude-opus-4-6" } },
     };
     const applied = applyGoogleGeminiModelDefault(cfg);
     expect(applied.changed).toBe(true);

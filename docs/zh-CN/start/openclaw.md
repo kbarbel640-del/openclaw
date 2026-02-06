@@ -149,7 +149,7 @@ OpenClaw 默认为良好的助手设置，但你通常需要调整：
 {
   logging: { level: "info" },
   agent: {
-    model: "anthropic/claude-opus-4-5",
+    model: "anthropic/claude-opus-4-6",
     workspace: "~/.openclaw/workspace",
     thinkingDefault: "high",
     timeoutSeconds: 1800,

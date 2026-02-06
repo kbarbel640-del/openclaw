@@ -57,7 +57,7 @@ describe("discord native commands", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           humanDelay: { mode: "off" },
           workspace: "/tmp/openclaw",
         },

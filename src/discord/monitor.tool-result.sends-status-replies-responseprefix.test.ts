@@ -59,7 +59,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },
@@ -128,7 +128,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },
@@ -207,7 +207,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },
@@ -297,7 +297,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },
@@ -388,7 +388,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },
@@ -472,7 +472,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },

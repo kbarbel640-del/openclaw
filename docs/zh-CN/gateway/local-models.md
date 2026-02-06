@@ -28,7 +28,7 @@ x-i18n:
     defaults: {
       model: { primary: "lmstudio/minimax-m2.1-gs32" },
       models: {
-        "anthropic/claude-opus-4-5": { alias: "Opus" },
+        "anthropic/claude-opus-4-6": { alias: "Opus" },
         "lmstudio/minimax-m2.1-gs32": { alias: "Minimax" },
       },
     },
@@ -75,12 +75,12 @@ x-i18n:
     defaults: {
       model: {
         primary: "anthropic/claude-sonnet-4-5",
-        fallbacks: ["lmstudio/minimax-m2.1-gs32", "anthropic/claude-opus-4-5"],
+        fallbacks: ["lmstudio/minimax-m2.1-gs32", "anthropic/claude-opus-4-6"],
       },
       models: {
         "anthropic/claude-sonnet-4-5": { alias: "Sonnet" },
         "lmstudio/minimax-m2.1-gs32": { alias: "MiniMax Local" },
-        "anthropic/claude-opus-4-5": { alias: "Opus" },
+        "anthropic/claude-opus-4-6": { alias: "Opus" },
       },
     },
   },

@@ -109,7 +109,7 @@ function createMinimalRun(params?: {
         sessionKey,
         storePath: params?.storePath,
         sessionCtx,
-        defaultModel: "anthropic/claude-opus-4-5",
+        defaultModel: "anthropic/claude-opus-4-6",
         resolvedVerboseLevel: params?.resolvedVerboseLevel ?? "off",
         isNewSession: false,
         blockStreamingEnabled: params?.blockStreamingEnabled ?? false,

@@ -1517,7 +1517,7 @@ exec ssh -T gateway-host imsg "$@"
 | 变量              | 描述           | 示例                        |
 | ----------------- | -------------- | --------------------------- |
 | `{model}`         | 短模型名称     | `claude-opus-4-5`、`gpt-4o` |
-| `{modelFull}`     | 完整模型标识符 | `anthropic/claude-opus-4-5` |
+| `{modelFull}`     | 完整模型标识符 | `anthropic/claude-opus-4-6` |
 | `{provider}`      | 提供商名称     | `anthropic`、`openai`       |
 | `{thinkingLevel}` | 当前思考级别   | `high`、`low`、`off`        |
 | `{identity.name}` | 智能体身份名称 | （与 `"auto"` 模式相同）    |
@@ -1669,7 +1669,7 @@ Z.AI GLM-4.x 模型会自动启用思考模式，除非你：
 
 OpenClaw 还内置了一些别名快捷方式。默认值仅在模型已存在于 `agents.defaults.models` 中时才应用：
 
-- `opus` -> `anthropic/claude-opus-4-5`
+- `opus` -> `anthropic/claude-opus-4-6`
 - `sonnet` -> `anthropic/claude-sonnet-4-5`
 - `gpt` -> `openai/gpt-5.2`
 - `gpt-mini` -> `openai/gpt-5-mini`
@@ -1685,11 +1685,11 @@ OpenClaw 还内置了一些别名快捷方式。默认值仅在模型已存在�
   agents: {
     defaults: {
       models: {
-        "anthropic/claude-opus-4-5": { alias: "opus" },
+        "anthropic/claude-opus-4-6": { alias: "opus" },
         "minimax/MiniMax-M2.1": { alias: "minimax" },
       },
       model: {
-        primary: "anthropic/claude-opus-4-5",
+        primary: "anthropic/claude-opus-4-6",
         fallbacks: ["minimax/MiniMax-M2.1"],
       },
     },
@@ -1742,7 +1742,7 @@ MiniMax 认证：设置 `MINIMAX_API_KEY`（环境变量）或配置 `models.pro
   agents: {
     defaults: {
       models: {
-        "anthropic/claude-opus-4-5": { alias: "Opus" },
+        "anthropic/claude-opus-4-6": { alias: "Opus" },
         "anthropic/claude-sonnet-4-1": { alias: "Sonnet" },
         "openrouter/deepseek/deepseek-r1:free": {},
         "zai/glm-4.7": {
@@ -1756,7 +1756,7 @@ MiniMax 认证：设置 `MINIMAX_API_KEY`（环境变量）或配置 `models.pro
         },
       },
       model: {
-        primary: "anthropic/claude-opus-4-5",
+        primary: "anthropic/claude-opus-4-6",
         fallbacks: [
           "openrouter/deepseek/deepseek-r1:free",
           "openrouter/meta-llama/llama-3.3-70b-instruct:free",
@@ -1960,7 +1960,7 @@ MiniMax 认证：设置 `MINIMAX_API_KEY`（环境变量）或配置 `models.pro
 - `session.typingIntervalSeconds`：每会话的刷新间隔覆盖。
   参见 [/concepts/typing-indicators](/concepts/typing-indicators) 了解行为细节。
 
-`agents.defaults.model.primary` 应设为 `provider/model`（例如 `anthropic/claude-opus-4-5`）。
+`agents.defaults.model.primary` 应设为 `provider/model`（例如 `anthropic/claude-opus-4-6`）。
 别名来自 `agents.defaults.models.*.alias`（例如 `Opus`）。
 如果省略提供商，OpenClaw 目前假定 `anthropic` 作为临时弃用回退。
 Z.AI 模型可通过 `zai/<model>` 使用（例如 `zai/glm-4.7`），需要环境中设置
@@ -2587,7 +2587,7 @@ Z.AI 模型通过内置的 `zai` 提供商提供。在环境中设置 `ZAI_API_K
   agent: {
     model: { primary: "minimax/MiniMax-M2.1" },
     models: {
-      "anthropic/claude-opus-4-5": { alias: "Opus" },
+      "anthropic/claude-opus-4-6": { alias: "Opus" },
       "minimax/MiniMax-M2.1": { alias: "Minimax" },
     },
   },

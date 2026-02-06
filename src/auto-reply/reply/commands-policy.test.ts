@@ -150,7 +150,7 @@ describe("handleCommands /allowlist", () => {
 describe("/models command", () => {
   const cfg = {
     commands: { text: true },
-    agents: { defaults: { model: { primary: "anthropic/claude-opus-4-5" } } },
+    agents: { defaults: { model: { primary: "anthropic/claude-opus-4-6" } } },
   } as unknown as OpenClawConfig;
 
   it.each(["discord", "whatsapp"])("lists providers on %s (text)", async (surface) => {
@@ -180,7 +180,7 @@ describe("/models command", () => {
     expect(result.shouldContinue).toBe(false);
     expect(result.reply?.text).toContain("Models (anthropic)");
     expect(result.reply?.text).toContain("page 1/");
-    expect(result.reply?.text).toContain("anthropic/claude-opus-4-5");
+    expect(result.reply?.text).toContain("anthropic/claude-opus-4-6");
     expect(result.reply?.text).toContain("Switch: /model <provider/model>");
     expect(result.reply?.text).toContain("All: /models anthropic all");
   });
@@ -192,7 +192,7 @@ describe("/models command", () => {
     expect(result.shouldContinue).toBe(false);
     expect(result.reply?.text).toContain("Models (anthropic)");
     expect(result.reply?.text).toContain("page 1/1");
-    expect(result.reply?.text).toContain("anthropic/claude-opus-4-5");
+    expect(result.reply?.text).toContain("anthropic/claude-opus-4-6");
     expect(result.reply?.text).not.toContain("Page out of range");
   });
 
@@ -220,7 +220,7 @@ describe("/models command", () => {
         defaults: {
           model: {
             primary: "localai/ultra-chat",
-            fallbacks: ["anthropic/claude-opus-4-5"],
+            fallbacks: ["anthropic/claude-opus-4-6"],
           },
           imageModel: "visionpro/studio-v1",
         },

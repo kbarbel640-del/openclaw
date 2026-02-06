@@ -28,14 +28,14 @@ const modelCatalogMocks = vi.hoisted(() => ({
   loadModelCatalog: vi.fn().mockResolvedValue([
     {
       provider: "anthropic",
-      id: "claude-opus-4-5",
-      name: "Claude Opus 4.5",
+      id: "claude-opus-4-6",
+      name: "Claude Opus 4.6",
       contextWindow: 200000,
     },
     {
       provider: "openrouter",
-      id: "anthropic/claude-opus-4-5",
-      name: "Claude Opus 4.5 (OpenRouter)",
+      id: "anthropic/claude-opus-4-6",
+      name: "Claude Opus 4.6 (OpenRouter)",
       contextWindow: 200000,
     },
     { provider: "openai", id: "gpt-4.1-mini", name: "GPT-4.1 mini" },
@@ -77,7 +77,7 @@ function makeCfg(home: string) {
   return {
     agents: {
       defaults: {
-        model: "anthropic/claude-opus-4-5",
+        model: "anthropic/claude-opus-4-6",
         workspace: join(home, "openclaw"),
       },
     },
@@ -115,10 +115,10 @@ describe("trigger handling", () => {
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       const normalized = normalizeTestText(text ?? "");
-      expect(normalized).toContain("Current: anthropic/claude-opus-4-5");
-      expect(normalized).toContain("Switch: /model <provider/model>");
-      expect(normalized).toContain("Browse: /models (providers) or /models <provider> (models)");
-      expect(normalized).toContain("More: /model status");
+      expect(normalized).toContain("Current: anthropic/claude-opus-4-6");
+      expect(normalized).toContain("Tap below to browse models, or use:");
+      expect(normalized).toContain("/model <provider/model> to switch");
+      expect(normalized).toContain("/model status for details");
       expect(normalized).not.toContain("reasoning");
       expect(normalized).not.toContain("image");
     });
@@ -155,7 +155,7 @@ describe("trigger handling", () => {
 
       const res = await getReplyFromConfig(
         {
-          Body: "/model openrouter/anthropic/claude-opus-4-5",
+          Body: "/model openrouter/anthropic/claude-opus-4-6",
           From: "telegram:111",
           To: "telegram:111",
           ChatType: "direct",
@@ -170,12 +170,12 @@ describe("trigger handling", () => {
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       expect(normalizeTestText(text ?? "")).toContain(
-        "Model set to openrouter/anthropic/claude-opus-4-5",
+        "Model set to openrouter/anthropic/claude-opus-4-6",
       );
 
       const store = loadSessionStore(cfg.session.store);
       expect(store[sessionKey]?.providerOverride).toBe("openrouter");
-      expect(store[sessionKey]?.modelOverride).toBe("anthropic/claude-opus-4-5");
+      expect(store[sessionKey]?.modelOverride).toBe("anthropic/claude-opus-4-6");
     });
   });
   it("rejects invalid /model <#> selections", async () => {
@@ -216,7 +216,7 @@ describe("trigger handling", () => {
 
       const res = await getReplyFromConfig(
         {
-          Body: "/model anthropic/claude-opus-4-5",
+          Body: "/model anthropic/claude-opus-4-6",
           From: "telegram:111",
           To: "telegram:111",
           ChatType: "direct",
@@ -231,7 +231,7 @@ describe("trigger handling", () => {
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       expect(normalizeTestText(text ?? "")).toContain(
-        "Model reset to default (anthropic/claude-opus-4-5)",
+        "Model reset to default (anthropic/claude-opus-4-6)",
       );
 
       const store = loadSessionStore(cfg.session.store);

@@ -125,7 +125,7 @@ describe("authProfileId fallback scoping", () => {
       sessionStore: { [sessionKey]: sessionEntry },
       sessionKey,
       storePath: undefined,
-      defaultModel: "anthropic/claude-opus-4-5",
+      defaultModel: "anthropic/claude-opus-4-6",
       agentCfgContextTokens: 100_000,
       resolvedVerboseLevel: "off",
       isNewSession: false,

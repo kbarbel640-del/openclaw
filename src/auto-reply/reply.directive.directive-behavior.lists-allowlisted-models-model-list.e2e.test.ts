@@ -50,7 +50,7 @@ describe("directive behavior", () => {
   beforeEach(() => {
     vi.mocked(runEmbeddedPiAgent).mockReset();
     vi.mocked(loadModelCatalog).mockResolvedValue([
-      { id: "claude-opus-4-5", name: "Opus 4.5", provider: "anthropic" },
+      { id: "claude-opus-4-6", name: "Opus 4.6", provider: "anthropic" },
       { id: "claude-sonnet-4-1", name: "Sonnet 4.1", provider: "anthropic" },
       { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai" },
     ]);
@@ -71,10 +71,10 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
+              model: { primary: "anthropic/claude-opus-4-6" },
               workspace: path.join(home, "openclaw"),
               models: {
-                "anthropic/claude-opus-4-5": {},
+                "anthropic/claude-opus-4-6": {},
                 "openai/gpt-4.1-mini": {},
               },
             },
@@ -104,10 +104,10 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
+              model: { primary: "anthropic/claude-opus-4-6" },
               workspace: path.join(home, "openclaw"),
               models: {
-                "anthropic/claude-opus-4-5": {},
+                "anthropic/claude-opus-4-6": {},
                 "openai/gpt-4.1-mini": {},
               },
             },
@@ -117,7 +117,7 @@ describe("directive behavior", () => {
       );
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toContain("Current: anthropic/claude-opus-4-5");
+      expect(text).toContain("Current: anthropic/claude-opus-4-6");
       expect(text).toContain("Switch: /model <provider/model>");
       expect(text).toContain("Browse: /models (providers) or /models <provider> (models)");
       expect(text).toContain("More: /model status");
@@ -128,7 +128,7 @@ describe("directive behavior", () => {
     await withTempHome(async (home) => {
       vi.mocked(runEmbeddedPiAgent).mockReset();
       vi.mocked(loadModelCatalog).mockResolvedValue([
-        { id: "claude-opus-4-5", name: "Opus 4.5", provider: "anthropic" },
+        { id: "claude-opus-4-6", name: "Opus 4.6", provider: "anthropic" },
         { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai" },
         { id: "grok-4", name: "Grok 4", provider: "xai" },
       ]);
@@ -141,7 +141,7 @@ describe("directive behavior", () => {
           agents: {
             defaults: {
               model: {
-                primary: "anthropic/claude-opus-4-5",
+                primary: "anthropic/claude-opus-4-6",
                 fallbacks: ["openai/gpt-4.1-mini"],
               },
               imageModel: { primary: "minimax/MiniMax-M2.1" },
@@ -169,8 +169,8 @@ describe("directive behavior", () => {
       vi.mocked(loadModelCatalog).mockResolvedValueOnce([
         {
           provider: "anthropic",
-          id: "claude-opus-4-5",
-          name: "Claude Opus 4.5",
+          id: "claude-opus-4-6",
+          name: "Claude Opus 4.6",
         },
         { provider: "openai", id: "gpt-4.1-mini", name: "GPT-4.1 mini" },
       ]);
@@ -182,10 +182,10 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
+              model: { primary: "anthropic/claude-opus-4-6" },
               workspace: path.join(home, "openclaw"),
               models: {
-                "anthropic/claude-opus-4-5": {},
+                "anthropic/claude-opus-4-6": {},
                 "openai/gpt-4.1-mini": {},
                 "minimax/MiniMax-M2.1": { alias: "minimax" },
               },
@@ -206,7 +206,7 @@ describe("directive behavior", () => {
       );
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toContain("Model set to minimax");
+      expect(text).toContain("Models (minimax)");
       expect(text).toContain("minimax/MiniMax-M2.1");
       expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
     });
@@ -222,10 +222,10 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
+              model: { primary: "anthropic/claude-opus-4-6" },
               workspace: path.join(home, "openclaw"),
               models: {
-                "anthropic/claude-opus-4-5": {},
+                "anthropic/claude-opus-4-6": {},
               },
             },
           },
@@ -250,10 +250,10 @@ describe("directive behavior", () => {
         {
           agents: {
             defaults: {
-              model: { primary: "anthropic/claude-opus-4-5" },
+              model: { primary: "anthropic/claude-opus-4-6" },
               workspace: path.join(home, "openclaw"),
               models: {
-                "anthropic/claude-opus-4-5": {},
+                "anthropic/claude-opus-4-6": {},
                 "openai/gpt-4.1-mini": {},
               },
             },
@@ -284,7 +284,7 @@ describe("directive behavior", () => {
               workspace: path.join(home, "openclaw"),
               models: {
                 "openai/gpt-4.1-mini": {},
-                "anthropic/claude-opus-4-5": { alias: "Opus" },
+                "anthropic/claude-opus-4-6": { alias: "Opus" },
               },
             },
           },
@@ -293,7 +293,7 @@ describe("directive behavior", () => {
       );
 
       assertModelSelection(storePath, {
-        model: "claude-opus-4-5",
+        model: "claude-opus-4-6",
         provider: "anthropic",
       });
       expect(runEmbeddedPiAgent).not.toHaveBeenCalled();

@@ -63,7 +63,7 @@ describe("RawBody directive parsing", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -97,10 +97,10 @@ describe("RawBody directive parsing", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
               models: {
-                "anthropic/claude-opus-4-5": {},
+                "anthropic/claude-opus-4-6": {},
               },
             },
           },
@@ -110,7 +110,7 @@ describe("RawBody directive parsing", () => {
       );
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toContain("anthropic/claude-opus-4-5");
+      expect(text).toContain("anthropic/claude-opus-4-6");
       expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
     });
   });
@@ -134,7 +134,7 @@ describe("RawBody directive parsing", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -172,7 +172,7 @@ describe("RawBody directive parsing", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },
@@ -183,7 +183,7 @@ describe("RawBody directive parsing", () => {
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       expect(text).toContain("Session: agent:main:whatsapp:group:g1");
-      expect(text).toContain("anthropic/claude-opus-4-5");
+      expect(text).toContain("anthropic/claude-opus-4-6");
       expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
     });
   });
@@ -220,7 +220,7 @@ describe("RawBody directive parsing", () => {
         {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               workspace: path.join(home, "openclaw"),
             },
           },

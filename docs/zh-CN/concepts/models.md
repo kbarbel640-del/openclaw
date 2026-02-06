@@ -81,7 +81,7 @@ Model "provider/model" is not allowed. Use /model to list available models.
     model: { primary: "anthropic/claude-sonnet-4-5" },
     models: {
       "anthropic/claude-sonnet-4-5": { alias: "Sonnet" },
-      "anthropic/claude-opus-4-5": { alias: "Opus" },
+      "anthropic/claude-opus-4-6": { alias: "Opus" },
     },
   },
 }

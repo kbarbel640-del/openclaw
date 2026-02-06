@@ -28,14 +28,14 @@ const modelCatalogMocks = vi.hoisted(() => ({
   loadModelCatalog: vi.fn().mockResolvedValue([
     {
       provider: "anthropic",
-      id: "claude-opus-4-5",
-      name: "Claude Opus 4.5",
+      id: "claude-opus-4-6",
+      name: "Claude Opus 4.6",
       contextWindow: 200000,
     },
     {
       provider: "openrouter",
-      id: "anthropic/claude-opus-4-5",
-      name: "Claude Opus 4.5 (OpenRouter)",
+      id: "anthropic/claude-opus-4-6",
+      name: "Claude Opus 4.6 (OpenRouter)",
       contextWindow: 200000,
     },
     { provider: "openai", id: "gpt-4.1-mini", name: "GPT-4.1 mini" },
@@ -76,7 +76,7 @@ function makeCfg(home: string) {
   return {
     agents: {
       defaults: {
-        model: "anthropic/claude-opus-4-5",
+        model: "anthropic/claude-opus-4-6",
         workspace: join(home, "openclaw"),
       },
     },
@@ -106,7 +106,7 @@ describe("trigger handling", () => {
       const cfg = {
         agents: {
           defaults: {
-            model: "anthropic/claude-opus-4-5",
+            model: "anthropic/claude-opus-4-6",
             workspace: join(home, "openclaw"),
           },
         },
@@ -148,7 +148,7 @@ describe("trigger handling", () => {
       const cfg = {
         agents: {
           defaults: {
-            model: "anthropic/claude-opus-4-5",
+            model: "anthropic/claude-opus-4-6",
             workspace: join(home, "openclaw"),
           },
         },
@@ -191,7 +191,7 @@ describe("trigger handling", () => {
       );
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       expect(text).toContain("Help");
-      expect(text).toContain("Shortcuts");
+      expect(text).toContain("Session");
       expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
     });
   });
@@ -200,7 +200,7 @@ describe("trigger handling", () => {
       const cfg = {
         agents: {
           defaults: {
-            model: "anthropic/claude-opus-4-5",
+            model: "anthropic/claude-opus-4-6",
             workspace: join(home, "openclaw"),
           },
         },

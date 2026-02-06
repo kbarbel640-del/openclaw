@@ -63,7 +63,7 @@ describe("discord tool result dispatch", () => {
       const cfg = {
         agents: {
           defaults: {
-            model: "anthropic/claude-opus-4-5",
+            model: "anthropic/claude-opus-4-6",
             workspace: "/tmp/openclaw",
           },
         },
@@ -147,7 +147,7 @@ describe("discord tool result dispatch", () => {
       const cfg = {
         agents: {
           defaults: {
-            model: "anthropic/claude-opus-4-5",
+            model: "anthropic/claude-opus-4-6",
             workspace: "/tmp/openclaw",
           },
         },
@@ -229,7 +229,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },
@@ -343,7 +343,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },
@@ -454,7 +454,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },
@@ -564,7 +564,7 @@ describe("discord tool result dispatch", () => {
     });
 
     const cfg = {
-      agent: { model: "anthropic/claude-opus-4-5", workspace: "/tmp/openclaw" },
+      agent: { model: "anthropic/claude-opus-4-6", workspace: "/tmp/openclaw" },
       session: { store: "/tmp/openclaw-sessions.json" },
       channels: {
         discord: {
@@ -670,7 +670,7 @@ describe("discord tool result dispatch", () => {
     const cfg = {
       agents: {
         defaults: {
-          model: "anthropic/claude-opus-4-5",
+          model: "anthropic/claude-opus-4-6",
           workspace: "/tmp/openclaw",
         },
       },

@@ -1165,7 +1165,7 @@ describeLive("gateway live (dev agent, profile keys)", () => {
 
       await client.request("sessions.patch", {
         key: sessionKey,
-        model: "anthropic/claude-opus-4-5",
+        model: "anthropic/claude-opus-4-6",
       });
       await client.request("sessions.reset", {
         key: sessionKey,
@@ -1191,7 +1191,7 @@ describeLive("gateway live (dev agent, profile keys)", () => {
       const toolText = extractPayloadText(toolProbe?.result);
       assertNoReasoningTags({
         text: toolText,
-        model: "anthropic/claude-opus-4-5",
+        model: "anthropic/claude-opus-4-6",
         phase: "zai-fallback-tool",
         label: "zai-fallback",
       });

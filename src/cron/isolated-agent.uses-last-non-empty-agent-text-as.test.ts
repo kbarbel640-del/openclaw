@@ -60,7 +60,7 @@ function makeCfg(
   const base: OpenClawConfig = {
     agents: {
       defaults: {
-        model: "anthropic/claude-opus-4-5",
+        model: "anthropic/claude-opus-4-6",
         workspace: path.join(home, "openclaw"),
       },
     },
@@ -398,8 +398,8 @@ describe("runCronIsolatedAgentTurn", () => {
       });
       vi.mocked(loadModelCatalog).mockResolvedValueOnce([
         {
-          id: "claude-opus-4-5",
-          name: "Opus 4.5",
+          id: "claude-opus-4-6",
+          name: "Opus 4.6",
           provider: "anthropic",
         },
       ]);
@@ -408,9 +408,9 @@ describe("runCronIsolatedAgentTurn", () => {
         cfg: makeCfg(home, storePath, {
           agents: {
             defaults: {
-              model: "anthropic/claude-opus-4-5",
+              model: "anthropic/claude-opus-4-6",
               models: {
-                "anthropic/claude-opus-4-5": { alias: "Opus" },
+                "anthropic/claude-opus-4-6": { alias: "Opus" },
               },
             },
           },
@@ -433,7 +433,7 @@ describe("runCronIsolatedAgentTurn", () => {
         model?: string;
       };
       expect(call?.provider).toBe("anthropic");
-      expect(call?.model).toBe("claude-opus-4-5");
+      expect(call?.model).toBe("claude-opus-4-6");
     });
   });
 
@@ -487,8 +487,8 @@ describe("runCronIsolatedAgentTurn", () => {
       });
       vi.mocked(loadModelCatalog).mockResolvedValueOnce([
         {
-          id: "claude-opus-4-5",
-          name: "Opus 4.5",
+          id: "claude-opus-4-6",
+          name: "Opus 4.6",
           provider: "anthropic",
           reasoning: true,
         },

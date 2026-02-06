@@ -49,8 +49,8 @@ function mockConfig(
   configSpy.mockReturnValue({
     agents: {
       defaults: {
-        model: { primary: "anthropic/claude-opus-4-5" },
-        models: { "anthropic/claude-opus-4-5": {} },
+        model: { primary: "anthropic/claude-opus-4-6" },
+        models: { "anthropic/claude-opus-4-6": {} },
         workspace: path.join(home, "openclaw"),
         ...agentOverrides,
       },
@@ -183,7 +183,7 @@ describe("agentCommand", () => {
       mockConfig(home, store, {
         model: { primary: "openai/gpt-4.1-mini" },
         models: {
-          "anthropic/claude-opus-4-5": {},
+          "anthropic/claude-opus-4-6": {},
           "openai/gpt-4.1-mini": {},
         },
       });
@@ -265,8 +265,8 @@ describe("agentCommand", () => {
       mockConfig(home, store);
       vi.mocked(loadModelCatalog).mockResolvedValueOnce([
         {
-          id: "claude-opus-4-5",
-          name: "Opus 4.5",
+          id: "claude-opus-4-6",
+          name: "Opus 4.6",
           provider: "anthropic",
           reasoning: true,
         },

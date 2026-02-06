@@ -192,11 +192,11 @@ describe("applyMinimaxApiConfig", () => {
     const cfg = applyMinimaxApiConfig({
       agents: {
         defaults: {
-          model: { fallbacks: ["anthropic/claude-opus-4-5"] },
+          model: { fallbacks: ["anthropic/claude-opus-4-6"] },
         },
       },
     });
-    expect(cfg.agents?.defaults?.model?.fallbacks).toEqual(["anthropic/claude-opus-4-5"]);
+    expect(cfg.agents?.defaults?.model?.fallbacks).toEqual(["anthropic/claude-opus-4-6"]);
   });
 
   it("adds model alias", () => {
@@ -296,9 +296,9 @@ describe("applyMinimaxApiConfig", () => {
 describe("applyMinimaxApiProviderConfig", () => {
   it("does not overwrite existing primary model", () => {
     const cfg = applyMinimaxApiProviderConfig({
-      agents: { defaults: { model: { primary: "anthropic/claude-opus-4-5" } } },
+      agents: { defaults: { model: { primary: "anthropic/claude-opus-4-6" } } },
     });
-    expect(cfg.agents?.defaults?.model?.primary).toBe("anthropic/claude-opus-4-5");
+    expect(cfg.agents?.defaults?.model?.primary).toBe("anthropic/claude-opus-4-6");
   });
 });
 
@@ -406,11 +406,11 @@ describe("applyXaiConfig", () => {
     const cfg = applyXaiConfig({
       agents: {
         defaults: {
-          model: { fallbacks: ["anthropic/claude-opus-4-5"] },
+          model: { fallbacks: ["anthropic/claude-opus-4-6"] },
         },
       },
     });
-    expect(cfg.agents?.defaults?.model?.fallbacks).toEqual(["anthropic/claude-opus-4-5"]);
+    expect(cfg.agents?.defaults?.model?.fallbacks).toEqual(["anthropic/claude-opus-4-6"]);
   });
 });
 
@@ -482,11 +482,11 @@ describe("applyOpencodeZenConfig", () => {
     const cfg = applyOpencodeZenConfig({
       agents: {
         defaults: {
-          model: { fallbacks: ["anthropic/claude-opus-4-5"] },
+          model: { fallbacks: ["anthropic/claude-opus-4-6"] },
         },
       },
     });
-    expect(cfg.agents?.defaults?.model?.fallbacks).toEqual(["anthropic/claude-opus-4-5"]);
+    expect(cfg.agents?.defaults?.model?.fallbacks).toEqual(["anthropic/claude-opus-4-6"]);
   });
 });
 
@@ -521,10 +521,10 @@ describe("applyOpenrouterConfig", () => {
     const cfg = applyOpenrouterConfig({
       agents: {
         defaults: {
-          model: { fallbacks: ["anthropic/claude-opus-4-5"] },
+          model: { fallbacks: ["anthropic/claude-opus-4-6"] },
         },
       },
     });
-    expect(cfg.agents?.defaults?.model?.fallbacks).toEqual(["anthropic/claude-opus-4-5"]);
+    expect(cfg.agents?.defaults?.model?.fallbacks).toEqual(["anthropic/claude-opus-4-6"]);
   });
 });

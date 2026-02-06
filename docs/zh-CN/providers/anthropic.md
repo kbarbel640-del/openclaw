@@ -38,7 +38,7 @@ openclaw onboard --anthropic-api-key "$ANTHROPIC_API_KEY"
 ```json5
 {
   env: { ANTHROPIC_API_KEY: "sk-ant-..." },
-  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-5" } } },
+  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-6" } } },
 }
 ```
 
@@ -61,7 +61,7 @@ OpenClaw 支持 Anthropic 的提示缓存功能。这是**仅限 API**；订阅�
   agents: {
     defaults: {
       models: {
-        "anthropic/claude-opus-4-5": {
+        "anthropic/claude-opus-4-6": {
           params: { cacheRetention: "long" },
         },
       },
@@ -121,7 +121,7 @@ openclaw onboard --auth-choice setup-token
 
 ```json5
 {
-  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-5" } } },
+  agents: { defaults: { model: { primary: "anthropic/claude-opus-4-6" } } },
 }
 ```
 
