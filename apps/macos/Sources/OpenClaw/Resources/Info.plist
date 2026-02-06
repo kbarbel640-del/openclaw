@@ -7,7 +7,7 @@
     <key>CFBundleExecutable</key>
     <string>OpenClaw</string>
     <key>CFBundleIdentifier</key>
-    <string>ai.openclaw.mac</string>
+    <string>ai.gensparx.mac</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -24,10 +24,10 @@
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>ai.openclaw.mac.deeplink</string>
+            <string>ai.gensparx.mac.deeplink</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>openclaw</string>
+                <string>gensparx</string>
             </array>
         </dict>
     </array>

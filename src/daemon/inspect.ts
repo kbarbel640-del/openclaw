@@ -95,14 +95,14 @@ function isOpenClawGatewayLaunchdService(label: string, contents: string): boole
   if (!lowerContents.includes("gateway")) {
     return false;
   }
-  return label.startsWith("ai.openclaw.");
+  return label.startsWith("ai.openclaw.") || label.startsWith("ai.gensparx.");
 }
 
 function isOpenClawGatewaySystemdService(name: string, contents: string): boolean {
   if (hasGatewayServiceMarker(contents)) {
     return true;
   }
-  if (!name.startsWith("openclaw-gateway")) {
+  if (!name.startsWith("openclaw-gateway") && !name.startsWith("gensparx-gateway")) {
     return false;
   }
   return contents.toLowerCase().includes("gateway");
