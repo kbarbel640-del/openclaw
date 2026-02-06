@@ -241,7 +241,9 @@ export function scanPluginOutput(
   text: string,
   options: OutputScanOptions = {},
 ): OutputScanResult {
-  const maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
+  const rawMaxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
+  // Guard against NaN / non-finite values — fall back to default
+  const maxChars = Number.isFinite(rawMaxChars) && rawMaxChars > 0 ? rawMaxChars : DEFAULT_MAX_CHARS;
   const ignoreCodeBlocks = options.ignoreCodeBlocks ?? true;
 
   const scanText = text.length > maxChars ? text.slice(0, maxChars) : text;
@@ -255,19 +257,25 @@ export function scanPluginOutput(
   const findings: OutputScanFinding[] = [];
 
   for (const rule of RULES) {
-    const match = rule.pattern.exec(scanText);
-    if (!match) continue;
+    // Reset lastIndex to avoid state leaks from shared regex instances
+    rule.pattern.lastIndex = 0;
 
-    // Skip matches inside code blocks
-    if (ignoreCodeBlocks && isInsideCodeBlock(match.index, codeSpans)) continue;
+    // Collect all matches per rule (not just the first)
+    let match: RegExpExecArray | null;
+    // Use a fresh global-flag copy so exec() iterates all occurrences
+    const globalPattern = new RegExp(rule.pattern.source, rule.pattern.flags.includes("g") ? rule.pattern.flags : rule.pattern.flags + "g");
+    while ((match = globalPattern.exec(scanText)) !== null) {
+      // Skip matches inside code blocks
+      if (ignoreCodeBlocks && isInsideCodeBlock(match.index, codeSpans)) continue;
 
-    findings.push({
-      ruleId: rule.ruleId,
-      name: rule.name,
-      severity: rule.severity,
-      evidence: match[0].slice(0, 80),
-      position: match.index,
-    });
+      findings.push({
+        ruleId: rule.ruleId,
+        name: rule.name,
+        severity: rule.severity,
+        evidence: match[0].slice(0, 80),
+        position: match.index,
+      });
+    }
   }
 
   // Sort by position
