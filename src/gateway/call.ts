@@ -149,7 +149,9 @@ export function buildGatewayConnectionDetails(
 export async function callGateway<T = Record<string, unknown>>(
   opts: CallGatewayOptions,
 ): Promise<T> {
-  const timeoutMs = opts.timeoutMs ?? 10_000;
+  // Clamp timeout to Node.js setTimeout's 32-bit limit to prevent overflow
+  const { clampTimeout } = await import("../agents/timeout.js");
+  const timeoutMs = clampTimeout(opts.timeoutMs ?? 10_000);
   const config = opts.config ?? loadConfig();
   const isRemoteMode = config.gateway?.mode === "remote";
   const remote = isRemoteMode ? config.gateway?.remote : undefined;
