@@ -597,22 +597,24 @@ extension MenuSessionsInjector {
         hosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
         item.view = hosting
 
-        let task = Task { [weak hosting] in
+        // Re-assign item.view with a new NSHostingView so NSMenu re-measures the item height.
+        // Mutating rootView on the existing hosting view doesn't trigger NSMenu re-layout.
+        let task = Task { [weak item] in
             let snapshot = await SessionMenuPreviewLoader.load(sessionKey: sessionKey, maxItems: 10)
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                guard let hosting else { return }
+                guard let item else { return }
                 let nextView = AnyView(SessionMenuPreviewView(
                     width: width,
                     maxLines: maxLines,
                     title: title,
                     items: snapshot.items,
                     status: snapshot.status))
-                hosting.rootView = nextView
-                hosting.invalidateIntrinsicContentSize()
-                hosting.frame.size.width = max(1, width)
-                let size = hosting.fittingSize
-                hosting.frame.size.height = size.height
+                let newHosting = NSHostingView(rootView: nextView)
+                newHosting.frame.size.width = max(1, width)
+                let size = newHosting.fittingSize
+                newHosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: size.height))
+                item.view = newHosting
             }
         }
         self.previewTasks.append(task)
