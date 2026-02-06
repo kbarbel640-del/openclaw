@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { __testing } from "./web-search.js";
+import { createWebSearchTool, __testing } from "./web-search.js";
 
 const { inferPerplexityBaseUrlFromApiKey, resolvePerplexityBaseUrl, normalizeFreshness } =
   __testing;
@@ -66,5 +66,140 @@ describe("web_search freshness normalization", () => {
     expect(normalizeFreshness("2024-13-01to2024-01-31")).toBeUndefined();
     expect(normalizeFreshness("2024-02-30to2024-03-01")).toBeUndefined();
     expect(normalizeFreshness("2024-03-10to2024-03-01")).toBeUndefined();
+  });
+});
+
+describe("web_search custom provider support", () => {
+  it("returns null for a non-built-in provider so plugins can provide web_search", () => {
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              enabled: true,
+              provider: "zhipu",
+            },
+          },
+        },
+      } as any,
+    });
+    expect(tool).toBeNull();
+  });
+
+  it("returns a tool for brave provider", () => {
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              enabled: true,
+              provider: "brave",
+            },
+          },
+        },
+      } as any,
+    });
+    expect(tool).not.toBeNull();
+    expect(tool!.name).toBe("web_search");
+  });
+
+  it("returns a tool for perplexity provider", () => {
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              enabled: true,
+              provider: "perplexity",
+            },
+          },
+        },
+      } as any,
+    });
+    expect(tool).not.toBeNull();
+    expect(tool!.name).toBe("web_search");
+  });
+
+  it("defaults to brave when no provider is set", () => {
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              enabled: true,
+            },
+          },
+        },
+      } as any,
+    });
+    expect(tool).not.toBeNull();
+    expect(tool!.name).toBe("web_search");
+  });
+
+  it("normalizes provider with leading/trailing spaces", () => {
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              enabled: true,
+              provider: "  BRAVE  ",
+            },
+          },
+        },
+      } as any,
+    });
+    expect(tool).not.toBeNull();
+    expect(tool!.name).toBe("web_search");
+  });
+
+  it("normalizes provider case (Perplexity -> perplexity)", () => {
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              enabled: true,
+              provider: "Perplexity",
+            },
+          },
+        },
+      } as any,
+    });
+    expect(tool).not.toBeNull();
+    expect(tool!.name).toBe("web_search");
+  });
+
+  it("returns null for a typo provider (no silent fallback to brave)", () => {
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              enabled: true,
+              provider: "brvae",
+            },
+          },
+        },
+      } as any,
+    });
+    expect(tool).toBeNull();
+  });
+
+  it("treats whitespace-only provider as empty (defaults to brave)", () => {
+    const tool = createWebSearchTool({
+      config: {
+        tools: {
+          web: {
+            search: {
+              enabled: true,
+              provider: "   ",
+            },
+          },
+        },
+      } as any,
+    });
+    expect(tool).not.toBeNull();
+    expect(tool!.name).toBe("web_search");
   });
 });

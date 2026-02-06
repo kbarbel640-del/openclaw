@@ -2,6 +2,7 @@ import { Type } from "@sinclair/typebox";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { formatCliCommand } from "../../cli/command-format.js";
+import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { wrapWebContent } from "../../security/external-content.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 import {
@@ -17,7 +18,16 @@ import {
   writeCache,
 } from "./web-shared.js";
 
+const log = createSubsystemLogger("tools/web-search");
+
 const SEARCH_PROVIDERS = ["brave", "perplexity"] as const;
+type BuiltinProvider = (typeof SEARCH_PROVIDERS)[number];
+const BUILTIN_PROVIDERS: ReadonlySet<string> = new Set<string>(SEARCH_PROVIDERS);
+
+function isBuiltinProvider(value: string): value is BuiltinProvider {
+  return BUILTIN_PROVIDERS.has(value);
+}
+
 const DEFAULT_SEARCH_COUNT = 5;
 const MAX_SEARCH_COUNT = 10;
 
@@ -144,18 +154,15 @@ function missingSearchKeyPayload(provider: (typeof SEARCH_PROVIDERS)[number]) {
   };
 }
 
-function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDERS)[number] {
+function resolveSearchProvider(search?: WebSearchConfig): string {
   const raw =
     search && "provider" in search && typeof search.provider === "string"
       ? search.provider.trim().toLowerCase()
       : "";
-  if (raw === "perplexity") {
-    return "perplexity";
-  }
-  if (raw === "brave") {
+  if (!raw) {
     return "brave";
   }
-  return "brave";
+  return raw;
 }
 
 function resolvePerplexityConfig(search?: WebSearchConfig): PerplexityConfig {
@@ -468,6 +475,16 @@ export function createWebSearchTool(options?: {
   }
 
   const provider = resolveSearchProvider(search);
+
+  // Non-built-in provider: skip core tool so a plugin can register web_search.
+  if (!isBuiltinProvider(provider)) {
+    log.warn(
+      `web_search provider "${provider}" is not built-in; core web_search disabled. ` +
+        `A plugin must register a web_search tool for this provider to work.`,
+    );
+    return null;
+  }
+
   const perplexityConfig = resolvePerplexityConfig(search);
 
   const description =

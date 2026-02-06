@@ -21,4 +21,19 @@ describe("web search provider config", () => {
 
     expect(res.ok).toBe(true);
   });
+
+  it("accepts a custom provider string for plugin-based search", () => {
+    const res = validateConfigObject({
+      tools: {
+        web: {
+          search: {
+            enabled: true,
+            provider: "zhipu",
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
 });
