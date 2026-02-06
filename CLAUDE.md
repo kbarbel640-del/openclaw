@@ -342,6 +342,17 @@ opus: "anthropic/claude-opus-4-5",
 sonnet: "anthropic/claude-sonnet-4-5",
 ```
 
+**Date-Based Model Identifiers**: For specific model versions, use the date format:
+```json
+{
+  "model": {
+    "primary": "claude-cli/claude-opus-4-20260205"
+  }
+}
+```
+
+This format specifies the exact model version released on a particular date (e.g., `claude-opus-4-20260205` for Claude Opus 4.6 released on Feb 5, 2026).
+
 ### Testing Best Practices
 
 **Before configuring CLI backend**, test with direct Anthropic API first:
