@@ -227,7 +227,9 @@ function resolveActions(state: AppViewState): CommandAction[] {
       icon: "book",
       shortcut: "D Z",
       keywords: ["help", "中文", "文档"],
-      run: () => window.open("https://docs.openclaw.ai/zh-CN/index", "_blank", "noreferrer"),
+      run: () => {
+        window.open("https://docs.openclaw.ai/zh-CN/index", "_blank", "noreferrer");
+      },
     },
     {
       id: "help.clawhub",
@@ -236,7 +238,9 @@ function resolveActions(state: AppViewState): CommandAction[] {
       icon: "globe",
       shortcut: "M K",
       keywords: ["market", "registry", "skills"],
-      run: () => window.open("https://clawhub.com", "_blank", "noreferrer"),
+      run: () => {
+        window.open("https://clawhub.com", "_blank", "noreferrer");
+      },
     },
     {
       id: "copy.doctor",

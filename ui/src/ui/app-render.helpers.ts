@@ -6,7 +6,6 @@ import type { ThemeMode } from "./theme.ts";
 import type { SessionsListResult } from "./types.ts";
 import { refreshChat } from "./app-chat.ts";
 import { syncUrlWithSessionKey } from "./app-settings.ts";
-import { OpenClawApp } from "./app.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
 import { patchSession } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
@@ -49,12 +48,20 @@ export function renderChatControls(state: AppViewState) {
   );
   const activeSession = state.sessionsResult?.sessions?.find((row) => row.key === state.sessionKey);
   const defaults = state.sessionsResult?.defaults ?? null;
-  const defaultRef =
-    defaults?.modelProvider && defaults?.model ? `${defaults.modelProvider}/${defaults.model}` : "";
-  const currentRef =
-    activeSession?.modelProvider && activeSession?.model
-      ? `${activeSession.modelProvider}/${activeSession.model}`
-      : "";
+  const defaultRef = typeof defaults?.model === "string" ? defaults.model.trim() : "";
+  const currentRef = (() => {
+    const model = typeof activeSession?.model === "string" ? activeSession.model.trim() : "";
+    if (!model) {
+      return "";
+    }
+    // Newer gateways may already encode provider in the model string (e.g. "anthropic/claude-...").
+    if (model.includes("/")) {
+      return model;
+    }
+    const provider =
+      typeof activeSession?.modelProvider === "string" ? activeSession.modelProvider.trim() : "";
+    return provider ? `${provider}/${model}` : model;
+  })();
   const currentModelValue = defaultRef && currentRef === defaultRef ? "" : currentRef;
   const disableThinkingToggle = state.onboarding;
   const disableFocusToggle = state.onboarding;
@@ -105,10 +112,9 @@ export function renderChatControls(state: AppViewState) {
             state.sessionKey = next;
             state.chatMessage = "";
             state.chatStream = null;
-            (state as unknown as OpenClawApp).chatStreamStartedAt = null;
             state.chatRunId = null;
-            (state as unknown as OpenClawApp).resetToolStream();
-            (state as unknown as OpenClawApp).resetChatScroll();
+            state.resetToolStream();
+            state.resetChatScroll();
             state.applySettings({
               ...state.settings,
               sessionKey: next,
@@ -158,7 +164,7 @@ export function renderChatControls(state: AppViewState) {
         class="btn btn--sm btn--icon"
         ?disabled=${state.chatLoading || !state.connected}
         @click=${() => {
-          (state as unknown as OpenClawApp).resetToolStream();
+          state.resetToolStream();
           void refreshChat(state as unknown as Parameters<typeof refreshChat>[0]);
         }}
         title="Refresh chat data"

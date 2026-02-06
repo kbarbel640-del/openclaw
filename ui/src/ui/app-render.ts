@@ -240,14 +240,14 @@ export function renderApp(state: AppViewState) {
                 onConnect: () => state.connect(),
                 onRefresh: () => state.loadOverview(),
                 onRestartGateway: () =>
-                  restartGateway(state as unknown as OpenClawApp, {
+                  restartGateway(state, {
                     reason: "dashboard.quick-actions",
                     sessionKey: state.sessionKey,
                   }),
                 onOpenConfig: () => {
                   window.location.href = pathForTab("config", state.basePath);
                 },
-                onRunUpdate: () => runUpdate(state as unknown as OpenClawApp),
+                onRunUpdate: () => runUpdate(state),
                 onStopLegacyGateway: window.openclawDesktop?.legacyGatewayStop
                   ? () => void window.openclawDesktop?.legacyGatewayStop?.()
                   : undefined,
