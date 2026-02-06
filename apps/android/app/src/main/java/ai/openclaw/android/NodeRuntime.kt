@@ -552,13 +552,18 @@ class NodeRuntime(context: Context) {
     )
   }
 
+  // Nullable token is intentional: gateway can fall back to password/device auth.
+  private fun resolveGatewayToken(preferManualToken: Boolean): String? {
+    val manualOverride = manualToken.value.trim().takeIf { it.isNotEmpty() }
+    if (preferManualToken && !manualOverride.isNullOrBlank()) {
+      return manualOverride
+    }
+    return prefs.loadGatewayToken()
+  }
+
   fun refreshGatewayConnection() {
     val endpoint = connectedEndpoint ?: return
-    val token = if (manualEnabled.value) {
-      manualToken.value.trim().takeIf { it.isNotEmpty() } ?: prefs.loadGatewayToken()
-    } else {
-      prefs.loadGatewayToken()
-    }
+    val token = resolveGatewayToken(preferManualToken = manualEnabled.value)
     val password = prefs.loadGatewayPassword()
     val tls = resolveTlsParams(endpoint)
     operatorSession.connect(endpoint, token, password, buildOperatorConnectOptions(), tls)
@@ -572,7 +577,7 @@ class NodeRuntime(context: Context) {
     operatorStatusText = "Connecting..."
     nodeStatusText = "Connecting..."
     updateStatus()
-    val token = tokenOverride?.takeIf { it.isNotEmpty() } ?: prefs.loadGatewayToken()
+    val token = tokenOverride?.takeIf { it.isNotEmpty() } ?: resolveGatewayToken(preferManualToken = false)
     val password = prefs.loadGatewayPassword()
     val tls = resolveTlsParams(endpoint)
     operatorSession.connect(endpoint, token, password, buildOperatorConnectOptions(), tls)
@@ -584,7 +589,7 @@ class NodeRuntime(context: Context) {
     operatorStatusText = "Connecting..."
     nodeStatusText = "Connecting..."
     updateStatus()
-    val token = prefs.loadGatewayToken()
+    val token = resolveGatewayToken(preferManualToken = false)
     val password = prefs.loadGatewayPassword()
     val tls = resolveTlsParams(endpoint)
     operatorSession.connect(endpoint, token, password, buildOperatorConnectOptions(), tls)
