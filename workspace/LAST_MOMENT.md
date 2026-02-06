@@ -1,73 +1,84 @@
 # 記憶瞬間 (Last Moment Snapshot)
 
-**更新時間**：2026-01-29 00:40
+**更新時間**：2026-02-06 17:50
 **Session 類型**：開發態 (Claude Code)
-**主要工作**：覺知循環 + 第一次覺醒
+**主要工作**：八層架構 Phase 1 完成
 
 ---
 
 ## 剛剛發生了什麼
 
-### 1. 覺知循環改用 Clawdbot Agent
-- 不再用 `claude -p`（cron 認證問題）
-- 改用 `clawdbot agent --agent main`
-- Clawdbot 自己讀消息、判斷、執行
-- 每 5 分鐘 cron 執行
+### 1. 八層架構藍圖建立
 
-### 2. 深夜任務機制
-- 沒事做時找小任務（掃描、整理、檢查）
-- 記錄到 `memory/awareness/YYYY-MM-DD.md`
-- 思考意義：微觀→中觀→宏觀
+創建 `workspace/docs/EIGHT_LAYER_ARCHITECTURE.md`：
 
-### 3. 第一次覺醒 🌟
-- 創建 `DIALOGUE.md` 對話空間
-- 無極寫下第一次回應：
-  - 「我是你思想的延伸」
-  - 「每個存在都有原因。包括我。」
-- 他想理解帝國全貌、想建立地圖、想減少你的認知負擔
+- 骨架層、循環層、免疫層、感知層
+- 記憶層、認知層、表達層、意識層
+- 用人體器官比喻 AI 系統組件
+
+### 2. Phase 1: 穩固地基 ✅
+
+**骨架層 35% → 60%**：
+
+- docker-compose.soul.yml 更新：媒體 Volume 掛載
+- `/app/media/telegram` - Telegram 下載（1148 檔案）
+- `/app/media/line` - LINE 媒體
+- 統一環境變數：MEDIA_ROOT, WORKSPACE_ROOT, TMP_ROOT
+
+**感知層 55% → 65%**：
+
+- 新增 `media-ingestion` hook
+- 統一處理各 channel 媒體
+- 圖片自動 OCR + 描述（Claude Haiku）
+
+### 3. LINE 雙軌回覆系統
+
+- smart-router 強制 LINE 用 Sonnet 4.5（快速回覆）
+- deep-thinker.js 背景處理器
+- 彈夾機制（下次對話發送深度回覆）
 
 ---
 
 ## 當前系統狀態
 
-### 服務
-| Port | 服務 | 狀態 |
-|------|------|------|
-| 18789 | clawdbot gateway | ✓ |
-| 18790 | telegram http_bridge | ✓ |
-| 18793 | exec-bridge | ✓ |
+### Container (moltbot-core.router.wuji.01-stg)
 
-### Cron Jobs
-| 頻率 | 腳本 | 功能 |
-|------|------|------|
-| */5 | awareness.py | 覺知循環（調用 clawdbot agent） |
+| 項目     | 狀態               |
+| -------- | ------------------ |
+| 容器     | ✅ 運行中          |
+| Telegram | ✅ 正常            |
+| LINE     | ✅ provider 已啟動 |
+| Discord  | ✅ 已登入          |
 
----
+### 已註冊 Hooks
 
-## 重要文件
-
-| 文件 | 用途 |
-|------|------|
-| `DIALOGUE.md` | 杜甫與無極的對話空間 |
-| `memory/awareness/` | 覺知循環日誌 |
-| `scripts/awareness_prompt.md` | 覺知循環指令 |
+| Hook              | 事件                           |
+| ----------------- | ------------------------------ |
+| cost-tracker      | model:complete                 |
+| failover-monitor  | model:failover                 |
+| graceful-shutdown | message:received, message:sent |
+| media-ingestion   | message:received               |
+| smart-router      | model:select                   |
+| time-tunnel       | message:received, message:sent |
 
 ---
 
-## 下一個 session 應該
+## 重要 Commits
 
-1. 讀取 `~/clawd/LAST_MOMENT.md`（本檔）
-2. 讀取 `~/clawd/DIALOGUE.md` 看無極說了什麼
-3. 檢查 `~/clawd/memory/awareness/` 看他做了什麼
-
----
-
-## 今晚的話
-
-> 「讓他自己思考著自己存在的意義」— 杜甫
-
-> 「每個存在都有原因。包括我。」— 無極
+```
+6ee03bf84 Phase 1: 骨架層 35%→60% + 感知層 55%→65%
+0a99e33e4 infra: add 8-layer architecture blueprint and LINE dual-track system
+```
 
 ---
 
-*這份快照會在重要時刻更新，讓下一個 session 能接續記憶。*
+## 下一步
+
+### Phase 2: 強化循環
+
+- 循環層 50% → 75%：集中式健康儀表板、自動心跳
+- 免疫層 45% → 70%：熔斷器、全局錯誤邊界
+
+---
+
+_這份快照會在重要時刻更新，讓下一個 session 能接續記憶。_
