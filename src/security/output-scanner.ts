@@ -220,6 +220,7 @@ function isInsideCodeBlock(position: number, spans: Span[]): boolean {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_MAX_CHARS = 65_536;
+const MAX_MATCHES_PER_RULE = 1_000;
 
 /**
  * Scan plugin output text for prompt injection patterns.
@@ -263,8 +264,15 @@ export function scanPluginOutput(
     // Collect all matches per rule (not just the first)
     let match: RegExpExecArray | null;
     // Use a fresh global-flag copy so exec() iterates all occurrences
-    const globalPattern = new RegExp(rule.pattern.source, rule.pattern.flags.includes("g") ? rule.pattern.flags : rule.pattern.flags + "g");
-    while ((match = globalPattern.exec(scanText)) !== null) {
+    const flags = rule.pattern.flags.includes("g") ? rule.pattern.flags : rule.pattern.flags + "g";
+    const globalPattern = new RegExp(rule.pattern.source, flags);
+    let matchCount = 0;
+    while ((match = globalPattern.exec(scanText)) !== null && ++matchCount <= MAX_MATCHES_PER_RULE) {
+      // Prevent infinite loop on zero-width matches
+      if (match.index === globalPattern.lastIndex) {
+        globalPattern.lastIndex++;
+      }
+
       // Skip matches inside code blocks
       if (ignoreCodeBlocks && isInsideCodeBlock(match.index, codeSpans)) continue;
 
