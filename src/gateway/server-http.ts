@@ -1,6 +1,6 @@
-import fs from "node:fs";
 import type { TlsOptions } from "node:tls";
 import type { WebSocketServer } from "ws";
+import fs from "node:fs";
 import {
   createServer as createHttpServer,
   type Server as HttpServer,
@@ -30,11 +30,8 @@ import {
 } from "./hooks.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
+import { handleRemotePairingRequest, resolveRemotePairingConfig } from "./remote-pairing.js";
 import { handleToolsInvokeHttpRequest } from "./tools-invoke-http.js";
-import {
-  handleRemotePairingRequest,
-  resolveRemotePairingConfig,
-} from "./remote-pairing.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
@@ -253,17 +250,20 @@ export function createGatewayHttpServer(opts: {
         process.env.MOLTBOT_STATE_DIR;
       if (stateDir) {
         try {
+          await fs.promises.mkdir(stateDir, { recursive: true });
           const testFile = `${stateDir}/.write-test-${Date.now()}`;
           await fs.promises.writeFile(testFile, "test");
           await fs.promises.unlink(testFile);
         } catch (err) {
           res.statusCode = 503;
           res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({
-            status: "error",
-            message: "State directory is not writable. Ensure volume is mounted at /data",
-            stateDir,
-          }));
+          res.end(
+            JSON.stringify({
+              status: "error",
+              message: "State directory is not writable. Ensure volume is mounted at /data",
+              stateDir,
+            }),
+          );
           return;
         }
       }
@@ -276,18 +276,18 @@ export function createGatewayHttpServer(opts: {
     try {
       const configSnapshot = loadConfig();
       const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
-// Handle remote pairing API (for Railway/cloud deployments)
-const remotePairingConfig = resolveRemotePairingConfig(configSnapshot);
-if (remotePairingConfig) {
-  if (await handleRemotePairingRequest(req, res, remotePairingConfig)) {
-    return;
-  }
-}
+      // Handle remote pairing API (for Railway/cloud deployments)
+      const remotePairingConfig = resolveRemotePairingConfig(configSnapshot);
+      if (remotePairingConfig) {
+        if (await handleRemotePairingRequest(req, res, remotePairingConfig)) {
+          return;
+        }
+      }
 
-// Handle hooks
-if (await handleHooksRequest(req, res)) {
-  return;
-}
+      // Handle hooks
+      if (await handleHooksRequest(req, res)) {
+        return;
+      }
       if (
         await handleToolsInvokeHttpRequest(req, res, {
           auth: resolvedAuth,
