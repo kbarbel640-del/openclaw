@@ -1,11 +1,4 @@
 import crypto from "node:crypto";
-import { parseAbsoluteTimeMs } from "../parse.js";
-import { computeNextRunAtMs } from "../schedule.js";
-import {
-  normalizeCronStaggerMs,
-  resolveCronStaggerMs,
-  resolveDefaultCronStaggerMs,
-} from "../stagger.js";
 import type {
   CronDelivery,
   CronDeliveryPatch,
@@ -15,6 +8,14 @@ import type {
   CronPayload,
   CronPayloadPatch,
 } from "../types.js";
+import type { CronServiceState } from "./state.js";
+import { parseAbsoluteTimeMs } from "../parse.js";
+import { computeNextRunAtMs } from "../schedule.js";
+import {
+  normalizeCronStaggerMs,
+  resolveCronStaggerMs,
+  resolveDefaultCronStaggerMs,
+} from "../stagger.js";
 import { normalizeHttpWebhookUrl } from "../webhook-url.js";
 import {
   normalizeOptionalAgentId,
@@ -23,7 +24,6 @@ import {
   normalizePayloadToSystemText,
   normalizeRequiredName,
 } from "./normalize.js";
-import type { CronServiceState } from "./state.js";
 
 const STUCK_RUN_MS = 2 * 60 * 60 * 1000;
 
@@ -120,10 +120,6 @@ export function computeJobNextRunAtMs(job: CronJob, nowMs: number): number | und
     return computeNextRunAtMs({ ...job.schedule, anchorMs }, nowMs);
   }
   if (job.schedule.kind === "at") {
-    // One-shot jobs stay due until they successfully finish.
-    if (job.state.lastStatus === "ok" && job.state.lastRunAtMs) {
-      return undefined;
-    }
     // Handle both canonical `at` (string) and legacy `atMs` (number) fields.
     // The store migration should convert atMs→at, but be defensive in case
     // the migration hasn't run yet or was bypassed.
@@ -136,7 +132,18 @@ export function computeJobNextRunAtMs(job: CronJob, nowMs: number): number | und
           : typeof schedule.at === "string"
             ? parseAbsoluteTimeMs(schedule.at)
             : null;
-    return atMs !== null ? atMs : undefined;
+    if (atMs == null) {
+      return undefined;
+    }
+    // One-shot jobs stay due until they successfully finish.
+    // But if the schedule was updated to a time after the last run (e.g. daily
+    // prayer scheduler recycling the same job), allow it to fire again.
+    if (job.state.lastStatus === "ok" && job.state.lastRunAtMs) {
+      if (atMs <= job.state.lastRunAtMs) {
+        return undefined;
+      }
+    }
+    return atMs;
   }
   const next = computeStaggeredCronNextRunAtMs(job, nowMs);
   if (next === undefined && job.schedule.kind === "cron") {

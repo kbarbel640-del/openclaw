@@ -1,8 +1,9 @@
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
+import type { CronJob, CronRunOutcome, CronRunStatus, CronRunTelemetry } from "../types.js";
+import type { CronEvent, CronServiceState } from "./state.js";
 import { DEFAULT_AGENT_ID } from "../../routing/session-key.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
 import { sweepCronRunSessions } from "../session-reaper.js";
-import type { CronJob, CronRunOutcome, CronRunStatus, CronRunTelemetry } from "../types.js";
 import {
   computeJobNextRunAtMs,
   nextWakeAtMs,
@@ -10,7 +11,6 @@ import {
   resolveJobPayloadTextForMain,
 } from "./jobs.js";
 import { locked } from "./locked.js";
-import type { CronEvent, CronServiceState } from "./state.js";
 import { ensureLoaded, persist } from "./store.js";
 
 const MAX_TIMER_DELAY_MS = 60_000;
@@ -447,8 +447,16 @@ export async function runDueJobs(state: CronServiceState) {
   }
   const now = state.deps.nowMs();
   const due = collectRunnableJobs(state, now);
-  for (const job of due) {
-    await executeJob(state, job, now, { forced: false });
+  // Set executingJob so that nested cron operations (e.g. an agent calling
+  // cron.add from within runIsolatedAgentJob) can bypass the lock chain
+  // and avoid deadlock.
+  state.executingJob = true;
+  try {
+    for (const job of due) {
+      await executeJob(state, job, now, { forced: false });
+    }
+  } finally {
+    state.executingJob = false;
   }
 }
 
