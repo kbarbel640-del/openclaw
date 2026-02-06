@@ -285,15 +285,10 @@ export class AsteriskAriProvider implements VoiceCallProvider {
   }
 
   private onAriEvent(evt: AriEvent) {
-    // Outbound: resolve pending promise when the originated channel enters our Stasis app.
     if (evt.type === "StasisStart" && evt.channel?.id) {
-      const chName = evt.channel?.name || "";
-      // Only treat real inbound SIP calls as inbound. ExternalMedia (UnicastRTP/...) also enters Stasis and must be ignored,
-      // otherwise we recursively create more ExternalMedia channels and leak resources.
-      if (!chName.startsWith("PJSIP/")) {
-        return;
-      }
-
+      // Outbound: resolve pending promise when the originated channel enters our Stasis app.
+      // This must run regardless of channel technology (PJSIP/Local/SIP/...), otherwise
+      // initiateCall() with a full dialstring would never set up ExternalMedia/STT.
       const pending = this.pendingStasisStart.get(evt.channel.id);
       if (pending) {
         clearTimeout(pending.timeout);
@@ -301,9 +296,15 @@ export class AsteriskAriProvider implements VoiceCallProvider {
         pending.resolve();
         return;
       }
-    }
 
-    if (evt.type === "StasisStart" && evt.channel?.id) {
+      // Inbound classification: only treat real inbound SIP calls as inbound.
+      // ExternalMedia (UnicastRTP/...) also enters Stasis and must be ignored,
+      // otherwise we'd recursively create more ExternalMedia channels and leak resources.
+      const chName = evt.channel?.name || "";
+      if (!chName.startsWith("PJSIP/")) {
+        return;
+      }
+
       // inbound call into this Stasis app
       const sipChannelId = evt.channel.id;
       const providerCallId = sipChannelId;
