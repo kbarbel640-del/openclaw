@@ -143,6 +143,41 @@ describe("normalizeModelCompat", () => {
     expect(thinkingFormatOf(normalized)).toBe("openai");
   });
 
+  it("forces thinkingFormat=qwen for DashScope OpenAI-compat endpoints", () => {
+    const model = {
+      ...baseModel(),
+      provider: "dashscope",
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    };
+    delete (model as { compat?: unknown }).compat;
+    const normalized = normalizeModelCompat(model);
+    expect(thinkingFormatOf(normalized)).toBe("qwen");
+  });
+
+  it("forces thinkingFormat=qwen for Qwen Portal OpenAI-compat endpoints", () => {
+    const model = {
+      ...baseModel(),
+      provider: "qwen-portal",
+      baseUrl: "https://portal.qwen.ai/v1",
+    };
+    delete (model as { compat?: unknown }).compat;
+    const normalized = normalizeModelCompat(model);
+    expect(thinkingFormatOf(normalized)).toBe("qwen");
+  });
+
+  it("does not override explicit thinkingFormat for Qwen endpoints", () => {
+    const model = {
+      ...baseModel(),
+      provider: "dashscope",
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      compat: {
+        thinkingFormat: "openai",
+      },
+    };
+    const normalized = normalizeModelCompat(model);
+    expect(thinkingFormatOf(normalized)).toBe("openai");
+  });
+
   it("leaves non-zai models untouched", () => {
     const model = {
       ...baseModel(),
