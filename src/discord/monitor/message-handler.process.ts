@@ -448,10 +448,14 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
   // Set up periodic progress updates for long-running requests.
   const progressUpdates = discordConfig?.progressUpdates;
   let progressInterval: ReturnType<typeof setInterval> | undefined;
+  let progressStopped = false;
   const progressStartTime = Date.now();
   if (progressUpdates) {
     const intervalSec = typeof progressUpdates === "number" ? Math.max(15, progressUpdates) : 60;
     progressInterval = setInterval(() => {
+      if (progressStopped) {
+        return;
+      }
       const elapsedSec = Math.round((Date.now() - progressStartTime) / 1000);
       const minutes = Math.floor(elapsedSec / 60);
       const seconds = elapsedSec % 60;
@@ -525,16 +529,17 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       onModelSelected,
     },
   });
+  // Stop progress updates immediately so no late callbacks fire.
+  progressStopped = true;
+  if (progressInterval) {
+    clearInterval(progressInterval);
+    progressInterval = undefined;
+  }
   markDispatchIdle();
   // Clean up early typing interval if it wasn't cleared by main typing loop.
   if (earlyTypingInterval) {
     clearInterval(earlyTypingInterval);
     earlyTypingInterval = undefined;
-  }
-  // Clean up progress interval.
-  if (progressInterval) {
-    clearInterval(progressInterval);
-    progressInterval = undefined;
   }
   // Cancel smart ack (main response arrived).
   if (smartAckController) {
