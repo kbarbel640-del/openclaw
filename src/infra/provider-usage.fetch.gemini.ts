@@ -44,11 +44,15 @@ export async function fetchGeminiUsage(
 
   for (const bucket of data.buckets || []) {
     const modelId = bucket.modelId;
-    if (!modelId) continue;
+    if (!modelId) {
+      continue;
+    }
 
     // Skip internal models (chat_*, tab_*)
     const lower = modelId.toLowerCase();
-    if (lower.includes("chat_") || lower.includes("tab_")) continue;
+    if (lower.includes("chat_") || lower.includes("tab_")) {
+      continue;
+    }
 
     const frac = bucket.remainingFraction ?? 1;
     const usedPercent = clampPercent((1 - frac) * 100);
