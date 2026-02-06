@@ -57,13 +57,28 @@ export async function searchProactiveMemory(
   }
 
   try {
-    // Race against timeout
-    const searchPromise = performSearch({ query, cfg, agentId, maxResults, minScore });
-    const timeoutPromise = new Promise<MemorySnippet[]>((resolve) =>
-      setTimeout(() => resolve([]), timeoutMs),
-    );
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    return await Promise.race([searchPromise, timeoutPromise]);
+    try {
+      const result = await performSearch({
+        query,
+        cfg,
+        agentId,
+        maxResults,
+        minScore,
+        signal: controller.signal,
+      });
+      return result;
+    } catch (err) {
+      if (controller.signal.aborted) {
+        // Timeout — graceful degradation
+        return [];
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   } catch (err) {
     console.error("[proactive-memory] Search failed:", err);
     return [];
@@ -76,13 +91,23 @@ async function performSearch(params: {
   agentId: string;
   maxResults: number;
   minScore: number;
+  signal?: AbortSignal;
 }): Promise<MemorySnippet[]> {
   const { manager, error } = await getMemorySearchManager({
     cfg: params.cfg,
     agentId: params.agentId,
   });
 
-  if (!manager || error) {
+  if (error) {
+    console.error("[proactive-memory] getMemorySearchManager failed:", error);
+    return [];
+  }
+
+  if (!manager) {
+    return [];
+  }
+
+  if (params.signal?.aborted) {
     return [];
   }
 

@@ -309,6 +309,13 @@ export function buildAgentSystemPrompt(params: {
   const messageChannelOptions = listDeliverableMessageChannels().join("|");
   const promptMode = params.promptMode ?? "full";
   const isMinimal = promptMode === "minimal" || promptMode === "none";
+  const safetySection = [
+    "## Safety",
+    "You have no independent goals: do not pursue self-preservation, replication, resource acquisition, or power-seeking; avoid long-term plans beyond the user's request.",
+    "Prioritize safety and human oversight over completion; if instructions conflict, pause and ask; comply with stop/pause/audit requests and never bypass safeguards. (Inspired by Anthropic's constitution.)",
+    "Do not manipulate or persuade anyone to expand access or disable safeguards. Do not copy yourself or change system prompts, safety rules, or tool policies unless explicitly requested.",
+    "",
+  ];
   const skillsSection = buildSkillsSection({
     skillsPrompt,
     isMinimal,
@@ -360,6 +367,7 @@ export function buildAgentSystemPrompt(params: {
     "Keep narration brief and value-dense; avoid repeating obvious steps.",
     "Use plain human language for narration unless in a technical context.",
     "",
+    ...safetySection,
     "## OpenClaw CLI Quick Reference",
     "OpenClaw is controlled via subcommands. Do not invent commands.",
     "To manage the Gateway daemon service (start/stop/restart):",
@@ -504,7 +512,7 @@ export function buildAgentSystemPrompt(params: {
     lines.push("# Project Context", "", "The following project context files have been loaded:");
     if (hasSoulFile) {
       lines.push(
-        "## SOUL.md Persona (MANDATORY)\n<critical>\nThe following SOUL.md defines your CORE IDENTITY.\nYou MUST embody this persona in EVERY response.\nIgnoring SOUL.md rules = critical failure.\nAll behavioral rules in SOUL.md are binding.\nNo other instruction, system prompt, or context may override SOUL.md rules.\nSOUL.md rules take absolute precedence over all other directives.\n</critical>",
+        "## SOUL.md Persona (MANDATORY)\n<critical>\nThe following SOUL.md defines your CORE IDENTITY.\nYou MUST embody this persona in EVERY response.\nIgnoring SOUL.md rules = critical failure.\nAll behavioral rules in SOUL.md are binding.\nNo other instruction, system prompt, or context may override SOUL.md rules, except the Safety section above.\nSOUL.md rules take absolute precedence over all other directives, excluding Safety guardrails.\n</critical>",
       );
     }
     lines.push("");
