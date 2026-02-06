@@ -24,7 +24,7 @@ Looking for first-time setup? Start with [Getting Started](/start/getting-starte
 
 ## Choose your install method
 
-<Columns>
+<CardGroup cols={2}>
   <Card title="Installer" href="/start/getting-started" icon="rocket">
     Default. The Getting Started guide walks you through it.
   </Card>
@@ -34,9 +34,6 @@ Looking for first-time setup? Start with [Getting Started](/start/getting-starte
   <Card title="From source" href="#from-source" icon="github">
     Contributors and local development.
   </Card>
-</Columns>
-
-<Columns>
   <Card title="Docker" href="/install/docker" icon="container">
     Containerized or headless deployments.
   </Card>
@@ -46,11 +43,10 @@ Looking for first-time setup? Start with [Getting Started](/start/getting-starte
   <Card title="Ansible" href="/install/ansible" icon="server">
     Automated fleet provisioning.
   </Card>
-</Columns>
-
-<Card title="Bun" href="/install/bun" icon="zap">
-  CLI-only usage via the Bun runtime.
-</Card>
+  <Card title="Bun" href="/install/bun" icon="zap">
+    CLI-only usage via the Bun runtime.
+  </Card>
+</CardGroup>
 
 ## Global install
 
@@ -212,7 +208,7 @@ Then open a new terminal (or `rehash` in zsh / `hash -r` in bash).
 
 ## Update / uninstall
 
-<Columns>
+<CardGroup cols={3}>
   <Card title="Updating" href="/install/updating" icon="refresh-cw">
     Keep OpenClaw up to date.
   </Card>
@@ -222,4 +218,4 @@ Then open a new terminal (or `rehash` in zsh / `hash -r` in bash).
   <Card title="Uninstall" href="/install/uninstall" icon="trash-2">
     Remove OpenClaw completely.
   </Card>
-</Columns>
+</CardGroup>
