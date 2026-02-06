@@ -50,6 +50,67 @@ type TranscriptAppendResult = {
   error?: string;
 };
 
+function normalizeTextForDedupe(text: string): string {
+  return text.replace(/\r\n/g, "\n").trim();
+}
+
+function extractTextForDedupe(message: unknown): string {
+  if (!message || typeof message !== "object") {
+    return "";
+  }
+  const entry = message as Record<string, unknown>;
+  const content = entry.content;
+  if (typeof content === "string") {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    const parts = content
+      .map((p) => {
+        if (!p || typeof p !== "object") {
+          return null;
+        }
+        const item = p as Record<string, unknown>;
+        const type = typeof item.type === "string" ? item.type : "";
+        if (
+          (type === "text" || type === "output_text" || type === "input_text") &&
+          typeof item.text === "string"
+        ) {
+          return item.text;
+        }
+        return null;
+      })
+      .filter((v): v is string => typeof v === "string");
+    return parts.join("\n");
+  }
+  if (typeof entry.text === "string") {
+    return entry.text;
+  }
+  return "";
+}
+
+function transcriptAlreadyHasReply(params: {
+  messages: unknown[];
+  combinedReply: string;
+}): boolean {
+  const needle = normalizeTextForDedupe(params.combinedReply);
+  if (!needle) {
+    return true;
+  }
+  for (let i = params.messages.length - 1; i >= 0; i -= 1) {
+    const msg = params.messages[i];
+    if (!msg || typeof msg !== "object") {
+      continue;
+    }
+    const role = (msg as { role?: unknown }).role;
+    if (typeof role !== "string" || role.toLowerCase() !== "assistant") {
+      continue;
+    }
+    const text = normalizeTextForDedupe(extractTextForDedupe(msg));
+    return text === needle;
+  }
+  return false;
+}
+
 function resolveTranscriptPath(params: {
   sessionId: string;
   storePath: string | undefined;
@@ -520,26 +581,45 @@ export const chatHandlers: GatewayRequestHandlers = {
         },
       })
         .then(() => {
-          if (!agentRunStarted) {
-            const combinedReply = finalReplyParts
-              .map((part) => part.trim())
-              .filter(Boolean)
-              .join("\n\n")
-              .trim();
-            let message: Record<string, unknown> | undefined;
-            if (combinedReply) {
-              const { storePath: latestStorePath, entry: latestEntry } = loadSessionEntry(
-                p.sessionKey,
-              );
-              const sessionId = latestEntry?.sessionId ?? entry?.sessionId ?? clientRunId;
+          const combinedReply = finalReplyParts
+            .map((part) => part.trim())
+            .filter(Boolean)
+            .join("\n\n")
+            .trim();
+
+          // If an agent run started, we usually rely on the embedded session transcript for chat history.
+          // In some configurations (eg block streaming disabled or pre-reply failures), we can end up with
+          // no persisted assistant message for Control UI. As a backstop, append the final text if the
+          // transcript tail doesn't already match.
+          const shouldBackstopTranscript = agentRunStarted && Boolean(combinedReply);
+          let message: Record<string, unknown> | undefined;
+          let didAppendTranscript = false;
+
+          if (combinedReply) {
+            const { storePath: latestStorePath, entry: latestEntry } = loadSessionEntry(
+              p.sessionKey,
+            );
+            const sessionId = latestEntry?.sessionId ?? entry?.sessionId ?? clientRunId;
+            const sessionFile = latestEntry?.sessionFile;
+            const rawMessages =
+              sessionId && latestStorePath
+                ? readSessionMessages(sessionId, latestStorePath, sessionFile)
+                : [];
+            const alreadyHas = transcriptAlreadyHasReply({
+              messages: rawMessages,
+              combinedReply,
+            });
+
+            if (!alreadyHas) {
               const appended = appendAssistantTranscriptMessage({
                 message: combinedReply,
                 sessionId,
                 storePath: latestStorePath,
-                sessionFile: latestEntry?.sessionFile,
+                sessionFile,
                 createIfMissing: true,
               });
               if (appended.ok) {
+                didAppendTranscript = true;
                 message = appended.message;
               } else {
                 context.logGateway.warn(
@@ -555,6 +635,10 @@ export const chatHandlers: GatewayRequestHandlers = {
                 };
               }
             }
+          }
+
+          // Preserve existing behavior for non-agent flows; for agent flows, only broadcast if we had to backstop.
+          if (!agentRunStarted || (shouldBackstopTranscript && (didAppendTranscript || message))) {
             broadcastChatFinal({
               context,
               runId: clientRunId,
