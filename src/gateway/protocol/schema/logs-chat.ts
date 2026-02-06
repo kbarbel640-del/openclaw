@@ -57,6 +57,14 @@ export const ChatInjectParamsSchema = Type.Object(
     sessionKey: NonEmptyString,
     message: NonEmptyString,
     label: Type.Optional(Type.String({ maxLength: 100 })),
+    /** Sender agent ID for direct announce mode */
+    senderAgentId: Type.Optional(Type.String({ maxLength: 100 })),
+    /** Sender display name */
+    senderName: Type.Optional(Type.String({ maxLength: 100 })),
+    /** Sender emoji avatar */
+    senderEmoji: Type.Optional(Type.String({ maxLength: 10 })),
+    /** Sender avatar URL */
+    senderAvatar: Type.Optional(Type.String({ maxLength: 500 })),
   },
   { additionalProperties: false },
 );

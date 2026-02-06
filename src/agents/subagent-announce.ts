@@ -484,19 +484,22 @@ export async function runSubagentAnnounceFlow(params: {
       ].join("\n");
     }
 
-    const queued = await maybeQueueSubagentAnnounce({
-      requesterSessionKey: params.requesterSessionKey,
-      triggerMessage,
-      summaryLine: taskLabel,
-      requesterOrigin,
-    });
-    if (queued === "steered") {
-      didAnnounce = true;
-      return true;
-    }
-    if (queued === "queued") {
-      didAnnounce = true;
-      return true;
+    // Skip queue for direct inject mode - always inject immediately with identity
+    if (!useDirectInject) {
+      const queued = await maybeQueueSubagentAnnounce({
+        requesterSessionKey: params.requesterSessionKey,
+        triggerMessage,
+        summaryLine: taskLabel,
+        requesterOrigin,
+      });
+      if (queued === "steered") {
+        didAnnounce = true;
+        return true;
+      }
+      if (queued === "queued") {
+        didAnnounce = true;
+        return true;
+      }
     }
 
     // Resolve delivery context
