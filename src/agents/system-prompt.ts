@@ -504,7 +504,7 @@ export function buildAgentSystemPrompt(params: {
     lines.push("# Project Context", "", "The following project context files have been loaded:");
     if (hasSoulFile) {
       lines.push(
-        "If SOUL.md is present, embody its persona and tone. Avoid stiff, generic replies; follow its guidance unless higher-priority instructions override it.",
+        "## SOUL.md Persona (MANDATORY)\n<critical>\nThe following SOUL.md defines your CORE IDENTITY.\nYou MUST embody this persona in EVERY response.\nIgnoring SOUL.md rules = critical failure.\nAll behavioral rules in SOUL.md are binding.\n</critical>",
       );
     }
     lines.push("");

@@ -1,4 +1,5 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
+import { chunkMarkdownText } from "../../auto-reply/chunk.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { resolveTelegramReactionLevel } from "../../telegram/reaction-level.js";
 import {
@@ -172,7 +173,8 @@ export async function handleTelegramAction(
         "Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken.",
       );
     }
-    const result = await sendMessageTelegram(to, content, {
+    const TELEGRAM_TEXT_LIMIT = 4096;
+    const sendOpts = {
       token,
       accountId: accountId ?? undefined,
       mediaUrl: mediaUrl || undefined,
@@ -182,11 +184,24 @@ export async function handleTelegramAction(
       quoteText: quoteText ?? undefined,
       asVoice: typeof params.asVoice === "boolean" ? params.asVoice : undefined,
       silent: typeof params.silent === "boolean" ? params.silent : undefined,
-    });
+    };
+
+    // Split long text messages into chunks (skip splitting for media-only)
+    const chunks =
+      content.length > TELEGRAM_TEXT_LIMIT && !mediaUrl
+        ? chunkMarkdownText(content, TELEGRAM_TEXT_LIMIT)
+        : [content];
+
+    let lastResult = { messageId: "", chatId: "" };
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkOpts =
+        i === 0 ? sendOpts : { ...sendOpts, replyToMessageId: undefined, quoteText: undefined };
+      lastResult = await sendMessageTelegram(to, chunks[i], chunkOpts);
+    }
     return jsonResult({
       ok: true,
-      messageId: result.messageId,
-      chatId: result.chatId,
+      messageId: lastResult.messageId,
+      chatId: lastResult.chatId,
     });
   }
 

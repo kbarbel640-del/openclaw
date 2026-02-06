@@ -506,6 +506,59 @@ describe("handleTelegramAction", () => {
       }),
     );
   });
+
+  it("splits long text messages into chunks", async () => {
+    const cfg = {
+      channels: { telegram: { botToken: "tok" } },
+    } as OpenClawConfig;
+    const longContent = "A".repeat(5000);
+    await handleTelegramAction(
+      {
+        action: "sendMessage",
+        to: "@testchannel",
+        content: longContent,
+      },
+      cfg,
+    );
+    // Should be called more than once (5000 > 4096)
+    expect(sendMessageTelegram.mock.calls.length).toBeGreaterThan(1);
+    // All chunks combined should equal original content
+    const combined = sendMessageTelegram.mock.calls.map((c: unknown[]) => c[1]).join("");
+    expect(combined).toBe(longContent);
+  });
+
+  it("does not split short text messages", async () => {
+    const cfg = {
+      channels: { telegram: { botToken: "tok" } },
+    } as OpenClawConfig;
+    await handleTelegramAction(
+      {
+        action: "sendMessage",
+        to: "@testchannel",
+        content: "Short message",
+      },
+      cfg,
+    );
+    expect(sendMessageTelegram).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not split media messages even if content is long", async () => {
+    const cfg = {
+      channels: { telegram: { botToken: "tok" } },
+    } as OpenClawConfig;
+    const longContent = "B".repeat(5000);
+    await handleTelegramAction(
+      {
+        action: "sendMessage",
+        to: "@testchannel",
+        content: longContent,
+        mediaUrl: "https://example.com/photo.jpg",
+      },
+      cfg,
+    );
+    // Media messages should not be split
+    expect(sendMessageTelegram).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("readTelegramButtons", () => {
