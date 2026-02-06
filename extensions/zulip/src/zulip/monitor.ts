@@ -2,6 +2,7 @@ import type { OpenClawConfig, ReplyPayload, RuntimeEnv } from "openclaw/plugin-s
 import crypto from "node:crypto";
 import { createReplyPrefixOptions } from "openclaw/plugin-sdk";
 import type { ZulipAuth } from "./client.js";
+import type { ZulipHttpError } from "./client.js";
 import { getZulipRuntime } from "../runtime.js";
 import { resolveZulipAccount, type ResolvedZulipAccount } from "./accounts.js";
 import { zulipRequest } from "./client.js";
@@ -62,6 +63,19 @@ type ZulipMeResponse = {
   email?: string;
   full_name?: string;
 };
+
+export function computeZulipMonitorBackoffMs(params: {
+  attempt: number;
+  status: number | null;
+  retryAfterMs?: number;
+}): number {
+  const cappedAttempt = Math.max(1, Math.min(10, Math.floor(params.attempt)));
+  const base = params.status === 429 ? 1500 : 500;
+  const max = params.status === 429 ? 120_000 : 30_000;
+  const exp = Math.min(max, base * 2 ** Math.min(7, cappedAttempt));
+  const jitter = Math.floor(Math.random() * 500);
+  return Math.max(exp + jitter, params.retryAfterMs ?? 0, base);
+}
 
 function sleep(ms: number, abortSignal?: AbortSignal): Promise<void> {
   if (ms <= 0) {
@@ -474,15 +488,18 @@ export async function monitorZulipProvider(
       let queueId = "";
       let lastEventId = -1;
       let retry = 0;
+      let stage: "register" | "poll" | "handle" = "register";
 
       while (!stopped && !abortSignal.aborted) {
         try {
           if (!queueId) {
+            stage = "register";
             const reg = await registerQueue({ auth, stream, abortSignal });
             queueId = reg.queueId;
             lastEventId = reg.lastEventId;
           }
 
+          stage = "poll";
           const events = await pollEvents({ auth, queueId, lastEventId, abortSignal });
           if (events.result !== "success") {
             throw new Error(events.msg || "Zulip events poll failed");
@@ -493,6 +510,7 @@ export async function monitorZulipProvider(
             lastEventId = events.last_event_id;
           }
 
+          stage = "handle";
           for (const evt of list) {
             const msg = evt.message;
             if (!msg) {
@@ -507,14 +525,19 @@ export async function monitorZulipProvider(
             break;
           }
           const status = extractZulipHttpStatus(err);
+          const retryAfterMs = (err as ZulipHttpError).retryAfterMs;
           if (status !== 429) {
             queueId = "";
             lastEventId = -1;
           }
           retry += 1;
-          const backoffMs = Math.min(30_000, 500 * 2 ** Math.min(6, retry));
+          const backoffMs = computeZulipMonitorBackoffMs({
+            attempt: retry,
+            status,
+            retryAfterMs,
+          });
           logger.warn(
-            `[zulip:${account.accountId}] monitor error (stream=${stream}): ${String(err)} (retry in ${backoffMs}ms)`,
+            `[zulip:${account.accountId}] monitor error (stream=${stream}, stage=${stage}): ${String(err)} (retry in ${backoffMs}ms)`,
           );
           await sleep(backoffMs, abortSignal).catch(() => undefined);
         }
