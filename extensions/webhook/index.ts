@@ -15,6 +15,7 @@ import type {
   OpenClawConfig,
   OpenClawPluginApi,
 } from "openclaw/plugin-sdk";
+import { randomUUID } from "node:crypto";
 import {
   DEFAULT_ACCOUNT_ID,
   type ChannelPlugin,
@@ -103,7 +104,7 @@ const webhookOnboardingAdapter: ChannelOnboardingAdapter = {
         placeholder: "Leave empty for auto-generated UID",
       }),
     ).trim();
-    const uid = uidInput || crypto.randomUUID();
+    const uid = uidInput || randomUUID();
 
     // Prompt for Agent ID
     const agentId = String(
@@ -160,6 +161,9 @@ const webhookOnboardingAdapter: ChannelOnboardingAdapter = {
       );
     }
 
+    const hasReconnectDelayMs = Number.isFinite(reconnectDelayMs);
+    const hasMaxReconnectDelayMs = Number.isFinite(maxReconnectDelayMs);
+
     const next: OpenClawConfig = {
       ...cfg,
       channels: {
@@ -171,8 +175,8 @@ const webhookOnboardingAdapter: ChannelOnboardingAdapter = {
           uid,
           agentId,
           sessionScope,
-          ...(reconnectDelayMs && { reconnectDelayMs }),
-          ...(maxReconnectDelayMs && { maxReconnectDelayMs }),
+          ...(hasReconnectDelayMs ? { reconnectDelayMs } : {}),
+          ...(hasMaxReconnectDelayMs ? { maxReconnectDelayMs } : {}),
         },
       },
     };

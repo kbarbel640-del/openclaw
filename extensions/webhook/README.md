@@ -24,11 +24,11 @@ To fully integrate WebSocket webhook functionality into OpenClaw, one of the fol
 
 ## Installation
 
-1. Ensure the plugin is in the `extensions/webhook-channel/` directory
+1. Ensure the plugin is in the `extensions/webhook/` directory
 2. Install dependencies:
 
 ```bash
-cd /Users/sternelee/www/github/openclaw
+cd path/to/openclaw
 pnpm install
 ```
 
@@ -46,7 +46,7 @@ Add the plugin to your OpenClaw config (`~/.openclaw/openclaw.json`):
 {
   "plugins": {
     "entries": {
-      "webhook-channel": {
+      "webhook": {
         "enabled": true,
         "url": "ws://localhost:8080/ws",
         "uid": "your-unique-instance-id",
@@ -127,15 +127,12 @@ The standalone bridge service works around these limitations by connecting to Op
 ### File Structure
 
 ```
-extensions/webhook-channel/
+extensions/webhook/
 ├── package.json           # Plugin package definition
 ├── openclaw.plugin.json   # Plugin metadata
 ├── README.md              # This file
 ├── index.ts               # Plugin entry point
-├── tsconfig.json          # TypeScript configuration
-└── src/
-    ├── types.ts           # TypeScript definitions
-    └── config.ts          # Configuration schema & resolution
+└── tsconfig.json          # TypeScript configuration
 ```
 
 ### Testing
