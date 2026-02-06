@@ -1,6 +1,8 @@
+import fs from "node:fs";
 import path from "node:path";
 
 import { type Api, getEnvApiKey, type Model } from "@mariozechner/pi-ai";
+import { resolveMoltbotAgentDir } from "./agent-paths.js";
 import type { MoltbotConfig } from "../config/config.js";
 import type { ModelProviderAuthMode, ModelProviderConfig } from "../config/types.js";
 import { getShellEnvAppliedKeys } from "../infra/shell-env.js";
@@ -42,6 +44,70 @@ function resolveProviderConfig(
       | ModelProviderConfig
       | undefined)
   );
+}
+
+/**
+ * Read provider config from models.json (synchronous).
+ * This is the same source used by model resolution.
+ *
+ * GUARDRAIL: Validates shape before returning. If invalid, returns undefined
+ * and lets cfg handle it. Prevents "weird models.json file breaks auth resolution."
+ */
+function readModelsJsonProviderConfig(
+  agentDir: string,
+  provider: string,
+): ModelProviderConfig | undefined {
+  try {
+    const modelsJsonPath = path.join(agentDir, "models.json");
+    const raw = fs.readFileSync(modelsJsonPath, "utf8");
+    const parsed = JSON.parse(raw) as { providers?: Record<string, unknown> };
+    const entry = parsed.providers?.[provider];
+
+    // Minimal shape validation - fail closed if invalid
+    if (!entry || typeof entry !== "object") return undefined;
+    const obj = entry as Record<string, unknown>;
+    if (typeof obj.baseUrl !== "string") return undefined;
+    // auth must be valid mode or undefined
+    if (
+      obj.auth !== undefined &&
+      obj.auth !== "none" &&
+      obj.auth !== "api-key" &&
+      obj.auth !== "aws-sdk" &&
+      obj.auth !== "oauth" &&
+      obj.auth !== "token"
+    ) {
+      return undefined;
+    }
+
+    return entry as ModelProviderConfig;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve effective provider config from both models.json and cfg.
+ * This is the same merged source used by model resolution.
+ * Priority: models.json (discovered) > cfg.models.providers (explicit)
+ *
+ * RATIONALE: Discovered local providers must override cfg-only assumptions
+ * so local "auth:none" works even if cfg doesn't mention the provider.
+ */
+function resolveEffectiveProviderConfig(
+  cfg: MoltbotConfig | undefined,
+  provider: string,
+  agentDir?: string,
+): ModelProviderConfig | undefined {
+  const resolvedAgentDir = agentDir ?? resolveMoltbotAgentDir();
+
+  // 1. Check models.json (discovered providers - includes auth: "none" for local)
+  const modelsJsonConfig = readModelsJsonProviderConfig(resolvedAgentDir, provider);
+  if (modelsJsonConfig) {
+    return modelsJsonConfig;
+  }
+
+  // 2. Fall back to cfg.models.providers
+  return resolveProviderConfig(cfg, provider);
 }
 
 export function getCustomProviderApiKey(
@@ -123,7 +189,7 @@ export type ResolvedProviderAuth = {
   apiKey?: string;
   profileId?: string;
   source: string;
-  mode: "api-key" | "oauth" | "token" | "aws-sdk";
+  mode: "api-key" | "oauth" | "token" | "aws-sdk" | "none";
 };
 
 export async function resolveApiKeyForProvider(params: {
@@ -136,6 +202,17 @@ export async function resolveApiKeyForProvider(params: {
 }): Promise<ResolvedProviderAuth> {
   const { provider, cfg, profileId, preferredProfile } = params;
   const store = params.store ?? ensureAuthProfileStore(params.agentDir);
+
+  // Check if provider has auth: "none" (local/authless provider)
+  // IMPORTANT: Use effective config (models.json + cfg), not cfg-only
+  const effectiveProviderConfig = resolveEffectiveProviderConfig(cfg, provider, params.agentDir);
+  if (effectiveProviderConfig?.auth === "none") {
+    return {
+      apiKey: undefined,
+      source: "provider-policy",
+      mode: "none",
+    };
+  }
 
   if (profileId) {
     const resolved = await resolveApiKeyForProfile({

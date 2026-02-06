@@ -335,7 +335,6 @@ describe("models list/status", () => {
     loadConfig.mockReturnValue({
       agents: { defaults: { model: "ollama/llama3:chat" } },
     });
-    const runtime = makeRuntime();
 
     // Mock models.json with model id that has provider prefix (edge case)
     const modelsJson = {
@@ -376,7 +375,6 @@ describe("models list/status", () => {
     loadConfig.mockReturnValue({
       agents: { defaults: { model: "lmstudio/some-model" } },
     });
-    const runtime = makeRuntime();
 
     // Mock models.json with local provider
     const modelsJson = {
@@ -413,7 +411,6 @@ describe("models list/status", () => {
     loadConfig.mockReturnValue({
       agents: { defaults: { model: "remote-provider/some-model" } },
     });
-    const runtime = makeRuntime();
 
     // Mock models.json with remote provider
     const modelsJson = {
@@ -450,7 +447,6 @@ describe("models list/status", () => {
     loadConfig.mockReturnValue({
       agents: { defaults: { model: "ollama/llama3:chat" } },
     });
-    const runtime = makeRuntime();
 
     // Mock models.json with invalid entries (missing id, empty id, non-string id)
     const modelsJson = {

@@ -5,6 +5,7 @@ import {
   validateGatewayStartup,
   type StartupValidationResult,
 } from "./startup-validation.js";
+import { MINIMUM_CONTEXT_TOKENS } from "../agents/defaults.js";
 
 // Mock dependencies
 vi.mock("../agents/models-config.js", () => ({
@@ -18,10 +19,22 @@ vi.mock("../agents/model-selection.js", () => ({
   }),
 }));
 
-// We need to control resolveModel's behavior per test
-const mockResolveModel = vi.fn();
+// Use vi.hoisted to ensure mocks are defined before hoisted vi.mock calls run
+const { mockResolveModel, mockGetApiKeyForModel } = vi.hoisted(() => ({
+  mockResolveModel: vi.fn(),
+  mockGetApiKeyForModel: vi.fn().mockResolvedValue({
+    apiKey: undefined,
+    source: "provider-policy",
+    mode: "none",
+  }),
+}));
+
 vi.mock("../agents/pi-embedded-runner/model.js", () => ({
   resolveModel: (...args: unknown[]) => mockResolveModel(...args),
+}));
+
+vi.mock("../agents/model-auth.js", () => ({
+  getApiKeyForModel: (...args: unknown[]) => mockGetApiKeyForModel(...args),
 }));
 
 describe("validateGatewayStartup", () => {
@@ -31,15 +44,21 @@ describe("validateGatewayStartup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.CLAWDBOT_SKIP_STARTUP_VALIDATION;
+    // Reset mock to default authless mode
+    mockGetApiKeyForModel.mockResolvedValue({
+      apiKey: undefined,
+      source: "provider-policy",
+      mode: "none",
+    });
   });
 
   afterEach(() => {
     delete process.env.CLAWDBOT_SKIP_STARTUP_VALIDATION;
   });
 
-  it("returns ok when model resolves successfully", async () => {
+  it("returns ok when model resolves with sufficient context window", async () => {
     mockResolveModel.mockReturnValue({
-      model: { id: "llama3:chat", provider: "ollama" },
+      model: { id: "llama3:chat", provider: "ollama", contextWindow: 32768 },
       error: undefined,
     });
 
@@ -47,6 +66,8 @@ describe("validateGatewayStartup", () => {
 
     expect(result.ok).toBe(true);
     expect(result.defaultModel).toEqual({ provider: "ollama", model: "llama3:chat" });
+    expect(result.contextWindow).toBe(32768);
+    expect(result.authMode).toBe("none"); // Local authless provider
   });
 
   it("returns error when model resolution fails", async () => {
@@ -62,6 +83,35 @@ describe("validateGatewayStartup", () => {
     expect(result.defaultModel).toEqual({ provider: "ollama", model: "llama3:chat" });
     expect(result.suggestions).toBeDefined();
     expect(result.suggestions?.length).toBeGreaterThan(0);
+  });
+
+  it("returns error when context window is below minimum", async () => {
+    mockResolveModel.mockReturnValue({
+      model: { id: "llama3:chat", provider: "ollama", contextWindow: 8192 },
+      error: undefined,
+    });
+
+    const result = await validateGatewayStartup(mockCfg, mockAgentDir);
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("context window too small");
+    expect(result.error).toContain("8192");
+    expect(result.error).toContain(`${MINIMUM_CONTEXT_TOKENS}`);
+    expect(result.contextWindow).toBe(8192);
+  });
+
+  it("provides context window suggestions when too small", async () => {
+    mockResolveModel.mockReturnValue({
+      model: { id: "llama3:chat", provider: "ollama", contextWindow: 4096 },
+      error: undefined,
+    });
+
+    const result = await validateGatewayStartup(mockCfg, mockAgentDir);
+
+    expect(result.ok).toBe(false);
+    expect(result.suggestions).toBeDefined();
+    const suggestions = result.suggestions?.join("\n") ?? "";
+    expect(suggestions).toContain("context");
   });
 
   it("skips validation when CLAWDBOT_SKIP_STARTUP_VALIDATION is set", async () => {

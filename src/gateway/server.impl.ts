@@ -230,6 +230,11 @@ export async function startGatewayServer(
     throw new Error(errorMsg);
   }
 
+  // Log health status with resolved values
+  log.info(
+    `Health: OK (provider=${validationResult.defaultModel?.provider}, model=${validationResult.defaultModel?.model}, ctx=${validationResult.contextWindow}, authMode=${validationResult.authMode})`,
+  );
+
   const baseMethods = listGatewayMethods();
   const { pluginRegistry, gatewayMethods: baseGatewayMethods } = loadGatewayPlugins({
     cfg: cfgAtStart,

@@ -46,6 +46,7 @@ let previousConfigPath: string | undefined;
 let previousSkipBrowserControl: string | undefined;
 let previousSkipGmailWatcher: string | undefined;
 let previousSkipCanvasHost: string | undefined;
+let previousSkipStartupValidation: string | undefined;
 let tempHome: string | undefined;
 let tempConfigRoot: string | undefined;
 
@@ -83,6 +84,7 @@ async function setupGatewayTestHome() {
   previousSkipBrowserControl = process.env.CLAWDBOT_SKIP_BROWSER_CONTROL_SERVER;
   previousSkipGmailWatcher = process.env.CLAWDBOT_SKIP_GMAIL_WATCHER;
   previousSkipCanvasHost = process.env.CLAWDBOT_SKIP_CANVAS_HOST;
+  previousSkipStartupValidation = process.env.CLAWDBOT_SKIP_STARTUP_VALIDATION;
   tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-gateway-home-"));
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
@@ -94,6 +96,8 @@ function applyGatewaySkipEnv() {
   process.env.CLAWDBOT_SKIP_BROWSER_CONTROL_SERVER = "1";
   process.env.CLAWDBOT_SKIP_GMAIL_WATCHER = "1";
   process.env.CLAWDBOT_SKIP_CANVAS_HOST = "1";
+  // Skip startup validation in tests - tests don't have real model/auth config
+  process.env.CLAWDBOT_SKIP_STARTUP_VALIDATION = "1";
 }
 
 async function resetGatewayTestState(options: { uniqueConfigRoot: boolean }) {
@@ -163,6 +167,9 @@ async function cleanupGatewayTestHome(options: { restoreEnv: boolean }) {
     else process.env.CLAWDBOT_SKIP_GMAIL_WATCHER = previousSkipGmailWatcher;
     if (previousSkipCanvasHost === undefined) delete process.env.CLAWDBOT_SKIP_CANVAS_HOST;
     else process.env.CLAWDBOT_SKIP_CANVAS_HOST = previousSkipCanvasHost;
+    if (previousSkipStartupValidation === undefined)
+      delete process.env.CLAWDBOT_SKIP_STARTUP_VALIDATION;
+    else process.env.CLAWDBOT_SKIP_STARTUP_VALIDATION = previousSkipStartupValidation;
   }
   if (options.restoreEnv && tempHome) {
     await fs.rm(tempHome, {

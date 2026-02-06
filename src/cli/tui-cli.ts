@@ -10,6 +10,7 @@ export function registerTuiCli(program: Command) {
     .command("tui")
     .description("Open a terminal UI connected to the Gateway")
     .option("--url <url>", "Gateway WebSocket URL (defaults to gateway.remote.url when configured)")
+    .option("-g, --gateway <url>", "Gateway WebSocket URL (alias for --url)")
     .option("--token <token>", "Gateway token (if required)")
     .option("--password <password>", "Gateway password (if required)")
     .option("--session <key>", 'Session key (default: "main", or "global" when scope is global)')
@@ -31,8 +32,10 @@ export function registerTuiCli(program: Command) {
           );
         }
         const historyLimit = Number.parseInt(String(opts.historyLimit ?? "200"), 10);
+        // Resolve --gateway as alias for --url (CLI takes priority)
+        const url = (opts.url ?? opts.gateway) as string | undefined;
         await runTui({
-          url: opts.url as string | undefined,
+          url,
           token: opts.token as string | undefined,
           password: opts.password as string | undefined,
           session: opts.session as string | undefined,

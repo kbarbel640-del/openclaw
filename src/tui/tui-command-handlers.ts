@@ -13,7 +13,7 @@ import {
   createSearchableSelectList,
   createSettingsList,
 } from "./components/selectors.js";
-import type { GatewayChatClient } from "./gateway-chat.js";
+import type { ClientRef } from "./tui-session-actions.js";
 import { formatStatusSummary } from "./tui-status-summary.js";
 import type {
   AgentSummary,
@@ -23,7 +23,7 @@ import type {
 } from "./tui-types.js";
 
 type CommandHandlerContext = {
-  client: GatewayChatClient;
+  clientRef: ClientRef;
   chatLog: ChatLog;
   tui: TUI;
   opts: TuiOptions;
@@ -42,7 +42,7 @@ type CommandHandlerContext = {
 
 export function createCommandHandlers(context: CommandHandlerContext) {
   const {
-    client,
+    clientRef,
     chatLog,
     tui,
     opts,
@@ -65,8 +65,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
   };
 
   const openModelSelector = async () => {
+    if (!clientRef.current) return;
     try {
-      const models = await client.listModels();
+      const models = await clientRef.current.listModels();
       if (models.length === 0) {
         chatLog.addSystem("no models available");
         tui.requestRender();
@@ -80,8 +81,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
       const selector = createSearchableSelectList(items, 9);
       selector.onSelect = (item) => {
         void (async () => {
+          if (!clientRef.current) return;
           try {
-            await client.patchSession({
+            await clientRef.current.patchSession({
               key: state.currentSessionKey,
               model: item.value,
             });
@@ -135,8 +137,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
   };
 
   const openSessionSelector = async () => {
+    if (!clientRef.current) return;
     try {
-      const result = await client.listSessions({
+      const result = await clientRef.current.listSessions({
         includeGlobal: false,
         includeUnknown: false,
         includeDerivedTitles: true,
@@ -239,8 +242,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
         );
         break;
       case "status":
+        if (!clientRef.current) break;
         try {
-          const status = await client.getStatus();
+          const status = await clientRef.current.getStatus();
           if (typeof status === "string") {
             chatLog.addSystem(status);
             break;
@@ -278,9 +282,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
       case "model":
         if (!args) {
           await openModelSelector();
-        } else {
+        } else if (clientRef.current) {
           try {
-            await client.patchSession({
+            await clientRef.current.patchSession({
               key: state.currentSessionKey,
               model: args,
             });
@@ -304,8 +308,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
           chatLog.addSystem(`usage: /think <${levels}>`);
           break;
         }
+        if (!clientRef.current) break;
         try {
-          await client.patchSession({
+          await clientRef.current.patchSession({
             key: state.currentSessionKey,
             thinkingLevel: args,
           });
@@ -320,8 +325,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
           chatLog.addSystem("usage: /verbose <on|off>");
           break;
         }
+        if (!clientRef.current) break;
         try {
-          await client.patchSession({
+          await clientRef.current.patchSession({
             key: state.currentSessionKey,
             verboseLevel: args,
           });
@@ -336,8 +342,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
           chatLog.addSystem("usage: /reasoning <on|off>");
           break;
         }
+        if (!clientRef.current) break;
         try {
-          await client.patchSession({
+          await clientRef.current.patchSession({
             key: state.currentSessionKey,
             reasoningLevel: args,
           });
@@ -357,8 +364,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
         const current = resolveResponseUsageMode(currentRaw);
         const next =
           normalized ?? (current === "off" ? "tokens" : current === "tokens" ? "full" : "off");
+        if (!clientRef.current) break;
         try {
-          await client.patchSession({
+          await clientRef.current.patchSession({
             key: state.currentSessionKey,
             responseUsage: next === "off" ? null : next,
           });
@@ -378,8 +386,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
           chatLog.addSystem("usage: /elevated <on|off|ask|full>");
           break;
         }
+        if (!clientRef.current) break;
         try {
-          await client.patchSession({
+          await clientRef.current.patchSession({
             key: state.currentSessionKey,
             elevatedLevel: args,
           });
@@ -394,8 +403,9 @@ export function createCommandHandlers(context: CommandHandlerContext) {
           chatLog.addSystem("usage: /activation <mention|always>");
           break;
         }
+        if (!clientRef.current) break;
         try {
-          await client.patchSession({
+          await clientRef.current.patchSession({
             key: state.currentSessionKey,
             groupActivation: args === "always" ? "always" : "mention",
           });
@@ -407,6 +417,7 @@ export function createCommandHandlers(context: CommandHandlerContext) {
         break;
       case "new":
       case "reset":
+        if (!clientRef.current) break;
         try {
           // Clear token counts immediately to avoid stale display (#1523)
           state.sessionInfo.inputTokens = null;
@@ -414,7 +425,7 @@ export function createCommandHandlers(context: CommandHandlerContext) {
           state.sessionInfo.totalTokens = null;
           tui.requestRender();
 
-          await client.resetSession(state.currentSessionKey);
+          await clientRef.current.resetSession(state.currentSessionKey);
           chatLog.addSystem(`session ${state.currentSessionKey} reset`);
           await loadHistory();
         } catch (err) {
@@ -429,7 +440,7 @@ export function createCommandHandlers(context: CommandHandlerContext) {
         break;
       case "exit":
       case "quit":
-        client.stop();
+        clientRef.current?.stop();
         tui.stop();
         process.exit(0);
         break;
@@ -441,11 +452,16 @@ export function createCommandHandlers(context: CommandHandlerContext) {
   };
 
   const sendMessage = async (text: string) => {
+    if (!clientRef.current) {
+      chatLog.addSystem("not connected to gateway");
+      tui.requestRender();
+      return;
+    }
     try {
       chatLog.addUser(text);
       tui.requestRender();
       setActivityStatus("sending");
-      const { runId } = await client.sendChat({
+      const { runId } = await clientRef.current.sendChat({
         sessionKey: state.currentSessionKey,
         message: text,
         thinking: opts.thinking,

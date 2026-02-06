@@ -11,7 +11,7 @@ describe("tui command handlers", () => {
     const setActivityStatus = vi.fn();
 
     const { handleCommand } = createCommandHandlers({
-      client: { sendChat } as never,
+      clientRef: { current: { sendChat } as never },
       chatLog: { addUser, addSystem } as never,
       tui: { requestRender } as never,
       opts: {},

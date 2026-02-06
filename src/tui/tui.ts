@@ -17,7 +17,7 @@ import {
 import { getSlashCommands } from "./commands.js";
 import { ChatLog } from "./components/chat-log.js";
 import { CustomEditor } from "./components/custom-editor.js";
-import { GatewayChatClient } from "./gateway-chat.js";
+import { connectWithFallback, type GatewayChatClient } from "./gateway-chat.js";
 import { editorTheme, theme } from "./theme/theme.js";
 import { createCommandHandlers } from "./tui-command-handlers.js";
 import { createEventHandlers } from "./tui-event-handlers.js";
@@ -223,12 +223,7 @@ export async function runTui(opts: TuiOptions) {
     },
   };
 
-  const client = new GatewayChatClient({
-    url: opts.url,
-    token: opts.token,
-    password: opts.password,
-  });
-
+  // TUI components - created before connection so we can show "connecting" status
   const tui = new TUI(new ProcessTerminal());
   const header = new Text("", 1, 0);
   const statusContainer = new Container();
@@ -241,6 +236,10 @@ export async function runTui(opts: TuiOptions) {
   root.addChild(statusContainer);
   root.addChild(footer);
   root.addChild(editor);
+
+  // Client ref - will be set after connectWithFallback. Using ref object so closures see updates.
+  const clientRef: { current: GatewayChatClient | undefined } = { current: undefined };
+  let actualUrl = ""; // Track actual connected URL for header
 
   const updateAutocompleteProvider = () => {
     editor.setAutocompleteProvider(
@@ -288,10 +287,9 @@ export async function runTui(opts: TuiOptions) {
   const updateHeader = () => {
     const sessionLabel = formatSessionKey(currentSessionKey);
     const agentLabel = formatAgentLabel(currentAgentId);
+    const urlLabel = actualUrl || "connecting...";
     header.setText(
-      theme.header(
-        `moltbot tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`,
-      ),
+      theme.header(`moltbot tui - ${urlLabel} - agent ${agentLabel} - session ${sessionLabel}`),
     );
   };
 
@@ -475,7 +473,7 @@ export async function runTui(opts: TuiOptions) {
   })();
 
   const sessionActions = createSessionActions({
-    client,
+    clientRef,
     chatLog,
     tui,
     opts,
@@ -502,7 +500,7 @@ export async function runTui(opts: TuiOptions) {
 
   const { handleCommand, sendMessage, openModelSelector, openAgentSelector, openSessionSelector } =
     createCommandHandlers({
-      client,
+      clientRef,
       chatLog,
       tui,
       opts,
@@ -545,7 +543,7 @@ export async function runTui(opts: TuiOptions) {
       return;
     }
     if (now - lastCtrlCAt < 1000) {
-      client.stop();
+      clientRef.current?.stop();
       tui.stop();
       process.exit(0);
     }
@@ -554,7 +552,7 @@ export async function runTui(opts: TuiOptions) {
     tui.requestRender();
   };
   editor.onCtrlD = () => {
-    client.stop();
+    clientRef.current?.stop();
     tui.stop();
     process.exit(0);
   };
@@ -578,21 +576,89 @@ export async function runTui(opts: TuiOptions) {
     void loadHistory();
   };
 
-  client.onEvent = (evt) => {
-    if (evt.event === "chat") handleChatEvent(evt.payload);
-    if (evt.event === "agent") handleAgentEvent(evt.payload);
+  const setupDisconnectHandler = (c: GatewayChatClient) => {
+    c.onDisconnected = (reason) => {
+      isConnected = false;
+      wasDisconnected = true;
+      historyLoaded = false;
+      const reasonLabel = reason?.trim() ? reason.trim() : "closed";
+      const hint = "Hint: start gateway with `pnpm run gateway:dev` or set CLAWDBOT_GATEWAY_URL.";
+      setConnectionStatus(`gateway disconnected: ${reasonLabel}. ${hint}`, 8000);
+      setActivityStatus("idle");
+      updateFooter();
+      tui.requestRender();
+    };
   };
 
-  client.onConnected = () => {
+  const setupGapHandler = (c: GatewayChatClient) => {
+    c.onGap = (info) => {
+      setConnectionStatus(`event gap: expected ${info.expected}, got ${info.received}`, 5000);
+      tui.requestRender();
+    };
+  };
+
+  // Start TUI immediately so user sees "connecting" status
+  updateHeader();
+  setConnectionStatus("connecting");
+  updateFooter();
+  tui.start();
+
+  // Connect with fallback from default port to dev port if needed
+  try {
+    const result = await connectWithFallback({
+      url: opts.url,
+      token: opts.token,
+      password: opts.password,
+    });
+
+    const client = result.client;
+    clientRef.current = client;
+    actualUrl = result.url;
+
+    // Show fallback message if we fell back to dev port
+    if (result.didFallback && result.fallbackFromUrl) {
+      chatLog.addSystem(
+        `Failed to connect to ${result.fallbackFromUrl}. Connected to ${result.url} (dev gateway).`,
+      );
+    }
+
+    // Set up event handlers for ongoing operation
+    client.onEvent = (evt) => {
+      if (evt.event === "chat") handleChatEvent(evt.payload);
+      if (evt.event === "agent") handleAgentEvent(evt.payload);
+    };
+
+    client.onConnected = () => {
+      isConnected = true;
+      const reconnected = wasDisconnected;
+      wasDisconnected = false;
+      setConnectionStatus("connected");
+      void (async () => {
+        await refreshAgents();
+        updateHeader();
+        await loadHistory();
+        setConnectionStatus(reconnected ? "gateway reconnected" : "gateway connected", 4000);
+        tui.requestRender();
+        if (!autoMessageSent && autoMessage) {
+          autoMessageSent = true;
+          await sendMessage(autoMessage);
+        }
+        updateFooter();
+        tui.requestRender();
+      })();
+    };
+
+    setupDisconnectHandler(client);
+    setupGapHandler(client);
+
+    // Trigger initial connected state
     isConnected = true;
-    const reconnected = wasDisconnected;
-    wasDisconnected = false;
-    setConnectionStatus("connected");
+    updateHeader();
     void (async () => {
       await refreshAgents();
       updateHeader();
       await loadHistory();
-      setConnectionStatus(reconnected ? "gateway reconnected" : "gateway connected", 4000);
+      setConnectionStatus("gateway connected", 4000);
       tui.requestRender();
       if (!autoMessageSent && autoMessage) {
         autoMessageSent = true;
@@ -601,27 +667,11 @@ export async function runTui(opts: TuiOptions) {
       updateFooter();
       tui.requestRender();
     })();
-  };
-
-  client.onDisconnected = (reason) => {
-    isConnected = false;
-    wasDisconnected = true;
-    historyLoaded = false;
-    const reasonLabel = reason?.trim() ? reason.trim() : "closed";
-    setConnectionStatus(`gateway disconnected: ${reasonLabel}`, 5000);
-    setActivityStatus("idle");
-    updateFooter();
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const hint = "Hint: start gateway with `pnpm run gateway:dev` or set CLAWDBOT_GATEWAY_URL.";
+    setConnectionStatus(`connection failed: ${errMsg}. ${hint}`, 0);
+    chatLog.addSystem(`Connection failed: ${errMsg}\n${hint}`);
     tui.requestRender();
-  };
-
-  client.onGap = (info) => {
-    setConnectionStatus(`event gap: expected ${info.expected}, got ${info.received}`, 5000);
-    tui.requestRender();
-  };
-
-  updateHeader();
-  setConnectionStatus("connecting");
-  updateFooter();
-  tui.start();
-  client.start();
+  }
 }

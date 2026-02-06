@@ -9,8 +9,11 @@ import type { GatewayAgentsList, GatewayChatClient } from "./gateway-chat.js";
 import { asString, extractTextFromMessage, isCommandMessage } from "./tui-formatters.js";
 import type { TuiOptions, TuiStateAccess } from "./tui-types.js";
 
+/** Ref object for client that can be mutated after connection */
+export type ClientRef = { current: GatewayChatClient | undefined };
+
 type SessionActionContext = {
-  client: GatewayChatClient;
+  clientRef: ClientRef;
   chatLog: ChatLog;
   tui: TUI;
   opts: TuiOptions;
@@ -27,7 +30,7 @@ type SessionActionContext = {
 
 export function createSessionActions(context: SessionActionContext) {
   const {
-    client,
+    clientRef,
     chatLog,
     tui,
     opts,
@@ -78,8 +81,9 @@ export function createSessionActions(context: SessionActionContext) {
   };
 
   const refreshAgents = async () => {
+    if (!clientRef.current) return;
     try {
-      const result = await client.listAgents();
+      const result = await clientRef.current.listAgents();
       applyAgentsResult(result);
     } catch (err) {
       chatLog.addSystem(`agents list failed: ${String(err)}`);
@@ -97,13 +101,15 @@ export function createSessionActions(context: SessionActionContext) {
 
   const refreshSessionInfo = async () => {
     if (refreshSessionInfoPromise) return refreshSessionInfoPromise;
+    if (!clientRef.current) return;
     refreshSessionInfoPromise = (async () => {
+      if (!clientRef.current) return;
       try {
         const listAgentId =
           state.currentSessionKey === "global" || state.currentSessionKey === "unknown"
             ? undefined
             : state.currentAgentId;
-        const result = await client.listSessions({
+        const result = await clientRef.current.listSessions({
           includeGlobal: false,
           includeUnknown: false,
           agentId: listAgentId,
@@ -144,8 +150,9 @@ export function createSessionActions(context: SessionActionContext) {
   };
 
   const loadHistory = async () => {
+    if (!clientRef.current) return;
     try {
-      const history = await client.loadHistory({
+      const history = await clientRef.current.loadHistory({
         sessionKey: state.currentSessionKey,
         limit: opts.historyLimit ?? 200,
       });
@@ -222,8 +229,9 @@ export function createSessionActions(context: SessionActionContext) {
       tui.requestRender();
       return;
     }
+    if (!clientRef.current) return;
     try {
-      await client.abortChat({
+      await clientRef.current.abortChat({
         sessionKey: state.currentSessionKey,
         runId: state.activeChatRunId,
       });
