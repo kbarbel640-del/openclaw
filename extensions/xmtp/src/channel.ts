@@ -21,6 +21,7 @@ import {
 } from "./accounts.js";
 import { xmtpMessageActions } from "./actions.js";
 import { xmtpChannelConfigSchema } from "./config-schema.js";
+import { walletAddressFromPrivateKey } from "./lib/identity.js";
 import { createAgentFromAccount } from "./lib/xmtp-client.js";
 import { xmtpOnboardingAdapter } from "./onboarding.js";
 import { getClientForAccount, setClientForAccount, xmtpOutbound } from "./outbound.js";
@@ -36,7 +37,7 @@ const CHANNEL_ID = "xmtp";
 const meta = {
   id: CHANNEL_ID,
   label: "XMTP",
-  selectionLabel: "XMTP (Decentralized)",
+  selectionLabel: "XMTP (Agent SDK)",
   docsPath: "/channels/xmtp",
   docsLabel: "xmtp",
   blurb: "Decentralized messaging via XMTP protocol",
@@ -203,13 +204,18 @@ async function deliverXmtpReply(params: {
   const { payload, conversationId, accountId, runtime, log, tableMode = "code" } = params;
 
   const agent = getClientForAccount(accountId);
-  if (!agent?.sendText) {
+  if (!agent) {
     throw new Error("XMTP agent not available");
   }
 
   const text = runtime.channel.text.convertMarkdownTables(payload.text ?? "", tableMode);
 
   if (text) {
+    const conversation = await agent.client.conversations.getConversationById(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${conversationId.slice(0, 12)}...`);
+    }
+
     const cfg = runtime.config.loadConfig();
     const chunkLimit = runtime.channel.text.resolveTextChunkLimit({
       cfg,
@@ -220,7 +226,7 @@ async function deliverXmtpReply(params: {
 
     for (const chunk of chunks) {
       try {
-        await agent.sendText(conversationId, chunk);
+        await conversation.sendText(chunk);
       } catch (err) {
         log?.error(`[${accountId}] Failed to send message: ${String(err)}`);
         throw err;
@@ -400,15 +406,21 @@ export const xmtpPlugin: ChannelPlugin<ResolvedXmtpAccount> = {
 
       setStatus({ accountId: account.accountId, env: account.env });
 
-      log?.info(`[${account.accountId}] starting XMTP provider (env: ${account.env})`);
+      const publicAddress = walletAddressFromPrivateKey(account.walletKey);
+      log?.info(
+        `[${account.accountId}] starting XMTP provider (env: ${account.env}, agent: ${publicAddress})`,
+      );
 
       const stateDir = runtime.state.resolveStateDir();
       const agent = await createAgentFromAccount(account, stateDir);
 
       agent.on("text", async (msgCtx) => {
+        log?.info(
+          `[${account.accountId}] text event: ${JSON.stringify({ content: msgCtx.message?.content?.slice(0, 50), id: msgCtx.message?.id })}`,
+        );
         const sender = await msgCtx.getSenderAddress();
         const conversation = msgCtx.conversation;
-        const conversationId = conversation?.topic ?? sender;
+        const conversationId = conversation?.id as string;
         handleInboundMessage(
           account,
           sender,

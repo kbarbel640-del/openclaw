@@ -30,7 +30,7 @@ type RuntimeLogger = {
 const meta = {
   id: "convos",
   label: "Convos",
-  selectionLabel: "Convos (XMTP)",
+  selectionLabel: "Convos (Join via url)",
   docsPath: "/channels/convos",
   docsLabel: "convos",
   blurb: "E2E encrypted messaging via XMTP",

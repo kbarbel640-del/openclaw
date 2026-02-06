@@ -44,26 +44,23 @@ export const xmtpOutbound: ChannelOutboundAdapter = {
   sendText: async ({ cfg, to, text, accountId }) => {
     const account = resolveXmtpAccount({ cfg: cfg as CoreConfig, accountId });
     const agent = getAgentOrThrow(account.accountId);
-    if (!agent.sendText) {
-      throw new Error(
-        `XMTP agent not running for account ${account.accountId}. Is the gateway started?`,
-      );
+    const conversation = await agent.client.conversations.getConversationById(to);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${to.slice(0, 12)}...`);
     }
-    await agent.sendText(to, text);
+    await conversation.sendText(text);
     return { channel: CHANNEL_ID, messageId: `xmtp-${Date.now()}` };
   },
 
   sendMedia: async ({ cfg, to, accountId, mediaUrl, text }) => {
     const account = resolveXmtpAccount({ cfg: cfg as CoreConfig, accountId });
     const agent = getAgentOrThrow(account.accountId);
-    const url = mediaUrl ?? text ?? "";
-    if (typeof agent.sendRemoteAttachment === "function") {
-      await agent.sendRemoteAttachment(to, url);
-    } else if (typeof agent.sendText === "function") {
-      await agent.sendText(to, url);
-    } else {
-      throw new Error("sendMedia not supported: no sendRemoteAttachment or sendText on agent");
+    const conversation = await agent.client.conversations.getConversationById(to);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${to.slice(0, 12)}...`);
     }
+    const url = mediaUrl ?? text ?? "";
+    await conversation.sendText(url);
     return { channel: CHANNEL_ID, messageId: `xmtp-${Date.now()}` };
   },
 };
