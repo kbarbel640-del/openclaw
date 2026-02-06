@@ -229,16 +229,32 @@ export async function prepareSanitizedMounts(opts?: {
   binds.push(`${cronDir}:/home/node/.openclaw/cron:rw`);
 
   // =========================================================================
-  // 7. CREDENTIALS DIRECTORY (read-only) - for pairing files and LID mappings
+  // 7. CREDENTIALS DIRECTORY - mount only safe files, exclude oauth.json
   // =========================================================================
-  // This contains:
-  // - telegram-pairing.json, telegram-allowFrom.json (channel pairing metadata, NOT secrets)
-  // - lid-mapping-*.json (WhatsApp LID-to-phone lookups, NOT secrets)
-  // - oauth.json (legacy, read-only migration source if present)
-  // OAuth tokens are stored in per-agent auth-profiles.json, NOT here.
+  // Safe to mount (NOT secrets):
+  // - telegram-pairing.json, telegram-allowFrom.json (channel pairing metadata)
+  // - lid-mapping-*.json (WhatsApp LID-to-phone lookups)
+  // NOT safe to mount:
+  // - oauth.json (legacy file that may contain real OAuth tokens)
+  // OAuth tokens are stored in per-agent auth-profiles.json (sanitized separately).
   const credentialsDir = path.join(openclawDir, "credentials");
   if (fs.existsSync(credentialsDir)) {
-    binds.push(`${credentialsDir}:/home/node/.openclaw/credentials:ro`);
+    try {
+      const entries = await fs.promises.readdir(credentialsDir);
+      for (const entry of entries) {
+        // Skip oauth.json - may contain real secrets from legacy installs
+        if (entry === "oauth.json") {
+          continue;
+        }
+        const srcPath = path.join(credentialsDir, entry);
+        const stat = await fs.promises.stat(srcPath);
+        if (stat.isFile()) {
+          binds.push(`${srcPath}:/home/node/.openclaw/credentials/${entry}:ro`);
+        }
+      }
+    } catch (err) {
+      console.warn(`Failed to enumerate credentials directory: ${err}`);
+    }
   }
 
   return { binds, sanitizedDir };
