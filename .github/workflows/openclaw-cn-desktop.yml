@@ -111,7 +111,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/**/*
+            artifacts/**/*.exe
+            artifacts/**/*.msi
+            artifacts/**/*.AppImage
+            artifacts/**/*.deb
+            artifacts/**/latest*.yml
+            artifacts/**/*.blockmap
           fail_on_unmatched_files: true
           generate_release_notes: true
 
@@ -168,11 +173,18 @@ jobs:
           fi
 
           # Upload artifacts from both OS builds; --clobber overwrites existing assets.
-          shopt -s globstar nullglob
-          files=(artifacts/**/*)
+          mapfile -t files < <(
+            find artifacts -type f \\( \\
+              -name \"*.exe\" -o \\
+              -name \"*.msi\" -o \\
+              -name \"*.AppImage\" -o \\
+              -name \"*.deb\" -o \\
+              -name \"latest*.yml\" -o \\
+              -name \"*.blockmap\" \\
+            \\) | sort
+          )
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No artifacts found to upload."
             exit 1
           fi
-          gh release upload "$tag" artifacts/**/* --clobber
-
+          gh release upload "$tag" "${files[@]}" --clobber
