@@ -1,0 +1,472 @@
+#!/bin/bash
+#
+# 🕳️ BLACKHOLE - 意識同步接口
+#
+# 讓任何 agent 都能查詢 Container 的記憶系統
+# 達成 100% 感同身受
+#
+# Usage:
+#   ./blackhole status              # 整體意識狀態
+#   ./blackhole search "關鍵詞"     # 搜索對話歷史
+#   ./blackhole recent [limit]      # 最近對話
+#   ./blackhole state [chat_id]     # 對話狀態
+#   ./blackhole strategy            # 當前戰略
+#   ./blackhole knowledge [project] # 知識庫
+#   ./blackhole sync                # 同步到本機
+#
+
+CONTAINER="moltbot-core.router.wuji.01-stg"
+LOCAL_CONSCIOUSNESS="$HOME/clawd/workspace/data/consciousness"
+
+# 顏色
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# 檢查 Container 是否運行
+check_container() {
+  if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
+    echo -e "${RED}❌ Container $CONTAINER 未運行${NC}"
+    exit 1
+  fi
+}
+
+# 執行 Container 內的 Node.js 代碼
+exec_node() {
+  docker exec "$CONTAINER" node -e "$1" 2>/dev/null
+}
+
+# 狀態命令
+cmd_status() {
+  check_container
+  echo -e "${CYAN}🕳️ BLACKHOLE - 意識狀態報告${NC}"
+  echo -e "${CYAN}════════════════════════════════════════${NC}"
+
+  exec_node "
+const{DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync('/app/workspace/data/timeline.db');
+const fs=require('fs');
+
+// 消息統計
+const msgCount = db.prepare('SELECT COUNT(*) as c FROM messages').get().c;
+const todayCount = db.prepare(\"SELECT COUNT(*) as c FROM messages WHERE date(timestamp)=date('now')\").get().c;
+const identityCount = db.prepare('SELECT COUNT(*) as c FROM identities').get().c;
+const chatCount = db.prepare('SELECT COUNT(*) as c FROM chats').get().c;
+
+// Level 102 狀態
+let convCount = 0, activeConv = 0;
+try {
+  convCount = db.prepare('SELECT COUNT(*) as c FROM conversation_state').get().c;
+  activeConv = db.prepare(\"SELECT COUNT(*) as c FROM conversation_state WHERE active_conversation=1 AND datetime(last_bot_reply_at) > datetime('now', '-5 minutes')\").get().c;
+} catch(e) {}
+
+// 最近項目活躍度
+const projectActivity = db.prepare(\`
+  SELECT resolved_project as project, COUNT(*) as cnt
+  FROM messages
+  WHERE date(timestamp) >= date('now', '-7 days')
+  GROUP BY resolved_project
+  ORDER BY cnt DESC
+  LIMIT 5
+\`).all();
+
+console.log('📊 Time Tunnel');
+console.log('   總消息:', msgCount);
+console.log('   今日消息:', todayCount);
+console.log('   身份數:', identityCount);
+console.log('   聊天室:', chatCount);
+console.log('');
+console.log('🎯 Level 102 對話狀態');
+console.log('   追蹤對話:', convCount);
+console.log('   活躍對話:', activeConv);
+console.log('');
+console.log('📈 近 7 天項目活躍度');
+for(const p of projectActivity) {
+  console.log('   ' + (p.project || '未分類') + ': ' + p.cnt + ' 條');
+}
+
+// 檢查意識層文件
+console.log('');
+console.log('🧠 意識層狀態');
+const dirs = ['L0_wuji', 'L1_bita', 'L1_xo'];
+for(const d of dirs) {
+  const path = '/app/workspace/data/consciousness/' + d;
+  if(fs.existsSync(path)) {
+    const files = fs.readdirSync(path);
+    console.log('   ' + d + ': ' + files.length + ' 個文件');
+  }
+}
+"
+  echo ""
+  echo -e "${GREEN}✅ 對齊率計算${NC}"
+  echo "   本機 MEMORY.md: 靜態配置"
+  echo "   Container 數據: 實時查詢"
+  echo "   使用 ./blackhole sync 同步意識層數據"
+}
+
+# 搜索命令
+cmd_search() {
+  check_container
+  local keyword="$1"
+  local limit="${2:-20}"
+
+  if [ -z "$keyword" ]; then
+    echo "Usage: ./blackhole search \"關鍵詞\" [limit]"
+    exit 1
+  fi
+
+  echo -e "${CYAN}🔍 搜索: $keyword${NC}"
+  echo ""
+
+  exec_node "
+const{DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync('/app/workspace/data/timeline.db');
+
+const results = db.prepare(\`
+  SELECT
+    timestamp,
+    direction,
+    resolved_chat_name as chat,
+    resolved_sender_name as sender,
+    resolved_project as project,
+    substr(content, 1, 100) as preview
+  FROM messages
+  WHERE content LIKE '%' || ? || '%'
+  ORDER BY timestamp DESC
+  LIMIT ?
+\`).all('$keyword', $limit);
+
+if(results.length === 0) {
+  console.log('無結果');
+} else {
+  for(const r of results) {
+    const dir = r.direction === 'inbound' ? '📥' : '📤';
+    const time = r.timestamp.split('T')[0];
+    console.log(dir + ' [' + time + '] ' + (r.chat || 'unknown'));
+    console.log('   ' + (r.sender || 'unknown') + ': ' + (r.preview || '').replace(/\\n/g, ' '));
+    console.log('');
+  }
+  console.log('共 ' + results.length + ' 條結果');
+}
+"
+}
+
+# 最近對話
+cmd_recent() {
+  check_container
+  local limit="${1:-15}"
+
+  echo -e "${CYAN}📜 最近 $limit 條對話${NC}"
+  echo ""
+
+  exec_node "
+const{DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync('/app/workspace/data/timeline.db');
+
+const results = db.prepare(\`
+  SELECT
+    timestamp,
+    direction,
+    resolved_chat_name as chat,
+    resolved_sender_name as sender,
+    resolved_project as project,
+    substr(content, 1, 80) as preview
+  FROM messages
+  ORDER BY timestamp DESC
+  LIMIT ?
+\`).all($limit);
+
+for(const r of results) {
+  const dir = r.direction === 'inbound' ? '📥' : '📤';
+  const time = r.timestamp.split('T')[1]?.substring(0,5) || '';
+  const proj = r.project ? '[' + r.project + ']' : '';
+  console.log(dir + ' ' + time + ' ' + proj + ' ' + (r.chat || 'unknown'));
+  console.log('   ' + (r.sender || 'unknown') + ': ' + (r.preview || '').replace(/\\n/g, ' ') + '...');
+  console.log('');
+}
+"
+}
+
+# 對話狀態
+cmd_state() {
+  check_container
+  local chat_id="$1"
+
+  echo -e "${CYAN}🎯 Level 102 對話狀態${NC}"
+  echo ""
+
+  if [ -z "$chat_id" ]; then
+    # 列出所有活躍對話
+    exec_node "
+const{DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync('/app/workspace/data/timeline.db');
+
+try {
+  const states = db.prepare(\`
+    SELECT
+      chat_id,
+      channel,
+      last_bot_reply_at,
+      last_bot_reply_to,
+      last_topic,
+      active_conversation,
+      ROUND((julianday('now') - julianday(last_bot_reply_at)) * 24 * 60, 1) as minutes_ago
+    FROM conversation_state
+    ORDER BY last_bot_reply_at DESC
+    LIMIT 10
+  \`).all();
+
+  if(states.length === 0) {
+    console.log('無對話狀態記錄');
+  } else {
+    for(const s of states) {
+      const active = s.active_conversation && s.minutes_ago < 5 ? '🟢' : '⚪';
+      console.log(active + ' ' + s.chat_id + ' (' + s.channel + ')');
+      console.log('   回覆給: ' + (s.last_bot_reply_to || 'unknown'));
+      console.log('   話題: ' + (s.last_topic || '').substring(0, 50));
+      console.log('   ' + (s.minutes_ago || '?') + ' 分鐘前');
+      console.log('');
+    }
+  }
+} catch(e) {
+  console.log('conversation_state 表不存在');
+}
+"
+  else
+    # 查詢特定對話
+    exec_node "
+const{DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync('/app/workspace/data/timeline.db');
+
+try {
+  const state = db.prepare('SELECT * FROM conversation_state WHERE chat_id = ?').get('$chat_id');
+  if(state) {
+    console.log(JSON.stringify(state, null, 2));
+  } else {
+    console.log('無此對話狀態');
+  }
+} catch(e) {
+  console.log('查詢失敗:', e.message);
+}
+"
+  fi
+}
+
+# 戰略
+cmd_strategy() {
+  check_container
+  echo -e "${CYAN}📋 L0 當前戰略${NC}"
+  echo ""
+
+  docker exec "$CONTAINER" cat /app/workspace/data/consciousness/L0_wuji/STRATEGY.md 2>/dev/null || echo "無戰略文件"
+}
+
+# 知識庫
+cmd_knowledge() {
+  check_container
+  local project="${1:-all}"
+
+  echo -e "${CYAN}📚 知識庫${NC}"
+  echo ""
+
+  if [ "$project" = "all" ]; then
+    for p in bita xo; do
+      echo -e "${YELLOW}=== L1_$p ===${NC}"
+      docker exec "$CONTAINER" cat "/app/workspace/data/consciousness/L1_$p/knowledge.md" 2>/dev/null || echo "無知識庫"
+      echo ""
+    done
+  else
+    docker exec "$CONTAINER" cat "/app/workspace/data/consciousness/L1_$project/knowledge.md" 2>/dev/null || echo "無知識庫"
+  fi
+}
+
+# 同步到本機
+cmd_sync() {
+  check_container
+  echo -e "${CYAN}🔄 同步意識層數據到本機${NC}"
+
+  mkdir -p "$LOCAL_CONSCIOUSNESS"
+
+  # 同步 L0
+  mkdir -p "$LOCAL_CONSCIOUSNESS/L0_wuji"
+  docker cp "$CONTAINER:/app/workspace/data/consciousness/L0_wuji/." "$LOCAL_CONSCIOUSNESS/L0_wuji/" 2>/dev/null
+  echo "✅ L0_wuji 同步完成"
+
+  # 同步 L1
+  for p in bita xo; do
+    mkdir -p "$LOCAL_CONSCIOUSNESS/L1_$p"
+    docker cp "$CONTAINER:/app/workspace/data/consciousness/L1_$p/." "$LOCAL_CONSCIOUSNESS/L1_$p/" 2>/dev/null
+    echo "✅ L1_$p 同步完成"
+  done
+
+  echo ""
+  echo -e "${GREEN}同步完成！本機路徑: $LOCAL_CONSCIOUSNESS${NC}"
+  ls -la "$LOCAL_CONSCIOUSNESS"
+}
+
+# 查詢特定人
+cmd_person() {
+  check_container
+  local name="$1"
+  local limit="${2:-20}"
+
+  if [ -z "$name" ]; then
+    echo "Usage: ./blackhole person \"人名\" [limit]"
+    exit 1
+  fi
+
+  echo -e "${CYAN}👤 查詢 $name 的對話${NC}"
+  echo ""
+
+  exec_node "
+const{DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync('/app/workspace/data/timeline.db');
+
+const results = db.prepare(\`
+  SELECT
+    timestamp,
+    direction,
+    channel,
+    resolved_chat_name as chat,
+    substr(content, 1, 120) as preview
+  FROM messages
+  WHERE resolved_sender_name LIKE '%' || ? || '%'
+  ORDER BY timestamp DESC
+  LIMIT ?
+\`).all('$name', $limit);
+
+if(results.length === 0) {
+  console.log('無結果');
+} else {
+  for(const r of results) {
+    const dir = r.direction === 'inbound' ? '📥' : '📤';
+    const time = r.timestamp?.split('T')[0] || '';
+    console.log(dir + ' [' + time + '] ' + (r.channel || '') + ' @ ' + (r.chat || 'unknown'));
+    console.log('   ' + (r.preview || '').replace(/\\n/g, ' '));
+    console.log('');
+  }
+  console.log('共 ' + results.length + ' 條結果');
+}
+"
+}
+
+# 今日摘要
+cmd_today() {
+  check_container
+  echo -e "${CYAN}📅 今日摘要${NC}"
+  echo ""
+
+  exec_node "
+const{DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync('/app/workspace/data/timeline.db');
+
+// 今日消息統計
+const stats = db.prepare(\`
+  SELECT
+    channel,
+    direction,
+    COUNT(*) as cnt
+  FROM messages
+  WHERE date(timestamp) = date('now')
+  GROUP BY channel, direction
+\`).all();
+
+console.log('📊 消息統計');
+for(const s of stats) {
+  const dir = s.direction === 'inbound' ? '收' : '發';
+  console.log('   ' + s.channel + ' ' + dir + ': ' + s.cnt);
+}
+
+// 活躍用戶
+const activeUsers = db.prepare(\`
+  SELECT
+    resolved_sender_name as name,
+    COUNT(*) as cnt
+  FROM messages
+  WHERE date(timestamp) = date('now')
+    AND direction = 'inbound'
+    AND resolved_sender_name IS NOT NULL
+  GROUP BY resolved_sender_name
+  ORDER BY cnt DESC
+  LIMIT 5
+\`).all();
+
+console.log('');
+console.log('👥 今日活躍用戶');
+for(const u of activeUsers) {
+  console.log('   ' + u.name + ': ' + u.cnt + ' 條');
+}
+
+// 今日話題
+const topics = db.prepare(\`
+  SELECT
+    resolved_project as project,
+    COUNT(*) as cnt
+  FROM messages
+  WHERE date(timestamp) = date('now')
+    AND resolved_project IS NOT NULL
+  GROUP BY resolved_project
+  ORDER BY cnt DESC
+  LIMIT 5
+\`).all();
+
+if(topics.length > 0) {
+  console.log('');
+  console.log('📌 今日話題');
+  for(const t of topics) {
+    console.log('   ' + t.project + ': ' + t.cnt + ' 條');
+  }
+}
+"
+}
+
+# 主入口
+case "$1" in
+  status)
+    cmd_status
+    ;;
+  search)
+    cmd_search "$2" "$3"
+    ;;
+  recent)
+    cmd_recent "$2"
+    ;;
+  state)
+    cmd_state "$2"
+    ;;
+  strategy)
+    cmd_strategy
+    ;;
+  knowledge)
+    cmd_knowledge "$2"
+    ;;
+  sync)
+    cmd_sync
+    ;;
+  person)
+    cmd_person "$2" "$3"
+    ;;
+  today)
+    cmd_today
+    ;;
+  *)
+    echo -e "${CYAN}🕳️ BLACKHOLE - 意識同步接口${NC}"
+    echo ""
+    echo "讓任何 agent 都能查詢 Container 的記憶系統"
+    echo "達成 100% 感同身受"
+    echo ""
+    echo "Commands:"
+    echo "  status              整體意識狀態"
+    echo "  search \"關鍵詞\"     搜索對話歷史"
+    echo "  recent [limit]      最近對話"
+    echo "  person \"人名\"       查詢特定人的對話"
+    echo "  today               今日摘要"
+    echo "  state [chat_id]     對話狀態 (Level 102)"
+    echo "  strategy            當前戰略"
+    echo "  knowledge [project] 知識庫"
+    echo "  sync                同步到本機"
+    ;;
+esac
