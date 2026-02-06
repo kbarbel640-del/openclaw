@@ -47,7 +47,7 @@ export const xmppMessageActions: ChannelMessageActionAdapter = {
     return Array.from(actions);
   },
 
-  supportsAction: ({ action }) => action === "send" || action === "react",
+  supportsAction: ({ action }) => action === "react",
 
   handleAction: async ({ action, params, cfg, accountId }) => {
     if (action === "send") {
