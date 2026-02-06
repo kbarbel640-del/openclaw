@@ -19,9 +19,27 @@ const INPUT_PATHS = [
 ];
 
 async function walk(entryPath: string, files: string[]) {
-  const st = await fs.stat(entryPath);
+  let st: Awaited<ReturnType<typeof fs.lstat>>;
+  try {
+    st = await fs.lstat(entryPath);
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err?.code) {
+      return;
+    }
+    throw error;
+  }
   if (st.isDirectory()) {
-    const entries = await fs.readdir(entryPath);
+    let entries: string[];
+    try {
+      entries = await fs.readdir(entryPath);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err?.code) {
+        return;
+      }
+      throw error;
+    }
     for (const entry of entries) {
       await walk(path.join(entryPath, entry), files);
     }
@@ -56,10 +74,11 @@ async function computeHash() {
 
 function run(command: string, args: string[]) {
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, {
+    const resolvedCommand =
+      process.platform === "win32" && !command.endsWith(".cmd") ? `${command}.cmd` : command;
+    const child = spawn(resolvedCommand, args, {
       cwd: ROOT_DIR,
       stdio: "inherit",
-      shell: true,
     });
     child.on("close", (code) => {
       if (code === 0) {
@@ -98,6 +117,7 @@ async function main() {
     await run("pnpm", ["-s", "exec", "tsc", "-p", path.join(A2UI_RENDERER_DIR, "tsconfig.json")]);
     await run("rolldown", ["-c", path.join(A2UI_APP_DIR, "rolldown.config.mjs")]);
 
+    await fs.mkdir(path.dirname(HASH_FILE), { recursive: true });
     await fs.writeFile(HASH_FILE, currentHash);
   } catch {
     console.error("A2UI bundling failed. Re-run with: pnpm canvas:a2ui:bundle");
