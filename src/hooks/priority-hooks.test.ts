@@ -144,6 +144,27 @@ describe("priority-hooks", () => {
     });
   });
 
+  describe("dual-registration dedup", () => {
+    it("fires handler for both type and specific keys (different IDs)", async () => {
+      let callCount = 0;
+      const handler = vi.fn(async () => {
+        callCount++;
+      });
+      const event = createInternalHookEvent("command", "new");
+
+      // Register same handler under type key and specific key
+      registerPriorityHook("command", handler, { priority: 10 });
+      registerPriorityHook("command:new", handler, { priority: 10 });
+
+      await triggerPriorityHook(event);
+
+      // Different registrations = different IDs = both fire (correct behavior)
+      // Dedup only prevents same entry.id from executing twice
+      expect(callCount).toBe(2);
+      expect(handler).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe("clearPriorityHooks", () => {
     it("removes all handlers and resets counters", () => {
       registerPriorityHook("command:new", vi.fn());
