@@ -1,0 +1,54 @@
+services:
+  moltbot-core.router.wuji.01-stg:
+    image: ${CLAWDBOT_IMAGE:-moltbot:local}
+    pull_policy: never
+    container_name: moltbot-core.router.wuji.01-stg
+    env_file:
+      - .env.soul
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_STATE_DIR: /home/node/.openclaw
+      OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
+      OPENCLAW_AGENT_DIR: /home/node/.openclaw/agents/main/agent
+      CLAWDBOT_GATEWAY_TOKEN: ${CLAWDBOT_GATEWAY_TOKEN_STG}
+      CLAWDBOT_GATEWAY_TOKEN_STG: ${CLAWDBOT_GATEWAY_TOKEN_STG}
+      TELEGRAM_USERBOT_HOST: host.docker.internal
+      TELEGRAM_BOT_TOKEN_STG: ${TELEGRAM_BOT_TOKEN_STG}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      # === Phase 1: 統一路徑環境變數 ===
+      MEDIA_ROOT: /app/media
+      WORKSPACE_ROOT: /app/workspace
+      TMP_ROOT: /app/tmp
+    volumes:
+      # OpenClaw config
+      - ${CLAWDBOT_CONFIG_DIR}:/home/node/.moltbot
+      - ${CLAWDBOT_CONFIG_DIR}:/home/node/.clawdbot
+      - ${CLAWDBOT_CONFIG_DIR}:/home/node/.openclaw
+      # Workspace（覆蓋 image 內的 /app/workspace）
+      - ${CLAWDBOT_WORKSPACE_DIR}/workspace:/app/workspace
+      - ${CLAWDBOT_WORKSPACE_DIR}:/home/node/clawd
+      - /Users/sulaxd/Documents:/home/node/Documents
+      # === Phase 1: 統一媒體入口 ===
+      # Telegram 下載
+      - ${CLAWDBOT_WORKSPACE_DIR}/workspace/skills/telegram-userbot/downloads:/app/media/telegram
+      # LINE 媒體
+      - ${HOME}/.openclaw/media/line:/app/media/line
+      # 共享臨時目錄
+      - /tmp/clawd:/app/tmp
+    ports:
+      - "${CLAWDBOT_GATEWAY_PORT:-18799}:18799"
+      - "${CLAWDBOT_BRIDGE_PORT:-18800}:18800"
+    init: true
+    restart: unless-stopped
+    working_dir: /home/node/clawd
+    command:
+      [
+        "node",
+        "/app/dist/index.js",
+        "gateway",
+        "--bind",
+        "${CLAWDBOT_GATEWAY_BIND:-lan}",
+        "--port",
+        "${CLAWDBOT_GATEWAY_PORT:-18799}",
+      ]
