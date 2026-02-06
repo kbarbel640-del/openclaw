@@ -427,5 +427,6 @@ async function resolveSummarizationParams(params: {
     model,
     provider,
     apiKey: apiKeyInfo.apiKey,
+    config,
   };
 }

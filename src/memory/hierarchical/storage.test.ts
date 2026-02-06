@@ -45,7 +45,7 @@ describe("hierarchical memory storage", () => {
     it("loads existing index from file", async () => {
       const existingIndex: SummaryIndex = {
         version: 1,
-        agentId: "test-agent",
+        agentId: "main",
         lastSummarizedEntryId: "e100",
         lastSummarizedSessionId: "sess-123",
         levels: {
@@ -77,7 +77,7 @@ describe("hierarchical memory storage", () => {
 
       const loaded = await loadSummaryIndex();
 
-      expect(loaded.agentId).toBe("test-agent");
+      expect(loaded.agentId).toBe("main");
       expect(loaded.lastSummarizedEntryId).toBe("e100");
       expect(loaded.levels.L1).toHaveLength(1);
       expect(loaded.levels.L1[0].id).toBe("0001");

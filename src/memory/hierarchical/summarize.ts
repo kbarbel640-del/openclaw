@@ -19,6 +19,8 @@ export type SummarizationParams = {
   provider: string;
   /** API key for the provider */
   apiKey: string;
+  /** Resolved OpenClaw config (avoids re-reading config from disk) */
+  config: import("../../config/types.openclaw.js").OpenClawConfig;
   /** Abort signal */
   signal?: AbortSignal;
   /** Target token count for the summary */
@@ -73,7 +75,11 @@ export async function summarizeChunk(params: {
     systemPrompt: SUMMARIZE_CHUNK_SYSTEM,
     userPrompt: prompt,
     targetTokens: config.summaryTargetTokens,
-    ...summarization,
+    model: summarization.model,
+    provider: summarization.provider,
+    apiKey: summarization.apiKey,
+    config: summarization.config,
+    signal: summarization.signal,
   });
 
   return summary;
@@ -99,7 +105,11 @@ export async function mergeSummaries(params: {
     systemPrompt: MERGE_SUMMARIES_SYSTEM,
     userPrompt: prompt,
     targetTokens: config.summaryTargetTokens,
-    ...summarization,
+    model: summarization.model,
+    provider: summarization.provider,
+    apiKey: summarization.apiKey,
+    config: summarization.config,
+    signal: summarization.signal,
   });
 
   return merged;
@@ -115,6 +125,7 @@ async function callLlmForSummary(params: {
   model: string;
   provider: string;
   apiKey: string;
+  config: import("../../config/types.openclaw.js").OpenClawConfig;
   signal?: AbortSignal;
   targetTokens?: number;
 }): Promise<string> {
@@ -122,9 +133,8 @@ async function callLlmForSummary(params: {
   const { completeSimple } = await import("@mariozechner/pi-ai");
   const { resolveModel } = await import("../../agents/pi-embedded-runner/model.js");
   const { resolveOpenClawAgentDir } = await import("../../agents/agent-paths.js");
-  const { loadConfig } = await import("../../config/config.js");
 
-  const config = loadConfig();
+  const config = params.config;
   const agentDir = resolveOpenClawAgentDir();
 
   const { model } = resolveModel(params.provider, params.model, agentDir, config);

@@ -547,7 +547,8 @@ export async function startGatewayServer(
   });
 
   let browserControl: Awaited<ReturnType<typeof startBrowserControlServerIfEnabled>> = null;
-  ({ browserControl, pluginServices } = await startGatewaySidecars({
+  let memoryTimer: Awaited<ReturnType<typeof startGatewaySidecars>>["memoryTimer"] = null;
+  ({ browserControl, pluginServices, memoryTimer } = await startGatewaySidecars({
     cfg: cfgAtStart,
     pluginRegistry,
     defaultWorkspaceDir,
@@ -629,6 +630,7 @@ export async function startGatewayServer(
       if (diagnosticsEnabled) {
         stopDiagnosticHeartbeat();
       }
+      memoryTimer?.stop();
       if (skillsRefreshTimer) {
         clearTimeout(skillsRefreshTimer);
         skillsRefreshTimer = null;
