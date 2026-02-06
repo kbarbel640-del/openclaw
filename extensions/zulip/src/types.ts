@@ -26,8 +26,7 @@ export type ZulipAccountConfig = {
   alwaysReply?: boolean;
 
   /**
-   * Default topic when target omits a topic. On zulip.dreamit.au, sending with an
-   * empty topic maps to the topic name "general chat".
+   * Default topic when target omits a topic.
    */
   defaultTopic?: string;
 
