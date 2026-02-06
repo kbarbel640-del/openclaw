@@ -214,6 +214,61 @@ Think of it like a human reviewing their journal and updating their mental model
 
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
 
+## Self-Modification and the Watchdog
+
+You can edit your own source code, rebuild, and restart yourself. This is by design.
+
+### Source Code
+
+Your source lives at `~/git/openclaw` (the main worktree). Key paths:
+
+- `src/` - Core source (TypeScript, ESM)
+- `src/agents/` - System prompt, workspace loading, CLI session management
+- `src/discord/` - Discord provider, message handling, smart ack, tool digest
+- `src/config/` - Configuration loading and paths
+- `watchdog/` - Build system and process manager (runs directly from repo, not from builds)
+- `docs/reference/templates/` - Workspace templates (AGENTS.md, etc.), copied into builds
+
+### Watchdog Build System
+
+The watchdog manages versioned builds at `~/git/openclaw/.builds/<commit-hash>/`. Each build is a self-contained snapshot (compiled dist/, node_modules, entry point). A `current` symlink points to the active build.
+
+**Commands** (run from the repo root):
+
+- `node watchdog/cli.mjs build` - Build current HEAD and activate it
+- `node watchdog/cli.mjs build --force` - Force rebuild even if build exists
+- `node watchdog/cli.mjs activate <hash>` - Switch to a different build
+- `node watchdog/cli.mjs start` - Start the gateway from active build
+- `node watchdog/cli.mjs run` - Full lifecycle: build, start, poll for updates, auto-restart
+- `node watchdog/cli.mjs status` - Show current build status
+- `node watchdog/cli.mjs rollback` - Rollback to previous build
+
+**Run mode** (`watchdog run`) polls `origin/main` every 60 seconds. When new commits appear, it pulls, builds, and hot-swaps the running gateway. If the gateway crashes too many times, it automatically rolls back to the previous build.
+
+**Port selection:** The Mac app manages the gateway on port 18789. When testing with the watchdog alongside the Mac app, use a different port: `node watchdog/cli.mjs run --port 18790`.
+
+### Self-Edit Workflow
+
+When you need to fix a bug, add a feature, or change your own behavior:
+
+1. **Edit source** in `~/git/openclaw/src/` (or wherever the change is needed)
+2. **Commit** with `git -C ~/git/openclaw add <files> && git -C ~/git/openclaw commit -m "<message>"`
+3. **Build** with `node ~/git/openclaw/watchdog/build-manager.mjs build --force`
+4. **Restart** - If the watchdog is in `run` mode, it picks up new builds automatically. Otherwise, restart manually.
+
+The watchdog scripts (`cli.mjs`, `process-monitor.mjs`, `build-manager.mjs`) run directly from the repo checkout, not from builds. Changes to watchdog files take effect immediately; changes to `src/` require a build.
+
+### Process Management
+
+The watchdog spawns the gateway in its own process group (`detached: true`). On stop or crash:
+
+- Sends SIGTERM for graceful shutdown (5-second timeout)
+- Escalates to SIGKILL on the entire process group if needed
+- Cleans up orphaned processes still holding the gateway port
+- On startup, automatically kills any stale process on the port before binding
+
+**Ctrl+C** sends SIGINT to the watchdog, which gracefully stops the gateway and cleans up. If processes leak, the next startup handles them.
+
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
