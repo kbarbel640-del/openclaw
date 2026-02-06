@@ -45,27 +45,30 @@ function parseMarkdownSections(content: string): Map<string, string> {
 /**
  * Filter and format rules based on context
  */
-function buildContextualRules(
-  sections: Map<string, string>,
-  channel?: string,
-): string {
+function buildContextualRules(sections: Map<string, string>, channel?: string): string {
   const parts: string[] = [];
 
-  // Add channel-specific rules if we know the channel
-  if (channel) {
-    const channelRules = sections.get("channel rules");
-    if (channelRules) {
+  // Add channel rules section
+  // Note: Since channel info is not available in agent:bootstrap context,
+  // we include all channel rules when channel is undefined
+  const channelRules = sections.get("channel rules");
+  if (channelRules) {
+    if (channel) {
       // Extract only the rule for this specific channel
       const lines = channelRules.split("\n");
       const relevantLines = lines.filter((line) => {
         const normalized = line.toLowerCase();
         return normalized.includes(channel.toLowerCase());
       });
-      
+
       if (relevantLines.length > 0) {
         parts.push("## Channel Rules (Active)");
         parts.push(relevantLines.join("\n"));
       }
+    } else {
+      // Include all channel rules when channel is unknown
+      parts.push("## Channel Rules");
+      parts.push(channelRules);
     }
   }
 
@@ -74,12 +77,18 @@ function buildContextualRules(
     "banned phrases",
     "critical reminders",
     "formatting rules",
+    "task-specific rules",
   ];
 
   for (const sectionName of genericSections) {
     const content = sections.get(sectionName);
     if (content) {
-      parts.push(`## ${sectionName.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}`);
+      parts.push(
+        `## ${sectionName
+          .split(" ")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ")}`,
+      );
       parts.push(content);
     }
   }
@@ -113,6 +122,23 @@ const foundationRulesHook: HookHandler = async (event) => {
     return;
   }
 
+  // Calculate current bootstrap context size (approximate token count)
+  // Each bootstrap file contributes its content length
+  const currentContextSize = context.bootstrapFiles.reduce((total, file) => {
+    const content = file.content || "";
+    // Rough approximation: 4 chars per token
+    return total + Math.ceil(content.length / 4);
+  }, 0);
+
+  // Check if we're below threshold (default 150k tokens, configurable)
+  const maxContextTokens = (hookConfig as any)?.maxContextTokens ?? 150000;
+  if (currentContextSize >= maxContextTokens) {
+    console.debug(
+      `[foundation-rules] Skipping injection: context size ${currentContextSize} exceeds threshold ${maxContextTokens}`,
+    );
+    return;
+  }
+
   // Read CRITICAL-RULES.md from workspace
   const rulesPath = join(workspaceDir, RULES_FILE);
   let rulesContent: string;
@@ -131,15 +157,15 @@ const foundationRulesHook: HookHandler = async (event) => {
 
   // Parse markdown sections
   const sections = parseMarkdownSections(rulesContent);
-  
+
   if (sections.size === 0) {
     // No sections found, skip
     return;
   }
 
-  // Build contextual rules based on channel
-  const channel = context.commandSource; // e.g., "bluebubbles", "telegram"
-  const activeRules = buildContextualRules(sections, channel);
+  // Note: commandSource is not available in agent:bootstrap events,
+  // so we cannot filter by channel. Inject all rules instead.
+  const activeRules = buildContextualRules(sections, undefined);
 
   if (!activeRules) {
     // No relevant rules for this context
@@ -152,7 +178,7 @@ const foundationRulesHook: HookHandler = async (event) => {
     content: `# Critical Rules (Active)\n\n${activeRules}\n\n---\n\nThese rules have the highest priority. Review them before responding.`,
   });
 
-  console.debug(`[foundation-rules] Injected rules for channel: ${channel ?? "unknown"}`);
+  console.debug(`[foundation-rules] Injected rules (all sections)`);
 };
 
 export default foundationRulesHook;
