@@ -22,6 +22,33 @@ export type SimplexComposedMessage = {
   mentions?: Record<string, number>;
 };
 
+const SIMPLEX_CHAT_REF_RE = /^[@#][0-9A-Za-z_-]+$/;
+const SIMPLEX_CHAT_ITEM_ID_RE = /^-?\d+$/;
+
+function normalizeChatRefToken(value: string): string {
+  const trimmed = value.trim();
+  if (!SIMPLEX_CHAT_REF_RE.test(trimmed)) {
+    throw new Error(`invalid SimpleX chat ref: ${value}`);
+  }
+  return trimmed;
+}
+
+function normalizeChatItemIdToken(value: number | string): string {
+  const normalized = normalizeCommandId(value);
+  if (!SIMPLEX_CHAT_ITEM_ID_RE.test(normalized)) {
+    throw new Error(`invalid SimpleX chat item id: ${value}`);
+  }
+  return normalized;
+}
+
+function quoteCliArg(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || /[\0\r\n]/.test(trimmed)) {
+    throw new Error("invalid SimpleX CLI argument");
+  }
+  return `'${trimmed.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+}
+
 export function formatChatRef(ref: SimplexChatRef): string {
   const prefix = ref.type === "direct" ? "@" : ref.type === "group" ? "#" : "*";
   const scope = ref.scope ? String(ref.scope) : "";
@@ -34,10 +61,11 @@ export function buildSendMessagesCommand(params: {
   liveMessage?: boolean;
   ttl?: number;
 }): string {
+  const chatRef = normalizeChatRefToken(params.chatRef);
   const liveFlag = params.liveMessage ? " live=on" : "";
   const ttlFlag = typeof params.ttl === "number" ? ` ttl=${params.ttl}` : "";
   const json = JSON.stringify(params.composedMessages);
-  return `/_send ${params.chatRef}${liveFlag}${ttlFlag} json ${json}`;
+  return `/_send ${chatRef}${liveFlag}${ttlFlag} json ${json}`;
 }
 
 export function buildUpdateChatItemCommand(params: {
@@ -46,9 +74,11 @@ export function buildUpdateChatItemCommand(params: {
   updatedMessage: SimplexComposedMessage;
   liveMessage?: boolean;
 }): string {
+  const chatRef = normalizeChatRefToken(params.chatRef);
+  const chatItemId = normalizeChatItemIdToken(params.chatItemId);
   const liveFlag = params.liveMessage ? " live=on" : "";
   const json = JSON.stringify(params.updatedMessage);
-  return `/_update item ${params.chatRef} ${params.chatItemId}${liveFlag} json ${json}`;
+  return `/_update item ${chatRef} ${chatItemId}${liveFlag} json ${json}`;
 }
 
 export function buildDeleteChatItemCommand(params: {
@@ -56,9 +86,10 @@ export function buildDeleteChatItemCommand(params: {
   chatItemIds: Array<number | string>;
   deleteMode?: "broadcast" | "internal" | "internalMark";
 }): string {
+  const chatRef = normalizeChatRefToken(params.chatRef);
   const deleteMode = params.deleteMode ?? "broadcast";
-  const ids = params.chatItemIds.map((id) => String(id)).join(",");
-  return `/_delete item ${params.chatRef} ${ids} ${deleteMode}`;
+  const ids = params.chatItemIds.map((id) => normalizeChatItemIdToken(id)).join(",");
+  return `/_delete item ${chatRef} ${ids} ${deleteMode}`;
 }
 
 export function buildReactionCommand(params: {
@@ -67,9 +98,11 @@ export function buildReactionCommand(params: {
   add: boolean;
   reaction: Record<string, unknown>;
 }): string {
+  const chatRef = normalizeChatRefToken(params.chatRef);
+  const chatItemId = normalizeChatItemIdToken(params.chatItemId);
   const toggle = params.add ? "on" : "off";
   const json = JSON.stringify(params.reaction);
-  return `/_reaction ${params.chatRef} ${params.chatItemId} ${toggle} ${json}`;
+  return `/_reaction ${chatRef} ${chatItemId} ${toggle} ${json}`;
 }
 
 export function buildReceiveFileCommand(params: {
@@ -79,6 +112,9 @@ export function buildReceiveFileCommand(params: {
   encrypt?: boolean;
   approvedRelays?: boolean;
 }): string {
+  if (!Number.isFinite(params.fileId)) {
+    throw new Error(`invalid SimpleX file id: ${params.fileId}`);
+  }
   const flags: string[] = [];
   if (params.approvedRelays) {
     flags.push("approved_relays=on");
@@ -89,9 +125,9 @@ export function buildReceiveFileCommand(params: {
   if (typeof params.inline === "boolean") {
     flags.push(`inline=${params.inline ? "on" : "off"}`);
   }
-  const path = params.filePath ? ` ${params.filePath}` : "";
+  const path = params.filePath ? ` ${quoteCliArg(params.filePath)}` : "";
   const suffix = flags.length > 0 ? ` ${flags.join(" ")}` : "";
-  return `/freceive ${params.fileId}${suffix}${path}`;
+  return `/freceive ${Math.trunc(params.fileId)}${suffix}${path}`;
 }
 
 export function buildCancelFileCommand(fileId: number): string {
