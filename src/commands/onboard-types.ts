@@ -24,6 +24,7 @@ export type AuthChoice =
   | "venice-api-key"
   | "together-api-key"
   | "huggingface-api-key"
+  | "apertis-api-key"
   | "codex-cli"
   | "apiKey"
   | "gemini-api-key"
@@ -126,6 +127,7 @@ export type OnboardOptions = {
   veniceApiKey?: string;
   togetherApiKey?: string;
   huggingfaceApiKey?: string;
+  apertisApiKey?: string;
   opencodeZenApiKey?: string;
   xaiApiKey?: string;
   volcengineApiKey?: string;

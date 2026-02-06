@@ -1,3 +1,5 @@
+import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
+import type { AuthChoice } from "./onboard-types.js";
 import { ensureAuthProfileStore, resolveAuthProfileOrder } from "../agents/auth-profiles.js";
 import { resolveEnvApiKey } from "../agents/model-auth.js";
 import {
@@ -13,13 +15,14 @@ import {
   normalizeTokenProviderInput,
 } from "./auth-choice.apply-helpers.js";
 import { applyAuthChoiceHuggingface } from "./auth-choice.apply.huggingface.js";
-import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import { applyAuthChoiceOpenRouter } from "./auth-choice.apply.openrouter.js";
 import {
   applyGoogleGeminiModelDefault,
   GOOGLE_GEMINI_DEFAULT_MODEL,
 } from "./google-gemini-model-default.js";
 import {
+  applyApertisConfig,
+  applyApertisProviderConfig,
   applyAuthProfileConfig,
   applyCloudflareAiGatewayConfig,
   applyCloudflareAiGatewayProviderConfig,
@@ -51,6 +54,7 @@ import {
   applyXiaomiProviderConfig,
   applyZaiConfig,
   applyZaiProviderConfig,
+  APERTIS_DEFAULT_MODEL_REF,
   CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF,
   KILOCODE_DEFAULT_MODEL_REF,
   LITELLM_DEFAULT_MODEL_REF,
@@ -63,6 +67,7 @@ import {
   VENICE_DEFAULT_MODEL_REF,
   VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF,
   XIAOMI_DEFAULT_MODEL_REF,
+  setApertisApiKey,
   setCloudflareAiGatewayConfig,
   setQianfanApiKey,
   setGeminiApiKey,
@@ -80,7 +85,6 @@ import {
   setZaiApiKey,
   ZAI_DEFAULT_MODEL_REF,
 } from "./onboard-auth.js";
-import type { AuthChoice } from "./onboard-types.js";
 import { OPENCODE_ZEN_DEFAULT_MODEL } from "./opencode-zen-model-default.js";
 import { detectZaiEndpoint } from "./zai-endpoint-detect.js";
 
@@ -101,6 +105,7 @@ const API_KEY_TOKEN_PROVIDER_AUTH_CHOICE: Record<string, AuthChoice> = {
   huggingface: "huggingface-api-key",
   mistral: "mistral-api-key",
   opencode: "opencode-zen",
+  apertis: "apertis-api-key",
   kilocode: "kilocode-api-key",
   qianfan: "qianfan-api-key",
 };
@@ -293,6 +298,23 @@ const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProv
     applyDefaultConfig: applyKilocodeConfig,
     applyProviderConfig: applyKilocodeProviderConfig,
     noteDefault: KILOCODE_DEFAULT_MODEL_REF,
+  },
+  "apertis-api-key": {
+    provider: "apertis",
+    profileId: "apertis:default",
+    expectedProviders: ["apertis"],
+    envLabel: "APERTIS_API_KEY",
+    promptMessage: "Enter Apertis AI API key",
+    setCredential: setApertisApiKey,
+    defaultModel: APERTIS_DEFAULT_MODEL_REF,
+    applyDefaultConfig: applyApertisConfig,
+    applyProviderConfig: applyApertisProviderConfig,
+    noteDefault: APERTIS_DEFAULT_MODEL_REF,
+    noteMessage: [
+      "Apertis AI is a multi-model proxy with dynamic model discovery.",
+      "Get your API key at: https://api.apertis.ai",
+    ].join("\n"),
+    noteTitle: "Apertis AI",
   },
   "synthetic-api-key": {
     provider: "synthetic",
