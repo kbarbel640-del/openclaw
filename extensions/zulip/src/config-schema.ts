@@ -6,6 +6,7 @@ const ReactionSchema = z
     onStart: z.string().optional(),
     onSuccess: z.string().optional(),
     onFailure: z.string().optional(),
+    clearOnFinish: z.boolean().optional(),
   })
   .strict();
 

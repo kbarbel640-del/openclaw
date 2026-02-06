@@ -3,6 +3,11 @@ export type ZulipReactionConfig = {
   onStart?: string;
   onSuccess?: string;
   onFailure?: string;
+  /**
+   * Whether to remove the `onStart` reaction after responding (default: true).
+   * Set to false to leave the `onStart` reaction (e.g. ":eyes:") on the message.
+   */
+  clearOnFinish?: boolean;
 };
 
 export type ZulipAccountConfig = {

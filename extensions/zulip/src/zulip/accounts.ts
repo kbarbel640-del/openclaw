@@ -12,6 +12,7 @@ export type ResolvedZulipReactions = {
   onStart: string;
   onSuccess: string;
   onFailure: string;
+  clearOnFinish: boolean;
 };
 
 export type ResolvedZulipAccount = {
@@ -41,6 +42,7 @@ const DEFAULT_REACTIONS: ResolvedZulipReactions = {
   onStart: "eyes",
   onSuccess: "check",
   onFailure: "warning",
+  clearOnFinish: true,
 };
 
 function listConfiguredAccountIds(cfg: OpenClawConfig): string[] {
@@ -99,7 +101,8 @@ function resolveReactions(config: ZulipReactionConfig | undefined): ResolvedZuli
   const onStart = normalizeEmojiName(config.onStart) || DEFAULT_REACTIONS.onStart;
   const onSuccess = normalizeEmojiName(config.onSuccess) || DEFAULT_REACTIONS.onSuccess;
   const onFailure = normalizeEmojiName(config.onFailure) || DEFAULT_REACTIONS.onFailure;
-  return { enabled, onStart, onSuccess, onFailure };
+  const clearOnFinish = config.clearOnFinish !== false;
+  return { enabled, onStart, onSuccess, onFailure, clearOnFinish };
 }
 
 export function resolveZulipAccount(params: {

@@ -65,6 +65,41 @@ describe("zulipPlugin", () => {
     expect(requireMention).toBe(false);
   });
 
+  it("defaults to clearing the onStart reaction", () => {
+    const cfg: OpenClawConfig = {
+      channels: {
+        zulip: {
+          enabled: true,
+          baseUrl: "https://zulip.example.com",
+          email: "bot@example.com",
+          apiKey: "key",
+          streams: ["marcel-ai"],
+        },
+      },
+    };
+    const account = resolveZulipAccount({ cfg, accountId: "default" });
+    expect(account.reactions.clearOnFinish).toBe(true);
+  });
+
+  it("can leave the onStart reaction when clearOnFinish=false", () => {
+    const cfg: OpenClawConfig = {
+      channels: {
+        zulip: {
+          enabled: true,
+          baseUrl: "https://zulip.example.com",
+          email: "bot@example.com",
+          apiKey: "key",
+          streams: ["marcel-ai"],
+          reactions: {
+            clearOnFinish: false,
+          },
+        },
+      },
+    };
+    const account = resolveZulipAccount({ cfg, accountId: "default" });
+    expect(account.reactions.clearOnFinish).toBe(false);
+  });
+
   it("can require mentions when alwaysReply=false", () => {
     const cfg: OpenClawConfig = {
       channels: {

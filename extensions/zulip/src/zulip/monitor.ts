@@ -466,14 +466,16 @@ export async function monitorZulipProvider(
       } finally {
         markDispatchIdle();
         if (account.reactions.enabled) {
-          await bestEffortReaction({
-            auth,
-            messageId: msg.id,
-            op: "remove",
-            emojiName: account.reactions.onStart,
-            log: (m) => logger.debug(m),
-            abortSignal,
-          });
+          if (account.reactions.clearOnFinish) {
+            await bestEffortReaction({
+              auth,
+              messageId: msg.id,
+              op: "remove",
+              emojiName: account.reactions.onStart,
+              log: (m) => logger.debug(m),
+              abortSignal,
+            });
+          }
           const finalEmoji = ok ? account.reactions.onSuccess : account.reactions.onFailure;
           await bestEffortReaction({
             auth,
