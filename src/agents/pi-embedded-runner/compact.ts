@@ -43,6 +43,7 @@ import {
 import { createOpenClawCodingTools } from "../pi-tools.js";
 import { resolveSandboxContext } from "../sandbox.js";
 import { guardSessionManager } from "../session-tool-result-guard-wrapper.js";
+import { sanitizeToolUseResultPairing } from "../session-transcript-repair.js";
 import { acquireSessionWriteLock } from "../session-write-lock.js";
 import {
   applySkillEnvOverrides,
@@ -51,7 +52,6 @@ import {
   resolveSkillsPromptForRun,
   type SkillSnapshot,
 } from "../skills.js";
-import { sanitizeToolUseResultPairing } from "../session-transcript-repair.js";
 import { resolveTranscriptPolicy } from "../transcript-policy.js";
 import { buildEmbeddedExtensionPaths } from "./extensions.js";
 import {
