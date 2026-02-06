@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive State Map</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: #fff;
+            border-radius: 24px;
+            padding: 40px 40px 30px;
+            max-width: 960px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .map-wrapper {
+            position: relative;
+            width: 100%;
+            margin-bottom: 30px;
+            overflow: visible;
+        }
+
+        #us-map {
+            width: 100%;
+            height: auto;
+            overflow: visible;
+        }
+
+        /* --- SVG state paths --- */
+        .state-path {
+            fill: #e0f0ee;
+            stroke: #fff;
+            stroke-width: 1.2;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                        filter 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                        stroke 0.3s ease;
+            transform-box: fill-box;
+            transform-origin: center center;
+            cursor: default;
+        }
+
+        .state-path.featured {
+            fill: #2ebcb3;
+            cursor: pointer;
+        }
+
+        .state-path.featured:hover,
+        .state-path.featured.active {
+            transform: translateY(-6px);
+            filter: drop-shadow(0 6px 10px rgba(46, 188, 179, 0.45));
+            stroke: rgba(46, 188, 179, 0.6);
+            stroke-width: 2;
+        }
+
+        .state-border {
+            fill: none;
+            stroke: #fff;
+            stroke-width: 1.2;
+            stroke-linejoin: round;
+            pointer-events: none;
+        }
+
+        /* --- State chips --- */
+        .chips-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 0;
+        }
+
+        .state-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border: 1.5px solid #c8e6e3;
+            border-radius: 50px;
+            background: #fff;
+            color: #2ebcb3;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.25s ease,
+                        border-color 0.25s ease,
+                        box-shadow 0.25s ease,
+                        color 0.25s ease;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .state-chip:hover,
+        .state-chip.active {
+            background: #e0f7f5;
+            border-color: #2ebcb3;
+            box-shadow: 0 2px 12px rgba(46, 188, 179, 0.25);
+            color: #1a9e96;
+        }
+
+        /* Location pin icon */
+        .chip-icon {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #2ebcb3;
+            border-radius: 50%;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .chip-icon::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 5px;
+            height: 5px;
+            background: #2ebcb3;
+            border-radius: 50%;
+        }
+
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 80px 20px;
+            color: #999;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="map-wrapper">
+            <svg id="us-map" viewBox="80 0 880 600">
+                <text class="loading" x="480" y="300" text-anchor="middle" fill="#aaa" font-size="16">Loading map...</text>
+            </svg>
+        </div>
+        <div class="chips-container" id="state-chips"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+
+    <script>
+        // States highlighted in teal on the map
+        const featuredStates = [
+            'California', 'Nevada', 'Arizona', 'Colorado', 'Wyoming',
+            'South Dakota', 'Nebraska', 'Kansas', 'Illinois', 'Ohio',
+            'Virginia', 'North Carolina', 'South Carolina', 'Georgia', 'Louisiana'
+        ];
+
+        // States shown as clickable chips beneath the map
+        const chipStates = [
+            'Georgia', 'North Carolina', 'South Carolina', 'Virginia',
+            'Ohio', 'Nevada', 'Arizona', 'Colorado', 'South Dakota', 'Wyoming'
+        ];
+
+        // FIPS code -> state name (contiguous US + DC)
+        const fipsToState = {
+            '01': 'Alabama',      '04': 'Arizona',       '05': 'Arkansas',
+            '06': 'California',   '08': 'Colorado',      '09': 'Connecticut',
+            '10': 'Delaware',     '11': 'District of Columbia', '12': 'Florida',
+            '13': 'Georgia',      '16': 'Idaho',         '17': 'Illinois',
+            '18': 'Indiana',      '19': 'Iowa',          '20': 'Kansas',
+            '21': 'Kentucky',     '22': 'Louisiana',     '23': 'Maine',
+            '24': 'Maryland',     '25': 'Massachusetts', '26': 'Michigan',
+            '27': 'Minnesota',    '28': 'Mississippi',   '29': 'Missouri',
+            '30': 'Montana',      '31': 'Nebraska',      '32': 'Nevada',
+            '33': 'New Hampshire','34': 'New Jersey',    '35': 'New Mexico',
+            '36': 'New York',     '37': 'North Carolina','38': 'North Dakota',
+            '39': 'Ohio',         '40': 'Oklahoma',      '41': 'Oregon',
+            '42': 'Pennsylvania', '44': 'Rhode Island',  '45': 'South Carolina',
+            '46': 'South Dakota', '47': 'Tennessee',     '48': 'Texas',
+            '49': 'Utah',         '50': 'Vermont',       '51': 'Virginia',
+            '53': 'Washington',   '54': 'West Virginia', '55': 'Wisconsin',
+            '56': 'Wyoming'
+        };
+
+        // Excluded from the contiguous-US view
+        const excludedStates = new Set(['Alaska', 'Hawaii']);
+
+        // Load the pre-projected Albers TopoJSON (960x600 viewBox)
+        d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-albers-10m.json')
+            .then(function (us) {
+                const svg = $('#us-map');
+                svg.empty(); // remove loading text
+
+                const statesGeo = topojson.feature(us, us.objects.states);
+                const path = d3.geoPath(); // identity projection for pre-projected data
+
+                // Draw each state as a <path>
+                statesGeo.features.forEach(function (feature) {
+                    const fips = String(feature.id).padStart(2, '0');
+                    const name = fipsToState[fips] || '';
+                    if (!name || excludedStates.has(name)) return;
+
+                    const isFeatured = featuredStates.includes(name);
+                    const d = path(feature);
+                    if (!d) return;
+
+                    const pathEl = $(document.createElementNS('http://www.w3.org/2000/svg', 'path'));
+                    pathEl.attr({
+                        'd': d,
+                        'class': 'state-path' + (isFeatured ? ' featured' : ''),
+                        'data-state': name
+                    });
+                    svg.append(pathEl);
+                });
+
+                // Internal state borders (cosmetic, non-interactive)
+                const mesh = topojson.mesh(us, us.objects.states, function (a, b) { return a !== b; });
+                const borderD = path(mesh);
+                if (borderD) {
+                    const borderEl = $(document.createElementNS('http://www.w3.org/2000/svg', 'path'));
+                    borderEl.attr({ 'd': borderD, 'class': 'state-border' });
+                    svg.append(borderEl);
+                }
+
+                // Build chips
+                var chipsHtml = '';
+                chipStates.forEach(function (state) {
+                    chipsHtml += '<div class="state-chip" data-state="' + state + '">' +
+                        '<div class="chip-icon"></div>' + state + '</div>';
+                });
+                $('#state-chips').html(chipsHtml);
+
+                // --- Hover interactions (jQuery) ---
+
+                // Chip hover -> raise the matching state on the map
+                $(document).on('mouseenter', '.state-chip', function () {
+                    var state = $(this).attr('data-state');
+                    $('.state-path[data-state="' + state + '"]').addClass('active');
+                });
+                $(document).on('mouseleave', '.state-chip', function () {
+                    var state = $(this).attr('data-state');
+                    $('.state-path[data-state="' + state + '"]').removeClass('active');
+                });
+
+                // Map state hover -> highlight the matching chip
+                $(document).on('mouseenter', '.state-path.featured', function () {
+                    var state = $(this).attr('data-state');
+                    $('.state-chip[data-state="' + state + '"]').addClass('active');
+                });
+                $(document).on('mouseleave', '.state-path.featured', function () {
+                    var state = $(this).attr('data-state');
+                    $('.state-chip[data-state="' + state + '"]').removeClass('active');
+                });
+            })
+            .catch(function (err) {
+                $('#us-map').html(
+                    '<text x="480" y="300" text-anchor="middle" fill="#e74c3c" font-size="14">' +
+                    'Failed to load map data. Check your network connection.</text>'
+                );
+                console.error('Map load error:', err);
+            });
+    </script>
+</body>
+</html>
