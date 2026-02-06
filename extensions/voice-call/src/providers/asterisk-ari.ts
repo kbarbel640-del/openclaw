@@ -302,11 +302,16 @@ export class AsteriskAriProvider implements VoiceCallProvider {
     const wsBase = base.replace(/^http/, "ws");
     const qp = new URLSearchParams({
       app: this.cfg.app,
-      api_key: this.cfg.username + ":" + this.cfg.password,
     });
     const url = wsBase + "/ari/events?" + qp.toString();
 
-    this.ws = new WebSocket(url);
+    // Avoid embedding credentials in the URL query string (can be logged by proxies/clients).
+    // ARI WS endpoint supports HTTP Basic auth during the upgrade request.
+    this.ws = new WebSocket(url, {
+      headers: {
+        Authorization: basicAuthHeader(this.cfg.username, this.cfg.password),
+      },
+    });
     this.ws.on("open", () => {
       // Best-effort recovery: if the gateway previously crashed or missed StasisEnd events,
       // Asterisk may still have orphaned UnicastRTP ExternalMedia channels in our Stasis app.
@@ -498,91 +503,142 @@ export class AsteriskAriProvider implements VoiceCallProvider {
       // ignore
     }
 
-    // Create mixing bridge
-    const bridge = await ariFetchJson({
-      baseUrl: this.cfg.baseUrl,
-      username: this.cfg.username,
-      password: this.cfg.password,
-      path: "/bridges",
-      method: "POST",
-      query: { type: "mixing" },
-    });
-    const bridgeId = bridge.id as string;
+    let udp: dgram.Socket | undefined;
+    let bridgeId: string | undefined;
+    let extChannelId: string | undefined;
 
-    // Allocate a per-call UDP socket/port for RTP (prevents cross-call leakage when maxConcurrentCalls > 1).
-    // Collision-safe: retry on EADDRINUSE; fall back to ephemeral port if needed.
-    const udp = dgram.createSocket("udp4");
-
-    const bindUdp = async (port: number): Promise<number> => {
-      await new Promise<void>((resolve, reject) => {
-        const onError = (err: unknown) => {
-          udp.off("listening", onListening);
-          reject(err);
-        };
-        const onListening = () => {
-          udp.off("error", onError);
-          resolve();
-        };
-        udp.once("error", onError);
-        udp.once("listening", onListening);
-        udp.bind(port, "0.0.0.0");
+    try {
+      // Create mixing bridge
+      const bridge = await ariFetchJson({
+        baseUrl: this.cfg.baseUrl,
+        username: this.cfg.username,
+        password: this.cfg.password,
+        path: "/bridges",
+        method: "POST",
+        query: { type: "mixing" },
       });
-      const addr = udp.address();
-      return typeof addr === "object" ? addr.port : port;
-    };
-
-    let rtpPort: number | undefined;
-    for (let i = 0; i < 20; i++) {
-      const candidate = this.nextRtpPort++;
-      try {
-        rtpPort = await bindUdp(candidate);
-        break;
-      } catch (err) {
-        const code = (err as { code?: string } | null)?.code;
-        if (code === "EADDRINUSE") {
-          continue;
-        }
-        throw err;
+      bridgeId = (bridge as { id?: string }).id;
+      if (!bridgeId) {
+        throw new Error("ARI: missing bridge id");
       }
+
+      // Allocate a per-call UDP socket/port for RTP (prevents cross-call leakage when maxConcurrentCalls > 1).
+      // Collision-safe: retry on EADDRINUSE; fall back to ephemeral port if needed.
+      udp = dgram.createSocket("udp4");
+
+      const bindUdp = async (port: number): Promise<number> => {
+        await new Promise<void>((resolve, reject) => {
+          const onError = (err: unknown) => {
+            udp?.off("listening", onListening);
+            reject(err);
+          };
+          const onListening = () => {
+            udp?.off("error", onError);
+            resolve();
+          };
+          udp?.once("error", onError);
+          udp?.once("listening", onListening);
+          udp?.bind(port, "0.0.0.0");
+        });
+        const addr = udp?.address();
+        return typeof addr === "object" ? addr.port : port;
+      };
+
+      let rtpPort: number | undefined;
+      for (let i = 0; i < 20; i++) {
+        const candidate = this.nextRtpPort++;
+        try {
+          rtpPort = await bindUdp(candidate);
+          break;
+        } catch (err) {
+          const code = (err as { code?: string } | null)?.code;
+          if (code === "EADDRINUSE") {
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      if (!rtpPort) {
+        // Let the OS pick an ephemeral port.
+        rtpPort = await bindUdp(0);
+      }
+
+      if (!udp) {
+        throw new Error("RTP socket not initialized");
+      }
+
+      udp.on("message", (msg, rinfo) => this.handleRtp(providerCallId, msg, rinfo));
+
+      st.udp = udp;
+      st.rtpPort = rtpPort;
+
+      // Create ExternalMedia channel
+      const ext = await ariFetchJson({
+        baseUrl: this.cfg.baseUrl,
+        username: this.cfg.username,
+        password: this.cfg.password,
+        path: "/channels/externalMedia",
+        method: "POST",
+        query: {
+          app: this.cfg.app,
+          external_host: this.cfg.rtpHost + ":" + rtpPort,
+          format: this.cfg.codec,
+        },
+      });
+      extChannelId = (ext as { id?: string }).id;
+      if (!extChannelId) {
+        throw new Error("ARI: missing externalMedia channel id");
+      }
+
+      // Add both channels to bridge
+      await ariFetchJson({
+        baseUrl: this.cfg.baseUrl,
+        username: this.cfg.username,
+        password: this.cfg.password,
+        path: "/bridges/" + encodeURIComponent(bridgeId) + "/addChannel",
+        method: "POST",
+        query: { channel: params.sipChannelId + "," + extChannelId },
+      });
+
+      st.bridgeId = bridgeId;
+      st.extChannelId = extChannelId;
+    } catch (err) {
+      // Best-effort cleanup on partial setup failures.
+      try {
+        udp?.close();
+      } catch {
+        // ignore
+      }
+
+      // If we created external media, tear it down.
+      await this.safeHangupChannel(extChannelId);
+
+      // If we created the bridge, delete it.
+      try {
+        if (bridgeId) {
+          await ariFetchJson({
+            baseUrl: this.cfg.baseUrl,
+            username: this.cfg.username,
+            password: this.cfg.password,
+            path: "/bridges/" + encodeURIComponent(bridgeId),
+            method: "DELETE",
+          });
+        }
+      } catch {
+        // ignore
+      }
+
+      // Clear any partially assigned state.
+      if (st.udp === udp) {
+        st.udp = undefined;
+        st.rtpPort = undefined;
+      }
+      st.bridgeId = "";
+      st.extChannelId = "";
+
+      throw err;
     }
-
-    if (!rtpPort) {
-      // Let the OS pick an ephemeral port.
-      rtpPort = await bindUdp(0);
-    }
-
-    udp.on("message", (msg, rinfo) => this.handleRtp(providerCallId, msg, rinfo));
-
-    st.udp = udp;
-    st.rtpPort = rtpPort;
-
-    // Create ExternalMedia channel
-    const ext = await ariFetchJson({
-      baseUrl: this.cfg.baseUrl,
-      username: this.cfg.username,
-      password: this.cfg.password,
-      path: "/channels/externalMedia",
-      method: "POST",
-      query: {
-        app: this.cfg.app,
-        external_host: this.cfg.rtpHost + ":" + rtpPort,
-        format: this.cfg.codec,
-      },
-    });
-    const extChannelId = ext.id as string;
-
-    // Add both channels to bridge
-    await ariFetchJson({
-      baseUrl: this.cfg.baseUrl,
-      username: this.cfg.username,
-      password: this.cfg.password,
-      path: "/bridges/" + encodeURIComponent(bridgeId) + "/addChannel",
-      method: "POST",
-      query: { channel: params.sipChannelId + "," + extChannelId },
-    });
-
-    st.bridgeId = bridgeId;
-    st.extChannelId = extChannelId;
 
     // STT session
     const apiKey = (process.env.OPENAI_API_KEY || "").trim();
@@ -784,18 +840,51 @@ export class AsteriskAriProvider implements VoiceCallProvider {
     } else {
       const wavPath = joinPath(tmpdir(), `openclaw-tts-${randomUUID()}.wav`);
       try {
-        await execFileAsync("espeak-ng", ["-w", wavPath, input.text]);
+        try {
+          await execFileAsync("espeak-ng", ["-w", wavPath, input.text]);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new Error(
+            `TTS fallback requires espeak-ng. Install espeak-ng/sox or set OPENAI_API_KEY. (${msg})`,
+          );
+        }
+
         const wav = await readFile(wavPath);
-        const { stdout } = await execFileAsync(
-          "sox",
-          ["-t", "wav", "-", "-t", "raw", "-r", "8000", "-c", "1", "-e", "mu-law", "-b", "8", "-"],
-          { input: wav, maxBuffer: 50 * 1024 * 1024 },
-        );
-        mulaw = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout);
+
+        try {
+          const { stdout } = await execFileAsync(
+            "sox",
+            [
+              "-t",
+              "wav",
+              "-",
+              "-t",
+              "raw",
+              "-r",
+              "8000",
+              "-c",
+              "1",
+              "-e",
+              "mu-law",
+              "-b",
+              "8",
+              "-",
+            ],
+            { input: wav, maxBuffer: 50 * 1024 * 1024 },
+          );
+          mulaw = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new Error(
+            `TTS fallback requires sox. Install espeak-ng/sox or set OPENAI_API_KEY. (${msg})`,
+          );
+        }
       } finally {
         try {
           await unlink(wavPath);
-        } catch {}
+        } catch {
+          // ignore
+        }
       }
     }
 
