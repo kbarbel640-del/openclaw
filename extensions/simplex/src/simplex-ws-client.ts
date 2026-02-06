@@ -58,6 +58,25 @@ export class SimplexWsClient {
       return;
     }
     await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      let opened = false;
+
+      const settleResolve = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve();
+      };
+
+      const settleReject = (error: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        reject(error);
+      };
+
       const ws = new WebSocket(this.url);
       this.ws = ws;
 
@@ -67,23 +86,32 @@ export class SimplexWsClient {
         );
         this.handleSocketDisconnect(ws, timeoutError);
         ws.terminate();
-        reject(timeoutError);
+        settleReject(timeoutError);
       }, this.connectTimeoutMs);
 
       ws.on("open", () => {
+        opened = true;
         clearTimeout(timeout);
         this.logger?.info?.(`SimpleX WS connected: ${this.url}`);
-        resolve();
+        settleResolve();
       });
 
       ws.on("message", (data) => {
         this.handleMessage(data);
       });
 
-      ws.on("close", () => {
+      ws.on("close", (code, reason) => {
         clearTimeout(timeout);
         this.logger?.warn?.("SimpleX WS closed");
-        this.handleSocketDisconnect(ws, new Error("SimpleX WS closed"));
+        const closeReason =
+          typeof reason === "string"
+            ? reason
+            : Buffer.from(reason).toString("utf8") || "unknown reason";
+        const closeError = new Error(`SimpleX WS closed (code=${code}, reason=${closeReason})`);
+        this.handleSocketDisconnect(ws, closeError);
+        if (!opened) {
+          settleReject(closeError);
+        }
       });
 
       ws.on("error", (err) => {
@@ -91,7 +119,7 @@ export class SimplexWsClient {
         const error = err instanceof Error ? err : new Error(String(err));
         this.logger?.error?.(`SimpleX WS error: ${String(error)}`);
         this.handleSocketDisconnect(ws, error);
-        reject(error);
+        settleReject(error);
       });
     });
   }

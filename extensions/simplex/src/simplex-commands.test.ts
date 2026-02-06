@@ -32,4 +32,20 @@ describe("simplex commands", () => {
       }),
     ).toBe("/freceive 7 '/tmp/My File\\'s Name.png'");
   });
+
+  it("quotes JSON payload in send command", () => {
+    expect(
+      buildSendMessagesCommand({
+        chatRef: "@123",
+        composedMessages: [
+          {
+            msgContent: {
+              type: "text",
+              text: "hello world",
+            },
+          },
+        ],
+      }),
+    ).toBe('/_send @123 json \'[{"msgContent":{"type":"text","text":"hello world"}}]\'');
+  });
 });

@@ -66,7 +66,7 @@ export function buildSendMessagesCommand(params: {
   const chatRef = normalizeChatRefToken(params.chatRef);
   const liveFlag = params.liveMessage ? " live=on" : "";
   const ttlFlag = typeof params.ttl === "number" ? ` ttl=${params.ttl}` : "";
-  const json = JSON.stringify(params.composedMessages);
+  const json = quoteCliArg(JSON.stringify(params.composedMessages));
   return `/_send ${chatRef}${liveFlag}${ttlFlag} json ${json}`;
 }
 
@@ -79,7 +79,7 @@ export function buildUpdateChatItemCommand(params: {
   const chatRef = normalizeChatRefToken(params.chatRef);
   const chatItemId = normalizeChatItemIdToken(params.chatItemId);
   const liveFlag = params.liveMessage ? " live=on" : "";
-  const json = JSON.stringify(params.updatedMessage);
+  const json = quoteCliArg(JSON.stringify(params.updatedMessage));
   return `/_update item ${chatRef} ${chatItemId}${liveFlag} json ${json}`;
 }
 
@@ -103,7 +103,7 @@ export function buildReactionCommand(params: {
   const chatRef = normalizeChatRefToken(params.chatRef);
   const chatItemId = normalizeChatItemIdToken(params.chatItemId);
   const toggle = params.add ? "on" : "off";
-  const json = JSON.stringify(params.reaction);
+  const json = quoteCliArg(JSON.stringify(params.reaction));
   return `/_reaction ${chatRef} ${chatItemId} ${toggle} ${json}`;
 }
 
