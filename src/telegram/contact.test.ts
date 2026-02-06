@@ -30,14 +30,14 @@ describe("extractTelegramContact", () => {
 
   it("extracts basic contact fields (phone, name)", () => {
     const msg = buildContactMessage({
-      phone_number: "+5551999887766",
+      phone_number: "+15555550123",
       first_name: "Nei",
       last_name: "Cardoso",
       user_id: 521158006,
     });
     const result = extractTelegramContact(msg);
     expect(result).toEqual({
-      phoneNumber: "+5551999887766",
+      phoneNumber: "+15555550123",
       firstName: "Nei",
       lastName: "Cardoso",
       userId: 521158006,
@@ -47,7 +47,7 @@ describe("extractTelegramContact", () => {
 
   it("extracts contact with vCard data from fixture", () => {
     const msg = buildContactMessage({
-      phone_number: "+5551999887766",
+      phone_number: "+15555550123",
       first_name: "Nei",
       last_name: "Cardoso",
       user_id: 521158006,
@@ -56,7 +56,7 @@ describe("extractTelegramContact", () => {
     const result = extractTelegramContact(msg);
     expect(result).not.toBeNull();
     expect(result!.vcard).toBe(vcardFixture);
-    expect(result!.phoneNumber).toBe("+5551999887766");
+    expect(result!.phoneNumber).toBe("+15555550123");
   });
 
   it("handles contact without last_name or user_id", () => {
@@ -78,12 +78,12 @@ describe("extractTelegramContact", () => {
 describe("formatContactText", () => {
   it("formats a basic contact without vCard", () => {
     const text = formatContactText({
-      phoneNumber: "+5551999887766",
+      phoneNumber: "+15555550123",
       firstName: "Nei",
       lastName: "Cardoso",
       userId: 521158006,
     });
-    expect(text).toBe("[Contact: Nei Cardoso]\nPhone: +5551999887766\nTelegram ID: 521158006");
+    expect(text).toBe("[Contact: Nei Cardoso]\nPhone: +15555550123\nTelegram ID: 521158006");
   });
 
   it("formats a contact with first name only", () => {
@@ -97,7 +97,7 @@ describe("formatContactText", () => {
 
   it("parses real vCard fixture and includes all fields", () => {
     const text = formatContactText({
-      phoneNumber: "+5551999887766",
+      phoneNumber: "+15555550123",
       firstName: "Nei",
       lastName: "Cardoso",
       userId: 521158006,
@@ -105,7 +105,7 @@ describe("formatContactText", () => {
     });
 
     expect(text).toContain("[Contact: Nei Cardoso]");
-    expect(text).toContain("Phone: +5551999887766");
+    expect(text).toContain("Phone: +15555550123");
     expect(text).toContain("Telegram ID: 521158006");
     expect(text).toContain("Email: nei@neurohive.ai");
     expect(text).toContain("Birthday: 1990-06-15");
