@@ -252,13 +252,46 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       source: record.source,
     });
 
+    // Route typed plugin hooks (before_tool_call, message_sending, etc.) to the
+    // typed hook registry so createHookRunner() can invoke them.
+    // Internal hooks (command, session, agent, gateway) go to registerInternalHook.
+    const TYPED_HOOK_NAMES: ReadonlySet<string> = new Set([
+      "before_agent_start",
+      "agent_end",
+      "before_compaction",
+      "after_compaction",
+      "message_received",
+      "message_sending",
+      "message_sent",
+      "before_tool_call",
+      "after_tool_call",
+      "tool_result_persist",
+      "session_start",
+      "session_end",
+      "gateway_start",
+      "gateway_stop",
+    ]);
+
+    for (const event of normalizedEvents) {
+      if (TYPED_HOOK_NAMES.has(event)) {
+        registerTypedHook(
+          record,
+          event as PluginHookName,
+          handler as unknown as PluginHookHandlerMap[PluginHookName],
+        );
+      }
+    }
+
     const hookSystemEnabled = config?.hooks?.internal?.enabled === true;
     if (!hookSystemEnabled || opts?.register === false) {
       return;
     }
 
+    // Also register in internal hook system for non-typed events
     for (const event of normalizedEvents) {
-      registerInternalHook(event, handler);
+      if (!TYPED_HOOK_NAMES.has(event)) {
+        registerInternalHook(event, handler);
+      }
     }
   };
 
