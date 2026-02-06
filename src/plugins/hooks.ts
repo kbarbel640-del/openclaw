@@ -46,6 +46,7 @@ export type {
   PluginHookAfterCompactionEvent,
   PluginHookMessageContext,
   PluginHookMessageReceivedEvent,
+  PluginHookMessageReceivedResult,
   PluginHookMessageSendingEvent,
   PluginHookMessageSendingResult,
   PluginHookMessageSentEvent,
@@ -243,7 +244,7 @@ async function runMessageReceived(
   event: PluginHookMessageReceivedEvent,
   ctx: PluginHookMessageContext,
 ): Promise<PluginHookMessageReceivedResult | undefined> {
-  return runModifyingHook<PluginHookMessageReceivedResult>(
+  return runModifyingHook<"message_received", PluginHookMessageReceivedResult>(
     "message_received",
     event,
     ctx,
