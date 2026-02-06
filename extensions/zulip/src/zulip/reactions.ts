@@ -31,7 +31,9 @@ export async function removeZulipReaction(params: {
     auth: params.auth,
     method: "DELETE",
     path: `/api/v1/messages/${params.messageId}/reactions`,
-    form: {
+    // Zulip's DELETE endpoints are not guaranteed to accept request bodies.
+    // Send identifiers as query params so reactions reliably clear.
+    query: {
       emoji_name: emojiName,
     },
     abortSignal: params.abortSignal,
