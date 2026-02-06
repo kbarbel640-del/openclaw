@@ -22,7 +22,9 @@ export function createVpsAwareOAuthHandlers(params: {
   let manualCodePromise: Promise<string> | undefined;
   let spinnerStopped = false;
   const stopSpinnerOnce = (message: string) => {
-    if (spinnerStopped) return;
+    if (spinnerStopped) {
+      return;
+    }
     spinnerStopped = true;
     params.spin.stop(message);
   };
