@@ -1,7 +1,7 @@
 // @ts-expect-error - echarts doesn't have proper ESM types
 import * as echarts from "echarts";
 import { html, nothing, type TemplateResult } from "lit";
-import type { AgentHierarchyNode, AgentHierarchyResult } from "../types.ts";
+import type { AgentHierarchyNode, AgentHierarchyResult, AgentHierarchyUsage } from "../types.ts";
 import { renderEmptyState } from "../app-render.helpers.ts";
 import { formatAgo } from "../format.ts";
 import { icons } from "../icons.ts";
@@ -31,10 +31,13 @@ type EChartsTreeNode = {
   _meta?: {
     sessionKey: string;
     runId?: string;
+    agentId?: string;
+    agentRole?: string;
     task?: string;
     status: string;
     startedAt?: number;
     endedAt?: number;
+    usage?: AgentHierarchyUsage;
   };
 };
 
@@ -44,6 +47,33 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string }
   error: { bg: "#ef4444", border: "#dc2626", text: "#ffffff" },
   pending: { bg: "#6b7280", border: "#4b5563", text: "#ffffff" },
 };
+
+const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
+  orchestrator: { bg: "#7c3aed", text: "#ffffff" },
+  lead: { bg: "#2563eb", text: "#ffffff" },
+  specialist: { bg: "#0891b2", text: "#ffffff" },
+  worker: { bg: "#6b7280", text: "#ffffff" },
+};
+
+function formatTokenCount(tokens: number): string {
+  if (tokens >= 1_000_000) {
+    return `${(tokens / 1_000_000).toFixed(1)}M `;
+  }
+  if (tokens >= 1_000) {
+    return `${(tokens / 1_000).toFixed(1)}K `;
+  }
+  return `${tokens} `;
+}
+
+function formatDurationMs(ms: number): string {
+  if (ms >= 60_000) {
+    return `${(ms / 60_000).toFixed(1)}m`;
+  }
+  if (ms >= 1_000) {
+    return `${(ms / 1_000).toFixed(1)}s`;
+  }
+  return `${ms}ms`;
+}
 
 function extractAgentName(sessionKey: string): string {
   // Extract a readable name from session key
@@ -91,10 +121,13 @@ function transformToEChartsData(nodes: AgentHierarchyNode[]): EChartsTreeNode[] 
       _meta: {
         sessionKey: node.sessionKey,
         runId: node.runId,
+        agentId: node.agentId,
+        agentRole: node.agentRole,
         task: node.task,
         status: node.status,
         startedAt: node.startedAt,
         endedAt: node.endedAt,
+        usage: node.usage,
       },
     };
   });
@@ -226,6 +259,9 @@ function renderHierarchyTree(
         const label = node.label || extractAgentName(node.sessionKey);
         const hasChildren = node.children.length > 0;
 
+        const roleColor = node.agentRole ? ROLE_COLORS[node.agentRole] : undefined;
+        const usage = node.usage;
+
         return html`
           <div class="hierarchy-node" data-status=${node.status}>
             <button
@@ -241,12 +277,32 @@ function renderHierarchyTree(
                 data-status=${node.status}
               ></span>
               <div class="hierarchy-node-content">
-                <div class="hierarchy-node-label">${label}</div>
+                <div class="hierarchy-node-label">
+                  ${label}
+                  ${
+                    node.agentRole
+                      ? html`<span
+                        class="hierarchy-role-badge"
+                        style="background: ${roleColor?.bg ?? "#6b7280"}; color: ${roleColor?.text ?? "#fff"};"
+                      >${node.agentRole}</span>`
+                      : nothing
+                  }
+                </div>
                 <div class="hierarchy-node-meta">
                   <span class="hierarchy-node-status">${node.status}</span>
                   ${node.task ? html`<span class="hierarchy-node-task">${node.task.slice(0, 60)}${node.task.length > 60 ? "..." : ""}</span>` : nothing}
                   ${node.startedAt ? html`<span class="hierarchy-node-time">Started ${formatAgo(node.startedAt)}</span>` : nothing}
                 </div>
+                ${
+                  usage
+                    ? html`<div class="hierarchy-node-usage">
+                      <span class="hierarchy-usage-item" title="Input / Output tokens">${formatTokenCount(usage.inputTokens)}in / ${formatTokenCount(usage.outputTokens)}out</span>
+                      <span class="hierarchy-usage-item" title="Tool calls">Tools: ${usage.toolCalls}</span>
+                      <span class="hierarchy-usage-item" title="Duration">${formatDurationMs(usage.durationMs)}</span>
+                      ${usage.costUsd > 0 ? html`<span class="hierarchy-usage-item" title="Cost">$${usage.costUsd.toFixed(4)}</span>` : nothing}
+                    </div>`
+                    : nothing
+                }
               </div>
               ${
                 hasChildren
@@ -271,12 +327,16 @@ let lastDataHash = "";
 let clickHandlerAttached = false;
 
 function computeDataHash(data: EChartsTreeNode[]): string {
-  // Simple hash based on node count and session keys
   const keys: string[] = [];
   function collect(nodes: EChartsTreeNode[]) {
     for (const node of nodes) {
       keys.push(node._meta?.sessionKey ?? node.name);
       keys.push(node._meta?.status ?? "");
+      keys.push(node._meta?.agentRole ?? "");
+      const u = node._meta?.usage;
+      if (u) {
+        keys.push(`${u.inputTokens}:${u.outputTokens}:${u.toolCalls}`);
+      }
       if (node.children) {
         collect(node.children);
       }
@@ -349,11 +409,18 @@ function initECharts(
         if (!meta) {
           return params.data?.name ?? "";
         }
+        const roleLabel = meta.agentRole
+          ? `<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;background:${ROLE_COLORS[meta.agentRole]?.bg ?? "#6b7280"};color:${ROLE_COLORS[meta.agentRole]?.text ?? "#fff"};">${meta.agentRole}</span>`
+          : "";
+        const usageLines = meta.usage
+          ? `<br/><span style="font-size:11px;">Tokens: ${formatTokenCount(meta.usage.inputTokens)}in / ${formatTokenCount(meta.usage.outputTokens)}out</span><br/><span style="font-size:11px;">Tools: ${meta.usage.toolCalls} | Duration: ${formatDurationMs(meta.usage.durationMs)}</span>${meta.usage.costUsd > 0 ? `<br/><span style="font-size:11px;">Cost: $${meta.usage.costUsd.toFixed(4)}</span>` : ""}`
+          : "";
         return `
-          <div style="max-width: 300px;">
-            <strong>${params.data?.name}</strong><br/>
+          <div style="max-width: 350px;">
+            <strong>${params.data?.name}</strong> ${roleLabel}<br/>
             <span>Status: ${meta.status}</span><br/>
             ${meta.task ? `<span>Task: ${meta.task.slice(0, 100)}</span><br/>` : ""}
+            ${usageLines}
             <span style="font-size: 10px; color: #888;">${meta.sessionKey}</span>
           </div>
         `;

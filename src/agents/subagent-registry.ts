@@ -9,6 +9,16 @@ import {
 } from "./subagent-registry.store.js";
 import { resolveAgentTimeoutMs } from "./timeout.js";
 
+export type SubagentUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  costUsd: number;
+  durationMs: number;
+  toolCalls: number;
+};
+
 export type SubagentRunRecord = {
   runId: string;
   childSessionKey: string;
@@ -25,6 +35,8 @@ export type SubagentRunRecord = {
   archiveAtMs?: number;
   cleanupCompletedAt?: number;
   cleanupHandled?: boolean;
+  /** Accumulated resource usage for this run. */
+  usage?: SubagentUsage;
 };
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
@@ -189,7 +201,29 @@ function ensureListener() {
   }
   listenerStarted = true;
   listenerStop = onAgentEvent((evt) => {
-    if (!evt || evt.stream !== "lifecycle") {
+    if (!evt) {
+      return;
+    }
+    // Track tool calls for usage accumulation
+    if (evt.stream === "tool") {
+      const entry = subagentRuns.get(evt.runId);
+      if (entry && evt.data?.phase === "start") {
+        if (!entry.usage) {
+          entry.usage = {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            costUsd: 0,
+            durationMs: 0,
+            toolCalls: 0,
+          };
+        }
+        entry.usage.toolCalls += 1;
+      }
+      return;
+    }
+    if (evt.stream !== "lifecycle") {
       return;
     }
     const entry = subagentRuns.get(evt.runId);
@@ -276,6 +310,57 @@ function beginSubagentCleanup(runId: string) {
   entry.cleanupHandled = true;
   persistSubagentRuns();
   return true;
+}
+
+export function updateSubagentUsage(runId: string, delta: Partial<SubagentUsage>) {
+  const entry = subagentRuns.get(runId);
+  if (!entry) {
+    return;
+  }
+  if (!entry.usage) {
+    entry.usage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      costUsd: 0,
+      durationMs: 0,
+      toolCalls: 0,
+    };
+  }
+  if (delta.inputTokens) {
+    entry.usage.inputTokens += delta.inputTokens;
+  }
+  if (delta.outputTokens) {
+    entry.usage.outputTokens += delta.outputTokens;
+  }
+  if (delta.cacheReadTokens) {
+    entry.usage.cacheReadTokens += delta.cacheReadTokens;
+  }
+  if (delta.cacheWriteTokens) {
+    entry.usage.cacheWriteTokens += delta.cacheWriteTokens;
+  }
+  if (delta.costUsd) {
+    entry.usage.costUsd += delta.costUsd;
+  }
+  if (delta.durationMs) {
+    entry.usage.durationMs += delta.durationMs;
+  }
+  if (delta.toolCalls) {
+    entry.usage.toolCalls += delta.toolCalls;
+  }
+  persistSubagentRuns();
+
+  // Broadcast usage update for real-time hierarchy tracking
+  emitAgentEvent({
+    runId,
+    stream: "lifecycle",
+    sessionKey: entry.childSessionKey,
+    data: {
+      phase: "usage-update",
+      usage: entry.usage,
+    },
+  });
 }
 
 export function registerSubagentRun(params: {

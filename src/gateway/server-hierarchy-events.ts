@@ -1,7 +1,20 @@
-import { listAllSubagentRuns, type SubagentRunRecord } from "../agents/subagent-registry.js";
+import { resolveAgentRole } from "../agents/agent-scope.js";
+import {
+  listAllSubagentRuns,
+  type SubagentRunRecord,
+  type SubagentUsage,
+} from "../agents/subagent-registry.js";
+import { loadConfig } from "../config/config.js";
 import { onAgentEvent } from "../infra/agent-events.js";
+import { parseAgentSessionKey } from "../routing/session-key.js";
 
-export type HierarchyEventType = "spawn" | "start" | "end" | "error" | "full-refresh";
+export type HierarchyEventType =
+  | "spawn"
+  | "start"
+  | "end"
+  | "error"
+  | "usage-update"
+  | "full-refresh";
 
 export type HierarchyEvent = {
   type: HierarchyEventType;
@@ -18,12 +31,15 @@ export type HierarchyEvent = {
 export type HierarchyNode = {
   sessionKey: string;
   runId?: string;
+  agentId?: string;
+  agentRole?: string;
   label?: string;
   task?: string;
   status: "running" | "completed" | "error" | "pending";
   startedAt?: number;
   endedAt?: number;
   children: HierarchyNode[];
+  usage?: SubagentUsage;
 };
 
 export type HierarchySnapshot = {
@@ -41,8 +57,14 @@ let hierarchyBroadcast: HierarchyBroadcast | null = null;
 let listenerStop: (() => void) | null = null;
 let lastEventSeq = 0;
 
+function extractAgentIdFromSessionKey(sessionKey: string): string | undefined {
+  const parsed = parseAgentSessionKey(sessionKey);
+  return parsed?.agentId ?? undefined;
+}
+
 function buildHierarchySnapshot(): HierarchySnapshot {
   const runs = listAllSubagentRuns();
+  const cfg = loadConfig();
   const childrenByParent = new Map<string, HierarchyNode[]>();
   const nodeBySession = new Map<string, HierarchyNode>();
   const childSessionKeys = new Set<string>();
@@ -50,15 +72,20 @@ function buildHierarchySnapshot(): HierarchySnapshot {
   // First pass: create nodes for all runs
   for (const run of runs) {
     const status = resolveStatus(run);
+    const agentId = extractAgentIdFromSessionKey(run.childSessionKey);
+    const agentRole = agentId ? resolveAgentRole(cfg, agentId) : undefined;
     const node: HierarchyNode = {
       sessionKey: run.childSessionKey,
       runId: run.runId,
+      agentId,
+      agentRole,
       label: run.label,
       task: run.task,
       status,
       startedAt: run.startedAt,
       endedAt: run.endedAt,
       children: [],
+      usage: run.usage,
     };
 
     nodeBySession.set(run.childSessionKey, node);
@@ -86,8 +113,12 @@ function buildHierarchySnapshot(): HierarchySnapshot {
     if (!childSessionKeys.has(parentKey)) {
       const children = childrenByParent.get(parentKey) ?? [];
       if (children.length > 0) {
+        const rootAgentId = extractAgentIdFromSessionKey(parentKey);
+        const rootRole = rootAgentId ? resolveAgentRole(cfg, rootAgentId) : undefined;
         const rootNode: HierarchyNode = {
           sessionKey: parentKey,
+          agentId: rootAgentId,
+          agentRole: rootRole,
           label: "Root Session",
           status: "running",
           children,
@@ -189,6 +220,17 @@ export function initHierarchyEventBroadcaster(broadcast: HierarchyBroadcast) {
         sessionKey: evt.sessionKey,
         status: "error",
         outcome: { status: "error", error: errorMsg },
+      });
+      return;
+    }
+
+    if (phase === "usage-update") {
+      broadcastHierarchyEvent({
+        type: "usage-update",
+        timestamp: Date.now(),
+        runId,
+        sessionKey: evt.sessionKey,
+        status: "running",
       });
       return;
     }

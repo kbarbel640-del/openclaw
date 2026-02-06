@@ -564,15 +564,28 @@ export type LogEntry = {
   meta?: Record<string, unknown> | null;
 };
 
+export type AgentHierarchyUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  costUsd: number;
+  durationMs: number;
+  toolCalls: number;
+};
+
 export type AgentHierarchyNode = {
   sessionKey: string;
   runId?: string;
+  agentId?: string;
+  agentRole?: string;
   label?: string;
   task?: string;
   status: "running" | "completed" | "error" | "pending";
   startedAt?: number;
   endedAt?: number;
   children: AgentHierarchyNode[];
+  usage?: AgentHierarchyUsage;
 };
 
 export type AgentHierarchyResult = {
