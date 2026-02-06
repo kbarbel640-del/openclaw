@@ -84,4 +84,42 @@ describe("loadModelCatalog", () => {
     expect(result).toEqual([{ id: "gpt-4.1", name: "GPT-4.1", provider: "openai" }]);
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("injects gpt-5.3-codex when gpt-5.2-codex exists", async () => {
+    __setModelCatalogImportForTest(
+      async () =>
+        ({
+          AuthStorage: class {},
+          ModelRegistry: class {
+            getAll() {
+              return [{ id: "gpt-5.2-codex", name: "GPT-5.2 Codex", provider: "openai-codex" }];
+            }
+          },
+        }) as unknown as PiSdkModule,
+    );
+
+    const result = await loadModelCatalog({ config: {} as OpenClawConfig });
+    const ids = result.map((entry) => `${entry.provider}/${entry.id}`);
+    expect(ids).toContain("openai-codex/gpt-5.2-codex");
+    expect(ids).toContain("openai-codex/gpt-5.3-codex");
+  });
+
+  it("injects gpt-5.3-codex when only gpt-5.1-codex exists", async () => {
+    __setModelCatalogImportForTest(
+      async () =>
+        ({
+          AuthStorage: class {},
+          ModelRegistry: class {
+            getAll() {
+              return [{ id: "gpt-5.1-codex", name: "GPT-5.1 Codex", provider: "openai-codex" }];
+            }
+          },
+        }) as unknown as PiSdkModule,
+    );
+
+    const result = await loadModelCatalog({ config: {} as OpenClawConfig });
+    const ids = result.map((entry) => `${entry.provider}/${entry.id}`);
+    expect(ids).toContain("openai-codex/gpt-5.1-codex");
+    expect(ids).toContain("openai-codex/gpt-5.3-codex");
+  });
 });

@@ -23,16 +23,14 @@ describe("normalizeThinkLevel", () => {
     expect(normalizeThinkLevel("extra high")).toBe("xhigh");
     expect(normalizeThinkLevel("extra_high")).toBe("xhigh");
     expect(normalizeThinkLevel("  extra high  ")).toBe("xhigh");
+    expect(normalizeThinkLevel("xtra-high")).toBe("xhigh");
+    expect(normalizeThinkLevel("xtra high")).toBe("xhigh");
+    expect(normalizeThinkLevel("xtra_high")).toBe("xhigh");
   });
 
   it("does not over-match nearby xhigh words", () => {
     expect(normalizeThinkLevel("extra-highest")).toBeUndefined();
     expect(normalizeThinkLevel("xhigher")).toBeUndefined();
-  });
-
-  it("accepts extra-high aliases as xhigh", () => {
-    expect(normalizeThinkLevel("extra-high")).toBe("xhigh");
-    expect(normalizeThinkLevel("extra high")).toBe("xhigh");
   });
 
   it("accepts on as low", () => {

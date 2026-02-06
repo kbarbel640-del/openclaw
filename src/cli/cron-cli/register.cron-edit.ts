@@ -43,7 +43,10 @@ export function registerCronEditCommand(cron: Command) {
       .option("--tz <iana>", "Timezone for cron expressions (IANA)")
       .option("--system-event <text>", "Set systemEvent payload")
       .option("--message <text>", "Set agentTurn payload message")
-      .option("--thinking <level>", "Thinking level for agent jobs")
+      .option(
+        "--thinking <level>",
+        "Thinking level for agent jobs (off|minimal|low|medium|high|xhigh)",
+      )
       .option("--model <model>", "Model override for agent jobs")
       .option("--timeout-seconds <n>", "Timeout seconds for agent jobs")
       .option("--announce", "Announce summary to a chat (subagent-style)")

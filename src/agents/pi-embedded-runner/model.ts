@@ -21,7 +21,7 @@ type InlineProviderConfig = {
 
 const OPENAI_CODEX_GPT_53_MODEL_ID = "gpt-5.3-codex";
 
-const OPENAI_CODEX_TEMPLATE_MODEL_IDS = ["gpt-5.2-codex"] as const;
+const OPENAI_CODEX_TEMPLATE_MODEL_IDS = ["gpt-5.2-codex", "gpt-5.1-codex"] as const;
 
 function resolveOpenAICodexGpt53FallbackModel(
   provider: string,

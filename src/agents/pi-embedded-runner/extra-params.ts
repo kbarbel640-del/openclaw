@@ -30,6 +30,60 @@ type CacheRetentionStreamOptions = Partial<SimpleStreamOptions> & {
   cacheRetention?: CacheRetention;
 };
 
+type ThinkingEffort = NonNullable<SimpleStreamOptions["reasoning"]>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function normalizeReasoningEffort(value: unknown): ThinkingEffort | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (typeof value === "string") {
+    const raw = value.trim().toLowerCase();
+    if (!raw) {
+      return undefined;
+    }
+    if (["off", "none", "false", "0"].includes(raw)) {
+      return undefined;
+    }
+    const collapsed = raw.replace(/[\s_-]+/g, "");
+    if (collapsed === "xhigh" || collapsed === "extrahigh" || collapsed === "xtrahigh") {
+      return "xhigh";
+    }
+    if (collapsed === "minimal" || collapsed === "min" || collapsed === "think") {
+      return "minimal";
+    }
+    if (collapsed === "low" || collapsed === "thinkhard") {
+      return "low";
+    }
+    if (
+      collapsed === "medium" ||
+      collapsed === "med" ||
+      collapsed === "mid" ||
+      collapsed === "thinkharder"
+    ) {
+      return "medium";
+    }
+    if (
+      collapsed === "high" ||
+      collapsed === "max" ||
+      collapsed === "highest" ||
+      collapsed === "ultra" ||
+      collapsed === "ultrathink" ||
+      collapsed === "thinkhardest"
+    ) {
+      return "high";
+    }
+    return undefined;
+  }
+  if (isRecord(value) && typeof value.effort === "string") {
+    return normalizeReasoningEffort(value.effort);
+  }
+  return undefined;
+}
+
 /**
  * Resolve cacheRetention from extraParams, supporting both new `cacheRetention`
  * and legacy `cacheControlTtl` values for backwards compatibility.
@@ -79,6 +133,10 @@ function createStreamFnWithExtraParams(
   }
   if (typeof extraParams.maxTokens === "number") {
     streamParams.maxTokens = extraParams.maxTokens;
+  }
+  const reasoning = normalizeReasoningEffort(extraParams.reasoning);
+  if (reasoning) {
+    streamParams.reasoning = reasoning;
   }
   const cacheRetention = resolveCacheRetention(extraParams, provider);
   if (cacheRetention) {

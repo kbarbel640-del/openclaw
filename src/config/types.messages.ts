@@ -62,7 +62,7 @@ export type MessagesConfig = {
    * - `{model}` - short model name (e.g., `claude-opus-4-6`, `gpt-4o`)
    * - `{modelFull}` - full model identifier (e.g., `anthropic/claude-opus-4-6`)
    * - `{provider}` - provider name (e.g., `anthropic`, `openai`)
-   * - `{thinkingLevel}` or `{think}` - current thinking level (`high`, `low`, `off`)
+   * - `{thinkingLevel}` or `{think}` - current thinking level (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`)
    * - `{identity.name}` or `{identityName}` - agent identity name
    *
    * Example: `"[{model} | think:{thinkingLevel}]"` → `"[claude-opus-4-6 | think:high]"`

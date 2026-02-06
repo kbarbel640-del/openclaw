@@ -95,6 +95,33 @@ export async function loadModelCatalog(params?: {
         models.push({ id, name, provider, contextWindow, reasoning, input });
       }
 
+      const injectCodex53 = (targetId: string, templateIds: string[], fallbackName: string) => {
+        const hasTarget = models.some(
+          (entry) => entry.provider === "openai-codex" && entry.id === targetId,
+        );
+        if (hasTarget) {
+          return;
+        }
+        for (const templateId of templateIds) {
+          const template = models.find(
+            (entry) => entry.provider === "openai-codex" && entry.id === templateId,
+          );
+          if (!template) {
+            continue;
+          }
+          const templateName = template.name || template.id;
+          const nextName = templateName.replace("5.2", "5.3").replace("5.1", "5.3");
+          models.push({
+            ...template,
+            id: targetId,
+            name: nextName === templateName ? fallbackName : nextName,
+          });
+          return;
+        }
+      };
+
+      injectCodex53("gpt-5.3-codex", ["gpt-5.2-codex", "gpt-5.1-codex"], "GPT-5.3 Codex");
+
       if (models.length === 0) {
         // If we found nothing, don't cache this result so we can try again.
         modelCatalogPromise = null;

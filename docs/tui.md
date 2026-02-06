@@ -91,7 +91,7 @@ Core:
 
 Session controls:
 
-- `/think <off|minimal|low|medium|high>`
+- `/think <off|minimal|low|medium|high|xhigh>`
 - `/verbose <on|full|off>`
 - `/reasoning <on|off|stream>`
 - `/usage <off|tokens|full>`

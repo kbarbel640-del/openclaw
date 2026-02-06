@@ -65,6 +65,42 @@ describe("resolveExtraParams", () => {
 });
 
 describe("applyExtraParamsToAgent", () => {
+  it("passes reasoning params through to stream options", () => {
+    const calls: Array<SimpleStreamOptions | undefined> = [];
+    const baseStreamFn: StreamFn = (_model, _context, options) => {
+      calls.push(options);
+      return new AssistantMessageEventStream();
+    };
+    const agent = { streamFn: baseStreamFn };
+    const cfg = {
+      agents: {
+        defaults: {
+          models: {
+            "openai/gpt-5.2": {
+              params: {
+                reasoning: { effort: "xhigh" },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    applyExtraParamsToAgent(agent, cfg, "openai", "gpt-5.2");
+
+    const model = {
+      api: "openai-responses",
+      provider: "openai",
+      id: "gpt-5.2",
+    } as Model<"openai-responses">;
+    const context: Context = { messages: [] };
+
+    void agent.streamFn?.(model, context, {});
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.reasoning).toBe("xhigh");
+  });
+
   it("adds OpenRouter attribution headers to stream options", () => {
     const calls: Array<SimpleStreamOptions | undefined> = [];
     const baseStreamFn: StreamFn = (_model, _context, options) => {

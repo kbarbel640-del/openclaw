@@ -42,7 +42,7 @@ export function normalizeThinkLevel(raw?: string | null): ThinkLevel | undefined
   }
   const key = raw.trim().toLowerCase();
   const collapsed = key.replace(/[\s_-]+/g, "");
-  if (collapsed === "xhigh" || collapsed === "extrahigh") {
+  if (collapsed === "xhigh" || collapsed === "extrahigh" || collapsed === "xtrahigh") {
     return "xhigh";
   }
   if (["off"].includes(key)) {
