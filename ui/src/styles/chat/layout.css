@@ -271,6 +271,29 @@
   background: linear-gradient(to bottom, transparent, var(--bg-content) 20%);
 }
 
+.chat-compose--loop {
+  position: relative;
+  margin-top: 0;
+  padding-top: 8px;
+  padding-bottom: 0;
+  background: none;
+  border-bottom: 1px solid var(--border);
+  opacity: 0.85;
+}
+
+.chat-compose--loop .chat-compose__field > span {
+  display: inline;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.chat-compose--loop textarea {
+  font-size: 13px;
+  max-height: 120px;
+}
+
 .chat-compose__field {
   flex: 1 1 auto;
   min-width: 0;
