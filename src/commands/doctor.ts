@@ -12,6 +12,7 @@ import {
 } from "../agents/model-selection.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { CONFIG_PATH, readConfigFileSnapshot, writeConfigFile } from "../config/config.js";
+import { restoreFromPreservationMap } from "../config/env-preservation.js";
 import { logConfigUpdated } from "../config/logging.js";
 import { resolveGatewayService } from "../daemon/service.js";
 import { resolveGatewayAuth } from "../gateway/auth.js";
@@ -282,7 +283,12 @@ export async function doctorCommand(
   const shouldWriteConfig = prompter.shouldRepair || configResult.shouldWriteConfig;
   if (shouldWriteConfig) {
     cfg = applyWizardMetadata(cfg, { command: "doctor", mode: resolveMode(cfg) });
-    await writeConfigFile(cfg);
+    // Restore env var references (e.g., ${API_KEY}) before writing to prevent plaintext exposure
+    const cfgToWrite = restoreFromPreservationMap(
+      cfg,
+      configResult.envVarPreservationMap,
+    ) as OpenClawConfig;
+    await writeConfigFile(cfgToWrite);
     logConfigUpdated(runtime);
     const backupPath = `${CONFIG_PATH}.bak`;
     if (fs.existsSync(backupPath)) {

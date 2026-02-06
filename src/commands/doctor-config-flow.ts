@@ -10,6 +10,7 @@ import {
   migrateLegacyConfig,
   readConfigFileSnapshot,
 } from "../config/config.js";
+import { createEnvVarPreservationMap } from "../config/env-preservation.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
 import { note } from "../terminal/note.js";
 import { resolveHomeDir } from "../utils.js";
@@ -212,6 +213,8 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
   }
 
   let snapshot = await readConfigFileSnapshot();
+  // Collect env var references from raw config to preserve them during writes
+  const envVarPreservationMap = createEnvVarPreservationMap(snapshot.parsed);
   const baseCfg = snapshot.config ?? {};
   let cfg: OpenClawConfig = baseCfg;
   let candidate = structuredClone(baseCfg);
@@ -305,5 +308,5 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
 
   noteOpencodeProviderOverrides(cfg);
 
-  return { cfg, path: snapshot.path ?? CONFIG_PATH, shouldWriteConfig };
+  return { cfg, path: snapshot.path ?? CONFIG_PATH, shouldWriteConfig, envVarPreservationMap };
 }
