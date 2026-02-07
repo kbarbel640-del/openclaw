@@ -9,11 +9,12 @@ import type { ScoringConfig, ScoringWeights, ThresholdProfile } from "./types.js
 // ────────────────────────────────────────────────────────────────────────────
 
 export const DEFAULT_WEIGHTS: ScoringWeights = {
-  novelty: 0.25,
-  impact: 0.3,
+  novelty: 0.2,
+  impact: 0.25,
   relational: 0.15,
   temporal: 0.1,
-  userIntent: 0.2,
+  userIntent: 0.15,
+  phenomenological: 0.15,
 };
 
 // ────────────────────────────────────────────────────────────────────────────

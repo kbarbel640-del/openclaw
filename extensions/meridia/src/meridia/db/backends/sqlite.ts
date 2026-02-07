@@ -79,6 +79,9 @@ function hasAnyUserTables(db: DatabaseSync): boolean {
   return tables.some((name) => name && !name.startsWith("sqlite_"));
 }
 
+// Schema versions that can be migrated to the current version
+const MIGRATABLE_VERSIONS = new Set(["1"]);
+
 function isExpectedSchema(db: DatabaseSync): boolean {
   const required = ["meridia_meta", "meridia_records", "meridia_trace"];
   for (const name of required) {
@@ -86,9 +89,9 @@ function isExpectedSchema(db: DatabaseSync): boolean {
       return false;
     }
   }
-  // Accept both v1 (will be migrated) and v2
   const version = readSchemaVersion(db);
-  return version === SCHEMA_VERSION || version === "1";
+  // Accept current version or any migratable version (will be upgraded in ensureSchema)
+  return version === SCHEMA_VERSION || (version !== null && MIGRATABLE_VERSIONS.has(version));
 }
 
 function columnExists(db: DatabaseSync, table: string, column: string): boolean {
@@ -101,11 +104,13 @@ function columnExists(db: DatabaseSync, table: string, column: string): boolean 
 }
 
 /**
- * Migrate v1 schema to v2: add phenomenology columns to meridia_records.
+ * Migrate v1 schema to v2: add memory classification + phenomenology columns.
  * Safe to call multiple times (idempotent via column existence checks).
  */
-function migrateV1ToV2(db: DatabaseSync): void {
+function migrateV1toV2(db: DatabaseSync): void {
   const cols = [
+    { name: "memory_type", type: "TEXT" },
+    { name: "classification_json", type: "TEXT" },
     { name: "emotional_primary", type: "TEXT" },
     { name: "emotional_intensity", type: "REAL" },
     { name: "emotional_valence", type: "REAL" },
@@ -117,6 +122,9 @@ function migrateV1ToV2(db: DatabaseSync): void {
       db.exec(`ALTER TABLE meridia_records ADD COLUMN ${col.name} ${col.type}`);
     }
   }
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_meridia_records_memory_type ON meridia_records(memory_type);`,
+  );
 }
 
 function ensureSchema(db: DatabaseSync): { ftsAvailable: boolean; ftsError?: string } {
@@ -173,6 +181,8 @@ function ensureSchema(db: DatabaseSync): { ftsAvailable: boolean; ftsError?: str
     `CREATE INDEX IF NOT EXISTS idx_meridia_records_emotional_intensity ON meridia_records(emotional_intensity);`,
   );
 
+  // v1 → v2 migration handled below after trace table creation
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS meridia_trace (
       id TEXT PRIMARY KEY,
@@ -189,8 +199,8 @@ function ensureSchema(db: DatabaseSync): { ftsAvailable: boolean; ftsError?: str
     `CREATE INDEX IF NOT EXISTS idx_meridia_trace_session_key ON meridia_trace(session_key);`,
   );
 
-  // Migrate v1 → v2: add phenomenology columns if missing
-  migrateV1ToV2(db);
+  // Migrate v1 → v2: add classification + phenomenology columns if missing
+  migrateV1toV2(db);
 
   let ftsAvailable = false;
   let ftsError: string | undefined;
@@ -297,6 +307,10 @@ function applyFilters(filters?: RecordQueryFilters): { where: string; params: un
   if (filters?.tag) {
     conditions.push("r.tags_json LIKE ?");
     params.push(`%\"${filters.tag.replaceAll('"', "")}\"%`);
+  }
+  if (filters?.memoryType) {
+    conditions.push("r.memory_type = ?");
+    params.push(filters.memoryType);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -405,6 +419,7 @@ function insertRecordSync(
   const dataText = buildSearchableText(record);
   const tagsJson = record.content?.tags?.length ? JSON.stringify(record.content.tags) : null;
   const evaluation = record.capture.evaluation;
+  const classificationJson = record.classification ? JSON.stringify(record.classification) : null;
 
   // V2 phenomenology columns
   const phenom = record.phenomenology;
@@ -419,8 +434,9 @@ function insertRecordSync(
       INSERT OR IGNORE INTO meridia_records
         (id, ts, kind, session_key, session_id, run_id, tool_name, tool_call_id, is_error,
          score, threshold, eval_kind, eval_model, eval_reason, tags_json, data_json, data_text,
+         memory_type, classification_json,
          emotional_primary, emotional_intensity, emotional_valence, engagement_quality, phenomenology_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .run(
       record.id,
@@ -440,6 +456,8 @@ function insertRecordSync(
       tagsJson,
       dataJson,
       dataText,
+      record.memoryType ?? null,
+      classificationJson,
       emotionalPrimary,
       emotionalIntensity,
       emotionalValence,

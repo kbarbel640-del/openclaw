@@ -143,6 +143,11 @@ export type MeridiaExperienceRecord = {
   /** V2 phenomenology (stored alongside legacy content for backward compat) */
   phenomenology?: Phenomenology;
   data?: { args?: unknown; result?: unknown; snapshot?: unknown; summary?: unknown };
+  memoryType?: "factual" | "experiential" | "identity";
+  classification?: {
+    confidence: number;
+    reasons: string[];
+  };
 };
 
 // ────────────────────────────────────────────────────────────────────────────

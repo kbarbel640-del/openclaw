@@ -2,13 +2,14 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import crypto from "node:crypto";
 import path from "node:path";
 import type {
-  MeridiaExperienceRecord,
   MeridiaToolResultContext,
   MeridiaTraceEvent,
   CaptureDecision,
 } from "../../src/meridia/types.js";
 import { collectArtifacts } from "../../src/meridia/artifacts/collector.js";
+import { classifyMemoryType } from "../../src/meridia/classifier.js";
 import { resolveMeridiaPluginConfig } from "../../src/meridia/config.js";
+import { extractTextForAnalysis, detectContentSignals } from "../../src/meridia/content-signals.js";
 import { createBackend } from "../../src/meridia/db/index.js";
 import { evaluateHeuristic, evaluateWithLlm } from "../../src/meridia/evaluate.js";
 // V2 components
@@ -200,6 +201,10 @@ const handler = async (event: HookEvent): Promise<void> => {
     result: payload?.result,
   };
 
+  // Detect content signals for classification
+  const analysisText = extractTextForAnalysis(ctx);
+  const contentSignals = detectContentSignals(analysisText);
+
   // ── Load and update buffer ────────────────────────────────────────────
   let buffer = await loadBuffer(bufferPath, sessionId, sessionKey);
   buffer = pruneOldEntries(buffer, nowMs);
@@ -242,6 +247,13 @@ const handler = async (event: HookEvent): Promise<void> => {
   if (shouldCapture) {
     recordId = meridiaEvent.id;
 
+    // Classify memory type using content signals
+    const classification = classifyMemoryType({
+      ctx,
+      signals: contentSignals,
+      kind: "tool_result",
+    });
+
     // ── Pass 2: Phenomenology extraction (V2 Component 4) ─────────────
     const phenomenology = phenomenologyEnabled
       ? await extractPhenomenology(meridiaEvent, evaluation.score, evaluation.reason, cfg, {
@@ -278,6 +290,13 @@ const handler = async (event: HookEvent): Promise<void> => {
 
     // ── Convert to legacy record for backward-compatible SQLite insert ─
     const record = kitToLegacyRecord(kit);
+
+    // Enrich with memory classification
+    record.memoryType = classification.memoryType;
+    record.classification = {
+      confidence: classification.confidence,
+      reasons: classification.reasons,
+    };
 
     try {
       const backend = createBackend({ cfg, hookKey: "experiential-capture" });

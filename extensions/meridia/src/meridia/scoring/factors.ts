@@ -5,7 +5,9 @@
  * with a human-readable reason.
  */
 
+import type { ContentSignals } from "../content-signals.js";
 import type { ScoringContext, ScoringFactor, ScoringWeights } from "./types.js";
+import { DEFAULT_WEIGHTS } from "./defaults.js";
 
 type FactorResult = { score: number; reason: string };
 
@@ -362,6 +364,54 @@ export function scoreUserIntent(ctx: ScoringContext): FactorResult {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Phenomenological Score
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Phenomenological: Does this contain experiential or identity-level content?
+ *
+ * Uses content signals (emotional, uncertainty, identity, relational, satisfaction)
+ * to assess the phenomenological richness of the experience.
+ * Returns baseline 0.1 when no signals are available.
+ */
+export function scorePhenomenological(ctx: ScoringContext): FactorResult {
+  const signals: ContentSignals | undefined = ctx.contentSignals;
+  if (!signals) {
+    return { score: 0.1, reason: "no_content_signals" };
+  }
+
+  let score = 0.1; // baseline
+  const reasons: string[] = [];
+
+  if (signals.identity.detected) {
+    score = Math.max(score, 0.7);
+    reasons.push("identity");
+  }
+  if (signals.emotional.detected) {
+    score = Math.max(score, 0.6 + signals.emotional.strength * 0.2);
+    reasons.push("emotional");
+  }
+  if (signals.relational.detected) {
+    score = Math.max(score, 0.55);
+    reasons.push("relational");
+  }
+  if (signals.uncertainty.detected) {
+    score = Math.max(score, 0.5);
+    reasons.push("uncertainty");
+  }
+  if (signals.satisfaction.detected) {
+    score = Math.max(score, 0.45);
+    reasons.push("satisfaction");
+  }
+
+  if (reasons.length === 0) {
+    return { score: 0.1, reason: "no_signals_detected" };
+  }
+
+  return { score: clamp01(score), reason: reasons.join(",") };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Composite Factor Computation
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -376,11 +426,13 @@ export function computeAllFactors(ctx: ScoringContext, weights: ScoringWeights):
       { name: "relational", fn: scoreRelational },
       { name: "temporal", fn: scoreTemporal },
       { name: "userIntent", fn: scoreUserIntent },
+      { name: "phenomenological", fn: scorePhenomenological },
     ];
 
   return factors.map(({ name, fn }) => {
     const { score, reason } = fn(ctx);
-    const weight = weights[name];
+    // Fall back to default weight if config predates this factor
+    const weight = weights[name] ?? DEFAULT_WEIGHTS[name] ?? 0;
     return {
       name,
       rawScore: score,

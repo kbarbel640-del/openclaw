@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScoringContext } from "./types.js";
+import { detectContentSignals } from "../content-signals.js";
 import { DEFAULT_WEIGHTS } from "./defaults.js";
 import {
   scoreNovelty,
@@ -7,6 +8,7 @@ import {
   scoreRelational,
   scoreTemporal,
   scoreUserIntent,
+  scorePhenomenological,
   computeAllFactors,
 } from "./factors.js";
 
@@ -229,13 +231,67 @@ describe("scoreUserIntent", () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// Phenomenological
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("scorePhenomenological", () => {
+  it("returns baseline when no content signals are present", () => {
+    const result = scorePhenomenological(makeCtx());
+    expect(result.score).toBe(0.1);
+    expect(result.reason).toBe("no_content_signals");
+  });
+
+  it("returns baseline when signals are empty", () => {
+    const signals = detectContentSignals("plain technical output");
+    const result = scorePhenomenological(makeCtx({ contentSignals: signals }));
+    expect(result.score).toBe(0.1);
+    expect(result.reason).toBe("no_signals_detected");
+  });
+
+  it("scores identity signals high", () => {
+    const signals = detectContentSignals("I am a developer who values clean code");
+    const result = scorePhenomenological(makeCtx({ contentSignals: signals }));
+    expect(result.score).toBeGreaterThanOrEqual(0.7);
+    expect(result.reason).toContain("identity");
+  });
+
+  it("scores emotional signals", () => {
+    const signals = detectContentSignals("I feel excited about this breakthrough");
+    const result = scorePhenomenological(makeCtx({ contentSignals: signals }));
+    expect(result.score).toBeGreaterThanOrEqual(0.6);
+    expect(result.reason).toContain("emotional");
+  });
+
+  it("scores relational signals", () => {
+    const signals = detectContentSignals("Our dynamic has shifted in this collaboration");
+    const result = scorePhenomenological(makeCtx({ contentSignals: signals }));
+    expect(result.score).toBeGreaterThanOrEqual(0.5);
+    expect(result.reason).toContain("relational");
+  });
+
+  it("scores uncertainty signals", () => {
+    const signals = detectContentSignals("I'm not sure whether this approach will work");
+    const result = scorePhenomenological(makeCtx({ contentSignals: signals }));
+    expect(result.score).toBeGreaterThanOrEqual(0.5);
+    expect(result.reason).toContain("uncertainty");
+  });
+
+  it("scores satisfaction signals", () => {
+    const signals = detectContentSignals("Finally the tests pass! This is working");
+    const result = scorePhenomenological(makeCtx({ contentSignals: signals }));
+    expect(result.score).toBeGreaterThanOrEqual(0.4);
+    expect(result.reason).toContain("satisfaction");
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // Composite Computation
 // ────────────────────────────────────────────────────────────────────────────
 
 describe("computeAllFactors", () => {
-  it("returns exactly 5 factors", () => {
+  it("returns exactly 6 factors", () => {
     const factors = computeAllFactors(makeCtx(), DEFAULT_WEIGHTS);
-    expect(factors).toHaveLength(5);
+    expect(factors).toHaveLength(6);
   });
 
   it("applies weights correctly", () => {

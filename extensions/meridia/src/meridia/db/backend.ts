@@ -12,6 +12,7 @@ export type RecordQueryFilters = {
   to?: string;
   limit?: number;
   tag?: string;
+  memoryType?: "factual" | "experiential" | "identity";
 };
 
 export type RecordQueryResult = {

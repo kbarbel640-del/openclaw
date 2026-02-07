@@ -35,7 +35,7 @@ describe("evaluateMemoryRelevance", () => {
   it("returns a valid breakdown with all factors", () => {
     const breakdown = evaluateMemoryRelevance(makeCtx());
 
-    expect(breakdown.factors).toHaveLength(5);
+    expect(breakdown.factors).toHaveLength(6);
     expect(breakdown.compositeScore).toBeGreaterThanOrEqual(0);
     expect(breakdown.compositeScore).toBeLessThanOrEqual(1);
     expect(breakdown.totalWeight).toBeGreaterThan(0);
@@ -48,6 +48,7 @@ describe("evaluateMemoryRelevance", () => {
     expect(names).toContain("relational");
     expect(names).toContain("temporal");
     expect(names).toContain("userIntent");
+    expect(names).toContain("phenomenological");
   });
 
   it("scores errors higher than non-errors", () => {
@@ -276,6 +277,7 @@ describe("formatting", () => {
     expect(formatted).toContain("relational:");
     expect(formatted).toContain("temporal:");
     expect(formatted).toContain("userIntent:");
+    expect(formatted).toContain("phenomenological:");
   });
 
   it("breakdownToTrace produces compact JSON", () => {
@@ -312,11 +314,39 @@ describe("edge cases", () => {
         relational: 0,
         temporal: 0,
         userIntent: 0,
+        phenomenological: 0,
       },
     };
 
     const breakdown = evaluateMemoryRelevance(makeCtx(), config);
     expect(breakdown.compositeScore).toBe(0);
+  });
+
+  it("handles weights missing new factors (pre-phenomenological config)", () => {
+    // Simulate a config that predates the phenomenological factor
+    const config: Partial<ScoringConfig> = {
+      weights: {
+        novelty: 0.25,
+        impact: 0.3,
+        relational: 0.2,
+        temporal: 0.1,
+        userIntent: 0.15,
+      } as ScoringConfig["weights"],
+    };
+
+    const breakdown = evaluateMemoryRelevance(makeCtx(), config);
+
+    // Must not produce NaN — the missing weight should be backfilled from defaults
+    expect(Number.isNaN(breakdown.compositeScore)).toBe(false);
+    expect(breakdown.compositeScore).toBeGreaterThanOrEqual(0);
+    expect(breakdown.compositeScore).toBeLessThanOrEqual(1);
+    expect(Number.isNaN(breakdown.totalWeight)).toBe(false);
+
+    // The phenomenological factor should have received a default weight
+    const phenom = breakdown.factors.find((f) => f.name === "phenomenological");
+    expect(phenom).toBeDefined();
+    expect(phenom!.weight).toBeGreaterThan(0);
+    expect(Number.isNaN(phenom!.weighted)).toBe(false);
   });
 
   it("clamps composite score to [0, 1]", () => {

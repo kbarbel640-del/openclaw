@@ -231,7 +231,8 @@ function resolveConfig(partial?: Partial<ScoringConfig>): ScoringConfig {
   if (!partial) return DEFAULT_SCORING_CONFIG;
 
   return {
-    weights: partial.weights ?? DEFAULT_SCORING_CONFIG.weights,
+    // Merge per-key so configs predating new factors (e.g. phenomenological) inherit defaults
+    weights: { ...DEFAULT_SCORING_CONFIG.weights, ...(partial.weights ?? {}) },
     activeProfile: partial.activeProfile ?? DEFAULT_SCORING_CONFIG.activeProfile,
     profiles: partial.profiles ?? DEFAULT_SCORING_CONFIG.profiles,
     toolOverrides: partial.toolOverrides ?? DEFAULT_SCORING_CONFIG.toolOverrides,

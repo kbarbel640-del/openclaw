@@ -87,6 +87,8 @@ export type ScoringContext = {
     score: number;
     reason?: string;
   };
+  /** Content signals from phenomenological pattern detection */
+  contentSignals?: import("../content-signals.js").ContentSignals;
 };
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -103,6 +105,7 @@ export type ScoringWeights = {
   relational: number;
   temporal: number;
   userIntent: number;
+  phenomenological: number;
 };
 
 /**
