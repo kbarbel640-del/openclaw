@@ -48,7 +48,9 @@ export function buildEmbeddedSystemPrompt(params: {
   userTimeFormat?: ResolvedTimeFormat;
   contextFiles?: EmbeddedContextFile[];
   memoryCitationsMode?: MemoryCitationsMode;
-}): string {
+  /** Raw user message for prompt-engine triangulation (domain/skill selection). */
+  userPrompt?: string;
+}): Promise<string> {
   return buildAgentSystemPrompt({
     workspaceDir: params.workspaceDir,
     defaultThinkLevel: params.defaultThinkLevel,
@@ -74,6 +76,7 @@ export function buildEmbeddedSystemPrompt(params: {
     userTimeFormat: params.userTimeFormat,
     contextFiles: params.contextFiles,
     memoryCitationsMode: params.memoryCitationsMode,
+    userPrompt: params.userPrompt,
   });
 }
 

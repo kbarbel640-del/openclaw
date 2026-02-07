@@ -79,6 +79,17 @@ git rebase --abort
 | `*.patch` files  | Usually take upstream version                    |
 | Source files     | Merge logic carefully, prefer upstream structure |
 
+### Prompt-engine and system prompt (ClawdBot-Next integration)
+
+This project integrates ClawdBot-Next’s **prompt-engine** into the agent system prompt. When pulling upstream ClawdBot-Next changes, pay attention to:
+
+- **`src/agents/system-prompt.ts`** – Uses `SkillsLoader`, `Triangulator`, `SkillInjector`, `SYSTEM_DIRECTIVES` from `./prompt-engine/`. `buildAgentSystemPrompt` is **async** and accepts **`userPrompt?: string`** for triangulation. Keep OpenClaw-specific sections (Safety, OpenClaw branding, `memoryCitationsMode`, sandbox fields) when merging.
+- **`src/agents/prompt-engine/`** – `skills-loader.ts`, `triangulator.ts`, `injector.ts`, `system-directives.ts`, `types.ts`, `clawd-matrix.ts`, `data/skills.json`. Sync logic from upstream; keep OpenClaw naming/docs where we diverge.
+- **`src/agents/pi-embedded-runner/system-prompt.ts`** – Must pass `userPrompt` through to `buildAgentSystemPrompt` and **await** it (async).
+- **Call sites** – Any caller of `buildAgentSystemPrompt` or `buildEmbeddedSystemPrompt` must **await** and may pass `userPrompt` (e.g. `params.prompt` in run/attempt).
+
+After merging upstream changes in these areas, run `pnpm test` and ensure `src/agents/system-prompt.test.ts` and `src/agents/prompt-engine/integration.test.ts` pass.
+
 ---
 
 ## Step 2B: Merge Strategy (Alternative)

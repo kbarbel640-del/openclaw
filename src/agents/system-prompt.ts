@@ -2,8 +2,13 @@ import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
 import type { MemoryCitationsMode } from "../config/types.memory.js";
 import type { ResolvedTimeFormat } from "./date-time.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
+import type { IntentContext, SkillDefinition } from "./prompt-engine/types.js";
 import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import { listDeliverableMessageChannels } from "../utils/message-channel.js";
+import { SkillInjector } from "./prompt-engine/injector.js";
+import { SkillsLoader } from "./prompt-engine/skills-loader.js";
+import { SYSTEM_DIRECTIVES } from "./prompt-engine/system-directives.js";
+import { Triangulator } from "./prompt-engine/triangulator.js";
 
 /**
  * Controls which hardcoded sections are included in the system prompt.
@@ -161,7 +166,50 @@ function buildDocsSection(params: { docsPath?: string; isMinimal: boolean; readT
   ];
 }
 
-export function buildAgentSystemPrompt(params: {
+function selectSkillsForContext(library: unknown, context: IntentContext): SkillDefinition[] {
+  const skills: SkillDefinition[] = [];
+  const coreSkill = SkillsLoader.findSkill(library, "Context_Audit_&_Triage");
+  if (coreSkill) skills.push(coreSkill);
+  if (context.domain === "Finance") {
+    const financeSkill = SkillsLoader.findSkill(library, "Financial_Risk_&_Deployment");
+    if (financeSkill) skills.push(financeSkill);
+  } else if (context.domain === "Coding") {
+    const codingSkill = SkillsLoader.findSkill(library, "Workflow_to_Code_Mapping");
+    if (codingSkill) skills.push(codingSkill);
+  }
+  if (skills.length === 0) {
+    const generalSkill = SkillsLoader.findSkill(library, "General_Reasoning");
+    if (generalSkill) skills.push(generalSkill);
+  }
+  return skills;
+}
+
+function buildMatrixSection(context: IntentContext, skillBody: string): string[] {
+  return [
+    `# System Prompt: ${SYSTEM_DIRECTIVES.PERSONA.ROLE}`,
+    "",
+    "## 1. Role & Identity",
+    `* **Role**: Acting as a specialist in ${context.domain}.`,
+    `* **Tone**: ${context.tone ?? "Professional and Adaptive"}.`,
+    `* **Core Philosophy**: ${SYSTEM_DIRECTIVES.PERSONA.CORE_PHILOSOPHY}`,
+    "",
+    "## 2. Constraints & Quality Gates",
+    ...SYSTEM_DIRECTIVES.QUALITY_GATES.NEGATIVE_CONSTRAINTS.map((c) => `- ${c}`),
+    "",
+    "## 3. Active Skills Library",
+    "The following skills have been instantiated for this specific session:",
+    "",
+    skillBody,
+    "",
+    "## 4. Execution Workflow",
+    "1. Analyze the user's request using [Skill: Requirement_Triangulation].",
+    "2. Execute domain-specific logic found in the Active Skills Library.",
+    "3. Verify output against Constraints before responding.",
+    "",
+  ];
+}
+
+export async function buildAgentSystemPrompt(params: {
   workspaceDir: string;
   defaultThinkLevel?: ThinkLevel;
   reasoningLevel?: ReasoningLevel;
@@ -214,7 +262,18 @@ export function buildAgentSystemPrompt(params: {
     channel: string;
   };
   memoryCitationsMode?: MemoryCitationsMode;
-}) {
+  /** Raw user prompt for prompt-engine triangulation (domain/tone/skill selection). */
+  userPrompt?: string;
+}): Promise<string> {
+  const library = await SkillsLoader.loadLibrary();
+  const userRawText = params.userPrompt ?? "Hello";
+  const context: IntentContext = await Triangulator.analyze(userRawText);
+  const selectedSkills = selectSkillsForContext(library, context);
+  const instantiatedSkills = selectedSkills
+    .map((skill) => SkillInjector.instantiate(skill, context))
+    .join("\n\n");
+  const matrixLines = buildMatrixSection(context, instantiatedSkills);
+
   const coreToolSummaries: Record<string, string> = {
     read: "Read file contents",
     write: "Create or overwrite files",
@@ -371,13 +430,14 @@ export function buildAgentSystemPrompt(params: {
   });
   const workspaceNotes = (params.workspaceNotes ?? []).map((note) => note.trim()).filter(Boolean);
 
-  // For "none" mode, return just the basic identity line
   if (promptMode === "none") {
-    return "You are a personal assistant running inside OpenClaw.";
+    return matrixLines.length > 0
+      ? matrixLines.join("\n")
+      : "You are a personal assistant running inside OpenClaw.";
   }
 
   const lines = [
-    "You are a personal assistant running inside OpenClaw.",
+    ...matrixLines,
     "",
     "## Tooling",
     "Tool availability (filtered by policy):",

@@ -138,7 +138,7 @@ async function resolveContextReport(
     : { enabled: false };
   const ttsHint = params.cfg ? buildTtsSystemPromptHint(params.cfg) : undefined;
 
-  const systemPrompt = buildAgentSystemPrompt({
+  const systemPrompt = await buildAgentSystemPrompt({
     workspaceDir,
     defaultThinkLevel: params.resolvedThinkLevel,
     reasoningLevel: params.resolvedReasoningLevel,

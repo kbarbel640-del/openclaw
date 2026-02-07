@@ -6,11 +6,17 @@ import { resolveImplicitProviders } from "./models-config.providers.js";
 
 describe("Ollama provider", () => {
   it("should not include ollama when no API key is configured", async () => {
-    const agentDir = mkdtempSync(join(tmpdir(), "openclaw-test-"));
-    const providers = await resolveImplicitProviders({ agentDir });
+    const prev = process.env.OLLAMA_API_KEY;
+    delete process.env.OLLAMA_API_KEY;
+    try {
+      const agentDir = mkdtempSync(join(tmpdir(), "openclaw-test-"));
+      const providers = await resolveImplicitProviders({ agentDir });
 
-    // Ollama requires explicit configuration via OLLAMA_API_KEY env var or profile
-    expect(providers?.ollama).toBeUndefined();
+      // Ollama requires explicit configuration via OLLAMA_API_KEY env var or profile
+      expect(providers?.ollama).toBeUndefined();
+    } finally {
+      if (prev !== undefined) process.env.OLLAMA_API_KEY = prev;
+    }
   });
 
   it("should disable streaming by default for Ollama models", async () => {

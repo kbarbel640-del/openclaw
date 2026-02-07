@@ -196,7 +196,7 @@ function buildModelAliasLines(cfg?: OpenClawConfig) {
     .map((entry) => `- ${entry.alias}: ${entry.model}`);
 }
 
-export function buildSystemPrompt(params: {
+export async function buildSystemPrompt(params: {
   workspaceDir: string;
   config?: OpenClawConfig;
   defaultThinkLevel?: ThinkLevel;
@@ -208,7 +208,7 @@ export function buildSystemPrompt(params: {
   contextFiles?: EmbeddedContextFile[];
   modelDisplay: string;
   agentId?: string;
-}) {
+}): Promise<string> {
   const defaultModelRef = resolveDefaultModelForAgent({
     cfg: params.config ?? {},
     agentId: params.agentId,
@@ -229,7 +229,7 @@ export function buildSystemPrompt(params: {
     },
   });
   const ttsHint = params.config ? buildTtsSystemPromptHint(params.config) : undefined;
-  return buildAgentSystemPrompt({
+  return await buildAgentSystemPrompt({
     workspaceDir: params.workspaceDir,
     defaultThinkLevel: params.defaultThinkLevel,
     extraSystemPrompt: params.extraSystemPrompt,

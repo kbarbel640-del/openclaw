@@ -346,7 +346,7 @@ export async function runEmbeddedAttempt(
     });
     const ttsHint = params.config ? buildTtsSystemPromptHint(params.config) : undefined;
 
-    const appendPrompt = buildEmbeddedSystemPrompt({
+    const appendPrompt = await buildEmbeddedSystemPrompt({
       workspaceDir: effectiveWorkspace,
       defaultThinkLevel: params.thinkLevel,
       reasoningLevel: params.reasoningLevel ?? "off",
@@ -372,6 +372,7 @@ export async function runEmbeddedAttempt(
       userTimeFormat,
       contextFiles,
       memoryCitationsMode: params.config?.memory?.citations,
+      userPrompt: params.prompt,
     });
     const systemPromptReport = buildSystemPromptReport({
       source: "run",
