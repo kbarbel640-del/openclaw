@@ -38,7 +38,7 @@ If you don't know the action name, call this WITHOUT the action first to see ava
 
 **IF the action is not found:**
 - Check the available_actions list in the response — it shows EXACT action names.
-- IMMEDIATELY retry with the correct action name from that list. Do NOT give up.
+- Retry once with the correct action name from that list.
 
 **Usage:**
 - query: The connector category (e.g., "email", "linkedin", "jira")
