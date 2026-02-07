@@ -1,7 +1,7 @@
 /**
  * Data-Service Connector Plugin for OpenClaw
  *
- * Provides 7 connector tools for accessing 70+ external service integrations.
+ * Provides 8 connector tools for accessing 70+ external service integrations.
  *
  * ## Wexa Coworker Web Integration
  *
@@ -63,6 +63,7 @@ const TOOL_NAMES = [
   "connector_schema",
   "connector_lookup",
   "user_connectors",
+  "coworker_list",
 ] as const;
 
 /** Confirmation guidance prepended to the agent prompt */
