@@ -18,6 +18,7 @@ import {
   updateSessionStore,
   updateSessionStoreEntry,
 } from "../../config/sessions.js";
+import { logVerbose } from "../../globals.js";
 import { emitDiagnosticEvent, isDiagnosticsEnabled } from "../../infra/diagnostic-events.js";
 import { defaultRuntime } from "../../runtime.js";
 import { estimateUsageCost, resolveModelCostConfig } from "../../utils/usage-format.js";
@@ -36,6 +37,7 @@ import { appendUsageLine, formatResponseUsageLine } from "./agent-runner-utils.j
 import { createAudioAsVoiceBuffer, createBlockReplyPipeline } from "./block-reply-pipeline.js";
 import { resolveBlockStreamingCoalescing } from "./block-streaming.js";
 import { createFollowupRunner } from "./followup-runner.js";
+import { executePreResponseHooks, getPreResponsePromptHooks } from "./pre-response-hook.js";
 import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
 import { createReplyToModeFilterForChannel, resolveReplyToMode } from "./reply-threading.js";
 import { incrementCompactionCount } from "./session-updates.js";
@@ -425,6 +427,33 @@ export async function runReplyAgent(params: {
       return finalizeWithFollowup(undefined, queueKey, runFollowupTurn);
     }
 
+    // Execute PreResponse hooks for validation (if configured)
+    const preResponseHooks = getPreResponsePromptHooks(cfg);
+    let validationFeedback: string | undefined;
+    if (preResponseHooks.length > 0) {
+      const responseText = replyPayloads
+        .map((p) => p.text ?? "")
+        .filter(Boolean)
+        .join("\n");
+      if (responseText) {
+        try {
+          const hookResult = await executePreResponseHooks({
+            cfg,
+            response: responseText,
+            workspaceDir: followupRun.run.workspaceDir,
+            agentDir: followupRun.run.agentDir,
+          });
+          if (!hookResult.passed && hookResult.feedback) {
+            logVerbose(`[pre-response-hook] Validation failed: ${hookResult.feedback}`);
+            validationFeedback = hookResult.feedback;
+          }
+        } catch (err) {
+          logVerbose(`[pre-response-hook] Error during validation: ${String(err)}`);
+          // On error, continue without blocking
+        }
+      }
+    }
+
     await signalTypingIfNeeded(replyPayloads, typingSignals);
 
     if (isDiagnosticsEnabled(cfg) && hasNonzeroUsage(usage)) {
@@ -511,6 +540,14 @@ export async function runReplyAgent(params: {
     }
     if (responseUsageLine) {
       finalPayloads = appendUsageLine(finalPayloads, responseUsageLine);
+    }
+
+    // If PreResponse validation failed, append feedback as a warning
+    if (validationFeedback) {
+      finalPayloads = [
+        ...finalPayloads,
+        { text: `\n\n⚠️ **Validation Note:** ${validationFeedback}` },
+      ];
     }
 
     return finalizeWithFollowup(

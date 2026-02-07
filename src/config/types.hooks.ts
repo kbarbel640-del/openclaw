@@ -123,7 +123,8 @@ export type AgentHookEventName =
   | "PreToolUse"
   | "PostToolUse"
   | "Stop"
-  | "PreCompact";
+  | "PreCompact"
+  | "PreResponse";
 
 /**
  * Single shell command hook definition.
@@ -134,6 +135,21 @@ export type ShellHookCommand = {
   type: "command";
   /** Shell command to execute */
   command: string;
+};
+
+/**
+ * Prompt-based hook definition for LLM validation.
+ * Sends content to a cheap/fast model for validation before proceeding.
+ */
+export type PromptHookCommand = {
+  /** Hook type - always 'prompt' for LLM validation */
+  type: "prompt";
+  /** Prompt template to send to the validation model */
+  prompt: string;
+  /** Model to use for validation (e.g., 'anthropic/claude-haiku-3.5') */
+  model?: string;
+  /** Maximum tokens for validation response */
+  maxTokens?: number;
 };
 
 /**
@@ -153,8 +169,8 @@ export type AgentHookMatcher = {
 export type AgentHookEntry = {
   /** Optional matcher to filter when this hook fires */
   matcher?: AgentHookMatcher | string;
-  /** Array of hook commands to execute */
-  hooks: ShellHookCommand[];
+  /** Array of hook commands to execute (shell or prompt-based) */
+  hooks: (ShellHookCommand | PromptHookCommand)[];
   /** Timeout in milliseconds for each command (default: 30000) */
   timeoutMs?: number;
   /** Working directory for command execution */
@@ -194,6 +210,8 @@ export type AgentHooksConfig = {
   PostToolUse?: AgentHookEntry[];
   Stop?: AgentHookEntry[];
   PreCompact?: AgentHookEntry[];
+  /** PreResponse hooks - validate agent response before sending to user */
+  PreResponse?: AgentHookEntry[];
 };
 
 export type HooksConfig = {

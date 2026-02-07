@@ -183,6 +183,7 @@ export function getConfiguredHookEvents(cfg: OpenClawConfig | undefined): AgentH
     "PostToolUse",
     "Stop",
     "PreCompact",
+    "PreResponse",
   ];
 
   return eventNames.filter((name) => hasConfiguredHooks(cfg, name));
