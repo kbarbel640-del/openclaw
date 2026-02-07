@@ -405,40 +405,19 @@ function buildDiscordSelectMenuCustomId(params: {
   ].join(";");
 }
 
-function parseDiscordSelectMenuCustomId(
-  customId: string,
-): { command: string; arg: string; userId: string } | null {
-  const colonIdx = customId.indexOf(":");
-  if (colonIdx === -1) {
-    return null;
-  }
-  const rawData = customId.slice(colonIdx + 1);
-  const entries = Object.fromEntries(
-    rawData
-      .split(";")
-      .filter(Boolean)
-      .map((pair) => {
-        const [k, ...rest] = pair.split("=");
-        return [k, decodeDiscordCommandArgValue(rest.join("="))];
-      }),
-  );
-  if (!entries.command || !entries.arg || !entries.user) {
-    return null;
-  }
-  return { command: entries.command, arg: entries.arg, userId: entries.user };
-}
-
 async function handleDiscordSelectMenuArgInteraction(
   interaction: StringSelectMenuInteraction,
   data: ComponentData,
   ctx: DiscordCommandArgContext,
 ) {
-  // The custom_id lives on the raw interaction data; Carbon does not expose it
-  // as a top-level property on StringSelectMenuInteraction.
-  const rawInteraction = interaction.rawData as { data?: { custom_id?: string } };
-  const raw = rawInteraction.data?.custom_id ?? "";
-  const parsed = parseDiscordSelectMenuCustomId(raw);
-  if (!parsed) {
+  // Carbon's customIdParser already parses the *interaction's* customId
+  // (not the fallback component's) into the `data` object.
+  const coerce = (value: unknown) =>
+    typeof value === "string" || typeof value === "number" ? String(value) : "";
+  const parsedCommand = coerce(data.command);
+  const parsedArg = coerce(data.arg);
+  const parsedUser = coerce(data.user);
+  if (!parsedCommand || !parsedArg || !parsedUser) {
     await safeDiscordInteractionCall("select menu update", () =>
       interaction.update({
         content: "Sorry, that selection is no longer available.",
@@ -447,6 +426,7 @@ async function handleDiscordSelectMenuArgInteraction(
     );
     return;
   }
+  const parsed = { command: parsedCommand, arg: parsedArg, userId: parsedUser };
   if (interaction.user?.id && interaction.user.id !== parsed.userId) {
     await safeDiscordInteractionCall("select menu ack", () => interaction.acknowledge());
     return;
