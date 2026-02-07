@@ -343,14 +343,20 @@ function patchSchemaForUI(node: unknown): unknown {
     return { type: "string" };
   }
 
-  // Simplify anyOf/oneOf with mixed branches
+  // Simplify anyOf/oneOf with mixed branches.
+  // Only replace the union key; preserve parent metadata (description, default, title, etc.).
   for (const key of ["anyOf", "oneOf"] as const) {
     const branches = obj[key];
     if (Array.isArray(branches) && branches.length > 1) {
       const simplified = simplifyUnion(branches);
       if (simplified) {
-        const { [key]: _, ...rest } = obj;
-        return patchSchemaForUI({ ...rest, ...simplified });
+        delete obj[key];
+        for (const [k, v] of Object.entries(simplified)) {
+          if (!(k in obj)) {
+            obj[k] = v;
+          }
+        }
+        return patchSchemaForUI(obj);
       }
     }
   }
@@ -410,9 +416,9 @@ function buildBaseConfigSchema(): ConfigSchemaResponse {
   schema.title = "OpenClawConfig";
   const hints = applyDerivedTags(mapSensitivePaths(OpenClawSchema, "", buildBaseHints()));
   const stripped = stripChannelSchema(schema);
-  patchSchemaForUI(stripped);
+  const patchedBase = patchSchemaForUI(stripped) as ConfigSchema;
   const next = {
-    schema: stripped,
+    schema: patchedBase,
     uiHints: hints,
     version: VERSION,
     generatedAt: new Date().toISOString(),
@@ -444,10 +450,10 @@ export function buildConfigSchema(params?: {
     applySensitiveHints(mergedWithoutSensitiveHints, extensionHintKeys),
   );
   const mergedSchema = applyChannelSchemas(applyPluginSchemas(base.schema, plugins), channels);
-  patchSchemaForUI(mergedSchema);
+  const patchedMerged = patchSchemaForUI(mergedSchema) as ConfigSchema;
   return {
     ...base,
-    schema: mergedSchema,
+    schema: patchedMerged,
     uiHints: mergedHints,
   };
 }
