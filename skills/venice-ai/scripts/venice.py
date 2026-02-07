@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Venice AI CLI — Full platform access: models, chat, embeddings, TTS, transcription."""
 
-from __future__ import annotations
-
 import argparse
 import base64
 import datetime as dt
@@ -63,10 +61,10 @@ def api_request(endpoint: str, method: str = "GET", payload: dict | None = None,
         headers["Authorization"] = f"Bearer {api_key}"
 
     data = None
-    if payload is not None:
+    if payload:
         headers["Content-Type"] = "application/json"
         data = json.dumps(payload).encode()
-    elif raw_data is not None:
+    elif raw_data:
         if content_type:
             headers["Content-Type"] = content_type
         data = raw_data
@@ -451,7 +449,7 @@ def cmd_transcribe(args):
                     ".m4a": "audio/mp4", ".aac": "audio/aac", ".mp4": "video/mp4"}
         mime = mime_map.get(suffix, "application/octet-stream")
     else:
-        print("Error: provide FILE or --url", file=sys.stderr)
+        print("Error: provide --file or --url", file=sys.stderr)
         sys.exit(1)
 
     fields = {"model": "nvidia/parakeet-tdt-0.6b-v3"}
