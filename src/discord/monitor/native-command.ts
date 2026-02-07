@@ -468,11 +468,8 @@ async function handleDiscordSelectMenuArgInteraction(
   };
   const prompt = buildCommandTextFromArgs(commandDefinition, commandArgsWithRaw);
 
-  // Dispatch the command through the normal pipeline.
-  // StringSelectMenuInteraction is structurally compatible with ButtonInteraction
-  // for the fields used by dispatchDiscordCommandInteraction.
   await dispatchDiscordCommandInteraction({
-    interaction: interaction as unknown as ButtonInteraction,
+    interaction,
     prompt,
     command: commandDefinition,
     commandArgs: commandArgsWithRaw,
@@ -733,7 +730,7 @@ export function createDiscordNativeCommand(params: {
 }
 
 async function dispatchDiscordCommandInteraction(params: {
-  interaction: CommandInteraction | ButtonInteraction;
+  interaction: CommandInteraction | ButtonInteraction | StringSelectMenuInteraction;
   prompt: string;
   command: ChatCommandDefinition;
   commandArgs?: CommandArgs;
@@ -1105,7 +1102,7 @@ async function dispatchDiscordCommandInteraction(params: {
 }
 
 async function deliverDiscordInteractionReply(params: {
-  interaction: CommandInteraction | ButtonInteraction;
+  interaction: CommandInteraction | ButtonInteraction | StringSelectMenuInteraction;
   payload: ReplyPayload;
   textLimit: number;
   maxLinesPerMessage?: number;
