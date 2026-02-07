@@ -188,8 +188,7 @@ export async function memoryInspectCommand(
   for (const level of levels) {
     const entries = index.levels[level]
       .filter((e) => !e.mergedInto) // Only show unmerged (active) summaries
-      .slice()
-      .sort((a, b) => b.createdAt - a.createdAt); // Most recent first
+      .toSorted((a, b) => b.createdAt - a.createdAt); // Most recent first
 
     for (const entry of entries.slice(0, limit)) {
       const result = await readSummary(level, entry.id, agentId);
