@@ -8,6 +8,7 @@ import { resolveThinkingDefault } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
+import { isRoutableChannel, routeReply } from "../../auto-reply/reply/route-reply.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { appendTranscriptMessage } from "../../config/sessions/transcript-raw.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
@@ -268,6 +269,12 @@ export const chatHandlers: GatewayRequestHandlers = {
       }
     }
     const { cfg, entry } = loadSessionEntry(p.sessionKey);
+    const externalOrigin = entry?.origin;
+    const shouldForwardToOrigin =
+      isRoutableChannel(externalOrigin?.provider) &&
+      typeof externalOrigin?.to === "string" &&
+      externalOrigin.to.length > 0;
+
     const timeoutMs = resolveAgentTimeoutMs({
       cfg,
       overrideMs: p.timeoutMs,
@@ -398,6 +405,21 @@ export const chatHandlers: GatewayRequestHandlers = {
         },
       });
 
+      if (shouldForwardToOrigin && externalOrigin) {
+        void routeReply({
+          payload: { text: `[Control UI] ${parsedMessage}` },
+          channel: externalOrigin.provider!,
+          to: externalOrigin.to!,
+          accountId: externalOrigin.accountId,
+          threadId: externalOrigin.threadId,
+          sessionKey: p.sessionKey,
+          cfg,
+          mirror: false,
+        }).catch((err) => {
+          context.logGateway.warn(`webchat->external forward (user) failed: ${formatForLog(err)}`);
+        });
+      }
+
       let agentRunStarted = false;
       void dispatchInboundMessage({
         ctx,
@@ -469,6 +491,23 @@ export const chatHandlers: GatewayRequestHandlers = {
               message,
             });
           }
+          if (shouldForwardToOrigin && externalOrigin && combinedReply) {
+            void routeReply({
+              payload: { text: combinedReply },
+              channel: externalOrigin.provider!,
+              to: externalOrigin.to!,
+              accountId: externalOrigin.accountId,
+              threadId: externalOrigin.threadId,
+              sessionKey: p.sessionKey,
+              cfg,
+              mirror: false,
+            }).catch((err) => {
+              context.logGateway.warn(
+                `webchat->external forward (reply) failed: ${formatForLog(err)}`,
+              );
+            });
+          }
+
           context.dedupe.set(`chat:${clientRunId}`, {
             ts: Date.now(),
             ok: true,
