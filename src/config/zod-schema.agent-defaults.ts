@@ -108,6 +108,7 @@ export const AgentDefaultsSchema = z
     hierarchicalMemory: z
       .object({
         enabled: z.boolean().optional(),
+        workerInterval: z.string().optional(),
         workerIntervalMs: z.number().int().positive().optional(),
         chunkTokens: z.number().int().positive().optional(),
         summaryTargetTokens: z.number().int().positive().optional(),

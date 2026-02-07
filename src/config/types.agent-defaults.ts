@@ -272,7 +272,9 @@ export type AgentCompactionMemoryFlushConfig = {
 export type HierarchicalMemoryConfig = {
   /** Enable hierarchical memory system (default: false). */
   enabled?: boolean;
-  /** How often the background worker runs in milliseconds (default: 300000 = 5 min). */
+  /** How often the background worker runs (duration string, e.g. "5m", "30s"; default: "5m"). */
+  workerInterval?: string;
+  /** @deprecated Use workerInterval instead. Worker interval in milliseconds. */
   workerIntervalMs?: number;
   /** Minimum tokens in a chunk before summarization (default: 6000). */
   chunkTokens?: number;

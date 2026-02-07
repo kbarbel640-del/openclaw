@@ -65,7 +65,7 @@ export async function loadMemoryContext(agentId?: string): Promise<MemoryContext
 function formatMemorySection(L3: string[], L2: string[], L1: string[]): string {
   const sections: string[] = [];
 
-  sections.push("\n## My memories of our conversation\n");
+  sections.push("## My memories of our conversation\n");
   sections.push("(These are my autobiographical memories from our ongoing relationship.)\n");
 
   if (L3.length > 0) {

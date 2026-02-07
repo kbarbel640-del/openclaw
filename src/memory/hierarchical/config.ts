@@ -3,7 +3,23 @@
  */
 
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import { parseDurationMs } from "../../cli/parse-duration.js";
 import { DEFAULT_HIERARCHICAL_MEMORY_CONFIG, type HierarchicalMemoryConfig } from "./types.js";
+
+/** Parse workerInterval string or fall back to workerIntervalMs / default */
+function resolveWorkerIntervalMs(raw: {
+  workerInterval?: string;
+  workerIntervalMs?: number;
+}): number {
+  if (raw.workerInterval) {
+    try {
+      return parseDurationMs(raw.workerInterval, { defaultUnit: "m" });
+    } catch {
+      // Fall through to workerIntervalMs or default
+    }
+  }
+  return raw.workerIntervalMs ?? DEFAULT_HIERARCHICAL_MEMORY_CONFIG.workerIntervalMs;
+}
 
 /** Resolve hierarchical memory config with defaults */
 export function resolveHierarchicalMemoryConfig(cfg?: OpenClawConfig): HierarchicalMemoryConfig {
@@ -15,7 +31,7 @@ export function resolveHierarchicalMemoryConfig(cfg?: OpenClawConfig): Hierarchi
 
   return {
     enabled: raw.enabled ?? DEFAULT_HIERARCHICAL_MEMORY_CONFIG.enabled,
-    workerIntervalMs: raw.workerIntervalMs ?? DEFAULT_HIERARCHICAL_MEMORY_CONFIG.workerIntervalMs,
+    workerIntervalMs: resolveWorkerIntervalMs(raw),
     chunkTokens: raw.chunkTokens ?? DEFAULT_HIERARCHICAL_MEMORY_CONFIG.chunkTokens,
     summaryTargetTokens:
       raw.summaryTargetTokens ?? DEFAULT_HIERARCHICAL_MEMORY_CONFIG.summaryTargetTokens,
