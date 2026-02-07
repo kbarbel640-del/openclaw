@@ -25,6 +25,7 @@ type ActiveLogin = {
   id: string;
   sock: WaSocket;
   startedAt: number;
+  mode: "qr" | "pairing-code";
   qr?: string;
   qrDataUrl?: string;
   connected: boolean;
@@ -183,6 +184,7 @@ export async function startWebLoginWithQr(
     id: randomUUID(),
     sock,
     startedAt: Date.now(),
+    mode: "qr",
     connected: false,
     waitPromise: Promise.resolve(),
     restartAttempted: false,
@@ -275,6 +277,7 @@ export async function startWebLoginWithPairingCode(
     id: randomUUID(),
     sock,
     startedAt: Date.now(),
+    mode: "pairing-code",
     connected: false,
     waitPromise: Promise.resolve(),
     restartAttempted: false,
@@ -323,22 +326,29 @@ export async function waitForWebLogin(
   }
 
   const login = activeLogin;
+  const isPairingCode = login.mode === "pairing-code";
   if (!isLoginFresh(login)) {
     await resetActiveLogin(account.accountId);
     return {
       connected: false,
-      message: "The login QR expired. Ask me to generate a new one.",
+      message: isPairingCode
+        ? "The pairing code expired. Request a new one."
+        : "The login QR expired. Ask me to generate a new one.",
     };
   }
   const timeoutMs = Math.max(opts.timeoutMs ?? 120_000, 1000);
   const deadline = Date.now() + timeoutMs;
+
+  const waitingMessage = isPairingCode
+    ? "Still waiting for the pairing code to be entered. Enter it in WhatsApp → Linked Devices."
+    : "Still waiting for the QR scan. Let me know when you've scanned it.";
 
   while (true) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
       return {
         connected: false,
-        message: "Still waiting for the QR scan. Let me know when you’ve scanned it.",
+        message: waitingMessage,
       };
     }
     const timeout = new Promise<"timeout">((resolve) =>
@@ -349,7 +359,7 @@ export async function waitForWebLogin(
     if (result === "timeout") {
       return {
         connected: false,
-        message: "Still waiting for the QR scan. Let me know when you’ve scanned it.",
+        message: waitingMessage,
       };
     }
 
@@ -360,8 +370,9 @@ export async function waitForWebLogin(
           isLegacyAuthDir: login.isLegacyAuthDir,
           runtime,
         });
-        const message =
-          "WhatsApp reported the session is logged out. Cleared cached web session; please scan a new QR.";
+        const message = isPairingCode
+          ? "WhatsApp reported the session is logged out. Cleared cached web session; please request a new pairing code."
+          : "WhatsApp reported the session is logged out. Cleared cached web session; please scan a new QR.";
         await resetActiveLogin(account.accountId, message);
         runtime.log(danger(message));
         return { connected: false, message };

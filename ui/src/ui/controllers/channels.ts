@@ -52,7 +52,11 @@ export async function startWhatsAppLogin(state: ChannelsState, force: boolean) {
   }
 }
 
-export async function startWhatsAppPairingCode(state: ChannelsState, phoneNumber: string) {
+export async function startWhatsAppPairingCode(
+  state: ChannelsState,
+  phoneNumber: string,
+  force?: boolean,
+) {
   if (!state.client || !state.connected || state.whatsappBusy) {
     return;
   }
@@ -63,7 +67,7 @@ export async function startWhatsAppPairingCode(state: ChannelsState, phoneNumber
       "web.login.start",
       {
         phoneNumber,
-        force: true,
+        force: force ?? false,
         timeoutMs: 30000,
       },
     );
