@@ -3389,6 +3389,9 @@ export function extractKnowledge(options = {}) {
           const content = match[1]?.trim() || match[0];
           if (content.length > 10 && content.length < 500) {
             insertStmt.run(category, topic, content, JSON.stringify([msg.id]), 0.6);
+            // 取得新 row 的 ID 並生成向量嵌入
+            const knowledgeId = database.prepare("SELECT last_insert_rowid() as id").get().id;
+            vecModule.storeKnowledgeVector(database, Number(knowledgeId), `${topic}: ${content}`);
             extracted.push({
               category,
               topic,
@@ -7979,6 +7982,7 @@ export default {
   // Convenience wrappers (auto-inject db)
   embedMessage,
   searchSemantic,
+  searchKnowledge,
 };
 
 /**
@@ -7998,6 +8002,18 @@ export function searchSemantic(query, options = {}) {
     return vecModule.semanticSearch(getDb(), query, options);
   } catch (err) {
     console.warn("[time-tunnel] searchSemantic error:", err.message);
+    return [];
+  }
+}
+
+/**
+ * 便利函式：搜索知識庫向量（自動注入 db）
+ */
+export function searchKnowledge(query, options = {}) {
+  try {
+    return vecModule.semanticSearchKnowledge(getDb(), query, options);
+  } catch (err) {
+    console.warn("[time-tunnel] searchKnowledge error:", err.message);
     return [];
   }
 }

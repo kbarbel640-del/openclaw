@@ -56,6 +56,15 @@ interface VecSearchResult {
   similarity: number;
 }
 
+interface KnowledgeResult {
+  knowledge_id: number;
+  category: string;
+  topic: string;
+  content: string;
+  confidence: number;
+  similarity: number;
+}
+
 interface TimeTunnelModule {
   search: (query: string, opts?: { person?: string; limit?: number }) => SearchResult[];
   checkReminders: (ctx: { message?: string; sender?: string; chat?: string }) => ReminderResult[];
@@ -63,6 +72,10 @@ interface TimeTunnelModule {
     query: string,
     opts?: { limit?: number; minScore?: number },
   ) => VecSearchResult[];
+  searchKnowledge: (
+    query: string,
+    opts?: { limit?: number; category?: string },
+  ) => KnowledgeResult[];
 }
 
 let timeTunnelModule: TimeTunnelModule | null = null;
@@ -80,6 +93,7 @@ async function loadTimeTunnel(): Promise<TimeTunnelModule | null> {
       search: mod.search,
       checkReminders: typeof mod.checkReminders === "function" ? mod.checkReminders : () => [],
       searchSemantic: typeof mod.searchSemantic === "function" ? mod.searchSemantic : () => [],
+      searchKnowledge: typeof mod.searchKnowledge === "function" ? mod.searchKnowledge : () => [],
     };
     return timeTunnelModule;
   } catch {
@@ -374,6 +388,14 @@ export async function buildProactiveRecall(
       if (mergedResults.length >= MAX_SEARCH_RESULTS) break;
     }
 
+    // Knowledge base search (vector-based)
+    let knowledgeResults: KnowledgeResult[] = [];
+    try {
+      knowledgeResults = mod.searchKnowledge(messageBody, { limit: 3 });
+    } catch {
+      // knowledge search may not be available
+    }
+
     // Reminder rules check
     let reminders: ReminderResult[] = [];
     try {
@@ -387,9 +409,10 @@ export async function buildProactiveRecall(
     }
 
     const hasSearch = mergedResults.length > 0;
+    const hasKnowledge = knowledgeResults.length > 0;
     const hasReminders = reminders.length > 0;
 
-    if (!hasSearch && !hasReminders) return "";
+    if (!hasSearch && !hasKnowledge && !hasReminders) return "";
 
     // Build output
     const lines: string[] = ["[Recall — related history for context]"];
@@ -399,8 +422,16 @@ export async function buildProactiveRecall(
       lines.push(...formatSearchResults(mergedResults));
     }
 
-    if (hasReminders) {
+    if (hasKnowledge) {
       if (hasSearch) lines.push("");
+      lines.push("Relevant knowledge:");
+      for (const k of knowledgeResults) {
+        lines.push(`  [${k.category}/${k.topic}] ${truncate(k.content, MAX_SNIPPET_CHARS)}`);
+      }
+    }
+
+    if (hasReminders) {
+      if (hasSearch || hasKnowledge) lines.push("");
       lines.push("Triggered reminders:");
       lines.push(...formatReminderResults(reminders));
     }
