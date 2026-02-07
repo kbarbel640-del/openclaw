@@ -8,6 +8,7 @@ import { upsertSharedEnvVar } from "../../../infra/env-file.js";
 import { shortenHomePath } from "../../../utils.js";
 import { buildTokenProfileId, validateAnthropicSetupToken } from "../../auth-token.js";
 import { applyGoogleGeminiModelDefault } from "../../google-gemini-model-default.js";
+import { setHuaweiMaasApiKey } from "../../onboard-auth.credentials.js";
 import {
   applyAuthProfileConfig,
   applyHuaweiMaasConfig,

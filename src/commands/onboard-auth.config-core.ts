@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
+import type { ModelDefinitionConfig } from "../config/types.js";
 import {
   buildCloudflareAiGatewayModelDefinition,
   resolveCloudflareAiGatewayBaseUrl,
@@ -38,7 +39,7 @@ import {
   XAI_DEFAULT_MODEL_ID,
 } from "./onboard-auth.models.js";
 
-function buildHuaweiMaasModelDefinitions(): any[] {
+function buildHuaweiMaasModelDefinitions(): ModelDefinitionConfig[] {
   return HUAWEI_MAAS_DEFAULT_MODELS;
 }
 

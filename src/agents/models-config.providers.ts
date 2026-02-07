@@ -187,7 +187,7 @@ export async function discoverHuaweiMaasModels(apiKey: string): Promise<ModelDef
         maxTokens: HUAWEI_MAAS_DEFAULT_MAX_TOKENS,
       };
     });
-  } catch (_error) {
+  } catch {
     return [];
   }
 }
