@@ -25,12 +25,20 @@ const resolveOAuthProvider = (provider: string): OAuthProvider | null =>
 
 function buildOAuthApiKey(provider: string, credentials: OAuthCredentials): string {
   const needsProjectId = provider === "google-gemini-cli" || provider === "google-antigravity";
-  return needsProjectId
-    ? JSON.stringify({
-        token: credentials.access,
-        projectId: credentials.projectId,
-      })
-    : credentials.access;
+  if (needsProjectId) {
+    return JSON.stringify({
+      token: credentials.access,
+      projectId: credentials.projectId,
+    });
+  }
+  const needsRoutingHint = provider === "anthropic" && (credentials as any).routingHint;
+  if (needsRoutingHint) {
+    return JSON.stringify({
+      token: credentials.access,
+      routingHint: (credentials as any).routingHint,
+    });
+  }
+  return credentials.access;
 }
 
 async function refreshOAuthTokenWithLock(params: {
@@ -188,7 +196,11 @@ export async function resolveApiKeyForProfile(params: {
     ) {
       return null;
     }
-    return { apiKey: token, provider: cred.provider, email: cred.email };
+    const apiKey =
+      cred.provider === "anthropic" && (cred as any).routingHint
+        ? JSON.stringify({ token, routingHint: (cred as any).routingHint })
+        : token;
+    return { apiKey, provider: cred.provider, email: cred.email };
   }
   if (Date.now() < cred.expires) {
     return {
