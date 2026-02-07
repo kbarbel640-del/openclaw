@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   extractSummaryContent,
   generateNextSummaryId,
+  hasSummaries,
+  loadSummaryContents,
   loadSummaryIndex,
   readSummary,
   saveSummaryIndex,
@@ -183,6 +185,191 @@ This is the actual summary content.`;
     it("returns content as-is if no metadata", () => {
       const content = extractSummaryContent("Just plain content");
       expect(content).toBe("Just plain content");
+    });
+  });
+
+  // ── Edge case tests ───────────────────────────────────────────
+
+  describe("generateNextSummaryId - edge cases", () => {
+    it("handles non-numeric IDs by ignoring them (NaN < max is false)", () => {
+      const index = createEmptyIndex("test");
+      index.levels.L1 = [
+        {
+          id: "abc",
+          level: "L1",
+          createdAt: 0,
+          tokenEstimate: 0,
+          sourceLevel: "L0",
+          sourceIds: [],
+          mergedInto: null,
+        },
+        {
+          id: "0002",
+          level: "L1",
+          createdAt: 0,
+          tokenEstimate: 0,
+          sourceLevel: "L0",
+          sourceIds: [],
+          mergedInto: null,
+        },
+      ];
+      // parseInt("abc", 10) = NaN, NaN > 2 is false, so max stays 2
+      expect(generateNextSummaryId(index, "L1")).toBe("0003");
+    });
+
+    it("handles IDs with leading zeros correctly", () => {
+      const index = createEmptyIndex("test");
+      index.levels.L1 = [
+        {
+          id: "0099",
+          level: "L1",
+          createdAt: 0,
+          tokenEstimate: 0,
+          sourceLevel: "L0",
+          sourceIds: [],
+          mergedInto: null,
+        },
+      ];
+      expect(generateNextSummaryId(index, "L1")).toBe("0100");
+    });
+
+    it("handles large ID numbers beyond 4-digit padding", () => {
+      const index = createEmptyIndex("test");
+      index.levels.L1 = [
+        {
+          id: "9999",
+          level: "L1",
+          createdAt: 0,
+          tokenEstimate: 0,
+          sourceLevel: "L0",
+          sourceIds: [],
+          mergedInto: null,
+        },
+      ];
+      // 10000 padded to 4 is "10000" (5 chars)
+      expect(generateNextSummaryId(index, "L1")).toBe("10000");
+    });
+  });
+
+  describe("loadSummaryIndex - corrupt data", () => {
+    it("throws on invalid JSON in index file", async () => {
+      const indexDir = path.join(tempDir, "agents", "main", "memory", "summaries");
+      await fs.mkdir(indexDir, { recursive: true });
+      await fs.writeFile(path.join(indexDir, "index.json"), "not valid json");
+
+      await expect(loadSummaryIndex()).rejects.toThrow();
+    });
+
+    it("warns but loads index with unknown version", async () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const indexDir = path.join(tempDir, "agents", "main", "memory", "summaries");
+      await fs.mkdir(indexDir, { recursive: true });
+      const index = createEmptyIndex("main");
+      (index as { version: number }).version = 99;
+      await fs.writeFile(path.join(indexDir, "index.json"), JSON.stringify(index));
+
+      const loaded = await loadSummaryIndex();
+      expect(loaded.version).toBe(99);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Unknown summary index version 99"),
+      );
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe("readSummary - metadata edge cases", () => {
+    it("handles metadata with malformed sourceIds JSON", async () => {
+      const entry: SummaryEntry = {
+        id: "0010",
+        level: "L1",
+        createdAt: Date.now(),
+        tokenEstimate: 100,
+        sourceLevel: "L0",
+        sourceIds: ["e1"],
+        mergedInto: null,
+      };
+      await writeSummary(entry, "test content");
+
+      // Manually corrupt the sourceIds in the file
+      const { resolveSummaryPath } = await import("./storage.js");
+      const filePath = resolveSummaryPath("L1", "0010");
+      let raw = await fs.readFile(filePath, "utf-8");
+      raw = raw.replace(/sourceIds: \[.*\]/, "sourceIds: [invalid json");
+      await fs.writeFile(filePath, raw);
+
+      const result = await readSummary("L1", "0010");
+      expect(result).not.toBeNull();
+      // Malformed JSON falls back to []
+      expect(result?.metadata.sourceIds).toEqual([]);
+    });
+
+    it("returns empty metadata when file has no comment block", async () => {
+      const { resolveSummaryPath, ensureSummariesDir } = await import("./storage.js");
+      await ensureSummariesDir();
+      const filePath = resolveSummaryPath("L1", "0020");
+      await fs.writeFile(filePath, "Just plain content, no metadata.");
+
+      const result = await readSummary("L1", "0020");
+      expect(result).not.toBeNull();
+      expect(result?.metadata).toEqual({});
+      expect(result?.content).toBe("Just plain content, no metadata.");
+    });
+  });
+
+  describe("loadSummaryContents", () => {
+    it("skips entries whose files are missing", async () => {
+      const entry1: SummaryEntry = {
+        id: "0001",
+        level: "L1",
+        createdAt: Date.now(),
+        tokenEstimate: 100,
+        sourceLevel: "L0",
+        sourceIds: [],
+        mergedInto: null,
+      };
+      const entry2: SummaryEntry = {
+        id: "0002",
+        level: "L1",
+        createdAt: Date.now(),
+        tokenEstimate: 100,
+        sourceLevel: "L0",
+        sourceIds: [],
+        mergedInto: null,
+      };
+      // Only write entry1
+      await writeSummary(entry1, "first summary");
+      // entry2 file does not exist
+
+      const contents = await loadSummaryContents([entry1, entry2]);
+      expect(contents).toHaveLength(1);
+      expect(contents[0]).toBe("first summary");
+    });
+
+    it("returns empty array for empty entries list", async () => {
+      const contents = await loadSummaryContents([]);
+      expect(contents).toEqual([]);
+    });
+  });
+
+  describe("hasSummaries", () => {
+    it("returns false when no index exists", async () => {
+      expect(await hasSummaries()).toBe(false);
+    });
+
+    it("returns true when L1 summaries exist", async () => {
+      const index = createEmptyIndex("main");
+      index.levels.L1.push({
+        id: "0001",
+        level: "L1",
+        createdAt: 0,
+        tokenEstimate: 0,
+        sourceLevel: "L0",
+        sourceIds: [],
+        mergedInto: null,
+      });
+      await saveSummaryIndex(index);
+
+      expect(await hasSummaries()).toBe(true);
     });
   });
 });
