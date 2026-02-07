@@ -450,7 +450,7 @@ export function createTelegramBot(opts: TelegramBotOptions) {
       const peerId = isGroup ? buildTelegramGroupPeerId(chatId, resolvedThreadId) : String(chatId);
       const parentPeer = buildTelegramParentPeer({ isGroup, resolvedThreadId, chatId });
       const route = resolveAgentRoute({
-        cfg,
+        cfg: loadConfig(),
         channel: "telegram",
         accountId: account.accountId,
         peer: { kind: isGroup ? "group" : "dm", id: peerId },

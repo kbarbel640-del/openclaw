@@ -26,6 +26,7 @@ import { logInboundDrop } from "../channels/logging.js";
 import { resolveMentionGatingWithBypass } from "../channels/mention-gating.js";
 import { recordInboundSession } from "../channels/session.js";
 import { formatCliCommand } from "../cli/command-format.js";
+import { loadConfig } from "../config/config.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../config/sessions.js";
 import { logVerbose, shouldLogVerbose } from "../globals.js";
 import { recordChannelActivity } from "../infra/channel-activity.js";
@@ -164,7 +165,7 @@ export const buildTelegramMessageContext = async ({
   const peerId = isGroup ? buildTelegramGroupPeerId(chatId, resolvedThreadId) : String(chatId);
   const parentPeer = buildTelegramParentPeer({ isGroup, resolvedThreadId, chatId });
   const route = resolveAgentRoute({
-    cfg,
+    cfg: loadConfig(),
     channel: "telegram",
     accountId: account.accountId,
     peer: {
