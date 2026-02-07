@@ -561,6 +561,8 @@ export async function startGatewayServer(
 
   // Boot hook: if memory.backend resolves to QMD, eagerly create the manager once so its
   // periodic update/embed interval is armed even if no memory tool is called after restart.
+  // Intentionally fire-and-forget: we don't want to block gateway startup, and shutdown/restart
+  // does not currently cancel this in-flight initialization.
   void startGatewayMemoryBackendOnBoot({ cfg: cfgAtStart });
 
   const { applyHotReload, requestGatewayRestart } = createGatewayReloadHandlers({

@@ -23,13 +23,17 @@ export async function startGatewayMemoryBackendOnBoot(params: {
       return;
     }
 
-    const { manager, error } = await getMemorySearchManager({ cfg: params.cfg, agentId });
+    const { manager, backend, error } = await getMemorySearchManager({ cfg: params.cfg, agentId });
     if (manager) {
-      log.info("initialized on boot");
+      if (backend === "qmd") {
+        log.info("initialized on boot");
+        return;
+      }
+      log.warn("boot init failed, using builtin fallback", { error });
       return;
     }
-    log.warn(`failed to initialize on boot: ${error ?? "unknown error"}`);
+    log.warn("failed to initialize on boot", { error: error ?? "unknown error" });
   } catch (err) {
-    log.warn(`failed to initialize on boot: ${String(err)}`);
+    log.warn("failed to initialize on boot", { err });
   }
 }
