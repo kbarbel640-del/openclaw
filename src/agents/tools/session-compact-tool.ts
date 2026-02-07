@@ -24,6 +24,7 @@ const SCHEDULED_COMPACTIONS = new Set<string>();
 export function createSessionCompactTool(opts?: {
   agentSessionKey?: string;
   agentSessionId?: string;
+  agentId?: string;
   config?: OpenClawConfig;
 }): AnyAgentTool {
   return {
@@ -54,8 +55,7 @@ export function createSessionCompactTool(opts?: {
       }
 
       const cfg = opts?.config ?? loadConfig();
-
-      const agentId = resolveSessionAgentId({ sessionKey, config: cfg });
+      const agentId = opts?.agentId?.trim() || resolveSessionAgentId({ sessionKey, config: cfg });
       const storePath = resolveStorePath(cfg.session?.store, { agentId });
       const store = loadSessionStore(storePath);
       const entry = store[sessionKey];

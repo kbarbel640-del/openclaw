@@ -91,6 +91,10 @@ export function createOpenClawTools(options?: {
         sandboxRoot: options?.sandboxRoot,
         requireExplicitTarget: options?.requireExplicitMessageTarget,
       });
+  const agentId = resolveSessionAgentId({
+    sessionKey: options?.agentSessionKey,
+    config: options?.config,
+  });
   const tools: AnyAgentTool[] = [
     createBrowserTool({
       sandboxBridgeUrl: options?.sandboxBrowserBridgeUrl,
@@ -149,6 +153,7 @@ export function createOpenClawTools(options?: {
     createSessionCompactTool({
       agentSessionKey: options?.agentSessionKey,
       agentSessionId: options?.agentSessionId,
+      agentId,
       config: options?.config,
     }),
     ...(webSearchTool ? [webSearchTool] : []),
@@ -161,10 +166,7 @@ export function createOpenClawTools(options?: {
       config: options?.config,
       workspaceDir: options?.workspaceDir,
       agentDir: options?.agentDir,
-      agentId: resolveSessionAgentId({
-        sessionKey: options?.agentSessionKey,
-        config: options?.config,
-      }),
+      agentId,
       sessionKey: options?.agentSessionKey,
       messageChannel: options?.agentChannel,
       agentAccountId: options?.agentAccountId,
