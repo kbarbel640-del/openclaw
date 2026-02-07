@@ -1916,12 +1916,8 @@ async function getEmbedding(text) {
     return embeddingCache.get(cacheKey);
   }
 
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) return null;
-
   try {
-    // DeepSeek 目前沒有 embedding API，改用 OpenAI 兼容接口或簡化方案
-    // 這裡使用簡化的 TF-IDF 向量代替
+    // Hash-based TF-IDF embedding fallback (no external API needed)
     const words = text
       .toLowerCase()
       .split(/\s+/)
@@ -3158,7 +3154,7 @@ export async function consolidateMemories(options = {}) {
     // 生成摘要
     let summary = "";
     if (generateSummary) {
-      summary = await generateConsolidationSummary(messages, group);
+      summary = generateConsolidationSummary(messages, group);
     } else {
       summary = `${group.period_start} ~ ${group.period_end}: ${group.message_count} 條消息，參與者：${participants.join(", ")}`;
     }
@@ -3227,58 +3223,41 @@ function extractKeyPoints(messages) {
 }
 
 /**
- * 生成整合摘要（調用 LLM）
+ * 生成整合摘要（規則式，無外部 API 依賴）
  */
-async function generateConsolidationSummary(messages, group) {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    // 降級到簡單摘要
-    const participants = [...new Set(messages.map((m) => m.sender).filter(Boolean))];
-    return `${group.period_start} ~ ${group.period_end}：共 ${messages.length} 條消息。主要參與者：${participants.slice(0, 5).join("、")}。`;
+function generateConsolidationSummary(messages, group) {
+  const participants = [...new Set(messages.map((m) => m.sender).filter(Boolean))];
+  const keyPoints = extractKeyPoints(messages);
+
+  let summary = `${group.period_start} ~ ${group.period_end}：共 ${messages.length} 條消息。`;
+  summary += `\n參與者：${participants.slice(0, 5).join("、")}。`;
+
+  if (keyPoints.length > 0) {
+    summary += "\n關鍵點：";
+    for (const kp of keyPoints.slice(0, 5)) {
+      summary += `\n- [${kp.keyword}] ${kp.sender || "?"}: ${kp.preview}`;
+    }
   }
 
-  // 準備摘要提示
-  const sampleMessages = messages
-    .slice(0, 30)
-    .map(
-      (m) =>
-        `[${m.timestamp.split("T")[0]}] ${m.sender || "無極"}: ${m.content?.substring(0, 100)}`,
-    )
-    .join("\n");
-
-  try {
-    const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: [
-          {
-            role: "system",
-            content:
-              "你是一個對話摘要助手。請用繁體中文生成簡潔的對話摘要（100字以內），包含：主要話題、關鍵決定、重要結論。",
-          },
-          {
-            role: "user",
-            content: `請摘要以下 ${messages.length} 條對話（${group.period_start} ~ ${group.period_end}）：\n\n${sampleMessages}`,
-          },
-        ],
-        max_tokens: 300,
-        temperature: 0.3,
-      }),
-    });
-
-    const data = await response.json();
-    return (
-      data.choices?.[0]?.message?.content ||
-      `${group.period_start} ~ ${group.period_end}：${messages.length} 條消息`
-    );
-  } catch (err) {
-    return `${group.period_start} ~ ${group.period_end}：${messages.length} 條消息（摘要生成失敗）`;
+  // 高頻詞彙提取
+  const topicCounts = {};
+  for (const msg of messages) {
+    if (!msg.content) continue;
+    const phrases = msg.content.match(/[\u4e00-\u9fff]{2,4}/g) || [];
+    for (const p of phrases) {
+      topicCounts[p] = (topicCounts[p] || 0) + 1;
+    }
   }
+  const topTopics = Object.entries(topicCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word]) => word);
+
+  if (topTopics.length > 0) {
+    summary += `\n高頻詞彙：${topTopics.join("、")}`;
+  }
+
+  return summary;
 }
 
 /**
@@ -7983,6 +7962,7 @@ export default {
   embedMessage,
   searchSemantic,
   searchKnowledgeVec,
+  recordFeedbackJudgment,
 };
 
 /**
@@ -8024,6 +8004,35 @@ export async function embedMessage(messageId, content) {
   } catch (err) {
     console.warn("[time-tunnel] embedMessage error:", err.message);
     return false;
+  }
+}
+
+/**
+ * 便利函式：記錄回饋判斷（logJudgment 的公開版）
+ */
+export function recordFeedbackJudgment(params) {
+  const database = getDb();
+  initConsciousnessTables();
+  const { chatId, channel, messageContent, sender, judgment, confidence, reasoning } = params;
+  try {
+    database
+      .prepare(
+        `INSERT INTO conversation_judgments
+      (chat_id, channel, message_content, sender, judgment, confidence, reasoning, model_used)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        chatId,
+        channel,
+        (messageContent || "").slice(0, 500),
+        sender,
+        judgment,
+        confidence,
+        reasoning,
+        "auto-feedback",
+      );
+  } catch (err) {
+    console.warn("[time-tunnel] recordFeedbackJudgment error:", err.message);
   }
 }
 
