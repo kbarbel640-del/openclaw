@@ -371,8 +371,11 @@ export function normalizeCommandBody(raw: string, options?: CommandNormalizeOpti
     return trimmed;
   }
 
+  // Preserve newlines for skill commands if requested
   const newline = trimmed.indexOf("\n");
-  const singleLine = newline === -1 ? trimmed : trimmed.slice(0, newline).trim();
+  const singleLine = newline === -1 || options?.preserveNewlines 
+    ? trimmed 
+    : trimmed.slice(0, newline).trim();
 
   const colonMatch = singleLine.match(/^\/([^\s:]+)\s*:(.*)$/);
   const normalized = colonMatch

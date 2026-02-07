@@ -11,6 +11,7 @@ import { createOpenClawTools } from "../../agents/openclaw-tools.js";
 import { getChannelDock } from "../../channels/dock.js";
 import { logVerbose } from "../../globals.js";
 import { resolveGatewayMessageChannel } from "../../utils/message-channel.js";
+import { normalizeCommandBody } from "../commands-registry.js";
 import { listSkillCommandsForWorkspace, resolveSkillCommandInvocation } from "../skill-commands.js";
 import { getAbortMemory } from "./abort.js";
 import { buildStatusReply, handleCommands } from "./commands.js";
@@ -147,10 +148,15 @@ export async function handleInlineActions(params: {
           })
         : [];
 
+  // For skill commands, preserve newlines in the command body
+  const skillCommandBodyNormalized = allowTextCommands && skillCommands.length > 0
+    ? normalizeCommandBody(command.rawBodyNormalized, { preserveNewlines: true })
+    : null;
+    
   const skillInvocation =
-    allowTextCommands && skillCommands.length > 0
+    allowTextCommands && skillCommands.length > 0 && skillCommandBodyNormalized
       ? resolveSkillCommandInvocation({
-          commandBodyNormalized: command.commandBodyNormalized,
+          commandBodyNormalized: skillCommandBodyNormalized,
           skillCommands,
         })
       : null;

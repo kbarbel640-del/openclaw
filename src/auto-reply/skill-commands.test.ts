@@ -55,6 +55,26 @@ describe("resolveSkillCommandInvocation", () => {
     });
     expect(invocation).toBeNull();
   });
+
+  it("handles multi-line arguments correctly", () => {
+    const multiLineCommand = "/hive_scout FEEDBACK BELOW:\nBYOK model - customers provide their own API keys...\nEmail notifications...";
+    const invocation = resolveSkillCommandInvocation({
+      commandBodyNormalized: multiLineCommand,
+      skillCommands: [{ name: "hive_scout", skillName: "hive-scout", description: "Scout feedback" }],
+    });
+    expect(invocation?.command.name).toBe("hive_scout");
+    expect(invocation?.args).toBe("FEEDBACK BELOW:\nBYOK model - customers provide their own API keys...\nEmail notifications...");
+  });
+
+  it("handles multi-line with /skill syntax", () => {
+    const multiLineCommand = "/skill demo_tool Here is some feedback:\nLine 2 of feedback\nLine 3 of feedback";
+    const invocation = resolveSkillCommandInvocation({
+      commandBodyNormalized: multiLineCommand,
+      skillCommands: [{ name: "demo_tool", skillName: "demo-tool", description: "Demo" }],
+    });
+    expect(invocation?.command.name).toBe("demo_tool");
+    expect(invocation?.args).toBe("Here is some feedback:\nLine 2 of feedback\nLine 3 of feedback");
+  });
 });
 
 describe("listSkillCommandsForAgents", () => {

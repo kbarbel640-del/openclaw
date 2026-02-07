@@ -72,6 +72,7 @@ export type NativeCommandSpec = {
 
 export type CommandNormalizeOptions = {
   botUsername?: string;
+  preserveNewlines?: boolean;
 };
 
 export type CommandDetection = {

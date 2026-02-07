@@ -168,6 +168,34 @@ describe("commands registry", () => {
   it("normalizes dock command aliases", () => {
     expect(normalizeCommandBody("/dock_telegram")).toBe("/dock-telegram");
   });
+
+  it("preserves newlines when preserveNewlines option is true", () => {
+    const multiLineCommand = "/hive_scout FEEDBACK BELOW:\nBYOK model - customers provide their own API keys...\nEmail notifications...";
+    const expected = "/hive_scout FEEDBACK BELOW:\nBYOK model - customers provide their own API keys...\nEmail notifications...";
+    
+    expect(normalizeCommandBody(multiLineCommand, { preserveNewlines: true })).toBe(expected);
+  });
+
+  it("truncates at newline when preserveNewlines option is false or not set", () => {
+    const multiLineCommand = "/hive_scout FEEDBACK BELOW:\nBYOK model - customers provide their own API keys...\nEmail notifications...";
+    const expected = "/hive_scout FEEDBACK BELOW:";
+    
+    // Default behavior (preserveNewlines undefined)
+    expect(normalizeCommandBody(multiLineCommand)).toBe(expected);
+    
+    // Explicit false
+    expect(normalizeCommandBody(multiLineCommand, { preserveNewlines: false })).toBe(expected);
+  });
+
+  it("handles multi-line commands with no args correctly", () => {
+    const multiLineCommand = "/status\nsome extra text";
+    
+    // With preserveNewlines, should keep everything
+    expect(normalizeCommandBody(multiLineCommand, { preserveNewlines: true })).toBe("/status\nsome extra text");
+    
+    // Without preserveNewlines, should truncate  
+    expect(normalizeCommandBody(multiLineCommand)).toBe("/status");
+  });
 });
 
 describe("commands registry args", () => {
