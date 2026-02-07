@@ -8,7 +8,7 @@ x-i18n:
   model: claude-opus-4-5
   provider: pi
   source_hash: 1a322b5187e32c82fc1e8aac02437e2eeb7ba84e7b3a1db89feeab1dcf7dbbab
-  source_path: concepts/channel-routing.md
+  source_path: channels/channel-routing.md
   workflow: 14
 ---
 

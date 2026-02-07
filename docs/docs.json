@@ -51,6 +51,10 @@
       "destination": "/concepts/compaction"
     },
     {
+      "source": "/cron",
+      "destination": "/cron-jobs"
+    },
+    {
       "source": "/minimax",
       "destination": "/providers/minimax"
     },
@@ -475,6 +479,14 @@
       "destination": "/concepts/model-failover"
     },
     {
+      "source": "/model",
+      "destination": "/models"
+    },
+    {
+      "source": "/model/",
+      "destination": "/models"
+    },
+    {
       "source": "/models",
       "destination": "/concepts/models"
     },
@@ -655,6 +667,10 @@
       "destination": "/help/troubleshooting"
     },
     {
+      "source": "/tui",
+      "destination": "/web/tui"
+    },
+    {
       "source": "/typebox",
       "destination": "/concepts/typebox"
     },
@@ -705,6 +721,14 @@
     {
       "source": "/oauth",
       "destination": "/concepts/oauth"
+    },
+    {
+      "source": "/plugin",
+      "destination": "/tools/plugin"
+    },
+    {
+      "source": "/plugins",
+      "destination": "/tools/plugin"
     },
     {
       "source": "/railway",

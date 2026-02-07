@@ -10,7 +10,7 @@ x-i18n:
   model: claude-opus-4-5
   provider: pi
   source_hash: eaeb4035912c49413e012177cf0bd28b348130d30d3317674418dca728229b70
-  source_path: broadcast-groups.md
+  source_path: channels/broadcast-groups.md
   workflow: 15
 ---
 
