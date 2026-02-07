@@ -114,6 +114,11 @@ export const en = {
     noMessages: "No messages yet. Start a conversation!",
     attachment: "Attachment",
     attachments: "Attachments",
+    placeholder: "Message (↵ to send, Shift+↵ for line breaks, paste images)",
+    placeholderWithAttachments: "Add a message or paste more images...",
+    connectToChat: "Connect to the gateway to start chatting…",
+    stop: "Stop",
+    queue: "Queue",
   },
 
   // Settings
@@ -1013,6 +1018,11 @@ export const pt = {
     noMessages: "Sem mensagens. Comece uma conversa!",
     attachment: "Anexo",
     attachments: "Anexos",
+    placeholder: "Mensagem (↵ para enviar, Shift+↵ para quebra de linha, cole imagens)",
+    placeholderWithAttachments: "Adicione uma mensagem ou cole mais imagens...",
+    connectToChat: "Conecte-se ao gateway para iniciar o chat...",
+    stop: "Parar",
+    queue: "Enfileirar",
   },
 
   // Settings
