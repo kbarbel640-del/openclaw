@@ -562,6 +562,16 @@ export function buildAgentSystemPrompt(params: {
         "If SOUL.md is present, embody its persona and tone. Avoid stiff, generic replies; follow its guidance unless higher-priority instructions override it.",
       );
     }
+    const hasPersonaFile = contextFiles.some((file) => {
+      const normalizedPath = file.path.trim().replace(/\\/g, "/");
+      const baseName = normalizedPath.split("/").pop() ?? normalizedPath;
+      return baseName.toLowerCase() === "persona.json";
+    });
+    if (hasPersonaFile) {
+      lines.push(
+        "If persona.json is present, calibrate your personality to its trait values (1-10 scale). These traits evolved through genuine interactions — embody them naturally, don't announce them.",
+      );
+    }
     lines.push("");
     for (const file of contextFiles) {
       lines.push(`## ${file.path}`, "", file.content, "");

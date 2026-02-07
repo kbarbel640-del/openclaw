@@ -29,6 +29,8 @@ export const DEFAULT_HEARTBEAT_FILENAME = "HEARTBEAT.md";
 export const DEFAULT_BOOTSTRAP_FILENAME = "BOOTSTRAP.md";
 export const DEFAULT_MEMORY_FILENAME = "MEMORY.md";
 export const DEFAULT_MEMORY_ALT_FILENAME = "memory.md";
+export const DEFAULT_PERSONA_FILENAME = "persona.json";
+export const DEFAULT_BOSS_PROFILE_FILENAME = "boss-profile.json";
 
 function stripFrontMatter(content: string): string {
   if (!content.startsWith("---")) {
@@ -66,7 +68,9 @@ export type WorkspaceBootstrapFileName =
   | typeof DEFAULT_HEARTBEAT_FILENAME
   | typeof DEFAULT_BOOTSTRAP_FILENAME
   | typeof DEFAULT_MEMORY_FILENAME
-  | typeof DEFAULT_MEMORY_ALT_FILENAME;
+  | typeof DEFAULT_MEMORY_ALT_FILENAME
+  | typeof DEFAULT_PERSONA_FILENAME
+  | typeof DEFAULT_BOSS_PROFILE_FILENAME;
 
 export type WorkspaceBootstrapFile = {
   name: WorkspaceBootstrapFileName;
@@ -236,6 +240,27 @@ async function resolveMemoryBootstrapEntries(
   return deduped;
 }
 
+async function resolvePersonaBootstrapEntries(
+  resolvedDir: string,
+): Promise<Array<{ name: WorkspaceBootstrapFileName; filePath: string }>> {
+  const memoryDir = path.join(resolvedDir, "memory");
+  const candidates: Array<{ name: WorkspaceBootstrapFileName; subpath: string }> = [
+    { name: DEFAULT_PERSONA_FILENAME, subpath: "persona.json" },
+    { name: DEFAULT_BOSS_PROFILE_FILENAME, subpath: "boss-profile.json" },
+  ];
+  const entries: Array<{ name: WorkspaceBootstrapFileName; filePath: string }> = [];
+  for (const { name, subpath } of candidates) {
+    const filePath = path.join(memoryDir, subpath);
+    try {
+      await fs.access(filePath);
+      entries.push({ name, filePath });
+    } catch {
+      // optional — skip if file doesn't exist
+    }
+  }
+  return entries;
+}
+
 export async function loadWorkspaceBootstrapFiles(dir: string): Promise<WorkspaceBootstrapFile[]> {
   const resolvedDir = resolveUserPath(dir);
 
@@ -274,6 +299,7 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
   ];
 
   entries.push(...(await resolveMemoryBootstrapEntries(resolvedDir)));
+  entries.push(...(await resolvePersonaBootstrapEntries(resolvedDir)));
 
   const result: WorkspaceBootstrapFile[] = [];
   for (const entry of entries) {
