@@ -61,7 +61,7 @@ describe("pickPrimaryLanIPv4", () => {
       lo: [
         { address: "127.0.0.1", family: "IPv4", internal: true, netmask: "" },
       ] as unknown as os.NetworkInterfaceInfo[],
-      wlan0: [
+      veth0: [
         { address: "172.16.0.99", family: "IPv4", internal: false, netmask: "" },
       ] as unknown as os.NetworkInterfaceInfo[],
     });
