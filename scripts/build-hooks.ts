@@ -8,10 +8,13 @@
 
 import { build } from "esbuild";
 import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const HOOKS_SRC = "src/hooks/bundled";
-const HOOKS_DIST = "dist/hooks/bundled";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, "..");
+const HOOKS_SRC = join(ROOT, "src/hooks/bundled");
+const HOOKS_DIST = join(ROOT, "dist/hooks/bundled");
 
 const EXTERNAL_DEPS = [
   "@anthropic-ai/*",
@@ -25,6 +28,11 @@ const EXTERNAL_DEPS = [
 ];
 
 async function buildHooks() {
+  if (!existsSync(HOOKS_SRC)) {
+    console.log("No bundled hooks directory found, skipping");
+    return;
+  }
+
   const hooks = readdirSync(HOOKS_SRC, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
