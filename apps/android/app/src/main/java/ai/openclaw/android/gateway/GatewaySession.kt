@@ -637,16 +637,16 @@ class GatewaySession(
       return trimmed
     }
 
-    // Prefer tailnet DNS → uses HTTPS on port 443 via Tailscale serve.
+    // Prefer tailnet DNS → uses HTTPS via Tailscale serve (preserve explicit non-443 port).
     val tailnetHost = endpoint.tailnetDns?.trim().takeIf { !it.isNullOrEmpty() }
     if (tailnetHost != null) {
-      return "https://$tailnetHost$pathSuffix"
+      return "https://$tailnetHost$portSuffix$pathSuffix"
     }
 
     // Check if the endpoint host itself is a .ts.net name.
     val endpointHost = endpoint.host.trim()
     if (endpointHost.endsWith(".ts.net", ignoreCase = true)) {
-      return "https://$endpointHost$pathSuffix"
+      return "https://$endpointHost$portSuffix$pathSuffix"
     }
 
     val fallbackHost =

@@ -17,6 +17,7 @@ import java.util.UUID
 
 class SecurePrefs(context: Context) {
   companion object {
+    const val DEFAULT_GATEWAY_PORT: Int = 18789
     val defaultWakeWords: List<String> = listOf("openclaw", "claude")
     private const val displayNameKey = "node.displayName"
     private const val voiceWakeModeKey = "voiceWake.mode"
@@ -64,7 +65,7 @@ class SecurePrefs(context: Context) {
   val manualHost: StateFlow<String> = _manualHost
 
   private val _manualPort =
-    MutableStateFlow(prefs.getInt("gateway.manual.port", 18789))
+    MutableStateFlow(prefs.getInt("gateway.manual.port", DEFAULT_GATEWAY_PORT))
   val manualPort: StateFlow<Int> = _manualPort
 
   private val _manualTls =

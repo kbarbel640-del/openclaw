@@ -422,7 +422,7 @@ class NodeRuntime(context: Context) {
     prefs.setManualHost(value)
     // Auto-suggest port 443 and TLS for .ts.net hosts (Tailscale serve uses HTTPS/443).
     // Only auto-set when port is still the default; user can still override afterward.
-    if (value.trim().endsWith(".ts.net", ignoreCase = true) && manualPort.value == DEFAULT_GATEWAY_PORT) {
+    if (value.trim().endsWith(".ts.net", ignoreCase = true) && manualPort.value == SecurePrefs.DEFAULT_GATEWAY_PORT) {
       prefs.setManualPort(443)
       prefs.setManualTls(true)
     }
@@ -1225,7 +1225,6 @@ class NodeRuntime(context: Context) {
 
 private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
-private const val DEFAULT_GATEWAY_PORT: Int = 18789
 private const val DEFAULT_SEAM_COLOR_ARGB: Long = 0xFF4F7A9A
 
 private const val a2uiReadyCheckJS: String =
