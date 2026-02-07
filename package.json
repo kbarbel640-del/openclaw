@@ -198,6 +198,7 @@
     "@lit-labs/signals": "^0.2.0",
     "@lit/context": "^1.1.6",
     "@types/express": "^5.0.6",
+    "@types/express-rate-limit": "^6.0.2",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^25.3.0",
     "@types/qrcode-terminal": "^0.12.2",
