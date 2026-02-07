@@ -16,19 +16,23 @@ Run this exact ladder in order:
 
 ```bash
 openclaw status
+openclaw status --all
+openclaw gateway probe
 openclaw gateway status
-openclaw logs --follow
 openclaw doctor
 openclaw channels status --probe
+openclaw logs --follow
 ```
 
 Good output in one line:
 
 - `openclaw status` → shows configured channels and no obvious auth errors.
+- `openclaw status --all` → full report is present and shareable.
+- `openclaw gateway probe` → expected gateway target is reachable.
 - `openclaw gateway status` → `Runtime: running` and `RPC probe: ok`.
-- `openclaw logs --follow` → steady activity, no repeating fatal errors.
 - `openclaw doctor` → no blocking config/service errors.
 - `openclaw channels status --probe` → channels report `connected` or `ready`.
+- `openclaw logs --follow` → steady activity, no repeating fatal errors.
 
 ## Decision tree
 
