@@ -69,7 +69,7 @@ export function resolveTelegramThreadSpec(params: {
  * @returns API params object or undefined if thread_id should be omitted
  */
 export function buildTelegramThreadParams(thread?: TelegramThreadSpec | null) {
-  if (!thread?.id) {
+  if (thread?.id == null) {
     return undefined;
   }
   const normalized = Math.trunc(thread.id);

@@ -54,6 +54,16 @@ describe("buildTelegramThreadParams", () => {
     expect(buildTelegramThreadParams({ id: 1.9, scope: "dm" })).toBeUndefined();
   });
 
+  it("handles thread id 0 for non-dm scopes", () => {
+    // id=0 should be included for forum and none scopes (not falsy)
+    expect(buildTelegramThreadParams({ id: 0, scope: "forum" })).toEqual({
+      message_thread_id: 0,
+    });
+    expect(buildTelegramThreadParams({ id: 0, scope: "none" })).toEqual({
+      message_thread_id: 0,
+    });
+  });
+
   it("normalizes thread ids to integers", () => {
     expect(buildTelegramThreadParams({ id: 42.9, scope: "forum" })).toEqual({
       message_thread_id: 42,
