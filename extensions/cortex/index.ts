@@ -169,6 +169,77 @@ function calculateRecencyScore(timestamp: string): number {
   return Math.exp(-ageHours / 48);
 }
 
+/**
+ * PHASE 2 IMPROVEMENT #5: Format time delta as human-readable string
+ * e.g., "2m ago", "3h ago", "yesterday", "3d ago"
+ */
+function formatTimeDelta(timestamp: string): string {
+  const now = Date.now();
+  const then = new Date(timestamp).getTime();
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) {
+    return "just now";
+  }
+  if (diffMins < 60) {
+    return `${diffMins}m ago`;
+  }
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+  if (diffDays === 1) {
+    return "yesterday";
+  }
+  if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  }
+  return `${Math.floor(diffDays / 7)}w ago`;
+}
+
+/**
+ * PHASE 2 IMPROVEMENT #2: Deduplicate memories by content hash
+ * Returns deduplicated array, keeping first occurrence
+ */
+function deduplicateByContent<T extends { content: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    // Use first 100 chars as hash key (fast approximation)
+    const key = item.content.slice(0, 100).toLowerCase().trim();
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * PHASE 2 IMPROVEMENT #3: Calculate dynamic token budget based on conversation complexity
+ * Base: 1500, +500 for technical/coding, +500 for multi-topic, max: 2500
+ */
+function calculateDynamicTokenBudget(prompt: string, baseTokens: number): number {
+  let budget = baseTokens;
+  const lowerPrompt = prompt.toLowerCase();
+
+  // +500 for technical/coding content
+  const technicalPatterns = /code|function|error|bug|api|database|query|implement|debug|fix|class|method/i;
+  if (technicalPatterns.test(lowerPrompt)) {
+    budget += 500;
+  }
+
+  // +500 for complex multi-topic conversations (detected by question marks, multiple sentences)
+  const sentences = prompt.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  if (sentences.length >= 3 || prompt.includes("?")) {
+    budget += 300;
+  }
+
+  // Cap at 2500
+  return Math.min(budget, 2500);
+}
+
 const cortexPlugin: OpenClawPlugin = {
   id: "cortex",
   name: "Cortex Memory",
@@ -228,10 +299,10 @@ const cortexPlugin: OpenClawPlugin = {
       episodicMemoryTurns: rawConfig.episodicMemoryTurns ?? 20, // Working memory turns to pin
       // PHASE 2: Hot Memory Tier
       hotTierSize: rawConfig.hotTierSize ?? 100,
-      // PHASE 2: Token Budget System (lowered defaults to prevent context overflow)
-      maxContextTokens: rawConfig.maxContextTokens ?? 500,
-      relevanceThreshold: rawConfig.relevanceThreshold ?? 0.65,
-      truncateOldMemoriesTo: rawConfig.truncateOldMemoriesTo ?? 120,
+      // PHASE 2: Token Budget System (tuned based on Helios feedback)
+      maxContextTokens: rawConfig.maxContextTokens ?? 1500,  // Base budget, dynamic scaling adds more
+      relevanceThreshold: rawConfig.relevanceThreshold ?? 0.5,  // Relaxed from 0.65
+      truncateOldMemoriesTo: rawConfig.truncateOldMemoriesTo ?? 180,  // Up from 120 to keep sentences coherent
       // PHASE 2: Delta Sync & Prefetch
       deltaSyncEnabled: rawConfig.deltaSyncEnabled ?? true,
       prefetchEnabled: rawConfig.prefetchEnabled ?? true,
@@ -704,7 +775,12 @@ const cortexPlugin: OpenClawPlugin = {
         const queryText = event.prompt.slice(0, 200);
         const contextParts: string[] = [];
         let usedTokens = 0;
-        const tokenBudget = config.maxContextTokens;
+
+        // PHASE 2 IMPROVEMENT #3: Dynamic token budget based on complexity
+        const tokenBudget = calculateDynamicTokenBudget(event.prompt, config.maxContextTokens);
+
+        // Track injected memory IDs for dedup and access counting
+        const injectedContentKeys = new Set<string>();
 
         // PHASE 2: Predictive prefetch based on detected category
         const queryCategory = detectCategory(queryText);
@@ -743,19 +819,31 @@ const cortexPlugin: OpenClawPlugin = {
         }
 
         // L3. PHASE 2: Hot Memory Tier (most accessed memories)
-        const hotMemories = bridge.getHotMemoriesTier(10);
+        const hotMemories = bridge.getHotMemoriesTier(20); // Get more for filtering
         if (hotMemories.length > 0) {
           // Filter to relevant ones
           const queryTerms = queryText.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-          const relevantHot = hotMemories.filter(m => {
+          let relevantHot = hotMemories.filter(m => {
             const content = m.content.toLowerCase();
             return queryTerms.some(term => content.includes(term));
-          }).slice(0, 3);
+          });
+
+          // PHASE 2 IMPROVEMENT #2: Deduplicate
+          relevantHot = deduplicateByContent(relevantHot).slice(0, 3);
 
           if (relevantHot.length > 0) {
             const hotContext = relevantHot.map((m) => {
+              // PHASE 2 IMPROVEMENT #4: Record access on injection
+              bridge.memoryIndex.hotTier.recordAccess(m.id);
               const accessCount = bridge.memoryIndex.hotTier.getAccessCount(m.id);
-              return `- [${m.category ?? "hot"}/access=${accessCount}] ${m.content.slice(0, config.truncateOldMemoriesTo)}`;
+
+              // PHASE 2 IMPROVEMENT #5: Use time delta instead of generic label
+              const timeDelta = formatTimeDelta(m.timestamp);
+
+              // Track for dedup across tiers
+              injectedContentKeys.add(m.content.slice(0, 100).toLowerCase().trim());
+
+              return `- [${m.category ?? "hot"}/${timeDelta}/access=${Math.round(accessCount)}] ${m.content.slice(0, config.truncateOldMemoriesTo)}`;
             }).join("\n");
             const hotTokens = estimateTokens(hotContext);
 
@@ -763,7 +851,7 @@ const cortexPlugin: OpenClawPlugin = {
               contextParts.push(`<hot-memory hint="frequently accessed knowledge">\n${hotContext}\n</hot-memory>`);
               usedTokens += hotTokens;
 
-              // PHASE 2: Record co-occurrence for these memories
+              // Record co-occurrence for these memories
               if (relevantHot.length > 1) {
                 bridge.memoryIndex.recordCoOccurrence(relevantHot.map(m => m.id));
               }
@@ -773,17 +861,25 @@ const cortexPlugin: OpenClawPlugin = {
 
         // L3.5. STM fast path (keyword matching for very recent items)
         const stmItems = await bridge.getRecentSTM(Math.min(config.stmCapacity, 100));
-        const stmMatches = stmItems.length > 0
+        let stmMatches = stmItems.length > 0
           ? matchSTMItems(stmItems, queryText, config.temporalWeight, config.importanceWeight)
               .filter(m => m.matchScore >= config.minMatchScore)
-              .slice(0, 3)
           : [];
+
+        // PHASE 2 IMPROVEMENT #2: Deduplicate and filter already-injected
+        stmMatches = deduplicateByContent(stmMatches)
+          .filter(m => !injectedContentKeys.has(m.content.slice(0, 100).toLowerCase().trim()))
+          .slice(0, 3);
 
         if (stmMatches.length > 0) {
           const stmContext = stmMatches.map((m) => {
-            const recency = calculateRecencyScore(m.timestamp);
-            const recencyLabel = recency > 0.8 ? "now" : recency > 0.4 ? "recent" : "older";
-            return `- [${m.category}/${recencyLabel}] ${m.content.slice(0, config.truncateOldMemoriesTo)}`;
+            // PHASE 2 IMPROVEMENT #5: Use time delta
+            const timeDelta = formatTimeDelta(m.timestamp);
+
+            // Track for dedup
+            injectedContentKeys.add(m.content.slice(0, 100).toLowerCase().trim());
+
+            return `- [${m.category}/${timeDelta}] ${m.content.slice(0, config.truncateOldMemoriesTo)}`;
           }).join("\n");
           const stmTokens = estimateTokens(stmContext);
 
@@ -805,17 +901,15 @@ const cortexPlugin: OpenClawPlugin = {
               truncateOldMemoriesTo: config.truncateOldMemoriesTo,
             });
 
-            // Deduplicate against STM and hot (by content substring match)
-            const existingContents = new Set([
-              ...stmMatches.map(m => m.content.slice(0, 50).toLowerCase()),
-              ...hotMemories.slice(0, 3).map(m => m.content.slice(0, 50).toLowerCase()),
-            ]);
+            // PHASE 2 IMPROVEMENT #2: Use shared dedup set
             const uniqueResults = budgetedResults.filter(
-              r => !existingContents.has(r.content.slice(0, 50).toLowerCase())
+              r => !injectedContentKeys.has(r.content.slice(0, 100).toLowerCase().trim())
             );
 
             if (uniqueResults.length > 0) {
               const semanticContext = uniqueResults.map((r) => {
+                // Track for dedup
+                injectedContentKeys.add(r.content.slice(0, 100).toLowerCase().trim());
                 return `- [${r.category ?? "general"}/tokens=${r.tokens}] ${r.finalContent}`;
               }).join("\n");
               contextParts.push(`<semantic-memory hint="related knowledge (token-budgeted)">\n${semanticContext}\n</semantic-memory>`);
@@ -824,11 +918,55 @@ const cortexPlugin: OpenClawPlugin = {
           }
         }
 
+        // PHASE 2 IMPROVEMENT #6: Category diversity - ensure breadth
+        // Check if we're missing any active categories and add one memory from each
+        const injectedCategories = new Set<string>();
+        // Collect categories from what we've already injected
+        for (const match of stmMatches) {
+          injectedCategories.add(match.category);
+        }
+
+        const diversityBudget = tokenBudget - usedTokens;
+        if (diversityBudget > 50) {
+          const allCategories = bridge.memoryIndex.categories;
+          const missingCategories = allCategories.filter(cat =>
+            !injectedCategories.has(cat) && cat !== "general"
+          );
+
+          if (missingCategories.length > 0) {
+            const diverseMemories: string[] = [];
+            for (const cat of missingCategories.slice(0, 2)) { // Max 2 diversity additions
+              const catMemories = bridge.memoryIndex.getByCategory(cat);
+              if (catMemories.length > 0) {
+                // Get most recent from this category that hasn't been injected
+                const fresh = catMemories
+                  .filter(m => !injectedContentKeys.has(m.content.slice(0, 100).toLowerCase().trim()))
+                  .toSorted((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+                if (fresh) {
+                  const timeDelta = formatTimeDelta(fresh.timestamp);
+                  diverseMemories.push(`- [${cat}/${timeDelta}] ${fresh.content.slice(0, config.truncateOldMemoriesTo)}`);
+                  injectedContentKeys.add(fresh.content.slice(0, 100).toLowerCase().trim());
+                  bridge.memoryIndex.hotTier.recordAccess(fresh.id);
+                }
+              }
+            }
+
+            if (diverseMemories.length > 0) {
+              const diverseTokens = estimateTokens(diverseMemories.join("\n"));
+              if (usedTokens + diverseTokens <= tokenBudget) {
+                contextParts.push(`<diverse-context hint="breadth from other categories">\n${diverseMemories.join("\n")}\n</diverse-context>`);
+                usedTokens += diverseTokens;
+              }
+            }
+          }
+        }
+
         if (contextParts.length === 0) {
           return;
         }
 
-        api.logger.debug?.(`Cortex: injected ${contextParts.length} tiers, ~${usedTokens}/${tokenBudget} tokens`);
+        api.logger.debug?.(`Cortex: injected ${contextParts.length} tiers, ~${usedTokens}/${tokenBudget} tokens (dynamic budget)`);
 
         return {
           prependContext: contextParts.join("\n\n"),

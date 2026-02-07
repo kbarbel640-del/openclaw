@@ -67,10 +67,10 @@
       },
       "maxContextTokens": {
         "type": "integer",
-        "default": 500,
+        "default": 1500,
         "minimum": 100,
         "maximum": 10000,
-        "description": "Phase 2: Maximum tokens for memory context injection"
+        "description": "Phase 2: Base token budget for memory context (dynamic scaling adds more for complex conversations)"
       },
       "relevanceThreshold": {
         "type": "number",
@@ -81,10 +81,10 @@
       },
       "truncateOldMemoriesTo": {
         "type": "integer",
-        "default": 200,
+        "default": 180,
         "minimum": 50,
         "maximum": 500,
-        "description": "Phase 2: Truncate old memories to this many characters"
+        "description": "Phase 2: Truncate old memories to this many characters (keeps sentences coherent)"
       },
       "deltaSyncEnabled": {
         "type": "boolean",
