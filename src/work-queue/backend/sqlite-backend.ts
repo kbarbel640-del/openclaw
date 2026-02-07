@@ -1,7 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Umzug } from "umzug";
 import type {
   WorkItem,
@@ -16,6 +14,8 @@ import type {
 } from "../types.js";
 import type { WorkQueueBackend, WorkQueueBackendTransaction } from "./types.js";
 import { requireNodeSqlite } from "../../memory/sqlite.js";
+import * as migration001 from "../migrations/001_baseline.js";
+import * as migration002 from "../migrations/002_workstream_and_tracking.js";
 
 const priorityRank: Record<WorkItemPriority, number> = {
   critical: 0,
@@ -23,6 +23,19 @@ const priorityRank: Record<WorkItemPriority, number> = {
   medium: 2,
   low: 3,
 };
+
+const WORK_QUEUE_MIGRATIONS = [
+  {
+    name: "001_baseline.ts",
+    up: migration001.up,
+    down: migration001.down,
+  },
+  {
+    name: "002_workstream_and_tracking.ts",
+    up: migration002.up,
+    down: migration002.down,
+  },
+];
 
 function normalizeArray<T>(value?: T | T[]): T[] | undefined {
   if (value === undefined) {
@@ -86,15 +99,11 @@ export class SqliteWorkQueueBackend implements WorkQueueBackend {
 
   /**
    * Creates an Umzug instance for running schema migrations.
-   * Migrations are stored in src/work-queue/migrations/ directory.
+   * Migrations are statically imported so they run in both source and bundled builds.
    */
   private createUmzug(): Umzug<DatabaseSync> {
-    const migrationsPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "../migrations");
-
     return new Umzug<DatabaseSync>({
-      migrations: {
-        glob: ["*.ts", { cwd: migrationsPath }],
-      },
+      migrations: WORK_QUEUE_MIGRATIONS,
       context: this.requireDb(),
       storage: {
         async executed({ context: db }) {
