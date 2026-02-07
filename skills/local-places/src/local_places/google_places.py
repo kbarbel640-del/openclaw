@@ -91,9 +91,7 @@ def _validate_place_id(place_id: str | None) -> None:
             status_code=400,
             detail=f"Invalid place_id length: {len(place_id)}. Expected 10-300 characters."
         )
-
-    # Allow alphanumeric, '+', '/', '=', '_', and '-', but reject dangerous characters
-    if re.search(r'[\s\\?#<>|\*%$&\'";`]', place_id):
+    if re.search(r"[\s\\?#<>|\*%$&'\";`]", place_id):
         raise HTTPException(
             status_code=400,
             detail="Invalid place_id format: contains illegal characters."
