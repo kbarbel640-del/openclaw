@@ -94,7 +94,7 @@ export function startResetIfNeeded(params: {
   if (!resetSession) {
     return null;
   }
-  return params.gateway.request("sessions.reset", { key: params.sessionKey }).then(() => {});
+  return params.gateway.request("sessions.reset", { key: params.sessionKey }).then(() => undefined);
 }
 
 export async function resetSessionIfNeeded(params: {

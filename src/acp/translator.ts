@@ -248,7 +248,7 @@ export class AcpGatewayAgent implements Agent {
     // Wait for any pending session reset to complete before sending the prompt
     if (session.pendingReset) {
       await session.pendingReset;
-      session.pendingReset = null;
+      this.sessionStore.setPendingReset(params.sessionId, null);
     }
 
     if (session.abortController) {
