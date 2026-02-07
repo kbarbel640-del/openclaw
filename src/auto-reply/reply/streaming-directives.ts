@@ -29,6 +29,7 @@ type ParsedChunk = ReplyDirectiveParseResult & {
 type ConsumeOptions = {
   final?: boolean;
   silentToken?: string;
+  resolveRelativePaths?: boolean;
 };
 
 const splitTrailingDirective = (text: string): { text: string; tail: string } => {
@@ -46,7 +47,7 @@ const splitTrailingDirective = (text: string): { text: string; tail: string } =>
   };
 };
 
-const parseChunk = (raw: string, options?: { silentToken?: string }): ParsedChunk => {
+const parseChunk = (raw: string, options?: { silentToken?: string; resolveRelativePaths?: boolean }): ParsedChunk => {
   const split = splitMediaFromOutput(raw);
   let text = split.text ?? "";
 
@@ -67,8 +68,10 @@ const parseChunk = (raw: string, options?: { silentToken?: string }): ParsedChun
 
   // Resolve relative paths to absolute while cwd is still the workspace.
   // Delivery happens asynchronously when cwd may have been restored.
-  const resolvedMediaUrls = split.mediaUrls?.map(resolveMediaPath);
-  const resolvedMediaUrl = split.mediaUrl ? resolveMediaPath(split.mediaUrl) : undefined;
+  // Only enabled when the caller is in the agent-runner context (resolveRelativePaths: true).
+  const resolve = options?.resolveRelativePaths ? resolveMediaPath : (u: string) => u;
+  const resolvedMediaUrls = split.mediaUrls?.map(resolve);
+  const resolvedMediaUrl = split.mediaUrl ? resolve(split.mediaUrl) : undefined;
 
   return {
     text,
@@ -112,7 +115,7 @@ export function createStreamingDirectiveAccumulator() {
       return null;
     }
 
-    const parsed = parseChunk(combined, { silentToken: options.silentToken });
+    const parsed = parseChunk(combined, { silentToken: options.silentToken, resolveRelativePaths: options.resolveRelativePaths });
     const hasTag = pendingReply.hasTag || parsed.replyToTag;
     const sawCurrent = pendingReply.sawCurrent || parsed.replyToCurrent;
     const explicitId = parsed.replyToExplicitId ?? pendingReply.explicitId;

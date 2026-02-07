@@ -28,7 +28,7 @@ export type ReplyDirectiveParseResult = {
 
 export function parseReplyDirectives(
   raw: string,
-  options: { currentMessageId?: string; silentToken?: string } = {},
+  options: { currentMessageId?: string; silentToken?: string; resolveRelativePaths?: boolean } = {},
 ): ReplyDirectiveParseResult {
   const split = splitMediaFromOutput(raw);
   let text = split.text ?? "";
@@ -51,8 +51,10 @@ export function parseReplyDirectives(
 
   // Resolve relative paths to absolute while cwd is still the workspace.
   // Delivery happens asynchronously when cwd may have been restored.
-  const resolvedMediaUrls = split.mediaUrls?.map(resolveMediaPath);
-  const resolvedMediaUrl = split.mediaUrl ? resolveMediaPath(split.mediaUrl) : undefined;
+  // Only enabled when the caller is in the agent-runner context (resolveRelativePaths: true).
+  const resolve = options.resolveRelativePaths ? resolveMediaPath : (u: string) => u;
+  const resolvedMediaUrls = split.mediaUrls?.map(resolve);
+  const resolvedMediaUrl = split.mediaUrl ? resolve(split.mediaUrl) : undefined;
 
   return {
     text,

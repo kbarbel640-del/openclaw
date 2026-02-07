@@ -124,7 +124,7 @@ export function handleMessageUpdate(
   if (next) {
     const visibleDelta = chunk ? ctx.stripBlockTags(chunk, ctx.state.partialBlockState) : "";
     const parsedDelta = visibleDelta ? ctx.consumePartialReplyDirectives(visibleDelta) : null;
-    const parsedFull = parseReplyDirectives(stripTrailingDirective(next));
+    const parsedFull = parseReplyDirectives(stripTrailingDirective(next), { resolveRelativePaths: true });
     const cleanedText = parsedFull.text;
     const mediaUrls = parsedDelta?.mediaUrls;
     const hasMedia = Boolean(mediaUrls && mediaUrls.length > 0);
@@ -217,7 +217,7 @@ export function handleMessageEnd(
       : "";
   const formattedReasoning = rawThinking ? formatReasoningMessage(rawThinking) : "";
   const trimmedText = text.trim();
-  const parsedText = trimmedText ? parseReplyDirectives(stripTrailingDirective(trimmedText)) : null;
+  const parsedText = trimmedText ? parseReplyDirectives(stripTrailingDirective(trimmedText), { resolveRelativePaths: true }) : null;
   let cleanedText = parsedText?.text ?? "";
   let mediaUrls = parsedText?.mediaUrls;
   let hasMedia = Boolean(mediaUrls && mediaUrls.length > 0);
@@ -227,7 +227,7 @@ export function handleMessageEnd(
     const rawStrippedFinal = rawTrimmed.replace(/<\s*\/?\s*final\s*>/gi, "").trim();
     const rawCandidate = rawStrippedFinal || rawTrimmed;
     if (rawCandidate) {
-      const parsedFallback = parseReplyDirectives(stripTrailingDirective(rawCandidate));
+      const parsedFallback = parseReplyDirectives(stripTrailingDirective(rawCandidate), { resolveRelativePaths: true });
       cleanedText = parsedFallback.text ?? rawCandidate;
       mediaUrls = parsedFallback.mediaUrls;
       hasMedia = Boolean(mediaUrls && mediaUrls.length > 0);
