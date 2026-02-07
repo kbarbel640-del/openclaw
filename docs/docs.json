@@ -963,7 +963,6 @@
                 "group": "Automation",
                 "pages": [
                   "hooks",
-                  "hooks/soul-evil",
                   "automation/cron-jobs",
                   "automation/cron-vs-heartbeat",
                   "automation/webhook",
@@ -1443,7 +1442,6 @@
                 "group": "自动化",
                 "pages": [
                   "zh-CN/hooks",
-                  "zh-CN/hooks/soul-evil",
                   "zh-CN/automation/cron-jobs",
                   "zh-CN/automation/cron-vs-heartbeat",
                   "zh-CN/automation/webhook",
