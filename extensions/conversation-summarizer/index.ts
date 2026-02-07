@@ -106,8 +106,8 @@ function generateTopicSummary(messages: Array<{ role?: string; content?: unknown
   }
 
   const topWords = Array.from(wordCounts.entries())
-    .filter(([_, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1])
+    .filter(([_word, count]) => count >= 2)
+    .toSorted((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([word]) => word);
 
@@ -129,10 +129,14 @@ function analyzeConversation(messages: Array<{ role?: string; content?: unknown 
 
   // Process assistant messages (where decisions/insights typically appear)
   for (const msg of messages) {
-    if (msg.role !== "assistant") continue;
+    if (msg.role !== "assistant") {
+      continue;
+    }
 
     const text = extractText(msg.content);
-    if (!text || text.length < 20) continue;
+    if (!text || text.length < 20) {
+      continue;
+    }
 
     // Extract matches for each category
     decisions.push(...extractMatches(text, CONTENT_PATTERNS.decisions));
@@ -193,19 +197,29 @@ function calculateImportance(summary: ConversationSummary): number {
   let importance = 1.0;
 
   // Decisions are high value
-  if (summary.decisions.length > 0) importance += 0.5;
+  if (summary.decisions.length > 0) {
+    importance += 0.5;
+  }
 
   // Insights are valuable
-  if (summary.insights.length > 0) importance += 0.3;
+  if (summary.insights.length > 0) {
+    importance += 0.3;
+  }
 
   // Actions indicate work to be done
-  if (summary.actions.length > 0) importance += 0.2;
+  if (summary.actions.length > 0) {
+    importance += 0.2;
+  }
 
   // Problems solved are worth remembering
-  if (summary.problems.length > 0) importance += 0.3;
+  if (summary.problems.length > 0) {
+    importance += 0.3;
+  }
 
   // Longer conversations tend to be more substantial
-  if (summary.messageCount > 10) importance += 0.2;
+  if (summary.messageCount > 10) {
+    importance += 0.2;
+  }
 
   return Math.min(3.0, importance);
 }
@@ -232,8 +246,10 @@ const conversationSummarizerPlugin = {
     }
 
     // Hook into agent_end to summarize conversations
-    api.on("agent_end", async (event, ctx) => {
-      if (!event.success || !event.messages) return;
+    api.on("agent_end", async (event, _ctx) => {
+      if (!event.success || !event.messages) {
+        return;
+      }
 
       const messages = event.messages as Array<{ role?: string; content?: unknown }>;
 
@@ -325,7 +341,7 @@ const conversationSummarizerPlugin = {
         description:
           "Manually trigger conversation summarization. Extracts decisions, insights, action items, and problems from the current conversation.",
         parameters: { type: "object", properties: {}, additionalProperties: false },
-        async execute(_toolCallId, _params, ctx) {
+        async execute(_toolCallId, _params, _ctx) {
           // This would need access to current conversation context
           // For now, return instructions
           return {
