@@ -1,5 +1,5 @@
-import { createServer } from "node:http";
 import type { IncomingMessage } from "node:http";
+import { createServer } from "node:http";
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { isDiagnosticsEnabled } from "../infra/diagnostic-events.js";
