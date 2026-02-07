@@ -66,6 +66,44 @@ function setCachedSessionTitleFields(cacheKey: string, stat: fs.Stats, value: Se
   }
 }
 
+/**
+ * Find all session transcript files (.jsonl) in the agents directory.
+ * Used by both sessions-scrub and doctor-sessions-secrets commands.
+ */
+export async function findSessionFiles(stateDir: string): Promise<string[]> {
+  const agentsDir = path.join(stateDir, "agents");
+  if (!fs.existsSync(agentsDir)) {
+    return [];
+  }
+
+  const files: string[] = [];
+  try {
+    const agentDirs = await fs.promises.readdir(agentsDir, { withFileTypes: true });
+
+    for (const agentDir of agentDirs) {
+      if (!agentDir.isDirectory()) {
+        continue;
+      }
+      const sessionsDir = path.join(agentsDir, agentDir.name, "sessions");
+      if (!fs.existsSync(sessionsDir)) {
+        continue;
+      }
+
+      const sessionFiles = await fs.promises.readdir(sessionsDir);
+      for (const file of sessionFiles) {
+        if (file.endsWith(".jsonl")) {
+          files.push(path.join(sessionsDir, file));
+        }
+      }
+    }
+  } catch {
+    // Silently skip if we can't read the directory
+  }
+
+  return files;
+}
+}
+
 export function readSessionMessages(
   sessionId: string,
   storePath: string | undefined,
