@@ -41,10 +41,22 @@
       },
       "stmCapacity": {
         "type": "integer",
-        "default": 20,
+        "default": 50000,
         "minimum": 5,
-        "maximum": 100,
-        "description": "Maximum items in short-term memory"
+        "maximum": 100000,
+        "description": "Maximum items in short-term memory (Phase 1: 50K default)"
+      },
+      "embeddingsUrl": {
+        "type": "string",
+        "default": "http://localhost:8030",
+        "description": "GPU embeddings daemon URL for memory index"
+      },
+      "activeSessionCapacity": {
+        "type": "integer",
+        "default": 50,
+        "minimum": 10,
+        "maximum": 500,
+        "description": "Messages to keep in active session RAM cache"
       }
     }
   }
