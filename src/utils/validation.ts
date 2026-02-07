@@ -152,7 +152,7 @@ export function validateOneOf<T extends string>(
 export function validateAll(
   value: unknown,
   validators: Array<(val: unknown) => ValidationResult>,
-): ValidationResult {
+): ValidationResult<unknown> {
   if (validators.length === 0) {
     return { valid: true, value };
   }
