@@ -72,7 +72,7 @@ OpenClaw provides two layers of secret protection:
 
 **Built-in and always active** (unless explicitly disabled).
 
-When tools return sensitive data, it's redacted before being added to the session transcript. This protects new sessions automatically.
+When session files are read for memory search or context, sensitive data is redacted on the fly. The raw `.jsonl` files on disk may still contain secrets, but they are masked before being surfaced to agents or the UI.
 
 ### At-Rest Scrubbing
 
@@ -108,7 +108,7 @@ If secrets are detected, doctor will recommend running `sessions scrub`:
 ```
 ┌  Session Secrets
 │
-│  - Found unredacted secrets in 12 of 50 session files scanned (~24%).
+│  - Found unredacted secrets in 12 of 98 session files scanned (~12%).
 │    Session transcripts may contain API keys, tokens, or passwords from tool calls.
 │
 │    Fix: openclaw sessions scrub
@@ -135,7 +135,7 @@ $ openclaw sessions scrub --dry-run
 │
 │  Files scanned: 127
 │  Files that would be modified: 14
-│  Approximate redaction count: 42
+│  Lines with secrets: 42
 │
 │  Run without --dry-run to apply changes. Backups will be created.
 │
@@ -155,7 +155,7 @@ $ openclaw sessions scrub
 │
 │  Files scanned: 127
 │  Files modified: 14
-│  Secrets redacted: 42
+│  Lines scrubbed: 42
 │
 │  Backups created with .bak extension.
 │
