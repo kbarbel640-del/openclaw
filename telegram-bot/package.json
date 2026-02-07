@@ -1,0 +1,17 @@
+{
+  "name": "openclaw-telegram-bot",
+  "version": "1.0.0",
+  "description": "OpenClaw Telegram Bot with Composio MCP",
+  "type": "module",
+  "main": "webhook.js",
+  "scripts": {
+    "dev": "node webhook.js"
+  },
+  "dependencies": {
+    "grammy": "^1.19.2",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
+}
