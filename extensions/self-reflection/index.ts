@@ -84,7 +84,9 @@ async function loadCollections(): Promise<Map<string, string[]>> {
     const files = await fs.readdir(collectionsDir);
 
     for (const file of files) {
-      if (!file.endsWith(".json")) continue;
+      if (!file.endsWith(".json")) {
+        continue;
+      }
       try {
         const data = await fs.readFile(join(collectionsDir, file), "utf-8");
         const collection = JSON.parse(data) as { entries?: Array<{ content: string }> };
@@ -135,8 +137,8 @@ function findRecurringThemes(items: string[]): string[] {
 
   // Find words that appear 3+ times
   return Array.from(wordCounts.entries())
-    .filter(([_, count]) => count >= 3)
-    .sort((a, b) => b[1] - a[1])
+    .filter(([_word, count]) => count >= 3)
+    .toSorted((a, b) => b[1] - a[1])
     .slice(0, 10)
     .map(([word, count]) => `"${word}" (${count}x)`);
 }
@@ -385,7 +387,7 @@ const selfReflectionPlugin = {
         }),
         async execute(_toolCallId, params) {
           const p = params as { period?: string; store?: boolean };
-          const period = (p.period === "day" || p.period === "month" ? p.period : "week") as "day" | "week" | "month";
+          const period: "day" | "week" | "month" = p.period === "day" || p.period === "month" ? p.period : "week";
           const shouldStore = p.store !== false;
 
           try {
@@ -432,7 +434,7 @@ const selfReflectionPlugin = {
           .command("run [period]")
           .description("Perform reflection (day/week/month)")
           .action(async (period: string = "week") => {
-            const validPeriod = (period === "day" || period === "month" ? period : "week") as "day" | "week" | "month";
+            const validPeriod: "day" | "week" | "month" = period === "day" || period === "month" ? period : "week";
             console.log(`Running ${validPeriod} reflection...`);
 
             const analysis = await performReflection(validPeriod);
