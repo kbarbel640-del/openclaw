@@ -826,10 +826,13 @@ const abacusaiPlugin = {
               const validation = await validateApiKey(apiKey);
               if (!validation.valid) {
                 spin.stop("API key validation failed");
-                await ctx.prompter.note(
-                  `Validation failed: ${validation.error}\nThe key will still be saved — you can fix it later.`,
-                  "Warning",
-                );
+                const saveAnyway = await ctx.prompter.confirm({
+                  message: `Validation failed: ${validation.error}\nSave this key anyway? (You can re-authenticate later)`,
+                  initialValue: false,
+                });
+                if (!saveAnyway) {
+                  throw new Error("Aborted: API key validation failed");
+                }
               }
 
               // --- Model selection ---
