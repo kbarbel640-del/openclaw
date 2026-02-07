@@ -48,6 +48,7 @@ import { buildDirectLabel, buildGuildLabel, resolveReplyContext } from "./reply-
 import { deliverDiscordReply } from "./reply-delivery.js";
 import { startSmartAck, type SmartAckConfig } from "./smart-ack.js";
 import { resolveDiscordAutoThreadReplyPlan, resolveDiscordThreadStarter } from "./threading.js";
+import { createToolFeedbackFilter } from "./tool-feedback-filter.js";
 import { sendTyping } from "./typing.js";
 
 export async function processDiscordMessage(ctx: DiscordMessagePreflightContext) {
@@ -518,48 +519,36 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     }, intervalSec * 1000);
   }
 
-  // Tool feedback: instead of sending each tool status as a new block reply,
-  // edit the single status message. This prevents message spam in the channel.
+  // Tool feedback: buffer tool calls and use Haiku to decide which are meaningful
+  // enough to show to the user, instead of spamming every single tool use.
   const toolFeedbackEnabled = discordConfig?.toolFeedback === true;
-  const onToolStatusDirect = toolFeedbackEnabled
+  const toolFeedbackFilter = toolFeedbackEnabled
+    ? createToolFeedbackFilter({
+        userMessage: text,
+        onUpdate: (statusText) => {
+          // Reset the progress timer since we have fresh tool feedback.
+          if (progressInterval) {
+            clearInterval(progressInterval);
+          }
+          void updateStatusMessage(statusText);
+          // Restart the progress timer so elapsed time updates resume after tool feedback.
+          if (progressUpdates) {
+            const intervalSec =
+              typeof progressUpdates === "number" ? Math.max(15, progressUpdates) : 60;
+            progressInterval = setInterval(async () => {
+              const elapsedSec = Math.round((Date.now() - progressStartTime) / 1000);
+              const minutes = Math.floor(elapsedSec / 60);
+              const seconds = elapsedSec % 60;
+              const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${elapsedSec}s`;
+              await updateStatusMessage(`*Still working... (${timeStr})*`);
+            }, intervalSec * 1000);
+          }
+        },
+      })
+    : null;
+  const onToolStatusDirect = toolFeedbackFilter
     ? (info: { toolName: string; toolCallId: string }) => {
-        // Reset the progress timer since we have fresh tool feedback.
-        if (progressInterval) {
-          clearInterval(progressInterval);
-        }
-        const labels: Record<string, string> = {
-          exec: "Running a command",
-          Bash: "Running a command",
-          bash: "Running a command",
-          read_file: "Reading a file",
-          Read: "Reading a file",
-          write_file: "Writing a file",
-          Write: "Writing a file",
-          Edit: "Editing a file",
-          Glob: "Searching files",
-          Grep: "Searching code",
-          web_search: "Searching the web",
-          WebSearch: "Searching the web",
-          WebFetch: "Fetching a webpage",
-          memory_search: "Searching memory",
-          memory_get: "Reading memory",
-          computer_use: "Using the computer",
-          Task: "Running a subagent",
-        };
-        const label = labels[info.toolName] ?? `Using ${info.toolName.replace(/_/g, " ")}`;
-        void updateStatusMessage(`*${label}...*`);
-        // Restart the progress timer so elapsed time updates resume after tool feedback.
-        if (progressUpdates) {
-          const intervalSec =
-            typeof progressUpdates === "number" ? Math.max(15, progressUpdates) : 60;
-          progressInterval = setInterval(async () => {
-            const elapsedSec = Math.round((Date.now() - progressStartTime) / 1000);
-            const minutes = Math.floor(elapsedSec / 60);
-            const seconds = elapsedSec % 60;
-            const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${elapsedSec}s`;
-            await updateStatusMessage(`*Still working... (${timeStr})*`);
-          }, intervalSec * 1000);
-        }
+        toolFeedbackFilter.push(info);
       }
     : undefined;
 
@@ -620,10 +609,13 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     clearInterval(earlyTypingInterval);
     earlyTypingInterval = undefined;
   }
-  // Clean up progress interval and delete the status message.
+  // Clean up progress interval, tool filter, and delete the status message.
   if (progressInterval) {
     clearInterval(progressInterval);
     progressInterval = undefined;
+  }
+  if (toolFeedbackFilter) {
+    toolFeedbackFilter.dispose();
   }
   deleteStatusMessage();
   // Cancel smart ack (main response arrived).
