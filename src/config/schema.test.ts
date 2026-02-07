@@ -1,6 +1,87 @@
 import { describe, expect, it } from "vitest";
 import { buildConfigSchema } from "./schema.js";
 
+type SchemaNode = Record<string, unknown>;
+
+function findEmptyNodes(node: unknown, path: string): string[] {
+  const results: string[] = [];
+  if (node == null || typeof node !== "object" || Array.isArray(node)) {
+    return results;
+  }
+  const obj = node as SchemaNode;
+  if (Object.keys(obj).length === 0) {
+    results.push(path);
+    return results;
+  }
+  if (obj.properties && typeof obj.properties === "object") {
+    for (const [k, v] of Object.entries(obj.properties as SchemaNode)) {
+      results.push(...findEmptyNodes(v, `${path}.${k}`));
+    }
+  }
+  if (obj.items) {
+    results.push(...findEmptyNodes(obj.items, `${path}.items`));
+  }
+  if (obj.additionalProperties && typeof obj.additionalProperties === "object") {
+    results.push(...findEmptyNodes(obj.additionalProperties, `${path}.additionalProperties`));
+  }
+  for (const key of ["anyOf", "oneOf", "allOf"]) {
+    if (Array.isArray(obj[key])) {
+      (obj[key] as unknown[]).forEach((b, i) => {
+        results.push(...findEmptyNodes(b, `${path}.${key}[${i}]`));
+      });
+    }
+  }
+  return results;
+}
+
+function findProblematicUnions(node: unknown, path: string): string[] {
+  const results: string[] = [];
+  if (node == null || typeof node !== "object" || Array.isArray(node)) {
+    return results;
+  }
+  const obj = node as SchemaNode;
+  for (const key of ["anyOf", "oneOf"]) {
+    if (Array.isArray(obj[key]) && (obj[key] as unknown[]).length > 1) {
+      const branches = obj[key] as SchemaNode[];
+      const hasComplex = branches.some(
+        (b) => b?.type === "object" || b?.properties || b?.type === "array" || b?.items,
+      );
+      const hasPrimitive = branches.some(
+        (b) =>
+          typeof b?.type === "string" &&
+          b.type !== "object" &&
+          b.type !== "array" &&
+          !b.properties &&
+          !b.items,
+      );
+      if (hasComplex && hasPrimitive) {
+        results.push(path);
+      }
+    }
+  }
+  if (obj.properties && typeof obj.properties === "object") {
+    for (const [k, v] of Object.entries(obj.properties as SchemaNode)) {
+      results.push(...findProblematicUnions(v, `${path}.${k}`));
+    }
+  }
+  if (obj.items) {
+    results.push(...findProblematicUnions(obj.items, `${path}.items`));
+  }
+  if (obj.additionalProperties && typeof obj.additionalProperties === "object") {
+    results.push(
+      ...findProblematicUnions(obj.additionalProperties, `${path}.additionalProperties`),
+    );
+  }
+  for (const k of ["anyOf", "oneOf", "allOf"]) {
+    if (Array.isArray(obj[k])) {
+      (obj[k] as unknown[]).forEach((b, i) => {
+        results.push(...findProblematicUnions(b, `${path}.${k}[${i}]`));
+      });
+    }
+  }
+  return results;
+}
+
 describe("config schema", () => {
   it("exports schema + hints", () => {
     const res = buildConfigSchema();
@@ -98,6 +179,48 @@ describe("config schema", () => {
     const channelSchema = channelsProps?.matrix as Record<string, unknown> | undefined;
     const channelProps = channelSchema?.properties as Record<string, unknown> | undefined;
     expect(channelProps?.accessToken).toBeTruthy();
+  });
+
+  it("channels schema uses additionalProperties: false", () => {
+    const res = buildConfigSchema();
+    const schema = res.schema as Record<string, unknown>;
+    const channels = (schema.properties as Record<string, unknown>)?.channels as Record<
+      string,
+      unknown
+    >;
+    expect(channels.additionalProperties).toBe(false);
+  });
+
+  it("schema has no empty {} leaf nodes", () => {
+    const res = buildConfigSchema();
+    const empties = findEmptyNodes(res.schema, "root");
+    expect(empties).toEqual([]);
+  });
+
+  it("agents.defaults.model schema is a plain object (no anyOf/oneOf union)", () => {
+    const res = buildConfigSchema();
+    const schema = res.schema as Record<string, unknown>;
+    const agents = (schema.properties as Record<string, unknown>)?.agents as Record<
+      string,
+      unknown
+    >;
+    const defaults = (agents.properties as Record<string, unknown>)?.defaults as Record<
+      string,
+      unknown
+    >;
+    const model = (defaults.properties as Record<string, unknown>)?.model as Record<
+      string,
+      unknown
+    >;
+    expect(model.anyOf).toBeUndefined();
+    expect(model.oneOf).toBeUndefined();
+    expect(model.type).toBe("object");
+  });
+
+  it("schema has no mixed complex/primitive anyOf unions", () => {
+    const res = buildConfigSchema();
+    const problematic = findProblematicUnions(res.schema, "root");
+    expect(problematic).toEqual([]);
   });
 
   it("adds heartbeat target hints with dynamic channels", () => {
