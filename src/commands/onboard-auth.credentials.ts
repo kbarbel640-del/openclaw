@@ -218,6 +218,18 @@ export async function setTogetherApiKey(key: string, agentDir?: string) {
   });
 }
 
+export function setQianfanApiKey(key: string, agentDir?: string) {
+  upsertAuthProfile({
+    profileId: "qianfan:default",
+    credential: {
+      type: "api_key",
+      provider: "qianfan",
+      key,
+    },
+    agentDir: resolveAuthAgentDir(agentDir),
+  });
+}
+
 export function setXaiApiKey(key: string, agentDir?: string) {
   upsertAuthProfile({
     profileId: "xai:default",
