@@ -14,12 +14,8 @@ from fastapi import HTTPException
 # from local_places.google_places import _validate_place_id
 
 
-def _validate_place_id(place_id: str) -> None:
-    """
-    Validate Google Places API place_id format to prevent path traversal.
-    
-    This is a copy for testing purposes. Replace with actual import.
-    """
+from local_places.google_places import _validate_place_id
+
     import re
     
     if not place_id or not isinstance(place_id, str):
