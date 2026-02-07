@@ -367,7 +367,13 @@ export const registerTelegramNativeCommands = ({
   ];
 
   if (allCommands.length > 0) {
-    withTelegramApiErrorLogging({
+    // Clear existing commands first to prevent duplicates on restart
+    await withTelegramApiErrorLogging({
+      operation: "deleteMyCommands",
+      runtime,
+      fn: () => bot.api.deleteMyCommands(),
+    }).catch(() => {});
+    await withTelegramApiErrorLogging({
       operation: "setMyCommands",
       runtime,
       fn: () => bot.api.setMyCommands(allCommands),
