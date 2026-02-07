@@ -10,6 +10,14 @@ describe("auth profile cooldowns", () => {
     expect(calculateAuthProfileCooldownMs(100)).toBe(5 * 60_000);
   });
 
+  it("falls back to default cap for invalid maxMs values", () => {
+    const defaultCap = 5 * 60_000;
+    expect(calculateAuthProfileCooldownMs(3, 0)).toBe(defaultCap);
+    expect(calculateAuthProfileCooldownMs(3, -1)).toBe(defaultCap);
+    expect(calculateAuthProfileCooldownMs(3, NaN)).toBe(defaultCap);
+    expect(calculateAuthProfileCooldownMs(3, Infinity)).toBe(defaultCap);
+  });
+
   it("respects custom maxMs parameter", () => {
     const oneHour = 60 * 60_000;
     expect(calculateAuthProfileCooldownMs(1, oneHour)).toBe(60_000);
