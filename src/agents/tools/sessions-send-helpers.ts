@@ -15,6 +15,7 @@ export type AnnounceTarget = {
   to: string;
   accountId?: string;
   threadId?: string; // Forum topic/thread ID
+  connectionId?: string;
 };
 
 export function resolveAnnounceTargetFromKey(sessionKey: string): AnnounceTarget | null {
@@ -152,7 +153,17 @@ export function isAnnounceSkip(text?: string) {
 }
 
 export function isReplySkip(text?: string) {
-  return (text ?? "").trim() === REPLY_SKIP_TOKEN;
+  const t = (text ?? "").trim();
+  return t === REPLY_SKIP_TOKEN || t === ANNOUNCE_SKIP_TOKEN;
+}
+
+export function resolveAgentIdFromSessionKey(sessionKey?: string): string {
+  if (!sessionKey) return "unknown";
+  const parts = sessionKey.split(":");
+  if (parts[0] === "agent" && parts[1]) {
+    return parts[1];
+  }
+  return "unknown";
 }
 
 export function resolvePingPongTurns(cfg?: OpenClawConfig) {
@@ -167,6 +178,8 @@ export function resolvePingPongTurns(cfg?: OpenClawConfig) {
 
 export function resolveAnnounceEnabled(cfg?: OpenClawConfig): boolean {
   const raw = cfg?.session?.agentToAgent?.announceEnabled;
-  if (typeof raw === "boolean") return raw;
+  if (typeof raw === "boolean") {
+    return raw;
+  }
   return true; // default: enabled for backward compat
 }
