@@ -64,18 +64,18 @@ export default function (pi: ExtensionAPI) {
       const agents = getAgents(config);
       let targetId = args ? args.trim() : "";
 
-      // Show selector if no agent specified
+      // Show list if no agent specified
       if (!targetId) {
         const items = agents.map((a) => {
           const model = a.model?.primary?.split("/").pop() || "unknown";
           const sandbox = a.sandbox?.mode || "off";
-          return `${a.id} (${model}, sandbox: ${sandbox})`;
+          const name = a.name || a.id;
+          return `  • ${a.id} - ${name}\n    Model: ${model}\n    Sandbox: ${sandbox}`;
         });
 
-        const selected = await ctx.ui.select("Select Agent", items);
-        if (!selected) return;
-
-        targetId = selected.split(" ")[0];
+        const list = "Available agents:\n\n" + items.join("\n\n") + "\n\nUsage: /agent <agent-id>";
+        ctx.ui.notify(list, "info");
+        return;
       }
 
       const agent = agents.find((a) => a.id === targetId);
