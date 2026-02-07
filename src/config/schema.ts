@@ -296,6 +296,86 @@ function applyChannelSchemas(schema: ConfigSchema, channels: ChannelUiMetadata[]
   return next;
 }
 
+// Pick the most descriptive branch from an anyOf/oneOf union for UI rendering.
+// Returns the selected branch or null if no simplification is possible.
+function simplifyUnion(branches: unknown[]): Record<string, unknown> | null {
+  const typed = branches.filter(
+    (b): b is Record<string, unknown> => b != null && typeof b === "object" && !Array.isArray(b),
+  );
+  if (typed.length < 2) {
+    return null;
+  }
+  const objectBranches = typed.filter((b) => b.type === "object" || b.properties);
+  const arrayBranches = typed.filter((b) => b.type === "array" || b.items);
+  const hasComplex = objectBranches.length > 0 || arrayBranches.length > 0;
+  const primitiveBranches = typed.filter(
+    (b) =>
+      typeof b.type === "string" &&
+      b.type !== "object" &&
+      b.type !== "array" &&
+      !b.properties &&
+      !b.items,
+  );
+  const hasPrimitive = primitiveBranches.length > 0;
+
+  if (hasComplex && (hasPrimitive || objectBranches.length + arrayBranches.length > 1)) {
+    if (objectBranches.length > 0) {
+      return objectBranches[0];
+    }
+    if (arrayBranches.length > 0) {
+      return arrayBranches[0];
+    }
+  }
+  return null;
+}
+
+// Recursively patch a JSON Schema tree for Control UI compatibility:
+// - Replace empty {} leaf nodes with {type:"string"}
+// - Simplify anyOf/oneOf unions with mixed complex/primitive branches
+function patchSchemaForUI(node: unknown): unknown {
+  if (node == null || typeof node !== "object" || Array.isArray(node)) {
+    return node;
+  }
+  const obj = node as Record<string, unknown>;
+
+  // Empty {} leaf -> {type:"string"}
+  if (Object.keys(obj).length === 0) {
+    return { type: "string" };
+  }
+
+  // Simplify anyOf/oneOf with mixed branches
+  for (const key of ["anyOf", "oneOf"] as const) {
+    const branches = obj[key];
+    if (Array.isArray(branches) && branches.length > 1) {
+      const simplified = simplifyUnion(branches);
+      if (simplified) {
+        const { [key]: _, ...rest } = obj;
+        return patchSchemaForUI({ ...rest, ...simplified });
+      }
+    }
+  }
+
+  // Recurse into properties
+  if (obj.properties && typeof obj.properties === "object" && !Array.isArray(obj.properties)) {
+    const props = obj.properties as Record<string, unknown>;
+    for (const k of Object.keys(props)) {
+      props[k] = patchSchemaForUI(props[k]);
+    }
+  }
+  if (obj.items != null) {
+    obj.items = patchSchemaForUI(obj.items);
+  }
+  if (obj.additionalProperties != null && typeof obj.additionalProperties === "object") {
+    obj.additionalProperties = patchSchemaForUI(obj.additionalProperties);
+  }
+  for (const key of ["anyOf", "oneOf", "allOf"] as const) {
+    if (Array.isArray(obj[key])) {
+      obj[key] = (obj[key] as unknown[]).map((b) => patchSchemaForUI(b));
+    }
+  }
+  return obj;
+}
+
 let cachedBase: ConfigSchemaResponse | null = null;
 
 function stripChannelSchema(schema: ConfigSchema): ConfigSchema {
@@ -314,7 +394,7 @@ function stripChannelSchema(schema: ConfigSchema): ConfigSchema {
   if (channelsNode) {
     channelsNode.properties = {};
     channelsNode.required = [];
-    channelsNode.additionalProperties = true;
+    channelsNode.additionalProperties = false;
   }
   return next;
 }
@@ -329,8 +409,10 @@ function buildBaseConfigSchema(): ConfigSchemaResponse {
   });
   schema.title = "OpenClawConfig";
   const hints = applyDerivedTags(mapSensitivePaths(OpenClawSchema, "", buildBaseHints()));
+  const stripped = stripChannelSchema(schema);
+  patchSchemaForUI(stripped);
   const next = {
-    schema: stripChannelSchema(schema),
+    schema: stripped,
     uiHints: hints,
     version: VERSION,
     generatedAt: new Date().toISOString(),
@@ -362,6 +444,7 @@ export function buildConfigSchema(params?: {
     applySensitiveHints(mergedWithoutSensitiveHints, extensionHintKeys),
   );
   const mergedSchema = applyChannelSchemas(applyPluginSchemas(base.schema, plugins), channels);
+  patchSchemaForUI(mergedSchema);
   return {
     ...base,
     schema: mergedSchema,
