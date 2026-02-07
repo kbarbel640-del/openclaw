@@ -1,3 +1,4 @@
+import type { SigConfig } from "@disreguard/sig";
 import {
   codingTools,
   createEditTool,
@@ -10,7 +11,6 @@ import type { MessageSigningContext } from "./message-signing.js";
 import type { ModelAuthMode } from "./model-auth.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
-import type { SigConfig } from "./sig-adapter.js";
 import { logWarn } from "../logger.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";

@@ -10,8 +10,8 @@
  * constrains who can *update*, not who originally signed.
  */
 
+import { loadConfig, checkFile, signFile, type SigConfig } from "@disreguard/sig";
 import { createSubsystemLogger } from "../logging/subsystem.js";
-import { loadSigConfig, signFileIfUnsigned, type SigConfig } from "./sig-adapter.js";
 
 const log = createSubsystemLogger("agents/sig-workspace-init");
 
@@ -31,7 +31,7 @@ export async function initWorkspaceSignatures(
   projectRoot: string,
   config?: SigConfig | null,
 ): Promise<WorkspaceInitResult> {
-  const sigConfig = config ?? (await loadSigConfig(projectRoot));
+  const sigConfig = config ?? (await loadConfig(projectRoot));
   if (!sigConfig?.files) {
     return { signed: [], alreadySigned: [], skipped: [] };
   }
@@ -48,17 +48,22 @@ export async function initWorkspaceSignatures(
       continue;
     }
 
-    const signResult = await signFileIfUnsigned(projectRoot, pattern, INIT_IDENTITY);
-    if (signResult.alreadySigned) {
-      result.alreadySigned.push(pattern);
-    } else if (signResult.signed) {
-      result.signed.push(pattern);
-      log.info(`Signed workspace file: ${pattern}`);
-    } else {
-      result.skipped.push(pattern);
-      if (signResult.error) {
-        log.debug(`Skipped ${pattern}: ${signResult.error}`);
+    try {
+      const check = await checkFile(projectRoot, pattern);
+      if (check.status === "signed") {
+        result.alreadySigned.push(pattern);
+      } else if (check.status === "unsigned") {
+        await signFile(projectRoot, pattern, { identity: INIT_IDENTITY });
+        result.signed.push(pattern);
+        log.info(`Signed workspace file: ${pattern}`);
+      } else {
+        // modified or corrupted — skip, don't overwrite
+        result.skipped.push(pattern);
+        log.debug(`Skipped ${pattern}: status is ${check.status}`);
       }
+    } catch (err) {
+      result.skipped.push(pattern);
+      log.debug(`Skipped ${pattern}: ${String(err)}`);
     }
   }
 

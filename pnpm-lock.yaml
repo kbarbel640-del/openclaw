@@ -31,8 +31,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@disreguard/sig':
-        specifier: ^0.1.2
-        version: 0.1.2(zod@4.3.6)
+        specifier: ^0.2.0
+        version: 0.2.0(zod@4.3.6)
       '@grammyjs/runner':
         specifier: ^2.0.3
         version: 2.0.3(grammy@1.39.3)
@@ -896,8 +896,8 @@ packages:
     resolution: {integrity: sha512-UyX6rGEXzVyPzb1yvjHtPfTlnLvB5jX/stAMdiytHhfoydX+98hfympdOwsnTktzr+IRvphxTbdErgYDJkEsvw==}
     engines: {node: '>=22.12.0'}
 
-  '@disreguard/sig@0.1.2':
-    resolution: {integrity: sha512-YKPmsaIYn1kd8emD+wc7rmMEvuv12W9912yMhtCfGYIR1t2nbAURbkxvuGNdhpNpf6BVfc4FV1M3Hrls+/V0fQ==}
+  '@disreguard/sig@0.2.0':
+    resolution: {integrity: sha512-NaI2b9+KEAF+ffMeu9cP/Z/ULlkxtAnerjzWGPNAt90SVBGMXsGn+yZ5prn/mz6DjpgV1cTXQlaSNa/6vIkIdQ==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -6459,7 +6459,7 @@ snapshots:
       - utf-8-validate
     optional: true
 
-  '@disreguard/sig@0.1.2(zod@4.3.6)':
+  '@disreguard/sig@0.2.0(zod@4.3.6)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.26.0(zod@4.3.6)
       commander: 13.1.0

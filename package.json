@@ -108,7 +108,7 @@
     "@aws-sdk/client-bedrock": "^3.984.0",
     "@buape/carbon": "0.14.0",
     "@clack/prompts": "^1.0.0",
-    "@disreguard/sig": "^0.1.2",
+    "@disreguard/sig": "^0.2.0",
     "@grammyjs/runner": "^2.0.3",
     "@grammyjs/transformer-throttler": "^1.2.1",
     "@homebridge/ciao": "^1.3.4",

@@ -1,6 +1,6 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
-import { findProjectRoot } from "@disreguard/sig";
+import { findProjectRoot, loadConfig as loadSigConfig } from "@disreguard/sig";
 import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
 import crypto from "node:crypto";
@@ -53,7 +53,6 @@ import { repairSessionFileIfNeeded } from "../../session-file-repair.js";
 import { resetVerification } from "../../session-security-state.js";
 import { guardSessionManager } from "../../session-tool-result-guard-wrapper.js";
 import { acquireSessionWriteLock } from "../../session-write-lock.js";
-import { loadSigConfig } from "../../sig-adapter.js";
 import { initWorkspaceSignatures } from "../../sig-workspace-init.js";
 import {
   applySkillEnvOverrides,
@@ -230,7 +229,7 @@ export async function runEmbeddedAttempt(
 
     // sig: resolve project root and config for mutation gate
     let sigProjectRoot: string | null = null;
-    let sigConfig: import("../../sig-adapter.js").SigConfig | null = null;
+    let sigConfig: import("@disreguard/sig").SigConfig | null = null;
     try {
       sigProjectRoot = await findProjectRoot(process.cwd());
       if (sigProjectRoot) {

@@ -8,12 +8,11 @@
  * before allowing the change.
  */
 
-import { findProjectRoot } from "@disreguard/sig";
+import { findProjectRoot, updateAndSign } from "@disreguard/sig";
 import { Type } from "@sinclair/typebox";
 import type { MessageSigningContext } from "../message-signing.js";
 import type { AnyAgentTool } from "./common.js";
 import { stringEnum } from "../schema/typebox.js";
-import { updateAndSign } from "../sig-adapter.js";
 import { jsonResult, readStringParam } from "./common.js";
 
 export interface SigUpdateToolOptions {

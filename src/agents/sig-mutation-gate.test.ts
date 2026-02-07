@@ -1,5 +1,5 @@
+import type { SigConfig } from "@disreguard/sig";
 import { describe, it, expect } from "vitest";
-import type { SigConfig } from "./sig-adapter.js";
 import { checkMutationGate } from "./sig-mutation-gate.js";
 
 const PROJECT_ROOT = "/workspace";

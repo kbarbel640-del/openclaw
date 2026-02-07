@@ -11,8 +11,8 @@
  * code that cannot be bypassed by prompt injection.
  */
 
+import { resolveFilePolicy, type SigConfig } from "@disreguard/sig";
 import { resolve, relative } from "node:path";
-import { resolveFilePolicy, type SigConfig } from "./sig-adapter.js";
 
 export type MutationGateResult = { blocked: false } | { blocked: true; reason: string };
 
@@ -71,7 +71,7 @@ export function checkMutationGate(
   }
 
   const policy = resolveFilePolicy(sigConfig, relativePath);
-  if (!policy || !policy.mutable) {
+  if (!policy.mutable) {
     return { blocked: false };
   }
 
