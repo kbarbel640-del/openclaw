@@ -8,6 +8,7 @@ When the user asks to "compact" or "summarize" a session log, you can:
 
 1.  **Direct Instruction:** Read the target file and follow the rules below.
 2.  **Command Shim:** Run `openclaw compact <file>` to trigger the reasoning process explicitly.
+3.  **Auto-Archive (Reset Flow):** If the user runs `/skill compactor new` (or `openclaw compact new`), read the current session log, append the summary to `MEMORY.md`, and signal readiness for a reset.
 
 ## Compression Rules (Strict)
 

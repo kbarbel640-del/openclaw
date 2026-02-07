@@ -1,7 +1,32 @@
 #!/usr/bin/env bash
 # Shim to display content for agent compaction
+
+# Case 1: "new" argument (Auto-Archive & Reset)
+if [ "$1" == "new" ]; then
+  # 1. Locate the current active session log (newest first)
+  # We use the agent-specific path.
+  # Note: This assumes the agent is 'main'. For robustness, the agent ID should be passed or detected.
+  SESSION_LOG=$(ls -t ~/.openclaw/agents/main/sessions/*.jsonl 2>/dev/null | head -n 1)
+
+  if [ -z "$SESSION_LOG" ]; then
+    echo "Error: No active session log found to compact."
+    exit 1
+  fi
+
+  echo "=== BEGIN CONTENT: $SESSION_LOG ==="
+  cat "$SESSION_LOG"
+  echo "=== END CONTENT: $SESSION_LOG ==="
+  echo ""
+  echo "INSTRUCTION FOR AGENT:"
+  echo "1. Compress the content above using SKILL.md rules."
+  echo "2. Write the summary to 'MEMORY.md' (append with date)."
+  echo "3. Reply with a clear message: 'Memory archived. You may now reset the session.'"
+  exit 0
+fi
+
+# Case 2: Standard file compaction
 if [ -z "$1" ]; then
-  echo "Usage: openclaw compact <file>"
+  echo "Usage: openclaw compact <file> | openclaw compact new"
   exit 1
 fi
 
