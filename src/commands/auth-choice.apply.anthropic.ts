@@ -30,6 +30,12 @@ export async function applyAuthChoiceAnthropic(
     });
     const token = String(tokenRaw).trim();
 
+    const routingHintRaw = await params.prompter.text({
+      message: "Routing hint (optional, for Claude Max/Pro subscriptions)",
+      placeholder: "sk-ant-rh-...",
+    });
+    const routingHint = String(routingHintRaw ?? "").trim() || undefined;
+
     const profileNameRaw = await params.prompter.text({
       message: "Token name (blank = default)",
       placeholder: "default",
@@ -47,7 +53,8 @@ export async function applyAuthChoiceAnthropic(
         type: "token",
         provider,
         token,
-      },
+        routingHint,
+      } as any,
     });
 
     nextConfig = applyAuthProfileConfig(nextConfig, {
