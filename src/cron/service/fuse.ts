@@ -39,7 +39,8 @@ async function tagExistsLocally(root: string, tag: string): Promise<boolean> {
 
 /**
  * Perform upgrade to specified tag/version.
- * Only proceeds if the tag does not already exist locally (forward upgrades only).
+ * Only proceeds if the tag does not already exist locally (forward upgrades only),
+ * unless the version ends with '!' which forces the upgrade.
  */
 async function performUpgrade(
   version: string,
@@ -57,19 +58,30 @@ async function performUpgrade(
       return false;
     }
 
+    // Check if force flag is present (version ends with '!')
+    const forceUpgrade = version.endsWith("!");
+    const cleanVersion = forceUpgrade ? version.slice(0, -1) : version;
+
     // Check if tag already exists locally (prevent downgrades)
-    const tagExists = await tagExistsLocally(root, version);
-    if (tagExists) {
-      gateway.log(`Upgrade skipped: tag ${version} already exists locally (forward upgrades only)`);
-      return false;
+    // Skip this check if force flag is present
+    if (!forceUpgrade) {
+      const tagExists = await tagExistsLocally(root, cleanVersion);
+      if (tagExists) {
+        gateway.log(
+          `Upgrade skipped: tag ${cleanVersion} already exists locally (forward upgrades only)`,
+        );
+        return false;
+      }
+    } else {
+      gateway.log(`Force upgrade requested (version ends with '!'), skipping downgrade protection`);
     }
 
-    gateway.log(`Starting upgrade to ${version}...`);
+    gateway.log(`Starting upgrade to ${cleanVersion}...`);
 
     const result = await runGatewayUpdate({
       cwd: root ?? process.cwd(),
       argv1: process.argv[1],
-      tag: version,
+      tag: cleanVersion,
       timeoutMs: 10 * 60 * 1000, // 10 minute timeout
       progress: {
         onStepStart: (step) => {
@@ -84,7 +96,7 @@ async function performUpgrade(
     });
 
     if (result.status === "ok") {
-      const afterVersion = result.after?.version ?? version;
+      const afterVersion = result.after?.version ?? cleanVersion;
       gateway.log(`Upgrade to ${afterVersion} completed successfully`);
 
       // Schedule restart in 2 seconds

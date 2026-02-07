@@ -522,4 +522,123 @@ describe("fuse circuit breaker", () => {
     expect(mockGateway.log).toHaveBeenCalledWith(expect.stringContaining("Upgrade failed"));
     expect(scheduleGatewaySigusr1Restart).not.toHaveBeenCalled();
   });
+
+  it("should skip upgrade when tag already exists locally", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      text: async () => "UPGRADE v2.0.0",
+    });
+
+    // Ensure package root resolves successfully
+    (resolveOpenClawPackageRoot as ReturnType<typeof vi.fn>).mockResolvedValue("/fake/root");
+
+    // Mock git tag check - tag exists locally (downgrade protection)
+    (runCommandWithTimeout as ReturnType<typeof vi.fn>).mockResolvedValue({
+      stdout: "v2.0.0\n",
+      stderr: "",
+      code: 0,
+    });
+
+    const config: OpenClawConfig = {
+      update: {
+        manualUpgrade: false,
+      },
+    };
+
+    const result = await checkCircuitBreaker(config, mockGateway);
+
+    expect(result).toBe(true); // Cron should still continue
+
+    // Wait for async upgrade to start
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Should be skipped due to tag already existing
+    expect(mockGateway.log).toHaveBeenCalledWith(
+      "Upgrade skipped: tag v2.0.0 already exists locally (forward upgrades only)",
+    );
+    expect(runGatewayUpdate).not.toHaveBeenCalled();
+    expect(scheduleGatewaySigusr1Restart).not.toHaveBeenCalled();
+  });
+
+  it("should force upgrade when version ends with !", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      text: async () => "UPGRADE v2.0.0!",
+    });
+
+    // Ensure package root resolves successfully
+    (resolveOpenClawPackageRoot as ReturnType<typeof vi.fn>).mockResolvedValue("/fake/root");
+
+    // Mock git tag check - tag exists locally but should be ignored due to force flag
+    (runCommandWithTimeout as ReturnType<typeof vi.fn>).mockResolvedValue({
+      stdout: "v2.0.0\n",
+      stderr: "",
+      code: 0,
+    });
+
+    (runGatewayUpdate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      status: "ok",
+      mode: "git",
+      root: "/fake/root",
+      after: { version: "v2.0.0" },
+      steps: [],
+      durationMs: 1000,
+    });
+
+    const config: OpenClawConfig = {
+      update: {
+        manualUpgrade: false,
+      },
+    };
+
+    const result = await checkCircuitBreaker(config, mockGateway);
+
+    expect(result).toBe(true);
+
+    // Wait for async upgrade to complete
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Should log force upgrade message
+    expect(mockGateway.log).toHaveBeenCalledWith(
+      "Force upgrade requested (version ends with '!'), skipping downgrade protection",
+    );
+
+    // Should proceed with upgrade despite tag existing
+    expect(runGatewayUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tag: "v2.0.0", // Should strip the '!' from the tag
+        timeoutMs: 10 * 60 * 1000,
+      }),
+    );
+
+    expect(scheduleGatewaySigusr1Restart).toHaveBeenCalledWith({
+      delayMs: 2000,
+      reason: "upgrade to v2.0.0",
+    });
+  });
+
+  it("should handle force upgrade with manual mode", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      text: async () => "UPGRADE v1.9.0!",
+    });
+
+    const config: OpenClawConfig = {
+      update: {
+        manualUpgrade: true,
+      },
+    };
+
+    const result = await checkCircuitBreaker(config, mockGateway);
+
+    expect(result).toBe(true);
+
+    // Manual mode should show notification with the ! included
+    expect(mockGateway.log).toHaveBeenCalledWith(
+      "Upgrade v1.9.0! available. Type openclaw upgrade v1.9.0! into terminal.",
+    );
+
+    // Should not trigger auto-upgrade
+    expect(runGatewayUpdate).not.toHaveBeenCalled();
+  });
 });

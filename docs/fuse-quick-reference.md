@@ -27,6 +27,27 @@ UPGRADE v2.1.0
 
 **Important:** Downgrades are automatically prevented. If a user already has v2.1.0 or newer locally, the upgrade will be skipped with the message: `Upgrade skipped: tag v2.1.0 already exists locally (forward upgrades only)`.
 
+### Force an Upgrade (Override Downgrade Protection)
+
+To force an upgrade even if the tag already exists locally (for example, to force a re-installation or intentional downgrade):
+
+```
+UPGRADE v2.0.0!
+```
+
+**Effect:**
+
+- The `!` suffix disables downgrade protection
+- Upgrade proceeds even if the tag already exists locally
+- You'll see: `Force upgrade requested (version ends with '!'), skipping downgrade protection`
+- Use with caution: this can downgrade users and potentially break data migrations
+
+**When to use:**
+
+- Re-installing a version to fix corrupted installations
+- Intentional rollback during incident response
+- Testing upgrade process for a specific version
+
 ### Send an Announcement
 
 Edit `FUSE.txt` on main branch:
@@ -104,6 +125,17 @@ Upgrade v2.0.0 available. Type openclaw upgrade v2.0.0 into terminal.
 
 ```
 Upgrade skipped: tag v2.0.0 already exists locally (forward upgrades only)
+```
+
+**Forced upgrade (with ! suffix):**
+
+```
+Force upgrade requested (version ends with '!'), skipping downgrade protection
+Starting upgrade to v2.0.0...
+[1/5] git fetch...
+...
+Upgrade to v2.0.0 completed successfully
+Restarting gateway in 2 seconds...
 ```
 
 **Failed upgrade:**
@@ -195,7 +227,20 @@ UPGRADE commands automatically prevent downgrades for safety:
 - If the tag exists, the upgrade is skipped (prevents accidental rollback)
 - You'll see: `Upgrade skipped: tag v2.0.0 already exists locally (forward upgrades only)`
 
-**To intentionally downgrade:**
+**Force upgrade override:**
+
+You can bypass downgrade protection by adding `!` to the version:
+
+```
+UPGRADE v2.0.0!
+```
+
+- The `!` suffix disables the tag existence check
+- Allows intentional downgrades or re-installations
+- You'll see: `Force upgrade requested (version ends with '!'), skipping downgrade protection`
+- The `!` is stripped before passing to git checkout (e.g., `v2.0.0!` becomes `v2.0.0`)
+
+**Manual downgrade (alternative method):**
 
 1. Manually checkout the desired version: `git checkout v1.9.0`
 2. Rebuild: `pnpm install && pnpm build`
@@ -206,6 +251,7 @@ UPGRADE commands automatically prevent downgrades for safety:
 - Prevents accidentally rolling back security fixes
 - Protects against malicious or compromised FUSE.txt pushing old versions
 - Ensures data migrations and schema changes only move forward
+- Force upgrade (`!`) provides emergency rollback capability when needed
 
 **HTTP Headers:**
 
@@ -244,14 +290,20 @@ HOLD[space]reason
 ### UPGRADE
 
 ```
-UPGRADE[space]version
+UPGRADE[space]version[!]
 ```
 
 - Version is required and cannot be empty
 - Can be: v2.0.0, v2.0.0-beta.1, latest, beta, stable
+- Optional `!` suffix forces upgrade, bypassing downgrade protection
 - Space after UPGRADE is required
 - Invalid formats (e.g., "UPGRADE" or "UPGRADE ") will be rejected with error message
-- Downgrades are automatically prevented (tag existence check)
+- Downgrades are automatically prevented (tag existence check) unless `!` suffix is used
+
+**Examples:**
+
+- `UPGRADE v2.1.0` - Normal upgrade with downgrade protection
+- `UPGRADE v2.0.0!` - Force upgrade, skip downgrade protection
 
 ### ANNOUNCE
 
@@ -295,6 +347,14 @@ HOLD for planned maintenance window (30 minutes)
 UPGRADE v2.0.1
 ```
 
+### Force Rollback During Incident
+
+```
+UPGRADE v2.0.0!
+```
+
+**Note:** The `!` suffix forces the upgrade even if v2.0.0 already exists locally, enabling intentional downgrades during emergencies.
+
 ### Feature Launch
 
 ```
@@ -333,3 +393,13 @@ ANNOUNCE [TEST] This is a test announcement - please ignore
 ```
 
 **Result:** The test announcement is displayed, allowing you to verify FUSE is working before deploying an actual HOLD or UPGRADE command.
+
+### Force Re-installation
+
+```
+UPGRADE v2.1.0!
+# Force all users to re-install v2.1.0 to fix corrupted node_modules
+# The ! bypasses "tag already exists" check
+```
+
+**Result:** Users on v2.1.0 will re-install instead of seeing "Upgrade skipped". Useful for fixing broken installations without bumping version numbers.
