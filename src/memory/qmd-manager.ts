@@ -267,8 +267,7 @@ export class QmdMemoryManager implements MemorySearchManager {
       parsed = JSON.parse(stdout);
     } catch (err) {
       // If JSON parse fails, check both stdout and stderr for "no results" (qmd may output to either).
-      const combined = (stdout + "\n" + stderr).toLowerCase();
-      if (combined.includes("no results found")) {
+      if (stdout.toLowerCase().includes("no results found") || stderr.toLowerCase().includes("no results found")) {
         return [];
       }
       const message = err instanceof Error ? err.message : String(err);
