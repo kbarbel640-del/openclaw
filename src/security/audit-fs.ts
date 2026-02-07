@@ -38,13 +38,17 @@ export async function safeStat(targetPath: string): Promise<{
 }> {
   try {
     const lst = await fs.lstat(targetPath);
+    const isSymlink = lst.isSymbolicLink();
+    // For symlinks, use fs.stat to get the target's real permissions;
+    // lstat returns the symlink's own mode (always 0o777 on POSIX).
+    const resolved = isSymlink ? await fs.stat(targetPath) : lst;
     return {
       ok: true,
-      isSymlink: lst.isSymbolicLink(),
-      isDir: lst.isDirectory(),
-      mode: typeof lst.mode === "number" ? lst.mode : null,
-      uid: typeof lst.uid === "number" ? lst.uid : null,
-      gid: typeof lst.gid === "number" ? lst.gid : null,
+      isSymlink,
+      isDir: resolved.isDirectory(),
+      mode: typeof resolved.mode === "number" ? resolved.mode : null,
+      uid: typeof resolved.uid === "number" ? resolved.uid : null,
+      gid: typeof resolved.gid === "number" ? resolved.gid : null,
     };
   } catch (err) {
     return {
