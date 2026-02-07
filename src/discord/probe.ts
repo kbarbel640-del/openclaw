@@ -173,21 +173,20 @@ export async function fetchDiscordApplicationId(
   if (!normalized) {
     return undefined;
   }
-  try {
-    const res = await fetchWithTimeout(
-      `${DISCORD_API_BASE}/oauth2/applications/@me`,
-      timeoutMs,
-      fetcher,
-      {
-        Authorization: `Bot ${normalized}`,
-      },
-    );
-    if (!res.ok) {
-      return undefined;
-    }
+  const res = await fetchWithTimeout(
+    `${DISCORD_API_BASE}/oauth2/applications/@me`,
+    timeoutMs,
+    fetcher,
+    { Authorization: `Bot ${normalized}` },
+  );
+  if (res.ok) {
     const json = (await res.json()) as { id?: string };
     return json.id ?? undefined;
-  } catch {
+  }
+  // Permanent auth failures — don't retry
+  if (res.status === 401 || res.status === 403) {
     return undefined;
   }
+  // Transient (5xx, 429, etc.) — throw so caller can retry
+  throw new Error(`Discord application ID fetch failed (${res.status})`);
 }
