@@ -587,6 +587,8 @@ let chartInstance: echarts.ECharts | null = null;
 let lastDataHash = "";
 let clickHandlerAttached = false;
 let pulseTimer: ReturnType<typeof setInterval> | null = null;
+let settleTimer: ReturnType<typeof setTimeout> | null = null;
+let lockedPositions: Map<string, { x: number; y: number }> | null = null;
 
 function computeDataHash(roots: AgentHierarchyNode[]): string {
   const keys: string[] = [];
@@ -642,6 +644,15 @@ function scheduleEChartsInit(
     // If chart exists but data changed, just update the data
     if (existingChart && chartInstance === existingChart) {
       lastDataHash = newHash;
+      // Clear locked positions so force can re-run for new data
+      lockedPositions = null;
+      if (settleTimer) {
+        clearTimeout(settleTimer);
+      }
+      if (pulseTimer) {
+        clearInterval(pulseTimer);
+        pulseTimer = null;
+      }
       const nodeCount = graphData.nodes.length;
       existingChart.setOption({
         series: [
@@ -655,6 +666,8 @@ function scheduleEChartsInit(
           },
         ],
       });
+      // Re-lock positions after force settles, then restart pulse
+      schedulePositionLock(graphData);
       return;
     }
 
@@ -782,15 +795,60 @@ function initECharts(
   });
   resizeObserver.observe(container);
 
-  // Pulsing shadow for running agents
+  // Lock positions after force layout settles, then start pulse animation
+  schedulePositionLock(graphData);
+}
+
+/**
+ * After force layout converges (~2.5s), capture node positions and lock them.
+ * Then start pulse animation — since nodes have fixed positions, setOption
+ * won't trigger force recalculation and labels stay stable.
+ */
+function schedulePositionLock(graphData: GraphData) {
+  if (settleTimer) {
+    clearTimeout(settleTimer);
+  }
+  if (pulseTimer) {
+    clearInterval(pulseTimer);
+    pulseTimer = null;
+  }
+  lockedPositions = null;
+
+  settleTimer = setTimeout(() => {
+    if (!chartInstance) {
+      return;
+    }
+    // Extract computed positions from the chart
+    const opt = chartInstance.getOption() as {
+      series?: { data?: { id?: string; x?: number; y?: number }[] }[];
+    };
+    const seriesData = opt?.series?.[0]?.data;
+    if (!Array.isArray(seriesData)) {
+      return;
+    }
+
+    lockedPositions = new Map();
+    for (const node of seriesData) {
+      if (node.id && typeof node.x === "number" && typeof node.y === "number") {
+        lockedPositions.set(node.id, { x: node.x, y: node.y });
+      }
+    }
+
+    // Start pulse animation with locked positions
+    startPulseTimer(graphData);
+  }, 2500);
+}
+
+function startPulseTimer(graphData: GraphData) {
   if (pulseTimer) {
     clearInterval(pulseTimer);
   }
   let pulsePhase = 0;
   pulseTimer = setInterval(() => {
-    if (!chartInstance) {
+    if (!chartInstance || !lockedPositions) {
       if (pulseTimer) {
         clearInterval(pulseTimer);
+        pulseTimer = null;
       }
       return;
     }
@@ -798,12 +856,15 @@ function initECharts(
     // Sinusoidal pulse: shadow oscillates between 8 and 22
     const intensity = 8 + Math.sin((pulsePhase / 20) * Math.PI * 2) * 7;
     const updatedNodes = graphData.nodes.map((n) => {
+      const pos = lockedPositions?.get(n.id);
+      // Lock position to prevent force recalculation
+      const base = pos ? { ...n, fixed: true, x: pos.x, y: pos.y } : n;
       if (n._meta?.status !== "running") {
-        return n;
+        return base;
       }
       const c = (n.itemStyle?.color as string) ?? "#6b7280";
       return {
-        ...n,
+        ...base,
         itemStyle: {
           ...n.itemStyle,
           shadowBlur: intensity,
