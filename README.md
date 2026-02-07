@@ -168,6 +168,7 @@ Run `openclaw doctor` to surface risky/misconfigured DM policies.
 - [Presence](https://docs.openclaw.ai/concepts/presence), [typing indicators](https://docs.openclaw.ai/concepts/typing-indicators), and [usage tracking](https://docs.openclaw.ai/concepts/usage-tracking).
 - [Models](https://docs.openclaw.ai/concepts/models), [model failover](https://docs.openclaw.ai/concepts/model-failover), and [session pruning](https://docs.openclaw.ai/concepts/session-pruning).
 - [Security](https://docs.openclaw.ai/gateway/security) and [troubleshooting](https://docs.openclaw.ai/channels/troubleshooting).
+- Cortex memory: three-tier (working/STM/semantic) with GPU embeddings, atomic knowledge, and causal reasoning.
 
 ### Ops + packaging
 
@@ -203,6 +204,7 @@ WhatsApp / Telegram / Slack / Discord / Google Chat / Signal / iMessage / BlueBu
 - **[Canvas + A2UI](https://docs.openclaw.ai/platforms/mac/canvas)** — agent‑driven visual workspace (A2UI host: [Canvas/A2UI](https://docs.openclaw.ai/platforms/mac/canvas#canvas-a2ui)).
 - **[Voice Wake](https://docs.openclaw.ai/nodes/voicewake) + [Talk Mode](https://docs.openclaw.ai/nodes/talk)** — always‑on speech and continuous conversation.
 - **[Nodes](https://docs.openclaw.ai/nodes)** — Canvas, camera snap/clip, screen record, `location.get`, notifications, plus macOS‑only `system.run`/`system.notify`.
+- **Cortex Memory System** — three‑tier memory (working/STM/semantic) with GPU‑accelerated embeddings, plus Phase 3 Atomic Knowledge for causal reasoning and deep abstraction.
 
 ## Tailscale access (Gateway dashboard)
 
