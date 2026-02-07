@@ -178,6 +178,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     hint: "Any OpenAI or Anthropic compatible endpoint",
     choices: ["custom-api-key"],
   },
+  {
+    value: "abacusai",
+    label: "AbacusAI",
+    hint: "API key + Code Mode auto-detect",
+    choices: ["abacusai"],
+  },
 ];
 
 const BASE_AUTH_CHOICE_OPTIONS: ReadonlyArray<AuthChoiceOption> = [
@@ -339,7 +345,80 @@ export function buildAuthChoiceOptions(params: {
 }): AuthChoiceOption[] {
   void params.store;
   const options: AuthChoiceOption[] = [...BASE_AUTH_CHOICE_OPTIONS];
-
+  options.push({
+    value: "ai-gateway-api-key",
+    label: "Vercel AI Gateway API key",
+  });
+  options.push({
+    value: "cloudflare-ai-gateway-api-key",
+    label: "Cloudflare AI Gateway",
+    hint: "Account ID + Gateway ID + API key",
+  });
+  options.push({
+    value: "moonshot-api-key",
+    label: "Kimi API key (.ai)",
+  });
+  options.push({
+    value: "moonshot-api-key-cn",
+    label: "Kimi API key (.cn)",
+  });
+  options.push({ value: "kimi-code-api-key", label: "Kimi Code API key (subscription)" });
+  options.push({ value: "synthetic-api-key", label: "Synthetic API key" });
+  options.push({
+    value: "venice-api-key",
+    label: "Venice AI API key",
+    hint: "Privacy-focused inference (uncensored models)",
+  });
+  options.push({
+    value: "github-copilot",
+    label: "GitHub Copilot (GitHub device login)",
+    hint: "Uses GitHub device flow",
+  });
+  options.push({ value: "gemini-api-key", label: "Google Gemini API key" });
+  options.push({
+    value: "google-antigravity",
+    label: "Google Antigravity OAuth",
+    hint: "Uses the bundled Antigravity auth plugin",
+  });
+  options.push({
+    value: "google-gemini-cli",
+    label: "Google Gemini CLI OAuth",
+    hint: "Uses the bundled Gemini CLI auth plugin",
+  });
+  options.push({ value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" });
+  options.push({
+    value: "xiaomi-api-key",
+    label: "Xiaomi API key",
+  });
+  options.push({
+    value: "minimax-portal",
+    label: "MiniMax OAuth",
+    hint: "Oauth plugin for MiniMax",
+  });
+  options.push({ value: "qwen-portal", label: "Qwen OAuth" });
+  options.push({
+    value: "copilot-proxy",
+    label: "Copilot Proxy (local)",
+    hint: "Local proxy for VS Code Copilot models",
+  });
+  options.push({ value: "apiKey", label: "Anthropic API key" });
+  // Token flow is currently Anthropic-only; use CLI for advanced providers.
+  options.push({
+    value: "opencode-zen",
+    label: "OpenCode Zen (multi-model proxy)",
+    hint: "Claude, GPT, Gemini via opencode.ai/zen",
+  });
+  options.push({ value: "minimax-api", label: "MiniMax M2.1" });
+  options.push({
+    value: "minimax-api-lightning",
+    label: "MiniMax M2.1 Lightning",
+    hint: "Faster, higher output cost",
+  });
+  options.push({
+    value: "abacusai",
+    label: "AbacusAI (Code Mode)",
+    hint: "API key or auto-detect from AbacusAI Code Mode",
+  });
   if (params.includeSkip) {
     options.push({ value: "skip", label: "Skip for now" });
   }

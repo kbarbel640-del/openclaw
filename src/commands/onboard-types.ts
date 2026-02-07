@@ -49,6 +49,7 @@ export type AuthChoice =
   | "byteplus-api-key"
   | "qianfan-api-key"
   | "custom-api-key"
+  | "abacusai"
   | "skip";
 export type AuthChoiceGroupId =
   | "openai"
@@ -76,7 +77,8 @@ export type AuthChoiceGroupId =
   | "xai"
   | "volcengine"
   | "byteplus"
-  | "custom";
+  | "custom"
+  | "abacusai";
 export type GatewayAuthChoice = "token" | "password";
 export type ResetScope = "config" | "config+creds+sessions" | "full";
 export type GatewayBind = "loopback" | "lan" | "auto" | "custom" | "tailnet";
@@ -133,6 +135,7 @@ export type OnboardOptions = {
   customModelId?: string;
   customProviderId?: string;
   customCompatibility?: "openai" | "anthropic";
+  abacusaiApiKey?: string;
   gatewayPort?: number;
   gatewayBind?: GatewayBind;
   gatewayAuth?: GatewayAuthChoice;
