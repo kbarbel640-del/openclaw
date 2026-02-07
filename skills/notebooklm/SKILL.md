@@ -36,12 +36,14 @@ Use Google NotebookLM to synthesize knowledge from multiple sources into AI-gene
 ## Setup
 
 1. Install the CLI:
+
    ```bash
    pipx install notebooklm-cli
    # or: pip install notebooklm-cli
    ```
 
 2. Authenticate (opens Chrome, extracts session cookies):
+
    ```bash
    nlm login
    ```
