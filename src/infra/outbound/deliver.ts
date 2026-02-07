@@ -321,8 +321,8 @@ export async function deliverOutboundPayloads(params: {
   };
   const normalizedPayloads = normalizeReplyPayloadsForDelivery(payloads);
 
-  // Run message_sending hook to allow plugins to transform outgoing content.
-  // Runs pre-chunk so transformations (e.g. token decoding) are applied to the
+  // Run message_sending hook — lets plugins transform outgoing content.
+  // Runs pre-chunk so transformations (e.g. token decoding) apply to the
   // full text before it is split into channel-sized messages.
   const hookRunner = getGlobalHookRunner();
   if (hookRunner?.hasHooks("message_sending")) {
