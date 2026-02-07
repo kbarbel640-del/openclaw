@@ -87,6 +87,42 @@ export const InternalHooksSchema = z
   .strict()
   .optional();
 
+// Agent-level hooks (Claude Code-style)
+const ShellHookCommandSchema = z
+  .object({
+    type: z.literal("command"),
+    command: z.string(),
+  })
+  .strict();
+
+const AgentHookMatcherSchema = z
+  .object({
+    toolPattern: z.string().optional(),
+    toolNames: z.array(z.string()).optional(),
+  })
+  .strict();
+
+const AgentHookEntrySchema = z
+  .object({
+    matcher: z.union([AgentHookMatcherSchema, z.string()]).optional(),
+    hooks: z.array(ShellHookCommandSchema),
+    timeoutMs: z.number().int().positive().optional(),
+    cwd: z.string().optional(),
+  })
+  .strict();
+
+export const AgentHooksSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    UserPromptSubmit: z.array(AgentHookEntrySchema).optional(),
+    PreToolUse: z.array(AgentHookEntrySchema).optional(),
+    PostToolUse: z.array(AgentHookEntrySchema).optional(),
+    Stop: z.array(AgentHookEntrySchema).optional(),
+    PreCompact: z.array(AgentHookEntrySchema).optional(),
+  })
+  .strict()
+  .optional();
+
 export const HooksGmailSchema = z
   .object({
     account: z.string().optional(),
