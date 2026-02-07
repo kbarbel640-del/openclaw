@@ -47,7 +47,10 @@ const splitTrailingDirective = (text: string): { text: string; tail: string } =>
   };
 };
 
-const parseChunk = (raw: string, options?: { silentToken?: string; resolveRelativePaths?: boolean }): ParsedChunk => {
+const parseChunk = (
+  raw: string,
+  options?: { silentToken?: string; resolveRelativePaths?: boolean },
+): ParsedChunk => {
   const split = splitMediaFromOutput(raw);
   let text = split.text ?? "";
 
@@ -115,7 +118,10 @@ export function createStreamingDirectiveAccumulator() {
       return null;
     }
 
-    const parsed = parseChunk(combined, { silentToken: options.silentToken, resolveRelativePaths: options.resolveRelativePaths });
+    const parsed = parseChunk(combined, {
+      silentToken: options.silentToken,
+      resolveRelativePaths: options.resolveRelativePaths,
+    });
     const hasTag = pendingReply.hasTag || parsed.replyToTag;
     const sawCurrent = pendingReply.sawCurrent || parsed.replyToCurrent;
     const explicitId = parsed.replyToExplicitId ?? pendingReply.explicitId;

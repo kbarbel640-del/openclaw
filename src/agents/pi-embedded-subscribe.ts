@@ -253,7 +253,9 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     const agg = formatToolAggregate(toolName, meta ? [meta] : undefined, {
       markdown: useMarkdown,
     });
-    const { text: cleanedText, mediaUrls } = parseReplyDirectives(agg, { resolveRelativePaths: true });
+    const { text: cleanedText, mediaUrls } = parseReplyDirectives(agg, {
+      resolveRelativePaths: true,
+    });
     if (!cleanedText && (!mediaUrls || mediaUrls.length === 0)) {
       return;
     }
@@ -274,7 +276,9 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
       markdown: useMarkdown,
     });
     const message = `${agg}\n${formatToolOutputBlock(output)}`;
-    const { text: cleanedText, mediaUrls } = parseReplyDirectives(message, { resolveRelativePaths: true });
+    const { text: cleanedText, mediaUrls } = parseReplyDirectives(message, {
+      resolveRelativePaths: true,
+    });
     if (!cleanedText && (!mediaUrls || mediaUrls.length === 0)) {
       return;
     }
