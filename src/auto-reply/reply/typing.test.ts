@@ -99,6 +99,34 @@ describe("typing controller", () => {
     expect(onReplyStart).not.toHaveBeenCalled();
   });
 
+  it("cleanup seals the controller so late calls are no-ops", async () => {
+    vi.useFakeTimers();
+    const onReplyStart = vi.fn(async () => {});
+    const typing = createTypingController({
+      onReplyStart,
+      typingIntervalSeconds: 1,
+      typingTtlMs: 30_000,
+    });
+
+    // Start typing, then immediately clean up (simulates FULL response path).
+    await typing.startTypingLoop();
+    expect(onReplyStart).toHaveBeenCalledTimes(1);
+
+    typing.cleanup();
+    expect(typing.isActive()).toBe(false);
+
+    // All subsequent calls should be no-ops.
+    await typing.startTypingLoop();
+    await typing.startTypingOnText("late text");
+    await typing.onReplyStart();
+    typing.refreshTypingTtl();
+    typing.markRunComplete();
+    typing.markDispatchIdle();
+
+    vi.advanceTimersByTime(10_000);
+    expect(onReplyStart).toHaveBeenCalledTimes(1);
+  });
+
   it("does not restart typing after it has stopped", async () => {
     vi.useFakeTimers();
     const onReplyStart = vi.fn(async () => {});
