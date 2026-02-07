@@ -82,14 +82,13 @@ export function buildPowerShellWrapper({
   const args = programArguments.slice(1);
 
   // Use Start-Process with -WindowStyle Hidden to prevent console window
+  // -Wait ensures the PowerShell script waits for the process to complete
   if (args.length === 0) {
-    lines.push(
-      `$process = Start-Process -FilePath ${executable} -WindowStyle Hidden -PassThru -Wait`,
-    );
+    lines.push(`Start-Process -FilePath ${executable} -WindowStyle Hidden -Wait`);
   } else {
     const argList = args.map(quotePowerShellArg).join(", ");
     lines.push(
-      `$process = Start-Process -FilePath ${executable} -ArgumentList @(${argList}) -WindowStyle Hidden -PassThru -Wait`,
+      `Start-Process -FilePath ${executable} -ArgumentList @(${argList}) -WindowStyle Hidden -Wait`,
     );
   }
 
@@ -339,7 +338,10 @@ export async function installScheduledTask({
 
   const taskName = resolveTaskName(env);
   // Use PowerShell to execute the ps1 script with hidden window
-  const taskCommand = `powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "${ps1ScriptPath}"`;
+  // ExecutionPolicy RemoteSigned allows locally created scripts while maintaining security
+  // Script path is properly quoted to handle spaces and special characters
+  const quotedPs1Path = quoteCmdArg(ps1ScriptPath);
+  const taskCommand = `powershell.exe -ExecutionPolicy RemoteSigned -WindowStyle Hidden -File ${quotedPs1Path}`;
   const baseArgs = [
     "/Create",
     "/F",

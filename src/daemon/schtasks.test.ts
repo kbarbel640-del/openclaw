@@ -280,7 +280,7 @@ describe("buildPowerShellWrapper", () => {
     expect(script).toContain("Start-Process -FilePath 'node'");
     expect(script).toContain("-ArgumentList @('gateway.js')");
     expect(script).toContain("-WindowStyle Hidden");
-    expect(script).toContain("-PassThru -Wait");
+    expect(script).toContain("-Wait");
   });
 
   it("includes description as comment", () => {
