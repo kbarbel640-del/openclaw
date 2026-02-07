@@ -386,7 +386,12 @@ function truncateValue(value: unknown, maxLen = 40): string {
 }
 
 export function renderConfig(props: ConfigProps) {
-  const validity = props.valid == null ? "unknown" : props.valid ? "valid" : "invalid";
+  const validity =
+    props.valid == null
+      ? t("common.unknown")
+      : props.valid
+        ? t("common.valid")
+        : t("common.invalid");
   const analysis = analyzeConfigSchema(props.schema);
   const formUnsafe = analysis.schema ? analysis.unsupportedPaths.length > 0 : false;
 
@@ -665,7 +670,7 @@ export function renderConfig(props: ConfigProps) {
                   class="config-subnav__item ${effectiveSubsection === null ? "active" : ""}"
                   @click=${() => props.onSubsectionChange(ALL_SUBSECTION)}
                 >
-                  All
+                  ${t("common.all")}
                 </button>
                 ${subsections.map(
                   (entry) => html`

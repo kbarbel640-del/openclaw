@@ -51,8 +51,11 @@ export function renderInstances(props: InstancesProps) {
 }
 
 function renderEntry(entry: PresenceEntry) {
-  const lastInput = entry.lastInputSeconds != null ? `${entry.lastInputSeconds}s` : t("common.na");
-  const mode = entry.mode ?? "unknown";
+  const lastInput =
+    entry.lastInputSeconds != null
+      ? t("common.time.seconds", { count: entry.lastInputSeconds })
+      : t("common.na");
+  const mode = entry.mode ?? t("common.unknown");
   const roles = Array.isArray(entry.roles) ? entry.roles.filter(Boolean) : [];
   const scopes = Array.isArray(entry.scopes) ? entry.scopes.filter(Boolean) : [];
   const scopesLabel =

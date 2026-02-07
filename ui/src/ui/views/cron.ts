@@ -4,7 +4,7 @@ import type { CronFormState } from "../ui-types.ts";
 import { formatAgo, formatMs } from "../format.ts";
 import { t } from "../i18n/i18n-manager.ts";
 import { pathForTab } from "../navigation.ts";
-import { formatCronPayload, formatCronSchedule, formatNextRun } from "../presenter.ts";
+import { formatCronSchedule, formatNextRun } from "../presenter.ts";
 
 export type CronProps = {
   basePath: string;
@@ -460,7 +460,7 @@ function renderJobPayload(job: CronJob) {
   const delivery = job.delivery;
   const deliveryTarget =
     delivery?.channel || delivery?.to
-      ? ` (${delivery.channel ?? "last"}${delivery.to ? ` -> ${delivery.to}` : ""})`
+      ? ` (${delivery.channel ?? t("cron.lastLabel")}${delivery.to ? ` -> ${delivery.to}` : ""})`
       : "";
 
   return html`

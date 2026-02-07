@@ -89,82 +89,166 @@ const TOOL_SECTIONS = [
     id: "fs",
     label: "agents.toolSections.fs",
     tools: [
-      { id: "read", label: "read", description: "Read file contents" },
-      { id: "write", label: "write", description: "Create or overwrite files" },
-      { id: "edit", label: "edit", description: "Make precise edits" },
-      { id: "apply_patch", label: "apply_patch", description: "Patch files (OpenAI)" },
+      { id: "read", label: "agents.toolLabels.read", description: "agents.toolDescriptions.read" },
+      {
+        id: "write",
+        label: "agents.toolLabels.write",
+        description: "agents.toolDescriptions.write",
+      },
+      { id: "edit", label: "agents.toolLabels.edit", description: "agents.toolDescriptions.edit" },
+      {
+        id: "apply_patch",
+        label: "agents.toolLabels.apply_patch",
+        description: "agents.toolDescriptions.apply_patch",
+      },
     ],
   },
   {
     id: "runtime",
     label: "agents.toolSections.runtime",
     tools: [
-      { id: "exec", label: "exec", description: "Run shell commands" },
-      { id: "process", label: "process", description: "Manage background processes" },
+      { id: "exec", label: "agents.toolLabels.exec", description: "agents.toolDescriptions.exec" },
+      {
+        id: "process",
+        label: "agents.toolLabels.process",
+        description: "agents.toolDescriptions.process",
+      },
     ],
   },
   {
     id: "web",
     label: "agents.toolSections.web",
     tools: [
-      { id: "web_search", label: "web_search", description: "Search the web" },
-      { id: "web_fetch", label: "web_fetch", description: "Fetch web content" },
+      {
+        id: "web_search",
+        label: "agents.toolLabels.web_search",
+        description: "agents.toolDescriptions.web_search",
+      },
+      {
+        id: "web_fetch",
+        label: "agents.toolLabels.web_fetch",
+        description: "agents.toolDescriptions.web_fetch",
+      },
     ],
   },
   {
     id: "memory",
     label: "agents.toolSections.memory",
     tools: [
-      { id: "memory_search", label: "memory_search", description: "Semantic search" },
-      { id: "memory_get", label: "memory_get", description: "Read memory files" },
+      {
+        id: "memory_search",
+        label: "agents.toolLabels.memory_search",
+        description: "agents.toolDescriptions.memory_search",
+      },
+      {
+        id: "memory_get",
+        label: "agents.toolLabels.memory_get",
+        description: "agents.toolDescriptions.memory_get",
+      },
     ],
   },
   {
     id: "sessions",
     label: "agents.toolSections.sessions",
     tools: [
-      { id: "sessions_list", label: "sessions_list", description: "List sessions" },
-      { id: "sessions_history", label: "sessions_history", description: "Session history" },
-      { id: "sessions_send", label: "sessions_send", description: "Send to session" },
-      { id: "sessions_spawn", label: "sessions_spawn", description: "Spawn sub-agent" },
-      { id: "session_status", label: "session_status", description: "Session status" },
+      {
+        id: "sessions_list",
+        label: "agents.toolLabels.sessions_list",
+        description: "agents.toolDescriptions.sessions_list",
+      },
+      {
+        id: "sessions_history",
+        label: "agents.toolLabels.sessions_history",
+        description: "agents.toolDescriptions.sessions_history",
+      },
+      {
+        id: "sessions_send",
+        label: "agents.toolLabels.sessions_send",
+        description: "agents.toolDescriptions.sessions_send",
+      },
+      {
+        id: "sessions_spawn",
+        label: "agents.toolLabels.sessions_spawn",
+        description: "agents.toolDescriptions.sessions_spawn",
+      },
+      {
+        id: "session_status",
+        label: "agents.toolLabels.session_status",
+        description: "agents.toolDescriptions.session_status",
+      },
     ],
   },
   {
     id: "ui",
     label: "agents.toolSections.ui",
     tools: [
-      { id: "browser", label: "browser", description: "Control web browser" },
-      { id: "canvas", label: "canvas", description: "Control canvases" },
+      {
+        id: "browser",
+        label: "agents.toolLabels.browser",
+        description: "agents.toolDescriptions.browser",
+      },
+      {
+        id: "canvas",
+        label: "agents.toolLabels.canvas",
+        description: "agents.toolDescriptions.canvas",
+      },
     ],
   },
   {
     id: "messaging",
     label: "agents.toolSections.messaging",
-    tools: [{ id: "message", label: "message", description: "Send messages" }],
+    tools: [
+      {
+        id: "message",
+        label: "agents.toolLabels.message",
+        description: "agents.toolDescriptions.message",
+      },
+    ],
   },
   {
     id: "automation",
     label: "agents.toolSections.automation",
     tools: [
-      { id: "cron", label: "cron", description: "Schedule tasks" },
-      { id: "gateway", label: "gateway", description: "Gateway control" },
+      { id: "cron", label: "agents.toolLabels.cron", description: "agents.toolDescriptions.cron" },
+      {
+        id: "gateway",
+        label: "agents.toolLabels.gateway",
+        description: "agents.toolDescriptions.gateway",
+      },
     ],
   },
   {
     id: "nodes",
     label: "agents.toolSections.nodes",
-    tools: [{ id: "nodes", label: "nodes", description: "Nodes + devices" }],
+    tools: [
+      {
+        id: "nodes",
+        label: "agents.toolLabels.nodes",
+        description: "agents.toolDescriptions.nodes",
+      },
+    ],
   },
   {
     id: "agents",
     label: "agents.toolSections.agents",
-    tools: [{ id: "agents_list", label: "agents_list", description: "List agents" }],
+    tools: [
+      {
+        id: "agents_list",
+        label: "agents.toolLabels.agents_list",
+        description: "agents.toolDescriptions.agents_list",
+      },
+    ],
   },
   {
     id: "media",
     label: "agents.toolSections.media",
-    tools: [{ id: "image", label: "image", description: "Image understanding" }],
+    tools: [
+      {
+        id: "image",
+        label: "agents.toolLabels.image",
+        description: "agents.toolDescriptions.image",
+      },
+    ],
   },
 ];
 
@@ -327,9 +411,11 @@ function buildAgentContext(
   return {
     workspace,
     model: modelLabel,
-    identityName,
+    identityName: identityName === "Assistant" ? t("common.roles.assistant") : identityName,
     identityEmoji,
-    skillsLabel: skillFilter ? `${skillCount} selected` : "all skills",
+    skillsLabel: skillFilter
+      ? t("agents.skillsSelected", { count: skillCount ?? 0 })
+      : t("agents.allSkillsLabel"),
     isDefault: Boolean(defaultId && agent.id === defaultId),
   };
 }
@@ -827,12 +913,14 @@ function renderAgentOverview(params: {
   const effectivePrimary = modelPrimary ?? defaultPrimary ?? null;
   const modelFallbacks = resolveModelFallbacks(config.entry?.model);
   const fallbackText = modelFallbacks ? modelFallbacks.join(", ") : "";
-  const identityName =
+  const identityNameRaw =
     agentIdentity?.name?.trim() ||
     agent.identity?.name?.trim() ||
     agent.name?.trim() ||
     config.entry?.name ||
     "-";
+  const identityName =
+    identityNameRaw === "Assistant" ? t("common.roles.assistant") : identityNameRaw;
   const resolvedEmoji = resolveAgentEmoji(agent, agentIdentity);
   const identityEmoji = resolvedEmoji || "-";
   const skillFilter = Array.isArray(config.entry?.skills) ? config.entry?.skills : null;
@@ -872,7 +960,7 @@ function renderAgentOverview(params: {
         </div>
         <div class="agent-kv">
           <div class="label">${t("agents.skillsFilter")}</div>
-          <div>${skillFilter ? `${skillCount} selected` : "all skills"}</div>
+          <div>${skillFilter ? t("agents.skillsSelected", { count: skillCount ?? 0 }) : t("agents.allSkillsLabel")}</div>
         </div>
       </div>
 
@@ -1043,7 +1131,7 @@ function resolveChannelConfigValue(
 
 function formatChannelExtraValue(raw: unknown): string {
   if (raw == null) {
-    return "n/a";
+    return t("common.na");
   }
   if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean") {
     return String(raw);
@@ -1051,7 +1139,7 @@ function formatChannelExtraValue(raw: unknown): string {
   try {
     return JSON.stringify(raw);
   } catch {
-    return "n/a";
+    return t("common.na");
   }
 }
 
@@ -1239,7 +1327,7 @@ function renderAgentCron(params: {
           </div>
           <div class="stat">
             <div class="stat-label">${t("cron.jobs")}</div>
-            <div class="stat-value">${params.status?.jobs ?? "n/a"}</div>
+            <div class="stat-value">${params.status?.jobs ?? t("common.na")}</div>
           </div>
           <div class="stat">
             <div class="stat-label">${t("cron.nextWake")}</div>
@@ -1660,8 +1748,8 @@ function renderAgentTools(params: {
                   return html`
                     <div class="agent-tool-row">
                       <div>
-                        <div class="agent-tool-title mono">${tool.label}</div>
-                        <div class="agent-tool-sub">${tool.description}</div>
+                        <div class="agent-tool-title mono">${t(tool.label)}</div>
+                        <div class="agent-tool-sub">${t(tool.description)}</div>
                       </div>
                       <label class="cfg-toggle">
                         <input
@@ -1794,7 +1882,7 @@ function renderAgentSkills(params: {
             ?disabled=${params.configSaving || !params.configDirty}
             @click=${params.onConfigSave}
           >
-            ${params.configSaving ? "Saving…" : "Save"}
+            ${params.configSaving ? t("config.saving") : t("common.save")}
           </button>
         </div>
       </div>

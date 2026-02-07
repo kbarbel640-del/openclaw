@@ -85,7 +85,7 @@ describe("chat view", () => {
     );
 
     const newSessionButton = Array.from(container.querySelectorAll("button")).find(
-      (btn) => btn.textContent?.trim() === "New session",
+      (btn) => btn.textContent?.trim() === "New Session",
     );
     expect(newSessionButton).not.toBeUndefined();
     newSessionButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

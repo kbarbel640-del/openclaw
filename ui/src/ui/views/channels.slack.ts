@@ -29,11 +29,11 @@ export function renderSlackCard(params: {
         </div>
         <div>
           <span class="label">${t("slack.lastStart")}</span>
-          <span>${slack?.lastStartAt ? formatAgo(slack.lastStartAt) : "n/a"}</span>
+          <span>${slack?.lastStartAt ? formatAgo(slack.lastStartAt) : t("common.na")}</span>
         </div>
         <div>
           <span class="label">${t("slack.lastProbe")}</span>
-          <span>${slack?.lastProbeAt ? formatAgo(slack.lastProbeAt) : "n/a"}</span>
+          <span>${slack?.lastProbeAt ? formatAgo(slack.lastProbeAt) : t("common.na")}</span>
         </div>
       </div>
 

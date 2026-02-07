@@ -133,7 +133,7 @@ function renderDevices(props: NodesProps) {
 function renderPendingDevice(req: PendingDevice, props: NodesProps) {
   const name = req.displayName?.trim() || req.deviceId;
   const age = typeof req.ts === "number" ? formatAgo(req.ts) : t("common.na");
-  const role = req.role?.trim() ? `role: ${req.role}` : "role: -";
+  const role = req.role?.trim() ? `${t("nodes.role")}: ${req.role}` : `${t("nodes.role")}: -`;
   const repair = req.isRepair ? ` · ${t("nodes.repair")}` : "";
   const ip = req.remoteIp ? ` · ${req.remoteIp}` : "";
   return html`
@@ -162,8 +162,8 @@ function renderPendingDevice(req: PendingDevice, props: NodesProps) {
 function renderPairedDevice(device: PairedDevice, props: NodesProps) {
   const name = device.displayName?.trim() || device.deviceId;
   const ip = device.remoteIp ? ` · ${device.remoteIp}` : "";
-  const roles = `roles: ${formatList(device.roles)}`;
-  const scopes = `scopes: ${formatList(device.scopes)}`;
+  const roles = `${t("nodes.roles")}: ${formatList(device.roles)}`;
+  const scopes = `${t("nodes.scopes")}: ${formatList(device.scopes)}`;
   const tokens = Array.isArray(device.tokens) ? device.tokens : [];
   return html`
     <div class="list-item">
@@ -992,7 +992,7 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
           ${
             bindingValue === "__default__"
               ? t("nodes.usesDefault", { value: state.defaultBinding ?? "any" })
-              : t("nodes.override", { value: agent.binding })
+              : t("nodes.override", { value: agent.binding ?? "" })
           }
         </div>
       </div>

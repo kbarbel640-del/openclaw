@@ -1,4 +1,5 @@
 import { html, svg, nothing } from "lit";
+import { t } from "../i18n/i18n-manager.ts";
 import { extractQueryTerms, filterSessionsByQuery, parseToolSummary } from "../usage-helpers.ts";
 
 // Inline styles for usage view (app uses light DOM, so static styles don't work)
@@ -4275,7 +4276,7 @@ function renderTimeSeriesCompact(
                   <div class="cost-segment cache-read" style="width: ${pct(sumCacheRead, totalTypeTokens).toFixed(1)}%"></div>
                 </div>
                 <div class="cost-breakdown-legend">
-                  <div class="legend-item" title="Assistant output tokens">
+                  <div class="legend-item" title="${t("common.roles.assistant")} output tokens">
                     <span class="legend-dot output"></span>Output ${formatTokens(sumOutput)}
                   </div>
                   <div class="legend-item" title="User + tool input tokens">
@@ -4478,16 +4479,16 @@ function renderSessionLogsCompact(
   if (loading) {
     return html`
       <div class="session-logs-compact">
-        <div class="session-logs-header">Conversation</div>
-        <div class="muted" style="padding: 20px; text-align: center">Loading...</div>
+        <div class="session-logs-header">${t("common.conversation")}</div>
+        <div class="muted" style="padding: 20px; text-align: center">${t("common.loading")}</div>
       </div>
     `;
   }
   if (!logs || logs.length === 0) {
     return html`
       <div class="session-logs-compact">
-        <div class="session-logs-header">Conversation</div>
-        <div class="muted" style="padding: 20px; text-align: center">No messages</div>
+        <div class="session-logs-header">${t("common.conversation")}</div>
+        <div class="muted" style="padding: 20px; text-align: center">${t("common.noMessages")}</div>
       </div>
     `;
   }
@@ -4549,10 +4550,10 @@ function renderSessionLogsCompact(
               ),
             )}
         >
-          <option value="user" ?selected=${roleSelected.has("user")}>User</option>
-          <option value="assistant" ?selected=${roleSelected.has("assistant")}>Assistant</option>
-          <option value="tool" ?selected=${roleSelected.has("tool")}>Tool</option>
-          <option value="toolResult" ?selected=${roleSelected.has("toolResult")}>Tool result</option>
+          <option value="user" ?selected=${roleSelected.has("user")}>${t("common.roles.user")}</option>
+          <option value="assistant" ?selected=${roleSelected.has("assistant")}>${t("common.roles.assistant")}</option>
+          <option value="tool" ?selected=${roleSelected.has("tool")}>${t("common.roles.tool")}</option>
+          <option value="toolResult" ?selected=${roleSelected.has("toolResult")}>${t("common.roles.toolResult")}</option>
         </select>
         <select
           multiple
@@ -4593,7 +4594,11 @@ function renderSessionLogsCompact(
           const { log, toolInfo, cleanContent } = entry;
           const roleClass = log.role === "user" ? "user" : "assistant";
           const roleLabel =
-            log.role === "user" ? "You" : log.role === "assistant" ? "Assistant" : "Tool";
+            log.role === "user"
+              ? t("common.roles.user")
+              : log.role === "assistant"
+                ? t("common.roles.assistant")
+                : t("common.roles.tool");
           return html`
           <div class="session-log-entry ${roleClass}">
             <div class="session-log-meta">
@@ -5262,13 +5267,13 @@ export function renderUsage(props: UsageProps) {
           </div>
         </div>
         <div class="usage-filter-row">
-          ${renderFilterSelect("agent", "Agent", agentOptions)}
-          ${renderFilterSelect("channel", "Channel", channelOptions)}
-          ${renderFilterSelect("provider", "Provider", providerOptions)}
-          ${renderFilterSelect("model", "Model", modelOptions)}
-          ${renderFilterSelect("tool", "Tool", toolOptions)}
+          ${renderFilterSelect("agent", t("usage.agent"), agentOptions)}
+          ${renderFilterSelect("channel", t("usage.channel"), channelOptions)}
+          ${renderFilterSelect("provider", t("usage.provider"), providerOptions)}
+          ${renderFilterSelect("model", t("usage.model"), modelOptions)}
+          ${renderFilterSelect("tool", t("usage.tool"), toolOptions)}
           <span class="usage-query-hint">
-            Tip: use filters or click bars to filter days.
+            ${t("usage.filterHint")}
           </span>
         </div>
         ${
