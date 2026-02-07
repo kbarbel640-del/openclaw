@@ -27,6 +27,8 @@ export type ReviewIteration = {
   feedback: string;
   suggestedChanges?: string[];
   revisedPlan?: Partial<WorkflowPlan>;
+  /** True when approval was inferred due to reviewer failure (empty/invalid response). */
+  autoApproved?: boolean;
 };
 
 /** Result from a single discovery subagent. */

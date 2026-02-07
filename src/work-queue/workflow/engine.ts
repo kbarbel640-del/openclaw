@@ -89,7 +89,7 @@ export class WorkerWorkflowEngine {
       }
 
       // Phase 3: Discovery — state.plan is guaranteed set by plan phase (and possibly updated by review).
-      const currentPlan = state.plan ?? plan;
+      const currentPlan = state.plan;
       if (currentPlan.discoveryQuestions.length > 0) {
         state.phase = "discovering";
         log.info(
@@ -149,23 +149,30 @@ export class WorkerWorkflowEngine {
         },
       });
 
-      // Complete.
-      state.phase = "completed";
+      // Mark completed or failed based on execution results.
+      const progress = state.executionProgress;
+      if (progress.failedNodes > 0 && progress.completedNodes === 0) {
+        state.phase = "failed";
+        state.error = `All ${progress.failedNodes} execution node(s) failed`;
+      } else {
+        state.phase = "completed";
+      }
       state.completedAt = Date.now();
       this.recordNote(
         item,
         "summary",
-        `Workflow completed: ${state.executionProgress.completedNodes}/${state.executionProgress.totalNodes} nodes succeeded`,
+        `Workflow ${state.phase}: ${progress.completedNodes}/${progress.totalNodes} nodes succeeded`,
       );
 
       log.info(`workflow[${this.agentId}]: workflow completed for item ${item.id}`);
       return state;
     } catch (err) {
+      const failedInPhase = state.phase;
       state.phase = "failed";
       state.error = String(err);
       state.completedAt = Date.now();
       log.error(`workflow[${this.agentId}]: workflow failed for item ${item.id}: ${state.error}`);
-      this.recordNote(item, "blocker", `Workflow failed in ${state.phase}: ${state.error}`);
+      this.recordNote(item, "blocker", `Workflow failed in ${failedInPhase}: ${state.error}`);
       return state;
     }
   }

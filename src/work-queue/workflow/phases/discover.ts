@@ -87,6 +87,9 @@ export async function runDiscoveryPhase(opts: {
   for (let batchStart = 0; batchStart < questions.length; batchStart += maxParallel) {
     const batch = questions.slice(batchStart, batchStart + maxParallel);
     const entries: JoinBarrierEntry[] = [];
+    // Track which question each entry corresponds to, since failed spawns
+    // are pushed directly to results and don't get an entry.
+    const entryQuestions: string[] = [];
 
     // Spawn discovery subagents.
     for (const question of batch) {
@@ -118,6 +121,7 @@ export async function runDiscoveryPhase(opts: {
           sessionKey,
           label: question.slice(0, 80),
         });
+        entryQuestions.push(question);
 
         log.debug(`workflow[${agentId}]: spawned discovery agent for "${question.slice(0, 50)}"`);
       } catch (err) {
@@ -146,10 +150,10 @@ export async function runDiscoveryPhase(opts: {
       log,
     });
 
-    // Process barrier results.
+    // Process barrier results — use entryQuestions (aligned with entries) not batch.
     for (let i = 0; i < barrierResults.length; i++) {
       const barrierResult = barrierResults[i];
-      const question = batch[i];
+      const question = entryQuestions[i];
 
       const report = parseSubagentReport(barrierResult.reply, {
         question,

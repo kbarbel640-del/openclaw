@@ -12,10 +12,6 @@ export async function runDecomposePhase(opts: {
   discoveryResults: DiscoveryResult[];
   agentId: string;
   thinking?: string;
-  model?: string;
-  maxPhases?: number;
-  maxTasksPerPhase?: number;
-  maxSubtasksPerTask?: number;
   callGateway: GatewayCallFn;
   log: WorkflowLogger;
 }): Promise<OverseerPlan> {

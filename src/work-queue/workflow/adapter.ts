@@ -121,12 +121,13 @@ export class WorkflowWorkerAdapter {
         const outcome: WorkItemOutcome = state.phase === "completed" ? "success" : "error";
 
         const now = new Date().toISOString();
-        const retryCount = (item.retryCount ?? 0) + 1;
+        // attemptNumber is 1-indexed; retryCount tracks how many re-attempts after the first.
+        const attemptNumber = (item.retryCount ?? 0) + 1;
 
         // Record execution.
         await this.deps.store.recordExecution({
           itemId: item.id,
-          attemptNumber: retryCount,
+          attemptNumber,
           sessionKey: `workflow:${this.agentId}`,
           outcome,
           error: state.error,
@@ -140,7 +141,7 @@ export class WorkflowWorkerAdapter {
           const progress = state.executionProgress;
           await this.deps.store.updateItem(item.id, {
             status: "completed",
-            retryCount,
+            retryCount: attemptNumber,
             lastOutcome: "success",
             result: {
               summary: `Workflow completed: ${progress?.completedNodes ?? 0}/${progress?.totalNodes ?? 0} nodes`,
@@ -150,12 +151,14 @@ export class WorkflowWorkerAdapter {
           this.deps.log.info(`workflow-worker[${this.agentId}]: completed item ${item.id}`);
         } else {
           const maxRetries = item.maxRetries ?? 0;
-          const exhausted = maxRetries > 0 && retryCount >= maxRetries;
+          // maxRetries is the number of allowed retry attempts after the initial run,
+          // so the item is exhausted when attemptNumber > maxRetries (attempt 1 is the first try).
+          const exhausted = maxRetries > 0 && attemptNumber > maxRetries;
 
           if (exhausted || maxRetries === 0) {
             await this.deps.store.updateItem(item.id, {
               status: "failed",
-              retryCount,
+              retryCount: attemptNumber,
               lastOutcome: "error",
               error: { message: state.error ?? "workflow failed", recoverable: !exhausted },
               completedAt: now,
@@ -163,9 +166,9 @@ export class WorkflowWorkerAdapter {
           } else {
             await this.deps.store.updateItem(item.id, {
               status: "pending",
-              retryCount,
+              retryCount: attemptNumber,
               lastOutcome: "error",
-              statusReason: `retry ${retryCount}/${maxRetries}`,
+              statusReason: `retry ${attemptNumber}/${maxRetries}`,
               error: { message: state.error ?? "workflow failed", recoverable: true },
               assignedTo: undefined,
               startedAt: undefined,
@@ -221,11 +224,14 @@ export class WorkflowWorkerAdapter {
         resolve();
         return;
       }
-      const timer = setTimeout(resolve, ms);
       const onAbort = () => {
         clearTimeout(timer);
         resolve();
       };
+      const timer = setTimeout(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      }, ms);
       signal.addEventListener("abort", onAbort, { once: true });
     });
   }

@@ -99,6 +99,7 @@ export async function runReviewPhase(opts: {
       iterations.push({
         iteration: i,
         approved: true,
+        autoApproved: true,
         feedback: "No response from reviewer — auto-approved.",
       });
       break;
@@ -114,6 +115,7 @@ export async function runReviewPhase(opts: {
       iterations.push({
         iteration: i,
         approved: true,
+        autoApproved: true,
         feedback: reply.trim(),
       });
       break;
@@ -127,6 +129,7 @@ export async function runReviewPhase(opts: {
       iterations.push({
         iteration: i,
         approved: true,
+        autoApproved: true,
         feedback: reply.trim(),
       });
       break;

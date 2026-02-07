@@ -72,6 +72,8 @@ export async function runPlanPhase(opts: {
   let lastOutput = "";
 
   for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
+    // Reuse the same session across repair attempts so the agent has context
+    // from prior attempts and can see what went wrong.
     const sessionKey = `agent:${agentId}:workflow:plan:${item.id}`;
     const message =
       attempt === 0 ? buildPlanPrompt(item) : buildRepairPrompt(validationErrors, lastOutput);

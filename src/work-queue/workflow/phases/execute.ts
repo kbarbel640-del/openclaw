@@ -49,20 +49,27 @@ function topologicalSort(nodes: FlatNode[]): FlatNode[] {
   }
 
   const visited = new Set<string>();
+  const visiting = new Set<string>();
   const sorted: FlatNode[] = [];
 
   function visit(nodeId: string) {
     if (visited.has(nodeId)) {
       return;
     }
-    visited.add(nodeId);
+    if (visiting.has(nodeId)) {
+      throw new Error(`Cycle detected in execution DAG at node "${nodeId}"`);
+    }
+    visiting.add(nodeId);
     const node = nodeMap.get(nodeId);
     if (!node) {
+      visiting.delete(nodeId);
       return;
     }
     for (const depId of node.dependsOn ?? []) {
       visit(depId);
     }
+    visiting.delete(nodeId);
+    visited.add(nodeId);
     sorted.push(node);
   }
 

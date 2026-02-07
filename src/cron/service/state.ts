@@ -1,17 +1,27 @@
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
 import type { CronJob, CronJobCreate, CronJobPatch, CronStoreFile } from "../types.js";
 
-export type CronEvent = {
-  jobId?: string;
-  action: "added" | "updated" | "removed" | "started" | "finished" | "unhealthy" | "healthy";
+/** Job-scoped cron event (always has a jobId). */
+export type CronJobEvent = {
+  jobId: string;
+  action: "added" | "updated" | "removed" | "started" | "finished";
   runAtMs?: number;
   durationMs?: number;
   status?: "ok" | "error" | "skipped";
   error?: string;
   summary?: string;
   nextRunAtMs?: number;
+};
+
+/** Service-level health event (no jobId). */
+export type CronHealthEvent = {
+  action: "unhealthy" | "healthy";
+  error?: string;
   consecutiveFailures?: number;
 };
+
+/** Discriminated union of cron events — job events always carry `jobId`. */
+export type CronEvent = CronJobEvent | CronHealthEvent;
 
 export type Logger = {
   debug: (obj: unknown, msg?: string) => void;
