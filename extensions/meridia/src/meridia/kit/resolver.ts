@@ -53,7 +53,7 @@ export async function resolveKitUri(
 /**
  * Render a MeridiaExperienceRecord as human-readable text.
  */
-function renderKit(record: MeridiaExperienceRecord): string {
+export function renderKit(record: MeridiaExperienceRecord): string {
   const lines: string[] = [];
 
   lines.push(`# Experience Kit: ${record.id}`);
