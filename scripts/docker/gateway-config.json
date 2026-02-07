@@ -1,0 +1,19 @@
+{
+  "gateway": {
+    "auth": {
+      "mode": "token",
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    },
+    "bind": "lan",
+    "controlUi": {
+      "enabled": true,
+      "allowInsecureAuth": true
+    },
+    "trustedProxies": ["*"]
+  },
+  "env": {
+    "shellEnv": {
+      "enabled": true
+    }
+  }
+}

@@ -1,0 +1,59 @@
+# GCP Cloud Build upload ignore file
+# Goal: keep build context small, but ALWAYS include package manifests/lockfiles.
+
+# --- Always include critical root manifests ---
+!package.json
+!.npmrc
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!Dockerfile
+!.dockerignore
+
+# --- Always include source and build scripts needed by Dockerfile ---
+!src/**
+!packages/**
+!ui/**
+!patches/**
+!scripts/**
+!tsconfig*.json
+
+# --- Exclude heavy/unneeded stuff ---
+.git
+node_modules
+**/node_modules
+.pnpm-store
+**/.pnpm-store
+.bun
+.bun-cache
+.cache
+**/.cache
+.tmp
+**/.tmp
+.next
+**/.next
+coverage
+**/coverage
+*.log
+
+dist
+**/dist
+
+# Large trees not needed for gateway build
+apps/
+assets/
+vendor/
+Swabble/
+Peekaboo/
+Core/
+Users/
+
+# Media
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.mp4
+*.mov
+*.wav
+*.mp3

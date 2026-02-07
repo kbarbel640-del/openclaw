@@ -64,10 +64,15 @@ apps/ios/*.mobileprovision
 
 # Local untracked files
 .local/
+.clawhub/
+.clawdhub/
 .vscode/
 IDENTITY.md
 USER.md
 .tgz
+
+# Local deployment config (intentionally not committed)
+scripts/docker/paired.json
 
 # local tooling
 .serena/
