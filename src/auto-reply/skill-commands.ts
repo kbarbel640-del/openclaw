@@ -53,7 +53,11 @@ export function listSkillCommandsForAgents(params: {
       reservedNames: used,
     });
     for (const command of commands) {
-      used.add(command.name.toLowerCase());
+      const lower = command.name.toLowerCase();
+      if (used.has(lower)) {
+        continue;
+      }
+      used.add(lower);
       entries.push(command);
     }
   }
