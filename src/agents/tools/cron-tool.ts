@@ -375,7 +375,11 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
           if (!params.patch || typeof params.patch !== "object") {
             throw new Error("patch required");
           }
-          const patch = normalizeCronJobPatch(params.patch) ?? params.patch;
+          const patchCfg = loadConfig();
+          const patchDefaultTz = patchCfg.agents?.defaults?.userTimezone?.trim() || undefined;
+          const patch =
+            normalizeCronJobPatch(params.patch, { defaultTimezone: patchDefaultTz }) ??
+            params.patch;
           return jsonResult(
             await callGatewayTool("cron.update", gatewayOpts, {
               id,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeCronJobCreate } from "./normalize.js";
+import { normalizeCronJobCreate, normalizeCronJobPatch } from "./normalize.js";
 
 describe("normalizeCronJobCreate", () => {
   it("maps legacy payload.provider to payload.channel and strips provider", () => {
@@ -320,6 +320,18 @@ describe("normalizeCronJobCreate", () => {
 
     const schedule = normalized.schedule as Record<string, unknown>;
     expect(schedule.tz).toBeUndefined();
+  });
+
+  it("injects defaultTimezone into patch cron schedule without explicit tz", () => {
+    const normalized = normalizeCronJobPatch(
+      {
+        schedule: { kind: "cron", expr: "0 14 * * *" },
+      },
+      { defaultTimezone: "Pacific/Auckland" },
+    ) as unknown as Record<string, unknown>;
+
+    const schedule = normalized.schedule as Record<string, unknown>;
+    expect(schedule.tz).toBe("Pacific/Auckland");
   });
 
   it("strips invalid delivery mode from partial delivery objects", () => {
