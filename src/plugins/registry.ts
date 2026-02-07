@@ -1,4 +1,5 @@
 import path from "node:path";
+import { registerSearchProvider as registerGlobalSearchProvider } from "../agents/tools/search-providers.js";
 import type { AnyAgentTool } from "../agents/tools/common.js";
 import type { ChannelDock } from "../channels/dock.js";
 import type { ChannelPlugin } from "../channels/plugins/types.js";
@@ -75,6 +76,12 @@ export type PluginProviderRegistration = {
   source: string;
 };
 
+export type PluginSearchProviderRegistration = {
+  pluginId: string;
+  provider: import("./types.js").SearchProviderPlugin;
+  source: string;
+};
+
 export type PluginHookRegistration = {
   pluginId: string;
   entry: HookEntry;
@@ -110,6 +117,7 @@ export type PluginRecord = {
   hookNames: string[];
   channelIds: string[];
   providerIds: string[];
+  searchProviderIds: string[];
   gatewayMethods: string[];
   cliCommands: string[];
   services: string[];
@@ -128,6 +136,7 @@ export type PluginRegistry = {
   typedHooks: TypedPluginHookRegistration[];
   channels: PluginChannelRegistration[];
   providers: PluginProviderRegistration[];
+  searchProviders: PluginSearchProviderRegistration[];
   gatewayHandlers: GatewayRequestHandlers;
   httpHandlers: PluginHttpRegistration[];
   httpRoutes: PluginHttpRouteRegistration[];
@@ -151,6 +160,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     typedHooks: [],
     channels: [],
     providers: [],
+    searchProviders: [],
     gatewayHandlers: {},
     httpHandlers: [],
     httpRoutes: [],
@@ -382,6 +392,52 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     });
   };
 
+  const registerSearchProvider = (
+    record: PluginRecord,
+    provider: import("./types.js").SearchProviderPlugin,
+  ) => {
+    const id = typeof provider?.id === "string" ? provider.id.trim() : "";
+    if (!id) {
+      pushDiagnostic({
+        level: "error",
+        pluginId: record.id,
+        source: record.source,
+        message: "search provider registration missing id",
+      });
+      return;
+    }
+    const existing = registry.searchProviders.find((entry) => entry.provider.id === id);
+    if (existing) {
+      pushDiagnostic({
+        level: "error",
+        pluginId: record.id,
+        source: record.source,
+        message: `search provider already registered: ${id} (${existing.pluginId})`,
+      });
+      return;
+    }
+
+    // Register in the global search provider registry
+    try {
+      registerGlobalSearchProvider(provider);
+    } catch (error) {
+      pushDiagnostic({
+        level: "error",
+        pluginId: record.id,
+        source: record.source,
+        message: `failed to register search provider: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      return;
+    }
+
+    record.searchProviderIds.push(id);
+    registry.searchProviders.push({
+      pluginId: record.id,
+      provider,
+      source: record.source,
+    });
+  };
+
   const registerCli = (
     record: PluginRecord,
     registrar: OpenClawPluginCliRegistrar,
@@ -489,6 +545,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       registerHttpRoute: (params) => registerHttpRoute(record, params),
       registerChannel: (registration) => registerChannel(record, registration),
       registerProvider: (provider) => registerProvider(record, provider),
+      registerSearchProvider: (provider) => registerSearchProvider(record, provider),
       registerGatewayMethod: (method, handler) => registerGatewayMethod(record, method, handler),
       registerCli: (registrar, opts) => registerCli(record, registrar, opts),
       registerService: (service) => registerService(record, service),
@@ -505,6 +562,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     registerTool,
     registerChannel,
     registerProvider,
+    registerSearchProvider,
     registerGatewayMethod,
     registerCli,
     registerService,
