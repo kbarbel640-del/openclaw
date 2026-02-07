@@ -26,7 +26,7 @@ export interface RoutingDecision {
  * Extract routing config from OpenClaw config
  */
 export function extractRoutingConfig(cfg?: OpenClawConfig): RoutingConfig | null {
-  const routing = (cfg?.agents?.defaults as any)?.modelRouting;
+  const routing = cfg?.agents?.defaults?.modelRouting;
   if (!routing) {
     return null;
   }

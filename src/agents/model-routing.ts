@@ -209,7 +209,10 @@ export function classifyTask(
   }
 
   // Get recommended model from rules or determine from scores
-  let recommendedModel = config.rules[taskType] || config.override.fallback;
+  let recommendedModel = 
+    config.rules[taskType] || 
+    config.override.fallback || 
+    DEFAULT_ROUTING_CONFIG.override.fallback;
 
   // Calculate confidence
   const maxScore = Math.max(scores.local, scores.haiku, scores.sonnet);
