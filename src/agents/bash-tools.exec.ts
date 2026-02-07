@@ -828,7 +828,16 @@ export function createExecTool(
     label: "exec",
     description:
       "Execute shell commands with background continuation. Use yieldMs/background to continue later via process tool. Use pty=true for TTY-required commands (terminal UIs, coding agents).",
-    parameters: execSchema,
+    parameters: {
+      ...execSchema,
+      properties: {
+        ...execSchema.properties,
+        host: {
+          ...execSchema.properties.host,
+          default: defaults?.host ?? "sandbox",
+        },
+      },
+    },
     execute: async (_toolCallId, args, signal, onUpdate) => {
       const params = args as {
         command: string;
