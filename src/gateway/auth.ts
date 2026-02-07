@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { GatewayAuthConfig, GatewayTailscaleMode } from "../config/config.js";
 import { readTailscaleWhoisIdentity, type TailscaleWhoisIdentity } from "../infra/tailscale.js";
 import { isTrustedProxyAddress, parseForwardedForClientIp, resolveGatewayClientIp } from "./net.js";
+import { validateDeviceToken } from "./tokens-store.js";
 export type ResolvedGatewayAuthMode = "token" | "password";
 
 export type ResolvedGatewayAuth = {
@@ -267,10 +268,14 @@ export async function authorizeGatewayConnect(params: {
     if (!connectAuth?.token) {
       return { ok: false, reason: "token_missing" };
     }
-    if (!safeEqual(connectAuth.token, auth.token)) {
-      return { ok: false, reason: "token_mismatch" };
+    // Accept either the configured shared token OR a device token created by the gateway
+    if (safeEqual(connectAuth.token, auth.token)) {
+      return { ok: true, method: "token" };
     }
-    return { ok: true, method: "token" };
+    if (validateDeviceToken(connectAuth.token)) {
+      return { ok: true, method: "device-token" };
+    }
+    return { ok: false, reason: "token_mismatch" };
   }
 
   if (auth.mode === "password") {

@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { CostUsageSummary } from "../../infra/session-cost-usage.js";
 import type { GatewayDiscoverOpts } from "./discover.js";
 import { gatewayStatusCommand } from "../../commands/gateway-status.js";
+import { registerGatewayTokenCommands } from "../../commands/gateway-token.js";
 import { formatHealthChannelLines, type HealthSummary } from "../../commands/health.js";
 import { loadConfig } from "../../config/config.js";
 import { discoverGatewayBeacons } from "../../infra/bonjour-discovery.js";
@@ -196,6 +197,9 @@ export function registerGatewayCli(program: Command) {
     .action(async (opts) => {
       await runDaemonRestart(opts);
     });
+
+  // ephemeral token management
+  registerGatewayTokenCommands(gateway);
 
   gatewayCallOpts(
     gateway

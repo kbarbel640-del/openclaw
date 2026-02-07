@@ -77,6 +77,7 @@ import {
   refreshGatewayHealthSnapshot,
 } from "./server/health-state.js";
 import { loadGatewayTlsRuntime } from "./server/tls.js";
+import { pruneExpiredTokens } from "./tokens-store.js";
 
 export { __resetModelCatalogCacheForTest } from "./server-model-catalog.js";
 
@@ -437,6 +438,18 @@ export async function startGatewayServer(
     agentRunSeq,
     nodeSendToSession,
   });
+
+  // Periodically prune expired ephemeral gateway tokens (best-effort)
+  const tokenPruneInterval = setInterval(() => {
+    try {
+      const removed = pruneExpiredTokens();
+      if (removed > 0) {
+        log.info(`pruned ${removed} expired gateway tokens`);
+      }
+    } catch (err) {
+      log.warn(`failed to prune gateway tokens: ${String(err)}`);
+    }
+  }, 60 * 60_000); // hourly
 
   const agentUnsub = onAgentEvent(
     createAgentEventHandler({
