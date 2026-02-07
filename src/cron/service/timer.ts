@@ -119,12 +119,10 @@ export async function onTimer(state: CronServiceState) {
             job.schedule.kind === "at" && result.status === "ok" && job.deleteAfterRun === true;
 
           if (!shouldDelete) {
-            if (job.schedule.kind === "at" && result.status === "ok") {
-              job.enabled = false;
-              job.state.nextRunAtMs = undefined;
-            } else if (job.schedule.kind === "at" && result.status === "error") {
-              // One-shot jobs should not retry indefinitely on failure.
-              // Disable to prevent retry storms (e.g. "model not allowed").
+            if (job.schedule.kind === "at") {
+              // One-shot jobs run once regardless of outcome. Disable after
+              // any terminal status (ok, error, skipped) to prevent retry
+              // storms when the scheduled time is in the past.
               job.enabled = false;
               job.state.nextRunAtMs = undefined;
             } else if (job.enabled) {
@@ -355,12 +353,10 @@ export async function executeJob(
       job.schedule.kind === "at" && status === "ok" && job.deleteAfterRun === true;
 
     if (!shouldDelete) {
-      if (job.schedule.kind === "at" && status === "ok") {
-        job.enabled = false;
-        job.state.nextRunAtMs = undefined;
-      } else if (job.schedule.kind === "at" && status === "error") {
-        // One-shot jobs should not retry indefinitely on failure.
-        // Disable to prevent retry storms (e.g. "model not allowed").
+      if (job.schedule.kind === "at") {
+        // One-shot jobs run once regardless of outcome. Disable after
+        // any terminal status (ok, error, skipped) to prevent retry
+        // storms when the scheduled time is in the past.
         job.enabled = false;
         job.state.nextRunAtMs = undefined;
       } else if (job.enabled) {
