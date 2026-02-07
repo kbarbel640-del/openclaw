@@ -18,7 +18,7 @@ Overall: PASS
 - light: PASS (verified)
 - media_player: PASS (verified)
 - input_boolean: PASS (verified)
-- switch: SKIP (no_entity)
+- switch: SKIP (no_entity; switch.* entities inferred as generic_switch/outlet/light)
 - fan: PASS_READONLY (verified_probe)
 - cover: SKIP (no_entity)
 - climate: PASS_READONLY (verified_probe)
@@ -43,3 +43,4 @@ Overall: PASS
 
 ## Notes
 - SAFE mode uses idempotent probes; unsafe or unavailable entities are skipped without failing the run.
+- Inventory includes switch.* entities, but inference maps them to other semantic types (generic_switch/outlet/light), leaving no eligible switch-domain entities for the switch semantic type.
