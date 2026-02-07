@@ -437,7 +437,7 @@ async function runExecProcess(opts: {
   const startedAt = Date.now();
 
   const config = getShellConfig();
-  const rewrittenCommand = opts.command.replace(/\s*2>\s*nul\s*$/gi, ` 2>${config.nullDevice}`);
+  const rewrittenCommand = opts.command.replace(/(\s*)2>\s*nul\s*$/gi, `$12>${config.nullDevice}`);
 
   const sessionId = createSessionSlug();
   let child: ChildProcessWithoutNullStreams | null = null;
