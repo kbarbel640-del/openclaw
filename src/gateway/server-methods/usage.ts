@@ -781,6 +781,5 @@ export const usageHandlers: GatewayRequestHandlers = {
     });
 
     respond(true, { logs: logs ?? [] }, undefined);
->>>>>>> origin/main
   },
 };
