@@ -278,7 +278,6 @@ embedded run:
 | `src/agents/session-security-state.ts`         | Turn-scoped verification state              |
 | `src/agents/sig-verification-gate.ts`          | The verification gate                       |
 | `src/agents/sig-mutation-gate.ts`              | The mutation gate                           |
-| `src/agents/sig-adapter.ts`                    | Adapter for in-flight sig API               |
 | `src/agents/sig-workspace-init.ts`             | Workspace file initialization               |
 | `src/agents/pi-tools.before-tool-call.ts`      | Gate insertion point                        |
 | `src/agents/pi-tools.ts`                       | Tool registration and context threading     |
