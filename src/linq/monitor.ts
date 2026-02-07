@@ -26,6 +26,11 @@ import { createReplyPrefixOptions } from "../channels/reply-prefix.js";
 import { recordInboundSession } from "../channels/session.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose } from "../globals.js";
+
+// Direct console logging for the polling monitor since logVerbose
+// relies on globalVerbose which isn't set inside jiti-loaded extensions.
+const linqLog = (msg: string) => console.log(`[linq] ${msg}`);
+const linqWarn = (msg: string) => console.warn(`[linq] ${msg}`);
 import { buildPairingReply } from "../pairing/pairing-messages.js";
 import { upsertChannelPairingRequest } from "../pairing/pairing-store.js";
 import { resolveAgentRoute } from "../routing/resolve-route.js";
@@ -87,8 +92,8 @@ export async function monitorLinqProvider(opts: MonitorLinqOpts = {}): Promise<v
         // ignore per-chat fetch errors during seed
       }
     }
-    logVerbose(
-      `linq: seeded ${processedMessageIds.size} existing messages across ${knownChatIds.size} chats`,
+    linqLog(
+      `seeded ${processedMessageIds.size} existing messages across ${knownChatIds.size} chats`,
     );
   } catch (err) {
     runtime?.error?.(`linq: failed to seed message history: ${String(err)}`);
@@ -101,7 +106,7 @@ export async function monitorLinqProvider(opts: MonitorLinqOpts = {}): Promise<v
       cfg = await loadConfig();
       const currentAccount = resolveLinqAccount({ cfg, accountId: opts.accountId });
       if (!currentAccount.enabled) {
-        logVerbose("linq: account disabled, stopping poll");
+        linqLog("account disabled, stopping poll");
         break;
       }
 
@@ -142,6 +147,15 @@ export async function monitorLinqProvider(opts: MonitorLinqOpts = {}): Promise<v
               );
             }
           }
+
+          // Mark chat as read after processing new messages
+          if (newMessages.length > 0) {
+            try {
+              await client.markRead(chatId);
+            } catch {
+              // non-critical — don't log noise for read receipt failures
+            }
+          }
         } catch {
           // Individual chat poll failure — continue with other chats
         }
@@ -156,6 +170,7 @@ export async function monitorLinqProvider(opts: MonitorLinqOpts = {}): Promise<v
         }
       }
     } catch (err) {
+      linqWarn(`poll cycle failed: ${String(err)}`);
       runtime?.error?.(`linq: poll cycle failed: ${String(err)}`);
     }
 
@@ -235,7 +250,7 @@ async function handleInboundMessage(params: {
         meta: { sender: senderHandle, chatId },
       });
       if (created) {
-        logVerbose(`linq: pairing request sender=${senderHandle}`);
+        linqLog(`pairing request sender=${senderHandle}`);
         try {
           await sendMessageLinq(chatId, buildPairingReply({
             channel: "linq",
@@ -246,11 +261,11 @@ async function handleInboundMessage(params: {
             fromNumber,
           });
         } catch (err) {
-          logVerbose(`linq: pairing reply failed for ${senderHandle}: ${String(err)}`);
+          linqWarn(`pairing reply failed for ${senderHandle}: ${String(err)}`);
         }
       }
     } else {
-      logVerbose(`linq: blocked sender ${senderHandle} (dmPolicy=${dmPolicy})`);
+      linqLog(`blocked sender ${senderHandle} (dmPolicy=${dmPolicy})`);
     }
     return;
   }
@@ -338,16 +353,14 @@ async function handleInboundMessage(params: {
         }
       : undefined,
     onRecordError: (err) => {
-      logVerbose(`linq: failed updating session meta: ${String(err)}`);
+      linqWarn(`failed updating session meta: ${String(err)}`);
     },
   });
 
-  if (shouldLogVerbose()) {
-    const preview = truncateUtf16Safe(body, 200).replace(/\n/g, "\\n");
-    logVerbose(
-      `linq inbound: chatId=${chatId} from=${ctxPayload.From} len=${body.length} preview="${preview}"`,
-    );
-  }
+  const preview = truncateUtf16Safe(body, 200).replace(/\n/g, "\\n");
+  linqLog(
+    `inbound: chatId=${chatId} from=${ctxPayload.From} len=${body.length} media=${allMediaUrls.length} preview="${preview}"`,
+  );
 
   const textLimit = resolveTextChunkLimit(
     cfg,
