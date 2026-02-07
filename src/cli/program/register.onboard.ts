@@ -138,7 +138,7 @@ export function registerOnboardCommand(program: Command) {
             kimiCodeApiKey: opts.kimiCodeApiKey as string | undefined,
             geminiApiKey: opts.geminiApiKey as string | undefined,
             zaiApiKey: opts.zaiApiKey as string | undefined,
-            deepseekApiKey: options.deepseekApiKey as string | undefined,
+            deepseekApiKey: opts.deepseekApiKey as string | undefined,
             xiaomiApiKey: opts.xiaomiApiKey as string | undefined,
             qianfanApiKey: opts.qianfanApiKey as string | undefined,
             minimaxApiKey: opts.minimaxApiKey as string | undefined,
