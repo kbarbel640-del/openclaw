@@ -71,3 +71,16 @@ USER.md
 
 # local tooling
 .serena/
+
+# Time Tunnel 數據（存在 ~/.openclaw/persistent/data/）
+workspace/data/timeline.db
+workspace/data/diary/
+
+# Workspace skills — Python venvs, build output, downloads
+workspace/skills/**/venv/
+workspace/skills/**/.venv/
+workspace/skills/**/output/
+workspace/skills/**/downloads/
+workspace/skills/**/__pycache__/
+workspace/skills/**/logs/
+workspace/skills/**/worktrees/
