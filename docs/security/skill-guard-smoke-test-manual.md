@@ -1,10 +1,11 @@
 # Skill Guard 全链路手工冒烟测试文档
 
-> **版本**: v1.2  
+> **版本**: v1.3  
 > **日期**: 2026-02-07  
 > **分支**: `feature/skill-guard-enhancement`  
 > **测试人员**: seclab + AI assistant  
 > **测试日期**: 2026-02-07  
+> **v1.3 更新**: 修复 BUG-5（SIGUSR1 重启后 Guard 失效），新增 TC-16 回归验证点
 > **v1.2 更新**: 修复 BUG-4（Guard 热重载失效），修正 TC-06/TC-07/TC-08
 
 ---
@@ -768,11 +769,12 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" \
 
 ### 7.2 发现的问题（已修复）
 
-| #   | 问题描述                                                                                                                                                                        | 严重程度    | TC 编号  | 修复状态                                                |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------- | ------------------------------------------------------- |
-| 1   | **模块实例隔离**：bundled Gateway 与 jiti-loaded extension 各自拥有独立的 `load-guard.ts` 实例，导致 `registerSkillLoadGuard()` 注册的 guard 在 `loadSkillEntries()` 中无法获取 | P0/Critical | TC-01~06 | ✅ 已修复（使用 `globalThis` 共享实例）                 |
-| 2   | **测试 Skill 目录不匹配**：dev 模式下 `CONFIG_DIR` 解析为 `~/.openclaw-dev`，但测试 Skill 最初放在 `~/.openclaw/skills/`，导致 Guard 只评估 bundled skills                      | P1/Major    | TC-01~06 | ✅ 已修复（将 skills 复制到 `~/.openclaw-dev/skills/`） |
-| 3   | **测试文档中的目录约定错误**：原文档中 Skill 存储路径和审计日志路径未考虑 dev 模式下的 CONFIG_DIR 差异                                                                          | P2/Minor    | 文档     | ✅ 已在 v1.1 中修正                                     |
+| #   | 问题描述                                                                                                                                                                                   | 严重程度    | TC 编号  | 修复状态                                                                              |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- | -------- | ------------------------------------------------------------------------------------- |
+| 1   | **模块实例隔离**：bundled Gateway 与 jiti-loaded extension 各自拥有独立的 `load-guard.ts` 实例，导致 `registerSkillLoadGuard()` 注册的 guard 在 `loadSkillEntries()` 中无法获取            | P0/Critical | TC-01~06 | ✅ 已修复（使用 `globalThis` 共享实例）                                               |
+| 2   | **测试 Skill 目录不匹配**：dev 模式下 `CONFIG_DIR` 解析为 `~/.openclaw-dev`，但测试 Skill 最初放在 `~/.openclaw/skills/`，导致 Guard 只评估 bundled skills                                 | P1/Major    | TC-01~06 | ✅ 已修复（将 skills 复制到 `~/.openclaw-dev/skills/`）                               |
+| 3   | **测试文档中的目录约定错误**：原文档中 Skill 存储路径和审计日志路径未考虑 dev 模式下的 CONFIG_DIR 差异                                                                                     | P2/Minor    | 文档     | ✅ 已在 v1.1 中修正                                                                   |
+| 4   | **BUG-5: SIGUSR1 重启后 Guard 永久失效**：`skills.update` 写配置触发 SIGUSR1 重启，`stop()` 注销 guard 后插件缓存命中导致 `register()` 不再被调用，guard 永远为 null，所有安全阻断能力丧失 | P0/Critical | TC-16    | ✅ 已修复（在 `service.start()` 中重新注册 guard，`AuditLogger.init()` 增加幂等保护） |
 
 ### 7.3 其他观察
 
@@ -903,3 +905,66 @@ sideload+bad   ❌ 阻断(scan)    ❌ 阻断(scan)        ✅ 加载(降级)
   ```
 
 - **验证**: 修复后重启 Gateway，首次加载即正确阻断 4 个 skill，审计日志 108 条记录完整
+
+### BUG-5: Guard 在 skills.update 触发 Gateway 重启后永久失效（已修复）
+
+- **发现**: 在 Skills 页面点击任意 skill 的 Disable/Enable 后，所有被阻断的 skill 重新出现在列表中
+- **症状**:
+  - 初始加载时 Guard 正常工作，正确阻断 4 个恶意 skill
+  - 用户在 UI 中 Disable 再 Enable 任意 skill 后，恶意 skill（evil-skill, dangerous-sideload 等）全部重新出现
+  - 审计日志在最后一次成功 evaluate 后不再有任何新记录
+  - 后续所有 `skills.status` 请求都返回未过滤的完整 skill 列表
+- **时间线**:
+  ```
+  17:39:44  Guard evaluate() 正常工作，blocked=[dangerous-sideload, evil-skill, store-injected, store-tampered]
+  17:39:58  skills.update 写入配置文件 → config watcher 检测变化
+           → config-reload 判断需要 gateway restart（meta.lastTouchedAt 变化）
+           → 发送 SIGUSR1
+  17:39:58  Gateway 收到 SIGUSR1 → 开始重启
+           → 停止所有服务 → skill-guard stop() → unregister() → globalThis guard = null
+  17:39:59  Gateway 重启完成 → loadOpenClawPlugins() → registryCache HIT（缓存命中）
+           → register() 不被调用 → globalThis guard 仍然是 null
+           → startPluginServices() → service.start() 仅做 cloud sync，不注册 guard
+  17:40:00  skills.status → getSkillLoadGuard() 返回 null → if(guard) 分支跳过 → 全部放行
+  ```
+- **根因**: **插件缓存 + 服务生命周期断裂**。
+  Guard 的注册（`registerSkillLoadGuard()`）仅发生在插件的 `register()` 函数中，
+  而 Guard 的注销（`unregister()`）发生在服务的 `stop()` 中。当 Gateway 因配置变化
+  触发 SIGUSR1 重启时：
+  1. `stop()` 被调用 → `globalThis.__openclaw_skill_load_guard__ = null`
+  2. `loadOpenClawPlugins()` 因 `plugins` 配置未变 → 缓存命中 → `register()` 不再执行
+  3. `startPluginServices()` 只调用 `start()` → 做 cloud sync，不重新注册 guard
+  4. Guard 永远是 null，安全防护完全失效
+- **修复**: 在 service 的 `start()` 中重新注册 guard，确保每次 service 启动（包括
+  重启后的启动）都会将 guard 注册回 `globalThis`。同时在 `start()` 中重新 `audit.init()`
+  和 `cache.loadFromDisk()` 以恢复被 `stop()` 关闭的审计日志和缓存。
+  `AuditLogger.init()` 增加幂等保护，避免重复调用导致文件描述符泄漏。
+- **修复代码**:
+
+  ```typescript
+  // extensions/skill-guard/index.ts — service.start() 中增加:
+  async start(ctx) {
+    // BUG-5 fix: re-register guard on every service start
+    audit.init();           // 幂等：已 open 则跳过
+    cache.loadFromDisk();   // 从磁盘恢复 manifest 缓存
+    unregister = registerSkillLoadGuard({
+      evaluate: (skills) => engine.evaluate(skills),
+    });
+    // ... cloud sync ...
+  }
+
+  // audit-logger.ts — init() 增加幂等保护:
+  init(): void {
+    if (!this.enabled) return;
+    if (this.fd !== null) return;  // 已 open，避免 fd 泄漏
+    // ... open file ...
+  }
+  ```
+
+- **验证**: 修复后执行完整 disable → enable → check 流程，3 次 gateway 重启后
+  Guard 均在 40ms 内重新注册，evil-skill 始终被正确阻断
+- **影响范围**: 所有导致 gateway SIGUSR1 重启的操作：
+  - Skills 页面 Disable/Enable（`skills.update`）
+  - 配置页面保存（`config.apply`）
+  - 外部工具修改配置文件
+  - 任何触发 `meta.lastTouchedAt` 变化的配置写入

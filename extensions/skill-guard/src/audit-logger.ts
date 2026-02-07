@@ -27,9 +27,11 @@ export class AuditLogger {
     this.enabled = enabled;
   }
 
-  /** Open the log file (creates directory if needed). */
+  /** Open the log file (creates directory if needed).  Idempotent. */
   init(): void {
     if (!this.enabled) return;
+    // Already open — nothing to do (avoids fd leak on repeated calls).
+    if (this.fd !== null) return;
     try {
       const dir = path.dirname(this.filePath);
       fs.mkdirSync(dir, { recursive: true });

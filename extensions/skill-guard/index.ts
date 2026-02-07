@@ -54,7 +54,19 @@ export default function register(api: OpenClawPluginApi) {
   });
 
   // ── 1. Register load guard ──
-  const unregister = registerSkillLoadGuard({
+  //
+  // BUG-5 fix: Guard registration must happen both eagerly (for the
+  // initial load before services start) AND inside service.start()
+  // (to survive gateway restarts triggered by SIGUSR1).
+  //
+  // During a restart the lifecycle is:
+  //   stop()  → unregister() → globalThis guard = null
+  //   loadOpenClawPlugins() → cache HIT → register() NOT called
+  //   startPluginServices() → start() called
+  //
+  // Without re-registering in start(), the guard stays null after
+  // every config-triggered restart, letting blocked skills through.
+  let unregister = registerSkillLoadGuard({
     evaluate: (skills) => engine.evaluate(skills),
   });
 
@@ -63,7 +75,19 @@ export default function register(api: OpenClawPluginApi) {
     id: "skill-guard-sync",
 
     async start(ctx) {
-      // Initial sync (audit & cache already initialised above)
+      // ── BUG-5 fix: re-register guard on every service start ──
+      // After a SIGUSR1 restart, stop() has already cleared the
+      // globalThis guard reference.  The plugin registry cache
+      // means register() won't run again, so we must re-register
+      // here.  Also re-init audit & cache in case they were closed
+      // by the previous stop().
+      audit.init();
+      cache.loadFromDisk();
+      unregister = registerSkillLoadGuard({
+        evaluate: (skills) => engine.evaluate(skills),
+      });
+
+      // Initial cloud sync
       if (cloud) {
         await doSync(cloud, cache, audit);
       }
