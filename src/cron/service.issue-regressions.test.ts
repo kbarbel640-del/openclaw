@@ -2,7 +2,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { CronJob } from "./types.js";
 import { CronService } from "./service.js";
+import { createCronServiceState, type CronEvent } from "./service/state.js";
+import { onTimer } from "./service/timer.js";
 
 const noopLogger = {
   info: vi.fn(),
@@ -20,6 +23,28 @@ async function makeStorePath() {
     cleanup: async () => {
       await fs.rm(dir, { recursive: true, force: true });
     },
+  };
+}
+
+function createDueIsolatedJob(params: {
+  id: string;
+  nowMs: number;
+  nextRunAtMs: number;
+  deleteAfterRun?: boolean;
+}): CronJob {
+  return {
+    id: params.id,
+    name: params.id,
+    enabled: true,
+    deleteAfterRun: params.deleteAfterRun ?? false,
+    createdAtMs: params.nowMs,
+    updatedAtMs: params.nowMs,
+    schedule: { kind: "at", at: new Date(params.nextRunAtMs).toISOString() },
+    sessionTarget: "isolated",
+    wakeMode: "next-heartbeat",
+    payload: { kind: "agentTurn", message: params.id },
+    delivery: { mode: "none" },
+    state: { nextRunAtMs: params.nextRunAtMs },
   };
 }
 
@@ -183,6 +208,80 @@ describe("Cron issue regressions", () => {
 
     cron.stop();
     timeoutSpy.mockRestore();
+    await store.cleanup();
+  });
+
+  it("does not hot-loop zero-delay timers while a run is already in progress", async () => {
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const store = await makeStorePath();
+    const now = Date.parse("2026-02-06T10:05:00.000Z");
+    const state = createCronServiceState({
+      cronEnabled: true,
+      storePath: store.storePath,
+      log: noopLogger,
+      nowMs: () => now,
+      enqueueSystemEvent: vi.fn(),
+      requestHeartbeatNow: vi.fn(),
+      runIsolatedAgentJob: vi.fn().mockResolvedValue({ status: "ok", summary: "ok" }),
+    });
+    state.running = true;
+    state.store = {
+      version: 1,
+      jobs: [createDueIsolatedJob({ id: "due", nowMs: now, nextRunAtMs: now - 1 })],
+    };
+
+    await onTimer(state);
+
+    expect(timeoutSpy).not.toHaveBeenCalled();
+    expect(state.timer).toBeNull();
+    timeoutSpy.mockRestore();
+    await store.cleanup();
+  });
+
+  it("records per-job start time and duration for batched due jobs", async () => {
+    const store = await makeStorePath();
+    const dueAt = Date.parse("2026-02-06T10:05:01.000Z");
+    const first = createDueIsolatedJob({ id: "batch-first", nowMs: dueAt, nextRunAtMs: dueAt });
+    const second = createDueIsolatedJob({ id: "batch-second", nowMs: dueAt, nextRunAtMs: dueAt });
+    await fs.writeFile(
+      store.storePath,
+      JSON.stringify({ version: 1, jobs: [first, second] }, null, 2),
+      "utf-8",
+    );
+
+    let now = dueAt;
+    const events: CronEvent[] = [];
+    const state = createCronServiceState({
+      cronEnabled: true,
+      storePath: store.storePath,
+      log: noopLogger,
+      nowMs: () => now,
+      enqueueSystemEvent: vi.fn(),
+      requestHeartbeatNow: vi.fn(),
+      onEvent: (evt) => {
+        events.push(evt);
+      },
+      runIsolatedAgentJob: vi.fn(async (params: { job: { id: string } }) => {
+        now += params.job.id === first.id ? 50 : 20;
+        return { status: "ok" as const, summary: "ok" };
+      }),
+    });
+
+    await onTimer(state);
+
+    const jobs = state.store?.jobs ?? [];
+    const firstDone = jobs.find((job) => job.id === first.id);
+    const secondDone = jobs.find((job) => job.id === second.id);
+    const startedAtEvents = events
+      .filter((evt) => evt.action === "started")
+      .map((evt) => evt.runAtMs);
+
+    expect(firstDone?.state.lastRunAtMs).toBe(dueAt);
+    expect(firstDone?.state.lastDurationMs).toBe(50);
+    expect(secondDone?.state.lastRunAtMs).toBe(dueAt + 50);
+    expect(secondDone?.state.lastDurationMs).toBe(20);
+    expect(startedAtEvents).toEqual([dueAt, dueAt + 50]);
+
     await store.cleanup();
   });
 });

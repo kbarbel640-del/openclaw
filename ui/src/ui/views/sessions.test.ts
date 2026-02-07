@@ -31,7 +31,7 @@ function buildProps(result: SessionsListResult): SessionsProps {
 }
 
 describe("sessions view", () => {
-  it("renders verbose=full without falling back to inherit", () => {
+  it("renders verbose=full without falling back to inherit", async () => {
     const container = document.createElement("div");
     render(
       renderSessions(
@@ -46,6 +46,7 @@ describe("sessions view", () => {
       ),
       container,
     );
+    await Promise.resolve();
 
     const selects = container.querySelectorAll("select");
     const verbose = selects[1] as HTMLSelectElement | undefined;
@@ -53,7 +54,7 @@ describe("sessions view", () => {
     expect(Array.from(verbose?.options ?? []).some((option) => option.value === "full")).toBe(true);
   });
 
-  it("keeps unknown stored values selectable instead of forcing inherit", () => {
+  it("keeps unknown stored values selectable instead of forcing inherit", async () => {
     const container = document.createElement("div");
     render(
       renderSessions(
@@ -68,6 +69,7 @@ describe("sessions view", () => {
       ),
       container,
     );
+    await Promise.resolve();
 
     const selects = container.querySelectorAll("select");
     const reasoning = selects[2] as HTMLSelectElement | undefined;

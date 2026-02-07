@@ -40,7 +40,6 @@ export function armTimer(state: CronServiceState) {
 
 export async function onTimer(state: CronServiceState) {
   if (state.running) {
-    armTimer(state);
     return;
   }
   state.running = true;
@@ -59,7 +58,6 @@ export async function onTimer(state: CronServiceState) {
       for (const job of due) {
         job.state.runningAtMs = now;
         job.state.lastError = undefined;
-        emit(state, { jobId: job.id, action: "started", runAtMs: now });
       }
       await persist(state);
 
@@ -76,18 +74,23 @@ export async function onTimer(state: CronServiceState) {
       summary?: string;
       sessionId?: string;
       sessionKey?: string;
+      startedAt: number;
       endedAt: number;
     }> = [];
 
     for (const { id, job } of dueJobs) {
+      const startedAt = state.deps.nowMs();
+      job.state.runningAtMs = startedAt;
+      emit(state, { jobId: job.id, action: "started", runAtMs: startedAt });
       try {
         const result = await executeJobCore(state, job);
-        results.push({ jobId: id, ...result, endedAt: state.deps.nowMs() });
+        results.push({ jobId: id, ...result, startedAt, endedAt: state.deps.nowMs() });
       } catch (err) {
         results.push({
           jobId: id,
           status: "error",
           error: String(err),
+          startedAt,
           endedAt: state.deps.nowMs(),
         });
       }
@@ -103,7 +106,7 @@ export async function onTimer(state: CronServiceState) {
             continue;
           }
 
-          const startedAt = job.state.runningAtMs ?? result.endedAt;
+          const startedAt = result.startedAt;
           job.state.runningAtMs = undefined;
           job.state.lastRunAtMs = startedAt;
           job.state.lastStatus = result.status;
