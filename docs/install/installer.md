@@ -1,5 +1,5 @@
 ---
-summary: "How the installer scripts work (install.sh, install-cli.sh, install.ps1), flags, and automation"
+summary: "How the installer scripts work (install.sh, install-cli.sh, install.ps1, install.bat), flags, and automation"
 read_when:
   - You want to understand `openclaw.ai/install.sh`
   - You want to automate installs (CI / headless)
@@ -9,13 +9,14 @@ title: "Installer Internals"
 
 # Installer internals
 
-OpenClaw ships three installer scripts, served from `openclaw.ai`.
+OpenClaw ships four installer scripts, served from `openclaw.ai`.
 
 | Script                             | Platform             | What it does                                                                                 |
 | ---------------------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
 | [`install.sh`](#installsh)         | macOS / Linux / WSL  | Installs Node if needed, installs OpenClaw via npm (default) or git, and can run onboarding. |
 | [`install-cli.sh`](#install-clish) | macOS / Linux / WSL  | Installs Node + OpenClaw into a local prefix (`~/.openclaw`). No root required.              |
 | [`install.ps1`](#installps1)       | Windows (PowerShell) | Installs Node if needed, installs OpenClaw via npm (default) or git, and can run onboarding. |
+| [`install.bat`](#installbat)       | Windows (CMD)        | Installs Node if needed, installs OpenClaw via npm (default) or git. No PowerShell required. |
 
 ## Quick commands
 
@@ -47,6 +48,16 @@ OpenClaw ships three installer scripts, served from `openclaw.ai`.
 
     ```powershell
     & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -Tag beta -NoOnboard -DryRun
+    ```
+
+  </Tab>
+  <Tab title="install.bat">
+    ```cmd
+    curl -fsSL https://openclaw.ai/install.bat -o install.bat && install.bat
+    ```
+
+    ```cmd
+    install.bat --help
     ```
 
   </Tab>
@@ -321,6 +332,87 @@ If `-InstallMethod git` is used and Git is missing, the script exits and prints 
 
 ---
 
+## install.bat
+
+<Info>
+CMD alternative to `install.ps1` for users who prefer the Windows Command Prompt or want to avoid PowerShell execution policy issues.
+</Info>
+
+### Flow (install.bat)
+
+<Steps>
+  <Step title="Ensure Node.js 22+">
+    If missing, attempts install via winget, then Chocolatey, then Scoop.
+  </Step>
+  <Step title="Check Git">
+    Required for `git` method; recommended for `npm` method.
+  </Step>
+  <Step title="Install OpenClaw">
+    - `npm` method (default): global npm install using selected `--tag`
+    - `git` method: clone/update repo, install/build with pnpm, and install wrapper at `%USERPROFILE%\.local\bin\openclaw.cmd`
+  </Step>
+  <Step title="Post-install tasks">
+    Adds bin directory to user PATH when needed (git method), runs `openclaw doctor --non-interactive`, and optionally starts onboarding.
+  </Step>
+</Steps>
+
+### Examples (install.bat)
+
+<Tabs>
+  <Tab title="Default">
+    ```cmd
+    curl -fsSL https://openclaw.ai/install.bat -o install.bat && install.bat
+    ```
+  </Tab>
+  <Tab title="Git install">
+    ```cmd
+    install.bat --method git
+    ```
+  </Tab>
+  <Tab title="Custom git directory">
+    ```cmd
+    install.bat --method git --git-dir "C:\openclaw"
+    ```
+  </Tab>
+  <Tab title="Dry run">
+    ```cmd
+    install.bat --dry-run
+    ```
+  </Tab>
+</Tabs>
+
+<AccordionGroup>
+  <Accordion title="Flags reference">
+
+| Flag                    | Description                                            |
+| ----------------------- | ------------------------------------------------------ |
+| `--method npm\|git`     | Install method (default: `npm`). Alias: `--install-method` |
+| `--tag <tag>`           | npm dist-tag (default: `latest`)                       |
+| `--git-dir <path>`      | Checkout directory (default: `%USERPROFILE%\openclaw`) |
+| `--no-onboard`          | Skip onboarding                                        |
+| `--dry-run`             | Print actions only                                     |
+| `--help`, `-h`          | Show usage                                             |
+
+  </Accordion>
+
+  <Accordion title="Environment variables reference">
+
+| Variable                           | Description        |
+| ---------------------------------- | ------------------ |
+| `OPENCLAW_INSTALL_METHOD=git\|npm` | Install method     |
+| `OPENCLAW_GIT_DIR=<path>`          | Checkout directory |
+| `OPENCLAW_NO_ONBOARD=1`            | Skip onboarding    |
+| `OPENCLAW_DRY_RUN=1`               | Dry run mode       |
+
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+If `--method git` is used and Git is missing, the script exits and prints the Git for Windows download link.
+</Note>
+
+---
+
 ## CI and automation
 
 Use non-interactive flags/env vars for predictable runs.
@@ -345,6 +437,11 @@ Use non-interactive flags/env vars for predictable runs.
   <Tab title="install.ps1 (skip onboarding)">
     ```powershell
     & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
+    ```
+  </Tab>
+  <Tab title="install.bat (skip onboarding)">
+    ```cmd
+    install.bat --no-onboard
     ```
   </Tab>
 </Tabs>
