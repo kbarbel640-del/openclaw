@@ -313,8 +313,21 @@ export const usageHandlers: GatewayRequestHandlers = {
       const agentIdFromKey = parsed?.agentId;
       const keyRest = parsed?.rest ?? specificKey;
 
-      // Check if it's a named session in the store
-      const storeEntry = store[specificKey];
+      // Prefer the store entry when available, even if the caller provides a discovered key
+      // (`agent:<id>:<sessionId>`) for a session that now has a canonical store key.
+      const storeBySessionId = new Map<string, { key: string; entry: SessionEntry }>();
+      for (const [key, entry] of Object.entries(store)) {
+        if (entry?.sessionId) {
+          storeBySessionId.set(entry.sessionId, { key, entry });
+        }
+      }
+
+      const storeMatch = store[specificKey]
+        ? { key: specificKey, entry: store[specificKey] }
+        : null;
+      const storeByIdMatch = storeBySessionId.get(keyRest) ?? null;
+      const resolvedStoreKey = storeMatch?.key ?? storeByIdMatch?.key ?? specificKey;
+      const storeEntry = storeMatch?.entry ?? storeByIdMatch?.entry;
       const sessionId = storeEntry?.sessionId ?? keyRest;
 
       // Resolve the session file path
@@ -326,7 +339,7 @@ export const usageHandlers: GatewayRequestHandlers = {
         const stats = fs.statSync(sessionFile);
         if (stats.isFile()) {
           mergedEntries.push({
-            key: specificKey,
+            key: resolvedStoreKey,
             sessionId,
             sessionFile,
             label: storeEntry?.label,

@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../config/config.js", () => {
@@ -15,7 +18,7 @@ vi.mock("../session-utils.js", async () => {
   const actual = await vi.importActual<typeof import("../session-utils.js")>("../session-utils.js");
   return {
     ...actual,
-    loadCombinedSessionStoreForGateway: vi.fn(() => ({ store: {} })),
+    loadCombinedSessionStoreForGateway: vi.fn(() => ({ storePath: "(multiple)", store: {} })),
   };
 });
 
@@ -65,6 +68,7 @@ vi.mock("../../infra/session-cost-usage.js", async () => {
 });
 
 import { discoverAllSessions } from "../../infra/session-cost-usage.js";
+import { loadCombinedSessionStoreForGateway } from "../session-utils.js";
 import { usageHandlers } from "./usage.js";
 
 describe("sessions.usage", () => {
@@ -83,7 +87,7 @@ describe("sessions.usage", () => {
         endDate: "2026-02-02",
         limit: 10,
       },
-    } as any);
+    } as unknown as Parameters<(typeof usageHandlers)["sessions.usage"]>[0]);
 
     expect(vi.mocked(discoverAllSessions)).toHaveBeenCalledTimes(2);
     expect(vi.mocked(discoverAllSessions).mock.calls[0]?.[0]?.agentId).toBe("main");
@@ -91,7 +95,7 @@ describe("sessions.usage", () => {
 
     expect(respond).toHaveBeenCalledTimes(1);
     expect(respond.mock.calls[0]?.[0]).toBe(true);
-    const result = respond.mock.calls[0]?.[1] as any;
+    const result = respond.mock.calls[0]?.[1] as unknown as { sessions: Array<unknown> };
     expect(result.sessions).toHaveLength(2);
 
     // Sorted by most recent first (mtime=200 -> opus first).
@@ -99,5 +103,44 @@ describe("sessions.usage", () => {
     expect(result.sessions[0].agentId).toBe("opus");
     expect(result.sessions[1].key).toBe("agent:main:s-main");
     expect(result.sessions[1].agentId).toBe("main");
+  });
+
+  it("resolves store entries by sessionId when queried via discovered agent-prefixed key", async () => {
+    const storeKey = "agent:opus:slack:dm:u123";
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-usage-test-"));
+    const sessionFile = path.join(tempDir, "s-opus.jsonl");
+    fs.writeFileSync(sessionFile, "", "utf-8");
+    const respond = vi.fn();
+
+    // Swap the store mock for this test: the canonical key differs from the discovered key
+    // but points at the same sessionId.
+    vi.mocked(loadCombinedSessionStoreForGateway).mockReturnValue({
+      storePath: "(multiple)",
+      store: {
+        [storeKey]: {
+          sessionId: "s-opus",
+          sessionFile,
+          label: "Named session",
+          updatedAt: 999,
+        },
+      },
+    });
+
+    // Query via discovered key: agent:<id>:<sessionId>
+    await usageHandlers["sessions.usage"]({
+      respond,
+      params: {
+        startDate: "2026-02-01",
+        endDate: "2026-02-02",
+        key: "agent:opus:s-opus",
+        limit: 10,
+      },
+    } as unknown as Parameters<(typeof usageHandlers)["sessions.usage"]>[0]);
+
+    expect(respond).toHaveBeenCalledTimes(1);
+    expect(respond.mock.calls[0]?.[0]).toBe(true);
+    const result = respond.mock.calls[0]?.[1] as unknown as { sessions: Array<{ key: string }> };
+    expect(result.sessions).toHaveLength(1);
+    expect(result.sessions[0]?.key).toBe(storeKey);
   });
 });
