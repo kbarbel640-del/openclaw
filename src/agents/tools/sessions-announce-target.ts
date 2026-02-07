@@ -69,7 +69,9 @@ export async function resolveAnnounceTarget(params: {
   // target agent can announce into the chat room the request originated from.
   if (params.requesterSessionKey) {
     const requesterParsed = resolveAnnounceTargetFromKey(params.requesterSessionKey);
-    if (requesterParsed) return requesterParsed;
+    if (requesterParsed) {
+      return requesterParsed;
+    }
   }
 
   // Don't return internal channels (webchat) as announce targets
