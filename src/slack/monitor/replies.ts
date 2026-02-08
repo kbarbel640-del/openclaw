@@ -5,6 +5,7 @@ import type { RuntimeEnv } from "../../runtime.js";
 import { chunkMarkdownTextWithMode } from "../../auto-reply/chunk.js";
 import { createReplyReferencePlanner } from "../../auto-reply/reply/reply-reference.js";
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
+import { logVerbose } from "../../globals.js";
 import { markdownToSlackMrkdwnChunks } from "../format.js";
 import { sendMessageSlack } from "../send.js";
 
@@ -17,29 +18,41 @@ export async function deliverReplies(params: {
   textLimit: number;
   replyThreadTs?: string;
 }) {
+  logVerbose(
+    `slack deliverReplies: starting, target=${params.target}, replies=${params.replies.length}`,
+  );
   for (const payload of params.replies) {
     const threadTs = payload.replyToId ?? params.replyThreadTs;
     const mediaList = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
     const text = payload.text ?? "";
     if (!text && mediaList.length === 0) {
+      logVerbose(`slack deliverReplies: skipping empty payload`);
       continue;
     }
 
     if (mediaList.length === 0) {
       const trimmed = text.trim();
       if (!trimmed || isSilentReplyText(trimmed, SILENT_REPLY_TOKEN)) {
+        logVerbose(`slack deliverReplies: skipping silent/empty text`);
         continue;
       }
+      logVerbose(
+        `slack deliverReplies: sending text to ${params.target}, text=${trimmed.slice(0, 100)}...`,
+      );
       await sendMessageSlack(params.target, trimmed, {
         token: params.token,
         threadTs,
         accountId: params.accountId,
       });
+      logVerbose(`slack deliverReplies: sendMessageSlack completed for ${params.target}`);
     } else {
       let first = true;
       for (const mediaUrl of mediaList) {
         const caption = first ? text : "";
         first = false;
+        logVerbose(
+          `slack deliverReplies: sending media to ${params.target}, mediaUrl=${mediaUrl.slice(0, 50)}...`,
+        );
         await sendMessageSlack(params.target, caption, {
           token: params.token,
           mediaUrl,
@@ -50,6 +63,7 @@ export async function deliverReplies(params: {
     }
     params.runtime.log?.(`delivered reply to ${params.target}`);
   }
+  logVerbose(`slack deliverReplies: completed for target=${params.target}`);
 }
 
 export type SlackRespondFn = (payload: {

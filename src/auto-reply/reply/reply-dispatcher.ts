@@ -2,6 +2,7 @@ import type { HumanDelayConfig } from "../../config/types.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import type { ResponsePrefixContext } from "./response-prefix-template.js";
 import type { TypingController } from "./typing.js";
+import { logVerbose } from "../../globals.js";
 import { sleep } from "../../utils.js";
 import { normalizeReplyPayload, type NormalizeReplySkipReason } from "./normalize-reply.js";
 
@@ -112,16 +113,24 @@ export function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDis
   };
 
   const enqueue = (kind: ReplyDispatchKind, payload: ReplyPayload) => {
+    logVerbose(
+      `reply-dispatcher: enqueue called with kind=${kind}, text=${(payload.text ?? "").slice(0, 100)}...`,
+    );
     const normalized = normalizeReplyPayloadInternal(payload, {
       responsePrefix: options.responsePrefix,
       responsePrefixContext: options.responsePrefixContext,
       responsePrefixContextProvider: options.responsePrefixContextProvider,
       onHeartbeatStrip: options.onHeartbeatStrip,
-      onSkip: (reason) => options.onSkip?.(payload, { kind, reason }),
+      onSkip: (reason) => {
+        logVerbose(`reply-dispatcher: payload skipped, kind=${kind}, reason=${reason}`);
+        options.onSkip?.(payload, { kind, reason });
+      },
     });
     if (!normalized) {
+      logVerbose(`reply-dispatcher: normalized payload is null for kind=${kind}, skipping`);
       return false;
     }
+    logVerbose(`reply-dispatcher: queuing delivery for kind=${kind}, pending will be ${pending + 1}`);
     queuedCounts[kind] += 1;
     pending += 1;
 
@@ -133,6 +142,7 @@ export function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDis
 
     sendChain = sendChain
       .then(async () => {
+        logVerbose(`reply-dispatcher: executing delivery for kind=${kind}`);
         // Add human-like delay between block replies for natural rhythm.
         if (shouldDelay) {
           const delayMs = getHumanDelay(options.humanDelay);
@@ -141,8 +151,10 @@ export function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDis
           }
         }
         await options.deliver(normalized, { kind });
+        logVerbose(`reply-dispatcher: delivery completed for kind=${kind}`);
       })
       .catch((err) => {
+        logVerbose(`reply-dispatcher: delivery failed for kind=${kind}, error=${String(err)}`);
         options.onError?.(err, { kind });
       })
       .finally(() => {

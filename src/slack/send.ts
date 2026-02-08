@@ -129,8 +129,10 @@ export async function sendMessageSlack(
   message: string,
   opts: SlackSendOpts = {},
 ): Promise<SlackSendResult> {
+  logVerbose(`sendMessageSlack: called with to=${to}, message=${message.slice(0, 100)}...`);
   const trimmedMessage = message?.trim() ?? "";
   if (!trimmedMessage && !opts.mediaUrl) {
+    logVerbose(`sendMessageSlack: rejecting - no text or media`);
     throw new Error("Slack send requires text or media");
   }
   const cfg = loadConfig();
@@ -146,7 +148,9 @@ export async function sendMessageSlack(
   });
   const client = opts.client ?? createSlackWebClient(token);
   const recipient = parseRecipient(to);
+  logVerbose(`sendMessageSlack: resolving channel for recipient kind=${recipient.kind}`);
   const { channelId } = await resolveChannelId(client, recipient);
+  logVerbose(`sendMessageSlack: resolved channelId=${channelId}`);
   const textLimit = resolveTextChunkLimit(cfg, "slack", account.accountId);
   const chunkLimit = Math.min(textLimit, SLACK_TEXT_LIMIT);
   const tableMode = resolveMarkdownTableMode({
@@ -200,6 +204,9 @@ export async function sendMessageSlack(
     }
   }
 
+  logVerbose(
+    `sendMessageSlack: completed, messageId=${lastMessageId || "unknown"}, channelId=${channelId}`,
+  );
   return {
     messageId: lastMessageId || "unknown",
     channelId,

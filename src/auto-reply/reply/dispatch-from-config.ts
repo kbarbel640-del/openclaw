@@ -349,10 +349,19 @@ export async function dispatchReplyFromConfig(params: {
     );
 
     const replies = replyResult ? (Array.isArray(replyResult) ? replyResult : [replyResult]) : [];
+    logVerbose(
+      `dispatch-from-config: processing ${replies.length} final replies, ` +
+        `shouldRouteToOriginating=${shouldRouteToOriginating}, ` +
+        `originatingChannel=${originatingChannel ?? "none"}, ` +
+        `currentSurface=${currentSurface ?? "none"}`,
+    );
 
     let queuedFinal = false;
     let routedFinalCount = 0;
     for (const reply of replies) {
+      logVerbose(
+        `dispatch-from-config: processing reply, text=${(reply.text ?? "").slice(0, 100)}...`,
+      );
       const ttsReply = await maybeApplyTtsToPayload({
         payload: reply,
         cfg,
@@ -363,6 +372,9 @@ export async function dispatchReplyFromConfig(params: {
       });
       if (shouldRouteToOriginating && originatingChannel && originatingTo) {
         // Route final reply to originating channel.
+        logVerbose(
+          `dispatch-from-config: routing reply to originating channel=${originatingChannel}, to=${originatingTo}`,
+        );
         const result = await routeReply({
           payload: ttsReply,
           channel: originatingChannel,
@@ -382,7 +394,12 @@ export async function dispatchReplyFromConfig(params: {
           routedFinalCount += 1;
         }
       } else {
-        queuedFinal = dispatcher.sendFinalReply(ttsReply) || queuedFinal;
+        logVerbose(
+          `dispatch-from-config: sending final reply via dispatcher, text=${(ttsReply.text ?? "").slice(0, 100)}...`,
+        );
+        const didQueue = dispatcher.sendFinalReply(ttsReply);
+        logVerbose(`dispatch-from-config: dispatcher.sendFinalReply returned ${didQueue}`);
+        queuedFinal = didQueue || queuedFinal;
       }
     }
 

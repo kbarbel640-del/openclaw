@@ -106,6 +106,9 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     ...prefixOptions,
     humanDelay: resolveHumanDelayConfig(cfg, route.agentId),
     deliver: async (payload) => {
+      logVerbose(
+        `slack dispatcher: deliver callback invoked for target=${prepared.replyTarget}, text=${(payload.text ?? "").slice(0, 100)}...`,
+      );
       const replyThreadTs = replyPlan.nextThreadTs();
       await deliverReplies({
         replies: [payload],
@@ -116,6 +119,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
         textLimit: ctx.textLimit,
         replyThreadTs,
       });
+      logVerbose(`slack dispatcher: deliverReplies completed for target=${prepared.replyTarget}`);
       replyPlan.markSent();
     },
     onError: (err, info) => {
