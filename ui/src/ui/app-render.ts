@@ -621,30 +621,11 @@ export function renderApp(state: AppViewState) {
                 error: state.missionControlError,
                 tasks: state.missionControlTasks,
                 form: state.missionControlForm,
-                deleteConfirmId: state.missionControlDeleteConfirmId,
-                agentSpawnBusy: state.missionControlAgentSpawnBusy,
-                onRefresh: () => state.loadMissionControlTasks(),
+                onRefresh: () => loadMissionControlTasks(state),
                 onFormChange: (patch) =>
                   (state.missionControlForm = { ...state.missionControlForm, ...patch }),
-                onCreate: () => state.createMissionControlTask(),
-                onUpdateStatus: (taskId, status) =>
-                  updateMissionControlTaskStatus(
-                    {
-                      client: state.client,
-                      connected: state.connected,
-                      mcLoading: state.missionControlLoading,
-                      mcTasks: state.missionControlTasks,
-                      mcError: state.missionControlError,
-                      mcForm: state.missionControlForm,
-                      mcDeleteConfirmId: state.missionControlDeleteConfirmId,
-                      mcAgentSpawnBusy: state.missionControlAgentSpawnBusy,
-                    },
-                    taskId,
-                    status,
-                  ),
-                onDelete: (taskId) => state.deleteMissionControlTask(taskId),
-                onDeleteConfirm: (taskId) => (state.missionControlDeleteConfirmId = taskId),
-                onSpawnAgent: (taskId, agentId) => state.spawnAgentForTask(taskId, agentId),
+                onCreate: () => createMissionControlTask(state),
+                onDeleteTask: (id) => deleteMissionControlTask(state, id),
               })
             : nothing
         }

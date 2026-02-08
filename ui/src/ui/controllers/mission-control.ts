@@ -1,140 +1,69 @@
-import type { GatewayBrowserClient } from "../gateway.ts";
-import type {
-  MissionControlFormState,
-  MissionControlTask,
-  MissionControlTaskStatus,
-} from "../views/mission-control.ts";
+import type { AppViewState } from "../app-view-state.ts";
 
-export type MissionControlState = {
-  client: GatewayBrowserClient | null;
-  connected: boolean;
-  mcLoading: boolean;
-  mcTasks: MissionControlTask[];
-  mcError: string | null;
-  mcForm: MissionControlFormState;
-  mcDeleteConfirmId: string | null;
-  mcAgentSpawnBusy: boolean;
+export type MissionControlJob = {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  status: "pending" | "running" | "review" | "revising" | "done" | "failed" | "success";
+  priority: number;
+  agent_id: string | null;
+  created_at: number;
+  updated_at: number | null;
+  started_at: number | null;
+  finished_at: number | null;
+  result_summary: string | null;
+  error_message: string | null;
+  tags: string | null;
+  session_key: string | null;
+  fail_count: number;
+  verifier_last_confidence: number | null;
+  pr_number: number | null;
+  pr_url: string | null;
+  revision_count: number;
 };
 
-export const DEFAULT_MC_FORM: MissionControlFormState = {
-  title: "",
-  description: "",
-  priority: "0",
-  tags: "",
+export type MissionControlListResult = {
+  ok: boolean;
+  jobs: MissionControlJob[];
 };
 
-export async function loadMissionControlTasks(state: MissionControlState) {
-  if (!state.client || !state.connected) {
+export async function loadMissionControlTasks(state: AppViewState): Promise<void> {
+  if (!state.connected) {
     return;
   }
-  if (state.mcLoading) {
-    return;
-  }
-  state.mcLoading = true;
-  state.mcError = null;
+
+  state.missionControlLoading = true;
+  state.missionControlError = null;
+
   try {
-    const res = await state.client.request<{ tasks?: Array<MissionControlTask> }>(
-      "missionControl.list",
-      {},
-    );
-    state.mcTasks = Array.isArray(res.tasks) ? res.tasks : [];
-  } catch (err) {
-    state.mcError = String(err);
+    const result = await state.client?.callMethod("missionControl.list", {});
+    if (result?.ok && result.jobs) {
+      state.missionControlTasks = result.jobs as MissionControlJob[];
+    } else {
+      state.missionControlError = "Failed to load tasks";
+    }
+  } catch (error) {
+    state.missionControlError = String(error);
   } finally {
-    state.mcLoading = false;
+    state.missionControlLoading = false;
   }
 }
 
-export async function createMissionControlTask(state: MissionControlState) {
-  if (!state.client || !state.connected) {
+export async function deleteMissionControlTask(state: AppViewState, taskId: string): Promise<void> {
+  if (!state.connected) {
     return;
   }
-  state.mcLoading = true;
-  state.mcError = null;
+
   try {
-    const tags = state.mcForm.tags
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-
-    const res = await state.client.request<{ task: MissionControlTask }>("missionControl.create", {
-      title: state.mcForm.title.trim(),
-      description: state.mcForm.description.trim(),
-      priority: parseInt(state.mcForm.priority, 10) || 0,
-      tags,
-    });
-
-    // Reset form
-    state.mcForm = { ...DEFAULT_MC_FORM };
-
-    // Reload tasks
-    await loadMissionControlTasks(state);
-  } catch (err) {
-    state.mcError = String(err);
-  } finally {
-    state.mcLoading = false;
-  }
-}
-
-export async function updateMissionControlTaskStatus(
-  state: MissionControlState,
-  taskId: string,
-  status: MissionControlTaskStatus,
-) {
-  if (!state.client || !state.connected) {
-    return;
-  }
-  state.mcLoading = true;
-  state.mcError = null;
-  try {
-    await state.client.request("missionControl.update", {
-      id: taskId,
-      patch: { status },
-    });
-    await loadMissionControlTasks(state);
-  } catch (err) {
-    state.mcError = String(err);
-  } finally {
-    state.mcLoading = false;
-  }
-}
-
-export async function deleteMissionControlTask(state: MissionControlState, taskId: string) {
-  if (!state.client || !state.connected) {
-    return;
-  }
-  state.mcLoading = true;
-  state.mcError = null;
-  try {
-    await state.client.request("missionControl.delete", { id: taskId });
-    state.mcDeleteConfirmId = null;
-    await loadMissionControlTasks(state);
-  } catch (err) {
-    state.mcError = String(err);
-  } finally {
-    state.mcLoading = false;
-  }
-}
-
-export async function spawnAgentForTask(
-  state: MissionControlState,
-  taskId: string,
-  agentId?: string,
-) {
-  if (!state.client || !state.connected) {
-    return;
-  }
-  state.mcAgentSpawnBusy = true;
-  state.mcError = null;
-  try {
-    await state.client.request("missionControl.spawnAgent", {
-      taskId,
-      agentId: agentId || "default",
-    });
-    await loadMissionControlTasks(state);
-  } catch (err) {
-    state.mcError = String(err);
-  } finally {
-    state.mcAgentSpawnBusy = false;
+    const result = await state.client?.callMethod("missionControl.delete", { id: taskId });
+    if (result?.ok) {
+      // Reload tasks after successful delete
+      await loadMissionControlTasks(state);
+    } else {
+      state.missionControlError = "Failed to delete task";
+    }
+  } catch (error) {
+    state.missionControlError = String(error);
   }
 }
