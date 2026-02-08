@@ -95,6 +95,15 @@ const ShellHookCommandSchema = z
   })
   .strict();
 
+const PromptHookCommandSchema = z
+  .object({
+    type: z.literal("prompt"),
+    prompt: z.string(),
+    model: z.string().optional(),
+    maxTokens: z.number().int().positive().optional(),
+  })
+  .strict();
+
 const AgentHookMatcherSchema = z
   .object({
     toolPattern: z.string().optional(),
@@ -105,7 +114,7 @@ const AgentHookMatcherSchema = z
 const AgentHookEntrySchema = z
   .object({
     matcher: z.union([AgentHookMatcherSchema, z.string()]).optional(),
-    hooks: z.array(ShellHookCommandSchema),
+    hooks: z.array(z.union([ShellHookCommandSchema, PromptHookCommandSchema])),
     timeoutMs: z.number().int().positive().optional(),
     cwd: z.string().optional(),
   })
@@ -119,6 +128,7 @@ export const AgentHooksSchema = z
     PostToolUse: z.array(AgentHookEntrySchema).optional(),
     Stop: z.array(AgentHookEntrySchema).optional(),
     PreCompact: z.array(AgentHookEntrySchema).optional(),
+    PreResponse: z.array(AgentHookEntrySchema).optional(),
   })
   .strict()
   .optional();
