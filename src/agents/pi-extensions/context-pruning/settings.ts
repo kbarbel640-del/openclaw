@@ -4,7 +4,7 @@ export type ContextPruningToolMatch = {
   allow?: string[];
   deny?: string[];
 };
-export type ContextPruningMode = "off" | "cache-ttl";
+export type ContextPruningMode = "off" | "cache-ttl" | "always";
 
 export type ContextPruningConfig = {
   mode?: ContextPruningMode;
@@ -69,14 +69,14 @@ export function computeEffectiveSettings(raw: unknown): EffectiveContextPruningS
     return null;
   }
   const cfg = raw as ContextPruningConfig;
-  if (cfg.mode !== "cache-ttl") {
+  if (cfg.mode !== "cache-ttl" && cfg.mode !== "always") {
     return null;
   }
 
   const s: EffectiveContextPruningSettings = structuredClone(DEFAULT_CONTEXT_PRUNING_SETTINGS);
   s.mode = cfg.mode;
 
-  if (typeof cfg.ttl === "string") {
+  if (cfg.mode === "cache-ttl" && typeof cfg.ttl === "string") {
     try {
       s.ttlMs = parseDurationMs(cfg.ttl, { defaultUnit: "m" });
     } catch {
