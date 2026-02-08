@@ -536,5 +536,32 @@ async function deliverOutboundPayloadsCore(params: {
       });
     }
   }
+
+  // Fire message_sent hook for each successfully delivered payload
+  const hookRunner = getGlobalHookRunner();
+  if (hookRunner && results.length > 0) {
+    const fullText = normalizedPayloads
+      .map((p) => p.text ?? "")
+      .filter(Boolean)
+      .join("\n");
+    const ctx = {
+      channelId: channel,
+      accountId: accountId ?? undefined,
+      conversationId: to,
+    };
+    void hookRunner
+      .runMessageSent(
+        {
+          to,
+          content: fullText,
+          success: true,
+        },
+        ctx,
+      )
+      .catch(() => {
+        // Fire-and-forget — don't break delivery on hook errors
+      });
+  }
+
   return results;
 }
