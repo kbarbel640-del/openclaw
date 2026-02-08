@@ -18,6 +18,7 @@ import {
   DEFAULT_USER_FILENAME,
   ensureAgentWorkspace,
 } from "../../agents/workspace.js";
+import { movePathToTrash } from "../../browser/trash.js";
 import {
   applyAgentConfig,
   findAgentEntryIndex,
@@ -26,7 +27,6 @@ import {
 } from "../../commands/agents.config.js";
 import { loadConfig, writeConfigFile } from "../../config/config.js";
 import { resolveSessionTranscriptsDirForAgent } from "../../config/sessions/paths.js";
-import { runCommandWithTimeout } from "../../process/exec.js";
 import { DEFAULT_AGENT_ID, normalizeAgentId } from "../../routing/session-key.js";
 import { resolveUserPath } from "../../utils.js";
 import {
@@ -158,9 +158,9 @@ async function moveToTrashBestEffort(pathname: string): Promise<void> {
     return;
   }
   try {
-    await runCommandWithTimeout(["trash", pathname], { timeoutMs: 5000 });
+    await movePathToTrash(pathname);
   } catch {
-    // Best-effort: fall back to leaving the directory in place.
+    // Best-effort: path may already be gone or trash unavailable.
   }
 }
 
@@ -230,27 +230,27 @@ export const agentsHandlers: GatewayRequestHandlers = {
     const agentDir = resolveAgentDir(nextConfig, agentId);
     nextConfig = applyAgentConfig(nextConfig, { agentId, agentDir });
 
-    await writeConfigFile(nextConfig);
-
+    // Ensure workspace & transcripts exist BEFORE writing config so a failure
+    // here does not leave a broken config entry behind.
     const skipBootstrap = Boolean(nextConfig.agents?.defaults?.skipBootstrap);
     await ensureAgentWorkspace({ dir: workspaceDir, ensureBootstrapFiles: !skipBootstrap });
     await fs.mkdir(resolveSessionTranscriptsDirForAgent(agentId), { recursive: true });
 
+    await writeConfigFile(nextConfig);
+
+    // Always write Name to IDENTITY.md; optionally include emoji/avatar.
+    const safeName = sanitizeIdentityLine(rawName);
     const emoji = resolveOptionalStringParam(params.emoji);
     const avatar = resolveOptionalStringParam(params.avatar);
-    if (emoji || avatar) {
-      await fs.mkdir(workspaceDir, { recursive: true });
-      const identityPath = path.join(workspaceDir, DEFAULT_IDENTITY_FILENAME);
-      const safeName = sanitizeIdentityLine(rawName);
-      const lines = [
-        "",
-        `- Name: ${safeName}`,
-        ...(emoji ? [`- Emoji: ${sanitizeIdentityLine(emoji)}`] : []),
-        ...(avatar ? [`- Avatar: ${sanitizeIdentityLine(avatar)}`] : []),
-        "",
-      ];
-      await fs.appendFile(identityPath, lines.join("\n"), "utf-8");
-    }
+    const identityPath = path.join(workspaceDir, DEFAULT_IDENTITY_FILENAME);
+    const lines = [
+      "",
+      `- Name: ${safeName}`,
+      ...(emoji ? [`- Emoji: ${sanitizeIdentityLine(emoji)}`] : []),
+      ...(avatar ? [`- Avatar: ${sanitizeIdentityLine(avatar)}`] : []),
+      "",
+    ];
+    await fs.appendFile(identityPath, lines.join("\n"), "utf-8");
 
     respond(true, { ok: true, agentId, name: rawName, workspace: workspaceDir }, undefined);
   },
