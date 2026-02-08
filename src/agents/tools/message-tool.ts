@@ -354,6 +354,22 @@ function buildMessageToolDescription(options?: {
   currentChannelId?: string;
 }): string {
   const baseDescription = "Send, delete, and manage messages via channel plugins.";
+  const formattingHint = (() => {
+    const channel = normalizeMessageChannel(options?.currentChannel);
+    if (!channel) {
+      return "";
+    }
+    // Chat surfaces where rich Markdown often renders inconsistently; keep messages pasteable.
+    if (
+      channel === "whatsapp" ||
+      channel === "telegram" ||
+      channel === "signal" ||
+      channel === "imessage"
+    ) {
+      return " Formatting tip: prefer plain text (no Markdown headings/code fences) and keep to one question.";
+    }
+    return "";
+  })();
 
   // If we have a current channel, show only its supported actions
   if (options?.currentChannel) {
@@ -369,7 +385,7 @@ function buildMessageToolDescription(options?: {
       // Always include "send" as a base action
       const allActions = new Set(["send", ...channelActions]);
       const actionList = Array.from(allActions).toSorted().join(", ");
-      return `${baseDescription} Current channel (${options.currentChannel}) supports: ${actionList}.`;
+      return `${baseDescription} Current channel (${options.currentChannel}) supports: ${actionList}.${formattingHint}`;
     }
   }
 
@@ -377,11 +393,11 @@ function buildMessageToolDescription(options?: {
   if (options?.config) {
     const actions = listChannelMessageActions(options.config);
     if (actions.length > 0) {
-      return `${baseDescription} Supports actions: ${actions.join(", ")}.`;
+      return `${baseDescription} Supports actions: ${actions.join(", ")}.${formattingHint}`;
     }
   }
 
-  return `${baseDescription} Supports actions: send, delete, react, poll, pin, threads, and more.`;
+  return `${baseDescription} Supports actions: send, delete, react, poll, pin, threads, and more.${formattingHint}`;
 }
 
 export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
