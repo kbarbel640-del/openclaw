@@ -1,7 +1,7 @@
 import type { VideoDescriptionRequest, VideoDescriptionResult } from "../../types.js";
 import { fetchWithTimeoutGuarded, normalizeBaseUrl, readErrorResponse } from "../shared.js";
 
-export const DEFAULT_MOONSHOT_VIDEO_BASE_URL = "https://api.moonshot.cn/v1";
+export const DEFAULT_MOONSHOT_VIDEO_BASE_URL = "https://api.moonshot.ai/v1";
 const DEFAULT_MOONSHOT_VIDEO_MODEL = "kimi-k2.5";
 const DEFAULT_MOONSHOT_VIDEO_PROMPT = "Describe the video in detail.";
 
