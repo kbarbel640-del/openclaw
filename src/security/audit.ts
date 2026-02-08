@@ -820,9 +820,12 @@ async function collectChannelSecurityFindings(params: {
 
       const storeAllowFrom = await readChannelAllowFromStore("telegram").catch(() => []);
       const storeHasWildcard = storeAllowFrom.some((v) => String(v).trim() === "*");
+      const defaultGroupAllowFrom = params.cfg.channels?.defaults?.groupAllowFrom;
       const groupAllowFrom = Array.isArray(telegramCfg.groupAllowFrom)
         ? telegramCfg.groupAllowFrom
-        : [];
+        : Array.isArray(defaultGroupAllowFrom)
+          ? defaultGroupAllowFrom
+          : [];
       const groupAllowFromHasWildcard = groupAllowFrom.some((v) => String(v).trim() === "*");
       const anyGroupOverride = Boolean(
         groups &&
