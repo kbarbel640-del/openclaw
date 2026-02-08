@@ -7,6 +7,7 @@ import {
 
 describe("failover-error", () => {
   it("infers failover reason from HTTP status", () => {
+    expect(resolveFailoverReasonFromError({ status: 401 })).toBe("auth");
     expect(resolveFailoverReasonFromError({ status: 402 })).toBe("billing");
     expect(resolveFailoverReasonFromError({ statusCode: "429" })).toBe("rate_limit");
     expect(resolveFailoverReasonFromError({ status: 403 })).toBe("auth");
@@ -36,6 +37,26 @@ describe("failover-error", () => {
     expect(err?.status).toBe(402);
     expect(err?.provider).toBe("anthropic");
     expect(err?.model).toBe("claude-opus-4-5");
+  });
+
+  it("coerces 401 auth errors into FailoverError with auth reason", () => {
+    const err = coerceToFailoverError(
+      Object.assign(new Error("Unauthorized"), { status: 401 }),
+      { provider: "anthropic", model: "claude-sonnet-4-5" },
+    );
+    expect(err?.name).toBe("FailoverError");
+    expect(err?.reason).toBe("auth");
+    expect(err?.status).toBe(401);
+    expect(err?.provider).toBe("anthropic");
+  });
+
+  it("coerces 401 errors even when message lacks auth keywords", () => {
+    const err = coerceToFailoverError(
+      Object.assign(new Error("request failed"), { statusCode: 401 }),
+      { provider: "anthropic" },
+    );
+    expect(err?.reason).toBe("auth");
+    expect(err?.status).toBe(401);
   });
 
   it("coerces format errors with a 400 status", () => {

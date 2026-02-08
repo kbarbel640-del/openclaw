@@ -18,7 +18,7 @@ import {
   resolveContextWindowInfo,
 } from "../context-window-guard.js";
 import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL, DEFAULT_PROVIDER } from "../defaults.js";
-import { FailoverError, resolveFailoverStatus } from "../failover-error.js";
+import { FailoverError, resolveFailoverReasonFromError, resolveFailoverStatus } from "../failover-error.js";
 import {
   ensureAuthProfileStore,
   getApiKeyForModel,
@@ -650,7 +650,7 @@ export async function runEmbeddedPiAgent(
                 },
               };
             }
-            const promptFailoverReason = classifyFailoverReason(errorText);
+            const promptFailoverReason = resolveFailoverReasonFromError(promptError) ?? classifyFailoverReason(errorText);
             if (promptFailoverReason && promptFailoverReason !== "timeout" && lastProfileId) {
               await markAuthProfileFailure({
                 store: authStore,
@@ -661,7 +661,7 @@ export async function runEmbeddedPiAgent(
               });
             }
             if (
-              isFailoverErrorMessage(errorText) &&
+              (promptFailoverReason ?? isFailoverErrorMessage(errorText)) &&
               promptFailoverReason !== "timeout" &&
               (await advanceAuthProfile())
             ) {
@@ -680,7 +680,7 @@ export async function runEmbeddedPiAgent(
             }
             // FIX: Throw FailoverError for prompt errors when fallbacks configured
             // This enables model fallback for quota/rate limit errors during prompt submission
-            if (fallbackConfigured && isFailoverErrorMessage(errorText)) {
+            if (fallbackConfigured && (promptFailoverReason || isFailoverErrorMessage(errorText))) {
               throw new FailoverError(errorText, {
                 reason: promptFailoverReason ?? "unknown",
                 provider,

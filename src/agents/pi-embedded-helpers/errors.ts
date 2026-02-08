@@ -3,6 +3,10 @@ import type { OpenClawConfig } from "../../config/config.js";
 import type { FailoverReason } from "./types.js";
 import { formatSandboxToolPolicyBlockedMessage } from "../sandbox.js";
 
+export const AUTH_ERROR_USER_MESSAGE =
+  "\u26a0\ufe0f Authentication failed \u2014 your API token may have expired. " +
+  "Please re-authenticate or switch to a valid API key.";
+
 export const BILLING_ERROR_USER_MESSAGE =
   "⚠️ API provider returned a billing error — your API key has run out of credits or has an insufficient balance. Check your provider's billing dashboard and top up or switch to a different API key.";
 
@@ -389,6 +393,10 @@ export function formatAssistantErrorText(
     return BILLING_ERROR_USER_MESSAGE;
   }
 
+  if (isAuthErrorMessage(raw)) {
+    return AUTH_ERROR_USER_MESSAGE;
+  }
+
   if (isLikelyHttpErrorText(raw) || isRawApiErrorPayload(raw)) {
     return formatRawAssistantErrorForUi(raw);
   }
@@ -426,6 +434,10 @@ export function sanitizeUserFacingText(text: string): string {
 
   if (isBillingErrorMessage(trimmed)) {
     return BILLING_ERROR_USER_MESSAGE;
+  }
+
+  if (isAuthErrorMessage(trimmed)) {
+    return AUTH_ERROR_USER_MESSAGE;
   }
 
   if (isRawApiErrorPayload(trimmed) || isLikelyHttpErrorText(trimmed)) {
