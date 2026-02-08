@@ -27,7 +27,7 @@ describe("handleControlUiHttpRequest", () => {
     try {
       await fs.writeFile(path.join(tmp, "index.html"), "<html></html>\n");
       // favicon.svg does NOT exist under webchat/
-      const { res, end } = makeResponse();
+      const { res } = makeResponse();
       const handled = handleControlUiHttpRequest(
         { url: "/webchat/favicon.svg", method: "GET" } as IncomingMessage,
         res,
@@ -46,7 +46,7 @@ describe("handleControlUiHttpRequest", () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-ui-"));
     try {
       await fs.writeFile(path.join(tmp, "index.html"), "<html></html>\n");
-      const { res, end } = makeResponse();
+      const { res } = makeResponse();
       const handled = handleControlUiHttpRequest(
         { url: "/webchat/chat", method: "GET" } as IncomingMessage,
         res,

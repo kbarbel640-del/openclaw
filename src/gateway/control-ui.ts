@@ -355,7 +355,7 @@ export function handleControlUiHttpRequest(
   // Static asset requests should not fall through to the SPA catch-all.
   // If the requested path has a file extension, it was meant to be served
   // as-is — returning index.html would send HTML with the wrong content type.
-  const ext = path.extname(fileRel);
+  const ext = path.extname(fileRel).toLowerCase();
   if (ext && ext !== ".html") {
     respondNotFound(res);
     return true;
