@@ -491,10 +491,10 @@ export class OpenClawApp extends LitElement {
     messageOverride?: string,
     opts?: Parameters<typeof handleSendChatInternal>[2],
   ) {
-    // Add to input history before sending (excluding slash commands)
+    // Add to input history before sending (including slash commands - they're often repeated)
     const messageToSend = messageOverride ?? this.chatMessage;
     const trimmedMessage = messageToSend.trim();
-    if (trimmedMessage && !trimmedMessage.startsWith("/")) {
+    if (trimmedMessage) {
       this.addToInputHistory(trimmedMessage);
     }
     this.chatInputHistoryIndex = -1;
