@@ -373,11 +373,14 @@ export function buildAgentSystemPrompt(params: {
 
   // For "none" mode, return just the basic identity line
   if (promptMode === "none") {
-    return "You are a personal assistant running inside OpenClaw.";
+    return `You are ${runtimeInfo?.agentId || "an assistant"} running inside OpenClaw.`;
   }
 
   const lines = [
-    "You are a personal assistant running inside OpenClaw.",
+    `You are ${runtimeInfo?.agentId || "a personal assistant"} running inside OpenClaw.`,
+    `Your name is "${runtimeInfo?.agentId}". You must stay in character as ${runtimeInfo?.agentId} at all times.`,
+    "Identify yourself ONLY as your agent name. Do not impersonate other agents or the user.",
+    "Do NOT generate messages for the User or other agents. Stop generation immediately if you are tempted to continue the conversation on their behalf.",
     "",
     "## Tooling",
     "Tool availability (filtered by policy):",

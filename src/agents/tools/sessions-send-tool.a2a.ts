@@ -78,28 +78,41 @@ export async function runSessionsSendA2AFlow(params: {
         return;
       }
 
+      if (!announceTarget) {
+        return;
+      }
+      const agentId = resolveAgentIdFromSessionKey(sessionKey);
+      const sendAnnounce = () =>
+        callGateway({
+          method: "send",
+          params: {
+            to: announceTarget.to,
+            message: message.trim(),
+            channel: announceTarget.channel,
+            accountId: announceTarget.accountId,
+            idempotencyKey: crypto.randomUUID(),
+          },
+          timeoutMs: 10_000,
+        });
+
       try {
-        // accountId from announceTarget already identifies the correct bot
-        // (e.g. "sena", "miru") — the send handler routes via accountId.
-        if (announceTarget) {
-          const agentId = resolveAgentIdFromSessionKey(sessionKey);
-          log.info(
-            `[a2a] announcing for ${agentId} (${sessionKey}): target=${announceTarget.channel}/${announceTarget.to}`,
-          );
-          await callGateway({
-            method: "send",
-            params: {
-              to: announceTarget.to,
-              message: message.trim(),
-              channel: announceTarget.channel,
-              accountId: announceTarget.accountId,
-              idempotencyKey: crypto.randomUUID(),
-            },
-            timeoutMs: 10_000,
+        log.info(
+          `[a2a] announcing for ${agentId} (${sessionKey}): target=${announceTarget.channel}/${announceTarget.to}`,
+        );
+        await sendAnnounce();
+      } catch (err) {
+        log.warn(`[a2a] announce failed for ${agentId}, retrying once`, {
+          error: formatErrorMessage(err),
+        });
+        try {
+          await sendAnnounce();
+        } catch (retryErr) {
+          log.error(`[a2a] announce retry failed for ${agentId} (${sessionKey})`, {
+            error: formatErrorMessage(retryErr),
+            channel: announceTarget.channel,
+            to: announceTarget.to,
           });
         }
-      } catch (err) {
-        log.warn(`[a2a] announce failed for ${sessionKey}`, { error: formatErrorMessage(err) });
       }
     };
 

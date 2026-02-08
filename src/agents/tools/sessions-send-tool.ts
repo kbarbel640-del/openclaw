@@ -396,7 +396,6 @@ export function createSessionsSendTool(opts?: {
       return jsonResult({
         runId,
         status: "ok",
-        // reply 제거 - A2A announce로만 응답
         sessionKey: displayKey,
         delivery,
       });

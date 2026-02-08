@@ -675,6 +675,11 @@ export const registerTelegramHandlers = ({
         return;
       }
 
+      // Self-response loop guard: ignore messages from the bot itself
+      if (msg.from?.id != null && ctx.me?.id != null && msg.from.id === ctx.me.id) {
+        return;
+      }
+
       const chatId = msg.chat.id;
       const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
       const messageThreadId = msg.message_thread_id;
