@@ -172,7 +172,7 @@ export function registerStatusHealthSessionsCommands(program: Command) {
     .description("Scrub secrets from session transcripts")
     .option("--dry-run", "Report what would be scrubbed without modifying files", false)
     .option("--verbose", "Show per-file details", false)
-    .option("--no-backup", "Skip creating .bak backups", false)
+    .option("--no-backup", "Skip creating .bak backups")
     .addHelpText(
       "after",
       () =>

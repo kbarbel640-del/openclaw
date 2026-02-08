@@ -18,19 +18,22 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-async function scanFileForSecrets(filePath: string, patterns: RegExp[]): Promise<boolean> {
+async function scanFileForSecrets(
+  filePath: string,
+  patterns: RegExp[],
+): Promise<{ match: boolean; error?: boolean }> {
   try {
     const content = await fs.promises.readFile(filePath, "utf-8");
     for (const pattern of patterns) {
       // Reset lastIndex for global regexps
       pattern.lastIndex = 0;
       if (pattern.test(content)) {
-        return true;
+        return { match: true };
       }
     }
-    return false;
+    return { match: false };
   } catch {
-    return false;
+    return { match: false, error: true };
   }
 }
 
@@ -66,18 +69,28 @@ export async function noteSessionSecretsWarnings(_cfg?: OpenClawConfig): Promise
 
   const patterns = compilePatterns(getDefaultRedactPatterns());
   let filesWithSecrets = 0;
+  let readErrors = 0;
 
   // Scan all files if <=200, otherwise sample 200 randomly to avoid long delays
   const sampled = files.length > 200 ? shuffleArray(files).slice(0, 200) : files;
   const sampleSize = sampled.length;
 
   for (const file of sampled) {
-    if (await scanFileForSecrets(file, patterns)) {
+    const result = await scanFileForSecrets(file, patterns);
+    if (result.error) {
+      readErrors++;
+    } else if (result.match) {
       filesWithSecrets++;
     }
   }
 
   const warnings: string[] = [];
+
+  if (readErrors > 0) {
+    warnings.push(
+      `- ⚠ Could not read ${readErrors} session file(s) — these were not checked for secrets.`,
+    );
+  }
 
   if (filesWithSecrets > 0) {
     const percentage = Math.round((filesWithSecrets / sampleSize) * 100);
