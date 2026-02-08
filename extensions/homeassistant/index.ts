@@ -148,6 +148,7 @@ type SemanticResolution = {
   confidence: number;
   reasons: string[];
   missing_signals: string[];
+  non_actionable?: boolean;
   recommended_primary: string;
   recommended_fallbacks: string[];
   smoke_test_safe: boolean;
@@ -3246,6 +3247,20 @@ const pickSafeSemanticFallback = (entity: InventoryEntity, scores: Record<string
   return mapped || "generic_switch";
 };
 
+const isTelemetryDomain = (domain: string) => domain === "sensor" || domain === "binary_sensor";
+
+const buildTelemetrySemanticType = (entity: InventoryEntity, deviceDomains: Set<string>) => {
+  if (deviceDomains.has("vacuum")) return "telemetry.vacuum";
+  const deviceClass = safeString(entity.device_class ?? "") || safeString(entity.original_device_class ?? "");
+  const normalized = normalizeName(deviceClass);
+  if (normalized) return `telemetry.${normalized}`;
+  const stateClass = normalizeName(safeString(entity.attributes?.["state_class"]));
+  if (stateClass) return `telemetry.${stateClass}`;
+  const unit = normalizeName(safeString(entity.attributes?.["unit_of_measurement"]));
+  if (unit) return `telemetry.${unit}`;
+  return "telemetry.generic";
+};
+
 const buildSemanticResolution = (input: {
   entity: InventoryEntity;
   deviceEntities: InventoryEntity[];
@@ -3254,6 +3269,34 @@ const buildSemanticResolution = (input: {
   servicesByDomain: Record<string, string[]>;
   deviceGraph: Record<string, DeviceGraphEntry>;
 }): SemanticResolution => {
+  const deviceDomains = new Set(input.deviceEntities.map((entry) => entry.domain));
+  if (isTelemetryDomain(input.entity.domain)) {
+    const telemetryType = buildTelemetrySemanticType(input.entity, deviceDomains);
+    const telemetryReasons = [`telemetry_domain:${input.entity.domain}`];
+    if (telemetryType !== "telemetry.generic") telemetryReasons.push(`telemetry_type:${telemetryType}`);
+    const missingSignals: string[] = [];
+    if (!input.entity.device_id) missingSignals.push("missing:device_id");
+    if (!input.entity.device_fingerprint) missingSignals.push("missing:device_fingerprint");
+    if (!input.entity.device_class && !input.entity.original_device_class) {
+      missingSignals.push("missing:device_class");
+    }
+    return {
+      semantic_type: telemetryType,
+      control_model: "telemetry",
+      confidence: 0.9,
+      reasons: telemetryReasons,
+      missing_signals: missingSignals,
+      non_actionable: true,
+      recommended_primary: "",
+      recommended_fallbacks: [],
+      smoke_test_safe: true,
+      preferred_control_entity: input.entity.entity_id,
+      entity_fingerprint: buildEntityFingerprint(input.entity),
+      source: "inferred",
+      ambiguity: { ok: true, reason: "telemetry" },
+    };
+  }
+
   const deviceOverride = input.entity.device_id
     ? input.overrides.device_overrides[input.entity.device_id]
     : undefined;
@@ -3281,6 +3324,7 @@ const buildSemanticResolution = (input: {
         learned.last_intent ?? "",
       ].filter(Boolean),
       missing_signals: [],
+      non_actionable: false,
       recommended_primary: primary,
       recommended_fallbacks: fallbacks,
       smoke_test_safe: false,
@@ -3309,6 +3353,7 @@ const buildSemanticResolution = (input: {
         learnedFingerprint.last_intent ?? "",
       ].filter(Boolean),
       missing_signals: [],
+      non_actionable: false,
       recommended_primary: primary,
       recommended_fallbacks: fallbacks,
       smoke_test_safe: false,
@@ -3337,6 +3382,7 @@ const buildSemanticResolution = (input: {
         override === deviceOverride ? "scope:device" : "scope:entity",
       ].filter(Boolean),
       missing_signals: [],
+      non_actionable: false,
       recommended_primary: primary,
       recommended_fallbacks: fallbacks,
       smoke_test_safe: Boolean(override.smoke_test_safe ?? false),
@@ -3450,22 +3496,22 @@ const buildSemanticResolution = (input: {
 
   const deviceGraphKey = deviceGraphKeyForEntity(input.entity);
   const graphEntry = input.deviceGraph[deviceGraphKey];
-  const deviceDomains = new Set(
+  const graphDomains = new Set(
     graphEntry?.entity_domains?.length ? graphEntry.entity_domains : input.deviceEntities.map((entry) => entry.domain),
   );
   if (!graphEntry) {
     missingSignals.add("missing:device_graph");
   }
   if (input.entity.domain === "switch") {
-    if (deviceDomains.has("climate") || deviceDomains.has("water_heater")) {
+    if (graphDomains.has("climate") || graphDomains.has("water_heater")) {
       addSemanticScore(scores, "outlet", -8, "cluster:climate_or_water_heater", "strong");
       addSemanticScore(scores, "heater", 6, "cluster:climate_or_water_heater", "strong");
       addSemanticScore(scores, "boiler", 6, "cluster:climate_or_water_heater", "strong");
     }
-    if (deviceDomains.has("fan")) {
+    if (graphDomains.has("fan")) {
       addSemanticScore(scores, "fan", 5, "cluster:fan", "strong");
     }
-    if (deviceDomains.has("light")) {
+    if (graphDomains.has("light")) {
       addSemanticScore(scores, "light", 3, "cluster:light", "weak");
     }
   }
@@ -3523,6 +3569,7 @@ const buildSemanticResolution = (input: {
     confidence,
     reasons,
     missing_signals: [...missingSignals],
+    non_actionable: false,
     recommended_primary: primary,
     recommended_fallbacks: fallbacks,
     smoke_test_safe: false,
@@ -3595,7 +3642,12 @@ const buildSemanticMapFromSnapshot = async (snapshot: Awaited<ReturnType<typeof 
       deviceGraph: snapshot.device_graph ?? {},
     });
     byEntity[entity.entity_id] = resolution;
-    if (!resolution.ambiguity.ok && resolution.ambiguity.needs_override && SEMANTIC_RISKY_TYPES.has(resolution.semantic_type)) {
+    if (
+      !resolution.non_actionable &&
+      !resolution.ambiguity.ok &&
+      resolution.ambiguity.needs_override &&
+      SEMANTIC_RISKY_TYPES.has(resolution.semantic_type)
+    ) {
       needsOverride.push({
         entity_id: entity.entity_id,
         reason: resolution.ambiguity.reason ?? "low_confidence",
@@ -4036,6 +4088,30 @@ const resolveTargetFromSnapshot = (input: {
   });
   scored.sort((a, b) => b.score - a.score);
   return scored[0]?.entity ?? candidates[0];
+};
+
+const pickActionTargetEntity = (input: {
+  target: InventoryEntity;
+  resolution: SemanticResolution;
+  snapshot: Awaited<ReturnType<typeof fetchInventorySnapshot>>;
+  semanticMap: Record<string, SemanticResolution>;
+}) => {
+  if (!input.resolution.non_actionable && !isTelemetryDomain(input.target.domain)) {
+    return input.target;
+  }
+  const preferred = input.resolution.preferred_control_entity;
+  if (preferred && input.snapshot.entities[preferred]) {
+    return input.snapshot.entities[preferred];
+  }
+  const deviceEntities = Object.values(input.snapshot.entities).filter(
+    (entry) => entry.device_id && entry.device_id === input.target.device_id,
+  );
+  const vacuum = deviceEntities.find((entry) => entry.domain === "vacuum");
+  if (vacuum) return vacuum;
+  const actionable = deviceEntities.find(
+    (entry) => !input.semanticMap[entry.entity_id]?.non_actionable && !isTelemetryDomain(entry.domain),
+  );
+  return actionable ?? input.target;
 };
 
 const buildUniversalPlan = (input: {
@@ -5282,6 +5358,7 @@ type DeviceBrainCandidate = {
   semantic_type: string;
   confidence: number;
   reasons: string[];
+  non_actionable?: boolean;
   risk_level: "low" | "medium" | "high";
   recommended_primary: string;
   recommended_fallbacks: string[];
@@ -5446,6 +5523,10 @@ const buildDeviceBrainResult = async (input: {
         servicesByDomain: input.snapshot.services_by_domain ?? {},
         deviceGraph: input.snapshot.device_graph ?? {},
       });
+    if (resolution.non_actionable) {
+      score -= 15;
+      breakdown.non_actionable = -15;
+    }
 
     const state: HaState = {
       entity_id: entity.entity_id,
@@ -5464,6 +5545,7 @@ const buildDeviceBrainResult = async (input: {
       semantic_type: resolution.semantic_type,
       confidence: resolution.confidence,
       reasons: resolution.reasons,
+      non_actionable: resolution.non_actionable,
       risk_level: getRiskLevel(resolution.semantic_type, entity.domain),
       recommended_primary: resolution.recommended_primary,
       recommended_fallbacks: resolution.recommended_fallbacks,
@@ -8122,6 +8204,7 @@ const registerTools = (api: OpenClawPluginApi) => {
                 device_graph: deviceGraph,
                 missing_signals: resolution?.missing_signals ?? [],
                 reasons: resolution?.reasons ?? [],
+                non_actionable: resolution?.non_actionable ?? false,
                 candidates: brain.candidates.slice(0, 5),
               },
               null,
@@ -8163,13 +8246,14 @@ const registerTools = (api: OpenClawPluginApi) => {
           const learnedStore = await loadLearnedSemanticMap();
           const riskApprovals = await loadRiskApprovals();
           const reliabilityStats = await loadReliabilityStats();
-          const totalEntities = Object.keys(snapshot.entities).length || 1;
-          const resolvedEntities = Object.values(semanticMap.by_entity).filter(
-            (entry) => entry.ambiguity.ok,
-          ).length;
+          const actionableEntries = Object.values(semanticMap.by_entity).filter(
+            (entry) => !entry.non_actionable,
+          );
+          const totalEntities = actionableEntries.length || 1;
+          const resolvedEntities = actionableEntries.filter((entry) => entry.ambiguity.ok).length;
           const noJebanciScore = Math.round((resolvedEntities / totalEntities) * 1000) / 10;
           const ambiguousList = Object.entries(semanticMap.by_entity)
-            .filter(([, entry]) => !entry.ambiguity.ok)
+            .filter(([, entry]) => !entry.non_actionable && !entry.ambiguity.ok)
             .slice(0, 25)
             .map(([entityId, entry]) => ({
               entity_id: entityId,
@@ -8179,20 +8263,36 @@ const registerTools = (api: OpenClawPluginApi) => {
               missing_signals: entry.missing_signals,
               ambiguity: entry.ambiguity,
             }));
+          const telemetryVacuumList = Object.entries(semanticMap.by_entity)
+            .filter(([, entry]) => entry.non_actionable && entry.semantic_type === "telemetry.vacuum")
+            .slice(0, 25)
+            .map(([entityId, entry]) => ({
+              entity_id: entityId,
+              semantic_type: entry.semantic_type,
+              reasons: entry.reasons,
+              missing_signals: entry.missing_signals,
+            }));
           const needsOverrideLines = semanticMap.needs_override
             .slice(0, 20)
             .map((entry) => `- ${entry.entity_id}: ${entry.reason}`);
+          const telemetryVacuumLines = telemetryVacuumList
+            .map((entry) => `- ${entry.entity_id}: ${entry.semantic_type}`)
+            .join("\n");
           const report = [
             "# HA Inventory Report",
             "",
             `Generated: ${snapshot.generated_at}`,
             "",
             `Entities: ${Object.keys(snapshot.entities).length}`,
+            `Actionable Entities: ${actionableEntries.length}`,
             `Domains: ${Object.keys(snapshot.services_by_domain ?? {}).length}`,
             `NO_JEBANCI_SCORE: ${noJebanciScore}%`,
             "",
             "## Needs Override",
             needsOverrideLines.length > 0 ? needsOverrideLines.join("\n") : "- none",
+            "",
+            "## Telemetry (Vacuum)",
+            telemetryVacuumLines.length > 0 ? telemetryVacuumLines : "- none",
             "",
             "## Ambiguous (Top 25)",
             ambiguousList.length > 0
@@ -8217,6 +8317,7 @@ const registerTools = (api: OpenClawPluginApi) => {
                 semantic_map: semanticMap,
                 no_jebanci_score: noJebanciScore,
                 ambiguous: ambiguousList,
+                telemetry_vacuum: telemetryVacuumList,
                 learned_map: learnedStore,
                 risk_approvals: riskApprovals,
                 reliability_stats: reliabilityStats,
@@ -8377,24 +8478,51 @@ const registerTools = (api: OpenClawPluginApi) => {
                 servicesByDomain: snapshot.services_by_domain ?? {},
                 deviceGraph: snapshot.device_graph ?? {},
               });
+              const actionTarget = pickActionTargetEntity({
+                target,
+                resolution,
+                snapshot,
+                semanticMap: semanticMap.by_entity,
+              });
+              const actionResolution =
+                semanticMap.by_entity[actionTarget.entity_id] ??
+                buildSemanticResolution({
+                  entity: actionTarget,
+                  deviceEntities,
+                  overrides,
+                  learnedStore,
+                  servicesByDomain: snapshot.services_by_domain ?? {},
+                  deviceGraph: snapshot.device_graph ?? {},
+                });
+              const telemetryEntitiesUsed = deviceEntities
+                .filter((entry) => semanticMap.by_entity[entry.entity_id]?.non_actionable)
+                .map((entry) => entry.entity_id);
               const maxVerifyTimeoutMs = Math.max(2000, deadlineMs - 1000);
-              const lowRiskBase = getLowRiskVerifyTimeoutMs(resolution.semantic_type, target.domain);
+              const lowRiskBase = getLowRiskVerifyTimeoutMs(actionResolution.semantic_type, actionTarget.domain);
               const latencyBoost = Math.min((timing.ha_latency_ms ?? 0) * 2, params.safe_probe ? 5000 : 15000);
               const desiredVerifyTimeoutMs = lowRiskBase
                 ? Math.max(baseVerifyTimeoutMs, lowRiskBase + latencyBoost)
                 : Math.max(baseVerifyTimeoutMs, Math.min((timing.ha_latency_ms ?? 0) * 2, 8000));
               const verifyTimeoutMs = clampTimeout(desiredVerifyTimeoutMs, 2000, maxVerifyTimeoutMs);
               timing.verify_timeout_ms = verifyTimeoutMs;
-              const riskLevel = getRiskLevel(resolution.semantic_type, target.domain);
+              const riskLevel = getRiskLevel(actionResolution.semantic_type, actionTarget.domain);
               if (params.safe_probe) {
                 if (riskLevel === "high") {
-                  const beforeState = await fetchEntityState(target.entity_id);
+                  const beforeState = await fetchEntityState(actionTarget.entity_id);
                   return textResult(
                     JSON.stringify(
                       {
                         ok: true,
                         target: target.entity_id,
-                        semantic: resolution,
+                        action_entity_id: actionTarget.entity_id,
+                        semantic: actionResolution,
+                        semantic_explain: {
+                          target_entity_id: target.entity_id,
+                          target_semantic: resolution,
+                          action_entity_id: actionTarget.entity_id,
+                          action_semantic: actionResolution,
+                        },
+                        telemetry_entities_used: telemetryEntitiesUsed,
                         read_only: true,
                         verification: {
                           attempted: false,
@@ -8402,9 +8530,9 @@ const registerTools = (api: OpenClawPluginApi) => {
                           level: "state",
                           method: "state_poll",
                           reason: "read_only_probe",
-                          targets: [target.entity_id],
-                          before: beforeState ? { [target.entity_id]: beforeState } : null,
-                          after: beforeState ? { [target.entity_id]: beforeState } : null,
+                          targets: [actionTarget.entity_id],
+                          before: beforeState ? { [actionTarget.entity_id]: beforeState } : null,
+                          after: beforeState ? { [actionTarget.entity_id]: beforeState } : null,
                         },
                         risk_level: riskLevel,
                         timing,
@@ -8415,13 +8543,21 @@ const registerTools = (api: OpenClawPluginApi) => {
                   );
                 }
                 stage.value = "probe";
-                const probe = await runReversibleProbe(target, resolution, verifyTimeoutMs);
+                const probe = await runReversibleProbe(actionTarget, actionResolution, verifyTimeoutMs);
                 return textResult(
                   JSON.stringify(
                     {
                       ok: probe.ok,
                       target: target.entity_id,
-                      semantic: resolution,
+                      action_entity_id: actionTarget.entity_id,
+                      semantic: actionResolution,
+                      semantic_explain: {
+                        target_entity_id: target.entity_id,
+                        target_semantic: resolution,
+                        action_entity_id: actionTarget.entity_id,
+                        action_semantic: actionResolution,
+                      },
+                      telemetry_entities_used: telemetryEntitiesUsed,
                       probe,
                       verification: probe.verification,
                       risk_level: riskLevel,
@@ -8434,10 +8570,10 @@ const registerTools = (api: OpenClawPluginApi) => {
               }
 
               stage.value = "plan";
-              const currentState = await fetchEntityState(target.entity_id);
+              const currentState = await fetchEntityState(actionTarget.entity_id);
               const intent = params.intent ?? {};
               const data = params.data ?? {};
-              const plan = buildUniversalPlan({ entity: target, resolution, intent, data });
+              const plan = buildUniversalPlan({ entity: actionTarget, resolution: actionResolution, intent, data });
           const explicitIntent = Boolean(intent.property || intent.value !== undefined);
           let selectedPlan = plan;
           let reliabilityPreference: { from: string; to: string } | null = null;
@@ -8464,35 +8600,37 @@ const registerTools = (api: OpenClawPluginApi) => {
             }
           }
               const actionKind = `${selectedPlan.domain}.${selectedPlan.service}`;
-          if (riskLevel === "high" && !params.force_confirm) {
-            const approved = await hasRiskApproval(target.entity_id, actionKind);
-            if (!approved) {
-              return textResult(
-                JSON.stringify(
-                  {
-                    ok: false,
-                    error: "confirm_required",
-                    reason: "risky_semantic",
-                    semantic: resolution,
-                    risk_level: riskLevel,
-                    action_kind: actionKind,
-                    assistant_reply:
-                      "Potrebna je potvrda. Koristi ha_prepare_risky_action + ha_confirm_action.",
-                    assistant_reply_short: "Potrebna je potvrda.",
-                  },
+              if (riskLevel === "high" && !params.force_confirm) {
+                const approved = await hasRiskApproval(actionTarget.entity_id, actionKind);
+                if (!approved) {
+                  return textResult(
+                    JSON.stringify(
+                      {
+                        ok: false,
+                        error: "confirm_required",
+                        reason: "risky_semantic",
+                        semantic: actionResolution,
+                        risk_level: riskLevel,
+                        action_kind: actionKind,
+                        action_entity_id: actionTarget.entity_id,
+                        telemetry_entities_used: telemetryEntitiesUsed,
+                        assistant_reply:
+                          "Potrebna je potvrda. Koristi ha_prepare_risky_action + ha_confirm_action.",
+                        assistant_reply_short: "Potrebna je potvrda.",
+                      },
                   null,
                   2,
                 ),
               );
             }
           }
-              const basePayload = buildServicePayload({ entity_id: [target.entity_id] }, selectedPlan.payload);
+              const basePayload = buildServicePayload({ entity_id: [actionTarget.entity_id] }, selectedPlan.payload);
               const normalized = await normalizeFriendlyServiceCall({
                 domain: selectedPlan.domain,
                 service: selectedPlan.service,
                 payload: basePayload,
-                entityIds: [target.entity_id],
-                semanticType: resolution.semantic_type,
+                entityIds: [actionTarget.entity_id],
+                semanticType: actionResolution.semantic_type,
               });
           const primary = {
             domain: selectedPlan.domain,
@@ -8512,7 +8650,7 @@ const registerTools = (api: OpenClawPluginApi) => {
           if (primary.domain === "light" && primary.service === "turn_on") {
             const servicesRes = await fetchServices();
             const fields = servicesRes.ok ? getServiceFields(servicesRes.data, "light", "turn_on") : {};
-            const state = await fetchEntityState(target.entity_id);
+            const state = await fetchEntityState(actionTarget.entity_id);
             const request = extractLightRequest(primary.payload);
             const capabilities = buildLightCapabilities(state);
             const normalizedLight = normalizeLightTurnOnPayload(primary.payload, fields, capabilities, request);
@@ -8537,7 +8675,15 @@ const registerTools = (api: OpenClawPluginApi) => {
                       ok: true,
                       dry_run: true,
                       target: target.entity_id,
-                      semantic: resolution,
+                      action_entity_id: actionTarget.entity_id,
+                      semantic: actionResolution,
+                      semantic_explain: {
+                        target_entity_id: target.entity_id,
+                        target_semantic: resolution,
+                        action_entity_id: actionTarget.entity_id,
+                        action_semantic: actionResolution,
+                      },
+                      telemetry_entities_used: telemetryEntitiesUsed,
                       plan: primary,
                       fallbacks: plan.fallbacks,
                       capability_mismatch: capabilityMismatch,
@@ -8550,16 +8696,16 @@ const registerTools = (api: OpenClawPluginApi) => {
 
               stage.value = "execute";
               const attempts: Array<Record<string, unknown>> = [];
-              const beforeState = currentState ?? (await fetchEntityState(target.entity_id));
+              const beforeState = currentState ?? (await fetchEntityState(actionTarget.entity_id));
               let result = await executeServiceCallWithVerification({
                 domain: primary.domain,
                 service: primary.service,
                 payload: primary.payload,
-                entityIds: [target.entity_id],
+                entityIds: [actionTarget.entity_id],
                 normalizationFallback: primary.normalization_fallback,
                 verifyTimeoutMs,
                 wsTimeoutMs: verifyTimeoutMs,
-                allowEventVerification: isLowRiskVerificationTarget(resolution.semantic_type, primary.domain),
+                allowEventVerification: isLowRiskVerificationTarget(actionResolution.semantic_type, primary.domain),
               });
           attempts.push({
             kind: "primary",
@@ -8573,17 +8719,17 @@ const registerTools = (api: OpenClawPluginApi) => {
               if (!result.verification.ok && plan.fallbacks.length > 0) {
                 const fallback = plan.fallbacks[0];
                 const fallbackPayload = buildServicePayload(
-                  { entity_id: [target.entity_id] },
+                  { entity_id: [actionTarget.entity_id] },
                   fallback.payload,
                 );
                 const fallbackResult = await executeServiceCallWithVerification({
                   domain: fallback.domain,
                   service: fallback.service,
                   payload: fallbackPayload,
-                  entityIds: [target.entity_id],
+                  entityIds: [actionTarget.entity_id],
                   verifyTimeoutMs,
                   wsTimeoutMs: verifyTimeoutMs,
-                  allowEventVerification: isLowRiskVerificationTarget(resolution.semantic_type, fallback.domain),
+                  allowEventVerification: isLowRiskVerificationTarget(actionResolution.semantic_type, fallback.domain),
                 });
             attempts.push({
               kind: "fallback",
@@ -8607,15 +8753,15 @@ const registerTools = (api: OpenClawPluginApi) => {
                     : 0.2;
               const capabilityScore = primary.unsupported.length === 0 ? 1 : 0.6;
               const reliability =
-                Math.round(((resolution.confidence + capabilityScore + levelScore) / 3) * 100) / 100;
+                Math.round(((actionResolution.confidence + capabilityScore + levelScore) / 3) * 100) / 100;
 
           const intentLabel = `${normalizeName(intent.action ?? "")}:${normalizeName(intent.property ?? "")}`;
-          const statsKey = `${target.entity_id}:${primary.domain}.${primary.service}`;
+          const statsKey = `${actionTarget.entity_id}:${primary.domain}.${primary.service}`;
           const statsReason = capabilityMismatch.length > 0 ? `capability_mismatch:${capabilityMismatch.join("|")}` : result.verification.reason;
               stage.value = "learn";
               const stats = await updateSemanticStats(statsKey, result.verification.ok, statsReason);
               const reliabilityStats = await updateReliabilityStats({
-                entityId: target.entity_id,
+                entityId: actionTarget.entity_id,
                 actionKind: `${primary.domain}.${primary.service}`,
                 ok: result.verification.ok,
                 latencyMs: Date.now() - started,
@@ -8624,25 +8770,25 @@ const registerTools = (api: OpenClawPluginApi) => {
               });
               if (riskLevel === "high" && result.verification.ok) {
                 await recordRiskApproval({
-                  entityId: target.entity_id,
+                  entityId: actionTarget.entity_id,
                   actionKind: `${primary.domain}.${primary.service}`,
                   note: "verified_action",
                 });
               }
               const learned = await updateLearnedSemanticMap({
-                entityId: target.entity_id,
-                semanticType: resolution.semantic_type,
-                controlModel: resolution.control_model,
+                entityId: actionTarget.entity_id,
+                semanticType: actionResolution.semantic_type,
+                controlModel: actionResolution.control_model,
                 intentLabel,
                 ok: result.verification.ok,
-                deviceFingerprint: target.device_fingerprint,
+                deviceFingerprint: actionTarget.device_fingerprint,
               });
               const learnedAlias = params.target.name
                 ? await updateLearnedAliasMap({
                     alias: params.target.name,
-                    entityId: target.entity_id,
-                    deviceId: target.device_id,
-                    semanticType: resolution.semantic_type,
+                    entityId: actionTarget.entity_id,
+                    deviceId: actionTarget.device_id,
+                    semanticType: actionResolution.semantic_type,
                     intentLabel,
                     ok: result.verification.ok,
                   })
@@ -8654,7 +8800,7 @@ const registerTools = (api: OpenClawPluginApi) => {
               const prevVolume = toNumberLoose(beforeState.attributes?.["volume_level"]);
               if (prevVolume !== undefined) {
                 return {
-                  target: { entity_id: target.entity_id },
+                  target: { entity_id: actionTarget.entity_id },
                   intent: { action: "set", property: "volume", value: Math.round(prevVolume * 100) },
                 };
               }
@@ -8663,7 +8809,7 @@ const registerTools = (api: OpenClawPluginApi) => {
               const prevBrightness = toNumberLoose(beforeState.attributes?.["brightness"]);
               if (prevBrightness !== undefined) {
                 return {
-                  target: { entity_id: target.entity_id },
+                  target: { entity_id: actionTarget.entity_id },
                   intent: { action: "set", property: "brightness", value: prevBrightness },
                 };
               }
@@ -8684,9 +8830,17 @@ const registerTools = (api: OpenClawPluginApi) => {
                   {
                     ok: result.verification.ok,
                     target: target.entity_id,
+                    action_entity_id: actionTarget.entity_id,
                     candidates: brain.candidates.slice(0, 5),
                     requested_semantic: brain.requested_semantic,
-                    semantic: resolution,
+                    semantic: actionResolution,
+                    semantic_explain: {
+                      target_entity_id: target.entity_id,
+                      target_semantic: resolution,
+                      action_entity_id: actionTarget.entity_id,
+                      action_semantic: actionResolution,
+                    },
+                    telemetry_entities_used: telemetryEntitiesUsed,
                     plan: primary,
                     attempts,
                     fallback_used: fallbackUsed,
@@ -8694,7 +8848,7 @@ const registerTools = (api: OpenClawPluginApi) => {
                     verification: result.verification,
                     reliability: {
                       score: reliability,
-                      semantic_confidence: resolution.confidence,
+                      semantic_confidence: actionResolution.confidence,
                       capability_confidence: capabilityScore,
                       verification_strength: levelScore,
                       stats,

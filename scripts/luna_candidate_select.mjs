@@ -63,9 +63,13 @@ const semantic = JSON.parse(await readFile(semanticPath, "utf8"));
 const byEntity = semantic.by_entity ?? {};
 const entities = snapshot.entities ?? {};
 
+const isNonActionable = (resolution) =>
+  Boolean(resolution?.non_actionable) || String(resolution?.semantic_type ?? "").startsWith("telemetry.");
+
 const pickCandidate = (semanticType, domainHint, fallbackDomain) => {
   for (const [entityId, resolution] of Object.entries(byEntity)) {
     if (!resolution || resolution.semantic_type !== semanticType) continue;
+    if (isNonActionable(resolution)) continue;
     const entity = entities[entityId];
     if (!entity) continue;
     if (domainHint && entity.domain !== domainHint) continue;
@@ -74,6 +78,7 @@ const pickCandidate = (semanticType, domainHint, fallbackDomain) => {
   if (!fallbackDomain) return null;
   for (const [entityId, resolution] of Object.entries(byEntity)) {
     if (!resolution || resolution.semantic_type !== semanticType) continue;
+    if (isNonActionable(resolution)) continue;
     const entity = entities[entityId];
     if (!entity) continue;
     if (entity.domain !== fallbackDomain) continue;
@@ -86,6 +91,7 @@ const candidates = {
   light: pickCandidate("light", "light"),
   fan: pickCandidate("fan", "fan", null),
   outlet: pickCandidate("outlet", "switch") ?? pickCandidate("generic_switch", "switch"),
+  vacuum: pickCandidate("vacuum", "vacuum", null),
   source: {
     snapshot: snapshotPath,
     semantic: semanticPath,
