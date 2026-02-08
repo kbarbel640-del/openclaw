@@ -349,13 +349,9 @@ describe("Cron issue regressions", () => {
     const store = await makeStorePath();
     const nowMs = Date.parse("2026-02-06T08:05:00.000Z");
     const expectedNextRunAtMs = Date.parse("2026-02-06T09:00:00.000Z");
-    const jumpedNextRunAtMs = Date.parse("2026-02-07T09:00:00.000Z");
     vi.setSystemTime(new Date(nowMs));
 
-    const nextRunSpy = vi.spyOn(Cron.prototype, "nextRun").mockImplementation((fromDate) => {
-      if (fromDate instanceof Date) {
-        return new Date(jumpedNextRunAtMs);
-      }
+    const nextRunSpy = vi.spyOn(Cron.prototype, "nextRun").mockImplementation(() => {
       return new Date(expectedNextRunAtMs);
     });
 
@@ -400,7 +396,8 @@ describe("Cron issue regressions", () => {
 
     expect(job?.state.nextRunAtMs).toBe(expectedNextRunAtMs);
     expect(nextRunSpy).toHaveBeenCalled();
-    expect(nextRunSpy.mock.calls.some((call) => call.length === 0)).toBe(true);
+    expect(nextRunSpy.mock.calls.every((call) => call.length === 1)).toBe(true);
+    expect(nextRunSpy.mock.calls.every((call) => call[0] instanceof Date)).toBe(true);
 
     cron.stop();
     nextRunSpy.mockRestore();
