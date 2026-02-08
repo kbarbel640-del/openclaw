@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { GatewayRequestHandlers } from "./types.js";
-import { listAgentIds } from "../../agents/agent-scope.js";
+import { listAgentIds, resolveAgentNodeRouting } from "../../agents/agent-scope.js";
+import { resolveNodeByIdOrName, invokeAgentOnNode } from "../../agents/node-routing.js";
 import { agentCommand } from "../../commands/agent.js";
 import { loadConfig } from "../../config/config.js";
 import {
@@ -180,6 +181,72 @@ export const agentHandlers: GatewayRequestHandlers = {
         );
         return;
       }
+    }
+
+    // Node routing: check if agent is configured to run on a specific node
+    const nodeTarget = agentId ? resolveAgentNodeRouting(cfg, agentId) : undefined;
+    if (nodeTarget) {
+      const nodeResolution = await resolveNodeByIdOrName(nodeTarget);
+      if (!nodeResolution.ok) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.UNAVAILABLE, nodeResolution.error, {
+            details: { code: nodeResolution.code, nodeTarget },
+          }),
+        );
+        return;
+      }
+
+      // Forward the agent request to the target node
+      const nodeResult = await invokeAgentOnNode({
+        nodeId: nodeResolution.node.nodeId,
+        message: request.message,
+        sessionKey: request.sessionKey,
+        agentId: request.agentId,
+        channel: request.channel,
+        accountId: request.accountId,
+        threadId: request.threadId,
+        idempotencyKey: idem,
+        timeoutMs: request.timeout ? request.timeout * 1000 : undefined,
+        extraParams: {
+          deliver: request.deliver,
+          thinking: request.thinking,
+          lane: request.lane,
+          extraSystemPrompt: request.extraSystemPrompt,
+          groupId: groupIdRaw || undefined,
+          groupChannel: groupChannelRaw || undefined,
+          groupSpace: groupSpaceRaw || undefined,
+          label: request.label,
+          attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined,
+        },
+      });
+
+      if (!nodeResult.ok) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.UNAVAILABLE, nodeResult.error ?? "node agent invocation failed", {
+            details: { nodeId: nodeResolution.node.nodeId },
+          }),
+        );
+        return;
+      }
+
+      // Return the result from the node
+      const runId = nodeResult.runId ?? idem;
+      respond(
+        true,
+        {
+          runId,
+          status: "accepted",
+          acceptedAt: Date.now(),
+          routedToNode: nodeResolution.node.nodeId,
+        },
+        undefined,
+        { runId },
+      );
+      return;
     }
 
     const requestedSessionKeyRaw =

@@ -436,6 +436,12 @@ export const AgentEntrySchema = z
     name: z.string().optional(),
     workspace: z.string().optional(),
     agentDir: z.string().optional(),
+    /**
+     * Route agent execution to a specific paired node.
+     * When set, agent runs will be proxied to the specified node's gateway
+     * instead of running locally. Accepts node ID or node name.
+     */
+    node: z.string().optional(),
     model: AgentModelSchema.optional(),
     skills: z.array(z.string()).optional(),
     memorySearch: MemorySearchSchema,

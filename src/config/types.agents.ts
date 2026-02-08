@@ -23,6 +23,20 @@ export type AgentConfig = {
   name?: string;
   workspace?: string;
   agentDir?: string;
+  /**
+   * Route agent execution to a specific paired node.
+   * When set, agent runs will be proxied to the specified node's gateway
+   * instead of running locally. Accepts node ID or node name.
+   *
+   * @example
+   * ```yaml
+   * agents:
+   *   list:
+   *     - id: builder
+   *       node: mac-studio  # Route to the "mac-studio" node
+   * ```
+   */
+  node?: string;
   model?: AgentModelConfig;
   /** Optional allowlist of skills for this agent (omit = all skills; empty = none). */
   skills?: string[];

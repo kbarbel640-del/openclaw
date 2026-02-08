@@ -18,6 +18,11 @@ type ResolvedAgentConfig = {
   name?: string;
   workspace?: string;
   agentDir?: string;
+  /**
+   * Route agent execution to a specific paired node.
+   * When set, agent runs will be proxied to the specified node's gateway.
+   */
+  node?: string;
   model?: AgentEntry["model"];
   skills?: AgentEntry["skills"];
   memorySearch?: AgentEntry["memorySearch"];
@@ -109,6 +114,7 @@ export function resolveAgentConfig(
     name: typeof entry.name === "string" ? entry.name : undefined,
     workspace: typeof entry.workspace === "string" ? entry.workspace : undefined,
     agentDir: typeof entry.agentDir === "string" ? entry.agentDir : undefined,
+    node: typeof entry.node === "string" && entry.node.trim() ? entry.node.trim() : undefined,
     model:
       typeof entry.model === "string" || (entry.model && typeof entry.model === "object")
         ? entry.model
@@ -189,4 +195,20 @@ export function resolveAgentDir(cfg: OpenClawConfig, agentId: string) {
   }
   const root = resolveStateDir(process.env, os.homedir);
   return path.join(root, "agents", id, "agent");
+}
+
+/**
+ * Resolve the target node for agent execution routing.
+ * Returns undefined if the agent should run locally (no node routing).
+ *
+ * @param cfg - The OpenClaw configuration
+ * @param agentId - The agent ID to check for node routing
+ * @returns The node ID/name to route to, or undefined for local execution
+ */
+export function resolveAgentNodeRouting(
+  cfg: OpenClawConfig,
+  agentId: string,
+): string | undefined {
+  const id = normalizeAgentId(agentId);
+  return resolveAgentConfig(cfg, id)?.node;
 }
