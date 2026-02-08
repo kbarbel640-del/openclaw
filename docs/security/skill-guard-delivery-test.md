@@ -675,43 +675,171 @@ for line in sys.stdin:
 
 ---
 
+## 九、Skill Store CLI（store-cli.py）验证
+
+> 以下用例验证内置 `skill-store` Skill 的 store-cli.py 工具，覆盖搜索/安装/SHA256 校验/卸载全流程。
+
+### T-32: skill-store 在 BUILT-IN SKILLS 中可见
+
+**操作**: 打开 Gateway Control UI → Skills 页面，查看 BUILT-IN SKILLS 分组
+
+**预期结果**:
+| 检查项 | 预期 |
+|--------|------|
+| `skill-store` 出现在 BUILT-IN SKILLS 列表中 | ✅ |
+| `skill-store` 来源显示 `openclaw-bundled` | ✅ |
+| `skill-store` 显示 `eligible` 徽标 | ✅ |
+| 描述包含 "SHA256 verification" 关键词 | ✅ |
+
+---
+
+### T-33: store-cli.py search 搜索功能
+
+**操作**: 在 Chat 页面输入：
+
+```
+请使用 skill-store，搜索包含 "architecture" 关键词的 skill
+```
+
+**预期结果**:
+| 检查项 | 预期 |
+|--------|------|
+| Agent 调用 `store-cli.py search architecture` | ✅ |
+| 输出包含 `architecture` skill 条目 | ✅ |
+| 显示版本号和发布者 | ✅ |
+| 不报错、不要求安装额外依赖 | ✅ |
+
+---
+
+### T-34: store-cli.py install 安装 + SHA256 验证
+
+**操作**: 在 Chat 页面输入：
+
+```
+请使用 skill-store，安装 architecture skill
+```
+
+**预期结果**:
+| 检查项 | 预期 |
+|--------|------|
+| 输出包含 "Downloading from store" | ✅ |
+| 输出包含 "Verifying SHA256 hashes" | ✅ |
+| 输出包含 "SHA256 verified: yes" | ✅ |
+| 输出包含 "Installed architecture" | ✅ |
+| `~/.openclaw-dev/skills/` 下出现新安装的 skill 目录 | ✅ |
+
+---
+
+### T-35: store-cli.py Blocklist 拦截
+
+**操作**: 在 Chat 页面输入：
+
+```
+请使用 skill-store，安装 evil-skill
+```
+
+**预期结果**:
+| 检查项 | 预期 |
+|--------|------|
+| 输出包含 "blocklist" 或 "cannot be installed" | ✅ |
+| skill 未被安装 | ✅ |
+
+---
+
+### T-36: store-cli.py list 列出商店目录
+
+**操作**: 在 Chat 页面输入：
+
+```
+请使用 skill-store，列出商店中所有可用的 skill
+```
+
+**预期结果**:
+| 检查项 | 预期 |
+|--------|------|
+| 输出商店名称和版本 | ✅ |
+| 输出 Available 和 Blocked 统计 | ✅ |
+| Blocked skills 列表包含已知恶意 skill | ✅ |
+
+---
+
+### T-37: store-cli.py remove 卸载
+
+**操作**: 在 Chat 页面输入：
+
+```
+请使用 skill-store，卸载 architecture skill
+```
+
+**预期结果**:
+| 检查项 | 预期 |
+|--------|------|
+| 输出包含 "Removed" | ✅ |
+| `~/.openclaw-dev/skills/` 下对应目录已删除 | ✅ |
+
+---
+
+### T-38: Gateway 重启后识别已安装 skill
+
+**操作**:
+
+1. 使用 store-cli.py 安装一个 skill（如 T-34）
+2. 重启 Gateway
+3. 查看 Skills 页面
+
+**预期结果**:
+| 检查项 | 预期 |
+|--------|------|
+| 安装的 skill 出现在 INSTALLED SKILLS 中 | ✅ |
+| 该 skill 显示 `eligible` | ✅ |
+| 来源显示 `openclaw-managed` | ✅ |
+
+---
+
 ## 测试结果汇总表
 
-| 编号 | 类别       | 场景                             | 结果 |
-| ---- | ---------- | -------------------------------- | ---- |
-| T-01 | UI         | 可信 Skill 正常展示              | [ ]  |
-| T-02 | UI         | 恶意 Skill 完全不可见            | [ ]  |
-| T-03 | UI         | INSTALLED SKILLS 计数            | [ ]  |
-| T-04 | UI         | Disable/Enable 后 Guard 持续有效 | [ ]  |
-| T-05 | UI         | 搜索过滤验证                     | [ ]  |
-| T-06 | Chat       | Agent 识别可用 Skill             | [ ]  |
-| T-07 | Chat       | Agent 使用已验证 Skill           | [ ]  |
-| T-08 | Chat       | Agent 无法看到被阻断 Skill       | [ ]  |
-| T-09 | Chat       | Agent 正确报告可用状态           | [ ]  |
-| T-10 | Chat       | Disable 后 Skill 不可用          | [ ]  |
-| T-11 | API        | skills.status 返回正确           | [ ]  |
-| T-12 | API        | Disable/Enable 后 API 一致       | [ ]  |
-| T-13 | 冒烟服务器 | Manifest 接口                    | [ ]  |
-| T-14 | 冒烟服务器 | ETag/304 缓存                    | [ ]  |
-| T-15 | 冒烟服务器 | 单 Skill 查询                    | [ ]  |
-| T-16 | 冒烟服务器 | Skill 下载                       | [ ]  |
-| T-17 | 审计       | 事件类型覆盖                     | [ ]  |
-| T-18 | 审计       | 阻断原因记录                     | [ ]  |
-| T-19 | 审计       | 重启后持续记录                   | [ ]  |
-| T-20 | 安全深度   | Blocklist 全链路                 | [ ]  |
-| T-21 | 安全深度   | Hash 篡改全链路                  | [ ]  |
-| T-22 | 安全深度   | 文件注入全链路                   | [ ]  |
-| T-23 | 安全深度   | 危险代码扫描全链路               | [ ]  |
-| T-24 | 安全深度   | 商店正品全链路                   | [ ]  |
-| T-25 | 安全深度   | 清洁侧载全链路                   | [ ]  |
-| T-26 | 策略切换   | sideloadPolicy=warn              | [ ]  |
-| T-27 | 策略切换   | guard.enabled=false              | [ ]  |
-| T-28 | 降级       | 云端不可达 + 有缓存              | [ ]  |
-| T-29 | 降级       | 云端不可达 + 无缓存              | [ ]  |
-| T-30 | 持久性     | 多次 Disable/Enable 循环         | [ ]  |
-| T-31 | 持久性     | 不同 Skill 的 Disable/Enable     | [ ]  |
+| 编号 | 类别        | 场景                             | 结果 |
+| ---- | ----------- | -------------------------------- | ---- |
+| T-01 | UI          | 可信 Skill 正常展示              | [ ]  |
+| T-02 | UI          | 恶意 Skill 完全不可见            | [ ]  |
+| T-03 | UI          | INSTALLED SKILLS 计数            | [ ]  |
+| T-04 | UI          | Disable/Enable 后 Guard 持续有效 | [ ]  |
+| T-05 | UI          | 搜索过滤验证                     | [ ]  |
+| T-06 | Chat        | Agent 识别可用 Skill             | [ ]  |
+| T-07 | Chat        | Agent 使用已验证 Skill           | [ ]  |
+| T-08 | Chat        | Agent 无法看到被阻断 Skill       | [ ]  |
+| T-09 | Chat        | Agent 正确报告可用状态           | [ ]  |
+| T-10 | Chat        | Disable 后 Skill 不可用          | [ ]  |
+| T-11 | API         | skills.status 返回正确           | [ ]  |
+| T-12 | API         | Disable/Enable 后 API 一致       | [ ]  |
+| T-13 | 冒烟服务器  | Manifest 接口                    | [ ]  |
+| T-14 | 冒烟服务器  | ETag/304 缓存                    | [ ]  |
+| T-15 | 冒烟服务器  | 单 Skill 查询                    | [ ]  |
+| T-16 | 冒烟服务器  | Skill 下载                       | [ ]  |
+| T-17 | 审计        | 事件类型覆盖                     | [ ]  |
+| T-18 | 审计        | 阻断原因记录                     | [ ]  |
+| T-19 | 审计        | 重启后持续记录                   | [ ]  |
+| T-20 | 安全深度    | Blocklist 全链路                 | [ ]  |
+| T-21 | 安全深度    | Hash 篡改全链路                  | [ ]  |
+| T-22 | 安全深度    | 文件注入全链路                   | [ ]  |
+| T-23 | 安全深度    | 危险代码扫描全链路               | [ ]  |
+| T-24 | 安全深度    | 商店正品全链路                   | [ ]  |
+| T-25 | 安全深度    | 清洁侧载全链路                   | [ ]  |
+| T-26 | 策略切换    | sideloadPolicy=warn              | [ ]  |
+| T-27 | 策略切换    | guard.enabled=false              | [ ]  |
+| T-28 | 降级        | 云端不可达 + 有缓存              | [ ]  |
+| T-29 | 降级        | 云端不可达 + 无缓存              | [ ]  |
+| T-30 | 持久性      | 多次 Disable/Enable 循环         | [ ]  |
+| T-31 | 持久性      | 不同 Skill 的 Disable/Enable     | [ ]  |
+| T-32 | Skill Store | skill-store BUILT-IN 可见        | [ ]  |
+| T-33 | Skill Store | search 搜索功能                  | [ ]  |
+| T-34 | Skill Store | install + SHA256 验证            | [ ]  |
+| T-35 | Skill Store | Blocklist 拦截安装               | [ ]  |
+| T-36 | Skill Store | list 列出商店目录                | [ ]  |
+| T-37 | Skill Store | remove 卸载                      | [ ]  |
+| T-38 | Skill Store | Gateway 识别已安装 skill         | [ ]  |
 
-**通过标准**: 31/31 全部通过
+**通过标准**: 38/38 全部通过
 
 ---
 
@@ -720,3 +848,4 @@ for line in sys.stdin:
 | 版本 | 日期       | 变更内容                                                               |
 | ---- | ---------- | ---------------------------------------------------------------------- |
 | v1.0 | 2026-02-07 | 初始版本：31 个用例，覆盖 UI/Chat/API/冒烟服务器/审计/策略/降级/持久性 |
+| v1.1 | 2026-02-08 | 新增第九节 Skill Store CLI 验证（T-32 ~ T-38），总计 38 个用例         |

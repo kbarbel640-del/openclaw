@@ -703,8 +703,89 @@ Guard 启用?
 
 ---
 
+## 10. Skill Store CLI（内置 skill-store）
+
+### 10.1 概述
+
+OpenClaw 内置了 `skill-store` BUILT-IN Skill，提供从可信商店 **搜索、安装、更新、卸载** Skill 的完整能力。它是 `clawhub` 的安全替代方案：
+
+| 对比项    | clawhub                 | skill-store                            |
+| --------- | ----------------------- | -------------------------------------- |
+| 来源验证  | 无                      | SHA256 逐文件校验                      |
+| Blocklist | 无                      | 安装前检查商店 blocklist               |
+| 依赖      | 需要 `npm i -g clawhub` | Python 3（系统自带）                   |
+| 搜索      | 远程 API (clawhub.com)  | 本地 manifest 缓存（离线可用）         |
+| 配置      | 独立 registry           | 复用 `skills.guard.trustedStores` 配置 |
+
+### 10.2 文件结构
+
+```
+skills/skill-store/
+├── SKILL.md          # Agent 指令文档（frontmatter + 命令说明）
+└── store-cli.py      # Python CLI 工具（≈600 行，零外部依赖）
+```
+
+该 Skill 位于仓库 `skills/` 目录中，以 `openclaw-bundled` 身份加载，Agent 通过 `exec` 工具调用 `store-cli.py`。
+
+### 10.3 命令参考
+
+| 命令               | 说明                                           | 示例                                              |
+| ------------------ | ---------------------------------------------- | ------------------------------------------------- |
+| `search <keyword>` | 在本地 manifest 缓存中按名称模糊搜索           | `python3 <DIR>/store-cli.py search architecture`  |
+| `list`             | 列出商店全部可用 skill                         | `python3 <DIR>/store-cli.py list`                 |
+| `list --installed` | 列出已安装 skill 及版本对比                    | `python3 <DIR>/store-cli.py list --installed`     |
+| `install <name>`   | 下载 + SHA256 验证 + 安装到 managed 目录       | `python3 <DIR>/store-cli.py install architecture` |
+| `info <name>`      | 显示 skill 详细信息（版本/publisher/文件哈希） | `python3 <DIR>/store-cli.py info architecture`    |
+| `update <name>`    | 更新指定 skill 到最新版本                      | `python3 <DIR>/store-cli.py update architecture`  |
+| `update --all`     | 更新所有已安装 skill                           | `python3 <DIR>/store-cli.py update --all`         |
+| `remove <name>`    | 卸载 skill                                     | `python3 <DIR>/store-cli.py remove architecture`  |
+
+### 10.4 安装流程（安全验证链）
+
+```
+store-cli.py install <name>
+  │
+  ├─ 1. 检查 blocklist → 在名单中则拒绝安装
+  ├─ 2. 从商店下载 .tar.gz
+  ├─ 3. 解压到临时目录
+  ├─ 4. 路径安全检查（防 path traversal）
+  ├─ 5. SHA256 逐文件校验（对比 manifest 哈希）
+  ├─ 6. 文件数量校验（对比 manifest fileCount）
+  ├─ 7. 检查 SKILL.md frontmatter（OpenClaw loader 需要 description 字段）
+  │     └─ 若缺少 → 从 config.json 提取元数据注入 frontmatter
+  │        └─ 使用 store.* 前缀目录名避免 Guard hash re-check 冲突
+  └─ 8. 写入 ~/.openclaw-dev/skills/（managed 目录）
+```
+
+### 10.5 配置发现
+
+`store-cli.py` 自动从 `openclaw.json` 读取商店 URL：
+
+```python
+config["skills"]["guard"]["trustedStores"][0]["url"]
+```
+
+无需额外配置。只要 Skill Guard 已配置商店地址，`skill-store` 即可使用。
+
+### 10.6 禁用 clawhub（推荐）
+
+配置 `skill-store` 后，建议在 `openclaw.json` 中禁用 clawhub，避免 Agent 混淆：
+
+```json
+{
+  "skills": {
+    "entries": {
+      "clawhub": { "enabled": false }
+    }
+  }
+}
+```
+
+---
+
 ## 修订记录
 
-| 版本 | 日期       | 变更内容 |
-| ---- | ---------- | -------- |
-| v1.0 | 2026-02-07 | 初始版本 |
+| 版本 | 日期       | 变更内容                                              |
+| ---- | ---------- | ----------------------------------------------------- |
+| v1.0 | 2026-02-07 | 初始版本                                              |
+| v1.1 | 2026-02-08 | 新增第 10 节：Skill Store CLI（内置 skill-store）说明 |

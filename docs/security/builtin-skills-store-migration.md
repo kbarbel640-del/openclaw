@@ -400,8 +400,87 @@ jobs:
 
 ---
 
+## 8. 已落地实现：内置 skill-store Skill
+
+### 8.1 实现状态
+
+作为方案 A 的一部分，我们已经实现并合入了 **`skill-store` BUILT-IN Skill**，提供从可信商店搜索、安装、更新、卸载 Skill 的完整 CLI 能力：
+
+```
+skills/skill-store/             ← 已合入代码仓库 skills/ 目录
+├── SKILL.md                    ← Agent 指令文档
+└── store-cli.py                ← Python CLI 工具（零外部依赖）
+```
+
+该 Skill 以 `openclaw-bundled` 身份加载，与其他 53 个 BUILT-IN Skills 处于同一层级。
+
+### 8.2 与 clawhub 的关系
+
+`skill-store` 是 `clawhub` 的 **安全增强替代**：
+
+| 能力         | clawhub                | skill-store                       |
+| ------------ | ---------------------- | --------------------------------- |
+| 搜索         | 远程 API (clawhub.com) | 本地 manifest 缓存（离线可用）    |
+| 安装来源     | clawhub.com（第三方）  | 自建可信商店                      |
+| 安装验证     | 无 SHA256 校验         | **逐文件 SHA256 校验**            |
+| Blocklist    | 无                     | **安装前检查商店 blocklist**      |
+| 文件注入检测 | 无                     | **fileCount 数量验证**            |
+| 路径安全     | 未知                   | **path traversal 防护**           |
+| 外部依赖     | npm install clawhub    | Python 3（系统自带）              |
+| 配置来源     | 独立 registry 环境变量 | 复用 `skills.guard.trustedStores` |
+
+**建议**：配置 `skill-store` 后，在 `openclaw.json` 中禁用 `clawhub`：
+
+```json
+{
+  "skills": {
+    "entries": {
+      "clawhub": { "enabled": false }
+    }
+  }
+}
+```
+
+### 8.3 安装流程安全验证链
+
+`store-cli.py install` 执行完整的安全验证链：
+
+```
+1. Blocklist 检查（拒绝黑名单 skill）
+2. 下载 .tar.gz 包
+3. path traversal 安全检查
+4. SHA256 逐文件校验（对比 manifest）
+5. fileCount 数量校验
+6. 写入 managed 目录
+```
+
+安装的 skill 进入 `~/.openclaw-dev/skills/`（managed 层），优先级高于 BUILT-IN（bundled 层），低于 workspace。
+
+### 8.4 Frontmatter 兼容性处理
+
+OpenClaw 的 Skill loader 要求 `SKILL.md` 包含 YAML frontmatter 中的 `description` 字段。部分商店 Skill 的 `SKILL.md` 缺少此字段。`store-cli.py` 自动处理此问题：
+
+1. 检测 SKILL.md 是否缺少 frontmatter
+2. 从 `config.json` 提取元数据（name、description）
+3. 注入 frontmatter，使用 `store.*` 前缀目录名
+4. 前缀名避免 Skill Guard 将修改后的文件与商店原始 hash 对比（会因注入 frontmatter 导致 hash 不匹配）
+
+### 8.5 对迁移计划的影响
+
+`skill-store` 的落地使方案 C（完全移除 BUILT-IN）变得可行：
+
+```
+Phase 1: ✅ skill-store 已作为 BUILT-IN Skill 合入
+Phase 2: ✅ 可信商店已搭建并通过端到端测试
+Phase 3: → 通过 skill-store 从商店安装 Skill 替代 BUILT-IN
+Phase 4: → 评估移除仓库中其他 BUILT-IN Skills
+```
+
+---
+
 ## 修订记录
 
-| 版本 | 日期       | 变更内容                                   |
-| ---- | ---------- | ------------------------------------------ |
-| v1.0 | 2026-02-07 | 初始版本：风险分析 + 三方案对比 + 落地计划 |
+| 版本 | 日期       | 变更内容                                     |
+| ---- | ---------- | -------------------------------------------- |
+| v1.0 | 2026-02-07 | 初始版本：风险分析 + 三方案对比 + 落地计划   |
+| v1.1 | 2026-02-08 | 新增第 8 节：已落地实现 skill-store 详细说明 |

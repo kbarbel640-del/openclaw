@@ -460,20 +460,81 @@ JSONL 追加写入 `~/.openclaw/security/skill-guard/audit.jsonl`:
 
 ---
 
-## 10. 验收标准
+## 10. 内置 Skill Store CLI
 
-| #   | 测试场景                                        | 预期结果                              |
-| --- | ----------------------------------------------- | ------------------------------------- |
-| 1   | `guard.enabled=false`                           | 全部正常加载                          |
-| 2   | 商店 Skill，hash 匹配                           | 加载通过                              |
-| 3   | 商店 Skill，文件被篡改                          | 阻断                                  |
-| 4   | 商店 Skill，被注入文件                          | 阻断                                  |
-| 5   | blocklist 中的 Skill                            | 阻断                                  |
-| 6   | 侧载 Skill，无 critical                         | 放行                                  |
-| 7   | 侧载 Skill，有 critical + policy=block-critical | 阻断                                  |
-| 8   | 侧载 Skill，有 critical + policy=warn           | 警告放行                              |
-| 9   | 云端不可达 + 有缓存                             | 用缓存                                |
-| 10  | 云端不可达 + 无缓存                             | 降级为侧载扫描                        |
-| 11  | 100 个 Skill 全量校验                           | < 500ms                               |
-| 12  | Skills 页面 Disable/Enable 后 Guard 持续有效    | 恶意 skill 始终被阻断                 |
-| 13  | Gateway SIGUSR1 重启后 Guard 自动恢复           | 重启后 guard 重新注册，阻断能力不中断 |
+### 10.1 定位
+
+Skill Guard 框架提供了"被动防御"（校验、阻断），而 `skill-store` BUILT-IN Skill 则提供了"主动管理"（搜索、安装、更新、卸载）。两者共同构成完整的 Skill 安全管控闭环：
+
+```
+┌─────────────────────────────────────────────────┐
+│              完整 Skill 安全管控                   │
+│                                                  │
+│  ┌──────────────────┐   ┌─────────────────────┐ │
+│  │ Skill Guard      │   │ skill-store CLI     │ │
+│  │ (被动防御)        │   │ (主动管理)          │ │
+│  │                  │   │                     │ │
+│  │ • SHA256 校验    │   │ • 搜索商店目录      │ │
+│  │ • Blocklist 阻断 │   │ • 安装 + SHA256 验证│ │
+│  │ • 侧载扫描      │   │ • 更新 + 版本对比   │ │
+│  │ • 审计日志      │   │ • 卸载              │ │
+│  └──────────────────┘   └─────────────────────┘ │
+│                                                  │
+│  共享配置: skills.guard.trustedStores             │
+│  共享数据: manifest-cache.json                    │
+└─────────────────────────────────────────────────┘
+```
+
+### 10.2 文件结构
+
+```
+skills/skill-store/                ← 仓库 skills/ 目录，openclaw-bundled
+├── SKILL.md                       ← Agent 指令文档（frontmatter + 命令说明）
+└── store-cli.py                   ← Python 3 CLI（~600 行，零外部依赖）
+```
+
+### 10.3 与 clawhub 的替代关系
+
+`skill-store` 在 SKILL.md frontmatter 中通过 description 声明为"PRIMARY and PREFERRED tool"，Agent 会优先选择它而非 clawhub。建议在配置中显式禁用 clawhub：
+
+```json
+{ "skills": { "entries": { "clawhub": { "enabled": false } } } }
+```
+
+### 10.4 安装验证链
+
+```
+store-cli.py install <name>
+  1. Blocklist 检查
+  2. 下载 .tar.gz（支持 Authorization header）
+  3. path traversal 防护
+  4. SHA256 逐文件校验
+  5. fileCount 数量校验
+  6. Frontmatter 兼容注入（store.* 前缀）
+  7. 写入 managed 目录
+```
+
+---
+
+## 11. 验收标准
+
+| #   | 测试场景                                         | 预期结果                              |
+| --- | ------------------------------------------------ | ------------------------------------- |
+| 1   | `guard.enabled=false`                            | 全部正常加载                          |
+| 2   | 商店 Skill，hash 匹配                            | 加载通过                              |
+| 3   | 商店 Skill，文件被篡改                           | 阻断                                  |
+| 4   | 商店 Skill，被注入文件                           | 阻断                                  |
+| 5   | blocklist 中的 Skill                             | 阻断                                  |
+| 6   | 侧载 Skill，无 critical                          | 放行                                  |
+| 7   | 侧载 Skill，有 critical + policy=block-critical  | 阻断                                  |
+| 8   | 侧载 Skill，有 critical + policy=warn            | 警告放行                              |
+| 9   | 云端不可达 + 有缓存                              | 用缓存                                |
+| 10  | 云端不可达 + 无缓存                              | 降级为侧载扫描                        |
+| 11  | 100 个 Skill 全量校验                            | < 500ms                               |
+| 12  | Skills 页面 Disable/Enable 后 Guard 持续有效     | 恶意 skill 始终被阻断                 |
+| 13  | Gateway SIGUSR1 重启后 Guard 自动恢复            | 重启后 guard 重新注册，阻断能力不中断 |
+| 14  | skill-store 在 BUILT-IN SKILLS 中可见且 eligible | skill-store 正常加载                  |
+| 15  | store-cli.py search 返回匹配结果                 | 离线搜索 manifest 缓存                |
+| 16  | store-cli.py install + SHA256 验证通过           | skill 安装到 managed 目录             |
+| 17  | store-cli.py install blocklist skill 被拒绝      | 输出 blocklist 错误                   |
+| 18  | store-cli.py remove 卸载成功                     | managed 目录中 skill 已删除           |
