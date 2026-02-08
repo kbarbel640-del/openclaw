@@ -38,14 +38,15 @@ async function readStdin(): Promise<string> {
 function printHelp() {
   process.stdout.write(
     [
-      "message-lint (legacy wrapper): delegates to scripts/external-message-lint.ts",
+      "message-lint (legacy wrapper): delegates to scripts/external-message-lint.ts or scripts/voice-reply-lint.ts",
       "",
       "Usage:",
-      "  bun scripts/message-lint.ts [--file path] [--mode external]",
+      "  bun scripts/message-lint.ts [--file path] [--mode external|voice] [--strict]",
       "  cat /tmp/msg.txt | bun scripts/message-lint.ts",
       "",
       "Prefer:",
-      "  bun scripts/external-message-lint.ts",
+      "  bun scripts/external-message-lint.ts   (external chat)",
+      "  bun scripts/voice-reply-lint.ts        (voice-first)",
       "",
       "Exit codes:",
       "  0 = OK (or warnings only)",
@@ -64,8 +65,12 @@ async function main() {
     return;
   }
 
-  if (mode !== "external") {
-    process.stderr.write(`Unknown --mode '${mode}'. Only 'external' is supported.\n`);
+  const strict = hasFlag("--strict");
+
+  if (mode !== "external" && mode !== "voice") {
+    process.stderr.write(
+      `Unknown --mode '${mode}'. Supported: external, voice.\n`,
+    );
     process.exitCode = 2;
     return;
   }
@@ -77,20 +82,26 @@ async function main() {
     return;
   }
 
-  const proc = spawnSync(
-    "bun",
-    ["scripts/external-message-lint.ts", "--json"],
-    {
-      input: text,
-      encoding: "utf8",
-      maxBuffer: 1024 * 1024,
-    },
-  );
+  const script =
+    mode === "voice" ? "scripts/voice-reply-lint.ts" : "scripts/external-message-lint.ts";
+
+  const bunArgs = [script, "--json", ...(strict ? ["--strict"] : [])];
+
+  const proc = spawnSync("bun", bunArgs, {
+    input: text,
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+  });
+
+  const prefer =
+    mode === "voice"
+      ? "  bun scripts/voice-reply-lint.ts\n"
+      : "  bun scripts/external-message-lint.ts\n";
 
   if (proc.error) {
     process.stderr.write(
       "message-lint: failed to run Bun. Prefer running directly:\n" +
-        "  bun scripts/external-message-lint.ts\n" +
+        prefer +
         String(proc.error?.message ?? proc.error) +
         "\n",
     );
@@ -104,7 +115,7 @@ async function main() {
     parsed = stdout ? JSON.parse(stdout) : undefined;
   } catch (err) {
     process.stderr.write(
-      "message-lint: could not parse external-message-lint JSON output.\n" +
+      `message-lint: could not parse linter JSON output from ${script}.\n` +
         String(err?.stack ?? err) +
         "\n",
     );
@@ -119,7 +130,9 @@ async function main() {
   const errors = issues.filter((i) => i.level === "error");
 
   if (issues.length === 0) {
-    process.stdout.write("OK: message passes external-chat lint.\n");
+    process.stdout.write(
+      mode === "voice" ? "OK: message passes voice lint.\n" : "OK: message passes external-chat lint.\n",
+    );
     return;
   }
 

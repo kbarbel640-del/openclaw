@@ -22,7 +22,7 @@ function usage() {
   // (Avoid Markdown headings / fenced code blocks.)
   // eslint-disable-next-line no-console
   console.error(
-    "Usage:\n  node scripts/message-lint.mjs --file <path>\n  node scripts/message-lint.mjs --text <string>",
+    "Usage:\n  node scripts/message-lint.mjs --file <path> [--mode external|voice] [--strict]\n  node scripts/message-lint.mjs --text <string> [--mode external|voice] [--strict]",
   );
   process.exit(2);
 }
@@ -30,6 +30,8 @@ function usage() {
 const args = process.argv.slice(2);
 let filePath;
 let textArg;
+let mode = "external";
+let strict = false;
 
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -39,6 +41,11 @@ for (let i = 0; i < args.length; i++) {
   } else if (a === "--text") {
     textArg = args[i + 1];
     i++;
+  } else if (a === "--mode") {
+    mode = String(args[i + 1] ?? "").toLowerCase();
+    i++;
+  } else if (a === "--strict") {
+    strict = true;
   } else if (a === "--help" || a === "-h") {
     usage();
   }
@@ -46,6 +53,12 @@ for (let i = 0; i < args.length; i++) {
 
 if (!filePath && !textArg) {
   usage();
+}
+
+if (mode !== "external" && mode !== "voice") {
+  // eslint-disable-next-line no-console
+  console.error(`message-lint: unknown --mode '${mode}'. Supported: external, voice.`);
+  process.exit(2);
 }
 
 let msg = "";
@@ -60,22 +73,28 @@ if (filePath) {
   msg = String(textArg ?? "");
 }
 
+const script =
+  mode === "voice" ? "scripts/voice-reply-lint.ts" : "scripts/external-message-lint.ts";
+
+const bunArgs = [script, "--json", ...(strict ? ["--strict"] : [])];
+
 // Delegate to the canonical linter.
-const proc = spawnSync(
-  "bun",
-  ["scripts/external-message-lint.ts", "--json"],
-  {
-    input: msg,
-    encoding: "utf8",
-    maxBuffer: 1024 * 1024,
-  },
-);
+const proc = spawnSync("bun", bunArgs, {
+  input: msg,
+  encoding: "utf8",
+  maxBuffer: 1024 * 1024,
+});
 
 if (proc.error) {
+  const prefer =
+    mode === "voice"
+      ? "  bun scripts/voice-reply-lint.ts\n"
+      : "  bun scripts/external-message-lint.ts\n";
+
   // eslint-disable-next-line no-console
   console.error(
     "message-lint: failed to run Bun. Install Bun or run the canonical linter directly:\n" +
-      "  bun scripts/external-message-lint.ts\n" +
+      prefer +
       String(proc.error?.message ?? proc.error),
   );
   process.exit(2);
