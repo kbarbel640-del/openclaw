@@ -173,15 +173,12 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
         // DEBUG
         console.error(`[stream-debug] starting stream: channel=${message.channel}, threadTs=${replyThreadTs}`);
         const client = createSlackWebClient(ctx.botToken);
-        // Parse the target to get the channel ID.
-        const channelId = prepared.replyTarget.startsWith("channel:")
-          ? prepared.replyTarget.slice("channel:".length)
-          : prepared.replyTarget.startsWith("user:")
-            ? prepared.replyTarget.slice("user:".length)
-            : message.channel;
+        // Always use message.channel — it's the actual Slack channel/DM ID
+        // that the API requires.  prepared.replyTarget may contain a user ID
+        // prefix (user:UXXXX) which isn't a valid channel for the streaming API.
         streamState.handle = await startSlackStream({
           client,
-          channel: channelId,
+          channel: message.channel,
           threadTs: replyThreadTs,
         });
         replyPlan.markSent();

@@ -9,14 +9,12 @@ export type SlackStreamHandle = {
 };
 
 /** Minimum ms between stream appends to create a visible reveal effect. */
-const STREAM_CHUNK_DELAY_MS = 80;
+const STREAM_CHUNK_DELAY_MS = 100;
 /** Approximate characters per streaming chunk. */
-const STREAM_CHUNK_SIZE = 60;
+const STREAM_CHUNK_SIZE = 40;
 
 /**
- * Split `text` into chunks that break on word/sentence boundaries so the
- * streaming reveal looks natural.  Each chunk is roughly `chunkSize` chars
- * but never splits mid-word.
+ * Split `text` into chunks that break on word boundaries.
  */
 function chunkText(text: string, chunkSize: number): string[] {
   const chunks: string[] = [];
@@ -26,10 +24,8 @@ function chunkText(text: string, chunkSize: number): string[] {
       chunks.push(remaining);
       break;
     }
-    // Try to break on whitespace near the target size.
     let end = remaining.lastIndexOf(" ", chunkSize);
     if (end <= 0) {
-      // No space found — try newline or just hard-cut.
       end = remaining.indexOf(" ", chunkSize);
       if (end <= 0) end = remaining.length;
     }
@@ -42,16 +38,11 @@ function chunkText(text: string, chunkSize: number): string[] {
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /**
- * Start a Slack streaming message using the `chat.startStream` /
- * `chat.appendStream` / `chat.stopStream` API family (Web API ≥ 7.11).
+ * Start a Slack streaming message using `chat.startStream` /
+ * `chat.appendStream` / `chat.stopStream`.
  *
- * The handle's `append` method automatically chunks large text into
- * incremental updates with short delays to create a visible streaming
- * effect in the Slack client.
- *
- * The helper uses `client.chatStream()` when available and falls back to
- * raw `apiCall` for older SDK builds that expose the methods but not the
- * convenience wrapper.
+ * The API returns a message `ts` (not a `stream_id`) which is used
+ * with the channel to identify the stream for append/stop calls.
  */
 export async function startSlackStream(params: {
   client: WebClient;
@@ -60,56 +51,69 @@ export async function startSlackStream(params: {
 }): Promise<SlackStreamHandle> {
   const { client, channel, threadTs } = params;
 
-  // The @slack/web-api >=7.11 exposes chatStream() as a convenience helper.
-  const clientAny = client as unknown as {
-    chatStream?: (opts: Record<string, unknown>) => {
-      append: (opts: { markdown_text: string }) => Promise<void>;
-      stop: () => Promise<void>;
-    };
+  const startPayload: Record<string, unknown> = { channel };
+  if (threadTs) {
+    startPayload.thread_ts = threadTs;
+  }
+
+  console.error(`[stream-debug] calling chat.startStream with:`, JSON.stringify(startPayload));
+  const startResult = (await client.apiCall("chat.startStream", startPayload)) as {
+    ok?: boolean;
+    ts?: string;
+    stream_id?: string;
+    channel?: string;
+    error?: string;
+  };
+  console.error(`[stream-debug] chat.startStream result:`, JSON.stringify(startResult));
+
+  if (!startResult.ok) {
+    throw new Error(`chat.startStream failed: ${startResult.error ?? "unknown error"}`);
+  }
+
+  // The API may return stream_id (older docs) or ts (current behavior).
+  const streamId = startResult.stream_id ?? startResult.ts;
+  if (!streamId) {
+    throw new Error("chat.startStream returned neither stream_id nor ts");
+  }
+
+  const streamChannel = startResult.channel ?? channel;
+  let appendCount = 0;
+  // Track cumulative text for appendStream (each append sends full content so far).
+  let cumulativeText = "";
+
+  const rawAppend = async (text: string) => {
+    appendCount++;
+    cumulativeText += text;
+    console.error(`[stream-debug] append #${appendCount} (+${text.length} chars, total=${cumulativeText.length})`);
+    // Try both field names — the API may expect stream_id or use channel+ts.
+    const result = (await client.apiCall("chat.appendStream", {
+      channel: streamChannel,
+      stream_id: streamId,
+      ts: streamId,
+      text: cumulativeText,
+    })) as { ok?: boolean; error?: string };
+    if (!result.ok) {
+      console.error(`[stream-debug] append #${appendCount} FAILED:`, JSON.stringify(result));
+      throw new Error(`chat.appendStream failed: ${result.error}`);
+    }
   };
 
-  // Build the raw append/stop functions first, then wrap with chunking.
-  let rawAppend: (text: string) => Promise<void>;
-  let rawStop: () => Promise<void>;
-
-  if (typeof clientAny.chatStream === "function") {
-    const streamer = clientAny.chatStream({
-      channel,
-      ...(threadTs ? { thread_ts: threadTs } : {}),
-    });
-    rawAppend = (text: string) => streamer.append({ markdown_text: text });
-    rawStop = () => streamer.stop();
-  } else {
-    // Fallback: call raw API methods.
-    const startResult = (await client.apiCall("chat.startStream", {
-      channel,
-      ...(threadTs ? { thread_ts: threadTs } : {}),
-    })) as { stream_id?: string };
-
-    const streamId = startResult.stream_id;
-    if (!streamId) {
-      throw new Error("chat.startStream did not return a stream_id");
-    }
-
-    rawAppend = async (text: string) => {
-      await client.apiCall("chat.appendStream", {
-        stream_id: streamId,
-        text,
-      });
-    };
-    rawStop = async () => {
-      await client.apiCall("chat.stopStream", {
-        stream_id: streamId,
-      });
-    };
-  }
+  const rawStop = async () => {
+    console.error(`[stream-debug] stopping stream ${streamId} after ${appendCount} appends`);
+    const result = (await client.apiCall("chat.stopStream", {
+      channel: streamChannel,
+      stream_id: streamId,
+      ts: streamId,
+    })) as { ok?: boolean; error?: string };
+    console.error(`[stream-debug] chat.stopStream result:`, JSON.stringify(result));
+  };
 
   // Wrap append with chunking for visible progressive reveal.
   const chunkedAppend = async (text: string) => {
     const chunks = chunkText(text, STREAM_CHUNK_SIZE);
+    console.error(`[stream-debug] chunking ${text.length} chars into ${chunks.length} chunks`);
     for (let i = 0; i < chunks.length; i++) {
       await rawAppend(chunks[i]);
-      // Delay between chunks (skip after last chunk).
       if (i < chunks.length - 1) {
         await sleep(STREAM_CHUNK_DELAY_MS);
       }
@@ -123,9 +127,8 @@ export async function startSlackStream(params: {
 }
 
 /**
- * Deliver a complete message via streaming, chunking the text into
- * incremental appends.  Falls back to returning `false` if the stream
- * API is unavailable so callers can use the normal `postMessage` path.
+ * Deliver a complete message via streaming.  Falls back to returning
+ * `false` if the stream API is unavailable.
  */
 export async function deliverViaStream(params: {
   client: WebClient;
