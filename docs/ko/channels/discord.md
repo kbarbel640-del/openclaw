@@ -225,7 +225,7 @@ env var를 통해 봇 토큰을 설정합니다(서버에서 권장).
 - **`requireMention: false` 근데 아직도 답장이 없어**:
 - `channels.discord.groupPolicy` 기본값은 **허용 목록**; 으로 설정하다 `"open"` 또는 아래에 길드 항목을 추가하세요. `channels.discord.guilds` (선택적으로 아래에 채널을 나열합니다. `channels.discord.guilds.<id>.channels` 제한합니다).
   - 설정만 하면 `DISCORD_BOT_TOKEN` 절대 만들지 마세요. `channels.discord` 섹션, 런타임
-    기본값 `groupPolicy` 에게 `open`. 추가하다 `channels.discord.groupPolicy`, 
+    기본값 `groupPolicy` 에게 `open`. 추가하다 `channels.discord.groupPolicy`,
     `channels.defaults.groupPolicy`, 또는 길드/채널 허용 목록을 사용하여 잠글 수 있습니다.
 - `requireMention` 아래에서 살아야 한다 `channels.discord.guilds` (또는 특정 채널). `channels.discord.requireMention` 최상위 수준에서는 무시됩니다.
 - **권한 감사** (`channels status --probe`) 숫자로 된 채널 ID만 확인하세요. 슬러그/이름을 다음과 같이 사용하는 경우 `channels.discord.guilds.*.channels` 키가 없으면 감사에서 권한을 확인할 수 없습니다.
@@ -320,7 +320,7 @@ env var를 통해 봇 토큰을 설정합니다(서버에서 권장).
 }
 ```
 
-Ack 반응은 다음을 통해 전역적으로 제어됩니다. `messages.ackReaction` + 
+Ack 반응은 다음을 통해 전역적으로 제어됩니다. `messages.ackReaction` +
 `messages.ackReactionScope`. 사용 `messages.removeAckAfterReply` 지우기 위해
 봇이 응답한 후 ack 반응입니다.
 

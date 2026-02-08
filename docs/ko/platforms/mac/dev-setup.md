@@ -12,6 +12,8 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="troubleshooting"></a>
+
 # macOS 개발자 설정
 
 이 가이드에서는 소스에서 OpenClaw macOS 애플리케이션을 빌드하고 실행하는 데 필요한 단계를 다룹니다.

@@ -35,7 +35,7 @@ macOS 메뉴 표시줄 앱은 WebChat UI를 기본 SwiftUI 보기로 포함합�
 
 ## 연결 방법
 
-- 데이터 플레인: 게이트웨이 WS 메서드 `chat.history`, `chat.send`, `chat.abort`, 
+- 데이터 플레인: 게이트웨이 WS 메서드 `chat.history`, `chat.send`, `chat.abort`,
   `chat.inject` 그리고 이벤트 `chat`, `agent`, `presence`, `tick`, `health`.
 - 세션: 기본 세션은 기본 세션(`main`, 또는 `global` 범위가 다음과 같은 경우
   글로벌). UI는 세션 간에 전환할 수 있습니다.

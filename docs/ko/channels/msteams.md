@@ -12,6 +12,11 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="sending-files-in-group-chats"></a>
+<a id="local-development-tunneling"></a>
+<a id="reply-style-threads-vs-posts"></a>
+<a id="target-formats"></a>
+
 # Microsoft 팀(플러그인)
 
 > "여기에 들어오는 자여, 모든 희망을 버리라."
@@ -160,16 +165,16 @@ OpenClaw를 구성하기 전에 Azure Bot 리소스를 만들어야 합니다.
 ### 1단계: Azure 봇 생성
 
 1. 이동 [Azure 봇 만들기](https://portal.azure.com/#create/Microsoft.AzureBot)
-2. 다음을 입력하세요. **기초** 꼬리표:
+2. **Basics** 탭에 다음 값을 입력합니다.
 
-   | 필드              | 값                                                    |
-   | ------------------ | -------------------------------------------------------- |
-   | **봇 핸들**     | 봇 이름(예: `openclaw-msteams` (고유해야 합니다) |
-   | **신청**   | Azure 구독 선택                           |
-   | **리소스 그룹** | 새로 만들기 또는 기존 사용                               |
-   | **가격 책정 계층**   | **무료** 개발/테스트용                                 |
-   | **앱 유형**    | **단일 테넌트** (권장 - 아래 참고 사항 참조)         |
-   | **생성 유형**  | **새 Microsoft 앱 ID 만들기**                          |
+   |필드|값|
+   |---|---|
+   |**봇 핸들**|봇 이름 (예: `openclaw-msteams`, 고유해야 함)|
+   |**구독**|Azure 구독 선택|
+   |**리소스 그룹**|새로 만들거나 기존 그룹 사용|
+   |**가격 책정 계층**|개발/테스트는 **무료** 권장|
+   |**앱 유형**|**단일 테넌트** (권장, 아래 참고)|
+   |**생성 유형**|**새 Microsoft 앱 ID 만들기**|
 
 > **지원 중단 알림:** 새로운 다중 테넌트 봇 생성은 2025년 7월 31일 이후 더 이상 사용되지 않습니다. 사용 **단일 테넌트** 새로운 봇을 위해.
 
@@ -629,7 +634,7 @@ OpenClaw는 Teams 설문조사를 적응형 카드로 보냅니다(기본 Teams 
 }
 ```
 
-**CLI: **
+**CLI:**
 
 ```bash
 openclaw message send --channel msteams \

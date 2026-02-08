@@ -380,7 +380,7 @@ api.registerProvider({
 
 참고:
 
-- `run` 수신하다 `ProviderAuthContext` ~와 함께 `prompter`, `runtime`, 
+- `run` 수신하다 `ProviderAuthContext` ~와 함께 `prompter`, `runtime`,
   `openUrl`, 그리고 `oauth.createVpsAwareHandlers` 도우미.
 - 반품 `configPatch` 기본 모델이나 공급자 구성을 추가해야 할 때.
 - 반품 `defaultModel` 그래서 `--set-default` 에이전트 기본값을 업데이트할 수 있습니다.

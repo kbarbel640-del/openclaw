@@ -62,7 +62,7 @@ TLS가 활성화되면 검색 TXT 레코드에는 다음이 포함됩니다. `br
 
 게이트웨이 → 클라이언트:
 
-- `invoke`/`invoke-res`: 노드 명령(`canvas.*`, `camera.*`, `screen.record`, 
+- `invoke`/`invoke-res`: 노드 명령(`canvas.*`, `camera.*`, `screen.record`,
   `location.get`, `sms.send`)
 - `event`: 구독한 세션에 대한 채팅 업데이트
 - `ping`/`pong`: 연결 유지

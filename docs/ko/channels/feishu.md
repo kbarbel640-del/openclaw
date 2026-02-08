@@ -13,6 +13,8 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="get-groupuser-ids"></a>
+
 # 페이슈 봇
 
 Feishu(Lark)는 회사에서 메시징 및 협업을 위해 사용하는 팀 채팅 플랫폼입니다. 이 플러그인은 플랫폼의 WebSocket 이벤트 구독을 사용하여 OpenClaw를 Feishu/Lark 봇에 연결하므로 공개 웹훅 URL을 노출하지 않고도 메시지를 수신할 수 있습니다.

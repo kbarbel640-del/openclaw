@@ -104,7 +104,7 @@ Client                    Gateway
 - 게이트웨이 인증(`gateway.auth.*`) 여전히 적용됩니다 **모두** 연결, 로컬 또는
   원격.
 
-세부: [게이트웨이 프로토콜](/gateway/protocol), [편성](/channels/pairing), 
+세부: [게이트웨이 프로토콜](/gateway/protocol), [편성](/channels/pairing),
 [보안](/gateway/security).
 
 ## 프로토콜 타이핑 및 코드 생성

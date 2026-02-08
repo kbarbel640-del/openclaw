@@ -431,7 +431,7 @@ pnpm test:docker:qr
 ```
 
 경화 손잡이가 아래에 있습니다. `agents.defaults.sandbox.docker`:
-`network`, `user`, `pidsLimit`, `memory`, `memorySwap`, `cpus`, `ulimits`, 
+`network`, `user`, `pidsLimit`, `memory`, `memorySwap`, `cpus`, `ulimits`,
 `seccompProfile`, `apparmorProfile`, `dns`, `extraHosts`.
 
 다중 에이전트: 재정의 `agents.defaults.sandbox.{docker,browser,prune}.*` 에이전트당 `agents.list[].sandbox.{docker,browser,prune}.*`
@@ -473,7 +473,7 @@ scripts/sandbox-common-setup.sh
 scripts/sandbox-browser-setup.sh
 ```
 
-이것은 빌드 `openclaw-sandbox-browser:bookworm-slim` 사용하여 
+이것은 빌드 `openclaw-sandbox-browser:bookworm-slim` 사용하여
 `Dockerfile.sandbox-browser`. 컨테이너는 CDP가 활성화된 Chromium을 실행하고
 선택적 noVNC 관찰자(Xvfb를 통한 헤드풀).
 

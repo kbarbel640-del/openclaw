@@ -14,6 +14,8 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="install-methods"></a>
+
 # 설치하다
 
 이미 팔로우했습니다 [시작하기](/start/getting-started)? 모든 설정이 완료되었습니다. 이 페이지에서는 대체 설치 방법, 플랫폼별 지침 및 유지 관리에 대해 설명합니다.

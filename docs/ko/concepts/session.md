@@ -205,7 +205,7 @@ OpenClaw 트림 **오래된 도구 결과** 기본적으로 LLM 호출 직전에
   다이렉트 메시지, 채널 및 그룹에 대한 원본 필드가 채워집니다. 만약
   커넥터는 배달 라우팅만 업데이트합니다(예: DM 기본 세션을 유지하기 위해)
   최신) 세션이 계속해서 인바운드 컨텍스트를 유지하도록 인바운드 컨텍스트를 제공해야 합니다.
-  설명자 메타데이터. 확장 프로그램은 다음을 전송하여 이를 수행할 수 있습니다. `ConversationLabel`, 
+  설명자 메타데이터. 확장 프로그램은 다음을 전송하여 이를 수행할 수 있습니다. `ConversationLabel`,
   `GroupSubject`, `GroupChannel`, `GroupSpace`, 그리고 `SenderName` 인바운드에서
   상황과 부름 `recordSessionMetaFromInbound` (또는 동일한 컨텍스트를 전달
   에 `updateLastRoute`).

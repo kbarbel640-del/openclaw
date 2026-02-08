@@ -199,7 +199,7 @@ Cron은 세 가지 일정 종류를 지원합니다.
 - 메인 세션 요약은 다음을 존중합니다. `wakeMode`: `now` 즉각적인 심장 박동을 유발하고
   `next-heartbeat` 다음 예정된 하트비트를 기다립니다.
 
-### 모델과 사고가 우선시됩니다.
+### 모델과 사고가 우선시됩니다
 
 고립된 작업(`agentTurn`)는 모델과 사고 수준을 무시할 수 있습니다.
 
@@ -295,7 +295,7 @@ CLI 플래그는 다음과 같은 사람의 지속 시간을 허용합니다. `2
 - `schedule.at` ISO 8601을 허용합니다(시간대 선택 사항, 생략 시 UTC로 처리됨).
 - `everyMs` 밀리초입니다.
 - `sessionTarget` 이어야 한다 `"main"` 또는 `"isolated"` 일치해야 하며 `payload.kind`.
-- 선택 필드: `agentId`, `description`, `enabled`, `deleteAfterRun` (기본값은 true입니다. `at`), 
+- 선택 필드: `agentId`, `description`, `enabled`, `deleteAfterRun` (기본값은 true입니다. `at`),
   `delivery`.
 - `wakeMode` 기본값은 `"now"` 생략시.
 
@@ -445,7 +445,7 @@ openclaw cron edit <jobId> \
   --thinking low
 ```
 
-실행 기록: 
+실행 기록:
 
 ```bash
 openclaw cron runs --id <jobId> --limit 50
@@ -471,7 +471,7 @@ openclaw system event --mode now --text "Next heartbeat: check battery."
 - 게이트웨이가 지속적으로 실행되고 있는지 확인하십시오(cron은 게이트웨이 프로세스 내에서 실행됨).
 - 을 위한 `cron` 일정: 시간대 확인(`--tz`) 대 호스트 시간대.
 
-### 반복 작업이 실패 후 계속 지연됩니다.
+### 반복 작업이 실패 후 계속 지연됩니다
 
 - OpenClaw는 연속 오류 이후 반복 작업에 대해 지수 재시도 백오프를 적용합니다.
   재시도 간격은 30초, 1분, 5분, 15분, 그 후 60분입니다.

@@ -111,7 +111,7 @@ openclaw nodes canvas a2ui push --jsonl /tmp/a2ui-v0.8.jsonl --node <id>
 openclaw nodes canvas a2ui push --node <id> --text "Hello from A2UI"
 ```
 
-## 트리거 에이전트는 캔버스에서 실행됩니다.
+## 트리거 에이전트는 캔버스에서 실행됩니다
 
 캔버스는 딥 링크를 통해 새 에이전트 실행을 트리거할 수 있습니다.
 

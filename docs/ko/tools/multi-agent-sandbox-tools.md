@@ -383,7 +383,7 @@ agents.list[].sandbox.prune.* > agents.defaults.sandbox.prune.*
 - 전역이 있는지 확인하십시오. `agents.defaults.sandbox.mode` 그게 우선이야
 - 에이전트별 구성이 우선하므로 설정하세요. `agents.list[].sandbox.mode: "all"`
 
-### 거부 목록에도 불구하고 도구를 계속 사용할 수 있습니다.
+### 거부 목록에도 불구하고 도구를 계속 사용할 수 있습니다
 
 - 도구 필터링 순서 확인: 글로벌 → 에이전트 → 샌드박스 → 하위 에이전트
 - 각 레벨은 추가 제한만 가능하며 다시 부여할 수는 없습니다.

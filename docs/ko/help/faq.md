@@ -10,6 +10,192 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="im-stuck-whats-the-fastest-way-to-get-unstuck"></a>
+<a id="whats-the-recommended-way-to-install-and-set-up-openclaw"></a>
+<a id="how-do-i-open-the-dashboard-after-onboarding"></a>
+<a id="how-do-i-authenticate-the-dashboard-token-on-localhost-vs-remote"></a>
+<a id="what-runtime-do-i-need"></a>
+<a id="does-it-run-on-raspberry-pi"></a>
+<a id="any-tips-for-raspberry-pi-installs"></a>
+<a id="it-is-stuck-on-wake-up-my-friend-onboarding-will-not-hatch-what-now"></a>
+<a id="can-i-migrate-my-setup-to-a-new-machine-mac-mini-without-redoing-onboarding"></a>
+<a id="where-do-i-see-what-is-new-in-the-latest-version"></a>
+<a id="i-cant-access-docsopenclawai-ssl-error-what-now"></a>
+<a id="whats-the-difference-between-stable-and-beta"></a>
+<a id="how-do-i-install-the-beta-version-and-whats-the-difference-between-beta-and-dev"></a>
+<a id="how-do-i-try-the-latest-bits"></a>
+<a id="how-long-does-install-and-onboarding-usually-take"></a>
+<a id="installer-stuck-how-do-i-get-more-feedback"></a>
+<a id="windows-install-says-git-not-found-or-openclaw-not-recognized"></a>
+<a id="the-docs-didnt-answer-my-question-how-do-i-get-a-better-answer"></a>
+<a id="how-do-i-install-openclaw-on-linux"></a>
+<a id="how-do-i-install-openclaw-on-a-vps"></a>
+<a id="where-are-the-cloudvps-install-guides"></a>
+<a id="can-i-ask-openclaw-to-update-itself"></a>
+<a id="what-does-the-onboarding-wizard-actually-do"></a>
+<a id="do-i-need-a-claude-or-openai-subscription-to-run-this"></a>
+<a id="can-i-use-claude-max-subscription-without-an-api-key"></a>
+<a id="how-does-anthropic-setuptoken-auth-work"></a>
+<a id="where-do-i-find-an-anthropic-setuptoken"></a>
+<a id="do-you-support-claude-subscription-auth-claude-pro-or-max"></a>
+<a id="why-am-i-seeing-http-429-ratelimiterror-from-anthropic"></a>
+<a id="is-aws-bedrock-supported"></a>
+<a id="how-does-codex-auth-work"></a>
+<a id="do-you-support-openai-subscription-auth-codex-oauth"></a>
+<a id="how-do-i-set-up-gemini-cli-oauth"></a>
+<a id="is-a-local-model-ok-for-casual-chats"></a>
+<a id="how-do-i-keep-hosted-model-traffic-in-a-specific-region"></a>
+<a id="do-i-have-to-buy-a-mac-mini-to-install-this"></a>
+<a id="do-i-need-a-mac-mini-for-imessage-support"></a>
+<a id="if-i-buy-a-mac-mini-to-run-openclaw-can-i-connect-it-to-my-macbook-pro"></a>
+<a id="can-i-use-bun"></a>
+<a id="telegram-what-goes-in-allowfrom"></a>
+<a id="can-multiple-people-use-one-whatsapp-number-with-different-openclaw-instances"></a>
+<a id="can-i-run-a-fast-chat-agent-and-an-opus-for-coding-agent"></a>
+<a id="does-homebrew-work-on-linux"></a>
+<a id="whats-the-difference-between-the-hackable-git-install-and-npm-install"></a>
+<a id="can-i-switch-between-npm-and-git-installs-later"></a>
+<a id="should-i-run-the-gateway-on-my-laptop-or-a-vps"></a>
+<a id="how-important-is-it-to-run-openclaw-on-a-dedicated-machine"></a>
+<a id="what-are-the-minimum-vps-requirements-and-recommended-os"></a>
+<a id="can-i-run-openclaw-in-a-vm-and-what-are-the-requirements"></a>
+<a id="what-is-openclaw"></a>
+<a id="what-is-openclaw-in-one-paragraph"></a>
+<a id="whats-the-value-proposition"></a>
+<a id="i-just-set-it-up-what-should-i-do-first"></a>
+<a id="what-are-the-top-five-everyday-use-cases-for-openclaw"></a>
+<a id="can-openclaw-help-with-lead-gen-outreach-ads-and-blogs-for-a-saas"></a>
+<a id="what-are-the-advantages-vs-claude-code-for-web-development"></a>
+<a id="skills-and-automation"></a>
+<a id="how-do-i-customize-skills-without-keeping-the-repo-dirty"></a>
+<a id="can-i-load-skills-from-a-custom-folder"></a>
+<a id="how-can-i-use-different-models-for-different-tasks"></a>
+<a id="the-bot-freezes-while-doing-heavy-work-how-do-i-offload-that"></a>
+<a id="cron-or-reminders-do-not-fire-what-should-i-check"></a>
+<a id="how-do-i-install-skills-on-linux"></a>
+<a id="can-openclaw-run-tasks-on-a-schedule-or-continuously-in-the-background"></a>
+<a id="can-i-run-apple-macos-only-skills-from-linux"></a>
+<a id="do-you-have-a-notion-or-heygen-integration"></a>
+<a id="how-do-i-install-the-chrome-extension-for-browser-takeover"></a>
+<a id="sandboxing-and-memory"></a>
+<a id="is-there-a-dedicated-sandboxing-doc"></a>
+<a id="how-do-i-bind-a-host-folder-into-the-sandbox"></a>
+<a id="how-does-memory-work"></a>
+<a id="memory-keeps-forgetting-things-how-do-i-make-it-stick"></a>
+<a id="does-memory-persist-forever-what-are-the-limits"></a>
+<a id="does-semantic-memory-search-require-an-openai-api-key"></a>
+<a id="where-things-live-on-disk"></a>
+<a id="is-all-data-used-with-openclaw-saved-locally"></a>
+<a id="where-does-openclaw-store-its-data"></a>
+<a id="where-should-agentsmd-soulmd-usermd-memorymd-live"></a>
+<a id="whats-the-recommended-backup-strategy"></a>
+<a id="how-do-i-completely-uninstall-openclaw"></a>
+<a id="can-agents-work-outside-the-workspace"></a>
+<a id="im-in-remote-mode-where-is-the-session-store"></a>
+<a id="config-basics"></a>
+<a id="what-format-is-the-config-where-is-it"></a>
+<a id="i-set-gatewaybind-lan-or-tailnet-and-now-nothing-listens-the-ui-says-unauthorized"></a>
+<a id="why-do-i-need-a-token-on-localhost-now"></a>
+<a id="do-i-have-to-restart-after-changing-config"></a>
+<a id="how-do-i-enable-web-search-and-web-fetch"></a>
+<a id="configapply-wiped-my-config-how-do-i-recover-and-avoid-this"></a>
+<a id="how-do-i-run-a-central-gateway-with-specialized-workers-across-devices"></a>
+<a id="can-the-openclaw-browser-run-headless"></a>
+<a id="how-do-i-use-brave-for-browser-control"></a>
+<a id="remote-gateways-and-nodes"></a>
+<a id="how-do-commands-propagate-between-telegram-the-gateway-and-nodes"></a>
+<a id="how-can-my-agent-access-my-computer-if-the-gateway-is-hosted-remotely"></a>
+<a id="tailscale-is-connected-but-i-get-no-replies-what-now"></a>
+<a id="can-two-openclaw-instances-talk-to-each-other-local-vps"></a>
+<a id="do-i-need-separate-vpses-for-multiple-agents"></a>
+<a id="is-there-a-benefit-to-using-a-node-on-my-personal-laptop-instead-of-ssh-from-a-vps"></a>
+<a id="do-nodes-run-a-gateway-service"></a>
+<a id="is-there-an-api-rpc-way-to-apply-config"></a>
+<a id="whats-a-minimal-sane-config-for-a-first-install"></a>
+<a id="how-do-i-set-up-tailscale-on-a-vps-and-connect-from-my-mac"></a>
+<a id="how-do-i-connect-a-mac-node-to-a-remote-gateway-tailscale-serve"></a>
+<a id="should-i-install-on-a-second-laptop-or-just-add-a-node"></a>
+<a id="env-vars-and-env-loading"></a>
+<a id="how-does-openclaw-load-environment-variables"></a>
+<a id="i-started-the-gateway-via-the-service-and-my-env-vars-disappeared-what-now"></a>
+<a id="i-set-copilotgithubtoken-but-models-status-shows-shell-env-off-why"></a>
+<a id="sessions-and-multiple-chats"></a>
+<a id="how-do-i-start-a-fresh-conversation"></a>
+<a id="do-sessions-reset-automatically-if-i-never-send-new"></a>
+<a id="is-there-a-way-to-make-a-team-of-openclaw-instances-one-ceo-and-many-agents"></a>
+<a id="why-did-context-get-truncated-midtask-how-do-i-prevent-it"></a>
+<a id="how-do-i-completely-reset-openclaw-but-keep-it-installed"></a>
+<a id="im-getting-context-too-large-errors-how-do-i-reset-or-compact"></a>
+<a id="why-am-i-seeing-llm-request-rejected-messagesncontentxtooluseinput-field-required"></a>
+<a id="why-am-i-getting-heartbeat-messages-every-30-minutes"></a>
+<a id="do-i-need-to-add-a-bot-account-to-a-whatsapp-group"></a>
+<a id="how-do-i-get-the-jid-of-a-whatsapp-group"></a>
+<a id="why-doesnt-openclaw-reply-in-a-group"></a>
+<a id="do-groupsthreads-share-context-with-dms"></a>
+<a id="how-many-workspaces-and-agents-can-i-create"></a>
+<a id="can-i-run-multiple-bots-or-chats-at-the-same-time-slack-and-how-should-i-set-that-up"></a>
+<a id="models-defaults-selection-aliases-switching"></a>
+<a id="what-is-the-default-model"></a>
+<a id="what-model-do-you-recommend"></a>
+<a id="how-do-i-switch-models-without-wiping-my-config"></a>
+<a id="can-i-use-selfhosted-models-llamacpp-vllm-ollama"></a>
+<a id="what-do-openclaw-flawd-and-krill-use-for-models"></a>
+<a id="how-do-i-switch-models-on-the-fly-without-restarting"></a>
+<a id="can-i-use-gpt-52-for-daily-tasks-and-codex-53-for-coding"></a>
+<a id="why-do-i-see-model-is-not-allowed-and-then-no-reply"></a>
+<a id="why-do-i-see-unknown-model-minimaxminimaxm21"></a>
+<a id="can-i-use-minimax-as-my-default-and-openai-for-complex-tasks"></a>
+<a id="are-opus-sonnet-gpt-builtin-shortcuts"></a>
+<a id="how-do-i-defineoverride-model-shortcuts-aliases"></a>
+<a id="how-do-i-add-models-from-other-providers-like-openrouter-or-zai"></a>
+<a id="model-failover-and-all-models-failed"></a>
+<a id="how-does-failover-work"></a>
+<a id="what-does-this-error-mean"></a>
+<a id="fix-checklist-for-no-credentials-found-for-profile-anthropicdefault"></a>
+<a id="why-did-it-also-try-google-gemini-and-fail"></a>
+<a id="auth-profiles-what-they-are-and-how-to-manage-them"></a>
+<a id="what-is-an-auth-profile"></a>
+<a id="what-are-typical-profile-ids"></a>
+<a id="can-i-control-which-auth-profile-is-tried-first"></a>
+<a id="oauth-vs-api-key-whats-the-difference"></a>
+<a id="gateway-ports-already-running-and-remote-mode"></a>
+<a id="what-port-does-the-gateway-use"></a>
+<a id="why-does-openclaw-gateway-status-say-runtime-running-but-rpc-probe-failed"></a>
+<a id="why-does-openclaw-gateway-status-show-config-cli-and-config-service-different"></a>
+<a id="what-does-another-gateway-instance-is-already-listening-mean"></a>
+<a id="how-do-i-run-openclaw-in-remote-mode-client-connects-to-a-gateway-elsewhere"></a>
+<a id="the-control-ui-says-unauthorized-or-keeps-reconnecting-what-now"></a>
+<a id="i-set-gatewaybind-tailnet-but-it-cant-bind-nothing-listens"></a>
+<a id="can-i-run-multiple-gateways-on-the-same-host"></a>
+<a id="what-does-invalid-handshake-code-1008-mean"></a>
+<a id="logging-and-debugging"></a>
+<a id="where-are-logs"></a>
+<a id="how-do-i-startstoprestart-the-gateway-service"></a>
+<a id="i-closed-my-terminal-on-windows-how-do-i-restart-openclaw"></a>
+<a id="the-gateway-is-up-but-replies-never-arrive-what-should-i-check"></a>
+<a id="disconnected-from-gateway-no-reason-what-now"></a>
+<a id="telegram-setmycommands-fails-with-network-errors-what-should-i-check"></a>
+<a id="tui-shows-no-output-what-should-i-check"></a>
+<a id="how-do-i-completely-stop-then-start-the-gateway"></a>
+<a id="eli5-openclaw-gateway-restart-vs-openclaw-gateway"></a>
+<a id="whats-the-fastest-way-to-get-more-details-when-something-fails"></a>
+<a id="media-and-attachments"></a>
+<a id="my-skill-generated-an-imagepdf-but-nothing-was-sent"></a>
+<a id="security-and-access-control"></a>
+<a id="is-it-safe-to-expose-openclaw-to-inbound-dms"></a>
+<a id="is-prompt-injection-only-a-concern-for-public-bots"></a>
+<a id="should-my-bot-have-its-own-email-github-account-or-phone-number"></a>
+<a id="can-i-give-it-autonomy-over-my-text-messages-and-is-that-safe"></a>
+<a id="can-i-use-cheaper-models-for-personal-assistant-tasks"></a>
+<a id="i-ran-start-in-telegram-but-didnt-get-a-pairing-code"></a>
+<a id="whatsapp-will-it-message-my-contacts-how-does-pairing-work"></a>
+<a id="chat-commands-aborting-tasks-and-it-wont-stop"></a>
+<a id="how-do-i-stop-internal-system-messages-from-showing-in-chat"></a>
+<a id="how-do-i-stopcancel-a-running-task"></a>
+<a id="how-do-i-send-a-discord-message-from-telegram-crosscontext-messaging-denied"></a>
+<a id="why-does-it-feel-like-the-bot-ignores-rapidfire-messages"></a>
+<a id="first-60-seconds-if-somethings-broken"></a>
+
 # FAQ
 
 실제 설정(로컬 개발, VPS, 다중 에이전트, OAuth/API 키, 모델 장애 조치)에 대한 빠른 답변과 심층적인 문제 해결. 런타임 진단은 다음을 참조하세요. [문제 해결](/gateway/troubleshooting). 전체 구성 참조는 다음을 참조하세요. [구성](/gateway/configuration).
@@ -311,7 +497,7 @@ openclaw doctor
 - `openclaw models status`: 공급자 인증 + 모델 가용성을 확인합니다.
 - `openclaw doctor`: 일반적인 구성/상태 문제를 검증하고 복구합니다.
 
-기타 유용한 CLI 검사: `openclaw status --all`, `openclaw logs --follow`, 
+기타 유용한 CLI 검사: `openclaw status --all`, `openclaw logs --follow`,
 `openclaw gateway status`, `openclaw health --verbose`.
 
 빠른 디버그 루프: [무언가 고장난 경우 처음 60초](#first-60-seconds-if-somethings-broken).
@@ -434,8 +620,8 @@ openclaw doctor
 위로 **메모리 + 부트스트랩 파일**, 하지만 **~ 아니다** 세션 기록 또는 인증. 그 라이브
 아래 `~/.openclaw/` (예를 들어 `~/.openclaw/agents/<agentId>/sessions/`).
 
-관련된: [마이그레이션 중](/install/migrating), [디스크에 사물이 존재하는 곳](/help/faq#where-does-openclaw-store-its-data), 
-[상담원 작업공간](/concepts/agent-workspace), [의사](/gateway/doctor), 
+관련된: [마이그레이션 중](/install/migrating), [디스크에 사물이 존재하는 곳](/help/faq#where-does-openclaw-store-its-data),
+[상담원 작업공간](/concepts/agent-workspace), [의사](/gateway/doctor),
 [원격 모드](/gateway/remote).
 
 ### 최신 버전의 새로운 기능은 어디서 볼 수 있나요?
@@ -530,12 +716,12 @@ pnpm install
 pnpm build
 ```
 
-문서: [업데이트](/cli/update), [개발 채널](/install/development-channels), 
+문서: [업데이트](/cli/update), [개발 채널](/install/development-channels),
 [설치하다](/install).
 
 ### 설치 프로그램이 멈췄습니다. 추가 피드백을 받으려면 어떻게 해야 합니까?
 
-다음을 사용하여 설치 프로그램을 다시 실행하십시오. **자세한 출력**: 
+다음을 사용하여 설치 프로그램을 다시 실행하십시오. **자세한 출력**:
 
 ```bash
 curl -fsSL https://openclaw.ai/install.sh | bash -s -- --verbose
@@ -555,7 +741,7 @@ curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method git --ve
 
 추가 옵션: [설치 프로그램 플래그](/install/installer).
 
-### Windows 설치 시 git을 찾을 수 없거나 openclaw가 인식되지 않는다고 표시됩니다.
+### Windows 설치 시 git을 찾을 수 없거나 openclaw가 인식되지 않는다고 표시됩니다
 
 두 가지 일반적인 Windows 문제:
 
@@ -670,7 +856,7 @@ openclaw gateway restart
 **지역 전용 모델** 따라서 귀하의 데이터는 귀하의 장치에 유지됩니다. 구독(클로드
 Pro/Max 또는 OpenAI Codex)는 해당 공급자를 인증하는 선택적 방법입니다.
 
-문서: [인류학](/providers/anthropic), [오픈AI](/providers/openai), 
+문서: [인류학](/providers/anthropic), [오픈AI](/providers/openai),
 [현지 모델](/gateway/local-models), [모델](/concepts/models).
 
 ### API 키 없이 Claude Max 구독을 사용할 수 있나요?
@@ -689,7 +875,7 @@ Claude Pro/Max 구독 **API 키를 포함하지 마세요.**, 그래서 이것�
 
 ### Anthropic 설정 토큰은 어디서 찾을 수 있나요?
 
-그것은 **~ 아니다** 인류 콘솔에서. 설정 토큰은 다음에 의해 생성됩니다. **클로드 코드 CLI** ~에 **모든 기계**: 
+그것은 **~ 아니다** 인류 콘솔에서. 설정 토큰은 다음에 의해 생성됩니다. **클로드 코드 CLI** ~에 **모든 기계**:
 
 ```bash
 claude setup-token
@@ -766,7 +952,7 @@ Mac만 있으면 됩니다 **macOS 전용 도구용**. iMessage의 경우 다음
 - Linux/VPS에서 게이트웨이를 실행하고 메시지에 로그인된 모든 Mac에서 BlueBubbles 서버를 실행하세요.
 - 가장 간단한 단일 시스템 설정을 원한다면 Mac에서 모든 것을 실행하세요.
 
-문서: [블루버블스](/channels/bluebubbles), [노드](/nodes), 
+문서: [블루버블스](/channels/bluebubbles), [노드](/nodes),
 [맥 원격 모드](/platforms/mac/remote).
 
 ### OpenClaw를 실행하기 위해 Mac mini를 구입하는 경우 이를 MacBook Pro에 연결할 수 있나요?
@@ -786,7 +972,7 @@ Mac만 있으면 됩니다 **macOS 전용 도구용**. iMessage의 경우 다음
 ### 번을 사용해도 되나요?
 
 롤빵은 **권장하지 않음**. 특히 WhatsApp과 Telegram에서 런타임 버그가 발견됩니다.
-사용 **마디 ** 안정적인 게이트웨이를 위해.
+사용 **마디** 안정적인 게이트웨이를 위해.
 
 Bun을 계속 실험하고 싶다면 비프로덕션 게이트웨이에서 수행하세요.
 WhatsApp/텔레그램 없이.
@@ -811,7 +997,7 @@ WhatsApp/텔레그램 없이.
 
 ### 여러 사람이 서로 다른 OpenClaw 인스턴스에서 하나의 WhatsApp 번호를 사용할 수 있습니까?
 
-예, 다음을 통해 **다중 에이전트 라우팅**. 각 발신자의 WhatsApp 바인딩 **DM ** (또래 `kind: "dm"`, 발신자 E.164 좋아요 `+15551234567`) 다른 사람에게 `agentId`, 따라서 각 사람은 자신의 작업 공간과 세션 저장소를 갖게 됩니다. 답변은 여전히 ​​​​에서 옵니다. **동일한 WhatsApp 계정**및 DM 액세스 제어(`channels.whatsapp.dmPolicy` / `channels.whatsapp.allowFrom`)은 WhatsApp 계정별로 전 세계적으로 적용됩니다. 보다 [다중 에이전트 라우팅](/concepts/multi-agent) 그리고 [왓츠앱](/channels/whatsapp).
+예, 다음을 통해 **다중 에이전트 라우팅**. 각 발신자의 WhatsApp 바인딩 **DM** (또래 `kind: "dm"`, 발신자 E.164 좋아요 `+15551234567`) 다른 사람에게 `agentId`, 따라서 각 사람은 자신의 작업 공간과 세션 저장소를 갖게 됩니다. 답변은 여전히 ​​​​에서 옵니다. **동일한 WhatsApp 계정**및 DM 액세스 제어(`channels.whatsapp.dmPolicy` / `channels.whatsapp.allowFrom`)은 WhatsApp 계정별로 전 세계적으로 적용됩니다. 보다 [다중 에이전트 라우팅](/concepts/multi-agent) 그리고 [왓츠앱](/channels/whatsapp).
 
 ### 빠른 채팅 에이전트와 코딩 에이전트용 Opus를 실행할 수 있나요?
 
@@ -950,7 +1136,7 @@ SaaS.
   작업 공간 및 기본값.
 - **오픈 소스 및 해킹 가능:** 공급업체에 종속되지 않고 검사, 확장 및 자체 호스팅이 가능합니다.
 
-문서: [게이트웨이](/gateway), [채널](/channels), [다중 에이전트](/concepts/multi-agent), 
+문서: [게이트웨이](/gateway), [채널](/channels), [다중 에이전트](/concepts/multi-agent),
 [메모리](/concepts/memory).
 
 ### 방금 설정했는데 무엇을 먼저 해야 할까요?
@@ -1078,7 +1264,7 @@ pnpm add -g clawhub
 - **하트비트** "메인 세션" 정기 점검을 위해.
 - **고립된 직업** 요약을 게시하거나 채팅에 전달하는 자율 에이전트용입니다.
 
-문서: [크론 작업](/automation/cron-jobs), [크론 대 하트비트](/automation/cron-vs-heartbeat), 
+문서: [크론 작업](/automation/cron-jobs), [크론 대 하트비트](/automation/cron-vs-heartbeat),
 [하트비트](/gateway/heartbeat).
 
 ### Linux에서 Apple macOS 전용 기술을 실행할 수 있나요?
@@ -1232,7 +1418,7 @@ OpenAI 키가 확인되면 OpenAI를 선호하고, 그렇지 않으면 Gemini �
 
 현지에 머무르고 싶다면 다음을 설정하세요. `memorySearch.provider = "local"` (그리고 선택적으로
 `memorySearch.fallback = "none"`). Gemini 임베딩을 원하면 다음을 설정하세요.
-`memorySearch.provider = "gemini"` 그리고 제공하다 `GEMINI_API_KEY`  (또는 
+`memorySearch.provider = "gemini"` 그리고 제공하다 `GEMINI_API_KEY`  (또는
 `memorySearch.remote.apiKey`). 우리는 지원합니다 **OpenAI, Gemini 또는 로컬** 삽입
 모델 - 참조 [메모리](/concepts/memory) 설정 세부정보를 확인하세요.
 
@@ -1284,7 +1470,7 @@ OpenAI 키가 확인되면 OpenAI를 선호하고, 그렇지 않으면 Gemini �
 
 이 파일은 다음 위치에 있습니다. **상담원 작업공간**, 아니다 `~/.openclaw`.
 
-- **작업 공간(에이전트당)**: `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, 
+- **작업 공간(에이전트당)**: `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`,
   `MEMORY.md` (또는 `memory.md`), `memory/YYYY-MM-DD.md`, 선택사항 `HEARTBEAT.md`.
 - **상태 디렉토리(`~/.openclaw`)**: 구성, 자격 증명, 인증 프로필, 세션, 로그,
   및 공유 기술(`~/.openclaw/skills`).
@@ -1344,7 +1530,7 @@ AGENTS.md 또는 MEMORY.md** 채팅 기록에 의존하기보다는
 }
 ```
 
-### 세션 저장소가 있는 원격 모드에 있습니다.
+### 세션 저장소가 있는 원격 모드에 있습니다
 
 세션 상태는 다음이 소유합니다. **게이트웨이 호스트**. 원격 모드에 있는 경우 관심 있는 세션 저장소는 로컬 랩톱이 아닌 원격 시스템에 있습니다. 보다 [세션 관리](/concepts/session).
 
@@ -1360,7 +1546,7 @@ $OPENCLAW_CONFIG_PATH
 
 파일이 누락된 경우 안전한 기본값(기본 작업 공간 포함)을 사용합니다. `~/.openclaw/workspace`).
 
-### Gatewaybind lan 또는 tailnet을 설정했는데 이제 UI에서 승인되지 않았다는 내용이 아무것도 들리지 않습니다.
+### Gatewaybind lan 또는 tailnet을 설정했는데 이제 UI에서 승인되지 않았다는 내용이 아무것도 들리지 않습니다
 
 비루프백 바인드 **인증이 필요하다**. 구성 `gateway.auth.mode` + `gateway.auth.token` (또는 사용 `OPENCLAW_GATEWAY_TOKEN`).
 
@@ -1428,7 +1614,7 @@ $OPENCLAW_CONFIG_PATH
 
 ### 여러 장치에서 전문 작업자와 함께 중앙 게이트웨이를 실행하려면 어떻게 해야 합니까?
 
-일반적인 패턴은 **하나의 게이트웨이** (예: 라즈베리 파이) 플러스 **노드** 그리고 **자치령 대표**: 
+일반적인 패턴은 **하나의 게이트웨이** (예: 라즈베리 파이) 플러스 **노드** 그리고 **자치령 대표**:
 
 - **게이트웨이(중앙):** 채널(Signal/WhatsApp), 라우팅 및 세션을 소유합니다.
 - **노드(장치):** Mac/iOS/Android는 주변 장치로 연결하고 로컬 도구를 노출합니다(`system.run`, `canvas`, `camera`).
@@ -1692,7 +1878,7 @@ OpenClaw는 상위 프로세스(shell, launchd/systemd, CI 등)에서 환경 변
 
 보다 [/환경](/help/environment) 전체 우선 순위와 소스를 확인하세요.
 
-### 서비스를 통해 게이트웨이를 시작했는데 내 환경 변수가 사라졌습니다.
+### 서비스를 통해 게이트웨이를 시작했는데 내 환경 변수가 사라졌습니다
 
 두 가지 일반적인 수정 사항:
 
@@ -1722,7 +1908,7 @@ OpenClaw는 상위 프로세스(shell, launchd/systemd, CI 등)에서 환경 변
 게이트웨이가 서비스(launchd/systemd)로 실행되는 경우 셸을 상속하지 않습니다.
 환경. 다음 중 하나를 수행하여 문제를 해결하세요.
 
-1. 토큰을 넣어주세요 `~/.openclaw/.env`: 
+1. 토큰을 넣어주세요 `~/.openclaw/.env`:
 
    ```
    COPILOT_GITHUB_TOKEN=...
@@ -1947,7 +2133,7 @@ openclaw directory groups list --channel whatsapp
 - 해당 에이전트에 바인딩된 Slack 채널입니다.
 - 필요한 경우 확장 릴레이(또는 노드)를 통해 로컬 브라우저.
 
-문서: [다중 에이전트 라우팅](/concepts/multi-agent), [느슨하게](/channels/slack), 
+문서: [다중 에이전트 라우팅](/concepts/multi-agent), [느슨하게](/channels/slack),
 [브라우저](/tools/browser), [크롬 확장 프로그램](/tools/chrome-extension), [노드](/nodes).
 
 ## 모델: 기본값, 선택, 별칭, 전환
@@ -1969,12 +2155,12 @@ agents.defaults.model.primary
 **신뢰성(적은 문자):** `openai/gpt-5.2` - 거의 Opus만큼 훌륭하지만 개성은 떨어집니다.
 **예산:** `zai/glm-4.7`.
 
-MiniMax M2.1에는 자체 문서가 있습니다. [미니맥스](/providers/minimax) 그리고 
+MiniMax M2.1에는 자체 문서가 있습니다. [미니맥스](/providers/minimax) 그리고
 [현지 모델](/gateway/local-models).
 
 경험 법칙: **당신이 감당할 수 있는 최고의 모델** 고위험 작업을 위해, 그리고 더 저렴하게
 일상적인 채팅이나 요약을 위한 모델입니다. 에이전트별로 모델을 라우팅하고 하위 에이전트를 사용하여 다음을 수행할 수 있습니다.
-긴 작업을 병렬화합니다(각 하위 에이전트는 토큰을 소비합니다). 보다 [모델](/concepts/models) 그리고 
+긴 작업을 병렬화합니다(각 하위 에이전트는 토큰을 소비합니다). 보다 [모델](/concepts/models) 그리고
 [하위 에이전트](/tools/subagents).
 
 강력한 경고: 약하거나 과도하게 양자화된 모델은 프롬프트에 더 취약합니다.
@@ -1991,8 +2177,8 @@ MiniMax M2.1에는 자체 문서가 있습니다. [미니맥스](/providers/mini
 주사. 우리는 강력히 추천합니다 **대형 모델** 도구를 사용할 수 있는 모든 봇의 경우.
 여전히 작은 모델을 원한다면 샌드박싱과 엄격한 도구 허용 목록을 활성화하세요.
 
-문서: [올라마](/providers/ollama), [현지 모델](/gateway/local-models), 
-[모델 제공자](/concepts/model-providers), [보안](/gateway/security), 
+문서: [올라마](/providers/ollama), [현지 모델](/gateway/local-models),
+[모델 제공자](/concepts/model-providers), [보안](/gateway/security),
 [샌드박싱](/gateway/sandboxing).
 
 ### 구성을 삭제하지 않고 모델을 전환하는 방법
@@ -2050,7 +2236,7 @@ MiniMax M2.1에는 자체 문서가 있습니다. [미니맥스](/providers/mini
 
 **프로필로 설정한 프로필을 어떻게 고정 해제하나요?**
 
-재실행 `/model` ** 없이 ** 그만큼 `@profile` 접미사:
+재실행 `/model` **없이** 그만큼 `@profile` 접미사:
 
 ```
 /model anthropic/claude-opus-4-6
@@ -2092,7 +2278,7 @@ Model "provider/model" is not allowed. Use /model to list available models.
 1. 업그레이드 **2026.1.12** (또는 소스에서 실행 `main`) 그런 다음 게이트웨이를 다시 시작합니다.
 2. MiniMax가 구성되어 있는지(마법사 또는 JSON) 또는 MiniMax API 키가 있는지 확인하세요.
    공급자를 삽입할 수 있도록 env/auth 프로필에 존재합니다.
-3. 정확한 모델 ID 사용(대소문자 구분): `minimax/MiniMax-M2.1` 또는 
+3. 정확한 모델 ID 사용(대소문자 구분): `minimax/MiniMax-M2.1` 또는
    `minimax/MiniMax-M2.1-lightning`.
 4. 달리다:
 
@@ -2140,7 +2326,7 @@ Model "provider/model" is not allowed. Use /model to list available models.
 
 문서: [모델](/concepts/models), [다중 에이전트 라우팅](/concepts/multi-agent), [미니맥스](/providers/minimax), [오픈AI](/providers/openai).
 
-### Opus Sonnet gpt에는 단축키가 내장되어 있습니다.
+### Opus Sonnet gpt에는 단축키가 내장되어 있습니다
 
 예. OpenClaw는 몇 가지 기본 약어를 제공합니다(모델이 `agents.defaults.models`):
 
@@ -2404,7 +2590,7 @@ OpenClaw는 시작 시 즉시 WebSocket 수신기를 바인딩하여 런타임 �
 - `openclaw gateway` 다음 경우에만 시작됩니다. `gateway.mode` ~이다 `local` (또는 재정의 플래그를 전달합니다).
 - macOS 앱은 구성 파일을 감시하고 이러한 값이 변경되면 실시간으로 모드를 전환합니다.
 
-### 제어 UI에 승인되지 않은 메시지가 표시되거나 계속 다시 연결됩니다.
+### 제어 UI에 승인되지 않은 메시지가 표시되거나 계속 다시 연결됩니다
 
 게이트웨이가 인증이 활성화된 상태로 실행 중입니다(`gateway.auth.*`), 그러나 UI가 일치하는 토큰/비밀번호를 보내지 않습니다.
 
@@ -2421,7 +2607,7 @@ OpenClaw는 시작 시 즉시 WebSocket 수신기를 바인딩하여 런타임 �
 - Control UI 설정에서 동일한 토큰을 붙여넣습니다.
 - 아직도 붙어있나요? 달리다 `openclaw status --all` 그리고 따라와 [문제 해결](/gateway/troubleshooting). 보다 [계기반](/web/dashboard) 인증 세부정보를 확인하세요.
 
-### Gatewaybind tailnet을 설정했지만 아무것도 바인딩할 수 없습니다.
+### Gatewaybind tailnet을 설정했지만 아무것도 바인딩할 수 없습니다
 
 `tailnet` 바인드는 네트워크 인터페이스(100.64.0.0/10)에서 Tailscale IP를 선택합니다. 머신이 Tailscale에 있지 않거나 인터페이스가 다운된 경우 바인딩할 것이 없습니다.
 
@@ -2517,7 +2703,7 @@ openclaw gateway restart
 
 ### Windows에서 터미널을 닫았습니다. OpenClaw를 다시 시작하려면 어떻게 해야 하나요?
 
-있다 **두 가지 Windows 설치 모드**: 
+있다 **두 가지 Windows 설치 모드**:
 
 **1) WSL2(권장):** 게이트웨이는 Linux 내부에서 실행됩니다.
 
@@ -2574,7 +2760,7 @@ openclaw logs --follow
 
 문서: [채널](/channels), [문제 해결](/gateway/troubleshooting), [원격 액세스](/gateway/remote).
 
-### 게이트웨이에서 연결이 끊어졌습니다. 지금은 이유가 없습니다.
+### 게이트웨이에서 연결이 끊어졌습니다. 지금은 이유가 없습니다
 
 이는 일반적으로 UI에서 WebSocket 연결이 끊어졌음을 의미합니다. 확인하다:
 
@@ -2654,7 +2840,7 @@ openclaw gateway run
 
 ## 미디어 및 첨부 파일
 
-### 내 스킬이 imagePDF를 생성했지만 아무것도 전송되지 않았습니다.
+### 내 스킬이 imagePDF를 생성했지만 아무것도 전송되지 않았습니다
 
 상담원의 아웃바운드 첨부 파일에는 다음이 포함되어야 합니다. `MEDIA:<path-or-url>` 라인(자체 라인). 보다 [OpenClaw 어시스턴트 설정](/start/openclaw) 그리고 [에이전트 보내기](/tools/agent-send).
 
@@ -2677,7 +2863,7 @@ openclaw message send --target +15555550123 --message "Here you go" --media /pat
 
 인바운드 DM을 신뢰할 수 없는 입력으로 처리합니다. 기본값은 위험을 줄이기 위해 설계되었습니다.
 
-- DM 가능 채널의 기본 동작은 다음과 같습니다. **편성**: 
+- DM 가능 채널의 기본 동작은 다음과 같습니다. **편성**:
   - 알 수 없는 발신자는 페어링 코드를 받습니다. 봇은 메시지를 처리하지 않습니다.
   - 다음으로 승인하세요: `openclaw pairing approve <channel> <code>`
   - 보류 중인 요청은 다음으로 제한됩니다. **채널당 3개**; 확인하다 `openclaw pairing list <channel>` 코드가 도착하지 않은 경우.
@@ -2730,7 +2916,7 @@ openclaw message send --target +15555550123 --message "Here you go" --media /pat
 또는 신뢰할 수 없는 콘텐츠를 읽을 때. 더 작은 모델을 사용해야 한다면 잠그세요.
 도구를 사용하고 샌드박스 내에서 실행합니다. 보다 [보안](/gateway/security).
 
-### Telegram에서 start를 실행했는데 페어링 코드를 받지 못했습니다.
+### Telegram에서 start를 실행했는데 페어링 코드를 받지 못했습니다
 
 페어링 코드가 전송되었습니다 **오직** 알 수 없는 발신자가 봇에게 메시지를 보낼 때
 `dmPolicy: "pairing"` 활성화되었습니다. `/start` 그 자체로는 코드를 생성하지 않습니다.
@@ -2807,7 +2993,7 @@ process action:kill sessionId:XXX
 
 대부분의 명령은 다음과 같이 전송되어야 합니다. **독립형** 다음으로 시작하는 메시지 `/`, 하지만 몇 가지 단축키(예: `/status`) 또한 허용 목록에 있는 발신자에 대해 인라인으로 작업할 수 있습니다.
 
-### Telegram Crosscontext 메시지에서 Discord 메시지를 보내는 방법이 거부되었습니다.
+### Telegram Crosscontext 메시지에서 Discord 메시지를 보내는 방법이 거부되었습니다
 
 OpenClaw 블록 **교차 공급자** 기본적으로 메시징. 도구 호출이 바인딩된 경우
 Telegram으로 전송하는 경우 명시적으로 허용하지 않는 한 Discord로 전송되지 않습니다.
@@ -2846,7 +3032,7 @@ Telegram으로 전송하는 경우 명시적으로 허용하지 않는 한 Disco
 
 다음과 같은 옵션을 추가할 수 있습니다. `debounce:2s cap:25 drop:summarize` 후속 모드의 경우.
 
-## 스크린샷/채팅 로그의 정확한 질문에 답하세요.
+## 스크린샷/채팅 로그의 정확한 질문에 답하세요
 
 **Q: "API 키가 있는 Anthropic의 기본 모델은 무엇입니까?"**
 

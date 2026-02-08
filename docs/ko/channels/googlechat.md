@@ -12,6 +12,8 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="config-highlights"></a>
+
 # Google 채팅(채팅 API)
 
 상태: Google Chat API 웹후크를 통해 DM + 스페이스를 사용할 수 있습니다(HTTP만 해당).

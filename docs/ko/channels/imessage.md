@@ -13,6 +13,8 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="troubleshooting-macos-privacy-and-security-tcc"></a>
+
 # iMessage(기존: imsg)
 
 > **권장사항:** 사용 [블루버블스](/channels/bluebubbles) 새로운 iMessage 설정을 위해.

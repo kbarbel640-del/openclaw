@@ -99,7 +99,7 @@ openclaw browser --browser-profile openclaw snapshot
 - 자동 감지 순서: Chromium 기반인 경우 시스템 기본 브라우저. 그렇지 않으면 Chrome → Brave → Edge → Chromium → Chrome Canary.
 - 현지의 `openclaw` 프로필 자동 할당 `cdpPort`/`cdpUrl` — 원격 CDP에 대해서만 설정하십시오.
 
-## Brave(또는 다른 Chromium 기반 브라우저)를 사용하세요.
+## Brave(또는 다른 Chromium 기반 브라우저)를 사용하세요
 
 만약 당신의 **시스템 기본값** 브라우저는 Chromium 기반(Chrome/Brave/Edge/etc)입니다.
 OpenClaw는 이를 자동으로 사용합니다. 세트 `browser.executablePath` 재정의하다
@@ -245,7 +245,7 @@ OpenClaw도 운전할 수 있습니다 **기존 Chrome 탭** (별도의 "opencla
 Chrome 확장 릴레이 인수에는 호스트 브라우저 제어가 필요하므로 다음 중 하나를 수행합니다.
 
 - 샌드박스 처리되지 않은 세션을 실행하거나
--  세트 `agents.defaults.sandbox.browser.allowHostControl: true` 그리고 사용 `target="host"` 도구를 호출할 때.
+- 세트 `agents.defaults.sandbox.browser.allowHostControl: true` 그리고 사용 `target="host"` 도구를 호출할 때.
 
 ### 설정
 
@@ -398,7 +398,7 @@ docker compose run --rm openclaw-cli \
 - `openclaw browser pdf`
 - `openclaw browser responsebody "**/api" --max-chars 5000`
 
-행위: 
+행위:
 
 - `openclaw browser navigate https://example.com`
 - `openclaw browser resize 1280 720`
@@ -422,7 +422,7 @@ docker compose run --rm openclaw-cli \
 - `openclaw browser trace start`
 - `openclaw browser trace stop`
 
-상태: 
+상태:
 
 - `openclaw browser cookies`
 - `openclaw browser cookies set session abc123 --url "https://example.com"`

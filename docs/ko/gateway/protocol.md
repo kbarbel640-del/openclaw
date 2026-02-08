@@ -198,7 +198,7 @@ x-i18n:
 - 페어링 후 게이트웨이는 **장치 토큰** 연결 범위에 속함
   역할 + 범위. 에 반환됩니다. `hello-ok.auth.deviceToken` 그리고 그래야 한다
   향후 연결을 위해 클라이언트에 의해 유지됩니다.
-- 장치 토큰은 다음을 통해 교체/해지될 수 있습니다. `device.token.rotate` 그리고 
+- 장치 토큰은 다음을 통해 교체/해지될 수 있습니다. `device.token.rotate` 그리고
   `device.token.revoke` (요구 `operator.pairing` 범위).
 
 ## 장치 ID + 페어링

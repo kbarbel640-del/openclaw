@@ -32,7 +32,7 @@ x-i18n:
 내용(예):
 
 - 유형: `ChannelPlugin`, 어댑터, `ChannelMeta`, `ChannelCapabilities`, `ChannelDirectoryEntry`.
-- 구성 도우미: `buildChannelConfigSchema`, `setAccountEnabledInConfigSection`, `deleteAccountFromConfigSection`, 
+- 구성 도우미: `buildChannelConfigSchema`, `setAccountEnabledInConfigSection`, `deleteAccountFromConfigSection`,
   `applyAccountNameToChannelSection`.
 - 페어링 도우미: `PAIRING_APPROVED_MESSAGE`, `formatPairingApproveHint`.
 - 온보딩 도우미: `promptChannelAccessConfig`, `addWildcardAllowFrom`, 온보딩 유형.

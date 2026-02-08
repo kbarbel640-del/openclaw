@@ -159,7 +159,7 @@ Does it need a different model or thinking level?
 
 ## 둘 다 결합
 
-가장 효율적인 설정은 다음과 같습니다. **둘 다**: 
+가장 효율적인 설정은 다음과 같습니다. **둘 다**:
 
 1. **하트비트** 일상적인 모니터링(받은 편지함, 일정, 알림)을 30분마다 일괄적으로 처리합니다.
 2. **크론** 정확한 일정(일일 보고서, 주간 검토) 및 일회성 알림을 처리합니다.
@@ -275,7 +275,7 @@ openclaw cron add \
 | Cron (main)     | Adds event to next heartbeat (no isolated turn)         |
 | Cron (isolated) | Full agent turn per job; can use cheaper model          |
 
-**팁**: 
+**팁**:
 
 - 유지하다 `HEARTBEAT.md` 토큰 오버헤드를 최소화하기 위해 작습니다.
 - 여러 cron 작업 대신 유사한 검사를 하트비트로 일괄 처리합니다.

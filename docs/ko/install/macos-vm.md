@@ -119,7 +119,7 @@ VNC 창에서:
 
 ---
 
-## 4) VM의 IP 주소를 가져옵니다.
+## 4) VM의 IP 주소를 가져옵니다
 
 ```bash
 lume get openclaw

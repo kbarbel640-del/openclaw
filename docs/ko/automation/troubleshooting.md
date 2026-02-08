@@ -78,7 +78,7 @@ openclaw logs --follow
 - 게재 대상이 누락되었거나 잘못되었습니다(`channel`/`to`) → 실행이 내부적으로 성공할 수 있지만 아웃바운드는 건너뛸 수 있습니다.
 - 채널 인증 오류(`unauthorized`, `missing_scope`, `Forbidden`) → 채널 자격 증명/권한에 의해 전달이 차단됩니다.
 
-## 하트비트가 억제되거나 건너뛰었습니다.
+## 하트비트가 억제되거나 건너뛰었습니다
 
 ```bash
 openclaw system heartbeat last

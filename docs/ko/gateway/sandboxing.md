@@ -59,7 +59,7 @@ OpenClaw를 실행할 수 있습니다 **Docker 컨테이너 내부의 도구** 
 
 ## 작업공간 액세스
 
-`agents.defaults.sandbox.workspaceAccess` 통제 수단 **샌드박스에서 볼 수 있는 것**: 
+`agents.defaults.sandbox.workspaceAccess` 통제 수단 **샌드박스에서 볼 수 있는 것**:
 
 - `"none"` (기본값): 도구는 아래의 샌드박스 작업 공간을 확인합니다. `~/.openclaw/sandboxes`.
 - `"ro"`: 에이전트 작업 영역을 읽기 전용으로 마운트합니다. `/agent` (비활성화 `write`/`edit`/`apply_patch`).

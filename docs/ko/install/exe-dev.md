@@ -74,7 +74,7 @@ OpenClaw 설치 스크립트를 실행합니다:
 curl -fsSL https://openclaw.ai/install.sh | bash
 ```
 
-## 4) OpenClaw를 포트 8000으로 프록시하도록 nginx를 설정합니다.
+## 4) OpenClaw를 포트 8000으로 프록시하도록 nginx를 설정합니다
 
 편집하다 `/etc/nginx/sites-enabled/default` ~와 함께
 
@@ -112,7 +112,7 @@ server {
 
 입장 `https://<vm-name>.exe.xyz/` (온보딩의 Control UI 출력 참조) 인증을 묻는 메시지가 나타나면
 토큰 `gateway.auth.token` VM에서(다음으로 검색 `openclaw config get gateway.auth.token`또는 생성
-와 `openclaw doctor --generate-gateway-token`). 다음이 포함된 기기를 승인하세요. `openclaw devices list` 그리고 
+와 `openclaw doctor --generate-gateway-token`). 다음이 포함된 기기를 승인하세요. `openclaw devices list` 그리고
 `openclaw devices approve <requestId>`. 의심스러우면 브라우저에서 Shelley를 사용해 보세요!
 
 ## 원격 액세스

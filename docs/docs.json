@@ -1965,7 +1965,7 @@
         "language": "ko",
         "tabs": [
           {
-            "tab": "Get started (KO)",
+            "tab": "시작하기",
             "groups": [
               {
                 "group": "Home",
@@ -2002,7 +2002,7 @@
             ]
           },
           {
-            "tab": "Install (KO)",
+            "tab": "설치",
             "groups": [
               {
                 "group": "Install overview",
@@ -2050,7 +2050,7 @@
             ]
           },
           {
-            "tab": "Channels (KO)",
+            "tab": "채널",
             "groups": [
               {
                 "group": "Overview",
@@ -2093,7 +2093,7 @@
             ]
           },
           {
-            "tab": "Agents (KO)",
+            "tab": "에이전트",
             "groups": [
               {
                 "group": "Fundamentals",
@@ -2143,7 +2143,7 @@
             ]
           },
           {
-            "tab": "Tools (KO)",
+            "tab": "도구",
             "groups": [
               {
                 "group": "Overview",
@@ -2233,7 +2233,7 @@
             ]
           },
           {
-            "tab": "Models (KO)",
+            "tab": "모델",
             "groups": [
               {
                 "group": "Overview",
@@ -2275,7 +2275,7 @@
             ]
           },
           {
-            "tab": "Platforms (KO)",
+            "tab": "플랫폼",
             "groups": [
               {
                 "group": "Platforms overview",
@@ -2314,7 +2314,7 @@
             ]
           },
           {
-            "tab": "Gateway & Ops (KO)",
+            "tab": "게이트웨이 및 운영",
             "groups": [
               {
                 "group": "Gateway",
@@ -2393,7 +2393,7 @@
             ]
           },
           {
-            "tab": "Reference (KO)",
+            "tab": "레퍼런스",
             "groups": [
               {
                 "group": "CLI commands",
@@ -2490,7 +2490,7 @@
             ]
           },
           {
-            "tab": "Help (KO)",
+            "tab": "도움말",
             "groups": [
               {
                 "group": "Help",

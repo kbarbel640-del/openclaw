@@ -254,7 +254,7 @@ openclaw doctor
 
 대부분의 업그레이드 후 중단은 구성 드리프트이거나 현재 시행되고 있는 더 엄격한 기본값입니다.
 
-### 1) 인증 및 URL 재정의 동작이 변경되었습니다.
+### 1) 인증 및 URL 재정의 동작이 변경되었습니다
 
 ```bash
 openclaw gateway status
@@ -273,7 +273,7 @@ openclaw config get gateway.auth.mode
 - `gateway connect failed:` → 잘못된 URL 타겟.
 - `unauthorized` → 엔드포인트에 연결할 수 있지만 인증이 잘못되었습니다.
 
-### 2) 바인드 및 인증 가드레일이 더욱 엄격해졌습니다.
+### 2) 바인드 및 인증 가드레일이 더욱 엄격해졌습니다
 
 ```bash
 openclaw config get gateway.bind
@@ -292,7 +292,7 @@ openclaw logs --follow
 - `refusing to bind gateway ... without auth` → 바인드+인증 불일치.
 - `RPC probe: failed` 런타임이 실행되는 동안 → 게이트웨이는 활성화되어 있지만 현재 인증/URL로는 액세스할 수 없습니다.
 
-### 3) 페어링 및 장치 ID 상태가 변경되었습니다.
+### 3) 페어링 및 장치 ID 상태가 변경되었습니다
 
 ```bash
 openclaw devices list

@@ -174,7 +174,7 @@ base64 또는 URL 소스를 지원합니다:
 }
 ```
 
-허용되는 MIME 유형(현재): `text/plain`, `text/markdown`, `text/html`, `text/csv`, 
+허용되는 MIME 유형(현재): `text/plain`, `text/markdown`, `text/html`, `text/csv`,
 `application/json`, `application/pdf`.
 
 최대 크기(현재): 5MB.

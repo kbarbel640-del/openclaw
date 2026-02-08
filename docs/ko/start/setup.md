@@ -88,7 +88,7 @@ openclaw health
 
 목표: TypeScript 게이트웨이 작업, 핫 리로드, macOS 앱 UI 연결 유지.
 
-### 0) (선택 사항) 소스에서도 macOS 앱을 실행합니다.
+### 0) (선택 사항) 소스에서도 macOS 앱을 실행합니다
 
 최첨단 macOS 앱도 원한다면:
 
@@ -105,7 +105,7 @@ pnpm gateway:watch
 
 `gateway:watch` 감시 모드에서 게이트웨이를 실행하고 TypeScript 변경 사항을 다시 로드합니다.
 
-### 2) 실행 중인 게이트웨이에서 macOS 앱을 가리킵니다.
+### 2) 실행 중인 게이트웨이에서 macOS 앱을 가리킵니다
 
 ~ 안에 **OpenClaw.app**:
 

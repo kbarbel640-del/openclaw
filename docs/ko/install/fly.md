@@ -10,6 +10,8 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="private-deployment-hardened"></a>
+
 # Fly.io 배포
 
 **목표:** OpenClaw Gateway는 다음에서 실행됩니다. [Fly.io](https://fly.io) 영구 저장소, 자동 HTTPS, Discord/채널 액세스 기능을 갖춘 머신입니다.

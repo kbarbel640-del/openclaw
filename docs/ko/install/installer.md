@@ -14,6 +14,10 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="installsh"></a>
+<a id="install-clish"></a>
+<a id="installps1"></a>
+
 # 설치 프로그램 내부
 
 OpenClaw는 다음에서 제공되는 세 가지 설치 프로그램 스크립트를 제공합니다. `openclaw.ai`.

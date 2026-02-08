@@ -1575,7 +1575,7 @@ exec ssh -T gateway-host imsg "$@"
 예제 출력: `[claude-opus-4-6 | think:high] Here's my response...`
 
 WhatsApp 인바운드 접두사는 다음을 통해 구성됩니다. `channels.whatsapp.messagePrefix` (더 이상 사용되지 않음:
-`messages.messagePrefix`). 기본 숙박 **변하지 않은**: `"[openclaw]"` 언제 
+`messages.messagePrefix`). 기본 숙박 **변하지 않은**: `"[openclaw]"` 언제
 `channels.whatsapp.allowFrom` 비어 있습니다. 그렇지 않으면 `""` (접두사 없음). 사용시
 `"[openclaw]"`, OpenClaw는 대신 `[{identity.name}]` 라우팅되었을 때
 대리인이 `identity.name` 세트.
@@ -1716,7 +1716,7 @@ Z.AI GLM-4.x 모델은 다음과 같은 경우를 제외하고 자동으로 사�
 - 정의하다 `agents.defaults.models["zai/<model>"].params.thinking` 당신 자신.
 
 OpenClaw에는 몇 가지 내장 별칭 속기도 제공됩니다. 기본값은 모델이
-에 이미 존재합니다. `agents.defaults.models`: 
+에 이미 존재합니다. `agents.defaults.models`:
 
 - `opus` -> `anthropic/claude-opus-4-6`
 - `sonnet` -> `anthropic/claude-sonnet-4-5`
@@ -1996,9 +1996,9 @@ Pi 압축 값(기본값: `20000`). 다음으로 설정하세요 `0` 바닥을 �
   기본값은 `{ idleMs: 1000 }` 그리고 상속받다 `minChars` ~에서 `blockStreamingChunk`
   ~와 함께 `maxChars` 채널 텍스트 제한으로 제한됩니다. Signal/Slack/Discord/Google Chat 기본
   에 `minChars: 1500` 재정의되지 않는 한.
-  채널 재정의: `channels.whatsapp.blockStreamingCoalesce`, `channels.telegram.blockStreamingCoalesce`, 
-  `channels.discord.blockStreamingCoalesce`, `channels.slack.blockStreamingCoalesce`, `channels.mattermost.blockStreamingCoalesce`, 
-  `channels.signal.blockStreamingCoalesce`, `channels.imessage.blockStreamingCoalesce`, `channels.msteams.blockStreamingCoalesce`, 
+  채널 재정의: `channels.whatsapp.blockStreamingCoalesce`, `channels.telegram.blockStreamingCoalesce`,
+  `channels.discord.blockStreamingCoalesce`, `channels.slack.blockStreamingCoalesce`, `channels.mattermost.blockStreamingCoalesce`,
+  `channels.signal.blockStreamingCoalesce`, `channels.imessage.blockStreamingCoalesce`, `channels.msteams.blockStreamingCoalesce`,
   `channels.googlechat.blockStreamingCoalesce`
   (및 계정별 변형).
 - `agents.defaults.humanDelay`: 다음 사이의 무작위 일시중지 **답글 차단** 첫 번째 이후.
@@ -2086,7 +2086,7 @@ Z.AI 모델은 다음과 같이 제공됩니다. `zai/<model>` (예: `zai/glm-4.
 
 - `tools.media.models`: 공유 모델 목록(기능 태그가 지정됨, 캡별 목록 뒤에 사용됨)
 - `tools.media.concurrency`: 최대 동시 기능이 실행됩니다(기본값 2).
-- `tools.media.image`/`tools.media.audio`/`tools.media.video`: 
+- `tools.media.image`/`tools.media.audio`/`tools.media.video`:
   - `enabled`: 옵트아웃 스위치(모델이 구성된 경우 기본값은 true).
   - `prompt`: 선택적 프롬프트 재정의(이미지/비디오 추가 `maxChars` 자동으로 힌트를 줍니다).
   - `maxChars`: 최대 출력 문자(이미지/비디오의 경우 기본값은 500, 오디오의 경우 설정되지 않음)
@@ -2146,7 +2146,7 @@ Z.AI 모델은 다음과 같이 제공됩니다. `zai/<model>` (예: `zai/glm-4.
 - `archiveAfterMinutes`: N분 후 하위 에이전트 세션 자동 보관(기본값 60, 설정) `0` 비활성화)
 - 하위 에이전트별 도구 정책: `tools.subagents.tools.allow`/`tools.subagents.tools.deny` (승리 거부)
 
-`tools.profile` 세트하다 **기본 도구 허용 목록** ~ 전에 `tools.allow`/`tools.deny`: 
+`tools.profile` 세트하다 **기본 도구 허용 목록** ~ 전에 `tools.allow`/`tools.deny`:
 
 - `minimal`: `session_status`오직
 - `coding`: `group:fs`, `group:runtime`, `group:sessions`, `group:memory`, `image`
@@ -2315,7 +2315,7 @@ Z.AI 모델은 다음과 같이 제공됩니다. `zai/<model>` (예: `zai/glm-4.
 경고: `scope: "shared"` 공유 컨테이너, 공유 작업 공간을 의미합니다. 아니요
 세션 간 격리. 사용 `scope: "session"` 세션별 ​​격리를 위해.
 
-유산: `perSession` 여전히 지원됩니다(`true` → `scope: "session"`, 
+유산: `perSession` 여전히 지원됩니다(`true` → `scope: "session"`,
 `false` → `scope: "shared"`).
 
 `setupCommand` 달린다 **한 번** 컨테이너가 생성된 후(다음을 통해 컨테이너 내부) `sh -lc`).
@@ -2447,7 +2447,7 @@ OpenClaw는 다음을 사용합니다. **파이 코딩 에이전트** 모델 카
 OpenClaw 구성 `models.providers`.
 제공자별 개요 + 예: [/개념/모델 제공자](/concepts/model-providers).
 
-언제 `models.providers` 존재하는 경우 OpenClaw는 다음을 작성/병합합니다. `models.json` ~ 안으로 
+언제 `models.providers` 존재하는 경우 OpenClaw는 다음을 작성/병합합니다. `models.json` ~ 안으로
 `~/.openclaw/agents/<agentId>/agent/` 시작 시:
 
 - 기본 동작: **병합** (기존 공급자를 유지하고 이름을 재정의함)
@@ -2492,7 +2492,7 @@ OpenClaw 구성 `models.providers`.
 ### OpenCode Zen(다중 모델 프록시)
 
 OpenCode Zen은 모델별 엔드포인트가 있는 다중 모델 게이트웨이입니다. OpenClaw는 다음을 사용합니다.
-내장 `opencode` pi-ai의 공급자; 세트 `OPENCODE_API_KEY`  (또는 
+내장 `opencode` pi-ai의 공급자; 세트 `OPENCODE_API_KEY`  (또는
 `OPENCODE_ZEN_API_KEY`) 에서 [https://opencode.ai/auth](https://opencode.ai/auth).
 
 참고:
@@ -2742,7 +2742,7 @@ OpenAI 호환 엔드포인트를 통해 Cerebras를 사용하세요.
 
 참고:
 
-- 지원되는 API: `openai-completions`, `openai-responses`, `anthropic-messages`, 
+- 지원되는 API: `openai-completions`, `openai-responses`, `anthropic-messages`,
   `google-generative-ai`
 - 사용 `authHeader: true` + `headers` 사용자 정의 인증 요구 사항을 위해.
 - 다음으로 에이전트 구성 루트를 재정의합니다. `OPENCLAW_AGENT_DIR` (또는 `PI_CODING_AGENT_DIR`)
@@ -3184,7 +3184,7 @@ openclaw gateway --port 19001
 
 요청에는 후크 토큰이 포함되어야 합니다.
 
-- `Authorization: Bearer <token>` ** 또는 **
+- `Authorization: Bearer <token>` **또는**
 - `x-openclaw-token: <token>`
 
 엔드포인트:
@@ -3271,7 +3271,7 @@ Tailscale은 프록시를 사용할 수 있습니다. `/gmail-pubsub` 올바르�
 - 또한 A2UI를 제공합니다. `/__openclaw__/a2ui/` 노드에 다음과 같이 광고됩니다. `canvasHostUrl`
   (항상 Canvas/A2UI용 노드에서 사용됨)
 
-디렉토리가 크거나 다음을 누르는 경우 실시간 재로드(및 파일 감시)를 비활성화합니다. `EMFILE`: 
+디렉토리가 크거나 다음을 누르는 경우 실시간 재로드(및 파일 감시)를 비활성화합니다. `EMFILE`:
 
 - 구성: `canvasHost: { liveReload: false }`
 

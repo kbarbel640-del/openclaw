@@ -110,7 +110,7 @@ my-hook/
 openclaw hooks install <path-or-spec>
 ```
 
-예 `package.json`: 
+예 `package.json`:
 
 ```json
 {
@@ -431,7 +431,7 @@ openclaw hooks info session-memory
 openclaw hooks info session-memory --json
 ```
 
-### 자격 확인
+### 자격 문제 진단
 
 ```bash
 # Show eligibility summary
@@ -463,14 +463,14 @@ openclaw hooks disable command-logger
 
 **산출**: `<workspace>/memory/YYYY-MM-DD-slug.md` (기본값은 `~/.openclaw/workspace`)
 
-**기능**: 
+**기능**:
 
 1. 사전 재설정 세션 항목을 사용하여 올바른 기록을 찾습니다.
 2. 대화의 마지막 15줄을 추출합니다.
 3. LLM을 사용하여 설명적인 파일 이름 슬러그를 생성합니다.
 4. 세션 메타데이터를 날짜가 지정된 메모리 파일에 저장합니다.
 
-**예제 출력**: 
+**예제 출력**:
 
 ```markdown
 # Session: 2026-01-16 14:30:00 UTC
@@ -480,13 +480,13 @@ openclaw hooks disable command-logger
 - **Source**: telegram
 ```
 
-**파일 이름 예시**: 
+**파일 이름 예시**:
 
 - `2026-01-16-vendor-pitch.md`
 - `2026-01-16-api-design.md`
 - `2026-01-16-1430.md` (슬러그 생성이 실패할 경우 대체 타임스탬프)
 
-**할 수 있게 하다**: 
+**할 수 있게 하다**:
 
 ```bash
 openclaw hooks enable session-memory
@@ -502,20 +502,20 @@ openclaw hooks enable session-memory
 
 **산출**: `~/.openclaw/logs/commands.log`
 
-**기능**: 
+**기능**:
 
 1. 이벤트 세부 정보(명령 작업, 타임스탬프, 세션 키, 보낸 사람 ID, 소스)를 캡처합니다.
 2. JSONL 형식의 로그 파일에 추가됩니다.
 3. 백그라운드에서 자동으로 실행됩니다.
 
-**예시 로그 항목**: 
+**예시 로그 항목**:
 
 ```jsonl
 {"timestamp":"2026-01-16T14:30:00.000Z","action":"new","sessionKey":"agent:main:main","senderId":"+1234567890","source":"telegram"}
 {"timestamp":"2026-01-16T15:45:22.000Z","action":"stop","sessionKey":"agent:main:main","senderId":"user@example.com","source":"whatsapp"}
 ```
 
-**로그 보기**: 
+**로그 보기**:
 
 ```bash
 # View recent commands
@@ -528,7 +528,7 @@ cat ~/.openclaw/logs/commands.log | jq .
 grep '"action":"new"' ~/.openclaw/logs/commands.log | jq .
 ```
 
-**할 수 있게 하다**: 
+**할 수 있게 하다**:
 
 ```bash
 openclaw hooks enable command-logger
@@ -544,13 +544,13 @@ openclaw hooks enable command-logger
 
 **산출**: 작성된 파일이 없습니다. 스왑은 메모리 내에서만 발생합니다.
 
-**할 수 있게 하다**: 
+**할 수 있게 하다**:
 
 ```bash
 openclaw hooks enable soul-evil
 ```
 
-**구성**: 
+**구성**:
 
 ```json
 {
@@ -579,13 +579,13 @@ openclaw hooks enable soul-evil
 
 **요구사항**: `workspace.dir` 구성해야 합니다
 
-**기능**: 
+**기능**:
 
 1. 읽기 `BOOT.md` 당신의 작업 공간에서
 2. 에이전트 러너를 통해 명령을 실행합니다.
 3. 메시지 도구를 통해 요청된 아웃바운드 메시지를 보냅니다.
 
-**할 수 있게 하다**: 
+**할 수 있게 하다**:
 
 ```bash
 openclaw hooks enable boot-md
@@ -844,7 +844,7 @@ node -e "import('./path/to/handler.ts').then(console.log)"
 
 ### 레거시 구성에서 검색까지
 
-**전에**: 
+**전에**:
 
 ```json
 {
@@ -862,7 +862,7 @@ node -e "import('./path/to/handler.ts').then(console.log)"
 }
 ```
 
-**후에**: 
+**후에**:
 
 1. 후크 디렉터리를 생성합니다:
 
@@ -907,7 +907,7 @@ node -e "import('./path/to/handler.ts').then(console.log)"
    # Should show: 🎯 my-hook ✓
    ```
 
-**마이그레이션의 이점**: 
+**마이그레이션의 이점**:
 
 - 자동 검색
 - CLI 관리

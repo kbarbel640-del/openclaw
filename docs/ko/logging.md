@@ -302,7 +302,7 @@ OTLP/HTTP를 허용하는 모든 OpenTelemetry 수집기/백엔드에서 작동�
 
 - `openclaw.queue.lane.enqueue` (카운터, 속성: `openclaw.lane`)
 - `openclaw.queue.lane.dequeue` (카운터, 속성: `openclaw.lane`)
-- `openclaw.queue.depth` (히스토그램, 속성: `openclaw.lane` 또는 
+- `openclaw.queue.depth` (히스토그램, 속성: `openclaw.lane` 또는
   `openclaw.channel=heartbeat`)
 - `openclaw.queue.wait_ms` (히스토그램, 속성: `openclaw.lane`)
 - `openclaw.session.state` (카운터, 속성: `openclaw.state`,`openclaw.reason`)
@@ -336,7 +336,7 @@ OTLP/HTTP를 허용하는 모든 OpenTelemetry 수집기/백엔드에서 작동�
 
 ### 프로토콜 참고사항
 
-- OTLP/HTTP 엔드포인트는 다음을 통해 설정할 수 있습니다. `diagnostics.otel.endpoint` 또는 
+- OTLP/HTTP 엔드포인트는 다음을 통해 설정할 수 있습니다. `diagnostics.otel.endpoint` 또는
   `OTEL_EXPORTER_OTLP_ENDPOINT`.
 - 엔드포인트에 이미 다음이 포함되어 있는 경우 `/v1/traces` 또는 `/v1/metrics`, 그대로 사용됩니다.
 - 엔드포인트에 이미 다음이 포함되어 있는 경우 `/v1/logs`, 로그에 그대로 사용됩니다.

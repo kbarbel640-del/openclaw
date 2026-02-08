@@ -93,7 +93,7 @@ openclaw channels status --probe
 | Can send but no receive on macOS | Check macOS privacy permissions for Messages automation                 | Re-grant TCC permissions and restart channel process. |
 | DM sender blocked                | `openclaw pairing list imessage` or `openclaw pairing list bluebubbles` | Approve pairing or update allowlist.                  |
 
-전체 문제 해결: 
+전체 문제 해결:
 
 - [/channels/imessage#문제 해결-macos-privacy-and-security-tcc](/channels/imessage#troubleshooting-macos-privacy-and-security-tcc)
 - [/channels/bluebubbles#문제해결](/channels/bluebubbles#troubleshooting)

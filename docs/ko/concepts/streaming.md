@@ -63,7 +63,7 @@ Model output
 
 ## 청킹 알고리즘(낮은/높은 경계)
 
-블록 청킹은 다음과 같이 구현됩니다. `EmbeddedBlockChunker`: 
+블록 청킹은 다음과 같이 구현됩니다. `EmbeddedBlockChunker`:
 
 - **하한:** 버퍼 >=까지 방출하지 않음 `minChars` (강요하지 않는 한).
 - **상한:** 이전에 분할을 선호 `maxChars`; 강제로 분할할 경우 `maxChars`.

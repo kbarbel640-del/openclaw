@@ -113,7 +113,7 @@ openclaw nodes list
 - `--display-name` ~에 `openclaw node run`/`openclaw node install` (지속 `~/.openclaw/node.json` 노드에서).
 - `openclaw nodes rename --node <id|name|ip> --name "Build Node"` (게이트웨이 재정의).
 
-### 명령을 허용 목록에 추가하세요.
+### 명령을 허용 목록에 추가하세요
 
 임원 승인은 다음과 같습니다. **노드 호스트당**. 게이트웨이에서 허용 목록 항목을 추가합니다.
 

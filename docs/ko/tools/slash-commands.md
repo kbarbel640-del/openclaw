@@ -202,4 +202,4 @@ x-i18n:
   - 느슨하게: `agent:<agentId>:slack:slash:<userId>` (접두사 구성 가능 `channels.slack.slashCommand.sessionPrefix`)
   - 전보: `telegram:slash:<userId>` (다음을 통해 채팅 세션을 타겟팅합니다. `CommandTargetSessionKey`)
 - **`/stop`** 현재 실행을 중단할 수 있도록 활성 채팅 세션을 대상으로 합니다.
-- **느슨하게: ** `channels.slack.slashCommand` 단일 항목에 대해서는 여전히 지원됩니다. `/openclaw`-스타일 명령. 활성화하면 `commands.native`, 기본 제공 명령당 하나의 Slack 슬래시 명령을 생성해야 합니다( `/help`). Slack의 명령 인수 메뉴는 임시 블록 키트 버튼으로 제공됩니다.
+- **느슨하게:** `channels.slack.slashCommand` 단일 항목에 대해서는 여전히 지원됩니다. `/openclaw`-스타일 명령. 활성화하면 `commands.native`, 기본 제공 명령당 하나의 Slack 슬래시 명령을 생성해야 합니다( `/help`). Slack의 명령 인수 메뉴는 임시 블록 키트 버튼으로 제공됩니다.

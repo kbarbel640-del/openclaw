@@ -493,7 +493,7 @@ Ack 반응은 다음을 통해 전역적으로 제어됩니다. `messages.ackRea
 - `channels.slack.groupPolicy` 채널 처리를 제어합니다(`open|disabled|allowlist`).
 - `allowlist` 채널이 다음에 나열되어야 합니다. `channels.slack.channels`.
 - 설정만 하면 `SLACK_BOT_TOKEN` / `SLACK_APP_TOKEN` 절대 만들지 마세요. `channels.slack` 섹션,
-  런타임 기본값 `groupPolicy` 에게 `open`. 추가하다 `channels.slack.groupPolicy`, 
+  런타임 기본값 `groupPolicy` 에게 `open`. 추가하다 `channels.slack.groupPolicy`,
   `channels.defaults.groupPolicy`또는 채널 허용 목록을 사용하여 잠글 수 있습니다.
 - 구성 마법사가 수락합니다. `#channel` 가능한 경우 이름을 지정하고 이를 ID로 확인합니다.
   (공개 + 비공개); 일치하는 항목이 여러 개 있으면 활성 채널을 선호합니다.
@@ -541,7 +541,7 @@ Slack 도구 작업은 다음을 통해 제어할 수 있습니다. `channels.sl
   사용자 액세스를 설치합니다. 사용자 토큰을 높은 권한으로 취급하고 유지합니다.
   작업 게이트와 허용 목록이 엄격합니다.
 - 사용자 토큰 쓰기를 활성화하는 경우 사용자 토큰에 쓰기가 포함되어 있는지 확인하세요.
-  예상하는 범위(`chat:write`, `reactions:write`, `pins:write`, 
+  예상하는 범위(`chat:write`, `reactions:write`, `pins:write`,
   `files:write`) 그렇지 않으면 해당 작업이 실패합니다.
 
 ## 문제 해결

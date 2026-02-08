@@ -174,7 +174,7 @@ TTS 구성은 `messages.tts` ~에 `openclaw.json`.
 }
 ```
 
-### 수신 음성 메모 후에만 오디오로 회신하세요.
+### 수신 음성 메모 후에만 오디오로 회신하세요
 
 ```json5
 {
@@ -222,7 +222,7 @@ TTS 구성은 `messages.tts` ~에 `openclaw.json`.
 - `prefsPath`: 로컬 기본 설정 JSON 경로(공급자/한계/요약)를 재정의합니다.
 - `apiKey` 값은 env vars(`ELEVENLABS_API_KEY`/`XI_API_KEY`, `OPENAI_API_KEY`).
 - `elevenlabs.baseUrl`: ElevenLabs API 기본 URL을 재정의합니다.
-- `elevenlabs.voiceSettings`: 
+- `elevenlabs.voiceSettings`:
   - `stability`, `similarityBoost`, `style`: `0..1`
   - `useSpeakerBoost`: `true|false`
   - `speed`: `0.5..2.0` (1.0 = 정상)

@@ -128,7 +128,7 @@ metadata:
 ---
 ```
 
-아래 필드 `metadata.openclaw`: 
+아래 필드 `metadata.openclaw`:
 
 - `always: true` — 항상 스킬을 포함합니다(다른 게이트 건너뛰기).
 - `emoji` — macOS Skills UI에서 사용되는 선택적 이모티콘입니다.
@@ -258,7 +258,7 @@ OpenClaw는 적합한 기술의 스냅샷을 찍습니다. **세션이 시작될
 
 ## 스킬 감시자(자동 새로고침)
 
-기본적으로 OpenClaw는 스킬 폴더를 감시하고 다음과 같은 경우 스킬 스냅샷을 충돌시킵니다. `SKILL.md` 파일이 변경됩니다. 이것을 아래에서 구성하십시오 `skills.load`: 
+기본적으로 OpenClaw는 스킬 폴더를 감시하고 다음과 같은 경우 스킬 스냅샷을 충돌시킵니다. `SKILL.md` 파일이 변경됩니다. 이것을 아래에서 구성하십시오 `skills.load`:
 
 ```json5
 {

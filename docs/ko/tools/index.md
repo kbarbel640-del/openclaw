@@ -92,7 +92,7 @@ OpenClaw 노출 **최고의 에이전트 도구** 브라우저, 캔버스, 노�
 (또는 단일 `provider/model`) 전역 기본값을 변경하지 않고.
 에이전트별 재정의: `agents.list[].tools.byProvider`.
 
-이 적용됩니다 **~ 후에** 기본 도구 프로필 및 ** ~ 전에 ** 허용/거부 목록,
+이 적용됩니다 **~ 후에** 기본 도구 프로필 및 **~ 전에** 허용/거부 목록,
 따라서 도구 세트의 범위를 좁힐 수만 있습니다.
 공급자 키는 다음 중 하나를 허용합니다. `provider` (예: `google-antigravity`) 또는
 `provider/model` (예: `openai/gpt-5.2`).

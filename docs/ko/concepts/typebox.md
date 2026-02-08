@@ -198,7 +198,7 @@ ws.on("message", (data) => {
 
 1. **스키마(진실의 소스)**
 
-다음에 추가 `src/gateway/protocol/schema.ts`: 
+다음에 추가 `src/gateway/protocol/schema.ts`:
 
 ```ts
 export const SystemEchoParamsSchema = Type.Object(
@@ -234,7 +234,7 @@ export const validateSystemEchoParams = ajv.compile<SystemEchoParams>(SystemEcho
 
 3. **서버 동작**
 
-핸들러 추가 `src/gateway/server-methods/system.ts`: 
+핸들러 추가 `src/gateway/server-methods/system.ts`:
 
 ```ts
 export const systemHandlers: GatewayRequestHandlers = {

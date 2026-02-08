@@ -610,4 +610,4 @@ T-EXEC-002 → T-EXFIL-001 → External exfiltration
 
 ---
 
-_이 위협 모델은 살아있는 문서입니다. security@openclaw.ai로 보안 문제를 보고하세요._
+_이 위협 모델은 살아있는 문서입니다. [security@openclaw.ai](mailto:security@openclaw.ai)로 보안 문제를 보고하세요._

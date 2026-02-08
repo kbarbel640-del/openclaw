@@ -302,7 +302,7 @@ openclaw hooks enable soul-evil
 
 **이벤트**: `gateway:startup`
 
-**할 수 있게 하다**: 
+**할 수 있게 하다**:
 
 ```bash
 openclaw hooks enable boot-md

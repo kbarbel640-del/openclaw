@@ -103,8 +103,8 @@ OpenClaw는 작은 벡터 인덱스를 구축할 수 있습니다. `MEMORY.md` �
 원격 임베딩 **필요하다** 임베딩 공급자의 API 키입니다. 오픈클로
 인증 프로필의 키를 확인합니다. `models.providers.*.apiKey`또는 환경
 변수. Codex OAuth는 채팅/완료에만 적용되며 **~ 아니다** 만족시키다
-메모리 검색을 위한 임베딩. 쌍둥이자리의 경우 다음을 사용하세요. `GEMINI_API_KEY` 또는 
-`models.providers.google.apiKey`. 항해의 경우 다음을 사용하십시오. `VOYAGE_API_KEY` 또는 
+메모리 검색을 위한 임베딩. 쌍둥이자리의 경우 다음을 사용하세요. `GEMINI_API_KEY` 또는
+`models.providers.google.apiKey`. 항해의 경우 다음을 사용하십시오. `VOYAGE_API_KEY` 또는
 `models.providers.voyage.apiKey`. 사용자 정의 OpenAI 호환 엔드포인트를 사용하는 경우,
 세트 `memorySearch.remote.apiKey` (그리고 선택사항 `memorySearch.remote.headers`).
 
@@ -125,7 +125,7 @@ BM25 + 벡터 + 순위 재지정. Markdown은 진실의 원천으로 남아 있�
 - QMD는 Bun +를 통해 완전히 로컬로 실행됩니다. `node-llama-cpp` GGUF 자동 다운로드
   처음 사용 시 HuggingFace의 모델(별도의 Ollama 데몬이 필요하지 않음)
 - 게이트웨이는 독립형 XDG 홈에서 QMD를 실행합니다.
-  `~/.openclaw/agents/<agentId>/qmd/` 설정으로 `XDG_CONFIG_HOME` 그리고 
+  `~/.openclaw/agents/<agentId>/qmd/` 설정으로 `XDG_CONFIG_HOME` 그리고
   `XDG_CACHE_HOME`.
 - OS 지원: Bun + SQLite를 사용하면 macOS 및 Linux가 즉시 작동합니다.
   설치되었습니다. Windows는 WSL2를 통해 가장 잘 지원됩니다.
@@ -181,12 +181,12 @@ BM25 + 벡터 + 순위 재지정. Markdown은 진실의 원천으로 남아 있�
 - `includeDefaultMemory` (기본 `true`): 자동 색인 `MEMORY.md` + `memory/**/*.md`.
 - `paths[]`: 추가 디렉터리/파일 추가(`path`, 선택사항 `pattern`, 선택사항
   안정된 `name`).
-- `sessions`: 세션 JSONL 인덱싱을 선택합니다(`enabled`, `retentionDays`, 
+- `sessions`: 세션 JSONL 인덱싱을 선택합니다(`enabled`, `retentionDays`,
   `exportDir`).
 - `update`: 새로 고침 주기 및 유지 관리 실행을 제어합니다.
-  (`interval`, `debounceMs`, `onBoot`, `waitForBootSync`, `embedInterval`, 
+  (`interval`, `debounceMs`, `onBoot`, `waitForBootSync`, `embedInterval`,
   `commandTimeoutMs`, `updateTimeoutMs`, `embedTimeoutMs`).
-- `limits`: 클램프 리콜 페이로드(`maxResults`, `maxSnippetChars`, 
+- `limits`: 클램프 리콜 페이로드(`maxResults`, `maxSnippetChars`,
   `maxInjectedChars`, `timeoutMs`).
 - `scope`: 동일한 스키마 [`session.sendPolicy`](/gateway/configuration#session).
   기본값은 DM 전용(`deny` 모두, `allow` 직접 채팅); 표면 QMD에 느슨하게

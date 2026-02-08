@@ -13,6 +13,8 @@ x-i18n:
     workflow: 15
 ---
 
+<a id="streaming-configuration"></a>
+
 # 올라마
 
 Ollama는 머신에서 오픈 소스 모델을 쉽게 실행할 수 있게 해주는 로컬 LLM 런타임입니다. OpenClaw는 Ollama의 OpenAI 호환 API와 통합되어 다음을 수행할 수 있습니다. **도구 지원 모델 자동 검색** 당신이 옵트인할 때 `OLLAMA_API_KEY` (또는 인증 프로필) 명시적으로 정의하지 않습니다. `models.providers.ollama` 기입.
@@ -241,7 +243,7 @@ ollama serve
 curl http://localhost:11434/api/tags
 ```
 
-### 사용 가능한 모델이 없습니다.
+### 사용 가능한 모델이 없습니다
 
 OpenClaw는 도구 지원을 보고하는 모델만 자동 검색합니다. 해당 모델이 목록에 없으면 다음 중 하나를 수행하세요.
 
@@ -256,7 +258,7 @@ ollama pull gpt-oss:20b  # Pull a tool-capable model
 ollama pull llama3.3     # Or another model
 ```
 
-### 연결이 거부되었습니다.
+### 연결이 거부되었습니다
 
 Ollama가 올바른 포트에서 실행되고 있는지 확인하세요.
 

@@ -57,7 +57,7 @@ OpenClaw는 항상 다음을 사용합니다. `proxy: "auto"` ...을 더한 `sto
 프록시가 생략되면 Firecrawl의 기본값은 다음과 같습니다. `auto`. `auto` 기본 시도가 실패하면 스텔스 프록시로 재시도하며 더 많은 크레딧을 사용할 수 있습니다.
 기본 스크래핑보다.
 
-## 어떻게 `web_fetch` Firecrawl을 사용합니다.
+## 어떻게 `web_fetch` Firecrawl을 사용합니다
 
 `web_fetch` 추출 순서:
 

@@ -44,7 +44,7 @@ OpenClaw는 다음에서 자격 증명을 가져올 수 있습니다.
 
 - **인증 프로필** (에이전트당, 다음에 저장됨 `auth-profiles.json`).
 - **환경변수** (예: `OPENAI_API_KEY`, `BRAVE_API_KEY`, `FIRECRAWL_API_KEY`).
-- **구성** (`models.providers.*.apiKey`, `tools.web.search.*`, `tools.web.fetch.firecrawl.*`, 
+- **구성** (`models.providers.*.apiKey`, `tools.web.search.*`, `tools.web.fetch.firecrawl.*`,
   `memorySearch.*`, `talk.apiKey`).
 - **기술** (`skills.entries.<name>.apiKey`) 키를 기술 프로세스 환경으로 내보낼 수 있습니다.
 

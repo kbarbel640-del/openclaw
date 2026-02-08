@@ -150,7 +150,7 @@ Doctor는 이전의 디스크 레이아웃을 현재 구조로 마이그레이�
   - ~에서 `~/.openclaw/agent/` 에게 `~/.openclaw/agents/<agentId>/agent/`
 - WhatsApp 인증 상태(Baileys):
   - 유산에서 `~/.openclaw/credentials/*.json` (제외하고 `oauth.json`)
-  -  에게 `~/.openclaw/credentials/whatsapp/<accountId>/...` (기본 계정 ID: `default`)
+  - 에게 `~/.openclaw/credentials/whatsapp/<accountId>/...` (기본 계정 ID: `default`)
 
 이러한 마이그레이션은 최선을 다하고 멱등성을 갖습니다. 의사는 다음과 같은 경우 경고를 발할 것입니다.
 레거시 폴더는 백업으로 남겨둡니다. 게이트웨이/CLI도 자동 마이그레이션됩니다.

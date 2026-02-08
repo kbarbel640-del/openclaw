@@ -94,7 +94,7 @@ openclaw plugins install ./extensions/twitch
 OPENCLAW_TWITCH_ACCESS_TOKEN=oauth:abc123...
 ```
 
-**또는 구성: **
+**또는 구성:**
 
 ```json5
 {
@@ -262,7 +262,7 @@ openclaw doctor
 openclaw channels status --probe
 ```
 
-### 봇이 메시지에 응답하지 않습니다.
+### 봇이 메시지에 응답하지 않습니다
 
 **액세스 제어를 확인하세요.** 사용자 ID가 다음과 같은지 확인하세요. `allowFrom`, 또는 일시적으로 제거
 `allowFrom` 그리고 설정 `allowedRoles: ["all"]` 테스트합니다.
