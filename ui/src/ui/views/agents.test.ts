@@ -95,11 +95,11 @@ describe("agents view", () => {
     );
     await Promise.resolve();
 
-    const selects = container.querySelectorAll("select");
-    // The first select in the overview panel is the primary model dropdown
-    const primarySelect = selects[0] as HTMLSelectElement | undefined;
-    expect(primarySelect).toBeDefined();
-    expect(primarySelect?.value).toBe("groq/openai/gpt-oss-120b");
+    const primarySelect = container.querySelector(
+      ".agent-model-select select",
+    ) as HTMLSelectElement | null;
+    expect(primarySelect).not.toBeNull();
+    expect(primarySelect!.value).toBe("groq/openai/gpt-oss-120b");
   });
 
   it("selects agent-specific primary when it differs from default", async () => {
@@ -132,10 +132,11 @@ describe("agents view", () => {
     );
     await Promise.resolve();
 
-    const selects = container.querySelectorAll("select");
-    const primarySelect = selects[0] as HTMLSelectElement | undefined;
-    expect(primarySelect).toBeDefined();
-    expect(primarySelect?.value).toBe("groq/openai/gpt-oss-120b");
+    const primarySelect = container.querySelector(
+      ".agent-model-select select",
+    ) as HTMLSelectElement | null;
+    expect(primarySelect).not.toBeNull();
+    expect(primarySelect!.value).toBe("groq/openai/gpt-oss-120b");
   });
 
   it("non-default agent without own model inherits the default primary", async () => {
@@ -168,13 +169,14 @@ describe("agents view", () => {
     );
     await Promise.resolve();
 
-    const selects = container.querySelectorAll("select");
-    const primarySelect = selects[0] as HTMLSelectElement | undefined;
-    expect(primarySelect).toBeDefined();
+    const primarySelect = container.querySelector(
+      ".agent-model-select select",
+    ) as HTMLSelectElement | null;
+    expect(primarySelect).not.toBeNull();
     // effectivePrimary falls through to defaultPrimary, so the default model is selected
-    expect(primarySelect?.value).toBe("cloudflare/claude-sonnet-4-5");
+    expect(primarySelect!.value).toBe("cloudflare/claude-sonnet-4-5");
     // The "Inherit default" option should still be present for non-default agents
-    const inheritOption = primarySelect?.querySelector('option[value=""]') as
+    const inheritOption = primarySelect!.querySelector('option[value=""]') as
       | HTMLOptionElement
       | undefined;
     expect(inheritOption).toBeDefined();
@@ -203,14 +205,15 @@ describe("agents view", () => {
     );
     await Promise.resolve();
 
-    const selects = container.querySelectorAll("select");
-    const primarySelect = selects[0] as HTMLSelectElement | undefined;
-    expect(primarySelect).toBeDefined();
-    expect(primarySelect?.value).toBe("some-unlisted/model");
+    const primarySelect = container.querySelector(
+      ".agent-model-select select",
+    ) as HTMLSelectElement | null;
+    expect(primarySelect).not.toBeNull();
+    expect(primarySelect!.value).toBe("some-unlisted/model");
     // Should have a "Current (...)" option prepended
-    const currentOption = primarySelect?.querySelector(
-      'option[value="some-unlisted/model"]',
-    ) as HTMLOptionElement | undefined;
+    const currentOption = primarySelect!.querySelector('option[value="some-unlisted/model"]') as
+      | HTMLOptionElement
+      | undefined;
     expect(currentOption).toBeDefined();
     expect(currentOption?.textContent).toContain("Current");
   });
