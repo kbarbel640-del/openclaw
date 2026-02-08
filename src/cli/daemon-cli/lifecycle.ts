@@ -111,6 +111,29 @@ export async function runDaemonStart(opts: DaemonLifecycleOptions = {}) {
   };
 
   const service = resolveGatewayService();
+  if (process.platform === "linux") {
+    const systemdAvailable = await isSystemdUserServiceAvailable().catch(() => false);
+    if (!systemdAvailable) {
+      const hints = [
+        ...renderGatewayServiceStartHints(),
+        ...renderSystemdUnavailableHints({ wsl: await isWSL() }),
+      ];
+      emit({
+        ok: true,
+        result: "not-loaded",
+        message: `Gateway service ${service.notLoadedText}.`,
+        hints,
+        service: buildDaemonServiceSnapshot(service, false),
+      });
+      if (!json) {
+        defaultRuntime.log(`Gateway service ${service.notLoadedText}.`);
+        for (const hint of hints) {
+          defaultRuntime.log(`Start with: ${hint}`);
+        }
+      }
+      return;
+    }
+  }
   let loaded = false;
   try {
     loaded = await service.isLoaded({ env: process.env });
@@ -192,6 +215,28 @@ export async function runDaemonStop(opts: DaemonLifecycleOptions = {}) {
   };
 
   const service = resolveGatewayService();
+  if (process.platform === "linux") {
+    const systemdAvailable = await isSystemdUserServiceAvailable().catch(() => false);
+    if (!systemdAvailable) {
+      const hints = [
+        ...renderGatewayServiceStartHints(),
+        ...renderSystemdUnavailableHints({ wsl: await isWSL() }),
+      ];
+      emit({
+        ok: true,
+        result: "not-loaded",
+        message: `Gateway service ${service.notLoadedText}.`,
+        service: buildDaemonServiceSnapshot(service, false),
+      });
+      if (!json) {
+        defaultRuntime.log(`Gateway service ${service.notLoadedText}.`);
+        for (const hint of hints) {
+          defaultRuntime.log(`Start with: ${hint}`);
+        }
+      }
+      return;
+    }
+  }
   let loaded = false;
   try {
     loaded = await service.isLoaded({ env: process.env });
@@ -267,6 +312,29 @@ export async function runDaemonRestart(opts: DaemonLifecycleOptions = {}): Promi
   };
 
   const service = resolveGatewayService();
+  if (process.platform === "linux") {
+    const systemdAvailable = await isSystemdUserServiceAvailable().catch(() => false);
+    if (!systemdAvailable) {
+      const hints = [
+        ...renderGatewayServiceStartHints(),
+        ...renderSystemdUnavailableHints({ wsl: await isWSL() }),
+      ];
+      emit({
+        ok: true,
+        result: "not-loaded",
+        message: `Gateway service ${service.notLoadedText}.`,
+        hints,
+        service: buildDaemonServiceSnapshot(service, false),
+      });
+      if (!json) {
+        defaultRuntime.log(`Gateway service ${service.notLoadedText}.`);
+        for (const hint of hints) {
+          defaultRuntime.log(`Start with: ${hint}`);
+        }
+      }
+      return false;
+    }
+  }
   let loaded = false;
   try {
     loaded = await service.isLoaded({ env: process.env });
