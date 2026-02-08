@@ -63,8 +63,9 @@ function drainLane(lane: string) {
       void (async () => {
         const startTime = Date.now();
         const TASK_TIMEOUT_MS = 300_000; // 5 minute hard timeout to prevent lane wedging
+        let timeoutId: NodeJS.Timeout | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => {
+          timeoutId = setTimeout(() => {
             reject(new Error(`Lane task timed out after ${TASK_TIMEOUT_MS}ms`));
           }, TASK_TIMEOUT_MS);
         });
@@ -86,6 +87,10 @@ function drainLane(lane: string) {
           }
           pump();
           entry.reject(err);
+        } finally {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
         }
       })();
     }

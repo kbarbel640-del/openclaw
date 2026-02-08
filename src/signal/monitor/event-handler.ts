@@ -569,7 +569,7 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
 
     const senderName = envelope.sourceName ?? senderDisplay;
     // For edits, use target timestamp as messageId to help with deduplication
-    const messageId = isEdit
+    const messageId = isEdit && typeof editTargetTimestamp === "number" && !isNaN(editTargetTimestamp)
       ? String(editTargetTimestamp)
       : typeof envelope.timestamp === "number"
         ? String(envelope.timestamp)
