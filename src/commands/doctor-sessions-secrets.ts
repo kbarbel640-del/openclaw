@@ -22,8 +22,6 @@ async function scanFileForSecrets(
     const content = await fs.promises.readFile(filePath, "utf-8");
     let count = 0;
     for (const pattern of patterns) {
-      // Reset lastIndex for global regexps
-      pattern.lastIndex = 0;
       const matches = content.match(
         new RegExp(pattern.source, pattern.flags.replace("g", "") + "g"),
       );
