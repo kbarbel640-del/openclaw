@@ -173,7 +173,11 @@ export async function onTimer(state: CronServiceState) {
       }
 
       const now = state.deps.nowMs();
-      for (const job of due) {
+      if (changed) {
+    await persist(state);
+  }
+
+  for (const job of due) {
         job.state.runningAtMs = now;
         job.state.lastError = undefined;
       }
@@ -321,9 +325,11 @@ export async function runMissedJobs(state: CronServiceState) {
     return;
   }
   const now = state.deps.nowMs();
+  let changed = false;
   const missed = state.store.jobs.filter((j) => {
     if (!j.state) {
       j.state = {};
+      changed = true;
     }
     if (!j.enabled) {
       return false;
@@ -352,6 +358,10 @@ export async function runMissedJobs(state: CronServiceState) {
     return typeof next === "number" && now >= next;
   });
 
+  if (changed) {
+    await persist(state);
+  }
+
   if (missed.length > 0) {
     state.deps.log.info(
       { count: missed.length, jobIds: missed.map((j) => j.id) },
@@ -368,9 +378,11 @@ export async function runDueJobs(state: CronServiceState) {
     return;
   }
   const now = state.deps.nowMs();
+  let changed = false;
   const due = state.store.jobs.filter((j) => {
     if (!j.state) {
       j.state = {};
+      changed = true;
     }
     if (!j.enabled) {
       return false;
@@ -395,6 +407,10 @@ export async function runDueJobs(state: CronServiceState) {
     const next = j.state.nextRunAtMs;
     return typeof next === "number" && now >= next;
   });
+  if (changed) {
+    await persist(state);
+  }
+
   for (const job of due) {
     await executeJob(state, job, now, { forced: false });
   }

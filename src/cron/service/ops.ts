@@ -193,7 +193,7 @@ export async function run(state: CronServiceState, id: string, mode?: "due" | "f
       const timeoutMs =
         job.payload.kind === "agentTurn" && typeof job.payload.timeoutSeconds === "number"
           ? job.payload.timeoutSeconds * 1_000
-          : 10 * 60_000;
+          : DEFAULT_JOB_TIMEOUT_MS;
       const staleAfterMs = timeoutMs + 30_000;
       if (now - job.state.runningAtMs > staleAfterMs) {
         state.deps.log.warn(
