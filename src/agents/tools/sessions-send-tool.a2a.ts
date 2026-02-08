@@ -4,6 +4,7 @@ import { callGateway } from "../../gateway/call.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
+import { isInternalMessageChannel } from "../../utils/message-channel.js";
 import { AGENT_LANE_NESTED } from "../lanes.js";
 import { readLatestAssistantReply, runAgentStep } from "./agent-step.js";
 import { resolveAnnounceTarget } from "./sessions-announce-target.js";
@@ -60,6 +61,14 @@ export async function runSessionsSendA2AFlow(params: {
     });
     const targetChannel = announceTarget?.channel ?? "unknown";
 
+    // Resolve the originating channel for nested agent steps so the gateway
+    // agent handler records the correct channel in the session entry instead
+    // of defaulting to INTERNAL_MESSAGE_CHANNEL ("webchat").
+    const originChannel =
+      targetChannel && !isInternalMessageChannel(targetChannel)
+        ? targetChannel
+        : params.requesterChannel;
+
     // Helper to announce messages to the correct target channel with correct identity
     const tryAnnounce = async (message: string, sessionKey: string) => {
       if (!params.announceEnabled || !message || !message.trim()) {
@@ -70,12 +79,10 @@ export async function runSessionsSendA2AFlow(params: {
       }
 
       try {
-        // Determine WHO is speaking
-        const agentId = resolveAgentIdFromSessionKey(sessionKey);
-
-        // We use the same announceTarget (the group chat) but specify the agentId
-        // so the gateway sends it as the correct bot.
+        // accountId from announceTarget already identifies the correct bot
+        // (e.g. "sena", "miru") — the send handler routes via accountId.
         if (announceTarget) {
+          const agentId = resolveAgentIdFromSessionKey(sessionKey);
           log.info(
             `[a2a] announcing for ${agentId} (${sessionKey}): target=${announceTarget.channel}/${announceTarget.to}`,
           );
@@ -85,9 +92,7 @@ export async function runSessionsSendA2AFlow(params: {
               to: announceTarget.to,
               message: message.trim(),
               channel: announceTarget.channel,
-              // Let the gateway resolve the connection based on agentId + channel
               accountId: announceTarget.accountId,
-              agentId: agentId, // Crucial: Send as the correct agent
               idempotencyKey: crypto.randomUUID(),
             },
             timeoutMs: 10_000,
@@ -131,6 +136,7 @@ export async function runSessionsSendA2AFlow(params: {
           extraSystemPrompt: replyPrompt,
           timeoutMs: params.announceTimeoutMs,
           lane: AGENT_LANE_NESTED,
+          channel: originChannel,
         });
         if (!replyText || isReplySkip(replyText)) {
           break;

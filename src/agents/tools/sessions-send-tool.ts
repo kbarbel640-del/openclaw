@@ -12,6 +12,7 @@ import { SESSION_LABEL_MAX_LENGTH } from "../../sessions/session-label.js";
 import {
   type GatewayMessageChannel,
   INTERNAL_MESSAGE_CHANNEL,
+  isInternalMessageChannel,
 } from "../../utils/message-channel.js";
 import { AGENT_LANE_NESTED } from "../lanes.js";
 import { jsonResult, readStringParam } from "./common.js";
@@ -256,17 +257,25 @@ export function createSessionsSendTool(opts?: {
         requesterChannel: opts?.agentChannel,
         targetSessionKey: displayKey,
       });
+      const requesterSessionKey = opts?.agentSessionKey;
+      const requesterChannel = opts?.agentChannel;
+      // Use the actual originating channel for the agent call so the session
+      // entry records the correct channel instead of "webchat".  This prevents
+      // deliveryContext from being stuck on webchat for sessions first created
+      // through A2A (deliver:false still prevents outbound delivery).
+      const agentChannel =
+        requesterChannel && !isInternalMessageChannel(requesterChannel)
+          ? requesterChannel
+          : INTERNAL_MESSAGE_CHANNEL;
       const sendParams = {
         message,
         sessionKey: resolvedKey,
         idempotencyKey,
         deliver: false,
-        channel: INTERNAL_MESSAGE_CHANNEL,
+        channel: agentChannel,
         lane: AGENT_LANE_NESTED,
         extraSystemPrompt: agentMessageContext,
       };
-      const requesterSessionKey = opts?.agentSessionKey;
-      const requesterChannel = opts?.agentChannel;
       const maxPingPongTurns = resolvePingPongTurns(cfg);
       const announceEnabled = resolveAnnounceEnabled(cfg);
       const delivery = { status: "pending", mode: "announce" as const };
