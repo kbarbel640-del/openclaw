@@ -27,7 +27,7 @@ const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 
 // Parse arguments
 function parseArgs() {
@@ -204,11 +204,14 @@ const server = http.createServer((req, res) => {
     activeConnection = true;
     transferStartTime = Date.now();
 
+    // Sanitize filename for header safety (remove newlines and quotes)
+    const safeFileName = fileName.replace(/[\"\\n\\r]/g, '_');
+
     // Set headers for file download
     res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
         'Content-Length': fileSize,
-        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Disposition': `attachment; filename="${safeFileName}"`,
         'X-Transfer-Token': token,
         'X-Transfer-Version': VERSION
     });

@@ -26,7 +26,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 
 // Parse arguments
 function parseArgs() {
@@ -191,7 +191,9 @@ if (fs.existsSync(args.outputPath)) {
 }
 
 // Build full URL with token
-const fullUrl = `${args.url}?token=${encodeURIComponent(args.token)}`;
+const urlObj = new URL(args.url);
+urlObj.searchParams.set('token', args.token);
+const fullUrl = urlObj.toString();
 
 // Choose http or https module
 const client = parsedUrl.protocol === 'https:' ? https : http;

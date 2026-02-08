@@ -24,7 +24,7 @@ const fs = require('fs');
 const path = require('path');
 
 const FILES_TO_DEPLOY = ['send.js', 'receive.js', 'ensure-installed.js', 'version.js'];
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 
 function showHelp() {
     console.log(`
@@ -159,9 +159,11 @@ try {
         // Pre-escaped version for direct use
         escapedScript: psScript.replace(/"/g, '\\"').replace(/\n/g, '; '),
         usage: {
-            javascript: `await nodes.invoke({
+            javascript: `// Example: Deploy to node
+const script = ${JSON.stringify(psScript)};
+await nodes.invoke({
     node: '${nodeId}',
-    command: ['powershell', '-Command', '${psScript.replace(/'/g, "'").replace(/\n/g, '; ').substring(0, 200)}...']
+    command: ['powershell', '-Command', script]
 });`,
             cli: `# Save to file and execute:
 # Write the 'script' field to deploy-${nodeId}.ps1
