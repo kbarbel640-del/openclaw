@@ -4,31 +4,27 @@
  * 使用 DeepSeek（便宜）做蒸餾工作
  */
 
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-08f5d6785f59405bbae05b3b874021a1';
-const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "sk-08f5d6785f59405bbae05b3b874021a1";
+const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
 
 /**
  * 調用 LLM 生成回應
  */
 export async function chat(messages, options = {}) {
-  const {
-    model = 'deepseek-chat',
-    temperature = 0.3,
-    maxTokens = 2000
-  } = options;
+  const { model = "deepseek-chat", temperature = 0.3, maxTokens = 2000 } = options;
 
   const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
     },
     body: JSON.stringify({
       model,
       messages,
       temperature,
-      max_tokens: maxTokens
-    })
+      max_tokens: maxTokens,
+    }),
   });
 
   if (!response.ok) {
@@ -69,19 +65,19 @@ ${messages}
 請用繁體中文回覆，保持簡潔。`;
 
   return chat([
-    { role: 'system', content: '你是意識蒸餾系統，負責從對話中提取智慧和模式。' },
-    { role: 'user', content: prompt }
+    { role: "system", content: "你是意識蒸餾系統，負責從對話中提取智慧和模式。" },
+    { role: "user", content: prompt },
   ]);
 }
 
 /**
  * 提取知識點
  */
-export async function extractKnowledge(messages, existingKnowledge = '') {
+export async function extractKnowledge(messages, existingKnowledge = "") {
   const prompt = `分析以下對話，提取可複用的知識點。
 
 現有知識庫：
-${existingKnowledge || '（空）'}
+${existingKnowledge || "（空）"}
 
 新對話：
 ${messages}
@@ -105,8 +101,8 @@ ${messages}
 只輸出新的、之前沒有的知識。如果沒有新知識，輸出「無新增」。`;
 
   return chat([
-    { role: 'system', content: '你是知識提取系統，負責從對話中提取可複用的知識。' },
-    { role: 'user', content: prompt }
+    { role: "system", content: "你是知識提取系統，負責從對話中提取可複用的知識。" },
+    { role: "user", content: prompt },
   ]);
 }
 
@@ -137,7 +133,7 @@ ${projectDigests}
 （需要特別關注的事項）`;
 
   return chat([
-    { role: 'system', content: '你是無極的戰略意識層，負責全局思考和戰略規劃。' },
-    { role: 'user', content: prompt }
+    { role: "system", content: "你是無極的戰略意識層，負責全局思考和戰略規劃。" },
+    { role: "user", content: prompt },
   ]);
 }

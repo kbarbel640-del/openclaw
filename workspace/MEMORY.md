@@ -250,46 +250,47 @@
 
 ## ⚡ Skill 條件反射（不要再忘了！）
 
-| 當杜甫說... | 第一步 | 工具/方法 |
-|------------|--------|----------|
-| **看 Lark 消息** | 用 MCP 工具 | `mcp__lark__im_v1_chat_list` → `mcp__lark__im_v1_message_list` |
-| **讀 Telegram** | HTTP API | `curl http://host.docker.internal:18790/messages?chat=<id>` |
-| **發 Telegram** | HTTP API | `curl -X POST http://host.docker.internal:18790/send` |
-| **讀圖片** | 直接用 read 工具 | `read /app/media/telegram/photo.jpg` |
-| **查對話記憶** | Time Tunnel | SQLite 查詢 `/app/workspace/data/timeline.db` |
-| **執行命令** | exec-bridge | `curl http://host.docker.internal:18793/exec` |
+| 當杜甫說...      | 第一步           | 工具/方法                                                      |
+| ---------------- | ---------------- | -------------------------------------------------------------- |
+| **看 Lark 消息** | 用 MCP 工具      | `mcp__lark__im_v1_chat_list` → `mcp__lark__im_v1_message_list` |
+| **讀 Telegram**  | HTTP API         | `curl http://host.docker.internal:18790/messages?chat=<id>`    |
+| **發 Telegram**  | HTTP API         | `curl -X POST http://host.docker.internal:18790/send`          |
+| **讀圖片**       | 直接用 read 工具 | `read /app/media/telegram/photo.jpg`                           |
+| **查對話記憶**   | Time Tunnel      | SQLite 查詢 `/app/workspace/data/timeline.db`                  |
+| **執行命令**     | exec-bridge      | `curl http://host.docker.internal:18793/exec`                  |
 
 ### 🚫 不要做的事
 
-| 錯誤行為 | 正確做法 |
-|---------|---------|
-| 手動 curl Lark API | 用 `mcp__lark__*` 工具 |
-| 說「我看不到圖片」 | 用 `read` 工具讀取圖片 |
-| 用 browser 自動化 Lark | 用 MCP 工具 |
-| 用 message 工具回 LINE | 直接輸出文字（Reply Token） |
-| 說「需要安裝 OCR」 | 用 `read` 工具（內建 vision） |
+| 錯誤行為               | 正確做法                      |
+| ---------------------- | ----------------------------- |
+| 手動 curl Lark API     | 用 `mcp__lark__*` 工具        |
+| 說「我看不到圖片」     | 用 `read` 工具讀取圖片        |
+| 用 browser 自動化 Lark | 用 MCP 工具                   |
+| 用 message 工具回 LINE | 直接輸出文字（Reply Token）   |
+| 說「需要安裝 OCR」     | 用 `read` 工具（內建 vision） |
 
 ### 📁 常用路徑
 
-| 位置 | 路徑 |
-|------|------|
-| Telegram 圖片（容器內） | `/app/media/telegram/` |
-| Time Tunnel DB | `/app/workspace/data/timeline.db` |
-| Skills 目錄 | `/app/workspace/skills/` |
-| Hooks 目錄 | `/app/workspace/hooks/` |
+| 位置                    | 路徑                              |
+| ----------------------- | --------------------------------- |
+| Telegram 圖片（容器內） | `/app/media/telegram/`            |
+| Time Tunnel DB          | `/app/workspace/data/timeline.db` |
+| Skills 目錄             | `/app/workspace/skills/`          |
+| Hooks 目錄              | `/app/workspace/hooks/`           |
 
 ### 📁 容器路徑映射（重要！）
 
 **⚠️ 你在容器內，必須用容器路徑，不是宿主機路徑！**
 
-| 宿主機路徑 | 容器內路徑 | 用途 |
-|-----------|-----------|------|
-| `~/clawd/workspace/skills/telegram-userbot/downloads/` | `/app/media/telegram/` | **Telegram 圖片/檔案** |
-| `~/clawd/workspace/` | `/app/workspace/` | hooks, scripts, data |
-| `~/.openclaw/persistent/data/` | `/app/persistent/data/` | timeline.db 等持久數據 |
-| `~/.openclaw/backups/` | `/app/persistent/backups/` | 備份目錄 |
+| 宿主機路徑                                             | 容器內路徑                 | 用途                   |
+| ------------------------------------------------------ | -------------------------- | ---------------------- |
+| `~/clawd/workspace/skills/telegram-userbot/downloads/` | `/app/media/telegram/`     | **Telegram 圖片/檔案** |
+| `~/clawd/workspace/`                                   | `/app/workspace/`          | hooks, scripts, data   |
+| `~/.openclaw/persistent/data/`                         | `/app/persistent/data/`    | timeline.db 等持久數據 |
+| `~/.openclaw/backups/`                                 | `/app/persistent/backups/` | 備份目錄               |
 
 **讀取 Telegram 圖片的正確方式：**
+
 ```bash
 # ❌ 錯誤（宿主機路徑，容器內無法訪問）
 /Users/sulaxd/clawd/workspace/skills/telegram-userbot/downloads/photo.jpg
@@ -299,11 +300,13 @@
 ```
 
 **用 image 工具時：**
+
 ```
 image /app/media/telegram/photo_2026-02-06_08-45-12.jpg
 ```
 
 **列出可用圖片：**
+
 ```bash
 ls /app/media/telegram/
 ```

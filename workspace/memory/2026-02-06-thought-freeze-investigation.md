@@ -11,6 +11,7 @@
 **定義**：Bot 在處理過程中卡住，新訊息排隊但永不處理，直到外部干預（容器重啟）。
 
 **與「失憶性昏迷」的區別**：
+
 - 失憶性昏迷：忘記發生了什麼
 - 思考凍結：記得，但思考過程卡住了
 
@@ -39,6 +40,7 @@
 ### 1. Session JSONL 證據
 
 最後兩條記錄的 parentId 鏈：
+
 ```
 eaef9250 (09:42:58.581) — toolResult: "Successfully replaced text..."
     ↓
@@ -65,7 +67,7 @@ if (state.state === "processing" && ageMs > 120_000) {  // 2 分鐘
 位置：`src/agents/timeout.ts`
 
 ```typescript
-const DEFAULT_AGENT_TIMEOUT_SECONDS = 600;  // 10 分鐘
+const DEFAULT_AGENT_TIMEOUT_SECONDS = 600; // 10 分鐘
 ```
 
 **問題**：這次卡了 30 分鐘，超時為何沒觸發？
@@ -77,18 +79,21 @@ const DEFAULT_AGENT_TIMEOUT_SECONDS = 600;  // 10 分鐘
 ### Q1: 超時為何沒生效？
 
 可能原因：
+
 - [ ] 超時只套用在「整個 run」開始時，不是每次 API 呼叫
 - [ ] Tool result 後的下一輪呼叫可能沒有帶超時
 - [ ] 超時觸發了但沒有正確處理
 - [ ] DeepSeek API 有自己的超時問題
 
 **調查入口**：
+
 - `src/agents/pi-embedded-runner/run/attempt.ts` - 查看 timeout 設置位置
 - `streamSimple` 呼叫 - 是否有獨立超時
 
 ### Q2: Stuck Session 該如何恢復？
 
 選項：
+
 - [ ] 自動 abort stuck session（風險：可能打斷正常長操作）
 - [ ] 強制釋放 session，讓新訊息可以處理
 - [ ] 保留 session 但允許新訊息開新 session
@@ -96,11 +101,13 @@ const DEFAULT_AGENT_TIMEOUT_SECONDS = 600;  // 10 分鐘
 ### Q3: 新訊息排隊機制
 
 當 session 處於 "processing" 時：
+
 - 新訊息會被 queue
 - Queue 沒有超時
 - 如果 session 永不完成，queue 永不處理
 
 **調查入口**：
+
 - `src/auto-reply/reply/queue/enqueue.ts`
 - Session state management
 
@@ -117,13 +124,13 @@ const DEFAULT_AGENT_TIMEOUT_SECONDS = 600;  // 10 分鐘
 
 ## 相關檔案
 
-| 檔案 | 用途 |
-|------|------|
-| `src/logging/diagnostic.ts` | Stuck 檢測（line 346） |
-| `src/agents/timeout.ts` | 預設超時設定 |
-| `src/agents/pi-embedded-runner/run.ts` | 主要執行迴圈 |
-| `src/agents/pi-embedded-runner/run/attempt.ts` | 單次嘗試邏輯 |
-| `src/infra/diagnostic-events.ts` | 診斷事件定義 |
+| 檔案                                           | 用途                   |
+| ---------------------------------------------- | ---------------------- |
+| `src/logging/diagnostic.ts`                    | Stuck 檢測（line 346） |
+| `src/agents/timeout.ts`                        | 預設超時設定           |
+| `src/agents/pi-embedded-runner/run.ts`         | 主要執行迴圈           |
+| `src/agents/pi-embedded-runner/run/attempt.ts` | 單次嘗試邏輯           |
+| `src/infra/diagnostic-events.ts`               | 診斷事件定義           |
 
 ---
 

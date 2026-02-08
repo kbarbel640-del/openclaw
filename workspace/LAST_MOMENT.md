@@ -11,6 +11,7 @@
 ### 1. 記憶層災難與修復
 
 **事件**：`docker rm` 導致所有對話歷史丟失
+
 - timeline.db 原本在容器可寫層（未 mount）
 - 刪除容器 = 刪除所有記憶
 
@@ -18,23 +19,23 @@
 
 ### 2. 記憶層強化（P0/P1 完成）
 
-| Task | 狀態 | 說明 |
-|------|------|------|
-| #26 P0 持久化 | ✅ | 資料移至 host mount |
-| #27 P0 多點備份 | ✅ | hourly/daily/manual cron |
-| #28 P0 變更前備份 | ✅ | deploy-check + safe-docker |
-| #29 P1 完整性檢查 | ✅ | check-memory-integrity.sh |
-| #30 P1 WAL 模式 | ✅ | crash recovery |
-| #31 P1 自動恢復 | ✅ | time-tunnel 啟動時檢查 |
-| #32 P1 文檔化 | ✅ | CRITICAL_PATHS.md |
+| Task              | 狀態 | 說明                       |
+| ----------------- | ---- | -------------------------- |
+| #26 P0 持久化     | ✅   | 資料移至 host mount        |
+| #27 P0 多點備份   | ✅   | hourly/daily/manual cron   |
+| #28 P0 變更前備份 | ✅   | deploy-check + safe-docker |
+| #29 P1 完整性檢查 | ✅   | check-memory-integrity.sh  |
+| #30 P1 WAL 模式   | ✅   | crash recovery             |
+| #31 P1 自動恢復   | ✅   | time-tunnel 啟動時檢查     |
+| #32 P1 文檔化     | ✅   | CRITICAL_PATHS.md          |
 
 ### 3. 新增腳本
 
-| 腳本 | 功能 |
-|------|------|
-| `backup-memory.sh` | 手動/hourly/daily 備份 |
+| 腳本                        | 功能                    |
+| --------------------------- | ----------------------- |
+| `backup-memory.sh`          | 手動/hourly/daily 備份  |
 | `check-memory-integrity.sh` | 完整性 + WAL + 備份檢查 |
-| `safe-docker.sh` | 危險操作前自動備份 |
+| `safe-docker.sh`            | 危險操作前自動備份      |
 
 ---
 
@@ -53,20 +54,20 @@
 
 ### Container (moltbot-core.router.wuji.01-stg)
 
-| 項目 | 狀態 |
-|------|------|
-| 容器 | ✅ 運行中 |
-| Telegram | ✅ 正常 |
-| 記憶層 | ✅ 持久化 + 備份 |
+| 項目     | 狀態             |
+| -------- | ---------------- |
+| 容器     | ✅ 運行中        |
+| Telegram | ✅ 正常          |
+| 記憶層   | ✅ 持久化 + 備份 |
 
 ### 已註冊 Hooks
 
-| Hook | 事件 | 新增功能 |
-|------|------|---------|
-| time-tunnel | message:received, message:sent | 自動恢復、WAL |
-| smart-router | model:select | - |
-| cost-tracker | model:complete | - |
-| failover-monitor | model:failover | - |
+| Hook             | 事件                           | 新增功能      |
+| ---------------- | ------------------------------ | ------------- |
+| time-tunnel      | message:received, message:sent | 自動恢復、WAL |
+| smart-router     | model:select                   | -             |
+| cost-tracker     | model:complete                 | -             |
+| failover-monitor | model:failover                 | -             |
 
 ---
 

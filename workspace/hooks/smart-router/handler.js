@@ -37,18 +37,18 @@ const PREDICT_MIN_OCCURRENCES = 5;
 // ============================================================
 const MODELS = {
   // Anthropic - 主力
-  SONNET: "anthropic/claude-sonnet-4-5",     // 預設：快速、通用、高品質文字
-  OPUS: "anthropic/claude-opus-4-5",          // 升級：深度推理、複雜架構
+  SONNET: "anthropic/claude-sonnet-4-5", // 預設：快速、通用、高品質文字
+  OPUS: "anthropic/claude-opus-4-5", // 升級：深度推理、複雜架構
 
   // Google - 特化
   GEMINI: "google-antigravity/gemini-3-flash", // 多模態、超長 context、搜尋整合
 
   // DeepSeek - 成本優化
-  DEEPSEEK: "deepseek/deepseek-chat",         // 便宜、翻譯
-  DEEPSEEK_R1: "deepseek/deepseek-reasoner",  // 數學、step-by-step 推理
+  DEEPSEEK: "deepseek/deepseek-chat", // 便宜、翻譯
+  DEEPSEEK_R1: "deepseek/deepseek-reasoner", // 數學、step-by-step 推理
 
   // ZAI - 中文
-  GLM: "zai/glm-4.7",                         // 中文優化
+  GLM: "zai/glm-4.7", // 中文優化
 };
 
 // ============================================================
@@ -57,68 +57,123 @@ const MODELS = {
 const INTENT_KEYWORDS = {
   // === Opus 任務（深度思考）===
   code_generation: [
-    "寫程式", "寫代碼", "write code", "implement", "create function",
-    "開發", "develop", "build", "程式碼", "coding",
+    "寫程式",
+    "寫代碼",
+    "write code",
+    "implement",
+    "create function",
+    "開發",
+    "develop",
+    "build",
+    "程式碼",
+    "coding",
   ],
   code_debug: [
-    "debug", "bug", "錯誤", "error", "fix", "修復", "壞了", "不work",
-    "為什麼不行", "why not working", "問題出在",
+    "debug",
+    "bug",
+    "錯誤",
+    "error",
+    "fix",
+    "修復",
+    "壞了",
+    "不work",
+    "為什麼不行",
+    "why not working",
+    "問題出在",
   ],
-  code_review: [
-    "review", "審查", "看看這段", "check this", "優化", "optimize",
-    "refactor", "重構",
-  ],
+  code_review: ["review", "審查", "看看這段", "check this", "優化", "optimize", "refactor", "重構"],
   architecture: [
-    "架構", "architecture", "設計", "design pattern", "系統設計",
-    "how to structure", "怎麼設計",
+    "架構",
+    "architecture",
+    "設計",
+    "design pattern",
+    "系統設計",
+    "how to structure",
+    "怎麼設計",
   ],
   complex_reasoning: [
-    "分析", "analyze", "為什麼", "why", "explain", "解釋",
-    "比較", "compare", "評估", "evaluate", "深入",
+    "分析",
+    "analyze",
+    "為什麼",
+    "why",
+    "explain",
+    "解釋",
+    "比較",
+    "compare",
+    "評估",
+    "evaluate",
+    "深入",
   ],
 
   // === Gemini 任務（多模態/搜尋）===
   multimodal: [
-    "這張圖", "這個圖片", "看圖", "圖中", "image", "photo", "picture",
-    "截圖", "screenshot", "看這個",
+    "這張圖",
+    "這個圖片",
+    "看圖",
+    "圖中",
+    "image",
+    "photo",
+    "picture",
+    "截圖",
+    "screenshot",
+    "看這個",
   ],
-  search: [
-    "搜尋", "search", "查一下", "google", "找找", "最新",
-    "news", "新聞", "現在", "目前",
-  ],
+  search: ["搜尋", "search", "查一下", "google", "找找", "最新", "news", "新聞", "現在", "目前"],
   long_document: [
-    "整份文件", "整個codebase", "全部程式碼", "entire", "whole",
-    "所有檔案", "all files",
+    "整份文件",
+    "整個codebase",
+    "全部程式碼",
+    "entire",
+    "whole",
+    "所有檔案",
+    "all files",
   ],
 
   // === DeepSeek 任務（成本優化）===
   math: [
-    "計算", "calculate", "數學", "math", "公式", "formula",
-    "多少", "how much", "統計", "statistics",
+    "計算",
+    "calculate",
+    "數學",
+    "math",
+    "公式",
+    "formula",
+    "多少",
+    "how much",
+    "統計",
+    "statistics",
   ],
-  translation: [
-    "翻譯", "translate", "轉成", "convert to", "英文", "中文",
-    "日文", "韓文",
-  ],
+  translation: ["翻譯", "translate", "轉成", "convert to", "英文", "中文", "日文", "韓文"],
 
   // === Sonnet 任務（預設）===
   writing: [
-    "寫", "write", "draft", "草稿", "文案", "copy",
-    "email", "郵件", "信", "letter", "報告", "report",
+    "寫",
+    "write",
+    "draft",
+    "草稿",
+    "文案",
+    "copy",
+    "email",
+    "郵件",
+    "信",
+    "letter",
+    "報告",
+    "report",
   ],
-  chat: [
-    "聊", "chat", "說說", "談談", "你覺得", "what do you think",
-    "hi", "hello", "嗨", "哈囉",
-  ],
+  chat: ["聊", "chat", "說說", "談談", "你覺得", "what do you think", "hi", "hello", "嗨", "哈囉"],
   sensitive: [
-    "隱私", "privacy", "機密", "confidential", "密碼", "password",
-    "個資", "personal", "敏感",
+    "隱私",
+    "privacy",
+    "機密",
+    "confidential",
+    "密碼",
+    "password",
+    "個資",
+    "personal",
+    "敏感",
   ],
 
   // === GLM 任務（中文優化）===
-  chinese_heavy: [
-    "繁體", "简体", "成語", "詩詞", "古文", "文言文",
-  ],
+  chinese_heavy: ["繁體", "简体", "成語", "詩詞", "古文", "文言文"],
 };
 
 // 意圖 → 模型映射
@@ -142,7 +197,7 @@ const INTENT_MODEL_MAP = {
   // Sonnet
   writing: MODELS.SONNET,
   chat: MODELS.SONNET,
-  sensitive: MODELS.SONNET,  // Claude 有更好的 guardrails
+  sensitive: MODELS.SONNET, // Claude 有更好的 guardrails
 
   // GLM
   chinese_heavy: MODELS.GLM,
@@ -172,8 +227,8 @@ const TASK_ROUTING = {
 // Context 長度閾值
 // ============================================================
 const CONTEXT_THRESHOLDS = {
-  VERY_LONG: 100000,  // >100k → Gemini（1M+ window）
-  LONG: 64000,        // >64k → 保持但記錄
+  VERY_LONG: 100000, // >100k → Gemini（1M+ window）
+  LONG: 64000, // >64k → 保持但記錄
 };
 
 // ============================================================
@@ -206,7 +261,7 @@ function hasMultimodalContent(event) {
 
   // 檢查是否有圖片
   if (hasImage) return true;
-  if (attachments?.some(a => a.type?.startsWith("image"))) return true;
+  if (attachments?.some((a) => a.type?.startsWith("image"))) return true;
   if (mediaTypes?.includes("image")) return true;
 
   return false;
@@ -246,8 +301,8 @@ async function handler(event) {
     contextLength,
     taskHint,
     channel,
-    message,        // 用戶消息（用於意圖分類）
-    lastMessage,    // 備用
+    message, // 用戶消息（用於意圖分類）
+    lastMessage, // 備用
   } = event.context;
 
   const userMessage = message || lastMessage || "";
@@ -303,8 +358,11 @@ async function handler(event) {
   }
 
   // L1.5 結果：只有在 L2 沒命中時，且預測信心度夠高才採用
-  if (!selectedModel && prediction?.confidence >= PREDICT_MIN_CONFIDENCE
-      && prediction?.occurrences >= PREDICT_MIN_OCCURRENCES) {
+  if (
+    !selectedModel &&
+    prediction?.confidence >= PREDICT_MIN_CONFIDENCE &&
+    prediction?.occurrences >= PREDICT_MIN_OCCURRENCES
+  ) {
     selectedModel = prediction.predictedDecision;
     routeReason = `L1.5: pattern "${prediction.patternName}" (${prediction.occurrences}x, conf=${prediction.confidence.toFixed(2)}) -> ${selectedModel}`;
     console.log(`[smart-router] ${routeReason}`);
@@ -369,11 +427,12 @@ async function handler(event) {
       }),
       decision: selectedModel,
       decisionReason: routeReason,
-      confidence: detectedIntent ? 0.8 : (taskHint ? 0.7 : 0.5),
-      method: detectedIntent ? "intent_classification" : (taskHint ? "task_hint" : "default"),
+      confidence: detectedIntent ? 0.8 : taskHint ? 0.7 : 0.5,
+      method: detectedIntent ? "intent_classification" : taskHint ? "task_hint" : "default",
       alternatives,
       actionTaken: selectedModel !== currentKey ? "override" : "keep",
-      actionResult: selectedModel !== currentKey ? `${currentKey} -> ${selectedModel}` : "no change",
+      actionResult:
+        selectedModel !== currentKey ? `${currentKey} -> ${selectedModel}` : "no change",
       chatId: sessionKey,
       channel,
     });
@@ -384,7 +443,9 @@ async function handler(event) {
       try {
         const result = extractThoughtPatterns({ days: 14, minOccurrences: 3 });
         if (result.newPatterns > 0) {
-          console.log(`[smart-router] 🔄 Extracted ${result.newPatterns} new patterns from ${result.analyzed} decisions`);
+          console.log(
+            `[smart-router] 🔄 Extracted ${result.newPatterns} new patterns from ${result.analyzed} decisions`,
+          );
         }
       } catch (e2) {
         // 靜默失敗

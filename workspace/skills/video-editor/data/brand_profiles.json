@@ -11,11 +11,11 @@
     },
     "narrative_arc": "hook -> knife -> awakening -> silence",
     "hook_patterns": [
-      {"type": "provocative_question", "example": "你為什麼不快樂？"},
-      {"type": "painful_truth", "example": "你不是善良，你只是不敢拒絕。"},
-      {"type": "uncomfortable_mirror", "example": "你又在假裝沒事了？"},
-      {"type": "counter_intuitive", "example": "你越努力，別人越不尊重你。"},
-      {"type": "whispered_secret", "example": "沒有人告訴過你..."}
+      { "type": "provocative_question", "example": "你為什麼不快樂？" },
+      { "type": "painful_truth", "example": "你不是善良，你只是不敢拒絕。" },
+      { "type": "uncomfortable_mirror", "example": "你又在假裝沒事了？" },
+      { "type": "counter_intuitive", "example": "你越努力，別人越不尊重你。" },
+      { "type": "whispered_secret", "example": "沒有人告訴過你..." }
     ],
     "silence_gap_s": 2.0
   }

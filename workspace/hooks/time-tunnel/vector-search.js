@@ -48,7 +48,9 @@ async function getEmbedder() {
       console.log("[vector-search] Using global transformers.js installation");
     }
 
-    console.log("[vector-search] Loading transformer model (first time may take ~90MB download)...");
+    console.log(
+      "[vector-search] Loading transformer model (first time may take ~90MB download)...",
+    );
     embedder = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
       device: "cpu",
     });
@@ -236,9 +238,7 @@ export async function storeMessageVectorAsync(db, messageId, content) {
       // 忽略刪除錯誤（可能不存在）
     }
 
-    const insertVec = db.prepare(
-      "INSERT INTO message_vectors(rowid, embedding) VALUES (?, ?)"
-    );
+    const insertVec = db.prepare("INSERT INTO message_vectors(rowid, embedding) VALUES (?, ?)");
     insertVec.run(BigInt(messageId), embedding);
 
     const insertMeta = db.prepare(`
@@ -267,7 +267,7 @@ export function storeMessageVector(db, messageId, content) {
     const embedding = generateHashEmbedding(content);
 
     const insertVec = db.prepare(
-      "INSERT OR REPLACE INTO message_vectors(rowid, embedding) VALUES (?, ?)"
+      "INSERT OR REPLACE INTO message_vectors(rowid, embedding) VALUES (?, ?)",
     );
     insertVec.run(BigInt(messageId), embedding);
 
@@ -300,7 +300,7 @@ export function storeKnowledgeVector(db, knowledgeId, content) {
     const embedding = generateLocalEmbedding(content);
 
     const insertVec = db.prepare(
-      "INSERT OR REPLACE INTO knowledge_vectors(rowid, embedding) VALUES (?, ?)"
+      "INSERT OR REPLACE INTO knowledge_vectors(rowid, embedding) VALUES (?, ?)",
     );
     insertVec.run(BigInt(knowledgeId), embedding);
 
@@ -352,7 +352,7 @@ export async function semanticSearchAsync(db, query, options = {}) {
       WHERE v.embedding MATCH ?
         AND k = ?
       ORDER BY v.distance ASC
-    `
+    `,
       )
       .all(queryVector, limit * 2);
 
@@ -399,7 +399,7 @@ export function semanticSearch(db, query, options = {}) {
       WHERE v.embedding MATCH ?
         AND k = ?
       ORDER BY v.distance ASC
-    `
+    `,
       )
       .all(queryVector, limit * 2);
 
@@ -519,7 +519,9 @@ export async function migrateExistingMessagesAsync(db, options = {}) {
     let migrated = 0;
     let failed = 0;
 
-    console.log(`[vector-search] Migrating ${messages.length} messages${force ? " (force mode)" : ""}...`);
+    console.log(
+      `[vector-search] Migrating ${messages.length} messages${force ? " (force mode)" : ""}...`,
+    );
 
     // 使用 transformer 嵌入
     for (const msg of messages) {
@@ -534,7 +536,9 @@ export async function migrateExistingMessagesAsync(db, options = {}) {
     }
 
     const usingTransformer = embedder !== null;
-    console.log(`[vector-search] Migration: ${migrated} success, ${failed} failed (transformer: ${usingTransformer})`);
+    console.log(
+      `[vector-search] Migration: ${migrated} success, ${failed} failed (transformer: ${usingTransformer})`,
+    );
 
     return {
       success: true,
@@ -573,7 +577,7 @@ export function migrateExistingMessages(db, options = {}) {
         AND LENGTH(m.content) > 10
       ORDER BY m.id DESC
       LIMIT ?
-    `
+    `,
       )
       .all(maxMessages);
 
@@ -613,12 +617,8 @@ export function getVectorStats(db) {
   }
 
   try {
-    const messageCount = db
-      .prepare("SELECT COUNT(*) as count FROM message_vectors")
-      .get();
-    const knowledgeCount = db
-      .prepare("SELECT COUNT(*) as count FROM knowledge_vectors")
-      .get();
+    const messageCount = db.prepare("SELECT COUNT(*) as count FROM message_vectors").get();
+    const knowledgeCount = db.prepare("SELECT COUNT(*) as count FROM knowledge_vectors").get();
     const version = db.prepare("SELECT vec_version() as version").get();
 
     return {

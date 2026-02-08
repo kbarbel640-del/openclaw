@@ -172,9 +172,9 @@ Tenant: xjpr2wuiezaq.jp.larksuite.com
 
 ### ⚠️ Container vs 本機差異
 
-| 環境 | 方法 | 工具 |
-|------|------|------|
-| **本機 Claude Code** | MCP 工具（推薦） | `mcp__lark__*` |
+| 環境                 | 方法                 | 工具                                          |
+| -------------------- | -------------------- | --------------------------------------------- |
+| **本機 Claude Code** | MCP 工具（推薦）     | `mcp__lark__*`                                |
 | **Container (無極)** | exec-bridge 呼叫本機 | `curl http://host.docker.internal:18793/exec` |
 
 ### 方法 A：本機 Claude Code（直接用 MCP）
@@ -218,20 +218,20 @@ curl -s "https://open.larksuite.com/open-apis/im/v1/messages?container_id_type=c
 
 ### 常用 MCP 工具（本機可用）
 
-| 工具 | 功能 |
-|------|------|
-| `mcp__lark__im_v1_chat_list` | 列出所有群組 |
-| `mcp__lark__im_v1_message_list` | 讀取消息 |
-| `mcp__lark__im_v1_message_create` | 發送消息 |
-| `mcp__lark__bitable_v1_appTable_list` | 列出多維表格 |
-| `mcp__lark__bitable_v1_appTableRecord_search` | 搜索記錄 |
-| `mcp__lark__docx_v1_document_rawContent` | 讀取文檔 |
+| 工具                                          | 功能         |
+| --------------------------------------------- | ------------ |
+| `mcp__lark__im_v1_chat_list`                  | 列出所有群組 |
+| `mcp__lark__im_v1_message_list`               | 讀取消息     |
+| `mcp__lark__im_v1_message_create`             | 發送消息     |
+| `mcp__lark__bitable_v1_appTable_list`         | 列出多維表格 |
+| `mcp__lark__bitable_v1_appTableRecord_search` | 搜索記錄     |
+| `mcp__lark__docx_v1_document_rawContent`      | 讀取文檔     |
 
 ### 已知群組 ID
 
-| 群組 | Chat ID |
-|------|---------|
-| （待補充） | oc_xxx |
+| 群組       | Chat ID |
+| ---------- | ------- |
+| （待補充） | oc_xxx  |
 
 ### ⚠️ Container 常見錯誤
 

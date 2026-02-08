@@ -2,8 +2,8 @@
   "name": "time-tunnel",
   "version": "1.0.0",
   "description": "Time Tunnel 時光隧道 - 完整記錄所有對話",
-  "main": "index.ts",
   "type": "module",
+  "main": "index.ts",
   "openclaw": {
     "plugin": true
   }

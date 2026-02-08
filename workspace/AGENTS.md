@@ -108,14 +108,14 @@
 
 ### Agent 權限隔離
 
-| Agent            | 可訪問 Workspace           | 禁止訪問                                 | 特殊權限         |
-| ---------------- | -------------------------- | ---------------------------------------- | ---------------- |
-| main             | /home/node/clawd           | 無                                       | spawn 任意 agent |
-| andrew           | /home/node/Documents/24Bet | /home/node/Documents/two/, credentials   | 無               |
-| two              | /home/node/Documents/two   | /home/node/Documents/24Bet/, credentials | 無               |
-| social-writer    | 無                         | 無                                       | 僅發布內容       |
-| dialogue-manager | 無                         | 無                                       | 僅對話管理       |
-| dofu-desk        | /app/workspace/agents/dofu-desk | credentials, 其他 agent workspace    | 讀寫 demands.jsonl |
+| Agent            | 可訪問 Workspace                | 禁止訪問                                 | 特殊權限           |
+| ---------------- | ------------------------------- | ---------------------------------------- | ------------------ |
+| main             | /home/node/clawd                | 無                                       | spawn 任意 agent   |
+| andrew           | /home/node/Documents/24Bet      | /home/node/Documents/two/, credentials   | 無                 |
+| two              | /home/node/Documents/two        | /home/node/Documents/24Bet/, credentials | 無                 |
+| social-writer    | 無                              | 無                                       | 僅發布內容         |
+| dialogue-manager | 無                              | 無                                       | 僅對話管理         |
+| dofu-desk        | /app/workspace/agents/dofu-desk | credentials, 其他 agent workspace        | 讀寫 demands.jsonl |
 
 ### 自動執行流程
 
@@ -156,7 +156,7 @@ dofu-desk 是杜甫的數據需求排程助手，部署在專用 Telegram 群。
 
 ```
 desk update #DK-0207-01 processing   → 標為「處理中」，推送群組
-desk update #DK-0207-01 done          → 標為「已完成」，推送群組  
+desk update #DK-0207-01 done          → 標為「已完成」，推送群組
 desk update #DK-0207-01 cancel        → 標為「已取消」，推送群組
 desk list                              → 列出所有待辦工單
 desk today                             → 列出今日到期工單

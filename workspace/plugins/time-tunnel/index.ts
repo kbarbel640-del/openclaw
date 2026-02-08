@@ -5,9 +5,9 @@
  */
 
 import type { OpenClawPlugin } from "openclaw";
-import { DatabaseSync } from "node:sqlite";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 const CONTAINER_WORKSPACE = process.env.CLAWDBOT_WORKSPACE_DIR || "/app/workspace";
 const DATA_DIR = path.join(CONTAINER_WORKSPACE, "data");
@@ -72,18 +72,18 @@ function insertMessage(data: Record<string, unknown>) {
   stmt.run(
     data.timestamp as string,
     data.direction as string,
-    data.channel as string || null,
-    data.chatId as string || null,
-    data.chatType as string || null,
-    data.chatName as string || null,
-    data.senderId as string || null,
-    data.senderName as string || null,
-    data.messageId as string || null,
-    data.replyToId as string || null,
-    data.content as string || null,
-    data.mediaType as string || null,
-    data.response as string || null,
-    data.sessionKey as string || null
+    (data.channel as string) || null,
+    (data.chatId as string) || null,
+    (data.chatType as string) || null,
+    (data.chatName as string) || null,
+    (data.senderId as string) || null,
+    (data.senderName as string) || null,
+    (data.messageId as string) || null,
+    (data.replyToId as string) || null,
+    (data.content as string) || null,
+    (data.mediaType as string) || null,
+    (data.response as string) || null,
+    (data.sessionKey as string) || null,
   );
 }
 
@@ -150,7 +150,7 @@ const plugin: OpenClawPlugin = {
           appendToDiary(data);
 
           console.log(
-            `[time-tunnel] 📥 ${data.channel}/${data.chatId} - ${(data.content || "").substring(0, 50)}...`
+            `[time-tunnel] 📥 ${data.channel}/${data.chatId} - ${(data.content || "").substring(0, 50)}...`,
           );
         } catch (err) {
           console.error("[time-tunnel] Error recording inbound:", err);
@@ -177,7 +177,7 @@ const plugin: OpenClawPlugin = {
           appendToDiary(data);
 
           console.log(
-            `[time-tunnel] 📤 ${data.channel}/${data.chatId} - ${(data.content || "").substring(0, 50)}...`
+            `[time-tunnel] 📤 ${data.channel}/${data.chatId} - ${(data.content || "").substring(0, 50)}...`,
           );
         } catch (err) {
           console.error("[time-tunnel] Error recording outbound:", err);

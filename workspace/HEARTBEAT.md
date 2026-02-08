@@ -98,6 +98,7 @@ message action=edit channel=telegram messageId=12085 message="新內容"
 ```
 
 **重要**：
+
 1. 心跳完成後用 **edit** 更新 Dashboard，不發新消息
 2. 只有緊急告警才發新消息通知
 3. Dashboard 消息應該被 **pin** 在對話頂部

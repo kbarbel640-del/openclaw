@@ -22,9 +22,9 @@ function generateId() {
  */
 function handleMessageReceived(event) {
   const ctx = event.context || {};
-  const chatId = ctx.chatId || ctx.originatingTo || 'unknown';
-  const channel = ctx.channel || 'unknown';
-  const content = ctx.content || '';
+  const chatId = ctx.chatId || ctx.originatingTo || "unknown";
+  const channel = ctx.channel || "unknown";
+  const content = ctx.content || "";
 
   // 生成追蹤 ID（基於 chatId，一個 chat 同時只能有一個 in-flight）
   const trackingKey = `${channel}:${chatId}`;
@@ -32,7 +32,9 @@ function handleMessageReceived(event) {
   // 如果已經有一個 in-flight，先結束它（避免積累）
   if (inFlightRequests.has(trackingKey)) {
     const existing = inFlightRequests.get(trackingKey);
-    console.log(`[graceful-shutdown] ⚠️ replacing existing in-flight: ${trackingKey} (${Date.now() - existing.startedAt}ms)`);
+    console.log(
+      `[graceful-shutdown] ⚠️ replacing existing in-flight: ${trackingKey} (${Date.now() - existing.startedAt}ms)`,
+    );
   }
 
   const request = {
@@ -55,8 +57,8 @@ function handleMessageReceived(event) {
  */
 function handleMessageSent(event) {
   const ctx = event.context || {};
-  const chatId = ctx.chatId || 'unknown';
-  const channel = ctx.channel || 'unknown';
+  const chatId = ctx.chatId || "unknown";
+  const channel = ctx.channel || "unknown";
 
   const trackingKey = `${channel}:${chatId}`;
 
@@ -64,7 +66,9 @@ function handleMessageSent(event) {
     const request = inFlightRequests.get(trackingKey);
     const duration = Date.now() - request.startedAt;
     inFlightRequests.delete(trackingKey);
-    console.log(`[graceful-shutdown] [-] in-flight: ${inFlightRequests.size} (completed in ${duration}ms)`);
+    console.log(
+      `[graceful-shutdown] [-] in-flight: ${inFlightRequests.size} (completed in ${duration}ms)`,
+    );
   }
 }
 
@@ -75,10 +79,10 @@ export default async function handler(event) {
   const eventKey = `${event.type}:${event.action}`;
 
   switch (eventKey) {
-    case 'message:received':
+    case "message:received":
       handleMessageReceived(event);
       break;
-    case 'message:sent':
+    case "message:sent":
       handleMessageSent(event);
       break;
     default:
@@ -101,13 +105,15 @@ export function getInFlightRequests() {
 export async function waitForCompletion(timeoutMs = 30000) {
   const count = inFlightRequests.size;
   if (count === 0) {
-    console.log('[graceful-shutdown] no in-flight requests');
+    console.log("[graceful-shutdown] no in-flight requests");
     return { completed: true, remaining: 0 };
   }
 
   console.log(`[graceful-shutdown] waiting for ${count} in-flight request(s)...`);
   for (const req of inFlightRequests.values()) {
-    console.log(`  - ${req.channel}:${req.chatId} (${Date.now() - req.startedAt}ms) "${req.content}"`);
+    console.log(
+      `  - ${req.channel}:${req.chatId} (${Date.now() - req.startedAt}ms) "${req.content}"`,
+    );
   }
 
   return new Promise((resolve) => {
@@ -118,7 +124,7 @@ export async function waitForCompletion(timeoutMs = 30000) {
 
       if (remaining === 0) {
         clearInterval(checkInterval);
-        console.log('[graceful-shutdown] all requests completed');
+        console.log("[graceful-shutdown] all requests completed");
         resolve({ completed: true, remaining: 0 });
       } else if (elapsed >= timeoutMs) {
         clearInterval(checkInterval);

@@ -35,7 +35,7 @@ SIGTERM → 等待 in-flight 完成 (30s timeout) → 關閉服務
 ## 導出函數
 
 ```javascript
-import { getInFlightCount, waitForCompletion } from './handler.js';
+import { getInFlightCount, waitForCompletion } from "./handler.js";
 
 // 獲取當前 in-flight 數量
 const count = getInFlightCount();
