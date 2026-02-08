@@ -113,7 +113,8 @@ with_target_args() {
 oc_json_targeted() {
   local cmd="$1"
   shift
-  local -a args=()
+  local -a args
+  args=()
   while IFS= read -r -d '' item; do
     args+=("$item")
   done < <(with_target_args "$cmd" "$@")
@@ -121,7 +122,8 @@ oc_json_targeted() {
 }
 
 oc_wait_small() {
-  local -a args=(wait --time "$WAIT_MS")
+  local -a args
+  args=(wait --time "$WAIT_MS")
   if [[ -n "$TARGET_ID" ]]; then
     args+=(--target-id "$TARGET_ID")
   fi
@@ -129,7 +131,8 @@ oc_wait_small() {
 }
 
 snapshot_json() {
-  local -a args=(snapshot --json --efficient --limit "$SNAPSHOT_LIMIT")
+  local -a args
+  args=(snapshot --json --efficient --limit "$SNAPSHOT_LIMIT")
   if [[ -n "$TARGET_ID" ]]; then
     args+=(--target-id "$TARGET_ID")
   fi
@@ -328,13 +331,15 @@ fi
 open_or_navigate || die "Failed to establish target page"
 
 if [[ -n "$URL" ]]; then
-  local_wait_args=(wait --url '**' --timeout-ms 30000)
+  declare -a wait_args=(wait --url '**' --timeout-ms 30000)
   if [[ -n "$TARGET_ID" ]]; then
-    local_wait_args+=(--target-id "$TARGET_ID")
+    wait_args+=(--target-id "$TARGET_ID")
   fi
-  oc_raw "${local_wait_args[@]}" >/dev/null 2>&1 || true
+  oc_raw "${wait_args[@]}" >/dev/null 2>&1 || true
 fi
 
+snap=""
+ref=""
 for ((attempt=1; attempt<=MAX_RETRIES; attempt++)); do
   log "Attempt ${attempt}/${MAX_RETRIES}"
 

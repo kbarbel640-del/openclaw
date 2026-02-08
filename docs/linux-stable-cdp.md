@@ -25,15 +25,15 @@ You can sync from default profile with `sync-main-profile-to-openclaw.sh`.
 
 Use templates:
 
-- `templates/systemd/openclaw-xvfb.service`
-- `templates/systemd/openclaw-chrome-main.service`
+- `examples/systemd/openclaw-xvfb.service`
+- `examples/systemd/openclaw-chrome-main.service`
 
 Install (example):
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cp openclaw-xvfb.service ~/.config/systemd/user/
-cp openclaw-chrome-main.service ~/.config/systemd/user/
+cp examples/systemd/openclaw-xvfb.service ~/.config/systemd/user/
+cp examples/systemd/openclaw-chrome-main.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now openclaw-xvfb.service
 systemctl --user enable --now openclaw-chrome-main.service
@@ -62,10 +62,17 @@ Recommended loop:
 3. action (type/click)
 4. if error: wait + fresh snapshot + retry
 
+Production hints from current CDP usage:
+
+- **Lock by targetId** once you open/reuse a tab, and pass `--target-id` on every command.
+- Take a **fresh snapshot before each action** (`type`, `click`, upload steps), especially on React/Vue pages.
+- Treat failed actions as potentially stale refs and run a **stale-ref retry loop** (small wait + fresh snapshot + ref re-resolve).
+- Prefer semantic matching (`role` + name regex) over positional assumptions.
+
 Example helper:
 
-- `templates/scripts/openclaw-browser-safe-action.sh` (generic action engine)
-- `templates/scripts/openclaw-x-post.sh` (X-specific wrapper on top)
+- `examples/scripts/openclaw-browser-safe-action.sh` (generic action engine)
+- `examples/scripts/openclaw-x-post.sh` (X-specific wrapper on top)
 
 ## Troubleshooting
 
