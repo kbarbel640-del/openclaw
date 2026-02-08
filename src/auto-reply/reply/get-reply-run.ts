@@ -38,6 +38,7 @@ import {
 } from "../thinking.js";
 import { SILENT_REPLY_TOKEN } from "../tokens.js";
 import { runReplyAgent } from "./agent-runner.js";
+import { maybeBuildMemoryRecallSystemPrompt } from "./auto-recall.js";
 import { applySessionHints } from "./body.js";
 import { buildGroupChatContext, buildGroupIntro } from "./groups.js";
 import { buildInboundMetaSystemPrompt, buildInboundUserContextPrefix } from "./inbound-meta.js";
@@ -184,12 +185,16 @@ export async function runPreparedReply(
       })
     : "";
   const groupSystemPrompt = sessionCtx.GroupSystemPrompt?.trim() ?? "";
+<<<<<<< HEAD
   const inboundMetaPrompt = buildInboundMetaSystemPrompt(
     isNewSession ? sessionCtx : { ...sessionCtx, ThreadStarterBody: undefined },
   );
   const extraSystemPrompt = [inboundMetaPrompt, groupChatContext, groupIntro, groupSystemPrompt]
     .filter(Boolean)
     .join("\n\n");
+=======
+  let extraSystemPrompt = [groupIntro, groupSystemPrompt].filter(Boolean).join("\n\n");
+>>>>>>> 79dfe5b9b (feat: pre-turn memory recall injection)
   const baseBody = sessionCtx.BodyStripped ?? sessionCtx.Body ?? "";
   // Use CommandBody/RawBody for bare reset detection (clean message without structural context).
   const rawBodyTrimmed = (ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "").trim();
@@ -232,6 +237,19 @@ export async function runPreparedReply(
     return {
       text: "I didn't receive any text in your message. Please resend or add a caption.",
     };
+  }
+  const recallPrompt = await maybeBuildMemoryRecallSystemPrompt({
+    cfg,
+    agentId,
+    sessionKey,
+    chatType: sessionCtx.ChatType,
+    senderIsOwner: command.senderIsOwner,
+    isHeartbeat,
+    isBareSessionReset,
+    message: baseBodyFinal,
+  });
+  if (recallPrompt) {
+    extraSystemPrompt = [extraSystemPrompt, recallPrompt].filter(Boolean).join("\n\n");
   }
   // When the user sends media without text, provide a minimal body so the agent
   // run proceeds and the image/document is injected by the embedded runner.

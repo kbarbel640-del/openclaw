@@ -450,6 +450,24 @@ export const MemorySearchSchema = z
   })
   .strict()
   .optional();
+
+export const MemoryRecallSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    mode: z.union([z.literal("heuristic"), z.literal("always")]).optional(),
+    requireOwner: z.boolean().optional(),
+    chatTypes: z
+      .array(z.union([z.literal("direct"), z.literal("group"), z.literal("channel")]))
+      .optional(),
+    timeoutMs: z.number().int().positive().optional(),
+    maxResults: z.number().int().positive().optional(),
+    minScore: z.number().min(0).max(1).optional(),
+    maxInjectedChars: z.number().int().positive().optional(),
+    minMessageChars: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+  .optional();
+
 export const AgentModelSchema = z.union([
   z.string(),
   z
@@ -469,6 +487,7 @@ export const AgentEntrySchema = z
     model: AgentModelSchema.optional(),
     skills: z.array(z.string()).optional(),
     memorySearch: MemorySearchSchema,
+    memoryRecall: MemoryRecallSchema,
     humanDelay: HumanDelaySchema.optional(),
     heartbeat: HeartbeatSchema,
     identity: IdentitySchema,
