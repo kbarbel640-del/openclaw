@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../config/config.js";
 
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 600;
+const DEFAULT_SUBAGENT_ANNOUNCE_DELIVERY_TIMEOUT_MS = 60_000;
 const MAX_SAFE_TIMEOUT_MS = 2_147_000_000;
 
 const normalizeNumber = (value: unknown): number | undefined =>
@@ -45,4 +46,12 @@ export function resolveAgentTimeoutMs(opts: {
     return clampTimeoutMs(overrideSeconds * 1000);
   }
   return defaultMs;
+}
+
+export function resolveSubagentAnnounceDeliveryTimeoutMs(cfg?: OpenClawConfig): number {
+  const raw = normalizeNumber(cfg?.agents?.defaults?.subagents?.announceDeliveryTimeoutMs);
+  if (raw === undefined) {
+    return DEFAULT_SUBAGENT_ANNOUNCE_DELIVERY_TIMEOUT_MS;
+  }
+  return Math.min(Math.max(raw, 1), MAX_SAFE_TIMEOUT_MS);
 }

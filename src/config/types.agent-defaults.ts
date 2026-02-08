@@ -210,6 +210,8 @@ export type AgentDefaultsConfig = {
     model?: string | { primary?: string; fallbacks?: string[] };
     /** Default thinking level for spawned sub-agents (e.g. "off", "low", "medium", "high"). */
     thinking?: string;
+    /** Timeout in ms for sub-agent announce delivery calls (default: 60000). */
+    announceDeliveryTimeoutMs?: number;
   };
   /** Optional sandbox settings for non-main sessions. */
   sandbox?: {
