@@ -91,6 +91,38 @@ describe("runDefenderRuntimeMonitor", () => {
     const result = await runDefenderRuntimeMonitor(workspaceDir, "kill-switch", ["check"], 5_000);
     expect(result.ok).toBe(true);
   });
+
+  it("returns ok: false with stderr when script exits non-zero", async () => {
+    const workspaceDir = makeTmpDir("defender-client");
+    await fs.mkdir(path.join(workspaceDir, "scripts"), { recursive: true });
+    const scriptPath = path.join(workspaceDir, "scripts", "runtime-monitor.sh");
+    await fs.writeFile(
+      scriptPath,
+      '#!/bin/bash\necho "Command blocked by policy" >&2\nexit 1\n',
+      "utf-8",
+    );
+    await fs.chmod(scriptPath, 0o755);
+    const result = await runDefenderRuntimeMonitor(
+      workspaceDir,
+      "check-command",
+      ["rm -rf /", "test-skill"],
+      5_000,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.stderr).toBeDefined();
+    expect(result.stderr).toContain("Command blocked by policy");
+  });
+
+  it("returns ok: false when script times out", async () => {
+    const workspaceDir = makeTmpDir("defender-client");
+    await fs.mkdir(path.join(workspaceDir, "scripts"), { recursive: true });
+    const scriptPath = path.join(workspaceDir, "scripts", "runtime-monitor.sh");
+    await fs.writeFile(scriptPath, "#!/bin/bash\nsleep 10\nexit 0\n", "utf-8");
+    await fs.chmod(scriptPath, 0o755);
+    const result = await runDefenderRuntimeMonitor(workspaceDir, "test", ["arg"], 500);
+    expect(result.ok).toBe(false);
+    expect(result.stderr).toBeDefined();
+  }, 10_000);
 });
 
 describe("runDefenderAudit", () => {
@@ -103,4 +135,50 @@ describe("runDefenderAudit", () => {
     expect(result.ok).toBe(true);
     expect(result.stderr).toBeUndefined();
   });
+
+  it("returns ok: true when audit script exists and passes", async () => {
+    const workspaceDir = makeTmpDir("defender-client");
+    const skillDir = makeTmpDir("defender-skill");
+    await fs.mkdir(workspaceDir, { recursive: true });
+    await fs.mkdir(path.join(workspaceDir, "scripts"), { recursive: true });
+    await fs.mkdir(skillDir, { recursive: true });
+    const scriptPath = path.join(workspaceDir, "scripts", "audit-skills.sh");
+    await fs.writeFile(scriptPath, '#!/bin/bash\necho "Audit passed"\nexit 0\n', "utf-8");
+    await fs.chmod(scriptPath, 0o755);
+    const result = await runDefenderAudit(workspaceDir, skillDir, 5_000);
+    expect(result.ok).toBe(true);
+  });
+
+  it("returns ok: false when audit detects violations", async () => {
+    const workspaceDir = makeTmpDir("defender-client");
+    const skillDir = makeTmpDir("defender-skill");
+    await fs.mkdir(workspaceDir, { recursive: true });
+    await fs.mkdir(path.join(workspaceDir, "scripts"), { recursive: true });
+    await fs.mkdir(skillDir, { recursive: true });
+    const scriptPath = path.join(workspaceDir, "scripts", "audit-skills.sh");
+    await fs.writeFile(
+      scriptPath,
+      '#!/bin/bash\necho "FAIL: Malicious pattern detected" >&2\nexit 1\n',
+      "utf-8",
+    );
+    await fs.chmod(scriptPath, 0o755);
+    const result = await runDefenderAudit(workspaceDir, skillDir, 5_000);
+    expect(result.ok).toBe(false);
+    expect(result.stderr).toBeDefined();
+    expect(result.stderr).toContain("Malicious pattern detected");
+  });
+
+  it("returns ok: false when audit times out", async () => {
+    const workspaceDir = makeTmpDir("defender-client");
+    const skillDir = makeTmpDir("defender-skill");
+    await fs.mkdir(workspaceDir, { recursive: true });
+    await fs.mkdir(path.join(workspaceDir, "scripts"), { recursive: true });
+    await fs.mkdir(skillDir, { recursive: true });
+    const scriptPath = path.join(workspaceDir, "scripts", "audit-skills.sh");
+    await fs.writeFile(scriptPath, "#!/bin/bash\nsleep 10\nexit 0\n", "utf-8");
+    await fs.chmod(scriptPath, 0o755);
+    const result = await runDefenderAudit(workspaceDir, skillDir, 500);
+    expect(result.ok).toBe(false);
+    expect(result.stderr).toBeDefined();
+  }, 10_000);
 });

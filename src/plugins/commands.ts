@@ -262,7 +262,7 @@ export async function executePluginCommand(params: {
 
   // Defender skill start/end logging (optional; enables collusion detection)
   const defenderWorkspace = resolveDefenderWorkspace();
-  void runDefenderRuntimeMonitor(defenderWorkspace, "start", [command.name], 5_000);
+  void runDefenderRuntimeMonitor(defenderWorkspace, "start", [command.name], 5_000).catch(() => {});
 
   let exitCode = "0";
   // Lock registry during execution to prevent concurrent modifications
