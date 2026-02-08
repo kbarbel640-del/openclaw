@@ -14,7 +14,7 @@ export function buildCommandContext(params: {
   triggerBodyNormalized: string;
   commandAuthorized: boolean;
 }): CommandContext {
-  const { ctx, cfg, agentId, sessionKey, isGroup, triggerBodyNormalized } = params;
+  const { ctx, cfg, agentId, sessionKey, triggerBodyNormalized } = params;
   const auth = resolveCommandAuthorization({
     ctx,
     cfg,
@@ -24,8 +24,11 @@ export function buildCommandContext(params: {
   const channel = (ctx.Provider ?? surface).trim().toLowerCase();
   const abortKey = sessionKey ?? (auth.from || undefined) ?? (auth.to || undefined);
   const rawBodyNormalized = triggerBodyNormalized;
+  // Always strip mentions for command parsing, even in DMs.
+  // Previously this only stripped mentions for groups, but DM users also use
+  // @mentions to trigger the bot (e.g., "@OC /models"), which need to be stripped.
   const commandBodyNormalized = normalizeCommandBody(
-    isGroup ? stripMentions(rawBodyNormalized, ctx, cfg, agentId) : rawBodyNormalized,
+    stripMentions(rawBodyNormalized, ctx, cfg, agentId),
   );
 
   return {

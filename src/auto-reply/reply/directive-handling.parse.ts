@@ -197,7 +197,7 @@ export function isDirectiveOnly(params: {
   agentId?: string;
   isGroup: boolean;
 }): boolean {
-  const { directives, cleanedBody, ctx, cfg, agentId, isGroup } = params;
+  const { directives, cleanedBody, ctx, cfg, agentId } = params;
   if (
     !directives.hasThinkDirective &&
     !directives.hasVerboseDirective &&
@@ -210,6 +210,9 @@ export function isDirectiveOnly(params: {
     return false;
   }
   const stripped = stripStructuralPrefixes(cleanedBody ?? "");
-  const noMentions = isGroup ? stripMentions(stripped, ctx, cfg, agentId) : stripped;
+  // Always strip mentions for directive-only check, even in DMs.
+  // Without this, "@OC /model" in a DM leaves "@OC" as remaining text,
+  // causing the directive to be cleared and sent to the LLM instead.
+  const noMentions = stripMentions(stripped, ctx, cfg, agentId);
   return noMentions.length === 0;
 }

@@ -61,8 +61,10 @@ export const maskApiKey = (value: string): string => {
   if (!trimmed) {
     return "missing";
   }
-  if (trimmed.length <= 16) {
-    return trimmed;
+  // Show first 6 characters to identify key format/presence while hiding secret data
+  // This covers most provider prefixes (AIzaSy, sk-ant, tgp_v1) with minimal exposure
+  if (trimmed.length <= 6) {
+    return "******";
   }
-  return `${trimmed.slice(0, 8)}...${trimmed.slice(-8)}`;
+  return `${trimmed.slice(0, 6)}******`;
 };

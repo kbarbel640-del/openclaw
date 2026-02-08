@@ -1,3 +1,4 @@
+import { buildMentionRegexes } from "../../auto-reply/reply/mentions.js";
 import { loadConfig } from "../../config/config.js";
 import { logVerbose } from "../../globals.js";
 import { buildPairingReply } from "../../pairing/pairing-messages.js";
@@ -32,6 +33,8 @@ export async function checkInboundAccessControl(params: {
     sendMessage: (jid: string, content: { text: string }) => Promise<unknown>;
   };
   remoteJid: string;
+  /** Message body text, used to check for mention triggers in DMs */
+  messageBody?: string;
 }): Promise<InboundAccessControlResult> {
   const cfg = loadConfig();
   const account = resolveWhatsAppAccount({
@@ -117,15 +120,37 @@ export async function checkInboundAccessControl(params: {
 
   // DM access control (secure defaults): "pairing" (default) / "allowlist" / "open" / "disabled".
   if (!params.group) {
+    // Build mention patterns to check for @OC or similar triggers
+    const defaultAgentId = cfg.agents?.list?.[0]?.id ?? "main";
+    const mentionRegexes = buildMentionRegexes(cfg, defaultAgentId);
+    const bodyClean = (params.messageBody ?? "")
+      .toLowerCase()
+      .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f]/g, "");
+    const hasMentionTrigger = mentionRegexes.some((re) => re.test(bodyClean));
+
+    // For fromMe messages (sent from WhatsApp Web to another contact),
+    // only respond if there's an explicit mention trigger like @OC.
+    // This prevents the bot from auto-replying to all your outgoing messages.
     if (params.isFromMe && !isSamePhone) {
-      logVerbose("Skipping outbound DM (fromMe); no pairing reply needed.");
+      if (!hasMentionTrigger) {
+        logVerbose("Skipping outbound DM (fromMe); no mention trigger found.");
+        return {
+          allowed: false,
+          shouldMarkRead: false,
+          isSelfChat,
+          resolvedAccountId: account.accountId,
+        };
+      }
+      // Has mention trigger - allow it
+      logVerbose(`Processing outbound DM (fromMe) with mention trigger.`);
       return {
-        allowed: false,
+        allowed: true,
         shouldMarkRead: false,
         isSelfChat,
         resolvedAccountId: account.accountId,
       };
     }
+
     if (dmPolicy === "disabled") {
       logVerbose("Blocked dm (dmPolicy: disabled)");
       return {
@@ -173,6 +198,27 @@ export async function checkInboundAccessControl(params: {
         return {
           allowed: false,
           shouldMarkRead: false,
+          isSelfChat,
+          resolvedAccountId: account.accountId,
+        };
+      }
+      // User is in allowFrom - check if mention trigger is required based on config
+      // Check per-contact setting first, then global DM setting
+      const dmsConfig = cfg.channels?.whatsapp?.dms as
+        | Record<string, { requireMention?: boolean }>
+        | undefined;
+      const perContactRequireMention = dmsConfig?.[candidate]?.requireMention;
+      const globalDmRequireMention = (cfg.channels?.whatsapp as { requireMention?: boolean })
+        ?.requireMention;
+      const requireMention = perContactRequireMention ?? globalDmRequireMention ?? false;
+
+      if (requireMention && !hasMentionTrigger) {
+        logVerbose(
+          `Skipping DM from allowlisted ${candidate}; requireMention=true but no trigger found.`,
+        );
+        return {
+          allowed: false,
+          shouldMarkRead: true, // Mark as read so it doesn't pile up
           isSelfChat,
           resolvedAccountId: account.accountId,
         };

@@ -242,7 +242,9 @@ export async function resolveReplyDirectives(params: {
     parsedDirectives.hasQueueDirective;
   if (hasInlineDirective) {
     const stripped = stripStructuralPrefixes(parsedDirectives.cleaned);
-    const noMentions = isGroup ? stripMentions(stripped, ctx, cfg, agentId) : stripped;
+    // Always strip mentions for directive-only check, even in DMs.
+    // This ensures "/model" directives work when prefixed with @mentions like "@OC /model".
+    const noMentions = stripMentions(stripped, ctx, cfg, agentId);
     if (noMentions.trim().length > 0) {
       const directiveOnlyCheck = parseInlineDirectives(noMentions, {
         modelAliases: configuredAliases,
