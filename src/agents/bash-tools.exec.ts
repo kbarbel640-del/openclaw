@@ -1043,8 +1043,12 @@ export function createExecTool(
         if (nodeEnv) {
           applyPathPrepend(nodeEnv, defaultPathPrepend, { requireExisting: true });
         }
+        // Evaluate the actual command that will be executed (which may be
+        // wrapped in a heredoc for shebang scripts) so the allowlist analysis
+        // matches what the node runs.
+        const actualCommand = argv[argv.length - 1];
         const baseAllowlistEval = evaluateShellAllowlist({
-          command: params.command,
+          command: actualCommand,
           allowlist: [],
           safeBins: new Set(),
           cwd: workdir,
