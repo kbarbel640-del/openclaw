@@ -56,6 +56,39 @@ Allowlist:
 
 - `agents.list[].subagents.allowAgents`: list of agent ids that can be targeted via `agentId` (`["*"]` to allow any). Default: only the requester agent.
 
+> **Note:** `allowAgents` is **per-agent only** — it must be set on the agent entry in `agents.list[]`, not in `agents.defaults.subagents`. Placing it in defaults will cause a config validation error (`Unrecognized key: "allowAgents"`).
+
+Example — allow the `main` agent to spawn `coder` and `reviewer` sub-agents:
+
+```json
+{
+  "agents": {
+    "list": [
+      {
+        "id": "main",
+        "subagents": {
+          "allowAgents": ["coder", "reviewer"]
+        }
+      },
+      {
+        "id": "coder",
+        "name": "Code Agent",
+        "model": "your-provider/model-id",
+        "workspace": "/home/node/.openclaw/workspace-coder",
+        "agentDir": "/home/node/.openclaw/agents/coder"
+      },
+      {
+        "id": "reviewer",
+        "name": "Review Agent",
+        "model": "your-provider/another-model-id",
+        "workspace": "/home/node/.openclaw/workspace-reviewer",
+        "agentDir": "/home/node/.openclaw/agents/reviewer"
+      }
+    ]
+  }
+}
+```
+
 Discovery:
 
 - Use `agents_list` to see which agent ids are currently allowed for `sessions_spawn`.
