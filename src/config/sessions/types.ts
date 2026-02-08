@@ -130,6 +130,19 @@ export type SessionSystemPromptReport = {
   model?: string;
   workspaceDir?: string;
   bootstrapMaxChars?: number;
+  /** Effective context budget caps (chars) when agents.defaults.contextBudget.enabled=true. */
+  contextBudget?: {
+    enabled: boolean;
+    bootstrapMaxChars?: number;
+    memoryMaxInjectedChars?: number;
+    webFetchMaxChars?: number;
+    /** Caps after merging configured + budget (min-clamp). */
+    effective?: {
+      bootstrapMaxChars?: number;
+      memoryMaxInjectedChars?: number;
+      webFetchMaxChars?: number;
+    };
+  };
   sandbox?: {
     mode?: string;
     sandboxed?: boolean;

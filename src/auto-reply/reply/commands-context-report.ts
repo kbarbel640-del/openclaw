@@ -160,7 +160,7 @@ async function resolveContextReport(
     memoryCitationsMode: params.cfg?.memory?.citations,
   });
 
-  return buildSystemPromptReport({
+  const report = buildSystemPromptReport({
     source: "estimate",
     generatedAt: Date.now(),
     sessionId: params.sessionEntry?.sessionId,
@@ -176,6 +176,43 @@ async function resolveContextReport(
     skillsPrompt,
     tools,
   });
+
+  // Attach effective context budget info for /context reporting.
+  const budget = params.cfg?.agents?.defaults?.contextBudget;
+  const enabled = typeof budget?.enabled === "boolean" ? budget.enabled : false;
+  const toPosInt = (v: unknown): number | undefined => {
+    if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+    const n = Math.floor(v);
+    return n > 0 ? n : undefined;
+  };
+  const configuredWebFetch = toPosInt(params.cfg?.tools?.web?.fetch?.maxChars);
+  const configuredMemoryInjected = toPosInt(params.cfg?.memory?.qmd?.limits?.maxInjectedChars);
+
+  const budgetBootstrap = toPosInt(budget?.bootstrapMaxChars);
+  const budgetWebFetch = toPosInt(budget?.webFetchMaxChars);
+  const budgetMemoryInjected = toPosInt(budget?.memoryMaxInjectedChars);
+
+  report.contextBudget = {
+    enabled,
+    bootstrapMaxChars: budgetBootstrap,
+    memoryMaxInjectedChars: budgetMemoryInjected,
+    webFetchMaxChars: budgetWebFetch,
+    effective: enabled
+      ? {
+          bootstrapMaxChars: report.bootstrapMaxChars,
+          memoryMaxInjectedChars:
+            typeof configuredMemoryInjected === "number" && typeof budgetMemoryInjected === "number"
+              ? Math.min(configuredMemoryInjected, budgetMemoryInjected)
+              : (budgetMemoryInjected ?? configuredMemoryInjected),
+          webFetchMaxChars:
+            typeof configuredWebFetch === "number" && typeof budgetWebFetch === "number"
+              ? Math.min(configuredWebFetch, budgetWebFetch)
+              : (budgetWebFetch ?? configuredWebFetch),
+        }
+      : undefined,
+  };
+
+  return report;
 }
 
 export async function buildContextReply(params: HandleCommandsParams): Promise<ReplyPayload> {
@@ -251,6 +288,15 @@ export async function buildContextReply(params: HandleCommandsParams): Promise<R
       ? `${formatInt(report.bootstrapMaxChars)} chars`
       : "? chars";
 
+  const contextBudgetLine = (() => {
+    const b = report.contextBudget;
+    if (!b) return "";
+    if (!b.enabled) return "";
+    const eff = b.effective;
+    const fmt = (n?: number) => (typeof n === "number" ? `${formatInt(n)} chars` : "?");
+    return `Context budget: enabled (bootstrap≤${fmt(eff?.bootstrapMaxChars)} memory≤${fmt(eff?.memoryMaxInjectedChars)} web_fetch≤${fmt(eff?.webFetchMaxChars)})`;
+  })();
+
   const totalsLine =
     session.totalTokens != null
       ? `Session tokens (cached): ${formatInt(session.totalTokens)} total / ctx=${session.contextTokens ?? "?"}`
@@ -280,6 +326,7 @@ export async function buildContextReply(params: HandleCommandsParams): Promise<R
         "🧠 Context breakdown (detailed)",
         `Workspace: ${workspaceLabel}`,
         `Bootstrap max/file: ${bootstrapMaxLabel}`,
+        contextBudgetLine,
         sandboxLine,
         systemPromptLine,
         "",
@@ -317,6 +364,7 @@ export async function buildContextReply(params: HandleCommandsParams): Promise<R
       "🧠 Context breakdown",
       `Workspace: ${workspaceLabel}`,
       `Bootstrap max/file: ${bootstrapMaxLabel}`,
+      contextBudgetLine,
       sandboxLine,
       systemPromptLine,
       "",
