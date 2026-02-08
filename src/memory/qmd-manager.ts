@@ -495,9 +495,15 @@ export class QmdMemoryManager implements MemorySearchManager {
     const defaultModelsDir = path.join(defaultCacheHome, "qmd", "models");
     const targetModelsDir = path.join(this.xdgCacheHome, "qmd", "models");
     try {
-      // Check if the default models directory exists
-      const stat = await fs.stat(defaultModelsDir);
-      if (!stat.isDirectory()) {
+      // Check if the default models directory exists.
+      // Missing path is normal on first run and should be silent.
+      const stat = await fs.stat(defaultModelsDir).catch((err: unknown) => {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          return null;
+        }
+        throw err;
+      });
+      if (!stat?.isDirectory()) {
         return;
       }
       // Check if something already exists at the target path

@@ -680,6 +680,9 @@ describe("QmdMemoryManager", () => {
 
       // Custom models dir should not exist (no symlink created).
       await expect(fs.lstat(customModelsDir)).rejects.toThrow();
+      expect(logWarnMock).not.toHaveBeenCalledWith(
+        expect.stringContaining("failed to symlink qmd models directory"),
+      );
 
       await manager!.close();
     });
