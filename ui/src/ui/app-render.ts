@@ -40,7 +40,6 @@ import { renderInstances } from "./views/instances";
 import { renderLogs } from "./views/logs";
 import { renderNodes } from "./views/nodes";
 import { renderOverview } from "./views/overview";
-import { renderUsage } from "./views/usage";
 import { renderSessions } from "./views/sessions";
 import { renderExecApprovalPrompt } from "./views/exec-approval";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation";
@@ -56,7 +55,6 @@ import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.h
 import { loadChannels } from "./controllers/channels";
 import { loadPresence } from "./controllers/presence";
 import { deleteSession, loadSessions, patchSession } from "./controllers/sessions";
-import { loadUsageLifetime } from "./controllers/usage";
 import {
   installSkill,
   loadSkills,
@@ -132,22 +130,19 @@ export function renderApp(state: AppViewState) {
           </button>
           <div class="brand">
             <div class="brand-logo">
-              <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <circle cx="14" cy="14" r="12" stroke="var(--accent)" stroke-width="2" fill="none" />
-                <circle cx="14" cy="14" r="4" fill="var(--accent)" />
-                <ellipse cx="14" cy="14" rx="12" ry="5" stroke="var(--accent)" stroke-width="1.2" fill="none" transform="rotate(45 14 14)" opacity="0.6" />
-                <ellipse cx="14" cy="14" rx="12" ry="5" stroke="var(--accent)" stroke-width="1.2" fill="none" transform="rotate(-45 14 14)" opacity="0.6" />
-              </svg>
+              <img src="https://mintcdn.com/clawhub/4rYvG-uuZrMK_URE/assets/pixel-lobster.svg?fit=max&auto=format&n=4rYvG-uuZrMK_URE&q=85&s=da2032e9eac3b5d9bfe7eb96ca6a8a26" alt="OpenClaw" />
             </div>
             <div class="brand-text">
-              <span class="brand-title">atom</span>
+              <div class="brand-title">OPENCLAW</div>
+              <div class="brand-sub">Gateway Dashboard</div>
             </div>
           </div>
         </div>
         <div class="topbar-status">
           <div class="pill">
             <span class="statusDot ${state.connected ? "ok" : ""}"></span>
-            <span class="mono">${state.connected ? "Connected" : "Offline"}</span>
+            <span>Health</span>
+            <span class="mono">${state.connected ? "OK" : "Offline"}</span>
           </div>
           ${renderThemeToggle(state)}
         </div>
@@ -186,7 +181,7 @@ export function renderApp(state: AppViewState) {
           <div class="nav-group__items">
             <a
               class="nav-item nav-item--external"
-              href="https://docs.atom.ai"
+              href="https://docs.openclaw.ai"
               target="_blank"
               rel="noreferrer"
               title="Docs (opens in new tab)"
@@ -239,20 +234,6 @@ export function renderApp(state: AppViewState) {
               onConnect: () => state.connect(),
               onRefresh: () => state.loadOverview(),
             })
-          : nothing}
-
-        ${state.tab === "usage"
-          ? (() => {
-              // Auto-load usage lifetime stats
-              if (!state.usageLifetimeResult && !state.usageLifetimeLoading) {
-                loadUsageLifetime(state);
-              }
-              return renderUsage({
-                sessions: state.sessionsResult,
-                lifetimeStats: state.usageLifetimeResult,
-                onRefresh: () => loadUsageLifetime(state),
-              });
-            })()
           : nothing}
 
         ${state.tab === "channels"

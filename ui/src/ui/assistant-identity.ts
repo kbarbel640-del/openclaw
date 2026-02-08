@@ -1,8 +1,8 @@
 const MAX_ASSISTANT_NAME = 50;
 const MAX_ASSISTANT_AVATAR = 200;
 
-export const DEFAULT_ASSISTANT_NAME = "Atom";
-export const DEFAULT_ASSISTANT_AVATAR = "/assets/atom-mark.svg";
+export const DEFAULT_ASSISTANT_NAME = "Assistant";
+export const DEFAULT_ASSISTANT_AVATAR = "A";
 
 export type AssistantIdentity = {
   agentId?: string | null;
@@ -12,8 +12,8 @@ export type AssistantIdentity = {
 
 declare global {
   interface Window {
-    __ATOM_ASSISTANT_NAME__?: string;
-    __ATOM_ASSISTANT_AVATAR__?: string;
+    __OPENCLAW_ASSISTANT_NAME__?: string;
+    __OPENCLAW_ASSISTANT_AVATAR__?: string;
   }
 }
 
@@ -30,7 +30,7 @@ export function normalizeAssistantIdentity(
 ): AssistantIdentity {
   const name =
     coerceIdentityValue(input?.name, MAX_ASSISTANT_NAME) ?? DEFAULT_ASSISTANT_NAME;
-  const avatar = coerceIdentityValue(input?.avatar ?? undefined, MAX_ASSISTANT_AVATAR) ?? DEFAULT_ASSISTANT_AVATAR;
+  const avatar = coerceIdentityValue(input?.avatar ?? undefined, MAX_ASSISTANT_AVATAR) ?? null;
   const agentId =
     typeof input?.agentId === "string" && input.agentId.trim()
       ? input.agentId.trim()
@@ -43,7 +43,7 @@ export function resolveInjectedAssistantIdentity(): AssistantIdentity {
     return normalizeAssistantIdentity({});
   }
   return normalizeAssistantIdentity({
-    name: window.__ATOM_ASSISTANT_NAME__,
-    avatar: window.__ATOM_ASSISTANT_AVATAR__,
+    name: window.__OPENCLAW_ASSISTANT_NAME__,
+    avatar: window.__OPENCLAW_ASSISTANT_AVATAR__,
   });
 }

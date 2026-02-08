@@ -21,7 +21,6 @@ export async function loadSessions(
     limit?: number;
     includeGlobal?: boolean;
     includeUnknown?: boolean;
-    messageLimit?: number;
   },
 ) {
   if (!state.client || !state.connected) return;
@@ -34,11 +33,9 @@ export async function loadSessions(
     const activeMinutes =
       overrides?.activeMinutes ?? toNumber(state.sessionsFilterActive, 0);
     const limit = overrides?.limit ?? toNumber(state.sessionsFilterLimit, 0);
-    const messageLimit = overrides?.messageLimit ?? 10; // Default: get recent messages for usage stats
     const params: Record<string, unknown> = {
       includeGlobal,
       includeUnknown,
-      messageLimit,
     };
     if (activeMinutes > 0) params.activeMinutes = activeMinutes;
     if (limit > 0) params.limit = limit;

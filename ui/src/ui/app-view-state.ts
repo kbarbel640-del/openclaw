@@ -114,9 +114,6 @@ export type AppViewState = {
   sessionsFilterLimit: string;
   sessionsIncludeGlobal: boolean;
   sessionsIncludeUnknown: boolean;
-  usageLifetimeLoading: boolean;
-  usageLifetimeResult: unknown | null;
-  usageLifetimeError: string | null;
   cronLoading: boolean;
   cronJobs: CronJob[];
   cronStatus: CronStatus | null;
