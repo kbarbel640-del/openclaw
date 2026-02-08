@@ -332,7 +332,9 @@ export async function startSecretsProxy(opts: SecretsProxyOptions): Promise<http
         }
       }
 
-      logger.info(`Proxying request: ${method} ${rawTargetUrl}`);
+      // Log only origin + pathname to avoid leaking secrets in URL path/query
+      const logUrl = new URL(targetUrl);
+      logger.info(`Proxying request: ${method} ${logUrl.origin}${logUrl.pathname}`);
 
       // Redirect handling: we intentionally do NOT block or follow 3xx responses.
       // undici v7 request() does not follow redirects by default, so the raw 3xx
@@ -374,10 +376,11 @@ export async function startSecretsProxy(opts: SecretsProxyOptions): Promise<http
       }
       res.end();
     } catch (err) {
+      // Log full error on host only; don't leak expanded URLs/headers to container
       logger.error(`Proxy error: ${String(err)}`);
       if (!res.headersSent) {
         res.statusCode = 500;
-        res.end(`Proxy Error: ${String(err)}`);
+        res.end("Proxy Error: request failed");
       } else {
         res.end();
       }
