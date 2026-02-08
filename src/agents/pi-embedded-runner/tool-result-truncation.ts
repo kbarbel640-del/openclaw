@@ -1,6 +1,6 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { TextContent } from "@mariozechner/pi-ai";
-import { estimateTokens, SessionManager } from "@mariozechner/pi-coding-agent";
+import { SessionManager } from "@mariozechner/pi-coding-agent";
 import { log } from "./logger.js";
 
 /**
@@ -121,7 +121,7 @@ function truncateToolResultMessage(msg: AgentMessage, maxChars: number): AgentMe
     };
   });
 
-  return { ...msg, content: newContent };
+  return { ...msg, content: newContent } as AgentMessage;
 }
 
 /**

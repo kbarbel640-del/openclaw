@@ -2,17 +2,8 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { TextContent } from "@mariozechner/pi-ai";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import { emitSessionTranscriptUpdate } from "../sessions/transcript-events.js";
+import { HARD_MAX_TOOL_RESULT_CHARS } from "./pi-embedded-runner/tool-result-truncation.js";
 import { makeMissingToolResult, sanitizeToolCallInputs } from "./session-transcript-repair.js";
-
-/**
- * Hard character limit for a single tool result's total text content.
- * Even for the largest models, a single tool result should not consume
- * a disproportionate share of the context. This prevents runaway context
- * overflow from huge file reads, massive PR diffs, etc.
- *
- * At ~4 chars/token, 400K chars ≈ 100K tokens — already large for most models.
- */
-const HARD_MAX_TOOL_RESULT_CHARS = 400_000;
 
 const GUARD_TRUNCATION_SUFFIX =
   "\n\n⚠️ [Content truncated during persistence — original exceeded size limit. " +
@@ -77,7 +68,7 @@ function capToolResultSize(msg: AgentMessage): AgentMessage {
     };
   });
 
-  return { ...msg, content: newContent };
+  return { ...msg, content: newContent } as AgentMessage;
 }
 
 type ToolCall = { id: string; name?: string };
