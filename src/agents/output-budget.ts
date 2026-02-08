@@ -160,7 +160,7 @@ export function buildSummaryFallback(params: {
 
   if (params.artifactId) {
     lines.push("", `Full output stored as artifact: ${params.artifactId}`);
-    lines.push(`Use artifacts.get("${params.artifactId}") to retrieve the complete content.`);
+    lines.push(`Use artifacts_get("${params.artifactId}") to retrieve the complete content.`);
   }
 
   return lines.join("\n");

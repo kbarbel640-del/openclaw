@@ -46,7 +46,7 @@ export function createArtifactsGetTool(options?: { config?: OpenClawConfig }): A
   const registry = createArtifactRegistry({ rootDir: resolveArtifactsDir(options?.config) });
 
   return {
-    name: "artifacts.get",
+    name: "artifacts_get",
     description:
       "Fetch a stored artifact by id (sha256). Returns metadata and bounded content text.",
     parameters: ArtifactsGetSchema,
