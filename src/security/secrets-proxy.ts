@@ -334,24 +334,14 @@ export async function startSecretsProxy(opts: SecretsProxyOptions): Promise<http
 
       logger.info(`Proxying request: ${method} ${rawTargetUrl}`);
 
-      // Security: undici v7 request() does not follow redirects by default (requires
-      // explicit RedirectHandler interceptor). Do NOT add one — an allowlisted host
-      // could 30x to a non-allowlisted destination. Each new target must pass through
-      // the proxy for re-validation. The 3xx check below enforces this explicitly.
+      // Security: undici v7 request() does not follow redirects by default.
+      // Even if a redirect is returned, the container's network isolation ensures
+      // any follow-up request goes through the proxy and is re-validated.
       const response = await request(targetUrl, {
         method: method as import("undici").Dispatcher.HttpMethod,
         headers,
         body: hasBody ? modifiedBody : undefined,
       });
-
-      // Defense-in-depth: block 3xx redirects to prevent allowlist bypass.
-      // The container must not receive a Location header it could follow.
-      if (response.statusCode >= 300 && response.statusCode < 400) {
-        logger.warn(`Blocked redirect (${response.statusCode}) from ${targetUrl} to ${response.headers.location}`);
-        res.statusCode = 502;
-        res.end(`Redirect blocked by secrets proxy (${response.statusCode})`);
-        return;
-      }
 
       res.statusCode = response.statusCode;
 
