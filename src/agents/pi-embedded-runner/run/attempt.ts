@@ -190,7 +190,10 @@ export async function runEmbeddedAttempt(
     });
 
     // Build a bin→skill map so the exec tool can hint the model on "command not found".
-    const skillBinHints = buildSkillBinHintsFromEntries(skillEntries);
+    // When the snapshot path skips loading entries, load them cheaply just for bin hints.
+    const skillBinHints = buildSkillBinHintsFromEntries(
+      skillEntries.length > 0 ? skillEntries : loadWorkspaceSkillEntries(effectiveWorkspace),
+    );
 
     const sessionLabel = params.sessionKey ?? params.sessionId;
     const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles } =
