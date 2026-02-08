@@ -68,9 +68,18 @@ export function renderSimplexCard(params: {
 
   const renderSimplexControls = (accountId: string) => {
     const state = props.simplexControlByAccount[accountId];
+    const account = simplexAccounts.find((entry) => entry.accountId === accountId);
+    const hydratedAddressLink = (() => {
+      const app = account?.application;
+      if (!app || typeof app !== "object") {
+        return null;
+      }
+      const candidate = (app as { addressLink?: unknown }).addressLink;
+      return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
+    })();
     const busyCreate = state?.busyCreate ?? false;
     const busyRevoke = state?.busyRevoke ?? false;
-    const addressExists = Boolean(state?.addressLink);
+    const addressExists = Boolean(state?.addressLink?.trim() || hydratedAddressLink);
     return html`
       ${
         state?.message

@@ -33,6 +33,36 @@ import { formatSimplexAllowFrom, resolveSimplexAllowFrom } from "./simplex-secur
 import { SimplexWsClient } from "./simplex-ws-client.js";
 
 const activeClients = new Map<string, SimplexWsClient>();
+const SIMPLEX_LINK_REGEX = /\b(simplex:\/\/[^\s"'<>]+|https?:\/\/[^\s"'<>]+)/gi;
+
+function collectStrings(value: unknown, out: string[]): void {
+  if (typeof value === "string") {
+    out.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectStrings(entry, out));
+    return;
+  }
+  if (value && typeof value === "object") {
+    Object.values(value as Record<string, unknown>).forEach((entry) => collectStrings(entry, out));
+  }
+}
+
+function extractSimplexAddressLink(resp: unknown): string | null {
+  const strings: string[] = [];
+  collectStrings(resp, strings);
+  const matches: string[] = [];
+  for (const str of strings) {
+    for (const match of str.matchAll(SIMPLEX_LINK_REGEX)) {
+      const raw = match[0];
+      const cleaned = raw.replace(/[),.\]]+$/g, "");
+      matches.push(cleaned);
+    }
+  }
+  const preferred = matches.find((entry) => /simplex/i.test(entry));
+  return preferred ?? matches[0] ?? null;
+}
 
 function stripSimplexPrefix(value: string): string {
   const trimmed = value.trim();
@@ -407,20 +437,38 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
       mode: snapshot.mode ?? null,
       wsUrl: snapshot.wsUrl ?? null,
     }),
-    buildAccountSnapshot: ({ account, runtime }) => ({
-      accountId: account.accountId,
-      name: account.name,
-      enabled: account.enabled,
-      configured: account.configured,
-      running: runtime?.running ?? false,
-      lastStartAt: runtime?.lastStartAt ?? null,
-      lastStopAt: runtime?.lastStopAt ?? null,
-      lastError: runtime?.lastError ?? null,
-      mode: runtime?.mode ?? account.mode,
-      wsUrl: runtime?.wsUrl ?? account.wsUrl,
-      lastInboundAt: runtime?.lastInboundAt ?? null,
-      lastOutboundAt: runtime?.lastOutboundAt ?? null,
-    }),
+    buildAccountSnapshot: async ({ account, runtime }) => {
+      let addressLink: string | null = null;
+      const shouldProbeAddress =
+        account.enabled && account.configured && (runtime?.running ?? false);
+      if (shouldProbeAddress) {
+        try {
+          const response = await withSimplexClient(account, (client) =>
+            client.sendCommand("/show_address"),
+          );
+          addressLink = extractSimplexAddressLink(response);
+        } catch {
+          // Keep status snapshot resilient when CLI/WebSocket is unavailable.
+        }
+      }
+      return {
+        accountId: account.accountId,
+        name: account.name,
+        enabled: account.enabled,
+        configured: account.configured,
+        running: runtime?.running ?? false,
+        lastStartAt: runtime?.lastStartAt ?? null,
+        lastStopAt: runtime?.lastStopAt ?? null,
+        lastError: runtime?.lastError ?? null,
+        mode: runtime?.mode ?? account.mode,
+        wsUrl: runtime?.wsUrl ?? account.wsUrl,
+        lastInboundAt: runtime?.lastInboundAt ?? null,
+        lastOutboundAt: runtime?.lastOutboundAt ?? null,
+        application: {
+          addressLink,
+        },
+      };
+    },
   },
   gateway: {
     startAccount: async (ctx) => {
