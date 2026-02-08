@@ -2,12 +2,12 @@ export type SlackFile = {
   id?: string;
   name?: string;
   mimetype?: string;
-  subtype?: string;
   size?: number;
   url_private?: string;
   url_private_download?: string;
 };
 
+// Slack attachment for forwarded messages
 export type SlackAttachment = {
   text?: string;
   fallback?: string;
