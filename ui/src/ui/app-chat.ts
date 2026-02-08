@@ -7,7 +7,7 @@ import { setLastActiveSessionKey } from "./app-settings";
 import { normalizeBasePath } from "./navigation";
 import type { GatewayHelloOk } from "./gateway";
 import { parseAgentSessionKey } from "../../../src/sessions/session-key-utils.js";
-import type { OpenClawApp } from "./app";
+import type { AtomApp } from "./app";
 import type { ChatAttachment, ChatQueueItem } from "./ui-types";
 
 type ChatHost = {
@@ -55,7 +55,7 @@ function isChatResetCommand(text: string) {
 export async function handleAbortChat(host: ChatHost) {
   if (!host.connected) return;
   host.chatMessage = "";
-  await abortChatRun(host as unknown as OpenClawApp);
+  await abortChatRun(host as unknown as AtomApp);
 }
 
 function enqueueChatMessage(
@@ -92,7 +92,7 @@ async function sendChatMessageNow(
   },
 ) {
   resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
-  const runId = await sendChatMessage(host as unknown as OpenClawApp, message, opts?.attachments);
+  const runId = await sendChatMessage(host as unknown as AtomApp, message, opts?.attachments);
   const ok = Boolean(runId);
   if (!ok && opts?.previousDraft != null) {
     host.chatMessage = opts.previousDraft;
@@ -181,8 +181,8 @@ export async function handleSendChat(
 
 export async function refreshChat(host: ChatHost) {
   await Promise.all([
-    loadChatHistory(host as unknown as OpenClawApp),
-    loadSessions(host as unknown as OpenClawApp, {
+    loadChatHistory(host as unknown as AtomApp),
+    loadSessions(host as unknown as AtomApp, {
       activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES,
     }),
     refreshChatAvatar(host),

@@ -2,16 +2,14 @@ import type { IconName } from "./icons.js";
 
 export const TAB_GROUPS = [
   { label: "Chat", tabs: ["chat"] },
-  {
-    label: "Control",
-    tabs: ["overview", "channels", "instances", "sessions", "cron"],
-  },
-  { label: "Agent", tabs: ["skills", "nodes"] },
+  { label: "Intelligence", tabs: ["overview", "usage", "cron"] },
+  { label: "System", tabs: ["sessions", "nodes", "channels", "skills"] },
   { label: "Settings", tabs: ["config", "debug", "logs"] },
 ] as const;
 
 export type Tab =
   | "overview"
+  | "usage"
   | "channels"
   | "instances"
   | "sessions"
@@ -25,6 +23,7 @@ export type Tab =
 
 const TAB_PATHS: Record<Tab, string> = {
   overview: "/overview",
+  usage: "/usage",
   channels: "/channels",
   instances: "/instances",
   sessions: "/sessions",
@@ -106,6 +105,8 @@ export function iconForTab(tab: Tab): IconName {
       return "messageSquare";
     case "overview":
       return "barChart";
+    case "usage":
+      return "dollarSign";
     case "channels":
       return "link";
     case "instances":
@@ -132,7 +133,9 @@ export function iconForTab(tab: Tab): IconName {
 export function titleForTab(tab: Tab) {
   switch (tab) {
     case "overview":
-      return "Overview";
+      return "Dashboard";
+    case "usage":
+      return "Usage & Costs";
     case "channels":
       return "Channels";
     case "instances":
@@ -161,27 +164,29 @@ export function titleForTab(tab: Tab) {
 export function subtitleForTab(tab: Tab) {
   switch (tab) {
     case "overview":
-      return "Gateway status, entry points, and a fast health read.";
+      return "Health, status, and intelligence at a glance.";
+    case "usage":
+      return "Token usage and API costs.";
     case "channels":
-      return "Manage channels and settings.";
+      return "Message channels and integrations.";
     case "instances":
-      return "Presence beacons from connected clients and nodes.";
+      return "Connected clients and devices.";
     case "sessions":
-      return "Inspect active sessions and adjust per-session defaults.";
+      return "Active conversations and context.";
     case "cron":
-      return "Schedule wakeups and recurring agent runs.";
+      return "Scheduled tasks and reminders.";
     case "skills":
-      return "Manage skill availability and API key injection.";
+      return "Capabilities and tool access.";
     case "nodes":
-      return "Paired devices, capabilities, and command exposure.";
+      return "Paired devices and hardware.";
     case "chat":
-      return "Direct gateway chat session for quick interventions.";
+      return "Talk to Atom.";
     case "config":
-      return "Edit ~/.openclaw/openclaw.json safely.";
+      return "System configuration.";
     case "debug":
-      return "Gateway snapshots, events, and manual RPC calls.";
+      return "Diagnostics and debugging.";
     case "logs":
-      return "Live tail of the gateway file logs.";
+      return "System logs.";
     default:
       return "";
   }

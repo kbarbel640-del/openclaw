@@ -168,9 +168,9 @@ function renderAvatar(
   const assistantAvatar = assistant?.avatar?.trim() || "";
   const initial =
     normalized === "user"
-      ? "U"
+      ? "E"
       : normalized === "assistant"
-        ? assistantName.charAt(0).toUpperCase() || "A"
+        ? "⚛️"
         : normalized === "tool"
           ? "⚙"
           : "?";
@@ -254,6 +254,8 @@ function renderGroupedMessage(
     : null;
   const markdown = markdownBase;
   const canCopyMarkdown = role === "assistant" && Boolean(markdown?.trim());
+  const canFeedback = role === "assistant" && !opts.isStreaming;
+  const messageId = typeof m.id === "string" ? m.id : undefined;
 
   const bubbleClasses = [
     "chat-bubble",
@@ -285,6 +287,52 @@ function renderGroupedMessage(
         ? html`<div class="chat-text">${unsafeHTML(toSanitizedMarkdownHtml(markdown))}</div>`
         : nothing}
       ${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}
+      ${canFeedback && messageId ? renderFeedbackButtons(messageId, onOpenSidebar) : nothing}
     </div>
   `;
+}
+
+function renderFeedbackButtons(messageId: string, onOpenSidebar?: (content: string) => void) {
+  return html`
+    <div class="chat-feedback">
+      <button 
+        class="chat-feedback-btn chat-feedback-btn--good"
+        @click=${() => handleFeedback(messageId, 'good')}
+        title="Good response"
+        aria-label="Mark as good"
+      >
+        👍
+      </button>
+      <button 
+        class="chat-feedback-btn chat-feedback-btn--bad"
+        @click=${() => handleFeedback(messageId, 'bad')}
+        title="Bad response"
+        aria-label="Mark as bad"
+      >
+        👎
+      </button>
+    </div>
+  `;
+}
+
+async function handleFeedback(messageId: string, rating: 'good' | 'bad') {
+  console.log(`[feedback] ${rating} for message ${messageId}`);
+  // TODO: Send to backend via memory_store
+  try {
+    const response = await fetch('http://localhost:11438/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId, rating, timestamp: Date.now() })
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    console.log('[feedback] Stored successfully');
+    // Visual feedback - change button color
+    const btn = document.querySelector(`[data-message-id="${messageId}"] .chat-feedback-btn--${rating}`) as HTMLElement;
+    if (btn) {
+      btn.style.opacity = '0.5';
+      btn.disabled = true;
+    }
+  } catch (err) {
+    console.error('[feedback] Failed to store:', err);
+  }
 }
