@@ -25,6 +25,7 @@ import {
   resolveFeishuAllowlistMatch,
   isFeishuGroupAllowed,
 } from "./policy.js";
+import { initReactionStateManager, getReactionStateManager } from "./reaction-state.js";
 import { createFeishuReplyDispatcher } from "./reply-dispatcher.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { getMessageFeishu, sendMessageFeishu } from "./send.js";
@@ -520,6 +521,16 @@ export async function handleFeishuMessage(params: {
   let ctx = parseFeishuMessageEvent(event, botOpenId);
   const isGroup = ctx.chatType === "group";
 
+  // Initialize and use ReactionStateManager for multi-message emoji tracking
+  const reactionManager = initReactionStateManager({ cfg, log, error });
+
+  // Add QUEUED emoji immediately when message is received
+  await reactionManager.onMessageQueued({
+    messageId: ctx.messageId,
+    chatId: ctx.chatId,
+    accountId: account.accountId,
+  });
+
   // Resolve sender display name (best-effort) so the agent can attribute messages correctly.
   const senderResult = await resolveFeishuSenderName({
     account,
@@ -624,6 +635,9 @@ export async function handleFeishuMessage(params: {
   }
 
   try {
+    // Transition from QUEUED to PROCESSING as we start agent dispatch
+    await reactionManager.onProcessingStart(ctx.messageId);
+
     const core = getFeishuRuntime();
     const shouldComputeCommandAuthorized = core.channel.commands.shouldComputeCommandAuthorized(
       ctx.content,
@@ -961,6 +975,9 @@ export async function handleFeishuMessage(params: {
 
     markDispatchIdle();
 
+    // Complete reaction state - remove emoji
+    await reactionManager.onCompleted(ctx.messageId);
+
     if (isGroup && historyKey && chatHistories) {
       clearHistoryEntriesIfEnabled({
         historyMap: chatHistories,
@@ -974,5 +991,7 @@ export async function handleFeishuMessage(params: {
     );
   } catch (err) {
     error(`feishu[${account.accountId}]: failed to dispatch message: ${String(err)}`);
+    // Ensure emoji is cleaned up on error
+    await reactionManager.onCompleted(ctx.messageId);
   }
 }
