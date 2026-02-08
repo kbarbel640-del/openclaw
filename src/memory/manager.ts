@@ -50,6 +50,7 @@ import {
   type MemoryChunk,
   type MemoryFileEntry,
   parseEmbedding,
+  remapChunkLines,
   runWithConcurrency,
 } from "./internal.js";
 import { searchKeyword, searchVector } from "./manager-search.js";
@@ -73,6 +74,8 @@ type SessionFileEntry = {
   size: number;
   hash: string;
   content: string;
+  /** Maps each content line (0-indexed) to its 1-indexed JSONL source line. */
+  lineMap: number[];
 };
 
 type MemorySyncProgressState = {
@@ -1604,7 +1607,9 @@ export class MemoryIndexManager implements MemorySearchManager {
       const raw = await fs.readFile(absPath, "utf-8");
       const lines = raw.split("\n");
       const collected: string[] = [];
-      for (const line of lines) {
+      const lineMap: number[] = [];
+      for (let jsonlIdx = 0; jsonlIdx < lines.length; jsonlIdx++) {
+        const line = lines[jsonlIdx];
         if (!line.trim()) {
           continue;
         }
@@ -1636,6 +1641,7 @@ export class MemoryIndexManager implements MemorySearchManager {
         }
         const label = message.role === "user" ? "User" : "Assistant";
         collected.push(`${label}: ${text}`);
+        lineMap.push(jsonlIdx + 1);
       }
       const content = collected.join("\n");
       return {
@@ -1643,8 +1649,9 @@ export class MemoryIndexManager implements MemorySearchManager {
         absPath,
         mtimeMs: stat.mtimeMs,
         size: stat.size,
-        hash: hashText(content),
+        hash: hashText(content + "\n" + lineMap.join(",")),
         content,
+        lineMap,
       };
     } catch (err) {
       log.debug(`Failed reading session file ${absPath}: ${String(err)}`);
@@ -2318,6 +2325,9 @@ export class MemoryIndexManager implements MemorySearchManager {
     const chunks = chunkMarkdown(content, this.settings.chunking).filter(
       (chunk) => chunk.text.trim().length > 0,
     );
+    if (options.source === "sessions" && "lineMap" in entry) {
+      remapChunkLines(chunks, entry.lineMap);
+    }
     const embeddings = this.batch.enabled
       ? await this.embedChunksWithBatch(chunks, entry, options.source)
       : await this.embedChunksInBatches(chunks);
