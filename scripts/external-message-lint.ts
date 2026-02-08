@@ -71,6 +71,24 @@ function firstNonEmptyLine(lines: string[]): string | undefined {
   return lines.find((l) => l.trim().length > 0);
 }
 
+function trimUrlPunctuation(url: string): string {
+  // Common in chat drafts: people wrap URLs in parentheses or add trailing punctuation.
+  // Our URL regex is intentionally simple; trim the most common trailing characters
+  // so suggestions are cleaner.
+  let out = url;
+  while (out.length > 0 && /[).,;:!?"'\]]$/.test(out)) {
+    out = out.slice(0, -1);
+  }
+  return out;
+}
+
+function stripUrlQueryAndFragment(url: string): string {
+  const cleaned = trimUrlPunctuation(url);
+  const noQuery = cleaned.split("?")[0] ?? cleaned;
+  const noFrag = noQuery.split("#")[0] ?? noQuery;
+  return noFrag;
+}
+
 const INTERNAL_JARGON = [
   "tool",
   "tools",
@@ -165,8 +183,16 @@ if (mentionHits.length > 0) {
 
 // Helpful breakdown: question marks inside URL query strings still count towards the
 // 1-'?' guardrail, and they're a common accidental violation.
-const urls = [...text.matchAll(/https?:\/\/\S+/g)].map((m) => m[0]);
-const urlsWithQuery = [...text.matchAll(/https?:\/\/\S+\?\S+/g)].map((m) => m[0]);
+const rawUrls = [...text.matchAll(/https?:\/\/\S+/g)].map((m) => m[0]);
+const rawUrlsWithQuery = [...text.matchAll(/https?:\/\/\S+\?\S+/g)].map((m) => m[0]);
+
+const urls = rawUrls.map(trimUrlPunctuation);
+const urlsWithQuery = rawUrlsWithQuery.map(trimUrlPunctuation);
+
+const urlQuerySuggestions = [...new Set(urlsWithQuery)]
+  .map((u) => ({ original: u, suggested: stripUrlQueryAndFragment(u) }))
+  .filter((x) => x.original !== x.suggested);
+
 const qInUrls = urls.reduce((acc, url) => acc + countMatches(url, /\?/g), 0);
 
 const qCount = countMatches(text, /\?/g);
@@ -179,12 +205,21 @@ if (qCount > 1) {
         }`
       : "";
 
+  const suggestions =
+    urlQuerySuggestions.length > 0
+      ? ` Suggested sanitized URL(s): ${urlQuerySuggestions
+          .slice(0, 3)
+          .map((x) => `${x.original} -> ${x.suggested}`)
+          .join(" ")}${urlQuerySuggestions.length > 3 ? " ..." : ""}`
+      : "";
+
   add(
     "error",
     "too-many-questions",
     `Found ${qCount} question marks ('?') total. ` +
       `Breakdown: ${qOutsideUrls} outside URLs, ${qInUrls} inside URLs.` +
       urlList +
+      suggestions +
       " External replies should contain at most one. Strip URL query params and bundle clarifications into a single question.",
   );
 }
@@ -243,10 +278,19 @@ if (firstLine && !/^(Outcome|Done):\s*/.test(firstLine.trim())) {
 }
 
 if (urlsWithQuery.length > 0) {
+  const suggestionText =
+    urlQuerySuggestions.length > 0
+      ? ` Suggestions: ${urlQuerySuggestions
+          .slice(0, 3)
+          .map((x) => `${x.original} -> ${x.suggested}`)
+          .join(" ")}${urlQuerySuggestions.length > 3 ? " ..." : ""}`
+      : "";
+
   add(
     "warn",
     "url-query",
-    "Found URL(s) with '?'. Consider stripping query params to avoid breaking the 1-'?' rule.",
+    "Found URL(s) with '?'. Consider stripping query params to avoid breaking the 1-'?' rule." +
+      suggestionText,
   );
 }
 
