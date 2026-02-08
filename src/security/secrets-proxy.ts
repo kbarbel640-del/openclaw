@@ -344,9 +344,13 @@ export async function startSecretsProxy(opts: SecretsProxyOptions): Promise<http
         body: hasBody ? modifiedBody : undefined,
       });
 
-      // Defense-in-depth: reject any 3xx that somehow got through
+      // Defense-in-depth: block 3xx redirects to prevent allowlist bypass.
+      // The container must not receive a Location header it could follow.
       if (response.statusCode >= 300 && response.statusCode < 400) {
-        logger.warn(`Blocking redirect (${response.statusCode}) from ${targetUrl} to ${response.headers.location}`);
+        logger.warn(`Blocked redirect (${response.statusCode}) from ${targetUrl} to ${response.headers.location}`);
+        res.statusCode = 502;
+        res.end(`Redirect blocked by secrets proxy (${response.statusCode})`);
+        return;
       }
 
       res.statusCode = response.statusCode;
