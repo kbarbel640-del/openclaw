@@ -6,6 +6,7 @@ import {
   type ChannelPlugin,
   type ChannelStatusIssue,
   type OpenClawConfig,
+  type ChannelOnboardingAdapter,
 } from "../../../src/plugin-sdk/index.js";
 import {
   SynologyChatConfigSchema,
@@ -36,12 +37,75 @@ const meta = {
   systemImage: "message.fill",
 };
 
+// Synology Chat onboarding adapter
+
+const synologyChatOnboardingAdapter: ChannelOnboardingAdapter = {
+  channel: "synology-chat",
+  getStatus: async ({ cfg }) => {
+    const account = synologyChatPlugin.config.resolveAccount(cfg, DEFAULT_ACCOUNT_ID);
+    const configured = Boolean(account.config.nasIncomingWebhookUrl?.trim());
+    return {
+      channel: "synology-chat",
+      configured,
+      statusLines: [`Synology Chat: ${configured ? "configured" : "needs webhook URL"}`],
+      selectionHint: configured ? "configured" : "not configured",
+      quickstartScore: configured ? 0 : 10, // 0 means higher priority for configured channels
+    };
+  },
+  configure: async (ctx) => {
+    const { cfg, prompter } = ctx;
+    const account = synologyChatPlugin.config.resolveAccount(cfg, DEFAULT_ACCOUNT_ID);
+    const currentWebhookUrl = account.config.nasIncomingWebhookUrl;
+
+    const keepConfig = await prompter.confirm({
+      message: `Synology Chat webhook URL already configured. Keep it?`,
+      initialValue: true,
+    });
+
+    if (!keepConfig) {
+      // Allow user to update the webhook URL
+      const newWebhookUrl = await prompter.text({
+        message: "Enter new Synology Chat webhook URL",
+        initialValue: currentWebhookUrl,
+        validate: (value) => {
+          if (!value?.trim()) {
+            return "Webhook URL is required";
+          }
+          try {
+            new URL(value.trim()); // Validate URL format
+          } catch {
+            return "Invalid URL format";
+          }
+          return undefined;
+        },
+      });
+
+      // Update the configuration with the new webhook URL
+      const newCfg = {
+        ...cfg,
+        channels: {
+          ...cfg.channels,
+          "synology-chat": {
+            ...cfg.channels?.["synology-chat"],
+            nasIncomingWebhookUrl: newWebhookUrl.trim(),
+          },
+        },
+      };
+
+      return { cfg: newCfg };
+    }
+
+    return { cfg };
+  },
+};
+
 export const synologyChatPlugin: ChannelPlugin<ResolvedSynologyChatAccount> = {
   id: "synology-chat",
   meta: {
     ...meta,
     quickstartAllowFrom: true,
   },
+  onboarding: synologyChatOnboardingAdapter,
   pairing: {
     idLabel: "userId",
     normalizeAllowEntry: (entry) => {
