@@ -120,7 +120,10 @@ function applyDefaultModel(cfg, provider, model) {
     cfg.agents.defaults = {};
   }
   // store as object with primary property to match OpenClaw's expected shape
-  cfg.agents.defaults.model = { primary: `${provider}/${model}` };
+  cfg.agents.defaults.model = {
+    ...(cfg.agents.defaults.model || {}),
+    primary: `${provider}/${model}`,
+  };
 }
 
 async function main() {
