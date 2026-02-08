@@ -199,6 +199,7 @@ function cmdBuilds() {
 
 async function cmdRun() {
   const port = getPortArg();
+  const localOnly = args.includes("--local");
   const branch = getArgValue("--branch") ?? "main";
   const remote = getArgValue("--remote") ?? "origin";
   const pollInterval = parseInt(getArgValue("--poll") ?? "60", 10) * 1000;
@@ -207,7 +208,11 @@ async function cmdRun() {
   acquireWatchdogLock(port, repoRoot, log);
 
   log("Watchdog starting in run mode");
-  log(`Polling for updates every ${pollInterval / 1000}s on ${remote}/${branch}`);
+  if (localOnly) {
+    log(`Watching local HEAD every ${pollInterval / 1000}s (no remote pull)`);
+  } else {
+    log(`Polling for updates every ${pollInterval / 1000}s on ${remote}/${branch}`);
+  }
 
   // Step 1: Build current commit if not already built
   const commitHash = getCurrentCommitHash(repoRoot);
@@ -244,9 +249,24 @@ async function cmdRun() {
     if (monitor.stopped) return;
 
     try {
-      const result = await monitor.update({ branch, remote });
-      if (result.action !== "noop") {
-        log(`Update applied: ${result.action} (${getShortHash(result.commitHash)})`);
+      if (localOnly) {
+        // Local mode: rebuild when HEAD changes (no remote pull)
+        const headNow = getCurrentCommitHash(repoRoot);
+        const active = getActiveBuild(repoRoot);
+        if (headNow !== active) {
+          log(`HEAD changed: ${getShortHash(active)} -> ${getShortHash(headNow)}`);
+          await buildAndActivate(repoRoot, {
+            pull: false,
+            force: false,
+            onProgress: log,
+          });
+          await monitor.restart("update");
+        }
+      } else {
+        const result = await monitor.update({ branch, remote });
+        if (result.action !== "noop") {
+          log(`Update applied: ${result.action} (${getShortHash(result.commitHash)})`);
+        }
       }
     } catch (err) {
       logError(`Update check failed: ${err.message}`);
@@ -299,6 +319,7 @@ Options:
   --poll <seconds>    Update poll interval in run mode (default: 60)
   --keep <count>      Max builds to keep when pruning (default: 32)
   --force             Force rebuild
+  --local             Local-only mode: watch HEAD for changes, never pull from remote
 `);
 }
 
