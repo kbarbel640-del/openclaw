@@ -6,6 +6,8 @@ export function ensureMemoryIndexSchema(params: {
   ftsTable: string;
   ftsEnabled: boolean;
 }): { ftsAvailable: boolean; ftsError?: string } {
+  // Enable WAL mode for concurrent read/write safety
+  params.db.exec(`PRAGMA journal_mode=WAL;`);
   params.db.exec(`
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,

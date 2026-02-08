@@ -711,7 +711,11 @@ export class MemoryIndexManager implements MemorySearchManager {
     const dir = path.dirname(dbPath);
     ensureDir(dir);
     const { DatabaseSync } = requireNodeSqlite();
-    return new DatabaseSync(dbPath, { allowExtension: this.settings.store.vector.enabled });
+    const db = new DatabaseSync(dbPath, { allowExtension: this.settings.store.vector.enabled });
+    // Enable WAL mode for concurrent read/write safety (prevents corruption
+    // when file-watcher, session-delta, and batch sync run simultaneously).
+    db.exec(`PRAGMA journal_mode=WAL;`);
+    return db;
   }
 
   private seedEmbeddingCache(sourceDb: DatabaseSync): void {
