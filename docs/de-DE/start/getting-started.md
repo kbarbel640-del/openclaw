@@ -52,6 +52,7 @@ Prüfe deine Node-Version mit `node --version`, falls du unsicher bist.
     <Note>
     Andere Installationsmethoden und Anforderungen: [Installation](/install).
     </Note>
+
   </Step>
   <Step title="Onboarding-Wizard ausführen">
     ```bash
@@ -60,6 +61,7 @@ Prüfe deine Node-Version mit `node --version`, falls du unsicher bist.
 
     Der Wizard konfiguriert Authentifizierung, Gateway-Einstellungen und optionale Kanäle.
     Siehe [Onboarding-Wizard](/start/wizard) für Details.
+
   </Step>
   <Step title="Gateway prüfen">
     Wenn du den Dienst installiert hast, sollte er bereits laufen:
@@ -67,6 +69,7 @@ Prüfe deine Node-Version mit `node --version`, falls du unsicher bist.
     ```bash
     openclaw gateway status
     ```
+
   </Step>
   <Step title="Control UI öffnen">
     ```bash
@@ -88,6 +91,7 @@ Wenn die Control UI lädt, ist dein Gateway einsatzbereit.
     ```bash
     openclaw gateway --port 18789
     ```
+
   </Accordion>
   <Accordion title="Testnachricht senden">
     Erfordert einen konfigurierten Kanal.
@@ -95,6 +99,7 @@ Wenn die Control UI lädt, ist dein Gateway einsatzbereit.
     ```bash
     openclaw message send --target +15555550123 --message "Hallo von OpenClaw"
     ```
+
   </Accordion>
 </AccordionGroup>
 

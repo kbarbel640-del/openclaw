@@ -789,35 +789,23 @@
             "groups": [
               {
                 "group": "Home",
-                "pages": [
-                  "index"
-                ]
+                "pages": ["index"]
               },
               {
                 "group": "Overview",
-                "pages": [
-                  "start/showcase"
-                ]
+                "pages": ["start/showcase"]
               },
               {
                 "group": "Core concepts",
-                "pages": [
-                  "concepts/features"
-                ]
+                "pages": ["concepts/features"]
               },
               {
                 "group": "First steps",
-                "pages": [
-                  "start/getting-started",
-                  "start/wizard",
-                  "start/onboarding"
-                ]
+                "pages": ["start/getting-started", "start/wizard", "start/onboarding"]
               },
               {
                 "group": "Guides",
-                "pages": [
-                  "start/openclaw"
-                ]
+                "pages": ["start/openclaw"]
               }
             ]
           },
@@ -826,27 +814,15 @@
             "groups": [
               {
                 "group": "Install overview",
-                "pages": [
-                  "install/index",
-                  "install/installer"
-                ]
+                "pages": ["install/index", "install/installer"]
               },
               {
                 "group": "Other install methods",
-                "pages": [
-                  "install/docker",
-                  "install/nix",
-                  "install/ansible",
-                  "install/bun"
-                ]
+                "pages": ["install/docker", "install/nix", "install/ansible", "install/bun"]
               },
               {
                 "group": "Maintenance",
-                "pages": [
-                  "install/updating",
-                  "install/migrating",
-                  "install/uninstall"
-                ]
+                "pages": ["install/updating", "install/migrating", "install/uninstall"]
               },
               {
                 "group": "Hosting and deployment",
@@ -863,9 +839,7 @@
               },
               {
                 "group": "Advanced",
-                "pages": [
-                  "install/development-channels"
-                ]
+                "pages": ["install/development-channels"]
               }
             ]
           },
@@ -874,9 +848,7 @@
             "groups": [
               {
                 "group": "Overview",
-                "pages": [
-                  "channels/index"
-                ]
+                "pages": ["channels/index"]
               },
               {
                 "group": "Messaging platforms",
@@ -929,9 +901,7 @@
               },
               {
                 "group": "Bootstrapping",
-                "pages": [
-                  "start/bootstrapping"
-                ]
+                "pages": ["start/bootstrapping"]
               },
               {
                 "group": "Sessions and memory",
@@ -946,10 +916,7 @@
               },
               {
                 "group": "Multi-agent",
-                "pages": [
-                  "concepts/multi-agent",
-                  "concepts/presence"
-                ]
+                "pages": ["concepts/multi-agent", "concepts/presence"]
               },
               {
                 "group": "Messages and delivery",
@@ -967,9 +934,7 @@
             "groups": [
               {
                 "group": "Overview",
-                "pages": [
-                  "tools/index"
-                ]
+                "pages": ["tools/index"]
               },
               {
                 "group": "Built-in tools",
@@ -995,11 +960,7 @@
               },
               {
                 "group": "Agent coordination",
-                "pages": [
-                  "tools/agent-send",
-                  "tools/subagents",
-                  "tools/multi-agent-sandbox-tools"
-                ]
+                "pages": ["tools/agent-send", "tools/subagents", "tools/multi-agent-sandbox-tools"]
               },
               {
                 "group": "Skills",
@@ -1013,10 +974,7 @@
               },
               {
                 "group": "Extensions",
-                "pages": [
-                  "plugins/voice-call",
-                  "plugins/zalouser"
-                ]
+                "pages": ["plugins/voice-call", "plugins/zalouser"]
               },
               {
                 "group": "Automation",
@@ -1033,9 +991,7 @@
               },
               {
                 "group": "Hooks",
-                "pages": [
-                  "hooks/soul-evil"
-                ]
+                "pages": ["hooks/soul-evil"]
               },
               {
                 "group": "Media and devices",
@@ -1057,23 +1013,15 @@
             "groups": [
               {
                 "group": "Overview",
-                "pages": [
-                  "providers/index",
-                  "providers/models"
-                ]
+                "pages": ["providers/index", "providers/models"]
               },
               {
                 "group": "Model concepts",
-                "pages": [
-                  "concepts/models"
-                ]
+                "pages": ["concepts/models"]
               },
               {
                 "group": "Configuration",
-                "pages": [
-                  "concepts/model-providers",
-                  "concepts/model-failover"
-                ]
+                "pages": ["concepts/model-providers", "concepts/model-failover"]
               },
               {
                 "group": "Providers",
@@ -1188,27 +1136,15 @@
               },
               {
                 "group": "Remote access",
-                "pages": [
-                  "gateway/remote",
-                  "gateway/remote-gateway-readme",
-                  "gateway/tailscale"
-                ]
+                "pages": ["gateway/remote", "gateway/remote-gateway-readme", "gateway/tailscale"]
               },
               {
                 "group": "Security",
-                "pages": [
-                  "security/formal-verification"
-                ]
+                "pages": ["security/formal-verification"]
               },
               {
                 "group": "Web interfaces",
-                "pages": [
-                  "web/index",
-                  "web/control-ui",
-                  "web/dashboard",
-                  "web/webchat",
-                  "web/tui"
-                ]
+                "pages": ["web/index", "web/control-ui", "web/dashboard", "web/webchat", "web/tui"]
               }
             ]
           },
@@ -1258,10 +1194,7 @@
               },
               {
                 "group": "RPC and API",
-                "pages": [
-                  "reference/rpc",
-                  "reference/device-models"
-                ]
+                "pages": ["reference/rpc", "reference/device-models"]
               },
               {
                 "group": "Templates",
@@ -1279,10 +1212,7 @@
               },
               {
                 "group": "Technical reference",
-                "pages": [
-                  "reference/wizard",
-                  "reference/token-use"
-                ]
+                "pages": ["reference/wizard", "reference/token-use"]
               },
               {
                 "group": "Concept internals",
@@ -1296,16 +1226,11 @@
               },
               {
                 "group": "Project",
-                "pages": [
-                  "reference/credits"
-                ]
+                "pages": ["reference/credits"]
               },
               {
                 "group": "Release notes",
-                "pages": [
-                  "reference/RELEASING",
-                  "reference/test"
-                ]
+                "pages": ["reference/RELEASING", "reference/test"]
               }
             ]
           },
@@ -1314,58 +1239,35 @@
             "groups": [
               {
                 "group": "Help",
-                "pages": [
-                  "help/index",
-                  "help/troubleshooting",
-                  "help/faq"
-                ]
+                "pages": ["help/index", "help/troubleshooting", "help/faq"]
               },
               {
                 "group": "Community",
-                "pages": [
-                  "start/lore"
-                ]
+                "pages": ["start/lore"]
               },
               {
                 "group": "Environment and debugging",
-                "pages": [
-                  "help/environment",
-                  "help/debugging",
-                  "help/testing",
-                  "help/scripts"
-                ]
+                "pages": ["help/environment", "help/debugging", "help/testing", "help/scripts"]
               },
               {
                 "group": "Node runtime",
-                "pages": [
-                  "install/node"
-                ]
+                "pages": ["install/node"]
               },
               {
                 "group": "Compaction internals",
-                "pages": [
-                  "reference/session-management-compaction"
-                ]
+                "pages": ["reference/session-management-compaction"]
               },
               {
                 "group": "Developer setup",
-                "pages": [
-                  "start/setup"
-                ]
+                "pages": ["start/setup"]
               },
               {
                 "group": "Contributing",
-                "pages": [
-                  "help/submitting-a-pr",
-                  "help/submitting-an-issue"
-                ]
+                "pages": ["help/submitting-a-pr", "help/submitting-an-issue"]
               },
               {
                 "group": "Docs meta",
-                "pages": [
-                  "start/hubs",
-                  "start/docs-directory"
-                ]
+                "pages": ["start/hubs", "start/docs-directory"]
               }
             ]
           }
@@ -1379,21 +1281,15 @@
             "groups": [
               {
                 "group": "首页",
-                "pages": [
-                  "zh-CN/index"
-                ]
+                "pages": ["zh-CN/index"]
               },
               {
                 "group": "概览",
-                "pages": [
-                  "zh-CN/start/showcase"
-                ]
+                "pages": ["zh-CN/start/showcase"]
               },
               {
                 "group": "核心概念",
-                "pages": [
-                  "zh-CN/concepts/features"
-                ]
+                "pages": ["zh-CN/concepts/features"]
               },
               {
                 "group": "第一步",
@@ -1405,9 +1301,7 @@
               },
               {
                 "group": "指南",
-                "pages": [
-                  "zh-CN/start/openclaw"
-                ]
+                "pages": ["zh-CN/start/openclaw"]
               }
             ]
           },
@@ -1416,10 +1310,7 @@
             "groups": [
               {
                 "group": "安装概览",
-                "pages": [
-                  "zh-CN/install/index",
-                  "zh-CN/install/installer"
-                ]
+                "pages": ["zh-CN/install/index", "zh-CN/install/installer"]
               },
               {
                 "group": "安装方式",
@@ -1453,9 +1344,7 @@
               },
               {
                 "group": "高级",
-                "pages": [
-                  "zh-CN/install/development-channels"
-                ]
+                "pages": ["zh-CN/install/development-channels"]
               }
             ]
           },
@@ -1464,9 +1353,7 @@
             "groups": [
               {
                 "group": "概览",
-                "pages": [
-                  "zh-CN/channels/index"
-                ]
+                "pages": ["zh-CN/channels/index"]
               },
               {
                 "group": "消息平台",
@@ -1519,9 +1406,7 @@
               },
               {
                 "group": "引导",
-                "pages": [
-                  "zh-CN/start/bootstrapping"
-                ]
+                "pages": ["zh-CN/start/bootstrapping"]
               },
               {
                 "group": "会话与记忆",
@@ -1536,10 +1421,7 @@
               },
               {
                 "group": "多代理",
-                "pages": [
-                  "zh-CN/concepts/multi-agent",
-                  "zh-CN/concepts/presence"
-                ]
+                "pages": ["zh-CN/concepts/multi-agent", "zh-CN/concepts/presence"]
               },
               {
                 "group": "消息与投递",
@@ -1557,9 +1439,7 @@
             "groups": [
               {
                 "group": "概览",
-                "pages": [
-                  "zh-CN/tools/index"
-                ]
+                "pages": ["zh-CN/tools/index"]
               },
               {
                 "group": "内置工具",
@@ -1603,10 +1483,7 @@
               },
               {
                 "group": "扩展",
-                "pages": [
-                  "zh-CN/plugins/voice-call",
-                  "zh-CN/plugins/zalouser"
-                ]
+                "pages": ["zh-CN/plugins/voice-call", "zh-CN/plugins/zalouser"]
               },
               {
                 "group": "自动化",
@@ -1623,9 +1500,7 @@
               },
               {
                 "group": "Hooks",
-                "pages": [
-                  "zh-CN/hooks/soul-evil"
-                ]
+                "pages": ["zh-CN/hooks/soul-evil"]
               },
               {
                 "group": "媒体与设备",
@@ -1647,23 +1522,15 @@
             "groups": [
               {
                 "group": "概览",
-                "pages": [
-                  "zh-CN/providers/index",
-                  "zh-CN/providers/models"
-                ]
+                "pages": ["zh-CN/providers/index", "zh-CN/providers/models"]
               },
               {
                 "group": "模型概念",
-                "pages": [
-                  "zh-CN/concepts/models"
-                ]
+                "pages": ["zh-CN/concepts/models"]
               },
               {
                 "group": "配置",
-                "pages": [
-                  "zh-CN/concepts/model-providers",
-                  "zh-CN/concepts/model-failover"
-                ]
+                "pages": ["zh-CN/concepts/model-providers", "zh-CN/concepts/model-failover"]
               },
               {
                 "group": "提供商",
@@ -1786,9 +1653,7 @@
               },
               {
                 "group": "安全",
-                "pages": [
-                  "zh-CN/security/formal-verification"
-                ]
+                "pages": ["zh-CN/security/formal-verification"]
               },
               {
                 "group": "Web 界面",
@@ -1848,10 +1713,7 @@
               },
               {
                 "group": "RPC 与 API",
-                "pages": [
-                  "zh-CN/reference/rpc",
-                  "zh-CN/reference/device-models"
-                ]
+                "pages": ["zh-CN/reference/rpc", "zh-CN/reference/device-models"]
               },
               {
                 "group": "模板",
@@ -1869,10 +1731,7 @@
               },
               {
                 "group": "技术参考",
-                "pages": [
-                  "zh-CN/reference/wizard",
-                  "zh-CN/reference/token-use"
-                ]
+                "pages": ["zh-CN/reference/wizard", "zh-CN/reference/token-use"]
               },
               {
                 "group": "概念内部机制",
@@ -1886,16 +1745,11 @@
               },
               {
                 "group": "项目",
-                "pages": [
-                  "zh-CN/reference/credits"
-                ]
+                "pages": ["zh-CN/reference/credits"]
               },
               {
                 "group": "发布说明",
-                "pages": [
-                  "zh-CN/reference/RELEASING",
-                  "zh-CN/reference/test"
-                ]
+                "pages": ["zh-CN/reference/RELEASING", "zh-CN/reference/test"]
               }
             ]
           },
@@ -1904,17 +1758,11 @@
             "groups": [
               {
                 "group": "帮助",
-                "pages": [
-                  "zh-CN/help/index",
-                  "zh-CN/help/troubleshooting",
-                  "zh-CN/help/faq"
-                ]
+                "pages": ["zh-CN/help/index", "zh-CN/help/troubleshooting", "zh-CN/help/faq"]
               },
               {
                 "group": "社区",
-                "pages": [
-                  "zh-CN/start/lore"
-                ]
+                "pages": ["zh-CN/start/lore"]
               },
               {
                 "group": "环境与调试",
@@ -1927,35 +1775,23 @@
               },
               {
                 "group": "Node 运行时",
-                "pages": [
-                  "zh-CN/install/node"
-                ]
+                "pages": ["zh-CN/install/node"]
               },
               {
                 "group": "压缩机制内部参考",
-                "pages": [
-                  "zh-CN/reference/session-management-compaction"
-                ]
+                "pages": ["zh-CN/reference/session-management-compaction"]
               },
               {
                 "group": "开发者设置",
-                "pages": [
-                  "zh-CN/start/setup"
-                ]
+                "pages": ["zh-CN/start/setup"]
               },
               {
                 "group": "贡献",
-                "pages": [
-                  "zh-CN/help/submitting-a-pr",
-                  "zh-CN/help/submitting-an-issue"
-                ]
+                "pages": ["zh-CN/help/submitting-a-pr", "zh-CN/help/submitting-an-issue"]
               },
               {
                 "group": "文档元信息",
-                "pages": [
-                  "zh-CN/start/hubs",
-                  "zh-CN/start/docs-directory"
-                ]
+                "pages": ["zh-CN/start/hubs", "zh-CN/start/docs-directory"]
               }
             ]
           }
@@ -1969,16 +1805,11 @@
             "groups": [
               {
                 "group": "概要",
-                "pages": [
-                  "ja-JP/index"
-                ]
+                "pages": ["ja-JP/index"]
               },
               {
                 "group": "初回セットアップ",
-                "pages": [
-                  "ja-JP/start/getting-started",
-                  "ja-JP/start/wizard"
-                ]
+                "pages": ["ja-JP/start/getting-started", "ja-JP/start/wizard"]
               }
             ]
           }
@@ -1992,16 +1823,11 @@
             "groups": [
               {
                 "group": "Panoramica",
-                "pages": [
-                  "it-IT/index"
-                ]
+                "pages": ["it-IT/index"]
               },
               {
                 "group": "Prima configurazione",
-                "pages": [
-                  "it-IT/start/getting-started",
-                  "it-IT/start/wizard"
-                ]
+                "pages": ["it-IT/start/getting-started", "it-IT/start/wizard"]
               }
             ]
           }
@@ -2015,16 +1841,11 @@
             "groups": [
               {
                 "group": "Übersicht",
-                "pages": [
-                  "de-DE/index"
-                ]
+                "pages": ["de-DE/index"]
               },
               {
                 "group": "Ersteinrichtung",
-                "pages": [
-                  "de-DE/start/getting-started",
-                  "de-DE/start/wizard"
-                ]
+                "pages": ["de-DE/start/getting-started", "de-DE/start/wizard"]
               }
             ]
           }
@@ -2038,16 +1859,11 @@
             "groups": [
               {
                 "group": "Overzicht",
-                "pages": [
-                  "nl-NL/index"
-                ]
+                "pages": ["nl-NL/index"]
               },
               {
                 "group": "Eerste configuratie",
-                "pages": [
-                  "nl-NL/start/getting-started",
-                  "nl-NL/start/wizard"
-                ]
+                "pages": ["nl-NL/start/getting-started", "nl-NL/start/wizard"]
               }
             ]
           }
@@ -2061,16 +1877,11 @@
             "groups": [
               {
                 "group": "Resumen",
-                "pages": [
-                  "es-ES/index"
-                ]
+                "pages": ["es-ES/index"]
               },
               {
                 "group": "Configuración inicial",
-                "pages": [
-                  "es-ES/start/getting-started",
-                  "es-ES/start/wizard"
-                ]
+                "pages": ["es-ES/start/getting-started", "es-ES/start/wizard"]
               }
             ]
           }
@@ -2084,16 +1895,11 @@
             "groups": [
               {
                 "group": "نظرة عامة",
-                "pages": [
-                  "ar-SA/index"
-                ]
+                "pages": ["ar-SA/index"]
               },
               {
                 "group": "الإعداد الأولي",
-                "pages": [
-                  "ar-SA/start/getting-started",
-                  "ar-SA/start/wizard"
-                ]
+                "pages": ["ar-SA/start/getting-started", "ar-SA/start/wizard"]
               }
             ]
           }
@@ -2107,16 +1913,11 @@
             "groups": [
               {
                 "group": "Visão geral",
-                "pages": [
-                  "pt-BR/index"
-                ]
+                "pages": ["pt-BR/index"]
               },
               {
                 "group": "Configuração inicial",
-                "pages": [
-                  "pt-BR/start/getting-started",
-                  "pt-BR/start/wizard"
-                ]
+                "pages": ["pt-BR/start/getting-started", "pt-BR/start/wizard"]
               }
             ]
           }

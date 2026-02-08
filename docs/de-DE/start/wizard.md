@@ -13,6 +13,7 @@ x-i18n:
   source_path: start/wizard.md
   workflow: 15
 ---
+
 # Onboarding-Wizard (CLI)
 
 Der Onboarding-Wizard ist der **empfohlene** Weg, OpenClaw auf macOS, Linux oder
