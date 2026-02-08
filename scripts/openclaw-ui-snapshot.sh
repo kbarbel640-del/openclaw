@@ -10,24 +10,27 @@ set -euo pipefail
 #   ./scripts/openclaw-ui-snapshot.sh
 #   ./scripts/openclaw-ui-snapshot.sh --out /tmp/my-bundle
 #   ./scripts/openclaw-ui-snapshot.sh --capture-engine modern
+#   ./scripts/openclaw-ui-snapshot.sh --safe-share
 #   ./scripts/openclaw-ui-snapshot.sh --dry-run
 #   ./scripts/openclaw-ui-snapshot.sh --soft-fail
 #
 # Flags:
 #   --out <dir>               Write bundle into a specific directory (must not exist).
 #   --capture-engine <engine> Forward to Peekaboo capture (e.g. auto|classic|cg|modern|sckit).
+#   --safe-share              Privacy-reduced bundle: skips screenshots/UI map + window inventories.
 #   --dry-run                 Don’t run peekaboo/openclaw; write a plan + placeholder files.
 #   --soft-fail               If peekaboo is missing, exit 0 after writing README.txt.
 #   -h|--help                 Show help.
 
 print_usage() {
-  sed -n '1,120p' "$0" | sed -n '/^# OpenClaw UI snapshot bundle/,$p' | sed 's/^# \{0,1\}//'
+  sed -n '1,140p' "$0" | sed -n '/^# OpenClaw UI snapshot bundle/,$p' | sed 's/^# \{0,1\}//'
 }
 
 out=""
 capture_engine=""
 dry_run=0
 soft_fail=0
+safe_share=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,6 +49,10 @@ while [[ $# -gt 0 ]]; do
         exit 64
       fi
       shift 2
+      ;;
+    --safe-share)
+      safe_share=1
+      shift
       ;;
     --dry-run)
       dry_run=1
@@ -89,8 +96,34 @@ err="$out/errors.log"
 echo "OpenClaw UI snapshot bundle" >>"$log"
 echo "Timestamp: $ts" >>"$log"
 echo "Output: $out" >>"$log"
+if [[ $dry_run -eq 1 ]]; then
+  echo "Mode: dry-run" >>"$log"
+fi
+if [[ $safe_share -eq 1 ]]; then
+  echo "Mode: safe-share" >>"$log"
+fi
 
 echo "Saved UI snapshot bundle: $out"
+
+# Always write a README so bundles are self-explanatory when forwarded.
+cat >"$out/README.txt" <<'EOF'
+OpenClaw UI snapshot bundle
+
+IMPORTANT (privacy):
+- Full bundles may include screenshots, UI maps, and window/menubar inventories.
+- Review the bundle contents before sharing outside your device.
+
+Privacy-reduced mode:
+- Re-run with: ./scripts/openclaw-ui-snapshot.sh --safe-share
+- This skips: screenshots/UI map + window/menubar JSON inventories.
+
+If Peekaboo is missing or blocked:
+- Install: brew install steipete/tap/peekaboo
+- Then grant permissions:
+  - System Settings -> Privacy & Security -> Screen Recording
+  - System Settings -> Privacy & Security -> Accessibility
+  - Quit + reopen Terminal/iTerm after toggling
+EOF
 
 have_peekaboo=0
 if command -v peekaboo >/dev/null 2>&1; then
@@ -98,6 +131,7 @@ if command -v peekaboo >/dev/null 2>&1; then
 fi
 
 if [[ $have_peekaboo -eq 0 ]]; then
+  # Replace README with clearer missing-Peekaboo instructions.
   cat >"$out/README.txt" <<'EOF'
 Peekaboo was not found, so this bundle only includes instructions + logs.
 
@@ -115,6 +149,9 @@ Then grant permissions (required for screenshots + UI maps):
 
 Re-run:
 - ./scripts/openclaw-ui-snapshot.sh
+
+If you want a privacy-reduced bundle (no screenshots/window inventories):
+- ./scripts/openclaw-ui-snapshot.sh --safe-share
 
 If automation is blocked, take manual screenshots:
 - Shift-Command-5 -> Capture Selected Window
@@ -175,29 +212,43 @@ try_cmd() {
 # Permissions + UI inventory (best-effort; don't fail the whole snapshot if these error).
 try_cmd "Peekaboo version" peekaboo --version
 try_out "Peekaboo permissions" peekaboo-permissions.txt peekaboo permissions
-try_out "Menubar list (json)" menubar.json peekaboo menubar list --json
-try_out "Window list (json)" windows.json peekaboo list windows --json
+
+if [[ $safe_share -eq 1 ]]; then
+  echo "Skipping menubar/windows inventory (safe-share)" >>"$log"
+else
+  try_out "Menubar list (json)" menubar.json peekaboo menubar list --json
+  try_out "Window list (json)" windows.json peekaboo list windows --json
+fi
 
 # OpenClaw runtime status (optional, but useful alongside UI artifacts).
 if command -v openclaw >/dev/null 2>&1; then
   try_out "OpenClaw status" openclaw-status.txt openclaw status
   try_out "OpenClaw gateway status" openclaw-gateway-status.txt openclaw gateway status
-  try_out "OpenClaw channels status (probe)" openclaw-channels-status.txt openclaw channels status --probe
+
+  if [[ $safe_share -eq 1 ]]; then
+    echo "Skipping channels status probe (safe-share)" >>"$log"
+  else
+    try_out "OpenClaw channels status (probe)" openclaw-channels-status.txt openclaw channels status --probe
+  fi
 else
   echo "Note: openclaw not found in PATH; skipping CLI status capture" >>"$log"
 fi
 
-# Images / UI map (these typically require Screen Recording permission).
-# peekaboo writes images to a path; stdout is not meaningful for these.
-engine_args=()
-if [[ -n "$capture_engine" ]]; then
-  engine_args=(--capture-engine "$capture_engine")
-  echo "Peekaboo capture engine: $capture_engine" >>"$log"
-fi
+if [[ $safe_share -eq 1 ]]; then
+  echo "Skipping screenshots/UI map (safe-share)" >>"$log"
+else
+  # Images / UI map (these typically require Screen Recording permission).
+  # peekaboo writes images to a path; stdout is not meaningful for these.
+  engine_args=()
+  if [[ -n "$capture_engine" ]]; then
+    engine_args=(--capture-engine "$capture_engine")
+    echo "Peekaboo capture engine: $capture_engine" >>"$log"
+  fi
 
-try_cmd "Screenshot: screen" peekaboo image --mode screen --screen-index 0 --retina "${engine_args[@]}" --path "$out/screen.png"
-try_cmd "Screenshot: frontmost" peekaboo image --mode frontmost --retina "${engine_args[@]}" --path "$out/frontmost.png"
-try_cmd "UI map: screen (annotated)" peekaboo see --mode screen --screen-index 0 --annotate "${engine_args[@]}" --path "$out/ui-map.png"
+  try_cmd "Screenshot: screen" peekaboo image --mode screen --screen-index 0 --retina "${engine_args[@]}" --path "$out/screen.png"
+  try_cmd "Screenshot: frontmost" peekaboo image --mode frontmost --retina "${engine_args[@]}" --path "$out/frontmost.png"
+  try_cmd "UI map: screen (annotated)" peekaboo see --mode screen --screen-index 0 --annotate "${engine_args[@]}" --path "$out/ui-map.png"
+fi
 
 # Artifact summary (only list what exists so callers don't have to guess).
 echo ""
