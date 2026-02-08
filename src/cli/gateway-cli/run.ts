@@ -28,6 +28,7 @@ import {
   getGatewayContainerLogs,
 } from "../../security/gateway-container.js";
 import { startSecretsProxy } from "../../security/secrets-proxy.js";
+import { loadProxyPort } from "../../security/secrets-proxy-allowlist.js";
 import { createSecretsRegistry } from "../../security/secrets-registry.js";
 import { formatCliCommand } from "../command-format.js";
 import { forceFreePortAndWait } from "../ports.js";
@@ -278,7 +279,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
       // The host-side secrets proxy needs to resolve real tokens, not placeholders.
       // Only the Docker container should have OPENCLAW_SECURE_MODE=1 (set in gateway-container.ts).
 
-      const proxyPort = 8080;
+      const proxyPort = loadProxyPort();
 
       // Initialize secrets registry (loads all credentials from host)
       gatewayLog.info("Loading secrets registry...");
@@ -292,9 +293,10 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
       // This is more secure than 0.0.0.0 (all interfaces) while still allowing container access
       let dockerBridgeIp = "172.17.0.1"; // fallback default
       try {
-        const { execSync } = await import("child_process");
-        const output = execSync(
-          "docker network inspect bridge --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'",
+        const { execFileSync } = await import("child_process");
+        const output = execFileSync(
+          "docker",
+          ["network", "inspect", "bridge", "--format", "{{range .IPAM.Config}}{{.Gateway}}{{end}}"],
           {
             encoding: "utf8",
             timeout: 5000,

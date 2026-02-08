@@ -226,7 +226,7 @@ export async function startGatewayContainer(opts: GatewayContainerOptions): Prom
 
   // Add filtered environment variables (excluding explicitly set keys)
   for (const [key, value] of Object.entries(filteredEnv)) {
-    if (explicitlySetKeys.has(key)) {
+    if (explicitlySetKeys.has(key.toUpperCase())) {
       logger.debug(`Skipping explicitly set env var: ${key}`);
       continue;
     }

@@ -5,6 +5,8 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 
 const logger = createSubsystemLogger("security/secrets-proxy-allowlist");
 
+export const DEFAULT_PROXY_PORT = 8080;
+
 export const DEFAULT_ALLOWED_DOMAINS = [
   // ==========================================
   // LLM Providers (from pi-ai)
@@ -78,28 +80,95 @@ export const DEFAULT_ALLOWED_DOMAINS = [
   "feishu.cn",
 ];
 
-const ALLOWLIST_PATH = path.join(STATE_DIR, "allowlist.json");
-
-export type AllowlistData = {
+/**
+ * Unified secrets proxy config stored at STATE_DIR/secrets-proxy-config.json.
+ * Extensible for future proxy settings.
+ */
+export type SecretsProxyConfig = {
+  port?: number;
   domains: string[];
 };
 
+const CONFIG_PATH = path.join(STATE_DIR, "secrets-proxy-config.json");
+/** @deprecated Legacy path — migrated automatically on first load. */
+const LEGACY_ALLOWLIST_PATH = path.join(STATE_DIR, "allowlist.json");
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+function loadConfig(): SecretsProxyConfig {
+  // Migrate legacy allowlist.json → secrets-proxy-config.json on first access
+  if (!fs.existsSync(CONFIG_PATH) && fs.existsSync(LEGACY_ALLOWLIST_PATH)) {
+    try {
+      const raw = fs.readFileSync(LEGACY_ALLOWLIST_PATH, "utf8");
+      const legacy = JSON.parse(raw) as { domains?: string[] };
+      const migrated: SecretsProxyConfig = {
+        domains: Array.isArray(legacy.domains) ? legacy.domains : [],
+      };
+      fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(migrated, null, 2), "utf8");
+      fs.unlinkSync(LEGACY_ALLOWLIST_PATH);
+      logger.info("Migrated legacy allowlist.json → secrets-proxy-config.json");
+    } catch (err) {
+      logger.error(`Failed to migrate legacy allowlist: ${String(err)}`);
+    }
+  }
+
+  if (!fs.existsSync(CONFIG_PATH)) {
+    return { domains: [] };
+  }
+  try {
+    const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+    return JSON.parse(raw) as SecretsProxyConfig;
+  } catch (err) {
+    logger.error(`Failed to read secrets proxy config at ${CONFIG_PATH}: ${String(err)}`);
+    return { domains: [] };
+  }
+}
+
+function saveConfig(config: SecretsProxyConfig): void {
+  try {
+    fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf8");
+  } catch (err) {
+    logger.error(`Failed to save secrets proxy config to ${CONFIG_PATH}: ${String(err)}`);
+    throw err;
+  }
+}
+
+function getUserDomains(): string[] {
+  return loadConfig().domains ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Port
+// ---------------------------------------------------------------------------
+
+export function loadProxyPort(): number {
+  const port = loadConfig().port;
+  return typeof port === "number" && Number.isFinite(port) && port > 0 ? port : DEFAULT_PROXY_PORT;
+}
+
+export function setProxyPort(port: number): void {
+  const config = loadConfig();
+  config.port = port;
+  saveConfig(config);
+}
+
+// ---------------------------------------------------------------------------
+// Allowlist (public API unchanged)
+// ---------------------------------------------------------------------------
+
 export function loadAllowlist(): string[] {
   const domains = new Set(DEFAULT_ALLOWED_DOMAINS);
+  const config = loadConfig();
 
-  if (fs.existsSync(ALLOWLIST_PATH)) {
-    try {
-      const raw = fs.readFileSync(ALLOWLIST_PATH, "utf8");
-      const data = JSON.parse(raw) as AllowlistData;
-      if (Array.isArray(data.domains)) {
-        for (const domain of data.domains) {
-          if (typeof domain === "string" && domain.trim()) {
-            domains.add(domain.trim().toLowerCase());
-          }
-        }
+  if (Array.isArray(config.domains)) {
+    for (const domain of config.domains) {
+      if (typeof domain === "string" && domain.trim()) {
+        domains.add(domain.trim().toLowerCase());
       }
-    } catch (err) {
-      logger.error(`Failed to read allowlist at ${ALLOWLIST_PATH}: ${String(err)}`);
     }
   }
 
@@ -107,16 +176,9 @@ export function loadAllowlist(): string[] {
 }
 
 export function saveAllowlist(userDomains: string[]): void {
-  try {
-    const data: AllowlistData = {
-      domains: userDomains.map((d) => d.trim().toLowerCase()).filter(Boolean),
-    };
-    fs.mkdirSync(path.dirname(ALLOWLIST_PATH), { recursive: true });
-    fs.writeFileSync(ALLOWLIST_PATH, JSON.stringify(data, null, 2), "utf8");
-  } catch (err) {
-    logger.error(`Failed to save allowlist to ${ALLOWLIST_PATH}: ${String(err)}`);
-    throw err;
-  }
+  const config = loadConfig();
+  config.domains = userDomains.map((d) => d.trim().toLowerCase()).filter(Boolean);
+  saveConfig(config);
 }
 
 export function isDomainAllowed(url: string, allowedDomains: string[]): boolean {
@@ -137,7 +199,6 @@ export function addToAllowlist(domain: string): void {
   const normalized = domain.trim().toLowerCase();
 
   // We only save user domains to the file, not the defaults
-  // So we need to figure out which ones are user domains
   const userDomains = getUserDomains();
   if (!userDomains.includes(normalized) && !DEFAULT_ALLOWED_DOMAINS.includes(normalized)) {
     userDomains.push(normalized);
@@ -154,18 +215,5 @@ export function removeFromAllowlist(domain: string): void {
   } else if (DEFAULT_ALLOWED_DOMAINS.includes(normalized)) {
     logger.warn(`Cannot remove default domain from allowlist: ${domain}`);
     throw new Error(`Cannot remove default domain: ${domain}`);
-  }
-}
-
-function getUserDomains(): string[] {
-  if (!fs.existsSync(ALLOWLIST_PATH)) {
-    return [];
-  }
-  try {
-    const raw = fs.readFileSync(ALLOWLIST_PATH, "utf8");
-    const data = JSON.parse(raw) as AllowlistData;
-    return Array.isArray(data.domains) ? data.domains : [];
-  } catch {
-    return [];
   }
 }
