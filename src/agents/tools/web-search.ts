@@ -511,12 +511,14 @@ export function createWebSearchTool(options?: {
     return null;
   }
 
-  const providerName = resolveSearchProvider(search);
-  let searchProvider = getSearchProvider(providerName);
+  const configuredProvider = resolveSearchProvider(search);
+  let searchProvider = getSearchProvider(configuredProvider);
+  let effectiveProvider = configuredProvider;
 
   // If provider not found, fall back to brave
   if (!searchProvider) {
     searchProvider = getSearchProvider("brave");
+    effectiveProvider = "brave";
   }
 
   // If still not found (shouldn't happen with built-in providers), return null
@@ -525,7 +527,8 @@ export function createWebSearchTool(options?: {
   }
 
   const description =
-    searchProvider.description || `Search the web using ${searchProvider.label || providerName}.`;
+    searchProvider.description ||
+    `Search the web using ${searchProvider.label || effectiveProvider}.`;
 
   return {
     label: "Web Search",
@@ -545,6 +548,8 @@ export function createWebSearchTool(options?: {
       const freshness = readStringParam(params, "freshness");
 
       try {
+        // Use pluginId if available (set during registration), otherwise fall back to provider id
+        const pluginConfigKey = searchProvider.pluginId ?? searchProvider.id;
         const result = await searchProvider.search(
           {
             query,
@@ -559,16 +564,21 @@ export function createWebSearchTool(options?: {
             config: options?.config ?? ({} as OpenClawConfig),
             timeoutSeconds: resolveTimeoutSeconds(search?.timeoutSeconds, DEFAULT_TIMEOUT_SECONDS),
             cacheTtlMs: resolveCacheTtlMs(search?.cacheTtlMinutes, DEFAULT_CACHE_TTL_MINUTES),
-            pluginConfig: options?.config?.plugins?.entries?.[searchProvider.id]?.config,
+            pluginConfig: options?.config?.plugins?.entries?.[pluginConfigKey]?.config,
           },
         );
         return jsonResult(result);
       } catch (error) {
-        return jsonResult({
+        const errorPayload: Record<string, unknown> = {
           error: "search_failed",
-          provider: providerName,
+          provider: effectiveProvider,
           message: error instanceof Error ? error.message : String(error),
-        });
+        };
+        // Include configured provider if it differs from effective (fallback occurred)
+        if (configuredProvider !== effectiveProvider) {
+          errorPayload.configuredProvider = configuredProvider;
+        }
+        return jsonResult(errorPayload);
       }
     },
   };

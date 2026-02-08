@@ -420,9 +420,12 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       return;
     }
 
+    // Attach the plugin entry id to the provider for config lookup
+    const providerWithPluginId = { ...provider, pluginId: record.id };
+
     // Register in the global search provider registry
     try {
-      registerGlobalSearchProvider(provider);
+      registerGlobalSearchProvider(providerWithPluginId);
     } catch (error) {
       pushDiagnostic({
         level: "error",
@@ -436,7 +439,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     record.searchProviderIds.push(id);
     registry.searchProviders.push({
       pluginId: record.id,
-      provider,
+      provider: providerWithPluginId,
       source: record.source,
     });
   };

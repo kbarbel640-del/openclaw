@@ -252,6 +252,12 @@ export type SearchProviderPlugin = {
   label: string;
   description?: string;
   configSchema?: Record<string, unknown>; // JSON Schema for provider-specific config
+  /**
+   * The plugin entry id that registered this provider.
+   * Set automatically during registration; used to look up plugin config.
+   * For built-in providers, this is undefined and falls back to provider id.
+   */
+  pluginId?: string;
   search: (
     params: {
       query: string;
