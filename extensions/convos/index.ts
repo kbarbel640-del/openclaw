@@ -6,6 +6,7 @@ import { emptyPluginConfigSchema, renderQrPngBase64 } from "openclaw/plugin-sdk"
 import type { ConvosSDKClient } from "./src/sdk-client.js";
 import { resolveConvosAccount, type CoreConfig } from "./src/accounts.js";
 import { convosPlugin } from "./src/channel.js";
+import { getClientForAccount } from "./src/outbound.js";
 import { getConvosRuntime, setConvosRuntime, setConvosSetupActive } from "./src/runtime.js";
 import { resolveConvosDbPath } from "./src/sdk-client.js";
 import { setupConvosWithInvite } from "./src/setup.js";
@@ -372,6 +373,45 @@ const plugin = {
         }
         const result = await handleCancel();
         jsonResponse(res, 200, result);
+      },
+    });
+
+    // Fast conversation creation using the running channel client (no temporary XMTP client).
+    // Used by pool mode to avoid the slow setup flow when a runtime client is already active.
+    api.registerHttpRoute({
+      path: "/convos/conversation",
+      handler: async (req, res) => {
+        if (req.method !== "POST") {
+          jsonResponse(res, 405, { error: "Method Not Allowed" });
+          return;
+        }
+        try {
+          const body = await readJsonBody(req);
+          const name = typeof body.name === "string" ? body.name : undefined;
+          const accountId = typeof body.accountId === "string" ? body.accountId : undefined;
+
+          const runtime = getConvosRuntime();
+          const cfg = runtime.config.loadConfig() as OpenClawConfig;
+          const account = resolveConvosAccount({ cfg: cfg as CoreConfig, accountId });
+          const client = getClientForAccount(account.accountId);
+          if (!client) {
+            jsonResponse(res, 503, {
+              error: "Convos channel client not running. Start the channel first.",
+            });
+            return;
+          }
+
+          const result = await client.createConversation(name);
+          const qrDataUrl = await renderQrPngBase64(result.inviteUrl);
+          jsonResponse(res, 200, {
+            conversationId: result.conversationId,
+            inviteUrl: result.inviteUrl,
+            inviteSlug: result.inviteSlug,
+            qrDataUrl,
+          });
+        } catch (err) {
+          jsonResponse(res, 500, { error: err instanceof Error ? err.message : String(err) });
+        }
       },
     });
 
