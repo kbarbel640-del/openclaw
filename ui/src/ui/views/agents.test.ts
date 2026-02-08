@@ -201,8 +201,9 @@ describe("agents view", () => {
     expect(primarySelect).not.toBeNull();
     expect(primarySelect!.value).toBe("some-unlisted/model");
     // Should have a "Current (...)" option prepended
-    const currentOption =
-      primarySelect!.querySelector<HTMLOptionElement>('option[value="some-unlisted/model"]');
+    const currentOption = primarySelect!.querySelector<HTMLOptionElement>(
+      'option[value="some-unlisted/model"]',
+    );
     expect(currentOption).toBeDefined();
     expect(currentOption?.textContent).toContain("Current");
   });
