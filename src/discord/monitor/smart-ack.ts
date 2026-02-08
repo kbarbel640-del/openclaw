@@ -110,6 +110,10 @@ function buildTriagePrompt(params: {
       `showing you understand the request (e.g. "Working on..." or "Let me look into..."). ` +
       `This applies to technical questions, code requests, multi-step tasks, research, ` +
       `or anything requiring tools, file access, or information beyond what you have.\n\n` +
+      `IMPORTANT: Any request that would require using tools MUST be "ACK:". This includes requests to ` +
+      `read/write/find files, run commands, search the web, browse URLs, interact with the device, ` +
+      `send messages, generate images/audio, or perform any action beyond pure conversation. ` +
+      `Never fabricate tool results; always defer these to the main model.\n\n` +
       `You MUST start your response with either "FULL: " or "ACK: " and nothing else.\n\n` +
       `Writing style: never use em-dashes or hyphens as grammatical punctuation. ` +
       `Use commas, periods, or semicolons instead.\n\n` +
