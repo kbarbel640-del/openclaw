@@ -1,7 +1,12 @@
 import type { TUI } from "@mariozechner/pi-tui";
 import type { ChatLog } from "./components/chat-log.js";
 import type { AgentEvent, ChatEvent, TuiStateAccess } from "./tui-types.js";
-import { asString, extractTextFromMessage, isCommandMessage } from "./tui-formatters.js";
+import {
+  asString,
+  extractTextFromMessage,
+  extractThinkingFromMessage,
+  isCommandMessage,
+} from "./tui-formatters.js";
 import { TuiStreamAssembler } from "./tui-stream-assembler.js";
 
 type EventHandlerContext = {
@@ -14,6 +19,8 @@ type EventHandlerContext = {
   isLocalRunId?: (runId: string) => boolean;
   forgetLocalRunId?: (runId: string) => void;
   clearLocalRunIds?: () => void;
+  setThinkingPreview?: (text: string) => void;
+  setActiveToolName?: (toolName: string) => void;
 };
 
 export function createEventHandlers(context: EventHandlerContext) {
@@ -27,10 +34,13 @@ export function createEventHandlers(context: EventHandlerContext) {
     isLocalRunId,
     forgetLocalRunId,
     clearLocalRunIds,
+    setThinkingPreview,
+    setActiveToolName,
   } = context;
   const finalizedRuns = new Map<string, number>();
   const sessionRuns = new Map<string, number>();
   let streamAssembler = new TuiStreamAssembler();
+  const pendingDeltaByRun = new Map<string, { text: string }>();
   let lastSessionKey = state.currentSessionKey;
 
   const pruneRunMap = (runs: Map<string, number>) => {
@@ -63,8 +73,11 @@ export function createEventHandlers(context: EventHandlerContext) {
     lastSessionKey = state.currentSessionKey;
     finalizedRuns.clear();
     sessionRuns.clear();
+    pendingDeltaByRun.clear();
     streamAssembler = new TuiStreamAssembler();
     clearLocalRunIds?.();
+    setThinkingPreview?.("");
+    setActiveToolName?.("");
   };
 
   const noteSessionRun = (runId: string) => {
@@ -105,8 +118,27 @@ export function createEventHandlers(context: EventHandlerContext) {
       if (!displayText) {
         return;
       }
-      chatLog.updateAssistant(displayText, evt.runId);
-      setActivityStatus("streaming");
+      const thinkingPreview = extractThinkingFromMessage(evt.message);
+      if (thinkingPreview) {
+        setThinkingPreview?.(thinkingPreview);
+      }
+      const existing = pendingDeltaByRun.get(evt.runId);
+      if (existing) {
+        existing.text = displayText;
+        return;
+      }
+      pendingDeltaByRun.set(evt.runId, { text: displayText });
+      setTimeout(() => {
+        const pending = pendingDeltaByRun.get(evt.runId);
+        if (!pending) {
+          return;
+        }
+        pendingDeltaByRun.delete(evt.runId);
+        chatLog.updateAssistant(pending.text, evt.runId);
+        setActivityStatus("streaming");
+        tui.requestRender();
+      }, 240);
+      return;
     }
     if (evt.state === "final") {
       if (isCommandMessage(evt.message)) {
@@ -120,7 +152,10 @@ export function createEventHandlers(context: EventHandlerContext) {
           chatLog.addSystem(text);
         }
         streamAssembler.drop(evt.runId);
+        pendingDeltaByRun.delete(evt.runId);
         noteFinalizedRun(evt.runId);
+        setThinkingPreview?.("");
+        setActiveToolName?.("");
         state.activeChatRunId = null;
         setActivityStatus("idle");
         void refreshSessionInfo?.();
@@ -141,7 +176,10 @@ export function createEventHandlers(context: EventHandlerContext) {
 
       const finalText = streamAssembler.finalize(evt.runId, evt.message, state.showThinking);
       chatLog.finalizeAssistant(finalText, evt.runId);
+      pendingDeltaByRun.delete(evt.runId);
       noteFinalizedRun(evt.runId);
+      setThinkingPreview?.("");
+      setActiveToolName?.("");
       state.activeChatRunId = null;
       setActivityStatus(stopReason === "error" ? "error" : "idle");
       // Refresh session info to update token counts in footer
@@ -150,7 +188,10 @@ export function createEventHandlers(context: EventHandlerContext) {
     if (evt.state === "aborted") {
       chatLog.addSystem("run aborted");
       streamAssembler.drop(evt.runId);
+      pendingDeltaByRun.delete(evt.runId);
       sessionRuns.delete(evt.runId);
+      setThinkingPreview?.("");
+      setActiveToolName?.("");
       state.activeChatRunId = null;
       setActivityStatus("aborted");
       void refreshSessionInfo?.();
@@ -163,7 +204,10 @@ export function createEventHandlers(context: EventHandlerContext) {
     if (evt.state === "error") {
       chatLog.addSystem(`run error: ${evt.errorMessage ?? "unknown"}`);
       streamAssembler.drop(evt.runId);
+      pendingDeltaByRun.delete(evt.runId);
       sessionRuns.delete(evt.runId);
+      setThinkingPreview?.("");
+      setActiveToolName?.("");
       state.activeChatRunId = null;
       setActivityStatus("error");
       void refreshSessionInfo?.();
@@ -206,6 +250,8 @@ export function createEventHandlers(context: EventHandlerContext) {
       }
       if (phase === "start") {
         chatLog.startTool(toolCallId, toolName, data.args);
+        setActiveToolName?.(toolName);
+        setActivityStatus("running");
       } else if (phase === "update") {
         if (!allowToolOutput) {
           return;
@@ -221,6 +267,10 @@ export function createEventHandlers(context: EventHandlerContext) {
         } else {
           chatLog.updateToolResult(toolCallId, { content: [] }, { isError: Boolean(data.isError) });
         }
+        setActiveToolName?.("");
+        if (state.activeChatRunId === evt.runId) {
+          setActivityStatus("streaming");
+        }
       }
       tui.requestRender();
       return;
@@ -235,9 +285,11 @@ export function createEventHandlers(context: EventHandlerContext) {
       }
       if (phase === "end") {
         setActivityStatus("idle");
+        setActiveToolName?.("");
       }
       if (phase === "error") {
         setActivityStatus("error");
+        setActiveToolName?.("");
       }
       tui.requestRender();
     }
