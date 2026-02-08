@@ -1,66 +1,68 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Visual readiness + UI map helper for OpenClaw debugging.
-#
-# Usage:
-#   1) Bring the OpenClaw dashboard/control UI to the front (browser or app).
-#   2) Run: scripts/visual-readiness.sh
-#
-# Output:
-#   - Screenshot of the frontmost window
-#   - Annotated UI map (element IDs)
-#   - Permission status checks (Screen Recording + Accessibility)
-
-STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT_DIR="${OUT_DIR:-/tmp}"
-SHOT_PATH="$OUT_DIR/openclaw-frontmost-$STAMP.png"
-MAP_PATH="$OUT_DIR/openclaw-ui-map-$STAMP.png"
-
-say_block() {
-  printf "%s\n" "$1"
-}
-
-say_block "Visual readiness probe (OpenClaw)"
-say_block "- timestamp: $(date)"
-say_block "- output dir: $OUT_DIR"
+# Visual readiness probe for OpenClaw (macOS).
+# - If Peekaboo permissions are missing, prints exact steps to fix.
+# - If permissions are granted, captures a small snapshot bundle under /tmp.
 
 if ! command -v peekaboo >/dev/null 2>&1; then
-  say_block ""
-  say_block "Peekaboo not found in PATH."
-  say_block "Install (macOS):"
-  say_block "  $ brew install steipete/tap/peekaboo"
-  say_block ""
-  say_block "If Peekaboo is installed but screenshots fail, grant permissions:"
-  say_block "  1) System Settings -> Privacy & Security -> Screen Recording"
-  say_block "     - enable: Terminal (or iTerm) AND Peekaboo"
-  say_block "     - quit & reopen Terminal after toggling (permission is per-app instance)"
-  say_block "  2) System Settings -> Privacy & Security -> Accessibility"
-  say_block "     - enable: Terminal (or iTerm) AND Peekaboo"
-  say_block "     - quit & reopen Terminal after toggling"
-  say_block ""
-  say_block "Once enabled, this script can:"
-  say_block "- capture the frontmost OpenClaw dashboard/control UI screenshot (PNG)"
-  say_block "- generate an annotated UI map (element IDs like B1/T2) for stable targeting"
-  say_block "- print permission status checks (what's missing)"
+  echo "Peekaboo is not installed. Install with:"
+  echo "  brew install steipete/tap/peekaboo"
+  exit 1
+fi
+
+echo "== Peekaboo permissions =="
+perm_out="$(peekaboo permissions 2>&1 || true)"
+echo "$perm_out"
+
+if echo "$perm_out" | grep -Fq "Screen Recording (Required): Not Granted"; then
+  cat <<'EOF'
+
+== Fix: grant Screen Recording to Terminal (exact macOS steps) ==
+1) Open System Settings
+2) Privacy & Security → Screen Recording
+3) Enable your terminal app (Terminal or iTerm)
+4) Quit & reopen the terminal app (permission is per running instance)
+5) Re-run: peekaboo permissions
+
+Once Screen Recording is enabled, Peekaboo can:
+- Capture screenshots (whole screen, frontmost window)
+- Generate annotated UI maps with element IDs (peekaboo see --annotate)
+EOF
   exit 2
 fi
 
-say_block ""
-say_block "Peekaboo detected: $(command -v peekaboo)"
-say_block ""
+if echo "$perm_out" | grep -Fq "Accessibility (Required): Not Granted"; then
+  cat <<'EOF'
 
-# Permission status (prints what is missing).
-peekaboo permissions || true
+== Fix: grant Accessibility to Terminal (exact macOS steps) ==
+1) Open System Settings
+2) Privacy & Security → Accessibility
+3) Enable your terminal app (Terminal or iTerm)
+4) Quit & reopen the terminal app
+5) Re-run: peekaboo permissions
 
-say_block ""
-say_block "Capturing frontmost window -> $SHOT_PATH"
-peekaboo image --mode frontmost --retina --path "$SHOT_PATH"
+Once Accessibility is enabled, Peekaboo can:
+- Click/type/press keys reliably (click/type/press/hotkey)
+- Drive menus/menubar and focus windows (menu/menubar/window)
+EOF
+  exit 3
+fi
 
-say_block "Generating annotated UI map -> $MAP_PATH"
-peekaboo see --mode frontmost --annotate --path "$MAP_PATH" >/dev/null
+ts="$(date +%Y%m%d-%H%M%S)"
+out="/tmp/openclaw-ui-snapshot-$ts"
+mkdir -p "$out"
 
-say_block ""
-say_block "Done. Files:"
-say_block "- $SHOT_PATH"
-say_block "- $MAP_PATH"
+echo ""
+echo "== Capturing snapshot bundle =="
+peekaboo menubar list --json > "$out/menubar.json" || true
+peekaboo list windows --json > "$out/windows.json" || true
+
+# Fast/high-signal artifacts for debugging state.
+peekaboo image --mode frontmost --retina --path "$out/frontmost.png"
+peekaboo see --mode screen --screen-index 0 --annotate --path "$out/ui-map.png"
+
+# Optional: whole screen (bigger, but sometimes useful).
+peekaboo image --mode screen --screen-index 0 --retina --path "$out/screen.png" || true
+
+echo "Saved: $out"
