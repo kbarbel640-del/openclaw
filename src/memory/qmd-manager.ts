@@ -262,7 +262,14 @@ export class QmdMemoryManager implements MemorySearchManager {
       this.qmd.limits.maxResults,
       opts?.maxResults ?? this.qmd.limits.maxResults,
     );
-    const args = ["query", trimmed, "--json", "-n", String(limit)];
+    const args = [
+      "query",
+      trimmed,
+      "--json",
+      "-n",
+      String(limit),
+      ...this.buildCollectionFilterArgs(),
+    ];
     let stdout: string;
     try {
       const result = await this.runQmd(args, { timeoutMs: this.qmd.limits.timeoutMs });
@@ -974,5 +981,13 @@ export class QmdMemoryManager implements MemorySearchManager {
       pending.catch(() => undefined),
       new Promise<void>((resolve) => setTimeout(resolve, SEARCH_PENDING_UPDATE_WAIT_MS)),
     ]);
+  }
+
+  private buildCollectionFilterArgs(): string[] {
+    const names = this.qmd.collections.map((collection) => collection.name).filter(Boolean);
+    if (names.length === 0) {
+      return [];
+    }
+    return names.flatMap((name) => ["-c", name]);
   }
 }

@@ -409,6 +409,49 @@ describe("QmdMemoryManager", () => {
     await manager.close();
   });
 
+  it("scopes qmd queries to managed collections", async () => {
+    cfg = {
+      ...cfg,
+      memory: {
+        backend: "qmd",
+        qmd: {
+          includeDefaultMemory: false,
+          update: { interval: "0s", debounceMs: 60_000, onBoot: false },
+          paths: [
+            { path: workspaceDir, pattern: "**/*.md", name: "workspace" },
+            { path: path.join(workspaceDir, "notes"), pattern: "**/*.md", name: "notes" },
+          ],
+        },
+      },
+    } as OpenClawConfig;
+
+    spawnMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args[0] === "query") {
+        const child = createMockChild({ autoClose: false });
+        setTimeout(() => {
+          child.stdout.emit("data", "[]");
+          child.closeWith(0);
+        }, 0);
+        return child;
+      }
+      return createMockChild();
+    });
+
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+    const manager = await QmdMemoryManager.create({ cfg, agentId, resolved });
+    expect(manager).toBeTruthy();
+    if (!manager) {
+      throw new Error("manager missing");
+    }
+
+    await manager.search("test", { sessionKey: "agent:main:slack:dm:u123" });
+    const queryCall = spawnMock.mock.calls.find((call) => call[1]?.[0] === "query");
+    expect(queryCall?.[1]).toEqual(
+      expect.arrayContaining(["query", "test", "-c", "workspace", "-c", "notes"]),
+    );
+    await manager.close();
+  });
+
   it("logs and continues when qmd embed times out", async () => {
     vi.useFakeTimers();
     cfg = {
