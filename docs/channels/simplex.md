@@ -8,14 +8,14 @@ title: "SimpleX"
 
 # SimpleX (simplex-chat CLI)
 
-Status: external CLI integration. Gateway talks to `simplex-chat` over the local WebSocket API.
+Status: CLI integration in managed or external mode. Gateway talks to `simplex-chat` over the local WebSocket API.
 
 ## Quick setup (beginner)
 
 1. Install `simplex-chat` on the host machine.
 2. Run `simplex-chat` once in a terminal to complete any initial profile setup.
 3. Configure OpenClaw and start the gateway.
-4. Create an invite link from the Control UI.
+4. Use the Control UI to create a one-time link or show/create your address.
 
 Minimal config:
 
@@ -130,8 +130,8 @@ Set `channels.simplex.allowFrom` to allow specific contact ids, or `"*"` for ope
 
 Use the Control UI SimpleX card:
 
-- **Create invite link** for a new contact.
-- **Create address link** for sharing your address.
+- **Create 1-time Link** for a new contact.
+- **Show Address** if one exists, or **Create Address** if not.
 
 The UI can also render a QR code for the generated link.
 
