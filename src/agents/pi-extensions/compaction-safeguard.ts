@@ -172,6 +172,14 @@ export default function compactionSafeguardExtension(api: ExtensionAPI): void {
 
     const model = ctx.model;
     if (!model) {
+      // ctx.model can be undefined when compaction runs outside a session context.
+      // Fall back to runtime-resolved context window and skip API-based summarization.
+      const runtime = getCompactionSafeguardRuntime(ctx.sessionManager);
+      if (runtime?.contextWindowTokens) {
+        // We have context window info from runtime but no model for API calls.
+        // Use the fallback summary with file/tool context instead.
+        console.warn("[compaction-safeguard] ctx.model undefined, using fallback summary with runtime context");
+      }
       return {
         compaction: {
           summary: fallbackSummary,
