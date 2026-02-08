@@ -38,7 +38,7 @@ function parseOrigin(
   }
 }
 
-function isLoopbackHost(hostname: string): boolean {
+export function isLoopbackHost(hostname: string): boolean {
   if (!hostname) {
     return false;
   }
@@ -54,16 +54,34 @@ function isLoopbackHost(hostname: string): boolean {
   return false;
 }
 
+/**
+ * Validate the Host header hostname against an allowlist.
+ * DNS Rebinding defense: reject requests where the Host header contains
+ * a non-loopback hostname (e.g., attacker domain resolving to 127.0.0.1).
+ */
+function isHostAllowed(hostname: string, allowedHosts?: string[]): boolean {
+  if (!hostname) {
+    return true;
+  }
+  if (allowedHosts && allowedHosts.length > 0) {
+    return allowedHosts.some((h) => h.toLowerCase() === hostname);
+  }
+  // Default: only loopback hostnames are accepted (safe default)
+  return isLoopbackHost(hostname);
+}
+
 export function checkBrowserOrigin(params: {
   requestHost?: string;
   origin?: string;
   allowedOrigins?: string[];
+  allowedHosts?: string[];
 }): OriginCheckResult {
   const parsedOrigin = parseOrigin(params.origin);
   if (!parsedOrigin) {
     return { ok: false, reason: "origin missing or invalid" };
   }
 
+  // Explicit origin allowlist always wins
   const allowlist = (params.allowedOrigins ?? [])
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
@@ -71,12 +89,17 @@ export function checkBrowserOrigin(params: {
     return { ok: true };
   }
 
+  // DNS Rebinding defense: validate the Host header hostname
+  const requestHostname = resolveHostName(params.requestHost);
+  if (!isHostAllowed(requestHostname, params.allowedHosts)) {
+    return { ok: false, reason: "host not allowed (DNS rebinding protection)" };
+  }
+
   const requestHost = normalizeHostHeader(params.requestHost);
   if (requestHost && parsedOrigin.host === requestHost) {
     return { ok: true };
   }
 
-  const requestHostname = resolveHostName(requestHost);
   if (isLoopbackHost(parsedOrigin.hostname) && isLoopbackHost(requestHostname)) {
     return { ok: true };
   }

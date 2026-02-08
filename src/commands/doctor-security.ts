@@ -20,7 +20,7 @@ export async function noteSecurityWarnings(cfg: OpenClawConfig) {
 
   const gatewayBind = (cfg.gateway?.bind ?? "loopback") as string;
   const customBindHost = cfg.gateway?.customBindHost?.trim();
-  const bindModes: GatewayBindMode[] = ["auto", "lan", "loopback", "custom", "tailnet"];
+  const bindModes: GatewayBindMode[] = ["auto", "lan", "all", "loopback", "custom", "tailnet"];
   const bindMode = bindModes.includes(gatewayBind as GatewayBindMode)
     ? (gatewayBind as GatewayBindMode)
     : undefined;
