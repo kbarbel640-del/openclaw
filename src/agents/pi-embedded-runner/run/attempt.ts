@@ -2,6 +2,7 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
+import { createOllamaStreamFn, OLLAMA_NATIVE_BASE_URL } from "../../ollama-stream.js";
 import fs from "node:fs/promises";
 import os from "node:os";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
@@ -584,8 +585,16 @@ export async function runEmbeddedAttempt(
         workspaceDir: params.workspaceDir,
       });
 
-      // Force a stable streamFn reference so vitest can reliably mock @mariozechner/pi-ai.
-      activeSession.agent.streamFn = streamSimple;
+      // Ollama native API: bypass SDK's streamSimple and use direct /api/chat calls
+      // for reliable streaming + tool calling support (#11828).
+      if (params.model.api === "ollama") {
+        const providerConfig = params.config?.models?.providers?.ollama;
+        const ollamaBaseUrl = providerConfig?.baseUrl ?? OLLAMA_NATIVE_BASE_URL;
+        activeSession.agent.streamFn = createOllamaStreamFn(ollamaBaseUrl);
+      } else {
+        // Force a stable streamFn reference so vitest can reliably mock @mariozechner/pi-ai.
+        activeSession.agent.streamFn = streamSimple;
+      }
 
       applyExtraParamsToAgent(
         activeSession.agent,
