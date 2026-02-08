@@ -34,6 +34,22 @@ const PAIRING_SCOPE = "operator.pairing";
 
 const APPROVAL_METHODS = new Set(["exec.approval.request", "exec.approval.resolve"]);
 const NODE_ROLE_METHODS = new Set(["node.invoke.result", "node.event", "skills.bins"]);
+// Methods that mobile node apps (iOS/Android) need for their built-in chat UI.
+// These are allowed for both node and operator roles.
+const NODE_ALSO_ALLOWED = new Set([
+  "health",
+  "config.get",
+  "config.schema",
+  "chat.send",
+  "chat.history",
+  "chat.abort",
+  "voicewake.get",
+  "talk.mode",
+  "sessions.list",
+  "sessions.preview",
+  "status",
+  "node.list",
+]);
 const PAIRING_METHODS = new Set([
   "node.pair.request",
   "node.pair.list",
@@ -103,6 +119,9 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
     return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);
   }
   if (role === "node") {
+    if (NODE_ALSO_ALLOWED.has(method)) {
+      return null;
+    }
     return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);
   }
   if (role !== "operator") {
