@@ -53,6 +53,7 @@ import { resolveSendPolicy } from "../sessions/send-policy.js";
 import { applyModelOverrideToSessionEntry } from "../sessions/model-overrides.js";
 import { clearSessionAuthProfileOverride } from "../agents/auth-profiles/session-override.js";
 import { resolveMessageChannel } from "../utils/message-channel.js";
+import { getDefaultRedactPatterns, redactSensitiveText } from "../logging/redact.js";
 import { deliverAgentCommandResult } from "./agent/delivery.js";
 import { resolveAgentRunContext } from "./agent/run-context.js";
 import { resolveSession } from "./agent/session.js";
@@ -383,12 +384,22 @@ export async function agentCommand(
         opts.replyChannel ?? opts.channel,
       );
       const spawnedBy = opts.spawnedBy ?? sessionEntry?.spawnedBy;
+      // Safety: if the prompt appears to contain secrets, disable model fallback so we never
+      // accidentally spill to cloud providers during failover attempts (router is disabled on fallbacks).
+      let fallbacksOverride = resolveAgentModelFallbacksOverride(cfg, sessionAgentId);
+      const redacted = redactSensitiveText(body, {
+        mode: "tools",
+        patterns: getDefaultRedactPatterns(),
+      });
+      if (redacted !== body) {
+        fallbacksOverride = [];
+      }
       const fallbackResult = await runWithModelFallback({
         cfg,
         provider,
         model,
         agentDir,
-        fallbacksOverride: resolveAgentModelFallbacksOverride(cfg, sessionAgentId),
+        fallbacksOverride,
         run: (providerOverride, modelOverride) => {
           if (isCliProvider(providerOverride, cfg)) {
             const cliSessionId = getCliSessionId(sessionEntry, providerOverride);
@@ -436,6 +447,7 @@ export async function agentCommand(
             clientTools: opts.clientTools,
             provider: providerOverride,
             model: modelOverride,
+            disableModelRouter: providerOverride !== provider || modelOverride !== model,
             authProfileId,
             authProfileIdSource: authProfileId
               ? sessionEntry?.authProfileOverrideSource
