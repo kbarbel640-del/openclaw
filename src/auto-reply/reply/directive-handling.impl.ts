@@ -133,8 +133,6 @@ export async function handleDirectiveOnly(params: {
     aliasIndex,
     allowedModelCatalog,
     resetModelOverride,
-    // Needed so /model info can compare configured model vs most recently used model.
-    sessionEntry,
     surface: params.surface,
   });
   if (modelInfo) {
@@ -472,8 +470,17 @@ export async function handleDirectiveOnly(params: {
       `Thinking level set to high (xhigh not supported for ${resolvedProvider}/${resolvedModel}).`,
     );
   }
-  if (modelSelection && profileOverride) {
-    parts.push(`Auth profile set to ${profileOverride}.`);
+  if (modelSelection) {
+    const label = `${modelSelection.provider}/${modelSelection.model}`;
+    const labelWithAlias = modelSelection.alias ? `${modelSelection.alias} (${label})` : label;
+    parts.push(
+      modelSelection.isDefault
+        ? `Model reset to default (${labelWithAlias}).`
+        : `Model set to ${labelWithAlias}.`,
+    );
+    if (profileOverride) {
+      parts.push(`Auth profile set to ${profileOverride}.`);
+    }
   }
   if (directives.hasQueueDirective && directives.queueMode) {
     parts.push(formatDirectiveAck(`Queue mode set to ${directives.queueMode}.`));

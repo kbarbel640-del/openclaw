@@ -115,11 +115,10 @@ describe("trigger handling", () => {
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
       const normalized = normalizeTestText(text ?? "");
-      expect(normalized).toContain("Configured: anthropic/claude-opus-4-5");
-      expect(normalized).not.toContain("Most recently used:");
-      expect(normalized).toContain("Tap below to browse models, or use:");
-      expect(normalized).toContain("/model <provider/model> to switch");
-      expect(normalized).toContain("/model status for details");
+      expect(normalized).toContain("Current: anthropic/claude-opus-4-5");
+      expect(normalized).toContain("Switch: /model <provider/model>");
+      expect(normalized).toContain("Browse: /models (providers) or /models <provider> (models)");
+      expect(normalized).toContain("More: /model status");
       expect(normalized).not.toContain("reasoning");
       expect(normalized).not.toContain("image");
     });
@@ -170,10 +169,9 @@ describe("trigger handling", () => {
       );
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      const normalized = normalizeTestText(text ?? "");
-      expect(normalized).toBe("OK.");
-      expect(normalized).not.toContain("Model set to");
-      expect(normalized).not.toContain("Model reset to default");
+      expect(normalizeTestText(text ?? "")).toContain(
+        "Model set to openrouter/anthropic/claude-opus-4-5",
+      );
 
       const store = loadSessionStore(cfg.session.store);
       expect(store[sessionKey]?.providerOverride).toBe("openrouter");
@@ -232,10 +230,9 @@ describe("trigger handling", () => {
       );
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      const normalized = normalizeTestText(text ?? "");
-      expect(normalized).toBe("OK.");
-      expect(normalized).not.toContain("Model set to");
-      expect(normalized).not.toContain("Model reset to default");
+      expect(normalizeTestText(text ?? "")).toContain(
+        "Model reset to default (anthropic/claude-opus-4-5)",
+      );
 
       const store = loadSessionStore(cfg.session.store);
       // When selecting the default, overrides are cleared
@@ -264,10 +261,7 @@ describe("trigger handling", () => {
       );
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      const normalized = normalizeTestText(text ?? "");
-      expect(normalized).toBe("OK.");
-      expect(normalized).not.toContain("Model set to");
-      expect(normalized).not.toContain("Model reset to default");
+      expect(normalizeTestText(text ?? "")).toContain("Model set to openai/gpt-5.2");
 
       const store = loadSessionStore(cfg.session.store);
       expect(store[sessionKey]?.providerOverride).toBe("openai");
