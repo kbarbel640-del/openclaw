@@ -243,12 +243,15 @@ export function createSessionsSpawnTool(opts?: {
           });
         }
       }
+      const childDepth = callerDepth + 1;
       const childSystemPrompt = buildSubagentSystemPrompt({
         requesterSessionKey,
         requesterOrigin,
         childSessionKey,
         label: label || undefined,
         task,
+        childDepth,
+        maxSpawnDepth,
       });
 
       const childIdem = crypto.randomUUID();

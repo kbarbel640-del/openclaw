@@ -165,6 +165,13 @@ export function stopSubagentsForRequester(params: {
     if (aborted || cleared.followupCleared > 0 || cleared.laneCleared > 0) {
       stopped += 1;
     }
+
+    // Cascade: also stop any sub-sub-agents spawned by this child.
+    const cascadeResult = stopSubagentsForRequester({
+      cfg: params.cfg,
+      requesterSessionKey: childKey,
+    });
+    stopped += cascadeResult.stopped;
   }
 
   if (stopped > 0) {

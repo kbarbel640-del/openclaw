@@ -494,6 +494,11 @@ export const handleSubagentsCommand: CommandHandler = async (params, allowTextCo
         nextStore[childKey] = entry;
       });
     }
+    // Cascade: also stop any sub-sub-agents spawned by this child.
+    stopSubagentsForRequester({
+      cfg: params.cfg,
+      requesterSessionKey: childKey,
+    });
     return { shouldContinue: false };
   }
 

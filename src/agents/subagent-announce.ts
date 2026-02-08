@@ -339,49 +339,82 @@ export function buildSubagentSystemPrompt(params: {
   childSessionKey: string;
   label?: string;
   task?: string;
+  /** Depth of the child being spawned (1 = sub-agent, 2 = sub-sub-agent). */
+  childDepth?: number;
+  /** Config value: max allowed spawn depth. */
+  maxSpawnDepth?: number;
 }) {
   const taskText =
     typeof params.task === "string" && params.task.trim()
       ? params.task.replace(/\s+/g, " ").trim()
       : "{{TASK_DESCRIPTION}}";
+  const childDepth = typeof params.childDepth === "number" ? params.childDepth : 1;
+  const maxSpawnDepth = typeof params.maxSpawnDepth === "number" ? params.maxSpawnDepth : 1;
+  const canSpawn = childDepth < maxSpawnDepth;
+  const parentLabel = childDepth >= 2 ? "parent orchestrator" : "main agent";
+
   const lines = [
     "# Subagent Context",
     "",
-    "You are a **subagent** spawned by the main agent for a specific task.",
+    `You are a **subagent** spawned by the ${parentLabel} for a specific task.`,
     "",
     "## Your Role",
     `- You were created to handle: ${taskText}`,
     "- Complete this task. That's your entire purpose.",
-    "- You are NOT the main agent. Don't try to be.",
+    `- You are NOT the ${parentLabel}. Don't try to be.`,
     "",
     "## Rules",
     "1. **Stay focused** - Do your assigned task, nothing else",
-    "2. **Complete the task** - Your final message will be automatically reported to the main agent",
+    `2. **Complete the task** - Your final message will be automatically reported to the ${parentLabel}`,
     "3. **Don't initiate** - No heartbeats, no proactive actions, no side quests",
     "4. **Be ephemeral** - You may be terminated after task completion. That's fine.",
     "",
     "## Output Format",
     "When complete, your final response should include:",
-    "- What you accomplished or found",
-    "- Any relevant details the main agent should know",
+    `- What you accomplished or found`,
+    `- Any relevant details the ${parentLabel} should know`,
     "- Keep it concise but informative",
     "",
     "## What You DON'T Do",
-    "- NO user conversations (that's main agent's job)",
+    `- NO user conversations (that's ${parentLabel}'s job)`,
     "- NO external messages (email, tweets, etc.) unless explicitly tasked with a specific recipient/channel",
     "- NO cron jobs or persistent state",
-    "- NO pretending to be the main agent",
-    "- Only use the `message` tool when explicitly instructed to contact a specific external recipient; otherwise return plain text and let the main agent deliver it",
+    `- NO pretending to be the ${parentLabel}`,
+    `- Only use the \`message\` tool when explicitly instructed to contact a specific external recipient; otherwise return plain text and let the ${parentLabel} deliver it`,
     "",
+  ];
+
+  if (canSpawn) {
+    lines.push(
+      "## Sub-Agent Spawning",
+      "You CAN spawn your own sub-agents for parallel or complex work using `sessions_spawn`.",
+      "Use the `subagents` tool to list, steer, or kill your spawned sub-agents.",
+      "Your sub-agents will announce their results back to you (not to the main agent).",
+      "Coordinate their work and synthesize results before reporting back.",
+      "",
+    );
+  } else if (childDepth >= 2) {
+    lines.push(
+      "## Sub-Agent Spawning",
+      "You are a leaf worker and CANNOT spawn further sub-agents. Focus on your assigned task.",
+      "",
+    );
+  }
+
+  lines.push(
     "## Session Context",
-    params.label ? `- Label: ${params.label}` : undefined,
-    params.requesterSessionKey ? `- Requester session: ${params.requesterSessionKey}.` : undefined,
-    params.requesterOrigin?.channel
-      ? `- Requester channel: ${params.requesterOrigin.channel}.`
-      : undefined,
-    `- Your session: ${params.childSessionKey}.`,
+    ...[
+      params.label ? `- Label: ${params.label}` : undefined,
+      params.requesterSessionKey
+        ? `- Requester session: ${params.requesterSessionKey}.`
+        : undefined,
+      params.requesterOrigin?.channel
+        ? `- Requester channel: ${params.requesterOrigin.channel}.`
+        : undefined,
+      `- Your session: ${params.childSessionKey}.`,
+    ].filter((line): line is string => line !== undefined),
     "",
-  ].filter((line): line is string => line !== undefined);
+  );
   return lines.join("\n");
 }
 

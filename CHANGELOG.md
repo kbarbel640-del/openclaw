@@ -383,6 +383,7 @@ Docs: https://docs.openclaw.ai
 
 - Commands: add `commands.allowFrom` config for separate command authorization, allowing operators to restrict slash commands to specific users while keeping chat open to others. (#12430) Thanks @thewilloftheshadow.
 - Docker: add ClawDock shell helpers for Docker workflows. (#12817) Thanks @Olshansk.
+- Subagents: nested sub-agents (sub-sub-agents) with configurable depth. Set `agents.defaults.subagents.maxSpawnDepth: 2` to allow sub-agents to spawn their own children. Includes `maxChildrenPerAgent` limit (default 5), depth-aware tool policy, and proper announce chain routing.
 - iOS: alpha node app + setup-code onboarding. (#11756) Thanks @mbelinky.
 - Channels: comprehensive BlueBubbles and channel cleanup. (#11093) Thanks @tyler6204.
 - Channels: IRC first-class channel support. (#11482) Thanks @vignesh07.
