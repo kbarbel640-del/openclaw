@@ -83,6 +83,14 @@ export async function handleCommands(params: HandleCommandsParams): Promise<Comm
     });
     await triggerInternalHook(hookEvent);
 
+    // Fire session:start so lifecycle hooks (e.g. context-atoms indexer) can refresh
+    const sessionStartEvent = createInternalHookEvent("session", "start", params.sessionKey ?? "", {
+      sessionEntry: params.sessionEntry,
+      commandSource: params.command.surface,
+      senderId: params.command.senderId,
+    });
+    void triggerInternalHook(sessionStartEvent);
+
     // Send hook messages immediately if present
     if (hookEvent.messages.length > 0) {
       // Use OriginatingChannel/To if available, otherwise fall back to command channel/from

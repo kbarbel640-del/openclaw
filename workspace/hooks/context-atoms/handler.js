@@ -1,6 +1,6 @@
 // Context Atoms Indexer — 把 workspace .md 拆成向量原子
 //
-// 監聽事件：gateway:start, session:start
+// 監聽事件：gateway:startup, session:start
 // 動作：掃描 workspace .md 檔 → chunk → embed → 存入 context_atoms
 
 import fs from "fs";

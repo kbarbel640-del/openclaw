@@ -2,7 +2,7 @@
 metadata:
   openclaw:
     events:
-      - gateway:start
+      - gateway:startup
       - session:start
 ---
 
@@ -19,5 +19,5 @@ Agent 回覆時透過 vector search 只取最相關的幾段，取代整檔載�
 
 ## 觸發時機
 
-- gateway:start — 啟動時全量索引
-- session:start — 檢查是否需要更新
+- gateway:startup — 啟動時全量索引
+- session:start — 新 session 時檢查是否需要更新
