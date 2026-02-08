@@ -9,30 +9,47 @@ import { recomputeNextRuns } from "./jobs.js";
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
 export function armTimer(state: CronServiceState) {
-  if (state.timer) {
-    clearTimeout(state.timer);
-  }
-  state.timer = null;
   if (!state.deps.cronEnabled) {
+    if (state.timer) {
+      clearTimeout(state.timer);
+      state.timer = null;
+    }
     return;
   }
   const nextAt = nextWakeAtMs(state);
   if (!nextAt) {
+    if (state.timer) {
+      clearTimeout(state.timer);
+      state.timer = null;
+    }
     return;
   }
   const delay = Math.max(nextAt - state.deps.nowMs(), 0);
   // Avoid TimeoutOverflowWarning when a job is far in the future.
   const clampedDelay = Math.min(delay, MAX_TIMEOUT_MS);
+  
+  if (state.timer) {
+    clearTimeout(state.timer);
+  }
+  
+  state.deps.log.debug(
+    { nextAt, now: state.deps.nowMs(), delay, clampedDelay },
+    "cron: arming timer",
+  );
+  
   state.timer = setTimeout(() => {
     void onTimer(state).catch((err) => {
       state.deps.log.error({ err: String(err) }, "cron: timer tick failed");
     });
   }, clampedDelay);
-  state.timer.unref?.();
+  // Don't unref - we want the timer to keep the event loop alive
+  // state.timer.unref?.();
 }
 
 export async function onTimer(state: CronServiceState) {
+  state.deps.log.debug("cron: timer callback invoked");
   if (state.running) {
+    state.deps.log.debug("cron: already running, skipping");
     return;
   }
   state.running = true;
