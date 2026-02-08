@@ -227,8 +227,13 @@ export async function resolveOAuthToken(
     return null;
   }
 
+  // Derive provider from the authoritative authStore (not the cached oauthProfiles Map)
+  // so provider-specific parsing tracks current state after refresh/reload.
+  const currentCred = registry.authStore.profiles[profileId];
+  const provider = currentCred?.type === "oauth" ? currentCred.provider : cred.provider;
+
   // For google-gemini-cli, the apiKey is JSON - extract the token
-  if (cred.provider === "google-gemini-cli" || cred.provider === "google-antigravity") {
+  if (provider === "google-gemini-cli" || provider === "google-antigravity") {
     try {
       const parsed = JSON.parse(result.apiKey);
 
