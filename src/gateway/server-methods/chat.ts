@@ -407,7 +407,7 @@ export const chatHandlers: GatewayRequestHandlers = {
 
       if (shouldForwardToOrigin && externalOrigin) {
         void routeReply({
-          payload: { text: `[Control UI] ${parsedMessage}` },
+          payload: { text: `[💬] ${parsedMessage}` },
           channel: externalOrigin.provider!,
           to: externalOrigin.to!,
           accountId: externalOrigin.accountId,
