@@ -73,7 +73,7 @@ export function normalizeMentionText(text: string): string {
 }
 
 export function matchesMentionPatterns(text: string, mentionRegexes: RegExp[]): boolean {
-  if (mentionRegexes.length === 0) {
+  if (!mentionRegexes || mentionRegexes.length === 0) {
     return false;
   }
   const cleaned = normalizeMentionText(text ?? "");
@@ -98,13 +98,14 @@ export function matchesMentionWithExplicit(params: {
   const explicit = params.explicit?.isExplicitlyMentioned === true;
   const explicitAvailable = params.explicit?.canResolveExplicit === true;
   const hasAnyMention = params.explicit?.hasAnyMention === true;
+  const regexes = params.mentionRegexes ?? [];
   if (hasAnyMention && explicitAvailable) {
-    return explicit || params.mentionRegexes.some((re) => re.test(cleaned));
+    return explicit || regexes.some((re) => re.test(cleaned));
   }
   if (!cleaned) {
     return explicit;
   }
-  return explicit || params.mentionRegexes.some((re) => re.test(cleaned));
+  return explicit || regexes.some((re) => re.test(cleaned));
 }
 
 export function stripStructuralPrefixes(text: string): string {
