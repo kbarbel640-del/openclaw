@@ -53,9 +53,22 @@ function isToolCallBlock(block: unknown): block is ToolCallBlock {
 
 function hasToolCallInput(block: ToolCallBlock): boolean {
   const hasInput = "input" in block ? block.input !== undefined && block.input !== null : false;
-  const hasArguments =
-    "arguments" in block ? block.arguments !== undefined && block.arguments !== null : false;
-  return hasInput || hasArguments;
+  if (hasInput) {
+    return true;
+  }
+  if (!("arguments" in block) || block.arguments === undefined || block.arguments === null) {
+    return false;
+  }
+  // String arguments (pi-ai session format): must be non-empty
+  if (typeof block.arguments === "string") {
+    return block.arguments.length > 0;
+  }
+  // Object arguments (parsed from streaming): must have at least one key
+  // Empty {} comes from aborted streams where parseStreamingJson("") returns {}
+  if (typeof block.arguments === "object") {
+    return Object.keys(block.arguments as Record<string, unknown>).length > 0;
+  }
+  return false;
 }
 
 function extractToolResultId(msg: Extract<AgentMessage, { role: "toolResult" }>): string | null {
