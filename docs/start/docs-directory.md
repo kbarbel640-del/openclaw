@@ -1,64 +1,40 @@
 ---
-summary: "Curated links to the most used OpenClaw docs."
+summary: "Curated Real Dispatch documentation index."
 read_when:
-  - You want quick access to key docs pages
-title: "Docs directory"
+  - Finding dispatch-specific guides quickly
+  - Navigating control-plane versus data-plane docs
+title: "Docs Directory"
 ---
 
-<Note>
-This page is a curated index. If you are new, start with [Getting Started](/start/getting-started).
-For a complete map of the docs, see [Docs hubs](/start/hubs).
-</Note>
+## Mission and architecture
 
-## Start here
-
-- [Docs hubs (all pages linked)](/start/hubs)
-- [Help](/help)
+- [Real Dispatch overview](/)
+- [OpenClaw reuse plan](/concepts/openclaw-reuse-plan)
+- [RFC 0001 dispatch core contracts](/rfcs/0001-dispatch-core-contracts-v0)
+- [Dispatch setup guide](/start/openclaw)
 - [Configuration](/gateway/configuration)
-- [Configuration examples](/gateway/configuration-examples)
-- [Slash commands](/tools/slash-commands)
-- [Multi-agent routing](/concepts/multi-agent)
-- [Updating and rollback](/install/updating)
-- [Pairing (DM and nodes)](/channels/pairing)
-- [Nix mode](/install/nix)
-- [OpenClaw assistant setup](/start/openclaw)
-- [Skills](/tools/skills)
-- [Skills config](/tools/skills-config)
-- [Workspace templates](/reference/templates/AGENTS)
-- [RPC adapters](/reference/rpc)
 - [Gateway runbook](/gateway)
-- [Nodes (iOS and Android)](/nodes)
-- [Web surfaces (Control UI)](/web)
-- [Discovery and transports](/gateway/discovery)
-- [Remote access](/gateway/remote)
 
-## Providers and UX
+## Dispatch operations
 
-- [WebChat](/web/webchat)
-- [Control UI (browser)](/web/control-ui)
-- [Telegram](/channels/telegram)
-- [Discord](/channels/discord)
-- [Mattermost (plugin)](/channels/mattermost)
-- [BlueBubbles (iMessage)](/channels/bluebubbles)
-- [iMessage (legacy)](/channels/imessage)
-- [Groups](/channels/groups)
-- [WhatsApp group messages](/channels/group-messages)
-- [Media images](/nodes/images)
-- [Media audio](/nodes/audio)
-
-## Companion apps
-
-- [macOS app](/platforms/macos)
-- [iOS app](/platforms/ios)
-- [Android app](/platforms/android)
-- [Windows (WSL2)](/platforms/windows)
-- [Linux app](/platforms/linux)
-
-## Operations and safety
-
+- [Channels overview](/channels)
+- [Pairing and allowlists](/channels/pairing)
+- [Multi-agent routing](/concepts/multi-agent)
 - [Sessions](/concepts/session)
-- [Cron jobs](/automation/cron-jobs)
-- [Webhooks](/automation/webhook)
-- [Gmail hooks (Pub/Sub)](/automation/gmail-pubsub)
+- [Web dashboard](/web/dashboard)
+
+## Reliability and governance
+
 - [Security](/gateway/security)
 - [Troubleshooting](/gateway/troubleshooting)
+- [Cron jobs](/automation/cron-jobs)
+- [Webhooks](/automation/webhook)
+
+## Platforms and deployment
+
+- [Install overview](/install)
+- [Docker install](/install/docker)
+- [Nix install](/install/nix)
+- [macOS platform](/platforms/macos)
+- [Android platform](/platforms/android)
+- [iOS platform](/platforms/ios)

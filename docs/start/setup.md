@@ -1,8 +1,8 @@
 ---
-summary: "Advanced setup and development workflows for OpenClaw"
+summary: "Advanced setup and development workflows for Real Dispatch on the OpenClaw scaffold."
 read_when:
   - Setting up a new machine
-  - You want “latest + greatest” without breaking your personal setup
+  - You want “latest + greatest” without breaking your dispatch setup
 title: "Setup"
 ---
 
@@ -29,10 +29,10 @@ Last updated: 2026-01-01
 
 ## Tailoring strategy (so updates don’t hurt)
 
-If you want “100% tailored to me” _and_ easy updates, keep your customization in:
+If you want a fully tailored dispatch environment _and_ easy updates, keep your customization in:
 
 - **Config:** `~/.openclaw/openclaw.json` (JSON/JSON5-ish)
-- **Workspace:** `~/.openclaw/workspace` (skills, prompts, memories; make it a private git repo)
+- **Workspace:** `~/.openclaw/workspace` (prompts, checklists, memories; make it a private git repo)
 
 Bootstrap once:
 
@@ -158,5 +158,5 @@ user service (no lingering needed). See [Gateway runbook](/gateway) for the syst
 - [Gateway runbook](/gateway) (flags, supervision, ports)
 - [Gateway configuration](/gateway/configuration) (config schema + examples)
 - [Discord](/channels/discord) and [Telegram](/channels/telegram) (reply tags + replyToMode settings)
-- [OpenClaw assistant setup](/start/openclaw)
+- [Dispatch setup guide](/start/openclaw)
 - [macOS app](/platforms/macos) (gateway lifecycle)

@@ -1,120 +1,55 @@
 ---
-summary: "Get OpenClaw installed and run your first chat in minutes."
+summary: "Get a local Real Dispatch environment running quickly."
 read_when:
-  - First time setup from zero
-  - You want the fastest path to a working chat
+  - First-time setup
+  - Validating control-plane and dispatch-data-plane separation
 title: "Getting Started"
 ---
 
 # Getting Started
 
-Goal: go from zero to a first working chat with minimal setup.
-
-<Info>
-Fastest chat: open the Control UI (no channel setup needed). Run `openclaw dashboard`
-and chat in the browser, or open `http://127.0.0.1:18789/` on the
-<Tooltip headline="Gateway host" tip="The machine running the OpenClaw gateway service.">gateway host</Tooltip>.
-Docs: [Dashboard](/web/dashboard) and [Control UI](/web/control-ui).
-</Info>
+Goal: run a local Real Dispatch environment with control-plane connectivity and dispatch-oriented docs in place.
 
 ## Prereqs
 
 - Node 22 or newer
+- pnpm
 
-<Tip>
-Check your Node version with `node --version` if you are unsure.
-</Tip>
-
-## Quick setup (CLI)
+## Quick setup
 
 <Steps>
-  <Step title="Install OpenClaw (recommended)">
-    <Tabs>
-      <Tab title="macOS/Linux">
-        ```bash
-        curl -fsSL https://openclaw.ai/install.sh | bash
-        ```
-      </Tab>
-      <Tab title="Windows (PowerShell)">
-        ```powershell
-        iwr -useb https://openclaw.ai/install.ps1 | iex
-        ```
-      </Tab>
-    </Tabs>
-
-    <Note>
-    Other install methods and requirements: [Install](/install).
-    </Note>
-
-  </Step>
-  <Step title="Run the onboarding wizard">
+  <Step title="Install dependencies">
     ```bash
-    openclaw onboard --install-daemon
+    pnpm install
     ```
-
-    The wizard configures auth, gateway settings, and optional channels.
-    See [Onboarding Wizard](/start/wizard) for details.
-
   </Step>
-  <Step title="Check the Gateway">
-    If you installed the service, it should already be running:
-
+  <Step title="Build">
     ```bash
-    openclaw gateway status
+    pnpm build
     ```
-
   </Step>
-  <Step title="Open the Control UI">
+  <Step title="Start the gateway control plane">
     ```bash
-    openclaw dashboard
+    pnpm openclaw gateway --port 18789 --verbose
+    ```
+  </Step>
+  <Step title="Open the dashboard">
+    ```bash
+    pnpm openclaw dashboard
     ```
   </Step>
 </Steps>
 
-<Check>
-If the Control UI loads, your Gateway is ready for use.
-</Check>
+## What to verify first
 
-## Optional checks and extras
-
-<AccordionGroup>
-  <Accordion title="Run the Gateway in the foreground">
-    Useful for quick tests or troubleshooting.
-
-    ```bash
-    openclaw gateway --port 18789
-    ```
-
-  </Accordion>
-  <Accordion title="Send a test message">
-    Requires a configured channel.
-
-    ```bash
-    openclaw message send --target +15555550123 --message "Hello from OpenClaw"
-    ```
-
-  </Accordion>
-</AccordionGroup>
-
-## Go deeper
-
-<Columns>
-  <Card title="Onboarding Wizard (details)" href="/start/wizard">
-    Full CLI wizard reference and advanced options.
-  </Card>
-  <Card title="macOS app onboarding" href="/start/onboarding">
-    First run flow for the macOS app.
-  </Card>
-</Columns>
-
-## What you will have
-
-- A running Gateway
-- Auth configured
-- Control UI access or a connected channel
+- control plane is reachable
+- intake and scheduling flows are represented as job lifecycle states
+- actions are writing audit events
+- closeout gates require evidence before completion
 
 ## Next steps
 
-- DM safety and approvals: [Pairing](/channels/pairing)
-- Connect more channels: [Channels](/channels)
-- Advanced workflows and from source: [Setup](/start/setup)
+- Dispatch setup guide: [Dispatch Setup Guide](/start/openclaw)
+- Product framing and glossary: [Real Dispatch](/)
+- Migration architecture detail: [OpenClaw reuse plan](/concepts/openclaw-reuse-plan)
+- Operational security controls: [Gateway security](/gateway/security)

@@ -1,5 +1,5 @@
 ---
-summary: "Hubs that link to every OpenClaw doc"
+summary: "Hubs that link to Real Dispatch and scaffold docs."
 read_when:
   - You want a complete map of the documentation
 title: "Docs Hubs"
@@ -8,7 +8,7 @@ title: "Docs Hubs"
 # Docs hubs
 
 <Note>
-If you are new to OpenClaw, start with [Getting Started](/start/getting-started).
+If you are new to Real Dispatch, start with [Getting Started](/start/getting-started).
 </Note>
 
 Use these hubs to discover every page, including deep dives and reference docs that don’t appear in the left nav.
@@ -26,7 +26,7 @@ Use these hubs to discover every page, including deep dives and reference docs t
 - [Docs directory](/start/docs-directory)
 - [Configuration](/gateway/configuration)
 - [Configuration examples](/gateway/configuration-examples)
-- [OpenClaw assistant](/start/openclaw)
+- [Dispatch setup guide](/start/openclaw)
 - [Showcase](/start/showcase)
 - [Lore](/start/lore)
 
@@ -40,6 +40,7 @@ Use these hubs to discover every page, including deep dives and reference docs t
 ## Core concepts
 
 - [Architecture](/concepts/architecture)
+- [OpenClaw reuse plan](/concepts/openclaw-reuse-plan)
 - [Features](/concepts/features)
 - [Network hub](/network)
 - [Agent runtime](/concepts/agent)
@@ -161,14 +162,10 @@ Use these hubs to discover every page, including deep dives and reference docs t
 - [macOS release](/platforms/mac/release)
 - [macOS gateway (launchd)](/platforms/mac/bundled-gateway)
 - [macOS XPC](/platforms/mac/xpc)
-- [macOS skills](/platforms/mac/skills)
 - [macOS Peekaboo](/platforms/mac/peekaboo)
 
 ## Workspace + templates
 
-- [Skills](/tools/skills)
-- [ClawHub](/tools/clawhub)
-- [Skills config](/tools/skills-config)
 - [Default AGENTS](/reference/AGENTS.default)
 - [Templates: AGENTS](/reference/templates/AGENTS)
 - [Templates: BOOTSTRAP](/reference/templates/BOOTSTRAP)
@@ -188,6 +185,7 @@ Use these hubs to discover every page, including deep dives and reference docs t
 
 ## Project
 
+- [RFC 0001 dispatch core contracts](/rfcs/0001-dispatch-core-contracts-v0)
 - [Credits](/reference/credits)
 
 ## Testing + release

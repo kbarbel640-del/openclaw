@@ -1,6 +1,19 @@
 # Changelog
 
-Docs: https://docs.openclaw.ai
+Docs: https://github.com/bankszach/real-dispatch/tree/main/docs
+
+## 2026.2.8
+
+### Changes
+
+- Docs/identity: reframe the repository as **Real Dispatch**, an AI-first dispatch and closeout system for field service.
+- Docs/architecture: document OpenClaw as the control-plane scaffold and Real Dispatch as the dispatch data plane.
+- Security: enforce docs stance for closed toolset, least privilege, no public skill marketplace, and structured-storage source of truth.
+- Agents: replace generic assistant guidance with dispatch role definitions (Intake, Scheduling, Technician Liaison, Closeout).
+
+### Notes
+
+- Entries below this section are inherited from upstream scaffold history and may reference OpenClaw naming.
 
 ## 2026.2.6-4
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "name": "OpenClaw",
+  "name": "Real Dispatch",
   "theme": "mint",
   "icons": {
     "library": "lucide"
@@ -27,12 +27,12 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/openclaw/openclaw",
+        "href": "https://github.com/bankszach/real-dispatch",
         "icon": "github"
       },
       {
         "label": "Releases",
-        "href": "https://github.com/openclaw/openclaw/releases",
+        "href": "https://github.com/bankszach/real-dispatch/releases",
         "icon": "package"
       }
     ]
@@ -797,7 +797,7 @@
               },
               {
                 "group": "Core concepts",
-                "pages": ["concepts/features"]
+                "pages": ["concepts/features", "concepts/openclaw-reuse-plan"]
               },
               {
                 "group": "First steps",
@@ -1226,7 +1226,7 @@
               },
               {
                 "group": "Project",
-                "pages": ["reference/credits"]
+                "pages": ["rfcs/0001-dispatch-core-contracts-v0", "reference/credits"]
               },
               {
                 "group": "Release notes",

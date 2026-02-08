@@ -1,77 +1,59 @@
 # Security Policy
 
-If you believe you've found a security issue in OpenClaw, please report it privately.
+Real Dispatch handles operational service data (customer details, technician updates, onsite evidence, and billing artifacts).
+Security defaults are restrictive by design.
 
 ## Reporting
 
-For full reporting instructions - including which repo to report to and how - see our [Trust page](https://trust.openclaw.ai).
+If you discover a security issue, report it privately through this repository’s GitHub Security Advisories flow:
 
-Include: reproduction steps, impact assessment, and (if possible) a minimal PoC.
+- [https://github.com/bankszach/real-dispatch/security/advisories/new](https://github.com/bankszach/real-dispatch/security/advisories/new)
 
-## Security & Trust
+Include reproduction steps, affected surfaces, and realistic impact.
 
-**Jamieson O'Reilly** ([@theonejvo](https://twitter.com/theonejvo)) is Security & Trust at OpenClaw. Jamieson is the founder of [Dvuln](https://dvuln.com) and brings extensive experience in offensive security, penetration testing, and security program development.
+## Security posture
 
-## Bug Bounties
+- **System-of-record first:** canonical state lives in structured storage (database + object store), not model memory.
+- **Closed toolset:** production agents only use explicitly allowlisted tools.
+- **Least privilege:** each agent role has scope-limited permissions.
+- **No public skill marketplace:** third-party/public skill loading is disabled by policy.
+- **No arbitrary shell/OS access by default:** execution capabilities are denied unless explicitly enabled for controlled operators.
+- **Full audit trail:** every state-changing action must emit an attributable event.
 
-OpenClaw is a labor of love. There is no bug bounty program and no budget for paid reports. Please still disclose responsibly so we can fix issues quickly.
-The best way to help the project right now is by sending PRs.
+## Required controls
 
-## Out of Scope
+- Authenticate all operator and service-plane access.
+- Gate and sanitize inbound channel payloads before dispatch actions.
+- Enforce tenant/customer boundaries in reads and writes.
+- Persist immutable audit events for ticket lifecycle changes.
+- Require evidence validation before closeout completion.
 
-- Public Internet Exposure
-- Using OpenClaw in ways that the docs recommend not to
-- Prompt injection attacks
+## Out of scope
 
-## Operational Guidance
+The following are out of scope for supported deployments and bug reports:
 
-For threat model + hardening guidance (including `openclaw security audit --deep` and `--fix`), see:
+- Deployments that intentionally expose privileged control surfaces to the public internet without access controls.
+- Custom forks that enable arbitrary execution or unrestricted tool loading.
+- Environments where audit logging and persistent storage are disabled.
 
-- `https://docs.openclaw.ai/gateway/security`
+## Runtime baseline
 
-### Web Interface Safety
+- Node.js **22+**.
+- Keep dependencies patched via normal update process.
 
-OpenClaw's web interface is intended for local use only. Do **not** bind it to the public internet; it is not hardened for public exposure.
+## Secure deployment guidance
 
-## Runtime Requirements
+- Bind local control interfaces to loopback unless a hardened remote access layer is in place.
+- Run services with least-privileged OS users.
+- Encrypt secrets at rest and in transit.
+- Use short-lived credentials where possible.
+- Back up the database and object storage; periodically test restore workflows.
 
-### Node.js Version
+## Verification
 
-OpenClaw requires **Node.js 22.12.0 or later** (LTS). This version includes important security patches:
+Before production rollout, verify:
 
-- CVE-2025-59466: async_hooks DoS vulnerability
-- CVE-2026-21636: Permission model bypass vulnerability
-
-Verify your Node.js version:
-
-```bash
-node --version  # Should be v22.12.0 or later
-```
-
-### Docker Security
-
-When running OpenClaw in Docker:
-
-1. The official image runs as a non-root user (`node`) for reduced attack surface
-2. Use `--read-only` flag when possible for additional filesystem protection
-3. Limit container capabilities with `--cap-drop=ALL`
-
-Example secure Docker run:
-
-```bash
-docker run --read-only --cap-drop=ALL \
-  -v openclaw-data:/app/data \
-  openclaw/openclaw:latest
-```
-
-## Security Scanning
-
-This project uses `detect-secrets` for automated secret detection in CI/CD.
-See `.detect-secrets.cfg` for configuration and `.secrets.baseline` for the baseline.
-
-Run locally:
-
-```bash
-pip install detect-secrets==1.5.0
-detect-secrets scan --baseline .secrets.baseline
-```
+- role-to-tool permissions are enforced
+- unauthorized action attempts are denied and audited
+- closeout packets cannot finalize with missing required evidence
+- operator actions are traceable in the audit log

@@ -1,78 +1,76 @@
-# Contributing to OpenClaw
+# Contributing to Real Dispatch
 
-Welcome to the lobster tank! 🦞
+Real Dispatch is an AI-first dispatch and closeout product for field service, built on the OpenClaw scaffold.
+Contributions should strengthen dispatch reliability, traceability, and closeout quality.
 
-## Quick Links
+## Project scope
 
-- **GitHub:** https://github.com/openclaw/openclaw
-- **Discord:** https://discord.gg/qkhbAGHRBT
-- **X/Twitter:** [@steipete](https://x.com/steipete) / [@openclaw](https://x.com/openclaw)
+- **Product:** Real Dispatch (dispatch data plane, job lifecycle, closeout outputs)
+- **Scaffold:** OpenClaw runtime/control plane (channels, sessions, routing, scheduler)
 
-## Maintainers
+Treat OpenClaw as infrastructure. Product behavior and source-of-truth state belong to Real Dispatch.
 
-- **Peter Steinberger** - Benevolent Dictator
-  - GitHub: [@steipete](https://github.com/steipete) · X: [@steipete](https://x.com/steipete)
+## Repository links
 
-- **Shadow** - Discord + Slack subsystem
-  - GitHub: [@thewilloftheshadow](https://github.com/thewilloftheshadow) · X: [@4shad0wed](https://x.com/4shad0wed)
+- **GitHub:** [https://github.com/bankszach/real-dispatch](https://github.com/bankszach/real-dispatch)
+- **Upstream scaffold:** [https://github.com/openclaw/openclaw](https://github.com/openclaw/openclaw)
 
-- **Jos** - Telegram, API, Nix mode
-  - GitHub: [@joshp123](https://github.com/joshp123) · X: [@jjpcodes](https://x.com/jjpcodes)
+## What to work on first
 
-- **Christoph Nakazawa** - JS Infra
-  - GitHub: [@cpojer](https://github.com/cpojer) · X: [@cnakazawa](https://x.com/cnakazawa)
+- intake normalization and schedulability checks
+- scheduling/assignment correctness
+- technician update and evidence capture flow
+- closeout packet + invoice draft quality gates
+- auditability, role boundaries, and operational safety
 
-- **Gustavo Madeira Santana** - Multi-agents, CLI, web UI
-  - GitHub: [@gumadeiras](https://github.com/gumadeiras) · X: [@gumadeiras](https://x.com/gumadeiras)
+## Guardrails for all changes
 
-## How to Contribute
+- Keep dispatch state in structured storage, not prompt-only memory.
+- Preserve or improve audit coverage for state-changing actions.
+- Do not introduce public marketplace skill loading.
+- Avoid adding arbitrary shell/OS execution pathways.
+- Prefer narrow, role-scoped tools over broad generic tools.
 
-1. **Bugs & small fixes** → Open a PR!
-2. **New features / architecture** → Start a [GitHub Discussion](https://github.com/openclaw/openclaw/discussions) or ask in Discord first
-3. **Questions** → Discord #setup-help
+## Development setup
 
-## Before You PR
-
-- Test locally with your OpenClaw instance
-- Run tests: `pnpm build && pnpm check && pnpm test`
-- Keep PRs focused (one thing per PR)
-- Describe what & why
-
-## Control UI Decorators
-
-The Control UI uses Lit with **legacy** decorators (current Rollup parsing does not support
-`accessor` fields required for standard decorators). When adding reactive fields, keep the
-legacy style:
-
-```ts
-@state() foo = "bar";
-@property({ type: Number }) count = 0;
+```bash
+pnpm install
+pnpm build
+pnpm check
+pnpm test
 ```
 
-The root `tsconfig.json` is configured for legacy decorators (`experimentalDecorators: true`)
-with `useDefineForClassFields: false`. Avoid flipping these unless you are also updating the UI
-build tooling to support standard decorators.
+Runtime baseline: Node **22+**.
 
-## AI/Vibe-Coded PRs Welcome! 🤖
+## Pull request expectations
 
-Built with Codex, Claude, or other AI tools? **Awesome - just mark it!**
+- Keep scope focused and explain behavioral impact.
+- Include tests for logic changes.
+- Call out security implications when touching tools, routing, or permissions.
+- Mention any closeout/billing behavior changes explicitly.
 
-Please include in your PR:
+## Suggested PR checklist
 
-- [ ] Mark as AI-assisted in the PR title or description
-- [ ] Note the degree of testing (untested / lightly tested / fully tested)
-- [ ] Include prompts or session logs if possible (super helpful!)
-- [ ] Confirm you understand what the code does
+- [ ] Dispatch lifecycle behavior is covered (intake/schedule/onsite/closeout as applicable).
+- [ ] Audit events are emitted for state-changing actions.
+- [ ] Role permissions remain least-privilege.
+- [ ] `pnpm build && pnpm check && pnpm test` passes locally.
 
-AI PRs are first-class citizens here. We just want transparency so reviewers know what to look for.
+## Commit guidance
 
-## Current Focus & Roadmap 🗺
+Use concise, action-oriented commit messages, for example:
 
-We are currently prioritizing:
+- `dispatch: enforce required evidence before closeout`
+- `scheduling: persist slot confirmation provenance`
+- `intake: normalize channel payload into ticket schema`
 
-- **Stability**: Fixing edge cases in channel connections (WhatsApp/Telegram).
-- **UX**: Improving the onboarding wizard and error messages.
-- **Skills**: Expanding the library of bundled skills and improving the Skill Creation developer experience.
-- **Performance**: Optimizing token usage and compaction logic.
+## Documentation contributions
 
-Check the [GitHub Issues](https://github.com/openclaw/openclaw/issues) for "good first issue" labels!
+When touching docs, keep terminology consistent with the product glossary:
+
+- Ticket / Job
+- Case file
+- Closeout packet
+- Control plane
+- Data plane
+- Toolset

@@ -1,7 +1,7 @@
 {
-  "name": "openclaw",
+  "name": "real-dispatch",
   "version": "2026.2.6-3",
-  "description": "Multi-channel AI gateway with extensible messaging integrations",
+  "description": "AI-first dispatch and closeout system for field service, built on the OpenClaw scaffold",
   "keywords": [],
   "license": "MIT",
   "author": "",

@@ -14,7 +14,7 @@ Quick start is now part of [Getting Started](/start/getting-started).
 
 <Columns>
   <Card title="Getting Started" href="/start/getting-started">
-    Install OpenClaw and run your first chat in minutes.
+    Install the runtime scaffold and run your first Real Dispatch workflow checks.
   </Card>
   <Card title="Onboarding Wizard" href="/start/wizard">
     Full CLI wizard reference and advanced options.
