@@ -39,7 +39,12 @@ import { SILENT_REPLY_TOKEN } from "../tokens.js";
 import { runReplyAgent } from "./agent-runner.js";
 import { extractSessionHintParts } from "./body.js";
 import { buildContextAtoms } from "./context-atoms.js";
-import { type ContextSegment, findSegment, renderSegments } from "./context-segments.js";
+import {
+  type ContextSegment,
+  findSegment,
+  renderSegments,
+  trimSegmentsToBudget,
+} from "./context-segments.js";
 import { buildGroupIntro } from "./groups.js";
 import { buildNarrativeGuide } from "./narrative-engine.js";
 import { buildProactiveRecall } from "./proactive-recall.js";
@@ -297,8 +302,11 @@ export async function runPreparedReply(
     ...(untrustedBlock ? [{ kind: "untrusted-context" as const, content: untrustedBlock }] : []),
   ];
 
+  // Budget guard: drop non-essential segments before they cause context overflow
+  const trimmedSegments = trimSegmentsToBudget(contextSegments);
+
   // Think-level extraction: target the message-body segment specifically
-  const bodySegment = findSegment(contextSegments, "message-body");
+  const bodySegment = findSegment(trimmedSegments, "message-body");
   if (!resolvedThinkLevel && bodySegment?.content) {
     const parts = bodySegment.content.split(/\s+/);
     const maybeLevel = normalizeThinkLevel(parts[0]);
@@ -308,7 +316,7 @@ export async function runPreparedReply(
     }
   }
 
-  let prefixedCommandBody = renderSegments(contextSegments);
+  let prefixedCommandBody = renderSegments(trimmedSegments);
   if (!resolvedThinkLevel) {
     resolvedThinkLevel = await modelState.resolveDefaultThinkingLevel();
   }

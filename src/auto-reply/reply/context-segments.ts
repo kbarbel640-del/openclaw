@@ -69,3 +69,55 @@ export function findSegment(
 ): ContextSegment | undefined {
   return segments.find((s) => s.kind === kind);
 }
+
+/**
+ * Segments that can be dropped to fit within a budget, ordered by priority
+ * (first = drop first, least important supplementary context).
+ */
+const DROPPABLE_PRIORITY: readonly SegmentKind[] = [
+  "context-atoms",
+  "recall",
+  "warroom-briefing",
+  "narrative-guide",
+  "thread-starter",
+];
+
+/**
+ * Trim context segments to fit within a character budget.
+ *
+ * Drops non-essential segments in priority order (least important first)
+ * until total characters are under budget.  Essential segments (message-body,
+ * media-note, system-event, etc.) are never dropped.
+ *
+ * @param maxChars  Budget in characters.  Default 120_000 (~30K tokens) leaves
+ *                  ample room for system prompt + conversation history in a
+ *                  200K-token model.
+ */
+export function trimSegmentsToBudget(
+  segments: ContextSegment[],
+  maxChars = 120_000,
+): ContextSegment[] {
+  const totalChars = segments.reduce((sum, s) => sum + s.content.length, 0);
+  if (totalChars <= maxChars) {
+    return segments;
+  }
+
+  let excess = totalChars - maxChars;
+  const dropped = new Set<SegmentKind>();
+
+  for (const kind of DROPPABLE_PRIORITY) {
+    if (excess <= 0) break;
+    const seg = segments.find((s) => s.kind === kind);
+    if (!seg) continue;
+    excess -= seg.content.length;
+    dropped.add(kind);
+  }
+
+  if (dropped.size > 0) {
+    console.warn(
+      `[context-segments] Trimmed ${dropped.size} segment(s) to fit budget: ${[...dropped].join(", ")}`,
+    );
+  }
+
+  return segments.filter((s) => !dropped.has(s.kind));
+}
