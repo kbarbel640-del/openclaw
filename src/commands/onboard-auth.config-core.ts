@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/config.js";
-import type { ModelDefinitionConfig } from "../config/types.js";
+import type { ModelDefinitionConfig } from "../config/types.models.js";
 import type { ModelApi } from "../config/types.models.js";
 import {
   buildCloudflareAiGatewayModelDefinition,
