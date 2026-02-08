@@ -95,6 +95,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["qianfan-api-key"],
   },
   {
+    value: "aisa",
+    label: "AIsa",
+    hint: "China AI models, production-grade (Qwen, DeepSeek, Kimi, GLM)",
+    choices: ["aisa-api-key"],
+  },
+  {
     value: "copilot",
     label: "Copilot",
     hint: "GitHub + local proxy",
