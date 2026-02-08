@@ -55,6 +55,8 @@ export type SlackActionConfig = {
   memberInfo?: boolean;
   channelInfo?: boolean;
   emojiList?: boolean;
+  /** Enable the `updateHomeTab` action (default: true). */
+  homeTab?: boolean;
 };
 
 export type SlackSlashCommandConfig = {

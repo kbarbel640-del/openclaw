@@ -524,6 +524,7 @@ Slack tool actions can be gated with `channels.slack.actions.*`:
 | pins         | enabled | Pin/unpin/list         |
 | memberInfo   | enabled | Member info            |
 | emojiList    | enabled | Custom emoji list      |
+| homeTab      | enabled | Home Tab updates       |
 
 ## Home Tab
 
@@ -535,6 +536,29 @@ When a user opens the bot's **Home** tab in Slack, OpenClaw automatically publis
 - Links to docs, GitHub, and community
 
 The view is cached per user and only re-published when the version changes (e.g., after an update or restart). No additional configuration is required — the Home Tab works out of the box as long as the Slack app manifest includes `app_home.messages_tab_enabled: true` (which is the default).
+
+### Custom Home Tab via `updateHomeTab`
+
+Agents can dynamically customize a user's Home Tab using the `updateHomeTab` action:
+
+| Parameter | Type       | Required | Description                            |
+| --------- | ---------- | -------- | -------------------------------------- |
+| `userId`  | `string`   | yes      | Slack user ID whose Home tab to update |
+| `blocks`  | `object[]` | yes      | Block Kit blocks array for the view    |
+
+Example:
+
+```json
+{
+  "action": "updateHomeTab",
+  "userId": "U12345",
+  "blocks": [{ "type": "section", "text": { "type": "mrkdwn", "text": "Hello from your agent!" } }]
+}
+```
+
+Once an agent publishes a custom view, the default Home Tab view will **not** overwrite it on subsequent tab opens. The default view resumes after a process restart.
+
+This action is gated by the `homeTab` key in the actions config (enabled by default).
 
 ## Security notes
 

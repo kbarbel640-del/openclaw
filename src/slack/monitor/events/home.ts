@@ -2,6 +2,7 @@ import type { SlackEventMiddlewareArgs } from "@slack/bolt";
 import type { SlackMonitorContext } from "../context.js";
 import { danger, logVerbose } from "../../../globals.js";
 import { VERSION } from "../../../version.js";
+import { hasCurrentHomeTab, hasCustomHomeTab, markHomeTabPublished } from "../../home-tab-state.js";
 
 /** @internal Exported for testing only. */
 export function buildHomeTabBlocks(params: {
@@ -54,14 +55,6 @@ export function buildHomeTabBlocks(params: {
   ];
 }
 
-/**
- * Simple per-user publish cache to avoid redundant views.publish calls
- * when the view hasn't changed. Keyed by userId, value is the VERSION
- * string at publish time. Cleared on process restart (which is fine —
- * a fresh publish after restart is desirable).
- */
-const publishedVersionByUser = new Map<string, string>();
-
 export function registerSlackHomeTabEvents(params: { ctx: SlackMonitorContext }) {
   const { ctx } = params;
 
@@ -83,9 +76,16 @@ export function registerSlackHomeTabEvents(params: { ctx: SlackMonitorContext })
           return;
         }
 
-        // Skip re-publish if this user already has the current version rendered
         const userId = event.user;
-        if (publishedVersionByUser.get(userId) === VERSION) {
+
+        // If the user has a custom (agent-pushed) view, don't overwrite it.
+        if (hasCustomHomeTab(userId)) {
+          logVerbose(`slack: home tab has custom view for ${userId}, skipping default publish`);
+          return;
+        }
+
+        // Skip re-publish if this user already has the current version rendered
+        if (hasCurrentHomeTab(userId, VERSION)) {
           logVerbose(`slack: home tab already published for ${userId}, skipping`);
           return;
         }
@@ -104,7 +104,7 @@ export function registerSlackHomeTabEvents(params: { ctx: SlackMonitorContext })
           },
         });
 
-        publishedVersionByUser.set(userId, VERSION);
+        markHomeTabPublished(userId, VERSION);
       } catch (err) {
         ctx.runtime.error?.(danger(`slack app_home_opened handler failed: ${String(err)}`));
       }
