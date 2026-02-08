@@ -74,6 +74,40 @@ function firstNonEmptyLine(lines: string[]): string | undefined {
   return lines.find((l) => l.trim().length > 0);
 }
 
+function escapeRegExp(s: string): string {
+  // Keep this script dependency-free; escape for safe regex construction.
+  return s.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function includesTokenLike(haystack: string, token: string): boolean {
+  // Match as a standalone token to reduce false positives (e.g. "session" in "possession").
+  // Still allow a simple plural (trailing "s") so we catch "sessions" / "sub-agents".
+  const escaped = escapeRegExp(token);
+  const maybePlural = token.toLowerCase().endsWith("s") ? "" : "s?";
+  const re = new RegExp(`(^|[^a-z0-9])${escaped}${maybePlural}([^a-z0-9]|$)`, "i");
+  return re.test(haystack);
+}
+
+function findSlashCommands(input: string): string[] {
+  // Heuristic: catch /status, /reasoning, etc.
+  // Avoid paths like /tmp/... by excluding tokens immediately followed by '/'.
+  const hits = [...input.matchAll(/(^|\s)(\/[a-z][a-z0-9_-]{1,})(?!\/)\b/gi)].map(
+    (m) => (m[2] ?? "").trim(),
+  );
+  return [...new Set(hits.filter(Boolean).map((s) => s.toLowerCase()))];
+}
+
+const INTERNAL_JARGON = [
+  "tool",
+  "tools",
+  "sandbox",
+  "exec",
+  "allowlist",
+  "session",
+  "sub-agent",
+  "subagent",
+];
+
 const args = parseArgs(process.argv.slice(2));
 if (args.help) {
   console.log(usage());
@@ -226,6 +260,28 @@ if (/(?:\b[0-9a-f]{8,}\b)/i.test(text) || /\b\d{8,}\b/.test(text)) {
     "warn",
     "long-id",
     "Contains a long ID/hash/number. Consider removing or saying “I’ll send the ID as text.”",
+  );
+}
+
+// Slash commands: usually not speakable.
+const slashCommands = findSlashCommands(text);
+if (slashCommands.length > 0) {
+  add(
+    "warn",
+    "slash-command",
+    `Contains slash command(s): ${slashCommands.slice(0, 5).join(", ")}${
+      slashCommands.length > 5 ? " ..." : ""
+    }. Voice replies should avoid slash commands; send as text instead.`,
+  );
+}
+
+// Internal jargon: avoid in voice-first / user-facing output.
+const jargonHits = INTERNAL_JARGON.filter((w) => includesTokenLike(text, w));
+if (jargonHits.length > 0) {
+  add(
+    "warn",
+    "internal-jargon",
+    `Contains internal jargon (${[...new Set(jargonHits)].join(", ")}). Consider rewriting for end-users.`,
   );
 }
 
