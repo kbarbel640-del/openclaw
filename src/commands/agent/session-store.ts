@@ -46,12 +46,16 @@ export async function updateSessionStoreAfterAgentRun(params: {
     sessionId,
     updatedAt: Date.now(),
   };
+  // Only store fallback info if it was actually used (different from primary)
+  const fallbackWasUsed = fallbackProvider !== providerUsed || fallbackModel !== modelUsed;
   const next: SessionEntry = {
     ...entry,
     sessionId,
     updatedAt: Date.now(),
     modelProvider: providerUsed,
     model: modelUsed,
+    fallbackProvider: fallbackWasUsed ? fallbackProvider : undefined,
+    fallbackModel: fallbackWasUsed ? fallbackModel : undefined,
     contextTokens,
   };
   if (isCliProvider(providerUsed, cfg)) {
