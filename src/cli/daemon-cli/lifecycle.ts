@@ -220,20 +220,25 @@ export async function runDaemonStop(opts: DaemonLifecycleOptions = {}) {
     return;
   }
 
-  // Clean up the gateway lock file to allow manual starts after service stop
-  try {
-    const { lockPath } = resolveGatewayLockPath(process.env);
-    await fs.unlink(lockPath);
-  } catch {
-    // Best effort - lock file may not exist or be accessible
-  }
-
   let stopped = false;
   try {
     stopped = await service.isLoaded({ env: process.env });
   } catch {
     stopped = false;
   }
+
+  // Clean up the gateway lock file AFTER service has stopped
+  // This prevents race conditions where a new gateway instance could start
+  // before the old one has fully shut down
+  if (stopped) {
+    try {
+      const { lockPath } = resolveGatewayLockPath(process.env);
+      await fs.unlink(lockPath);
+    } catch {
+      // Best effort - lock file may not exist or be accessible
+    }
+  }
+
   emit({
     ok: true,
     result: "stopped",
