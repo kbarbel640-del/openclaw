@@ -209,13 +209,21 @@ export async function buildStatusReply(params: {
     ? (normalizeGroupActivation(sessionEntry?.groupActivation) ?? defaultGroupActivation())
     : undefined;
   const agentDefaults = cfg.agents?.defaults ?? {};
+  // Check if fallback is active by comparing requested vs actual model
+  const actualProvider = sessionEntry?.modelProvider;
+  const actualModel = sessionEntry?.model;
+  const fallbackActive =
+    actualProvider && actualModel && (actualProvider !== provider || actualModel !== model);
+  const primaryModelLabel = fallbackActive
+    ? `${provider}/${model} → ${actualProvider}/${actualModel} (fallback)`
+    : `${provider}/${model}`;
   const statusText = buildStatusMessage({
     config: cfg,
     agent: {
       ...agentDefaults,
       model: {
         ...agentDefaults.model,
-        primary: `${provider}/${model}`,
+        primary: primaryModelLabel,
       },
       contextTokens,
       thinkingDefault: agentDefaults.thinkingDefault,
