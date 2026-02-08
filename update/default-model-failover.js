@@ -6,7 +6,7 @@ import path from "path";
 // Probes a list of candidate models and updates the global config's
 // `agents.defaults.model` to the first responsive model.
 // Usage:
-// node update/default-failover.js --models openai/gpt-4o,anthropic/claude-opus-4-6 --config "C:\Users\you\.openclaw\openclaw.json" --timeout 5000
+// node update/default-model-failover.js --models openai/gpt-4o,anthropic/claude-opus-4-6 --config "C:\Users\you\.openclaw\openclaw.json" --timeout 5000
 
 function parseArgs() {
   const args = process.argv.slice(2);
