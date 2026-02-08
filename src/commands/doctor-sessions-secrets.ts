@@ -13,8 +13,8 @@ import { note } from "../terminal/note.js";
  * Deterministic sample: sort paths and take first N for stable, reproducible results.
  * Avoids nondeterministic "flapping" warnings across runs.
  */
-function deterministicSample<T>(array: T[], n: number): T[] {
-  return [...array].toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0)).slice(0, n);
+function deterministicSample(array: string[], n: number): string[] {
+  return [...array].toSorted((a, b) => a.localeCompare(b)).slice(0, n);
 }
 
 async function scanFileForSecrets(
