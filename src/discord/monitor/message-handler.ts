@@ -106,6 +106,11 @@ export function createDiscordMessageHandler(params: {
         ...last.data,
         message: syntheticMessage,
       };
+      const anyWasMentioned = entries.some((entry) => {
+        const botId = params.botUserId;
+        if (!botId) return false;
+        return entry.data.message.mentionedUsers?.some((user) => user.id === botId);
+      });
       const ctx = await preflightDiscordMessage({
         ...params,
         ackReactionScope,
@@ -115,6 +120,9 @@ export function createDiscordMessageHandler(params: {
       });
       if (!ctx) {
         return;
+      }
+      if (anyWasMentioned) {
+        ctx.effectiveWasMentioned = true;
       }
       if (entries.length > 1) {
         const ids = entries.map((entry) => entry.data.message?.id).filter(Boolean) as string[];
