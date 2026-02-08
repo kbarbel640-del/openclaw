@@ -11,6 +11,9 @@
  *   cat draft.txt | bun scripts/external-message-lint.ts
  *   bun scripts/external-message-lint.ts --file draft.txt
  *   bun scripts/external-message-lint.ts --json < draft.txt
+ *
+ * URL autofix:
+ *   bun scripts/external-message-lint.ts --sanitize-urls < draft.txt > draft.sanitized.txt
  */
 
 import { readFile } from "node:fs/promises";
@@ -33,9 +36,10 @@ function usage(): string {
     "",
     "Options:",
     "  --file <path>   Read message from a file instead of stdin",
-    "  --json          Emit machine-readable JSON",
-    "  --strict        Treat line-count warnings as errors (12-line target)",
-    "  --help          Show this help",
+    "  --json           Emit machine-readable JSON",
+    "  --strict         Treat line-count warnings as errors (12-line target)",
+    "  --sanitize-urls  Strip URL query+fragment (stdout); print lint to stderr",
+    "  --help           Show this help",
     "",
     "Exit codes:",
     "  0 = OK (no errors)",
@@ -55,12 +59,13 @@ async function readStdin(): Promise<string> {
 function parseArgs(argv: string[]) {
   const json = argv.includes("--json");
   const strict = argv.includes("--strict");
+  const sanitizeUrls = argv.includes("--sanitize-urls");
   const help = argv.includes("--help") || argv.includes("-h");
 
   const fileIndex = argv.indexOf("--file");
   const file = fileIndex >= 0 ? argv[fileIndex + 1] : undefined;
 
-  return { json, strict, help, file } as const;
+  return { json, strict, sanitizeUrls, help, file } as const;
 }
 
 function countMatches(text: string, re: RegExp): number {
@@ -71,22 +76,41 @@ function firstNonEmptyLine(lines: string[]): string | undefined {
   return lines.find((l) => l.trim().length > 0);
 }
 
-function trimUrlPunctuation(url: string): string {
-  // Common in chat drafts: people wrap URLs in parentheses or add trailing punctuation.
-  // Our URL regex is intentionally simple; trim the most common trailing characters
-  // so suggestions are cleaner.
-  let out = url;
-  while (out.length > 0 && /[).,;:!?"'\]]$/.test(out)) {
-    out = out.slice(0, -1);
+function splitUrlAndSuffix(rawUrl: string): { url: string; suffix: string } {
+  // Common in chat drafts: URLs are wrapped in parentheses or followed by punctuation.
+  // Keep a separate suffix so we can sanitize the URL itself without losing punctuation.
+  let i = rawUrl.length;
+  while (i > 0 && /[).,;:!?"'\]]/.test(rawUrl[i - 1] ?? "")) {
+    i -= 1;
   }
-  return out;
+  return { url: rawUrl.slice(0, i), suffix: rawUrl.slice(i) };
+}
+
+function trimUrlPunctuation(url: string): string {
+  return splitUrlAndSuffix(url).url;
 }
 
 function stripUrlQueryAndFragment(url: string): string {
   const cleaned = trimUrlPunctuation(url);
-  const noQuery = cleaned.split("?")[0] ?? cleaned;
-  const noFrag = noQuery.split("#")[0] ?? noQuery;
-  return noFrag;
+
+  const hashIdx = cleaned.indexOf("#");
+  const withoutFrag = hashIdx >= 0 ? cleaned.slice(0, hashIdx) : cleaned;
+
+  const qIdx = withoutFrag.indexOf("?");
+  const withoutQuery = qIdx >= 0 ? withoutFrag.slice(0, qIdx) : withoutFrag;
+
+  return withoutQuery;
+}
+
+function sanitizeUrlsInText(input: string): { text: string; changedCount: number } {
+  let changedCount = 0;
+  const out = input.replaceAll(/https?:\/\/\S+/g, (raw) => {
+    const { url, suffix } = splitUrlAndSuffix(raw);
+    const sanitizedUrl = stripUrlQueryAndFragment(url);
+    if (sanitizedUrl !== url) changedCount += 1;
+    return sanitizedUrl + suffix;
+  });
+  return { text: out, changedCount };
 }
 
 const INTERNAL_JARGON = [
@@ -123,6 +147,11 @@ if (!text.trim()) {
 }
 
 text = text.replaceAll("\r\n", "\n");
+
+const sanitized = args.sanitizeUrls ? sanitizeUrlsInText(text) : undefined;
+if (sanitized) text = sanitized.text;
+const sanitizedUrlCount = sanitized?.changedCount ?? 0;
+
 const lines = text.split("\n");
 const nonEmptyLines = lines.filter((l) => l.trim().length > 0);
 
@@ -327,26 +356,37 @@ if (commandLines.length > 3) {
 const result = {
   ok: !issues.some((i) => i.level === "error"),
   issues,
+  sanitizeUrls: args.sanitizeUrls
+    ? { enabled: true, changedCount: sanitizedUrlCount, sanitizedText: text }
+    : { enabled: false as const },
 };
 
-if (args.json) {
-  console.log(JSON.stringify(result, null, 2));
-} else {
+function printReport(stream: NodeJS.WritableStream) {
   if (result.ok) {
-    console.log("OK: no errors found.");
+    stream.write("OK: no errors found.\n");
   } else {
-    console.log("Errors found:");
+    stream.write("Errors found:\n");
   }
 
   for (const i of issues) {
     const prefix = i.level === "error" ? "ERROR" : "WARN";
-    console.log(`- ${prefix} [${i.code}]: ${i.message}`);
+    stream.write(`- ${prefix} [${i.code}]: ${i.message}\n`);
   }
 
   if (issues.length === 0) {
-    // Still show a minimal summary when OK, in non-JSON mode.
-    console.log("(No warnings.)");
+    stream.write("(No warnings.)\n");
   }
+}
+
+if (args.json) {
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+} else if (args.sanitizeUrls) {
+  // In sanitize mode, print the sanitized message to stdout (pipe-friendly), and
+  // print the lint report to stderr.
+  process.stdout.write(text.endsWith("\n") ? text : `${text}\n`);
+  printReport(process.stderr);
+} else {
+  printReport(process.stdout);
 }
 
 process.exit(result.ok ? 0 : 1);
