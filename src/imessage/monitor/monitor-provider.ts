@@ -99,9 +99,11 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
   const sentMessageCache = createSentMessageCache();
   const textLimit = resolveTextChunkLimit(cfg, "imessage", accountInfo.accountId);
   const allowFrom = normalizeAllowList(opts.allowFrom ?? imessageCfg.allowFrom);
+  const defaultGroupAllowFrom = cfg.channels?.defaults?.groupAllowFrom;
   const groupAllowFrom = normalizeAllowList(
     opts.groupAllowFrom ??
       imessageCfg.groupAllowFrom ??
+      defaultGroupAllowFrom ??
       (imessageCfg.allowFrom && imessageCfg.allowFrom.length > 0 ? imessageCfg.allowFrom : []),
   );
   const defaultGroupPolicy = resolveDefaultGroupPolicy(cfg);
