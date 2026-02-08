@@ -353,11 +353,15 @@ export async function executeJob(
       if (job.schedule.kind === "at" && status === "ok") {
         job.enabled = false;
         job.state.nextRunAtMs = undefined;
-      } else if (job.enabled) {
+      } else if (job.enabled && !opts.forced) {
         job.state.nextRunAtMs = computeJobNextRunAtMs(job, endedAt);
-      } else {
+      } else if (!job.enabled) {
         job.state.nextRunAtMs = undefined;
       }
+      // When opts.forced is true and job is enabled, preserve the existing
+      // nextRunAtMs so the cron grid stays aligned.  The finally block also
+      // guards against recomputation for forced runs, but finish() executes
+      // first — without this check we'd overwrite the grid-aligned value.
     }
 
     emit(state, {
