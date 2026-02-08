@@ -40,7 +40,6 @@ export function createEventHandlers(context: EventHandlerContext) {
   const finalizedRuns = new Map<string, number>();
   const sessionRuns = new Map<string, number>();
   let streamAssembler = new TuiStreamAssembler();
-  const pendingDeltaByRun = new Map<string, { text: string }>();
   let lastSessionKey = state.currentSessionKey;
 
   const pruneRunMap = (runs: Map<string, number>) => {
@@ -73,7 +72,6 @@ export function createEventHandlers(context: EventHandlerContext) {
     lastSessionKey = state.currentSessionKey;
     finalizedRuns.clear();
     sessionRuns.clear();
-    pendingDeltaByRun.clear();
     streamAssembler = new TuiStreamAssembler();
     clearLocalRunIds?.();
     setThinkingPreview?.("");
@@ -122,23 +120,8 @@ export function createEventHandlers(context: EventHandlerContext) {
       if (thinkingPreview) {
         setThinkingPreview?.(thinkingPreview);
       }
-      const existing = pendingDeltaByRun.get(evt.runId);
-      if (existing) {
-        existing.text = displayText;
-        return;
-      }
-      pendingDeltaByRun.set(evt.runId, { text: displayText });
-      setTimeout(() => {
-        const pending = pendingDeltaByRun.get(evt.runId);
-        if (!pending) {
-          return;
-        }
-        pendingDeltaByRun.delete(evt.runId);
-        chatLog.updateAssistant(pending.text, evt.runId);
-        setActivityStatus("streaming");
-        tui.requestRender();
-      }, 240);
-      return;
+      chatLog.updateAssistant(displayText, evt.runId);
+      setActivityStatus("streaming");
     }
     if (evt.state === "final") {
       if (isCommandMessage(evt.message)) {
@@ -152,7 +135,6 @@ export function createEventHandlers(context: EventHandlerContext) {
           chatLog.addSystem(text);
         }
         streamAssembler.drop(evt.runId);
-        pendingDeltaByRun.delete(evt.runId);
         noteFinalizedRun(evt.runId);
         setThinkingPreview?.("");
         setActiveToolName?.("");
@@ -176,7 +158,6 @@ export function createEventHandlers(context: EventHandlerContext) {
 
       const finalText = streamAssembler.finalize(evt.runId, evt.message, true);
       chatLog.finalizeAssistant(finalText, evt.runId);
-      pendingDeltaByRun.delete(evt.runId);
       noteFinalizedRun(evt.runId);
       setThinkingPreview?.("");
       setActiveToolName?.("");
@@ -188,7 +169,6 @@ export function createEventHandlers(context: EventHandlerContext) {
     if (evt.state === "aborted") {
       chatLog.addSystem("run aborted");
       streamAssembler.drop(evt.runId);
-      pendingDeltaByRun.delete(evt.runId);
       sessionRuns.delete(evt.runId);
       setThinkingPreview?.("");
       setActiveToolName?.("");
@@ -204,7 +184,6 @@ export function createEventHandlers(context: EventHandlerContext) {
     if (evt.state === "error") {
       chatLog.addSystem(`run error: ${evt.errorMessage ?? "unknown"}`);
       streamAssembler.drop(evt.runId);
-      pendingDeltaByRun.delete(evt.runId);
       sessionRuns.delete(evt.runId);
       setThinkingPreview?.("");
       setActiveToolName?.("");

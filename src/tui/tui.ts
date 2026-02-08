@@ -412,6 +412,7 @@ export async function runTui(opts: TuiOptions) {
       if (busyStates.has(activityStatus)) {
         updateBusyStatusMessage();
       }
+      tui.requestRender();
     }, 250);
   };
 
@@ -420,6 +421,7 @@ export async function runTui(opts: TuiOptions) {
     if (busyStates.has(activityStatus)) {
       updateBusyStatusMessage();
     }
+    tui.requestRender();
   };
 
   const setThinkingExpanded = (value: boolean) => {
