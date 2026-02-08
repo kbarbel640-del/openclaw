@@ -218,7 +218,16 @@ export const chatHandlers: GatewayRequestHandlers = {
       ? sanitized
       : sanitized.filter((msg: any) => {
           if (msg.role !== "assistant") return true;
-          const text = typeof msg.content === "string" ? msg.content : "";
+          // Content can be a string or an array of {type, text} blocks
+          let text = "";
+          if (typeof msg.content === "string") {
+            text = msg.content;
+          } else if (Array.isArray(msg.content)) {
+            text = msg.content
+              .filter((b: any) => b?.type === "text" && typeof b?.text === "string")
+              .map((b: any) => b.text)
+              .join("");
+          }
           return !text.trim().startsWith(HEARTBEAT_TOKEN);
         });
     const capped = capArrayByJsonBytes(filtered, getMaxChatHistoryMessagesBytes()).items;
