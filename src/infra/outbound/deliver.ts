@@ -189,6 +189,11 @@ function createPluginHandler(params: {
 
 const isAbortError = (err: unknown): boolean => err instanceof Error && err.name === "AbortError";
 const log = createSubsystemLogger("infra/outbound");
+const MESSAGE_SENT_HOOK_HANDLED = Symbol("messageSentHookHandled");
+
+function normalizeUnknownError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
+}
 
 export async function deliverOutboundPayloads(params: {
   cfg: OpenClawConfig;
@@ -500,8 +505,19 @@ async function deliverOutboundPayloadsCore(params: {
       }
       for (const rewrittenChunk of rewrittenChunks) {
         onAttempt?.(rewrittenChunk.text);
-        results.push(await sendSignalText(rewrittenChunk.text, rewrittenChunk.styles));
-        await runMessageSentHook(rewrittenChunk.text, true);
+        try {
+          results.push(await sendSignalText(rewrittenChunk.text, rewrittenChunk.styles));
+          await runMessageSentHook(rewrittenChunk.text, true);
+        } catch (err) {
+          const normalizedErr = normalizeUnknownError(err);
+          await runMessageSentHook(rewrittenChunk.text, false, normalizedErr.message);
+          (
+            normalizedErr as Error & {
+              [MESSAGE_SENT_HOOK_HANDLED]?: boolean;
+            }
+          )[MESSAGE_SENT_HOOK_HANDLED] = true;
+          throw normalizedErr;
+        }
       }
     }
   };
@@ -610,15 +626,20 @@ async function deliverOutboundPayloadsCore(params: {
         }
       }
     } catch (err) {
-      await runMessageSentHook(
-        attemptedSendContent,
-        false,
-        err instanceof Error ? err.message : String(err),
-      );
-      if (!params.bestEffort) {
-        throw err;
+      const normalizedErr = normalizeUnknownError(err);
+      const handledInNestedSend =
+        (
+          normalizedErr as Error & {
+            [MESSAGE_SENT_HOOK_HANDLED]?: boolean;
+          }
+        )[MESSAGE_SENT_HOOK_HANDLED] === true;
+      if (!handledInNestedSend) {
+        await runMessageSentHook(attemptedSendContent, false, normalizedErr.message);
       }
-      params.onError?.(err, payloadSummary);
+      if (!params.bestEffort) {
+        throw normalizedErr;
+      }
+      params.onError?.(normalizedErr, payloadSummary);
     }
   }
   if (params.mirror && results.length > 0) {
