@@ -17,7 +17,8 @@ import type {
 import type { VoiceCallProvider } from "./base.js";
 import { AriClient, type AriEvent } from "./asterisk-ari/ari-client.js";
 import { AriMedia, type MediaGraph } from "./asterisk-ari/ari-media.js";
-import { OpenAIRealtimeSTTProvider } from "./stt-openai-realtime.js";
+import type { CoreConfig } from "../core-bridge.js";
+import { loadCoreAgentDeps } from "../core-bridge.js";
 import { chunkAudio } from "../telephony-audio.js";
 import type { TelephonyTtsProvider } from "../telephony-tts.js";
 
@@ -43,13 +44,18 @@ function makeEvent(partial: Omit<NormalizedEvent, "id" | "timestamp">): Normaliz
   } as NormalizedEvent;
 }
 
+type CoreSttSession = {
+  onAudio: (mulaw: Buffer) => void;
+  close: () => void;
+};
+
 type CallState = {
   callId: string;
   providerCallId: string;
   sipChannelId: string;
   media?: MediaGraph;
   speaking: boolean;
-  stt?: ReturnType<OpenAIRealtimeSTTProvider["createSession"]>;
+  stt?: CoreSttSession;
   pendingMulaw?: Buffer;
   rtpPeer?: { address: string; port: number };
   rtpSeen?: boolean;
@@ -60,19 +66,24 @@ export class AsteriskAriProvider implements VoiceCallProvider {
   readonly name = "asterisk-ari" as const;
 
   private readonly cfg: AriConfig;
+  private readonly voiceConfig: VoiceCallConfig;
   private readonly manager: CallManager;
   private readonly client: AriClient;
   private readonly mediaFactory: AriMedia;
+  private readonly coreConfig: CoreConfig | null;
   private ttsProvider: TelephonyTtsProvider | null = null;
+  private coreDepsPromise: Promise<Awaited<ReturnType<typeof loadCoreAgentDeps>>> | null = null;
 
   // providerCallId -> state
   private readonly calls = new Map<string, CallState>();
 
-  constructor(params: { config: VoiceCallConfig; manager: CallManager }) {
+  constructor(params: { config: VoiceCallConfig; manager: CallManager; coreConfig?: CoreConfig }) {
     const a = params.config.asteriskAri;
     if (!a) throw new Error("asteriskAri config missing");
+    this.voiceConfig = params.config;
     this.cfg = a;
     this.manager = params.manager;
+    this.coreConfig = params.coreConfig ?? null;
     this.client = new AriClient(this.cfg);
     this.mediaFactory = new AriMedia(this.cfg, this.client);
 
@@ -395,25 +406,87 @@ export class AsteriskAriProvider implements VoiceCallProvider {
     return pkt.subarray(headerLen);
   }
 
-  private async setupStt(state: CallState): Promise<void> {
-    if (!state.media) return;
-    const apiKey = (process.env.OPENAI_API_KEY || "").trim();
-    if (!apiKey) {
-      console.warn("[ari] STT disabled: OPENAI_API_KEY missing");
-      return;
+  private mulawToLinear(mulaw: number): number {
+    mulaw = ~mulaw & 0xff;
+    const sign = mulaw & 0x80;
+    const exponent = (mulaw >> 4) & 0x07;
+    const mantissa = mulaw & 0x0f;
+    let sample = ((mantissa << 3) + 132) << exponent;
+    sample -= 132;
+    return sign ? -sample : sample;
+  }
+
+  private mulawToPcm16Buffer(mulaw: Buffer): Buffer {
+    const pcm = Buffer.allocUnsafe(mulaw.length * 2);
+    for (let i = 0; i < mulaw.length; i++) {
+      pcm.writeInt16LE(this.mulawToLinear(mulaw[i] ?? 0), i * 2);
     }
+    return pcm;
+  }
+
+  private computeRms(pcm: Buffer): number {
+    if (pcm.length < 2) return 0;
+    let sum = 0;
+    for (let i = 0; i < pcm.length; i += 2) {
+      const sample = pcm.readInt16LE(i);
+      sum += sample * sample;
+    }
+    const count = pcm.length / 2;
+    return Math.sqrt(sum / Math.max(1, count));
+  }
+
+  private pcmDurationMsFromBytes(bytes: number): number {
+    return Math.round((bytes / 2 / 8000) * 1000);
+  }
+
+  private buildWavFromPcm(pcm: Buffer, sampleRate = 8000): Buffer {
+    const dataSize = pcm.length;
+    const header = Buffer.alloc(44);
+    header.write("RIFF", 0, 4, "ascii");
+    header.writeUInt32LE(36 + dataSize, 4);
+    header.write("WAVE", 8, 4, "ascii");
+    header.write("fmt ", 12, 4, "ascii");
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(1, 20);
+    header.writeUInt16LE(1, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(sampleRate * 2, 28);
+    header.writeUInt16LE(2, 32);
+    header.writeUInt16LE(16, 34);
+    header.write("data", 36, 4, "ascii");
+    header.writeUInt32LE(dataSize, 40);
+    return Buffer.concat([header, pcm]);
+  }
+
+  private async loadCoreDeps() {
+    if (!this.coreConfig) return null;
+    if (!this.coreDepsPromise) {
+      this.coreDepsPromise = loadCoreAgentDeps();
+    }
+    try {
+      return await this.coreDepsPromise;
+    } catch (err) {
+      console.warn("[ari] STT disabled: core deps unavailable", err);
+      return null;
+    }
+  }
+
+  private async transcribePcmWithCore(state: CallState, pcm: Buffer): Promise<void> {
+    if (!this.coreConfig) return;
+    const deps = await this.loadCoreDeps();
+    if (!deps) return;
+
+    const wav = this.buildWavFromPcm(pcm);
 
     try {
-      const session = new OpenAIRealtimeSTTProvider({
-        apiKey,
-        model: "gpt-4o-transcribe", // default
-      }).createSession();
-
-      await session.connect();
-      console.log("[ari] STT connected");
-
-      session.onTranscript((text) => {
-        console.log("[ari] STT transcript -> call.speech", { text });
+      const result = await deps.transcribeAudioWithCore({
+        cfg: this.coreConfig,
+        buffer: wav,
+        mime: "audio/wav",
+      });
+      const text = result.text?.trim();
+      if (text && this.calls.has(state.providerCallId)) {
+        console.log("[ari] core STT -> call.speech", { text });
         this.manager.processEvent(
           makeEvent({
             type: "call.speech",
@@ -423,28 +496,156 @@ export class AsteriskAriProvider implements VoiceCallProvider {
             isFinal: true,
           }),
         );
-      });
-
-      let loggedPayload = false;
-      state.media.sttUdp.on("message", (msg) => {
-        const payload = this.stripRtpHeader(msg);
-        if (payload.length) {
-          if (!loggedPayload) {
-            loggedPayload = true;
-            console.log("[ari] STT payload", {
-              bytes: payload.length,
-              head: payload.subarray(0, 8).toString("hex"),
-            });
-          }
-          session.sendAudio(payload);
-        }
-      });
-
-      state.stt = session;
-      console.log("[ari] STT setup ok");
+      }
     } catch (err) {
-      console.warn("[ari] STT setup failed", err);
+      console.warn("[ari] core STT failed", err);
     }
+  }
+
+  private async createCoreSttSession(state: CallState): Promise<CoreSttSession | null> {
+    if (!this.coreConfig) {
+      console.warn("[ari] STT disabled: core config missing");
+      return null;
+    }
+    const deps = await this.loadCoreDeps();
+    if (!deps) return null;
+
+    const silenceMs = Math.max(200, this.voiceConfig.silenceTimeoutMs ?? 800);
+    const minSpeechMs = Math.min(1200, Math.max(200, Math.floor(silenceMs * 0.5)));
+    const maxSpeechMs = Math.max(4000, Math.min(20000, silenceMs * 20));
+    const hangoverMs = Math.max(120, Math.floor(silenceMs * 0.25));
+    const bytesPerMs = 16; // 8kHz * 2 bytes
+    const maxBufferBytes = maxSpeechMs * bytesPerMs;
+    const preRollMs = Math.min(500, Math.max(200, Math.floor(silenceMs * 0.6)));
+    const preRollBytesLimit = preRollMs * bytesPerMs;
+    const rmsFloorMin = 200;
+    const noiseAlpha = 0.05;
+    const noiseMultiplier = 2.5;
+    const noiseOffset = 120;
+    const maxPendingSegments = 2;
+
+    let closed = false;
+    let speaking = false;
+    let lastVoiceMs = 0;
+    let buffers: Buffer[] = [];
+    let bufferBytes = 0;
+    let preRoll: Buffer[] = [];
+    let preRollBytes = 0;
+    let noiseFloor = 0;
+    let pendingSegments = 0;
+    let queue = Promise.resolve();
+
+    const enqueue = (pcm: Buffer) => {
+      if (pendingSegments >= maxPendingSegments) {
+        return;
+      }
+      pendingSegments += 1;
+      queue = queue
+        .catch(() => undefined)
+        .then(async () => {
+          try {
+            await this.transcribePcmWithCore(state, pcm);
+          } finally {
+            pendingSegments = Math.max(0, pendingSegments - 1);
+          }
+        });
+    };
+
+    const flush = () => {
+      if (!buffers.length) {
+        speaking = false;
+        return;
+      }
+      const pcm = Buffer.concat(buffers);
+      const durationMs = this.pcmDurationMsFromBytes(bufferBytes);
+      buffers = [];
+      bufferBytes = 0;
+      speaking = false;
+      if (durationMs < minSpeechMs) {
+        return;
+      }
+      enqueue(pcm);
+    };
+
+    const onAudio = (mulaw: Buffer) => {
+      if (closed) return;
+      const pcm = this.mulawToPcm16Buffer(mulaw);
+      const rms = this.computeRms(pcm);
+      const now = Date.now();
+
+      if (!speaking) {
+        const target = Math.max(rmsFloorMin, rms);
+        noiseFloor = noiseFloor ? noiseFloor * (1 - noiseAlpha) + target * noiseAlpha : target;
+      }
+      const threshold = Math.max(rmsFloorMin, noiseFloor * noiseMultiplier + noiseOffset);
+      const isVoice = rms > threshold;
+
+      if (speaking) {
+        buffers.push(pcm);
+        bufferBytes += pcm.length;
+        if (isVoice) {
+          lastVoiceMs = now;
+        }
+        if (!isVoice && now - lastVoiceMs >= silenceMs + hangoverMs) {
+          flush();
+          return;
+        }
+        if (bufferBytes >= maxBufferBytes) {
+          flush();
+          return;
+        }
+        return;
+      }
+
+      preRoll.push(pcm);
+      preRollBytes += pcm.length;
+      while (preRollBytes > preRollBytesLimit) {
+        const dropped = preRoll.shift();
+        if (dropped) preRollBytes -= dropped.length;
+      }
+
+      if (isVoice) {
+        speaking = true;
+        lastVoiceMs = now;
+        buffers = preRoll;
+        bufferBytes = preRollBytes;
+        preRoll = [];
+        preRollBytes = 0;
+      }
+    };
+
+    const close = () => {
+      closed = true;
+      buffers = [];
+      bufferBytes = 0;
+      preRoll = [];
+      preRollBytes = 0;
+    };
+
+    return { onAudio, close };
+  }
+
+  private async setupStt(state: CallState): Promise<void> {
+    if (!state.media) return;
+    const session = await this.createCoreSttSession(state);
+    if (!session) return;
+
+    let loggedPayload = false;
+    state.media.sttUdp.on("message", (msg) => {
+      const payload = this.stripRtpHeader(msg);
+      if (!payload.length) return;
+      if (!loggedPayload) {
+        loggedPayload = true;
+        console.log("[ari] STT payload", {
+          bytes: payload.length,
+          head: payload.subarray(0, 8).toString("hex"),
+        });
+      }
+      session.onAudio(payload);
+    });
+
+    state.stt = session;
+    console.log("[ari] core STT setup ok");
   }
 
   private async handleInboundStart(evt: AriEvent): Promise<void> {

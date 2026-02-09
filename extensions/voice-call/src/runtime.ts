@@ -41,7 +41,11 @@ function isLoopbackBind(bind: string | undefined): boolean {
   return bind === "127.0.0.1" || bind === "::1" || bind === "localhost";
 }
 
-function resolveProvider(config: VoiceCallConfig, manager: CallManager): VoiceCallProvider {
+function resolveProvider(
+  config: VoiceCallConfig,
+  manager: CallManager,
+  coreConfig?: CoreConfig,
+): VoiceCallProvider {
   const allowNgrokFreeTierLoopbackBypass =
     config.tunnel?.provider === "ngrok" &&
     isLoopbackBind(config.serve?.bind) &&
@@ -92,7 +96,7 @@ function resolveProvider(config: VoiceCallConfig, manager: CallManager): VoiceCa
     case "mock":
       return new MockProvider();
     case "asterisk-ari":
-      return new AsteriskAriProvider({ config, manager });
+      return new AsteriskAriProvider({ config, manager, coreConfig });
     default:
       throw new Error(`Unsupported voice-call provider: ${String(config.provider)}`);
   }
@@ -124,7 +128,7 @@ export async function createVoiceCallRuntime(params: {
   }
 
   const manager = new CallManager(config);
-  const provider = resolveProvider(config, manager);
+  const provider = resolveProvider(config, manager, coreConfig);
   const webhookServer = new VoiceCallWebhookServer(config, manager, provider, coreConfig);
 
   const localUrl = await webhookServer.start();

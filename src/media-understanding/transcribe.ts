@@ -1,0 +1,296 @@
+import type { MsgContext } from "../auto-reply/templating.js";
+import type { OpenClawConfig } from "../config/config.js";
+import type {
+  MediaUnderstandingConfig,
+  MediaUnderstandingModelConfig,
+} from "../config/types.tools.js";
+import { requireApiKey, resolveApiKeyForProvider } from "../agents/model-auth.js";
+import {
+  buildProviderRegistry,
+  createMediaAttachmentCache,
+  normalizeMediaAttachments,
+  runCapability,
+} from "./runner.js";
+import { DEFAULT_AUDIO_MODELS, DEFAULT_TIMEOUT_SECONDS } from "./defaults.js";
+import {
+  resolveMaxBytes,
+  resolveMaxChars,
+  resolvePrompt,
+  resolveTimeoutMs,
+  resolveModelEntries,
+} from "./resolve.js";
+import {
+  getMediaUnderstandingProvider,
+  normalizeMediaProviderId,
+} from "./providers/index.js";
+import type { MediaUnderstandingDecision } from "./types.js";
+
+export type CoreAudioTranscriptionResult = {
+  text: string | null;
+  provider?: string;
+  model?: string;
+  decision: MediaUnderstandingDecision;
+};
+
+const AUTO_AUDIO_KEY_PROVIDERS = ["openai", "groq", "deepgram", "google"] as const;
+
+type ProviderQuery = Record<string, string | number | boolean>;
+
+function normalizeProviderQuery(
+  options?: Record<string, string | number | boolean>,
+): ProviderQuery | undefined {
+  if (!options) {
+    return undefined;
+  }
+  const query: ProviderQuery = {};
+  for (const [key, value] of Object.entries(options)) {
+    if (value === undefined) {
+      continue;
+    }
+    query[key] = value;
+  }
+  return Object.keys(query).length > 0 ? query : undefined;
+}
+
+function buildDeepgramCompatQuery(options?: {
+  detectLanguage?: boolean;
+  punctuate?: boolean;
+  smartFormat?: boolean;
+}): ProviderQuery | undefined {
+  if (!options) {
+    return undefined;
+  }
+  const query: ProviderQuery = {};
+  if (typeof options.detectLanguage === "boolean") {
+    query.detect_language = options.detectLanguage;
+  }
+  if (typeof options.punctuate === "boolean") {
+    query.punctuate = options.punctuate;
+  }
+  if (typeof options.smartFormat === "boolean") {
+    query.smart_format = options.smartFormat;
+  }
+  return Object.keys(query).length > 0 ? query : undefined;
+}
+
+function normalizeDeepgramQueryKeys(query: ProviderQuery): ProviderQuery {
+  const normalized = { ...query };
+  if ("detectLanguage" in normalized) {
+    normalized.detect_language = normalized.detectLanguage as boolean;
+    delete normalized.detectLanguage;
+  }
+  if ("smartFormat" in normalized) {
+    normalized.smart_format = normalized.smartFormat as boolean;
+    delete normalized.smartFormat;
+  }
+  return normalized;
+}
+
+function resolveProviderQuery(params: {
+  providerId: string;
+  config?: MediaUnderstandingConfig;
+  entry: MediaUnderstandingModelConfig;
+}): ProviderQuery | undefined {
+  const { providerId, config, entry } = params;
+  const mergedOptions = normalizeProviderQuery({
+    ...config?.providerOptions?.[providerId],
+    ...entry.providerOptions?.[providerId],
+  });
+  if (providerId !== "deepgram") {
+    return mergedOptions;
+  }
+  let query = normalizeDeepgramQueryKeys(mergedOptions ?? {});
+  const compat = buildDeepgramCompatQuery({ ...config?.deepgram, ...entry.deepgram });
+  for (const [key, value] of Object.entries(compat ?? {})) {
+    if (query[key] === undefined) {
+      query[key] = value as string | number | boolean;
+    }
+  }
+  return Object.keys(query).length > 0 ? query : undefined;
+}
+
+function trimOutput(text: string, maxChars?: number): string {
+  const trimmed = text.trim();
+  if (!maxChars || trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  return trimmed.slice(0, maxChars).trim();
+}
+
+async function resolveAutoAudioEntry(params: {
+  cfg: OpenClawConfig;
+  providerRegistry: Map<string, { capabilities?: string[] }>;
+}): Promise<MediaUnderstandingModelConfig | null> {
+  for (const providerId of AUTO_AUDIO_KEY_PROVIDERS) {
+    const provider = getMediaUnderstandingProvider(providerId, params.providerRegistry);
+    if (!provider || !provider.transcribeAudio) {
+      continue;
+    }
+    try {
+      await resolveApiKeyForProvider({ provider: providerId, cfg: params.cfg });
+      return { type: "provider", provider: providerId };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+async function transcribeAudioBufferWithCore(params: {
+  cfg: OpenClawConfig;
+  buffer: Buffer;
+  mime?: string;
+  fileName?: string;
+}): Promise<CoreAudioTranscriptionResult> {
+  const config = params.cfg.tools?.media?.audio;
+  if (config?.enabled === false) {
+    return {
+      text: null,
+      decision: { capability: "audio", outcome: "disabled", attachments: [] },
+    };
+  }
+
+  const providerRegistry = buildProviderRegistry();
+  let entries = resolveModelEntries({
+    cfg: params.cfg,
+    capability: "audio",
+    config,
+    providerRegistry,
+  });
+  if (entries.length === 0) {
+    const auto = await resolveAutoAudioEntry({ cfg: params.cfg, providerRegistry });
+    if (auto) {
+      entries = [auto];
+    }
+  }
+
+  if (entries.length === 0) {
+    return {
+      text: null,
+      decision: { capability: "audio", outcome: "skipped", attachments: [] },
+    };
+  }
+
+  for (const entry of entries) {
+    if ((entry.type ?? (entry.command ? "cli" : "provider")) !== "provider") {
+      continue;
+    }
+    const providerIdRaw = entry.provider?.trim();
+    if (!providerIdRaw) {
+      continue;
+    }
+    const providerId = normalizeMediaProviderId(providerIdRaw) ?? providerIdRaw;
+    const provider = getMediaUnderstandingProvider(providerId, providerRegistry);
+    if (!provider?.transcribeAudio) {
+      continue;
+    }
+
+    const maxBytes = resolveMaxBytes({ capability: "audio", entry, cfg: params.cfg, config });
+    if (params.buffer.length > maxBytes) {
+      continue;
+    }
+
+    const maxChars = resolveMaxChars({ capability: "audio", entry, cfg: params.cfg, config });
+    const timeoutMs = resolveTimeoutMs(
+      entry.timeoutSeconds ?? config?.timeoutSeconds ?? params.cfg.tools?.media?.audio?.timeoutSeconds,
+      DEFAULT_TIMEOUT_SECONDS,
+    );
+    const prompt = resolvePrompt("audio", entry.prompt ?? config?.prompt, maxChars);
+
+    const auth = await resolveApiKeyForProvider({ provider: providerId, cfg: params.cfg });
+    const apiKey = requireApiKey(auth, providerId);
+    const providerConfig = params.cfg.models?.providers?.[providerId];
+    const baseUrl = entry.baseUrl ?? config?.baseUrl ?? providerConfig?.baseUrl;
+    const mergedHeaders = {
+      ...providerConfig?.headers,
+      ...config?.headers,
+      ...entry.headers,
+    };
+    const headers = Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined;
+    const providerQuery = resolveProviderQuery({ providerId, config, entry });
+    const model = entry.model?.trim() || DEFAULT_AUDIO_MODELS[providerId] || entry.model;
+
+    try {
+      const result = await provider.transcribeAudio({
+        buffer: params.buffer,
+        fileName: params.fileName ?? "audio.wav",
+        mime: params.mime ?? "audio/wav",
+        apiKey,
+        baseUrl,
+        headers,
+        model,
+        language: entry.language ?? config?.language ?? params.cfg.tools?.media?.audio?.language,
+        prompt,
+        query: providerQuery,
+        timeoutMs,
+      });
+      const text = trimOutput(result.text, maxChars);
+      if (text) {
+        return {
+          text,
+          provider: providerId,
+          model: result.model ?? model,
+          decision: { capability: "audio", outcome: "success", attachments: [] },
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return {
+    text: null,
+    decision: { capability: "audio", outcome: "skipped", attachments: [] },
+  };
+}
+
+export async function transcribeAudioWithCore(params: {
+  cfg: OpenClawConfig;
+  filePath?: string;
+  buffer?: Buffer;
+  mime?: string;
+  ctx?: MsgContext;
+}): Promise<CoreAudioTranscriptionResult> {
+  if (params.buffer) {
+    return await transcribeAudioBufferWithCore({
+      cfg: params.cfg,
+      buffer: params.buffer,
+      mime: params.mime,
+      fileName: params.filePath ? params.filePath.split("/").pop() : undefined,
+    });
+  }
+  if (!params.filePath) {
+    return {
+      text: null,
+      decision: { capability: "audio", outcome: "skipped", attachments: [] },
+    };
+  }
+
+  const ctx: MsgContext =
+    params.ctx ?? ({ MediaPath: params.filePath, MediaType: params.mime ?? "audio/wav" } as MsgContext);
+
+  const media = normalizeMediaAttachments(ctx);
+  const cache = createMediaAttachmentCache(media);
+  const providerRegistry = buildProviderRegistry();
+
+  try {
+    const result = await runCapability({
+      capability: "audio",
+      cfg: params.cfg,
+      ctx,
+      attachments: cache,
+      media,
+      providerRegistry,
+    });
+
+    const output = result.outputs[0];
+    return {
+      text: output?.text ?? null,
+      provider: output?.provider,
+      model: output?.model,
+      decision: result.decision,
+    };
+  } finally {
+    await cache.cleanup();
+  }
+}
