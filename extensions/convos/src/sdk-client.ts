@@ -277,15 +277,6 @@ export class ConvosSDKClient {
     }
 
     try {
-      // Snapshot existing group IDs so we can detect the newly joined one.
-      // convos.join() returns the invite token as conversationId, NOT the XMTP
-      // group ID. We diff listGroups() before/after to find the real group.
-      // listGroups() returns proper Group objects (with updateAppData), unlike
-      // list() or getConversationById() which return lightweight Conversation objects.
-      const beforeIds = new Set(
-        this.agent.client.conversations.listGroups().map((g) => g.id),
-      );
-
       const result = await this.convos.join(invite);
 
       if (this.debug) {
@@ -296,34 +287,30 @@ export class ConvosSDKClient {
         return { status: "waiting_for_acceptance", conversationId: null };
       }
 
-      // Sync so the newly joined group appears in the local DB.
-      try {
-        await this.agent.client.conversations.sync();
-      } catch {
-        // best-effort
-      }
-
-      // Find the new group by diffing before/after.
-      const newGroup = this.agent.client.conversations
-        .listGroups()
-        .find((g) => !beforeIds.has(g.id));
-
-      if (newGroup) {
-        console.log(`[convos-sdk] Joined group: ${newGroup.id}`);
-
-        // Set the agent's display name immediately — same pattern as createConversation().
-        if (name) {
-          const convosGroup = this.convos.group(newGroup);
-          await convosGroup.setConversationProfile({ name });
-          console.log(`[convos-sdk] Set profile name: "${name}"`);
+      // Set the agent's display name — same pattern as createConversation().
+      // convos.join() returns the invite token as conversationId (not the XMTP
+      // group ID), so we find the group via listGroups() which returns proper
+      // Group objects with updateAppData().
+      if (name) {
+        try {
+          await this.agent.client.conversations.sync();
+          const groups = this.agent.client.conversations.listGroups();
+          // The most recently joined group is the one we want.
+          const group = groups[groups.length - 1];
+          if (group) {
+            const convosGroup = this.convos.group(group);
+            await convosGroup.setConversationProfile({ name });
+            console.log(`[convos-sdk] Set profile name: "${name}"`);
+          }
+        } catch (err) {
+          console.warn(`[convos-sdk] Failed to set profile name:`, err);
         }
-
-        return { status: "joined", conversationId: newGroup.id };
       }
 
-      // Fallback: return the raw SDK result (rename/send may not work).
-      console.warn(`[convos-sdk] Could not find newly joined group in conversations list; returning raw token`);
-      return { status: "joined", conversationId: result.conversationId };
+      return {
+        status: "joined",
+        conversationId: result.conversationId,
+      };
     } catch (err) {
       if (this.debug) {
         console.error(`[convos-sdk] Join failed:`, err);
