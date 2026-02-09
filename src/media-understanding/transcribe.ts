@@ -7,14 +7,10 @@ import type {
   MediaUnderstandingConfig,
   MediaUnderstandingModelConfig,
 } from "../config/types.tools.js";
+import type { MediaUnderstandingDecision, MediaUnderstandingProvider } from "./types.js";
 import { requireApiKey, resolveApiKeyForProvider } from "../agents/model-auth.js";
-import {
-  buildProviderRegistry,
-  createMediaAttachmentCache,
-  normalizeMediaAttachments,
-  runCapability,
-} from "./runner.js";
 import { DEFAULT_AUDIO_MODELS, DEFAULT_TIMEOUT_SECONDS } from "./defaults.js";
+import { getMediaUnderstandingProvider, normalizeMediaProviderId } from "./providers/index.js";
 import {
   resolveMaxBytes,
   resolveMaxChars,
@@ -23,10 +19,11 @@ import {
   resolveModelEntries,
 } from "./resolve.js";
 import {
-  getMediaUnderstandingProvider,
-  normalizeMediaProviderId,
-} from "./providers/index.js";
-import type { MediaUnderstandingDecision, MediaUnderstandingProvider } from "./types.js";
+  buildProviderRegistry,
+  createMediaAttachmentCache,
+  normalizeMediaAttachments,
+  runCapability,
+} from "./runner.js";
 
 export type CoreAudioTranscriptionResult = {
   text: string | null;
@@ -237,7 +234,9 @@ async function transcribeAudioBufferWithCore(params: {
 
     const maxChars = resolveMaxChars({ capability: "audio", entry, cfg: params.cfg, config });
     const timeoutMs = resolveTimeoutMs(
-      entry.timeoutSeconds ?? config?.timeoutSeconds ?? params.cfg.tools?.media?.audio?.timeoutSeconds,
+      entry.timeoutSeconds ??
+        config?.timeoutSeconds ??
+        params.cfg.tools?.media?.audio?.timeoutSeconds,
       DEFAULT_TIMEOUT_SECONDS,
     );
     const prompt = resolvePrompt("audio", entry.prompt ?? config?.prompt, maxChars);
@@ -312,7 +311,8 @@ export async function transcribeAudioWithCore(params: {
   }
 
   const ctx: MsgContext =
-    params.ctx ?? ({ MediaPath: params.filePath, MediaType: params.mime ?? "audio/wav" } as MsgContext);
+    params.ctx ??
+    ({ MediaPath: params.filePath, MediaType: params.mime ?? "audio/wav" } as MsgContext);
 
   const media = normalizeMediaAttachments(ctx);
   const cache = createMediaAttachmentCache(media);

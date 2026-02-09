@@ -23,11 +23,12 @@ afterEach(() => {
 
 describe("AriClient", () => {
   it("creates ExternalMedia with expected query params", async () => {
-    const fetchMock = vi.fn(async (url: string) =>
-      new Response(JSON.stringify({ id: "chan" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetchMock = vi.fn(
+      async (url: string) =>
+        new Response(JSON.stringify({ id: "chan" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).fetch = fetchMock;

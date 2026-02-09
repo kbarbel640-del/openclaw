@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import type { VoiceCallConfig } from "../config.js";
+import type { CoreConfig } from "../core-bridge.js";
 import type { CallManager } from "../manager.js";
+import type { TelephonyTtsProvider } from "../telephony-tts.js";
 import type {
   EndReason,
   HangupCallInput,
@@ -15,12 +17,10 @@ import type {
   NormalizedEvent,
 } from "../types.js";
 import type { VoiceCallProvider } from "./base.js";
-import { AriClient, type AriEvent } from "./asterisk-ari/ari-client.js";
-import { AriMedia, type MediaGraph } from "./asterisk-ari/ari-media.js";
-import type { CoreConfig } from "../core-bridge.js";
 import { loadCoreAgentDeps } from "../core-bridge.js";
 import { chunkAudio } from "../telephony-audio.js";
-import type { TelephonyTtsProvider } from "../telephony-tts.js";
+import { AriClient, type AriEvent } from "./asterisk-ari/ari-client.js";
+import { AriMedia, type MediaGraph } from "./asterisk-ari/ari-media.js";
 
 type AriConfig = NonNullable<VoiceCallConfig["asteriskAri"]>;
 
@@ -327,8 +327,14 @@ export class AsteriskAriProvider implements VoiceCallProvider {
   private async seedRtpPeer(state: CallState): Promise<void> {
     if (!state.media || state.rtpPeer) return;
     try {
-      const portStr = await this.client.getChannelVar(state.media.extChannelId, "UNICASTRTP_LOCAL_PORT");
-      const addrStr = await this.client.getChannelVar(state.media.extChannelId, "UNICASTRTP_LOCAL_ADDRESS");
+      const portStr = await this.client.getChannelVar(
+        state.media.extChannelId,
+        "UNICASTRTP_LOCAL_PORT",
+      );
+      const addrStr = await this.client.getChannelVar(
+        state.media.extChannelId,
+        "UNICASTRTP_LOCAL_ADDRESS",
+      );
       const port = portStr ? Number(portStr) : null;
       const address = addrStr || this.cfg.rtpHost;
       if (port && address) {

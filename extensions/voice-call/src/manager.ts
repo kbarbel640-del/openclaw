@@ -585,7 +585,6 @@ export class CallManager {
         event.from || "unknown",
         event.to || this.config.fromNumber || "unknown",
       );
-
     }
 
     let evt = event;

@@ -1,5 +1,5 @@
-import type { AriBridge, AriChannel, AriEndpointState, AriConfig } from "./types.js";
 import WebSocket from "ws";
+import type { AriBridge, AriChannel, AriEndpointState, AriConfig } from "./types.js";
 
 export type AriEvent = {
   type: string;
@@ -103,18 +103,15 @@ export class AriClient {
     whisper: "none" | "in" | "out" | "both";
     appArgs?: string;
   }): Promise<AriChannel> {
-    return this.fetchJson<AriChannel>(
-      `/channels/${encodeURIComponent(params.channelId)}/snoop`,
-      {
-        method: "POST",
-        query: {
-          app: params.app,
-          spy: params.spy,
-          whisper: params.whisper,
-          appArgs: params.appArgs,
-        },
+    return this.fetchJson<AriChannel>(`/channels/${encodeURIComponent(params.channelId)}/snoop`, {
+      method: "POST",
+      query: {
+        app: params.app,
+        spy: params.spy,
+        whisper: params.whisper,
+        appArgs: params.appArgs,
       },
-    );
+    });
   }
 
   async deleteBridge(bridgeId: string): Promise<void> {
@@ -151,7 +148,8 @@ export class AriClient {
     if (this.ws) {
       return;
     }
-    const wsUrl = this.cfg.baseUrl.replace(/^http/, "ws") +
+    const wsUrl =
+      this.cfg.baseUrl.replace(/^http/, "ws") +
       `/ari/events?app=${encodeURIComponent(this.cfg.app)}`;
     const ws = new WebSocket(wsUrl, {
       headers: {

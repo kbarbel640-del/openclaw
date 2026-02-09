@@ -1,6 +1,6 @@
 import dgram from "node:dgram";
-import type { AriChannel, AriConfig } from "./types.js";
 import type { AriClient } from "./ari-client.js";
+import type { AriChannel, AriConfig } from "./types.js";
 
 export type MediaGraph = {
   bridgeId: string;
@@ -106,7 +106,10 @@ export class AriMedia {
       await this.client.addChannelToBridge(sttBridgeId, sttExtChannelId);
       try {
         const sb = await this.client.getBridge(sttBridgeId);
-        console.log("[ari] stt bridge state", { sttBridgeId, channels: (sb as AriChannel).channels });
+        console.log("[ari] stt bridge state", {
+          sttBridgeId,
+          channels: (sb as AriChannel).channels,
+        });
       } catch (err) {
         console.warn("[ari] stt bridge state fetch failed", err);
       }
