@@ -312,6 +312,16 @@ export type PluginHookAgentContext = {
   sessionKey?: string;
   workspaceDir?: string;
   messageProvider?: string;
+  /** Sender's platform-specific ID (e.g. Discord user ID, Slack user ID). */
+  senderId?: string | null;
+  /** Sender's display name. */
+  senderName?: string | null;
+  /** Whether the sender is a configured owner (from ownerNumbers). */
+  senderIsOwner?: boolean;
+  /** Group/channel ID if this is a group chat (null for DMs). */
+  groupId?: string | null;
+  /** Parent session key if this is a sub-agent session. */
+  spawnedBy?: string | null;
 };
 
 // before_agent_start hook

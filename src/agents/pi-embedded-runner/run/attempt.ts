@@ -555,6 +555,11 @@ export async function runEmbeddedAttempt(
         sessionKey: params.sessionKey,
         workspaceDir: params.workspaceDir,
         messageProvider: params.messageProvider ?? undefined,
+        senderId: params.senderId ?? undefined,
+        senderName: params.senderName ?? undefined,
+        senderIsOwner: params.senderIsOwner ?? undefined,
+        groupId: params.groupId ?? undefined,
+        spawnedBy: params.spawnedBy ?? undefined,
       };
       if (hookRunner?.hasHooks("before_llm_call") || hookRunner?.hasHooks("context_assembled")) {
         const { wrapStreamFnWithHooks } = await import("./hook-stream-wrapper.js");
