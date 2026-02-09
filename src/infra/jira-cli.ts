@@ -58,7 +58,7 @@ export async function runJiraCli(
       : `jira-cli: failed to run command: ${argv.join(" ")} - ${errStr}`;
     logError(danger(message));
     if (noSuchContainer) {
-      throw new Error(message);
+      throw new Error(message, { cause: err });
     }
     throw err;
   }
