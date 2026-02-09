@@ -30,12 +30,22 @@ Every script follows: **Hook → Problem → Solution → Proof → Urgency → 
 
 ## Hook Angles (rotate across variants)
 
+**TOP PERFORMERS (use these first — based on @letstokshop analytics):**
+
+- **Identity**: "Everyone asks what [item] I wear" / "This is what [type of guy] wears" (1.6M views pattern)
+- **Cultural moment**: "[Season/trend] is here" / "It's [item] season" (990K views pattern)
+- **Hot take/Debate**: "[Bold opinion]. Change my mind." (drives comments + shares)
+- **Deal/Value**: "[Item] deal — [quantity] for $[price]" (509K views pattern)
+- **Seasonal**: Tie to events (#BackToSchool, holidays, weather changes) (8.6M views pattern)
+
+**SECONDARY (use for non-fashion products):**
+
 - **Status/Money**: "This pays for itself" / "The one thing I won't cheap out on"
-- **Pain/Relief**: "If you deal with [problem], you need this"
+- **Pain/Relief**: "If you deal with [problem], check this out"
 - **Curiosity**: "I didn't believe this would work until I tried it"
 - **Social proof**: "There's a reason this has [X] sold"
-- **Gift/Others**: "Best gift I ever bought"
-- **Challenge**: "Name one thing that does all this for under $[price]"
+
+**NOTE:** For men's fashion products, ALWAYS lead with identity/style hooks. Pain/solution hooks underperform with Eli's audience.
 
 ## Voice & Tone
 
