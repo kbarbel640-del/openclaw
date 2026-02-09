@@ -719,30 +719,31 @@ export async function runHeartbeatOnce(opts: {
     // The LLM prompt says "if it exists" so this is expected behavior.
   }
 
-  const { entry, sessionKey, storePath } = resolveHeartbeatSession(
+  const { entry, sessionKey, storePath, store } = resolveHeartbeatSession(
     cfg,
     agentId,
     heartbeat,
     opts.sessionKey,
   );
-  const previousUpdatedAt = entry?.updatedAt;
 
-  // Skip heartbeat if the user was recently active in this session.
-  // This avoids interrupting active conversations with heartbeat messages.
-  // Cron-triggered wakes and background-exit notifications bypass this check.
+  // Skip heartbeat if the user was recently active in the agent's main session.
+  // The heartbeat may run in its own session (e.g. "agent:main:heartbeat"), so we
+  // check the main conversation session's updatedAt — not the heartbeat session's.
   const RECENT_ACTIVITY_MS = 5 * 60_000; // 5 minutes
   const isScheduledHeartbeat = opts.reason === "interval";
-  if (
-    isScheduledHeartbeat &&
-    typeof previousUpdatedAt === "number" &&
-    startedAt - previousUpdatedAt < RECENT_ACTIVITY_MS
-  ) {
-    emitHeartbeatEvent({
-      status: "skipped",
-      reason: "recent-activity",
-      durationMs: Date.now() - startedAt,
-    });
-    return { status: "skipped", reason: "recent-activity" };
+  if (isScheduledHeartbeat) {
+    const resolvedAgentId = normalizeAgentId(agentId ?? resolveDefaultAgentId(cfg));
+    const mainKey = resolveAgentMainSessionKey({ cfg, agentId: resolvedAgentId });
+    const mainEntry = store[mainKey];
+    const mainUpdatedAt = mainEntry?.updatedAt;
+    if (typeof mainUpdatedAt === "number" && startedAt - mainUpdatedAt < RECENT_ACTIVITY_MS) {
+      emitHeartbeatEvent({
+        status: "skipped",
+        reason: "recent-activity",
+        durationMs: Date.now() - startedAt,
+      });
+      return { status: "skipped", reason: "recent-activity" };
+    }
   }
 
   const delivery = resolveHeartbeatDeliveryTarget({ cfg, entry, heartbeat });
