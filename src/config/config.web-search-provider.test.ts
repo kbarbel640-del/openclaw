@@ -21,4 +21,37 @@ describe("web search provider config", () => {
 
     expect(res.ok).toBe(true);
   });
+
+  it("accepts desearch provider and config", () => {
+    const res = validateConfigObject({
+      tools: {
+        web: {
+          search: {
+            enabled: true,
+            provider: "desearch",
+            desearch: {
+              apiKey: "dt_test-key",
+              baseUrl: "https://api.desearch.ai",
+            },
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
+
+  it("accepts desearch provider with minimal config", () => {
+    const res = validateConfigObject({
+      tools: {
+        web: {
+          search: {
+            provider: "desearch",
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
 });
