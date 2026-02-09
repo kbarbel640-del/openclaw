@@ -33,6 +33,7 @@ ENV NODE_ENV=production
 
 # Allow non-root user to write temp files during runtime/tests.
 RUN chown -R node:node /app
+RUN chmod +x /app/scripts/docker-entrypoint.sh
 
 # Security hardening: Run as non-root user
 # The node:22-bookworm image includes a 'node' user (uid 1000)
@@ -45,4 +46,7 @@ USER node
 # For container platforms requiring external health checks:
 #   1. Set OPENCLAW_GATEWAY_TOKEN or OPENCLAW_GATEWAY_PASSWORD env var
 #   2. Override CMD: ["node","openclaw.mjs","gateway","--allow-unconfigured","--bind","lan"]
+#
+# Entrypoint seeds openclaw.json (device auth disabled) when missing.
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["node","openclaw.mjs","gateway","--allow-unconfigured","--bind","lan"]
