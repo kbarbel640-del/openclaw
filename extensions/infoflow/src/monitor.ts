@@ -70,21 +70,11 @@ function registerInfoflowWebhookTarget(target: WebhookTarget): () => void {
 // ---------------------------------------------------------------------------
 
 /**
- * Checks if the request path matches the Infoflow webhook path.
- * Supports both exact match infoflow and suffix match /infoflow.
+ * Checks if the request path matches a registered Infoflow webhook path.
  */
 function isInfoflowPath(requestPath: string): boolean {
   const normalized = normalizeWebhookPath(requestPath);
-  // Exact match
-  if (normalized === INFOFLOW_WEBHOOK_PATH) {
-    return true;
-  }
-  // Prefix match: starts with /webhook/infoflow
-  const webhookPrefixPath = `/webhook${INFOFLOW_WEBHOOK_PATH}`;
-  if (normalized.startsWith(webhookPrefixPath)) {
-    return true;
-  }
-  return false;
+  return webhookTargets.has(normalized);
 }
 
 /**
@@ -99,21 +89,41 @@ export async function handleInfoflowWebhookRequest(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
+  const core = getInfoflowRuntime();
+  const verbose = core.logging.shouldLogVerbose();
+
   const url = new URL(req.url ?? "/", "http://localhost");
   const requestPath = normalizeWebhookPath(url.pathname);
 
+  if (verbose) {
+    console.log(`[infoflow] webhook request: method=${req.method}, path=${requestPath}`);
+  }
+
   // Check if path matches Infoflow webhook pattern
   if (!isInfoflowPath(requestPath)) {
+    if (verbose) {
+      console.log(`[infoflow] path not matched, skipping`);
+    }
     return false;
   }
 
   // Get registered targets for the actual request path
   const targets = webhookTargets.get(requestPath);
   if (!targets || targets.length === 0) {
+    if (verbose) {
+      console.log(`[infoflow] no targets registered for path=${requestPath}`);
+    }
     return false;
   }
 
+  if (verbose) {
+    console.log(`[infoflow] found ${targets.length} target(s) for path=${requestPath}`);
+  }
+
   if (req.method !== "POST") {
+    if (verbose) {
+      console.log(`[infoflow] rejected: method ${req.method} not allowed`);
+    }
     res.statusCode = 405;
     res.setHeader("Allow", "POST");
     res.end("Method Not Allowed");
@@ -121,14 +131,29 @@ export async function handleInfoflowWebhookRequest(
   }
 
   // Read raw body once
+  if (verbose) {
+    console.log(`[infoflow] reading request body...`);
+  }
   const bodyResult = await readRawBody(req);
   if (!bodyResult.ok) {
+    console.error(`[infoflow] failed to read body: ${bodyResult.error}`);
     res.statusCode = bodyResult.error === "payload too large" ? 413 : 400;
     res.end(bodyResult.error);
     return true;
   }
 
+  if (verbose) {
+    console.log(`[infoflow] body read success, length=${bodyResult.raw.length}, dispatching...`);
+  }
+
   const result = await parseAndDispatchInfoflowRequest(req, bodyResult.raw, targets);
+
+  if (verbose) {
+    console.log(
+      `[infoflow] dispatch result: handled=${result.handled}, status=${result.statusCode}`,
+    );
+  }
+
   if (result.handled) {
     res.statusCode = result.statusCode;
     if (result.statusCode === 200 && result.body.startsWith("{")) {

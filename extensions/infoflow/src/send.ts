@@ -7,6 +7,21 @@ import { createHash } from "node:crypto";
 
 const DEFAULT_TIMEOUT_MS = 30_000; // 30 seconds
 
+/**
+ * Ensures apiHost uses HTTPS for security (secrets in transit).
+ * Allows HTTP only for localhost/127.0.0.1 (local development).
+ */
+function ensureHttps(apiHost: string): string {
+  if (apiHost.startsWith("http://")) {
+    const url = new URL(apiHost);
+    const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if (!isLocal) {
+      return apiHost.replace(/^http:/, "https:");
+    }
+  }
+  return apiHost;
+}
+
 // Infoflow API paths (host is configured via apiHost in config)
 const INFOFLOW_AUTH_PATH = "/api/v1/auth/app_access_token";
 const INFOFLOW_PRIVATE_SEND_PATH = "/api/v1/app/message/send";
@@ -43,7 +58,7 @@ export async function getAppAccessToken(params: {
     // app_secret needs to be MD5 hashed (lowercase)
     const md5Secret = createHash("md5").update(appSecret).digest("hex").toLowerCase();
 
-    const res = await fetch(`${apiHost}${INFOFLOW_AUTH_PATH}`, {
+    const res = await fetch(`${ensureHttps(apiHost)}${INFOFLOW_AUTH_PATH}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ app_key: appKey, app_secret: md5Secret }),
@@ -140,7 +155,7 @@ export async function sendInfoflowPrivateMessage(params: {
       LOGID: String(Date.now() * 1000 + Math.floor(Math.random() * 1000)),
     };
 
-    const res = await fetch(`${apiHost}${INFOFLOW_PRIVATE_SEND_PATH}`, {
+    const res = await fetch(`${ensureHttps(apiHost)}${INFOFLOW_PRIVATE_SEND_PATH}`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
@@ -215,7 +230,7 @@ export async function sendInfoflowGroupMessage(params: {
       "Content-Type": "application/json",
     };
 
-    const res = await fetch(`${apiHost}${INFOFLOW_GROUP_SEND_PATH}`, {
+    const res = await fetch(`${ensureHttps(apiHost)}${INFOFLOW_GROUP_SEND_PATH}`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),

@@ -312,64 +312,61 @@ export async function parseAndDispatchInfoflowRequest(
  * parses the decrypted content, then dispatches to bot.ts.
  */
 function handlePrivateMessage(messageJsonStr: string, targets: WebhookTarget[]): ParseResult {
-  const target = targets[0];
-  if (!target) {
+  if (targets.length === 0) {
     return { handled: true, statusCode: 500, body: "no target configured" };
   }
 
-  const { encodingAESKey } = target.account.config;
-  if (!encodingAESKey) {
-    return { handled: true, statusCode: 500, body: "encodingAESKey not configured" };
+  let messageJson: Record<string, unknown>;
+  try {
+    messageJson = JSON.parse(messageJsonStr) as Record<string, unknown>;
+  } catch {
+    return { handled: true, statusCode: 400, body: "invalid messageJson" };
   }
 
-  try {
-    const messageJson = JSON.parse(messageJsonStr) as Record<string, unknown>;
-    const encrypt = typeof messageJson.Encrypt === "string" ? messageJson.Encrypt : "";
-    if (!encrypt) {
-      return { handled: true, statusCode: 400, body: "missing Encrypt field in messageJson" };
-    }
+  const encrypt = typeof messageJson.Encrypt === "string" ? messageJson.Encrypt : "";
+  if (!encrypt) {
+    return { handled: true, statusCode: 400, body: "missing Encrypt field in messageJson" };
+  }
 
-    // Decrypt the message
+  // Try each account's key until decryption succeeds (multi-account support)
+  for (const target of targets) {
+    const { encodingAESKey } = target.account.config;
+    if (!encodingAESKey) continue;
+
     let decryptedContent: string;
     try {
       decryptedContent = decryptMessage(encrypt, encodingAESKey);
-    } catch (decryptError) {
-      const errMsg = decryptError instanceof Error ? decryptError.message : String(decryptError);
-      return { handled: true, statusCode: 500, body: `decryption failed: ${errMsg}` };
+    } catch {
+      continue; // Try next account
     }
 
     // Parse decrypted content as JSON or XML
     let msgData: Record<string, unknown> | null = null;
     try {
-      // Try JSON first
       msgData = JSON.parse(decryptedContent) as Record<string, unknown>;
     } catch {
-      // Fall back to XML parsing
       msgData = parseXmlMessage(decryptedContent);
     }
 
-    // If msgData has content, dispatch to bot.ts
     if (msgData && Object.keys(msgData).length > 0) {
-      // Dedup check: skip if already seen
       if (isDuplicateMessage(msgData)) {
         return { handled: true, statusCode: 200, body: "success" };
       }
 
       target.statusSink?.({ lastInboundAt: Date.now() });
 
-      // Fire-and-forget dispatch to bot handler
       void handlePrivateChatMessage({
         cfg: target.config,
         msgData,
         accountId: target.account.accountId,
         statusSink: target.statusSink,
       });
-    }
 
-    return { handled: true, statusCode: 200, body: "success" };
-  } catch {
-    return { handled: true, statusCode: 400, body: "invalid messageJson" };
+      return { handled: true, statusCode: 200, body: "success" };
+    }
   }
+
+  return { handled: true, statusCode: 500, body: "decryption failed for all accounts" };
 }
 
 // ---------------------------------------------------------------------------
@@ -386,53 +383,49 @@ function handlePrivateMessage(messageJsonStr: string, targets: WebhookTarget[]):
  * parses the result, then dispatches to bot.ts.
  */
 function handleGroupMessage(rawBody: string, targets: WebhookTarget[]): ParseResult {
-  const target = targets[0];
-  if (!target) {
+  if (targets.length === 0) {
     return { handled: true, statusCode: 500, body: "no target configured" };
   }
   if (!rawBody.trim()) {
     return { handled: true, statusCode: 400, body: "empty body" };
   }
 
-  const { encodingAESKey } = target.account.config;
-  if (!encodingAESKey) {
-    return { handled: true, statusCode: 500, body: "encodingAESKey not configured" };
-  }
+  // Try each account's key until decryption succeeds (multi-account support)
+  for (const target of targets) {
+    const { encodingAESKey } = target.account.config;
+    if (!encodingAESKey) continue;
 
-  // Decrypt the message
-  let decryptedContent: string;
-  try {
-    decryptedContent = decryptMessage(rawBody, encodingAESKey);
-  } catch (decryptError) {
-    const errMsg = decryptError instanceof Error ? decryptError.message : String(decryptError);
-    return { handled: true, statusCode: 500, body: `decryption failed: ${errMsg}` };
-  }
-
-  // Parse decrypted content as JSON
-  let msgData: Record<string, unknown>;
-  try {
-    msgData = JSON.parse(decryptedContent) as Record<string, unknown>;
-  } catch {
-    return { handled: true, statusCode: 400, body: "failed to parse decrypted message as JSON" };
-  }
-
-  // If msgData has content, dispatch to bot.ts
-  if (msgData && Object.keys(msgData).length > 0) {
-    // Dedup check: skip if already seen
-    if (isDuplicateMessage(msgData)) {
-      return { handled: true, statusCode: 200, body: "success" };
+    let decryptedContent: string;
+    try {
+      decryptedContent = decryptMessage(rawBody, encodingAESKey);
+    } catch {
+      continue; // Try next account
     }
 
-    target.statusSink?.({ lastInboundAt: Date.now() });
+    let msgData: Record<string, unknown>;
+    try {
+      msgData = JSON.parse(decryptedContent) as Record<string, unknown>;
+    } catch {
+      continue; // Try next account
+    }
 
-    // Fire-and-forget dispatch to bot handler
-    void handleGroupChatMessage({
-      cfg: target.config,
-      msgData,
-      accountId: target.account.accountId,
-      statusSink: target.statusSink,
-    });
+    if (msgData && Object.keys(msgData).length > 0) {
+      if (isDuplicateMessage(msgData)) {
+        return { handled: true, statusCode: 200, body: "success" };
+      }
+
+      target.statusSink?.({ lastInboundAt: Date.now() });
+
+      void handleGroupChatMessage({
+        cfg: target.config,
+        msgData,
+        accountId: target.account.accountId,
+        statusSink: target.statusSink,
+      });
+
+      return { handled: true, statusCode: 200, body: "success" };
+    }
   }
 
-  return { handled: true, statusCode: 200, body: "success" };
+  return { handled: true, statusCode: 500, body: "decryption failed for all accounts" };
 }
