@@ -18,6 +18,26 @@ import { formatAbortReplyText, tryFastAbortFromMessage } from "./abort.js";
 import { shouldSkipDuplicateInbound } from "./inbound-dedupe.js";
 import { isRoutableChannel, routeReply } from "./route-reply.js";
 
+function normalizeHookConversationId(params: {
+  channelId: string;
+  rawConversationId: unknown;
+}): string | undefined {
+  const { rawConversationId } = params;
+  if (rawConversationId == null) {
+    return undefined;
+  }
+  const s = String(rawConversationId).trim();
+
+  // OpenClaw routing targets sometimes look like "channel:<id>".
+  // For hook consumers (e.g. DB ingestion), we want canonical ids.
+  if (s.startsWith("channel:")) {
+    const id = s.slice("channel:".length).trim();
+    return id || undefined;
+  }
+
+  return s || undefined;
+}
+
 const AUDIO_PLACEHOLDER_RE = /^<media:audio>(\s*\([^)]*\))?$/i;
 const AUDIO_HEADER_RE = /^\[Audio\b/i;
 
@@ -164,7 +184,8 @@ export async function dispatchReplyFromConfig(params: {
             ? ctx.Body
             : "";
     const channelId = (ctx.OriginatingChannel ?? ctx.Surface ?? ctx.Provider ?? "").toLowerCase();
-    const conversationId = ctx.OriginatingTo ?? ctx.To ?? ctx.From ?? undefined;
+    const rawConversationId = ctx.OriginatingTo ?? ctx.To ?? ctx.From ?? undefined;
+    const conversationId = normalizeHookConversationId({ channelId, rawConversationId });
 
     void hookRunner
       .runMessageReceived(
@@ -184,6 +205,8 @@ export async function dispatchReplyFromConfig(params: {
             senderName: ctx.SenderName,
             senderUsername: ctx.SenderUsername,
             senderE164: ctx.SenderE164,
+            guildId: ctx.GroupSpace,
+            channelName: ctx.GroupChannel,
           },
         },
         {
