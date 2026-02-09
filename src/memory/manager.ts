@@ -2328,8 +2328,12 @@ export class MemoryIndexManager implements MemorySearchManager {
       let maxChunkSize = 0;
       for (const chunk of chunks) {
         const size = Buffer.byteLength(chunk.text, "utf-8");
-        if (size < minChunkSize) minChunkSize = size;
-        if (size > maxChunkSize) maxChunkSize = size;
+        if (size < minChunkSize) {
+          minChunkSize = size;
+        }
+        if (size > maxChunkSize) {
+          maxChunkSize = size;
+        }
       }
       if (chunks.length === 0) {
         minChunkSize = 0;
