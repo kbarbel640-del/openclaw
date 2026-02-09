@@ -160,7 +160,7 @@ export function enqueueCliRun<T>(key: string, task: () => Promise<T>): Promise<T
     }
   });
   CLI_RUN_QUEUE.set(key, tracked);
-  return chained;
+  return tracked;
 }
 
 type CliUsage = {
