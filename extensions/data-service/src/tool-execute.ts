@@ -254,38 +254,8 @@ export function createConnectorExecuteTool(dsConfig: DataServiceConfig) {
         connector,
         action,
         connector_id: connectorId,
-        // Cap response size — some actions return very large payloads that
-        // overwhelm the LLM context and cause the agent to stop without summary.
-        data: truncateResponseData(result.data),
+        data: result.data,
       });
     },
   };
-}
-
-/** Recursively truncate large string values and cap array lengths to keep
- *  tool output within a reasonable size for LLM consumption. */
-function truncateResponseData(data: unknown, maxStringLen = 500, maxArrayLen = 20): unknown {
-  if (data === null || data === undefined) return data;
-  if (typeof data === "string") {
-    return data.length > maxStringLen ? `${data.slice(0, maxStringLen)}… (truncated)` : data;
-  }
-  if (Array.isArray(data)) {
-    const sliced = data.slice(0, maxArrayLen);
-    const mapped = sliced.map((item) => truncateResponseData(item, maxStringLen, maxArrayLen));
-    if (data.length > maxArrayLen) {
-      return [...mapped, `… and ${data.length - maxArrayLen} more items`];
-    }
-    return mapped;
-  }
-  if (typeof data === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
-      // Skip heavyweight fields that aren't useful for the agent
-      if (key === "readme_b64" || key === "tools" || key === "ui_form" || key === "server_params")
-        continue;
-      out[key] = truncateResponseData(value, maxStringLen, maxArrayLen);
-    }
-    return out;
-  }
-  return data;
 }
