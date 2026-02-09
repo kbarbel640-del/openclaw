@@ -37,8 +37,8 @@ import { getShellEnvAppliedKeys, shouldEnableShellEnvFallback } from "../../infr
 import { renderTable } from "../../terminal/table.js";
 import { colorize, theme } from "../../terminal/theme.js";
 import { shortenHomePath } from "../../utils.js";
-import { resolveProviderAuthOverview } from "./list.auth-overview.js";
-import { isRich } from "./list.format.js";
+import { resolveProfileDisplayInfos, resolveProviderAuthOverview } from "./list.auth-overview.js";
+import { formatProfileStatus, isRich } from "./list.format.js";
 import {
   describeProbeSummary,
   formatProbeLatency,
@@ -463,77 +463,68 @@ export async function modelsStatusCommand(
   runtime.log("");
   runtime.log(colorize(rich, theme.heading, "Auth overview"));
   runtime.log(
-    `${label("Auth store")}${colorize(rich, theme.muted, ":")} ${colorize(
+    `  ${colorize(rich, theme.accent, "Auth store".padEnd(12))}${colorize(rich, theme.muted, ":")} ${colorize(
       rich,
       theme.info,
       shortenHomePath(resolveAuthStorePathForDisplay(agentDir)),
     )}`,
   );
   runtime.log(
-    `${label("Shell env")}${colorize(rich, theme.muted, ":")} ${colorize(
+    `  ${colorize(rich, theme.accent, "Shell env".padEnd(12))}${colorize(rich, theme.muted, ":")} ${colorize(
       rich,
       shellFallbackEnabled ? theme.success : theme.muted,
       shellFallbackEnabled ? "on" : "off",
     )}${applied.length ? colorize(rich, theme.muted, ` (applied: ${applied.join(", ")})`) : ""}`,
   );
-  runtime.log(
-    `${label(`Providers w/ OAuth/tokens (${providersWithOauth.length || 0})`)}${colorize(
-      rich,
-      theme.muted,
-      ":",
-    )} ${colorize(
-      rich,
-      providersWithOauth.length ? theme.info : theme.muted,
-      providersWithOauth.length ? providersWithOauth.join(", ") : "-",
-    )}`,
-  );
-
-  const formatKey = (key: string) => colorize(rich, theme.warn, key);
-  const formatKeyValue = (key: string, value: string) =>
-    `${formatKey(key)}=${colorize(rich, theme.info, value)}`;
-  const formatSeparator = () => colorize(rich, theme.muted, " | ");
 
   for (const entry of providerAuth) {
-    const separator = formatSeparator();
-    const bits: string[] = [];
-    bits.push(
-      formatKeyValue(
-        "effective",
-        `${colorize(rich, theme.accentBright, entry.effective.kind)}:${colorize(
-          rich,
-          theme.muted,
-          entry.effective.detail,
-        )}`,
-      ),
+    const profileInfos = resolveProfileDisplayInfos({ provider: entry.provider, cfg, store });
+    const sourceLabel =
+      entry.profiles.count > 0
+        ? `${entry.profiles.count} profile${entry.profiles.count === 1 ? "" : "s"}, source: auth-profiles.json`
+        : entry.env
+          ? `env: ${entry.env.source}`
+          : entry.modelsJson
+            ? "source: models.json"
+            : "no auth";
+
+    runtime.log("");
+    runtime.log(
+      `  ${colorize(rich, theme.heading, entry.provider)} ${colorize(rich, theme.muted, `(${sourceLabel})`)}`,
     );
-    if (entry.profiles.count > 0) {
-      bits.push(
-        formatKeyValue(
-          "profiles",
-          `${entry.profiles.count} (oauth=${entry.profiles.oauth}, token=${entry.profiles.token}, api_key=${entry.profiles.apiKey})`,
-        ),
+
+    if (profileInfos.length > 0) {
+      const tableWidth = Math.max(60, (process.stdout.columns ?? 120) - 3);
+      const rows = profileInfos.map((info) => {
+        const activeMarker = info.active ? colorize(rich, theme.success, "*") : " ";
+        return {
+          Profile: `${colorize(rich, theme.accent, info.profileId)} ${activeMarker}`,
+          Type: colorize(rich, theme.info, info.type),
+          Status: formatProfileStatus(info.status, rich),
+          Detail: info.detail
+            ? colorize(rich, theme.muted, info.detail)
+            : colorize(rich, theme.muted, "-"),
+        };
+      });
+      runtime.log(
+        renderTable({
+          width: tableWidth,
+          columns: [
+            { key: "Profile", header: "Profile", minWidth: 20 },
+            { key: "Type", header: "Type", minWidth: 8 },
+            { key: "Status", header: "Status", minWidth: 10 },
+            { key: "Detail", header: "Detail", minWidth: 16, flex: true },
+          ],
+          rows,
+        }).trimEnd(),
       );
-      if (entry.profiles.labels.length > 0) {
-        bits.push(colorize(rich, theme.info, entry.profiles.labels.join(", ")));
-      }
-    }
-    if (entry.env) {
-      bits.push(
-        formatKeyValue(
-          "env",
-          `${entry.env.value}${separator}${formatKeyValue("source", entry.env.source)}`,
-        ),
+    } else if (entry.env) {
+      runtime.log(
+        `    ${colorize(rich, theme.muted, `(no stored profiles — using environment variable ${entry.env.source})`)}`,
       );
+    } else if (entry.modelsJson) {
+      runtime.log(`    ${colorize(rich, theme.muted, "(no stored profiles — using models.json)")}`);
     }
-    if (entry.modelsJson) {
-      bits.push(
-        formatKeyValue(
-          "models.json",
-          `${entry.modelsJson.value}${separator}${formatKeyValue("source", entry.modelsJson.source)}`,
-        ),
-      );
-    }
-    runtime.log(`- ${theme.heading(entry.provider)} ${bits.join(separator)}`);
   }
 
   if (missingProvidersInUse.length > 0) {

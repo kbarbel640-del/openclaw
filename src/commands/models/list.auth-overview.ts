@@ -1,16 +1,142 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ProviderAuthOverview } from "./list.types.js";
-import { formatRemainingShort } from "../../agents/auth-health.js";
+import {
+  type AuthProfileHealth,
+  buildAuthHealthSummary,
+  DEFAULT_OAUTH_WARN_MS,
+  formatRemainingShort,
+} from "../../agents/auth-health.js";
 import {
   type AuthProfileStore,
   listProfilesForProvider,
   resolveAuthProfileDisplayLabel,
+  resolveAuthProfileOrder,
   resolveAuthStorePathForDisplay,
   resolveProfileUnusableUntilForDisplay,
 } from "../../agents/auth-profiles.js";
 import { getCustomProviderApiKey, resolveEnvApiKey } from "../../agents/model-auth.js";
 import { shortenHomePath } from "../../utils.js";
 import { maskApiKey } from "./list.format.js";
+
+export type ProfileDisplayStatus =
+  | "ok"
+  | "expiring"
+  | "expired"
+  | "static"
+  | "cooldown"
+  | "disabled"
+  | "missing";
+
+export type ProfileDisplayInfo = {
+  profileId: string;
+  provider: string;
+  type: "oauth" | "token" | "api_key";
+  status: ProfileDisplayStatus;
+  active: boolean;
+  email?: string;
+  detail: string;
+  expiresAt?: number;
+  remainingMs?: number;
+};
+
+/**
+ * Resolve display info for all profiles of a provider, merging health status
+ * with cooldown/disabled state. The first profile from resolveAuthProfileOrder()
+ * is marked as active.
+ */
+export function resolveProfileDisplayInfos(params: {
+  provider: string;
+  cfg: OpenClawConfig;
+  store: AuthProfileStore;
+}): ProfileDisplayInfo[] {
+  const { provider, cfg, store } = params;
+  const now = Date.now();
+  const profileIds = listProfilesForProvider(store, provider);
+  if (profileIds.length === 0) {
+    return [];
+  }
+
+  // Build health summary for these profiles
+  const health = buildAuthHealthSummary({
+    store,
+    cfg,
+    warnAfterMs: DEFAULT_OAUTH_WARN_MS,
+    providers: [provider],
+  });
+  const healthMap = new Map<string, AuthProfileHealth>();
+  for (const h of health.profiles) {
+    healthMap.set(h.profileId, h);
+  }
+
+  // Determine active profile via order resolution
+  const ordered = resolveAuthProfileOrder({ cfg, store, provider });
+  const activeProfileId = ordered.length > 0 ? ordered[0] : undefined;
+
+  return profileIds.map((profileId) => {
+    const cred = store.profiles[profileId];
+    const h = healthMap.get(profileId);
+    const type: "oauth" | "token" | "api_key" = cred?.type ?? "oauth";
+    const active = profileId === activeProfileId;
+
+    // Resolve email
+    const configEmail = cfg.auth?.profiles?.[profileId]?.email?.trim();
+    const email = configEmail || (cred && "email" in cred ? cred.email?.trim() : undefined);
+
+    // Check cooldown/disabled status (overrides health status)
+    const unusableUntil = resolveProfileUnusableUntilForDisplay(store, profileId);
+    const isUnusable = unusableUntil !== null && now < unusableUntil;
+    const stats = store.usageStats?.[profileId];
+    const isDisabled =
+      isUnusable && typeof stats?.disabledUntil === "number" && now < stats.disabledUntil;
+
+    let status: ProfileDisplayStatus;
+    if (isDisabled) {
+      status = "disabled";
+    } else if (isUnusable) {
+      status = "cooldown";
+    } else {
+      status = h?.status ?? "missing";
+    }
+
+    // Build detail string
+    let detail = "";
+    if (type === "api_key") {
+      detail = maskApiKey(cred?.type === "api_key" ? (cred.key ?? "") : "");
+    } else if (type === "token") {
+      detail = cred?.type === "token" ? maskApiKey(cred.token) : "";
+    } else {
+      detail = email ?? "";
+    }
+
+    // Append remaining time for expirable types
+    if (h?.remainingMs !== undefined && h.remainingMs > 0 && status !== "static") {
+      detail += detail
+        ? ` (${formatRemainingShort(h.remainingMs)} remaining)`
+        : `${formatRemainingShort(h.remainingMs)} remaining`;
+    }
+
+    // Append cooldown/disabled remaining
+    if (isUnusable && unusableUntil) {
+      const remaining = formatRemainingShort(unusableUntil - now);
+      const kind = isDisabled
+        ? `disabled${stats?.disabledReason ? `:${stats.disabledReason}` : ""}`
+        : "cooldown";
+      detail += detail ? ` [${kind} ${remaining}]` : `[${kind} ${remaining}]`;
+    }
+
+    return {
+      profileId,
+      provider,
+      type,
+      status,
+      active,
+      email,
+      detail,
+      expiresAt: h?.expiresAt,
+      remainingMs: h?.remainingMs,
+    };
+  });
+}
 
 export function resolveProviderAuthOverview(params: {
   provider: string;

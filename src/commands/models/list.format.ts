@@ -66,3 +66,25 @@ export const maskApiKey = (value: string): string => {
   }
   return `${trimmed.slice(0, 8)}...${trimmed.slice(-8)}`;
 };
+
+export const formatProfileStatus = (status: string, rich: boolean): string => {
+  if (status === "ok") {
+    return colorize(rich, theme.success, "ok");
+  }
+  if (status === "static") {
+    return colorize(rich, theme.muted, "static");
+  }
+  if (status === "expiring") {
+    return colorize(rich, theme.warn, "expiring");
+  }
+  if (status === "cooldown") {
+    return colorize(rich, theme.warn, "cooldown");
+  }
+  if (status === "disabled") {
+    return colorize(rich, theme.warn, "disabled");
+  }
+  if (status === "missing") {
+    return colorize(rich, theme.warn, "unknown");
+  }
+  return colorize(rich, theme.error, status);
+};

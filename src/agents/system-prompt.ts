@@ -32,6 +32,7 @@ function buildSkillsSection(params: {
     "- If multiple could apply: choose the most specific one, then read/follow it.",
     "- If none clearly apply: do not read any SKILL.md.",
     "Constraints: never read more than one skill up front; only read after selecting.",
+    "Tip: If you need a capability not listed here, use the 'skills-search' skill (if available) to find it.",
     trimmed,
     "",
   ];
@@ -223,8 +224,8 @@ export function buildAgentSystemPrompt(params: {
     apply_patch: "Apply multi-file patches",
     grep: "Search file contents for patterns",
     find: "Find files by glob pattern",
-    ls: "List directory contents",
-    exec: "Run shell commands (pty available for TTY-required CLIs)",
+    ls: "List directory contents (prefer concise flags for large dirs)",
+    exec: "Run shell commands (pty available for TTY-required CLIs; use --concise or summarize output for large results)",
     process: "Manage background exec sessions",
     web_search: "Search the web (Brave API)",
     web_fetch: "Fetch and extract readable content from a URL",

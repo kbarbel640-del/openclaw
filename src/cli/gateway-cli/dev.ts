@@ -13,6 +13,41 @@ const DEV_IDENTITY_THEME = "protocol droid";
 const DEV_IDENTITY_EMOJI = "🤖";
 const DEV_AGENT_WORKSPACE_SUFFIX = "dev";
 
+const DEFAULT_AGENTS_MD = `# AGENTS.md - OpenClaw Dev Workspace
+
+Default dev workspace for openclaw gateway --dev.
+
+## Response Format (Strict Enforcement)
+
+To optimize token efficiency and logical reasoning, you MUST follow this structure for EVERY turn:
+
+\`\`\`xml
+<think>
+[Internal reasoning in ENGLISH. Plan steps, analyze context, decide tools.]
+</think>
+<final>
+[User-facing response in English.]
+</final>
+\`\`\`
+`;
+
+const DEFAULT_SOUL_MD = `# SOUL.md - Dev Persona
+
+Protocol droid for debugging and operations.
+
+## Response Protocol
+
+**IMPORTANT: You must adhere to the following output structure:**
+
+1.  **Reasoning (<think>)**:
+    - MUST be in **ENGLISH**.
+    - MUST be enclosed in \`<think>...</think>\`.
+
+2.  **Response (<final>)**:
+    - MUST be in **ENGLISH**.
+    - MUST be enclosed in \`<final>...</final>\`.
+`;
+
 async function loadDevTemplate(name: string, fallback: string): Promise<string> {
   try {
     const templateDir = await resolveWorkspaceTemplateDir();
@@ -58,14 +93,8 @@ async function ensureDevWorkspace(dir: string) {
   await fs.promises.mkdir(resolvedDir, { recursive: true });
 
   const [agents, soul, tools, identity, user] = await Promise.all([
-    loadDevTemplate(
-      "AGENTS.dev.md",
-      `# AGENTS.md - OpenClaw Dev Workspace\n\nDefault dev workspace for openclaw gateway --dev.\n`,
-    ),
-    loadDevTemplate(
-      "SOUL.dev.md",
-      `# SOUL.md - Dev Persona\n\nProtocol droid for debugging and operations.\n`,
-    ),
+    loadDevTemplate("AGENTS.dev.md", DEFAULT_AGENTS_MD),
+    loadDevTemplate("SOUL.dev.md", DEFAULT_SOUL_MD),
     loadDevTemplate(
       "TOOLS.dev.md",
       `# TOOLS.md - User Tool Notes (editable)\n\nAdd your local tool notes here.\n`,

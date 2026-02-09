@@ -188,6 +188,45 @@ function loadSkillEntries(
   return skillEntries;
 }
 
+function formatSkillsIndex(skills: Skill[], workspaceDir: string): string {
+  const lines = [
+    "# SKILLS INDEX",
+    "Descriptions are truncated. Use 'read' to load detailed instructions from the provided <path>.",
+    "",
+  ];
+  for (const skill of skills) {
+    let refPath = skill.filePath;
+    // Try to make path relative to workspace for cleaner context
+    if (path.isAbsolute(refPath) && refPath.startsWith(workspaceDir)) {
+      refPath = path.relative(workspaceDir, refPath);
+    }
+
+    lines.push(`## ${skill.name}`);
+    if (skill.description) {
+      const desc = skill.description.trim();
+      // Truncate description to save tokens (Dynamic Loading Phase 1)
+      const truncated = desc.length > 120 ? desc.slice(0, 117) + "..." : desc;
+      lines.push(`Description: ${truncated}`);
+    }
+    lines.push(`Path: ${refPath}`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+export function filterPromptEligibleSkills(entries: SkillEntry[]): SkillEntry[] {
+  return entries.filter((entry) => {
+    if (entry.invocation?.disableModelInvocation === true) return false;
+
+    const isSearch = entry.skill.name === "skills-search";
+    // Check for string "true" (frontmatter values are always strings)
+    const alwaysRaw = entry.frontmatter?.always;
+    const isAlways = alwaysRaw === "true";
+
+    return isSearch || isAlways;
+  });
+}
+
 export function buildWorkspaceSkillSnapshot(
   workspaceDir: string,
   opts?: {
@@ -208,12 +247,20 @@ export function buildWorkspaceSkillSnapshot(
     opts?.skillFilter,
     opts?.eligibility,
   );
-  const promptEntries = eligible.filter(
-    (entry) => entry.invocation?.disableModelInvocation !== true,
-  );
+
+  // Dynamic Loading Phase 3: Only inject skills marked 'always: true' or 'skills-search'
+  const promptEntries = filterPromptEligibleSkills(eligible);
   const resolvedSkills = promptEntries.map((entry) => entry.skill);
+
+  // Append discovery hint if we filtered out skills
+  let indexContent = formatSkillsIndex(resolvedSkills, workspaceDir);
+  if (eligible.length > promptEntries.length) {
+    indexContent +=
+      "\n\n(Note: Many skills are not listed here to save context. Use 'skills-search' to find capabilities.)";
+  }
+
   const remoteNote = opts?.eligibility?.remote?.note?.trim();
-  const prompt = [remoteNote, formatSkillsForPrompt(resolvedSkills)].filter(Boolean).join("\n");
+  const prompt = [remoteNote, indexContent].filter(Boolean).join("\n");
   return {
     prompt,
     skills: eligible.map((entry) => ({
@@ -244,13 +291,21 @@ export function buildWorkspaceSkillsPrompt(
     opts?.skillFilter,
     opts?.eligibility,
   );
-  const promptEntries = eligible.filter(
-    (entry) => entry.invocation?.disableModelInvocation !== true,
-  );
+
+  // Dynamic Loading Phase 3: Only inject skills marked 'always: true' or 'skills-search'
+  const promptEntries = filterPromptEligibleSkills(eligible);
+  const resolvedSkills = promptEntries.map((entry) => entry.skill);
+
+  // Append discovery hint if we filtered out skills
+  let indexContent = formatSkillsIndex(resolvedSkills, workspaceDir);
+  if (eligible.length > promptEntries.length) {
+    indexContent +=
+      "\n\n(Note: Many skills are not listed here to save context. Use 'skills-search' to find capabilities.)";
+  }
+
   const remoteNote = opts?.eligibility?.remote?.note?.trim();
-  return [remoteNote, formatSkillsForPrompt(promptEntries.map((entry) => entry.skill))]
-    .filter(Boolean)
-    .join("\n");
+
+  return [remoteNote, indexContent].filter(Boolean).join("\n");
 }
 
 export function resolveSkillsPromptForRun(params: {

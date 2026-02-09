@@ -90,6 +90,7 @@ export type EmbeddedRunAttemptParams = {
   streamParams?: AgentStreamParams;
   ownerNumbers?: string[];
   enforceFinalTag?: boolean;
+  limitHistoryTurns?: number;
 };
 
 export type EmbeddedRunAttemptResult = {

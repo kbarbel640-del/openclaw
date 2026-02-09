@@ -61,6 +61,8 @@ import { resolveAgentRunContext } from "./agent/run-context.js";
 import { updateSessionStoreAfterAgentRun } from "./agent/session-store.js";
 import { resolveSession } from "./agent/session.js";
 
+const FALLBACK_HISTORY_LIMIT = 5;
+
 export async function agentCommand(
   opts: AgentCommandOpts,
   runtime: RuntimeEnv = defaultRuntime,
@@ -392,7 +394,7 @@ export async function agentCommand(
         model,
         agentDir,
         fallbacksOverride: resolveAgentModelFallbacksOverride(cfg, sessionAgentId),
-        run: (providerOverride, modelOverride) => {
+        run: (providerOverride, modelOverride, profileIdOverride) => {
           if (isCliProvider(providerOverride, cfg)) {
             const cliSessionId = getCliSessionId(sessionEntry, providerOverride);
             return runCliAgent({
@@ -415,8 +417,15 @@ export async function agentCommand(
             });
           }
           const authProfileId =
-            providerOverride === provider ? sessionEntry?.authProfileOverride : undefined;
+            profileIdOverride ??
+            (providerOverride === provider ? sessionEntry?.authProfileOverride : undefined);
+
+          // Lazy Sync: Truncate history when switching models to save tokens.
+          const isFallbackModel = providerOverride !== provider || modelOverride !== model;
+          const historyLimit = isFallbackModel ? FALLBACK_HISTORY_LIMIT : undefined;
+
           return runEmbeddedPiAgent({
+            historyLimit,
             sessionId,
             sessionKey,
             agentId: sessionAgentId,

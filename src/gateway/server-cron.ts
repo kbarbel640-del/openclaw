@@ -12,6 +12,7 @@ import { enqueueSystemEvent } from "../infra/system-events.js";
 import { getChildLogger } from "../logging.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
+import { AlertManager } from "./alerts/manager.js";
 
 export type GatewayCronState = {
   cron: CronService;
@@ -27,6 +28,7 @@ export function buildGatewayCronService(params: {
   const cronLogger = getChildLogger({ module: "cron" });
   const storePath = resolveCronStorePath(params.cfg.cron?.store);
   const cronEnabled = process.env.OPENCLAW_SKIP_CRON !== "1" && params.cfg.cron?.enabled !== false;
+  const alerts = new AlertManager(params.deps);
 
   const resolveCronAgent = (requested?: string | null) => {
     const runtimeConfig = loadConfig();
@@ -83,6 +85,23 @@ export function buildGatewayCronService(params: {
           storePath,
           jobId: evt.jobId,
         });
+
+        // ALERT SYSTEM (Reflex)
+        if (evt.status === "error") {
+          alerts
+            .broadcast({
+              level: "critical", // Treat cron failures as critical for now
+              title: "Cron Job Failed",
+              source: `cron:${evt.jobId}`,
+              details: evt.error || "Unknown error",
+              meta: { jobName: evt.jobName },
+              timestamp: Date.now(),
+            })
+            .catch((err) => {
+              cronLogger.error({ err }, "cron: failed to broadcast system alert");
+            });
+        }
+
         void appendCronRunLog(logPath, {
           ts: Date.now(),
           jobId: evt.jobId,

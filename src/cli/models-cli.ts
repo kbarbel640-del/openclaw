@@ -5,12 +5,14 @@ import {
   modelsAliasesListCommand,
   modelsAliasesRemoveCommand,
   modelsAuthAddCommand,
+  modelsAuthListCommand,
   modelsAuthLoginCommand,
   modelsAuthOrderClearCommand,
   modelsAuthOrderGetCommand,
   modelsAuthOrderSetCommand,
   modelsAuthPasteTokenCommand,
   modelsAuthSetupTokenCommand,
+  modelsAuthSwitchCommand,
   modelsFallbacksAddCommand,
   modelsFallbacksClearCommand,
   modelsFallbacksListCommand,
@@ -372,6 +374,53 @@ export function registerModelsCli(program: Command) {
           {
             profileId: opts.profileId as string | undefined,
             yes: Boolean(opts.yes),
+          },
+          defaultRuntime,
+        );
+      });
+    });
+
+  auth
+    .command("list")
+    .description("List all stored auth profiles")
+    .option("--provider <name>", "Filter by provider")
+    .option("--json", "Output JSON", false)
+    .option("--plain", "Plain line output", false)
+    .option(
+      "--agent <id>",
+      "Agent id to inspect (overrides OPENCLAW_AGENT_DIR/PI_CODING_AGENT_DIR)",
+    )
+    .action(async (opts, command) => {
+      const agent =
+        resolveOptionFromCommand<string>(command, "agent") ?? (opts.agent as string | undefined);
+      await runModelsCommand(async () => {
+        await modelsAuthListCommand(
+          {
+            provider: opts.provider as string | undefined,
+            json: Boolean(opts.json),
+            plain: Boolean(opts.plain),
+            agent,
+          },
+          defaultRuntime,
+        );
+      });
+    });
+
+  auth
+    .command("switch")
+    .description("Switch the active auth profile for a provider")
+    .requiredOption("--provider <name>", "Provider id (e.g. anthropic)")
+    .option("--profile <id>", "Auth profile id to activate (non-interactive)")
+    .option("--agent <id>", "Agent id (overrides OPENCLAW_AGENT_DIR/PI_CODING_AGENT_DIR)")
+    .action(async (opts, command) => {
+      const agent =
+        resolveOptionFromCommand<string>(command, "agent") ?? (opts.agent as string | undefined);
+      await runModelsCommand(async () => {
+        await modelsAuthSwitchCommand(
+          {
+            provider: opts.provider as string,
+            profile: opts.profile as string | undefined,
+            agent,
           },
           defaultRuntime,
         );

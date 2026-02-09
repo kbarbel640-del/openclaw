@@ -282,3 +282,32 @@ This triggers an immediate wake event — Skippy gets pinged in seconds, not 10 
 - **exec is your friend:** `codex exec "prompt"` runs and exits cleanly - perfect for one-shots.
 - **submit vs write:** Use `submit` to send input + Enter, `write` for raw data without newline.
 - **Sass works:** Codex responds well to playful prompts. Asked it to write a haiku about being second fiddle to a space lobster, got: _"Second chair, I code / Space lobster sets the tempo / Keys glow, I follow"_ 🦞
+
+## ⚠️ Claude Code Specifics (Troubleshooting)
+
+Known issues and workarounds when running `claude` CLI via background process:
+
+### 1. Interactive Hanging (The "Press Enter" Trap)
+
+- **Symptom**: `claude` process hangs and stops outputting logs.
+- **Cause**: It's waiting for user confirmation (e.g., "Press Enter to continue", "Cost approval").
+- **Fix**: Use `--non-interactive` or `--auto-approve` flags if available, or proactively monitor logs and send `\n` via `process action:submit`.
+- **Better Fix**: Use `codex` for unattended tasks if Claude keeps hanging.
+
+### 2. Output Buffering / Missing Colors
+
+- **Symptom**: Logs are empty or contain raw ANSI codes that look broken.
+- **Cause**: Missing PTY or aggressive buffering.
+- **Fix**: **ALWAYS use `pty:true`**.
+
+### 3. Authentication Failures
+
+- **Symptom**: `Error: Login required` or `401 Unauthorized`.
+- **Cause**: The background process environment might lack the `ANTHROPIC_API_KEY` or cached auth state of your main shell.
+- **Fix**: Ensure `openclaw` has access to the same env vars or `~/.anthropic` config as your user.
+
+### 4. "Context Window Exceeded" loops
+
+- **Symptom**: Agent keeps retrying the same step and failing.
+- **Cause**: The conversation history in the CLI session grew too large.
+- **Fix**: Kill the session (`process action:kill`) and restart with a cleaner prompt or `codex` (which handles context pruning better).

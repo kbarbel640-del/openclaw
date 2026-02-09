@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
@@ -58,11 +60,55 @@ import {
 } from "./tool-result-truncation.js";
 import { describeUnknownError } from "./utils.js";
 
+const FAILOVER_HISTORY_LIMIT = 5;
+
 type ApiKeyInfo = ResolvedProviderAuth;
 
 // Avoid Anthropic's refusal test token poisoning session transcripts.
 const ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL = "ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL";
 const ANTHROPIC_MAGIC_STRING_REPLACEMENT = "ANTHROPIC MAGIC STRING TRIGGER REFUSAL (redacted)";
+
+async function checkAutoMemory(
+  prompt: string,
+  workspaceDir: string,
+  cfg: OpenClawConfig | undefined,
+) {
+  if (!cfg?.agents?.defaults?.autoMemory) {
+    return;
+  }
+
+  // Ensure workspace path is resolved and safe
+  const resolvedWorkspace = path.resolve(workspaceDir);
+  const memoryFile = path.join(resolvedWorkspace, "MEMORY.md");
+
+  // Prevent path traversal if workspaceDir was somehow tainted (though unlikely here)
+  if (!memoryFile.startsWith(resolvedWorkspace)) {
+    log.warn(`[auto-memory] Security block: Path traversal detected for ${memoryFile}`);
+    return;
+  }
+
+  // Simple capture for "Remember:" or "Memo:" at start of prompt
+  const match = prompt.match(/^(?:Remember|Memo):\s*(.+)$/im);
+  if (match) {
+    const content = match[1].trim();
+    if (content) {
+      const entry = `- [${new Date().toISOString()}] ${content}\n`;
+      try {
+        await fs.appendFile(memoryFile, entry, "utf-8");
+        log.info(`[auto-memory] Captured: ${content}`);
+      } catch (e) {
+        log.warn(`[auto-memory] Failed to write: ${String(e)}`);
+      }
+    }
+  }
+}
+
+const SUB_AGENT_PROTOCOL = `
+## Sub-Agent Communication Protocol
+When communicating with other agents (via sessions_spawn, sessions_send, or return values), you MUST use ENGLISH only.
+Your final response MUST be a valid JSON object (no markdown, no filler) matching this schema:
+{ "status": "success" | "failure", "summary": "brief explanation", "data": ... }
+`.trim();
 
 function scrubAnthropicRefusalMagic(prompt: string): string {
   if (!prompt.includes(ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL)) {
@@ -383,6 +429,7 @@ export async function runEmbeddedPiAgent(
         }
       }
 
+      let hasRotated = false;
       const MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3;
       let overflowCompactionAttempts = 0;
       let toolResultTruncationAttempted = false;
@@ -392,6 +439,8 @@ export async function runEmbeddedPiAgent(
         while (true) {
           attemptedThinking.add(thinkLevel);
           await fs.mkdir(resolvedWorkspace, { recursive: true });
+
+          await checkAutoMemory(params.prompt, resolvedWorkspace, params.config);
 
           const prompt =
             provider === "anthropic" ? scrubAnthropicRefusalMagic(params.prompt) : params.prompt;
@@ -447,10 +496,13 @@ export async function runEmbeddedPiAgent(
             onReasoningStream: params.onReasoningStream,
             onToolResult: params.onToolResult,
             onAgentEvent: params.onAgentEvent,
-            extraSystemPrompt: params.extraSystemPrompt,
+            extraSystemPrompt: [params.extraSystemPrompt, SUB_AGENT_PROTOCOL]
+              .filter(Boolean)
+              .join("\n\n"),
             streamParams: params.streamParams,
             ownerNumbers: params.ownerNumbers,
             enforceFinalTag: params.enforceFinalTag,
+            limitHistoryTurns: hasRotated ? FAILOVER_HISTORY_LIMIT : params.historyLimit,
           });
 
           const { aborted, promptError, timedOut, sessionIdUsed, lastAssistant } = attempt;
@@ -761,6 +813,7 @@ export async function runEmbeddedPiAgent(
 
             const rotated = await advanceAuthProfile();
             if (rotated) {
+              hasRotated = true;
               continue;
             }
 
