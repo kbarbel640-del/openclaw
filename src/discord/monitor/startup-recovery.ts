@@ -59,7 +59,7 @@ export async function runStartupRecovery(params: StartupRecoveryParams): Promise
             relevantChannels.push(channel);
           }
         } catch (err) {
-          logVerbose(
+          runtime.log?.(
             `discord startup-recovery: failed to open DM for user ${userId}: ${formatErrorMessage(err)}`,
           );
         }
@@ -78,7 +78,7 @@ export async function runStartupRecovery(params: StartupRecoveryParams): Promise
     }
 
     if (relevantChannels.length === 0) {
-      logVerbose("discord startup-recovery: no DM channels found");
+      runtime.log?.("discord startup-recovery: no DM channels found");
       return;
     }
 
@@ -98,7 +98,7 @@ export async function runStartupRecovery(params: StartupRecoveryParams): Promise
           processedCount++;
         }
       } catch (err) {
-        logVerbose(
+        runtime.log?.(
           `discord startup-recovery: failed to check channel ${channel.id}: ${formatErrorMessage(err)}`,
         );
       }
@@ -107,7 +107,7 @@ export async function runStartupRecovery(params: StartupRecoveryParams): Promise
     if (processedCount > 0) {
       runtime.log?.(`discord: recovered and processed ${processedCount} unanswered message(s)`);
     } else {
-      logVerbose("discord startup-recovery: no unanswered messages found");
+      runtime.log?.("discord startup-recovery: no unanswered messages found");
     }
   } catch (err) {
     runtime.log?.(

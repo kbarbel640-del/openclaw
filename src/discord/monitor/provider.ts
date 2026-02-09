@@ -634,7 +634,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   }
 
   // Notify allowlisted users that the bot is online.
-  await sendLifecycleDM(client.rest, allowFrom, "*Back online.*").catch(() => {});
+  await sendLifecycleDM(client.rest, allowFrom, "*Back online.*", { log: runtime.log }).catch(
+    () => {},
+  );
 
   const gateway = client.getPlugin<GatewayPlugin>("gateway");
   if (gateway) {
@@ -707,7 +709,9 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
     });
   } finally {
     // Notify allowlisted users before cleanup (best-effort, 3s timeout).
-    await sendLifecycleDM(client.rest, allowFrom, "*Shutting down...*").catch(() => {});
+    await sendLifecycleDM(client.rest, allowFrom, "*Shutting down...*", {
+      log: runtime.log,
+    }).catch(() => {});
     unregisterGateway(account.accountId);
     stopGatewayLogging();
     if (helloTimeoutId) {
@@ -744,8 +748,9 @@ async function sendLifecycleDM(
   rest: Client["rest"],
   allowFrom: Array<string | number> | undefined,
   message: string,
-  timeoutMs = 3000,
+  opts: { log?: RuntimeEnv["log"]; timeoutMs?: number } = {},
 ): Promise<void> {
+  const { log, timeoutMs = 3000 } = opts;
   if (!allowFrom?.length) {
     return;
   }
@@ -765,12 +770,12 @@ async function sendLifecycleDM(
           await rest.post(Routes.channelMessages(dmChannel.id), {
             body: { content: message },
           });
-          logVerbose(`discord lifecycle DM sent to ${userId}`);
+          log?.(`discord: lifecycle DM sent to ${userId}`);
         } else {
-          logVerbose(`discord lifecycle DM: no channel returned for user ${userId}`);
+          log?.(`discord: lifecycle DM failed, no channel returned for user ${userId}`);
         }
       } catch (err) {
-        logVerbose(`discord lifecycle DM failed for user ${userId}: ${formatErrorMessage(err)}`);
+        log?.(`discord: lifecycle DM failed for user ${userId}: ${formatErrorMessage(err)}`);
       }
     }
   };
@@ -779,7 +784,7 @@ async function sendLifecycleDM(
     send(),
     new Promise<void>((resolve) => {
       setTimeout(() => {
-        logVerbose(`discord lifecycle DM timed out after ${timeoutMs}ms`);
+        log?.(`discord: lifecycle DM timed out after ${timeoutMs}ms`);
         resolve();
       }, timeoutMs);
     }),
