@@ -431,6 +431,7 @@ const plugin = {
             jsonResponse(res, 400, { error: "inviteUrl (string) is required" });
             return;
           }
+          const name = typeof body.name === "string" ? body.name : undefined;
           const accountId = typeof body.accountId === "string" ? body.accountId : undefined;
 
           const runtime = getConvosRuntime();
@@ -444,7 +445,7 @@ const plugin = {
             return;
           }
 
-          const result = await client.joinConversation(inviteUrl);
+          const result = await client.joinConversation(inviteUrl, name);
           jsonResponse(res, 200, {
             conversationId: result.conversationId,
             status: result.status,

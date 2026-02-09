@@ -271,7 +271,7 @@ export class ConvosSDKClient {
   /**
    * Join a conversation via invite URL or slug
    */
-  async joinConversation(invite: string): Promise<JoinConversationResult> {
+  async joinConversation(invite: string, name?: string): Promise<JoinConversationResult> {
     if (this.debug) {
       console.log(`[convos-sdk] Joining conversation with invite: ${invite.slice(0, 20)}...`);
     }
@@ -307,6 +307,19 @@ export class ConvosSDKClient {
 
       if (newConvo) {
         console.log(`[convos-sdk] Joined group: ${newConvo.id}`);
+
+        // Set the agent's display name immediately, same as createConversation().
+        // Must use getConversationById() to get the full object — list() returns
+        // lightweight objects without updateAppData().
+        if (name) {
+          const fullConvo = await this.agent.client.conversations.getConversationById(newConvo.id);
+          if (fullConvo) {
+            const convosGroup = this.convos.group(fullConvo);
+            await convosGroup.setConversationProfile({ name });
+            console.log(`[convos-sdk] Set profile name: "${name}"`);
+          }
+        }
+
         return { status: "joined", conversationId: newConvo.id };
       }
 
