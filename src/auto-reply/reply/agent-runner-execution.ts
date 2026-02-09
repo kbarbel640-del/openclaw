@@ -87,8 +87,12 @@ export async function runAgentTurnWithFallback(params: {
   const runId = params.opts?.runId ?? crypto.randomUUID();
   params.opts?.onAgentRunStart?.(runId);
   if (params.sessionKey) {
+    const channel =
+      (typeof params.sessionCtx.Surface === "string" ? params.sessionCtx.Surface : undefined) ??
+      (typeof params.sessionCtx.Provider === "string" ? params.sessionCtx.Provider : undefined);
     registerAgentRunContext(runId, {
       sessionKey: params.sessionKey,
+      channel: channel?.toLowerCase(),
       verboseLevel: params.resolvedVerboseLevel,
       isHeartbeat: params.isHeartbeat,
     });
