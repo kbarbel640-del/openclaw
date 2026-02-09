@@ -4,6 +4,7 @@ import type { ModelDefinitionConfig } from "../../config/types.js";
 import { resolveOpenClawAgentDir } from "../agent-paths.js";
 import {
   DEFAULT_CONTEXT_TOKENS,
+  DEFAULT_MAX_TOKENS,
   WELL_KNOWN_CONTEXT_WINDOWS,
   WELL_KNOWN_MAX_TOKENS,
 } from "../defaults.js";
@@ -69,7 +70,7 @@ function resolveOpenAICodexGpt53FallbackModel(
     input: ["text", "image"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: DEFAULT_CONTEXT_TOKENS,
-    maxTokens: DEFAULT_CONTEXT_TOKENS,
+    maxTokens: DEFAULT_MAX_TOKENS,
   } as Model<Api>);
 }
 
@@ -221,7 +222,7 @@ export function resolveModel(
         maxTokens:
           providerCfg?.models?.[0]?.maxTokens ??
           WELL_KNOWN_MAX_TOKENS[modelId] ??
-          DEFAULT_CONTEXT_TOKENS,
+          DEFAULT_MAX_TOKENS,
       } as Model<Api>);
       return { model: fallbackModel, authStorage, modelRegistry };
     }

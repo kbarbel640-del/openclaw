@@ -4,6 +4,8 @@ export const DEFAULT_PROVIDER = "anthropic";
 export const DEFAULT_MODEL = "claude-opus-4-6";
 // Conservative fallback used when model metadata is unavailable.
 export const DEFAULT_CONTEXT_TOKENS = 200_000;
+// Conservative fallback for max output tokens when model metadata is unavailable.
+export const DEFAULT_MAX_TOKENS = 16_000;
 
 // Well-known context windows for popular models. Used as an intermediate
 // fallback when the pi-ai ModelRegistry doesn't resolve model metadata
