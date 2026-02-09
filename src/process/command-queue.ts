@@ -25,6 +25,9 @@ type LaneState = {
 
 const lanes = new Map<string, LaneState>();
 
+const DEFAULT_LANE_TASK_TIMEOUT_MS = 300_000;
+const MIN_LANE_TASK_TIMEOUT_MS = 5_000;
+
 function getLaneState(lane: string): LaneState {
   const existing = lanes.get(lane);
   if (existing) {
@@ -62,8 +65,37 @@ function drainLane(lane: string) {
       state.active += 1;
       void (async () => {
         const startTime = Date.now();
+        let settled = false;
+        const resolvedTimeoutMs = (() => {
+          const raw = process.env.OPENCLAW_LANE_TASK_TIMEOUT_MS;
+          if (!raw) {
+            return DEFAULT_LANE_TASK_TIMEOUT_MS;
+          }
+          const parsed = Number(raw);
+          if (!Number.isFinite(parsed) || parsed <= 0) {
+            return DEFAULT_LANE_TASK_TIMEOUT_MS;
+          }
+          return Math.max(MIN_LANE_TASK_TIMEOUT_MS, Math.floor(parsed));
+        })();
+        const timeout = setTimeout(() => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          state.active -= 1;
+          diag.warn(
+            `lane task timeout: lane=${lane} timeoutMs=${resolvedTimeoutMs} active=${state.active} queued=${state.queue.length}`,
+          );
+          pump();
+          entry.reject(new Error(`Lane task timed out after ${resolvedTimeoutMs}ms: lane=${lane}`));
+        }, resolvedTimeoutMs);
         try {
           const result = await entry.task();
+          if (settled) {
+            return;
+          }
+          settled = true;
+          clearTimeout(timeout);
           state.active -= 1;
           diag.debug(
             `lane task done: lane=${lane} durationMs=${Date.now() - startTime} active=${state.active} queued=${state.queue.length}`,
@@ -71,6 +103,11 @@ function drainLane(lane: string) {
           pump();
           entry.resolve(result);
         } catch (err) {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          clearTimeout(timeout);
           state.active -= 1;
           const isProbeLane = lane.startsWith("auth-probe:") || lane.startsWith("session:probe-");
           if (!isProbeLane) {
