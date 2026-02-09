@@ -523,8 +523,8 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
     }
   };
 
-  // Smart status: accumulate streaming context and periodically generate
-  // context-aware Haiku status updates. Replaces tool-feedback-filter + progress timer.
+  // Smart status: generate instant status updates from streaming events
+  // (tool names, thinking excerpts) using the tool-display system.
   const toolFeedbackEnabled = discordConfig?.toolFeedback !== false;
   const smartStatusFilter = toolFeedbackEnabled
     ? createSmartStatus({

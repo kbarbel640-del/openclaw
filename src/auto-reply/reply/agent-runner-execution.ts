@@ -337,13 +337,19 @@ export async function runAgentTurnWithFallback(params: {
               await params.typingSignals.signalMessageStart();
             },
             onReasoningStream:
-              params.typingSignals.shouldStartOnReasoning || params.opts?.onReasoningStream
+              params.typingSignals.shouldStartOnReasoning ||
+              params.opts?.onReasoningStream ||
+              params.opts?.onStreamEvent
                 ? async (payload) => {
                     await params.typingSignals.signalReasoningDelta();
                     await params.opts?.onReasoningStream?.({
                       text: payload.text,
                       mediaUrls: payload.mediaUrls,
                     });
+                    // Forward thinking content to stream event callback.
+                    if (payload.text && params.opts?.onStreamEvent) {
+                      params.opts.onStreamEvent({ type: "thinking", text: payload.text });
+                    }
                   }
                 : undefined,
             onAgentEvent: async (evt) => {
@@ -371,11 +377,22 @@ export async function runAgentTurnWithFallback(params: {
                   const toolCallId =
                     typeof evt.data.toolCallId === "string" ? evt.data.toolCallId : "";
                   if (phase === "start") {
-                    params.opts.onStreamEvent({ type: "tool_start", toolName, toolCallId });
+                    const input =
+                      evt.data.args != null && typeof evt.data.args === "object"
+                        ? (evt.data.args as Record<string, unknown>)
+                        : undefined;
+                    params.opts.onStreamEvent({ type: "tool_start", toolName, toolCallId, input });
                   } else if (phase === "end") {
                     const isError = Boolean(evt.data.isError);
                     params.opts.onStreamEvent({ type: "tool_result", toolCallId, isError });
                   }
+                }
+              }
+              // Forward assistant text deltas to stream event callback.
+              if (evt.stream === "assistant" && params.opts?.onStreamEvent) {
+                const delta = typeof evt.data.delta === "string" ? evt.data.delta : "";
+                if (delta) {
+                  params.opts.onStreamEvent({ type: "text", text: delta });
                 }
               }
               // Track auto-compaction completion
