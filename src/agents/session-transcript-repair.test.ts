@@ -243,7 +243,7 @@ describe("sanitizeToolCallInputs", () => {
     expect(types).toEqual(["text", "toolUse"]);
   });
 
-  it("drops tool calls with empty object arguments (aborted stream artifact)", () => {
+  it("preserves tool calls with empty object arguments (valid parameterless calls)", () => {
     const input: AgentMessage[] = [
       {
         role: "assistant",
@@ -253,7 +253,7 @@ describe("sanitizeToolCallInputs", () => {
     ];
 
     const out = sanitizeToolCallInputs(input);
-    expect(out.map((m) => m.role)).toEqual(["user"]);
+    expect(out.map((m) => m.role)).toEqual(["assistant", "user"]);
   });
 
   it("drops tool calls with empty string arguments", () => {

@@ -63,10 +63,11 @@ function hasToolCallInput(block: ToolCallBlock): boolean {
   if (typeof block.arguments === "string") {
     return block.arguments.length > 0;
   }
-  // Object arguments (parsed from streaming): must have at least one key
-  // Empty {} comes from aborted streams where parseStreamingJson("") returns {}
+  // Object arguments: treat any object (including empty {}) as valid input.
+  // Parameterless tool calls legitimately use arguments: {}.
+  // Aborted-stream cleanup is handled upstream by stripAbortedAssistantMessages().
   if (typeof block.arguments === "object") {
-    return Object.keys(block.arguments as Record<string, unknown>).length > 0;
+    return true;
   }
   return false;
 }
