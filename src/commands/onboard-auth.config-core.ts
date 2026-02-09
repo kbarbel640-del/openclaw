@@ -795,7 +795,7 @@ export function applySelfHostedOpenAIProviderConfig(
     id: params.modelName,
     name: `${params.providerName} ${params.modelName}`,
     reasoning: params.reasoning,
-    input: ["text"] as const,
+    input: ["text"] as ("image" | "text")[],
     cost: {
       input: 0,
       output: 0,
