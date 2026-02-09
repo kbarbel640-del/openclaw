@@ -29,7 +29,7 @@ beforeEach(() => {
   );
 });
 
-describe("resolveHeartbeatIntervalMs", () => {
+describe("runHeartbeatOnce", () => {
   it("respects ackMaxChars for heartbeat acks", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-hb-"));
     const storePath = path.join(tmpDir, "sessions.json");
