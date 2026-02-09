@@ -344,10 +344,27 @@ export class AsteriskAriProvider implements VoiceCallProvider {
       }
     } else if (evt.type === "StasisEnd") {
       const chId = evt.channel?.id;
+      let cleaned = false;
       for (const [pId, state] of this.calls.entries()) {
         if (state.sipChannelId === chId) {
           await this.cleanup(pId, "hangup-user");
+          cleaned = true;
           break;
+        }
+      }
+
+      if (!cleaned && chId) {
+        this.pendingInboundChannels.delete(chId);
+        const call = this.manager.getCallByProviderCallId(chId);
+        if (call) {
+          this.manager.processEvent(
+            makeEvent({
+              type: "call.ended",
+              callId: call.callId,
+              providerCallId: call.providerCallId,
+              reason: "hangup-user",
+            }),
+          );
         }
       }
     }
