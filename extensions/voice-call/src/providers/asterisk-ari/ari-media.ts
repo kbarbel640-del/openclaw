@@ -67,8 +67,12 @@ export class AriMedia {
       });
       sttExtChannelId = sttExt.id;
 
-      await this.client.addChannelsToBridge(bridgeId, [params.sipChannelId, extChannelId]);
-      await this.client.addChannelsToBridge(bridgeId, [params.sipChannelId, extChannelId]);
+      try {
+        await this.client.addChannelsToBridge(bridgeId, [params.sipChannelId, extChannelId]);
+      } catch (err) {
+        console.warn("[ari] addChannelsToBridge failed, retrying", err);
+        await this.client.addChannelsToBridge(bridgeId, [params.sipChannelId, extChannelId]);
+      }
       try {
         const b = await this.client.getBridge(bridgeId);
         console.log("[ari] bridge state", { bridgeId, channels: (b as AriChannel).channels });

@@ -333,7 +333,8 @@ export class AsteriskAriProvider implements VoiceCallProvider {
     if (!state.media) return;
     const udp = state.media.udp;
     state.speaking = true;
-    const chunkIter = chunkAudio(mulaw, 160);
+    const payload = this.cfg.codec === "alaw" ? this.mulawToAlawBuffer(mulaw) : mulaw;
+    const chunkIter = chunkAudio(payload, 160);
     let i = 0;
     const interval = setInterval(() => {
       if (!this.calls.has(state.providerCallId) || !state.speaking) {
@@ -381,7 +382,8 @@ export class AsteriskAriProvider implements VoiceCallProvider {
     const r = this.ensureRtpState(state);
     const header = Buffer.alloc(12);
     header[0] = 0x80; // V=2, P=0, X=0, CC=0
-    header[1] = 0x00; // M=0, PT=0 (PCMU)
+    const payloadType = this.cfg.codec === "alaw" ? 8 : 0; // PCMA=8, PCMU=0
+    header[1] = payloadType & 0x7f; // M=0
     header.writeUInt16BE(r.seq & 0xffff, 2);
     header.writeUInt32BE(r.ts >>> 0, 4);
     header.writeUInt32BE(r.ssrc >>> 0, 8);
@@ -416,12 +418,71 @@ export class AsteriskAriProvider implements VoiceCallProvider {
     return sign ? -sample : sample;
   }
 
-  private mulawToPcm16Buffer(mulaw: Buffer): Buffer {
-    const pcm = Buffer.allocUnsafe(mulaw.length * 2);
-    for (let i = 0; i < mulaw.length; i++) {
-      pcm.writeInt16LE(this.mulawToLinear(mulaw[i] ?? 0), i * 2);
+  private alawToLinear(aLaw: number): number {
+    let a = aLaw ^ 0x55;
+    let t = (a & 0x0f) << 4;
+    const seg = (a & 0x70) >> 4;
+    switch (seg) {
+      case 0:
+        t += 8;
+        break;
+      case 1:
+        t += 0x108;
+        break;
+      default:
+        t += 0x108;
+        t <<= seg - 1;
+        break;
+    }
+    return a & 0x80 ? t : -t;
+  }
+
+  private linearToAlaw(pcm: number): number {
+    const ALAW_MAX = 0x7fff;
+    let mask = 0xd5;
+    let p = pcm;
+    if (p < 0) {
+      mask = 0x55;
+      p = -p - 1;
+    }
+    if (p > ALAW_MAX) {
+      p = ALAW_MAX;
+    }
+    let seg = 0;
+    if (p >= 256) {
+      let tmp = p >> 8;
+      while (tmp) {
+        seg++;
+        tmp >>= 1;
+      }
+      seg = Math.min(seg, 7);
+      const aval = (seg << 4) | ((p >> (seg + 3)) & 0x0f);
+      return (aval ^ mask) & 0xff;
+    }
+    const aval = p >> 4;
+    return (aval ^ mask) & 0xff;
+  }
+
+  private g711ToPcm16Buffer(payload: Buffer): Buffer {
+    const pcm = Buffer.allocUnsafe(payload.length * 2);
+    if (this.cfg.codec === "alaw") {
+      for (let i = 0; i < payload.length; i++) {
+        pcm.writeInt16LE(this.alawToLinear(payload[i] ?? 0), i * 2);
+      }
+      return pcm;
+    }
+    for (let i = 0; i < payload.length; i++) {
+      pcm.writeInt16LE(this.mulawToLinear(payload[i] ?? 0), i * 2);
     }
     return pcm;
+  }
+
+  private mulawToAlawBuffer(mulaw: Buffer): Buffer {
+    const out = Buffer.allocUnsafe(mulaw.length);
+    for (let i = 0; i < mulaw.length; i++) {
+      out[i] = this.linearToAlaw(this.mulawToLinear(mulaw[i] ?? 0));
+    }
+    return out;
   }
 
   private computeRms(pcm: Buffer): number {
@@ -569,7 +630,7 @@ export class AsteriskAriProvider implements VoiceCallProvider {
 
     const onAudio = (mulaw: Buffer) => {
       if (closed) return;
-      const pcm = this.mulawToPcm16Buffer(mulaw);
+      const pcm = this.g711ToPcm16Buffer(mulaw);
       const rms = this.computeRms(pcm);
       const now = Date.now();
 
