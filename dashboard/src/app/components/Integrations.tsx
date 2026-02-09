@@ -510,39 +510,57 @@ const WhatsAppSetup: React.FC<{ isDark: boolean; onClose: () => void; phoneNumbe
           <div className={`flex items-center gap-2 p-3 rounded-lg ${isDark ? "bg-green-500/10" : "bg-green-50"}`}>
             <Check size={18} className="text-green-500" />
             <span className={isDark ? "text-green-400" : "text-green-700"}>
-              WhatsApp configured! Now scan the QR code to connect.
+              WhatsApp configured! One more step to connect.
             </span>
           </div>
 
-          <p>Run this command in your terminal:</p>
-          
-          <div 
-            onClick={copyCommand}
-            className={`flex items-center justify-between p-3 rounded-lg font-mono text-sm cursor-pointer transition-colors ${
-              isDark 
-                ? "bg-black/60 border border-white/10 hover:border-[#2dd4bf]/50" 
-                : "bg-gray-100 border border-gray-200 hover:border-[#2dd4bf]"
-            }`}
-          >
-            <code className={isDark ? "text-[#2dd4bf]" : "text-[#0d9488]"}>
-              easyhub channels login
-            </code>
-            <span className={`text-xs ${copied ? "text-green-500" : isDark ? "text-gray-500" : "text-gray-400"}`}>
-              {copied ? "Copied!" : "Click to copy"}
-            </span>
+          <div className={`p-4 rounded-xl border-2 border-dashed ${isDark ? "border-[#2dd4bf]/30 bg-[#2dd4bf]/5" : "border-[#2dd4bf]/50 bg-[#2dd4bf]/5"}`}>
+            <div className="text-center space-y-3">
+              <div className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
+                📱 Scan QR Code
+              </div>
+              <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                Open PowerShell/Terminal and run:
+              </p>
+              <div 
+                onClick={() => {
+                  navigator.clipboard.writeText("easyhub channels login");
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className={`inline-flex items-center gap-3 px-4 py-2.5 rounded-lg font-mono text-sm cursor-pointer transition-all ${
+                  copied 
+                    ? "bg-green-500 text-white" 
+                    : isDark 
+                      ? "bg-black/60 text-[#2dd4bf] hover:bg-black/80" 
+                      : "bg-white text-[#0d9488] hover:bg-gray-50 shadow-sm"
+                }`}
+              >
+                <code>easyhub channels login</code>
+                <span className="text-xs opacity-70">{copied ? "✓ Copied!" : "Click to copy"}</span>
+              </div>
+            </div>
           </div>
 
           <div className={`space-y-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-            <ol className="list-decimal list-inside space-y-1.5 ml-1">
-              <li>A QR code will appear in your terminal</li>
-              <li>Open WhatsApp → <strong>Settings → Linked Devices</strong></li>
-              <li>Tap <strong>Link a Device</strong> and scan the QR</li>
-            </ol>
+            <div className="flex items-start gap-2">
+              <span className="font-bold text-[#2dd4bf]">1.</span>
+              <span>Paste the command in PowerShell → QR code appears</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="font-bold text-[#2dd4bf]">2.</span>
+              <span>Open WhatsApp → <strong>Settings → Linked Devices</strong></span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="font-bold text-[#2dd4bf]">3.</span>
+              <span>Tap <strong>Link a Device</strong> → Scan the QR</span>
+            </div>
           </div>
 
-          <div className={`p-3 rounded-lg ${isDark ? "bg-[#2dd4bf]/10" : "bg-[#2dd4bf]/10"}`}>
-            <p className={`text-xs ${isDark ? "text-[#2dd4bf]" : "text-[#0d9488]"}`}>
-              💡 <strong>Tip:</strong> Use a separate phone number for EasyHub for cleaner message routing.
+          <div className={`p-3 rounded-lg ${isDark ? "bg-amber-500/10" : "bg-amber-50"}`}>
+            <p className={`text-xs ${isDark ? "text-amber-400" : "text-amber-700"}`}>
+              ⚠️ <strong>Note:</strong> Terminal is required because WhatsApp's QR code must be displayed securely. 
+              Future updates will show QR directly in dashboard.
             </p>
           </div>
         </div>
