@@ -138,6 +138,12 @@ export const pt = {
 
   // Chat
   chat: {
+    compaction: {
+      label: "Compactação",
+      compacting: "Compactando contexto...",
+      compacted: "Contexto compactado",
+    },
+    historyNotice: "Exibindo últimas {{count}} mensagens ({{hidden}} ocultas).",
     thinking: "Pensando",
     send: "Enviar",
     newSession: "Nova Sessão",
@@ -380,7 +386,16 @@ export const pt = {
     promptLabel: "Prompt",
     peakErrorDays: "Dias com Pico de Erros",
     peakErrorHours: "Horas com Pico de Erros",
+    thinking: {
+      title: "Raciocínio (Thinking)",
+      description: "Configuração de raciocínio/pensamento.",
+    },
+    thinkingDefault: {
+      title: "Raciocínio Padrão",
+      description: "Nível padrão de cadeia de pensamento.",
+    },
     topModels: "Principais Modelos",
+
     topProviders: "Principais Provedores",
     topAgents: "Principais Agentes",
     topChannels: "Principais Canais",
@@ -437,6 +452,7 @@ export const pt = {
 
   // Channels
   channels: {
+    logoutMessage: "Desconectado.",
     health: "Status dos canais",
     healthSubtitle: "Snapshots de status dos canais obtidos do gateway.",
     noSnapshot: "Nenhum snapshot ainda.",
@@ -571,6 +587,7 @@ export const pt = {
     saving: "Salvando…",
     apply: "Aplicar",
     applying: "Aplicando…",
+    all: "Tudo",
     update: "Atualizar",
     updating: "Atualizando…",
     viewPendingChanges: "Ver {{count}} alterações pendentes",
@@ -581,14 +598,14 @@ export const pt = {
     unsafeFormWarning:
       "A visualização de formulário não pode editar alguns campos com segurança. Use o modo Texto para evitar perder configurações.",
     sections: {
-      env: "Ambiente",
+      env: "Variáveis de Ambiente",
       update: "Atualizações",
       agents: "Agentes",
       auth: "Autenticação",
       channels: "Canais",
       messages: "Mensagens",
       commands: "Comandos",
-      hooks: "Ganchos",
+      hooks: "Hooks",
       skills: "Skills",
       tools: "Ferramentas",
       gateway: "Gateway",
@@ -602,14 +619,14 @@ export const pt = {
       broadcast: "Transmissão",
       audio: "Áudio",
       session: "Sessão",
-      cron: "Agendamento",
+      cron: "Cron",
       web: "Web",
       discovery: "Descoberta",
       canvasHost: "Hospedagem de Canvas",
       talk: "Voz",
       plugins: "Plugins",
       diagnostics: "Diagnósticos",
-      nodeHost: "Hospedagem de Nodes",
+      nodeHost: "Node Host",
       media: "Mídia",
       memory: "Memória",
       approvals: "Aprovações",
@@ -643,7 +660,7 @@ export const pt = {
       talk: "Configurações de voz e fala",
       plugins: "Gerenciamento de plugins e extensões",
       diagnostics: "Verificações de saúde e diagnóstico do sistema",
-      nodeHost: "Configurações de hospedagem e execução de nodes",
+      nodeHost: "Configuração do host de node e proxy de navegador",
       media: "Processamento e armazenamento de mídia",
       memory: "Configurações de memória e armazenamento em cache",
       approvals: "Configurações de aprovação de execução de ferramentas e comandos",
@@ -658,20 +675,21 @@ export const pt = {
       allow: "Permitir",
       allowlist: "Lista de Permissão (Allowlist)",
       always: "Sempre",
-      "anthropic-messages": "Anthropic Messages",
+      announce: "Anunciar",
+      "anthropic-messages": "Mensagens Anthropic",
       "api-key": "Chave de API",
       "app-url": "URL do App",
-      archive: "Arquivo (Archive)",
+      archive: "Arquivo",
       arg: "Argumento de CLI",
       audio: "Áudio",
       auto: "Automático",
       "aws-sdk": "AWS SDK",
-      "bedrock-converse-stream": "Bedrock Converse Stream",
+      "bedrock-converse-stream": "Stream de Conversa Bedrock (Bedrock Converse)",
       beta: "Beta",
       block: "Bloquear",
-      blocklist: "Lista de Bloqueio",
+      blocklist: "Lista de Bloqueio (Blocklist)",
       browsers: "Navegadores",
-      builtin: "Integrado (Built-in)",
+      builtin: "Integrado",
       bullets: "Marcadores",
       bun: "Bun",
       channel: "Canal",
@@ -681,7 +699,9 @@ export const pt = {
       collect: "Coletar",
       compact: "Compacto",
       custom: "Personalizado",
+      daily: "Diário",
       debug: "Depuração (Debug)",
+      default: "Padrão",
       dev: "Desenvolvimento (Dev)",
       direct: "Direto (DM)",
       disabled: "Desativado",
@@ -700,21 +720,26 @@ export const pt = {
       first: "Primeiro",
       followup: "Acompanhamento",
       full: "Completo",
-      funnel: "Funnel (Tailscale)",
+      funnel: "Funil (Tailscale Funnel)",
       "github-copilot": "GitHub Copilot",
       "google-generative-ai": "Google Gemini",
       group: "Grupo",
+      "group-all": "Todos do Grupo",
+      "group-mentions": "Menções em Grupo",
       grpc: "gRPC",
       hot: "Quente (Hot Reload)",
       "http/protobuf": "HTTP/Protobuf",
       http: "HTTP",
       hybrid: "Híbrido",
+      idle: "Ocioso",
       ignore: "Ignorar",
       image: "Imagem",
       imessage: "iMessage",
       inbound: "Entrada",
       info: "Informação (Info)",
+      instant: "Instantâneo",
       interrupt: "Interromper",
+      isolated: "Isolado",
       json: "JSON",
       jsonl: "JSONL",
       lan: "LAN",
@@ -724,6 +749,7 @@ export const pt = {
       local: "Local",
       logs: "Logs",
       loopback: "Loopback",
+      main: "Principal",
       manual: "Manual",
       message: "Mensagem",
       minimal: "Mínimo",
@@ -731,13 +757,15 @@ export const pt = {
       never: "Nunca",
       new: "Novo",
       newline: "Nova Linha",
+      "next-heartbeat": "Próximo Batimento (Heartbeat)",
       no: "Não",
       none: "Nenhum",
+      now: "Agora",
       npm: "NPM",
       oauth: "OAuth",
-      off: "Desligado (Off)",
+      off: "Desligado",
       old: "Antigo",
-      on: "Ligado (On)",
+      on: "Ligado",
       open: "Aberto",
       "openai-completions": "OpenAI Completions",
       "openai-responses": "OpenAI Responses",
@@ -746,21 +774,27 @@ export const pt = {
       paragraph: "Parágrafo",
       partial: "Parcial",
       password: "Senha",
-      path: "Caminho / Path",
+      path: "Caminho",
+      "per-account-channel-peer": "Por Conta, Canal e Par",
+      "per-channel-peer": "Por Canal e Par",
+      "per-peer": "Por Par (Peer)",
+      "per-sender": "Por Remetente",
       pnpm: "PNPM",
       polling: "Sondagem (Polling)",
-      pretty: "Bonito (Pretty)",
+      pretty: "Formatado (Pretty)",
       "project-number": "Número de Projeto",
       provider: "Provedor",
-      qmd: "QMD (Sidecar)",
+      qmd: "QMD",
       queue: "Fila",
       quote: "Citar",
       reaction: "Reação",
+      remote: "Remoto",
       repeat: "Repetir",
       replace: "Substituir",
       reply: "Responder",
       restart: "Reiniciar",
       sentence: "Frase",
+      safeguard: "Salvaguarda",
       serve: "Servir (Serve)",
       silent: "Silencioso",
       sms: "SMS",
@@ -776,21 +810,48 @@ export const pt = {
       tagged: "Marcado",
       tailnet: "Tailnet",
       text: "Texto",
+      thinking: "Pensando",
       thread: "Thread (Tópico)",
       token: "Token",
       tools: "Ferramentas",
       "top-level": "Nível Superior",
-      trace: "Rastreamento (Trace)",
+      trace: "Rastreamento",
       true: "Verdadeiro",
       url: "URL",
+      text_end: "Fim do Texto",
+      message_end: "Fim da Mensagem",
+      "cache-ttl": "Tempo de Vida do Cache (TTL)",
+      ask: "Perguntar",
       video: "Vídeo",
+      "non-main": "Apenas Secundários",
+      ro: "Somente Leitura (RO)",
+      rw: "Leitura e Escrita (RW)",
+      spawned: "Apenas Criadas (Spawned)",
+      shared: "Compartilhado",
+      sandbox: "Sandbox",
       warn: "Aviso (Warn)",
+      "on-miss": "Se Faltar (On-miss)",
       webhook: "Webhook",
+      xhigh: "Muito Alto",
+      XHigh: "Muito Alto",
+      high: "Alto",
+      High: "Alto",
+      medium: "Médio",
+      Medium: "Médio",
+      low: "Baixo",
+      Low: "Baixo",
       yarn: "Yarn",
       yes: "Sim",
     },
     path: {
+      thinkingDefault: {
+        title: "Racio. Padrão (Thinking)",
+        description: "Nível padrão de raciocínio.",
+      },
+      thinking: { title: "Racio. Padrão (Thinking)", description: "Nível padrão de raciocínio." },
       common: {
+        defaults: { title: "Padrões", description: "Configurações padrão." },
+        list: { title: "Lista", description: "Itens configurados individualmente." },
         enabled: { title: "Habilitado", description: "Se esta seção ou recurso deve estar ativo." },
         disabled: {
           title: "Desativado",
@@ -839,17 +900,131 @@ export const pt = {
         actions: {
           title: "Ações",
           description: "Permissões de ações para este canal.",
-          deleteMessage: { title: "Excluir Mensagem" },
-          sendMessage: { title: "Enviar Mensagem" },
-          reactions: { title: "Reações" },
-          sticker: { title: "Figurinha (Sticker)" },
-          stickers: { title: "Figurinhas (Stickers)" },
+          deleteMessage: {
+            title: "Excluir Mensagem",
+            description: "Permissão para excluir mensagens.",
+          },
+          sendMessage: {
+            title: "Enviar Mensagem",
+            description: "Permissão para enviar mensagens.",
+          },
+          reactions: { title: "Reações", description: "Permissão para adicionar reações." },
+          sticker: {
+            title: "Figurinha (Sticker)",
+            description: "Permissão para enviar figurinha.",
+          },
+          stickers: {
+            title: "Figurinhas (Stickers)",
+            description: "Permissão para enviar figurinhas.",
+          },
         },
         proxy: { title: "Proxy", description: "URL do servidor proxy." },
         timeoutSeconds: { title: "Tempo Limite (segundos)", description: "Timeout para a API." },
+        accountId: { title: "ID da Conta", description: "Identificador da conta." },
+        ackMaxChars: {
+          title: "Máximo de Caracteres Ack",
+          description: "Limite de caracteres para mensagens de confirmação.",
+        },
+        activeHours: {
+          title: "Horário de Atividade",
+          description: "Define quando está ativo.",
+          start: { title: "Início", description: "Hora de início (formato HH:MM)." },
+          end: { title: "Fim", description: "Hora de término (formato HH:MM)." },
+          timezone: {
+            title: "Fuso Horário",
+            description: "Fuso horário para o horário de atividade.",
+          },
+        },
+        model: { title: "Modelo", description: "Modelo de IA a usar." },
+        session: { title: "Sessão", description: "Configuração de sessão." },
+        includeReasoning: {
+          title: "Incluir Raciocínio",
+          description: "Incluir cadeia de pensamento nas respostas.",
+        },
+        target: { title: "Alvo", description: "Alvo de entrega." },
+        to: { title: "Para", description: "Destinatário da mensagem." },
+        prompt: { title: "Prompt", description: "Instrução ou mensagem inicial." },
+        every: { title: "Frequência", description: "Intervalo de execução (ex: 5m, 1h)." },
         historyLimit: {
           title: "Limite de Histórico",
           description: "Mensagens mantidas no contexto.",
+        },
+        api: { title: "API", description: "Tipo de API do modelo." },
+        cost: { title: "Custo", description: "Configuração de custos do modelo." },
+        input: { title: "Entrada", description: "Custo ou configuração de entrada." },
+        output: { title: "Saída", description: "Custo ou configuração de saída." },
+        contextWindow: {
+          title: "Janela de Contexto",
+          description: "Tamanho da janela de contexto do modelo.",
+        },
+        maxTokens: {
+          title: "Máximo de Tokens",
+          description: "Limite máximo de tokens na resposta.",
+        },
+        headers: { title: "Cabeçalhos", description: "Cabeçalhos HTTP adicionais." },
+        compat: { title: "Compatibilidade", description: "Opções de compatibilidade." },
+        auth: { title: "Autenticação", description: "Método de autenticação." },
+        region: { title: "Região", description: "Região do serviço (ex: us-east-1)." },
+        queue: { title: "Fila", description: "Configuração de fila de mensagens." },
+        command: { title: "Comando", description: "Comando executável." },
+        args: { title: "Argumentos", description: "Argumentos do comando." },
+        env: { title: "Variáveis de Ambiente", description: "Variáveis de ambiente adicionais." },
+        providers: { title: "Provedores", description: "Provedores de serviço configurados." },
+        alias: { title: "Alias", description: "Nome alternativo ou apelido." },
+        params: { title: "Parâmetros", description: "Parâmetros adicionais de configuração." },
+        streaming: { title: "Streaming", description: "Habilitar streaming de respostas." },
+        compaction: { title: "Compactação", description: "Estratégia de compactação de contexto." },
+        reserveTokensFloor: {
+          title: "Piso de Reserva de Tokens",
+          description: "Mínimo de tokens reservados.",
+        },
+        maxHistoryShare: {
+          title: "Parcela Máxima de Histórico",
+          description: "Proporção máxima do contexto para histórico.",
+        },
+        memoryFlush: {
+          title: "Descarga de Memória",
+          description: "Configuração de limpeza de memória.",
+        },
+        softThresholdTokens: {
+          title: "Limite Flexível de Tokens",
+          description: "Limite para iniciar descarga suave.",
+        },
+        skipBootstrap: {
+          title: "Pular Inicialização",
+          description: "Não carregar instruções iniciais.",
+        },
+        timeFormat: { title: "Formato de Hora", description: "Formato de exibição de hora." },
+        thinkingLevel: {
+          title: "Nível de Pensamento",
+          description: "Nível de detalhamento do raciocínio.",
+        },
+        thinking_level: {
+          title: "Nível de Pensamento",
+          description: "Nível de detalhamento do raciocínio.",
+        },
+        thinkingDefault: {
+          title: "Racio. Padrão (Thinking)",
+          description: "Nível padrão de raciocínio.",
+        },
+        chatThinkingLevel: {
+          title: "Nível de Pensamento (Chat)",
+          description: "Nível de pensamento.",
+        },
+        thinking: { title: "Racio. Padrão (Thinking)", description: "Nível padrão de raciocínio." },
+        thinking_default: {
+          title: "Racio. Padrão (Thinking)",
+          description: "Nível padrão de raciocínio.",
+        },
+        envelope: { title: "Envelope", description: "Metadados da mensagem." },
+        pruning: {
+          title: "Poda de Contexto",
+          description: "Estratégia de remoção de mensagens antigas.",
+        },
+        ttl: { title: "TTL (Tempo de Vida)", description: "Tempo até expiração." },
+        keepLastAssistants: {
+          title: "Manter Últimos Assistentes",
+          description: "Preservar últimas respostas.",
         },
         textChunkLimit: {
           title: "Limite de Fragmento de Texto",
@@ -858,6 +1033,16 @@ export const pt = {
         apiKey: { title: "Chave de API", description: "Chave de autenticação para o provedor." },
         baseUrl: { title: "URL Base", description: "URL base para requisições de API." },
         timeoutMs: { title: "Tempo Limite (ms)", description: "Timeout em milissegundos." },
+        theme: { title: "Tema", description: "Tema visual da identidade." },
+        avatar: { title: "Avatar", description: "URL ou caminho do avatar." },
+        image: { title: "Imagem", description: "Processamento de imagem." },
+        audio: { title: "Áudio", description: "Processamento de áudio." },
+        video: { title: "Vídeo", description: "Processamento de vídeo." },
+        maxLinks: {
+          title: "Máximo de Links",
+          description: "Quantidade máxima de links a processar.",
+        },
+        skills: { title: "Skills", description: "Habilidades habilitadas." },
         blockStreaming: {
           title: "Bloquear Streaming",
           description: "Desabilitar streaming de mensagens.",
@@ -1002,203 +1187,990 @@ export const pt = {
           description: "Configurações de ferramentas por remetente.",
         },
         topics: { title: "Tópicos", description: "Configurações de tópicos." },
+        ulimits: {
+          title: "Limites de Recursos (Ulimits)",
+          description: "Limites de recursos para o ambiente de execução.",
+        },
+        seccompProfile: {
+          title: "Perfil Seccomp",
+          description: "Perfil seccomp personalizado para segurança do container.",
+        },
+        apparmorProfile: {
+          title: "Perfil Apparmor",
+          description: "Perfil AppArmor personalizado para segurança do container.",
+        },
+        pidsLimit: {
+          title: "Limite de PIDs",
+          description: "Número máximo de processos permitidos dentro do container.",
+        },
+        memory: {
+          title: "Memória",
+          description: "Limite de memória para o container de execução (ex: 1g).",
+        },
+        memorySwap: {
+          title: "Swap de Memória",
+          description: "Limite de swap para o container de execução.",
+        },
+        vncPort: { title: "Porta VNC", description: "Porta para acesso remoto via desktop VNC." },
+        noVncPort: { title: "Porta noVNC", description: "Porta para acesso via web noVNC." },
+        enableNoVnc: {
+          title: "Habilitar noVNC",
+          description: "Habilitar acesso ao navegador via interface web (noVNC).",
+        },
+        autoStartTimeoutMs: {
+          title: "Tempo Limite de Início Automático (ms)",
+          description: "Tempo limite para o início automático do serviço.",
+        },
+        allowHostControl: {
+          title: "Permitir Controle do Host",
+          description: "Permitir que o container controle aspectos do host.",
+        },
+        models: {
+          title: "Modelos",
+          description:
+            "Catálogo de modelos configurados (chaves são IDs completos de provedor/modelo).",
+        },
+        watchDebounceMs: {
+          title: "Debounce de Observação (ms)",
+          description: "Tempo de espera para atualizações na observação de arquivos de memória.",
+        },
+        watch: {
+          title: "Observar Arquivos de Memória",
+          description: "Observar alterações em arquivos de memória (chokidar).",
+        },
+        sessionDeltaMessages: {
+          title: "Mensagens Delta de Sessão",
+          description:
+            "Mínimo de linhas JSONL anexadas antes que transcrições disparem reindexação (padrão: 50).",
+        },
+        sessionDeltaBytes: {
+          title: "Bytes Delta de Sessão",
+          description:
+            "Mínimo de bytes anexados antes que transcrições disparem reindexação (padrão: 100000).",
+        },
+        sessions: { title: "Sessões", description: "Configuração de indexação de sessões." },
+        indexOnSessionStart: {
+          title: "Indexar ao Iniciar Sessão",
+          description: "Iniciar indexação quando uma sessão começar.",
+        },
+        lazySync: {
+          title: "Indexar na Busca (Lazy)",
+          description: "Sincronização preguiçosa: agendar reindexação na busca após alterações.",
+        },
+        sync: {
+          title: "Sincronização",
+          description: "Configurações de sincronização para atualizações de dados.",
+        },
+        intervalMinutes: {
+          title: "Intervalo (Minutos)",
+          description: "Intervalo de tempo em minutos entre sincronizações.",
+        },
+        vectorExtensionPath: {
+          title: "Caminho da Extensão de Vetor",
+          description:
+            "Caminho opcional para a biblioteca de extensão sqlite-vec (.dylib/.so/.dll).",
+        },
+        hybrid: {
+          title: "Híbrido",
+          description: "Configuração de busca híbrida combinando vetor e texto.",
+        },
+        maxResults: {
+          title: "Máximo de Resultados",
+          description: "Número máximo de resultados a retornar.",
+        },
+        minScore: {
+          title: "Pontuação Mínima",
+          description: "Pontuação mínima de relevância (0.0 a 1.0).",
+        },
+      },
+      env: {
+        shellEnv: {
+          title: "Ambiente do Shell",
+          description: "Configuração do ambiente de shell para execução de comandos.",
+          enabled: { title: "Habilitado", description: "Se o ambiente de shell está habilitado." },
+          timeoutMs: {
+            title: "Tempo Limite (ms)",
+            description: "Tempo limite para inicialização do shell em milissegundos.",
+          },
+        },
+        vars: {
+          title: "Variáveis",
+          description: "Variáveis de ambiente passadas ao processo do gateway.",
+        },
       },
       meta: {
-        lastTouchedVersion: { title: "Versão da Última Alteração" },
-        lastTouchedAt: { title: "Data da Última Alteração" },
+        lastTouchedVersion: {
+          title: "Versão da Última Alteração",
+          description: "Versão do OpenClaw que modificou a configuração pela última vez.",
+        },
+        lastTouchedAt: {
+          title: "Data da Última Alteração",
+          description: "Carimbo de data/hora da última atualização da configuração.",
+        },
+      },
+      wizard: {
+        lastRunAt: {
+          title: "Última Execução",
+          description: "Data/hora da última execução do assistente de configuração.",
+        },
+        lastRunVersion: {
+          title: "Versão da Última Execução",
+          description: "Versão do assistente de configuração utilizada na última execução.",
+        },
+        lastRunCommit: {
+          title: "Commit da Última Execução",
+          description: "Hash do commit registrado durante a última execução do assistente.",
+        },
+        lastRunCommand: {
+          title: "Comando da Última Execução",
+          description: "Comando final executado pelo assistente de configuração.",
+        },
+        lastRunMode: {
+          title: "Modo da Última Execução",
+          description: "Modo de execução da última sessão do assistente.",
+        },
       },
       update: {
         channel: {
           title: "Canal de Atualização",
-          description: 'Canal para atualizações ("stable", "beta" ou "dev").',
+          description: 'Canal para atualizações ("estável", "beta" ou "desenvolvimento").',
         },
         checkOnStart: {
           title: "Verificar ao Iniciar",
           description: "Verificar atualizações ao iniciar.",
         },
       },
+      commands: {
+        native: {
+          title: "Comandos Nativos",
+          description: "Configuração para comandos nativos do sistema.",
+        },
+        nativeSkills: {
+          title: "Skills Nativas",
+          description: "Comandos fornecidos por módulos de habilidades nativas.",
+        },
+        text: {
+          title: "Comandos de Texto",
+          description: "Configuração para comandos baseados em texto.",
+        },
+        bash: {
+          title: "Comando Bash (!)",
+          description: "Habilitar ou configurar a execução direta de comandos bash.",
+        },
+        bashForegroundMs: {
+          title: "Janela do Bash (ms)",
+          description: "Duração para manter o terminal bash em primeiro plano.",
+        },
+        config: { title: "Permitir /config", description: "Habilitar o comando de barra /config." },
+        debug: { title: "Permitir /debug", description: "Habilitar o comando de barra /debug." },
+        restart: {
+          title: "Permitir Reinício",
+          description: "Habilitar o comando /restart para o gateway.",
+        },
+        useAccessGroups: {
+          title: "Usar Grupos de Acesso",
+          description: "Habilitar grupos de acesso para permissões de comando.",
+        },
+        ownerAllowFrom: {
+          title: "Proprietários",
+          description:
+            "Lista de permissões para usuários autorizados a usar comandos de proprietário.",
+        },
+      },
+      hooks: {
+        enabled: {
+          title: "Ganchos Habilitados",
+          description: "Interruptor global para habilitar ou desabilitar integrações via webhook.",
+        },
+        path: {
+          title: "Caminho dos Ganchos",
+          description: "Caminho da URL onde o gateway escuta por ganchos (webhooks) de entrada.",
+        },
+        token: {
+          title: "Token do Gancho",
+          description: "Token de segurança necessário para autenticar webhooks de entrada.",
+        },
+        maxBodyBytes: {
+          title: "Máximo de Bytes de Corpo",
+          description: "Limite de tamanho máximo para o corpo das requisições de webhook.",
+        },
+        presets: {
+          title: "Predefinições (Presets)",
+          description: "Configurações nomeadas para padrões comuns de webhooks.",
+        },
+        transformsDir: {
+          title: "Diretório de Transformações",
+          description: "Caminho para arquivos JavaScript de transformação personalizada de hooks.",
+        },
+        mappings: {
+          title: "Mapeamentos",
+          description:
+            "Regras para mapear cargas úteis de entrada para ações específicas do agente.",
+        },
+        gmail: {
+          title: "Ganchos Gmail",
+          description: "Configuração para notificações push do Google Gmail.",
+        },
+        internal: {
+          title: "Ganchos Internos",
+          description: "Configuração para ganchos gerados por módulos internos.",
+        },
+      },
       diagnostics: {
-        enabled: { title: "Diagnósticos Ativados" },
-        flags: { title: "Sinalizadores de Diagnóstico", description: 'Ex: ["telegram.http"].' },
+        enabled: {
+          title: "Diagnósticos Ativados",
+          description: "Habilitar diagnósticos internos e rastreamento.",
+        },
+        flags: {
+          title: "Sinalizadores de Diagnóstico",
+          description: 'Sinalizadores para depuração específica (ex: ["telegram.http"]).',
+        },
         otel: {
-          enabled: { title: "OpenTelemetry Habilitado" },
-          endpoint: { title: "Endpoint OpenTelemetry" },
-          protocol: { title: "Protocolo OpenTelemetry" },
-          headers: { title: "Cabeçalhos OpenTelemetry" },
-          serviceName: { title: "Nome do Serviço OpenTelemetry" },
-          traces: { title: "Rastreamento OpenTelemetry Habilitado" },
-          metrics: { title: "Métricas OpenTelemetry Habilitadas" },
-          logs: { title: "Logs OpenTelemetry Habilitados" },
-          sampleRate: { title: "Taxa de Amostragem de Rastreamento" },
-          flushIntervalMs: { title: "Intervalo de Envio (ms)" },
+          title: "OpenTelemetry",
+          description: "Exportar dados de telemetria via protocolo OpenTelemetry.",
+          enabled: {
+            title: "Habilitar OpenTelemetry",
+            description: "Habilitar exportação de telemetria via OpenTelemetry.",
+          },
+          endpoint: {
+            title: "Endpoint OpenTelemetry",
+            description: "URL do coletor OpenTelemetry (ex: http://localhost:4318).",
+          },
+          protocol: {
+            title: "Protocolo OpenTelemetry",
+            description: "Protocolo de transporte para OpenTelemetry.",
+          },
+          headers: {
+            title: "Cabeçalhos OpenTelemetry",
+            description: "Cabeçalhos HTTP adicionais para autenticação no coletor.",
+          },
+          serviceName: {
+            title: "Nome do Serviço OpenTelemetry",
+            description: "Nome do serviço para identificação na telemetria.",
+          },
+          traces: {
+            title: "Rastreamento OpenTelemetry Habilitado",
+            description: "Habilitar exportação de rastros (traces).",
+          },
+          metrics: {
+            title: "Métricas OpenTelemetry Habilitadas",
+            description: "Habilitar exportação de métricas.",
+          },
+          logs: {
+            title: "Logs OpenTelemetry Habilitados",
+            description: "Habilitar exportação de logs via OpenTelemetry.",
+          },
+          sampleRate: {
+            title: "Taxa de Amostragem de Rastreamento",
+            description: "Taxa de amostragem para rastreamento (0.0 a 1.0).",
+          },
+          flushIntervalMs: {
+            title: "Intervalo de Envio (ms)",
+            description: "Intervalo entre o envio de lotes de telemetria.",
+          },
         },
         cacheTrace: {
-          enabled: { title: "Rastreamento de Cache Ativado" },
-          filePath: { title: "Caminho do Arquivo de Rastreamento" },
-          includeMessages: { title: "Incluir Mensagens no Rastreamento" },
-          includePrompt: { title: "Incluir Prompt no Rastreamento" },
-          includeSystem: { title: "Incluir Sistema no Rastreamento" },
+          title: "Rastreio de Cache",
+          description: "Grava rastros de depuração para operações de cache em um arquivo.",
+          enabled: {
+            title: "Rastreamento de Cache Ativado",
+            description: "Gravar detalhes de cache em um arquivo de rastreamento.",
+          },
+          filePath: {
+            title: "Caminho do Arquivo de Rastreamento",
+            description: "Caminho do arquivo onde o rastreamento será salvo.",
+          },
+          includeMessages: {
+            title: "Incluir Mensagens no Rastreamento",
+            description: "Incluir o conteúdo das mensagens no rastreamento.",
+          },
+          includePrompt: {
+            title: "Incluir Prompt no Rastreamento",
+            description: "Incluir o prompt enviado ao modelo no rastreamento.",
+          },
+          includeSystem: {
+            title: "Incluir Sistema no Rastreamento",
+            description: "Incluir instruções de sistema no rastreamento.",
+          },
         },
       },
       gateway: {
+        port: { title: "Porta", description: "Porta HTTP para o servidor gateway." },
+        mode: {
+          title: "Modo",
+          description: "Modo de operação do gateway (local ou remoto).",
+        },
+        bind: {
+          title: "Vínculo de Rede",
+          description: "Interface de rede para vincular o servidor.",
+        },
         auth: {
-          token: { title: "Token do Gateway" },
-          password: { title: "Senha do Gateway" },
+          title: "Autenticação",
+          description: "Configurações de autenticação para acesso ao gateway.",
+          mode: {
+            title: "Modo de Autenticação",
+            description: "Método de autenticação (token ou senha).",
+          },
+          token: { title: "Token do Gateway", description: "Token estático para acesso à API." },
+          password: {
+            title: "Senha do Gateway",
+            description: "Senha para acesso à interface de controle.",
+          },
+          allowTailscale: {
+            title: "Permitir Tailscale",
+            description: "Permitir autenticação automática via Tailscale.",
+          },
+        },
+        trustedProxies: {
+          title: "Proxies Confiáveis",
+          description: "Lista de IPs ou redes de proxy confiáveis.",
+        },
+        tailscale: {
+          title: "Tailscale",
+          description: "Integração com VPN Tailscale para acesso remoto seguro.",
+          mode: {
+            title: "Modo Tailscale",
+            description: "Configuração de exposição via Tailscale.",
+          },
+          resetOnExit: {
+            title: "Redefinir ao Sair",
+            description: "Remover a configuração do Tailscale ao desligar.",
+          },
         },
         remote: {
-          url: { title: "URL do Gateway Remoto" },
-          sshTarget: { title: "Alvo SSH Remoto" },
-          sshIdentity: { title: "Identidade SSH Remota" },
-          token: { title: "Token do Gateway Remoto" },
-          password: { title: "Senha do Gateway Remoto" },
-          tlsFingerprint: { title: "Digital TLS (Fingerprint)" },
+          title: "Remoto",
+          description: "Configurações para conexão com servidor gateway remoto.",
+          url: {
+            title: "URL do Gateway Remoto",
+            description: "Endereço do servidor de gateway remoto.",
+          },
+          transport: {
+            title: "Transporte",
+            description: "Protocolo de transporte (SSH ou Direto).",
+          },
+          token: {
+            title: "Token do Gateway Remoto",
+            description: "Token para autenticação remota.",
+          },
+          password: {
+            title: "Senha do Gateway Remoto",
+            description: "Senha para autenticação remota.",
+          },
+          tlsFingerprint: {
+            title: "Impressão Digital TLS",
+            description: "Assinatura do certificado para validação.",
+          },
+          sshTarget: { title: "Alvo SSH", description: "Endereço SSH para o túnel." },
+          sshIdentity: {
+            title: "Identidade SSH",
+            description: "Caminho para a chave privada SSH.",
+          },
         },
         controlUi: {
-          basePath: { title: "Caminho Base da Interface" },
-          root: { title: "Raiz da Interface" },
-          allowedOrigins: { title: "Origens Permitidas (CORS)" },
-          allowInsecureAuth: { title: "Permitir Autenticação Insegura (HTTP)" },
+          title: "Interface de Controle",
+          description: "Interface web de administração para configurar e monitorar o gateway.",
+          enabled: {
+            title: "Habilitar Interface",
+            description: "Ativar a interface de gerenciamento web.",
+          },
+          basePath: {
+            title: "Caminho Base",
+            description: "Prefixo da URL sob o qual a interface de controle está acessível.",
+          },
+          root: {
+            title: "Diretório Raiz",
+            description: "Caminho no sistema de arquivos para os ativos da UI pré-construídos.",
+          },
+          allowedOrigins: {
+            title: "Origens Permitidas (CORS)",
+            description:
+              "Lista de domínios permitidos para interagir com a API do gateway via navegador.",
+          },
+          allowInsecureAuth: {
+            title: "Permitir Autenticação Insegura",
+            description: "Permitir autenticação em conexões não-HTTPS (apenas para depuração).",
+          },
           dangerouslyDisableDeviceAuth: {
-            title: "Desativar Verificação de Dispositivo (Perigoso)",
+            title: "Desativar Autenticação de Dispositivo (Perigoso)",
+            description:
+              "Ignorar verificações de segurança de nível de dispositivo para login na UI.",
+          },
+        },
+        tls: {
+          title: "TLS (HTTPS)",
+          description: "Configurações de segurança de transporte para conexões criptografadas.",
+          enabled: { title: "TLS Habilitado", description: "Habilitar criptografia HTTPS." },
+          autoGenerate: {
+            title: "Gerar Certificado Automaticamente",
+            description: "Criar certificados autoassinados automaticamente.",
+          },
+          certPath: {
+            title: "Caminho do Certificado",
+            description: "Caminho para o arquivo .crt ou .pem.",
+          },
+          keyPath: {
+            title: "Caminho da Chave",
+            description: "Caminho para o arquivo de chave privada .key.",
+          },
+          caPath: {
+            title: "Caminho da CA",
+            description: "Caminho para o arquivo da autoridade certificadora (opcional).",
           },
         },
         http: {
+          title: "Endpoints HTTP",
+          description: "Configuração para endpoints de API HTTP expostos pelo gateway.",
           endpoints: {
-            chatCompletions: { enabled: { title: "Endpoint de Completions OpenAI" } },
+            chatCompletions: {
+              enabled: {
+                title: "Endpoint de Completions OpenAI",
+                description: "Emular API da OpenAI.",
+              },
+            },
+            responses: {
+              enabled: {
+                title: "Endpoint de Respostas",
+                description: "Habilitar processamento de respostas via HTTP.",
+              },
+              maxBodyBytes: {
+                title: "Tamanho Máximo do Corpo",
+                description: "Limite de bytes para o corpo da requisição.",
+              },
+              files: {
+                allowUrl: { title: "Permitir URLs", description: "Permitir download via URL." },
+                allowedMimes: {
+                  title: "Tipos MIME Permitidos",
+                  description: "Tipos de arquivo aceitos.",
+                },
+                maxBytes: {
+                  title: "Tamanho Máximo (Bytes)",
+                  description: "Tamanho máximo por arquivo.",
+                },
+                maxChars: {
+                  title: "Máximo de Caracteres",
+                  description: "Limite de texto extraído.",
+                },
+                maxRedirects: {
+                  title: "Máximo de Redirecionamentos",
+                  description: "Limite de saltos HTTP.",
+                },
+                timeoutMs: {
+                  title: "Tempo Limite (ms)",
+                  description: "Timeout para download de arquivos.",
+                },
+                pdf: {
+                  maxPages: {
+                    title: "Máximo de Páginas PDF",
+                    description: "Limite de páginas para processar.",
+                  },
+                  maxPixels: {
+                    title: "Máximo de Pixels",
+                    description: "Resolução máxima para imagens PDF.",
+                  },
+                  minTextChars: {
+                    title: "Mínimo de Caracteres",
+                    description: "Mínimo para considerar texto extraível.",
+                  },
+                },
+              },
+              images: {
+                allowUrl: {
+                  title: "Permitir URLs",
+                  description: "Permitir carregar imagens via URL.",
+                },
+                allowedMimes: {
+                  title: "Tipos MIME Permitidos",
+                  description: "Formatos de imagem aceitos.",
+                },
+                maxBytes: {
+                  title: "Tamanho Máximo (Bytes)",
+                  description: "Tamanho máximo por imagem.",
+                },
+              },
+            },
           },
         },
         reload: {
-          mode: { title: "Modo de Recarga" },
-          debounceMs: { title: "Debounce de Recarga (ms)" },
+          title: "Recarga",
+          description: "Configuração de como o gateway lida com mudanças de configuração.",
+          mode: {
+            title: "Modo de Recarga",
+            description: "Como o gateway reinicia após mudanças na configuração.",
+          },
+          debounceMs: {
+            title: "Debounce de Recarga (ms)",
+            description: "Atraso antes de aplicar a recarga.",
+          },
         },
         nodes: {
+          title: "Nodes",
+          description: "Configurações para nodes distribuídos do gateway.",
           browser: {
-            mode: { title: "Modo de Navegador de Node" },
-            node: { title: "Node de Navegador Fixo" },
+            mode: {
+              title: "Modo de Navegador de Node",
+              description: "Como os nodes lidam com sessões de navegador.",
+            },
+            node: {
+              title: "Node de Navegador Fixo",
+              description: "Vincular sessões de browser a um node específico.",
+            },
           },
-          allowCommands: { title: "Comandos Permitidos (Node)" },
-          denyCommands: { title: "Comandos Bloqueados (Node)" },
+          allowCommands: {
+            title: "Comandos Permitidos (Node)",
+            description: "Lista de comandos permitidos para execução remota.",
+          },
+          denyCommands: {
+            title: "Comandos Bloqueados (Node)",
+            description: "Lista de comandos proibidos para execução remota.",
+          },
         },
       },
       ui: {
-        seamColor: { title: "Cor de Destaque" },
+        seamColor: {
+          title: "Cor de Destaque",
+          description: "Cor de destaque para a interface do usuário.",
+        },
         assistant: {
-          name: { title: "Nome do Assistente" },
-          avatar: { title: "Avatar do Assistente" },
+          title: "Assistente",
+          description: "Personalize a identidade do assistente exibida no chat.",
+          name: { title: "Nome do Assistente", description: "Nome usado pelo assistente no chat." },
+          avatar: {
+            title: "Avatar do Assistente",
+            description: "URL ou caminho local para o avatar do assistente.",
+          },
         },
       },
       messages: {
-        ackReaction: { title: "Emoji de Confirmação" },
+        messagePrefix: {
+          title: "Prefixo de Mensagem",
+          description: "Texto prefixado em mensagens enviadas.",
+        },
+        responsePrefix: {
+          title: "Prefixo de Resposta",
+          description: "Texto prefixado em respostas do bot.",
+        },
+        groupChat: {
+          title: "Chat em Grupo",
+          description: "Habilitar ou configurar chat em grupo.",
+        },
+        queue: {
+          title: "Fila de Mensagens",
+          description: "Configurações para o enfileiramento de mensagens.",
+        },
+        ackReaction: {
+          title: "Emoji de Confirmação",
+          description: "Emoji usado para confirmação de mensagens.",
+        },
+        ackReactionScope: {
+          title: "Escopo da Confirmação",
+          description: "Escopo para as reações de confirmação.",
+        },
+        removeAckAfterReply: {
+          title: "Remover Confirmação Após Resposta",
+          description: "Limpar o emoji após responder.",
+        },
+        tts: { title: "Conversão de Voz (TTS)", description: "Configuração para síntese de fala." },
         inbound: {
-          debounceMs: { title: "Debounce de Entrada (ms)" },
+          title: "Entrada",
+          description: "Configurações para o tratamento de mensagens recebidas.",
+          debounceMs: {
+            title: "Debounce de Entrada (ms)",
+            description: "Tempo de espera (debounce) para mensagens recebidas.",
+          },
         },
       },
       tools: {
         exec: {
+          title: "Execução",
+          description: "Configurações para execução de código e comandos.",
           applyPatch: {
-            enabled: { title: "Habilitar apply_patch" },
-            allowModels: { title: "Modelos Permitidos para Patch" },
-          },
-          notifyOnExit: { title: "Notificar ao Sair" },
-          approvalRunningNoticeMs: { title: "Aviso de Aprovação em Execução (ms)" },
-          host: { title: "Host de Execução" },
-          security: { title: "Segurança de Execução" },
-          ask: { title: "Perguntar ao Executar" },
-          node: { title: "Vínculo de Node de Execução" },
-          pathPrepend: { title: "Prepend de PATH" },
-          safeBins: { title: "Binários Seguros" },
-        },
-        message: {
-          allowCrossContextSend: { title: "Permitir Envio Cruzado" },
-          crossContext: {
-            allowWithinProvider: { title: "Permitir Mesmo Provedor" },
-            allowAcrossProviders: { title: "Permitir Entre Provedores" },
-            marker: {
-              enabled: { title: "Marcador de Contexto" },
-              prefix: { title: "Prefixo do Marcador" },
-              suffix: { title: "Sufixo do Marcador" },
+            title: "Aplicar Patch",
+            enabled: {
+              title: "Habilitar apply_patch",
+              description: "Permitir que agentes usem a ferramenta apply_patch.",
+            },
+            allowModels: {
+              title: "Modelos Permitidos para Patch",
+              description: "Lista de modelos autorizados a realizar patches no código-fonte.",
             },
           },
-          broadcast: { enabled: { title: "Transmissão Habilitada" } },
+          notifyOnExit: {
+            title: "Notificar ao Sair",
+            description:
+              "Enviar uma notificação quando uma execução de longa duração for concluída.",
+          },
+          approvalRunningNoticeMs: {
+            title: "Aviso de Aprovação em Execução (ms)",
+            description: "Tempo para exibir um aviso antes que uma auto-aprovação seja executada.",
+          },
+          host: { title: "Host de Execução", description: "Host alvo para execução de comandos." },
+          security: {
+            title: "Segurança de Execução",
+            description: "Perfil de segurança para o ambiente de execução.",
+          },
+          ask: {
+            title: "Perguntar ao Executar",
+            description: "Exigir aprovação do usuário para todas as execuções.",
+          },
+          node: {
+            title: "Vínculo de Node de Execução",
+            description: "Node específico atribuído para lidar com tarefas de execução.",
+          },
+          pathPrepend: {
+            title: "Adicionar ao Início do PATH (Prepend)",
+            description: "Diretórios para adicionar ao início do PATH de execução.",
+          },
+          safeBins: {
+            title: "Binários Seguros",
+            description:
+              "Lista de caminhos de binários permitidos para execução sem restrições adicionais de sandbox.",
+          },
+        },
+        message: {
+          title: "Mensagens",
+          description: "Configuração interna de roteamento e entrega de mensagens.",
+          allowCrossContextSend: {
+            title: "Permitir Envio Cruzado",
+            description: "Permitir o envio de mensagens entre diferentes contextos de conversa.",
+          },
+          crossContext: {
+            title: "Contexto Cruzado",
+            description: "Roteamento avançado para comunicação entre contextos.",
+            allowWithinProvider: {
+              title: "Permitir Mesmo Provedor",
+              description: "Permitir contexto cruzado dentro do mesmo provedor de serviço.",
+            },
+            allowAcrossProviders: {
+              title: "Permitir Entre Provedores",
+              description: "Permitir contexto cruzado entre diferentes provedores de serviço.",
+            },
+            marker: {
+              title: "Marcador",
+              description: "Indicadores visuais para mensagens de contexto cruzado.",
+              enabled: {
+                title: "Marcador de Contexto",
+                description: "Habilitar marcadores em mensagens de contexto cruzado.",
+              },
+              prefix: {
+                title: "Prefixo do Marcador",
+                description: "Símbolo ou texto antes do ID do contexto.",
+              },
+              suffix: {
+                title: "Sufixo do Marcador",
+                description: "Símbolo ou texto após o ID do contexto.",
+              },
+            },
+          },
+          broadcast: {
+            title: "Transmissão (Broadcast)",
+            description:
+              "Ferramentas para enviar mensagens para múltiplos destinatários simultaneamente.",
+            enabled: {
+              title: "Transmissão Habilitada",
+              description: "Ativar ou desativar a ferramenta de transmissão.",
+            },
+          },
         },
         web: {
+          title: "Web",
+          description: "Ferramentas de navegação, pesquisa e extração de conteúdo web.",
+
           search: {
-            enabled: { title: "Pesquisa Web Ativada" },
-            provider: { title: "Provedor de Pesquisa" },
-            apiKey: { title: "Chave de API de Pesquisa" },
-            maxResults: { title: "Máximo de Resultados" },
-            timeoutSeconds: { title: "Timeout (seg)" },
-            cacheTtlMinutes: { title: "TTL de Cache (min)" },
+            title: "Pesquisa Web",
+            description: "Pesquisar na web por informações usando provedores externos.",
+            enabled: {
+              title: "Pesquisa Web Ativada",
+              description: "Ativar a ferramenta de pesquisa.",
+            },
+
+            provider: {
+              title: "Provedor de Pesquisa",
+              description: "Provedor de mecanismo de busca principal.",
+            },
+            apiKey: {
+              title: "Chave de API de Pesquisa",
+              description: "Chave de API para o provedor de pesquisa.",
+            },
+            maxResults: {
+              title: "Máximo de Resultados",
+              description: "Número máximo de resultados de pesquisa.",
+            },
+            timeoutSeconds: {
+              title: "Timeout (seg)",
+              description: "Limite de tempo para solicitações de pesquisa.",
+            },
+            cacheTtlMinutes: {
+              title: "TTL de Cache (min)",
+              description: "Duração para manter resultados em cache.",
+            },
             perplexity: {
-              apiKey: { title: "Chave de API Perplexity" },
-              baseUrl: { title: "URL Base Perplexity" },
-              model: { title: "Modelo Perplexity" },
+              apiKey: {
+                title: "Chave de API Perplexity",
+                description: "Autenticação para a API da Perplexity.",
+              },
+              baseUrl: {
+                title: "URL Base Perplexity",
+                description: "URL base para as requisições da Perplexity.",
+              },
+              model: {
+                title: "Modelo Perplexity",
+                description: "Modelo para usar com o serviço da Perplexity.",
+              },
             },
           },
           fetch: {
-            enabled: { title: "Busca Web (Fetch) Ativada" },
-            maxChars: { title: "Máximo de Caracteres" },
-            maxCharsCap: { title: "Teto Máximo de Caracteres" },
-            timeoutSeconds: { title: "Timeout (seg)" },
-            cacheTtlMinutes: { title: "TTL de Cache (min)" },
-            maxRedirects: { title: "Máximo de Redirecionamentos" },
-            userAgent: { title: "User-Agent" },
-            readability: { title: "Usar Readability" },
+            title: "Busca Web (Fetch)",
+            description: "Recuperar conteúdo de URLs web específicas.",
+
+            enabled: {
+              title: "Busca Web (Fetch) Ativada",
+              description: "Ativar a ferramenta de busca web.",
+            },
+            maxChars: {
+              title: "Máximo de Caracteres",
+              description: "Máximo de caracteres a extrair de uma página.",
+            },
+            maxCharsCap: {
+              title: "Teto Máximo de Caracteres",
+              description: "Limite superior absoluto para extração.",
+            },
+            timeoutSeconds: {
+              title: "Timeout (seg)",
+              description: "Timeout de conexão e download.",
+            },
+            cacheTtlMinutes: {
+              title: "TTL de Cache (min)",
+              description: "Duração para manter conteúdo buscado em cache.",
+            },
+            maxRedirects: {
+              title: "Máximo de Redirecionamentos",
+              description: "Número máximo de redirecionamentos HTTP.",
+            },
+            userAgent: {
+              title: "User-Agent",
+              description: "Cabeçalho de identificação do gateway.",
+            },
+            readability: {
+              title: "Usar Readability",
+              description: "Aplicar algoritmo de legibilidade para extrair conteúdo principal.",
+            },
             firecrawl: {
-              enabled: { title: "Firecrawl Habilitado" },
-              apiKey: { title: "Chave de API Firecrawl" },
-              baseUrl: { title: "URL Base Firecrawl" },
-              onlyMainContent: { title: "Apenas Conteúdo Principal" },
-              maxAgeMs: { title: "Idade Máxima do Cache (ms)" },
-              timeoutSeconds: { title: "Timeout Firecrawl (seg)" },
+              enabled: {
+                title: "Firecrawl Habilitado",
+                description: "Habilitar Firecrawl para raspagem web.",
+              },
+              apiKey: {
+                title: "Chave de API Firecrawl",
+                description: "Chave de API para o serviço Firecrawl.",
+              },
+              baseUrl: {
+                title: "URL Base Firecrawl",
+                description: "URL personalizada para a API do Firecrawl.",
+              },
+              onlyMainContent: {
+                title: "Apenas Conteúdo Principal",
+                description: "Extrair apenas o conteúdo principal das páginas.",
+              },
+              maxAgeMs: {
+                title: "Idade Máxima (ms)",
+                description: "Idade máxima do cache para os resultados.",
+              },
+              timeoutSeconds: {
+                title: "Timeout Firecrawl (seg)",
+                description: "Tempo limite para as requisições de raspagem.",
+              },
             },
           },
         },
         links: {
-          enabled: { title: "Análise de Links Habilitada" },
-          maxLinks: { title: "Máximo de Links" },
-          timeoutSeconds: { title: "Timeout (seg)" },
-          models: { title: "Modelos de Análise de Link" },
-          scope: { title: "Escopo de Link" },
+          title: "Análise de Links",
+          description: "Análise e extração de conteúdo de links encontrados em mensagens.",
+          enabled: {
+            title: "Análise de Links Habilitada",
+            description: "Ativar a ferramenta de análise de links.",
+          },
+          maxLinks: {
+            title: "Máximo de Links",
+            description: "Número máximo de links a analisar por mensagem.",
+          },
+          timeoutSeconds: {
+            title: "Timeout (seg)",
+            description: "Limite de tempo para análise de links.",
+          },
+          models: {
+            title: "Modelos de Análise de Link",
+            description: "Modelos usados para extração de conteúdo de links.",
+          },
+          scope: {
+            title: "Escopo de Link",
+            description: "Compartilhamento de contexto para análise de links.",
+          },
         },
         media: {
-          models: { title: "Modelos de Mídia Compartilhados" },
-          concurrency: { title: "Concorrência de Mídia" },
+          title: "Processamento de Mídia",
+          description: "Configurações globais para processamento de imagem, áudio e vídeo.",
+          models: {
+            title: "Modelos de Mídia Compartilhados",
+            description: "Modelos padrão para compreensão de mídia.",
+          },
+          concurrency: {
+            title: "Concorrência de Mídia",
+            description: "Limite de tarefas simultâneas de processamento.",
+          },
           image: {
-            enabled: { title: "Compreensão de Imagem Ativada" },
-            maxBytes: { title: "Máximo de Bytes" },
-            maxChars: { title: "Máximo de Caracteres" },
-            prompt: { title: "Prompt de Imagem" },
-            timeoutSeconds: { title: "Timeout (seg)" },
-            attachments: { title: "Política de Anexos" },
-            models: { title: "Modelos de Imagem" },
-            scope: { title: "Escopo de Imagem" },
+            title: "Compreensão de Imagem",
+            description: "Configurações para analisar e extrair texto/significado de imagens.",
+            enabled: {
+              title: "Compreensão de Imagem Ativada",
+              description: "Ativar a ferramenta de processamento de imagem.",
+            },
+
+            maxBytes: {
+              title: "Máximo de Bytes",
+              description: "Limite de tamanho para arquivos de imagem.",
+            },
+            maxChars: { title: "Máximo de Caracteres", description: "Máximo de texto a extrair." },
+            prompt: {
+              title: "Prompt de Imagem",
+              description: "Instrução padrão para análise de imagem.",
+            },
+            timeoutSeconds: {
+              title: "Timeout (seg)",
+              description: "Limite de tempo para processamento.",
+            },
+            attachments: {
+              title: "Política de Anexos",
+              description: "Como lidar com anexos de imagem.",
+            },
+            models: {
+              title: "Modelos de Imagem",
+              description: "Modelos específicos para compreensão de imagem.",
+            },
+            scope: { title: "Escopo de Imagem", description: "Compartilhamento de contexto." },
           },
           audio: {
-            enabled: { title: "Compreensão de Áudio Ativada" },
-            maxBytes: { title: "Máximo de Bytes" },
-            maxChars: { title: "Máximo de Caracteres" },
-            prompt: { title: "Prompt de Áudio" },
-            timeoutSeconds: { title: "Timeout (seg)" },
-            language: { title: "Idioma do Áudio" },
-            attachments: { title: "Política de Anexos" },
-            models: { title: "Modelos de Áudio" },
-            scope: { title: "Escopo de Áudio" },
+            title: "Compreensão de Áudio",
+            description: "Configurações para transcrever e analisar arquivos de áudio.",
+            enabled: {
+              title: "Compreensão de Áudio Ativada",
+              description: "Ativar a ferramenta de processamento de áudio.",
+            },
+
+            maxBytes: {
+              title: "Máximo de Bytes",
+              description: "Limite de tamanho para arquivos de áudio.",
+            },
+            maxChars: {
+              title: "Máximo de Caracteres",
+              description: "Máximo de texto a transcrever.",
+            },
+            prompt: {
+              title: "Prompt de Áudio",
+              description: "Instrução padrão para análise de áudio.",
+            },
+            timeoutSeconds: {
+              title: "Timeout (seg)",
+              description: "Limite de tempo para processamento.",
+            },
+            language: {
+              title: "Idioma do Áudio",
+              description: "Código do idioma para transcrição.",
+            },
+            attachments: {
+              title: "Política de Anexos",
+              description: "Como lidar com anexos de áudio.",
+            },
+            models: {
+              title: "Modelos de Áudio",
+              description: "Modelos específicos para compreensão de áudio.",
+            },
+            scope: { title: "Escopo de Áudio", description: "Compartilhamento de contexto." },
           },
           video: {
-            enabled: { title: "Compreensão de Vídeo Ativada" },
-            maxBytes: { title: "Máximo de Bytes" },
-            maxChars: { title: "Máximo de Caracteres" },
-            prompt: { title: "Prompt de Vídeo" },
-            timeoutSeconds: { title: "Timeout (seg)" },
-            attachments: { title: "Política de Anexos" },
-            models: { title: "Modelos de Vídeo" },
-            scope: { title: "Escopo de Vídeo" },
+            title: "Compreensão de Vídeo",
+            description: "Configurações para analisar conteúdo de vídeo.",
+            enabled: {
+              title: "Compreensão de Vídeo Ativada",
+              description: "Ativar a ferramenta de processamento de vídeo.",
+            },
+
+            maxBytes: {
+              title: "Máximo de Bytes",
+              description: "Limite de tamanho para arquivos de vídeo.",
+            },
+            maxChars: { title: "Máximo de Caracteres", description: "Máximo de texto a extrair." },
+            prompt: {
+              title: "Prompt de Vídeo",
+              description: "Instrução padrão para análise de vídeo.",
+            },
+            timeoutSeconds: {
+              title: "Timeout (seg)",
+              description: "Limite de tempo para processamento.",
+            },
+            attachments: {
+              title: "Política de Anexos",
+              description: "Como lidar com anexos de vídeo.",
+            },
+            models: {
+              title: "Modelos de Vídeo",
+              description: "Modelos específicos para compreensão de vídeo.",
+            },
+            scope: { title: "Escopo de Vídeo", description: "Compartilhamento de contexto." },
           },
         },
-        profile: { title: "Perfil de Ferramentas" },
-        alsoAllow: { title: "Permissões Adicionais de Ferramentas" },
-        byProvider: { title: "Política de Ferramentas por Provedor" },
+        profile: {
+          title: "Perfil de Ferramentas",
+          description: "Perfil de ferramentas para este agente.",
+        },
+        alsoAllow: {
+          title: "Permissões Adicionais de Ferramentas",
+          description: "Ferramentas adicionais permitidas.",
+        },
+        byProvider: {
+          title: "Política de Ferramentas por Provedor",
+          description: "Políticas de ferramentas específicas por provedor.",
+        },
+        allow: {
+          title: "Ferramentas Permitidas",
+          description: "Ferramentas explicitamente permitidas para este agente.",
+        },
+        deny: {
+          title: "Ferramentas Negadas",
+          description: "Ferramentas explicitamente bloqueadas para este agente.",
+        },
+        elevated: {
+          title: "Ferramentas Elevadas",
+          description: "Ferramentas que requerem permissões elevadas.",
+        },
+        sandbox: {
+          title: "Sandbox",
+          description: "Configuração do sandbox de execução de código.",
+          enabled: {
+            title: "Sandbox Habilitado",
+            description: "Habilitar execução de código em sandbox.",
+          },
+          mode: { title: "Modo de Sandbox", description: "Tipo de isolamento do sandbox." },
+        },
+        subagents: {
+          title: "Subagentes",
+          description: "Configurações para criar e gerenciar subagentes.",
+          enabled: {
+            title: "Subagentes Habilitados",
+            description: "Permitir que este agente crie subagentes.",
+          },
+          maxDepth: {
+            title: "Profundidade Máxima",
+            description: "Profundidade máxima de aninhamento para subagentes.",
+          },
+        },
+        agentToAgent: {
+          title: "Agente para Agente",
+          description: "Configurações de ferramenta de comunicação entre agentes.",
+          enabled: {
+            title: "Habilitado",
+            description: "Habilitar ferramentas de comunicação entre agentes.",
+          },
+        },
       },
       channels: {
         telegram: {
@@ -1208,17 +2180,50 @@ export const pt = {
             title: "Contas",
             "*": {
               title: "Configuração de Conta",
-              botToken: { title: "Token do Bot" },
-              dmPolicy: { title: "Política de DM" },
-              allowFrom: { title: "Permitir De" },
-              groupAllowFrom: { title: "Permitir De (Grupo)" },
-              historyLimit: { title: "Limite do Histórico" },
-              blockStreaming: { title: "Bloquear Streaming" },
-              linkPreview: { title: "Prévia de Link" },
-              responsePrefix: { title: "Prefixo de Resposta" },
-              replyToMode: { title: "Modo de Resposta" },
-              groupPolicy: { title: "Política de Grupo" },
-              mediaMaxMb: { title: "Máximo de MB de Mídia" },
+              botToken: {
+                title: "Token do Bot",
+                description: "Token de autenticação para o bot do Telegram.",
+              },
+              dmPolicy: {
+                title: "Política de DM",
+                description: "Como lidar com mensagens diretas.",
+              },
+              allowFrom: {
+                title: "Permitir De",
+                description: "IDs de usuários permitidos para mensagens.",
+              },
+              groupAllowFrom: {
+                title: "Permitir De (Grupo)",
+                description: "IDs de grupos permitidos.",
+              },
+              historyLimit: {
+                title: "Limite do Histórico",
+                description: "Número de mensagens mantidas no contexto.",
+              },
+              blockStreaming: {
+                title: "Bloquear Streaming",
+                description: "Desativar streaming de mensagens em tempo real.",
+              },
+              linkPreview: {
+                title: "Prévia de Link",
+                description: "Ativar ou desativar prévias de link.",
+              },
+              responsePrefix: {
+                title: "Prefixo de Resposta",
+                description: "Texto adicionado antes das respostas do bot.",
+              },
+              replyToMode: {
+                title: "Modo de Resposta",
+                description: "Como o bot responde às mensagens.",
+              },
+              groupPolicy: {
+                title: "Política de Grupo",
+                description: "Como lidar com mensagens de grupo.",
+              },
+              mediaMaxMb: {
+                title: "Máximo de MB de Mídia",
+                description: "Tamanho máximo de arquivo de mídia em MB.",
+              },
             },
           },
           draftChunk: {
@@ -1251,219 +2256,1483 @@ export const pt = {
         },
         whatsapp: {
           title: "WhatsApp",
-          selfChatMode: { title: "Modo de Telefone Próprio" },
-          debounceMs: { title: "Debounce (ms)" },
+          selfChatMode: {
+            title: "Modo de Telefone Próprio",
+            description: "Como lidar com mensagens do seu próprio número.",
+          },
+          debounceMs: {
+            title: "Debounce (ms)",
+            description: "Tempo de espera antes de processar mensagens recebidas.",
+          },
         },
         discord: {
           title: "Discord",
-          token: { title: "Token do Bot" },
-          maxLinesPerMessage: { title: "Máximo de Linhas por Mensagem" },
+          token: {
+            title: "Token do Bot",
+            description: "Token de autenticação para o bot do Discord.",
+          },
+          maxLinesPerMessage: {
+            title: "Máximo de Linhas por Mensagem",
+            description: "Número máximo de linhas por mensagem.",
+          },
         },
         slack: {
           title: "Slack",
-          botToken: { title: "Token do Bot" },
-          appToken: { title: "Token do App" },
+          botToken: {
+            title: "Token do Bot",
+            description: "Token de autenticação para o bot do Slack.",
+          },
+          appToken: { title: "Token do App", description: "Token do aplicativo para modo socket." },
           thread: {
-            historyScope: { title: "Escopo do Histórico de Threads" },
-            inheritParent: { title: "Herdar do Pai" },
+            title: "Thread",
+            historyScope: {
+              title: "Escopo do Histórico de Threads",
+              description: "Escopo para histórico de mensagens em threads.",
+            },
+            inheritParent: {
+              title: "Herdar do Pai",
+              description: "Herdar configuração da thread pai.",
+            },
           },
         },
-        mattermost: { title: "Mattermost" },
-        signal: { title: "Signal" },
-        imessage: { title: "iMessage" },
-        bluebubbles: { title: "BlueBubbles" },
-        msteams: { title: "MS Teams" },
+        mattermost: {
+          title: "Mattermost",
+          description: "Configuração de integração com Mattermost.",
+        },
+        signal: { title: "Signal", description: "Configuração do mensageiro Signal." },
+        imessage: {
+          title: "iMessage",
+          description: "Integração com iMessage da Apple (apenas macOS).",
+        },
+        bluebubbles: {
+          title: "BlueBubbles",
+          description: "Configuração da ponte BlueBubbles iMessage.",
+        },
+        msteams: {
+          title: "MS Teams",
+          description: "Configuração de integração com Microsoft Teams.",
+        },
       },
       memory: {
         backend: {
           title: "Backend de Memória",
-          description: 'Provedor de memória ("builtin" para nativo ou "qmd" para sidecar).',
+          description: 'Provedor de memória ("Integrado" para nativo ou "QMD" para sidecar).',
         },
         citations: { title: "Citações", description: "Comportamento padrão de citações." },
         qmd: {
-          command: { title: "Binário QMD" },
-          includeDefaultMemory: { title: "Incluir Memória Padrão" },
-          scope: { title: "Escopo de Superfície QMD" },
+          title: "Configuração QMD",
+          description: "Configurações para o sidecar de memória QMD.",
+          command: {
+            title: "Binário QMD",
+            description: "Caminho para o binário executável do QMD.",
+          },
+          includeDefaultMemory: {
+            title: "Incluir Memória Padrão",
+            description: "Incluir arquivos de memória padrão no QMD.",
+          },
+          scope: {
+            title: "Escopo de Superfície QMD",
+            description: "Nível de escopo para buscas de memória QMD.",
+          },
           paths: {
             title: "Caminhos Extras QMD",
-            path: { title: "Caminho" },
-            pattern: { title: "Padrão" },
-            name: { title: "Nome" },
+            path: { title: "Caminho", description: "Caminho do diretório para memória adicional." },
+            pattern: {
+              title: "Padrão",
+              description: "Padrão de arquivo para corresponder (glob).",
+            },
+            name: { title: "Nome", description: "Nome de exibição para este caminho de memória." },
           },
           sessions: {
-            enabled: { title: "Indexação de Sessões QMD" },
-            exportDir: { title: "Diretório de Exportação" },
-            retentionDays: { title: "Retenção (dias)" },
+            enabled: {
+              title: "Indexação de Sessões QMD",
+              description: "Ativar indexação de transcrições de sessão.",
+            },
+            exportDir: {
+              title: "Diretório de Exportação",
+              description: "Diretório para dados de sessão exportados.",
+            },
+            retentionDays: {
+              title: "Retenção (dias)",
+              description: "Dias para reter dados de sessão.",
+            },
           },
           update: {
-            interval: { title: "Intervalo de Atualização" },
-            debounceMs: { title: "Debounce (ms)" },
-            onBoot: { title: "Atualizar ao Iniciar" },
-            waitForBootSync: { title: "Aguardar Sincronização no Boot" },
-            embedInterval: { title: "Intervalo de Embedding" },
-            commandTimeoutMs: { title: "Timeout de Comando (ms)" },
-            updateTimeoutMs: { title: "Timeout de Atualização (ms)" },
-            embedTimeoutMs: { title: "Timeout de Embedding (ms)" },
+            interval: {
+              title: "Intervalo de Atualização",
+              description: "Intervalo entre verificações de atualização.",
+            },
+            debounceMs: {
+              title: "Debounce (ms)",
+              description: "Tempo de espera antes de disparar atualização.",
+            },
+            onBoot: {
+              title: "Atualizar na Inicialização (Boot)",
+              description: "Atualizar índice na inicialização do gateway.",
+            },
+            waitForBootSync: {
+              title: "Aguardar Sincronização na Inicialização",
+              description: "Bloquear até a sincronização inicial completar.",
+            },
+            embedInterval: {
+              title: "Intervalo de Embedding",
+              description: "Intervalo para atualizações de embedding.",
+            },
+            commandTimeoutMs: {
+              title: "Timeout de Comando (ms)",
+              description: "Timeout para comandos QMD.",
+            },
+            updateTimeoutMs: {
+              title: "Timeout de Atualização (ms)",
+              description: "Timeout para operações de atualização.",
+            },
+            embedTimeoutMs: {
+              title: "Timeout de Embedding (ms)",
+              description: "Timeout para operações de embedding.",
+            },
           },
           limits: {
-            maxResults: { title: "Máximo de Resultados" },
-            maxSnippetChars: { title: "Máximo de Caracteres do Trecho" },
-            maxInjectedChars: { title: "Máximo de Caracteres Injetados" },
-            timeoutMs: { title: "Timeout (ms)" },
+            maxResults: {
+              title: "Máximo de Resultados",
+              description: "Máximo de resultados de busca a retornar.",
+            },
+            maxSnippetChars: {
+              title: "Máximo de Caracteres do Trecho (Snippet)",
+              description: "Máximo de caracteres por trecho.",
+            },
+            maxInjectedChars: {
+              title: "Máximo de Caracteres Injetados",
+              description: "Máximo de caracteres injetados no contexto.",
+            },
+            timeoutMs: {
+              title: "Tempo Limite (ms)",
+              description: "Timeout de busca em milissegundos.",
+            },
           },
         },
       },
       agents: {
+        title: "Agentes",
+        description: "Configurações de agentes, modelos e identidades.",
+        thinking: {
+          title: "Racio. Padrão (Thinking)",
+          description: "Nível de detalhamento do raciocínio interno exibido.",
+        },
+        thinking_default: {
+          title: "Racio. Padrão (Thinking)",
+          description: "Nível de detalhamento do raciocínio interno exibido.",
+        },
+        thinkingDefault: {
+          title: "Racio. Padrão (Thinking)",
+          description: "Nível de detalhamento do raciocínio interno exibido.",
+        },
         defaults: {
-          workspace: { title: "Workspace" },
-          bootstrapMaxChars: { title: "Máximo de Caracteres de Inicialização" },
-          repoRoot: { title: "Raiz do Repositório" },
-          envelopeTimezone: { title: "Fuso Horário do Envelope" },
-          envelopeTimestamp: { title: "Timestamp no Envelope" },
-          envelopeElapsed: { title: "Tempo Decorrido no Envelope" },
-          models: { title: "Catálogo de Modelos" },
+          title: "Padrões",
+          description: "Configurações padrão aplicadas a todos os agentes.",
+          workspace: {
+            title: "Espaço de Trabalho (Workspace)",
+            description: "Diretório base para arquivos e dados do agente.",
+          },
+          repoRoot: {
+            title: "Raiz do Repositório",
+            description: "Caminho raiz para operações de Git e acesso a arquivos.",
+          },
+          contextTokens: {
+            title: "Tokens de Contexto",
+            description: "Limite máximo de tokens para o contexto da conversa.",
+          },
           model: {
-            primary: { title: "Modelo Primário" },
-            fallbacks: { title: "Modelos de Fallback" },
+            primary: {
+              title: "Modelo Primário",
+              description: "Modelo de IA principal usado para chat e lógica.",
+            },
+            fallbacks: {
+              title: "Modelos de Fallback",
+              description: "Modelos usados caso o primário falhe ou esteja indisponível.",
+            },
           },
           imageModel: {
-            primary: { title: "Modelo de Imagem" },
-            fallbacks: { title: "Modelos de Imagem de Fallback" },
+            title: "Modelo de Imagem",
+            description: "Configuração do modelo de imagem padrão e seus fallbacks.",
+            primary: {
+              title: "Modelo de Imagem",
+              description: "Modelo usado para geração ou análise de imagens.",
+            },
+            fallbacks: {
+              title: "Modelos de Imagem de Fallback",
+              description: "Alternativas para processamento de imagens.",
+            },
+          },
+          thinkingDefault: {
+            title: "Racio. Padrão (Thinking)",
+            description: "Nível de detalhamento do raciocínio interno exibido.",
+          },
+          thinking: {
+            title: "Racio. Padrão (Thinking)",
+            description: "Nível de detalhamento do raciocínio interno exibido.",
+          },
+          thinking_default: {
+            title: "Racio. Padrão (Thinking)",
+            description: "Nível de detalhamento do raciocínio interno exibido.",
+          },
+          verboseDefault: {
+            title: "Verbosidade Padrão",
+            description: "Quantidade de logs e detalhes internos exibidos.",
+          },
+          elevatedDefault: {
+            title: "Permissão Elevada Padrão",
+            description: "Configuração padrão para comandos que exigem privilégios elevados.",
+          },
+          maxConcurrent: {
+            title: "Máxima Concorrência",
+            description: "Número máximo de solicitações simultâneas por agente.",
+          },
+          typingMode: {
+            title: "Modo de Digitação",
+            description: "Controla quando o indicador 'digitando' é exibido.",
+          },
+          typingIntervalSeconds: {
+            title: "Intervalo de Digitação (segundos)",
+            description: "Frequência de atualização do indicador de digitação.",
+          },
+          bootstrapMaxChars: {
+            title: "Máximo de Caracteres de Inicialização",
+            description: "Limite de texto carregado durante o bootstrap do agente.",
+          },
+          userTimezone: {
+            title: "Fuso Horário do Usuário",
+            description: "Fuso horário para exibir datas nas conversas.",
+          },
+          envelopeTimezone: {
+            title: "Fuso Horário no Envelope",
+            description: "Fuso horário usado nos metadados das mensagens.",
+          },
+          envelopeTimestamp: {
+            title: "Timestamp no Envelope",
+            description: "Incluir data/hora absoluta nos metadados.",
+          },
+          envelopeElapsed: {
+            title: "Tempo Decorrido no Envelope",
+            description: "Incluir tempo relativo desde a última mensagem.",
+          },
+          timeoutSeconds: {
+            title: "Tempo Limite (segundos)",
+            description: "Tempo máximo de espera por uma resposta do modelo.",
+          },
+          mediaMaxMb: {
+            title: "Tamanho Máximo de Mídia (MB)",
+            description: "Limite de tamanho para arquivos de mídia processados.",
+          },
+          heartbeat: {
+            title: "Batimento (Heartbeat)",
+            description: "Configurações de execução periódica automática.",
+            every: { title: "Frequência", description: "Intervalo entre batimentos (ex: 5m, 1h)." },
+            prompt: {
+              title: "Prompt do Heartbeat",
+              description: "Instrução enviada ao agente no batimento.",
+            },
+            accountId: {
+              title: "ID da Conta",
+              description: "ID da conta para entregas do heartbeat.",
+            },
+            ackMaxChars: {
+              title: "Máximo de Caracteres Ack",
+              description: "Limite de caracteres para mensagens de confirmação.",
+            },
+            activeHours: {
+              title: "Horário de Atividade",
+              description: "Define quando o heartbeat está ativo.",
+              start: { title: "Início", description: "Hora de início (formato HH:MM)." },
+              end: { title: "Fim", description: "Hora de término (formato HH:MM)." },
+              timezone: {
+                title: "Fuso Horário",
+                description: "Fuso horário para o horário de atividade.",
+              },
+            },
+            model: { title: "Modelo", description: "Modelo de IA para o heartbeat." },
+            session: { title: "Sessão", description: "Configuração de sessão para o heartbeat." },
+            includeReasoning: {
+              title: "Incluir Raciocínio",
+              description: "Incluir cadeia de pensamento nas respostas.",
+            },
+            target: {
+              title: "Alvo",
+              description: "Alvo de entrega ('Último', 'Nenhum' ou ID de canal).",
+            },
+            to: { title: "Para", description: "Destinatário da mensagem." },
+          },
+          subagents: {
+            title: "Sub-agentes",
+            description: "Configurações para agentes secundários iniciados pelo principal.",
+            maxConcurrent: {
+              title: "Máxima Concorrência de Sub-agentes",
+              description: "Limite de sub-agentes simultâneos.",
+            },
+            archiveAfterMinutes: {
+              title: "Arquivar Após (minutos)",
+              description: "Tempo de inatividade para arquivar sessões de sub-agentes.",
+            },
+            model: {
+              title: "Modelo de Sub-agente",
+              description: "Modelo de IA padrão para sub-agentes.",
+            },
+            thinking: {
+              title: "Raciocínio dos Sub-agentes",
+              description: "Nível de pensamento/raciocínio dos sub-agentes.",
+            },
+          },
+          sandbox: {
+            title: "Sandbox",
+            description: "Ambiente isolado para execução segura de ferramentas.",
+            mode: {
+              title: "Modo Sandbox",
+              description: "Nível de isolamento (Desligado, Não-principal ou Todos).",
+            },
+            workspaceAccess: {
+              title: "Acesso ao Espaço de Trabalho",
+              description: "Nível de acesso aos arquivos (Nenhum, RO ou RW).",
+            },
+            sessionToolsVisibility: {
+              title: "Visibilidade de Ferramentas",
+              description: "Define quais ferramentas são visíveis dentro da sandbox.",
+            },
+            scope: {
+              title: "Escopo da Sandbox",
+              description: "Compartilhamento do ambiente (Sessão, Agente ou Global).",
+            },
+            perSession: {
+              title: "Por Sessão",
+              description: "Se deve criar uma sandbox nova para cada sessão.",
+            },
+            docker: {
+              title: "Configurações Docker",
+              image: {
+                title: "Imagem Docker",
+                description: "Imagem Docker para o container sandbox.",
+              },
+              containerPrefix: {
+                title: "Prefixo do Container",
+                description: "Prefixo para nomes de containers.",
+              },
+              workdir: {
+                title: "Diretório de Trabalho",
+                description: "Diretório de trabalho dentro do container.",
+              },
+              readOnlyRoot: {
+                title: "Sistema de Arquivos Somente Leitura",
+                description: "Montar sistema de arquivos raíz como somente leitura.",
+              },
+              binds: { title: "Montagens (Binds)", description: "Volumes montados no container." },
+              capDrop: {
+                title: "Remover Capacidades (Cap Drop)",
+                description: "Remover capacidades Linux do container.",
+              },
+              tmpfs: { title: "Tmpfs", description: "Montagens tmpfs no container." },
+              env: {
+                title: "Variáveis de Ambiente",
+                description: "Variáveis de ambiente do container.",
+              },
+              extraHosts: { title: "Hosts Extras", description: "Hosts adicionais (/etc/hosts)." },
+              dns: { title: "DNS", description: "Servidores DNS para o container." },
+              network: { title: "Rede", description: "Configuração de rede Docker." },
+              user: {
+                title: "Usuário Docker",
+                description: "Usuário para executar comandos dentro do container.",
+              },
+              setupCommand: {
+                title: "Comando de Configuração",
+                description: "Comando a executar na inicialização do container.",
+              },
+              seccompProfile: {
+                title: "Perfil Seccomp",
+                description: "Perfil de segurança Seccomp para o container.",
+              },
+              apparmorProfile: {
+                title: "Perfil Apparmor",
+                description: "Perfil de segurança AppArmor para o container.",
+              },
+              pidsLimit: {
+                title: "Limite de PIDs",
+                description: "Número máximo de processos no container.",
+              },
+              ulimits: {
+                title: "Limites de Recursos (Ulimits)",
+                description: "Limites de recursos para o container.",
+              },
+              memory: { title: "Memória", description: "Limite de memória para o container." },
+              memorySwap: {
+                title: "Swap de Memória",
+                description: "Limite de swap de memória para o container.",
+              },
+              autoStartTimeoutMs: {
+                title: "Tempo Limite de Início Automático (ms)",
+                description: "Timeout para início automático do container.",
+              },
+              allowHostControl: {
+                title: "Permitir Controle do Host",
+                description: "Permitir que container controle aspectos do host.",
+              },
+            },
+            browser: {
+              title: "Navegador na Sandbox",
+              enabled: {
+                title: "Habilitar Navegador",
+                description: "Habilitar automação de navegador na sandbox.",
+              },
+              image: {
+                title: "Imagem do Navegador",
+                description: "Imagem Docker para container do navegador.",
+              },
+              containerPrefix: {
+                title: "Prefixo do Container",
+                description: "Prefixo para containers do navegador.",
+              },
+              cdpPort: { title: "Porta CDP", description: "Porta para protocolo Chrome DevTools." },
+              headless: {
+                title: "Modo Headless (Sem Interface)",
+                description: "Executar navegador sem exibir interface.",
+              },
+              autoStart: {
+                title: "Início Automático",
+                description: "Iniciar navegador automaticamente sob demanda.",
+              },
+              vncPort: {
+                title: "Porta VNC",
+                description: "Porta para acesso via área de trabalho remota VNC.",
+              },
+              noVncPort: { title: "Porta noVNC", description: "Porta para acesso noVNC via web." },
+              enableNoVnc: {
+                title: "Habilitar noVNC",
+                description: "Habilitar acesso VNC via web.",
+              },
+            },
+            workspaceRoot: {
+              title: "Raiz do Workspace na Sandbox",
+              description: "Caminho mapeado como raiz dentro do ambiente isolado.",
+            },
+            prune: {
+              title: "Limpeza (Pruning)",
+              idleHours: {
+                title: "Horas Ociosas para Remoção",
+                description: "Horas de inatividade antes de remover container.",
+              },
+              maxAgeDays: {
+                title: "Idade Máxima (dias)",
+                description: "Idade máxima do container em dias.",
+              },
+            },
+          },
+          blockStreamingDefault: {
+            title: "Bloquear Streaming (Padrão)",
+            description: "Habilitar bloqueio de streaming por padrão.",
+          },
+          blockStreamingBreak: {
+            title: "Quebra de Bloqueio de Streaming",
+            description:
+              "Define o ponto de interrupção do streaming (fim do texto ou fim da mensagem).",
+          },
+          blockStreamingChunk: {
+            title: "Fragmento de Bloqueio de Streaming",
+            description: "Configurações de fragmentação quando o streaming está bloqueado.",
+            breakPreference: {
+              title: "Preferência de Quebra",
+              description: "Onde preferir quebrar o texto (parágrafo, nova linha ou frase).",
+            },
+            maxChars: {
+              title: "Máximo de Caracteres",
+              description: "Limite de caracteres por fragmento.",
+            },
+          },
+          compaction: {
+            title: "Compactação",
+            description: "Configurações de gerenciamento e compactação de histórico.",
+            mode: {
+              title: "Modo",
+              description: "Modo de compactação (Padrão ou Salvaguarda).",
+            },
+            maxHistoryShare: {
+              title: "Participação Máxima do Histórico",
+              description: "Fração máxima do contexto que o histórico pode ocupar.",
+            },
+            reserveTokensFloor: {
+              title: "Mínimo de Tokens de Reserva",
+              description: "Tokens mínimos mantidos livres para a próxima resposta.",
+            },
+            memoryFlush: {
+              title: "Limpeza de Memória (Memory Flush)",
+              description: "Configurações para liberar memória contextual.",
+              enabled: { title: "Habilitado", description: "Ativar limpeza de memória." },
+              softThresholdTokens: {
+                title: "Limite Flexível de Tokens",
+                description: "Limite de tokens antes de disparar a limpeza.",
+              },
+            },
+          },
+          contextPruning: {
+            title: "Poda de Contexto (Context Pruning)",
+            description: "Configurações para remover informações irrelevantes do contexto.",
+            softTrim: {
+              title: "Corte Flexível (Soft Trim)",
+              description: "Remover partes do contexto para economizar espaço.",
+              maxChars: {
+                title: "Máximo de Caracteres",
+                description: "Máximo de caracteres a manter após corte flexível.",
+              },
+              headChars: {
+                title: "Caracteres do Início",
+                description: "Caracteres a preservar no início.",
+              },
+              tailChars: {
+                title: "Caracteres do Fim",
+                description: "Caracteres a preservar no fim.",
+              },
+            },
+            hardClear: {
+              title: "Limpeza Total (Hard Clear)",
+              description: "Limpar o contexto completamente se necessário.",
+              enabled: { title: "Habilitado", description: "Habilitar limpeza total de contexto." },
+              placeholder: {
+                title: "Texto Substituto",
+                description: "Texto para substituir conteúdo limpo.",
+              },
+            },
+            softTrimRatio: {
+              title: "Razão de Corte Flexível",
+              description: "Razão de contexto para corte flexível.",
+            },
+            hardClearRatio: {
+              title: "Razão de Limpeza Total",
+              description: "Limite de razão para limpeza total de contexto.",
+            },
+            ttl: {
+              title: "TTL",
+              description: "Tempo de vida (Time To Live) para o cache de poda de contexto.",
+            },
+            keepLastAssistants: {
+              title: "Manter Últimas Respostas",
+              description: "Número de mensagens do assistente a preservar.",
+            },
+            minPrunableToolChars: {
+              title: "Mínimo de Caracteres Podáveis (Ferramentas)",
+              description: "Tamanho mínimo da saída de ferramenta para ser podável.",
+            },
           },
           humanDelay: {
-            mode: { title: "Modo de Atraso Humano" },
-            minMs: { title: "Mínimo (ms)" },
-            maxMs: { title: "Máximo (ms)" },
+            title: "Atraso Humano",
+            description: "Simula tempo de resposta humano para parecer mais natural.",
+            mode: {
+              title: "Modo",
+              description: "Modo de atraso (Desligado, Natural ou Personalizado).",
+            },
+            minMs: {
+              title: "Mínimo (ms)",
+              description: "Tempo mínimo de espera em milissegundos.",
+            },
+            maxMs: {
+              title: "Máximo (ms)",
+              description: "Tempo máximo de espera em milissegundos.",
+            },
           },
-          cliBackends: { title: "Backends CLI" },
+          cliBackends: {
+            title: "Backends CLI",
+            description: "Configurações de execução de comandos (bash, python, etc.).",
+          },
           memorySearch: {
-            enabled: { title: "Busca em Memória Ativada" },
-            provider: { title: "Provedor de Vetores" },
-            sources: { title: "Fontes de Busca" },
-            extraPaths: { title: "Caminhos Extras" },
-            experimental: { sessionMemory: { title: "Memória de Sessão Experimental" } },
-            remote: {
-              baseUrl: { title: "URL Base Remota" },
-              apiKey: { title: "Chave de API Remota" },
-              headers: { title: "Cabeçalhos Remotos" },
-              batch: {
-                enabled: { title: "Lote Remoto Ativado" },
-                wait: { title: "Aguardar Lote" },
-                concurrency: { title: "Concorrência de Lote" },
-                pollIntervalMs: { title: "Intervalo de Polling (ms)" },
-                timeoutMinutes: { title: "Timeout de Lote (min)" },
+            title: "Busca em Memória",
+            description:
+              "Busca vetorial em MEMORY.md e memory/*.md (suporta substituições por agente).",
+            enabled: {
+              title: "Habilitado",
+              description: "Ativar busca vetorial em memória.",
+            },
+            provider: {
+              title: "Provedor de Vetores",
+              description: "Serviço usado para busca vetorial (ex: local, remote).",
+            },
+            sources: {
+              title: "Fontes de Busca",
+              description: "Diretórios ou arquivos indexados para busca.",
+            },
+            extraPaths: {
+              title: "Caminhos de Memória Extras",
+              description: "Caminhos adicionais para incluir na busca (.md ou diretórios).",
+            },
+            model: {
+              title: "Modelo de Embedding",
+              description: "Modelo usado para converter texto em vetores.",
+            },
+            local: {
+              modelPath: {
+                title: "Caminho do Modelo Local",
+                description: "Caminho para o arquivo GGUF local ou URI hf: (node-llama-cpp).",
+              },
+              modelCacheDir: {
+                title: "Diretório de Cache do Modelo",
+                description: "Diretório local para armazenar modelos de embedding (opcional).",
               },
             },
-            model: { title: "Modelo de Embedding" },
-            fallback: { title: "Provedor de Fallback" },
-            local: { modelPath: { title: "Caminho do Modelo Local" } },
-            store: {
-              path: { title: "Caminho do Índice" },
-              vector: {
-                enabled: { title: "Vetor SQLite Habilitado" },
-                extensionPath: { title: "Caminho da Extensão Vetorial" },
-              },
+            fallback: {
+              title: "Fallback de Busca em Memória",
+              description: "Provedor alternativo se o principal falhar.",
             },
-            chunking: {
-              tokens: { title: "Tokens por Fragmento" },
-              overlap: { title: "Sobreposição" },
-            },
-            sync: {
-              onSessionStart: { title: "Indexar ao Iniciar Sessão" },
-              onSearch: { title: "Indexar ao Buscar" },
-              watch: { title: "Monitorar Alterações" },
-              watchDebounceMs: { title: "Debounce de Monitoramento" },
-              sessions: {
-                deltaBytes: { title: "Bytes Delta (Sessão)" },
-                deltaMessages: { title: "Mensagens Delta (Sessão)" },
-              },
-            },
-            query: {
-              maxResults: { title: "Resultados Máximos" },
-              minScore: { title: "Pontuação Mínima" },
-              hybrid: {
-                enabled: { title: "Busca Híbrida" },
-                vectorWeight: { title: "Peso Vetorial" },
-                textWeight: { title: "Peso Textual" },
-                candidateMultiplier: { title: "Multiplicador de Candidatos" },
+            experimental: {
+              sessionMemory: {
+                title: "Indexação de Sessão (Experimental)",
+                description: "Habilitar indexação experimental das transcrições das sessões.",
               },
             },
             cache: {
-              enabled: { title: "Cache de Embeddings" },
-              maxEntries: { title: "Entradas Máximas no Cache" },
+              enabled: {
+                title: "Cache de Embeddings",
+                description: "Habilitar cache de embeddings.",
+              },
+              maxEntries: {
+                title: "Máximo de Entradas no Cache",
+                description: "Limite opcional de embeddings em cache.",
+              },
+            },
+            chunking: {
+              title: "Fragmentação",
+              tokens: {
+                title: "Tokens de Fragmento de Memória",
+                description: "Tamanho de cada fragmento indexado.",
+              },
+              overlap: {
+                title: "Sobreposição de Fragmentos",
+                description: "Número de tokens que se sobrepõem entre fragmentos.",
+              },
+            },
+            query: {
+              maxResults: {
+                title: "Máximo de Resultados",
+                description: "Máximo de resultados de busca a retornar.",
+              },
+              minScore: {
+                title: "Pontuação Mínima",
+                description: "Pontuação mínima de relevância para resultados.",
+              },
+              hybrid: {
+                enabled: {
+                  title: "Habilitado",
+                  description: "Habilitar busca híbrida vetor + texto.",
+                },
+                vectorWeight: {
+                  title: "Peso Vetorial",
+                  description: "Peso para similaridade vetorial no ranking.",
+                },
+                textWeight: {
+                  title: "Peso Textual",
+                  description: "Peso para correspondência de texto no ranking.",
+                },
+                candidateMultiplier: {
+                  title: "Multiplicador de Candidatos",
+                  description: "Multiplicador para tamanho do pool de candidatos.",
+                },
+              },
+            },
+            sync: {
+              onSearch: {
+                title: "Indexar na Busca (Lazy)",
+                description:
+                  "Sincronização preguiçosa: agendar reindexação na busca após alterações.",
+              },
+              onSessionStart: {
+                title: "Indexar ao Iniciar Sessão",
+                description: "Iniciar indexação quando uma sessão começar.",
+              },
+              intervalMinutes: {
+                title: "Intervalo (Minutos)",
+                description: "Minutos entre operações de sincronização.",
+              },
+              watch: {
+                title: "Observar Arquivos",
+                description: "Observar mudanças de arquivos para disparar sincronização.",
+              },
+              watchDebounceMs: {
+                title: "Debounce de Observação (ms)",
+                description: "Tempo de espera (debounce) para atualizações de observação.",
+              },
+              sessions: {
+                deltaMessages: {
+                  title: "Mensagens Delta",
+                  description: "Contagem de mensagens para disparar reindex de sessão.",
+                },
+                deltaBytes: {
+                  title: "Bytes Delta",
+                  description: "Contagem de bytes para disparar reindex de sessão.",
+                },
+              },
+            },
+            store: {
+              title: "Armazenamento",
+              description: "Configuração de persistência do índice vetorial.",
+              driver: {
+                title: "Driver",
+                description: "Tipo de banco de dados (sqlite).",
+              },
+              path: {
+                title: "Caminho do Índice",
+                description: "Caminho para o índice de busca de memória.",
+              },
+              vector: {
+                extensionPath: {
+                  title: "Caminho da Extensão Vetorial",
+                  description: "Caminho para extensão de banco de dados vetorial.",
+                },
+              },
+            },
+            remote: {
+              batch: {
+                concurrency: {
+                  title: "Concorrência em Lote Remoto",
+                  description: "Máximo de tarefas simultâneas de indexação em lote.",
+                },
+                pollIntervalMs: {
+                  title: "Intervalo de Polling (ms)",
+                  description: "Frequência de verificação do status do lote.",
+                },
+                timeoutMinutes: {
+                  title: "Timeout de Lote (minutos)",
+                  description: "Tempo máximo para indexação em lote.",
+                },
+                wait: {
+                  title: "Aguardar Lote",
+                  description: "Esperar a conclusão do lote durante a indexação.",
+                },
+              },
+              headers: {
+                title: "Cabeçalhos de Embedding Remotos",
+                description: "Cabeçalhos extras (ex: autenticação) para embeddings remotos.",
+              },
             },
           },
         },
         list: {
+          title: "Lista",
+          description: "Configurações individuais por agente.",
           "*": {
-            skills: { title: "Filtro de Skills" },
-            tools: {
-              profile: { title: "Perfil de Ferramentas" },
-              alsoAllow: { title: "Também Permitir" },
-              byProvider: { title: "Política por Provedor" },
+            mode: { title: "Modo", description: "Modo de operação do agente." },
+            accountId: {
+              title: "ID da Conta",
+              description: "Identificador único da conta do agente.",
             },
-            identity: { avatar: { title: "Avatar" } },
+            ackMaxChars: {
+              title: "Máximo de Caracteres Ack",
+              description: "Limite de caracteres para mensagens de confirmação.",
+            },
+            activeHours: {
+              title: "Horário de Atividade",
+              description: "Define quando o agente está ativo.",
+              start: { title: "Início", description: "Hora de início (formato HH:MM)." },
+              end: { title: "Fim", description: "Hora de término (formato HH:MM)." },
+              timezone: {
+                title: "Fuso Horário",
+                description: "Fuso horário para o horário de atividade.",
+              },
+            },
+            every: {
+              title: "Frequência (Every)",
+              description: "Intervalo de execução (ex: 5m, 1h).",
+            },
+            includeReasoning: {
+              title: "Incluir Raciocínio",
+              description: "Incluir cadeia de pensamento nas respostas.",
+            },
+            model: { title: "Modelo", description: "Modelo de IA para este agente." },
+            session: { title: "Sessão", description: "Configuração de sessão do agente." },
+            target: {
+              title: "Alvo (Target)",
+              description: "Alvo de entrega ('Último', 'Nenhum' ou ID de canal).",
+            },
+            to: { title: "Para (To)", description: "Destinatário da mensagem." },
+            humanDelay: {
+              title: "Atraso Humano",
+              description: "Configuração de atraso para simular resposta humana.",
+            },
+            imageModel: {
+              title: "Modelo de Imagem",
+              description: "Modelo para geração/análise de imagens.",
+            },
+            memorySearch: {
+              title: "Busca em Memória",
+              description: "Busca vetorial em MEMORY.md e memory/*.md (substituições por agente).",
+              query: {
+                maxResults: {
+                  title: "Máximo de Resultados",
+                  description: "Máximo de resultados de busca para este agente.",
+                },
+                minScore: {
+                  title: "Pontuação Mínima",
+                  description: "Pontuação mínima de relevância para resultados.",
+                },
+                hybrid: {
+                  enabled: {
+                    title: "Habilitado",
+                    description: "Habilitar busca híbrida para este agente.",
+                  },
+                  vectorWeight: {
+                    title: "Peso Vetorial",
+                    description: "Peso de similaridade vetorial.",
+                  },
+                  textWeight: {
+                    title: "Peso Textual",
+                    description: "Peso de correspondência de texto.",
+                  },
+                  candidateMultiplier: {
+                    title: "Multiplicador de Candidatos",
+                    description: "Multiplicador de pool de candidatos.",
+                  },
+                },
+              },
+            },
+            groupChat: {
+              title: "Chat em Grupo",
+              description: "Configurações específicas para interação em grupos.",
+            },
+            sandbox: {
+              title: "Sandbox Personalizada",
+              description: "Substituições de sandbox para este agente.",
+              docker: {
+                title: "Configurações Docker",
+                seccompProfile: {
+                  title: "Perfil Seccomp",
+                  description: "Perfil Seccomp para sandbox deste agente.",
+                },
+                apparmorProfile: {
+                  title: "Perfil Apparmor",
+                  description: "Perfil AppArmor para sandbox deste agente.",
+                },
+                pidsLimit: {
+                  title: "Limite de PIDs",
+                  description: "Limite de processos para sandbox deste agente.",
+                },
+                ulimits: {
+                  title: "Ulimits",
+                  description: "Limites de recursos para sandbox deste agente.",
+                },
+                memory: {
+                  title: "Memória",
+                  description: "Limite de memória para sandbox deste agente.",
+                },
+                memorySwap: {
+                  title: "Swap de Memória",
+                  description: "Limite de swap para sandbox deste agente.",
+                },
+                autoStartTimeoutMs: {
+                  title: "Tempo Limite de Início Automático (ms)",
+                  description: "Timeout de auto-início para este agente.",
+                },
+                allowHostControl: {
+                  title: "Permitir Controle do Host",
+                  description: "Permitir controle de host para este agente.",
+                },
+              },
+              browser: {
+                title: "Navegador na Sandbox",
+                vncPort: {
+                  title: "Porta VNC",
+                  description: "Porta VNC para navegador deste agente.",
+                },
+                noVncPort: {
+                  title: "Porta noVNC",
+                  description: "Porta noVNC para navegador deste agente.",
+                },
+                enableNoVnc: {
+                  title: "Habilitar noVNC",
+                  description: "Habilitar noVNC para este agente.",
+                },
+              },
+            },
+            skills: {
+              title: "Filtro de Skills",
+              description: "Skills permitidas para este agente.",
+            },
+            tools: {
+              profile: {
+                title: "Perfil de Ferramentas",
+                description: "Perfil de ferramentas para este agente.",
+              },
+              alsoAllow: {
+                title: "Também Permitir",
+                description: "Ferramentas adicionais permitidas.",
+              },
+              byProvider: {
+                title: "Política por Provedor",
+                description: "Políticas de ferramentas específicas por provedor.",
+              },
+            },
+            identity: {
+              avatar: { title: "Avatar", description: "URL do avatar para este agente." },
+            },
+            thinking: {
+              title: "Racio. Padrão (Thinking)",
+              description: "Nível de raciocinio padrão para este agente.",
+            },
+            thinking_default: {
+              title: "Racio. Padrão (Thinking)",
+              description: "Nível de raciocinio padrão para este agente.",
+            },
+            thinkingDefault: {
+              title: "Racio. Padrão (Thinking)",
+              description: "Nível de raciocinio padrão para este agente.",
+            },
           },
         },
       },
       auth: {
-        profiles: { title: "Perfis de Autenticação" },
-        order: { title: "Ordem de Perfis" },
+        profiles: {
+          title: "Perfis de Autenticação",
+          description: "Perfis individuais de autenticação contendo chaves de API.",
+        },
+        order: {
+          title: "Ordem de Perfis",
+          description: "Ordem de preferência para o uso de perfis de autenticação.",
+        },
         cooldowns: {
-          billingBackoffHours: { title: "Backoff de Cobrança (horas)" },
-          billingBackoffHoursByProvider: { title: "Backoff por Provedor" },
-          billingMaxHours: { title: "Máximo de Backoff (horas)" },
-          failureWindowHours: { title: "Janela de Falha (horas)" },
+          title: "Intervalos de Cooldown",
+          description: "Intervalos de tempo para esperas em caso de falha ou limites de cobrança.",
+          billingBackoffHours: {
+            title: "Backoff de Cobrança (horas)",
+            description: "Horas de espera após erro de cobrança.",
+          },
+          billingBackoffHoursByProvider: {
+            title: "Backoff por Provedor",
+            description: "Tempos de backoff de cobrança por provedor.",
+          },
+          billingMaxHours: {
+            title: "Máximo de Backoff (horas)",
+            description: "Duração máxima de backoff de cobrança.",
+          },
+          failureWindowHours: {
+            title: "Janela de Falha (horas)",
+            description: "Janela para contar falhas.",
+          },
         },
       },
       plugins: {
-        enabled: { title: "Plugins Habilitados" },
-        allow: { title: "Lista de Permissão" },
-        deny: { title: "Lista de Bloqueio" },
-        load: { paths: { title: "Caminhos de Carregamento" } },
-        slots: { memory: { title: "Plugin de Memória" } },
+        title: "Plugins",
+        description: "Gerenciamento de plugins e extensões.",
+        enabled: {
+          title: "Habilitar Plugins",
+          description: "Habilitar o carregamento de plugins/extensões (padrão: true).",
+        },
+        allow: {
+          title: "Lista de Permissão de Plugins",
+          description:
+            "Lista opcional de IDs de plugins permitidos; quando definida, apenas os plugins listados são carregados.",
+        },
+        deny: {
+          title: "Lista de Bloqueio de Plugins",
+          description:
+            "Lista de bloqueio opcional de IDs de plugins; o bloqueio tem precedência sobre a lista de permissão.",
+        },
+        load: {
+          title: "Carregar",
+          description:
+            "Caminhos adicionais de arquivos ou diretórios de plugins a serem carregados.",
+          paths: {
+            title: "Caminhos de Carregamento",
+            description: "Caminhos de arquivos ou diretórios para carregar plugins.",
+          },
+        },
+        slots: {
+          title: "Slots de Plugins",
+          description: "Selecione quais plugins possuem slots exclusivos (memória, etc.).",
+          memory: {
+            title: "Plugin de Memória",
+            description:
+              'Selecione o plugin de memória ativo por ID, ou "none" para desativar plugins de memória.',
+          },
+        },
         entries: {
+          title: "Entradas de Plugins",
+          description:
+            "Configurações individuais de plugins por ID (habilitar/desativar + payloads de configuração).",
           "*": {
-            enabled: { title: "Plugin Habilitado" },
-            config: { title: "Configuração do Plugin" },
+            enabled: {
+              title: "Plugin Habilitado",
+              description:
+                "Substitui a ativação/desativação do plugin para esta entrada (requer reinicialização).",
+            },
+            config: {
+              title: "Configuração do Plugin",
+              description:
+                "Payload de configuração definido pelo plugin (o esquema é fornecido pelo plugin).",
+            },
           },
         },
         installs: {
+          title: "Registros de Instalação",
+          description:
+            "Metadados de instalação gerenciados via CLI (usados para localizar fontes de instalação).",
           "*": {
-            source: { title: "Fonte" },
-            spec: { title: "Especificação" },
-            sourcePath: { title: "Caminho Fonte" },
-            installPath: { title: "Caminho de Instalação" },
-            version: { title: "Versão" },
-            installedAt: { title: "Instalado Em" },
+            source: {
+              title: "Fonte",
+              description: 'Fonte de instalação ("NPM", "Arquivo" ou "Caminho").',
+            },
+            spec: {
+              title: "Especificação",
+              description: "Especificação npm original usada para instalação (se a fonte for npm).",
+            },
+            sourcePath: {
+              title: "Caminho Fonte",
+              description: "Arquivo ou caminho original usado para instalação (se houver).",
+            },
+            installPath: {
+              title: "Caminho de Instalação",
+              description: "Diretório de instalação resolvido.",
+            },
+            version: {
+              title: "Versão",
+              description: "Versão registrada no momento da instalação (se disponível).",
+            },
+            installedAt: {
+              title: "Instalado Em",
+              description: "Data e hora ISO da última instalação/atualização.",
+            },
           },
         },
       },
-      browser: {
-        evaluateEnabled: { title: "Habilitar Avaliação (Evaluate)" },
-        snapshotDefaults: {
-          mode: { title: "Modo de Snapshot Padrão" },
+      media: {
+        preserveFilenames: {
+          title: "Preservar Nomes de Arquivos",
+          description: "Manter nomes de arquivos originais ao processar mídia.",
         },
-        remoteCdpTimeoutMs: { title: "Timeout CDP Remoto (ms)" },
-        remoteCdpHandshakeTimeoutMs: { title: "Timeout Handshake CDP (ms)" },
+      },
+      logging: {
+        level: {
+          title: "Nível de Log (Arquivo)",
+          description: "Nível mínimo de severidade para mensagens gravadas no arquivo de log.",
+        },
+        file: { title: "Caminho do Arquivo de Log", description: "Caminho para o arquivo de log." },
+        consoleLevel: {
+          title: "Nível de Log (Console)",
+          description: "Nível mínimo de severidade para mensagens no console.",
+        },
+        consoleStyle: {
+          title: "Estilo do Console",
+          description: "Estilo de formatação para saída do console.",
+        },
+        redactSensitive: {
+          title: "Ocultar Dados Sensíveis",
+          description: "Ocultar informações sensíveis nos logs.",
+        },
+        redactPatterns: {
+          title: "Padrões de Ocultação (Regex)",
+          description: "Padrões regex adicionais para ocultar dados.",
+        },
+      },
+      models: {
+        mode: {
+          title: "Modo de Modelos",
+          description:
+            "Como os modelos configurados interagem com os padrões (mesclar ou substituir).",
+        },
+        providers: {
+          title: "Provedores de Modelos",
+          description: "Provedores de modelos IA configurados.",
+        },
+        slots: {
+          title: "Slots de Modelos",
+          description: "Slots disponíveis para roteamento de modelos.",
+        },
+        bedrockDiscovery: {
+          title: "Descoberta AWS Bedrock",
+          description: "Descoberta automática de modelos do AWS Bedrock.",
+          enabled: {
+            title: "Habilitado",
+            description: "Habilitar descoberta automática de modelos do Bedrock.",
+          },
+          region: {
+            title: "Região AWS",
+            description: "Região AWS para chamadas de API do Bedrock.",
+          },
+          providerFilter: {
+            title: "Filtro de Provedor",
+            description: "Filtrar modelos descobertos por nome do provedor.",
+          },
+          refreshInterval: {
+            title: "Intervalo de Atualização",
+            description: "Segundos entre atualizações de descoberta.",
+          },
+          defaultContextWindow: {
+            title: "Janela de Contexto Padrão",
+            description: "Janela de contexto padrão para modelos descobertos.",
+          },
+          defaultMaxTokens: {
+            title: "Máximo de Tokens Padrão",
+            description: "Máximo de tokens de saída padrão para modelos descobertos.",
+          },
+        },
+      },
+      bindings: {
+        watch: {
+          title: "Observar Atalhos",
+          description: "Monitorar alterações nos atalhos de teclado.",
+        },
+        watchDebounceMs: {
+          title: "Debounce de Observação (ms)",
+          description: "Tempo de espera (debounce) para atualizações de atalhos.",
+        },
+      },
+      broadcast: {
+        enabled: {
+          title: "Transmissão Habilitada",
+          description: "Habilitar transmissão para múltiplos tópicos.",
+        },
+        topic: { title: "Tópico de Transmissão", description: "Tópico padrão para notificações." },
+        strategy: {
+          title: "Estratégia de Transmissão",
+          description: "Estratégia de execução para transmissões (paralela ou sequencial).",
+        },
+      },
+      audio: {
+        modelId: {
+          title: "ID do Modelo de Áudio",
+          description: "ID do modelo usado para processamento de áudio.",
+        },
+        apiKey: {
+          title: "Chave de API de Áudio",
+          description: "Chave de API para o provedor de áudio.",
+        },
+        transcription: {
+          title: "Transcrição de Áudio",
+          description: "Configurações para converter mensagens de áudio em texto.",
+          command: {
+            title: "Comando de Transcrição",
+            description: "Comando personalizado para transcrição de áudio.",
+          },
+          timeoutSeconds: {
+            title: "Timeout (segundos)",
+            description: "Tempo máximo para o processo de transcrição.",
+          },
+        },
+      },
+      approvals: {
+        mode: {
+          title: "Modo de Aprovação",
+          description: "Política para aprovações de comandos e ferramentas.",
+        },
+        timeoutMs: {
+          title: "Tempo Limite de Aprovação (ms)",
+          description: "Duração de uma solicitação de aprovação.",
+        },
+        exec: {
+          title: "Aprovações de Execução",
+          description:
+            "Configurações para encaminhar solicitações de aprovação de execução para outros canais.",
+          enabled: {
+            title: "Habilitado",
+            description: "Habilitar encaminhamento de solicitações de aprovação de execução.",
+          },
+          mode: { title: "Modo", description: "Modo de encaminhamento (Sessão, Alvos ou Ambos)." },
+          agentFilter: {
+            title: "Filtro de Agentes",
+            description: "Lista de IDs de agentes para filtrar aprovações.",
+          },
+          sessionFilter: {
+            title: "Filtro de Sessões",
+            description: "Lista de chaves de sessão para filtrar aprovações.",
+          },
+          targets: {
+            title: "Alvos",
+            description: "Lista de canais alvo para encaminhamento de aprovações.",
+          },
+        },
+      },
+      cron: {
+        enabled: {
+          title: "Agendamento Habilitado",
+          description: "Habilitar o agendador de tarefas interno.",
+        },
+        store: {
+          title: "Caminho do Banco Cron",
+          description: "Caminho para o banco de dados de tarefas agendadas.",
+        },
+        maxConcurrentRuns: {
+          title: "Máximo de Execuções Simultâneas",
+          description: "Limite de tarefas cron simultâneas.",
+        },
+      },
+      web: {
+        enabled: {
+          title: "Servidor Web Habilitado",
+          description: "Habilitar o servidor HTTP e WebSocket do gateway.",
+        },
+        heartbeatSeconds: {
+          title: "Intervalo de Heartbeat (seg)",
+          description: "Intervalo para sinais de presença (heartbeat).",
+        },
+        reconnect: {
+          title: "Reconexão",
+          description: "Configurações de backoff e tentativas para reconectar ao gateway.",
+          initialMs: {
+            title: "Atraso Inicial (ms)",
+            description: "Atraso de backoff inicial em milissegundos.",
+          },
+
+          maxMs: {
+            title: "Atraso Máximo (ms)",
+            description: "Atraso máximo de backoff em milissegundos.",
+          },
+          factor: {
+            title: "Fator de Crescimento",
+            description: "Fator multiplicador para backoff exponencial.",
+          },
+          jitter: {
+            title: "Jitter",
+            description: "Randomização para evitar sincronização de reconexões.",
+          },
+          maxAttempts: {
+            title: "Máximo de Tentativas",
+            description: "Limite de tentativas para reconexões.",
+          },
+        },
+      },
+      canvasHost: {
+        enabled: {
+          title: "Habilitar Hospedagem de Canvas",
+          description: "Habilitar o servidor de aplicações Canvas integrado.",
+        },
+        root: {
+          title: "Diretório Raiz do Canvas",
+          description: "Diretório para os arquivos estáticos do Canvas.",
+        },
+        port: {
+          title: "Porta do Canvas",
+          description: "Porta para o serviço de hospedagem do Canvas.",
+        },
+        liveReload: {
+          title: "Recarga ao Vivo (Live Reload)",
+          description: "Atualizar a interface automaticamente ao alterar arquivos.",
+        },
+      },
+      browser: {
+        enabled: {
+          title: "Navegador Habilitado",
+          description: "Habilitar recursos de automação de navegador.",
+        },
+        evaluateEnabled: {
+          title: "Habilitar Execução de Script (Evaluate)",
+          description: "Permitir a execução de scripts personalizados no navegador.",
+        },
+        cdpUrl: {
+          title: "URL CDP",
+          description: "URL do Chrome DevTools Protocol para conexão remota do navegador.",
+        },
+        color: {
+          title: "Cor do Navegador",
+          description: "Cor de destaque para elementos da UI do navegador.",
+        },
+        executablePath: {
+          title: "Caminho do Executável",
+          description: "Caminho para o executável do navegador.",
+        },
+        headless: {
+          title: "Modo Headless",
+          description: "Executar navegador sem interface visual.",
+        },
+        noSandbox: {
+          title: "Sem Sandbox",
+          description: "Desabilitar sandbox do navegador (use com cautela).",
+        },
+        attachOnly: {
+          title: "Apenas Anexar",
+          description: "Apenas anexar a instâncias de navegador existentes, não iniciar novas.",
+        },
+        defaultProfile: {
+          title: "Perfil Padrão",
+          description: "Perfil de navegador padrão a ser usado.",
+        },
+        snapshotDefaults: {
+          title: "Snapshots Padrão",
+          description: "Configurações padrão para snapshots de páginas do navegador.",
+          mode: {
+            title: "Modo de Snapshot Padrão",
+            description: "Modo inicial para capturas (snapshots) do navegador.",
+          },
+        },
+        profiles: {
+          title: "Perfis de Navegador",
+          description: "Perfis de navegador nomeados com configurações CDP personalizadas.",
+          "*": {
+            cdpPort: {
+              title: "Porta CDP",
+              description: "Porta do Chrome DevTools Protocol para este perfil.",
+            },
+            cdpUrl: {
+              title: "URL CDP",
+              description: "URL do Chrome DevTools Protocol para este perfil.",
+            },
+            driver: {
+              title: "Driver",
+              description: "Tipo de driver do navegador (clawd ou extension).",
+            },
+            color: {
+              title: "Cor do Perfil",
+              description: "Cor de destaque para este perfil de navegador.",
+            },
+          },
+        },
+        remoteCdpTimeoutMs: {
+          title: "Timeout CDP Remoto (ms)",
+          description: "Tempo limite para conexões CDP remotas.",
+        },
+        remoteCdpHandshakeTimeoutMs: {
+          title: "Timeout Handshake CDP (ms)",
+          description: "Tempo limite para o aperto de mão (handshake) inicial do CDP.",
+        },
       },
       session: {
-        dmScope: { title: "Escopo de Sessão DM" },
+        scope: { title: "Escopo da Sessão", description: "Alcance de visibilidade da sessão." },
+        dmScope: { title: "Escopo de Sessão DM", description: "Escopo para mensagens diretas." },
+        idleMinutes: {
+          title: "Minutos de Inatividade",
+          description: "Minutos antes da sessão ser considerada inativa.",
+        },
+        store: {
+          title: "Caminho de Armazenamento",
+          description: "Caminho para os dados de persistência da sessão.",
+        },
+        typingIntervalSeconds: {
+          title: "Intervalo de Digitação (seg)",
+          description: "Intervalo para atualizações do indicador de digitação.",
+        },
+        typingMode: {
+          title: "Modo de Digitação",
+          description: "Como os indicadores de digitação são manipulados.",
+        },
+        mainKey: { title: "Chave Principal", description: "Identificador primário da sessão." },
         agentToAgent: {
-          maxPingPongTurns: { title: "Máximo de Turnos Agente-Agente" },
+          title: "Agente para Agente",
+          description: "Configurações para comunicação direta entre agentes.",
+          maxPingPongTurns: {
+            title: "Máximo de Turnos Agente-Agente",
+            description: "Máximo de turnos diretos entre agentes.",
+          },
+        },
+        identityLinks: {
+          title: "Links de Identidade",
+          description:
+            "Mapear identidades de usuários entre diferentes canais (ex: vincular números de telefone a nomes de usuário).",
+        },
+        resetTriggers: {
+          title: "Gatilhos de Reinício",
+          description: "Padrões que disparam um reinício de sessão quando correspondidos.",
+        },
+        reset: { title: "Reiniciar Sessão", description: "Condições para o reinício da sessão." },
+        resetByType: {
+          title: "Reiniciar por Tipo",
+          description: "Reiniciar a sessão com base no tipo de mensagem.",
+        },
+        resetByChannel: {
+          title: "Reiniciar por Canal",
+          description: "Configurações de reinício de sessão específicas por canal.",
+        },
+        sendPolicy: {
+          title: "Política de Envio",
+          description: "Regras para a entrega de mensagens.",
         },
       },
       talk: {
-        apiKey: { title: "Chave de API Talk" },
+        voiceId: { title: "ID da Voz", description: "Voz específica para usar na síntese." },
+        voiceAliases: {
+          title: "Aliases de Voz",
+          description: "Mapeamentos para nomes amigáveis de vozes.",
+        },
+        modelId: { title: "ID do Modelo", description: "Modelo usado para geração de fala." },
+        outputFormat: { title: "Formato de Saída", description: "Formato do áudio gerado." },
+        apiKey: { title: "Chave de API", description: "Chave de API para o provedor de voz." },
+        interruptOnSpeech: {
+          title: "Interromper ao Falar",
+          description: "Parar o áudio quando o usuário começar a falar.",
+        },
       },
       nodeHost: {
         browserProxy: {
-          enabled: { title: "Habilitar Proxy de Navegador" },
-          allowProfiles: { title: "Perfis de Navegador Permitidos" },
+          title: "Proxy de Navegador",
+          description: "Configuração para acesso de proxy de navegador deste node host.",
+          enabled: {
+            title: "Habilitar Proxy de Navegador",
+            description: "Permitir que o proxy de navegador seja usado por este host.",
+          },
+          allowProfiles: {
+            title: "Perfis de Navegador Permitidos",
+            description: "Lista de IDs de perfis de navegador que podem ser acessados.",
+          },
         },
       },
       discovery: {
-        mdns: { mode: { title: "Modo mDNS" } },
+        wideArea: {
+          title: "Rede de Longa Distância",
+          description: "Habilitar descoberta em redes de longa distância.",
+        },
+        mdns: {
+          title: "mDNS",
+          description: "Descoberta de DNS multicast para peers na rede local.",
+          mode: {
+            title: "Modo mDNS",
+            description: "Modo de descoberta para DNS multicast (mDNS).",
+          },
+        },
+      },
+      skills: {
+        allowBundled: {
+          title: "Lista de Permissão de Skills Integradas",
+          description:
+            "Lista de permissão opcional apenas para skills integradas. Quando definida, apenas as skills integradas listadas são elegíveis.",
+        },
+        entries: {
+          title: "Entradas de Skills",
+          description:
+            "Configurações individuais de skills por ID (ativar/desativar + chaves de API e configuração).",
+          "*": {
+            enabled: {
+              title: "Skill Habilitada",
+              description: "Substituir se esta skill está ativada.",
+            },
+            apiKey: {
+              title: "Chave de API",
+              description: "Chave de API para esta skill (se necessário).",
+            },
+            env: {
+              title: "Variáveis de Ambiente",
+              description: "Variáveis de ambiente personalizadas para esta skill.",
+            },
+            config: {
+              title: "Configuração da Skill",
+              description: "Payload de configuração personalizado para esta skill.",
+            },
+          },
+        },
+        install: {
+          title: "Instalação de Skills",
+          description: "Configurações para instalar dependências de skills.",
+          preferBrew: {
+            title: "Preferir Homebrew",
+            description: "Preferir Homebrew em vez de outros gerenciadores de pacotes ao instalar.",
+          },
+          nodeManager: {
+            title: "Gerenciador de Pacotes Node",
+            description: "Gerenciador de pacotes Node a usar (npm, pnpm, yarn, bun).",
+          },
+        },
+        load: {
+          title: "Carregamento de Skills",
+          description: "Configurações para carregar skills do sistema de arquivos.",
+          extraDirs: {
+            title: "Diretórios Extras",
+            description: "Diretórios adicionais para carregar skills.",
+          },
+          watch: {
+            title: "Observar Alterações",
+            description: "Recarregar skills automaticamente ao alterar arquivos.",
+          },
+          watchDebounceMs: {
+            title: "Debounce de Observação (ms)",
+            description: "Tempo de espera antes de recarregar as skills.",
+          },
+        },
       },
     },
   },
@@ -1513,6 +3782,8 @@ export const pt = {
       direct: "Direto",
       global: "Global",
       isolated: "Isolado",
+      group: "Grupo",
+      unknown: "Desconhecido",
     },
     off: "Desligado",
     minimal: "Mínimo",
@@ -1537,6 +3808,12 @@ export const pt = {
 
   // Skills View
   skills: {
+    messages: {
+      enabled: "Skill ativada",
+      disabled: "Skill desativada",
+      apiKeySaved: "Chave de API salva",
+      installed: "Instalada",
+    },
     title: "Skills",
     subtitle: "Skills integradas, gerenciadas e do workspace.",
     filter: "Filtrar",
@@ -1740,6 +4017,15 @@ export const pt = {
 
   // Cron View
   cron: {
+    cron: "Cron",
+    errors: {
+      invalidRunTime: "Horário de execução inválido.",
+      invalidIntervalAmount: "Intervalo inválido.",
+      expressionRequired: "Expressão cron obrigatória.",
+      systemEventRequired: "Texto do evento de sistema obrigatório.",
+      agentMessageRequired: "Mensagem do agente obrigatória.",
+      nameRequired: "Nome da tarefa obrigatório.",
+    },
     scheduler: "Agendador",
     schedulerSubtitle: "Status do agendador cron de propriedade do Gateway.",
     enabled: "Ativo",
@@ -1790,7 +4076,7 @@ export const pt = {
     minutes: "Minutos",
     hours: "Horas",
     days: "Dias",
-    cron: "Cron",
+    cronExpression: "Cron",
     main: "Principal",
     isolated: "Isolado",
     defaultPlaceholder: "Padrão",
@@ -1805,6 +4091,10 @@ export const pt = {
     openRunChat: "Abrir chat da execução",
     na: "N/D",
   },
+  presence: {
+    noInstances: "Nenhuma instância ainda.",
+    noPayload: "Nenhum payload de presença.",
+  },
 
   // Visão de Nodes
   nodes: {
@@ -1814,9 +4104,12 @@ export const pt = {
       operator_approvals: "Aprovações",
       operator_pairing: "Pareamento",
     },
-    nodes: "Nodes",
+    nodesTitle: "Nós (Nodes)",
+    nodes: "Nós (Nodes)",
     nodesSubtitle: "Dispositivos pareados e capacidades.",
-    noNodes: "Nenhum node encontrado.",
+    noNodes: "Nenhum nó encontrado.",
+    loadApprovalsHelp: "Carregue as aprovações para visualizar/editar as políticas.",
+    unpaired: "Não pareados",
     devices: "Dispositivos",
     devicesSubtitle: "Gerencie pareamento e tokens.",
     pending: "Pendente",
@@ -1867,10 +4160,10 @@ export const pt = {
     noExecNodes: "Nenhum node anuncia aprovações de execução ainda.",
     defaultsButton: "Padrões",
     securityDeny: "Negar",
-    securityAllowlist: "Lista de Permissão (Allowlist)",
-    securityFull: "Completo (Full)",
+    securityAllowlist: "Lista de Permissão",
+    securityFull: "Completo",
     askOff: "Desligado",
-    askOnMiss: "Na falta (On miss)",
+    askOnMiss: "Na Falta (On-miss)",
     askAlways: "Sempre",
     security: "Segurança",
     defaultSecurityMode: "Modo de segurança padrão",
@@ -1884,7 +4177,7 @@ export const pt = {
     autoAllowSkillClis: "Auto-permitir Skill CLIs",
     autoAllowSkillClisHelp: "Permitir automaticamente comandos CLI de skills instaladas.",
     usingDefault: "Usando padrão ({{value}})",
-    allowlist: "Lista de Permissão (Allowlist)",
+    allowlist: "Lista de Permissão",
     caseInsensitiveGlobPatterns: "Padrões glob insensíveis a maiúsculas.",
     addPattern: "Adicionar Padrão",
     noAllowlistEntries: "Nenhuma entrada na lista de permissão.",
@@ -1898,8 +4191,8 @@ export const pt = {
     snapshots: "Snapshots",
     snapshotsSubtitle: "Dados de status, health e heartbeat.",
     status: "Status",
-    health: "Health",
-    lastHeartbeat: "Último heartbeat",
+    health: "Saúde (Health)",
+    lastHeartbeat: "Última Batida (Heartbeat)",
     manualRpc: "RPC Manual",
     manualRpcSubtitle: "Envie um método bruto do gateway com parâmetros JSON.",
     method: "Método",
@@ -1960,7 +4253,9 @@ export const pt = {
     fallbacks: "Fallbacks (separados por vírgula)",
     inheritDefault: "Usar Padrão",
     inheritDefaultWithModel: "Usar Padrão ({{model}})",
+    loadConfig: "Carregar Configuração",
     reloadConfig: "Recarregar Config",
+
     agentContext: "Contexto do Agente",
     contextSubtitle: "Configuração de workspace, identidade e modelo.",
     channels: "Canais",

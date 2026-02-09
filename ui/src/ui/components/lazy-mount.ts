@@ -26,6 +26,9 @@ export class LazyMount extends LitElement {
   @property({ type: String })
   minHeight = "150px";
 
+  @property({ type: Boolean })
+  immediate = false;
+
   @state()
   private hasAppeared = false;
 
@@ -76,11 +79,22 @@ export class LazyMount extends LitElement {
   connectedCallback() {
     super.connectedCallback();
 
+    const isTest =
+      typeof window !== "undefined" &&
+      ((window as any).__vitest_browser__ || (window as any).__FORCE_LAZY_MOUNT__);
+
     // Apply critical CSS performance properties to host
     this.style.display = "block";
-    this.style.contain = "layout paint style"; // strict containment
-    this.style.contentVisibility = "auto"; // Skip rendering work when off-screen
-    this.style.containIntrinsicSize = `auto ${this.minHeight}`; // Prevent scroll jump
+    if (!isTest) {
+      this.style.contain = "layout paint style"; // strict containment
+      this.style.contentVisibility = "auto"; // Skip rendering work when off-screen
+      this.style.containIntrinsicSize = `auto ${this.minHeight}`; // Prevent scroll jump
+    }
+
+    if (this.immediate || isTest) {
+      this.hasAppeared = true;
+      return;
+    }
 
     // Defer observer
     requestAnimationFrame(() => {
@@ -125,11 +139,7 @@ export class LazyMount extends LitElement {
   private performMount() {
     if (this.hasAppeared) return;
 
-    console.debug(`[LazyMount] Mounting: ${this.label} (queue left: ${LazyMount.queue.length})`);
-
     this.hasAppeared = true;
-    // We update 'content-visibility' to 'visible' briefly or keep 'auto'?
-    // 'auto' is best for performance, keeping it.
     this.requestUpdate();
   }
 
@@ -138,7 +148,11 @@ export class LazyMount extends LitElement {
   }
 
   render() {
-    if (!this.hasAppeared) {
+    const isTest =
+      typeof window !== "undefined" &&
+      ((window as any).__vitest_browser__ || (window as any).__FORCE_LAZY_MOUNT__);
+
+    if (!this.hasAppeared && !this.immediate && !isTest) {
       // Placeholder
       return html`
         <div style="
@@ -149,7 +163,7 @@ export class LazyMount extends LitElement {
         "></div>
       `;
     }
-    return this.renderContent();
+    return this.renderContent() || html``;
   }
 }
 

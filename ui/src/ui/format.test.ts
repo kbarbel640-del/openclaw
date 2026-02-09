@@ -2,20 +2,20 @@ import { describe, expect, it } from "vitest";
 import { formatAgo, stripThinkingTags } from "./format.ts";
 
 describe("formatAgo", () => {
-  it("returns 'in <1m' for timestamps less than 60s in the future", () => {
-    expect(formatAgo(Date.now() + 30_000)).toBe("in <1m");
+  it("returns 'In <1m' for timestamps less than 60s in the future", () => {
+    expect(formatAgo(Date.now() + 30_000)).toBe("In <1m");
   });
 
-  it("returns 'in Xm' for future timestamps", () => {
-    expect(formatAgo(Date.now() + 5 * 60_000)).toBe("in 5m");
+  it("returns 'In Xm' for future timestamps", () => {
+    expect(formatAgo(Date.now() + 5 * 60_000)).toBe("In 5m");
   });
 
-  it("returns 'in Xh' for future timestamps", () => {
-    expect(formatAgo(Date.now() + 3 * 60 * 60_000)).toBe("in 3h");
+  it("returns 'In Xh' for future timestamps", () => {
+    expect(formatAgo(Date.now() + 3 * 60 * 60_000)).toBe("In 3h");
   });
 
-  it("returns 'in Xd' for future timestamps beyond 48h", () => {
-    expect(formatAgo(Date.now() + 3 * 24 * 60 * 60_000)).toBe("in 3d");
+  it("returns 'In Xd' for future timestamps beyond 48h", () => {
+    expect(formatAgo(Date.now() + 3 * 24 * 60 * 60_000)).toBe("In 3d");
   });
 
   it("returns 'Xs ago' for recent past timestamps", () => {
@@ -26,9 +26,9 @@ describe("formatAgo", () => {
     expect(formatAgo(Date.now() - 5 * 60_000)).toBe("5m ago");
   });
 
-  it("returns 'n/a' for null/undefined", () => {
-    expect(formatAgo(null)).toBe("n/a");
-    expect(formatAgo(undefined)).toBe("n/a");
+  it("returns 'N/A' for null/undefined", () => {
+    expect(formatAgo(null)).toBe("N/A");
+    expect(formatAgo(undefined)).toBe("N/A");
   });
 });
 

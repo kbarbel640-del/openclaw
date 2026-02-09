@@ -2,6 +2,7 @@ import { html, nothing } from "lit";
 import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
 import { formatAgo } from "../format.ts";
 import { t } from "../i18n/i18n-manager.ts";
+import { icons } from "../icons.ts";
 import { pathForTab } from "../navigation.ts";
 import { formatSessionTokens } from "../presenter.ts";
 
@@ -101,114 +102,123 @@ function resolveThinkLevelPatchValue(value: string, isBinary: boolean): string |
 export function renderSessions(props: SessionsProps) {
   const rows = props.result?.sessions ?? [];
   return html`
-    <section class="card">
-      <div class="row" style="justify-content: space-between;">
-        <div>
+    <details class="card cfg-object" open style="padding: 0; overflow: hidden;">
+      <summary class="cfg-object__header" style="cursor: pointer; user-select: none; list-style: none;">
+        <div style="display: flex; flex-direction: column; align-items: flex-start; flex: 1;">
           <div class="card-title">${t("sessions.title")}</div>
           <div class="card-sub">${t("sessions.subtitle")}</div>
         </div>
-        <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
-          ${props.loading ? t("common.loading") : t("common.refresh")}
-        </button>
-      </div>
-
-      <div class="filters" style="margin-top: 14px;">
-        <label class="field">
-          <span>${t("sessions.activeWithin")}</span>
-          <input
-            .value=${props.activeMinutes}
-            @input=${(e: Event) =>
-              props.onFiltersChange({
-                activeMinutes: (e.target as HTMLInputElement).value,
-                limit: props.limit,
-                includeGlobal: props.includeGlobal,
-                includeUnknown: props.includeUnknown,
-              })}
-          />
-        </label>
-        <label class="field">
-          <span>${t("sessions.limit")}</span>
-          <input
-            .value=${props.limit}
-            @input=${(e: Event) =>
-              props.onFiltersChange({
-                activeMinutes: props.activeMinutes,
-                limit: (e.target as HTMLInputElement).value,
-                includeGlobal: props.includeGlobal,
-                includeUnknown: props.includeUnknown,
-              })}
-          />
-        </label>
-        <label class="field checkbox">
-          <span>${t("sessions.includeGlobal")}</span>
-          <input
-            type="checkbox"
-            .checked=${props.includeGlobal}
-            @change=${(e: Event) =>
-              props.onFiltersChange({
-                activeMinutes: props.activeMinutes,
-                limit: props.limit,
-                includeGlobal: (e.target as HTMLInputElement).checked,
-                includeUnknown: props.includeUnknown,
-              })}
-          />
-        </label>
-        <label class="field checkbox">
-          <span>${t("sessions.includeUnknown")}</span>
-          <input
-            type="checkbox"
-            .checked=${props.includeUnknown}
-            @change=${(e: Event) =>
-              props.onFiltersChange({
-                activeMinutes: props.activeMinutes,
-                limit: props.limit,
-                includeGlobal: props.includeGlobal,
-                includeUnknown: (e.target as HTMLInputElement).checked,
-              })}
-          />
-        </label>
-      </div>
-
-      ${
-        props.error
-          ? html`<div class="callout danger" style="margin-top: 12px;">${props.error}</div>`
-          : nothing
-      }
-
-      <div class="muted" style="margin-top: 12px;">
-        ${
-          props.result
-            ? t("sessions.store", {
-                path:
-                  props.result.path === "(multiple)" ? t("sessions.multiple") : props.result.path,
-              })
-            : ""
-        }
-      </div>
-
-      <div class="table" style="margin-top: 16px;">
-        <div class="table-head">
-          <div>${t("sessions.key")}</div>
-          <div>${t("sessions.label")}</div>
-          <div>${t("sessions.kind")}</div>
-          <div>${t("sessions.updated")}</div>
-          <div>${t("sessions.tokens")}</div>
-          <div>${t("sessions.thinking")}</div>
-          <div>${t("sessions.verbose")}</div>
-          <div>${t("sessions.reasoning")}</div>
-          <div>${t("common.actions")}</div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button
+            class="btn"
+            ?disabled=${props.loading}
+            @click=${(e: Event) => {
+              e.preventDefault();
+              e.stopPropagation();
+              props.onRefresh();
+            }}
+          >
+            ${props.loading ? t("common.loading") : t("common.refresh")}
+          </button>
+          <span class="cfg-object__chevron">${icons.chevronDown}</span>
         </div>
-        ${
-          rows.length === 0
-            ? html`
-                <div class="muted">${t("sessions.noSessions")}</div>
-              `
-            : rows.map((row) =>
-                renderRow(row, props.basePath, props.onPatch, props.onDelete, props.loading),
-              )
-        }
+      </summary>
+
+      <div class="card-content" style="padding: 20px; border-top: 1px solid var(--border);">
+        <div class="filters" style="margin-top: 0;">
+          <label class="field">
+            <span>${t("sessions.activeWithin")}</span>
+            <input
+              .value=${props.activeMinutes}
+              @input=${(e: Event) =>
+                props.onFiltersChange({
+                  activeMinutes: (e.target as HTMLInputElement).value,
+                  limit: props.limit,
+                  includeGlobal: props.includeGlobal,
+                  includeUnknown: props.includeUnknown,
+                })}
+            />
+          </label>
+          <label class="field">
+            <span>${t("sessions.limit")}</span>
+            <input
+              .value=${props.limit}
+              @input=${(e: Event) =>
+                props.onFiltersChange({
+                  activeMinutes: props.activeMinutes,
+                  limit: (e.target as HTMLInputElement).value,
+                  includeGlobal: props.includeGlobal,
+                  includeUnknown: props.includeUnknown,
+                })}
+            />
+          </label>
+          <label class="field checkbox">
+            <span>${t("sessions.includeGlobal")}</span>
+            <input
+              type="checkbox"
+              .checked=${props.includeGlobal}
+              @change=${(e: Event) =>
+                props.onFiltersChange({
+                  activeMinutes: props.activeMinutes,
+                  limit: props.limit,
+                  includeGlobal: (e.target as HTMLInputElement).checked,
+                  includeUnknown: props.includeUnknown,
+                })}
+            />
+          </label>
+          <label class="field checkbox">
+            <span>${t("sessions.includeUnknown")}</span>
+            <input
+              type="checkbox"
+              .checked=${props.includeUnknown}
+              @change=${(e: Event) =>
+                props.onFiltersChange({
+                  activeMinutes: props.activeMinutes,
+                  limit: props.limit,
+                  includeGlobal: props.includeGlobal,
+                  includeUnknown: (e.target as HTMLInputElement).checked,
+                })}
+            />
+          </label>
+        </div>
+
+        ${props.error ? html`<div class="callout danger" style="margin-top: 12px;">${props.error}</div>` : nothing}
+
+        <div class="muted" style="margin-top: 12px;">
+          ${
+            props.result
+              ? t("sessions.store", {
+                  path:
+                    props.result.path === "(multiple)" ? t("sessions.multiple") : props.result.path,
+                })
+              : ""
+          }
+        </div>
+
+        <div class="table" style="margin-top: 16px;">
+          <div class="table-head">
+            <div>${t("sessions.key")}</div>
+            <div>${t("sessions.label")}</div>
+            <div>${t("sessions.kind")}</div>
+            <div>${t("sessions.updated")}</div>
+            <div>${t("sessions.tokens")}</div>
+            <div>${t("sessions.thinking")}</div>
+            <div>${t("sessions.verbose")}</div>
+            <div>${t("sessions.reasoning")}</div>
+            <div>${t("common.actions")}</div>
+          </div>
+          ${
+            rows.length === 0
+              ? html`
+                  <div class="muted">${t("sessions.noSessions")}</div>
+                `
+              : rows.map((row) =>
+                  renderRow(row, props.basePath, props.onPatch, props.onDelete, props.loading),
+                )
+          }
+        </div>
       </div>
-    </section>
+    </details>
   `;
 }
 

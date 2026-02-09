@@ -87,7 +87,7 @@ function renderCompactionIndicator(status: CompactionIndicatorStatus | null | un
   if (status.active) {
     return html`
       <div class="compaction-indicator compaction-indicator--active" role="status" aria-live="polite">
-        ${icons.loader} Compacting context...
+        ${icons.loader} ${t("chat.compaction.compacting")}
       </div>
     `;
   }
@@ -98,7 +98,7 @@ function renderCompactionIndicator(status: CompactionIndicatorStatus | null | un
     if (elapsed < COMPACTION_TOAST_DURATION_MS) {
       return html`
         <div class="compaction-indicator compaction-indicator--complete" role="status" aria-live="polite">
-          ${icons.check} Context compacted
+          ${icons.check} ${t("chat.compaction.compacted")}
         </div>
       `;
     }
@@ -482,7 +482,10 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
       key: "chat:history:notice",
       message: {
         role: "system",
-        content: `Showing last ${CHAT_HISTORY_RENDER_LIMIT} messages (${historyStart} hidden).`,
+        content: t("chat.historyNotice", {
+          count: CHAT_HISTORY_RENDER_LIMIT,
+          hidden: historyStart,
+        }),
         timestamp: Date.now(),
       },
     });
@@ -499,7 +502,7 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
           typeof marker.id === "string"
             ? `divider:compaction:${marker.id}`
             : `divider:compaction:${normalized.timestamp}:${i}`,
-        label: "Compaction",
+        label: t("chat.compaction.label"),
         timestamp: normalized.timestamp ?? Date.now(),
       });
       continue;

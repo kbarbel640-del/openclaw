@@ -266,18 +266,38 @@ const sidebarIcons = {
 
 // Section definitions
 const SECTIONS: Array<{ key: string; label: string }> = [
-  { key: "env", label: "Environment" },
-  { key: "update", label: "Updates" },
-  { key: "agents", label: "Agents" },
-  { key: "auth", label: "Authentication" },
-  { key: "channels", label: "Channels" },
-  { key: "messages", label: "Messages" },
-  { key: "commands", label: "Commands" },
-  { key: "hooks", label: "Hooks" },
-  { key: "skills", label: "Skills" },
-  { key: "tools", label: "Tools" },
-  { key: "gateway", label: "Gateway" },
-  { key: "wizard", label: "Setup Wizard" },
+  { key: "env", label: t("config.sections.env") },
+  { key: "update", label: t("config.sections.update") },
+  { key: "agents", label: t("config.sections.agents") },
+  { key: "auth", label: t("config.sections.auth") },
+  { key: "channels", label: t("config.sections.channels") },
+  { key: "messages", label: t("config.sections.messages") },
+  { key: "commands", label: t("config.sections.commands") },
+  { key: "hooks", label: t("config.sections.hooks") },
+  { key: "skills", label: t("config.sections.skills") },
+  { key: "tools", label: t("config.sections.tools") },
+  { key: "gateway", label: t("config.sections.gateway") },
+  { key: "wizard", label: t("config.sections.wizard") },
+  { key: "meta", label: t("config.sections.meta") },
+  { key: "logging", label: t("config.sections.logging") },
+  { key: "browser", label: t("config.sections.browser") },
+  { key: "ui", label: t("config.sections.ui") },
+  { key: "models", label: t("config.sections.models") },
+  { key: "bindings", label: t("config.sections.bindings") },
+  { key: "broadcast", label: t("config.sections.broadcast") },
+  { key: "audio", label: t("config.sections.audio") },
+  { key: "session", label: t("config.sections.session") },
+  { key: "cron", label: t("config.sections.cron") },
+  { key: "web", label: t("config.sections.web") },
+  { key: "discovery", label: t("config.sections.discovery") },
+  { key: "canvasHost", label: t("config.sections.canvasHost") },
+  { key: "talk", label: t("config.sections.talk") },
+  { key: "plugins", label: t("config.sections.plugins") },
+  { key: "diagnostics", label: t("config.sections.diagnostics") },
+  { key: "nodeHost", label: t("config.sections.nodeHost") },
+  { key: "media", label: t("config.sections.media") },
+  { key: "memory", label: t("config.sections.memory") },
+  { key: "approvals", label: t("config.sections.approvals") },
 ];
 
 type SubsectionEntry = {
@@ -301,12 +321,10 @@ function resolveSectionMeta(
   description?: string;
 } {
   const meta = SECTION_META[key];
-  if (meta) {
-    return meta;
-  }
   return {
-    label: schema?.title ?? humanize(key),
-    description: schema?.description ?? "",
+    label: t(`config.sections.${key}`) || meta?.label || schema?.title || humanize(key),
+    description:
+      t(`config.sectionDescriptions.${key}`) || meta?.description || schema?.description || "",
   };
 }
 
@@ -321,8 +339,16 @@ function resolveSubsections(params: {
   }
   const entries = Object.entries(schema.properties).map(([subKey, node]) => {
     const hint = hintForPath([key, subKey], uiHints);
-    const label = hint?.label ?? node.title ?? humanize(subKey);
-    const description = hint?.help ?? node.description ?? "";
+    const label =
+      t(`config.path.${key}.${subKey}.title`, { defaultValue: "" }) ||
+      hint?.label ||
+      node.title ||
+      humanize(subKey);
+    const description =
+      t(`config.path.${key}.${subKey}.description`, { defaultValue: "" }) ||
+      hint?.help ||
+      node.description ||
+      "";
     const order = hint?.order ?? 50;
     return { key: subKey, label, description, order };
   });
@@ -403,7 +429,7 @@ export function renderConfig(props: ConfigProps) {
   const knownKeys = new Set(SECTIONS.map((s) => s.key));
   const extraSections = Object.keys(schemaProps)
     .filter((k) => !knownKeys.has(k))
-    .map((k) => ({ key: k, label: k.charAt(0).toUpperCase() + k.slice(1) }));
+    .map((k) => ({ key: k, label: t(`config.sections.${k}`) || humanize(k) }));
 
   const allSections = [...availableSections, ...extraSections];
 
