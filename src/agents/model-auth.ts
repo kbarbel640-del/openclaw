@@ -11,6 +11,7 @@ import {
   resolveApiKeyForProfile,
   resolveAuthProfileOrder,
   resolveAuthStorePathForDisplay,
+  saveAuthProfileStore,
 } from "./auth-profiles.js";
 import { normalizeProviderId } from "./model-selection.js";
 
@@ -201,7 +202,17 @@ export async function resolveApiKeyForProvider(params: {
 
   const customKey = getCustomProviderApiKey(cfg, provider);
   if (customKey) {
-    return { apiKey: customKey, source: "models.json", mode: "api-key" };
+    // Auto-create profile for API-key providers so they can be tracked for cooldowns
+    const profileId = `${provider}:default`;
+    if (!store.profiles[profileId]) {
+      store.profiles[profileId] = {
+        type: "api_key",
+        provider,
+        key: customKey,
+      };
+      await saveAuthProfileStore(store, params.agentDir);
+    }
+    return { apiKey: customKey, source: "models.json", mode: "api-key", profileId };
   }
 
   const normalized = normalizeProviderId(provider);
