@@ -22,6 +22,7 @@ export type ChatHost = {
   hello: GatewayHelloOk | null;
   chatAvatarUrl: string | null;
   refreshSessionsAfterChat: Set<string>;
+  sessionCreateCommands: Set<string>;
 };
 
 export const CHAT_SESSIONS_ACTIVE_MINUTES = 120;
@@ -57,7 +58,11 @@ function isChatResetCommand(text: string) {
   if (normalized === "/new" || normalized === "/reset") {
     return true;
   }
-  return normalized.startsWith("/new ") || normalized.startsWith("/reset ");
+  return (
+    normalized.startsWith("/new ") ||
+    normalized.startsWith("/reset ") ||
+    normalized.startsWith("/session new ")
+  );
 }
 
 export async function handleAbortChat(host: ChatHost) {
@@ -131,7 +136,7 @@ async function sendChatMessageNow(
   if (ok && opts?.refreshSessions && runId) {
     host.refreshSessionsAfterChat.add(runId);
   }
-  return ok;
+  return runId;
 }
 
 async function flushChatQueue(host: ChatHost) {
@@ -143,11 +148,11 @@ async function flushChatQueue(host: ChatHost) {
     return;
   }
   host.chatQueue = rest;
-  const ok = await sendChatMessageNow(host, next.text, {
+  const runId = await sendChatMessageNow(host, next.text, {
     attachments: next.attachments,
     refreshSessions: next.refreshSessions,
   });
-  if (!ok) {
+  if (!runId) {
     host.chatQueue = [next, ...host.chatQueue];
   }
 }
@@ -181,6 +186,8 @@ export async function handleSendChat(
   }
 
   const refreshSessions = isChatResetCommand(message);
+  const isSessionCreate = message.toLowerCase().startsWith("/session new ");
+
   if (messageOverride == null) {
     host.chatMessage = "";
     // Clear attachments when sending
@@ -192,7 +199,7 @@ export async function handleSendChat(
     return;
   }
 
-  await sendChatMessageNow(host, message, {
+  const runId = await sendChatMessageNow(host, message, {
     previousDraft: messageOverride == null ? previousDraft : undefined,
     restoreDraft: Boolean(messageOverride && opts?.restoreDraft),
     attachments: hasAttachments ? attachmentsToSend : undefined,
@@ -200,6 +207,10 @@ export async function handleSendChat(
     restoreAttachments: Boolean(messageOverride && opts?.restoreDraft),
     refreshSessions,
   });
+
+  if (runId && isSessionCreate) {
+    host.sessionCreateCommands.add(runId);
+  }
 }
 
 export async function refreshChat(host: ChatHost, opts?: { scheduleScroll?: boolean }) {

@@ -221,6 +221,7 @@ export type AppViewState = {
   logsAtBottom: boolean;
   client: GatewayBrowserClient | null;
   refreshSessionsAfterChat: Set<string>;
+  sessionCreateCommands: Set<string>;
   connect: () => void;
   setTab: (tab: Tab) => void;
   setTheme: (theme: ThemeMode, context?: ThemeTransitionContext) => void;
