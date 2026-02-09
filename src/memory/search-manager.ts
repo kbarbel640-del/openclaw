@@ -183,7 +183,9 @@ class FallbackMemoryManager implements MemorySearchManager {
           custom: {
             ...custom,
             fallback: {
-              ...custom.fallback,
+              ...(typeof custom.fallback === "object" && custom.fallback != null
+                ? custom.fallback
+                : {}),
               consecutiveFailures: this.consecutivePrimaryFailures,
               lastError: this.lastError ?? "unknown",
             },
