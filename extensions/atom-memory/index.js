@@ -424,6 +424,15 @@ export default {
         for (const { text } of userTexts) {
           if (shouldCapture(text)) {
             try {
+              // Deduplicate: check if similar content already exists
+              const existing = await fetchMemoryService(
+                `/memories/search?q=${encodeURIComponent(text.slice(0, 200))}&limit=1&threshold=0.95`,
+              );
+              if (existing.results && existing.results.length > 0) {
+                api.logger.debug(`atom-memory: skipped duplicate: "${text.slice(0, 40)}..."`);
+                continue;
+              }
+
               await fetchMemoryService("/memories", {
                 method: "POST",
                 body: JSON.stringify({
