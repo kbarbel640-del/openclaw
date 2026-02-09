@@ -3,6 +3,7 @@ import type { PollInput } from "../../polls.js";
 import { getChannelPlugin, normalizeChannelId } from "../../channels/plugins/index.js";
 import { loadConfig } from "../../config/config.js";
 import { callGateway, randomIdempotencyKey } from "../../gateway/call.js";
+import { addBreadcrumb } from "../../logging/error-context.js";
 import { normalizePollInput } from "../../polls.js";
 import { resolveSlackAccount } from "../../slack/accounts.js";
 import { slackChannelCache } from "../../slack/channel-cache.js";
@@ -132,18 +133,35 @@ async function resolveSlackChannelNameToId(
 }
 
 export async function sendMessage(params: MessageSendParams): Promise<MessageSendResult> {
-  const cfg = params.cfg ?? loadConfig();
-  const channel = params.channel?.trim()
-    ? normalizeChannelId(params.channel)
-    : (await resolveMessageChannelSelection({ cfg })).channel;
-  if (!channel) {
-    throw new Error(`Unknown channel: ${params.channel}`);
-  }
-  const plugin = getChannelPlugin(channel);
-  if (!plugin) {
-    throw new Error(`Unknown channel: ${channel}`);
-  }
+  try {
+    addBreadcrumb(`Starting sendMessage to channel: ${params.channel}`);
+    const cfg = params.cfg ?? loadConfig();
+    const channel = params.channel?.trim()
+      ? normalizeChannelId(params.channel)
+      : (await resolveMessageChannelSelection({ cfg })).channel;
+    if (!channel) {
+      throw new Error(`Unknown channel: ${params.channel}`);
+    }
+    addBreadcrumb(`Channel resolved: ${channel}`);
+    const plugin = getChannelPlugin(channel);
+    if (!plugin) {
+      throw new Error(`Unknown channel: ${channel}`);
+    }
+    addBreadcrumb(`Plugin initialized for channel: ${channel}`);
 
+    return await sendMessageWithContext(params, channel, cfg, plugin);
+  } catch (err) {
+    addBreadcrumb(`Error in sendMessage: ${err instanceof Error ? err.message : String(err)}`);
+    throw err;
+  }
+}
+
+async function sendMessageWithContext(
+  params: MessageSendParams,
+  channel: string,
+  cfg: OpenClawConfig,
+  plugin: ReturnType<typeof getChannelPlugin>,
+): Promise<MessageSendResult> {
   // Resolve Slack channel names to IDs automatically
   let resolvedTo = params.to;
   if (channel === "slack" && params.to) {
