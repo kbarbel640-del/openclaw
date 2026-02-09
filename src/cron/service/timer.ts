@@ -14,6 +14,12 @@ import { ensureLoaded, persist } from "./store.js";
 const MAX_TIMER_DELAY_MS = 60_000;
 
 /**
+ * Maximum number of cron jobs executing concurrently.
+ * Keeps resource usage bounded while allowing independent jobs to overlap.
+ */
+const MAX_CONCURRENT_JOBS = 3;
+
+/**
  * Maximum wall-clock time for a single job execution. Acts as a safety net
  * on top of the per-provider / per-agent timeouts to prevent one stuck job
  * from wedging the entire cron lane.
@@ -114,6 +120,35 @@ function applyJobResult(
   return shouldDelete;
 }
 
+/**
+ * Run async tasks with bounded concurrency. Returns settled results in the
+ * same order as the input array.
+ */
+async function mapConcurrent<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = Array.from({ length: items.length });
+  let nextIdx = 0;
+
+  async function worker() {
+    while (nextIdx < items.length) {
+      const idx = nextIdx++;
+      try {
+        const value = await fn(items[idx]);
+        results[idx] = { status: "fulfilled", value };
+      } catch (reason) {
+        results[idx] = { status: "rejected", reason };
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
 export function armTimer(state: CronServiceState) {
   if (state.timer) {
     clearTimeout(state.timer);
@@ -193,7 +228,7 @@ export async function onTimer(state: CronServiceState) {
       }));
     });
 
-    const results: Array<{
+    type JobResult = {
       jobId: string;
       status: "ok" | "error" | "skipped";
       error?: string;
@@ -202,44 +237,57 @@ export async function onTimer(state: CronServiceState) {
       sessionKey?: string;
       startedAt: number;
       endedAt: number;
-    }> = [];
+    };
 
-    for (const { id, job } of dueJobs) {
-      const startedAt = state.deps.nowMs();
-      job.state.runningAtMs = startedAt;
-      emit(state, { jobId: job.id, action: "started", runAtMs: startedAt });
+    // Execute due jobs with bounded concurrency instead of sequentially.
+    // Each job is independent so they can safely overlap.
+    const settled = await mapConcurrent(
+      dueJobs,
+      MAX_CONCURRENT_JOBS,
+      async ({ id, job }): Promise<JobResult> => {
+        const startedAt = state.deps.nowMs();
+        job.state.runningAtMs = startedAt;
+        emit(state, { jobId: job.id, action: "started", runAtMs: startedAt });
 
-      const jobTimeoutMs =
-        job.payload.kind === "agentTurn" && typeof job.payload.timeoutSeconds === "number"
-          ? job.payload.timeoutSeconds * 1_000
-          : DEFAULT_JOB_TIMEOUT_MS;
+        const jobTimeoutMs =
+          job.payload.kind === "agentTurn" && typeof job.payload.timeoutSeconds === "number"
+            ? job.payload.timeoutSeconds * 1_000
+            : DEFAULT_JOB_TIMEOUT_MS;
 
-      try {
-        let timeoutId: NodeJS.Timeout;
-        const result = await Promise.race([
-          executeJobCore(state, job),
-          new Promise<never>((_, reject) => {
-            timeoutId = setTimeout(
-              () => reject(new Error("cron: job execution timed out")),
-              jobTimeoutMs,
-            );
-          }),
-        ]).finally(() => clearTimeout(timeoutId!));
-        results.push({ jobId: id, ...result, startedAt, endedAt: state.deps.nowMs() });
-      } catch (err) {
-        state.deps.log.warn(
-          { jobId: id, jobName: job.name, timeoutMs: jobTimeoutMs },
-          `cron: job failed: ${String(err)}`,
-        );
-        results.push({
-          jobId: id,
-          status: "error",
-          error: String(err),
-          startedAt,
-          endedAt: state.deps.nowMs(),
-        });
-      }
-    }
+        try {
+          let timeoutId: NodeJS.Timeout;
+          const result = await Promise.race([
+            executeJobCore(state, job),
+            new Promise<never>((_, reject) => {
+              timeoutId = setTimeout(
+                () => reject(new Error("cron: job execution timed out")),
+                jobTimeoutMs,
+              );
+            }),
+          ]).finally(() => clearTimeout(timeoutId!));
+          return { jobId: id, ...result, startedAt, endedAt: state.deps.nowMs() };
+        } catch (err) {
+          state.deps.log.warn(
+            { jobId: id, jobName: job.name, timeoutMs: jobTimeoutMs },
+            `cron: job failed: ${String(err)}`,
+          );
+          return {
+            jobId: id,
+            status: "error",
+            error: String(err),
+            startedAt,
+            endedAt: state.deps.nowMs(),
+          };
+        }
+      },
+    );
+
+    const results: JobResult[] = settled
+      .filter(
+        (s): s is PromiseSettledResult<JobResult> & { status: "fulfilled" } =>
+          s.status === "fulfilled",
+      )
+      .map((s) => s.value);
 
     if (results.length > 0) {
       await locked(state, async () => {
@@ -362,8 +410,10 @@ export async function runMissedJobs(state: CronServiceState) {
   }
   await persist(state);
 
-  // Execute outside the lock (caller should not hold the lock during this call)
-  for (const { id, job } of missed.map((j) => ({ id: j.id, job: j }))) {
+  // Execute outside the lock with bounded concurrency.
+  // Each job independently: execute → apply-in-lock.
+  const missedItems = missed.map((j) => ({ id: j.id, job: j }));
+  await mapConcurrent(missedItems, MAX_CONCURRENT_JOBS, async ({ id, job }) => {
     const startedAt = state.deps.nowMs();
     emit(state, { jobId: job.id, action: "started", runAtMs: startedAt });
 
@@ -422,7 +472,7 @@ export async function runMissedJobs(state: CronServiceState) {
       // Bug fix #6: Persist after each job execution during missed jobs recovery
       await persist(state);
     });
-  }
+  });
 }
 
 async function executeJobCore(
