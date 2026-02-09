@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../globals.js", () => ({
+vi.mock("../globals.js", () => ({
   logVerbose: vi.fn(),
   shouldLogVerbose: vi.fn(() => false),
 }));

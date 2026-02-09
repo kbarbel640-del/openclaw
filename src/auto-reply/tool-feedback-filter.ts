@@ -1,8 +1,8 @@
-import { formatToolFeedbackDiscord, resolveToolDisplay } from "../../agents/tool-display.js";
-import { logVerbose } from "../../globals.js";
-import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { formatToolFeedbackDiscord, resolveToolDisplay } from "../agents/tool-display.js";
+import { logVerbose } from "../globals.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 
-const log = createSubsystemLogger("discord/tool-feedback");
+const log = createSubsystemLogger("auto-reply/tool-feedback");
 
 const DEFAULT_BUFFER_MS = 4000;
 const DEFAULT_MAX_WAIT_MS = 10000;
@@ -169,12 +169,9 @@ function formatGroupedFeedback(groups: GroupedTool[]): string {
 }
 
 /**
- * Create a unified tool feedback system for Discord that buffers
- * tool calls, groups similar commands, rate-limits output, and
- * formats using code blocks for a clean user experience.
- *
- * Replaces the old LLM-based tool-feedback-filter with
- * deterministic formatting and grouping.
+ * Create a unified tool feedback system that buffers tool calls,
+ * groups similar commands, rate-limits output, and formats using
+ * code blocks for a clean user experience.
  */
 export function createUnifiedToolFeedback(params: {
   onUpdate: (text: string) => void;

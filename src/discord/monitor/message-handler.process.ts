@@ -21,6 +21,8 @@ import {
 } from "../../auto-reply/reply/history.js";
 import { finalizeInboundContext } from "../../auto-reply/reply/inbound-context.js";
 import { createReplyDispatcherWithTyping } from "../../auto-reply/reply/reply-dispatcher.js";
+import { createSmartStatus } from "../../auto-reply/smart-status.js";
+import { createUnifiedToolFeedback } from "../../auto-reply/tool-feedback-filter.js";
 import {
   removeAckReactionAfterReply,
   shouldAckReaction as shouldAckReactionGate,
@@ -61,9 +63,7 @@ import {
   type SmartAckContext,
   type SmartAckResult,
 } from "./smart-ack.js";
-import { createSmartStatus } from "./smart-status.js";
 import { resolveDiscordAutoThreadReplyPlan, resolveDiscordThreadStarter } from "./threading.js";
-import { createUnifiedToolFeedback } from "./tool-feedback-filter.js";
 import { createTypingGuard } from "./typing-guard.js";
 import { sendTyping } from "./typing.js";
 

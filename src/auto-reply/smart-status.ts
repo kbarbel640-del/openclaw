@@ -1,8 +1,8 @@
-import type { AgentStreamEvent } from "../../auto-reply/types.js";
-import { formatToolSummary, resolveToolDisplay } from "../../agents/tool-display.js";
-import { createSubsystemLogger } from "../../logging/subsystem.js";
+import type { AgentStreamEvent } from "./types.js";
+import { formatToolSummary, resolveToolDisplay } from "../agents/tool-display.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 
-const log = createSubsystemLogger("discord/smart-status");
+const log = createSubsystemLogger("auto-reply/smart-status");
 
 const DEFAULT_MIN_INTERVAL_MS = 3000;
 const DEFAULT_MAX_STATUS_LENGTH = 100;
