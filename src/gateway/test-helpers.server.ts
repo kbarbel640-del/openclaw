@@ -415,7 +415,8 @@ export async function connectReq(
         : process.env.OPENCLAW_GATEWAY_PASSWORD;
   const token = opts?.token ?? defaultToken;
   const password = opts?.password ?? defaultPassword;
-  const requestedScopes = Array.isArray(opts?.scopes) ? opts?.scopes : [];
+  const effectiveScopes = Array.isArray(opts?.scopes) ? opts.scopes : ["operator.admin"];
+  const requestedScopes = effectiveScopes;
   const device = (() => {
     if (opts?.device === null) {
       return undefined;
@@ -455,7 +456,7 @@ export async function connectReq(
         commands: opts?.commands ?? [],
         permissions: opts?.permissions ?? undefined,
         role,
-        scopes: opts?.scopes,
+        scopes: effectiveScopes,
         auth:
           token || password
             ? {
