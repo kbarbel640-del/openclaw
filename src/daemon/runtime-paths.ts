@@ -153,6 +153,33 @@ export function renderSystemNodeWarning(
   return `System Node ${versionLabel} at ${systemNode.path} is below the required Node 22+.${selectedLabel} Install Node 22+ from nodejs.org or Homebrew.`;
 }
 
+// Subpath to the OpenClawNode.app binary within the config directory.
+// This app bundle wraps a standalone Node.js so macOS Full Disk Access can be
+// granted to the gateway without granting FDA to all of homebrew node.
+const OPENCLAW_NODE_BUNDLE_SUBPATH = "OpenClawNode.app/Contents/MacOS/node";
+
+/**
+ * Check for the OpenClawNode.app bundle binary in the config directory.
+ * Returns the absolute path if the binary exists, or null.
+ */
+async function resolveOpenClawNodeBundlePath(
+  env: Record<string, string | undefined>,
+): Promise<string | null> {
+  const stateDir = env.OPENCLAW_STATE_DIR?.trim() || env.CLAWDBOT_STATE_DIR?.trim();
+  const home = env.HOME?.trim() || env.USERPROFILE?.trim();
+  const baseDir = stateDir || (home ? path.join(home, ".openclaw") : null);
+  if (!baseDir) {
+    return null;
+  }
+  const candidate = path.join(baseDir, OPENCLAW_NODE_BUNDLE_SUBPATH);
+  try {
+    await fs.access(candidate);
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
 export async function resolvePreferredNodePath(params: {
   env?: Record<string, string | undefined>;
   runtime?: string;
@@ -164,9 +191,21 @@ export async function resolvePreferredNodePath(params: {
     return undefined;
   }
 
+  // On macOS, prefer the OpenClawNode.app bundle binary so the gateway runs
+  // under its own app identity (needed for Full Disk Access).
+  const platform = params.platform ?? process.platform;
+  if (platform === "darwin") {
+    const env = params.env ?? process.env;
+    const bundlePath = await resolveOpenClawNodeBundlePath(env);
+    if (bundlePath) {
+      const version = await resolveNodeVersion(bundlePath, params.execFile ?? execFileAsync);
+      if (isSupportedNodeVersion(version)) {
+        return bundlePath;
+      }
+    }
+  }
   // Prefer the node that is currently running `openclaw gateway install`.
   // This respects the user's active version manager (fnm/nvm/volta/etc.).
-  const platform = params.platform ?? process.platform;
   const currentExecPath = params.execPath ?? process.execPath;
   if (currentExecPath && isNodeExecPath(currentExecPath, platform)) {
     const execFileImpl = params.execFile ?? execFileAsync;
@@ -175,7 +214,6 @@ export async function resolvePreferredNodePath(params: {
       return currentExecPath;
     }
   }
-
   // Fall back to system node.
   const systemNode = await resolveSystemNodeInfo(params);
   if (!systemNode?.supported) {
