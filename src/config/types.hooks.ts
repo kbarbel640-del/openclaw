@@ -52,6 +52,8 @@ export type HooksGmailGcpConfig = {
   serviceAccountKeyFile?: string;
   /** Auto-create Pub/Sub topic and enable required APIs on startup */
   autoSetup?: boolean;
+  /** Public push endpoint URL for Pub/Sub subscription (used when Tailscale is not configured) */
+  pushEndpoint?: string;
 };
 
 export type HooksGmailGogConfig = {

@@ -351,54 +351,62 @@ export async function runGmailAutoSetup(cfg: OpenClawConfig): Promise<GmailAutoS
     const subscription = gmail.subscription ?? DEFAULT_GMAIL_SUBSCRIPTION;
     const pushToken = gmail.pushToken ?? generateHookToken();
 
-    // We need a push endpoint - try Tailscale if configured, otherwise skip Pub/Sub auto-setup
-    if (gmail.tailscale?.mode && gmail.tailscale.mode !== "off") {
+    // Resolve push endpoint: explicit config > Tailscale > fail
+    let resolvedPushEndpoint: string | undefined;
+
+    // Option 1: Explicit push endpoint in config (e.g. Fly.io public URL)
+    const configEndpoint = gcp?.pushEndpoint;
+    if (configEndpoint) {
+      // Append push token as query param if not already present
+      const sep = configEndpoint.includes("?") ? "&" : "?";
+      resolvedPushEndpoint = `${configEndpoint}${sep}token=${pushToken}`;
+    }
+
+    // Option 2: Tailscale endpoint
+    if (!resolvedPushEndpoint && gmail.tailscale?.mode && gmail.tailscale.mode !== "off") {
       try {
-        const tailscaleEndpoint = await ensureTailscaleEndpoint({
+        resolvedPushEndpoint = await ensureTailscaleEndpoint({
           mode: gmail.tailscale.mode,
           path: gmail.tailscale.path ?? "/gmail-pubsub",
           port: gmail.serve?.port ?? 8788,
           target: gmail.tailscale.target,
           token: pushToken,
         });
-
-        const pubsubResult = await autoSetupPubSub(
-          projectId,
-          topicName,
-          subscription,
-          tailscaleEndpoint,
-        );
-        if (!pubsubResult.ok) {
-          return { ok: false, error: pubsubResult.error };
-        }
-
-        return {
-          ok: true,
-          projectId,
-          topic: buildTopicPath(projectId, topicName),
-          subscription,
-          pushEndpoint: tailscaleEndpoint,
-        };
       } catch (err) {
-        log.warn(`Tailscale endpoint setup failed, skipping Pub/Sub auto-setup: ${String(err)}`);
-        return {
-          ok: true,
-          skipped: false,
-          reason: "Tailscale unavailable; Pub/Sub auto-setup skipped",
-          projectId,
-          topic: buildTopicPath(projectId, topicName),
-        };
+        log.warn(`Tailscale endpoint setup failed: ${String(err)}`);
       }
-    } else {
-      log.info("autoSetup: no Tailscale mode configured, skipping Pub/Sub push endpoint setup");
+    }
+
+    if (!resolvedPushEndpoint) {
+      log.warn(
+        "autoSetup: no push endpoint available (set gcp.pushEndpoint or configure tailscale)",
+      );
       return {
         ok: true,
         skipped: false,
-        reason: "no tailscale mode configured",
+        reason: "no push endpoint configured",
         projectId,
         topic: buildTopicPath(projectId, topicName),
       };
     }
+
+    const pubsubResult = await autoSetupPubSub(
+      projectId,
+      topicName,
+      subscription,
+      resolvedPushEndpoint,
+    );
+    if (!pubsubResult.ok) {
+      return { ok: false, error: pubsubResult.error };
+    }
+
+    return {
+      ok: true,
+      projectId,
+      topic: buildTopicPath(projectId, topicName),
+      subscription,
+      pushEndpoint: resolvedPushEndpoint,
+    };
   }
 
   return {
