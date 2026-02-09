@@ -170,6 +170,7 @@ export const HooksGmailSchema = z
       })
       .strict()
       .optional(),
+    pollIntervalSeconds: z.number().int().min(0).optional(),
     model: z.string().optional(),
     thinking: z
       .union([
