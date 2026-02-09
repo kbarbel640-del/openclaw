@@ -53,4 +53,18 @@ describe("normalizeMention", () => {
     const result = normalizeMention(input, "echobot");
     expect(result).toBe("hey check this\nout");
   });
+
+  it("preserves leading indentation for nested lists", () => {
+    const input = "@echobot\n- item\n  - nested\n    - deep";
+    const result = normalizeMention(input, "echobot");
+    expect(result).toContain("  - nested");
+    expect(result).toContain("    - deep");
+  });
+
+  it("preserves indented code blocks", () => {
+    const input = "@echobot\ntext\n    code line 1\n    code line 2";
+    const result = normalizeMention(input, "echobot");
+    expect(result).toContain("    code line 1");
+    expect(result).toContain("    code line 2");
+  });
 });
