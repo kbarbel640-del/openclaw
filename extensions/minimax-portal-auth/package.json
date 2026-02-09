@@ -1,12 +1,12 @@
 {
-  "name": "@openclaw/minimax-portal-auth",
+  "name": "@amigo/minimax-portal-auth",
   "version": "2026.2.6-3",
-  "description": "OpenClaw MiniMax Portal OAuth provider plugin",
+  "description": "Amigo MiniMax Portal OAuth provider plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ]

@@ -1,12 +1,12 @@
 {
-  "name": "@openclaw/llm-task",
+  "name": "@amigo/llm-task",
   "version": "2026.2.6-3",
-  "description": "OpenClaw JSON-only LLM task plugin",
+  "description": "Amigo JSON-only LLM task plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ]

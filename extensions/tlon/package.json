@@ -1,16 +1,16 @@
 {
-  "name": "@openclaw/tlon",
+  "name": "@amigo/tlon",
   "version": "2026.2.6-3",
-  "description": "OpenClaw Tlon/Urbit channel plugin",
+  "description": "Amigo Tlon/Urbit channel plugin",
   "type": "module",
   "dependencies": {
     "@urbit/aura": "^3.0.0",
     "@urbit/http-api": "^3.0.0"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ],
@@ -25,7 +25,7 @@
       "quickstartAllowFrom": true
     },
     "install": {
-      "npmSpec": "@openclaw/tlon",
+      "npmSpec": "@amigo/tlon",
       "localPath": "extensions/tlon",
       "defaultChoice": "npm"
     }

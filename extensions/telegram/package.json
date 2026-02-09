@@ -1,12 +1,12 @@
 {
-  "name": "@openclaw/telegram",
+  "name": "@amigo/telegram",
   "version": "2026.2.6-3",
-  "description": "OpenClaw Telegram channel plugin",
+  "description": "Amigo Telegram channel plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ]

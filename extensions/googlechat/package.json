@@ -1,18 +1,18 @@
 {
-  "name": "@openclaw/googlechat",
+  "name": "@amigo/googlechat",
   "version": "2026.2.6-3",
-  "description": "OpenClaw Google Chat channel plugin",
+  "description": "Amigo Google Chat channel plugin",
   "type": "module",
   "dependencies": {
     "google-auth-library": "^10.5.0"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.1.26"
+    "amigo": ">=2026.1.26"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ],
@@ -31,7 +31,7 @@
       "order": 55
     },
     "install": {
-      "npmSpec": "@openclaw/googlechat",
+      "npmSpec": "@amigo/googlechat",
       "localPath": "extensions/googlechat",
       "defaultChoice": "npm"
     }

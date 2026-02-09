@@ -1,12 +1,12 @@
-import type { OpenClawConfig, WizardPrompter } from "openclaw/plugin-sdk";
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk";
+import type { AmigoConfig, WizardPrompter } from "amigo/plugin-sdk";
+import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "amigo/plugin-sdk";
 
 type PromptAccountIdParams = {
-  cfg: OpenClawConfig;
+  cfg: AmigoConfig;
   prompter: WizardPrompter;
   label: string;
   currentId?: string;
-  listAccountIds: (cfg: OpenClawConfig) => string[];
+  listAccountIds: (cfg: AmigoConfig) => string[];
   defaultAccountId: string;
 };
 

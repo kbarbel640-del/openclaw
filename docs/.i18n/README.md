@@ -1,4 +1,4 @@
-# OpenClaw docs i18n assets
+# Amigo docs i18n assets
 
 This folder stores **generated** and **config** files for documentation translations.
 

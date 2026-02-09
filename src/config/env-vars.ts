@@ -1,6 +1,6 @@
-import type { OpenClawConfig } from "./types.js";
+import type { AmigoConfig } from "./types.js";
 
-export function collectConfigEnvVars(cfg?: OpenClawConfig): Record<string, string> {
+export function collectConfigEnvVars(cfg?: AmigoConfig): Record<string, string> {
   const envConfig = cfg?.env;
   if (!envConfig) {
     return {};

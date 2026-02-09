@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AmigoConfig } from "../config/config.js";
 import { resolveStateDir } from "../config/paths.js";
 import { resolveRunWorkspaceDir } from "./workspace-run.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "./workspace.js";
@@ -26,7 +26,7 @@ describe("resolveRunWorkspaceDir", () => {
         defaults: { workspace: defaultWorkspace },
         list: [{ id: "research", workspace: researchWorkspace }],
       },
-    } satisfies OpenClawConfig;
+    } satisfies AmigoConfig;
 
     const result = resolveRunWorkspaceDir({
       workspaceDir: undefined,
@@ -46,7 +46,7 @@ describe("resolveRunWorkspaceDir", () => {
       agents: {
         defaults: { workspace: defaultWorkspace },
       },
-    } satisfies OpenClawConfig;
+    } satisfies AmigoConfig;
 
     const result = resolveRunWorkspaceDir({
       workspaceDir: "   ",
@@ -109,7 +109,7 @@ describe("resolveRunWorkspaceDir", () => {
           { id: "research", workspace: researchWorkspace, default: true },
         ],
       },
-    } satisfies OpenClawConfig;
+    } satisfies AmigoConfig;
 
     expect(() =>
       resolveRunWorkspaceDir({
@@ -126,7 +126,7 @@ describe("resolveRunWorkspaceDir", () => {
       agents: {
         defaults: { workspace: fallbackWorkspace },
       },
-    } satisfies OpenClawConfig;
+    } satisfies AmigoConfig;
 
     const result = resolveRunWorkspaceDir({
       workspaceDir: undefined,

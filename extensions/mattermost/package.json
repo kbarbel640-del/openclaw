@@ -1,12 +1,12 @@
 {
-  "name": "@openclaw/mattermost",
+  "name": "@amigo/mattermost",
   "version": "2026.2.6-3",
-  "description": "OpenClaw Mattermost channel plugin",
+  "description": "Amigo Mattermost channel plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ],
@@ -20,7 +20,7 @@
       "order": 65
     },
     "install": {
-      "npmSpec": "@openclaw/mattermost",
+      "npmSpec": "@amigo/mattermost",
       "localPath": "extensions/mattermost",
       "defaultChoice": "npm"
     }

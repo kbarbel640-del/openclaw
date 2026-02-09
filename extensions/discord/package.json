@@ -1,12 +1,12 @@
 {
-  "name": "@openclaw/discord",
+  "name": "@amigo/discord",
   "version": "2026.2.6-3",
-  "description": "OpenClaw Discord channel plugin",
+  "description": "Amigo Discord channel plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ]

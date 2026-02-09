@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installProcessWarningFilter, shouldIgnoreWarning } from "./warning-filter.js";
 
-const warningFilterKey = Symbol.for("openclaw.warning-filter");
+const warningFilterKey = Symbol.for("amigo.warning-filter");
 const baseEmitWarning = process.emitWarning.bind(process) as typeof process.emitWarning;
 
 function resetWarningFilterInstallState(): void {
@@ -76,7 +76,7 @@ describe("warning filter", () => {
     await new Promise((resolve) => setImmediate(resolve));
     expect(writeSpy).not.toHaveBeenCalled();
 
-    emitWarning("Visible warning", { type: "Warning", code: "OPENCLAW_TEST_WARNING" });
+    emitWarning("Visible warning", { type: "Warning", code: "AMIGO_TEST_WARNING" });
     await new Promise((resolve) => setImmediate(resolve));
     expect(writeSpy).toHaveBeenCalled();
   });

@@ -1,12 +1,12 @@
 {
-  "name": "@openclaw/slack",
+  "name": "@amigo/slack",
   "version": "2026.2.6-3",
-  "description": "OpenClaw Slack channel plugin",
+  "description": "Amigo Slack channel plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ]

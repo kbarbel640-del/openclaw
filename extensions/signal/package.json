@@ -1,12 +1,12 @@
 {
-  "name": "@openclaw/signal",
+  "name": "@amigo/signal",
   "version": "2026.2.6-3",
-  "description": "OpenClaw Signal channel plugin",
+  "description": "Amigo Signal channel plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ]

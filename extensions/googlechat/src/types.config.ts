@@ -1,3 +1,3 @@
-import type { GoogleChatAccountConfig, GoogleChatConfig } from "openclaw/plugin-sdk";
+import type { GoogleChatAccountConfig, GoogleChatConfig } from "amigo/plugin-sdk";
 
 export type { GoogleChatAccountConfig, GoogleChatConfig };

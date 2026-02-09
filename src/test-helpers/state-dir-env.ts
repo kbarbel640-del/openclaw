@@ -1,29 +1,29 @@
 type StateDirEnvSnapshot = {
-  openclawStateDir: string | undefined;
-  clawdbotStateDir: string | undefined;
+  amigoStateDir: string | undefined;
+  amigoStateDir: string | undefined;
 };
 
 export function snapshotStateDirEnv(): StateDirEnvSnapshot {
   return {
-    openclawStateDir: process.env.OPENCLAW_STATE_DIR,
-    clawdbotStateDir: process.env.CLAWDBOT_STATE_DIR,
+    amigoStateDir: process.env.AMIGO_STATE_DIR,
+    amigoStateDir: process.env.AMIGO_STATE_DIR,
   };
 }
 
 export function restoreStateDirEnv(snapshot: StateDirEnvSnapshot): void {
-  if (snapshot.openclawStateDir === undefined) {
-    delete process.env.OPENCLAW_STATE_DIR;
+  if (snapshot.amigoStateDir === undefined) {
+    delete process.env.AMIGO_STATE_DIR;
   } else {
-    process.env.OPENCLAW_STATE_DIR = snapshot.openclawStateDir;
+    process.env.AMIGO_STATE_DIR = snapshot.amigoStateDir;
   }
-  if (snapshot.clawdbotStateDir === undefined) {
-    delete process.env.CLAWDBOT_STATE_DIR;
+  if (snapshot.amigoStateDir === undefined) {
+    delete process.env.AMIGO_STATE_DIR;
   } else {
-    process.env.CLAWDBOT_STATE_DIR = snapshot.clawdbotStateDir;
+    process.env.AMIGO_STATE_DIR = snapshot.amigoStateDir;
   }
 }
 
 export function setStateDirEnv(stateDir: string): void {
-  process.env.OPENCLAW_STATE_DIR = stateDir;
-  delete process.env.CLAWDBOT_STATE_DIR;
+  process.env.AMIGO_STATE_DIR = stateDir;
+  delete process.env.AMIGO_STATE_DIR;
 }

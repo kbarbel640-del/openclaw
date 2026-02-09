@@ -1,12 +1,12 @@
 {
-  "name": "@openclaw/line",
+  "name": "@amigo/line",
   "version": "2026.2.6-3",
-  "description": "OpenClaw LINE channel plugin",
+  "description": "Amigo LINE channel plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "amigo": "workspace:*"
   },
-  "openclaw": {
+  "amigo": {
     "extensions": [
       "./index.ts"
     ],
@@ -21,7 +21,7 @@
       "quickstartAllowFrom": true
     },
     "install": {
-      "npmSpec": "@openclaw/line",
+      "npmSpec": "@amigo/line",
       "localPath": "extensions/line",
       "defaultChoice": "npm"
     }

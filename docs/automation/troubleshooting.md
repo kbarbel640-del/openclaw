@@ -14,28 +14,28 @@ Use this page for scheduler and delivery issues (`cron` + `heartbeat`).
 ## Command ladder
 
 ```bash
-openclaw status
-openclaw gateway status
-openclaw logs --follow
-openclaw doctor
-openclaw channels status --probe
+amigo status
+amigo gateway status
+amigo logs --follow
+amigo doctor
+amigo channels status --probe
 ```
 
 Then run automation checks:
 
 ```bash
-openclaw cron status
-openclaw cron list
-openclaw system heartbeat last
+amigo cron status
+amigo cron list
+amigo system heartbeat last
 ```
 
 ## Cron not firing
 
 ```bash
-openclaw cron status
-openclaw cron list
-openclaw cron runs --id <jobId> --limit 20
-openclaw logs --follow
+amigo cron status
+amigo cron list
+amigo cron runs --id <jobId> --limit 20
+amigo logs --follow
 ```
 
 Good output looks like:
@@ -53,10 +53,10 @@ Common signatures:
 ## Cron fired but no delivery
 
 ```bash
-openclaw cron runs --id <jobId> --limit 20
-openclaw cron list
-openclaw channels status --probe
-openclaw logs --follow
+amigo cron runs --id <jobId> --limit 20
+amigo cron list
+amigo channels status --probe
+amigo logs --follow
 ```
 
 Good output looks like:
@@ -74,10 +74,10 @@ Common signatures:
 ## Heartbeat suppressed or skipped
 
 ```bash
-openclaw system heartbeat last
-openclaw logs --follow
-openclaw config get agents.defaults.heartbeat
-openclaw channels status --probe
+amigo system heartbeat last
+amigo logs --follow
+amigo config get agents.defaults.heartbeat
+amigo channels status --probe
 ```
 
 Good output looks like:
@@ -95,11 +95,11 @@ Common signatures:
 ## Timezone and activeHours gotchas
 
 ```bash
-openclaw config get agents.defaults.heartbeat.activeHours
-openclaw config get agents.defaults.heartbeat.activeHours.timezone
-openclaw config get agents.defaults.userTimezone || echo "agents.defaults.userTimezone not set"
-openclaw cron list
-openclaw logs --follow
+amigo config get agents.defaults.heartbeat.activeHours
+amigo config get agents.defaults.heartbeat.activeHours.timezone
+amigo config get agents.defaults.userTimezone || echo "agents.defaults.userTimezone not set"
+amigo cron list
+amigo logs --follow
 ```
 
 Quick rules:
