@@ -106,6 +106,12 @@ const FIELD_LABELS: Record<string, string> = {
   "meta.lastTouchedAt": "Config Last Touched At",
   "update.channel": "Update Channel",
   "update.checkOnStart": "Update Check on Start",
+  "update.auto.enabled": "Auto-Update Enabled",
+  "update.auto.mode": "Auto-Update Mode",
+  "update.auto.schedule": "Auto-Update Schedule",
+  "update.auto.timezone": "Auto-Update Timezone",
+  "update.auto.notifyAfterUpdate": "Notify After Auto-Update",
+  "update.auto.notifyChannel": "Auto-Update Notification Channel",
   "diagnostics.enabled": "Diagnostics Enabled",
   "diagnostics.flags": "Diagnostics Flags",
   "diagnostics.otel.enabled": "OpenTelemetry Enabled",
@@ -401,6 +407,16 @@ const FIELD_HELP: Record<string, string> = {
   "meta.lastTouchedAt": "ISO timestamp of the last config write (auto-set).",
   "update.channel": 'Update channel for git + npm installs ("stable", "beta", or "dev").',
   "update.checkOnStart": "Check for npm updates when the gateway starts (default: true).",
+  "update.auto.enabled": "Enable automatic updates (opt-in, default: false).",
+  "update.auto.mode":
+    'Auto-update mode: "notify-only" (default), "confirm" (ask first), or "silent" (auto-apply).',
+  "update.auto.schedule": "Time of day to check for updates in HH:MM format (default: 03:00).",
+  "update.auto.timezone":
+    "Timezone for the auto-update schedule. Defaults to agents.defaults.userTimezone.",
+  "update.auto.notifyAfterUpdate":
+    "Send a notification after a successful auto-update (default: true).",
+  "update.auto.notifyChannel":
+    'Channel for auto-update notifications: "last" or a channel name (default: "last").',
   "gateway.remote.url": "Remote Gateway WebSocket URL (ws:// or wss://).",
   "gateway.remote.tlsFingerprint":
     "Expected sha256 TLS fingerprint for the remote gateway (pin to avoid MITM).",

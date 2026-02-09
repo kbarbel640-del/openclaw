@@ -63,6 +63,21 @@ export type OpenClawConfig = {
     channel?: "stable" | "beta" | "dev";
     /** Check for updates on gateway start (npm installs only). */
     checkOnStart?: boolean;
+    /** Automatic update configuration. */
+    auto?: {
+      /** Enable automatic updates (opt-in, default: false). */
+      enabled?: boolean;
+      /** Update mode: notify-only, confirm (ask user), or silent (auto-apply). Default: 'notify-only'. */
+      mode?: "confirm" | "silent" | "notify-only";
+      /** Time of day to check for updates, HH:MM format. Default: '03:00'. */
+      schedule?: string;
+      /** Timezone for the schedule. Defaults to agents.defaults.userTimezone. */
+      timezone?: string;
+      /** Send a notification after a successful auto-update. Default: true. */
+      notifyAfterUpdate?: boolean;
+      /** Channel for notifications: 'last' or a channel name. Default: 'last'. */
+      notifyChannel?: string;
+    };
   };
   browser?: BrowserConfig;
   ui?: {
