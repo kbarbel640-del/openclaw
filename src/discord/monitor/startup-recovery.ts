@@ -40,7 +40,7 @@ export async function runStartupRecovery(params: StartupRecoveryParams): Promise
   const recoveryWindowMs = recoveryMinutes * 60 * 1000;
   const cutoffTime = Date.now() - recoveryWindowMs;
 
-  runtime.log?.(`discord: checking for unanswered messages from last ${recoveryMinutes} minutes`);
+  logVerbose(`discord startup-recovery: checking last ${recoveryMinutes} minutes`);
 
   try {
     // Resolve DM channels by opening them with each allowlisted user.
@@ -104,7 +104,7 @@ export async function runStartupRecovery(params: StartupRecoveryParams): Promise
     if (processedCount > 0) {
       runtime.log?.(`discord: recovered and processed ${processedCount} unanswered message(s)`);
     } else {
-      runtime.log?.("discord startup-recovery: no unanswered messages found");
+      logVerbose("discord startup-recovery: no unanswered messages found");
     }
   } catch (err) {
     runtime.log?.(

@@ -760,6 +760,7 @@ async function sendLifecycleDM(
     return;
   }
 
+  let done = false;
   const send = async () => {
     for (const userId of userIds) {
       try {
@@ -770,21 +771,23 @@ async function sendLifecycleDM(
           await rest.post(Routes.channelMessages(dmChannel.id), {
             body: { content: message },
           });
-          log?.(`discord: lifecycle DM sent to ${userId}`);
         } else {
-          log?.(`discord: lifecycle DM failed, no channel returned for user ${userId}`);
+          log?.(`discord: lifecycle DM failed, no channel for user ${userId}`);
         }
       } catch (err) {
         log?.(`discord: lifecycle DM failed for user ${userId}: ${formatErrorMessage(err)}`);
       }
     }
+    done = true;
   };
 
   await Promise.race([
     send(),
     new Promise<void>((resolve) => {
       setTimeout(() => {
-        log?.(`discord: lifecycle DM timed out after ${timeoutMs}ms`);
+        if (!done) {
+          log?.(`discord: lifecycle DM timed out after ${timeoutMs}ms`);
+        }
         resolve();
       }, timeoutMs);
     }),
