@@ -1598,22 +1598,48 @@ export function createExecTool(
             if (yielded || run.session.backgrounded) {
               return;
             }
+            const outputText = outcome.aggregated || "";
+            const displayText = outputText || "(no output)";
+
             if (outcome.status === "failed") {
-              reject(new Error(outcome.reason ?? "Command failed."));
+              const exitLabel = outcome.timedOut
+                ? "timeout"
+                : `exit code ${outcome.exitCode ?? "?"}`;
+              const reason = outcome.reason ?? "Command failed.";
+              resolve({
+                content: [
+                  {
+                    type: "text",
+                    text:
+                      `${getWarningText()}❌ Command failed (${exitLabel}).\n` +
+                      `${reason}\n\n` +
+                      `${displayText}`,
+                  },
+                ],
+                details: {
+                  status: "failed",
+                  exitCode: outcome.exitCode,
+                  durationMs: outcome.durationMs,
+                  aggregated: outputText,
+                  cwd: run.session.cwd,
+                  error: reason,
+                },
+              });
               return;
             }
+
             resolve({
               content: [
                 {
                   type: "text",
-                  text: `${getWarningText()}${outcome.aggregated || "(no output)"}`,
+                  text: `${getWarningText()}${displayText}`,
                 },
               ],
               details: {
                 status: "completed",
                 exitCode: outcome.exitCode ?? 0,
                 durationMs: outcome.durationMs,
-                aggregated: outcome.aggregated,
+                aggregated: outputText,
                 cwd: run.session.cwd,
               },
             });
@@ -1625,7 +1651,23 @@ export function createExecTool(
             if (yielded || run.session.backgrounded) {
               return;
             }
-            reject(err as Error);
+            const msg = err instanceof Error ? err.message : String(err);
+            resolve({
+              content: [
+                {
+                  type: "text",
+                  text: `${getWarningText()}❌ Exec error: ${msg}`,
+                },
+              ],
+              details: {
+                status: "failed",
+                exitCode: null,
+                durationMs: Date.now() - run.startedAt,
+                aggregated: "",
+                cwd: run.session.cwd,
+                error: msg,
+              },
+            });
           });
       });
     },
