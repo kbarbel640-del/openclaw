@@ -391,8 +391,10 @@ function extractMentionInfo(annotations: GoogleChatAnnotation[], botUser?: strin
       return true;
     }
     // Webhook events use numeric user IDs (users/123...) instead of users/app.
-    // When no botUser is configured, fall back to matching any single BOT-type mention.
-    // This avoids false positives in multi-bot Spaces where another bot is mentioned.
+    // When botUser is not configured, fall back to matching any single BOT-type
+    // mention. The length===1 guard prevents false positives in multi-bot Spaces
+    // where another bot is @mentioned. For reliable multi-bot detection, configure
+    // the botUser field in the Google Chat account config.
     if (!botUser && mentionAnnotations.length === 1) {
       return entry.userMention?.user?.type?.toUpperCase() === "BOT";
     }
