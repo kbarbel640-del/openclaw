@@ -10,7 +10,7 @@ const {
   resolveGrokApiKey,
   resolveGrokModel,
   resolveGrokInlineCitations,
-  extractGrokContent,
+  parseGrokResponse,
 } = __testing;
 
 describe("web_search perplexity baseUrl defaults", () => {
@@ -145,21 +145,77 @@ describe("web_search grok config resolution", () => {
 });
 
 describe("web_search grok response parsing", () => {
-  it("extracts content from Responses API output blocks", () => {
-    expect(
-      extractGrokContent({
-        output: [
-          {
-            content: [{ text: "hello from output" }],
-          },
-        ],
-      }),
-    ).toBe("hello from output");
+  it("extracts content from new API format with web_search_call entries", () => {
+    const response = {
+      output: [
+        { type: "web_search_call", role: null },
+        { type: "web_search_call", role: null },
+        {
+          type: "message",
+          role: "assistant",
+          content: [
+            {
+              type: "output_text",
+              text: "The weather is sunny and 83°F.",
+              annotations: [
+                { type: "url_citation", url: "https://weather.com/antigua" },
+                { type: "url_citation", url: "https://accuweather.com/antigua" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const result = parseGrokResponse(response);
+    expect(result.content).toBe("The weather is sunny and 83°F.");
+    expect(result.citations).toEqual([
+      "https://weather.com/antigua",
+      "https://accuweather.com/antigua",
+    ]);
   });
 
-  it("falls back to deprecated output_text", () => {
-    expect(extractGrokContent({ output_text: "hello from output_text" })).toBe(
-      "hello from output_text",
-    );
+  it("handles simple response without web_search_call entries", () => {
+    const response = {
+      output: [
+        {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "2 + 2 = 4" }],
+        },
+      ],
+    };
+    const result = parseGrokResponse(response);
+    expect(result.content).toBe("2 + 2 = 4");
+    expect(result.citations).toEqual([]);
+  });
+
+  it("falls back to legacy output_text format", () => {
+    const response = {
+      output_text: "Legacy response text",
+      citations: ["https://example.com"],
+    };
+    const result = parseGrokResponse(response);
+    expect(result.content).toBe("Legacy response text");
+    expect(result.citations).toEqual(["https://example.com"]);
+  });
+
+  it("returns 'No response' when output is empty", () => {
+    const result = parseGrokResponse({});
+    expect(result.content).toBe("No response");
+    expect(result.citations).toEqual([]);
+  });
+
+  it("returns 'No response' when assistant message has no text content", () => {
+    const response = {
+      output: [
+        {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "other_type", data: "something" }],
+        },
+      ],
+    };
+    const result = parseGrokResponse(response);
+    expect(result.content).toBe("No response");
   });
 });

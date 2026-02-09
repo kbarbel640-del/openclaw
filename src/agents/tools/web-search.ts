@@ -106,12 +106,21 @@ type GrokSearchResponse = {
   output?: Array<{
     type?: string;
     role?: string;
+    status?: string;
     content?: Array<{
       type?: string;
       text?: string;
+      annotations?: Array<{
+        type: string;
+        url?: string;
+        start_index?: number;
+        end_index?: number;
+        title?: string;
+      }>;
     }>;
   }>;
-  output_text?: string; // deprecated field - kept for backwards compatibility
+  // Legacy fields (kept for backwards compat)
+  output_text?: string;
   citations?: string[];
   inline_citations?: Array<{
     start_index: number;
@@ -130,15 +139,6 @@ type PerplexitySearchResponse = {
 };
 
 type PerplexityBaseUrlHint = "direct" | "openrouter";
-
-function extractGrokContent(data: GrokSearchResponse): string | undefined {
-  // xAI Responses API format: output[0].content[0].text
-  const fromResponses = data.output?.[0]?.content?.[0]?.text;
-  if (typeof fromResponses === "string" && fromResponses) {
-    return fromResponses;
-  }
-  return typeof data.output_text === "string" ? data.output_text : undefined;
-}
 
 function resolveSearchConfig(cfg?: OpenClawConfig): WebSearchConfig {
   const search = cfg?.tools?.web?.search;
@@ -493,9 +493,40 @@ async function runGrokSearch(params: {
   }
 
   const data = (await res.json()) as GrokSearchResponse;
-  const content = extractGrokContent(data) ?? "No response";
-  const citations = data.citations ?? [];
-  const inlineCitations = data.inline_citations;
+  return parseGrokResponse(data);
+}
+
+/**
+ * Parse Grok API response, handling both new output[] format and legacy output_text format.
+ * The new format returns web_search_call entries first, with the assistant message last.
+ */
+function parseGrokResponse(data: GrokSearchResponse): {
+  content: string;
+  citations: string[];
+  inlineCitations?: GrokSearchResponse["inline_citations"];
+} {
+  let content = "No response";
+  let citations: string[] = [];
+  let inlineCitations: GrokSearchResponse["inline_citations"];
+
+  // Find the assistant message (may not be first if web_search_call entries precede it)
+  const assistantMessage = data.output?.find(
+    (o) => o.type === "message" && o.role === "assistant" && o.content,
+  );
+  if (assistantMessage?.content) {
+    const textContent = assistantMessage.content.find((c) => c.type === "output_text");
+    if (textContent?.text) {
+      content = textContent.text;
+    }
+    // Extract citations from annotations
+    const annotations = textContent?.annotations ?? [];
+    citations = annotations.filter((a) => a.type === "url_citation" && a.url).map((a) => a.url!);
+  } else if (data.output_text) {
+    // Legacy format fallback
+    content = data.output_text;
+    citations = data.citations ?? [];
+    inlineCitations = data.inline_citations;
+  }
 
   return { content, citations, inlineCitations };
 }
@@ -730,5 +761,5 @@ export const __testing = {
   resolveGrokApiKey,
   resolveGrokModel,
   resolveGrokInlineCitations,
-  extractGrokContent,
+  parseGrokResponse,
 } as const;
