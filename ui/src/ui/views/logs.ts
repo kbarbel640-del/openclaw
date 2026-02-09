@@ -18,6 +18,7 @@ export type LogsProps = {
   onRefresh: () => void;
   onExport: (lines: string[], label: string) => void;
   onCopy: (lines: string[]) => void;
+  copied: boolean;
   onScroll: (event: Event) => void;
 };
 
@@ -67,10 +68,10 @@ export function renderLogs(props: LogsProps) {
           </button>
           <button
             class="btn"
-            ?disabled=${filtered.length === 0}
+            ?disabled=${filtered.length === 0 || props.copied}
             @click=${() => props.onCopy(filtered.map((entry) => entry.raw))}
           >
-            Copy
+            ${props.copied ? "Copied!" : "Copy"}
           </button>
           <button
             class="btn"
