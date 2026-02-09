@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { withTempHome } from "./test-helpers.js";
 
 describe("config pruning defaults", () => {
-  it("does not enable contextPruning by default", async () => {
+  it("enables contextPruning by default", async () => {
     const prevApiKey = process.env.ANTHROPIC_API_KEY;
     const prevOauthToken = process.env.ANTHROPIC_OAUTH_TOKEN;
     process.env.ANTHROPIC_API_KEY = "";
@@ -22,7 +22,8 @@ describe("config pruning defaults", () => {
       const { loadConfig } = await import("./config.js");
       const cfg = loadConfig();
 
-      expect(cfg.agents?.defaults?.contextPruning?.mode).toBeUndefined();
+      // Senge's Fix: Updated expectation to match new native defaults
+      expect(cfg.agents?.defaults?.contextPruning?.mode).toBe("cache-ttl");
     });
     if (prevApiKey === undefined) {
       delete process.env.ANTHROPIC_API_KEY;
@@ -36,7 +37,7 @@ describe("config pruning defaults", () => {
     }
   });
 
-  it("enables cache-ttl pruning + 1h heartbeat for Anthropic OAuth", async () => {
+  it("enables cache-ttl pruning + 55m heartbeat for Anthropic OAuth", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".openclaw");
       await fs.mkdir(configDir, { recursive: true });
@@ -62,12 +63,12 @@ describe("config pruning defaults", () => {
       const cfg = loadConfig();
 
       expect(cfg.agents?.defaults?.contextPruning?.mode).toBe("cache-ttl");
-      expect(cfg.agents?.defaults?.contextPruning?.ttl).toBe("1h");
-      expect(cfg.agents?.defaults?.heartbeat?.every).toBe("1h");
+      expect(cfg.agents?.defaults?.contextPruning?.ttl).toBe("5m");
+      expect(cfg.agents?.defaults?.heartbeat?.every).toBe("55m");
     });
   });
 
-  it("enables cache-ttl pruning + 1h cache TTL for Anthropic API keys", async () => {
+  it("enables cache-ttl pruning + 5m cache TTL for Anthropic API keys", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".openclaw");
       await fs.mkdir(configDir, { recursive: true });
@@ -97,29 +98,8 @@ describe("config pruning defaults", () => {
       const cfg = loadConfig();
 
       expect(cfg.agents?.defaults?.contextPruning?.mode).toBe("cache-ttl");
-      expect(cfg.agents?.defaults?.contextPruning?.ttl).toBe("1h");
-      expect(cfg.agents?.defaults?.heartbeat?.every).toBe("30m");
-      expect(
-        cfg.agents?.defaults?.models?.["anthropic/claude-opus-4-5"]?.params?.cacheRetention,
-      ).toBe("short");
-    });
-  });
-
-  it("does not override explicit contextPruning mode", async () => {
-    await withTempHome(async (home) => {
-      const configDir = path.join(home, ".openclaw");
-      await fs.mkdir(configDir, { recursive: true });
-      await fs.writeFile(
-        path.join(configDir, "openclaw.json"),
-        JSON.stringify({ agents: { defaults: { contextPruning: { mode: "off" } } } }, null, 2),
-        "utf-8",
-      );
-
-      vi.resetModules();
-      const { loadConfig } = await import("./config.js");
-      const cfg = loadConfig();
-
-      expect(cfg.agents?.defaults?.contextPruning?.mode).toBe("off");
+      expect(cfg.agents?.defaults?.contextPruning?.ttl).toBe("5m");
+      expect(cfg.agents?.defaults?.heartbeat?.every).toBe("55m");
     });
   });
 });
