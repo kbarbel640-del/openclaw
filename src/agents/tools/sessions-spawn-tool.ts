@@ -33,6 +33,12 @@ const SessionsSpawnToolSchema = Type.Object({
   // Back-compat alias. Prefer runTimeoutSeconds.
   timeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
   cleanup: optionalStringEnum(["delete", "keep"] as const),
+  delivery: Type.Optional(
+    Type.Object({
+      channel: Type.Optional(Type.String()),
+      to: Type.Optional(Type.String()),
+    }),
+  ),
 });
 
 function splitModelRef(ref?: string) {
@@ -93,10 +99,14 @@ export function createSessionsSpawnTool(opts?: {
       const thinkingOverrideRaw = readStringParam(params, "thinking");
       const cleanup =
         params.cleanup === "keep" || params.cleanup === "delete" ? params.cleanup : "keep";
+      const deliveryOverride =
+        typeof params.delivery === "object" && params.delivery
+          ? (params.delivery as Record<string, unknown>)
+          : undefined;
       const requesterOrigin = normalizeDeliveryContext({
-        channel: opts?.agentChannel,
+        channel: deliveryOverride?.channel ? String(deliveryOverride.channel) : opts?.agentChannel,
         accountId: opts?.agentAccountId,
-        to: opts?.agentTo,
+        to: deliveryOverride?.to ? String(deliveryOverride.to) : opts?.agentTo,
         threadId: opts?.agentThreadId,
       });
       const runTimeoutSeconds = (() => {
