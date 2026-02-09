@@ -88,15 +88,12 @@ export async function runStartupRecovery(params: StartupRecoveryParams): Promise
 
     for (const channel of relevantChannels) {
       try {
-        const processed = await checkAndProcessChannel({
+        processedCount += await checkAndProcessChannel({
           ...params,
           channelId: channel.id,
           channel,
           cutoffTime,
         });
-        if (processed) {
-          processedCount++;
-        }
       } catch (err) {
         runtime.log?.(
           `discord startup-recovery: failed to check channel ${channel.id}: ${formatErrorMessage(err)}`,
@@ -122,7 +119,7 @@ async function checkAndProcessChannel(
     channel: APIChannel;
     cutoffTime: number;
   },
-): Promise<boolean> {
+): Promise<number> {
   const { rest, channelId, botUserId, cutoffTime, messageHandler, client } = params;
 
   // Fetch recent messages (limit to 10 to avoid processing too much history)
@@ -131,60 +128,57 @@ async function checkAndProcessChannel(
   })) as APIMessage[];
 
   if (!messages || messages.length === 0) {
-    return false;
+    return 0;
   }
 
-  // Messages are returned newest first
-  // Find the most recent user message that hasn't been responded to
-  let lastUserMessage: APIMessage | null = null;
-  let botRespondedAfter = false;
+  // Messages are returned newest first. Collect all unanswered user messages
+  // up to the first real bot response (ignoring lifecycle DMs).
+  const unanswered: APIMessage[] = [];
 
   for (const msg of messages) {
     const isFromBot = msg.author?.id === botUserId || msg.author?.bot;
     const msgTime = new Date(msg.timestamp).getTime();
 
-    // Skip messages older than cutoff
     if (msgTime < cutoffTime) {
       break;
     }
 
     if (isFromBot) {
       // Lifecycle DMs (shutdown/online notifications) aren't real responses;
-      // skip them so we don't wrongly mark a user message as answered.
+      // skip them so we don't wrongly mark user messages as answered.
       if (isLifecycleMessage(msg.content)) {
         continue;
       }
-      // Bot has responded, so any earlier user messages are answered
-      botRespondedAfter = true;
+      // Real bot response — everything before this is already answered.
       break;
     }
 
-    if (!lastUserMessage) {
-      lastUserMessage = msg;
-    }
+    unanswered.push(msg);
   }
 
-  if (!lastUserMessage || botRespondedAfter) {
-    return false;
+  if (unanswered.length === 0) {
+    return 0;
   }
 
-  // Found an unanswered message - process it
-  logVerbose(
-    `discord startup-recovery: processing unanswered message ${lastUserMessage.id} from ${lastUserMessage.author?.username ?? "unknown"}`,
-  );
+  // Process oldest first so the bot replies in chronological order.
+  unanswered.reverse();
 
-  // Construct a message event that matches what the listener expects
-  const event: DiscordMessageEvent = {
-    message: lastUserMessage as DiscordMessageEvent["message"],
-    author: lastUserMessage.author as DiscordMessageEvent["author"],
-    guild: undefined,
-    member: undefined,
-  };
+  for (const userMessage of unanswered) {
+    logVerbose(
+      `discord startup-recovery: processing unanswered message ${userMessage.id} from ${userMessage.author?.username ?? "unknown"}`,
+    );
 
-  // Process through the normal handler
-  await messageHandler(event, client as Parameters<DiscordMessageHandler>[1]);
+    const event: DiscordMessageEvent = {
+      message: userMessage as DiscordMessageEvent["message"],
+      author: userMessage.author as DiscordMessageEvent["author"],
+      guild: undefined,
+      member: undefined,
+    };
 
-  return true;
+    await messageHandler(event, client as Parameters<DiscordMessageHandler>[1]);
+  }
+
+  return unanswered.length;
 }
 
 const LIFECYCLE_MESSAGES = new Set(["*Back online.*", "*Shutting down...*"]);
