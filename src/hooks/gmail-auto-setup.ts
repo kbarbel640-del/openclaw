@@ -252,16 +252,21 @@ async function autoSetupPubSub(
   pushEndpoint: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    // Enable required APIs
+    // Enable required APIs (best-effort — may fail if SA lacks serviceusage perms,
+    // but the APIs might already be enabled so we continue regardless)
     log.info(`Enabling Gmail and Pub/Sub APIs for project ${projectId}`);
-    await runGcloud([
-      "services",
-      "enable",
-      "gmail.googleapis.com",
-      "pubsub.googleapis.com",
-      "--project",
-      projectId,
-    ]);
+    try {
+      await runGcloud([
+        "services",
+        "enable",
+        "gmail.googleapis.com",
+        "pubsub.googleapis.com",
+        "--project",
+        projectId,
+      ]);
+    } catch (err) {
+      log.warn(`API enablement failed (continuing — APIs may already be enabled): ${String(err)}`);
+    }
 
     // Create topic
     log.info(`Ensuring Pub/Sub topic: ${topicName}`);
