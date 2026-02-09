@@ -168,6 +168,9 @@ function resolveKnownAgentId(cfg: ReturnType<typeof loadConfig>, raw: string): s
 }
 
 function buildHierarchySnapshot(): HierarchySnapshot {
+  const COMPLETED_TTL_MS = 120_000; // 2 minutes — used for both edge and node TTL filtering
+  const snapshotNow = Date.now();
+
   const runs = listAllSubagentRuns();
   const cfg = loadConfig();
   const childrenByParent = new Map<string, HierarchyNode[]>();
@@ -352,10 +355,25 @@ function buildHierarchySnapshot(): HierarchySnapshot {
     // Collaboration data is optional — don't break hierarchy if it fails
   }
 
-  // Extract delegation edges from active delegations
+  // Extract delegation edges from active delegations.
+  // Skip terminal delegations that have exceeded the completed-node TTL —
+  // otherwise their edges keep re-injecting expired agents into the graph.
   try {
     const allDelegations = getAllDelegations();
     for (const deleg of allDelegations) {
+      const isTerminal =
+        deleg.state === "completed" ||
+        deleg.state === "failed" ||
+        deleg.state === "rejected" ||
+        deleg.state === "redirected";
+
+      if (isTerminal) {
+        const anchor = deleg.completedAt ?? deleg.createdAt;
+        if (snapshotNow - anchor > COMPLETED_TTL_MS) {
+          continue; // delegation is stale — don't generate edges for it
+        }
+      }
+
       let edgeType: CollaborationEdge["type"];
       if (deleg.state === "rejected" || deleg.state === "failed") {
         edgeType = "rejection";
@@ -447,12 +465,16 @@ function buildHierarchySnapshot(): HierarchySnapshot {
     // Agents only referenced via delegation edges inherit status from delegation state:
     // "running" if they have active delegations, "completed" otherwise.
     const derivedStatus = agentsWithActiveDelegations.has(agentId) ? "running" : "completed";
+    // Set endedAt so the TTL filter can expire this node when it's completed.
+    // Use current time as a conservative anchor (it will expire after COMPLETED_TTL_MS).
+    const derivedEndedAt = derivedStatus === "completed" ? snapshotNow : undefined;
     roots.push({
       sessionKey,
       agentId,
       agentRole: role,
       label: computeAgentDisplayLabel(cfg, agentId),
       status: derivedStatus,
+      endedAt: derivedEndedAt,
       children: [],
       delegations: delegMetrics,
     });
@@ -482,12 +504,10 @@ function buildHierarchySnapshot(): HierarchySnapshot {
 
   // Remove completed/error agents that have been idle longer than the TTL.
   // Agents without endedAt are kept (they have no known completion time).
-  const COMPLETED_TTL_MS = 120_000; // 2 minutes
-  const now = Date.now();
   const filterByTTL = (node: HierarchyNode): boolean => {
     if (node.status === "completed" || node.status === "error") {
       if (typeof node.endedAt === "number" && node.endedAt > 0) {
-        if (now - node.endedAt > COMPLETED_TTL_MS) {
+        if (snapshotNow - node.endedAt > COMPLETED_TTL_MS) {
           return false; // expired — remove from graph
         }
       }
