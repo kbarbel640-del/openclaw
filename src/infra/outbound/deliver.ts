@@ -407,15 +407,31 @@ async function deliverOutboundPayloadsCore(params: {
   };
 
   const sendTextChunks = async (text: string) => {
-    throwIfAborted(abortSignal);
-    if (!handler.chunker || textLimit === undefined) {
-      const hookResult = await runMessageSendingHook(text);
+    const sendTextChunk = async (chunk: string) => {
+      throwIfAborted(abortSignal);
+      const hookResult = await runMessageSendingHook(chunk);
       if (hookResult.canceled) {
-        await runMessageSentHook(text, false, "canceled by message_sending hook");
+        await runMessageSentHook(chunk, false, "canceled by message_sending hook");
         return;
       }
-      results.push(await handler.sendText(hookResult.content));
-      await runMessageSentHook(hookResult.content, true);
+      try {
+        results.push(await handler.sendText(hookResult.content));
+        await runMessageSentHook(hookResult.content, true);
+      } catch (err) {
+        const normalizedErr = normalizeUnknownError(err);
+        await runMessageSentHook(hookResult.content, false, normalizedErr.message);
+        (
+          normalizedErr as Error & {
+            [MESSAGE_SENT_HOOK_HANDLED]?: boolean;
+          }
+        )[MESSAGE_SENT_HOOK_HANDLED] = true;
+        throw normalizedErr;
+      }
+    };
+
+    throwIfAborted(abortSignal);
+    if (!handler.chunker || textLimit === undefined) {
+      await sendTextChunk(text);
       return;
     }
     if (chunkMode === "newline") {
@@ -434,28 +450,14 @@ async function deliverOutboundPayloadsCore(params: {
           chunks.push(blockChunk);
         }
         for (const chunk of chunks) {
-          throwIfAborted(abortSignal);
-          const hookResult = await runMessageSendingHook(chunk);
-          if (hookResult.canceled) {
-            await runMessageSentHook(chunk, false, "canceled by message_sending hook");
-            continue;
-          }
-          results.push(await handler.sendText(hookResult.content));
-          await runMessageSentHook(hookResult.content, true);
+          await sendTextChunk(chunk);
         }
       }
       return;
     }
     const chunks = handler.chunker(text, textLimit);
     for (const chunk of chunks) {
-      throwIfAborted(abortSignal);
-      const hookResult = await runMessageSendingHook(chunk);
-      if (hookResult.canceled) {
-        await runMessageSentHook(chunk, false, "canceled by message_sending hook");
-        continue;
-      }
-      results.push(await handler.sendText(hookResult.content));
-      await runMessageSentHook(hookResult.content, true);
+      await sendTextChunk(chunk);
     }
   };
 
