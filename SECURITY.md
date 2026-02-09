@@ -75,3 +75,11 @@ Run locally:
 pip install detect-secrets==1.5.0
 detect-secrets scan --baseline .secrets.baseline
 ```
+
+## Community hardening template (unofficial)
+
+For a lightweight, reproducible, **local-only** starter with guardrails (policy-as-code verification / CI gate + short runbook + reliable deep audit runner), see:
+
+- https://github.com/YOUR_GITHUB_USERNAME/openclaw-secure-starter
+
+This is community-maintained and not an official OpenClaw component. Please review before use.
