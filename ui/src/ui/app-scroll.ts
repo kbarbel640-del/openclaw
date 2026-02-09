@@ -1,6 +1,12 @@
 /** Distance (px) from the bottom within which we consider the user "near bottom". */
 const NEAR_BOTTOM_THRESHOLD = 450;
 
+/**
+ * Guard window (ms) after a programmatic scroll during which we ignore scroll
+ * events so they don't flip `chatUserNearBottom` to false.
+ */
+const PROGRAMMATIC_SCROLL_GUARD_MS = 80;
+
 type ScrollHost = {
   updateComplete: Promise<unknown>;
   querySelector: (selectors: string) => Element | null;
@@ -10,6 +16,8 @@ type ScrollHost = {
   chatHasAutoScrolled: boolean;
   chatUserNearBottom: boolean;
   chatNewMessagesBelow: boolean;
+  chatProgrammaticScrollUntil: number;
+  chatNewMessageCount: number;
   logsScrollFrame: number | null;
   logsAtBottom: boolean;
   topbarObserver: ResizeObserver | null;
@@ -37,6 +45,15 @@ export function scheduleChatScroll(host: ScrollHost, force = false) {
     }
     return (document.scrollingElement ?? document.documentElement) as HTMLElement | null;
   };
+
+  const performScroll = (target: HTMLElement) => {
+    host.chatProgrammaticScrollUntil = Date.now() + PROGRAMMATIC_SCROLL_GUARD_MS;
+    target.scrollTop = target.scrollHeight;
+    host.chatUserNearBottom = true;
+    host.chatNewMessagesBelow = false;
+    host.chatNewMessageCount = 0;
+  };
+
   // Wait for Lit render to complete, then scroll
   void host.updateComplete.then(() => {
     host.chatScrollFrame = requestAnimationFrame(() => {
@@ -61,9 +78,7 @@ export function scheduleChatScroll(host: ScrollHost, force = false) {
       if (effectiveForce) {
         host.chatHasAutoScrolled = true;
       }
-      target.scrollTop = target.scrollHeight;
-      host.chatUserNearBottom = true;
-      host.chatNewMessagesBelow = false;
+      performScroll(target);
       const retryDelay = effectiveForce ? 150 : 120;
       host.chatScrollTimeout = window.setTimeout(() => {
         host.chatScrollTimeout = null;
@@ -80,8 +95,7 @@ export function scheduleChatScroll(host: ScrollHost, force = false) {
         if (!shouldStickRetry) {
           return;
         }
-        latest.scrollTop = latest.scrollHeight;
-        host.chatUserNearBottom = true;
+        performScroll(latest);
       }, retryDelay);
     });
   });
@@ -114,11 +128,19 @@ export function handleChatScroll(host: ScrollHost, event: Event) {
   if (!container) {
     return;
   }
+
+  // Ignore scroll events triggered by programmatic scrolls to prevent
+  // chatUserNearBottom from flipping false during auto-scroll.
+  if (host.chatProgrammaticScrollUntil && Date.now() < host.chatProgrammaticScrollUntil) {
+    return;
+  }
+
   const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
   host.chatUserNearBottom = distanceFromBottom < NEAR_BOTTOM_THRESHOLD;
   // Clear the "new messages below" indicator when user scrolls back to bottom.
   if (host.chatUserNearBottom) {
     host.chatNewMessagesBelow = false;
+    host.chatNewMessageCount = 0;
   }
 }
 
@@ -135,6 +157,15 @@ export function resetChatScroll(host: ScrollHost) {
   host.chatHasAutoScrolled = false;
   host.chatUserNearBottom = true;
   host.chatNewMessagesBelow = false;
+  host.chatNewMessageCount = 0;
+  host.chatProgrammaticScrollUntil = 0;
+}
+
+/** Bump the unread-messages counter when user is scrolled away. */
+export function incrementNewMessageCount(host: ScrollHost) {
+  if (!host.chatUserNearBottom) {
+    host.chatNewMessageCount = (host.chatNewMessageCount || 0) + 1;
+  }
 }
 
 export function exportLogs(lines: string[], label: string) {

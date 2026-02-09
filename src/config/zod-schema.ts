@@ -78,11 +78,44 @@ const MemoryQmdSchema = z
   })
   .strict();
 
+const BrainTieredTiersSchema = z
+  .object({
+    escalationThreshold: z.number().optional(),
+    minTier0Results: z.number().int().optional(),
+    maxTier: z.number().int().optional(),
+    timeoutMs: z.number().int().optional(),
+    enabled: z
+      .object({
+        tier1: z.boolean().optional(),
+        tier2: z.boolean().optional(),
+        tier3: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .optional();
+
+const BrainTieredSchema = z
+  .object({
+    workspaceId: z.string().optional(),
+    triumphWorkspaceId: z.string().optional(),
+    mcporterPath: z.string().optional(),
+    memoryMdPath: z.string().optional(),
+    dailyNotesPath: z.string().optional(),
+    tiers: BrainTieredTiersSchema,
+  })
+  .strict()
+  .optional();
+
 const MemorySchema = z
   .object({
-    backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
+    backend: z
+      .union([z.literal("builtin"), z.literal("qmd"), z.literal("brain-tiered")])
+      .optional(),
     citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
     qmd: MemoryQmdSchema.optional(),
+    brainTiered: BrainTieredSchema,
   })
   .strict()
   .optional();

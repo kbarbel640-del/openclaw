@@ -5,11 +5,14 @@ import type {
   MemorySearchManager,
   MemorySyncProgressUpdate,
 } from "./types.js";
+import { resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
+import { resolveBrainTieredConfig } from "../config/types.brain-tiered.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveMemoryBackendConfig } from "./backend-config.js";
 
 const log = createSubsystemLogger("memory");
 const QMD_MANAGER_CACHE = new Map<string, MemorySearchManager>();
+const BRAIN_TIERED_CACHE = new Map<string, MemorySearchManager>();
 
 export type MemorySearchManagerResult = {
   manager: MemorySearchManager | null;
@@ -21,6 +24,54 @@ export async function getMemorySearchManager(params: {
   agentId: string;
 }): Promise<MemorySearchManagerResult> {
   const resolved = resolveMemoryBackendConfig(params);
+
+  // Handle brain-tiered backend
+  if (resolved.backend === "brain-tiered") {
+    const brainTieredConfig = params.cfg.memory?.brainTiered;
+    if (brainTieredConfig) {
+      // Per-agent workspace ID: check agent config first, fall back to global config
+      const agentEntry = params.cfg.agents?.list?.find((a) => a.id === params.agentId);
+      const effectiveWorkspaceId = agentEntry?.brainWorkspaceId ?? brainTieredConfig.workspaceId;
+      const cacheKey = `brain-tiered:${params.agentId}:${effectiveWorkspaceId}`;
+      const cached = BRAIN_TIERED_CACHE.get(cacheKey);
+      if (cached) {
+        return { manager: cached };
+      }
+      try {
+        const workspaceDir = resolveAgentWorkspaceDir(params.cfg, params.agentId);
+        const mergedConfig =
+          effectiveWorkspaceId !== brainTieredConfig.workspaceId
+            ? { ...brainTieredConfig, workspaceId: effectiveWorkspaceId }
+            : brainTieredConfig;
+        const resolvedBrainConfig = resolveBrainTieredConfig(mergedConfig, workspaceDir);
+        const { BrainTieredManager } = await import("./brain-tiered-manager.js");
+        const primary = await BrainTieredManager.create(resolvedBrainConfig);
+
+        // Wrap with fallback to builtin
+        const wrapper = new FallbackMemoryManager(
+          {
+            primary,
+            fallbackFactory: async () => {
+              const { MemoryIndexManager } = await import("./manager.js");
+              return await MemoryIndexManager.get(params);
+            },
+          },
+          () => BRAIN_TIERED_CACHE.delete(cacheKey),
+        );
+        BRAIN_TIERED_CACHE.set(cacheKey, wrapper);
+        return { manager: wrapper };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        log.warn(`brain-tiered memory unavailable; falling back to builtin: ${message}`);
+      }
+    } else {
+      log.warn(
+        "brain-tiered backend selected but brainTiered config missing; falling back to builtin",
+      );
+    }
+  }
+
+  // Handle qmd backend
   if (resolved.backend === "qmd" && resolved.qmd) {
     const cacheKey = buildQmdCacheKey(params.agentId, resolved.qmd);
     const cached = QMD_MANAGER_CACHE.get(cacheKey);
@@ -54,6 +105,7 @@ export async function getMemorySearchManager(params: {
     }
   }
 
+  // Fallback to builtin backend
   try {
     const { MemoryIndexManager } = await import("./manager.js");
     const manager = await MemoryIndexManager.get(params);

@@ -6,6 +6,13 @@ import process from "node:process";
 
 const args = process.argv.slice(2);
 const env = { ...process.env };
+// Ensure .npm-global/bin is in PATH for mcporter discovery
+if (process.env.HOME) {
+  const npmBin = path.join(process.env.HOME, ".npm-global", "bin");
+  if (fs.existsSync(npmBin)) {
+    env.PATH = `${npmBin}${path.delimiter}${env.PATH ?? ""}`;
+  }
+}
 const cwd = process.cwd();
 const compiler = "tsdown";
 

@@ -16,6 +16,7 @@ export type ResolvedMemoryBackendConfig = {
   backend: MemoryBackend;
   citations: MemoryCitationsMode;
   qmd?: ResolvedQmdConfig;
+  brainTiered?: import("../config/types.brain-tiered.js").ResolvedBrainTieredConfig;
 };
 
 export type ResolvedQmdCollection = {
@@ -233,6 +234,12 @@ export function resolveMemoryBackendConfig(params: {
 }): ResolvedMemoryBackendConfig {
   const backend = params.cfg.memory?.backend ?? DEFAULT_BACKEND;
   const citations = params.cfg.memory?.citations ?? DEFAULT_CITATIONS;
+
+  // Handle brain-tiered backend
+  if (backend === "brain-tiered") {
+    return { backend: "brain-tiered", citations };
+  }
+
   if (backend !== "qmd") {
     return { backend: "builtin", citations };
   }

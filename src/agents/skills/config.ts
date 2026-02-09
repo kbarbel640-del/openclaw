@@ -97,6 +97,17 @@ export function isBundledSkillAllowed(entry: SkillEntry, allowlist?: string[]): 
 }
 
 export function hasBinary(bin: string): boolean {
+  // Fallback for mcporter if it's not in PATH but we know where it is
+  if (bin === "mcporter") {
+    const fallbackPath = path.join(process.env.HOME ?? "", ".npm-global", "bin", "mcporter");
+    try {
+      fs.accessSync(fallbackPath, fs.constants.X_OK);
+      return true;
+    } catch {
+      // ignore
+    }
+  }
+
   const pathEnv = process.env.PATH ?? "";
   const parts = pathEnv.split(path.delimiter).filter(Boolean);
   for (const part of parts) {

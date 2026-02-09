@@ -275,6 +275,9 @@ export class OpenClawApp extends LitElement {
   private chatHasAutoScrolled = false;
   private chatUserNearBottom = true;
   @state() chatNewMessagesBelow = false;
+  private chatProgrammaticScrollUntil = 0;
+  @state() chatNewMessageCount = 0;
+  private chatKeydownHandler: ((e: KeyboardEvent) => void) | null = null;
   private nodesPollInterval: number | null = null;
   private logsPollInterval: number | null = null;
   private debugPollInterval: number | null = null;
@@ -296,6 +299,22 @@ export class OpenClawApp extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     handleConnected(this as unknown as Parameters<typeof handleConnected>[0]);
+    // Keyboard shortcut: End or Shift+J to jump to bottom of chat
+    this.chatKeydownHandler = (e: KeyboardEvent) => {
+      // Don't capture when typing in input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+        return;
+      }
+      if (this.tab !== "chat") {
+        return;
+      }
+      if (e.key === "End" || (e.key === "j" && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+        e.preventDefault();
+        this.scrollToBottom();
+      }
+    };
+    window.addEventListener("keydown", this.chatKeydownHandler);
   }
 
   protected firstUpdated() {
@@ -304,6 +323,10 @@ export class OpenClawApp extends LitElement {
 
   disconnectedCallback() {
     handleDisconnected(this as unknown as Parameters<typeof handleDisconnected>[0]);
+    if (this.chatKeydownHandler) {
+      window.removeEventListener("keydown", this.chatKeydownHandler);
+      this.chatKeydownHandler = null;
+    }
     super.disconnectedCallback();
   }
 

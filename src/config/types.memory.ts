@@ -1,12 +1,14 @@
 import type { SessionSendPolicyConfig } from "./types.base.js";
+import type { BrainTieredConfig } from "./types.brain-tiered.js";
 
-export type MemoryBackend = "builtin" | "qmd";
+export type MemoryBackend = "builtin" | "qmd" | "brain-tiered";
 export type MemoryCitationsMode = "auto" | "on" | "off";
 
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
   qmd?: MemoryQmdConfig;
+  brainTiered?: BrainTieredConfig;
 };
 
 export type MemoryQmdConfig = {

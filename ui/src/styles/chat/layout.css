@@ -102,6 +102,8 @@
 
 /* New messages indicator - floating pill above compose */
 .chat-new-messages {
+  position: sticky;
+  bottom: 80px;
   align-self: center;
   display: inline-flex;
   align-items: center;
@@ -117,14 +119,44 @@
   cursor: pointer;
   white-space: nowrap;
   z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  animation: chat-fab-enter 200ms ease-out;
   transition:
     background 150ms ease-out,
-    border-color 150ms ease-out;
+    border-color 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+@keyframes chat-fab-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .chat-new-messages:hover {
   background: var(--panel);
   border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.chat-new-messages__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  background: var(--accent, #6366f1);
+  border-radius: 999px;
 }
 
 .chat-new-messages svg {

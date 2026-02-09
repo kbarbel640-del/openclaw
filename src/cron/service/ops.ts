@@ -9,7 +9,7 @@ import {
   nextWakeAtMs,
   recomputeNextRuns,
 } from "./jobs.js";
-import { locked } from "./locked.js";
+import { locked, lockedWithTimeout } from "./locked.js";
 import { ensureLoaded, persist, warnIfDisabled } from "./store.js";
 import { armTimer, emit, executeJob, stopTimer, wake } from "./timer.js";
 
@@ -38,25 +38,39 @@ export function stop(state: CronServiceState) {
   stopTimer(state);
 }
 
+// BUG-026: Use lockedWithTimeout for read-only operations.  When long-running
+// jobs hold the lock (e.g. 9 catch-up jobs taking 10+ minutes), status() and
+// list() fall back to reading from the in-memory store after 5s instead of
+// blocking until the 60s client timeout fires.
+const READ_LOCK_TIMEOUT_MS = 5_000;
+
 export async function status(state: CronServiceState) {
-  return await locked(state, async () => {
-    await ensureLoaded(state);
-    return {
-      enabled: state.deps.cronEnabled,
-      storePath: state.deps.storePath,
-      jobs: state.store?.jobs.length ?? 0,
-      nextWakeAtMs: state.deps.cronEnabled ? (nextWakeAtMs(state) ?? null) : null,
-    };
-  });
+  return await lockedWithTimeout(
+    state,
+    async () => {
+      await ensureLoaded(state);
+      return {
+        enabled: state.deps.cronEnabled,
+        storePath: state.deps.storePath,
+        jobs: state.store?.jobs.length ?? 0,
+        nextWakeAtMs: state.deps.cronEnabled ? (nextWakeAtMs(state) ?? null) : null,
+      };
+    },
+    READ_LOCK_TIMEOUT_MS,
+  );
 }
 
 export async function list(state: CronServiceState, opts?: { includeDisabled?: boolean }) {
-  return await locked(state, async () => {
-    await ensureLoaded(state);
-    const includeDisabled = opts?.includeDisabled === true;
-    const jobs = (state.store?.jobs ?? []).filter((j) => includeDisabled || j.enabled);
-    return jobs.toSorted((a, b) => (a.state.nextRunAtMs ?? 0) - (b.state.nextRunAtMs ?? 0));
-  });
+  return await lockedWithTimeout(
+    state,
+    async () => {
+      await ensureLoaded(state);
+      const includeDisabled = opts?.includeDisabled === true;
+      const jobs = (state.store?.jobs ?? []).filter((j) => includeDisabled || j.enabled);
+      return jobs.toSorted((a, b) => (a.state.nextRunAtMs ?? 0) - (b.state.nextRunAtMs ?? 0));
+    },
+    READ_LOCK_TIMEOUT_MS,
+  );
 }
 
 export async function add(state: CronServiceState, input: CronJobCreate) {

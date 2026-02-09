@@ -125,6 +125,7 @@ const FIELD_LABELS: Record<string, string> = {
   "diagnostics.cacheTrace.includeSystem": "Cache Trace Include System",
   "agents.list.*.identity.avatar": "Identity Avatar",
   "agents.list.*.skills": "Agent Skill Filter",
+  "agents.list.*.brainWorkspaceId": "Brain Workspace ID",
   "gateway.remote.url": "Remote Gateway URL",
   "gateway.remote.sshTarget": "Remote Gateway SSH Target",
   "gateway.remote.sshIdentity": "Remote Gateway SSH Identity",
@@ -277,6 +278,21 @@ const FIELD_LABELS: Record<string, string> = {
   "memory.qmd.limits.maxInjectedChars": "QMD Max Injected Chars",
   "memory.qmd.limits.timeoutMs": "QMD Search Timeout (ms)",
   "memory.qmd.scope": "QMD Surface Scope",
+  "memory.brainTiered": "Brain MCP 4-Tier Memory",
+  "memory.brainTiered.workspaceId": "Brain Workspace ID",
+  "memory.brainTiered.triumphWorkspaceId": "Triumph (Shared) Workspace ID",
+  "memory.brainTiered.memoryMdPath": "Memory.md Path",
+  "memory.brainTiered.dailyNotesPath": "Daily Notes Path",
+  "memory.brainTiered.mcporterPath": "MCPorter Binary Path",
+  "memory.brainTiered.tiers": "Tier Configuration",
+  "memory.brainTiered.tiers.escalationThreshold": "Escalation Threshold",
+  "memory.brainTiered.tiers.minTier0Results": "Min Tier 0 Results",
+  "memory.brainTiered.tiers.maxTier": "Max Tier",
+  "memory.brainTiered.tiers.timeoutMs": "Timeout (ms)",
+  "memory.brainTiered.tiers.enabled": "Enabled Tiers",
+  "memory.brainTiered.tiers.enabled.tier1": "Enable Tier 1 (quick_search)",
+  "memory.brainTiered.tiers.enabled.tier2": "Enable Tier 2 (semantic)",
+  "memory.brainTiered.tiers.enabled.tier3": "Enable Tier 3 (unified)",
   "auth.profiles": "Auth Profiles",
   "auth.order": "Auth Profile Order",
   "auth.cooldowns.billingBackoffHours": "Billing Backoff (hours)",
@@ -405,6 +421,8 @@ const FIELD_HELP: Record<string, string> = {
   "gateway.remote.sshIdentity": "Optional SSH identity file path (passed to ssh -i).",
   "agents.list.*.skills":
     "Optional allowlist of skills for this agent (omit = all skills; empty = no skills).",
+  "agents.list.*.brainWorkspaceId":
+    "Brain MCP workspace UUID for this agent (used with brain-tiered memory backend).",
   "agents.list[].skills":
     "Optional allowlist of skills for this agent (omit = all skills; empty = no skills).",
   "agents.list[].identity.avatar":
@@ -579,7 +597,8 @@ const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.cache.enabled":
     "Cache chunk embeddings in SQLite to speed up reindexing and frequent updates (default: true).",
   memory: "Memory backend configuration (global).",
-  "memory.backend": 'Memory backend ("builtin" for OpenClaw embeddings, "qmd" for QMD sidecar).',
+  "memory.backend":
+    'Memory backend ("builtin" for OpenClaw embeddings, "qmd" for QMD sidecar, "brain-tiered" for Brain MCP 4-tier).',
   "memory.citations": 'Default citation behavior ("auto", "on", or "off").',
   "memory.qmd.command": "Path to the qmd binary (default: resolves from PATH).",
   "memory.qmd.includeDefaultMemory":
@@ -609,6 +628,27 @@ const FIELD_HELP: Record<string, string> = {
   "memory.qmd.limits.timeoutMs": "Per-query timeout for QMD searches (default: 4000).",
   "memory.qmd.scope":
     "Session/channel scope for QMD recall (same syntax as session.sendPolicy; default: direct-only).",
+  "memory.brainTiered": "Brain MCP 4-tier memory integration configuration.",
+  "memory.brainTiered.workspaceId": "Brain MCP workspace UUID for this agent.",
+  "memory.brainTiered.triumphWorkspaceId":
+    "Shared triumph workspace UUID for cross-agent knowledge. Searched when the agent's private workspace doesn't have sufficient results.",
+  "memory.brainTiered.memoryMdPath":
+    "Path to the agent's memory.md file (Tier 0). Default: ./MEMORY.md",
+  "memory.brainTiered.dailyNotesPath":
+    "Path to daily notes directory for Tier 0 search. Default: ./memory/",
+  "memory.brainTiered.mcporterPath": "Path to mcporter binary. Default: mcporter",
+  "memory.brainTiered.tiers": "Tier escalation configuration.",
+  "memory.brainTiered.tiers.escalationThreshold":
+    "Minimum score from Tier 0 to skip Brain MCP tiers. Default: 0.8",
+  "memory.brainTiered.tiers.minTier0Results":
+    "Minimum number of Tier 0 results to consider sufficient. Default: 3",
+  "memory.brainTiered.tiers.maxTier": "Maximum tier to escalate to (1, 2, or 3). Default: 3",
+  "memory.brainTiered.tiers.timeoutMs":
+    "Timeout for Brain MCP requests in milliseconds. Default: 5000",
+  "memory.brainTiered.tiers.enabled": "Enable/disable specific tiers.",
+  "memory.brainTiered.tiers.enabled.tier1": "Enable Tier 1 quick_search. Default: true",
+  "memory.brainTiered.tiers.enabled.tier2": "Enable Tier 2 unified_search semantic. Default: true",
+  "memory.brainTiered.tiers.enabled.tier3": "Enable Tier 3 unified_search full. Default: true",
   "agents.defaults.memorySearch.cache.maxEntries":
     "Optional cap on cached embeddings (best-effort).",
   "agents.defaults.memorySearch.sync.onSearch":

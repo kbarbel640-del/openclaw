@@ -8,7 +8,12 @@ import {
   startDebugPolling,
   stopDebugPolling,
 } from "./app-polling.ts";
-import { observeTopbar, scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
+import {
+  incrementNewMessageCount,
+  observeTopbar,
+  scheduleChatScroll,
+  scheduleLogsScroll,
+} from "./app-scroll.ts";
 import {
   applySettingsFromUrl,
   attachThemeListener,
@@ -80,6 +85,10 @@ export function handleUpdated(host: LifecycleHost, changed: Map<PropertyKey, unk
       host as unknown as Parameters<typeof scheduleChatScroll>[0],
       forcedByTab || forcedByLoad || !host.chatHasAutoScrolled,
     );
+    // Only count actual new messages (not stream deltas) for the unread badge
+    if (changed.has("chatMessages")) {
+      incrementNewMessageCount(host as unknown as Parameters<typeof incrementNewMessageCount>[0]);
+    }
   }
   if (
     host.tab === "logs" &&

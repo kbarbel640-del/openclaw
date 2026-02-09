@@ -976,6 +976,7 @@ export function renderApp(state: AppViewState) {
                 onNewSession: () =>
                   (state as unknown as OpenClawApp).handleSendChat("/new", { restoreDraft: true }),
                 showNewMessages: state.chatNewMessagesBelow,
+                newMessageCount: (state as unknown as OpenClawApp).chatNewMessageCount ?? 0,
                 onScrollToBottom: () => state.scrollToBottom(),
                 // Sidebar props for tool output viewing
                 sidebarOpen: (state as unknown as OpenClawApp).sidebarOpen,

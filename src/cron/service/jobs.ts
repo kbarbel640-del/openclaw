@@ -10,7 +10,7 @@ import type {
 } from "../types.js";
 import type { CronServiceState } from "./state.js";
 import { parseAbsoluteTimeMs } from "../parse.js";
-import { computeNextRunAtMs } from "../schedule.js";
+import { computeNextRunAtMs, hasMissedOccurrence } from "../schedule.js";
 import {
   normalizeOptionalAgentId,
   normalizeOptionalText,
@@ -80,7 +80,27 @@ export function recomputeNextRuns(state: CronServiceState) {
       );
       job.state.runningAtMs = undefined;
     }
-    job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
+
+    // Catch-up: if the job has a last-run timestamp and there is at least
+    // one scheduled occurrence between lastRunAtMs and now that was never
+    // executed, make the job immediately due instead of skipping to the
+    // next future occurrence.  This handles the scenario where the gateway
+    // was down (e.g. machine sleep) and jobs missed their window.
+    const lastRun = job.state.lastRunAtMs;
+    if (
+      typeof lastRun === "number" &&
+      job.schedule.kind !== "at" &&
+      hasMissedOccurrence(job.schedule, lastRun, now)
+    ) {
+      state.deps.log.info(
+        { jobId: job.id, name: job.name, lastRunAtMs: lastRun },
+        "cron: catch-up — job missed scheduled occurrence(s), making immediately due",
+      );
+      // Set nextRunAtMs to now so the job is picked up by `runDueJobs`.
+      job.state.nextRunAtMs = now;
+    } else {
+      job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
+    }
   }
 }
 

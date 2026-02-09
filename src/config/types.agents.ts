@@ -27,6 +27,8 @@ export type AgentConfig = {
   /** Optional allowlist of skills for this agent (omit = all skills; empty = none). */
   skills?: string[];
   memorySearch?: MemorySearchConfig;
+  /** Brain MCP workspace UUID for this agent (used with brain-tiered memory backend). */
+  brainWorkspaceId?: string;
   /** Human-like delay between block replies for this agent. */
   humanDelay?: HumanDelayConfig;
   /** Optional per-agent heartbeat overrides. */

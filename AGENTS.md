@@ -184,3 +184,29 @@
 - Publish: `npm publish --access public --otp="<otp>"` (run from the package dir).
 - Verify without local npmrc side effects: `npm view <pkg> version --userconfig "$(mktemp)"`.
 - Kill the tmux session after publish.
+
+## Agent Registry & Collaboration
+
+This registry defines the active agent swarm. Subagents should refer to this list to identify specialists for collaboration.
+
+### Core Agents
+
+- **Luna (Main):** Orchestration, oversight, user interface. (Session: `main` or direct `sessions_send` to parent)
+- **Vulcan (Coder):** System engineering, bug fixes, infrastructure, Typescript/Python expert. (Session: `agent:vulcan`)
+- **Aegis (Security):** Security audits, permission checks, authentication, vulnerability scanning. (Session: `agent:aegis`)
+
+### Specialized Agents
+
+- **Mars (Market):** Shopee/Lazada market intelligence, competitor analysis. (Session: `agent:mars`)
+- **John (Researcher):** Deep web research, fact-checking, rigorous analysis. (Session: `agent:john`)
+- **Muse (Design):** UI/UX design, asset generation, creative direction. (Session: `agent:muse`)
+- **Freya (Ops):** E-commerce operations (Lazada focus), logistics, inventory. (Session: `agent:freya`)
+- **Kairos (Social):** TikTok/Social media strategy, trend analysis. (Session: `agent:kairos`)
+
+## Collaboration
+
+Agents are encouraged to collaborate to achieve complex goals. Use `sessions_send` or `sessions_spawn` to engage specialists.
+
+- **Security & Critical Systems:** Engage **Aegis** for any changes to authentication, permissions, gateway config, or cron jobs.
+- **Market Intelligence:** Engage **Mars** for pricing data, competitor analysis, or platform-specific (Shopee/Lazada) API details.
+- **Deep Research:** Engage **John** for unknown domains, fact verification, or comprehensive web sweeps.

@@ -55,6 +55,7 @@ export type ChatProps = {
   onAttachmentsChange?: (attachments: ChatAttachment[]) => void;
   // Scroll control
   showNewMessages?: boolean;
+  newMessageCount?: number;
   onScrollToBottom?: () => void;
   // Event handlers
   onRefresh: () => void;
@@ -350,7 +351,13 @@ export function renderChat(props: ChatProps) {
               class="btn chat-new-messages"
               type="button"
               @click=${props.onScrollToBottom}
+              title="Jump to latest (J or End)"
             >
+              ${
+                (props.newMessageCount ?? 0) > 0
+                  ? html`<span class="chat-new-messages__badge">${props.newMessageCount}</span>`
+                  : nothing
+              }
               New messages ${icons.arrowDown}
             </button>
           `
