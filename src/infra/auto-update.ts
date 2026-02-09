@@ -98,20 +98,101 @@ export function computeNextScheduleMs(
   const get = (type: Intl.DateTimeFormatPartTypes) =>
     Number.parseInt(parts.find((p) => p.type === type)?.value ?? "0", 10);
 
+  const currentYear = get("year");
+  const currentMonth = get("month");
+  const currentDay = get("day");
   const currentHour = get("hour");
   const currentMinute = get("minute");
   const currentSecond = get("second");
 
-  // How many ms until the target time today?
+  // Determine if the target time has already passed today.
   const targetTodaySec = hour * 3600 + minute * 60;
   const currentSec = currentHour * 3600 + currentMinute * 60 + currentSecond;
-  const diffSec = targetTodaySec - currentSec;
+  const alreadyPassed = targetTodaySec <= currentSec;
 
-  if (diffSec > 0) {
-    return nowMs + diffSec * 1000;
+  // Build the target date.  Use Date to handle month/year rollovers correctly.
+  const baseDate = new Date(Date.UTC(currentYear, currentMonth - 1, currentDay));
+  if (alreadyPassed) {
+    baseDate.setUTCDate(baseDate.getUTCDate() + 1);
   }
-  // Already passed today — schedule for tomorrow.
-  return nowMs + (diffSec + 86400) * 1000;
+  const targetYear = baseDate.getUTCFullYear();
+  const targetMonth = baseDate.getUTCMonth() + 1;
+  const targetDay = baseDate.getUTCDate();
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  // Construct a wall-clock date string for the target timezone and resolve
+  // the correct UTC epoch.  This handles DST transitions — unlike adding a
+  // flat 86400s which can drift by ±1 hour at DST boundaries.
+  //
+  // Strategy: create a rough UTC estimate, measure the timezone offset at
+  // that instant, then adjust.
+  const candidateStr = `${targetYear}-${pad(targetMonth)}-${pad(targetDay)}T${pad(hour)}:${pad(minute)}:00`;
+  const roughUtcMs = new Date(candidateStr + "Z").getTime();
+
+  // Get the timezone offset at the rough time by comparing wall-clock to UTC.
+  const probe = new Date(roughUtcMs);
+  const probeParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(probe);
+  const probeGet = (type: Intl.DateTimeFormatPartTypes) =>
+    Number.parseInt(probeParts.find((p) => p.type === type)?.value ?? "0", 10);
+  const probeWallMs = Date.UTC(
+    probeGet("year"),
+    probeGet("month") - 1,
+    probeGet("day"),
+    probeGet("hour"),
+    probeGet("minute"),
+    probeGet("second"),
+  );
+  const tzOffsetMs = probeWallMs - roughUtcMs;
+
+  // First estimate of the actual UTC time.
+  let targetUtcMs = roughUtcMs - tzOffsetMs;
+
+  // Refine: the offset we measured was at `roughUtcMs`, but the actual target
+  // may be in a different DST regime.  Re-probe at the estimated target time
+  // to get the correct offset (handles fall-back where the first probe sees
+  // the pre-transition offset).
+  const probe2 = new Date(targetUtcMs);
+  const probe2Parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(probe2);
+  const probe2Get = (type: Intl.DateTimeFormatPartTypes) =>
+    Number.parseInt(probe2Parts.find((p) => p.type === type)?.value ?? "0", 10);
+  const probe2WallMs = Date.UTC(
+    probe2Get("year"),
+    probe2Get("month") - 1,
+    probe2Get("day"),
+    probe2Get("hour"),
+    probe2Get("minute"),
+    probe2Get("second"),
+  );
+  const tzOffset2Ms = probe2WallMs - targetUtcMs;
+  if (tzOffset2Ms !== tzOffsetMs) {
+    targetUtcMs = roughUtcMs - tzOffset2Ms;
+  }
+
+  // If the computed time is still in the past (edge case around midnight/DST),
+  // advance by one day and recompute.
+  if (targetUtcMs <= nowMs) {
+    return computeNextScheduleMs(schedule, timezone, targetUtcMs + 1000);
+  }
+  return targetUtcMs;
 }
 
 // ── State File (pre-update version persistence) ────────────────────────────
@@ -188,14 +269,24 @@ export async function checkForAvailableUpdate(params: {
 
 // ── Resolve Config Helpers ─────────────────────────────────────────────────
 
+/**
+ * Resolve the auto-update config with defaults.
+ *
+ * @param raw - The raw `update.auto` config from the user's config file.
+ * @param userTimezone - The value of `agents.defaults.userTimezone`, passed in
+ *   by the caller so this module doesn't need to reach into the agent config.
+ *   Falls back to the system timezone if neither `raw.timezone` nor
+ *   `userTimezone` is provided.
+ */
 export function resolveAutoUpdateConfig(
   raw: AutoUpdateConfig | undefined,
+  userTimezone?: string,
 ): Required<AutoUpdateConfig> {
   return {
     enabled: raw?.enabled ?? AUTO_UPDATE_DEFAULTS.enabled,
     mode: raw?.mode ?? AUTO_UPDATE_DEFAULTS.mode,
     schedule: raw?.schedule ?? AUTO_UPDATE_DEFAULTS.schedule,
-    timezone: raw?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    timezone: raw?.timezone ?? userTimezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
     notifyAfterUpdate: raw?.notifyAfterUpdate ?? AUTO_UPDATE_DEFAULTS.notifyAfterUpdate,
     notifyChannel: raw?.notifyChannel ?? AUTO_UPDATE_DEFAULTS.notifyChannel,
   };
@@ -246,12 +337,12 @@ export type AutoUpdateSchedulerDeps = {
  * timer.
  */
 export function startAutoUpdateScheduler(deps: AutoUpdateSchedulerDeps): () => void {
-  const cfg = resolveAutoUpdateConfig(deps.config);
+  const cfg = resolveAutoUpdateConfig(deps.config, deps.userTimezone);
   if (!cfg.enabled) {
     return () => {};
   }
 
-  const timezone = deps.userTimezone ?? cfg.timezone;
+  const timezone = cfg.timezone;
   const scheduleNextCheck = (): ReturnType<typeof setTimeout> | null => {
     const nextMs = computeNextScheduleMs(cfg.schedule, timezone, Date.now());
     if (nextMs == null) {

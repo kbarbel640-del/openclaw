@@ -70,6 +70,31 @@ describe("computeNextScheduleMs", () => {
     expect(diffHours).toBeGreaterThan(1.9);
     expect(diffHours).toBeLessThan(2.1);
   });
+
+  it("handles DST spring-forward correctly (not exactly 24h)", () => {
+    // US Spring Forward 2026: March 8 at 2:00 AM → 3:00 AM
+    // At 4 AM EST on March 7 (09:00 UTC), schedule for 03:00 next day.
+    // March 8 at 03:00 EDT = 07:00 UTC (only 22 hours later, not 24).
+    const nowMs = new Date("2026-03-07T09:00:00Z").getTime(); // 4 AM EST
+    const result = computeNextScheduleMs("03:00", "America/New_York", nowMs);
+    expect(result).not.toBeNull();
+    // Target: March 8 03:00 EDT = March 8 07:00 UTC
+    const expectedMs = new Date("2026-03-08T07:00:00Z").getTime();
+    // Allow 2-minute tolerance for rounding
+    expect(Math.abs(result! - expectedMs)).toBeLessThan(120_000);
+  });
+
+  it("handles DST fall-back correctly", () => {
+    // US Fall Back 2026: November 1 at 2:00 AM → 1:00 AM
+    // At 4 AM EDT on Oct 31 (08:00 UTC), schedule for 03:00 next day.
+    // Nov 1 at 03:00 EST = 08:00 UTC (25 hours later, not 24).
+    const nowMs = new Date("2026-10-31T08:00:00Z").getTime(); // 4 AM EDT
+    const result = computeNextScheduleMs("03:00", "America/New_York", nowMs);
+    expect(result).not.toBeNull();
+    // Target: Nov 1 03:00 EST = Nov 1 08:00 UTC
+    const expectedMs = new Date("2026-11-01T08:00:00Z").getTime();
+    expect(Math.abs(result! - expectedMs)).toBeLessThan(120_000);
+  });
 });
 
 // ── resolveAutoUpdateConfig ────────────────────────────────────────────────
@@ -107,6 +132,26 @@ describe("resolveAutoUpdateConfig", () => {
     expect(cfg.enabled).toBe(true);
     expect(cfg.mode).toBe(AUTO_UPDATE_DEFAULTS.mode);
     expect(cfg.schedule).toBe(AUTO_UPDATE_DEFAULTS.schedule);
+  });
+
+  it("uses userTimezone when config timezone is not set", () => {
+    const cfg = resolveAutoUpdateConfig({ enabled: true }, "America/Chicago");
+    expect(cfg.timezone).toBe("America/Chicago");
+  });
+
+  it("prefers config timezone over userTimezone", () => {
+    const cfg = resolveAutoUpdateConfig(
+      { enabled: true, timezone: "Europe/London" },
+      "America/Chicago",
+    );
+    expect(cfg.timezone).toBe("Europe/London");
+  });
+
+  it("falls back to system timezone when neither is set", () => {
+    const cfg = resolveAutoUpdateConfig({ enabled: true });
+    // Should be the system timezone, not empty
+    expect(cfg.timezone).toBeTruthy();
+    expect(cfg.timezone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
   });
 });
 
