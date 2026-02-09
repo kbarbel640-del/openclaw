@@ -23,7 +23,7 @@ async function writePluginFixture(params: {
     manifest.channels = params.channels;
   }
   await fs.writeFile(
-    path.join(params.dir, "EasyHub.plugin.json"),
+    path.join(params.dir, "easyhub.plugin.json"),
     JSON.stringify(manifest, null, 2),
     "utf-8",
   );

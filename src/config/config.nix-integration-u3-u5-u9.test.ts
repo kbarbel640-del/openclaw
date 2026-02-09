@@ -130,7 +130,7 @@ describe("Nix integration (U3, U5, U9)", () => {
           "utf-8",
         );
         await fs.writeFile(
-          path.join(pluginDir, "EasyHub.plugin.json"),
+          path.join(pluginDir, "easyhub.plugin.json"),
           JSON.stringify(
             {
               id: "demo-plugin",

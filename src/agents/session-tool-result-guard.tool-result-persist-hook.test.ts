@@ -16,7 +16,7 @@ function writeTempPlugin(params: { dir: string; id: string; body: string }): str
   const file = path.join(pluginDir, `${params.id}.mjs`);
   fs.writeFileSync(file, params.body, "utf-8");
   fs.writeFileSync(
-    path.join(pluginDir, "EasyHub.plugin.json"),
+    path.join(pluginDir, "easyhub.plugin.json"),
     JSON.stringify(
       {
         id: params.id,

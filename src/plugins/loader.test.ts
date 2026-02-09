@@ -29,7 +29,7 @@ function writePlugin(params: {
   const file = path.join(dir, filename);
   fs.writeFileSync(file, params.body, "utf-8");
   fs.writeFileSync(
-    path.join(dir, "EasyHub.plugin.json"),
+    path.join(dir, "easyhub.plugin.json"),
     JSON.stringify(
       {
         id: params.id,

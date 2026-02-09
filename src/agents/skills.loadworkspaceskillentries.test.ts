@@ -48,7 +48,7 @@ describe("loadWorkspaceSkillEntries", () => {
 
     await fs.mkdir(path.join(pluginRoot, "skills", "prose"), { recursive: true });
     await fs.writeFile(
-      path.join(pluginRoot, "EasyHub.plugin.json"),
+      path.join(pluginRoot, "easyhub.plugin.json"),
       JSON.stringify(
         {
           id: "open-prose",
@@ -87,7 +87,7 @@ describe("loadWorkspaceSkillEntries", () => {
 
     await fs.mkdir(path.join(pluginRoot, "skills", "prose"), { recursive: true });
     await fs.writeFile(
-      path.join(pluginRoot, "EasyHub.plugin.json"),
+      path.join(pluginRoot, "easyhub.plugin.json"),
       JSON.stringify(
         {
           id: "open-prose",
