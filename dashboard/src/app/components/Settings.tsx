@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, Eye, EyeOff, Check, Plus, Trash2 } from "lucide-react";
+import { X, Eye, EyeOff, Check } from "lucide-react";
 
 interface SettingsProps {
   isOpen: boolean;
@@ -50,22 +50,36 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, theme }) =>
   const [defaultModel, setDefaultModel] = useState("claude-3-5-sonnet-20241022");
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
+  
+  // Advanced settings
+  const [temperature, setTemperature] = useState(0.7);
+  const [maxTokens, setMaxTokens] = useState(4096);
+  const [systemPrompt, setSystemPrompt] = useState("");
 
   // Load settings from localStorage
   useEffect(() => {
     const savedKeys = localStorage.getItem("easyhub_api_keys");
     const savedModel = localStorage.getItem("easyhub_default_model");
     const savedProvider = localStorage.getItem("easyhub_provider");
+    const savedTemp = localStorage.getItem("easyhub_temperature");
+    const savedMaxTokens = localStorage.getItem("easyhub_max_tokens");
+    const savedSystemPrompt = localStorage.getItem("easyhub_system_prompt");
     
     if (savedKeys) setApiKeys(JSON.parse(savedKeys));
     if (savedModel) setDefaultModel(savedModel);
     if (savedProvider) setActiveProvider(savedProvider);
+    if (savedTemp) setTemperature(parseFloat(savedTemp));
+    if (savedMaxTokens) setMaxTokens(parseInt(savedMaxTokens));
+    if (savedSystemPrompt) setSystemPrompt(savedSystemPrompt);
   }, []);
 
   const handleSave = () => {
     localStorage.setItem("easyhub_api_keys", JSON.stringify(apiKeys));
     localStorage.setItem("easyhub_default_model", defaultModel);
     localStorage.setItem("easyhub_provider", activeProvider);
+    localStorage.setItem("easyhub_temperature", temperature.toString());
+    localStorage.setItem("easyhub_max_tokens", maxTokens.toString());
+    localStorage.setItem("easyhub_system_prompt", systemPrompt);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -92,12 +106,12 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, theme }) =>
       
       {/* Modal */}
       <div 
-        className={`relative w-full max-w-lg mx-4 rounded-2xl border shadow-2xl ${
+        className={`relative w-full max-w-lg mx-4 rounded-2xl border shadow-2xl max-h-[90vh] overflow-hidden flex flex-col ${
           isDark ? "bg-[#111] border-white/10" : "bg-white border-gray-200"
         }`}
       >
         {/* Header */}
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${
+        <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
           isDark ? "border-white/10" : "border-gray-100"
         }`}>
           <h2 className={`text-lg font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
@@ -114,7 +128,7 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, theme }) =>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Provider Selection */}
           <div>
             <label className={`block text-sm font-medium mb-3 ${
@@ -200,10 +214,81 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, theme }) =>
               ))}
             </select>
           </div>
+
+          {/* Temperature */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                Temperature
+              </label>
+              <span className={`text-sm font-mono ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                {temperature.toFixed(1)}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="2"
+              step="0.1"
+              value={temperature}
+              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer accent-[#2dd4bf]"
+              style={{
+                background: isDark 
+                  ? `linear-gradient(to right, #2dd4bf ${temperature * 50}%, #333 ${temperature * 50}%)`
+                  : `linear-gradient(to right, #2dd4bf ${temperature * 50}%, #e5e7eb ${temperature * 50}%)`
+              }}
+            />
+            <div className={`flex justify-between text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+              <span>Precise</span>
+              <span>Creative</span>
+            </div>
+          </div>
+
+          {/* Max Tokens */}
+          <div>
+            <label className={`block text-sm font-medium mb-3 ${
+              isDark ? "text-gray-300" : "text-gray-700"
+            }`}>
+              Max Tokens
+            </label>
+            <input
+              type="number"
+              value={maxTokens}
+              onChange={(e) => setMaxTokens(parseInt(e.target.value) || 0)}
+              min="1"
+              max="128000"
+              className={`w-full px-4 py-3 rounded-xl border text-sm transition-colors ${
+                isDark
+                  ? "bg-white/5 border-white/10 text-white focus:border-[#2dd4bf]/50"
+                  : "bg-gray-50 border-gray-200 text-gray-900 focus:border-[#2dd4bf]"
+              } outline-none`}
+            />
+          </div>
+
+          {/* System Prompt */}
+          <div>
+            <label className={`block text-sm font-medium mb-3 ${
+              isDark ? "text-gray-300" : "text-gray-700"
+            }`}>
+              System Prompt (Optional)
+            </label>
+            <textarea
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              placeholder="Enter a custom system prompt..."
+              rows={3}
+              className={`w-full px-4 py-3 rounded-xl border text-sm transition-colors resize-none ${
+                isDark
+                  ? "bg-white/5 border-white/10 text-white placeholder-gray-500 focus:border-[#2dd4bf]/50"
+                  : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-[#2dd4bf]"
+              } outline-none`}
+            />
+          </div>
         </div>
 
         {/* Footer */}
-        <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${
+        <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t shrink-0 ${
           isDark ? "border-white/10" : "border-gray-100"
         }`}>
           <button

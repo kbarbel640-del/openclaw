@@ -2,13 +2,27 @@ import React, { useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ChatInterface } from "./components/ChatInterface";
 import { Settings } from "./components/Settings";
+import { ChatHistory } from "./components/ChatHistory";
 
 export default function App() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  const handleSelectChat = (chatId: string) => {
+    setCurrentChatId(chatId);
+    setShowHistory(false);
+    // TODO: Load chat messages for this chatId
+  };
+
+  const handleNewChat = () => {
+    setCurrentChatId(null);
+    setShowHistory(false);
   };
 
   const isDark = theme === "dark";
@@ -23,10 +37,20 @@ export default function App() {
         theme={theme} 
         toggleTheme={toggleTheme} 
         onOpenSettings={() => setShowSettings(true)}
+        onOpenHistory={() => setShowHistory(true)}
+        onNewChat={handleNewChat}
+      />
+
+      {/* Chat History Panel */}
+      <ChatHistory
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        theme={theme}
+        onSelectChat={handleSelectChat}
       />
       
       <div className="w-full flex justify-center py-20 px-6">
-        <ChatInterface theme={theme} />
+        <ChatInterface theme={theme} chatId={currentChatId} />
       </div>
 
       {/* Settings Modal */}

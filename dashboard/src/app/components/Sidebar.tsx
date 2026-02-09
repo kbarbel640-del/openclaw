@@ -6,6 +6,8 @@ interface SidebarProps {
   theme: "dark" | "light";
   toggleTheme: () => void;
   onOpenSettings: () => void;
+  onOpenHistory: () => void;
+  onNewChat: () => void;
 }
 
 const NavItem = ({ icon: Icon, label, active = false, theme, onClick }: { 
@@ -41,7 +43,13 @@ const NavItem = ({ icon: Icon, label, active = false, theme, onClick }: {
   );
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, onOpenSettings }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ 
+  theme, 
+  toggleTheme, 
+  onOpenSettings,
+  onOpenHistory,
+  onNewChat
+}) => {
   const isDark = theme === "dark";
   
   return (
@@ -60,8 +68,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, onOpenSett
         </motion.div>
 
         <div className="flex flex-col items-center gap-4">
-          <NavItem icon={Plus} label="New Chat" active theme={theme} />
-          <NavItem icon={History} label="History" theme={theme} />
+          <NavItem icon={Plus} label="New Chat" active theme={theme} onClick={onNewChat} />
+          <NavItem icon={History} label="History" theme={theme} onClick={onOpenHistory} />
           <NavItem icon={MessageSquare} label="Topics" theme={theme} />
           <NavItem icon={LayoutGrid} label="Tools" theme={theme} />
         </div>

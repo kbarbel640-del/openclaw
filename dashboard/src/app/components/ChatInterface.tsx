@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 interface ChatInterfaceProps {
   theme: "dark" | "light";
+  chatId?: string | null;
 }
 
 const QUICK_ACTIONS = [
@@ -19,7 +20,7 @@ const SUGGESTIONS = [
   "How do I optimize my React application?",
 ];
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ theme }) => {
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ theme, chatId }) => {
   const isDark = theme === "dark";
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
