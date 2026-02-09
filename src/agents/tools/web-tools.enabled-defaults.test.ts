@@ -151,6 +151,9 @@ describe("web_search perplexity baseUrl defaults", () => {
 
     expect(mockFetch).toHaveBeenCalled();
     expect(mockFetch.mock.calls[0]?.[0]).toBe("https://api.perplexity.ai/chat/completions");
+    const request = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    const body = JSON.parse(String(request?.body ?? "{}")) as { model?: string };
+    expect(body.model).toBe("sonar-pro");
   });
 
   it("rejects freshness for Perplexity provider", async () => {
@@ -194,6 +197,9 @@ describe("web_search perplexity baseUrl defaults", () => {
 
     expect(mockFetch).toHaveBeenCalled();
     expect(mockFetch.mock.calls[0]?.[0]).toBe("https://openrouter.ai/api/v1/chat/completions");
+    const request = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
+    const body = JSON.parse(String(request?.body ?? "{}")) as { model?: string };
+    expect(body.model).toBe("perplexity/sonar-pro");
   });
 
   it("prefers PERPLEXITY_API_KEY when both env keys are set", async () => {
