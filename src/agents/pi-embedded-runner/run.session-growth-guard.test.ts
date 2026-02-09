@@ -266,8 +266,8 @@ describe("session-growth guard (#11971)", () => {
     expect(result.meta.error).toBeUndefined();
   });
 
-  it("skips guard when no session file is provided", async () => {
-    const paramsNoFile = { ...baseParams, sessionFile: undefined as unknown as string };
+  it("skips guard when session file path is empty", async () => {
+    const paramsNoFile = { ...baseParams, sessionFile: "" };
 
     mockedRunEmbeddedAttempt.mockResolvedValueOnce(makeAttemptResult());
 
@@ -275,6 +275,20 @@ describe("session-growth guard (#11971)", () => {
 
     expect(mockedEstimateTokens).not.toHaveBeenCalled();
     expect(mockedCompactDirect).not.toHaveBeenCalled();
+  });
+
+  it("skips compaction when session file does not exist on disk", async () => {
+    const paramsNonexistent = { ...baseParams, sessionFile: "/tmp/nonexistent-session.json" };
+
+    // estimateSessionFileTokens returns 0 for missing files
+    mockedEstimateTokens.mockResolvedValue(0);
+    mockedRunEmbeddedAttempt.mockResolvedValueOnce(makeAttemptResult());
+
+    const result = await runEmbeddedPiAgent(paramsNonexistent);
+
+    expect(mockedEstimateTokens).toHaveBeenCalledWith("/tmp/nonexistent-session.json");
+    expect(mockedCompactDirect).not.toHaveBeenCalled();
+    expect(result.meta.error).toBeUndefined();
   });
 
   it("counts pre-prompt compaction in autoCompactionCount", async () => {
