@@ -1,0 +1,5 @@
+# values-local.yaml — overrides for local K3s with podman-built image
+image:
+  repository: localhost/openclaw
+  tag: local
+  pullPolicy: Never

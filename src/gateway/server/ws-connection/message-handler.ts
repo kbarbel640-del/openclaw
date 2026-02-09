@@ -670,12 +670,53 @@ export function attachGatewayWsMessageHandler(params: {
             authMethod = "device-token";
           }
         }
+
+        // K8s ServiceAccount Trust: validate pod SA JWT via TokenReview API
+        if (!authOk && connectParams.auth?.k8sToken) {
+          const k8sAuthConfig = configSnapshot.gateway?.auth?.k8sTrust;
+          if (k8sAuthConfig?.enabled) {
+            const { getK8sAuthenticator } = await import("../../k8s-auth.js");
+            const authenticator = getK8sAuthenticator(k8sAuthConfig);
+            if (authenticator) {
+              const reviewResult = await authenticator.validateToken(connectParams.auth.k8sToken);
+              if (
+                reviewResult.authenticated &&
+                reviewResult.namespace &&
+                reviewResult.serviceAccount
+              ) {
+                const identityAllowed = authenticator.isIdentityAllowed(
+                  reviewResult.namespace,
+                  reviewResult.serviceAccount,
+                  role,
+                );
+                if (identityAllowed) {
+                  authOk = true;
+                  authMethod = "k8s-sa-trust";
+                  if (k8sAuthConfig.auditLog) {
+                    logGateway.info(
+                      `k8s-sa-trust auth ok ns=${reviewResult.namespace} sa=${reviewResult.serviceAccount} pod=${reviewResult.podUid ?? "?"}`,
+                    );
+                  }
+                } else {
+                  logWsControl.warn(
+                    `k8s-sa-trust identity not allowed ns=${reviewResult.namespace} sa=${reviewResult.serviceAccount} role=${role}`,
+                  );
+                }
+              } else {
+                logWsControl.warn(
+                  `k8s-sa-trust token review failed: ${reviewResult.error ?? "unknown"}`,
+                );
+              }
+            }
+          }
+        }
+
         if (!authOk) {
           rejectUnauthorized();
           return;
         }
 
-        const skipPairing = allowControlUiBypass && sharedAuthOk;
+        const skipPairing = (allowControlUiBypass && sharedAuthOk) || authMethod === "k8s-sa-trust";
         if (device && devicePublicKey && !skipPairing) {
           const requirePairing = async (reason: string, _paired?: { deviceId: string }) => {
             const pairing = await requestDevicePairing({

@@ -1,0 +1,131 @@
+# Gateway StatefulSet (1 replica with persistent config storage)
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openclaw-gateway
+  namespace: openclaw
+  labels:
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: openclaw
+spec:
+  serviceName: openclaw-gateway
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openclaw-gateway
+  template:
+    metadata:
+      labels:
+        app: openclaw-gateway
+        app.kubernetes.io/component: gateway
+        app.kubernetes.io/part-of: openclaw
+    spec:
+      serviceAccountName: openclaw-gateway
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        # Copy config from ConfigMap to writable volume
+        - name: init-config
+          image: localhost/openclaw:local
+          imagePullPolicy: Never
+          command: ["sh", "-c"]
+          args:
+            - |
+              cp /config-ro/openclaw.json /home/node/.openclaw/openclaw.json
+              echo "Config initialized"
+          volumeMounts:
+            - name: config-ro
+              mountPath: /config-ro
+              readOnly: true
+            - name: openclaw-data
+              mountPath: /home/node/.openclaw
+      containers:
+        - name: gateway
+          image: localhost/openclaw:local
+          imagePullPolicy: Never
+          command:
+            [
+              "node",
+              "openclaw.mjs",
+              "gateway",
+              "run",
+              "--allow-unconfigured",
+              "--bind",
+              "lan",
+              "--port",
+              "18789",
+              "--force",
+            ]
+          ports:
+            - name: gateway
+              containerPort: 18789
+              protocol: TCP
+          env:
+            - name: HOME
+              value: /home/node
+            - name: TERM
+              value: xterm-256color
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=1536"
+            - name: NODE_EXTRA_CA_CERTS
+              value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            - name: OPENCLAW_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: openclaw-gateway-token
+                  key: token
+          volumeMounts:
+            - name: openclaw-data
+              mountPath: /home/node/.openclaw
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 18789
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 18789
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: config-ro
+          configMap:
+            name: openclaw-gateway-config
+  volumeClaimTemplates:
+    - metadata:
+        name: openclaw-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+
+
+# Gateway Service (ClusterIP)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openclaw-gateway
+  namespace: openclaw
+  labels:
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: openclaw
+spec:
+  type: ClusterIP
+  selector:
+    app: openclaw-gateway
+  ports:
+    - name: gateway
+      port: 18789
+      targetPort: 18789
+      protocol: TCP

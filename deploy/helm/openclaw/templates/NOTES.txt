@@ -1,0 +1,19 @@
+1. Get the gateway token:
+   kubectl -n {{ .Release.Namespace }} get secret {{ include "openclaw.gateway.secretName" . }} -o jsonpath='{.data.token}' | base64 -d; echo
+
+2. Port-forward the gateway:
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "openclaw.gateway.serviceName" . }} 19000:{{ .Values.gateway.service.port }}
+
+3. Open the Control UI:
+   http://localhost:19000/ui/overview?token=<TOKEN_FROM_STEP_1>
+
+4. Check worker status:
+   kubectl -n {{ .Release.Namespace }} get pods -l {{ (include "openclaw.worker.selectorLabels" .) | replace ": " "=" }}
+   kubectl -n {{ .Release.Namespace }} get hpa
+
+{{- if .Values.gateway.ingress.enabled }}
+5. Access via Ingress:
+{{- range .Values.gateway.ingress.hosts }}
+   http{{ if $.Values.gateway.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- end }}

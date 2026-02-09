@@ -22,6 +22,7 @@
   },
   "ignorePatterns": [
     "assets/",
+    "deploy/helm/",
     "dist/",
     "docs/_layouts/",
     "extensions/",

@@ -1,0 +1,52 @@
+# Gateway configuration (mounted as openclaw.json)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-gateway-config
+  namespace: openclaw
+  labels:
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: openclaw
+data:
+  openclaw.json: |
+    {
+      "gateway": {
+        "mode": "local",
+        "port": 18789,
+        "bind": "lan",
+        "auth": {
+          "mode": "token",
+          "k8sTrust": {
+            "enabled": true,
+            "allowedIdentities": [
+              {
+                "namespace": "openclaw",
+                "serviceAccount": "openclaw-worker",
+                "allowedRoles": ["node"]
+              }
+            ],
+            "ephemeralSessions": true,
+            "auditLog": true
+          }
+        }
+      }
+    }
+
+
+# Secret for the gateway auth token (used by non-K8s clients like Control UI)
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openclaw-gateway-token
+  namespace: openclaw
+  labels:
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: openclaw
+type: Opaque
+stringData:
+  # Generate before deploying:
+  #   kubectl -n openclaw create secret generic openclaw-gateway-token \
+  #     --from-literal=token="$(openssl rand -hex 32)" --dry-run=client -o yaml | kubectl apply -f -
+  token: "REPLACE_ME"

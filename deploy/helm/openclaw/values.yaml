@@ -1,0 +1,202 @@
+# -- Global settings
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  # -- Container image repository
+  repository: openclaw
+  # -- Image tag (defaults to .Chart.AppVersion)
+  tag: ""
+  # -- Image pull policy (use Never for local K3s with imported images)
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# -- Gateway settings
+gateway:
+  # -- Number of gateway replicas (should be 1 for StatefulSet)
+  replicas: 1
+
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for the gateway
+    create: true
+    # -- Override the ServiceAccount name
+    name: ""
+
+  # -- Gateway port
+  port: 18789
+
+  # -- Node.js max heap size in MB
+  nodeMaxHeap: 1536
+
+  # -- Trust the in-cluster K8s CA for TokenReview API calls
+  trustClusterCA: true
+
+  # -- Gateway auth token (for non-K8s clients like Control UI).
+  # If empty, a random token is generated via a pre-install hook.
+  authToken: ""
+
+  # -- Name of an existing Secret containing the gateway token (key: token).
+  # Takes precedence over gateway.authToken.
+  existingSecret: ""
+
+  # -- K8s ServiceAccount Trust authentication
+  k8sTrust:
+    # -- Enable SA Trust auth for worker pods
+    enabled: true
+    # -- Allowed SA identities
+    allowedIdentities:
+      - namespace: "{{ .Release.Namespace }}"
+        serviceAccount: '{{ include "openclaw.worker.serviceAccountName" . }}'
+        allowedRoles:
+          - node
+    # -- Don't persist device records for K8s-authenticated workers
+    ephemeralSessions: true
+    # -- Log every K8s auth attempt
+    auditLog: true
+
+  # -- Extra environment variables for gateway
+  extraEnv: []
+
+  persistence:
+    # -- Enable persistent storage for gateway data
+    enabled: true
+    # -- Storage class (empty = default)
+    storageClass: ""
+    # -- PVC size
+    size: 1Gi
+    # -- Access modes
+    accessModes:
+      - ReadWriteOnce
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: gateway
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: gateway
+    initialDelaySeconds: 15
+    periodSeconds: 15
+
+  # -- Annotations for gateway pods
+  podAnnotations: {}
+
+  # -- Node selector for gateway pods
+  nodeSelector: {}
+
+  # -- Tolerations for gateway pods
+  tolerations: []
+
+  # -- Affinity rules for gateway pods
+  affinity: {}
+
+  service:
+    # -- Service type (ClusterIP, NodePort, LoadBalancer)
+    type: ClusterIP
+    # -- Service port
+    port: 18789
+    # -- Annotations for the Service
+    annotations: {}
+
+  ingress:
+    # -- Enable Ingress for external access
+    enabled: false
+    # -- Ingress class name
+    className: ""
+    # -- Ingress annotations
+    annotations: {}
+    # -- Ingress hosts
+    hosts: []
+    #   - host: openclaw.example.com
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    # -- TLS configuration
+    tls: []
+
+# -- Worker settings
+worker:
+  # -- Initial replica count (HPA will manage this)
+  replicas: 2
+
+  serviceAccount:
+    # -- Create a dedicated ServiceAccount for workers
+    create: true
+    # -- Override the ServiceAccount name
+    name: ""
+
+  # -- Node.js max heap size in MB
+  nodeMaxHeap: 1536
+
+  # -- Extra environment variables for workers
+  extraEnv: []
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  autoscaling:
+    # -- Enable HorizontalPodAutoscaler
+    enabled: true
+    # -- Minimum number of worker replicas
+    minReplicas: 2
+    # -- Maximum number of worker replicas
+    maxReplicas: 10
+    # -- Target CPU utilization percentage
+    targetCPUUtilizationPercentage: 70
+    # -- Scale-up stabilization window (seconds)
+    scaleUpStabilizationSeconds: 30
+    # -- Scale-up max pods per period
+    scaleUpMaxPods: 2
+    # -- Scale-down stabilization window (seconds)
+    scaleDownStabilizationSeconds: 120
+    # -- Scale-down max pods per period
+    scaleDownMaxPods: 1
+
+  # -- Annotations for worker pods
+  podAnnotations: {}
+
+  # -- Node selector for worker pods
+  nodeSelector: {}
+
+  # -- Tolerations for worker pods
+  tolerations: []
+
+  # -- Pod anti-affinity to spread workers across nodes
+  podAntiAffinity:
+    enabled: true
+    # -- preferred or required
+    type: preferred
+    topologyKey: kubernetes.io/hostname
+
+# -- RBAC settings
+rbac:
+  # -- Create ClusterRole and ClusterRoleBinding for TokenReview API
+  create: true
+
+# -- NetworkPolicy settings
+networkPolicy:
+  # -- Enable NetworkPolicy resources
+  enabled: true
+  # -- Allow access from all namespaces (for port-forward / dev).
+  # Disable in production and use ingress rules instead.
+  allowAllNamespaces: true
+  # -- Extra ingress rules for the gateway NetworkPolicy
+  extraIngressRules: []

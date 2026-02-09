@@ -53,6 +53,8 @@ type NodeHostRunOptions = {
   gatewayTlsFingerprint?: string;
   nodeId?: string;
   displayName?: string;
+  /** Use K8s ServiceAccount Trust auth (reads SA token from pod volume). */
+  k8sTrust?: boolean;
 };
 
 type SystemRunParams = {
@@ -595,10 +597,26 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
   // eslint-disable-next-line no-console
   console.log(`node host PATH: ${pathEnv}`);
 
+  // K8s ServiceAccount Trust: read the pod's projected SA token
+  let k8sServiceAccountToken: string | undefined;
+  if (opts.k8sTrust) {
+    const k8sTokenPath =
+      process.env.OPENCLAW_K8S_TOKEN_PATH || "/var/run/secrets/kubernetes.io/serviceaccount/token";
+    try {
+      k8sServiceAccountToken = fs.readFileSync(k8sTokenPath, "utf8").trim();
+      // eslint-disable-next-line no-console
+      console.log(`k8s-sa-trust: loaded SA token from ${k8sTokenPath}`);
+    } catch {
+      // eslint-disable-next-line no-console
+      console.warn(`k8s-sa-trust: could not read SA token from ${k8sTokenPath}`);
+    }
+  }
+
   const client = new GatewayClient({
     url,
     token: token?.trim() || undefined,
     password: password?.trim() || undefined,
+    k8sServiceAccountToken,
     instanceId: nodeId,
     clientName: GATEWAY_CLIENT_NAMES.NODE_HOST,
     clientDisplayName: displayName,

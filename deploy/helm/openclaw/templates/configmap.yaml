@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "openclaw.fullname" . }}-gateway-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openclaw.gateway.labels" . | nindent 4 }}
+data:
+  openclaw.json: |
+    {
+      "gateway": {
+        "mode": "local",
+        "port": {{ .Values.gateway.port }},
+        "bind": "lan",
+        "auth": {
+          "mode": "token"
+          {{- if .Values.gateway.k8sTrust.enabled }},
+          "k8sTrust": {
+            "enabled": true,
+            "allowedIdentities": [
+              {
+                "namespace": {{ .Release.Namespace | quote }},
+                "serviceAccount": {{ include "openclaw.worker.serviceAccountName" . | quote }},
+                "allowedRoles": ["node"]
+              }
+            ],
+            "ephemeralSessions": {{ .Values.gateway.k8sTrust.ephemeralSessions }},
+            "auditLog": {{ .Values.gateway.k8sTrust.auditLog }}
+          }
+          {{- end }}
+        }
+      }
+    }

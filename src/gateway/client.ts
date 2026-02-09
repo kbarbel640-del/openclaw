@@ -42,6 +42,8 @@ export type GatewayClientOptions = {
   url?: string; // ws://127.0.0.1:18789
   token?: string;
   password?: string;
+  /** K8s ServiceAccount JWT for SA Trust authentication. */
+  k8sServiceAccountToken?: string;
   instanceId?: string;
   clientName?: GatewayClientName;
   clientDisplayName?: string;
@@ -191,10 +193,11 @@ export class GatewayClient {
     const authToken = storedToken ?? this.opts.token ?? undefined;
     const canFallbackToShared = Boolean(storedToken && this.opts.token);
     const auth =
-      authToken || this.opts.password
+      authToken || this.opts.password || this.opts.k8sServiceAccountToken
         ? {
             token: authToken,
             password: this.opts.password,
+            k8sToken: this.opts.k8sServiceAccountToken,
           }
         : undefined;
     const signedAtMs = Date.now();

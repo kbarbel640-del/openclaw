@@ -39,6 +39,14 @@
   },
   "redirects": [
     {
+      "source": "/kubernetes",
+      "destination": "/gateway/kubernetes"
+    },
+    {
+      "source": "/k8s",
+      "destination": "/gateway/kubernetes"
+    },
+    {
       "source": "/messages",
       "destination": "/concepts/messages"
     },
@@ -1094,6 +1102,7 @@
                       "gateway/configuration",
                       "gateway/configuration-examples",
                       "gateway/authentication",
+                      "gateway/kubernetes",
                       "gateway/health",
                       "gateway/heartbeat",
                       "gateway/doctor",

@@ -1,0 +1,30 @@
+# NetworkPolicy: restrict who can reach the gateway
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: openclaw-gateway-ingress
+  namespace: openclaw
+  labels:
+    app.kubernetes.io/part-of: openclaw
+spec:
+  podSelector:
+    matchLabels:
+      app: openclaw-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow worker pods in the same namespace
+    - from:
+        - podSelector:
+            matchLabels:
+              app: openclaw-worker
+      ports:
+        - port: 18789
+          protocol: TCP
+    # Allow port-forward / Control UI access from any namespace (remove in prod)
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - port: 18789
+          protocol: TCP

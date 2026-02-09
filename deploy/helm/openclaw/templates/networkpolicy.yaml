@@ -1,0 +1,35 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openclaw.fullname" . }}-gateway-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openclaw.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "openclaw.gateway.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow worker pods in the same namespace
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "openclaw.worker.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.gateway.port }}
+          protocol: TCP
+    {{- if .Values.networkPolicy.allowAllNamespaces }}
+    # Allow port-forward / Control UI access from any namespace (disable in production)
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - port: {{ .Values.gateway.port }}
+          protocol: TCP
+    {{- end }}
+    {{- with .Values.networkPolicy.extraIngressRules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

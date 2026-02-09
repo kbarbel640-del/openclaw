@@ -394,6 +394,26 @@ export const OpenClawSchema = z
             token: z.string().optional(),
             password: z.string().optional(),
             allowTailscale: z.boolean().optional(),
+            k8sTrust: z
+              .object({
+                enabled: z.boolean().optional(),
+                apiServer: z.string().optional(),
+                caCertPath: z.string().optional(),
+                tokenPath: z.string().optional(),
+                allowedIdentities: z
+                  .array(
+                    z.object({
+                      namespace: z.string(),
+                      serviceAccount: z.string(),
+                      allowedRoles: z.array(z.string()),
+                    }),
+                  )
+                  .optional(),
+                ephemeralSessions: z.boolean().optional(),
+                auditLog: z.boolean().optional(),
+              })
+              .strict()
+              .optional(),
           })
           .strict()
           .optional(),

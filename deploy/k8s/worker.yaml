@@ -1,0 +1,97 @@
+# Worker Node Deployment (auto-scaled via HPA)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openclaw-worker
+  namespace: openclaw
+  labels:
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: openclaw
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: openclaw-worker
+  template:
+    metadata:
+      labels:
+        app: openclaw-worker
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: openclaw
+    spec:
+      serviceAccountName: openclaw-worker
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: worker
+          image: localhost/openclaw:local
+          imagePullPolicy: Never
+          command:
+            - node
+            - openclaw.mjs
+            - node
+            - run
+            - --host
+            - openclaw-gateway.openclaw.svc.cluster.local
+            - --port
+            - "18789"
+            - --k8s-trust
+          env:
+            - name: HOME
+              value: /home/node
+            - name: TERM
+              value: xterm-256color
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=1536"
+          volumeMounts:
+            - name: worker-data
+              mountPath: /home/node/.openclaw
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: worker-data
+          emptyDir: {}
+
+
+# HorizontalPodAutoscaler for workers
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: openclaw-worker
+  namespace: openclaw
+  labels:
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: openclaw
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: openclaw-worker
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 120
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60

@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "openclaw.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openclaw.gateway.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "openclaw.gateway.serviceName" . }}
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      {{- include "openclaw.gateway.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "openclaw.gateway.selectorLabels" . | nindent 8 }}
+        {{- include "openclaw.gateway.labels" . | nindent 8 }}
+      {{- with .Values.gateway.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "openclaw.gateway.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 30
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: init-config
+          image: {{ include "openclaw.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              cp /config-ro/openclaw.json /home/node/.openclaw/openclaw.json
+              echo "Config initialized"
+          volumeMounts:
+            - name: config-ro
+              mountPath: /config-ro
+              readOnly: true
+            - name: openclaw-data
+              mountPath: /home/node/.openclaw
+      containers:
+        - name: gateway
+          image: {{ include "openclaw.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - node
+            - openclaw.mjs
+            - gateway
+            - run
+            - --allow-unconfigured
+            - --bind
+            - lan
+            - --port
+            - {{ .Values.gateway.port | quote }}
+            - --force
+          ports:
+            - name: gateway
+              containerPort: {{ .Values.gateway.port }}
+              protocol: TCP
+          env:
+            - name: HOME
+              value: /home/node
+            - name: TERM
+              value: xterm-256color
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size={{ .Values.gateway.nodeMaxHeap }}"
+            {{- if .Values.gateway.trustClusterCA }}
+            - name: NODE_EXTRA_CA_CERTS
+              value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            {{- end }}
+            - name: OPENCLAW_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openclaw.gateway.secretName" . }}
+                  key: token
+            {{- with .Values.gateway.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: openclaw-data
+              mountPath: /home/node/.openclaw
+          {{- with .Values.gateway.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.gateway.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.gateway.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config-ro
+          configMap:
+            name: {{ include "openclaw.fullname" . }}-gateway-config
+      {{- with .Values.gateway.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if .Values.gateway.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: openclaw-data
+      spec:
+        accessModes: {{ .Values.gateway.persistence.accessModes | toYaml | nindent 10 }}
+        {{- if .Values.gateway.persistence.storageClass }}
+        storageClassName: {{ .Values.gateway.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.gateway.persistence.size }}
+  {{- end }}

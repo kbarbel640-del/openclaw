@@ -87,6 +87,27 @@ export type GatewayAuthConfig = {
   password?: string;
   /** Allow Tailscale identity headers when serve mode is enabled. */
   allowTailscale?: boolean;
+  /** Kubernetes ServiceAccount Trust authentication for auto-scaling pods. */
+  k8sTrust?: {
+    /** Enable K8s SA Trust auth (default: false). */
+    enabled?: boolean;
+    /** K8s API server URL (default: https://kubernetes.default.svc). */
+    apiServer?: string;
+    /** Path to the CA cert for TLS to the API server. */
+    caCertPath?: string;
+    /** Path to the gateway's own ServiceAccount token. */
+    tokenPath?: string;
+    /** Which identities are allowed to connect. */
+    allowedIdentities?: Array<{
+      namespace: string;
+      serviceAccount: string;
+      allowedRoles: string[];
+    }>;
+    /** Don't persist device records for K8s-authenticated connections (default: true). */
+    ephemeralSessions?: boolean;
+    /** Log every K8s auth attempt (default: false). */
+    auditLog?: boolean;
+  };
 };
 
 export type GatewayTailscaleMode = "off" | "serve" | "funnel";

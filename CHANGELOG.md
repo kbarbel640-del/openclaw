@@ -6,6 +6,9 @@ Docs: https://docs.openclaw.ai
 
 ### Added
 
+- Gateway: add Kubernetes ServiceAccount Trust authentication (`k8s-sa-trust`) for zero-touch gateway-worker pairing in K8s clusters. Workers present their pod SA token; the gateway validates it via the TokenReview API, bypassing interactive device pairing. Includes `--k8s-trust` CLI flag, Zod config schema, and 13 unit tests.
+- Deploy: add raw K8s manifests (`deploy/k8s/`) and Helm chart (`deploy/helm/openclaw/`) for deploying gateway + auto-scaling workers with SA Trust auth, RBAC, NetworkPolicy, and HPA.
+- Docs: add Kubernetes SA Trust architecture doc (`docs/gateway/kubernetes.md`) with threat model, token flow, failure modes, and scaling behavior.
 - Gateway: add `agents.create`, `agents.update`, `agents.delete` RPC methods for web UI agent management. (#11045) Thanks @advaitpaliwal.
 - Gateway: add node command allowlists (default-deny unknown node commands; configurable via `gateway.nodes.allowCommands` / `gateway.nodes.denyCommands`). (#11755) Thanks @mbelinky.
 - Plugins: add `device-pair` (Telegram `/pair` flow) and `phone-control` (iOS/Android node controls). (#11755) Thanks @mbelinky.

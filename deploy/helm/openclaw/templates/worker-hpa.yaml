@@ -1,0 +1,36 @@
+{{- if .Values.worker.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "openclaw.fullname" . }}-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "openclaw.worker.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "openclaw.fullname" . }}-worker
+  minReplicas: {{ .Values.worker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.worker.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.worker.autoscaling.targetCPUUtilizationPercentage }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.worker.autoscaling.scaleUpStabilizationSeconds }}
+      policies:
+        - type: Pods
+          value: {{ .Values.worker.autoscaling.scaleUpMaxPods }}
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.worker.autoscaling.scaleDownStabilizationSeconds }}
+      policies:
+        - type: Pods
+          value: {{ .Values.worker.autoscaling.scaleDownMaxPods }}
+          periodSeconds: 60
+{{- end }}
