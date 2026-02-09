@@ -265,7 +265,12 @@ export function remapContainerPath(
     return hostRoot;
   }
   if (filePath.startsWith(prefix)) {
-    return path.join(hostRoot, filePath.slice(prefix.length));
+    const suffix = path.normalize(filePath.slice(prefix.length));
+    const joined = path.join(hostRoot, suffix);
+    if (!joined.startsWith(hostRoot + "/") && joined !== hostRoot) {
+      return filePath;
+    }
+    return joined;
   }
   return filePath;
 }
