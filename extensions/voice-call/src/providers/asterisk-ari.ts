@@ -152,8 +152,9 @@ export class AsteriskAriProvider implements VoiceCallProvider {
     // 1. Check endpoint online (only for direct PJSIP/<resource>, not trunks)
     if (endpoint.toUpperCase().startsWith("PJSIP/")) {
       const parts = endpoint.split("/");
-      if (parts.length === 2) {
-        const resource = parts[1];
+      const resource = parts[1];
+      const isDirectEndpoint = parts.length === 2 && resource && !resource.includes("@");
+      if (isDirectEndpoint) {
         try {
           const state = await this.client.getEndpointState(resource);
           if (state.state.toLowerCase() !== "online") {
