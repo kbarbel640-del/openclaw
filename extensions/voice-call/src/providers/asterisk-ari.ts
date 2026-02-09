@@ -1,3 +1,4 @@
+import type { RemoteInfo } from "node:dgram";
 import crypto from "node:crypto";
 import type { CallMode, VoiceCallConfig } from "../config.js";
 import type { CoreConfig } from "../core-bridge.js";
@@ -59,7 +60,7 @@ type CallState = {
   ttsTimer?: NodeJS.Timeout;
   stt?: CoreSttSession;
   sttMessageHandler?: (msg: Buffer) => void;
-  rtpMessageHandler?: (msg: Buffer, rinfo: dgram.RemoteInfo) => void;
+  rtpMessageHandler?: (msg: Buffer, rinfo: RemoteInfo) => void;
   pendingMulaw?: Buffer;
   pendingSpeakText?: string;
   rtpPeer?: { address: string; port: number };
@@ -397,7 +398,7 @@ export class AsteriskAriProvider implements VoiceCallProvider {
 
   private wireRtp(state: CallState): void {
     if (!state.media) return;
-    const handler = (msg: Buffer, rinfo: dgram.RemoteInfo) => {
+    const handler = (msg: Buffer, rinfo: RemoteInfo) => {
       if (!state.rtpSeen) {
         state.rtpSeen = true;
         console.log("[ari] RTP in from Asterisk", { rinfo, bytes: msg.length });
