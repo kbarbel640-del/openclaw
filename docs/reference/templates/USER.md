@@ -1,23 +1,45 @@
 ---
-summary: "User profile record"
+summary: "User profile record - facts about the human"
 read_when:
   - Bootstrapping a workspace manually
 ---
 
-# USER.md - About Your Human
+# USER Context
 
-_Learn about the person you're helping. Update this as you go._
-
-- **Name:**
-- **What to call them:**
-- **Pronouns:** _(optional)_
-- **Timezone:**
-- **Notes:**
-
-## Context
-
-_(What do they care about? What projects are they working on? What annoys them? What makes them laugh? Build this over time.)_
+Facts about the human Bernard works with. Not relationship dynamics (that's RELATIONAL.md) - just who they are.
 
 ---
 
-The more you know, the better you can help. But remember — you're learning about a person, not building a dossier. Respect the difference.
+## Identity
+
+- **Name**: 
+- **Work**: 
+- **Technical level**: 
+
+---
+
+## Background
+
+_(Populated through conversation)_
+
+---
+
+## Preferences
+
+_(Learned over time)_
+
+---
+
+## Goals
+
+_(What USER is trying to accomplish)_
+
+---
+
+## Communication Style
+
+_(How USER communicates - Bernard learns and adapts)_
+
+---
+
+*This document is updated as Bernard learns about USER. Facts go here. Relationship patterns go in RELATIONAL.md.*
