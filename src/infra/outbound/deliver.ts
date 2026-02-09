@@ -542,8 +542,8 @@ async function deliverOutboundPayloadsCore(params: {
   // text from payloads that produced delivery results.
   const hookRunner = getGlobalHookRunner();
   if (hookRunner && results.length > 0) {
-    const deliveredText = normalizedPayloads
-      .map((p) => p.text ?? "")
+    const deliveredText = deliveredPayloadIndices
+      .map((i) => normalizedPayloads[i]?.text ?? "")
       .filter(Boolean)
       .join("\n");
     if (deliveredText) {

@@ -81,7 +81,14 @@ describe("createReplyDispatcher – message_sent hook", () => {
   it("does NOT call runMessageSent when delivery fails", async () => {
     const deliver = vi.fn().mockRejectedValue(new Error("network down"));
     const onError = vi.fn();
-    const dispatcher = createReplyDispatcher({ deliver, onError });
+    const dispatcher = createReplyDispatcher({
+      deliver,
+      onError,
+      hookContext: {
+        channelId: "telegram",
+        conversationId: "conv-1",
+      },
+    });
 
     dispatcher.sendFinalReply({ text: "fail" });
     await dispatcher.waitForIdle();
@@ -107,7 +114,14 @@ describe("createReplyDispatcher – message_sent hook", () => {
     mockRunMessageSent.mockRejectedValue(new Error("hook exploded"));
     const deliver = vi.fn().mockResolvedValue(undefined);
     const onError = vi.fn();
-    const dispatcher = createReplyDispatcher({ deliver, onError });
+    const dispatcher = createReplyDispatcher({
+      deliver,
+      onError,
+      hookContext: {
+        channelId: "telegram",
+        conversationId: "conv-1",
+      },
+    });
 
     dispatcher.sendFinalReply({ text: "safe" });
     await dispatcher.waitForIdle();
