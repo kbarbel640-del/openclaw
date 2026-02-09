@@ -138,15 +138,12 @@ async function setupGogCredentials(
     }
   }
 
-  // If refresh token is provided, create credentials file
+  // If refresh token is provided, create credentials file and import token
   if (gog.refreshToken && gog.clientId && gog.clientSecret) {
+    // gog expects flat {client_id, client_secret} at top level
     const credentials = {
-      installed: {
-        client_id: gog.clientId,
-        client_secret: gog.clientSecret,
-      },
-      refresh_token: gog.refreshToken,
-      account,
+      client_id: gog.clientId,
+      client_secret: gog.clientSecret,
     };
 
     try {
@@ -154,17 +151,53 @@ async function setupGogCredentials(
       const destPath = path.join(credentialsDir, "credentials.json");
       fs.writeFileSync(destPath, JSON.stringify(credentials, null, 2), { mode: 0o600 });
 
-      // Also write the token file that gog expects
-      const tokenDir = path.join(credentialsDir, "tokens");
-      fs.mkdirSync(tokenDir, { recursive: true });
-      const tokenPath = path.join(tokenDir, `${account}.json`);
-      const tokenData = {
-        refresh_token: gog.refreshToken,
-        token_type: "Bearer",
-      };
-      fs.writeFileSync(tokenPath, JSON.stringify(tokenData, null, 2), { mode: 0o600 });
+      // Configure gog to use file-based keyring (no system keyring in containers)
+      const configPath = path.join(credentialsDir, "config.json");
+      if (!fs.existsSync(configPath)) {
+        fs.writeFileSync(configPath, JSON.stringify({ keyring_backend: "file" }, null, 2), {
+          mode: 0o600,
+        });
+      }
 
-      log.info("Created gog credentials from refresh token");
+      // Ensure GOG_KEYRING_PASSWORD is set for file-based keyring
+      if (!process.env.GOG_KEYRING_PASSWORD) {
+        process.env.GOG_KEYRING_PASSWORD = "openclaw-auto";
+      }
+
+      // Import refresh token into gog's keyring via CLI
+      const tokenData = {
+        email: account,
+        refresh_token: gog.refreshToken,
+        services: ["gmail"],
+        scopes: [
+          "https://www.googleapis.com/auth/gmail.modify",
+          "https://www.googleapis.com/auth/gmail.settings.basic",
+          "https://www.googleapis.com/auth/userinfo.email",
+        ],
+      };
+      const tmpTokenPath = path.join(os.tmpdir(), `gog-token-${Date.now()}.json`);
+      fs.writeFileSync(tmpTokenPath, JSON.stringify(tokenData, null, 2), { mode: 0o600 });
+
+      const importResult = await runCommandWithTimeout(
+        ["gog", "auth", "tokens", "import", tmpTokenPath, "--no-input"],
+        { timeoutMs: 30_000 },
+      );
+
+      // Clean up temp file
+      try {
+        fs.unlinkSync(tmpTokenPath);
+      } catch {
+        // ignore
+      }
+
+      if (importResult.code !== 0) {
+        return {
+          ok: false,
+          error: `gog token import failed: ${importResult.stderr || importResult.stdout}`,
+        };
+      }
+      log.info("Imported gog refresh token for " + account);
+
       return { ok: true };
     } catch (err) {
       return { ok: false, error: `Failed to create gog credentials: ${String(err)}` };
@@ -296,7 +329,7 @@ export async function runGmailAutoSetup(cfg: OpenClawConfig): Promise<GmailAutoS
   if (tailscaleAuthKey) {
     const tsResult = await setupTailscaleWithAuthKey(tailscaleAuthKey);
     if (!tsResult.ok) {
-      return { ok: false, error: tsResult.error };
+      log.warn(`Tailscale setup failed (non-fatal): ${tsResult.error}`);
     }
   }
 
@@ -318,38 +351,52 @@ export async function runGmailAutoSetup(cfg: OpenClawConfig): Promise<GmailAutoS
     const subscription = gmail.subscription ?? DEFAULT_GMAIL_SUBSCRIPTION;
     const pushToken = gmail.pushToken ?? generateHookToken();
 
-    // We need a push endpoint - this requires Tailscale to be set up
+    // We need a push endpoint - try Tailscale if configured, otherwise skip Pub/Sub auto-setup
     if (gmail.tailscale?.mode && gmail.tailscale.mode !== "off") {
-      const tailscaleEndpoint = await ensureTailscaleEndpoint({
-        mode: gmail.tailscale.mode,
-        path: gmail.tailscale.path ?? "/gmail-pubsub",
-        port: gmail.serve?.port ?? 8788,
-        target: gmail.tailscale.target,
-        token: pushToken,
-      });
+      try {
+        const tailscaleEndpoint = await ensureTailscaleEndpoint({
+          mode: gmail.tailscale.mode,
+          path: gmail.tailscale.path ?? "/gmail-pubsub",
+          port: gmail.serve?.port ?? 8788,
+          target: gmail.tailscale.target,
+          token: pushToken,
+        });
 
-      const pubsubResult = await autoSetupPubSub(
-        projectId,
-        topicName,
-        subscription,
-        tailscaleEndpoint,
-      );
-      if (!pubsubResult.ok) {
-        return { ok: false, error: pubsubResult.error };
+        const pubsubResult = await autoSetupPubSub(
+          projectId,
+          topicName,
+          subscription,
+          tailscaleEndpoint,
+        );
+        if (!pubsubResult.ok) {
+          return { ok: false, error: pubsubResult.error };
+        }
+
+        return {
+          ok: true,
+          projectId,
+          topic: buildTopicPath(projectId, topicName),
+          subscription,
+          pushEndpoint: tailscaleEndpoint,
+        };
+      } catch (err) {
+        log.warn(`Tailscale endpoint setup failed, skipping Pub/Sub auto-setup: ${String(err)}`);
+        return {
+          ok: true,
+          skipped: false,
+          reason: "Tailscale unavailable; Pub/Sub auto-setup skipped",
+          projectId,
+          topic: buildTopicPath(projectId, topicName),
+        };
       }
-
+    } else {
+      log.info("autoSetup: no Tailscale mode configured, skipping Pub/Sub push endpoint setup");
       return {
         ok: true,
+        skipped: false,
+        reason: "no tailscale mode configured",
         projectId,
         topic: buildTopicPath(projectId, topicName),
-        subscription,
-        pushEndpoint: tailscaleEndpoint,
-      };
-    } else {
-      log.warn("autoSetup requires tailscale.mode to be 'serve' or 'funnel' for push endpoint");
-      return {
-        ok: false,
-        error: "autoSetup requires tailscale.mode to be 'serve' or 'funnel'",
       };
     }
   }

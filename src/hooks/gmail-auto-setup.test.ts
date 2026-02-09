@@ -265,8 +265,8 @@ describe("gmail-auto-setup", () => {
 
       const result = await runGmailAutoSetup(cfg);
 
-      expect(result.ok).toBe(false);
-      expect(result.error).toContain("tailscale.mode");
+      expect(result.ok).toBe(true);
+      expect(result.reason).toContain("no tailscale mode configured");
     });
 
     it("fails when autoSetup enabled but no project ID", async () => {
