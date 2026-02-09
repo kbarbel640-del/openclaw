@@ -45,6 +45,10 @@ describe("resolveSubagentToolPolicy depth awareness", () => {
     agents: { defaults: { subagents: { maxSpawnDepth: 2 } } },
   } as unknown as OpenClawConfig;
 
+  const deepCfg = {
+    agents: { defaults: { subagents: { maxSpawnDepth: 3 } } },
+  } as unknown as OpenClawConfig;
+
   const leafCfg = {
     agents: { defaults: { subagents: { maxSpawnDepth: 1 } } },
   } as unknown as OpenClawConfig;
@@ -79,6 +83,16 @@ describe("resolveSubagentToolPolicy depth awareness", () => {
 
   it("depth-2 leaf denies sessions_spawn", () => {
     const policy = resolveSubagentToolPolicy(baseCfg, 2);
+    expect(isToolAllowedByPolicyName("sessions_spawn", policy)).toBe(false);
+  });
+
+  it("depth-2 orchestrator (maxSpawnDepth=3) allows sessions_spawn", () => {
+    const policy = resolveSubagentToolPolicy(deepCfg, 2);
+    expect(isToolAllowedByPolicyName("sessions_spawn", policy)).toBe(true);
+  });
+
+  it("depth-3 leaf (maxSpawnDepth=3) denies sessions_spawn", () => {
+    const policy = resolveSubagentToolPolicy(deepCfg, 3);
     expect(isToolAllowedByPolicyName("sessions_spawn", policy)).toBe(false);
   });
 

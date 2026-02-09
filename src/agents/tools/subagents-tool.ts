@@ -18,6 +18,7 @@ import { abortEmbeddedPiRun } from "../pi-embedded.js";
 import { optionalStringEnum } from "../schema/typebox.js";
 import { getSubagentDepthFromSessionStore } from "../subagent-depth.js";
 import {
+  clearSubagentRunSteerRestart,
   listSubagentRunsForRequester,
   markSubagentRunTerminated,
   markSubagentRunForSteerRestart,
@@ -770,6 +771,9 @@ export function createSubagentsTool(opts?: { agentSessionKey?: string }): AnyAge
             runId = response.runId;
           }
         } catch (err) {
+          // Replacement launch failed; restore normal announce behavior for the
+          // original run so completion is not silently suppressed.
+          clearSubagentRunSteerRestart(resolved.entry.runId);
           const error = err instanceof Error ? err.message : String(err);
           return jsonResult({
             status: "error",

@@ -31,6 +31,8 @@ type GatewayAgentResponse = {
   result?: AgentGatewayResult;
 };
 
+const NO_GATEWAY_TIMEOUT_MS = 2_147_000_000;
+
 export type AgentCliOpts = {
   message: string;
   agent?: string;
@@ -106,7 +108,7 @@ export async function agentViaGatewayCommand(opts: AgentCliOpts, runtime: Runtim
   const timeoutSeconds = parseTimeoutSeconds({ cfg, timeout: opts.timeout });
   const gatewayTimeoutMs =
     timeoutSeconds === 0
-      ? 0 // no timeout — let the gateway call run indefinitely
+      ? NO_GATEWAY_TIMEOUT_MS // no timeout (timer-safe max)
       : Math.max(10_000, (timeoutSeconds + 30) * 1000);
 
   const sessionKey = resolveSessionKeyForRequest({

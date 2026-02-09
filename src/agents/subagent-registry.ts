@@ -328,6 +328,23 @@ export function markSubagentRunForSteerRestart(runId: string) {
   return true;
 }
 
+export function clearSubagentRunSteerRestart(runId: string) {
+  const key = runId.trim();
+  if (!key) {
+    return false;
+  }
+  const entry = subagentRuns.get(key);
+  if (!entry) {
+    return false;
+  }
+  if (entry.suppressAnnounceReason !== "steer-restart") {
+    return true;
+  }
+  entry.suppressAnnounceReason = undefined;
+  persistSubagentRuns();
+  return true;
+}
+
 export function replaceSubagentRunAfterSteer(params: {
   previousRunId: string;
   nextRunId: string;
