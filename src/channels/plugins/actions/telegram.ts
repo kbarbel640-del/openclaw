@@ -60,6 +60,11 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
       actions.add("sticker");
       actions.add("sticker-search");
     }
+    if (gate("pins")) {
+      actions.add("pin");
+      actions.add("unpin");
+      actions.add("list-pins");
+    }
     return Array.from(actions);
   },
   supportsButtons: ({ cfg }) => {
@@ -197,6 +202,57 @@ export const telegramMessageActions: ChannelMessageActionAdapter = {
         },
         cfg,
       );
+    }
+
+    if (action === "pin") {
+      const chatId =
+        readStringOrNumberParam(params, "chatId") ??
+        readStringOrNumberParam(params, "channelId") ??
+        readStringParam(params, "to", { required: true });
+      const messageId = readNumberParam(params, "messageId", {
+        required: true,
+        integer: true,
+      });
+      const disableNotification = typeof params.disableNotification === "boolean" 
+        ? params.disableNotification 
+        : undefined;
+      return await handleTelegramAction(
+        {
+          action: "pinMessage",
+          chatId,
+          messageId,
+          disableNotification,
+          accountId: accountId ?? undefined,
+        },
+        cfg,
+      );
+    }
+
+    if (action === "unpin") {
+      const chatId =
+        readStringOrNumberParam(params, "chatId") ??
+        readStringOrNumberParam(params, "channelId") ??
+        readStringParam(params, "to", { required: true });
+      const messageId = readNumberParam(params, "messageId", {
+        required: true,
+        integer: true,
+      });
+      return await handleTelegramAction(
+        {
+          action: "unpinMessage",
+          chatId,
+          messageId,
+          accountId: accountId ?? undefined,
+        },
+        cfg,
+      );
+    }
+
+    if (action === "list-pins") {
+      // Note: Telegram Bot API doesn't provide a direct method to list pinned messages
+      // This would need to be implemented by reading recent messages and checking if they're pinned
+      // For now, we'll return a not implemented error
+      throw new Error("list-pins action is not yet implemented for Telegram. The Telegram Bot API doesn't provide a direct method to list pinned messages.");
     }
 
     throw new Error(`Action ${action} is not supported for provider ${providerId}.`);

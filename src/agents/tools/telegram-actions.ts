@@ -320,5 +320,59 @@ export async function handleTelegramAction(
     return jsonResult({ ok: true, ...stats });
   }
 
+  if (action === "pinMessage") {
+    if (!isActionEnabled("pins")) {
+      throw new Error("Telegram pins are disabled.");
+    }
+    const chatId = readStringOrNumberParam(params, "chatId", {
+      required: true,
+    });
+    const messageId = readNumberParam(params, "messageId", {
+      required: true,
+      integer: true,
+    });
+    const disableNotification = typeof params.disableNotification === "boolean" 
+      ? params.disableNotification 
+      : undefined;
+    const token = resolveTelegramToken(cfg, { accountId }).token;
+    if (!token) {
+      throw new Error(
+        "Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken.",
+      );
+    }
+    const { pinMessageTelegram } = await import("../../telegram/send.js");
+    await pinMessageTelegram(chatId ?? "", messageId ?? 0, {
+      token,
+      accountId: accountId ?? undefined,
+      disableNotification,
+    });
+    return jsonResult({ ok: true });
+  }
+
+  if (action === "unpinMessage") {
+    if (!isActionEnabled("pins")) {
+      throw new Error("Telegram pins are disabled.");
+    }
+    const chatId = readStringOrNumberParam(params, "chatId", {
+      required: true,
+    });
+    const messageId = readNumberParam(params, "messageId", {
+      required: true,
+      integer: true,
+    });
+    const token = resolveTelegramToken(cfg, { accountId }).token;
+    if (!token) {
+      throw new Error(
+        "Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken.",
+      );
+    }
+    const { unpinMessageTelegram } = await import("../../telegram/send.js");
+    await unpinMessageTelegram(chatId ?? "", messageId ?? 0, {
+      token,
+      accountId: accountId ?? undefined,
+    });
+    return jsonResult({ ok: true });
+  }
+
   throw new Error(`Unsupported Telegram action: ${action}`);
 }
