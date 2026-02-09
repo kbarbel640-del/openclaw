@@ -98,6 +98,25 @@ export type HooksGmailConfig = {
   };
   /** Poll interval in seconds as a fallback to Pub/Sub push (0 to disable, default 60). */
   pollIntervalSeconds?: number;
+  /** Channel to deliver email notifications to (e.g. "telegram", "whatsapp", "last"). */
+  channel?:
+    | "last"
+    | "whatsapp"
+    | "telegram"
+    | "discord"
+    | "googlechat"
+    | "slack"
+    | "signal"
+    | "imessage"
+    | "msteams";
+  /** Specific chat/user ID to deliver to (optional, channel-specific). */
+  to?: string;
+  /** Whether to deliver the agent response to the channel (default true). */
+  deliver?: boolean;
+  /** Hook action: "agent" wakes the LLM, "wake" just notifies (default "agent"). */
+  action?: "agent" | "wake";
+  /** Custom message template for the email notification (uses {{messages[0].from}} etc). */
+  messageTemplate?: string;
   /** Optional model override for Gmail hook processing (provider/model or alias). */
   model?: string;
   /** Optional thinking level override for Gmail hook processing. */
