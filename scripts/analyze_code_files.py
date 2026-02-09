@@ -28,7 +28,10 @@ CODE_EXTENSIONS = {
 SKIP_DIRS = {
     'node_modules', '.git', 'dist', 'build', 'coverage',
     '__pycache__', '.turbo', 'out', '.worktrees', 'vendor',
-    'Pods', 'DerivedData', '.gradle', '.idea'
+    'Pods', 'DerivedData', '.gradle', '.idea',
+    'Swabble',  # Separate Swift package
+    'skills',   # Standalone skill scripts
+    '.pi',      # Pi editor extensions
 }
 
 # Filename patterns to skip in short-file warnings (barrel exports, stubs)
