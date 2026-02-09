@@ -143,8 +143,8 @@
   .kpi-card.cost .kpi-value { color: var(--orange); }
 
   /* Bar chart */
-  .chart-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; overflow-x: auto; overflow-y: visible; }
-  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 320px; padding-top: 40px; position: relative; min-width: fit-content; }
+  .chart-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; overflow: visible; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 320px; padding-top: 40px; position: relative; }
   .bar-chart .grid-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); pointer-events: none; }
   .bar-chart .grid-label { position: absolute; left: -4px; transform: translateX(-100%); color: var(--muted); font-size: 0.65rem; }
   .station-col { flex: 1; min-width: 70px; max-width: 120px; display: flex; flex-direction: column; align-items: center; }
@@ -156,10 +156,11 @@
   }
   .task-segment:hover { filter: brightness(1.2); z-index: 10; }
   .task-segment .tooltip {
-    display: none; position: fixed; background: #0f172a; border: 1px solid var(--border);
+    display: none; position: absolute; background: #0f172a; border: 1px solid var(--border);
     border-radius: 8px; padding: 10px; font-size: 0.7rem; color: var(--text);
     white-space: nowrap; z-index: 1000; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
     min-width: 200px; text-align: left; pointer-events: none;
+    left: 100%; top: 50%; transform: translateY(-50%); margin-left: 10px;
   }
   .task-segment:hover .tooltip { display: block; }
   .station-label { margin-top: 6px; font-size: 0.7rem; color: var(--muted); font-weight: 600; }
@@ -1165,31 +1166,8 @@ function renderBarChart() {
 }
 
 function setupTooltipPositioning() {
-  const chartWrapper = document.querySelector('.chart-wrapper');
-  if (!chartWrapper) return;
-
-  const segments = document.querySelectorAll('.task-segment');
-  segments.forEach(seg => {
-    seg.addEventListener('mouseenter', function(e) {
-      const tooltip = this.querySelector('.tooltip');
-      if (!tooltip) return;
-
-      const wrapperRect = chartWrapper.getBoundingClientRect();
-      const segRect = this.getBoundingClientRect();
-
-      // Position tooltip at center of chart wrapper vertically, to the right of the segment
-      const tooltipTop = wrapperRect.top + (wrapperRect.height / 2) - 60;
-      let tooltipLeft = segRect.right + 10;
-
-      // If tooltip would go off right edge, show on left side
-      if (tooltipLeft + 220 > window.innerWidth) {
-        tooltipLeft = segRect.left - 220;
-      }
-
-      tooltip.style.top = tooltipTop + 'px';
-      tooltip.style.left = tooltipLeft + 'px';
-    });
-  });
+  // Tooltips now use pure CSS positioning (position: absolute)
+  // This function is kept for future enhancements if needed
 }
 
 function renderGantt() {
@@ -1300,8 +1278,10 @@ function renderAnalysis() {
   const avgHourlyRate = workers.length > 0 && totalWorkHours > 0 ? totalDailyCost / totalWorkHours : 17.42;
   const laborCostPerUnit = totalWorkers > 0 ? (totalWorkers * avgHourlyRate * (bottleneck / 3600)) : 0;
 
-  // Capacity calculation based on net working hours
-  const theoreticalDailyOutput = Math.floor(totalNetWorkHours * 3600 / bottleneck);
+  // Capacity calculation based on average net working hours per worker
+  // (total combined hours / number of workers = actual available production hours)
+  const avgNetHrsPerWorker = workers.length > 0 ? totalNetWorkHours / workers.length : 0;
+  const theoreticalDailyOutput = Math.floor(avgNetHrsPerWorker * 3600 / bottleneck);
   const theoreticalWeeklyOutput = theoreticalDailyOutput * 5;
   const theoreticalYearlyOutput = theoreticalDailyOutput * WORKING_DAYS_PER_YEAR;
   const totalDailyLaborCost = theoreticalDailyOutput * laborCostPerUnit;
@@ -1343,17 +1323,18 @@ function renderAnalysis() {
     <div class="kpi-card highlight"><div class="kpi-value">${theoreticalDailyOutput.toLocaleString()}</div><div class="kpi-label">Daily Capacity (units)</div></div>
     <div class="kpi-card highlight"><div class="kpi-value">${theoreticalWeeklyOutput.toLocaleString()}</div><div class="kpi-label">Weekly Capacity (units)</div></div>
     <div class="kpi-card highlight"><div class="kpi-value">${theoreticalYearlyOutput.toLocaleString()}</div><div class="kpi-label">Yearly Capacity (units)</div></div>
-    <div class="kpi-card"><div class="kpi-value">${totalNetWorkHours.toFixed(2)}h</div><div class="kpi-label">Net Work Hrs/Day</div></div>
+    <div class="kpi-card"><div class="kpi-value">${avgNetHrsPerWorker.toFixed(2)}h</div><div class="kpi-label">Avg Net Hrs/Worker</div></div>
     <div class="kpi-card"><div class="kpi-value">${WORKING_DAYS_PER_YEAR}</div><div class="kpi-label">Working Days/Year</div></div>
   `;
 
   document.getElementById('capacitySummary').innerHTML = `
     <div class="schedule-card">
       <h4>Capacity Formula</h4>
-      <div class="stat"><span class="stat-label">Net Work Hours:</span><span class="stat-value">${totalNetWorkHours.toFixed(2)} hrs</span></div>
+      <div class="stat"><span class="stat-label">Total Net Work Hours:</span><span class="stat-value">${totalNetWorkHours.toFixed(2)} hrs (${workers.length} workers)</span></div>
+      <div class="stat"><span class="stat-label">Avg Hrs/Worker:</span><span class="stat-value">${totalNetWorkHours.toFixed(2)} / ${workers.length} = ${avgNetHrsPerWorker.toFixed(2)} hrs</span></div>
       <div class="stat"><span class="stat-label">Bottleneck:</span><span class="stat-value">${bottleneck.toFixed(2)} seconds</span></div>
-      <div class="stat"><span class="stat-label">Formula:</span><span class="stat-value">NetHrs × 3600 / Bottleneck</span></div>
-      <div class="stat"><span class="stat-label">Daily:</span><span class="stat-value">${totalNetWorkHours.toFixed(2)} × 3600 / ${bottleneck.toFixed(2)} = ${theoreticalDailyOutput}</span></div>
+      <div class="stat"><span class="stat-label">Formula:</span><span class="stat-value">AvgHrs × 3600 / Bottleneck</span></div>
+      <div class="stat"><span class="stat-label">Daily:</span><span class="stat-value">${avgNetHrsPerWorker.toFixed(2)} × 3600 / ${bottleneck.toFixed(2)} = ${theoreticalDailyOutput}</span></div>
     </div>
     <div class="schedule-card">
       <h4>Weekly Projection</h4>
