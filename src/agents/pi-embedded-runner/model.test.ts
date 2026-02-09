@@ -212,7 +212,7 @@ describe("resolveModel", () => {
       id: "claude-opus-4.5",
       name: "Claude Opus 4.5",
       provider: "github-copilot",
-      api: "openai-completions",
+      api: "openai-responses",
       baseUrl: "https://api.individual.githubcopilot.com",
       reasoning: true,
       input: ["text", "image"] as const,
@@ -236,7 +236,7 @@ describe("resolveModel", () => {
     expect(result.model).toMatchObject({
       provider: "github-copilot",
       id: "claude-opus-4.6",
-      api: "openai-completions",
+      api: "openai-responses",
       baseUrl: "https://api.individual.githubcopilot.com",
       reasoning: true,
     });
