@@ -14,6 +14,8 @@ actor MicLevelMonitor {
         if self.running { return }
         self.logger.info(
             "mic level monitor start (\(AudioInputDeviceObserver.defaultInputDeviceSummary(), privacy: .public))")
+        guard AVCaptureDevice.default(for: .audio) != nil else { return }
+
         let engine = AVAudioEngine()
         self.engine = engine
         let input = engine.inputNode

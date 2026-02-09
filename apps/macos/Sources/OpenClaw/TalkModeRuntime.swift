@@ -184,6 +184,11 @@ actor TalkModeRuntime {
         }
         guard let audioEngine = self.audioEngine else { return }
 
+        guard AVCaptureDevice.default(for: .audio) != nil else {
+            self.logger.warning("talk mode: no audio input device available")
+            return
+        }
+
         let input = audioEngine.inputNode
         let format = input.outputFormat(forBus: 0)
         input.removeTap(onBus: 0)

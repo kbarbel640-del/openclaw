@@ -166,6 +166,13 @@ actor VoiceWakeRuntime {
             }
             guard let audioEngine = self.audioEngine else { return }
 
+            // Check for available audio input devices before accessing inputNode.
+            // Accessing inputNode when no mic is available causes SIGABRT (#12169).
+            guard AVCaptureDevice.default(for: .audio) != nil else {
+                self.logger.warning("voicewake runtime: no audio input device available, skipping")
+                return
+            }
+
             let input = audioEngine.inputNode
             let format = input.outputFormat(forBus: 0)
             guard format.channelCount > 0, format.sampleRate > 0 else {

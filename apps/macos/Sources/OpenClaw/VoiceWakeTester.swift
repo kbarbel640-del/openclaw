@@ -89,6 +89,13 @@ final class VoiceWakeTester {
         self.logInputSelection(preferredMicID: micID)
         self.configureSession(preferredMicID: micID)
 
+        guard AVCaptureDevice.default(for: .audio) != nil else {
+            throw NSError(
+                domain: "VoiceWakeTester",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "No audio input device available"])
+        }
+
         let engine = AVAudioEngine()
         self.audioEngine = engine
 

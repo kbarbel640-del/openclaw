@@ -244,6 +244,11 @@ actor VoicePushToTalk {
         }
         guard let audioEngine = self.audioEngine else { return }
 
+        guard AVCaptureDevice.default(for: .audio) != nil else {
+            self.logger.warning("push-to-talk: no audio input device available")
+            return
+        }
+
         let input = audioEngine.inputNode
         let format = input.outputFormat(forBus: 0)
         if self.tapInstalled {
