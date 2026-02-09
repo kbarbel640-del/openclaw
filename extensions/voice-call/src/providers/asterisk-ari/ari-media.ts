@@ -19,10 +19,12 @@ export class AriMedia {
   private cfg: AriConfig;
   private client: AriClient;
   private nextRtpPort: number;
+  private baseRtpPort: number;
 
   constructor(cfg: AriConfig, client: AriClient) {
     this.cfg = cfg;
     this.client = client;
+    this.baseRtpPort = cfg.rtpPort;
     this.nextRtpPort = cfg.rtpPort;
   }
 
@@ -161,7 +163,15 @@ export class AriMedia {
   }
 
   private async allocatePort(socket: dgram.Socket): Promise<number> {
+    const maxPort = 65535;
     for (let i = 0; i < 20; i++) {
+      if (this.nextRtpPort > maxPort) {
+        console.warn("[ari] RTP port exceeded max, wrapping", {
+          nextRtpPort: this.nextRtpPort,
+          baseRtpPort: this.baseRtpPort,
+        });
+        this.nextRtpPort = this.baseRtpPort;
+      }
       const candidate = this.nextRtpPort++;
       try {
         await this.bindUdp(socket, candidate);
