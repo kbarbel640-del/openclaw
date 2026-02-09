@@ -7,6 +7,7 @@ import os from "node:os";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
+import { createInternalHookEvent, triggerInternalHook } from "../../../hooks/internal-hooks.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
@@ -210,6 +211,17 @@ export async function runEmbeddedAttempt(
   const resolvedWorkspace = resolveUserPath(params.workspaceDir);
   const prevCwd = process.cwd();
   const runAbortController = new AbortController();
+  // Internal hook events require a non-empty key; keep real sessionKey when present and
+  // otherwise use a run-scoped fallback that cannot be mistaken for a persisted session key.
+  const hookSessionKey = params.sessionKey?.trim() || `run:${params.runId}`;
+  const emitInternalAgentHook = async (action: string, context: Record<string, unknown>) => {
+    try {
+      const hookEvent = createInternalHookEvent("agent", action, hookSessionKey, context);
+      await triggerInternalHook(hookEvent);
+    } catch (err) {
+      log.warn(`agent:${action} hook failed: ${String(err)}`);
+    }
+  };
 
   log.debug(
     `embedded run start: runId=${params.runId} sessionId=${params.sessionId} provider=${params.provider} model=${params.modelId} thinking=${params.thinkLevel} messageChannel=${params.messageChannel ?? params.messageProvider ?? "unknown"}`,
@@ -530,12 +542,16 @@ export async function runEmbeddedAttempt(
       });
 
       // Add client tools (OpenResponses hosted tools) to customTools
-      let clientToolCallDetected: { name: string; params: Record<string, unknown> } | null = null;
+      let clientToolCallDetected: {
+        name: string;
+        params: Record<string, unknown>;
+        toolCallId: string;
+      } | null = null;
       const clientToolDefs = params.clientTools
         ? toClientToolDefinitions(
             params.clientTools,
-            (toolName, toolParams) => {
-              clientToolCallDetected = { name: toolName, params: toolParams };
+            (toolName, toolParams, toolCallId) => {
+              clientToolCallDetected = { name: toolName, params: toolParams, toolCallId };
             },
             {
               agentId: sessionAgentId,
@@ -714,6 +730,26 @@ export async function runEmbeddedAttempt(
         });
       };
 
+      let responseStartedAt: number | null = null;
+      const emitResponseStart = async (startedAt: number) => {
+        if (responseStartedAt !== null) {
+          return;
+        }
+        responseStartedAt = startedAt;
+        await emitInternalAgentHook("response:start", {
+          sessionId: params.sessionId,
+          runId: params.runId,
+          provider: params.provider,
+          model: params.modelId,
+          messageProvider: params.messageProvider,
+          messageChannel: params.messageChannel,
+        });
+      };
+      const handleAssistantMessageStart = () => {
+        void emitResponseStart(Date.now());
+        void params.onAssistantMessageStart?.();
+      };
+
       const subscription = subscribeEmbeddedPiSession({
         session: activeSession,
         runId: params.runId,
@@ -730,7 +766,7 @@ export async function runEmbeddedAttempt(
         blockReplyBreak: params.blockReplyBreak,
         blockReplyChunking: params.blockReplyChunking,
         onPartialReply: params.onPartialReply,
-        onAssistantMessageStart: params.onAssistantMessageStart,
+        onAssistantMessageStart: handleAssistantMessageStart,
         onAgentEvent: params.onAgentEvent,
         enforceFinalTag: params.enforceFinalTag,
       });
@@ -813,6 +849,14 @@ export async function runEmbeddedAttempt(
       let promptError: unknown = null;
       try {
         const promptStartedAt = Date.now();
+        void emitInternalAgentHook("thinking:start", {
+          sessionId: params.sessionId,
+          runId: params.runId,
+          provider: params.provider,
+          model: params.modelId,
+          messageProvider: params.messageProvider,
+          messageChannel: params.messageChannel,
+        });
 
         // Run before_agent_start hooks to allow plugins to inject context
         let effectivePrompt = params.prompt;
@@ -935,6 +979,16 @@ export async function runEmbeddedAttempt(
           log.debug(
             `embedded run prompt end: runId=${params.runId} sessionId=${params.sessionId} durationMs=${Date.now() - promptStartedAt}`,
           );
+          void emitInternalAgentHook("thinking:end", {
+            sessionId: params.sessionId,
+            runId: params.runId,
+            provider: params.provider,
+            model: params.modelId,
+            messageProvider: params.messageProvider,
+            messageChannel: params.messageChannel,
+            durationMs: Date.now() - promptStartedAt,
+            error: promptError ? describeUnknownError(promptError) : undefined,
+          });
         }
 
         try {
@@ -972,6 +1026,25 @@ export async function runEmbeddedAttempt(
           note: promptError ? "prompt error" : undefined,
         });
         anthropicPayloadLogger?.recordUsage(messagesSnapshot, promptError);
+        const hasResponseOutput =
+          assistantTexts.length > 0 ||
+          didSendViaMessagingTool() ||
+          getMessagingToolSentTexts().length > 0;
+        if (hasResponseOutput) {
+          await emitResponseStart(Date.now());
+        }
+        if (responseStartedAt !== null) {
+          await emitInternalAgentHook("response:end", {
+            sessionId: params.sessionId,
+            runId: params.runId,
+            provider: params.provider,
+            model: params.modelId,
+            messageProvider: params.messageProvider,
+            messageChannel: params.messageChannel,
+            durationMs: Date.now() - responseStartedAt,
+            error: promptError ? describeUnknownError(promptError) : undefined,
+          });
+        }
 
         // Run agent_end hooks to allow plugins to analyze the conversation
         // This is fire-and-forget, so we don't await
