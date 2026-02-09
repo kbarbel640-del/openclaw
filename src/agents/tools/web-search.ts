@@ -301,7 +301,19 @@ function resolveDesearchBaseUrl(desearch?: DesearchConfig): string {
     desearch && "baseUrl" in desearch && typeof desearch.baseUrl === "string"
       ? desearch.baseUrl.trim()
       : "";
-  return fromConfig || DEFAULT_DESEARCH_BASE_URL;
+  if (fromConfig) {
+    // Reject non-HTTPS URLs to prevent leaking the API key over plaintext.
+    // localhost is allowed for development/testing.
+    try {
+      const parsed = new URL(fromConfig);
+      if (parsed.protocol === "https:" || parsed.hostname === "localhost") {
+        return fromConfig;
+      }
+    } catch {
+      // invalid URL — fall through to default
+    }
+  }
+  return DEFAULT_DESEARCH_BASE_URL;
 }
 
 function resolveSearchCount(value: unknown, fallback: number): number {
