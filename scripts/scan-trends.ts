@@ -7,16 +7,19 @@
  */
 
 import { $ } from "bun";
+import { randomUUID } from "crypto";
 
-console.log("📡 Intel Radar: Initiating Trend Scan...");
+const sessionId = randomUUID();
+console.log(`📡 Intel Radar: Initiating Trend Scan (Session: ${sessionId})...`);
 
 // Trigger the agent to perform the scan
-// This assumes 'openclaw' CLI is available and authenticated
+// We use 'openclaw agent' CLI to spawn a new isolated session
 try {
-  // We use sessions spawn to offload the heavy lifting to the AI agent
-  // The agent will use skills/market-watch/SKILL.md
-  await $`openclaw sessions spawn --task "Run Intel Radar Daily Brief and send report to Telegram" --thinking low`;
-  console.log("✅ Scan task dispatched to Agent.");
+  const task =
+    "Execute skill: market-watch. Run Intel Radar Daily Brief and send report to Telegram. Output strictly in Traditional Chinese.";
+  // We use --session-id to ensure a fresh context
+  await $`openclaw agent --session-id ${sessionId} --message ${task} --thinking low`;
+  console.log("✅ Scan task completed.");
 } catch (error) {
   console.error("❌ Failed to dispatch task:", error);
   process.exit(1);
