@@ -171,6 +171,23 @@ export const HooksGmailSchema = z
       .strict()
       .optional(),
     pollIntervalSeconds: z.number().int().min(0).optional(),
+    channel: z
+      .union([
+        z.literal("last"),
+        z.literal("whatsapp"),
+        z.literal("telegram"),
+        z.literal("discord"),
+        z.literal("googlechat"),
+        z.literal("slack"),
+        z.literal("signal"),
+        z.literal("imessage"),
+        z.literal("msteams"),
+      ])
+      .optional(),
+    to: z.string().optional(),
+    deliver: z.boolean().optional(),
+    action: z.union([z.literal("agent"), z.literal("wake")]).optional(),
+    messageTemplate: z.string().optional(),
     model: z.string().optional(),
     thinking: z
       .union([
