@@ -446,16 +446,17 @@ function buildChatCommands(): ChatCommandDefinition[] {
     }),
     defineChatCommand({
       key: "session-switch",
-      description: "Switch to an existing session.",
+      description: "Switch to an existing session (or main if no name given).",
       textAlias: "/session switch",
       scope: "text",
       category: "session",
       args: [
         {
           name: "name",
-          description: "Session name/label or key",
+          description: "Session name/label or key (optional, defaults to main)",
           type: "string",
           captureRemaining: true,
+          required: false,
         },
       ],
     }),

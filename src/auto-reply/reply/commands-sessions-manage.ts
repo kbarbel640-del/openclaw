@@ -30,6 +30,7 @@ export const handleSessionManageCommand: CommandHandler = async (params, allowTe
       "Usage:",
       "  /session new <name>    - Create a new named session",
       "  /session switch <name> - Switch to an existing session",
+      "  /session switch        - Switch back to main session",
       "  /session list          - List available sessions",
       "",
       "Named sessions are persistent and won't be reset by /new.",
@@ -156,11 +157,17 @@ export const handleSessionManageCommand: CommandHandler = async (params, allowTe
 
   if (action === "switch") {
     const target = restTokens.join(" ").trim();
+
+    // No target = switch to main session
     if (!target) {
-      return {
-        shouldContinue: false,
-        reply: { text: "⚠️ Usage: /session switch <name-or-key>" },
-      };
+      const mainKey = "agent:main:main";
+      const lines = [
+        "✅ Switching to main session",
+        `Key: ${mainKey}`,
+        "",
+        "Session switch will take effect immediately.",
+      ];
+      return { shouldContinue: false, reply: { text: lines.join("\n") } };
     }
 
     try {

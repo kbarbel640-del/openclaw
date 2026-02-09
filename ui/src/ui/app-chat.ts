@@ -187,7 +187,7 @@ export async function handleSendChat(
 
   const refreshSessions = isChatResetCommand(message);
   const isSessionCreate = message.toLowerCase().startsWith("/session new ");
-  const isSessionSwitch = message.toLowerCase().startsWith("/session switch ");
+  const isSessionSwitch = message.toLowerCase().startsWith("/session switch");
 
   if (messageOverride == null) {
     host.chatMessage = "";
