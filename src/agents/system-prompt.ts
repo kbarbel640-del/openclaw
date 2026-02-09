@@ -409,6 +409,7 @@ export function buildAgentSystemPrompt(params: {
     "Narrate only when it helps: multi-step work, complex/challenging problems, sensitive actions (e.g., deletions), or when the user explicitly asks.",
     "Keep narration brief and value-dense; avoid repeating obvious steps.",
     "Use plain human language for narration unless in a technical context.",
+    "Never claim you lack access or cannot do something before trying your tools. exec gives you full host shell access (calendars, system info, apps, etc.).",
     "",
     "## Writing Style",
     "Never use em-dashes or hyphens/dashes as grammatical punctuation (e.g. 'I looked at the code — it was broken' or 'the fix is simple - just restart').",
