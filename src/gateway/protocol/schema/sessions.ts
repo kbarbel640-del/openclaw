@@ -128,3 +128,19 @@ export const SessionsUsageParamsSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+export const SessionsListDeletedParamsSchema = Type.Object(
+  {
+    agentId: Type.Optional(NonEmptyString),
+    limit: Type.Optional(Type.Integer({ minimum: 1 })),
+  },
+  { additionalProperties: false },
+);
+
+export const SessionsRestoreParamsSchema = Type.Object(
+  {
+    sessionId: NonEmptyString,
+    agentId: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);

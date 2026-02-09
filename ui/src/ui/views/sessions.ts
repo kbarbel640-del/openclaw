@@ -319,9 +319,13 @@ function renderRow(
         </select>
       </div>
       <div>
-        <button class="btn danger" ?disabled=${disabled} @click=${() => onDelete(row.key)}>
-          Delete
-        </button>
+        ${
+          row.key === "agent:main:main"
+            ? nothing
+            : html`<button class="btn danger" ?disabled=${disabled} @click=${() => onDelete(row.key)}>
+              Delete
+            </button>`
+        }
       </div>
     </div>
   `;

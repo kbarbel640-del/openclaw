@@ -26,6 +26,8 @@ import {
   validateSessionsPreviewParams,
   validateSessionsResetParams,
   validateSessionsResolveParams,
+  validateSessionsListDeletedParams,
+  validateSessionsRestoreParams,
 } from "../protocol/index.js";
 import {
   archiveFileOnDisk,
@@ -572,5 +574,154 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       },
       undefined,
     );
+  },
+  "sessions.list.deleted": async ({ params, respond }) => {
+    if (!validateSessionsListDeletedParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid sessions.list.deleted params: ${formatValidationErrors(validateSessionsListDeletedParams.errors)}`,
+        ),
+      );
+      return;
+    }
+
+    const p = params;
+    const cfg = loadConfig();
+    const agentId = normalizeAgentId(p.agentId ?? resolveDefaultAgentId(cfg));
+    const agentDir = resolveAgentDir(cfg, agentId);
+    const sessionsDir = path.join(agentDir, "sessions");
+
+    try {
+      if (!fs.existsSync(sessionsDir)) {
+        respond(true, { ok: true, deleted: [] }, undefined);
+        return;
+      }
+
+      const files = fs.readdirSync(sessionsDir);
+      const deletedFiles = files.filter((f) => f.endsWith(".jsonl.deleted"));
+
+      const deleted = deletedFiles
+        .map((file) => {
+          const fullPath = path.join(sessionsDir, file);
+          const stat = fs.statSync(fullPath);
+          // Extract sessionId from filename: <sessionId>.jsonl.deleted.<timestamp>
+          const match = file.match(/^([0-9a-f-]{36})\.jsonl\.deleted\./i);
+          const sessionId = match ? match[1] : null;
+
+          // Extract timestamp from filename
+          const timestampMatch = file.match(/\.deleted\.(.+)$/);
+          const timestamp = timestampMatch ? timestampMatch[1] : null;
+
+          return {
+            sessionId,
+            file,
+            path: fullPath,
+            size: stat.size,
+            deletedAt: timestamp,
+            mtime: stat.mtimeMs,
+          };
+        })
+        .filter((item) => item.sessionId != null)
+        .toSorted((a, b) => b.mtime - a.mtime);
+
+      const limit = p.limit ?? 50;
+      const result = deleted.slice(0, limit);
+
+      respond(true, { ok: true, deleted: result }, undefined);
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to list deleted sessions: ${String(err)}`),
+      );
+    }
+  },
+  "sessions.restore": async ({ params, respond }) => {
+    if (!validateSessionsRestoreParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid sessions.restore params: ${formatValidationErrors(validateSessionsRestoreParams.errors)}`,
+        ),
+      );
+      return;
+    }
+
+    const p = params;
+    const sessionId = String(p.sessionId ?? "").trim();
+    if (!sessionId) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "sessionId required"));
+      return;
+    }
+
+    const cfg = loadConfig();
+    const agentId = normalizeAgentId(p.agentId ?? resolveDefaultAgentId(cfg));
+    const agentDir = resolveAgentDir(cfg, agentId);
+    const sessionsDir = path.join(agentDir, "sessions");
+
+    try {
+      // Find the deleted file for this sessionId
+      const files = fs.readdirSync(sessionsDir);
+      const deletedFile = files.find((f) => f.startsWith(`${sessionId}.jsonl.deleted.`));
+
+      if (!deletedFile) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.NOT_FOUND, `No deleted session found for sessionId: ${sessionId}`),
+        );
+        return;
+      }
+
+      const deletedPath = path.join(sessionsDir, deletedFile);
+      const restoredPath = path.join(sessionsDir, `${sessionId}.jsonl`);
+
+      // Check if a session with this ID already exists
+      if (fs.existsSync(restoredPath)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `Session ${sessionId} already exists. Cannot restore.`,
+          ),
+        );
+        return;
+      }
+
+      // Restore the transcript file
+      fs.renameSync(deletedPath, restoredPath);
+
+      // Create a minimal session entry in sessions.json
+      const sessionKey = `agent:${agentId}:${sessionId}`;
+      const storePath = path.join(sessionsDir, "sessions.json");
+
+      await updateSessionStore(storePath, (store) => {
+        store[sessionKey] = {
+          sessionId,
+          updatedAt: Date.now(),
+          systemSent: false,
+          abortedLastRun: false,
+          sessionFile: restoredPath,
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          contextTokens: 0,
+        };
+      });
+
+      respond(true, { ok: true, key: sessionKey, sessionId, restored: deletedFile }, undefined);
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to restore session: ${String(err)}`),
+      );
+    }
   },
 };

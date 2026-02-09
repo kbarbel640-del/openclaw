@@ -12,6 +12,7 @@ export type SessionsState = {
   sessionsFilterLimit: string;
   sessionsIncludeGlobal: boolean;
   sessionsIncludeUnknown: boolean;
+  sessionKey: string;
 };
 
 export async function loadSessions(
@@ -98,16 +99,38 @@ export async function deleteSession(state: SessionsState, key: string) {
   if (state.sessionsLoading) {
     return;
   }
-  const confirmed = window.confirm(
-    `Delete session "${key}"?\n\nDeletes the session entry and archives its transcript.`,
-  );
+
+  // Prevent deleting main session
+  if (key === "agent:main:main") {
+    state.sessionsError = "Cannot delete the main session.";
+    return;
+  }
+
+  // Check if deleting the currently active session
+  const isActiveSession = key === state.sessionKey;
+  const confirmMessage = isActiveSession
+    ? `⚠️ You are currently using this session.\n\nDeleting it will return you to the main session.\n\nDelete session "${key}"?`
+    : `Delete session "${key}"?\n\nDeletes the session entry and archives its transcript.`;
+
+  const confirmed = window.confirm(confirmMessage);
   if (!confirmed) {
     return;
   }
+
   state.sessionsLoading = true;
   state.sessionsError = null;
   try {
     await state.client.request("sessions.delete", { key, deleteTranscript: true });
+
+    // Redirect to main session if we deleted the active one
+    if (isActiveSession) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("session");
+      url.pathname = "/";
+      window.location.href = url.toString();
+      return;
+    }
+
     await loadSessions(state);
   } catch (err) {
     state.sessionsError = String(err);
