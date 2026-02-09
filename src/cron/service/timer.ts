@@ -13,6 +13,11 @@ import { ensureLoaded, persist } from "./store.js";
 
 const MAX_TIMER_DELAY_MS = 60_000;
 
+/** True if the session key is a per-run cron key (contains `:run:`). */
+function isCronRunKey(key: string): boolean {
+  return /:run:/.test(key);
+}
+
 /**
  * Maximum wall-clock time for a single job execution. Acts as a safety net
  * on top of the per-provider / per-agent timeouts to prevent one stuck job
@@ -267,6 +272,16 @@ export async function onTimer(state: CronServiceState) {
             state.store.jobs = state.store.jobs.filter((j) => j.id !== job.id);
             emit(state, { jobId: job.id, action: "removed" });
           }
+
+          // Clean up the :run: session entry from the session store.
+          if (
+            result.sessionKey &&
+            isCronRunKey(result.sessionKey) &&
+            (job.cleanup ?? "delete") === "delete" &&
+            state.deps.cleanupCronRunSession
+          ) {
+            void state.deps.cleanupCronRunSession(result.sessionKey, job).catch(() => {});
+          }
         }
 
         recomputeNextRuns(state);
@@ -499,6 +514,16 @@ export async function executeJob(
   if (shouldDelete && state.store) {
     state.store.jobs = state.store.jobs.filter((j) => j.id !== job.id);
     emit(state, { jobId: job.id, action: "removed" });
+  }
+
+  // Clean up the :run: session entry from the session store.
+  if (
+    coreResult.sessionKey &&
+    isCronRunKey(coreResult.sessionKey) &&
+    (job.cleanup ?? "delete") === "delete" &&
+    state.deps.cleanupCronRunSession
+  ) {
+    void state.deps.cleanupCronRunSession(coreResult.sessionKey, job).catch(() => {});
   }
 }
 

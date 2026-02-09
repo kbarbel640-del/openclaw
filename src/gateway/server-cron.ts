@@ -1,10 +1,16 @@
 import type { CliDeps } from "../cli/deps.js";
+import type { CronJob } from "../cron/types.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { loadConfig } from "../config/config.js";
-import { resolveAgentMainSessionKey } from "../config/sessions.js";
+import {
+  resolveAgentMainSessionKey,
+  resolveStorePath,
+  updateSessionStore,
+} from "../config/sessions.js";
 import { runCronIsolatedAgentTurn } from "../cron/isolated-agent.js";
 import { appendCronRunLog, resolveCronRunLogPath } from "../cron/run-log.js";
 import { CronService } from "../cron/service.js";
+import { isCronRunSessionKey } from "../cron/service/sweeper.js";
 import { resolveCronStorePath } from "../cron/store.js";
 import { runHeartbeatOnce } from "../infra/heartbeat-runner.js";
 import { requestHeartbeatNow } from "../infra/heartbeat-wake.js";
@@ -13,10 +19,15 @@ import { getChildLogger } from "../logging.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
 
+const SWEEP_INTERVAL_MS = 5 * 60_000; // 5 minutes
+const STALE_THRESHOLD_MS = 10 * 60_000; // 10 minutes
+
 export type GatewayCronState = {
   cron: CronService;
   storePath: string;
   cronEnabled: boolean;
+  /** Stop the background :run: session sweeper. */
+  stopSweeper?: () => void;
 };
 
 export function buildGatewayCronService(params: {
@@ -75,6 +86,13 @@ export function buildGatewayCronService(params: {
         lane: "cron",
       });
     },
+    cleanupCronRunSession: async (sessionKey: string, job: CronJob) => {
+      const { agentId, cfg: runtimeConfig } = resolveCronAgent(job.agentId);
+      const sessStorePath = resolveStorePath(runtimeConfig.session?.store, { agentId });
+      await updateSessionStore(sessStorePath, (store) => {
+        delete store[sessionKey];
+      });
+    },
     log: getChildLogger({ module: "cron", storePath }),
     onEvent: (evt) => {
       params.broadcast("cron", evt, { dropIfSlow: true });
@@ -102,5 +120,56 @@ export function buildGatewayCronService(params: {
     },
   });
 
-  return { cron, storePath, cronEnabled };
+  // Start a background sweeper for stale :run: session entries.
+  let stopSweeper: (() => void) | undefined;
+  if (cronEnabled) {
+    const sweepTimer = setInterval(() => {
+      void sweepStaleCronRunSessions({
+        cfg: loadConfig(),
+        log: cronLogger,
+      }).catch(() => {});
+    }, SWEEP_INTERVAL_MS);
+    sweepTimer.unref?.();
+    stopSweeper = () => clearInterval(sweepTimer);
+  }
+
+  return { cron, storePath, cronEnabled, stopSweeper };
+}
+
+/**
+ * Sweep stale `:run:` session entries from all agent session stores.
+ * Deletes entries whose `updatedAt` is older than the stale threshold.
+ */
+async function sweepStaleCronRunSessions(params: {
+  cfg: ReturnType<typeof loadConfig>;
+  log: { info: (obj: unknown, msg?: string) => void; warn: (obj: unknown, msg?: string) => void };
+}): Promise<number> {
+  const { cfg, log } = params;
+  const agentId = resolveDefaultAgentId(cfg);
+  const sessStorePath = resolveStorePath(cfg.session?.store, { agentId });
+  const now = Date.now();
+  let removed = 0;
+
+  try {
+    await updateSessionStore(sessStorePath, (store) => {
+      for (const key of Object.keys(store)) {
+        if (!isCronRunSessionKey(key)) {
+          continue;
+        }
+        const entry = store[key];
+        const updatedAt = entry?.updatedAt ?? 0;
+        if (now - updatedAt > STALE_THRESHOLD_MS) {
+          delete store[key];
+          removed++;
+        }
+      }
+    });
+  } catch (err) {
+    log.warn({ err: String(err) }, "cron: sweeper failed to update session store");
+  }
+
+  if (removed > 0) {
+    log.info({ removed }, "cron: swept stale :run: session entries");
+  }
+  return removed;
 }

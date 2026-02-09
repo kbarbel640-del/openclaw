@@ -15,6 +15,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Cron: auto-cleanup isolated session `:run:` entries after job completion; add `cleanup` field (default: `"delete"`) and a background sweeper for stale entries. (#11260)
 - Model failover: treat HTTP 400 errors as failover-eligible, enabling automatic model fallback when providers return bad request errors. (#1879) Thanks @orenyomtov.
 - Exec approvals: format forwarded command text as inline/fenced monospace for safer approval scanning across channels. (#11937)
 - Config: clamp `maxTokens` to `contextWindow` to prevent invalid model configs. (#5516) Thanks @lailoo.

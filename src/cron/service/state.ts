@@ -39,6 +39,8 @@ export type CronServiceDeps = {
     sessionKey?: string;
   }>;
   onEvent?: (evt: CronEvent) => void;
+  /** Delete a :run: session entry from the session store. Best-effort. */
+  cleanupCronRunSession?: (sessionKey: string, job: CronJob) => Promise<void>;
 };
 
 export type CronServiceDepsInternal = Omit<CronServiceDeps, "nowMs"> & {

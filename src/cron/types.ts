@@ -70,6 +70,8 @@ export type CronJob = {
   description?: string;
   enabled: boolean;
   deleteAfterRun?: boolean;
+  /** Session cleanup strategy for isolated :run: entries. Default: "delete". */
+  cleanup?: "delete" | "keep";
   createdAtMs: number;
   updatedAtMs: number;
   schedule: CronSchedule;

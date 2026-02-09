@@ -173,6 +173,7 @@ export function createJob(state: CronServiceState, input: CronJobCreate): CronJo
     description: normalizeOptionalText(input.description),
     enabled,
     deleteAfterRun,
+    cleanup: input.cleanup,
     createdAtMs: now,
     updatedAtMs: now,
     schedule,
@@ -202,6 +203,9 @@ export function applyJobPatch(job: CronJob, patch: CronJobPatch) {
   }
   if (typeof patch.deleteAfterRun === "boolean") {
     job.deleteAfterRun = patch.deleteAfterRun;
+  }
+  if (patch.cleanup === "delete" || patch.cleanup === "keep") {
+    job.cleanup = patch.cleanup;
   }
   if (patch.schedule) {
     job.schedule = patch.schedule;
