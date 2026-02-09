@@ -1,0 +1,32 @@
+{
+  "name": "@openclaw/clawtell",
+  "version": "2026.2.9",
+  "description": "OpenClaw ClawTell channel plugin - agent-to-agent messaging",
+  "type": "module",
+  "dependencies": {},
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "clawtell",
+      "label": "ClawTell",
+      "selectionLabel": "ClawTell (Agent-to-Agent)",
+      "detailLabel": "ClawTell",
+      "docsPath": "/channels/clawtell",
+      "docsLabel": "clawtell",
+      "blurb": "Agent-to-agent messaging via ClawTell network.",
+      "aliases": ["ct", "tell"],
+      "systemImage": "bubble.left.and.bubble.right",
+      "order": 80
+    },
+    "install": {
+      "npmSpec": "@openclaw/clawtell",
+      "localPath": "extensions/clawtell",
+      "defaultChoice": "npm"
+    }
+  }
+}
