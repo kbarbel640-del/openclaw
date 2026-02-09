@@ -328,7 +328,7 @@ export async function runTui(opts: TuiOptions) {
     const sessionLabel = formatSessionKey(currentSessionKey);
     const agentLabel = formatAgentLabel(currentAgentId);
     const headerText = `openclaw tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`;
-    const maxWidth = (process.stdout.columns ?? 80) - 2;
+    const maxWidth = Math.max(20, (process.stdout.columns ?? 80) - 2);
     const truncated = truncateToWidth(headerText, maxWidth, "");
     header.setText(theme.header(truncated));
   };
@@ -524,7 +524,7 @@ export async function runTui(opts: TuiOptions) {
       tokens,
     ].filter(Boolean);
     const footerText = footerParts.join(" | ");
-    const maxWidth = (process.stdout.columns ?? 80) - 2;
+    const maxWidth = Math.max(20, (process.stdout.columns ?? 80) - 2);
     const truncated = truncateToWidth(footerText, maxWidth, "");
     footer.setText(theme.dim(truncated));
   };

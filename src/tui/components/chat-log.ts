@@ -11,7 +11,7 @@ export class ChatLog extends Container {
   private maxWidth = 120; // Default width; will be updated as needed
 
   setMaxWidth(width: number) {
-    this.maxWidth = Math.max(50, width - 2); // Leave some margin
+    this.maxWidth = Math.max(20, width - 2); // Leave some margin, allow narrow terminals
   }
 
   clearAll() {
