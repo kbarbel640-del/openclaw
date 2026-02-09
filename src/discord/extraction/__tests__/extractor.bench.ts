@@ -239,6 +239,9 @@ Third paragraph with more content.
 
     it("should handle worst-case input efficiently", () => {
       // Worst case: long output, many markers (extract last), heavy noise
+      const codexConfig = ConfigLoader.load("codex");
+      const codexExtractor = new LLMResponseExtractor(codexConfig);
+
       const lines = ["Previous response that should be ignored", "> "];
 
       // Add noise before target response
@@ -247,7 +250,7 @@ Third paragraph with more content.
       }
 
       // Add actual response with noise mixed in
-      lines.push("⏺ Target response line 1");
+      lines.push("• Target response line 1");
       for (let i = 0; i < 30; i++) {
         lines.push(`Content line ${i}`);
         if (i % 3 === 0) {
