@@ -28,7 +28,7 @@ export function createTypingCallbacks(params: {
     heartbeatInterval = setInterval(async () => {
       try {
         await params.start();
-      } catch (err) {
+      } catch {
         // Silently ignore heartbeat errors to avoid spam
       }
     }, TYPING_HEARTBEAT_INTERVAL_MS);
