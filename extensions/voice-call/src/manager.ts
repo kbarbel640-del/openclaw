@@ -547,7 +547,7 @@ export class CallManager {
     }
     this.processedEventIds.add(event.id);
 
-    // Telnyx often omits client_state (internal callId) on some events (notably call.transcription).
+    // Telnyx can omit client_state (internal callId) on later events (notably call.transcription).
     // If callId is empty, fall back to providerCallId mapping.
     let call = event.callId ? this.findCall(event.callId) : undefined;
     if (!call && event.providerCallId) {
@@ -612,9 +612,7 @@ export class CallManager {
         // Best-effort: speak initial message (for inbound greetings and outbound
         // conversation mode) once the call is answered.
         this.maybeSpeakInitialMessageOnAnswered(call);
-        // For Telnyx, start real-time transcription automatically in conversation mode.
-        // Without this, outbound calls will speak but never listen unless a separate
-        // continue_call turn is issued.
+        // Telnyx: auto-enable transcription for two-way conversation mode.
         this.maybeStartListeningOnAnswered(call);
         break;
 
@@ -626,21 +624,19 @@ export class CallManager {
         this.transitionState(call, "speaking");
         break;
 
-      case "call.speech": {
-        const text = (event.transcript || "").trim();
-        // Telnyx often emits multiple transcription events (partials) and the is_final
-        // semantics can vary. For two-way conversations we treat any non-empty transcript
-        // as usable; we still prefer final when provided.
-        const acceptPartial = this.provider?.name === "telnyx";
-
-        if (text && (event.isFinal || acceptPartial)) {
-          this.addTranscriptEntry(call, "user", text);
-          this.resolveTranscriptWaiter(call.callId, text);
+      case "call.speech":
+        // Telnyx often emits incremental transcripts with inconsistent `isFinal`;
+        // for two-way conversations, accept partials so waits can resolve.
+        {
+          const text = (event.transcript || "").trim();
+          const acceptPartial = this.provider?.name === "telnyx";
+          if (text && (event.isFinal || acceptPartial)) {
+            this.addTranscriptEntry(call, "user", text);
+            this.resolveTranscriptWaiter(call.callId, text);
+          }
         }
-
         this.transitionState(call, "listening");
         break;
-      }
 
       case "call.ended":
         call.endedAt = event.timestamp;

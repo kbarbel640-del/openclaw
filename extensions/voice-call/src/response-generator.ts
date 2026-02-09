@@ -4,6 +4,8 @@
  */
 
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import type { VoiceCallConfig } from "./config.js";
 import { loadCoreAgentDeps, type CoreConfig } from "./core-bridge.js";
 
@@ -57,7 +59,7 @@ export async function generateVoiceResponse(
   const cfg = coreConfig;
 
   const configuredAgentId = voiceConfig.responseAgentId?.trim();
-  const agentId = configuredAgentId || "main";
+  let agentId = configuredAgentId || "voice";
   const sessionKeyPrefix = voiceConfig.responseSessionKeyPrefix?.trim() || "voice";
 
   // Build voice-specific session key based on phone number
@@ -66,15 +68,81 @@ export async function generateVoiceResponse(
     id === "main"
       ? `${sessionKeyPrefix}:${normalizedPhone}`
       : `${sessionKeyPrefix}:${id}:${normalizedPhone}`;
-  const sessionKey = buildSessionKey(agentId);
+  let sessionKey = buildSessionKey(agentId);
 
   // Resolve paths
-  const storePath = deps.resolveStorePath(cfg.session?.store, { agentId });
-  const agentDir = deps.resolveAgentDir(cfg, agentId);
-  const workspaceDir = deps.resolveAgentWorkspaceDir(cfg, agentId);
+  const resolvePaths = (id: string) => ({
+    storePath: deps.resolveStorePath(cfg.session?.store, { agentId: id }),
+    agentDir: deps.resolveAgentDir(cfg, id),
+    workspaceDir: deps.resolveAgentWorkspaceDir(cfg, id),
+  });
+
+  let { storePath, agentDir, workspaceDir } = resolvePaths(agentId);
 
   // Ensure workspace exists
   await deps.ensureAgentWorkspace({ dir: workspaceDir });
+
+  // Ensure a dedicated voice agent exists by default. On failure, fall back to main.
+  const ensureVoiceAgent = (dir: string): boolean => {
+    const agentsFile = path.join(dir, "AGENTS.md");
+    const identityFile = path.join(dir, "IDENTITY.md");
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      if (!fs.existsSync(agentsFile)) {
+        fs.writeFileSync(
+          agentsFile,
+          [
+            "# AGENTS.md",
+            "",
+            "You are the OpenClaw voice agent for phone calls.",
+            "",
+            "Rules:",
+            "- Always produce a short, spoken reply (prefer exactly 1 sentence).",
+            "- Never output the tokens HEARTBEAT_OK or NO_REPLY.",
+            "- Do not use markdown or code blocks.",
+            "- If unsure, ask a brief clarifying question.",
+            "",
+            "You can use tools when helpful.",
+            "",
+          ].join("\n"),
+          "utf8",
+        );
+      }
+      if (!fs.existsSync(identityFile)) {
+        fs.writeFileSync(
+          identityFile,
+          [
+            "# IDENTITY.md",
+            "",
+            "- Name: OpenClaw Voice Assistant",
+            "- Vibe: concise, friendly, conversational, one-sentence replies",
+            "",
+          ].join("\n"),
+          "utf8",
+        );
+      }
+      return true;
+    } catch (err) {
+      console.warn(
+        `[voice-call] Failed to initialize voice agent config at ${dir}:`,
+        err instanceof Error ? err.message : err,
+      );
+      return false;
+    }
+  };
+
+  if (agentId === "voice") {
+    const ok = ensureVoiceAgent(agentDir);
+    if (!ok) {
+      console.warn("[voice-call] Falling back to main agent for voice responses");
+      agentId = "main";
+      sessionKey = buildSessionKey(agentId);
+      ({ storePath, agentDir, workspaceDir } = resolvePaths(agentId));
+      await deps.ensureAgentWorkspace({ dir: workspaceDir });
+    }
+  }
 
   console.log(`[voice-call] Using response agent "${agentId}" for voice responses`);
 
@@ -108,7 +176,8 @@ export async function generateVoiceResponse(
 
   // Resolve agent identity for personalized prompt
   const identity = deps.resolveAgentIdentity(cfg, agentId);
-  const agentName = identity?.name?.trim() || "assistant";
+  const agentName =
+    identity?.name?.trim() || (agentId === "voice" ? "voice assistant" : "assistant");
 
   // Build system prompt with conversation history
   const basePrompt =
@@ -163,20 +232,18 @@ export async function generateVoiceResponse(
       return output.replace(/\s+/g, " ").trim();
     };
 
-    const rawTexts = (result.payloads ?? [])
+    const texts = (result.payloads ?? [])
       .filter((p) => p.text && !p.isError)
       .map((p) => p.text?.trim())
       .filter(Boolean);
 
-    const texts = rawTexts.map((value) => stripHeartbeatTokens(value)).filter(Boolean);
+    let text =
+      texts
+        .map((value) => stripHeartbeatTokens(value))
+        .filter(Boolean)
+        .join(" ") || null;
 
-    const rawText = rawTexts.join(" ").trim();
-    const rawPreview = rawText ? rawText.slice(0, 240) : "";
-
-    let text = texts.join(" ") || null;
-
-    // Guardrail: the agent may emit heartbeat/silent reply sentinels.
-    // Never speak those out loud on a phone call; treat them as non-content.
+    // Guardrail: never speak heartbeat/silent sentinels out loud.
     if (text) {
       text = stripHeartbeatTokens(text);
       if (!text) {
@@ -185,35 +252,10 @@ export async function generateVoiceResponse(
     }
 
     if (!text && result.meta?.aborted) {
-      if (rawPreview) {
-        console.warn(
-          `[voice-call] Voice response empty (reason=aborted) raw="${rawPreview}"`,
-        );
-      } else {
-        console.warn("[voice-call] Voice response empty (reason=aborted) raw=<empty>");
-      }
       return { text: null, error: "Response generation was aborted" };
     }
 
     if (!text && sawSentinel) {
-      if (rawPreview) {
-        console.warn(
-          `[voice-call] Voice response empty (reason=suppressed-sentinel) raw="${rawPreview}"`,
-        );
-      } else {
-        console.warn(
-          "[voice-call] Voice response empty (reason=suppressed-sentinel) raw=<empty>",
-        );
-      }
-      return { text: null };
-    }
-
-    if (!text) {
-      if (rawPreview) {
-        console.warn(`[voice-call] Voice response empty (reason=empty) raw="${rawPreview}"`);
-      } else {
-        console.warn("[voice-call] Voice response empty (reason=empty) raw=<empty>");
-      }
       return { text: null };
     }
 

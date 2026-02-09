@@ -43,7 +43,19 @@ export class VoiceCallWebhookServer {
   private readonly responseCooldownMs = 1800;
   private readonly inFlightRetryMs = 250;
   private readonly duplicateResponseWindowMs = 4000;
-  private readonly tinyWords = new Set(["a", "an", "the", "uh", "um", "hmm", "mm", "hm", "er", "ah", "i"]);
+  private readonly tinyWords = new Set([
+    "a",
+    "an",
+    "the",
+    "uh",
+    "um",
+    "hmm",
+    "mm",
+    "hm",
+    "er",
+    "ah",
+    "i",
+  ]);
   private readonly commonVerbs = new Set([
     "am",
     "are",
@@ -81,7 +93,15 @@ export class VoiceCallWebhookServer {
     "say",
     "think",
   ]);
-  private readonly questionStarters = new Set(["who", "what", "when", "where", "why", "how", "which"]);
+  private readonly questionStarters = new Set([
+    "who",
+    "what",
+    "when",
+    "where",
+    "why",
+    "how",
+    "which",
+  ]);
 
   constructor(
     config: VoiceCallConfig,
@@ -158,7 +178,7 @@ export class VoiceCallWebhookServer {
 
         // If caller interrupted while bot was speaking, cancel pending responses.
         if (call.state === "speaking") {
-          this.handleBargeIn(call.callId, providerCallId);
+          this.handleBargeIn(call.callId, providerCallId, "speaking");
         }
 
         // Create a speech event and process it through the manager
@@ -186,7 +206,7 @@ export class VoiceCallWebhookServer {
         }
         const call = this.manager.getCallByProviderCallId(providerCallId);
         if (call) {
-          this.handleBargeIn(call.callId, providerCallId);
+          this.handleBargeIn(call.callId, providerCallId, "speech-start");
         }
       },
       onPartialTranscript: (callId, partial) => {
@@ -492,6 +512,19 @@ export class VoiceCallWebhookServer {
       `[voice-call] Auto-responding to call ${callId} (${call.direction}): "${userMessage}"`,
     );
 
+    if (
+      await this.maybeHandleTimeDateResponse(
+        callId,
+        call.direction,
+        userMessage,
+        generation,
+        normalizedUserMessage,
+      )
+    ) {
+      clearInFlight();
+      return;
+    }
+
     if (!this.coreConfig) {
       console.warn("[voice-call] Core config missing; skipping auto-response");
       clearInFlight();
@@ -520,23 +553,21 @@ export class VoiceCallWebhookServer {
         return;
       }
 
-      if (result.text) {
-        const latestGeneration = this.getResponseGeneration(callId);
-        if (latestGeneration !== generation) {
-          console.log(
-            `[voice-call] Discarding stale response generation ${generation} (current=${latestGeneration}) for ${callId}`,
-          );
-          return;
-        }
+      const latestGeneration = this.getResponseGeneration(callId);
+      if (latestGeneration !== generation) {
+        console.log(
+          `[voice-call] Discarding stale response generation ${generation} (current=${latestGeneration}) for ${callId}`,
+        );
+        return;
+      }
 
-        console.log(`[voice-call] AI response: "${result.text}"`);
-        const speakResult = await this.manager.speak(callId, result.text);
-        if (speakResult.success) {
-          this.lastRespondedText.set(callId, normalizedUserMessage);
-          this.lastRespondedAt.set(callId, Date.now());
-        } else {
-          console.warn(`[voice-call] Failed to speak auto-response: ${speakResult.error}`);
-        }
+      console.log(`[voice-call] AI response: "${result.text}"`);
+      const speakResult = await this.manager.speak(callId, result.text);
+      if (speakResult.success) {
+        this.lastRespondedText.set(callId, normalizedUserMessage);
+        this.lastRespondedAt.set(callId, Date.now());
+      } else {
+        console.warn(`[voice-call] Failed to speak auto-response: ${speakResult.error}`);
       }
     } catch (err) {
       console.error(`[voice-call] Auto-response error:`, err);
@@ -550,7 +581,10 @@ export class VoiceCallWebhookServer {
   }
 
   private normalizeForComparison(text: string): string {
-    return this.normalizeTranscript(text).toLowerCase().replace(/[^\p{L}\p{N}'\s]+/gu, " ").trim();
+    return this.normalizeTranscript(text)
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}'\s]+/gu, " ")
+      .trim();
   }
 
   private isTinyTranscript(normalized: string): boolean {
@@ -856,6 +890,185 @@ export class VoiceCallWebhookServer {
       return;
     }
     this.schedulePendingResponse(callId);
+  }
+
+  private detectTimeDateIntent(message: string): { wantsTime: boolean; wantsDate: boolean } {
+    const text = message.toLowerCase();
+    const wantsTime =
+      /\bwhat(?:'s| is)? (the )?time\b/.test(text) ||
+      /\bwhat time is it\b/.test(text) ||
+      /\bcurrent time\b/.test(text) ||
+      /\btime now\b/.test(text) ||
+      /\btime is it\b/.test(text);
+    const wantsDate =
+      /\bwhat(?:'s| is)? (the )?date\b/.test(text) ||
+      /\bwhat day is it\b/.test(text) ||
+      /\bwhat day\b/.test(text) ||
+      /\btoday'?s date\b/.test(text) ||
+      /\bcurrent date\b/.test(text);
+    return { wantsTime, wantsDate };
+  }
+
+  private parseRequestedTimeZone(
+    message: string,
+  ): { timeZone: string; label: string; matched: boolean; explicit: boolean } | null {
+    const text = message.toLowerCase();
+    const matchesToken = (token: string): boolean => {
+      if (token.includes(" ")) {
+        return text.includes(token);
+      }
+      return new RegExp(`\\b${token}\\b`).test(text);
+    };
+
+    const entries: Array<{ keys: string[]; timeZone: string; label: string }> = [
+      { keys: ["utc", "gmt", "zulu"], timeZone: "UTC", label: "UTC" },
+      {
+        keys: ["pst", "pdt", "pacific", "pacific time"],
+        timeZone: "America/Los_Angeles",
+        label: "Pacific Time",
+      },
+      {
+        keys: ["mst", "mdt", "mountain", "mountain time"],
+        timeZone: "America/Denver",
+        label: "Mountain Time",
+      },
+      {
+        keys: ["cst", "cdt", "central", "central time"],
+        timeZone: "America/Chicago",
+        label: "Central Time",
+      },
+      {
+        keys: ["est", "edt", "eastern", "eastern time"],
+        timeZone: "America/New_York",
+        label: "Eastern Time",
+      },
+      {
+        keys: ["akst", "akdt", "alaska", "alaska time"],
+        timeZone: "America/Anchorage",
+        label: "Alaska Time",
+      },
+      {
+        keys: ["hst", "hawaii", "hawaii time"],
+        timeZone: "Pacific/Honolulu",
+        label: "Hawaii Time",
+      },
+      { keys: ["bst", "british", "uk", "london"], timeZone: "Europe/London", label: "UK Time" },
+      {
+        keys: ["cet", "cest", "paris", "berlin", "rome"],
+        timeZone: "Europe/Paris",
+        label: "Central European Time",
+      },
+      {
+        keys: ["ist", "india", "kolkata"],
+        timeZone: "Asia/Kolkata",
+        label: "India Standard Time",
+      },
+      { keys: ["jst", "tokyo"], timeZone: "Asia/Tokyo", label: "Japan Standard Time" },
+      {
+        keys: ["aest", "aedt", "sydney", "melbourne"],
+        timeZone: "Australia/Sydney",
+        label: "Australian Eastern Time",
+      },
+    ];
+
+    for (const entry of entries) {
+      if (entry.keys.some((key) => matchesToken(key))) {
+        return { timeZone: entry.timeZone, label: entry.label, matched: true, explicit: true };
+      }
+    }
+
+    const explicit = /\btime ?zone\b/.test(text) || /\bin\s+[a-z]{2,20}\s+time\b/.test(text);
+    if (explicit) {
+      return { timeZone: "UTC", label: "UTC", matched: false, explicit: true };
+    }
+
+    return null;
+  }
+
+  private formatTimeDateResponse(params: {
+    wantsTime: boolean;
+    wantsDate: boolean;
+    timeZone: string;
+    timeZoneLabel: string;
+    explicitFallback: boolean;
+  }): string {
+    const now = new Date();
+    const timeText = new Intl.DateTimeFormat("en-US", {
+      timeZone: params.timeZone,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZoneName: "short",
+    }).format(now);
+    const dateText = new Intl.DateTimeFormat("en-US", {
+      timeZone: params.timeZone,
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(now);
+
+    let response = "";
+    if (params.wantsTime && params.wantsDate) {
+      response = `It's ${timeText} on ${dateText}.`;
+    } else if (params.wantsTime) {
+      response = `It's ${timeText}.`;
+    } else {
+      response = `It's ${dateText} (${params.timeZoneLabel}).`;
+    }
+
+    if (params.explicitFallback) {
+      return `I can only answer in UTC right now. ${response}`;
+    }
+
+    return response;
+  }
+
+  private async maybeHandleTimeDateResponse(
+    callId: string,
+    direction: string,
+    userMessage: string,
+    generation: number,
+    normalizedUserMessage: string,
+  ): Promise<boolean> {
+    const intent = this.detectTimeDateIntent(userMessage);
+    if (!intent.wantsTime && !intent.wantsDate) {
+      return false;
+    }
+
+    const tzInfo = this.parseRequestedTimeZone(userMessage);
+    const timeZone = tzInfo?.timeZone ?? "UTC";
+    const timeZoneLabel = tzInfo?.label ?? "UTC";
+    const explicitFallback = Boolean(tzInfo && tzInfo.explicit && !tzInfo.matched);
+
+    console.log(
+      `[voice-call] Time/date intercept for ${callId} (${direction}) time=${intent.wantsTime} date=${intent.wantsDate} tz=${timeZone}${explicitFallback ? " fallback=UTC" : ""}`,
+    );
+
+    if (this.getResponseGeneration(callId) !== generation) {
+      console.log(
+        `[voice-call] Discarding time/date response for ${callId} (gen=${generation} superseded)`,
+      );
+      return true;
+    }
+
+    const responseText = this.formatTimeDateResponse({
+      wantsTime: intent.wantsTime,
+      wantsDate: intent.wantsDate,
+      timeZone,
+      timeZoneLabel,
+      explicitFallback,
+    });
+
+    const speakResult = await this.manager.speak(callId, responseText);
+    if (speakResult.success) {
+      this.lastRespondedText.set(callId, normalizedUserMessage);
+      this.lastRespondedAt.set(callId, Date.now());
+    } else {
+      console.warn(`[voice-call] Failed to speak time/date response: ${speakResult.error}`);
+    }
+
+    return true;
   }
 }
 

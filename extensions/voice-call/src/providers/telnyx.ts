@@ -15,6 +15,13 @@ import type {
 } from "../types.js";
 import type { VoiceCallProvider } from "./base.js";
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
 /**
  * Telnyx Voice API provider implementation.
  *
@@ -180,8 +187,7 @@ export class TelnyxProvider implements VoiceCallProvider {
       }
     }
     // IMPORTANT: Telnyx often omits client_state on later events (notably call.transcription).
-    // If we fall back to call_control_id as callId, it won't match OpenClaw's internal callId
-    // and the manager may not associate the event with the active call.
+    // If we fall back to call_control_id as callId, it won't match OpenClaw's internal callId.
     // So: only use decoded client_state as callId; otherwise leave callId empty and rely on providerCallId mapping.
     if (!callId) {
       callId = "";
@@ -216,25 +222,15 @@ export class TelnyxProvider implements VoiceCallProvider {
 
       case "call.transcription": {
         // Telnyx docs show: payload.transcription_data = { transcript, is_final, confidence }
-        // In practice, Telnyx may vary field names; be defensive.
-        const td = (data.payload as any)?.transcription_data as
-          | {
-              transcript?: string;
-              is_final?: boolean;
-              confidence?: number;
-              text?: string;
-              transcription?: string;
-            }
-          | undefined;
+        // In practice, field names can vary; be defensive.
+        const payload = asRecord(data.payload) ?? {};
+        const td = asRecord(payload.transcription_data);
 
-        const transcript =
-          td?.transcript ??
-          (td as any)?.text ??
-          (td as any)?.transcription ??
-          (data.payload as any)?.transcription ??
-          "";
+        const transcriptCandidate =
+          td?.transcript ?? td?.text ?? td?.transcription ?? payload.transcription;
+        const transcript = typeof transcriptCandidate === "string" ? transcriptCandidate : "";
 
-        const rawConfidence = td?.confidence as unknown;
+        const rawConfidence = td?.confidence ?? payload.confidence;
         const confidence =
           typeof rawConfidence === "number"
             ? rawConfidence
@@ -242,7 +238,9 @@ export class TelnyxProvider implements VoiceCallProvider {
               ? Number.parseFloat(rawConfidence)
               : undefined;
 
-        const isFinal = typeof td?.is_final === "boolean" ? td.is_final : false;
+        // If is_final is missing, keep it false; the webhook layer debounces and scores partials.
+        const rawIsFinal = td?.is_final ?? payload.is_final;
+        const isFinal = typeof rawIsFinal === "boolean" ? rawIsFinal : false;
 
         return {
           ...baseEvent,
@@ -385,13 +383,9 @@ interface TelnyxEvent {
     call_control_id?: string;
     client_state?: string;
     text?: string;
-    // Real-time transcription events:
-    // payload.transcription_data = { transcript, is_final, confidence }
-    transcription_data?: {
-      transcript?: string;
-      is_final?: boolean;
-      confidence?: number;
-    };
+    transcription?: string;
+    is_final?: boolean;
+    confidence?: number;
     hangup_cause?: string;
     digit?: string;
     [key: string]: unknown;
