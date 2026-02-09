@@ -28,4 +28,20 @@ describe("isBillingErrorMessage", () => {
     expect(isBillingErrorMessage("invalid api key")).toBe(false);
     expect(isBillingErrorMessage("context length exceeded")).toBe(false);
   });
+
+  it("does not false-positive on long assistant prose about billing topics", () => {
+    const longBillingProse =
+      "Here's how to set up Stripe billing for your SaaS application. " +
+      "First, create a product and pricing plan in the Stripe dashboard. " +
+      "Then integrate the checkout session to collect payment from your customers. " +
+      "You can offer multiple plan tiers with different credits allocations. " +
+      "Consider offering a free tier to let users try before they upgrade. " +
+      "The billing portal lets customers manage their own subscriptions, " +
+      "view invoices, and update their payment methods. " +
+      "For enterprise customers, you might want to offer custom billing " +
+      "arrangements with volume discounts and dedicated support. " +
+      "Make sure to handle webhook events for subscription lifecycle changes " +
+      "like renewals, cancellations, and failed payment retries.";
+    expect(isBillingErrorMessage(longBillingProse)).toBe(false);
+  });
 });

@@ -261,11 +261,48 @@ export function formatAssistantErrorText(
   return raw.length > 600 ? `${raw.slice(0, 600)}…` : raw;
 }
 
+/**
+ * Max length for heuristic error detection. Real API errors are short
+ * (typically under 300 chars); anything longer is likely normal assistant
+ * prose and should not be pattern-matched against error heuristics.
+ */
+const MAX_ERROR_HEURISTIC_LENGTH = 500;
+
+/**
+ * Returns true when the text looks like normal assistant prose rather than
+ * a raw API error payload. Multi-sentence text, paragraph breaks, or markdown
+ * formatting is extremely unlikely to be an error message.
+ */
+function looksLikeAssistantProse(text: string): boolean {
+  if (text.length > MAX_ERROR_HEURISTIC_LENGTH) return true;
+  // Multiple paragraphs (double newline) → prose
+  if (text.includes("\n\n")) return true;
+  // Markdown headings, lists, code blocks → prose
+  if (/^#{1,6}\s|^\s*[-*]\s|```/m.test(text)) return true;
+  // Multiple sentences (3+) → prose, not an error message
+  const sentenceEnds = text.match(/[.!?]\s+[A-Z]/g);
+  if (sentenceEnds && sentenceEnds.length >= 2) return true;
+  return false;
+}
+
 export function sanitizeUserFacingText(text: string): string {
   if (!text) return text;
   const stripped = stripFinalTagsFromText(text);
   const trimmed = stripped.trim();
   if (!trimmed) return stripped;
+
+  // JSON error payloads are always worth catching regardless of length.
+  if (isRawApiErrorPayload(trimmed)) {
+    return "The AI service returned an error. Please try again.";
+  }
+
+  // Skip heuristic error detection for text that looks like normal assistant
+  // prose - long responses, multi-paragraph, markdown-formatted, etc.
+  // This prevents false positives where normal responses discussing topics
+  // like "Error handling" or "402 payment required" get replaced.
+  if (looksLikeAssistantProse(trimmed)) {
+    return stripped;
+  }
 
   if (/incorrect role information|roles must alternate/i.test(trimmed)) {
     return (
@@ -281,7 +318,7 @@ export function sanitizeUserFacingText(text: string): string {
     );
   }
 
-  if (isRawApiErrorPayload(trimmed) || isLikelyHttpErrorText(trimmed)) {
+  if (isLikelyHttpErrorText(trimmed)) {
     return "The AI service returned an error. Please try again.";
   }
 
@@ -368,6 +405,10 @@ export function isBillingErrorMessage(raw: string): boolean {
   const value = raw.toLowerCase();
   if (!value) return false;
   if (matchesErrorPatterns(value, ERROR_PATTERNS.billing)) return true;
+  // Only apply the loose keyword heuristic to short, single-line text that
+  // looks like an actual API error. Normal assistant prose discussing billing
+  // topics should not be falsely classified as billing errors.
+  if (looksLikeAssistantProse(value)) return false;
   return (
     value.includes("billing") &&
     (value.includes("upgrade") ||
