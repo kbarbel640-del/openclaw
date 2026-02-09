@@ -124,6 +124,7 @@ const HooksGmailGcpSchema = z
     serviceAccountKey: z.string().optional(),
     serviceAccountKeyFile: z.string().optional(),
     autoSetup: z.boolean().optional(),
+    pushEndpoint: z.string().optional(),
   })
   .strict()
   .optional();

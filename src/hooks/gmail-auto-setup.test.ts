@@ -244,9 +244,7 @@ describe("gmail-auto-setup", () => {
       expect(result.pushEndpoint).toContain("https://");
     });
 
-    it("fails when autoSetup enabled but no tailscale mode", async () => {
-      // No mocks needed since failure happens before external calls
-
+    it("skips Pub/Sub when autoSetup enabled but no push endpoint or tailscale", async () => {
       const cfg: MoltbotConfig = {
         hooks: {
           enabled: true,
@@ -266,7 +264,7 @@ describe("gmail-auto-setup", () => {
       const result = await runGmailAutoSetup(cfg);
 
       expect(result.ok).toBe(true);
-      expect(result.reason).toContain("no tailscale mode configured");
+      expect(result.reason).toContain("no push endpoint configured");
     });
 
     it("fails when autoSetup enabled but no project ID", async () => {
