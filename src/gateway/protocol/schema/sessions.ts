@@ -21,6 +21,8 @@ export const SessionsListParamsSchema = Type.Object(
     spawnedBy: Type.Optional(NonEmptyString),
     agentId: Type.Optional(NonEmptyString),
     search: Type.Optional(Type.String()),
+    /** Include deleted sessions in the result set. Defaults to false. */
+    includeDeleted: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

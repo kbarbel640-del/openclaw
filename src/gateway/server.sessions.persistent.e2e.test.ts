@@ -454,7 +454,7 @@ describe("gateway server sessions - persistent sessions", () => {
         deletedAt?: string;
         label?: string;
       }>;
-    }>(ws, "sessions.list", {});
+    }>(ws, "sessions.list", { includeDeleted: true });
 
     expect(Array.isArray(listResult.payload?.sessions)).toBe(true);
     const deletedSessions = listResult.payload?.sessions?.filter((s) => s.deleted === true);
@@ -505,7 +505,7 @@ describe("gateway server sessions - persistent sessions", () => {
         sessionId?: string;
         deleted?: boolean;
       }>;
-    }>(ws, "sessions.list", {});
+    }>(ws, "sessions.list", { includeDeleted: true });
 
     const deletedEntry = listResult.payload?.sessions?.find(
       (s) => s.sessionId === sessionId && s.deleted === true,
@@ -584,7 +584,7 @@ describe("gateway server sessions - persistent sessions", () => {
         description?: string;
         persistent?: boolean;
       }>;
-    }>(ws, "sessions.list", {});
+    }>(ws, "sessions.list", { includeDeleted: true });
 
     const deletedEntry = listResult.payload?.sessions?.find(
       (s) => s.sessionId === sessionId && s.deleted === true,
@@ -703,7 +703,7 @@ describe("gateway server sessions - persistent sessions", () => {
     // Verify it's in sessions list with deleted flag (should have 1 entry)
     let listResult = await rpcReq<{
       sessions?: Array<{ key: string; sessionId?: string; deleted?: boolean }>;
-    }>(ws, "sessions.list", {});
+    }>(ws, "sessions.list", { includeDeleted: true });
 
     let deletedEntries = listResult.payload?.sessions?.filter(
       (s) => s.sessionId === sessionId && s.deleted === true,
@@ -734,7 +734,7 @@ describe("gateway server sessions - persistent sessions", () => {
     // Verify it's back in sessions list with STILL only 1 entry (no duplicates)
     listResult = await rpcReq<{
       sessions?: Array<{ key: string; sessionId?: string; deleted?: boolean }>;
-    }>(ws, "sessions.list", {});
+    }>(ws, "sessions.list", { includeDeleted: true });
 
     deletedEntries = listResult.payload?.sessions?.filter(
       (s) => s.sessionId === sessionId && s.deleted === true,
@@ -755,7 +755,7 @@ describe("gateway server sessions - persistent sessions", () => {
     // Final check - should STILL be only 1 entry
     listResult = await rpcReq<{
       sessions?: Array<{ key: string; sessionId?: string; deleted?: boolean }>;
-    }>(ws, "sessions.list", {});
+    }>(ws, "sessions.list", { includeDeleted: true });
 
     deletedEntries = listResult.payload?.sessions?.filter(
       (s) => s.sessionId === sessionId && s.deleted === true,

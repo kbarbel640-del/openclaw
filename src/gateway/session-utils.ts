@@ -777,84 +777,87 @@ export function listSessionsFromStore(params: {
     })
     .toSorted((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
 
-  // Add deleted sessions to the list
-  // Get the sessions directory - handle both single and combined mode
-  let sessionsDir: string;
+  // Only scan for deleted sessions when explicitly requested (e.g. Control UI).
+  // This avoids filesystem overhead and prevents deleted sessions from leaking into
+  // session resolution, agent tools, or lane execution.
+  const includeDeleted = opts.includeDeleted === true;
+  if (includeDeleted) {
+    // Get the sessions directory - handle both single and combined mode
+    let sessionsDir: string;
 
-  if (storePath === "(multiple)") {
-    // Combined mode - use default agent's sessions directory
-    const defaultAgentId = normalizeAgentId(resolveDefaultAgentId(cfg));
-    const agentDir = resolveAgentDir(cfg, defaultAgentId);
-    // resolveAgentDir returns ~/.openclaw/agents/{agentId}/agent
-    // We need ~/.openclaw/agents/{agentId}/sessions
-    const agentScope = path.dirname(agentDir);
-    sessionsDir = path.join(agentScope, "sessions");
-  } else if (storePath.endsWith("sessions.json")) {
-    // Single agent mode with full path to sessions.json
-    sessionsDir = path.dirname(storePath);
-  } else {
-    // Fallback - storePath might already be the sessions directory
-    sessionsDir = storePath;
-  }
+    if (storePath === "(multiple)") {
+      // Combined mode - use default agent's sessions directory
+      const defaultAgentId = normalizeAgentId(resolveDefaultAgentId(cfg));
+      const agentDir = resolveAgentDir(cfg, defaultAgentId);
+      const agentScope = path.dirname(agentDir);
+      sessionsDir = path.join(agentScope, "sessions");
+    } else if (storePath.endsWith("sessions.json")) {
+      // Single agent mode with full path to sessions.json
+      sessionsDir = path.dirname(storePath);
+    } else {
+      // Fallback - storePath might already be the sessions directory
+      sessionsDir = storePath;
+    }
 
-  const deletedSessions = scanDeletedSessions({ cfg, storePath: sessionsDir });
-  const deletedRows = deletedSessions.map(({ key, sessionId, deletedAt, metadata }) => {
-    const entry = metadata;
-    const updatedAt = entry.updatedAt ?? null;
-    const input = entry.inputTokens ?? 0;
-    const output = entry.outputTokens ?? 0;
-    const total = entry.totalTokens ?? input + output;
-    const parsedAgent = parseAgentSessionKey(key);
-    const sessionAgentId = normalizeAgentId(parsedAgent?.agentId ?? resolveDefaultAgentId(cfg));
-    const resolvedModel = resolveSessionModelRef(cfg, entry, sessionAgentId);
-    const modelProvider = resolvedModel.provider ?? DEFAULT_PROVIDER;
-    const model = resolvedModel.model ?? DEFAULT_MODEL;
+    const deletedSessions = scanDeletedSessions({ cfg, storePath: sessionsDir });
+    const deletedRows = deletedSessions.map(({ key, sessionId, deletedAt, metadata }) => {
+      const entry = metadata;
+      const updatedAt = entry.updatedAt ?? null;
+      const input = entry.inputTokens ?? 0;
+      const output = entry.outputTokens ?? 0;
+      const total = entry.totalTokens ?? input + output;
+      const parsedAgent = parseAgentSessionKey(key);
+      const sessionAgentId = normalizeAgentId(parsedAgent?.agentId ?? resolveDefaultAgentId(cfg));
+      const resolvedModel = resolveSessionModelRef(cfg, entry, sessionAgentId);
+      const modelProvider = resolvedModel.provider ?? DEFAULT_PROVIDER;
+      const model = resolvedModel.model ?? DEFAULT_MODEL;
 
-    return {
-      key,
-      entry,
-      kind: "direct" as const, // Deleted sessions are typically direct/named
-      label: entry?.label,
-      displayName: entry?.label,
-      channel: entry?.channel,
-      subject: entry?.subject,
-      groupChannel: entry?.groupChannel,
-      space: entry?.space,
-      chatType: entry?.chatType,
-      origin: entry?.origin,
-      updatedAt,
-      sessionId,
-      systemSent: entry?.systemSent,
-      abortedLastRun: entry?.abortedLastRun,
-      thinkingLevel: entry?.thinkingLevel,
-      verboseLevel: entry?.verboseLevel,
-      reasoningLevel: entry?.reasoningLevel,
-      elevatedLevel: entry?.elevatedLevel,
-      sendPolicy: entry?.sendPolicy,
-      inputTokens: entry?.inputTokens,
-      outputTokens: entry?.outputTokens,
-      totalTokens: total,
-      responseUsage: entry?.responseUsage,
-      modelProvider,
-      model,
-      contextTokens: entry?.contextTokens,
-      deliveryContext: entry?.deliveryContext,
-      lastChannel: entry?.lastChannel,
-      lastTo: entry?.lastTo,
-      lastAccountId: entry?.lastAccountId,
-      persistent: entry.persistent,
-      userCreated: entry.userCreated,
-      description: entry.description,
-      createdAt: entry.createdAt,
-      deleted: true,
-      deletedAt: deletedAt ?? undefined,
-    };
-  });
+      return {
+        key,
+        entry,
+        kind: "direct" as const, // Deleted sessions are typically direct/named
+        label: entry?.label,
+        displayName: entry?.label,
+        channel: entry?.channel,
+        subject: entry?.subject,
+        groupChannel: entry?.groupChannel,
+        space: entry?.space,
+        chatType: entry?.chatType,
+        origin: entry?.origin,
+        updatedAt,
+        sessionId,
+        systemSent: entry?.systemSent,
+        abortedLastRun: entry?.abortedLastRun,
+        thinkingLevel: entry?.thinkingLevel,
+        verboseLevel: entry?.verboseLevel,
+        reasoningLevel: entry?.reasoningLevel,
+        elevatedLevel: entry?.elevatedLevel,
+        sendPolicy: entry?.sendPolicy,
+        inputTokens: entry?.inputTokens,
+        outputTokens: entry?.outputTokens,
+        totalTokens: total,
+        responseUsage: entry?.responseUsage,
+        modelProvider,
+        model,
+        contextTokens: entry?.contextTokens,
+        deliveryContext: entry?.deliveryContext,
+        lastChannel: entry?.lastChannel,
+        lastTo: entry?.lastTo,
+        lastAccountId: entry?.lastAccountId,
+        persistent: entry.persistent,
+        userCreated: entry.userCreated,
+        description: entry.description,
+        createdAt: entry.createdAt,
+        deleted: true,
+        deletedAt: deletedAt ?? undefined,
+      };
+    });
 
-  // Merge active and deleted sessions
-  sessions = [...sessions, ...deletedRows].toSorted(
-    (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
-  );
+    // Merge active and deleted sessions
+    sessions = [...sessions, ...deletedRows].toSorted(
+      (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
+    );
+  } // end includeDeleted
 
   if (search) {
     sessions = sessions.filter((s) => {
