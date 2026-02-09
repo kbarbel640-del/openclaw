@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetDiagnosticSessionStateForTest } from "../logging/diagnostic-session-state.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
+import { PluginHookExecutionError } from "../plugins/hooks.js";
 import { toClientToolDefinitions, toToolDefinitions } from "./pi-tool-definition-adapter.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
 import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
@@ -115,6 +116,25 @@ describe("before_tool_call hook integration", () => {
       undefined,
       extensionContext,
     );
+  });
+
+  it("fails execution when hook throws fail-closed error", async () => {
+    hookRunner.hasHooks.mockReturnValue(true);
+    hookRunner.runBeforeToolCall.mockRejectedValue(
+      new PluginHookExecutionError({
+        hookName: "before_tool_call",
+        pluginId: "policy",
+        message: "blocked by policy",
+      }),
+    );
+    const execute = vi.fn().mockResolvedValue({ content: [], details: { ok: true } });
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const tool = wrapToolWithBeforeToolCallHook({ name: "read", execute } as any);
+
+    await expect(
+      tool.execute("call-4b", { path: "/tmp/file" }, undefined, undefined),
+    ).rejects.toThrow("blocked by policy");
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("normalizes non-object params for hook contract", async () => {

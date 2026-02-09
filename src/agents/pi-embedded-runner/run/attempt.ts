@@ -20,7 +20,12 @@ import type {
   PluginHookBeforeAgentStartResult,
   PluginHookBeforePromptBuildResult,
 } from "../../../plugins/types.js";
-import { isSubagentSessionKey } from "../../../routing/session-key.js";
+import { isPluginHookExecutionError } from "../../../plugins/hooks.js";
+import {
+  isCronSessionKey,
+  isSubagentSessionKey,
+  normalizeAgentId,
+} from "../../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../../signal/reaction-level.js";
 import { resolveTelegramInlineButtonsScope } from "../../../telegram/inline-buttons.js";
 import { resolveTelegramReactionLevel } from "../../../telegram/reaction-level.js";
@@ -193,6 +198,9 @@ export async function resolvePromptBuildHookResult(params: {
           params.hookCtx,
         )
         .catch((hookErr: unknown) => {
+          if (isPluginHookExecutionError(hookErr) && hookErr.failClosed) {
+            throw hookErr;
+          }
           log.warn(`before_prompt_build hook failed: ${String(hookErr)}`);
           return undefined;
         })
@@ -209,6 +217,9 @@ export async function resolvePromptBuildHookResult(params: {
             params.hookCtx,
           )
           .catch((hookErr: unknown) => {
+            if (isPluginHookExecutionError(hookErr) && hookErr.failClosed) {
+              throw hookErr;
+            }
             log.warn(
               `before_agent_start hook (legacy prompt build path) failed: ${String(hookErr)}`,
             );

@@ -3,6 +3,7 @@ import type { SessionState } from "../logging/diagnostic-session-state.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { isPlainObject } from "../utils.js";
+import { isPluginHookExecutionError } from "../plugins/hooks.js";
 import { normalizeToolName } from "./tool-policy.js";
 import type { AnyAgentTool } from "./tools/common.js";
 
@@ -165,6 +166,9 @@ export async function runBeforeToolCallHook(args: {
       return { blocked: false, params: hookResult.params };
     }
   } catch (err) {
+    if (isPluginHookExecutionError(err) && err.failClosed) {
+      throw err;
+    }
     const toolCallId = args.toolCallId ? ` toolCallId=${args.toolCallId}` : "";
     log.warn(`before_tool_call hook failed: tool=${toolName}${toolCallId} error=${String(err)}`);
   }
