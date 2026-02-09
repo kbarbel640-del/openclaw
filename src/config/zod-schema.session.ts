@@ -90,6 +90,14 @@ export const SessionSchema = z
       })
       .strict()
       .optional(),
+    maintenance: z
+      .object({
+        pruneDays: z.number().int().positive().optional(),
+        maxEntries: z.number().int().positive().optional(),
+        rotateBytes: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .optional();

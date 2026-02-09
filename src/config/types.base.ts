@@ -99,6 +99,17 @@ export type SessionConfig = {
     /** Max ping-pong turns between requester/target (0–5). Default: 5. */
     maxPingPongTurns?: number;
   };
+  /** Automatic session store maintenance (pruning, capping, file rotation). */
+  maintenance?: SessionMaintenanceConfig;
+};
+
+export type SessionMaintenanceConfig = {
+  /** Remove session entries older than this many days. Default: 30. */
+  pruneDays?: number;
+  /** Maximum number of session entries to keep. Default: 500. */
+  maxEntries?: number;
+  /** Rotate sessions.json when it exceeds this size in bytes. Default: 10485760 (10 MB). */
+  rotateBytes?: number;
 };
 
 export type LoggingConfig = {
