@@ -41,12 +41,6 @@ const AUTH_CHOICE_GROUP_DEFS: {
   choices: AuthChoice[];
 }[] = [
   {
-    value: "huawei",
-    label: "Huawei Cloud MAAS",
-    hint: "ModelArts MAAS API key",
-    choices: ["huawei-maas-api-key"],
-  },
-  {
     value: "openai",
     label: "OpenAI",
     hint: "Codex OAuth + API key",
@@ -75,6 +69,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     label: "Google",
     hint: "Gemini API key + OAuth",
     choices: ["gemini-api-key", "google-antigravity", "google-gemini-cli"],
+  },
+  {
+    value: "huawei",
+    label: "Huawei Cloud MAAS",
+    hint: "ModelArts MAAS API key",
+    choices: ["huawei-maas-api-key"],
   },
   {
     value: "xai",
