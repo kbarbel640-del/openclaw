@@ -48,7 +48,8 @@ describe("gateway server chat", () => {
     { timeout: timeoutMs },
     async () => {
       const tempDirs: string[] = [];
-      const { server, ws } = await startServerWithClient();
+      testState.gatewayControlUi = { enabled: true, allowedOrigins: ["*"] };
+      const { server, ws } = await startServerWithClient(undefined, { controlUiEnabled: true });
       const spy = vi.mocked(getReplyFromConfig);
       const resetSpy = () => {
         spy.mockReset();
