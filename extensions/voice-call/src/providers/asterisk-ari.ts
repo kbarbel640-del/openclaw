@@ -127,7 +127,7 @@ export class AsteriskAriProvider implements VoiceCallProvider {
             type: "call.ended",
             callId: call.callId,
             providerCallId: call.providerCallId,
-            reason: "hangup-provider",
+            reason: "hangup-bot",
           }),
         );
       }
