@@ -675,7 +675,7 @@ export function buildAisaProvider(): ProviderConfig {
       {
         id: AISA_DEFAULT_MODEL_ID,
         name: "Qwen3 Max",
-        reasoning: false,
+        reasoning: true,
         input: ["text", "image"],
         cost: AISA_DEFAULT_COST,
         contextWindow: AISA_DEFAULT_CONTEXT_WINDOW,
@@ -684,7 +684,7 @@ export function buildAisaProvider(): ProviderConfig {
       {
         id: "deepseek-v3.1",
         name: "DeepSeek V3.1",
-        reasoning: false,
+        reasoning: true,
         input: ["text"],
         cost: AISA_DEFAULT_COST,
         contextWindow: 128000,
@@ -693,7 +693,7 @@ export function buildAisaProvider(): ProviderConfig {
       {
         id: "kimi-k2.5",
         name: "Kimi K2.5",
-        reasoning: false,
+        reasoning: true,
         input: ["text"],
         cost: AISA_DEFAULT_COST,
         contextWindow: 256000,
