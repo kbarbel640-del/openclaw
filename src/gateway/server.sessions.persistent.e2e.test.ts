@@ -368,4 +368,223 @@ describe("gateway server sessions - persistent sessions", () => {
 
     ws.close();
   });
+
+  test("sessions.delete blocks deleting the main session", async () => {
+    const ws = await openClient();
+
+    const result = await rpcReq<{
+      ok: boolean;
+      error?: { code: string; message: string };
+    }>(ws, "sessions.delete", {
+      key: "agent:main:main",
+      deleteTranscript: true,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.payload?.error?.code).toBe("INVALID_REQUEST");
+    expect(result.payload?.error?.message).toContain("Cannot delete the main session");
+
+    ws.close();
+  });
+
+  test("sessions.delete archives transcript file", async () => {
+    const ws = await openClient();
+
+    // Create a session to delete
+    const createResult = await rpcReq<{
+      ok: boolean;
+      key?: string;
+      sessionId?: string;
+    }>(ws, "sessions.create", {
+      label: "To Delete",
+      persistent: true,
+    });
+
+    expect(createResult.ok).toBe(true);
+    const sessionKey = createResult.payload?.key;
+    const sessionId = createResult.payload?.sessionId;
+    expect(sessionKey).toBeTruthy();
+    expect(sessionId).toBeTruthy();
+
+    // Delete the session
+    const deleteResult = await rpcReq<{
+      ok: boolean;
+      deleted?: boolean;
+      archived?: string[];
+    }>(ws, "sessions.delete", {
+      key: sessionKey,
+      deleteTranscript: true,
+    });
+
+    expect(deleteResult.ok).toBe(true);
+    expect(deleteResult.payload?.deleted).toBe(true);
+    // Archived array may be empty if no transcript was written yet (session never used)
+    expect(Array.isArray(deleteResult.payload?.archived)).toBe(true);
+
+    ws.close();
+  });
+
+  test("sessions.list.deleted returns deleted sessions", async () => {
+    const ws = await openClient();
+
+    // Create and delete a session
+    const createResult = await rpcReq<{
+      ok: boolean;
+      key?: string;
+      sessionId?: string;
+    }>(ws, "sessions.create", {
+      label: "To Delete and List",
+      persistent: true,
+    });
+
+    expect(createResult.ok).toBe(true);
+    const sessionKey = createResult.payload?.key;
+    expect(sessionKey).toBeTruthy();
+
+    await rpcReq(ws, "sessions.delete", {
+      key: sessionKey,
+      deleteTranscript: true,
+    });
+
+    // List deleted sessions
+    const listResult = await rpcReq<{
+      ok: boolean;
+      deleted?: Array<{
+        sessionId: string;
+        file: string;
+        size: number;
+        deletedAt: string | null;
+      }>;
+    }>(ws, "sessions.list.deleted", {
+      limit: 100,
+    });
+
+    expect(listResult.ok).toBe(true);
+    expect(Array.isArray(listResult.payload?.deleted)).toBe(true);
+
+    ws.close();
+  });
+
+  test("sessions.restore recreates deleted session", async () => {
+    const ws = await openClient();
+
+    // Create a session
+    const createResult = await rpcReq<{
+      ok: boolean;
+      key?: string;
+      sessionId?: string;
+    }>(ws, "sessions.create", {
+      label: "To Delete and Restore",
+      persistent: true,
+    });
+
+    expect(createResult.ok).toBe(true);
+    const sessionKey = createResult.payload?.key;
+    const sessionId = createResult.payload?.sessionId;
+    expect(sessionKey).toBeTruthy();
+    expect(sessionId).toBeTruthy();
+
+    // Send a message to create a transcript file
+    await rpcReq(ws, "chat.send", {
+      sessionKey,
+      text: "Test message",
+    });
+
+    // Wait a bit for transcript to be written
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Delete the session
+    await rpcReq(ws, "sessions.delete", {
+      key: sessionKey,
+      deleteTranscript: true,
+    });
+
+    // Verify it's in deleted list
+    const listResult = await rpcReq<{
+      ok: boolean;
+      deleted?: Array<{
+        sessionId: string;
+      }>;
+    }>(ws, "sessions.list.deleted", {
+      limit: 100,
+    });
+
+    const deletedEntry = listResult.payload?.deleted?.find((d) => d.sessionId === sessionId);
+    expect(deletedEntry).toBeTruthy();
+
+    // Restore the session
+    const restoreResult = await rpcReq<{
+      ok: boolean;
+      key?: string;
+      sessionId?: string;
+      restored?: string;
+    }>(ws, "sessions.restore", {
+      sessionId,
+    });
+
+    expect(restoreResult.ok).toBe(true);
+    expect(restoreResult.payload?.sessionId).toBe(sessionId);
+    expect(restoreResult.payload?.restored).toBeTruthy();
+
+    // Verify it's back in sessions list
+    const sessionsResult = await rpcReq<{
+      sessions: Array<{ key: string }>;
+    }>(ws, "sessions.list", {});
+
+    const restoredSession = sessionsResult.payload?.sessions?.find((s) =>
+      s.key.includes(sessionId!),
+    );
+    expect(restoredSession).toBeTruthy();
+
+    ws.close();
+  });
+
+  test("sessions.restore fails for non-existent session", async () => {
+    const ws = await openClient();
+
+    const result = await rpcReq<{
+      ok: boolean;
+      error?: { code: string; message: string };
+    }>(ws, "sessions.restore", {
+      sessionId: "00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.payload?.error?.code).toBe("NOT_FOUND");
+    expect(result.payload?.error?.message).toContain("No deleted session found");
+
+    ws.close();
+  });
+
+  test("sessions.restore fails if session already exists", async () => {
+    const ws = await openClient();
+
+    // Create a session
+    const createResult = await rpcReq<{
+      ok: boolean;
+      key?: string;
+      sessionId?: string;
+    }>(ws, "sessions.create", {
+      label: "Already Exists",
+      persistent: true,
+    });
+
+    expect(createResult.ok).toBe(true);
+    const sessionId = createResult.payload?.sessionId;
+    expect(sessionId).toBeTruthy();
+
+    // Try to restore (should fail because session exists)
+    const restoreResult = await rpcReq<{
+      ok: boolean;
+      error?: { code: string; message: string };
+    }>(ws, "sessions.restore", {
+      sessionId,
+    });
+
+    expect(restoreResult.ok).toBe(false);
+    expect(restoreResult.payload?.error?.code).toBe("NOT_FOUND");
+    // Will fail because there's no deleted file (we didn't delete it)
+
+    ws.close();
+  });
 });

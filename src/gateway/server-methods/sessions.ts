@@ -602,7 +602,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       }
 
       const files = fs.readdirSync(sessionsDir);
-      const deletedFiles = files.filter((f) => f.endsWith(".jsonl.deleted"));
+      const deletedFiles = files.filter((f) => f.includes(".jsonl.deleted."));
 
       const deleted = deletedFiles
         .map((file) => {
