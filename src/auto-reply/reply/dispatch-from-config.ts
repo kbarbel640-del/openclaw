@@ -18,24 +18,37 @@ import { formatAbortReplyText, tryFastAbortFromMessage } from "./abort.js";
 import { shouldSkipDuplicateInbound } from "./inbound-dedupe.js";
 import { isRoutableChannel, routeReply } from "./route-reply.js";
 
-function normalizeHookConversationId(params: {
-  channelId: string;
-  rawConversationId: unknown;
-}): string | undefined {
-  const { rawConversationId } = params;
-  if (rawConversationId == null) {
+/**
+ * Known OpenClaw routing prefixes that should be stripped before passing
+ * identifiers to hook consumers (e.g. DB ingestion plugins).
+ *
+ * Order matters: longer/more-specific prefixes must come first so that
+ * "discord:channel:123" strips to "123" rather than "channel:123".
+ */
+const ROUTING_PREFIXES = [
+  "discord:channel:",
+  "discord:user:",
+  "discord:",
+  "channel:",
+  "user:",
+] as const;
+
+/** Strip OpenClaw routing prefixes, returning a canonical platform id. */
+export function stripRoutingPrefix(value: string): string {
+  for (const prefix of ROUTING_PREFIXES) {
+    if (value.startsWith(prefix)) {
+      return value.slice(prefix.length);
+    }
+  }
+  return value;
+}
+
+function normalizeHookConversationId(raw: unknown): string | undefined {
+  if (raw == null) {
     return undefined;
   }
-  const s = String(rawConversationId).trim();
-
-  // OpenClaw routing targets sometimes look like "channel:<id>".
-  // For hook consumers (e.g. DB ingestion), we want canonical ids.
-  if (s.startsWith("channel:")) {
-    const id = s.slice("channel:".length).trim();
-    return id || undefined;
-  }
-
-  return s || undefined;
+  const stripped = stripRoutingPrefix(String(raw).trim());
+  return stripped || undefined;
 }
 
 const AUDIO_PLACEHOLDER_RE = /^<media:audio>(\s*\([^)]*\))?$/i;
@@ -184,22 +197,25 @@ export async function dispatchReplyFromConfig(params: {
             ? ctx.Body
             : "";
     const channelId = (ctx.OriginatingChannel ?? ctx.Surface ?? ctx.Provider ?? "").toLowerCase();
-    const rawConversationId = ctx.OriginatingTo ?? ctx.To ?? ctx.From ?? undefined;
-    const conversationId = normalizeHookConversationId({ channelId, rawConversationId });
+    const conversationId = normalizeHookConversationId(
+      ctx.OriginatingTo ?? ctx.To ?? ctx.From ?? undefined,
+    );
 
     void hookRunner
       .runMessageReceived(
         {
-          from: ctx.From ?? "",
+          from: ctx.From ? stripRoutingPrefix(ctx.From) : "",
           content,
           timestamp,
           metadata: {
-            to: ctx.To,
+            to: ctx.To ? stripRoutingPrefix(ctx.To) : ctx.To,
             provider: ctx.Provider,
             surface: ctx.Surface,
             threadId: ctx.MessageThreadId,
             originatingChannel: ctx.OriginatingChannel,
-            originatingTo: ctx.OriginatingTo,
+            originatingTo: ctx.OriginatingTo
+              ? stripRoutingPrefix(ctx.OriginatingTo)
+              : ctx.OriginatingTo,
             messageId: messageIdForHook,
             senderId: ctx.SenderId,
             senderName: ctx.SenderName,
