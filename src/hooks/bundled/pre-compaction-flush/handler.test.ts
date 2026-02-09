@@ -19,7 +19,7 @@ describe("pre-compaction-flush handler", () => {
     const event = createMockEvent();
     await handler(event);
     expect(event.messages.length).toBe(1);
-    expect(event.messages[0]).toContain("Compaction imminent");
+    expect(event.messages[0]).toContain("Context was just compacted");
     expect(event.messages[0]).toContain("memory/YYYY-MM-DD.md");
     expect(event.messages[0]).toContain("PROJECT-STATE.md");
   });
@@ -39,6 +39,6 @@ describe("pre-compaction-flush handler", () => {
   it("should mention handoff files in the flush message", async () => {
     const event = createMockEvent();
     await handler(event);
-    expect(event.messages[0]).toContain("handoff");
+    expect(event.messages[0]).toContain("handoff file");
   });
 });

@@ -490,6 +490,22 @@ export async function compactEmbeddedPiSessionDirect(
 
         const result = await session.compact(params.customInstructions);
 
+        // Estimate tokens after compaction by summing token estimates for remaining messages
+        let tokensAfter: number | undefined;
+        try {
+          tokensAfter = 0;
+          for (const message of session.messages) {
+            tokensAfter += estimateTokens(message);
+          }
+          // Sanity check: tokensAfter should be less than tokensBefore
+          if (tokensAfter > result.tokensBefore) {
+            tokensAfter = undefined; // Don't trust the estimate
+          }
+        } catch {
+          // If estimation fails, leave tokensAfter undefined
+          tokensAfter = undefined;
+        }
+
         // Run after_compaction hook
         if (hookRunner?.hasHooks("after_compaction")) {
           try {
@@ -497,7 +513,7 @@ export async function compactEmbeddedPiSessionDirect(
               hookRunner.runAfterCompaction(
                 {
                   messageCount: session.messages.length,
-                  tokenCount: undefined,
+                  tokenCount: tokensAfter,
                   compactedCount: result.tokensBefore ?? 0,
                 },
                 {
@@ -517,22 +533,6 @@ export async function compactEmbeddedPiSessionDirect(
               `after_compaction hook error (non-fatal, session: ${params.sessionKey}): ${hookErr instanceof Error ? hookErr.message : String(hookErr)}`,
             );
           }
-        }
-
-        // Estimate tokens after compaction by summing token estimates for remaining messages
-        let tokensAfter: number | undefined;
-        try {
-          tokensAfter = 0;
-          for (const message of session.messages) {
-            tokensAfter += estimateTokens(message);
-          }
-          // Sanity check: tokensAfter should be less than tokensBefore
-          if (tokensAfter > result.tokensBefore) {
-            tokensAfter = undefined; // Don't trust the estimate
-          }
-        } catch {
-          // If estimation fails, leave tokensAfter undefined
-          tokensAfter = undefined;
         }
         return {
           ok: true,

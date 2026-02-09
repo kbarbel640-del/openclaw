@@ -12,14 +12,11 @@ import { createSubsystemLogger } from "../../../logging/subsystem.js";
 const log = createSubsystemLogger("hooks/pre-compaction-flush");
 
 const FLUSH_MESSAGE = [
-  "⚠️ **Compaction imminent.** Before context is compacted, please:",
-  "",
+  "Context was just compacted. Please update your memory files now:",
   "1. Update today's `memory/YYYY-MM-DD.md` with session progress (decisions, progress, blockers)",
   "2. Update any PROJECT-STATE.md files you touched this session",
   "3. Update `PROJECTS.md` Last Touched dates for active projects",
   "4. If mid-complex-work, create a handoff file",
-  "",
-  "Do this NOW — context will be compacted after your next response.",
 ].join("\n");
 
 export const handler: HookHandler = async (event) => {

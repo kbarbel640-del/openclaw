@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { PluginRegistry } from "../../plugins/registry.js";
 
 // Test that the before_compaction and after_compaction hook infrastructure is correct
 describe("compaction hooks", () => {
@@ -11,23 +12,67 @@ describe("compaction hooks", () => {
 
   it("should have hook runner with runBeforeCompaction", async () => {
     const { createHookRunner } = await import("../../plugins/hooks.js");
+    const registry: PluginRegistry = {
+      plugins: [],
+      tools: [],
+      hooks: [],
+      typedHooks: [],
+      channels: [],
+      providers: [],
+      gatewayHandlers: {},
+      httpHandlers: [],
+      httpRoutes: [],
+      cliRegistrars: [],
+      services: [],
+      commands: [],
+      diagnostics: [],
+    };
     // Verify the hook runner has the compaction methods
-    const runner = createHookRunner([]);
+    const runner = createHookRunner(registry);
     expect(runner.runBeforeCompaction).toBeDefined();
     expect(typeof runner.runBeforeCompaction).toBe("function");
   });
 
   it("should have hook runner with runAfterCompaction", async () => {
     const { createHookRunner } = await import("../../plugins/hooks.js");
-    const runner = createHookRunner([]);
+    const registry: PluginRegistry = {
+      plugins: [],
+      tools: [],
+      hooks: [],
+      typedHooks: [],
+      channels: [],
+      providers: [],
+      gatewayHandlers: {},
+      httpHandlers: [],
+      httpRoutes: [],
+      cliRegistrars: [],
+      services: [],
+      commands: [],
+      diagnostics: [],
+    };
+    const runner = createHookRunner(registry);
     expect(runner.runAfterCompaction).toBeDefined();
     expect(typeof runner.runAfterCompaction).toBe("function");
   });
 
   it("should report no hooks when none registered", async () => {
     const { createHookRunner } = await import("../../plugins/hooks.js");
-    // createHookRunner expects a PluginRegistry-like object with typedHooks array
-    const runner = createHookRunner({ typedHooks: [], hooks: [] } as any);
+    const registry: PluginRegistry = {
+      plugins: [],
+      tools: [],
+      hooks: [],
+      typedHooks: [],
+      channels: [],
+      providers: [],
+      gatewayHandlers: {},
+      httpHandlers: [],
+      httpRoutes: [],
+      cliRegistrars: [],
+      services: [],
+      commands: [],
+      diagnostics: [],
+    };
+    const runner = createHookRunner(registry);
     expect(runner.hasHooks("before_compaction")).toBe(false);
     expect(runner.hasHooks("after_compaction")).toBe(false);
   });
