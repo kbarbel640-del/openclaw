@@ -231,7 +231,11 @@ export const VoiceCallTunnelConfigSchema = z
     allowNgrokFreeTier: z.boolean().optional(),
   })
   .strict()
-  .default({ provider: "none", allowNgrokFreeTierLoopbackBypass: false });
+  .default({
+    provider: "none",
+    allowNgrokFreeTierLoopbackBypass: false,
+    allowNgrokFreeTier: undefined,
+  });
 export type VoiceCallTunnelConfig = z.infer<typeof VoiceCallTunnelConfigSchema>;
 
 // -----------------------------------------------------------------------------
