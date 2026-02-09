@@ -1,6 +1,6 @@
 {
-  "id": "convos",
-  "channels": ["convos"],
+  "id": "xmtp",
+  "channels": ["xmtp"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
