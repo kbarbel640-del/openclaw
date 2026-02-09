@@ -87,4 +87,14 @@ describe("sanitizeUserFacingText", () => {
     expect(sanitizeUserFacingText("402 Payment Required")).toContain("billing");
     expect(sanitizeUserFacingText("HTTP 402 Payment Required")).toContain("billing");
   });
+
+  it("still catches plain-text billing errors with explicit keywords", () => {
+    // Plain billing messages should still be caught via explicit keyword matching
+    expect(sanitizeUserFacingText("insufficient credits")).toContain("billing");
+    expect(sanitizeUserFacingText("Your credit balance is low")).toContain("billing");
+    expect(sanitizeUserFacingText("Please visit plans & billing")).toContain("billing");
+    expect(sanitizeUserFacingText("Payment required to continue")).toContain("billing");
+    expect(sanitizeUserFacingText("Please upgrade your billing plan")).toContain("billing");
+    expect(sanitizeUserFacingText("Check your billing page for credits")).toContain("billing");
+  });
 });

@@ -156,6 +156,32 @@ function looksLikeErrorText(raw: string): boolean {
   );
 }
 
+/**
+ * Checks for explicit billing keywords that are unambiguous and safe to match.
+ * These won't appear in normal assistant output, unlike bare "402".
+ */
+const EXPLICIT_BILLING_KEYWORDS = [
+  "insufficient credits",
+  "credit balance",
+  "plans & billing",
+  "payment required",
+] as const;
+
+function hasExplicitBillingKeywords(raw: string): boolean {
+  if (!raw) {
+    return false;
+  }
+  const lower = raw.toLowerCase();
+  return (
+    EXPLICIT_BILLING_KEYWORDS.some((keyword) => lower.includes(keyword)) ||
+    (lower.includes("billing") &&
+      (lower.includes("upgrade") ||
+        lower.includes("credits") ||
+        lower.includes("payment") ||
+        lower.includes("plan")))
+  );
+}
+
 function shouldRewriteContextOverflowText(raw: string): boolean {
   if (!isContextOverflowError(raw)) {
     return false;
@@ -443,9 +469,13 @@ export function sanitizeUserFacingText(text: string): string {
     );
   }
 
-  // Only apply billing error detection when text looks like an error message,
-  // not on normal assistant output that might contain numbers like "$402.55"
-  if (looksLikeErrorText(trimmed) && isBillingErrorMessage(trimmed)) {
+  // Only apply billing error detection when:
+  // 1. Text looks like an error message (guards against "$402.55" false positives), OR
+  // 2. Text contains explicit billing keywords that are unambiguous
+  if (
+    (looksLikeErrorText(trimmed) || hasExplicitBillingKeywords(trimmed)) &&
+    isBillingErrorMessage(trimmed)
+  ) {
     return BILLING_ERROR_USER_MESSAGE;
   }
 
