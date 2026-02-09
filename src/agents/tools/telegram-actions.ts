@@ -8,9 +8,11 @@ import { resolveTelegramReactionLevel } from "../../telegram/reaction-level.js";
 import {
   deleteMessageTelegram,
   editMessageTelegram,
+  pinMessageTelegram,
   reactMessageTelegram,
   sendMessageTelegram,
   sendStickerTelegram,
+  unpinMessageTelegram,
 } from "../../telegram/send.js";
 import { getCacheStats, searchStickers } from "../../telegram/sticker-cache.js";
 import { resolveTelegramToken } from "../../telegram/token.js";
@@ -340,7 +342,6 @@ export async function handleTelegramAction(
         "Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken.",
       );
     }
-    const { pinMessageTelegram } = await import("../../telegram/send.js");
     await pinMessageTelegram(chatId ?? "", messageId ?? 0, {
       token,
       accountId: accountId ?? undefined,
@@ -366,7 +367,6 @@ export async function handleTelegramAction(
         "Telegram bot token missing. Set TELEGRAM_BOT_TOKEN or channels.telegram.botToken.",
       );
     }
-    const { unpinMessageTelegram } = await import("../../telegram/send.js");
     await unpinMessageTelegram(chatId ?? "", messageId ?? 0, {
       token,
       accountId: accountId ?? undefined,
