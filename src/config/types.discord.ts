@@ -191,6 +191,12 @@ export type DiscordAccountConfig = {
    */
   startupRecovery?: boolean | number;
   /**
+   * Convert time references in agent replies to Discord's native
+   * timestamp format (<t:UNIX:t>), which renders in each user's
+   * local timezone. Default: true.
+   */
+  discordTimestamps?: boolean;
+  /**
    * Smart triage using a fast model (Sonnet).
    * For simple messages, generates a full response without Opus dispatch.
    * For complex messages, generates an immediate status update while Opus works.

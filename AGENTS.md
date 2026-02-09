@@ -88,6 +88,7 @@
 - Pure test additions/fixes generally do **not** need a changelog entry unless they alter user-facing behavior or the user asks for one.
 - Mobile: before using a simulator, check for connected real devices (iOS + Android) and prefer them when available.
 - **Prefer unit tests over live gateway testing.** Most changes can be verified with `npx vitest run <file>` and `pnpm build`. Do NOT start the full gateway, watchdog, or connect to Discord unless the user explicitly asks for live testing. Use mocks for Discord API calls, CLI invocations, and external services.
+- **Isolated gateway testing**: `openclaw gateway run --isolated` creates a throwaway environment (temp state dir, auto-picked port, no channels, loopback-only). Use `--port <N>` for a specific port. Send test messages with `openclaw agent --message "..." --port <port>`. Multiple isolated instances can run simultaneously. See `docs/testing.md` for details.
 - **Never leave gateway processes running.** If you do start a gateway or watchdog for testing, you MUST stop it before finishing your task. Run `pnpm gateway:killall` to clean up.
 - **Gateway process management:**
   - `pnpm gateway:ps` — list all running OpenClaw gateway/watchdog processes across the OS.

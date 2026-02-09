@@ -35,6 +35,65 @@ When debugging real providers/models (requires real creds):
 
 Tip: when you only need one failing case, prefer narrowing live tests via the allowlist env vars described below.
 
+## Isolated gateway testing
+
+The `--isolated` flag on `openclaw gateway run` creates a throwaway,
+fully isolated gateway environment. This is useful for end-to-end
+testing without affecting the real gateway or its data.
+
+### Quick start
+
+```bash
+# Start an isolated gateway (auto-picks a free port)
+openclaw gateway run --isolated
+
+# Start with a specific port
+openclaw gateway run --isolated --port 19847
+```
+
+What `--isolated` does:
+
+- Creates a temp state dir (`~/.openclaw-test-<random>`)
+- Writes a minimal config (`gateway.mode=local`, `bind=loopback`)
+- Skips all channels (Discord, Telegram, Slack, etc.)
+- Skips browser control, canvas host, Gmail watcher, cron
+- Auto-picks a free port (printed on startup) unless `--port` is given
+- Cleans up the temp state dir on process exit
+
+### Sending test messages
+
+```bash
+# Send a message to the isolated gateway
+openclaw agent --message "hello" --port <printed-port>
+```
+
+### Running multiple instances
+
+Each `--isolated` invocation gets a unique profile and state dir,
+so multiple isolated gateways can run simultaneously on different
+ports without lock conflicts.
+
+### Manual isolation (advanced)
+
+For more control, use `--profile` with `--dev`:
+
+```bash
+openclaw --profile my-test gateway run --dev --port 19847
+```
+
+Or set env vars directly:
+
+```bash
+OPENCLAW_STATE_DIR=/tmp/test-gw \
+OPENCLAW_CONFIG_PATH=/tmp/test-gw/openclaw.json \
+OPENCLAW_SKIP_CHANNELS=1 \
+OPENCLAW_SKIP_BROWSER_CONTROL_SERVER=1 \
+OPENCLAW_SKIP_CANVAS_HOST=1 \
+OPENCLAW_SKIP_GMAIL_WATCHER=1 \
+OPENCLAW_SKIP_CRON=1 \
+  openclaw gateway run --port 19847 --allow-unconfigured --bind loopback
+```
+
 ## Test suites (what runs where)
 
 Think of the suites as “increasing realism” (and increasing flakiness/cost):

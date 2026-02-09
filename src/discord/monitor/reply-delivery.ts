@@ -6,6 +6,7 @@ import type { RuntimeEnv } from "../../runtime.js";
 import { convertMarkdownTables } from "../../markdown/tables.js";
 import { chunkDiscordTextWithMode } from "../chunk.js";
 import { sendMessageDiscord } from "../send.js";
+import { convertTimesToDiscordTimestamps } from "../timestamps.js";
 
 export async function deliverDiscordReply(params: {
   replies: ReplyPayload[];
@@ -19,13 +20,18 @@ export async function deliverDiscordReply(params: {
   replyToId?: string;
   tableMode?: MarkdownTableMode;
   chunkMode?: ChunkMode;
+  /** Convert time references to Discord timestamps. Default: true. */
+  discordTimestamps?: boolean;
 }) {
   const chunkLimit = Math.min(params.textLimit, 2000);
   for (const payload of params.replies) {
     const mediaList = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
     const rawText = payload.text ?? "";
     const tableMode = params.tableMode ?? "code";
-    const text = convertMarkdownTables(rawText, tableMode);
+    let text = convertMarkdownTables(rawText, tableMode);
+    if (params.discordTimestamps !== false) {
+      text = convertTimesToDiscordTimestamps(text);
+    }
     if (!text && mediaList.length === 0) {
       continue;
     }

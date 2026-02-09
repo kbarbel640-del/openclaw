@@ -20,6 +20,7 @@ import { defaultRuntime } from "../../runtime.js";
 import { formatCliCommand } from "../command-format.js";
 import { forceFreePortAndWait } from "../ports.js";
 import { ensureDevGatewayConfig } from "./dev.js";
+import { setupIsolatedGateway } from "./isolated.js";
 import { runGatewayLoop } from "./run-loop.js";
 import {
   describeUnknownError,
@@ -47,11 +48,17 @@ type GatewayRunOpts = {
   rawStreamPath?: unknown;
   dev?: boolean;
   reset?: boolean;
+  isolated?: boolean;
 };
 
 const gatewayLog = createSubsystemLogger("gateway");
 
 async function runGatewayCommand(opts: GatewayRunOpts) {
+  if (opts.isolated) {
+    await setupIsolatedGateway({ port: parsePort(opts.port) });
+    opts.allowUnconfigured = true;
+  }
+
   const isDevProfile = process.env.OPENCLAW_PROFILE?.trim().toLowerCase() === "dev";
   const devMode = Boolean(opts.dev) || isDevProfile;
   if (opts.reset && !devMode) {
@@ -98,8 +105,29 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
     defaultRuntime.error("Invalid port");
     defaultRuntime.exit(1);
   }
-  const port = portOverride ?? resolveGatewayPort(cfg);
-  if (!Number.isFinite(port) || port <= 0) {
+  let port = portOverride ?? (opts.isolated ? 0 : resolveGatewayPort(cfg));
+
+  // --port 0 (or isolated mode without explicit port): auto-pick a
+  // free ephemeral port by briefly binding to 127.0.0.1:0.
+  if (port === 0) {
+    const net = await import("node:net");
+    port = await new Promise<number>((resolve, reject) => {
+      const srv = net.createServer();
+      srv.once("error", reject);
+      srv.listen(0, "127.0.0.1", () => {
+        const addr = srv.address();
+        if (!addr || typeof addr === "string") {
+          srv.close();
+          reject(new Error("failed to bind ephemeral port"));
+          return;
+        }
+        srv.close(() => resolve(addr.port));
+      });
+    });
+    gatewayLog.info(`auto-picked port ${port}`);
+  }
+
+  if (!Number.isFinite(port) || port < 0) {
     defaultRuntime.error("Invalid port");
     defaultRuntime.exit(1);
   }
@@ -336,6 +364,11 @@ export function addGatewayRunCommand(cmd: Command): Command {
     .option(
       "--reset",
       "Reset dev config + credentials + sessions + workspace (requires --dev)",
+      false,
+    )
+    .option(
+      "--isolated",
+      "Start in a throwaway isolated environment (temp state dir, no channels, loopback-only)",
       false,
     )
     .option("--force", "Kill any existing listener on the target port before starting", false)
