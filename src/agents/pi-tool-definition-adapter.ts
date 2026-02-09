@@ -43,6 +43,13 @@ function isAbortSignal(value: unknown): value is AbortSignal {
 function isLegacyToolExecuteArgs(args: ToolExecuteArgsAny): args is ToolExecuteArgsLegacy {
   const third = args[2];
   const fourth = args[3];
+  // When the pi-coding-agent extension wrapper calls with 5 args
+  // (toolCallId, params, signal, onUpdate, ctx), detect the ctx object in
+  // position 5 as proof of the legacy calling convention — even when both
+  // signal and onUpdate are undefined and the heuristic below would fail.
+  if (args.length >= 5 && args[4] !== undefined && !isAbortSignal(args[4])) {
+    return true;
+  }
   return isAbortSignal(third) || typeof fourth === "function";
 }
 

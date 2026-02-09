@@ -12,7 +12,15 @@ function throwAbortError(): never {
  * where the AbortSignal constructor may differ.
  */
 function isAbortSignal(obj: unknown): obj is AbortSignal {
-  return obj instanceof AbortSignal;
+  if (obj instanceof AbortSignal) {
+    return true;
+  }
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "aborted" in obj &&
+    typeof (obj as Record<string, unknown>).addEventListener === "function"
+  );
 }
 
 function combineAbortSignals(a?: AbortSignal, b?: AbortSignal): AbortSignal | undefined {
@@ -31,8 +39,14 @@ function combineAbortSignals(a?: AbortSignal, b?: AbortSignal): AbortSignal | un
   if (b?.aborted) {
     return b;
   }
-  if (typeof AbortSignal.any === "function" && isAbortSignal(a) && isAbortSignal(b)) {
-    return AbortSignal.any([a, b]);
+  if (typeof AbortSignal.any === "function") {
+    const signals = [a, b].filter((s): s is AbortSignal => s instanceof AbortSignal);
+    if (signals.length === 2) {
+      return AbortSignal.any(signals);
+    }
+    if (signals.length === 1) {
+      return signals[0];
+    }
   }
 
   const controller = new AbortController();

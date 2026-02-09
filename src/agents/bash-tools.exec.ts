@@ -649,7 +649,7 @@ async function runExecProcess(opts: {
   }
 
   const emitUpdate = () => {
-    if (!opts.onUpdate) {
+    if (typeof opts.onUpdate !== "function") {
       return;
     }
     const tailText = session.tail || session.aggregated;
