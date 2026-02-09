@@ -262,22 +262,48 @@ export class QmdMemoryManager implements MemorySearchManager {
       this.qmd.limits.maxResults,
       opts?.maxResults ?? this.qmd.limits.maxResults,
     );
-    const args = ["query", trimmed, "--json", "-n", String(limit)];
+    // Read mode from the same env object used to spawn qmd to avoid surprises if the runtime injects env.
+    const modeRaw = this.env.OPENCLAW_QMD_MODE?.trim().toLowerCase();
+    const primaryCmd = modeRaw === "search" ? "search" : "query";
+    const args = [primaryCmd, trimmed, "--json", "-n", String(limit)];
+
     let stdout: string;
+    let stderr: string;
     try {
       const result = await this.runQmd(args, { timeoutMs: this.qmd.limits.timeoutMs });
       stdout = result.stdout;
+      stderr = result.stderr;
     } catch (err) {
-      log.warn(`qmd query failed: ${String(err)}`);
-      throw err instanceof Error ? err : new Error(String(err));
+      // If qmd query is slow / unavailable (can trigger model downloads), fall back to the lighter BM25 search.
+      if (primaryCmd !== "search") {
+        try {
+          const result = await this.runQmd(["search", trimmed, "--json", "-n", String(limit)], {
+            timeoutMs: this.qmd.limits.timeoutMs,
+          });
+          stdout = result.stdout;
+          stderr = result.stderr;
+        } catch (fallbackErr) {
+          log.warn(`qmd ${primaryCmd} failed: ${String(err)}`);
+          log.warn(`qmd search fallback failed: ${String(fallbackErr)}`);
+          throw fallbackErr instanceof Error ? fallbackErr : new Error(String(fallbackErr));
+        }
+      } else {
+        log.warn(`qmd ${primaryCmd} failed: ${String(err)}`);
+        throw err instanceof Error ? err : new Error(String(err));
+      }
     }
+
     let parsed: QmdQueryResult[] = [];
     try {
       parsed = JSON.parse(stdout);
     } catch (err) {
+      // If JSON parse fails, check both stdout and stderr for "no results" (qmd may output to either).
+      if (stdout.toLowerCase().includes("no results found") || stderr.toLowerCase().includes("no results found")) {
+        return [];
+      }
       const message = err instanceof Error ? err.message : String(err);
-      log.warn(`qmd query returned invalid JSON: ${message}`);
-      throw new Error(`qmd query returned invalid JSON: ${message}`, { cause: err });
+      log.warn(`qmd returned invalid JSON: ${message}`);
+      throw new Error(`qmd returned invalid JSON: ${message}`, { cause: err });
     }
     const results: MemorySearchResult[] = [];
     for (const entry of parsed) {
