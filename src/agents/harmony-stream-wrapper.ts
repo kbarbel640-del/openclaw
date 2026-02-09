@@ -57,32 +57,63 @@ function describeToolParameters(tool: Tool): string {
     .join("\n");
 }
 
-function generateToolExample(tool: Tool): string {
+/**
+ * Convert JSON Schema property to TypeScript-like type definition for Harmony format.
+ * Harmony uses TypeScript-like syntax: type tool_name = (_: { param: type }) => any;
+ */
+function schemaPropertyToHarmonyType(prop: unknown, name: string): string {
+  // oxlint-disable-next-line typescript/no-explicit-any
+  const p = prop as any;
+  const type = p.type ?? "any";
+  const desc = p.description ? ` // ${p.description}` : "";
+  const optional = p.type && !Array.isArray(p.required) ? "?" : "";
+
+  if (type === "string") {
+    return `${name}${optional}: string${desc}`;
+  } else if (type === "number" || type === "integer") {
+    return `${name}${optional}: number${desc}`;
+  } else if (type === "boolean") {
+    return `${name}${optional}: boolean${desc}`;
+  } else if (type === "array") {
+    const items = p.items;
+    if (items && items.type) {
+      return `${name}${optional}: ${items.type}[]${desc}`;
+    }
+    return `${name}${optional}: any[]${desc}`;
+  } else if (Array.isArray(p.enum)) {
+    const enumValues = p.enum.map((v: unknown) => JSON.stringify(v)).join(" | ");
+    return `${name}${optional}: ${enumValues}${desc}`;
+  }
+  return `${name}${optional}: any${desc}`;
+}
+
+function generateToolHarmonyDefinition(tool: Tool): string {
   // oxlint-disable-next-line typescript/no-explicit-any
   const schema = tool.parameters as any;
+  const description = tool.description ? `// ${tool.description}` : "";
+
   if (!schema?.properties || typeof schema.properties !== "object") {
-    return `${TOOL_CALL_START}\n{"name": "${tool.name}", "arguments": {}}\n${TOOL_CALL_END}`;
+    // No parameters
+    return `${description}\ntype ${tool.name} = () => any;`;
   }
+
   const required: string[] = Array.isArray(schema.required) ? schema.required : [];
-  const example: Record<string, unknown> = {};
+  const properties: string[] = [];
+
   for (const [name, prop] of Object.entries(schema.properties)) {
     // oxlint-disable-next-line typescript/no-explicit-any
     const p = prop as any;
-    // Only include required params in the example
-    if (!required.includes(name)) {
-      continue;
-    }
-    if (p.type === "string") {
-      example[name] = p.description ? `<${name}>` : "value";
-    } else if (p.type === "number" || p.type === "integer") {
-      example[name] = 0;
-    } else if (p.type === "boolean") {
-      example[name] = true;
-    } else {
-      example[name] = `<${name}>`;
-    }
+    const isRequired = required.includes(name);
+    const typeDef = schemaPropertyToHarmonyType(prop, name);
+    properties.push(typeDef);
   }
-  return `${TOOL_CALL_START}\n${JSON.stringify({ name: tool.name, arguments: example })}\n${TOOL_CALL_END}`;
+
+  if (properties.length === 0) {
+    return `${description}\ntype ${tool.name} = () => any;`;
+  }
+
+  const params = properties.join(",\n");
+  return `${description}\ntype ${tool.name} = (_: {\n${params}\n}) => any;`;
 }
 
 function generateToolPrompt(tools: Tool[]): string {
@@ -90,30 +121,20 @@ function generateToolPrompt(tools: Tool[]): string {
     return "";
   }
 
-  const defs = tools
-    .map(
-      (t) =>
-        `### ${t.name}\n${t.description ?? "(no description)"}\nParameters:\n${describeToolParameters(t)}\nExample:\n${generateToolExample(t)}`,
-    )
-    .join("\n\n");
+  // Generate Harmony-native tool definitions using TypeScript-like syntax
+  // According to Harmony docs, tools should be in a namespace (typically "functions")
+  const harmonyDefs = tools.map((t) => generateToolHarmonyDefinition(t)).join("\n\n");
 
   return [
     "",
-    "# Available Tools",
+    "# Tools",
+    "## functions",
+    "namespace functions {",
+    harmonyDefs,
+    "} // namespace functions",
     "",
-    "Format for calling a tool:",
-    "",
-    `${TOOL_CALL_START}`,
-    `{"name": "TOOL_NAME", "arguments": {"param": "value"}}`,
-    `${TOOL_CALL_END}`,
-    "",
-    "- Include all required parameters in `arguments`.",
-    "- One tool call at a time, then wait for the result.",
-    "- Only use tools listed below. If a tool does not exist, say so.",
-    "",
-    "## Tool Definitions",
-    "",
-    defs,
+    "Note: Tool calls must go to the commentary channel with format:",
+    '<|channel|>commentary to=functions.tool_name <|constrain|>json<|message|>{"param":"value"}<|call|>',
   ].join("\n");
 }
 
@@ -206,31 +227,257 @@ function stripControlTokens(text: string): string {
 }
 
 /**
- * Extract text content from Harmony format blocks.
+ * Harmony message block structure with full header information
+ */
+interface HarmonyBlock {
+  role?: string;
+  channel?: string;
+  recipient?: string; // to=functions.tool_name
+  contentType?: string; // <|constrain|>json
+  content: string;
+  stopToken?: string; // <|call|>, <|return|>, or <|end|>
+}
+
+/**
+ * Parse Harmony format blocks from text.
+ * Harmony format: <|start|>role<|channel|>channel_name to=recipient <|constrain|>type<|message|>content<|call|>
+ *
+ * According to Harmony docs:
+ * - Tool calls: <|start|>assistant<|channel|>commentary to=functions.tool_name <|constrain|>json<|message|>{"arg":"value"}<|call|>
+ * - Regular messages: <|start|>assistant<|channel|>final<|message|>content<|return|>
+ *
+ * Returns an array of parsed blocks with role, channel, recipient, content type, and content.
+ */
+function parseHarmonyBlocks(text: string): HarmonyBlock[] {
+  const blocks: HarmonyBlock[] = [];
+
+  // Pattern: <|start|>ROLE<|channel|>CHANNEL to=RECIPIENT <|constrain|>TYPE<|message|>CONTENT<|STOP|>
+  // Handle all variations: with/without channel, with/without recipient, with/without constrain
+  // Stop tokens: <|call|>, <|return|>, <|end|>
+  const blockPattern =
+    /<\|start\|>([^<]*?)(?:<\|channel\|>([^<]*?))?(?:\s+to=([^\s<]+))?(?:\s+<\|constrain\|>([^<]+))?(?:<\|message\|>([\s\S]*?))(<\|call\||<\|return\||<\|end\|>)/g;
+
+  let match: RegExpExecArray | null;
+  while ((match = blockPattern.exec(text)) !== null) {
+    const role = match[1]?.trim();
+    const channel = match[2]?.trim();
+    const recipient = match[3]?.trim();
+    const contentType = match[4]?.trim();
+    const content = match[5]?.trim() || "";
+    const stopToken = match[6]?.trim();
+
+    blocks.push({
+      role,
+      channel,
+      recipient,
+      contentType,
+      content,
+      stopToken,
+    });
+  }
+
+  return blocks;
+}
+
+/**
+ * Extract tool calls from Harmony format blocks.
+ * According to Harmony docs, tool calls have:
+ * - channel: "commentary"
+ * - recipient: "to=functions.tool_name" in the header
+ * - contentType: "<|constrain|>json"
+ * - stopToken: "<|call|>"
+ *
+ * Returns array of tool calls found in Harmony format.
+ */
+function extractHarmonyToolCalls(
+  text: string,
+): Array<{ name: string; arguments: Record<string, unknown> }> {
+  const blocks = parseHarmonyBlocks(text);
+  const toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+
+  for (const block of blocks) {
+    // Tool calls in Harmony format have:
+    // - recipient (to=functions.tool_name) OR channel=commentary with <|call|> stop token
+    // - contentType json (or content that looks like JSON)
+    // - stopToken <|call|>
+    const isToolCall =
+      (block.recipient && block.stopToken === "<|call|>") ||
+      (block.channel === "commentary" && block.stopToken === "<|call|>");
+
+    if (isToolCall && block.content) {
+      // Extract tool name from recipient (e.g., "functions.get_current_weather" → "get_current_weather")
+      let toolName: string | undefined;
+      if (block.recipient) {
+        toolName = extractToolName(block.recipient);
+      }
+
+      // Parse JSON arguments from content
+      // Harmony format: <|message|>{"location":"San Francisco"}
+      const cleaned = stripControlTokens(block.content);
+      try {
+        const args = JSON.parse(cleaned) as Record<string, unknown>;
+        if (toolName) {
+          logDebug(
+            `harmony-wrapper: Parsed Harmony-native tool call: "${toolName}" from recipient "${block.recipient}" in channel "${block.channel}"`,
+          );
+          toolCalls.push({
+            name: toolName,
+            arguments: args,
+          });
+        } else {
+          // Fallback: try to extract from content if it's a JSON object with "name" field
+          if (typeof args === "object" && "name" in args && typeof args.name === "string") {
+            toolCalls.push({
+              name: extractToolName(args.name as string),
+              arguments: args,
+            });
+          }
+        }
+      } catch (err) {
+        logWarn(
+          `harmony-wrapper: Could not parse tool call JSON from Harmony block: ${cleaned.slice(0, 200)} (error: ${err instanceof Error ? err.message : String(err)})`,
+        );
+      }
+    }
+  }
+
+  return toolCalls;
+}
+
+/**
+ * Extract text content from Harmony format blocks (for non-tool-call content).
  * Harmony uses: <|start|>role<|channel|>channel_name<|message|>content<|end|>
  *
- * This function tries to extract the actual message content, stripping
- * the Harmony structure tokens.
+ * This function extracts regular message content, excluding tool calls.
  */
 function extractHarmonyContent(text: string): string {
-  // Pattern: <|start|>...<|message|>CONTENT<|end|>
-  // We want to extract CONTENT, which is between <|message|> and <|end|>
-  const messagePattern = /<\|message\|>([\s\S]*?)<\|end\|>/g;
-  const matches = Array.from(text.matchAll(messagePattern));
-  if (matches.length > 0) {
-    // Concatenate all message blocks
-    return matches.map((m) => m[1]).join("\n");
+  const blocks = parseHarmonyBlocks(text);
+
+  if (blocks.length === 0) {
+    // Fallback: try simple pattern extraction if no structured blocks found
+    const messagePattern = /<\|message\|>([\s\S]*?)(?:<\|call\||<\|return\||<\|end\|>)/g;
+    const matches = Array.from(text.matchAll(messagePattern));
+    if (matches.length > 0) {
+      return matches.map((m) => m[1]).join("\n");
+    }
+    // No Harmony structure found, return as-is (might be plain text)
+    return text;
   }
-  // Fallback: if no Harmony structure found, return as-is (might be plain text)
-  return text;
+
+  // Filter out tool calls (those with <|call|> stop token)
+  const nonToolBlocks = blocks.filter((b) => b.stopToken !== "<|call|>");
+
+  // Prioritize final channel for user-facing content
+  const finalBlocks = nonToolBlocks.filter((b) => b.channel === "final");
+  if (finalBlocks.length > 0) {
+    return finalBlocks.map((b) => b.content).join("\n");
+  }
+
+  // Fallback: concatenate all non-tool blocks
+  if (nonToolBlocks.length > 0) {
+    return nonToolBlocks.map((b) => b.content).join("\n");
+  }
+
+  // If all blocks are tool calls, return empty (tool calls are handled separately)
+  return "";
+}
+
+/**
+ * Extract tool name from potentially namespaced name.
+ * Harmony supports namespaces like "namespace::tool_name" or "namespace.tool_name"
+ */
+function extractToolName(name: string): string {
+  // Handle namespace::tool_name format
+  if (name.includes("::")) {
+    const parts = name.split("::");
+    const toolName = parts[parts.length - 1]; // Take last part after ::
+    if (toolName !== name) {
+      logDebug(`harmony-wrapper: Extracted tool name from namespace: "${name}" → "${toolName}"`);
+    }
+    return toolName;
+  }
+  // Handle namespace.tool_name format
+  if (name.includes(".")) {
+    const parts = name.split(".");
+    const toolName = parts[parts.length - 1]; // Take last part after .
+    if (toolName !== name) {
+      logDebug(`harmony-wrapper: Extracted tool name from namespace: "${name}" → "${toolName}"`);
+    }
+    return toolName;
+  }
+  return name;
+}
+
+/**
+ * Parse a single tool call from JSON, handling various formats and normalizations.
+ */
+function parseSingleToolCall(
+  raw: string,
+): { name: string; arguments: Record<string, unknown> } | null {
+  // Strip any leaked control tokens before parsing JSON
+  const cleaned = stripControlTokens(raw);
+  if (cleaned !== raw) {
+    logDebug(
+      `harmony-wrapper: Stripped control tokens from tool call JSON. Before: ${raw.slice(0, 200)}`,
+    );
+  }
+
+  try {
+    const parsed = JSON.parse(cleaned) as { name?: string; arguments?: Record<string, unknown> };
+    if (parsed.name && typeof parsed.name === "string") {
+      // Extract tool name (handling namespaces)
+      const toolName = extractToolName(parsed.name);
+
+      // Unwrap double-wrapped arguments: if `parsed.arguments` itself has
+      // a `{name, arguments}` structure, extract the inner `arguments`.
+      let args: Record<string, unknown> = parsed.arguments ?? {};
+      if (
+        typeof args === "object" &&
+        "name" in args &&
+        "arguments" in args &&
+        typeof args.arguments === "object" &&
+        args.arguments !== null
+      ) {
+        args = args.arguments as Record<string, unknown>;
+      }
+
+      // Fix array values that should be strings (e.g. command: ["bash","-lc","ls"])
+      // by joining them into a single string.
+      for (const [key, val] of Object.entries(args)) {
+        if (Array.isArray(val) && val.every((v) => typeof v === "string")) {
+          args[key] = (val as string[]).join(" ");
+        }
+      }
+
+      return {
+        name: toolName,
+        arguments: args,
+      };
+    }
+  } catch (err) {
+    logWarn(
+      `harmony-wrapper: Could not parse tool call JSON: ${cleaned.slice(0, 200)} (error: ${err instanceof Error ? err.message : String(err)})`,
+    );
+  }
+
+  return null;
 }
 
 function parseToolCallsFromText(
   text: string,
 ): Array<{ name: string; arguments: Record<string, unknown> }> {
   const calls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
-  let pos = 0;
 
+  // Strategy 1: Parse Harmony-native format (PRIORITY - this is the correct format)
+  // Format: <|start|>assistant<|channel|>commentary to=functions.tool_name <|constrain|>json<|message|>{"arg":"val"}<|call|>
+  const harmonyCalls = extractHarmonyToolCalls(text);
+  if (harmonyCalls.length > 0) {
+    logDebug(`harmony-wrapper: Found ${harmonyCalls.length} tool call(s) in Harmony-native format`);
+    return harmonyCalls;
+  }
+
+  // Strategy 2: Parse our custom <tool_call> markers (backward compatibility)
+  let pos = 0;
   while (pos < text.length) {
     const start = text.indexOf(TOOL_CALL_START, pos);
     if (start < 0) {
@@ -241,65 +488,45 @@ function parseToolCallsFromText(
       break;
     }
 
-    const rawOrig = text.slice(start + TOOL_CALL_START.length, end).trim();
-    // Strip any leaked control tokens before parsing JSON
-    const raw = stripControlTokens(rawOrig);
-    if (raw !== rawOrig) {
-      logWarn(
-        `harmony-wrapper: Stripped control tokens from tool call JSON. Before: ${rawOrig.slice(0, 200)}`,
-      );
-    }
-    try {
-      const parsed = JSON.parse(raw) as { name?: string; arguments?: Record<string, unknown> };
-      if (parsed.name && typeof parsed.name === "string") {
-        // Unwrap double-wrapped arguments: if `parsed.arguments` itself has
-        // a `{name, arguments}` structure, extract the inner `arguments`.
-        let args: Record<string, unknown> = parsed.arguments ?? {};
-        if (
-          typeof args === "object" &&
-          "name" in args &&
-          "arguments" in args &&
-          typeof args.arguments === "object" &&
-          args.arguments !== null
-        ) {
-          args = args.arguments as Record<string, unknown>;
-        }
-        // Fix array values that should be strings (e.g. command: ["bash","-lc","ls"])
-        // by joining them into a single string.
-        for (const [key, val] of Object.entries(args)) {
-          if (Array.isArray(val) && val.every((v) => typeof v === "string")) {
-            args[key] = (val as string[]).join(" ");
-          }
-        }
-        calls.push({
-          name: parsed.name,
-          arguments: args,
-        });
-      }
-    } catch {
-      logWarn(`harmony-wrapper: Could not parse tool call JSON: ${raw.slice(0, 200)}`);
+    const raw = text.slice(start + TOOL_CALL_START.length, end).trim();
+    const toolCall = parseSingleToolCall(raw);
+    if (toolCall) {
+      calls.push(toolCall);
     }
 
     pos = end + TOOL_CALL_END.length;
   }
 
-  // Fallback: detect alternative tool call formats that gpt-oss sometimes
-  // generates (e.g. `read>{"path":"USER.md"}` or `toolname>{"key":"val"}`).
-  // Only try if no standard tool calls were found.
+  // Strategy 3: Parse Harmony-native function call format (alternative syntax)
+  // Harmony might output function calls in a structured way within message blocks
+  // Look for patterns like: functions.get_location() or namespace::function_name({...})
   if (calls.length === 0) {
-    const altPattern = /^(\w+)>\s*(\{[^}]+\})\s*$/gm;
+    // Pattern: function_name({...}) or namespace::function_name({...}) or namespace.function_name({...})
+    const functionCallPattern = /(\w+(?:::\w+|\.\w+)?)\s*\(\s*(\{[\s\S]*?\})\s*\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = functionCallPattern.exec(text)) !== null) {
+      const functionName = match[1];
+      const argsJson = match[2];
+      const toolCall = parseSingleToolCall(`{"name": "${functionName}", "arguments": ${argsJson}}`);
+      if (toolCall) {
+        logDebug(`harmony-wrapper: Parsed Harmony function call format: ${functionName}(...)`);
+        calls.push(toolCall);
+      }
+    }
+  }
+
+  // Strategy 4: Detect alternative tool call formats (fallback)
+  // e.g. `read>{"path":"USER.md"}` or `toolname>{"key":"val"}`
+  if (calls.length === 0) {
+    const altPattern = /^(\w+(?:::\w+|\.\w+)?)>\s*(\{[\s\S]*?\})\s*$/gm;
     let altMatch: RegExpExecArray | null;
     while ((altMatch = altPattern.exec(text)) !== null) {
       const toolName = altMatch[1];
       const jsonStr = stripControlTokens(altMatch[2]);
-      try {
-        const args = JSON.parse(jsonStr) as Record<string, unknown>;
-        logWarn(`harmony-wrapper: Parsed alternative tool call format: "${toolName}">${jsonStr}`);
-        calls.push({ name: toolName, arguments: args });
-      } catch {
-        logWarn(
-          `harmony-wrapper: Could not parse alternative tool call JSON: ${toolName}>${jsonStr.slice(0, 100)}`,
-        );
+      const toolCall = parseSingleToolCall(`{"name": "${toolName}", "arguments": ${jsonStr}}`);
+      if (toolCall) {
+        logWarn(`harmony-wrapper: Parsed alternative tool call format: "${toolName}">...`);
+        calls.push(toolCall);
       }
     }
   }
@@ -349,6 +576,7 @@ async function pipeAndParseToolCalls(
 
       // "done" — check accumulated text for tool calls.
       // First, try to extract content from Harmony format if present
+      // Harmony format: <|start|>role<|channel|>channel_name<|message|>content<|end|>
       let textToParse = fullText;
       const harmonyContent = extractHarmonyContent(fullText);
       if (harmonyContent !== fullText) {
@@ -375,8 +603,9 @@ async function pipeAndParseToolCalls(
       const originalMessage = event.message;
 
       // Separate text before the first marker from the rest.
-      const firstMarkerPos = fullText.indexOf(TOOL_CALL_START);
-      const textBefore = firstMarkerPos > 0 ? fullText.slice(0, firstMarkerPos).trim() : "";
+      // Use the parsed text (which may have Harmony structure stripped)
+      const firstMarkerPos = textToParse.indexOf(TOOL_CALL_START);
+      const textBefore = firstMarkerPos > 0 ? textToParse.slice(0, firstMarkerPos).trim() : "";
 
       // Keep non-text content blocks (e.g. thinking) from the original message.
       const nonTextBlocks = originalMessage.content.filter((b) => b.type !== "text");
