@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { c } from "tar";
 import type {
   GatewayAgentRow,
   GatewaySessionRow,
@@ -558,34 +557,16 @@ function scanDeletedSessions(params: { cfg: OpenClawConfig; storePath: string })
   metadata: SessionEntry;
 }> {
   const { cfg, storePath } = params;
-  // storePath points to sessions.json; get the parent directory
+  // storePath is the sessions directory
   const sessionsDir = storePath;
-
-  console.log("[DEBUG scanDeletedSessions] sessionsDir:", sessionsDir);
-  console.log("[DEBUG scanDeletedSessions] storePath:", JSON.stringify(storePath, null, 2));
 
   try {
     if (!fs.existsSync(sessionsDir)) {
-      console.log("[DEBUG scanDeletedSessions] sessionsDir does not exist");
       return [];
     }
 
     const files = fs.readdirSync(sessionsDir);
-    console.log("[DEBUG scanDeletedSessions] total files in dir:", files.length);
-    files.forEach((f) => {
-      console.log(
-        "[DEBUG scanDeletedSessions] file:",
-        f,
-        "isDeleted?",
-        f.includes(".jsonl.deleted."),
-      );
-    });
     const deletedFiles = files.filter((f) => f.includes(".jsonl.deleted."));
-    console.log(
-      "[DEBUG scanDeletedSessions] found deleted files:",
-      deletedFiles.length,
-      deletedFiles,
-    );
 
     const deleted = deletedFiles
       .map((file) => {
@@ -627,16 +608,8 @@ function scanDeletedSessions(params: { cfg: OpenClawConfig; storePath: string })
 
         // Only include deleted sessions that have metadata
         if (!metadata) {
-          console.log("[DEBUG scanDeletedSessions] No metadata found for file:", file);
           return null;
         }
-
-        console.log(
-          "[DEBUG scanDeletedSessions] Found metadata for sessionId:",
-          sessionId,
-          "userCreated:",
-          metadata.userCreated,
-        );
 
         // Determine the correct session key format
         const isNamedSession = metadata.userCreated === true;
@@ -650,8 +623,6 @@ function scanDeletedSessions(params: { cfg: OpenClawConfig; storePath: string })
           key = `agent:${agentId}:${sessionId}`;
         }
 
-        console.log("[DEBUG scanDeletedSessions] Created deleted session entry with key:", key);
-
         return {
           key,
           sessionId,
@@ -661,7 +632,6 @@ function scanDeletedSessions(params: { cfg: OpenClawConfig; storePath: string })
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
 
-    console.log("[DEBUG scanDeletedSessions] Returning", deleted.length, "deleted sessions");
     return deleted;
   } catch {
     return [];
@@ -676,8 +646,6 @@ export function listSessionsFromStore(params: {
 }): SessionsListResult {
   const { cfg, storePath, store, opts } = params;
   const now = Date.now();
-
-  console.log("[DEBUG listSessionsFromStore] params:", JSON.stringify(params, null, 2));
 
   const includeGlobal = opts.includeGlobal === true;
   const includeUnknown = opts.includeUnknown === true;
@@ -806,24 +774,9 @@ export function listSessionsFromStore(params: {
     .toSorted((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
 
   // Add deleted sessions to the list
-  const actualAgentId = Object.keys(store)[0];
-  const actualStorePath = path.dirname(store[actualAgentId]?.sessionFile ?? storePath);
-  console.log("[DEBUG listSessionsFromStore] agentId filter:", actualAgentId);
-  console.log(store[actualAgentId]);
-  console.log(
-    "[DEBUG listSessionsFromStore] Scanning for deleted sessions in store path:",
-    actualStorePath,
-  );
-  console.log(
-    "[DEBUG listSessionsFromStore] Active sessions before adding deleted:",
-    sessions.length,
-  );
-  const deletedSessions = scanDeletedSessions({ cfg, storePath: actualStorePath });
-  console.log(
-    "[DEBUG listSessionsFromStore] Found",
-    deletedSessions.length,
-    "deleted sessions from scanDeletedSessions",
-  );
+  // storePath points to sessions.json, so get the directory containing it
+  const sessionsDir = path.dirname(storePath);
+  const deletedSessions = scanDeletedSessions({ cfg, storePath: sessionsDir });
   const deletedRows = deletedSessions.map(({ key, sessionId, deletedAt, metadata }) => {
     const entry = metadata;
     const updatedAt = entry.updatedAt ?? null;
@@ -888,11 +841,6 @@ export function listSessionsFromStore(params: {
   sessions = [...sessions, ...deletedRows].toSorted(
     (a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
   );
-  console.log("[DEBUG listSessionsFromStore] Total sessions after merge:", sessions.length);
-  console.log(
-    "[DEBUG listSessionsFromStore] Deleted sessions in merged list:",
-    sessions.filter((s) => s.deleted).length,
-  );
 
   if (search) {
     sessions = sessions.filter((s) => {
@@ -938,21 +886,6 @@ export function listSessionsFromStore(params: {
     const { entry, ...sessionWithoutEntry } = s;
     return { ...sessionWithoutEntry, derivedTitle, lastMessagePreview } satisfies GatewaySessionRow;
   });
-
-  const deletedCount = finalSessions.filter((s) => s.deleted).length;
-  console.log(
-    "[DEBUG listSessionsFromStore] Returning",
-    finalSessions.length,
-    "total sessions,",
-    deletedCount,
-    "deleted",
-  );
-  if (deletedCount > 0) {
-    console.log(
-      "[DEBUG listSessionsFromStore] Sample deleted session:",
-      finalSessions.find((s) => s.deleted),
-    );
-  }
 
   return {
     ts: now,

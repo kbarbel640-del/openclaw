@@ -423,7 +423,7 @@ describe("gateway server sessions - persistent sessions", () => {
     ws.close();
   });
 
-  test("sessions.list.deleted returns deleted sessions", async () => {
+  test("sessions.list returns deleted sessions with deleted flag", async () => {
     const ws = await openClient();
 
     // Create and delete a session
@@ -445,21 +445,21 @@ describe("gateway server sessions - persistent sessions", () => {
       deleteTranscript: true,
     });
 
-    // List deleted sessions
+    // List all sessions (includes deleted)
     const listResult = await rpcReq<{
-      ok: boolean;
-      deleted?: Array<{
-        sessionId: string;
-        file: string;
-        size: number;
-        deletedAt: string | null;
+      sessions?: Array<{
+        key: string;
+        sessionId?: string;
+        deleted?: boolean;
+        deletedAt?: string;
+        label?: string;
       }>;
-    }>(ws, "sessions.list.deleted", {
-      limit: 100,
-    });
+    }>(ws, "sessions.list", {});
 
-    expect(listResult.ok).toBe(true);
-    expect(Array.isArray(listResult.payload?.deleted)).toBe(true);
+    expect(Array.isArray(listResult.payload?.sessions)).toBe(true);
+    const deletedSessions = listResult.payload?.sessions?.filter((s) => s.deleted === true);
+    expect(deletedSessions).toBeDefined();
+    expect(deletedSessions!.length).toBeGreaterThan(0);
 
     ws.close();
   });
@@ -498,17 +498,18 @@ describe("gateway server sessions - persistent sessions", () => {
       deleteTranscript: true,
     });
 
-    // Verify it's in deleted list
+    // Verify it's in the sessions list with deleted flag
     const listResult = await rpcReq<{
-      ok: boolean;
-      deleted?: Array<{
-        sessionId: string;
+      sessions?: Array<{
+        key: string;
+        sessionId?: string;
+        deleted?: boolean;
       }>;
-    }>(ws, "sessions.list.deleted", {
-      limit: 100,
-    });
+    }>(ws, "sessions.list", {});
 
-    const deletedEntry = listResult.payload?.deleted?.find((d) => d.sessionId === sessionId);
+    const deletedEntry = listResult.payload?.sessions?.find(
+      (s) => s.sessionId === sessionId && s.deleted === true,
+    );
     expect(deletedEntry).toBeTruthy();
 
     // Restore the session
@@ -573,20 +574,21 @@ describe("gateway server sessions - persistent sessions", () => {
       deleteTranscript: true,
     });
 
-    // Verify metadata is in deleted list
+    // Verify metadata is in sessions list with deleted flag
     const listResult = await rpcReq<{
-      ok: boolean;
-      deleted?: Array<{
-        sessionId: string;
+      sessions?: Array<{
+        key: string;
+        sessionId?: string;
+        deleted?: boolean;
         label?: string;
         description?: string;
         persistent?: boolean;
       }>;
-    }>(ws, "sessions.list.deleted", {
-      limit: 100,
-    });
+    }>(ws, "sessions.list", {});
 
-    const deletedEntry = listResult.payload?.deleted?.find((d) => d.sessionId === sessionId);
+    const deletedEntry = listResult.payload?.sessions?.find(
+      (s) => s.sessionId === sessionId && s.deleted === true,
+    );
     expect(deletedEntry).toBeTruthy();
     expect(deletedEntry?.label).toBe("Important Session");
     expect(deletedEntry?.description).toBe("This session has important metadata");
@@ -698,15 +700,14 @@ describe("gateway server sessions - persistent sessions", () => {
       deleteTranscript: true,
     });
 
-    // Verify it's in deleted list (should have 1 entry)
+    // Verify it's in sessions list with deleted flag (should have 1 entry)
     let listResult = await rpcReq<{
-      ok: boolean;
-      deleted?: Array<{ sessionId: string }>;
-    }>(ws, "sessions.list.deleted", {
-      limit: 100,
-    });
+      sessions?: Array<{ key: string; sessionId?: string; deleted?: boolean }>;
+    }>(ws, "sessions.list", {});
 
-    let deletedEntries = listResult.payload?.deleted?.filter((d) => d.sessionId === sessionId);
+    let deletedEntries = listResult.payload?.sessions?.filter(
+      (s) => s.sessionId === sessionId && s.deleted === true,
+    );
     expect(deletedEntries?.length).toBe(1);
 
     // Restore it
@@ -716,13 +717,12 @@ describe("gateway server sessions - persistent sessions", () => {
 
     // Verify deleted list is now empty for this session
     listResult = await rpcReq<{
-      ok: boolean;
-      deleted?: Array<{ sessionId: string }>;
-    }>(ws, "sessions.list.deleted", {
-      limit: 100,
-    });
+      sessions?: Array<{ key: string; sessionId?: string; deleted?: boolean }>;
+    }>(ws, "sessions.list", {});
 
-    deletedEntries = listResult.payload?.deleted?.filter((d) => d.sessionId === sessionId);
+    deletedEntries = listResult.payload?.sessions?.filter(
+      (s) => s.sessionId === sessionId && s.deleted === true,
+    );
     expect(deletedEntries?.length).toBe(0);
 
     // Delete it again
@@ -731,15 +731,14 @@ describe("gateway server sessions - persistent sessions", () => {
       deleteTranscript: true,
     });
 
-    // Verify it's back in deleted list with STILL only 1 entry (no duplicates)
+    // Verify it's back in sessions list with STILL only 1 entry (no duplicates)
     listResult = await rpcReq<{
-      ok: boolean;
-      deleted?: Array<{ sessionId: string }>;
-    }>(ws, "sessions.list.deleted", {
-      limit: 100,
-    });
+      sessions?: Array<{ key: string; sessionId?: string; deleted?: boolean }>;
+    }>(ws, "sessions.list", {});
 
-    deletedEntries = listResult.payload?.deleted?.filter((d) => d.sessionId === sessionId);
+    deletedEntries = listResult.payload?.sessions?.filter(
+      (s) => s.sessionId === sessionId && s.deleted === true,
+    );
     expect(deletedEntries?.length).toBe(1);
 
     // Restore again
@@ -755,13 +754,12 @@ describe("gateway server sessions - persistent sessions", () => {
 
     // Final check - should STILL be only 1 entry
     listResult = await rpcReq<{
-      ok: boolean;
-      deleted?: Array<{ sessionId: string }>;
-    }>(ws, "sessions.list.deleted", {
-      limit: 100,
-    });
+      sessions?: Array<{ key: string; sessionId?: string; deleted?: boolean }>;
+    }>(ws, "sessions.list", {});
 
-    deletedEntries = listResult.payload?.deleted?.filter((d) => d.sessionId === sessionId);
+    deletedEntries = listResult.payload?.sessions?.filter(
+      (s) => s.sessionId === sessionId && s.deleted === true,
+    );
     expect(deletedEntries?.length).toBe(1);
 
     ws.close();

@@ -112,17 +112,7 @@ function resolveThinkLevelPatchValue(value: string, isBinary: boolean): string |
 
 export function renderSessions(props: SessionsProps) {
   const allRows = props.result?.sessions ?? [];
-  const deletedCount = allRows.filter((row) => row.deleted).length;
-  console.log(
-    "[DEBUG renderSessions] Total rows:",
-    allRows.length,
-    "Deleted:",
-    deletedCount,
-    "showDeleted:",
-    props.showDeleted,
-  );
   const rows = props.showDeleted ? allRows : allRows.filter((row) => !row.deleted);
-  console.log("[DEBUG renderSessions] Rows after filtering:", rows.length);
   return html`
     <section class="card">
       <div class="row" style="justify-content: space-between;">
