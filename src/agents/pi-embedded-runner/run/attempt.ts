@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage, StreamFn } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
@@ -62,6 +62,7 @@ import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
 import { isAbortError } from "../abort.js";
 import { appendCacheTtlTimestamp, isCacheTtlEligibleProvider } from "../cache-ttl.js";
+import { createNonStreamingOllamaFn } from "../clawd-non-streaming.js";
 import { buildEmbeddedExtensionPaths } from "../extensions.js";
 import { applyExtraParamsToAgent } from "../extra-params.js";
 import {
@@ -86,6 +87,7 @@ import {
   createSystemPromptOverride,
 } from "../system-prompt.js";
 import { splitSdkTools } from "../tool-split.js";
+import { stripThinkingFromAssistantToolCallMessages } from "../toolcall-thinking.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
 import { detectAndLoadPromptImages } from "./images.js";
 
@@ -516,6 +518,35 @@ export async function runEmbeddedAttempt(
 
       // Force a stable streamFn reference so vitest can reliably mock @mariozechner/pi-ai.
       activeSession.agent.streamFn = streamSimple;
+
+      // CLAWD PATCH: For openai-completions models (Ollama, vLLM), replace the streaming
+      // streamFn with a non-streaming one that calls fetch() directly with stream=false.
+      // This fixes two issues:
+      // 1. customTools don't populate context.tools (issue #1866)
+      // 2. Streaming breaks tool_calls parsing with Ollama (issue #5769)
+      const isOpenAICompletions = params.model?.api === "openai-completions";
+      if (isOpenAICompletions) {
+        const toolDefs = tools.map((t) => ({
+          name: t.name,
+          description: t.description ?? "",
+          parameters: t.parameters,
+        }));
+        if (process.env.CLAWDBOT_DEBUG_TOOLS) {
+          console.error(
+            `[CLAWD PATCH] using non-streaming streamFn for openai-completions with ${toolDefs.length} tools: ${toolDefs.map((t) => t.name).join(", ")}`,
+          );
+        }
+        activeSession.agent.streamFn = createNonStreamingOllamaFn(toolDefs);
+      } else {
+        // Remove thinking blocks from assistant messages that also include tool calls.
+        // Some OpenAI-compatible APIs reject assistant messages that include both `content` and
+        // `thinking` when tool calls are present (pi-ai surfaces this as a template error).
+        const originalStreamFn: StreamFn = activeSession.agent.streamFn ?? streamSimple;
+        activeSession.agent.streamFn = ((model, context, options) => {
+          const sanitized = stripThinkingFromAssistantToolCallMessages(context) as typeof context;
+          return originalStreamFn(model, sanitized, options);
+        }) satisfies StreamFn;
+      }
 
       applyExtraParamsToAgent(
         activeSession.agent,
