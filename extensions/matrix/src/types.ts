@@ -81,6 +81,10 @@ export type MatrixConfig = {
   responsePrefix?: string;
   /** Max outbound media size in MB. */
   mediaMaxMb?: number;
+  /** Enable block streaming (send messages as they arrive instead of batching). */
+  blockStreaming?: boolean;
+  /** Block streaming coalesce config (minChars, idleMs). */
+  blockStreamingCoalesce?: { minChars?: number; idleMs?: number };
   /** Auto-join invites (always|allowlist|off). Default: always. */
   autoJoin?: "always" | "allowlist" | "off";
   /** Allowlist for auto-join invites (room IDs, aliases). */
