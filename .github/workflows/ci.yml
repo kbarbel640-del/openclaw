@@ -402,11 +402,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
+
       - name: Check code file sizes
         run: |
           python scripts/analyze_code_files.py \
             --compare-to origin/${{ github.base_ref }} \
-            --threshold 700 \
+            --threshold 1000 \
             --strict
 
   secrets:

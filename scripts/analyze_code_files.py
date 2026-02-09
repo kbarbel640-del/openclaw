@@ -155,6 +155,20 @@ def find_duplicate_functions(files: List[Tuple[Path, int]], root_dir: Path) -> D
     return {name: paths for name, paths in function_locations.items() if len(paths) > 1}
 
 
+def validate_git_ref(root_dir: Path, ref: str) -> bool:
+    """Validate that a git ref exists. Exits with error if not."""
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--verify', ref],
+            capture_output=True,
+            cwd=root_dir,
+            encoding='utf-8',
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 def get_file_content_at_ref(file_path: Path, root_dir: Path, ref: str) -> Optional[str]:
     """Get content of a file at a specific git ref. Returns None if file doesn't exist at ref."""
     try:
@@ -169,9 +183,17 @@ def get_file_content_at_ref(file_path: Path, root_dir: Path, ref: str) -> Option
             errors='ignore',
         )
         if result.returncode != 0:
-            return None  # File doesn't exist at ref
+            stderr = result.stderr.strip()
+            # "does not exist" or "exists on disk, but not in" = file missing at ref (OK)
+            if 'does not exist' in stderr or 'exists on disk' in stderr:
+                return None
+            # Other errors (bad ref, git broken) = genuine failure
+            if stderr:
+                print(f"⚠️  git show error for {git_path}: {stderr}", file=sys.stderr)
+            return None
         return result.stdout
-    except Exception:
+    except Exception as e:
+        print(f"⚠️  failed to read {file_path} at {ref}: {e}", file=sys.stderr)
         return None
 
 
@@ -351,6 +373,11 @@ def main():
     if args.compare_to:
         print(f"\n📂 Scanning: {root_dir}")
         print(f"🔍 Comparing to: {args.compare_to}\n")
+
+        if not validate_git_ref(root_dir, args.compare_to):
+            print(f"❌ Invalid git ref: {args.compare_to}", file=sys.stderr)
+            print("   Make sure the ref exists (e.g. run 'git fetch origin <branch>')", file=sys.stderr)
+            sys.exit(2)
         
         files = find_code_files(root_dir)
         violations = False
