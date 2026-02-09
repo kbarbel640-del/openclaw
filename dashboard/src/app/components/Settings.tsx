@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { X, Eye, EyeOff, Check, RefreshCw, Link2, AlertCircle, Info } from "lucide-react";
-import { PROVIDERS, type ProviderKey, buildModelString, parseModelString, checkGatewayStatus, setGatewayToken } from "../lib/EasyHub";
+import { PROVIDERS, type ProviderKey, buildModelString, parseModelString, checkGatewayStatus, setGatewayToken } from "../lib/easyhub";
 
 interface SettingsProps {
   isOpen: boolean;
