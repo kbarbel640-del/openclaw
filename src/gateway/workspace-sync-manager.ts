@@ -8,7 +8,7 @@
 import { existsSync, readdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { MoltbotConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import {
   isRcloneInstalled,
@@ -46,7 +46,7 @@ const state: SyncManagerState = {
   intervalMs: 0,
 };
 
-let currentConfig: MoltbotConfig | null = null;
+let currentConfig: OpenClawConfig | null = null;
 let currentLogger: SyncManagerLogger | null = null;
 
 /**
@@ -94,7 +94,7 @@ async function runSync(): Promise<void> {
     const workspaceDir = resolveAgentWorkspaceDir(currentConfig, agentId);
     const resolved = resolveSyncConfig(syncConfig, workspaceDir);
 
-    // Auto-generate rclone config from moltbot.json if credentials present
+    // Auto-generate rclone config from openclaw.json if credentials present
     ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
 
     // Check if configured
@@ -193,7 +193,7 @@ function clearStaleLocks(logger: SyncManagerLogger): void {
  * Start the background sync manager.
  * Called when the gateway starts.
  */
-export function startWorkspaceSyncManager(cfg: MoltbotConfig, logger: SyncManagerLogger): void {
+export function startWorkspaceSyncManager(cfg: OpenClawConfig, logger: SyncManagerLogger): void {
   // Stop any existing interval
   stopWorkspaceSyncManager();
 

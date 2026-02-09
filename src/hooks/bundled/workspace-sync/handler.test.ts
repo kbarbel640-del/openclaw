@@ -82,7 +82,7 @@ describe("workspace-sync hook handler", () => {
           workspace: {
             sync: {
               provider: "dropbox",
-              remotePath: "moltbot-share",
+              remotePath: "openclaw-share",
               onSessionStart: false,
               onSessionEnd: true,
             },
@@ -106,7 +106,7 @@ describe("workspace-sync hook handler", () => {
           workspace: {
             sync: {
               provider: "dropbox",
-              remotePath: "moltbot-share",
+              remotePath: "openclaw-share",
               onSessionStart: true,
               onSessionEnd: false,
             },
@@ -130,7 +130,7 @@ describe("workspace-sync hook handler", () => {
           workspace: {
             sync: {
               provider: "off",
-              remotePath: "moltbot-share",
+              remotePath: "openclaw-share",
               onSessionStart: true,
             },
           },
@@ -155,7 +155,7 @@ describe("workspace-sync hook handler", () => {
           workspace: {
             sync: {
               provider: "dropbox",
-              remotePath: "moltbot-share",
+              remotePath: "openclaw-share",
               onSessionStart: true,
             },
           },
@@ -175,7 +175,7 @@ describe("workspace-sync hook handler", () => {
     vi.mocked(rclone.resolveSyncConfig).mockReturnValue({
       provider: "dropbox",
       remoteName: "cloud",
-      remotePath: "moltbot-share",
+      remotePath: "openclaw-share",
       localPath: "/workspace/shared",
       configPath: "/home/.config/rclone/rclone.conf",
       conflictResolve: "newer",
@@ -194,7 +194,7 @@ describe("workspace-sync hook handler", () => {
           workspace: {
             sync: {
               provider: "dropbox",
-              remotePath: "moltbot-share",
+              remotePath: "openclaw-share",
               onSessionStart: true,
             },
           },
@@ -215,7 +215,7 @@ describe("workspace-sync hook handler", () => {
     vi.mocked(rclone.resolveSyncConfig).mockReturnValue({
       provider: "dropbox",
       remoteName: "cloud",
-      remotePath: "moltbot-share",
+      remotePath: "openclaw-share",
       localPath: "/workspace/shared",
       configPath: "/home/.config/rclone/rclone.conf",
       conflictResolve: "newer",
@@ -235,7 +235,7 @@ describe("workspace-sync hook handler", () => {
           workspace: {
             sync: {
               provider: "dropbox",
-              remotePath: "moltbot-share",
+              remotePath: "openclaw-share",
               onSessionStart: true,
             },
           },
@@ -248,7 +248,7 @@ describe("workspace-sync hook handler", () => {
     expect(rclone.runBisync).toHaveBeenCalledWith(
       expect.objectContaining({
         remoteName: "cloud",
-        remotePath: "moltbot-share",
+        remotePath: "openclaw-share",
         localPath: "/workspace/shared",
         conflictResolve: "newer",
       }),
@@ -261,7 +261,7 @@ describe("workspace-sync hook handler", () => {
     vi.mocked(rclone.resolveSyncConfig).mockReturnValue({
       provider: "dropbox",
       remoteName: "cloud",
-      remotePath: "moltbot-share",
+      remotePath: "openclaw-share",
       localPath: "/workspace/shared",
       configPath: "/home/.config/rclone/rclone.conf",
       conflictResolve: "newer",
@@ -281,7 +281,7 @@ describe("workspace-sync hook handler", () => {
           workspace: {
             sync: {
               provider: "dropbox",
-              remotePath: "moltbot-share",
+              remotePath: "openclaw-share",
               onSessionEnd: true,
             },
           },
@@ -300,7 +300,7 @@ describe("workspace-sync hook handler", () => {
     vi.mocked(rclone.resolveSyncConfig).mockReturnValue({
       provider: "dropbox",
       remoteName: "cloud",
-      remotePath: "moltbot-share",
+      remotePath: "openclaw-share",
       localPath: "/workspace/shared",
       configPath: "/home/.config/rclone/rclone.conf",
       conflictResolve: "newer",
@@ -323,7 +323,7 @@ describe("workspace-sync hook handler", () => {
           workspace: {
             sync: {
               provider: "dropbox",
-              remotePath: "moltbot-share",
+              remotePath: "openclaw-share",
               onSessionStart: true,
             },
           },

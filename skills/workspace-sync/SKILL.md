@@ -1,7 +1,7 @@
 ---
 name: workspace-sync
 description: Sync agent workspace with cloud storage (Dropbox, Google Drive, S3, etc.) using rclone.
-metadata: {"moltbot":{"emoji":"☁️","requires":{"bins":["rclone"]}}}
+metadata: {"openclaw":{"emoji":"☁️","requires":{"bins":["rclone"]}}}
 ---
 
 # workspace-sync
@@ -20,35 +20,35 @@ Use this skill when the user asks to:
 
 ### Check sync status
 ```bash
-moltbot workspace status
+openclaw workspace status
 ```
 
 Shows: provider, last sync time, sync count, error count, running state.
 
 ### Trigger manual sync
 ```bash
-moltbot workspace sync
+openclaw workspace sync
 ```
 
 Runs a bidirectional sync immediately. Use after bulk workspace changes.
 
 ### First-time sync (required once)
 ```bash
-moltbot workspace sync --resync
+openclaw workspace sync --resync
 ```
 
 Required on first run to establish baseline. Only needed once per remote.
 
 ### View remote files
 ```bash
-moltbot workspace list
+openclaw workspace list
 ```
 
 Lists files in the configured cloud storage path.
 
 ## Configuration
 
-Workspace sync is configured in `moltbot.json`:
+Workspace sync is configured in `openclaw.json`:
 
 ```json
 {
@@ -77,19 +77,19 @@ When configured, sync runs automatically:
 ### "rclone not configured"
 Run the setup wizard:
 ```bash
-moltbot workspace setup
+openclaw workspace setup
 ```
 
 ### "requires --resync"
 First sync needs to establish baseline:
 ```bash
-moltbot workspace sync --resync
+openclaw workspace sync --resync
 ```
 
 ### Check rclone directly
 ```bash
 rclone lsd cloud:/
-rclone ls cloud:moltbot-share
+rclone ls cloud:openclaw-share
 ```
 
 ## Notes

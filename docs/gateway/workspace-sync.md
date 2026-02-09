@@ -2,7 +2,7 @@
 summary: "Sync your agent workspace with cloud storage (Dropbox, Google Drive, OneDrive, S3)"
 read_when:
   - Setting up workspace sync on a remote/cloud Gateway
-  - Sharing files between local machine and remote Moltbot
+  - Sharing files between local machine and remote OpenClaw
 ---
 
 # Workspace Cloud Sync
@@ -13,11 +13,11 @@ Sync your agent workspace between a remote Gateway (Fly.io, Hetzner, VPS) and yo
 
 ```
 Local Machine              Cloud Provider              Remote Gateway
-~/Dropbox/moltbot/    ←→    Dropbox/GDrive/etc    ←→    <workspace>/shared/
+~/Dropbox/openclaw/    ←→    Dropbox/GDrive/etc    ←→    <workspace>/shared/
    (native app)               (any provider)              (rclone bisync)
 ```
 
-- **Local**: Native cloud app syncs `~/Dropbox/moltbot/` (or equivalent)
+- **Local**: Native cloud app syncs `~/Dropbox/openclaw/` (or equivalent)
 - **Remote**: rclone bisync keeps `<workspace>/shared/` in sync with the cloud
 - **Result**: Drop a file locally, it appears on the remote Gateway (and vice versa)
 
@@ -25,7 +25,7 @@ Local Machine              Cloud Provider              Remote Gateway
 
 ```bash
 # Interactive setup wizard (recommended)
-moltbot workspace setup
+openclaw workspace setup
 ```
 
 The setup wizard guides you through:
@@ -45,7 +45,7 @@ Or configure manually:
   workspace: {
     sync: {
       provider: "dropbox",
-      remotePath: "moltbot-share"
+      remotePath: "openclaw-share"
     }
   }
 }
@@ -54,20 +54,20 @@ Or configure manually:
 **2) Authorize and sync:**
 
 ```bash
-moltbot workspace authorize   # opens browser for OAuth
-moltbot workspace sync --resync   # first sync (establishes baseline)
+openclaw workspace authorize   # opens browser for OAuth
+openclaw workspace sync --resync   # first sync (establishes baseline)
 ```
 
 ## Configuration
 
-Add to `~/.clawdbot/moltbot.json`:
+Add to `~/.openclaw/openclaw.json`:
 
 ```json5
 {
   workspace: {
     sync: {
       provider: "dropbox",           // dropbox | gdrive | onedrive | s3 | custom
-      remotePath: "moltbot-share",   // folder in cloud storage
+      remotePath: "openclaw-share",   // folder in cloud storage
       localPath: "shared",           // subfolder in workspace (default: shared)
       interval: 300,                 // background sync every 5 minutes (0 = disabled)
       onSessionStart: true,          // sync when session starts
@@ -111,7 +111,7 @@ It does NOT wake the bot or trigger any LLM calls - it's just file synchronizati
   workspace: {
     sync: {
       provider: "s3",
-      remotePath: "moltbot-sync",  // path within bucket
+      remotePath: "openclaw-sync",  // path within bucket
       s3: {
         // AWS S3: https://s3.<REGION>.amazonaws.com (or omit for default)
         // Cloudflare R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
@@ -130,30 +130,30 @@ It does NOT wake the bot or trigger any LLM calls - it's just file synchronizati
 
 ```bash
 # Interactive setup wizard
-moltbot workspace setup
+openclaw workspace setup
 
 # Check sync status
-moltbot workspace status
+openclaw workspace status
 
 # Sync bidirectionally
-moltbot workspace sync
+openclaw workspace sync
 
 # First sync (required to establish baseline)
-moltbot workspace sync --resync
+openclaw workspace sync --resync
 
 # Preview changes without syncing
-moltbot workspace sync --dry-run
+openclaw workspace sync --dry-run
 
 # One-way sync
-moltbot workspace sync --direction pull   # remote → local
-moltbot workspace sync --direction push   # local → remote
+openclaw workspace sync --direction pull   # remote → local
+openclaw workspace sync --direction push   # local → remote
 
 # Authorize with cloud provider (use 'setup' for guided flow)
-moltbot workspace authorize
-moltbot workspace authorize --provider gdrive
+openclaw workspace authorize
+openclaw workspace authorize --provider gdrive
 
 # List remote files
-moltbot workspace list
+openclaw workspace list
 ```
 
 ## Auto-sync hooks
@@ -166,7 +166,7 @@ so they **don't wake the bot** or incur extra LLM costs:
   workspace: {
     sync: {
       provider: "dropbox",
-      remotePath: "moltbot-share",
+      remotePath: "openclaw-share",
       onSessionStart: true,   // sync when session starts (no LLM cost)
       onSessionEnd: false     // sync when session ends (no LLM cost)
     }
@@ -190,7 +190,7 @@ Set `interval` to enable automatic background sync (in seconds):
   workspace: {
     sync: {
       provider: "dropbox",
-      remotePath: "moltbot-share",
+      remotePath: "openclaw-share",
       interval: 300   // sync every 5 minutes (minimum: 60s)
     }
   }
@@ -206,7 +206,7 @@ If you prefer external scheduling (e.g., for more control or logging):
 
 ```bash
 # Add to crontab (crontab -e)
-*/5 * * * * moltbot workspace sync >> /var/log/moltbot-sync.log 2>&1
+*/5 * * * * openclaw workspace sync >> /var/log/openclaw-sync.log 2>&1
 ```
 
 ## Supported providers
@@ -227,7 +227,7 @@ If you prefer manual configuration:
 
 ### 1. Install rclone
 
-rclone is **auto-installed** when you run `moltbot workspace setup`.
+rclone is **auto-installed** when you run `openclaw workspace setup`.
 
 For manual installation:
 - **macOS**: `brew install rclone`
@@ -268,7 +268,7 @@ For other providers, see [rclone config docs](https://rclone.org/docs/).
 
 **On your local machine:**
 
-Create the folder your cloud app syncs (e.g., `~/Dropbox/moltbot-share/`).
+Create the folder your cloud app syncs (e.g., `~/Dropbox/openclaw-share/`).
 
 **On the Gateway:**
 
@@ -280,10 +280,10 @@ mkdir -p /data/workspace/shared
 
 ```bash
 # First sync needs --resync to establish baseline
-rclone bisync cloud:moltbot-share /data/workspace/shared --resync
+rclone bisync cloud:openclaw-share /data/workspace/shared --resync
 
 # Subsequent syncs
-rclone bisync cloud:moltbot-share /data/workspace/shared
+rclone bisync cloud:openclaw-share /data/workspace/shared
 ```
 
 ## Troubleshooting
@@ -293,7 +293,7 @@ rclone bisync cloud:moltbot-share /data/workspace/shared
 Re-authorize on your local machine and update the config:
 
 ```bash
-moltbot workspace authorize
+openclaw workspace authorize
 # Or manually:
 rclone authorize "dropbox"
 # Copy new token to Gateway's rclone.conf
@@ -312,7 +312,7 @@ find /data/workspace/shared -name "*.conflict"
 Use `--resync` flag to establish baseline:
 
 ```bash
-moltbot workspace sync --resync
+openclaw workspace sync --resync
 ```
 
 ### Permission errors
@@ -340,7 +340,7 @@ By default, `rclone authorize "dropbox"` requests **full Dropbox access**. For b
 3. Choose:
    - **Scoped access** (not "Dropbox Business API")
    - **App folder** — only access to `Apps/<your-app-name>/`
-4. Name it (e.g., `moltbot-sync`)
+4. Name it (e.g., `openclaw-sync`)
 5. Click **Create app**
 
 **2. Configure permissions**
@@ -359,7 +359,7 @@ In the **Settings** tab:
 - Note your **App key** and **App secret**
 - Under **OAuth 2**, click **Generate** to create an access token
 
-**4. Configure in moltbot.json**
+**4. Configure in openclaw.json**
 
 ```json5
 {
@@ -380,7 +380,7 @@ In the **Settings** tab:
 Then authorize:
 
 ```bash
-moltbot workspace authorize
+openclaw workspace authorize
 ```
 
 **Benefits of app folder access:**

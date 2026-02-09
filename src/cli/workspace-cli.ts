@@ -27,7 +27,7 @@ import {
   type RcloneSyncResult,
 } from "../infra/rclone.js";
 import type { WorkspaceSyncProvider } from "../config/types.workspace.js";
-import type { MoltbotConfig } from "../config/types.clawdbot.js";
+import type { OpenClawConfig } from "../config/config.js";
 
 type WorkspaceSyncOptions = {
   agent?: string;
@@ -69,12 +69,12 @@ export function registerWorkspaceCli(program: Command): void {
     .action(() => {
       workspace.outputHelp();
       defaultRuntime.error(
-        danger(`Missing subcommand. Try: "${formatCliCommand("moltbot workspace setup")}"`),
+        danger(`Missing subcommand. Try: "${formatCliCommand("openclaw workspace setup")}"`),
       );
       defaultRuntime.exit(1);
     });
 
-  // moltbot workspace sync
+  // openclaw workspace sync
   workspace
     .command("sync")
     .description("Sync workspace with cloud storage")
@@ -98,7 +98,7 @@ export function registerWorkspaceCli(program: Command): void {
         if (!syncConfig?.provider || syncConfig.provider === "off") {
           defaultRuntime.error(colorize(rich, theme.error, "Workspace sync not configured."));
           defaultRuntime.error("");
-          defaultRuntime.error(`Run: ${formatCliCommand("moltbot workspace setup")}`);
+          defaultRuntime.error(`Run: ${formatCliCommand("openclaw workspace setup")}`);
           defaultRuntime.error(`Docs: ${formatDocsLink("/gateway/workspace-sync")}`);
           defaultRuntime.exit(1);
           return;
@@ -109,14 +109,14 @@ export function registerWorkspaceCli(program: Command): void {
         if (!installed) {
           defaultRuntime.error(colorize(rich, theme.error, "rclone not installed."));
           defaultRuntime.error("");
-          defaultRuntime.error(`Run: ${formatCliCommand("moltbot workspace setup")}`);
+          defaultRuntime.error(`Run: ${formatCliCommand("openclaw workspace setup")}`);
           defaultRuntime.exit(1);
           return;
         }
 
         const resolved = resolveSyncConfig(syncConfig, workspaceDir, stateDir);
 
-        // Auto-generate rclone config from moltbot.json if credentials present
+        // Auto-generate rclone config from openclaw.json if credentials present
         ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
 
         // Check config
@@ -129,7 +129,7 @@ export function registerWorkspaceCli(program: Command): void {
             ),
           );
           console.error("");
-          console.error("Run: moltbot workspace authorize");
+          console.error("Run: openclaw workspace authorize");
           console.error(`Or manually configure: ${shortenHomePath(resolved.configPath)}`);
           defaultRuntime.exit(1);
         }
@@ -181,7 +181,7 @@ export function registerWorkspaceCli(program: Command): void {
           if (result.error?.includes("--resync")) {
             defaultRuntime.error("");
             defaultRuntime.error(
-              `First sync requires --resync: ${formatCliCommand("moltbot workspace sync --resync")}`,
+              `First sync requires --resync: ${formatCliCommand("openclaw workspace sync --resync")}`,
             );
           }
           defaultRuntime.exit(1);
@@ -194,7 +194,7 @@ export function registerWorkspaceCli(program: Command): void {
       }
     });
 
-  // moltbot workspace status
+  // openclaw workspace status
   workspace
     .command("status")
     .description("Show workspace sync status")
@@ -218,7 +218,7 @@ export function registerWorkspaceCli(program: Command): void {
       if (!syncConfig?.provider || syncConfig.provider === "off") {
         console.log(colorize(rich, theme.muted, "Provider: not configured"));
         console.log("");
-        console.log(`Configure in ~/.clawdbot/moltbot.json`);
+        console.log(`Configure in ~/.openclaw/openclaw.json`);
         console.log(`Docs: ${formatDocsLink("/gateway/workspace-sync")}`);
         return;
       }
@@ -239,7 +239,7 @@ export function registerWorkspaceCli(program: Command): void {
       }
       console.log(colorize(rich, theme.success, "✓ rclone installed"));
 
-      // Auto-generate rclone config from moltbot.json if credentials present
+      // Auto-generate rclone config from openclaw.json if credentials present
       ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
 
       // Check config
@@ -247,7 +247,7 @@ export function registerWorkspaceCli(program: Command): void {
       if (!configured) {
         console.log(colorize(rich, theme.error, "✗ rclone not configured"));
         console.log("");
-        console.log("Run: moltbot workspace authorize");
+        console.log("Run: openclaw workspace authorize");
         console.log("Or add dropbox.token to workspace.sync config");
         return;
       }
@@ -295,7 +295,7 @@ export function registerWorkspaceCli(program: Command): void {
       }
     });
 
-  // moltbot workspace setup - interactive wizard
+  // openclaw workspace setup - interactive wizard
   workspace
     .command("setup")
     .description("Interactive setup wizard for cloud sync")
@@ -351,8 +351,8 @@ export function registerWorkspaceCli(program: Command): void {
       // Step 3: Remote folder name
       const remotePath = (await clack.text({
         message: "Remote folder name",
-        placeholder: "moltbot-share",
-        initialValue: "moltbot-share",
+        placeholder: "openclaw-share",
+        initialValue: "openclaw-share",
         validate: (value) => {
           if (!value.trim()) return "Folder name is required";
           if (value.includes("/")) return "Use a simple folder name, not a path";
@@ -401,7 +401,7 @@ export function registerWorkspaceCli(program: Command): void {
             "1. Go to https://www.dropbox.com/developers/apps\n" +
               "2. Click 'Create app'\n" +
               "3. Choose 'Scoped access' → 'App folder'\n" +
-              "4. Name it (e.g., 'moltbot-sync')\n" +
+              "4. Name it (e.g., 'openclaw-sync')\n" +
               "5. In Permissions tab, enable:\n" +
               "   - files.metadata.read/write\n" +
               "   - files.content.read/write\n" +
@@ -437,7 +437,7 @@ export function registerWorkspaceCli(program: Command): void {
       const intervalChoice = (await clack.select({
         message: "Background sync interval",
         options: [
-          { value: "0", label: "Manual only", hint: "Run 'moltbot workspace sync' when needed" },
+          { value: "0", label: "Manual only", hint: "Run 'openclaw workspace sync' when needed" },
           { value: "300", label: "Every 5 minutes", hint: "Recommended" },
           { value: "600", label: "Every 10 minutes" },
           { value: "1800", label: "Every 30 minutes" },
@@ -471,7 +471,7 @@ export function registerWorkspaceCli(program: Command): void {
 
       try {
         const cfg = loadConfig();
-        const newConfig: MoltbotConfig = {
+        const newConfig: OpenClawConfig = {
           ...cfg,
           workspace: {
             ...cfg.workspace,
@@ -515,7 +515,7 @@ export function registerWorkspaceCli(program: Command): void {
 
       if (!authResult.ok) {
         clack.log.error(`Authorization failed: ${authResult.error}`);
-        clack.outro("Fix the error and run 'moltbot workspace setup' again.");
+        clack.outro("Fix the error and run 'openclaw workspace setup' again.");
         defaultRuntime.exit(1);
         return;
       }
@@ -573,7 +573,7 @@ export function registerWorkspaceCli(program: Command): void {
         } else {
           syncSpinner.stop("First sync failed");
           clack.log.warn(`Error: ${syncResult.error}`);
-          clack.log.info("You can retry with: moltbot workspace sync --resync");
+          clack.log.info("You can retry with: openclaw workspace sync --resync");
         }
       }
 
@@ -582,14 +582,14 @@ export function registerWorkspaceCli(program: Command): void {
 
       console.log("");
       console.log("Commands:");
-      console.log("  moltbot workspace sync      Sync now");
-      console.log("  moltbot workspace status    Check status");
-      console.log("  moltbot workspace list      List remote files");
+      console.log("  openclaw workspace sync      Sync now");
+      console.log("  openclaw workspace status    Check status");
+      console.log("  openclaw workspace list      List remote files");
       console.log("");
       console.log(`Docs: ${formatDocsLink("/gateway/workspace-sync")}`);
     });
 
-  // moltbot workspace authorize
+  // openclaw workspace authorize
   workspace
     .command("authorize")
     .description("Authorize rclone with cloud provider (use 'setup' for guided flow)")
@@ -654,11 +654,11 @@ export function registerWorkspaceCli(program: Command): void {
       console.log(`Config saved to: ${shortenHomePath(configPath)}`);
       console.log("");
       console.log("Next steps:");
-      console.log("  1. Create the remote folder (e.g., ~/Dropbox/moltbot-share/)");
-      console.log("  2. Run first sync: moltbot workspace sync --resync");
+      console.log("  1. Create the remote folder (e.g., ~/Dropbox/openclaw-share/)");
+      console.log("  2. Run first sync: openclaw workspace sync --resync");
     });
 
-  // moltbot workspace list
+  // openclaw workspace list
   workspace
     .command("list")
     .description("List files in remote storage")
@@ -679,12 +679,12 @@ export function registerWorkspaceCli(program: Command): void {
 
       const resolved = resolveSyncConfig(syncConfig, workspaceDir, stateDir);
 
-      // Auto-generate rclone config from moltbot.json if credentials present
+      // Auto-generate rclone config from openclaw.json if credentials present
       ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
 
       if (!isRcloneConfigured(resolved.configPath, resolved.remoteName)) {
         console.error(colorize(rich, theme.error, "rclone not configured."));
-        console.error("Run: moltbot workspace authorize");
+        console.error("Run: openclaw workspace authorize");
         defaultRuntime.exit(1);
       }
 

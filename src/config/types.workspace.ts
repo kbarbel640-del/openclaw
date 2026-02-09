@@ -26,7 +26,7 @@ export type WorkspaceSyncConfig = {
   provider?: WorkspaceSyncProvider;
 
   /**
-   * Remote path/folder in cloud storage (e.g., "moltbot-share").
+   * Remote path/folder in cloud storage (e.g., "openclaw-share").
    * For Dropbox App folders, this is relative to the app folder root.
    */
   remotePath?: string;

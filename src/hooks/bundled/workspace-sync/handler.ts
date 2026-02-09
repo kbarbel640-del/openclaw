@@ -5,7 +5,7 @@
  * when workspace.sync is configured.
  */
 
-import type { MoltbotConfig } from "../../../config/config.js";
+import type { OpenClawConfig } from "../../../config/config.js";
 import { resolveAgentWorkspaceDir } from "../../../agents/agent-scope.js";
 import { resolveAgentIdFromSessionKey } from "../../../routing/session-key.js";
 import { createSubsystemLogger } from "../../../logging/subsystem.js";
@@ -30,7 +30,7 @@ const workspaceSyncHandler: HookHandler = async (event) => {
   }
 
   const context = event.context || {};
-  const cfg = context.cfg as MoltbotConfig | undefined;
+  const cfg = context.cfg as OpenClawConfig | undefined;
 
   if (!cfg?.workspace?.sync) {
     return;
@@ -76,7 +76,7 @@ const workspaceSyncHandler: HookHandler = async (event) => {
 
     const resolved = resolveSyncConfig(syncConfig, workspaceDir, stateDir);
 
-    // Auto-generate rclone config from moltbot.json if credentials present
+    // Auto-generate rclone config from openclaw.json if credentials present
     ensureRcloneConfigFromConfig(syncConfig, resolved.configPath, resolved.remoteName);
 
     // Check if rclone is configured
@@ -107,7 +107,7 @@ const workspaceSyncHandler: HookHandler = async (event) => {
     } else {
       // Check if this is a first-run issue
       if (result.error?.includes("--resync")) {
-        log.warn("first sync requires manual --resync. Run: moltbot workspace sync --resync");
+        log.warn("first sync requires manual --resync. Run: openclaw workspace sync --resync");
       } else {
         log.error(`sync failed: ${result.error}`);
       }

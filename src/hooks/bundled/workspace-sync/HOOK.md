@@ -18,14 +18,14 @@ Automatically syncs your agent workspace with cloud storage when sessions start 
 
 ## Configuration
 
-Enable in `~/.clawdbot/moltbot.json`:
+Enable in `~/.openclaw/openclaw.json`:
 
 ```json5
 {
   workspace: {
     sync: {
       provider: "dropbox", // dropbox | gdrive | onedrive | s3 | custom
-      remotePath: "moltbot-share", // folder in cloud storage
+      remotePath: "openclaw-share", // folder in cloud storage
       localPath: "shared", // subfolder in workspace
       onSessionStart: true, // sync when session starts
       onSessionEnd: false, // sync when session ends
@@ -43,7 +43,7 @@ Enable in `~/.clawdbot/moltbot.json`:
 
 ## Requirements
 
-- rclone (auto-installed via `moltbot workspace setup` if missing)
+- rclone (auto-installed via `openclaw workspace setup` if missing)
 - Cloud provider account (Dropbox, Google Drive, OneDrive, or S3)
 
 ## Setup
@@ -51,7 +51,7 @@ Enable in `~/.clawdbot/moltbot.json`:
 Run the interactive setup wizard:
 
 ```bash
-moltbot workspace setup
+openclaw workspace setup
 ```
 
 The wizard will:

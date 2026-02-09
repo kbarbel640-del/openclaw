@@ -9,7 +9,7 @@ import { defaultRuntime } from "../runtime.js";
 
 const DEFAULT_REMOTE_NAME = "cloud";
 const DEFAULT_LOCAL_PATH = "shared";
-const DEFAULT_REMOTE_PATH = "moltbot-share";
+const DEFAULT_REMOTE_PATH = "openclaw-share";
 const DEFAULT_CONFLICT_RESOLVE = "newer";
 const DEFAULT_EXCLUDES = [
   ".git/**",
@@ -292,8 +292,8 @@ export function isRcloneConfigured(configPath: string, remoteName: string): bool
 }
 
 /**
- * Ensure rclone config exists, auto-generating from moltbot.json config if credentials are present.
- * This allows users to configure sync entirely via moltbot.json + env vars without manual rclone setup.
+ * Ensure rclone config exists, auto-generating from openclaw.json config if credentials are present.
+ * This allows users to configure sync entirely via openclaw.json + env vars without manual rclone setup.
  *
  * @returns true if config exists or was generated, false if credentials are missing
  */
@@ -318,7 +318,7 @@ export function ensureRcloneConfigFromConfig(
       return false;
     }
 
-    logVerbose(`[rclone] Auto-generating config for ${remoteName} from moltbot.json credentials`);
+    logVerbose(`[rclone] Auto-generating config for ${remoteName} from openclaw.json credentials`);
 
     const configContent = generateRcloneConfig(syncConfig.provider, remoteName, token, {
       dropbox: {
@@ -338,7 +338,7 @@ export function ensureRcloneConfigFromConfig(
       return false;
     }
 
-    logVerbose(`[rclone] Auto-generating config for ${remoteName} from moltbot.json credentials`);
+    logVerbose(`[rclone] Auto-generating config for ${remoteName} from openclaw.json credentials`);
 
     const configContent = generateRcloneConfig(syncConfig.provider, remoteName, "", {
       s3: { endpoint, bucket, region, accessKeyId, secretAccessKey },

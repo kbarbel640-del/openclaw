@@ -15,7 +15,7 @@ describe("rclone helpers", () => {
     it("uses defaults when config is minimal", () => {
       const config = { provider: "dropbox" as const, remotePath: "test-folder" };
       const workspaceDir = path.join("/home", "user", "workspace");
-      const stateDir = path.join("/home", "user", ".moltbot");
+      const stateDir = path.join("/home", "user", ".openclaw");
 
       const resolved = resolveSyncConfig(config, workspaceDir, stateDir);
 
@@ -36,7 +36,7 @@ describe("rclone helpers", () => {
         localPath: "sync",
       };
       const workspaceDir = path.join("/home", "user", "workspace");
-      const stateDir = path.join("/home", "user", ".moltbot");
+      const stateDir = path.join("/home", "user", ".openclaw");
 
       const resolved = resolveSyncConfig(config, workspaceDir, stateDir);
 
@@ -50,7 +50,7 @@ describe("rclone helpers", () => {
         remoteName: "my-dropbox",
       };
       const workspaceDir = path.join("/home", "user", "workspace");
-      const stateDir = path.join("/home", "user", ".moltbot");
+      const stateDir = path.join("/home", "user", ".openclaw");
 
       const resolved = resolveSyncConfig(config, workspaceDir, stateDir);
 
@@ -66,7 +66,7 @@ describe("rclone helpers", () => {
         onSessionEnd: true,
       };
       const workspaceDir = path.join("/home", "user", "workspace");
-      const stateDir = path.join("/home", "user", ".moltbot");
+      const stateDir = path.join("/home", "user", ".openclaw");
 
       const resolved = resolveSyncConfig(config, workspaceDir, stateDir);
 
