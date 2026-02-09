@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { resolveStateDir } from "../config/paths.js";
+import { createKeychainBackend } from "./keychain.js";
 
 type EncryptedEnvelopeV1 = {
   version: 1;
@@ -82,6 +83,23 @@ function ensureStateDir(stateDir: string) {
 }
 
 export function loadOrCreateMasterKey(stateDir: string = resolveStateDir()): Buffer {
+  const service = "com.openclaw.master-key";
+  const account = "openclaw";
+  const backend = createKeychainBackend();
+
+  // 1. Try keychain backend
+  if (backend.isAvailable()) {
+    try {
+      const existing = backend.get(service, account);
+      if (existing && existing.length === MASTER_KEY_BYTES) {
+        return existing;
+      }
+    } catch {
+      // Fall through to file/generate if keychain fails
+    }
+  }
+
+  // 2. Not in keychain, check file (migration or legacy)
   ensureStateDir(stateDir);
   const keyPath = resolveMasterKeyPath(stateDir);
   if (fs.existsSync(keyPath)) {
@@ -89,9 +107,40 @@ export function loadOrCreateMasterKey(stateDir: string = resolveStateDir()): Buf
     if (raw.length !== MASTER_KEY_BYTES) {
       throw new Error("invalid master key length");
     }
+
+    // Migration: Move to keychain if available
+    if (backend.isAvailable()) {
+      try {
+        backend.set(service, account, raw);
+        fs.unlinkSync(keyPath);
+        console.info("master key migrated from disk to OS keychain");
+      } catch (err) {
+        console.warn(
+          `Failed to migrate master key to keychain: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
     return raw;
   }
+
+  // 3. Neither exists, generate new key
   const key = crypto.randomBytes(MASTER_KEY_BYTES);
+
+  if (backend.isAvailable()) {
+    try {
+      backend.set(service, account, key);
+      return key;
+    } catch (err) {
+      console.warn(
+        `Failed to store new master key in keychain: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      // Fall back to file if keychain set fails
+    }
+  } else {
+    console.info("OS keychain not available, using file-based master key");
+  }
+
+  // Fallback to file-based behavior
   fs.writeFileSync(keyPath, key, { mode: 0o600 });
   fs.chmodSync(keyPath, 0o600);
   return key;
