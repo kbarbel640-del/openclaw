@@ -96,6 +96,8 @@ export type HooksGmailConfig = {
     /** Auth key for automated Tailscale login (skips interactive auth) */
     authKey?: string;
   };
+  /** Poll interval in seconds as a fallback to Pub/Sub push (0 to disable, default 60). */
+  pollIntervalSeconds?: number;
   /** Optional model override for Gmail hook processing (provider/model or alias). */
   model?: string;
   /** Optional thinking level override for Gmail hook processing. */
