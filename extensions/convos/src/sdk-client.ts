@@ -277,6 +277,13 @@ export class ConvosSDKClient {
     }
 
     try {
+      // Snapshot existing conversation IDs so we can detect the newly joined one.
+      // convos.join() returns the invite token as conversationId, which is NOT the
+      // XMTP group ID used by getConversationById(). We diff the list instead.
+      const beforeIds = new Set(
+        (await this.agent.client.conversations.list()).map((c) => c.id),
+      );
+
       const result = await this.convos.join(invite);
 
       if (this.debug) {
@@ -287,25 +294,25 @@ export class ConvosSDKClient {
         return { status: "waiting_for_acceptance", conversationId: null };
       }
 
-      // convos.join() returns conversationId as conversationToken.toString()
-      // which for a Uint8Array produces "1,51,254,...". Convert to hex so it
-      // matches the format used by group.id elsewhere in the XMTP SDK.
-      let conversationId: string = result.conversationId;
-      if (/^\d+(,\d+)*$/.test(conversationId)) {
-        const bytes = conversationId.split(",").map(Number);
-        conversationId = Buffer.from(bytes).toString("hex");
-        console.log(`[convos-sdk] Converted join conversationId to hex: ${conversationId.slice(0, 16)}...`);
-      }
-
-      // Sync so the newly joined group is available for subsequent operations
-      // (rename, send message, etc.)
+      // Sync so the newly joined group appears in the local DB.
       try {
         await this.agent.client.conversations.sync();
       } catch {
         // best-effort
       }
 
-      return { status: "joined", conversationId };
+      // Find the new conversation by diffing before/after.
+      const afterConvos = await this.agent.client.conversations.list();
+      const newConvo = afterConvos.find((c) => !beforeIds.has(c.id));
+
+      if (newConvo) {
+        console.log(`[convos-sdk] Joined group: ${newConvo.id}`);
+        return { status: "joined", conversationId: newConvo.id };
+      }
+
+      // Fallback: return the raw SDK result (rename/send may not work).
+      console.warn(`[convos-sdk] Could not find newly joined group in conversations list; returning raw token`);
+      return { status: "joined", conversationId: result.conversationId };
     } catch (err) {
       if (this.debug) {
         console.error(`[convos-sdk] Join failed:`, err);
