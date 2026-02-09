@@ -13,7 +13,6 @@ import os from "node:os";
 import path from "node:path";
 import { WebSocket } from "ws";
 import {
-  resolveRepoRoot,
   resolveBuildsDir,
   getActiveBuild,
   getShortHash,
@@ -315,7 +314,7 @@ export class ProcessMonitor {
       this.stopHealthCheck();
 
       if (!this.stopped) {
-        this.handleCrash(code, signal);
+        void this.handleCrash(code, signal);
       }
     });
 
@@ -329,7 +328,7 @@ export class ProcessMonitor {
     this.writePidFile(this.process.pid);
 
     // Poll until the gateway is accepting connections, then log ready.
-    this.waitForReady().then((ok) => {
+    void this.waitForReady().then((ok) => {
       if (ok && this.process && !this.stopped) {
         this.onProgress(`OpenClaw is ready on port ${this.port}`);
         this.startHealthCheck();
@@ -366,7 +365,9 @@ export class ProcessMonitor {
         this.onProgress("Graceful shutdown timed out, killing process tree...");
         // Kill the entire process group (negative PID)
         try {
-          process.kill(-pid, "SIGKILL");
+          if (pid != null) {
+            process.kill(-pid, "SIGKILL");
+          }
         } catch {
           this.process?.kill("SIGKILL");
         }
@@ -500,7 +501,9 @@ export class ProcessMonitor {
    * Start periodic health checks.
    */
   startHealthCheck() {
-    if (this.healthTimer) return;
+    if (this.healthTimer) {
+      return;
+    }
 
     this.healthTimer = setInterval(async () => {
       if (!this.process || this.stopped) {

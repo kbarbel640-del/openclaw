@@ -106,8 +106,12 @@ export function listBuilds(repoRoot) {
   const builds = [];
 
   for (const entry of entries) {
-    if (entry.name === "current") continue;
-    if (!entry.isDirectory()) continue;
+    if (entry.name === "current") {
+      continue;
+    }
+    if (!entry.isDirectory()) {
+      continue;
+    }
 
     const infoPath = path.join(buildsDir, entry.name, "build-info.json");
     try {
@@ -185,7 +189,7 @@ export function buildCommit(repoRoot, commitHash, { onProgress } = {}) {
       stdio: "pipe",
       timeout: 120_000,
     });
-  } catch (err) {
+  } catch {
     // Try without frozen lockfile as fallback
     onProgress?.(`[${shortHash}] Retrying dependency install...`);
     execSync("pnpm install", {

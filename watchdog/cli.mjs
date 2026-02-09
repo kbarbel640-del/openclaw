@@ -29,7 +29,6 @@ import {
   rollback as doRollback,
   pruneBuilds,
   buildExists,
-  buildCommit,
   activateBuild,
 } from "./build-manager.mjs";
 import { ProcessMonitor, acquireWatchdogLock } from "./process-monitor.mjs";
@@ -246,7 +245,9 @@ async function cmdRun() {
 
   // Step 3: Poll for updates
   setInterval(async () => {
-    if (monitor.stopped) return;
+    if (monitor.stopped) {
+      return;
+    }
 
     try {
       if (localOnly) {
@@ -291,7 +292,9 @@ function getPortArg() {
 
 function getArgValue(flag) {
   const idx = args.indexOf(flag);
-  if (idx === -1 || idx + 1 >= args.length) return null;
+  if (idx === -1 || idx + 1 >= args.length) {
+    return null;
+  }
   return args[idx + 1];
 }
 

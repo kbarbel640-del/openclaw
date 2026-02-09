@@ -39,7 +39,6 @@ import { truncateUtf16Safe } from "../../utils.js";
 import { getActiveJobForUser, createJob, updateJob, appendJobEvent } from "../jobs/store.js";
 import {
   deleteMessageDiscord,
-  editMessageDiscord,
   reactMessageDiscord,
   removeReactionDiscord,
   sendMessageDiscord,
@@ -665,6 +664,38 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         logVerbose(`discord: failed to append job event: ${String(err)}`);
       });
     }
+    return;
+  }
+
+  // ACK case: set up delayed sending for interim feedback if the main model takes too long.
+  const ackDelayMs = smartAckParsedConfig?.delayMs ?? DEFAULT_ACK_DELAY_MS;
+  let _smartAckMessageId: string | undefined;
+  let _smartAckChannelId: string | undefined;
+  let smartAckCancelled = false;
+  let smartAckDelayTimer: ReturnType<typeof setTimeout> | undefined;
+  if (smartAckResult && !smartAckResult.isFull) {
+    const ackText = smartAckResult.text;
+    smartAckDelayTimer = setTimeout(async () => {
+      if (smartAckCancelled) {
+        return;
+      }
+      try {
+        // Suppress smart-status updates briefly so the ack isn't immediately overwritten.
+        smartStatusFilter?.suppress(10000);
+        deleteStatusMessage();
+        const result = await sendMessageDiscord(deliverTarget, ackText, {
+          token,
+          accountId,
+          rest: client.rest,
+        });
+        if (!smartAckCancelled) {
+          _smartAckMessageId = result.messageId !== "unknown" ? result.messageId : undefined;
+          _smartAckChannelId = result.channelId;
+        }
+      } catch (err) {
+        logVerbose(`discord: smart ack delivery failed: ${String(err)}`);
+      }
+    }, ackDelayMs);
   }
 
   const { queuedFinal, counts } = await dispatchInboundMessage({
