@@ -19,7 +19,14 @@ import type {
 } from "../../auto-reply/commands-registry.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { OpenClawConfig, loadConfig } from "../../config/config.js";
+import { resolveSessionAgentId } from "../../agents/agent-scope.js";
+import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../../agents/defaults.js";
 import { resolveHumanDelayConfig } from "../../agents/identity.js";
+import {
+  buildModelAliasIndex,
+  resolveConfiguredModelRef,
+  resolveModelRefFromString,
+} from "../../agents/model-selection.js";
 import { resolveChunkMode, resolveTextChunkLimit } from "../../auto-reply/chunk.js";
 import {
   buildCommandTextFromArgs,
@@ -34,6 +41,8 @@ import { finalizeInboundContext } from "../../auto-reply/reply/inbound-context.j
 import { dispatchReplyWithDispatcher } from "../../auto-reply/reply/provider-dispatcher.js";
 import { resolveCommandAuthorizedFromAuthorizers } from "../../channels/command-gating.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
+import { loadSessionStore, updateSessionStore, resolveStorePath } from "../../config/sessions.js";
+import { enqueueSystemEvent } from "../../infra/system-events.js";
 import { buildPairingReply } from "../../pairing/pairing-messages.js";
 import {
   readChannelAllowFromStore,
@@ -41,6 +50,7 @@ import {
 } from "../../pairing/pairing-store.js";
 import { resolveAgentRoute } from "../../routing/resolve-route.js";
 import { buildUntrustedChannelMetadata } from "../../security/channel-metadata.js";
+import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
 import { loadWebMedia } from "../../web/media.js";
 import { chunkDiscordTextWithMode } from "../chunk.js";
 import {
@@ -156,7 +166,7 @@ function chunkItems<T>(items: T[], size: number): T[][] {
   return rows;
 }
 
-const DISCORD_COMMAND_ARG_CUSTOM_ID_KEY = "cmdarg";
+const DISCORD_COMMAND_ARG_CUSTOM_ID_KEY = "ca";
 
 function createCommandArgsWithValue(params: { argName: string; value: string }): CommandArgs {
   const values: CommandArgValues = { [params.argName]: params.value };
@@ -219,10 +229,10 @@ function buildDiscordCommandArgCustomId(params: {
   userId: string;
 }): string {
   return [
-    `${DISCORD_COMMAND_ARG_CUSTOM_ID_KEY}:command=${encodeDiscordCommandArgValue(params.command)}`,
-    `arg=${encodeDiscordCommandArgValue(params.arg)}`,
-    `value=${encodeDiscordCommandArgValue(params.value)}`,
-    `user=${encodeDiscordCommandArgValue(params.userId)}`,
+    `${DISCORD_COMMAND_ARG_CUSTOM_ID_KEY}:c=${encodeDiscordCommandArgValue(params.command)}`,
+    `a=${encodeDiscordCommandArgValue(params.arg)}`,
+    `v=${encodeDiscordCommandArgValue(params.value)}`,
+    `u=${encodeDiscordCommandArgValue(params.userId)}`,
   ].join(";");
 }
 
@@ -234,10 +244,11 @@ function parseDiscordCommandArgData(
   }
   const coerce = (value: unknown) =>
     typeof value === "string" || typeof value === "number" ? String(value) : "";
-  const rawCommand = coerce(data.command);
-  const rawArg = coerce(data.arg);
-  const rawValue = coerce(data.value);
-  const rawUser = coerce(data.user);
+  // Support both compact (c/a/v/u) and legacy (command/arg/value/user) keys
+  const rawCommand = coerce((data as Record<string, unknown>).c) || coerce(data.command);
+  const rawArg = coerce((data as Record<string, unknown>).a) || coerce(data.arg);
+  const rawValue = coerce((data as Record<string, unknown>).v) || coerce(data.value);
+  const rawUser = coerce((data as Record<string, unknown>).u) || coerce(data.user);
   if (!rawCommand || !rawArg || !rawValue || !rawUser) {
     return null;
   }
@@ -287,6 +298,23 @@ async function handleDiscordCommandArgInteraction(
     );
     return;
   }
+  // Fast-path for /model command: directly apply the model switch
+  // without going through the full dispatch pipeline, which can fail
+  // when the session lane is busy or auth context is incomplete.
+  if (parsed.command === "model" && parsed.arg === "model") {
+    const modelSwitchResult = await tryDirectModelSwitch({
+      interaction,
+      modelValue: parsed.value,
+      cfg: ctx.cfg,
+      discordConfig: ctx.discordConfig,
+      accountId: ctx.accountId,
+    });
+    if (modelSwitchResult) {
+      return;
+    }
+    // Fall through to generic dispatch if direct switch fails
+  }
+
   const updated = await safeDiscordInteractionCall("command arg update", () =>
     interaction.update({
       content: `✅ Selected ${parsed.value}.`,
@@ -316,6 +344,104 @@ async function handleDiscordCommandArgInteraction(
     sessionPrefix: ctx.sessionPrefix,
     preferFollowUp: true,
   });
+}
+
+/**
+ * Directly apply a model switch from a button interaction without going
+ * through the full dispatch pipeline. This avoids issues where the session
+ * lane is busy or the command auth context is incomplete for button interactions.
+ */
+async function tryDirectModelSwitch(params: {
+  interaction: ButtonInteraction;
+  modelValue: string;
+  cfg: ReturnType<typeof loadConfig>;
+  discordConfig: DiscordConfig;
+  accountId: string;
+}): Promise<boolean> {
+  const { interaction, modelValue, cfg } = params;
+  const user = interaction.user;
+  if (!user) {
+    return false;
+  }
+
+  try {
+    const resolvedDefault = resolveConfiguredModelRef({
+      cfg,
+      defaultProvider: DEFAULT_PROVIDER,
+      defaultModel: DEFAULT_MODEL,
+    });
+    const defaultProvider = resolvedDefault.provider ?? DEFAULT_PROVIDER;
+    const defaultModel = resolvedDefault.model ?? DEFAULT_MODEL;
+    const aliasIndex = buildModelAliasIndex({ cfg, defaultProvider });
+
+    // Resolve the model reference from the button value
+    const resolved = resolveModelRefFromString({
+      raw: modelValue,
+      defaultProvider,
+      aliasIndex,
+    });
+    if (!resolved) {
+      return false;
+    }
+
+    const provider = resolved.ref.provider;
+    const model = resolved.ref.model;
+    const isDefault = provider === defaultProvider && model === defaultModel;
+    const alias = resolved.alias;
+
+    // Resolve the target session key (the real chat session, not the slash session)
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "discord",
+      accountId: params.accountId,
+      peer: { kind: "dm", id: user.id },
+    });
+    const sessionKey = route.sessionKey;
+    const agentId = resolveSessionAgentId({ sessionKey, config: cfg });
+    const storePath = resolveStorePath(cfg.session?.store, { agentId });
+
+    // Load and update the session entry
+    const store = loadSessionStore(storePath);
+    const entry = store[sessionKey] ?? store[sessionKey.toLowerCase()];
+    if (!entry) {
+      return false;
+    }
+
+    applyModelOverrideToSessionEntry({
+      entry,
+      selection: { provider, model, isDefault },
+    });
+    entry.updatedAt = Date.now();
+    store[sessionKey] = entry;
+    await updateSessionStore(storePath, (s) => {
+      s[sessionKey] = entry;
+    });
+
+    // Enqueue system event for the model switch
+    const label = `${provider}/${model}`;
+    const labelWithAlias = alias ? `${alias} (${label})` : label;
+    enqueueSystemEvent(
+      alias ? `Model switched to ${alias} (${label}).` : `Model switched to ${label}.`,
+      { sessionKey, contextKey: `model:${label}` },
+    );
+
+    // Send confirmation via the interaction
+    const ackText = isDefault
+      ? `Model reset to default (${labelWithAlias}).`
+      : `Model set to ${labelWithAlias}.`;
+
+    await safeDiscordInteractionCall("model switch update", () =>
+      interaction.update({
+        content: `✅ ${ackText}`,
+        components: [],
+      }),
+    );
+
+    return true;
+  } catch (error) {
+    console.error("discord: direct model switch failed", error);
+    return false;
+  }
 }
 
 class DiscordCommandArgButton extends Button {
@@ -356,7 +482,7 @@ class DiscordCommandArgButton extends Button {
 
 class DiscordCommandArgFallbackButton extends Button {
   label = "cmdarg";
-  customId = "cmdarg:seed=1";
+  customId = "ca:seed=1";
   private ctx: DiscordCommandArgContext;
 
   constructor(ctx: DiscordCommandArgContext) {
@@ -692,10 +818,42 @@ async function dispatchDiscordCommandInteraction(params: {
     return;
   }
 
+  // Resolve the current session's model for dynamic choices (e.g., /think levels depend on model)
+  let sessionProvider: string | undefined;
+  let sessionModel: string | undefined;
+  try {
+    const earlyRoute = resolveAgentRoute({
+      cfg,
+      channel: "discord",
+      accountId,
+      guildId: interaction.guild?.id ?? undefined,
+      peer: {
+        kind: isDirectMessage ? "dm" : isGroupDm ? "group" : "channel",
+        id: isDirectMessage ? user.id : rawChannelId || "unknown",
+      },
+    });
+    const storePath = resolveStorePath(cfg.session?.store, { agentId: earlyRoute.agentId });
+    const store = loadSessionStore(storePath);
+    // Try the route's session key first, then any :main session
+    const sessionKey =
+      (earlyRoute.sessionKey
+        ? Object.keys(store).find((k) => k === earlyRoute.sessionKey)
+        : undefined) ?? Object.keys(store).find((k) => k.endsWith(":main"));
+    const entry = sessionKey ? store[sessionKey] : undefined;
+    if (entry) {
+      sessionProvider = entry.providerOverride ?? undefined;
+      sessionModel = entry.modelOverride ?? undefined;
+    }
+  } catch {
+    // ignore — fall back to config defaults
+  }
+
   const menu = resolveCommandArgMenu({
     command,
     args: commandArgs,
     cfg,
+    provider: sessionProvider,
+    model: sessionModel,
   });
   if (menu) {
     const menuPayload = buildDiscordCommandArgMenu({
