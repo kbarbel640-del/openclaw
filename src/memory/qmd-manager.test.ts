@@ -50,6 +50,7 @@ vi.mock("../logging/subsystem.js", () => ({
       warn: logWarnMock,
       debug: logDebugMock,
       info: logInfoMock,
+      error: vi.fn(),
       child: () => logger,
     };
     return logger;
