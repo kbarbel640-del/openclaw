@@ -37,6 +37,7 @@ Docs: https://docs.openclaw.ai
 - Telegram: render markdown spoilers with `<tg-spoiler>` HTML tags. (#11543) Thanks @ezhikkk.
 - Telegram: recover proactive sends when stale topic thread IDs are used by retrying without `message_thread_id`, and clear explicit no-thread route updates instead of inheriting stale thread state. (#11620)
 - Gateway/CLI: when `gateway.bind=lan`, use a LAN IP for probe URLs and Control UI links. (#11448) Thanks @AnonO6.
+- Config: migrate legacy `agents.defaults.tools.browser.profile` patches to `browser.defaultProfile` to avoid `config.patch` validation failures. (fixes #11631)
 - Memory: set Voyage embeddings `input_type` for improved retrieval. (#10818) Thanks @mcinteerj.
 - Memory/QMD: run boot refresh in background by default, add configurable QMD maintenance timeouts, and retry QMD after fallback failures. (#9690, #9705)
 - Memory/QMD: log explicit warnings when `memory.qmd.scope` blocks a search request. (#10191)
