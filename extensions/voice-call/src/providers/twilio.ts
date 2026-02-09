@@ -352,7 +352,9 @@ export class TwilioProvider implements VoiceCallProvider {
       // Conversation mode: return streaming TwiML immediately for outbound calls.
       if (isOutbound) {
         const stream = callSid ? this.getStreamUrlForCall(callSid) : null;
-        return stream ? this.getStreamConnectXml(stream.url, stream.token) : TwilioProvider.PAUSE_TWIML;
+        return stream
+          ? this.getStreamConnectXml(stream.url, stream.token)
+          : TwilioProvider.PAUSE_TWIML;
       }
     }
 
@@ -365,7 +367,9 @@ export class TwilioProvider implements VoiceCallProvider {
     // For inbound calls, answer immediately with stream
     if (direction === "inbound") {
       const stream = callSid ? this.getStreamUrlForCall(callSid) : null;
-      return stream ? this.getStreamConnectXml(stream.url, stream.token) : TwilioProvider.PAUSE_TWIML;
+      return stream
+        ? this.getStreamConnectXml(stream.url, stream.token)
+        : TwilioProvider.PAUSE_TWIML;
     }
 
     // For outbound calls, only connect to stream when call is in-progress
