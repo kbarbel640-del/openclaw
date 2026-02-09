@@ -120,3 +120,8 @@ dist/protocol.schema.json
 
 # Synthing
 **/.stfolder/
+
+# Vault secrets (plaintext and keys must not be committed)
+vault/vault-key.txt
+vault/secrets.txt
+deploy/.env
