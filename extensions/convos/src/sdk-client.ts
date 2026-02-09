@@ -283,10 +283,29 @@ export class ConvosSDKClient {
         console.log(`[convos-sdk] Join result:`, result);
       }
 
-      return {
-        status: result.conversationId ? "joined" : "waiting_for_acceptance",
-        conversationId: result.conversationId ?? null,
-      };
+      if (!result.conversationId) {
+        return { status: "waiting_for_acceptance", conversationId: null };
+      }
+
+      // convos.join() returns conversationId as conversationToken.toString()
+      // which for a Uint8Array produces "1,51,254,...". Convert to hex so it
+      // matches the format used by group.id elsewhere in the XMTP SDK.
+      let conversationId: string = result.conversationId;
+      if (/^\d+(,\d+)*$/.test(conversationId)) {
+        const bytes = conversationId.split(",").map(Number);
+        conversationId = Buffer.from(bytes).toString("hex");
+        console.log(`[convos-sdk] Converted join conversationId to hex: ${conversationId.slice(0, 16)}...`);
+      }
+
+      // Sync so the newly joined group is available for subsequent operations
+      // (rename, send message, etc.)
+      try {
+        await this.agent.client.conversations.sync();
+      } catch {
+        // best-effort
+      }
+
+      return { status: "joined", conversationId };
     } catch (err) {
       if (this.debug) {
         console.error(`[convos-sdk] Join failed:`, err);
