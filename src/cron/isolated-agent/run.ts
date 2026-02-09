@@ -2,6 +2,7 @@ import {
   resolveAgentConfig,
   resolveAgentDir,
   resolveAgentModelFallbacksOverride,
+  resolveAgentSkillsFilter,
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
 } from "../../agents/agent-scope.js";
