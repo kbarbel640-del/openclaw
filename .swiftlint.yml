@@ -19,6 +19,7 @@ excluded:
   - "*.playground"
   # Generated (protocol-gen-swift.ts)
   - apps/macos/Sources/OpenClawProtocol/GatewayModels.swift
+  - apps/shared/OpenClawKit/Sources/OpenClawProtocol/GatewayModels.swift
 
 analyzer_rules:
   - unused_declaration
