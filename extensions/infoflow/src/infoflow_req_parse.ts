@@ -261,16 +261,21 @@ export async function parseAndDispatchInfoflowRequest(
   if (contentType.startsWith("application/x-www-form-urlencoded")) {
     const form = new URLSearchParams(rawBody);
 
-    // 2a. echostr signature verification
+    // 2a. echostr signature verification (try all accounts' tokens for multi-account support)
     const echostr = form.get("echostr") ?? "";
     if (echostr) {
       const signature = form.get("signature") ?? "";
       const timestamp = form.get("timestamp") ?? "";
       const rn = form.get("rn") ?? "";
-      const checkToken = targets[0]?.account.config.check_token ?? "";
-      const expectedSig = createHash("md5").update(`${rn}${timestamp}${checkToken}`).digest("hex");
-      if (signature === expectedSig) {
-        return { handled: true, statusCode: 200, body: echostr };
+      for (const target of targets) {
+        const checkToken = target.account.config.check_token ?? "";
+        if (!checkToken) continue;
+        const expectedSig = createHash("md5")
+          .update(`${rn}${timestamp}${checkToken}`)
+          .digest("hex");
+        if (signature === expectedSig) {
+          return { handled: true, statusCode: 200, body: echostr };
+        }
       }
       return { handled: true, statusCode: 403, body: "Invalid signature" };
     }

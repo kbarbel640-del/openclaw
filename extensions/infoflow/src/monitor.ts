@@ -107,8 +107,8 @@ export async function handleInfoflowWebhookRequest(
     return false;
   }
 
-  // Get registered targets for the infoflow path
-  const targets = webhookTargets.get(INFOFLOW_WEBHOOK_PATH);
+  // Get registered targets for the actual request path
+  const targets = webhookTargets.get(requestPath);
   if (!targets || targets.length === 0) {
     return false;
   }

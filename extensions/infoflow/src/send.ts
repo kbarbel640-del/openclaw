@@ -7,10 +7,10 @@ import { createHash } from "node:crypto";
 
 const DEFAULT_TIMEOUT_MS = 30_000; // 30 seconds
 
-// Infoflow API endpoints
-const INFOFLOW_AUTH_URL = "http://apiin.im.baidu.com/api/v1/auth/app_access_token";
-const INFOFLOW_PRIVATE_SEND_URL = "http://apiin.im.baidu.com/api/v1/app/message/send";
-const INFOFLOW_GROUP_SEND_URL = "http://apiin.im.baidu.com/api/v1/robot/msg/groupmsgsend";
+// Infoflow API paths (host is configured via apiHost in config)
+const INFOFLOW_AUTH_PATH = "/api/v1/auth/app_access_token";
+const INFOFLOW_PRIVATE_SEND_PATH = "/api/v1/app/message/send";
+const INFOFLOW_GROUP_SEND_PATH = "/api/v1/robot/msg/groupmsgsend";
 
 // Token cache to avoid fetching token for every message
 let tokenCache: { token: string; expiresAt: number } | null = null;
@@ -24,11 +24,12 @@ let tokenCache: { token: string; expiresAt: number } | null = null;
  * Token is cached and reused until expiry.
  */
 export async function getAppAccessToken(params: {
+  apiHost: string;
   appKey: string;
   appSecret: string;
   timeoutMs?: number;
 }): Promise<{ ok: boolean; token?: string; error?: string }> {
-  const { appKey, appSecret, timeoutMs = DEFAULT_TIMEOUT_MS } = params;
+  const { apiHost, appKey, appSecret, timeoutMs = DEFAULT_TIMEOUT_MS } = params;
 
   // Check cache first
   if (tokenCache && tokenCache.expiresAt > Date.now()) {
@@ -42,7 +43,7 @@ export async function getAppAccessToken(params: {
     // app_secret needs to be MD5 hashed (lowercase)
     const md5Secret = createHash("md5").update(appSecret).digest("hex").toLowerCase();
 
-    const res = await fetch(INFOFLOW_AUTH_URL, {
+    const res = await fetch(`${apiHost}${INFOFLOW_AUTH_PATH}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ app_key: appKey, app_secret: md5Secret }),
@@ -93,6 +94,7 @@ export async function getAppAccessToken(params: {
  * @param content - Message content
  */
 export async function sendInfoflowPrivateMessage(params: {
+  apiHost: string;
   appKey: string;
   appSecret: string;
   touser: string;
@@ -101,6 +103,7 @@ export async function sendInfoflowPrivateMessage(params: {
   timeoutMs?: number;
 }): Promise<{ ok: boolean; error?: string; invaliduser?: string; msgkey?: string }> {
   const {
+    apiHost,
     appKey,
     appSecret,
     touser,
@@ -110,7 +113,7 @@ export async function sendInfoflowPrivateMessage(params: {
   } = params;
 
   // Get token first
-  const tokenResult = await getAppAccessToken({ appKey, appSecret, timeoutMs });
+  const tokenResult = await getAppAccessToken({ apiHost, appKey, appSecret, timeoutMs });
   if (!tokenResult.ok || !tokenResult.token) {
     return { ok: false, error: tokenResult.error ?? "failed to get token" };
   }
@@ -137,7 +140,7 @@ export async function sendInfoflowPrivateMessage(params: {
       LOGID: String(Date.now() * 1000 + Math.floor(Math.random() * 1000)),
     };
 
-    const res = await fetch(INFOFLOW_PRIVATE_SEND_URL, {
+    const res = await fetch(`${apiHost}${INFOFLOW_PRIVATE_SEND_PATH}`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
@@ -173,16 +176,17 @@ export async function sendInfoflowPrivateMessage(params: {
  * @param content - Message content
  */
 export async function sendInfoflowGroupMessage(params: {
+  apiHost: string;
   appKey: string;
   appSecret: string;
   groupId: number;
   content: string;
   timeoutMs?: number;
 }): Promise<{ ok: boolean; error?: string; messageid?: string }> {
-  const { appKey, appSecret, groupId, content, timeoutMs = DEFAULT_TIMEOUT_MS } = params;
+  const { apiHost, appKey, appSecret, groupId, content, timeoutMs = DEFAULT_TIMEOUT_MS } = params;
 
   // Get token first
-  const tokenResult = await getAppAccessToken({ appKey, appSecret, timeoutMs });
+  const tokenResult = await getAppAccessToken({ apiHost, appKey, appSecret, timeoutMs });
   if (!tokenResult.ok || !tokenResult.token) {
     return { ok: false, error: tokenResult.error ?? "failed to get token" };
   }
@@ -211,7 +215,7 @@ export async function sendInfoflowGroupMessage(params: {
       "Content-Type": "application/json",
     };
 
-    const res = await fetch(INFOFLOW_GROUP_SEND_URL, {
+    const res = await fetch(`${apiHost}${INFOFLOW_GROUP_SEND_PATH}`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
@@ -236,42 +240,6 @@ export async function sendInfoflowGroupMessage(params: {
     const rawMsgId = innerData?.messageid ?? innerData?.msgid;
     const messageid = rawMsgId != null ? String(rawMsgId) : undefined;
     return { ok: true, messageid };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: errMsg };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Legacy API (for backward compatibility)
-// ---------------------------------------------------------------------------
-
-/**
- * @deprecated Use sendInfoflowPrivateMessage or sendInfoflowGroupMessage instead.
- * This function is kept for backward compatibility with existing code.
- */
-export async function sendInfoflowMessage(params: {
-  sendUrl: string;
-  touser: string;
-  mes: string;
-  timeoutMs?: number;
-}): Promise<{ ok: boolean; error?: string }> {
-  const { sendUrl, touser, mes, timeoutMs = DEFAULT_TIMEOUT_MS } = params;
-
-  // Legacy implementation (simple POST without auth)
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    const res = await fetch(sendUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ touser, mes }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-    return { ok: res.ok, error: res.ok ? undefined : `HTTP ${res.status}` };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: errMsg };

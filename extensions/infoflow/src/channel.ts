@@ -49,11 +49,11 @@ function mergeInfoflowAccountConfig(
   cfg: OpenClawConfig,
   accountId: string,
 ): {
+  apiHost: string;
   check_token: string;
   encodingAESKey: string;
   appKey: string;
   appSecret: string;
-  sendUrl: string;
   enabled?: boolean;
   name?: string;
   robotName?: string;
@@ -62,11 +62,11 @@ function mergeInfoflowAccountConfig(
   const { accounts: _ignored, defaultAccount: _ignored2, ...base } = raw;
   const account = raw.accounts?.[accountId] ?? {};
   return { ...base, ...account } as {
+    apiHost: string;
     check_token: string;
     encodingAESKey: string;
     appKey: string;
     appSecret: string;
-    sendUrl: string;
     enabled?: boolean;
     name?: string;
     robotName?: string;
@@ -82,11 +82,11 @@ export function resolveInfoflowAccount(params: {
   const merged = mergeInfoflowAccountConfig(params.cfg, accountId);
   const accountEnabled = merged.enabled !== false;
   const enabled = baseEnabled && accountEnabled;
+  const apiHost = merged.apiHost ?? "";
   const check_token = merged.check_token ?? "";
   const encodingAESKey = merged.encodingAESKey ?? "";
   const appKey = merged.appKey ?? "";
   const appSecret = merged.appSecret ?? "";
-  const sendUrl = merged.sendUrl ?? "http://apiin.im.baidu.com/api/v1/app/message/send";
   const configured = Boolean(check_token) && Boolean(appKey) && Boolean(appSecret);
 
   return {
@@ -97,11 +97,11 @@ export function resolveInfoflowAccount(params: {
     config: {
       enabled: merged.enabled,
       name: merged.name,
+      apiHost,
       check_token,
       encodingAESKey,
       appKey,
       appSecret,
-      sendUrl,
       robotName: merged.robotName?.trim() || undefined,
     },
   };
@@ -143,14 +143,7 @@ export const infoflowPlugin: ChannelPlugin<ResolvedInfoflowAccount> = {
         cfg,
         sectionKey: "infoflow",
         accountId,
-        clearBaseFields: [
-          "check_token",
-          "encodingAESKey",
-          "appKey",
-          "appSecret",
-          "sendUrl",
-          "name",
-        ],
+        clearBaseFields: ["check_token", "encodingAESKey", "appKey", "appSecret", "name"],
       }),
     isConfigured: (account) => account.configured,
     describeAccount: (account) => ({
@@ -238,9 +231,6 @@ export const infoflowPlugin: ChannelPlugin<ResolvedInfoflowAccount> = {
       if (input.token) {
         patch.check_token = input.token;
       }
-      if (input.webhookUrl) {
-        patch.sendUrl = input.webhookUrl;
-      }
 
       const existing = (next.channels?.["infoflow"] ?? {}) as Record<string, unknown>;
       if (accountId === DEFAULT_ACCOUNT_ID) {
@@ -284,7 +274,7 @@ export const infoflowPlugin: ChannelPlugin<ResolvedInfoflowAccount> = {
     chunker: (text, limit) => getInfoflowRuntime().channel.text.chunkText(text, limit),
     sendText: async ({ cfg, to, text, accountId }) => {
       const account = resolveInfoflowAccount({ cfg, accountId });
-      const { appKey, appSecret } = account.config;
+      const { apiHost, appKey, appSecret } = account.config;
 
       if (!appKey || !appSecret) {
         throw new Error("Infoflow appKey/appSecret not configured.");
@@ -297,6 +287,7 @@ export const infoflowPlugin: ChannelPlugin<ResolvedInfoflowAccount> = {
       if (groupMatch) {
         const groupId = Number(groupMatch[1]);
         const result = await sendInfoflowGroupMessage({
+          apiHost,
           appKey,
           appSecret,
           groupId,
@@ -310,6 +301,7 @@ export const infoflowPlugin: ChannelPlugin<ResolvedInfoflowAccount> = {
 
       // Private message (DM)
       const result = await sendInfoflowPrivateMessage({
+        apiHost,
         appKey,
         appSecret,
         touser: target,

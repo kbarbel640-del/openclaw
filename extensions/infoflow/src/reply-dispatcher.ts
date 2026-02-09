@@ -32,7 +32,7 @@ export function createInfoflowReplyDispatcher(params: CreateInfoflowReplyDispatc
   });
 
   const deliver = async (payload: { text?: string; mediaUrl?: string; mediaUrls?: string[] }) => {
-    const { appKey, appSecret } = account.config;
+    const { apiHost, appKey, appSecret } = account.config;
 
     if (!appKey || !appSecret) {
       console.error(`[infoflow] Missing appKey or appSecret for account ${accountId}`);
@@ -44,7 +44,7 @@ export function createInfoflowReplyDispatcher(params: CreateInfoflowReplyDispatc
       const chunks = core.channel.text.chunkText(payload.text, 4000);
 
       for (const chunk of chunks) {
-        let result: { ok: boolean; error?: string };
+        let result: { ok: boolean; error?: string; messageid?: string; msgkey?: string };
 
         if (chatType === "group" && groupId) {
           // Send to group
@@ -52,6 +52,7 @@ export function createInfoflowReplyDispatcher(params: CreateInfoflowReplyDispatc
             console.log(`[infoflow] Delivering group message to ${groupId}`);
           }
           result = await sendInfoflowGroupMessage({
+            apiHost,
             appKey,
             appSecret,
             groupId,
@@ -63,6 +64,7 @@ export function createInfoflowReplyDispatcher(params: CreateInfoflowReplyDispatc
             console.log(`[infoflow] Delivering private message to ${fromuser}`);
           }
           result = await sendInfoflowPrivateMessage({
+            apiHost,
             appKey,
             appSecret,
             touser: fromuser,
@@ -73,13 +75,11 @@ export function createInfoflowReplyDispatcher(params: CreateInfoflowReplyDispatc
         if (result.ok) {
           statusSink?.({ lastOutboundAt: Date.now() });
           // Record sent message ID for dedup (prevent echo)
-          const sentId =
-            (result as { messageid?: string; msgkey?: string }).messageid ??
-            (result as { messageid?: string; msgkey?: string }).msgkey;
+          const sentId = result.messageid ?? result.msgkey;
           if (sentId) {
             recordSentMessageId(sentId);
           }
-        } else {
+        } else if (result.error) {
           console.error(`[infoflow] Failed to send message: ${result.error}`);
         }
       }

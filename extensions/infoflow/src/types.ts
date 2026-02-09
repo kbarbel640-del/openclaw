@@ -17,12 +17,11 @@ export type InfoflowChatType = "direct" | "group";
 export type InfoflowAccountConfig = {
   enabled?: boolean;
   name?: string;
+  apiHost?: string;
   check_token?: string;
   encodingAESKey?: string;
   appKey?: string;
   appSecret?: string;
-  /** @deprecated Use appKey/appSecret authentication instead */
-  sendUrl?: string;
   dmPolicy?: InfoflowDmPolicy;
   allowFrom?: string[];
   groupPolicy?: InfoflowGroupPolicy;
@@ -42,12 +41,11 @@ export type ResolvedInfoflowAccount = {
   config: {
     enabled?: boolean;
     name?: string;
+    apiHost: string;
     check_token: string;
     encodingAESKey: string;
     appKey: string;
     appSecret: string;
-    /** @deprecated */
-    sendUrl: string;
     dmPolicy?: InfoflowDmPolicy;
     allowFrom?: string[];
     groupPolicy?: InfoflowGroupPolicy;
