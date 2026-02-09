@@ -229,7 +229,12 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
             clearChatState(host as unknown as OpenClawApp);
             // Switch to the newly created session
             const url = new URL(window.location.href);
-            url.searchParams.set("session", newSessionKey);
+            // For main session, remove URL param; for others, set it
+            if (newSessionKey === "agent:main:main") {
+              url.searchParams.delete("session");
+            } else {
+              url.searchParams.set("session", newSessionKey);
+            }
             window.history.pushState({}, "", url.toString());
             // Trigger session switch
             host.sessionKey = newSessionKey;
