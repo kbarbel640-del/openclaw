@@ -32,6 +32,7 @@ import { createTypingCallbacks } from "../../channels/typing.js";
 import { resolveMarkdownTableMode } from "../../config/markdown-tables.js";
 import { readSessionUpdatedAt, resolveStorePath } from "../../config/sessions.js";
 import { danger, logVerbose, shouldLogVerbose } from "../../globals.js";
+import { emitAgentEvent, registerAgentRunContext } from "../../infra/agent-events.js";
 import { buildAgentSessionKey } from "../../routing/resolve-route.js";
 import { resolveThreadSessionKeys } from "../../routing/session-key.js";
 import { buildUntrustedChannelMetadata } from "../../security/channel-metadata.js";
@@ -577,6 +578,17 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
       // Short-circuit: Sonnet answered fully. Deliver and clean up.
       logVerbose(`smart-ack: short-circuit with full response (${triageResult.text.length} chars)`);
 
+      // Emit agent events so the Jobs dashboard tracks this run.
+      const smartAckRunId = crypto.randomUUID();
+      const smartAckStartedAt = Date.now();
+      const smartAckSessionKey = ctxPayload.SessionKey ?? route.sessionKey;
+      registerAgentRunContext(smartAckRunId, { sessionKey: smartAckSessionKey });
+      emitAgentEvent({
+        runId: smartAckRunId,
+        stream: "lifecycle",
+        data: { phase: "start", startedAt: smartAckStartedAt },
+      });
+
       // Dispose the typing guard before delivery so no stale typing signals
       // can arrive at Discord after the message (which would re-show "typing").
       typingGuard.dispose();
@@ -635,6 +647,18 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
           limit: historyLimit,
         });
       }
+
+      // Close agent events so the Jobs dashboard marks this run as completed.
+      emitAgentEvent({
+        runId: smartAckRunId,
+        stream: "assistant",
+        data: { text: triageResult.text },
+      });
+      emitAgentEvent({
+        runId: smartAckRunId,
+        stream: "lifecycle",
+        data: { phase: "end", startedAt: smartAckStartedAt, endedAt: Date.now() },
+      });
 
       return; // Skip Opus dispatch entirely.
     }
