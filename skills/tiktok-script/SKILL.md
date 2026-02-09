@@ -30,22 +30,38 @@ Every script follows: **Hook → Problem → Solution → Proof → Urgency → 
 
 ## Hook Angles (rotate across variants)
 
-**TOP PERFORMERS (use these first — based on @letstokshop analytics):**
+**TOP PERFORMERS (ranked by real @letstokshop data, 60-day window):**
 
-- **Identity**: "Everyone asks what [item] I wear" / "This is what [type of guy] wears" (1.6M views pattern)
-- **Cultural moment**: "[Season/trend] is here" / "It's [item] season" (990K views pattern)
-- **Hot take/Debate**: "[Bold opinion]. Change my mind." (drives comments + shares)
-- **Deal/Value**: "[Item] deal — [quantity] for $[price]" (509K views pattern)
-- **Seasonal**: Tie to events (#BackToSchool, holidays, weather changes) (8.6M views pattern)
+1. **Genuine endorsement** (2.8M, 940K, 275K, 245K, 165K, 157K — most consistent):
+   "These are actually perfect" / "Gotta get you some of these" / "Exceeded my expectations"
+   "Comfortable and actually love these" / "Look good and feel even better"
+   → Natural, honest, "I tried it" energy. Not aggressive. This is the #1 pattern.
 
-**SECONDARY (use for non-fashion products):**
+2. **Identity** (770K):
+   "Everyone asks what [item] I wear. It's these."
+   → Works best for standout/unique items.
 
-- **Status/Money**: "This pays for itself" / "The one thing I won't cheap out on"
-- **Pain/Relief**: "If you deal with [problem], check this out"
+3. **Deal/Value** (656K, 250K):
+   "Best [item] you can't get for this deal" / "Sale is going on right now"
+   → Works for multi-packs and price-competitive products.
+
+4. **Utility/Novelty** (258K):
+   "These are great to have and come in handy"
+   → For non-fashion products (tools, gadgets, survival gear).
+
+**SECONDARY (lower but still viable):**
+
 - **Curiosity**: "I didn't believe this would work until I tried it"
 - **Social proof**: "There's a reason this has [X] sold"
+- **Cultural moment**: "It's [item] season" (seasonal timing)
 
-**NOTE:** For men's fashion products, ALWAYS lead with identity/style hooks. Pain/solution hooks underperform with Eli's audience.
+**KEY RULES from analytics:**
+
+- 8 of top 10 posts are men's fashion — lean into this
+- Endorsement hooks > aggressive selling hooks
+- Mention brand names when possible (audience trusts specific brands)
+- Best upload time: Sunday 12pm-1pm MST (peak viewer window)
+- Viewers are 92% male — write for men exclusively
 
 ## Voice & Tone
 
