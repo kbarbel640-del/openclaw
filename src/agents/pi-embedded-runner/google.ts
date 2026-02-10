@@ -160,10 +160,25 @@ export function sanitizeToolsForGoogle<
   tools: AgentTool<TSchemaType, TResult>[];
   provider: string;
 }): AgentTool<TSchemaType, TResult>[] {
-  if (params.provider !== "google-antigravity" && params.provider !== "google-gemini-cli") {
+  if (
+    params.provider !== "google-antigravity" &&
+    params.provider !== "google-gemini-cli" &&
+    params.provider !== "google-vertex"
+  ) {
     return params.tools;
   }
-  return params.tools.map((tool) => {
+
+  const seen = new Set<string>();
+  const deduplicated: AgentTool<TSchemaType, TResult>[] = [];
+  for (const tool of params.tools) {
+    if (seen.has(tool.name)) {
+      continue;
+    }
+    seen.add(tool.name);
+    deduplicated.push(tool);
+  }
+
+  return deduplicated.map((tool) => {
     if (!tool.parameters || typeof tool.parameters !== "object") {
       return tool;
     }
@@ -177,7 +192,11 @@ export function sanitizeToolsForGoogle<
 }
 
 export function logToolSchemasForGoogle(params: { tools: AgentTool[]; provider: string }) {
-  if (params.provider !== "google-antigravity" && params.provider !== "google-gemini-cli") {
+  if (
+    params.provider !== "google-antigravity" &&
+    params.provider !== "google-gemini-cli" &&
+    params.provider !== "google-vertex"
+  ) {
     return;
   }
   const toolNames = params.tools.map((tool, index) => `${index}:${tool.name}`);

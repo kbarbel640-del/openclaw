@@ -33,10 +33,29 @@ export function extractModelDirective(
 
   let rawModel = raw;
   let rawProfile: string | undefined;
+
   if (raw?.includes("@")) {
     const parts = raw.split("@");
-    rawModel = parts[0]?.trim();
-    rawProfile = parts.slice(1).join("@").trim() || undefined;
+    const isGoogleModel =
+      raw.toLowerCase().startsWith("google-vertex/") ||
+      raw.toLowerCase().startsWith("google-antigravity/") ||
+      raw.toLowerCase().startsWith("google/");
+
+    if (isGoogleModel && parts.length === 2) {
+      // For Google models, if there's only one @, it's likely a version (e.g. gemini-1.5-pro@001).
+      // We only treat it as a profile if there are TWO @s (e.g. model@version@profile).
+      rawModel = raw;
+      rawProfile = undefined;
+    } else if (parts.length > 2) {
+      // If there are multiple @s, split at the LAST one to get the profile.
+      const lastIndex = raw.lastIndexOf("@");
+      rawModel = raw.slice(0, lastIndex).trim();
+      rawProfile = raw.slice(lastIndex + 1).trim() || undefined;
+    } else {
+      // Default: split at the first @ (legacy behavior for other providers).
+      rawModel = parts[0]?.trim();
+      rawProfile = parts.slice(1).join("@").trim() || undefined;
+    }
   }
 
   const cleaned = match ? body.replace(match[0], " ").replace(/\s+/g, " ").trim() : body.trim();
