@@ -1,4 +1,5 @@
 import JSON5 from "json5";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
@@ -41,14 +42,28 @@ export type SecurityFixResult = {
   errors: string[];
 };
 
+/**
+ * Safely set permissions on a file or directory.
+ *
+ * SECURITY: Uses open(O_RDONLY | O_NOFOLLOW) → fstat → fchmod pattern to
+ * eliminate the TOCTOU race condition between checking and fixing permissions.
+ * O_NOFOLLOW prevents following symlinks (same as the old lstat check).
+ */
 async function safeChmod(params: {
   path: string;
   mode: number;
   require: "dir" | "file";
 }): Promise<SecurityFixChmodAction> {
+  let fd: fs.FileHandle | null = null;
   try {
-    const st = await fs.lstat(params.path);
+    // O_RDONLY | O_NOFOLLOW = open for reading, don't follow symlinks.
+    // O_DIRECTORY can be added for dirs but isn't portable; we check via fstat.
+    const openFlags = fsSync.constants.O_RDONLY | (fsSync.constants.O_NOFOLLOW ?? 0);
+    fd = await fs.open(params.path, openFlags);
+    const st = await fd.stat();
+
     if (st.isSymbolicLink()) {
+      await fd.close();
       return {
         kind: "chmod",
         path: params.path,
@@ -58,6 +73,7 @@ async function safeChmod(params: {
       };
     }
     if (params.require === "dir" && !st.isDirectory()) {
+      await fd.close();
       return {
         kind: "chmod",
         path: params.path,
@@ -67,6 +83,7 @@ async function safeChmod(params: {
       };
     }
     if (params.require === "file" && !st.isFile()) {
+      await fd.close();
       return {
         kind: "chmod",
         path: params.path,
@@ -77,6 +94,7 @@ async function safeChmod(params: {
     }
     const current = st.mode & 0o777;
     if (current === params.mode) {
+      await fd.close();
       return {
         kind: "chmod",
         path: params.path,
@@ -85,9 +103,15 @@ async function safeChmod(params: {
         skipped: "already",
       };
     }
-    await fs.chmod(params.path, params.mode);
+    // SECURITY: fchmod on the open fd eliminates the TOCTOU race —
+    // the path can't be swapped between stat and chmod.
+    await fd.chmod(params.mode);
+    await fd.close();
     return { kind: "chmod", path: params.path, mode: params.mode, ok: true };
   } catch (err) {
+    if (fd) {
+      await fd.close().catch(() => {});
+    }
     const code = (err as { code?: string }).code;
     if (code === "ENOENT") {
       return {
@@ -96,6 +120,16 @@ async function safeChmod(params: {
         mode: params.mode,
         ok: false,
         skipped: "missing",
+      };
+    }
+    // ELOOP = symlink when O_NOFOLLOW is set (Linux). Treat as symlink skip.
+    if (code === "ELOOP") {
+      return {
+        kind: "chmod",
+        path: params.path,
+        mode: params.mode,
+        ok: false,
+        skipped: "symlink",
       };
     }
     return {
