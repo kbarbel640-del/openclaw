@@ -69,6 +69,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     messagingToolSentTargets: [],
     pendingMessagingTexts: new Map(),
     pendingMessagingTargets: new Map(),
+    didEmitBlockReply: false,
   };
   const usageTotals = {
     input: 0,
@@ -491,6 +492,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     if (!cleanedText && (!mediaUrls || mediaUrls.length === 0) && !audioAsVoice) {
       return;
     }
+    state.didEmitBlockReply = true;
     void params.onBlockReply({
       text: cleanedText,
       mediaUrls: mediaUrls?.length ? mediaUrls : undefined,
@@ -595,6 +597,9 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     // Used to suppress agent's confirmation text (e.g., "Respondi no Telegram!")
     // which is generated AFTER the tool sends the actual answer.
     didSendViaMessagingTool: () => messagingToolSentTexts.length > 0,
+    // Returns true if any block reply was emitted via onBlockReply.
+    // Used to prevent retries when content has already been delivered.
+    didEmitBlockReply: () => state.didEmitBlockReply,
     getLastToolError: () => (state.lastToolError ? { ...state.lastToolError } : undefined),
     getUsageTotals,
     getCompactionCount: () => compactionCount,

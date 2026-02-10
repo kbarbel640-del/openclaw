@@ -111,4 +111,6 @@ export type EmbeddedRunAttemptResult = {
   compactionCount?: number;
   /** Client tool call detected (OpenResponses hosted tools). */
   clientToolCall?: { name: string; params: Record<string, unknown> };
+  /** Whether block replies were streamed during this attempt. */
+  didStreamBlockReply: boolean;
 };
