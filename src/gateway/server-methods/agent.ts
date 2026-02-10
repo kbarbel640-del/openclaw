@@ -240,12 +240,14 @@ export const agentHandlers: GatewayRequestHandlers = {
       resolvedGroupChannel = resolvedGroupChannel || inheritedGroup?.groupChannel;
       resolvedGroupSpace = resolvedGroupSpace || inheritedGroup?.groupSpace;
       const deliveryFields = normalizeSessionDeliveryFields(entry);
-      // Build explicit delivery context from request parameters (for cron/subagent announce)
+      // Build explicit delivery context from request parameters (for cron/subagent announce).
+      // Only treat as explicit when a recipient is provided (not just channel), to avoid
+      // overwriting session routing from CLI calls that always include channel.
       const explicitDeliveryContext =
-        request.channel || request.to
+        request.to || request.replyTo
           ? normalizeDeliveryContext({
               channel: request.channel,
-              to: request.to,
+              to: request.to ?? request.replyTo,
               accountId: request.accountId,
               threadId: request.threadId,
             })
