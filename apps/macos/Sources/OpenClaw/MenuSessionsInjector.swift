@@ -302,7 +302,6 @@ extension MenuSessionsInjector {
         }
 
         guard self.isControlChannelConnected else { return }
-
         if let error = self.nodesStore.lastError?.nonEmpty {
             menu.insertItem(
                 self.makeMessageItem(
