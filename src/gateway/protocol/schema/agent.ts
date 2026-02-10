@@ -67,6 +67,7 @@ export const AgentParamsSchema = Type.Object(
     idempotencyKey: NonEmptyString,
     label: Type.Optional(SessionLabelString),
     spawnedBy: Type.Optional(Type.String()),
+    cwd: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );

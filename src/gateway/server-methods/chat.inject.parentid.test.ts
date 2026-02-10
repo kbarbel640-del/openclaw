@@ -30,6 +30,8 @@ describe("gateway chat.inject transcript writes", () => {
       return {
         ...original,
         loadSessionEntry: () => ({
+          cfg: {},
+          canonicalKey: "k1",
           storePath: "/tmp/store.json",
           entry: {
             sessionId: "sess-1",

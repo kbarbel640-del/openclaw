@@ -33,6 +33,10 @@ const SessionsSpawnToolSchema = Type.Object({
   // Back-compat alias. Prefer runTimeoutSeconds.
   timeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
   cleanup: optionalStringEnum(["delete", "keep"] as const),
+  /** Override the working directory (cwd) for the spawned process.
+   *  The agent's configured workspace is still used for memory/bootstrap files;
+   *  this only controls where the CLI process runs (e.g. for MCP discovery). */
+  cwd: Type.Optional(Type.String()),
 });
 
 function splitModelRef(ref?: string) {
@@ -93,6 +97,7 @@ export function createSessionsSpawnTool(opts?: {
       const thinkingOverrideRaw = readStringParam(params, "thinking");
       const cleanup =
         params.cleanup === "keep" || params.cleanup === "delete" ? params.cleanup : "keep";
+      const cwdOverride = readStringParam(params, "cwd");
       const requesterOrigin = normalizeDeliveryContext({
         channel: opts?.agentChannel,
         accountId: opts?.agentAccountId,
@@ -240,6 +245,7 @@ export function createSessionsSpawnTool(opts?: {
         childSessionKey,
         label: label || undefined,
         task,
+        resumable: cleanup === "keep",
       });
 
       const childIdem = crypto.randomUUID();
@@ -263,6 +269,7 @@ export function createSessionsSpawnTool(opts?: {
             timeout: runTimeoutSeconds > 0 ? runTimeoutSeconds : undefined,
             label: label || undefined,
             spawnedBy: spawnedByKey,
+            cwd: cwdOverride || undefined,
             groupId: opts?.agentGroupId ?? undefined,
             groupChannel: opts?.agentGroupChannel ?? undefined,
             groupSpace: opts?.agentGroupSpace ?? undefined,

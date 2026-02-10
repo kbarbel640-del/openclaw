@@ -9,15 +9,18 @@ import {
   resolveAgentIdFromSessionKey,
 } from "../../routing/session-key.js";
 import { SESSION_LABEL_MAX_LENGTH } from "../../sessions/session-label.js";
+import { normalizeDeliveryContext } from "../../utils/delivery-context.js";
 import {
   type GatewayMessageChannel,
   INTERNAL_MESSAGE_CHANNEL,
 } from "../../utils/message-channel.js";
 import { AGENT_LANE_NESTED } from "../lanes.js";
+import { findSubagentRunByChildSessionKey, registerSubagentRun } from "../subagent-registry.js";
 import { jsonResult, readStringParam } from "./common.js";
 import {
   createAgentToAgentPolicy,
   extractAssistantText,
+  resolveDisplaySessionKey,
   resolveInternalSessionKey,
   resolveMainSessionAlias,
   resolveSessionReference,
@@ -289,7 +292,33 @@ export function createSessionsSendTool(opts?: {
           if (typeof response?.runId === "string" && response.runId) {
             runId = response.runId;
           }
-          startA2AFlow(undefined, runId);
+          if (isSubagentSessionKey(resolvedKey) && requesterInternalKey) {
+            // Register for lifecycle → announce delivery so the main agent
+            // gets the result back automatically, same as sessions_spawn.
+            // Preserve the original spawn's cleanup intent — fall back to
+            // "keep" since follow-ups only make sense for kept sessions.
+            const originalRun = findSubagentRunByChildSessionKey(resolvedKey);
+            const cleanup = originalRun?.cleanup ?? "keep";
+            registerSubagentRun({
+              runId,
+              childSessionKey: resolvedKey,
+              requesterSessionKey: requesterInternalKey,
+              requesterOrigin: normalizeDeliveryContext({
+                channel: opts?.agentChannel,
+              }),
+              requesterDisplayKey: resolveDisplaySessionKey({
+                key: requesterInternalKey,
+                alias,
+                mainKey,
+              }),
+              task: message,
+              cleanup,
+              label: labelParam,
+              isFollowUp: true,
+            });
+          } else {
+            startA2AFlow(undefined, runId);
+          }
           return jsonResult({
             runId,
             status: "accepted",
@@ -376,7 +405,9 @@ export function createSessionsSendTool(opts?: {
       const filtered = stripToolMessages(Array.isArray(history?.messages) ? history.messages : []);
       const last = filtered.length > 0 ? filtered[filtered.length - 1] : undefined;
       const reply = last ? extractAssistantText(last) : undefined;
-      startA2AFlow(reply ?? undefined);
+      if (!isSubagentSessionKey(resolvedKey)) {
+        startA2AFlow(reply ?? undefined);
+      }
 
       return jsonResult({
         runId,

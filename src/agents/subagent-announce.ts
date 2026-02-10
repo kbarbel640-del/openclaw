@@ -311,6 +311,7 @@ export function buildSubagentSystemPrompt(params: {
   childSessionKey: string;
   label?: string;
   task?: string;
+  resumable?: boolean;
 }) {
   const taskText =
     typeof params.task === "string" && params.task.trim()
@@ -330,7 +331,9 @@ export function buildSubagentSystemPrompt(params: {
     "1. **Stay focused** - Do your assigned task, nothing else",
     "2. **Complete the task** - Your final message will be automatically reported to the main agent",
     "3. **Don't initiate** - No heartbeats, no proactive actions, no side quests",
-    "4. **Be ephemeral** - You may be terminated after task completion. That's fine.",
+    params.resumable
+      ? "4. **Resumable** - Your session persists after completion. You may receive follow-up messages."
+      : "4. **Be ephemeral** - You may be terminated after task completion. That's fine.",
     "",
     "## Output Format",
     "When complete, your final response should include:",
@@ -380,6 +383,7 @@ export async function runSubagentAnnounceFlow(params: {
   label?: string;
   outcome?: SubagentRunOutcome;
   announceType?: SubagentAnnounceType;
+  isFollowUp?: boolean;
 }): Promise<boolean> {
   let didAnnounce = false;
   let shouldDeleteChildSession = params.cleanup === "delete";
@@ -486,6 +490,14 @@ export async function runSubagentAnnounceFlow(params: {
     // Build instructional message for main agent
     const announceType = params.announceType ?? "subagent task";
     const taskLabel = params.label || params.task || "task";
+    const followUpHint =
+      params.cleanup === "keep" && !params.isFollowUp
+        ? [
+            "",
+            `Follow-up session key: ${params.childSessionKey}`,
+            "You can send follow-up messages to this subagent using sessions_send with the session key above, if needed.",
+          ]
+        : [];
     const triggerMessage = [
       `A ${announceType} "${taskLabel}" just ${statusLabel}.`,
       "",
@@ -493,9 +505,10 @@ export async function runSubagentAnnounceFlow(params: {
       reply || "(no output)",
       "",
       statsLine,
+      ...followUpHint,
       "",
       "Summarize this naturally for the user. Keep it brief (1-2 sentences). Flow it into the conversation naturally.",
-      `Do not mention technical details like tokens, stats, or that this was a ${announceType}.`,
+      `Do not mention technical details like tokens, stats, session keys, or that this was a ${announceType}.`,
       "You can respond with NO_REPLY if no announcement is needed (e.g., internal task with no user-facing result).",
     ].join("\n");
 

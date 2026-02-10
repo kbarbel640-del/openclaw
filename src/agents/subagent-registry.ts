@@ -25,6 +25,7 @@ export type SubagentRunRecord = {
   archiveAtMs?: number;
   cleanupCompletedAt?: number;
   cleanupHandled?: boolean;
+  isFollowUp?: boolean;
 };
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
@@ -76,6 +77,7 @@ function resumeSubagentRun(runId: string) {
       endedAt: entry.endedAt,
       label: entry.label,
       outcome: entry.outcome,
+      isFollowUp: entry.isFollowUp,
     }).then((didAnnounce) => {
       finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
     });
@@ -239,6 +241,7 @@ function ensureListener() {
       endedAt: entry.endedAt,
       label: entry.label,
       outcome: entry.outcome,
+      isFollowUp: entry.isFollowUp,
     }).then((didAnnounce) => {
       finalizeSubagentCleanup(evt.runId, entry.cleanup, didAnnounce);
     });
@@ -291,6 +294,7 @@ export function registerSubagentRun(params: {
   cleanup: "delete" | "keep";
   label?: string;
   runTimeoutSeconds?: number;
+  isFollowUp?: boolean;
 }) {
   const now = Date.now();
   const cfg = loadConfig();
@@ -311,6 +315,7 @@ export function registerSubagentRun(params: {
     startedAt: now,
     archiveAtMs,
     cleanupHandled: false,
+    isFollowUp: params.isFollowUp,
   });
   ensureListener();
   persistSubagentRuns();
@@ -387,6 +392,7 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
       endedAt: entry.endedAt,
       label: entry.label,
       outcome: entry.outcome,
+      isFollowUp: entry.isFollowUp,
     }).then((didAnnounce) => {
       finalizeSubagentCleanup(runId, entry.cleanup, didAnnounce);
     });
@@ -429,6 +435,17 @@ export function listSubagentRunsForRequester(requesterSessionKey: string): Subag
     return [];
   }
   return [...subagentRuns.values()].filter((entry) => entry.requesterSessionKey === key);
+}
+
+export function findSubagentRunByChildSessionKey(
+  childSessionKey: string,
+): SubagentRunRecord | undefined {
+  for (const entry of subagentRuns.values()) {
+    if (entry.childSessionKey === childSessionKey) {
+      return entry;
+    }
+  }
+  return undefined;
 }
 
 export function initSubagentRegistry() {

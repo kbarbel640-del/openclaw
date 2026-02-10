@@ -141,6 +141,7 @@ export async function runEmbeddedAttempt(
   params: EmbeddedRunAttemptParams,
 ): Promise<EmbeddedRunAttemptResult> {
   const resolvedWorkspace = resolveUserPath(params.workspaceDir);
+  const resolvedCwd = params.cwd?.trim() ? resolveUserPath(params.cwd.trim()) : undefined;
   const prevCwd = process.cwd();
   const runAbortController = new AbortController();
 
@@ -163,8 +164,15 @@ export async function runEmbeddedAttempt(
     : resolvedWorkspace;
   await fs.mkdir(effectiveWorkspace, { recursive: true });
 
+  // When a cwd override is provided, use it for the process working directory
+  // while keeping effectiveWorkspace for agent state (skills, bootstrap, memory).
+  const processCwd = resolvedCwd ?? effectiveWorkspace;
+  if (resolvedCwd) {
+    await fs.mkdir(resolvedCwd, { recursive: true });
+  }
+
   let restoreSkillEnv: (() => void) | undefined;
-  process.chdir(effectiveWorkspace);
+  process.chdir(processCwd);
   try {
     const shouldLoadSkillEntries = !params.skillsSnapshot || !params.skillsSnapshot.resolvedSkills;
     const skillEntries = shouldLoadSkillEntries
@@ -476,7 +484,7 @@ export async function runEmbeddedAttempt(
       const allCustomTools = [...customTools, ...clientToolDefs];
 
       ({ session } = await createAgentSession({
-        cwd: resolvedWorkspace,
+        cwd: processCwd,
         agentDir,
         authStorage: params.authStorage,
         modelRegistry: params.modelRegistry,

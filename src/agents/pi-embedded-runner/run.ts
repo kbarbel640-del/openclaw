@@ -415,6 +415,7 @@ export async function runEmbeddedPiAgent(
             hasRepliedRef: params.hasRepliedRef,
             sessionFile: params.sessionFile,
             workspaceDir: resolvedWorkspace,
+            cwd: params.cwd,
             agentDir,
             config: params.config,
             skillsSnapshot: params.skillsSnapshot,

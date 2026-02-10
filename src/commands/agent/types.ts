@@ -74,4 +74,8 @@ export type AgentCommandOpts = {
   extraSystemPrompt?: string;
   /** Per-call stream param overrides (best-effort). */
   streamParams?: AgentStreamParams;
+  /** Override the process working directory (cwd) for the spawned agent.
+   *  The agent's configured workspace is still used for memory/bootstrap files;
+   *  this only controls where the CLI/embedded process runs. */
+  cwd?: string;
 };

@@ -41,6 +41,8 @@ export type EmbeddedRunAttemptParams = {
   hasRepliedRef?: { value: boolean };
   sessionFile: string;
   workspaceDir: string;
+  /** Override the process working directory. Defaults to workspaceDir. */
+  cwd?: string;
   agentDir?: string;
   config?: OpenClawConfig;
   skillsSnapshot?: SkillSnapshot;

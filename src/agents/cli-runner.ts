@@ -38,6 +38,8 @@ export async function runCliAgent(params: {
   agentId?: string;
   sessionFile: string;
   workspaceDir: string;
+  /** Override the process working directory. Defaults to workspaceDir. */
+  cwd?: string;
   config?: OpenClawConfig;
   prompt: string;
   provider: string;
@@ -233,9 +235,10 @@ export async function runCliAgent(params: {
         await cleanupResumeProcesses(backend, cliSessionIdToSend);
       }
 
+      const processCwd = params.cwd?.trim() || workspaceDir;
       const result = await runCommandWithTimeout([backend.command, ...args], {
         timeoutMs: params.timeoutMs,
-        cwd: workspaceDir,
+        cwd: processCwd,
         env,
         input: stdinPayload,
       });
