@@ -1,0 +1,47 @@
+{
+  "id": "contact-guard",
+  "name": "Contact Guard",
+  "description": "Manages contact state files and enforces project authorization to prevent data leaks across sessions. Auto-injects contact context on session start and scans outgoing messages for unauthorized project mentions.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "contactStateDir": {
+        "type": "string",
+        "default": "memory/contacts",
+        "description": "Directory containing contact state files (relative to workspace)"
+      },
+      "projectRegistry": {
+        "type": "string",
+        "default": "projects/registry.json",
+        "description": "Path to project registry with authorization rules"
+      },
+      "ownerPhones": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Phone numbers that count as 'owner' in authorization"
+      },
+      "enableAutoInject": {
+        "type": "boolean",
+        "default": true,
+        "description": "Auto-inject contact state into agent context on session start"
+      },
+      "enableLeakDetection": {
+        "type": "boolean",
+        "default": true,
+        "description": "Scan outgoing messages for project keyword leaks"
+      },
+      "enableCompactionPreserve": {
+        "type": "boolean",
+        "default": true,
+        "description": "Preserve contact context when context is truncated/compacted"
+      },
+      "leakAction": {
+        "type": "string",
+        "enum": ["warn", "block", "redact"],
+        "default": "warn",
+        "description": "Action to take when a potential leak is detected: warn (log only), block (cancel send), redact (remove keywords)"
+      }
+    }
+  }
+}

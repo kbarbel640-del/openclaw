@@ -1,0 +1,10 @@
+{
+  "name": "@clawdbot/contact-guard",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Contact state management and project authorization hooks for preventing data leaks across sessions",
+  "exports": {
+    ".": "./index.ts"
+  }
+}

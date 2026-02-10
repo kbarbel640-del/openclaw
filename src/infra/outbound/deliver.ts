@@ -21,6 +21,7 @@ import {
   appendAssistantMessageToSessionTranscript,
   resolveMirroredTranscriptText,
 } from "../../config/sessions.js";
+import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { markdownToSignalTextChunks, type SignalTextStyleRange } from "../../signal/format.js";
 import { sendMessageSignal } from "../../signal/send.js";
 import { throwIfAborted } from "./abort.js";
@@ -313,9 +314,45 @@ export async function deliverOutboundPayloads(params: {
     };
   };
   const normalizedPayloads = normalizeReplyPayloadsForDelivery(payloads);
+  const hookRunner = getGlobalHookRunner();
+
   for (const payload of normalizedPayloads) {
+    let payloadText = payload.text ?? "";
+
+    // Run message_sending hook to allow plugins to modify or cancel the message
+    if (hookRunner?.hasHooks("message_sending") && payloadText) {
+      try {
+        const hookResult = await hookRunner.runMessageSending(
+          {
+            to,
+            content: payloadText,
+            metadata: {
+              channel,
+              accountId,
+              mediaUrls: payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []),
+            },
+          },
+          {
+            channelId: channel,
+            accountId,
+            conversationId: to,
+          },
+        );
+        if (hookResult?.cancel) {
+          // Skip this payload if hook requested cancellation
+          continue;
+        }
+        if (hookResult?.content !== undefined) {
+          // Use modified content from hook
+          payloadText = hookResult.content;
+        }
+      } catch {
+        // Ignore hook errors, continue with original payload
+      }
+    }
+
     const payloadSummary: NormalizedOutboundPayload = {
-      text: payload.text ?? "",
+      text: payloadText,
       mediaUrls: payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []),
       channelData: payload.channelData,
     };
@@ -323,7 +360,11 @@ export async function deliverOutboundPayloads(params: {
       throwIfAborted(abortSignal);
       params.onPayload?.(payloadSummary);
       if (handler.sendPayload && payload.channelData) {
-        results.push(await handler.sendPayload(payload));
+        // Use potentially modified text from hook
+        const modifiedPayload = payloadText !== (payload.text ?? "")
+          ? { ...payload, text: payloadText }
+          : payload;
+        results.push(await handler.sendPayload(modifiedPayload));
         continue;
       }
       if (payloadSummary.mediaUrls.length === 0) {
