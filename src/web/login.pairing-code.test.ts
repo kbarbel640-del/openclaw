@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loginWeb, type LoginWebOptions } from "./login.js";
+import { loginWeb, normalizePhoneNumber, type LoginWebOptions } from "./login.js";
 
 const mockRequestPairingCode = vi.fn().mockResolvedValue("12345678");
 const mockWsClose = vi.fn();
@@ -47,6 +47,48 @@ const mockRuntime = {
   error: vi.fn(),
   exit: vi.fn(),
 };
+
+describe("normalizePhoneNumber", () => {
+  it("keeps digits and + prefix", () => {
+    expect(normalizePhoneNumber("+1234567890")).toBe("+1234567890");
+  });
+
+  it("removes spaces", () => {
+    expect(normalizePhoneNumber("+1 234 567 890")).toBe("+1234567890");
+  });
+
+  it("removes dashes", () => {
+    expect(normalizePhoneNumber("+1-234-567-890")).toBe("+1234567890");
+  });
+
+  it("removes parentheses", () => {
+    expect(normalizePhoneNumber("(123) 456-7890")).toBe("1234567890");
+  });
+
+  it("handles mixed formats", () => {
+    expect(normalizePhoneNumber("+1 (234) 567-8901")).toBe("+12345678901");
+  });
+
+  it("handles dots as separators", () => {
+    expect(normalizePhoneNumber("+1.234.567.8901")).toBe("+12345678901");
+  });
+
+  it("trims leading and trailing whitespace", () => {
+    expect(normalizePhoneNumber("  +1234567890  ")).toBe("+1234567890");
+  });
+
+  it("handles number without + prefix", () => {
+    expect(normalizePhoneNumber("1234567890")).toBe("1234567890");
+  });
+
+  it("handles international format with country code", () => {
+    expect(normalizePhoneNumber("+44 7123 456789")).toBe("+447123456789");
+  });
+
+  it("handles US format with area code in parentheses", () => {
+    expect(normalizePhoneNumber("+1 (555) 123-4567")).toBe("+15551234567");
+  });
+});
 
 describe("loginWeb with pairing code", () => {
   beforeEach(() => {
@@ -106,6 +148,38 @@ describe("loginWeb with pairing code", () => {
     await loginPromise;
 
     expect(mockRequestPairingCode).toHaveBeenCalledWith("447123456789");
+  });
+
+  it("removes dashes from phone number", async () => {
+    const opts: LoginWebOptions = {
+      useCode: true,
+      phoneNumber: "+1-234-567-8901",
+    };
+
+    const loginPromise = loginWeb(false, undefined, mockRuntime as never, undefined, opts);
+
+    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(500);
+
+    await loginPromise;
+
+    expect(mockRequestPairingCode).toHaveBeenCalledWith("12345678901");
+  });
+
+  it("removes parentheses from phone number", async () => {
+    const opts: LoginWebOptions = {
+      useCode: true,
+      phoneNumber: "+1 (555) 123-4567",
+    };
+
+    const loginPromise = loginWeb(false, undefined, mockRuntime as never, undefined, opts);
+
+    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(500);
+
+    await loginPromise;
+
+    expect(mockRequestPairingCode).toHaveBeenCalledWith("15551234567");
   });
 
   it("uses QR code when useCode is false", async () => {

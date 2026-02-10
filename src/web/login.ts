@@ -1,5 +1,6 @@
 import { DisconnectReason } from "@whiskeysockets/baileys";
-import * as readline from "node:readline";
+import { stdin as input, stdout as output } from "node:process";
+import readline from "node:readline/promises";
 import { formatCliCommand } from "../cli/command-format.js";
 import { loadConfig } from "../config/config.js";
 import { danger, info, success } from "../globals.js";
@@ -15,17 +16,19 @@ export type LoginWebOptions = {
   phoneNumber?: string;
 };
 
+/**
+ * Normalize a phone number to digits only (with optional leading +).
+ * Handles common formats: +1-234-567-890, (123) 456-7890, +1 234 567 890
+ */
+export function normalizePhoneNumber(phone: string): string {
+  return phone.trim().replace(/[^\d+]/g, "");
+}
+
 async function promptPhoneNumber(_runtime: RuntimeEnv): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    rl.question("Enter your phone number (E.164 format, e.g. +1234567890): ", (answer) => {
-      rl.close();
-      resolve(answer.trim().replace(/\s+/g, ""));
-    });
-  });
+  const rl = readline.createInterface({ input, output });
+  const answer = await rl.question("Enter your phone number (E.164 format, e.g. +1234567890): ");
+  rl.close();
+  return normalizePhoneNumber(answer);
 }
 
 export async function loginWeb(
@@ -47,7 +50,7 @@ export async function loginWeb(
 
   // If using pairing code, request it after socket is ready
   if (useCode) {
-    let phoneNumber = opts.phoneNumber?.trim().replace(/\s+/g, "");
+    let phoneNumber = opts.phoneNumber ? normalizePhoneNumber(opts.phoneNumber) : "";
     if (!phoneNumber) {
       phoneNumber = await promptPhoneNumber(runtime);
     }
