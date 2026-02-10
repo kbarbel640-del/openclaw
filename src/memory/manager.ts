@@ -37,7 +37,7 @@ const BATCH_FAILURE_LIMIT = 2;
 const log = createSubsystemLogger("memory");
 
 const INDEX_CACHE = new Map<string, MemoryIndexManager>();
-const INDEX_INIT_LOCKS = new Map<string, Promise<MemoryIndexManager | null>>();
+const INDEX_INIT_LOCKS = new Map<string, Promise<MemoryIndexManager>>();
 
 export class MemoryIndexManager implements MemorySearchManager {
   // oxlint-disable-next-line typescript/no-explicit-any
