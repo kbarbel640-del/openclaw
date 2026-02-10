@@ -258,73 +258,67 @@ export async function evaluateViaPlaywright(opts: {
     if (signal.aborted) {
       disconnect();
       throw signal.reason ?? new Error("aborted");
-    } else {
-      abortListener = () => disconnect();
-      signal.addEventListener("abort", abortListener, { once: true });
     }
+    abortListener = () => disconnect();
+    signal.addEventListener("abort", abortListener, { once: true });
   }
 
-  if (opts.ref) {
-    const locator = refLocator(page, opts.ref);
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
-    const elementEvaluator = new Function(
-      "el",
-      "args",
-      `
-      "use strict";
-      var fnBody = args.fnBody, timeoutMs = args.timeoutMs;
-      try {
-        var candidate = eval("(" + fnBody + ")");
-        var result = typeof candidate === "function" ? candidate(el) : candidate;
-        if (result && typeof result.then === "function") {
-          return Promise.race([
-            result,
-            new Promise(function(_, reject) {
-              setTimeout(function() { reject(new Error("evaluate timed out after " + timeoutMs + "ms")); }, timeoutMs);
-            })
-          ]);
+  try {
+    if (opts.ref) {
+      const locator = refLocator(page, opts.ref);
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
+      const elementEvaluator = new Function(
+        "el",
+        "args",
+        `
+        "use strict";
+        var fnBody = args.fnBody, timeoutMs = args.timeoutMs;
+        try {
+          var candidate = eval("(" + fnBody + ")");
+          var result = typeof candidate === "function" ? candidate(el) : candidate;
+          if (result && typeof result.then === "function") {
+            return Promise.race([
+              result,
+              new Promise(function(_, reject) {
+                setTimeout(function() { reject(new Error("evaluate timed out after " + timeoutMs + "ms")); }, timeoutMs);
+              })
+            ]);
+          }
+          return result;
+        } catch (err) {
+          throw new Error("Invalid evaluate function: " + (err && err.message ? err.message : String(err)));
         }
-        return result;
-      } catch (err) {
-        throw new Error("Invalid evaluate function: " + (err && err.message ? err.message : String(err)));
-      }
-      `,
-    ) as (el: Element, args: { fnBody: string; timeoutMs: number }) => unknown;
-    try {
+        `,
+      ) as (el: Element, args: { fnBody: string; timeoutMs: number }) => unknown;
       return await locator.evaluate(elementEvaluator, {
         fnBody: fnText,
         timeoutMs: evaluateTimeout,
       });
-    } finally {
-      if (signal && abortListener) {
-        signal.removeEventListener("abort", abortListener);
-      }
     }
-  }
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
-  const browserEvaluator = new Function(
-    "args",
-    `
-    "use strict";
-    var fnBody = args.fnBody, timeoutMs = args.timeoutMs;
-    try {
-      var candidate = eval("(" + fnBody + ")");
-      var result = typeof candidate === "function" ? candidate() : candidate;
-      if (result && typeof result.then === "function") {
-        return Promise.race([
-          result,
-          new Promise(function(_, reject) {
-            setTimeout(function() { reject(new Error("evaluate timed out after " + timeoutMs + "ms")); }, timeoutMs);
-          })
-        ]);
-      }
-      return result;
-    } catch (err) {
-      throw new Error("Invalid evaluate function: " + (err && err.message ? err.message : String(err)));
-    }
-    `,
-  ) as (args: { fnBody: string; timeoutMs: number }) => unknown;
-  try {
+
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
+    const browserEvaluator = new Function(
+      "args",
+      `
+        "use strict";
+        var fnBody = args.fnBody, timeoutMs = args.timeoutMs;
+        try {
+          var candidate = eval("(" + fnBody + ")");
+          var result = typeof candidate === "function" ? candidate() : candidate;
+          if (result && typeof result.then === "function") {
+            return Promise.race([
+              result,
+              new Promise(function(_, reject) {
+                setTimeout(function() { reject(new Error("evaluate timed out after " + timeoutMs + "ms")); }, timeoutMs);
+              })
+            ]);
+          }
+          return result;
+        } catch (err) {
+          throw new Error("Invalid evaluate function: " + (err && err.message ? err.message : String(err)));
+        }
+      `,
+    ) as (args: { fnBody: string; timeoutMs: number }) => unknown;
     return await page.evaluate(browserEvaluator, { fnBody: fnText, timeoutMs: evaluateTimeout });
   } finally {
     if (signal && abortListener) {
