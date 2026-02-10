@@ -1,5 +1,14 @@
 # OpenClaw Codebase Patterns
 
+## 全局规则
+
+**重要：所有回答和交互必须使用中文。**
+
+- 代码注释使用中文
+- 文档和说明使用中文
+- 错误信息和日志使用中文
+- 与用户的所有交流使用中文
+
 **Always reuse existing code - no redundancy!**
 
 ## Tech Stack
