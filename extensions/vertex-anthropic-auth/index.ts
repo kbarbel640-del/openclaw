@@ -1,4 +1,3 @@
-import { registerApiProvider } from "@mariozechner/pi-ai";
 import {
   emptyPluginConfigSchema,
   type OpenClawPluginApi,
@@ -29,13 +28,12 @@ const vertexAnthropicPlugin = {
   description: "Anthropic Claude models via Google Cloud Vertex AI",
   configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi) {
-    registerApiProvider({
-      api: VERTEX_API_TYPE,
-      stream: streamAnthropicVertex,
-      streamSimple: streamSimpleAnthropicVertex,
-    });
-
     api.registerProvider({
+      apiProvider: {
+        api: VERTEX_API_TYPE,
+        stream: streamAnthropicVertex,
+        streamSimple: streamSimpleAnthropicVertex,
+      },
       id: "vertex-anthropic",
       label: "Vertex AI Anthropic",
       docsPath: "/providers/vertex-anthropic",
@@ -45,7 +43,8 @@ const vertexAnthropicPlugin = {
         "SERVICE_ACCOUNT_KEY_FILE",
       ],
       models: {
-        baseUrl: "",
+        baseUrl: "https://vertex.googleapis.com",
+        apiKey: "vertex-ai-managed",
         api: VERTEX_API_TYPE as never,
         auth: "token",
         models: [
