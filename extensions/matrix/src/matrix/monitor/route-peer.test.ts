@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import { resolveMatrixRoutePeer, type MatrixSessionScope } from "./handler.js";
 
 describe("resolveMatrixRoutePeer", () => {
