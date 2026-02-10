@@ -102,6 +102,7 @@ export type SessionEntry = {
   channel?: string;
   groupId?: string;
   subject?: string;
+  topicName?: string;
   groupChannel?: string;
   space?: string;
   origin?: SessionOrigin;
