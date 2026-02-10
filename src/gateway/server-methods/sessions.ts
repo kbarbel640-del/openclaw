@@ -365,7 +365,10 @@ export const sessionsHandlers: GatewayRequestHandlers = {
 
     const archived: string[] = [];
     if (deleteTranscript && sessionId) {
-      // Clean up any old .deleted files for this sessionId to prevent duplicates
+      // Clean up old .deleted archives for this sessionId before creating a new one.
+      // We intentionally keep only the most recent archive per session — restore
+      // always operates on the latest delete, and stale archives would cause
+      // duplicates in the deleted sessions list.
       const agentDir = resolveAgentDir(cfg, target.agentId);
       // resolveAgentDir returns ~/.openclaw/agents/{agentId}/agent
       // We need ~/.openclaw/agents/{agentId}/sessions
@@ -645,9 +648,14 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     const sessionsDir = path.join(agentScope, "sessions");
 
     try {
-      // Find the deleted file for this sessionId
+      // Find the most recent deleted file for this sessionId.
+      // sessions.delete cleans up older archives so there should only be one,
+      // but we sort by timestamp descending as a safety measure.
       const files = fs.readdirSync(sessionsDir);
-      const deletedFile = files.find((f) => f.startsWith(`${sessionId}.jsonl.deleted.`));
+      const deletedFile = files
+        .filter((f) => f.startsWith(`${sessionId}.jsonl.deleted.`))
+        .toSorted()
+        .pop();
 
       if (!deletedFile) {
         respond(
