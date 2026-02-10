@@ -544,6 +544,21 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
         reason: "no mention",
         target: senderDisplay,
       });
+      const quoteText = dataMessage.quote?.text?.trim() || "";
+      const pendingPlaceholder = (() => {
+        if (!dataMessage.attachments?.length) {
+          return "";
+        }
+        // When we're skipping a message we intentionally avoid downloading attachments.
+        // Still record a useful placeholder for pending-history context.
+        if (deps.ignoreAttachments) {
+          return "<media:attachment>";
+        }
+        const firstContentType = dataMessage.attachments?.[0]?.contentType;
+        const pendingKind = mediaKindFromMime(firstContentType ?? undefined);
+        return pendingKind ? `<media:${pendingKind}>` : "<media:attachment>";
+      })();
+      const pendingBodyText = messageText || pendingPlaceholder || quoteText;
       const historyKey = groupId ?? "unknown";
       recordPendingHistoryEntryIfEnabled({
         historyMap: deps.groupHistories,
@@ -551,7 +566,7 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
         limit: deps.historyLimit,
         entry: {
           sender: envelope.sourceName ?? senderDisplay,
-          body: messageText,
+          body: pendingBodyText,
           timestamp: envelope.timestamp ?? undefined,
           messageId:
             typeof envelope.timestamp === "number" ? String(envelope.timestamp) : undefined,

@@ -49,7 +49,13 @@ function createBaseDeps(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeGroupEvent(message: string) {
+type GroupEventOpts = {
+  message?: string;
+  attachments?: unknown[];
+  quoteText?: string;
+};
+
+function makeGroupEvent(opts: GroupEventOpts) {
   return {
     event: "receive",
     data: JSON.stringify({
@@ -58,8 +64,9 @@ function makeGroupEvent(message: string) {
         sourceName: "Alice",
         timestamp: 1700000000000,
         dataMessage: {
-          message,
-          attachments: [],
+          message: opts.message ?? "",
+          attachments: opts.attachments ?? [],
+          quote: opts.quoteText ? { text: opts.quoteText } : undefined,
           groupInfo: { groupId: "g1", groupName: "Test Group" },
         },
       },
@@ -79,7 +86,7 @@ describe("signal mention gating", () => {
       }),
     );
 
-    await handler(makeGroupEvent("hello everyone"));
+    await handler(makeGroupEvent({ message: "hello everyone" }));
     expect(capturedCtx).toBeUndefined();
   });
 
@@ -94,7 +101,7 @@ describe("signal mention gating", () => {
       }),
     );
 
-    await handler(makeGroupEvent("hey @bot what's up"));
+    await handler(makeGroupEvent({ message: "hey @bot what's up" }));
     expect(capturedCtx).toBeTruthy();
     expect(capturedCtx?.WasMentioned).toBe(true);
   });
@@ -110,7 +117,7 @@ describe("signal mention gating", () => {
       }),
     );
 
-    await handler(makeGroupEvent("hello everyone"));
+    await handler(makeGroupEvent({ message: "hello everyone" }));
     expect(capturedCtx).toBeTruthy();
     expect(capturedCtx?.WasMentioned).toBe(false);
   });
@@ -129,13 +136,57 @@ describe("signal mention gating", () => {
       }),
     );
 
-    await handler(makeGroupEvent("hello from alice"));
+    await handler(makeGroupEvent({ message: "hello from alice" }));
     expect(capturedCtx).toBeUndefined();
     const entries = groupHistories.get("g1");
     expect(entries).toBeTruthy();
     expect(entries).toHaveLength(1);
     expect(entries[0].sender).toBe("Alice");
     expect(entries[0].body).toBe("hello from alice");
+  });
+
+  it("records attachment placeholder in pending history for skipped attachment-only group messages", async () => {
+    capturedCtx = undefined;
+    const groupHistories = new Map();
+    const handler = createSignalEventHandler(
+      createBaseDeps({
+        cfg: {
+          messages: { inbound: { debounceMs: 0 }, groupChat: { mentionPatterns: ["@bot"] } },
+          channels: { signal: { groups: { "*": { requireMention: true } } } },
+        },
+        historyLimit: 5,
+        groupHistories,
+      }),
+    );
+
+    await handler(makeGroupEvent({ message: "", attachments: [{ id: "a1" }] }));
+    expect(capturedCtx).toBeUndefined();
+    const entries = groupHistories.get("g1");
+    expect(entries).toBeTruthy();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].body).toBe("<media:attachment>");
+  });
+
+  it("records quote text in pending history for skipped quote-only group messages", async () => {
+    capturedCtx = undefined;
+    const groupHistories = new Map();
+    const handler = createSignalEventHandler(
+      createBaseDeps({
+        cfg: {
+          messages: { inbound: { debounceMs: 0 }, groupChat: { mentionPatterns: ["@bot"] } },
+          channels: { signal: { groups: { "*": { requireMention: true } } } },
+        },
+        historyLimit: 5,
+        groupHistories,
+      }),
+    );
+
+    await handler(makeGroupEvent({ message: "", quoteText: "quoted context" }));
+    expect(capturedCtx).toBeUndefined();
+    const entries = groupHistories.get("g1");
+    expect(entries).toBeTruthy();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].body).toBe("quoted context");
   });
 
   it("bypasses mention gating for authorized control commands", async () => {
@@ -149,7 +200,7 @@ describe("signal mention gating", () => {
       }),
     );
 
-    await handler(makeGroupEvent("/help"));
+    await handler(makeGroupEvent({ message: "/help" }));
     expect(capturedCtx).toBeTruthy();
   });
 });
