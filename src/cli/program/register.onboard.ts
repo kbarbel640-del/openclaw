@@ -81,6 +81,7 @@ export function registerOnboardCommand(program: Command) {
     .option("--kimi-code-api-key <key>", "Kimi Coding API key")
     .option("--gemini-api-key <key>", "Gemini API key")
     .option("--zai-api-key <key>", "Z.AI API key")
+    .option("--deepseek-api-key <key>", "DeepSeek API key")
     .option("--xiaomi-api-key <key>", "Xiaomi API key")
     .option("--minimax-api-key <key>", "MiniMax API key")
     .option("--synthetic-api-key <key>", "Synthetic API key")
@@ -138,6 +139,7 @@ export function registerOnboardCommand(program: Command) {
             kimiCodeApiKey: opts.kimiCodeApiKey as string | undefined,
             geminiApiKey: opts.geminiApiKey as string | undefined,
             zaiApiKey: opts.zaiApiKey as string | undefined,
+            deepseekApiKey: opts.deepseekApiKey as string | undefined,
             xiaomiApiKey: opts.xiaomiApiKey as string | undefined,
             qianfanApiKey: opts.qianfanApiKey as string | undefined,
             minimaxApiKey: opts.minimaxApiKey as string | undefined,

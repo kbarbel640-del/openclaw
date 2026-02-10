@@ -12,6 +12,7 @@ import { applyGoogleGeminiModelDefault } from "../../google-gemini-model-default
 import {
   applyAuthProfileConfig,
   applyCloudflareAiGatewayConfig,
+  applyDeepseekConfig,
   applyQianfanConfig,
   applyKimiCodeConfig,
   applyMinimaxApiConfig,
@@ -29,6 +30,7 @@ import {
   applyZaiConfig,
   setAnthropicApiKey,
   setCloudflareAiGatewayConfig,
+  setDeepseekApiKey,
   setQianfanApiKey,
   setGeminiApiKey,
   setKimiCodingApiKey,
@@ -246,6 +248,29 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applyXaiConfig(nextConfig);
+  }
+
+  if (authChoice === "deepseek-api-key") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "deepseek",
+      cfg: baseConfig,
+      flagValue: opts.deepseekApiKey,
+      flagName: "--deepseek-api-key",
+      envVar: "DEEPSEEK_API_KEY",
+      runtime,
+    });
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setDeepseekApiKey(resolved.key);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "deepseek:default",
+      provider: "deepseek",
+      mode: "api_key",
+    });
+    return applyDeepseekConfig(nextConfig);
   }
 
   if (authChoice === "qianfan-api-key") {
