@@ -50,6 +50,8 @@ openclaw onboard
 
 ### Config snippet
 
+Add the extension plugin and configure the model in `openclaw.json`:
+
 ```json5
 {
   env: {
@@ -63,6 +65,32 @@ openclaw onboard
       },
     },
   },
+  plugins: {
+    enabled: true,
+    load: {
+      paths: ["path/to/extensions/vertex-anthropic-auth"],
+    },
+    entries: {
+      "vertex-anthropic-auth": { enabled: true },
+    },
+  },
+}
+```
+
+### Auth profile
+
+After running `openclaw configure` or manually, ensure your auth profile exists in `~/.openclaw/agents/main/agent/auth-profiles.json`:
+
+```json
+{
+  "version": 1,
+  "profiles": {
+    "vertex-anthropic:<your-project-id>": {
+      "type": "token",
+      "provider": "vertex-anthropic",
+      "token": "vertex-ai-managed"
+    }
+  }
 }
 ```
 
