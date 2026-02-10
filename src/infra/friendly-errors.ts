@@ -220,7 +220,7 @@ const ERROR_PATTERNS: ErrorPattern[] = [
 /**
  * Extract error code from an error object
  */
-function extractCode(err: unknown): string | undefined {
+function getErrorCode(err: unknown): string | undefined {
   if (!err || typeof err !== "object") {
     return undefined;
   }
@@ -252,7 +252,7 @@ function extractCode(err: unknown): string | undefined {
 /**
  * Extract message from an error object
  */
-function extractErrorMessage(err: unknown): string {
+function getErrorText(err: unknown): string {
   if (err instanceof Error) {
     return err.message;
   }
@@ -269,8 +269,8 @@ function extractErrorMessage(err: unknown): string {
  * Get a friendly error message for a given error
  */
 export function getFriendlyError(err: unknown): FriendlyError | null {
-  const message = extractErrorMessage(err);
-  const code = extractCode(err);
+  const message = getErrorText(err);
+  const code = getErrorCode(err);
 
   for (const pattern of ERROR_PATTERNS) {
     if (pattern.match(err, message, code)) {
@@ -313,7 +313,7 @@ export function formatFriendlyError(friendly: FriendlyError): string {
  */
 export function enhanceErrorMessage(err: unknown): string {
   const friendly = getFriendlyError(err);
-  const originalMessage = extractErrorMessage(err);
+  const originalMessage = getErrorText(err);
 
   if (friendly) {
     return formatFriendlyError(friendly) + `\x1b[2mOriginal error: ${originalMessage}\x1b[0m\n`;
