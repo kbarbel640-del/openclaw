@@ -20,7 +20,14 @@ function truncateSkillsPrompt(prompt: string, maxChars: number): string {
   if (prompt.length <= maxChars) {
     return prompt;
   }
-  return prompt.slice(0, maxChars) + "\n[...skills list truncated]";
+  // Truncate at skill block boundaries to avoid malformed XML
+  const truncated = prompt.slice(0, maxChars);
+  const lastClosingTag = truncated.lastIndexOf("</skill>");
+  if (lastClosingTag !== -1) {
+    return truncated.slice(0, lastClosingTag + "</skill>".length) + "\n[...skills list truncated]";
+  }
+  // Fallback: no complete skill block found, return as-is
+  return truncated + "\n[...skills list truncated]";
 }
 
 function buildSkillsSection(params: {

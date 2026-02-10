@@ -402,8 +402,11 @@ export async function runEmbeddedPiAgent(
             const history = tempSm.getMessages();
             if (history.length > 0) {
               const historyTokens = estimateMessagesTokens(history);
-              // Rough estimate: system prompt + tool schemas ≈ 15% of context window
-              const systemPromptEstimate = Math.floor(ctxInfo.tokens * 0.15);
+              // Fixed estimate for system prompt + tool schemas overhead.
+              // Typical system prompt ≈ 6-10K chars + tool schemas ≈ 2-5K chars
+              // ≈ 2000-3750 tokens at ~4 chars/token. Use 5000 as safe upper bound.
+              const SYSTEM_OVERHEAD_TOKENS_ESTIMATE = 5_000;
+              const systemPromptEstimate = SYSTEM_OVERHEAD_TOKENS_ESTIMATE;
               if (
                 shouldProactivelyCompact({
                   estimatedHistoryTokens: historyTokens,
