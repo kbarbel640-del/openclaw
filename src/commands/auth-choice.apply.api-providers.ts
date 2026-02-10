@@ -876,7 +876,7 @@ export async function applyAuthChoiceApiProviders(
   if (authChoice === "ernie-api-key") {
     let hasCredential = false;
     if (!hasCredential && params.opts?.token && params.opts?.tokenProvider === "ernie") {
-      setErnieApiKey(normalizeApiKeyInput(params.opts.token), params.agentDir);
+      await setErnieApiKey(normalizeApiKeyInput(params.opts.token), params.agentDir);
       hasCredential = true;
     }
 
@@ -897,7 +897,7 @@ export async function applyAuthChoiceApiProviders(
         initialValue: true,
       });
       if (useExisting) {
-        setErnieApiKey(envKey.apiKey, params.agentDir);
+        await setErnieApiKey(envKey.apiKey, params.agentDir);
         hasCredential = true;
       }
     }
@@ -906,7 +906,7 @@ export async function applyAuthChoiceApiProviders(
         message: "Enter ERNIE API key",
         validate: validateApiKeyInput,
       });
-      setErnieApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
+      await setErnieApiKey(normalizeApiKeyInput(String(key)), params.agentDir);
     }
     nextConfig = applyAuthProfileConfig(nextConfig, {
       profileId: "ernie:default",

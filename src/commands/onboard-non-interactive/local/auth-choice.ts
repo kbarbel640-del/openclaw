@@ -240,7 +240,7 @@ export async function applyNonInteractiveAuthChoice(params: {
       return null;
     }
     if (resolved.source !== "profile") {
-      setErnieApiKey(resolved.key);
+      await setErnieApiKey(resolved.key);
     }
     nextConfig = applyAuthProfileConfig(nextConfig, {
       profileId: "ernie:default",
