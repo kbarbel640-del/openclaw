@@ -18,11 +18,12 @@ import {
   writeCache,
 } from "./web-shared.js";
 
-const SEARCH_PROVIDERS = ["brave", "perplexity", "grok"] as const;
+const SEARCH_PROVIDERS = ["brave", "perplexity", "grok", "querit"] as const;
 const DEFAULT_SEARCH_COUNT = 5;
 const MAX_SEARCH_COUNT = 10;
 
 const BRAVE_SEARCH_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
+const QUERIT_SEARCH_ENDPOINT = "https://api.querit.ai/v1/search";
 const DEFAULT_PERPLEXITY_BASE_URL = "https://openrouter.ai/api/v1";
 const PERPLEXITY_DIRECT_BASE_URL = "https://api.perplexity.ai";
 const DEFAULT_PERPLEXITY_MODEL = "perplexity/sonar-pro";
@@ -131,6 +132,24 @@ type PerplexitySearchResponse = {
 
 type PerplexityBaseUrlHint = "direct" | "openrouter";
 
+type QueritConfig = {
+  apiKey?: string;
+};
+
+type QueritSearchResult = {
+  title?: string;
+  url?: string;
+  snippet?: string;
+  site_name?: string;
+};
+
+type QueritSearchResponse = {
+  error_code?: number;
+  error?: string;
+  results?: {
+    result?: QueritSearchResult[];
+  };
+};
 function extractGrokContent(data: GrokSearchResponse): string | undefined {
   // xAI Responses API format: output[0].content[0].text
   const fromResponses = data.output?.[0]?.content?.[0]?.text;
@@ -184,6 +203,13 @@ function missingSearchKeyPayload(provider: (typeof SEARCH_PROVIDERS)[number]) {
       docs: "https://docs.openclaw.ai/tools/web",
     };
   }
+  if (provider === "querit") {
+    return {
+      error: "missing_querit_api_key",
+      message: `web_search (querit) needs an API key. Run \`${formatCliCommand("openclaw configure --section web")}\` to store it, or set QUERIT_API_KEY in the Gateway environment.`,
+      docs: "https://docs.openclaw.ai/tools/web",
+    };
+  }
   return {
     error: "missing_brave_api_key",
     message: `web_search needs a Brave Search API key. Run \`${formatCliCommand("openclaw configure --section web")}\` to store it, or set BRAVE_API_KEY in the Gateway environment.`,
@@ -201,6 +227,9 @@ function resolveSearchProvider(search?: WebSearchConfig): (typeof SEARCH_PROVIDE
   }
   if (raw === "grok") {
     return "grok";
+  }
+  if (raw === "querit") {
+    return "querit";
   }
   if (raw === "brave") {
     return "brave";
@@ -344,6 +373,26 @@ function resolveGrokModel(grok?: GrokConfig): string {
 
 function resolveGrokInlineCitations(grok?: GrokConfig): boolean {
   return grok?.inlineCitations === true;
+}
+
+function resolveQueritConfig(search?: WebSearchConfig): QueritConfig {
+  if (!search || typeof search !== "object") {
+    return {};
+  }
+  const querit = "querit" in search ? search.querit : undefined;
+  if (!querit || typeof querit !== "object") {
+    return {};
+  }
+  return querit as QueritConfig;
+}
+
+function resolveQueritApiKey(querit?: QueritConfig): string | undefined {
+  const fromConfig = normalizeApiKey(querit?.apiKey);
+  if (fromConfig) {
+    return fromConfig;
+  }
+  const fromEnv = normalizeApiKey(process.env.QUERIT_API_KEY);
+  return fromEnv || undefined;
 }
 
 function resolveSearchCount(value: unknown, fallback: number): number {
@@ -500,6 +549,44 @@ async function runGrokSearch(params: {
   return { content, citations, inlineCitations };
 }
 
+async function runQueritSearch(params: {
+  query: string;
+  apiKey: string;
+  timeoutSeconds: number;
+}): Promise<Array<{ title: string; url: string; snippet: string; siteName: string }>> {
+  const res = await fetch(QUERIT_SEARCH_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${params.apiKey}`,
+    },
+    body: JSON.stringify({ query: params.query }),
+    signal: withTimeout(undefined, params.timeoutSeconds * 1000),
+  });
+
+  if (!res.ok) {
+    const detail = await readResponseText(res);
+    throw new Error(`Querit API error (${res.status}): ${detail || res.statusText}`);
+  }
+
+  const data = (await res.json()) as QueritSearchResponse;
+
+  if (data.error_code && data.error_code !== 200) {
+    throw new Error(`Querit API error (${data.error_code}): ${data.error ?? "Unknown error"}`);
+  }
+
+  if (!data.results?.result || !Array.isArray(data.results.result)) {
+    return [];
+  }
+
+  return data.results.result.map((entry) => ({
+    title: entry.title ?? "",
+    url: entry.url ?? "",
+    snippet: entry.snippet ?? "",
+    siteName: entry.site_name ?? resolveSiteName(entry.url) ?? "",
+  }));
+}
+
 async function runWebSearch(params: {
   query: string;
   count: number;
@@ -521,7 +608,9 @@ async function runWebSearch(params: {
       ? `${params.provider}:${params.query}:${params.count}:${params.country || "default"}:${params.search_lang || "default"}:${params.ui_lang || "default"}:${params.freshness || "default"}`
       : params.provider === "perplexity"
         ? `${params.provider}:${params.query}:${params.perplexityBaseUrl ?? DEFAULT_PERPLEXITY_BASE_URL}:${params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL}`
-        : `${params.provider}:${params.query}:${params.grokModel ?? DEFAULT_GROK_MODEL}:${String(params.grokInlineCitations ?? false)}`,
+        : params.provider === "querit"
+          ? `${params.provider}:${params.query}:${params.count}`
+          : `${params.provider}:${params.query}:${params.grokModel ?? DEFAULT_GROK_MODEL}:${String(params.grokInlineCitations ?? false)}`,
   );
   const cached = readCache(SEARCH_CACHE, cacheKey);
   if (cached) {
@@ -568,6 +657,31 @@ async function runWebSearch(params: {
       content: wrapWebContent(content),
       citations,
       inlineCitations,
+    };
+    writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
+    return payload;
+  }
+
+  if (params.provider === "querit") {
+    const results = await runQueritSearch({
+      query: params.query,
+      apiKey: params.apiKey,
+      timeoutSeconds: params.timeoutSeconds,
+    });
+
+    const mapped = results.slice(0, params.count).map((entry) => ({
+      title: entry.title ? wrapWebContent(entry.title, "web_search") : "",
+      url: entry.url,
+      description: entry.snippet ? wrapWebContent(entry.snippet, "web_search") : "",
+      siteName: entry.siteName,
+    }));
+
+    const payload = {
+      query: params.query,
+      provider: params.provider,
+      count: mapped.length,
+      tookMs: Date.now() - start,
+      results: mapped,
     };
     writeCache(SEARCH_CACHE, cacheKey, payload, params.cacheTtlMs);
     return payload;
@@ -646,13 +760,16 @@ export function createWebSearchTool(options?: {
   const provider = resolveSearchProvider(search);
   const perplexityConfig = resolvePerplexityConfig(search);
   const grokConfig = resolveGrokConfig(search);
+  const queritConfig = resolveQueritConfig(search);
 
   const description =
     provider === "perplexity"
       ? "Search the web using Perplexity Sonar (direct or via OpenRouter). Returns AI-synthesized answers with citations from real-time web search."
       : provider === "grok"
         ? "Search the web using xAI Grok. Returns AI-synthesized answers with citations from real-time web search."
-        : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
+        : provider === "querit"
+          ? "Search the web using Querit search API. Returns titles, URLs, and snippets for fast research."
+          : "Search the web using Brave Search API. Supports region-specific and localized search via country and language parameters. Returns titles, URLs, and snippets for fast research.";
 
   return {
     label: "Web Search",
@@ -667,7 +784,9 @@ export function createWebSearchTool(options?: {
           ? perplexityAuth?.apiKey
           : provider === "grok"
             ? resolveGrokApiKey(grokConfig)
-            : resolveSearchApiKey(search);
+            : provider === "querit"
+              ? resolveQueritApiKey(queritConfig)
+              : resolveSearchApiKey(search);
 
       if (!apiKey) {
         return jsonResult(missingSearchKeyPayload(provider));
