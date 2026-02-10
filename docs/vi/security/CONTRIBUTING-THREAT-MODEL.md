@@ -35,22 +35,22 @@ Typos, clarifications, outdated info, better examples - PRs welcome, no issue ne
 
 ### MITRE ATLAS
 
-Mô hình mối đe dọa này được xây dựng dựa trên [MITRE ATLAS](https://atlas.mitre.org/) (Bối cảnh Mối đe dọa Đối kháng cho Hệ thống AI), một khung được thiết kế chuyên biệt cho các mối đe dọa AI/ML như prompt injection, lạm dụng công cụ và khai thác agent. You don't need to know ATLAS to contribute - we map submissions to the framework during review.
+Mô hình mối đe dọa này được xây dựng dựa trên [MITRE ATLAS](https://atlas.mitre.org/) (Bối cảnh Mối đe dọa Đối kháng cho Hệ thống AI), một khung được thiết kế chuyên biệt cho các mối đe dọa AI/ML như prompt injection, lạm dụng công cụ và khai thác agent. Bạn không cần biết ATLAS để đóng góp - chúng tôi sẽ ánh xạ các bài nộp vào khung trong quá trình rà soát.
 
 ### ID mối đe dọa
 
 Mỗi mối đe dọa có một ID như `T-EXEC-003`. Các danh mục bao gồm:
 
-| Code    | Danh mục                                |
-| ------- | --------------------------------------- |
-| RECON   | Trinh sát – thu thập thông tin          |
-| ACCESS  | Truy cập ban đầu – giành quyền xâm nhập |
-| EXEC    | Thực thi – chạy các hành động độc hại   |
-| PERSIST | Persistence - maintaining access        |
-| EVADE   | Né tránh phòng thủ – tránh bị phát hiện |
-| DISC    | Khám phá – tìm hiểu về môi trường       |
-| EXFIL   | Rò rỉ dữ liệu – đánh cắp dữ liệu        |
-| IMPACT  | Tác động – gây thiệt hại hoặc gián đoạn |
+| Code      | Danh mục                                |
+| --------- | --------------------------------------- |
+| Trinh sát | Trinh sát – thu thập thông tin          |
+| Truy cập  | Truy cập ban đầu – giành quyền xâm nhập |
+| EXEC      | Thực thi – chạy các hành động độc hại   |
+| PERSIST   | Duy trì - duy trì quyền truy cập        |
+| EVADE     | Né tránh phòng thủ – tránh bị phát hiện |
+| DISC      | Khám phá – tìm hiểu về môi trường       |
+| EXFIL     | Rò rỉ dữ liệu – đánh cắp dữ liệu        |
+| IMPACT    | Tác động – gây thiệt hại hoặc gián đoạn |
 
 ID được người duy trì gán trong quá trình xem xét. Bạn không cần phải chọn một ID.
 

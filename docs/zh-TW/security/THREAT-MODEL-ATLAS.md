@@ -44,7 +44,7 @@ This threat model documents adversarial threats to the OpenClaw AI agent platfor
 | Gateway                | Yes      | Authentication, routing, channel integration                     |
 | Channel Integrations   | Yes      | WhatsApp, Telegram, Discord, Signal, Slack, etc. |
 | ClawHub Marketplace    | Yes      | Skill publishing, moderation, distribution                       |
-| MCP Servers            | Yes      | External tool providers                                          |
+| MCP Servers            | Yes      | 外部工具提供者                                                          |
 | User Devices           | Partial  | Mobile apps, desktop clients                                     |
 
 ### 1.3 範圍外
@@ -169,37 +169,37 @@ This threat model documents adversarial threats to the OpenClaw AI agent platfor
 
 #### 屬性
 
-| 值                   | **ATLAS ID**                                              |
-| ------------------- | --------------------------------------------------------- |
-| **ATLAS ID**        | AML.T0040 - AI Model Inference API Access |
-| 攻擊者在 30 秒寬限期間內攔截配對碼 | **攻擊向量**                                                  |
-| 肩窺、網路封包嗅探、社交工程      | **受影響的元件**                                                |
-| 裝置配對系統              | **目前的緩解措施**                                               |
-| 30 秒過期，透過既有通道傳送代碼   | **殘餘風險**                                                  |
-| 中等 - 寬限期間可被利用       | **建議**                                                    |
-| 縮短寬限期間，加入確認步驟       | T-ACCESS-002：AllowFrom 偽造                                 |
+| 值                   | **ATLAS ID**                               |
+| ------------------- | ------------------------------------------ |
+| **ATLAS ID**        | AML.T0040 - AI 模型推論 API 存取 |
+| 攻擊者在 30 秒寬限期間內攔截配對碼 | **攻擊向量**                                   |
+| 肩窺、網路封包嗅探、社交工程      | **受影響的元件**                                 |
+| 裝置配對系統              | **目前的緩解措施**                                |
+| 30 秒過期，透過既有通道傳送代碼   | **殘餘風險**                                   |
+| 中等 - 寬限期間可被利用       | **建議**                                     |
+| 縮短寬限期間，加入確認步驟       | T-ACCESS-002：AllowFrom 偽造                  |
 
 #### 屬性
 
 | 值                       | Value                                                                          |
 | ----------------------- | ------------------------------------------------------------------------------ |
 | **ATLAS ID**            | AML.T0040 - AI Model Inference API Access                      |
-| **Description**         | Attacker spoofs allowed sender identity in channel                             |
+| **Description**         | 攻擊者在通道中冒充允許的寄件者身分                                                              |
 | **Attack Vector**       | Depends on channel - phone number spoofing, username impersonation             |
 | **Affected Components** | AllowFrom validation per channel                                               |
 | **Current Mitigations** | Channel-specific identity verification                                         |
-| **Residual Risk**       | Medium - Some channels vulnerable to spoofing                                  |
+| **殘餘風險**                | Medium - Some channels vulnerable to spoofing                                  |
 | **Recommendations**     | Document channel-specific risks, add cryptographic verification where possible |
 
 #### T-ACCESS-003: Token Theft
 
-| Attribute               | Value                                                                    |
+| 屬性                      | Value                                                                    |
 | ----------------------- | ------------------------------------------------------------------------ |
 | **ATLAS ID**            | AML.T0040 - AI Model Inference API Access                |
 | **Description**         | Attacker steals authentication tokens from config files                  |
 | **Attack Vector**       | Malware, unauthorized device access, config backup exposure              |
 | **Affected Components** | ~/.openclaw/credentials/, config storage |
-| **Current Mitigations** | File permissions                                                         |
+| **目前的緩解措施**             | File permissions                                                         |
 | **Residual Risk**       | High - Tokens stored in plaintext                                        |
 | **Recommendations**     | Implement token encryption at rest, add token rotation                   |
 
@@ -259,17 +259,17 @@ This threat model documents adversarial threats to the OpenClaw AI agent platfor
 
 ### 1. 3.4 持久化（AML.TA0006）
 
-#### T-PERSIST-001: Malicious Skill Installation
+#### T-PERSIST-001：惡意技能安裝
 
-| 3. 屬性           | Value                                                                                                |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 5. **ATLAS ID** | AML.T0010.001 - Supply Chain Compromise: AI Software |
-| 7. **描述**       | 8. 攻擊者將惡意技能發布到 ClawHub                                                        |
-| 9. **攻擊向量**     | 10. 建立帳號，發布包含隱藏惡意程式碼的技能                                                       |
-| 11. **受影響的元件**  | 12. ClawHub、技能載入、代理執行                                                         |
-| 13. **目前的緩解措施** | 14. GitHub 帳號年齡驗證、基於模式的內容審核標記                                                 |
-| 15. **殘餘風險**    | 16. 嚴重 - 無沙箱機制、審查有限                                                           |
-| 17. **建議**      | 18. VirusTotal 整合（進行中）、技能沙箱化、社群審查                                             |
+| 3. 屬性           | Value                                                       |
+| -------------------------------------- | ----------------------------------------------------------- |
+| 5. **ATLAS ID** | AML.T0010.001 - 供應鏈入侵：AI 軟體 |
+| 7. **描述**       | 8. 攻擊者將惡意技能發布到 ClawHub               |
+| 9. **攻擊向量**     | 10. 建立帳號，發布包含隱藏惡意程式碼的技能              |
+| 11. **受影響的元件**  | 12. ClawHub、技能載入、代理執行                |
+| 13. **目前的緩解措施** | 14. GitHub 帳號年齡驗證、基於模式的內容審核標記        |
+| 15. **殘餘風險**    | 16. 嚴重 - 無沙箱機制、審查有限                  |
+| 17. **建議**      | 18. VirusTotal 整合（進行中）、技能沙箱化、社群審查    |
 
 #### 19. T-PERSIST-002：技能更新投毒
 
@@ -376,8 +376,8 @@ This threat model documents adversarial threats to the OpenClaw AI agent platfor
 | **Attack Vector**                  | Prompt injection causing agent to message attacker               |
 | **Affected Components**            | Message tool, channel integrations                               |
 | **Current Mitigations**            | 1. 外向訊息管控                                 |
-| 2. **殘餘風險** | Medium - Gating may be bypassed                                  |
-| 4. **建議**   | Require explicit confirmation for new recipients                 |
+| 2. **殘餘風險** | 中等 - 門控可能被繞過                                                     |
+| 4. **建議**   | 要求對新收件者進行明確確認                                                    |
 
 #### 6. T-EXFIL-003：憑證蒐集
 
@@ -387,7 +387,7 @@ This threat model documents adversarial threats to the OpenClaw AI agent platfor
 | 11. **描述**      | 12. 惡意技能會從代理上下文中蒐集憑證               |
 | 13. **攻擊向量**    | 14. 技能程式碼讀取環境變數、設定檔                |
 | 15. **受影響的元件**  | 16. 技能執行環境                         |
-| 35. **目前的緩解措施** | None specific to skills                                   |
+| 35. **目前的緩解措施** | 無特定於技能的                                                   |
 | 19. **殘餘風險**    | 20. 嚴重 - 技能以代理權限執行                 |
 | 21. **建議**      | 22. 技能沙箱化、憑證隔離                     |
 
@@ -415,7 +415,7 @@ This threat model documents adversarial threats to the OpenClaw AI agent platfor
 | 46. **描述**       | 47. 攻擊者耗盡 API 點數或運算資源                       |
 | 48. **攻擊向量**     | 49. 自動化訊息洪流、昂貴的工具呼叫                         |
 | 50. **受影響的元件**   | Gateway, agent sessions, API provider                              |
-| **Current Mitigations**                 | None                                                               |
+| **Current Mitigations**                 | 無                                                                  |
 | **Residual Risk**                       | High - No rate limiting                                            |
 | **Recommendations**                     | Implement per-sender rate limits, cost budgets                     |
 
@@ -425,7 +425,7 @@ This threat model documents adversarial threats to the OpenClaw AI agent platfor
 | ----------------------- | ------------------------------------------------------- |
 | **ATLAS ID**            | AML.T0031 - Erode AI Model Integrity    |
 | **Description**         | Attacker causes agent to send harmful/offensive content |
-| **Attack Vector**       | Prompt injection causing inappropriate responses        |
+| **Attack Vector**       | 提示注入導致不當回應                                              |
 | **Affected Components** | Output generation, channel messaging                    |
 | **Current Mitigations** | LLM provider content policies                           |
 | **Residual Risk**       | Medium - Provider filters imperfect                     |

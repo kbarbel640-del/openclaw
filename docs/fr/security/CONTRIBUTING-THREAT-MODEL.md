@@ -39,11 +39,11 @@ This threat model is built on [MITRE ATLAS](https://atlas.mitre.org/) (Adversari
 
 ### Threat IDs
 
-Each threat gets an ID like `T-EXEC-003`. The categories are:
+Chaque menace reçoit un identifiant comme `T-EXEC-003`. Les catégories sont :
 
 | Code    | Category                                   |
 | ------- | ------------------------------------------ |
-| RECON   | Reconnaissance - information gathering     |
+| RECON   | Reconnaissance - collecte d’informations   |
 | ACCESS  | Initial access - gaining entry             |
 | EXEC    | Execution - running malicious actions      |
 | PERSIST | Persistence - maintaining access           |
@@ -56,12 +56,12 @@ IDs are assigned by maintainers during review. You don't need to pick one.
 
 ### Risk Levels
 
-| Level        | Meaning                                                           |
-| ------------ | ----------------------------------------------------------------- |
-| **Critical** | Full system compromise, or high likelihood + critical impact      |
-| **High**     | Significant damage likely, or medium likelihood + critical impact |
-| **Medium**   | Moderate risk, or low likelihood + high impact                    |
-| **Low**      | Unlikely and limited impact                                       |
+| Level        | Meaning                                                                   |
+| ------------ | ------------------------------------------------------------------------- |
+| **Critique** | Compromission complète du système, ou forte probabilité + impact critique |
+| **High**     | Significant damage likely, or medium likelihood + critical impact         |
+| **Medium**   | Moderate risk, or low likelihood + high impact                            |
+| **Low**      | Unlikely and limited impact                                               |
 
 If you're unsure about the risk level, just describe the impact and we'll assess it.
 

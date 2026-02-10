@@ -391,18 +391,18 @@ Fully isolated auth per sub-agent is not currently supported.
 
 Sub-agents receive a reduced system prompt compared to the main agent:
 
-- **Included:** Tooling, Workspace, Runtime sections, plus `AGENTS.md` and `TOOLS.md`
-- **Not included:** `SOUL.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
+- **Bao gồm:** Các phần Tooling, Workspace, Runtime, cùng với `AGENTS.md` và `TOOLS.md`
+- **Không bao gồm:** `SOUL.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
 
-The sub-agent also receives a task-focused system prompt that instructs it to stay focused on the assigned task, complete it, and not act as the main agent.
+Tác nhân phụ cũng nhận được một prompt hệ thống tập trung vào nhiệm vụ, hướng dẫn nó tập trung vào nhiệm vụ được giao, hoàn thành nhiệm vụ đó và không hoạt động như tác nhân chính.
 
 ## Stopping Sub-Agents
 
-| Method                 | Effect                                                                    |
-| ---------------------- | ------------------------------------------------------------------------- |
-| `/stop` in the chat    | Aborts the main session **and** all active sub-agent runs spawned from it |
-| `/subagents stop <id>` | Stops a specific sub-agent without affecting the main session             |
-| `runTimeoutSeconds`    | Automatically aborts the sub-agent run after the specified time           |
+| Method                        | Effect                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `/stop` trong cuộc trò chuyện | Aborts the main session **and** all active sub-agent runs spawned from it |
+| `/subagents stop <id>`        | Stops a specific sub-agent without affecting the main session             |
+| `runTimeoutSeconds`           | Automatically aborts the sub-agent run after the specified time           |
 
 <Note>
 `runTimeoutSeconds` does **not** auto-archive the session. The session remains until the normal archive timer fires.
@@ -410,8 +410,7 @@ The sub-agent also receives a task-focused system prompt that instructs it to st
 
 ## Full Configuration Example
 
-<Accordion title="Complete sub-agent configuration">
-```json5
+<Accordion title="Complete sub-agent configuration">```json5
 {
   agents: {
     defaults: {
@@ -447,16 +446,15 @@ The sub-agent also receives a task-focused system prompt that instructs it to st
     },
   },
 }
-```
-</Accordion>
+```</Accordion>
 
 ## Hạn chế
 
 <Warning>
-- **Best-effort announce:** If the gateway restarts, pending announce work is lost.
+- **Thông báo theo nỗ lực tối đa:** Nếu gateway khởi động lại, các tác vụ thông báo đang chờ sẽ bị mất.
 - **No nested spawning:** Sub-agents cannot spawn their own sub-agents.
 - **Shared resources:** Sub-agents share the gateway process; use `maxConcurrent` as a safety valve.
-- **Auto-archive is best-effort:** Pending archive timers are lost on gateway restart.
+- **Tự động lưu trữ là theo nỗ lực tối đa:** Các bộ hẹn giờ lưu trữ đang chờ sẽ bị mất khi gateway khởi động lại.
 </Warning>
 
 ## Xem thêm

@@ -107,7 +107,7 @@ title: "आरंभ करें"
   </Accordion>
 </AccordionGroup>
 
-## Useful environment variables
+## उपयोगी पर्यावरण चर
 
 If you run OpenClaw as a service account or want custom config/state locations:
 

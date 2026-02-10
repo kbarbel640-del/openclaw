@@ -466,13 +466,13 @@ The sub-agent also receives a task-focused system prompt that instructs it to st
 <Warning>
 - **Best-effort announce:** If the gateway restarts, pending announce work is lost.
 - **No nested spawning:** Sub-agents cannot spawn their own sub-agents.
-- **Shared resources:** Sub-agents share the gateway process; use `maxConcurrent` as a safety valve.
-- **Auto-archive is best-effort:** Pending archive timers are lost on gateway restart.
+- **Recursos compartilhados:** Subagentes compartilham o processo do gateway; use `maxConcurrent` como válvula de segurança.
+- **Arquivamento automático é melhor esforço:** Temporizadores de arquivamento pendentes são perdidos na reinicialização do gateway.
 </Warning>
 
 ## Veja também
 
-- [Session Tools](/concepts/session-tool) — details on `sessions_spawn` and other session tools
-- [Multi-Agent Sandbox and Tools](/tools/multi-agent-sandbox-tools) — per-agent tool restrictions and sandboxing
-- [Configuration](/gateway/configuration) — `agents.defaults.subagents` reference
-- [Queue](/concepts/queue) — how the `subagent` lane works
+- [Session Tools](/concepts/session-tool) — detalhes sobre `sessions_spawn` e outras ferramentas de sessão
+- [Multi-Agent Sandbox and Tools](/tools/multi-agent-sandbox-tools) — restrições de ferramentas por agente e sandboxing
+- [Configuration](/gateway/configuration) — referência de `agents.defaults.subagents`
+- [Queue](/concepts/queue) — como funciona a lane `subagent`

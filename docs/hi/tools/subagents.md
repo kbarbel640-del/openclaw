@@ -22,7 +22,7 @@ The simplest way to use sub-agents is to ask your agent naturally:
 
 > "Spawn a sub-agent to research the latest Node.js release notes"
 
-The agent will call the `sessions_spawn` tool behind the scenes. When the sub-agent finishes, it announces its findings back into your chat.
+The agent will call the `sessions_spawn` tool behind the scenes. जब उप-एजेंट समाप्त होता है, तो वह अपने निष्कर्ष आपके चैट में वापस घोषित करता है।
 
 You can also be explicit about options:
 
@@ -41,7 +41,7 @@ You can also be explicit about options:
     When the sub-agent finishes, it announces its findings back to the requester chat. The main agent posts a natural-language summary.
   </Step>
   <Step title="Session is archived">
-    The sub-agent session is auto-archived after 60 minutes (configurable). Transcripts are preserved.
+    The sub-agent session is auto-archived after 60 minutes (configurable). प्रतिलेख संरक्षित किए जाते हैं।
   </Step>
 </Steps>
 
@@ -51,12 +51,12 @@ Each sub-agent has its **own** context and token usage. Set a cheaper model for 
 
 ## विन्यास
 
-Sub-agents work out of the box with no configuration. डिफ़ॉल्ट्स:
+उप-एजेंट बिना किसी कॉन्फ़िगरेशन के तुरंत काम करते हैं। डिफ़ॉल्ट्स:
 
 - Model: target agent’s normal model selection (unless `subagents.model` is set)
 - Thinking: no sub-agent override (unless `subagents.thinking` is set)
 - Max concurrent: 8
-- Auto-archive: after 60 minutes
+- स्वतः-आर्काइव: 60 मिनट बाद
 
 ### Setting a Default Model
 
@@ -169,7 +169,7 @@ This is the tool the agent calls to create sub-agents.
 
 ### Model Resolution Order
 
-The sub-agent model is resolved in this order (first match wins):
+उप-एजेंट मॉडल इस क्रम में निर्धारित किया जाता है (पहला मिलान जीतता है):
 
 1. Explicit `model` parameter in the `sessions_spawn` call
 2. Per-agent config: `agents.list[].subagents.model`

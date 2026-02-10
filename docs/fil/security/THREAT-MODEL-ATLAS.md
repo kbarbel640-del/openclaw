@@ -560,31 +560,31 @@ T-EXEC-002 → T-EXFIL-001 → External exfiltration
 
 ### 7.1 ATLAS Technique Mapping
 
-| ATLAS ID                                      | Technique Name                                 | OpenClaw Threats                                                 |
-| --------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
-| AML.T0006                     | Active Scanning                                | T-RECON-001, T-RECON-002                                         |
-| AML.T0009                     | Collection                                     | T-EXFIL-001, T-EXFIL-002, T-EXFIL-003                            |
-| AML.T0010.001 | Supply Chain: AI Software      | T-PERSIST-001, T-PERSIST-002                                     |
-| AML.T0010.002 | Supply Chain: Data             | T-PERSIST-003                                                    |
-| AML.T0031                     | Erode AI Model Integrity                       | T-IMPACT-001, T-IMPACT-002, T-IMPACT-003                         |
-| AML.T0040                     | AI Model Inference API Access                  | T-ACCESS-001, T-ACCESS-002, T-ACCESS-003, T-DISC-001, T-DISC-002 |
-| AML.T0043                     | Craft Adversarial Data                         | T-EXEC-004, T-EVADE-001, T-EVADE-002                             |
-| AML.T0051.000 | LLM Prompt Injection: Direct   | T-EXEC-001, T-EXEC-003                                           |
-| AML.T0051.001 | LLM Prompt Injection: Indirect | T-EXEC-002                                                       |
+| ATLAS ID                                      | Technique Name                                      | OpenClaw Threats                                                 |
+| --------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------- |
+| AML.T0006                     | Active Scanning                                     | T-RECON-001, T-RECON-002                                         |
+| AML.T0009                     | Collection                                          | T-EXFIL-001, T-EXFIL-002, T-EXFIL-003                            |
+| AML.T0010.001 | Supply Chain: AI Software           | T-PERSIST-001, T-PERSIST-002                                     |
+| AML.T0010.002 | Supply Chain: Data                  | T-PERSIST-003                                                    |
+| AML.T0031                     | Erode AI Model Integrity                            | T-IMPACT-001, T-IMPACT-002, T-IMPACT-003                         |
+| AML.T0040                     | AI Model Inference API Access                       | T-ACCESS-001, T-ACCESS-002, T-ACCESS-003, T-DISC-001, T-DISC-002 |
+| AML.T0043                     | Craft Adversarial Data                              | T-EXEC-004, T-EVADE-001, T-EVADE-002                             |
+| AML.T0051.000 | LLM Prompt Injection: Direct        | T-EXEC-001, T-EXEC-003                                           |
+| AML.T0051.001 | LLM Prompt Injection: Hindi Tuwiran | T-EXEC-002                                                       |
 
 ### 7.2 Key Security Files
 
-| Ang limitasyon ay ang iyong         | Layunin                     | Risk Level   |
-| ----------------------------------- | --------------------------- | ------------ |
-| `src/infra/exec-approvals.ts`       | Command approval logic      | **Critical** |
-| `src/gateway/auth.ts`               | Gateway authentication      | **Critical** |
-| `src/web/inbound/access-control.ts` | Channel access control      | **Critical** |
-| `src/infra/net/ssrf.ts`             | SSRF protection             | **Critical** |
-| `src/security/external-content.ts`  | Prompt injection mitigation | **Critical** |
-| `src/agents/sandbox/tool-policy.ts` | Tool policy enforcement     | **Critical** |
-| `convex/lib/moderation.ts`          | ClawHub moderation          | **High**     |
-| `convex/lib/skillPublish.ts`        | Skill publishing flow       | **High**     |
-| `src/routing/resolve-route.ts`      | Session isolation           | **Medium**   |
+| Ang limitasyon ay ang iyong         | Layunin                         | Risk Level   |
+| ----------------------------------- | ------------------------------- | ------------ |
+| `src/infra/exec-approvals.ts`       | Lohika ng pag-apruba ng command | **Critical** |
+| `src/gateway/auth.ts`               | Gateway authentication          | **Critical** |
+| `src/web/inbound/access-control.ts` | Channel access control          | **Critical** |
+| `src/infra/net/ssrf.ts`             | SSRF protection                 | **Critical** |
+| `src/security/external-content.ts`  | Prompt injection mitigation     | **Critical** |
+| `src/agents/sandbox/tool-policy.ts` | Tool policy enforcement         | **Critical** |
+| `convex/lib/moderation.ts`          | ClawHub moderation              | **High**     |
+| `convex/lib/skillPublish.ts`        | Skill publishing flow           | **High**     |
+| `src/routing/resolve-route.ts`      | Session isolation               | **Medium**   |
 
 ### 7.3 Glossary
 

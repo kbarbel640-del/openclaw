@@ -35,7 +35,7 @@ Typos, clarifications, outdated info, better examples - PRs welcome, no issue ne
 
 ### 2. MITRE ATLAS
 
-This threat model is built on [MITRE ATLAS](https://atlas.mitre.org/) (Adversarial Threat Landscape for AI Systems), a framework designed specifically for AI/ML threats like prompt injection, tool misuse, and agent exploitation. 4. Nie musisz znać ATLAS, aby wnieść wkład — mapujemy zgłoszenia do frameworku podczas przeglądu.
+Ten model zagrożeń opiera się na [MITRE ATLAS](https://atlas.mitre.org/) (Adversarial Threat Landscape for AI Systems), ramach zaprojektowanych specjalnie dla zagrożeń AI/ML, takich jak wstrzykiwanie promptów, niewłaściwe użycie narzędzi i wykorzystywanie agentów. 4. Nie musisz znać ATLAS, aby wnieść wkład — mapujemy zgłoszenia do frameworku podczas przeglądu.
 
 ### 5. Identyfikatory zagrożeń
 

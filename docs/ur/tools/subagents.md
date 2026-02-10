@@ -404,8 +404,8 @@ Use a cheaper model for sub-agents to save on token costs:
 
 | 8. طریقہ                   | 9. اثر                                                                                   |
 | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `/stop` in the chat                               | 11. مرکزی سیشن **اور** اس سے شروع ہونے والی تمام فعال ذیلی ایجنٹ رنز کو منسوخ کر دیتا ہے |
-| 12. `/subagents stop <id>` | Stops a specific sub-agent without affecting the main session                                                   |
+| چیٹ میں `/stop`                                   | 11. مرکزی سیشن **اور** اس سے شروع ہونے والی تمام فعال ذیلی ایجنٹ رنز کو منسوخ کر دیتا ہے |
+| 12. `/subagents stop <id>` | مرکزی سیشن کو متاثر کیے بغیر ایک مخصوص ذیلی ایجنٹ کو روکتا ہے                                                   |
 | 14. `runTimeoutSeconds`    | 15. مقررہ وقت کے بعد ذیلی ایجنٹ رن کو خودکار طور پر منسوخ کر دیتا ہے                     |
 
 <Note>
@@ -464,7 +464,7 @@ Use a cheaper model for sub-agents to save on token costs:
 
 ## یہ بھی دیکھیں
 
-- [Session Tools](/concepts/session-tool) — details on `sessions_spawn` and other session tools
-- [Multi-Agent Sandbox and Tools](/tools/multi-agent-sandbox-tools) — per-agent tool restrictions and sandboxing
+- [سیشن ٹولز](/concepts/session-tool) — `sessions_spawn` اور دیگر سیشن ٹولز کی تفصیلات
+- [ملٹی ایجنٹ سینڈ باکس اور ٹولز](/tools/multi-agent-sandbox-tools) — فی ایجنٹ ٹول پابندیاں اور سینڈ باکسنگ
 - 26. [Configuration](/gateway/configuration) — `agents.defaults.subagents` حوالہ
 - 27. [Queue](/concepts/queue) — `subagent` لین کس طرح کام کرتی ہے

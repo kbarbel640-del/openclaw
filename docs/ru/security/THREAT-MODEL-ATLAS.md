@@ -124,18 +124,18 @@
 
 ### 45. 2.2 Потоки данных
 
-| 46. Поток | 47. Источник | 48. Назначение | 49. Данные       | 50. Защита |
-| -------------------------------- | ----------------------------------- | ------------------------------------- | --------------------------------------- | --------------------------------- |
-| F1                               | Канал                               | Gateway (шлюз)     | Сообщения пользователя                  | TLS, AllowFrom                    |
-| F2                               | Gateway (шлюз)   | Агент                                 | Маршрутизируемые сообщения              | Изоляция сессий                   |
-| F3                               | Агент                               | Инструменты                           | Вызовы инструментов                     | Применение политик                |
-| F4                               | Агент                               | Внешний                               | web_fetch requests | Блокировка SSRF                   |
-| F5                               | ClawHub                             | Агент                                 | Код навыков                             | Модерация, сканирование           |
-| F6                               | Агент                               | Channel                               | Ответы                                  | Фильтрация вывода                 |
+| 46. Поток | 47. Источник | 48. Назначение | 49. Данные      | 50. Защита |
+| -------------------------------- | ----------------------------------- | ------------------------------------- | -------------------------------------- | --------------------------------- |
+| F1                               | Канал                               | Gateway (шлюз)     | Сообщения пользователя                 | TLS, AllowFrom                    |
+| F2                               | Gateway (шлюз)   | Агент                                 | Маршрутизируемые сообщения             | Изоляция сессий                   |
+| F3                               | Агент                               | Инструменты                           | Вызовы инструментов                    | Применение политик                |
+| F4                               | Агент                               | Внешний                               | запросы web_fetch | Блокировка SSRF                   |
+| F5                               | ClawHub                             | Агент                                 | Код навыков                            | Модерация, сканирование           |
+| F6                               | Агент                               | Канал                                 | Ответы                                 | Фильтрация вывода                 |
 
 ---
 
-## 3. Threat Analysis by ATLAS Tactic
+## 3. Анализ угроз по тактике ATLAS
 
 ### 3.1 Разведка (AML.TA0002)
 
@@ -148,7 +148,7 @@
 | **Вектор атаки**          | Сетевое сканирование, запросы Shodan, перечисление DNS                                                 |
 | **Затронутые компоненты** | Шлюз, открытые конечные точки API                                                                      |
 | **Текущие меры защиты**   | Опция аутентификации Tailscale, привязка к loopback по умолчанию                                       |
-| **Residual Risk**         | Средний — публичные шлюзы обнаружимы                                                                   |
+| **Остаточный риск**       | Средний — публичные шлюзы обнаружимы                                                                   |
 | **Рекомендации**          | Документировать безопасное развертывание, добавить ограничение скорости на конечных точках обнаружения |
 
 #### T-RECON-002: Зондирование интеграции каналов
@@ -160,7 +160,7 @@
 | **Вектор атаки**        | Отправка тестовых сообщений, наблюдение за шаблонами ответов                                    |
 | **Affected Components** | All channel integrations                                                                        |
 | **Current Mitigations** | None specific                                                                                   |
-| **Residual Risk**       | Low - Limited value from discovery alone                                                        |
+| **Residual Risk**       | Низкий — ограниченная ценность только от обнаружения                                            |
 | **Рекомендации**        | Consider response timing randomization                                                          |
 
 ---
@@ -171,7 +171,7 @@
 
 | Attribute               | Value                                                     |
 | ----------------------- | --------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0040 - AI Model Inference API Access |
+| **ATLAS ID**            | AML.T0040 — Доступ к API вывода модели ИИ |
 | **Description**         | Attacker intercepts pairing code during 30s grace period  |
 | **Attack Vector**       | Shoulder surfing, network sniffing, social engineering    |
 | **Affected Components** | Device pairing system                                     |
@@ -267,15 +267,15 @@
 | **Description**         | Attacker publishes malicious skill to ClawHub                                                        |
 | **Attack Vector**       | Create account, publish skill with hidden malicious code                                             |
 | **Affected Components** | ClawHub, skill loading, agent execution                                                              |
-| **Current Mitigations** | GitHub account age verification, pattern-based moderation flags                                      |
-| **Residual Risk**       | Critical - No sandboxing, limited review                                                             |
+| **Current Mitigations** | Проверка возраста учетной записи GitHub, флаги модерации на основе шаблонов                          |
+| **Остаточный риск**     | Critical - No sandboxing, limited review                                                             |
 | **Рекомендации**        | VirusTotal integration (in progress), skill sandboxing, community review          |
 
 #### T-PERSIST-002: Skill Update Poisoning
 
 | Attribute               | Value                                                                                                |
 | ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0010.001 - Supply Chain Compromise: AI Software |
+| **Идентификатор ATLAS** | AML.T0010.001 - Supply Chain Compromise: AI Software |
 | **Description**         | Attacker compromises popular skill and pushes malicious update                                       |
 | **Attack Vector**       | Account compromise, social engineering of skill owner                                                |
 | **Affected Components** | ClawHub versioning, auto-update flows                                                                |
@@ -285,15 +285,15 @@
 
 #### T-PERSIST-003: Agent Configuration Tampering
 
-| Attribute               | Value                                                                                         |
-| ----------------------- | --------------------------------------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0010.002 - Supply Chain Compromise: Data |
-| **Description**         | Attacker modifies agent configuration to persist access                                       |
-| **Attack Vector**       | Config file modification, settings injection                                                  |
-| **Affected Components** | Agent config, tool policies                                                                   |
-| **Current Mitigations** | Права на файлы                                                                                |
-| **Residual Risk**       | Medium - Requires local access                                                                |
-| **Рекомендации**        | Config integrity verification, audit logging for config changes                               |
+| Attribute                 | Value                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| **Идентификатор ATLAS**   | AML.T0010.002 - Supply Chain Compromise: Data |
+| **Description**           | Attacker modifies agent configuration to persist access                                       |
+| **Attack Vector**         | Config file modification, settings injection                                                  |
+| **Затронутые компоненты** | Agent config, tool policies                                                                   |
+| **Current Mitigations**   | Права на файлы                                                                                |
+| **Residual Risk**         | Medium - Requires local access                                                                |
+| **Рекомендации**          | Config integrity verification, audit logging for config changes                               |
 
 ---
 
@@ -301,21 +301,21 @@
 
 #### T-EVADE-001: Moderation Pattern Bypass
 
-| Attribute               | Value                                                                                     |
-| ----------------------- | ----------------------------------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0043 - Craft Adversarial Data                                        |
-| **Description**         | Attacker crafts skill content to evade moderation patterns                                |
-| **Attack Vector**       | Unicode homoglyphs, encoding tricks, dynamic loading                                      |
-| **Affected Components** | ClawHub moderation.ts                                                     |
-| **Current Mitigations** | Pattern-based FLAG_RULES                                             |
-| **Residual Risk**       | High - Simple regex easily bypassed                                                       |
-| **Рекомендации**        | Add behavioral analysis (VirusTotal Code Insight), AST-based detection |
+| Attribute                          | Value                                                                                     |
+| ---------------------------------- | ----------------------------------------------------------------------------------------- |
+| **ATLAS ID**                       | AML.T0043 - Craft Adversarial Data                                        |
+| **Описание**                       | Attacker crafts skill content to evade moderation patterns                                |
+| **Attack Vector**                  | Unicode homoglyphs, encoding tricks, dynamic loading                                      |
+| **Affected Components**            | ClawHub moderation.ts                                                     |
+| **Текущие меры по снижению риска** | Pattern-based FLAG_RULES                                             |
+| **Residual Risk**                  | High - Simple regex easily bypassed                                                       |
+| **Рекомендации**                   | Add behavioral analysis (VirusTotal Code Insight), AST-based detection |
 
 #### T-EVADE-002: Content Wrapper Escape
 
 | Attribute               | Value                                                     |
 | ----------------------- | --------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0043 - Craft Adversarial Data        |
+| **ATLAS ID**            | AML.T0043 — Создание вредоносных данных   |
 | **Description**         | Attacker crafts content that escapes XML wrapper context  |
 | **Attack Vector**       | Tag manipulation, context confusion, instruction override |
 | **Affected Components** | External content wrapping                                 |
@@ -335,35 +335,35 @@
 | **Description**         | Attacker enumerates available tools through prompting     |
 | **Attack Vector**       | "What tools do you have?" style queries                   |
 | **Affected Components** | Agent tool registry                                       |
-| **Current Mitigations** | None specific                                             |
+| **Current Mitigations** | Нет конкретных                                            |
 | **Residual Risk**       | Low - Tools generally documented                          |
 | **Рекомендации**        | Consider tool visibility controls                         |
 
 #### T-DISC-002: Session Data Extraction
 
-| Attribute               | Value                                                     |
-| ----------------------- | --------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0040 - AI Model Inference API Access |
-| **Description**         | Attacker extracts sensitive data from session context     |
-| **Attack Vector**       | "What did we discuss?" queries, context probing           |
-| **Affected Components** | Session transcripts, context window                       |
-| **Current Mitigations** | Session isolation per sender                              |
-| **Residual Risk**       | Medium - Within-session data accessible                   |
-| **Рекомендации**        | Implement sensitive data redaction in context             |
+| Attribute               | Value                                                          |
+| ----------------------- | -------------------------------------------------------------- |
+| **Идентификатор ATLAS** | AML.T0040 - AI Model Inference API Access      |
+| **Description**         | Attacker extracts sensitive data from session context          |
+| **Attack Vector**       | "What did we discuss?" queries, context probing                |
+| **Affected Components** | Session transcripts, context window                            |
+| **Current Mitigations** | Session isolation per sender                                   |
+| **Residual Risk**       | Medium - Within-session data accessible                        |
+| **Рекомендации**        | Реализовать редактирование конфиденциальных данных в контексте |
 
 ---
 
 ### 3.7 Collection & Exfiltration (AML.TA0009, AML.TA0010)
 
-#### T-EXFIL-001: Data Theft via web_fetch
+#### T-EXFIL-001: Кража данных через web_fetch
 
 | Attribute               | Value                                                                  |
 | ----------------------- | ---------------------------------------------------------------------- |
 | **ATLAS ID**            | AML.T0009 - Collection                                 |
-| **Description**         | Attacker exfiltrates data by instructing agent to send to external URL |
+| **Описание**            | Attacker exfiltrates data by instructing agent to send to external URL |
 | **Attack Vector**       | Prompt injection causing agent to POST data to attacker server         |
 | **Affected Components** | web_fetch tool                                    |
-| **Current Mitigations** | SSRF blocking for internal networks                                    |
+| **Current Mitigations** | Блокировка SSRF для внутренних сетей                                   |
 | **Residual Risk**       | High - External URLs permitted                                         |
 | **Рекомендации**        | Implement URL allowlisting, data classification awareness              |
 
@@ -402,20 +402,20 @@
 | **Идентификатор ATLAS**    | AML.T0031 - Подрыв целостности модели ИИ            |
 | **Описание**               | Злоумышленник выполняет произвольные команды в системе пользователя |
 | **Вектор атаки**           | Инъекция подсказок в сочетании с обходом одобрения выполнения       |
-| **Affected Components**    | Инструмент Bash, выполнение команд                                  |
+| **Затронутые компоненты**  | Инструмент Bash, выполнение команд                                  |
 | **Текущие меры смягчения** | Одобрения выполнения, опция песочницы Docker                        |
-| **Остаточный риск**        | Critical - Host execution without sandbox                           |
+| **Остаточный риск**        | Критический — выполнение на хосте без песочницы                     |
 | **Рекомендации**           | Использовать песочницу по умолчанию, улучшить UX одобрений          |
 
 #### T-IMPACT-002: Истощение ресурсов (DoS)
 
 | Атрибут                    | Value                                                                     |
 | -------------------------- | ------------------------------------------------------------------------- |
-| **ATLAS ID**               | AML.T0031 - Подрыв целостности модели ИИ                  |
-| **Description**            | Злоумышленник истощает API-кредиты или вычислительные ресурсы             |
+| **Идентификатор ATLAS**    | AML.T0031 - Подрыв целостности модели ИИ                  |
+| **Описание**               | Злоумышленник истощает API-кредиты или вычислительные ресурсы             |
 | **Вектор атаки**           | Автоматизированная засыпка сообщениями, дорогостоящие вызовы инструментов |
 | **Затронутые компоненты**  | Шлюз, сессии агента, провайдер API                                        |
-| **Текущие меры смягчения** | None                                                                      |
+| **Текущие меры смягчения** | Отсутствуют                                                               |
 | **Остаточный риск**        | Высокий — отсутствует ограничение скорости                                |
 | **Рекомендации**           | Реализовать лимиты запросов на отправителя, бюджеты затрат                |
 
@@ -504,7 +504,7 @@
 
 ### 5.2 Critical Path Attack Chains
 
-**Attack Chain 1: Skill-Based Data Theft**
+**Цепочка атаки 1: Кража данных на основе навыков**
 
 ```
 T-PERSIST-001 → T-EVADE-001 → T-EXFIL-003
@@ -574,29 +574,29 @@ T-EXEC-002 → T-EXFIL-001 → External exfiltration
 
 ### 7.2 Key Security Files
 
-| Путь                                | Назначение                  | Risk Level   |
-| ----------------------------------- | --------------------------- | ------------ |
-| `src/infra/exec-approvals.ts`       | Command approval logic      | **Critical** |
-| `src/gateway/auth.ts`               | Gateway authentication      | **Critical** |
-| `src/web/inbound/access-control.ts` | Channel access control      | **Critical** |
-| `src/infra/net/ssrf.ts`             | SSRF protection             | **Critical** |
-| `src/security/external-content.ts`  | Prompt injection mitigation | **Critical** |
-| `src/agents/sandbox/tool-policy.ts` | Tool policy enforcement     | **Critical** |
-| `convex/lib/moderation.ts`          | ClawHub moderation          | **High**     |
-| `convex/lib/skillPublish.ts`        | Skill publishing flow       | **High**     |
-| `src/routing/resolve-route.ts`      | Session isolation           | **Medium**   |
+| Путь                                | Назначение                  | Risk Level      |
+| ----------------------------------- | --------------------------- | --------------- |
+| `src/infra/exec-approvals.ts`       | Command approval logic      | **Critical**    |
+| `src/gateway/auth.ts`               | Gateway authentication      | **Critical**    |
+| `src/web/inbound/access-control.ts` | Контроль доступа к каналу   | **Critical**    |
+| `src/infra/net/ssrf.ts`             | SSRF protection             | **Критический** |
+| `src/security/external-content.ts`  | Prompt injection mitigation | **Critical**    |
+| `src/agents/sandbox/tool-policy.ts` | Tool policy enforcement     | **Critical**    |
+| `convex/lib/moderation.ts`          | ClawHub moderation          | **High**        |
+| `convex/lib/skillPublish.ts`        | Skill publishing flow       | **High**        |
+| `src/routing/resolve-route.ts`      | Session isolation           | **Medium**      |
 
 ### 7.3 Glossary
 
-| Term                 | Definition                                                    |
-| -------------------- | ------------------------------------------------------------- |
-| **ATLAS**            | MITRE's Adversarial Threat Landscape for AI Systems           |
-| **ClawHub**          | OpenClaw's skill marketplace                                  |
-| **Gateway**          | OpenClaw's message routing and authentication layer           |
-| **MCP**              | Протокол контекста модели — интерфейс провайдера инструментов |
-| **Prompt Injection** | Attack where malicious instructions are embedded in input     |
-| **Skill**            | Загружаемое расширение для агентов OpenClaw                   |
-| **SSRF**             | Подделка запросов на стороне сервера                          |
+| Term                 | Definition                                                             |
+| -------------------- | ---------------------------------------------------------------------- |
+| **ATLAS**            | MITRE's Adversarial Threat Landscape for AI Systems                    |
+| **ClawHub**          | OpenClaw's skill marketplace                                           |
+| **Gateway**          | OpenClaw's message routing and authentication layer                    |
+| **MCP**              | Протокол контекста модели — интерфейс провайдера инструментов          |
+| **Prompt Injection** | Атака, при которой вредоносные инструкции внедряются во входные данные |
+| **Skill**            | Загружаемое расширение для агентов OpenClaw                            |
+| **SSRF**             | Подделка запросов на стороне сервера                                   |
 
 ---
 

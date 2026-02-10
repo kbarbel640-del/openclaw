@@ -127,9 +127,9 @@
 | 46. Fluxo | 47. Origem | 48. Destino | 49. Dados           | 50. Proteção |
 | -------------------------------- | --------------------------------- | ---------------------------------- | ------------------------------------------ | ----------------------------------- |
 | F1                               | Canal                             | Gateway                            | Mensagens do usuário                       | TLS, AllowFrom                      |
-| F2                               | Gateway                           | Agente                             | Routed messages                            | Session isolation                   |
+| F2                               | Gateway                           | Agente                             | Mensagens roteadas                         | Isolamento de sessão                |
 | F3                               | Agente                            | Tools                              | Invocações de ferramentas                  | Aplicação de políticas              |
-| F4                               | Agente                            | External                           | requisições web_fetch | Bloqueio de SSRF                    |
+| F4                               | Agente                            | Externo                            | requisições web_fetch | Bloqueio de SSRF                    |
 | F5                               | ClawHub                           | Agente                             | Código de skill                            | Moderação, varredura                |
 | F6                               | Agente                            | Canal                              | Respostas                                  | Filtragem de saída                  |
 
@@ -252,7 +252,7 @@
 | **Attack Vector**                   | Command obfuscation, alias exploitation, path manipulation |
 | **Affected Components**             | exec-approvals.ts, command allowlist       |
 | **Current Mitigations**             | Allowlist + ask mode                                       |
-| **Residual Risk**                   | High - No command sanitization                             |
+| **Risco Residual**                  | High - No command sanitization                             |
 | **Recomendações**                   | Implement command normalization, expand blocklist          |
 
 ---
@@ -264,7 +264,7 @@
 | Attribute               | Valor                                                                                                |
 | ----------------------- | ---------------------------------------------------------------------------------------------------- |
 | **ATLAS ID**            | AML.T0010.001 - Supply Chain Compromise: AI Software |
-| **Description**         | Attacker publishes malicious skill to ClawHub                                                        |
+| **Description**         | Atacante publica habilidade maliciosa no ClawHub                                                     |
 | **Attack Vector**       | Create account, publish skill with hidden malicious code                                             |
 | **Affected Components** | ClawHub, skill loading, agent execution                                                              |
 | **Current Mitigations** | GitHub account age verification, pattern-based moderation flags                                      |
@@ -345,7 +345,7 @@
 | ------------------------ | ---------------------------------------------------------------------- |
 | **ATLAS ID**             | AML.T0040 - Acesso à API de Inferência de Modelo de IA |
 | **Descrição**            | Atacante extrai dados sensíveis do contexto da sessão                  |
-| **Attack Vector**        | Consultas do tipo "O que discutimos?", sondagem de contexto            |
+| **Vetor de Ataque**      | Consultas do tipo "O que discutimos?", sondagem de contexto            |
 | **Componentes Afetados** | Transcrições de sessão, janela de contexto                             |
 | **Mitigações Atuais**    | Isolamento de sessão por remetente                                     |
 | **Risco Residual**       | Médio - Dados dentro da sessão acessíveis                              |
@@ -367,11 +367,11 @@
 | **Risco Residual**       | Alto - URLs externas permitidas                                                       |
 | **Recomendações**        | Implementar allowlisting de URLs e conscientização sobre classificação de dados       |
 
-#### T-EXFIL-002: Unauthorized Message Sending
+#### T-EXFIL-002: Envio de Mensagens Não Autorizado
 
-| Attribute               | Valor                                                            |
+| Atributo                | Valor                                                            |
 | ----------------------- | ---------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0009 - Collection                           |
+| **ID ATLAS**            | AML.T0009 - Coleta                               |
 | **Description**         | Attacker causes agent to send messages containing sensitive data |
 | **Attack Vector**       | Prompt injection causing agent to message attacker               |
 | **Affected Components** | Message tool, channel integrations                               |
@@ -494,7 +494,7 @@ Current patterns in `moderation.ts`:
 | T-IMPACT-001  | Médio      | Crítico  | **Alto**     | P1       |
 | T-EXEC-002    | Alto       | Alto     | **Alto**     | P1       |
 | T-EXEC-004    | Médio      | Alto     | **Alto**     | P1       |
-| T-ACCESS-003  | Medium     | Alto     | **Alto**     | P1       |
+| T-ACCESS-003  | Médio      | Alto     | **Alto**     | P1       |
 | T-EXFIL-001   | Médio      | Alto     | **Alto**     | P1       |
 | T-IMPACT-002  | Alto       | Médio    | **Alto**     | P1       |
 | T-EVADE-001   | Alto       | Médio    | **Médio**    | P2       |
@@ -551,19 +551,19 @@ T-EXEC-002 → T-EXFIL-001 → External exfiltration
 | ID    | Recommendation                                           | Addresses     |
 | ----- | -------------------------------------------------------- | ------------- |
 | R-008 | Add cryptographic channel verification where possible    | T-ACCESS-002  |
-| R-009 | Implement config integrity verification                  | T-PERSIST-003 |
+| R-009 | Implementar verificação de integridade da configuração   | T-PERSIST-003 |
 | R-010 | Adicionar assinatura de atualizações e fixação de versão | T-PERSIST-002 |
 
 ---
 
 ## 7. Apêndices
 
-### 7.1 ATLAS Technique Mapping
+### 7.1 Mapeamento de Técnicas ATLAS
 
-| ATLAS ID                                      | Technique Name                                        | Ameaças OpenClaw                                                 |
+| ID ATLAS                                      | Nome da Técnica                                       | Ameaças OpenClaw                                                 |
 | --------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------- |
 | AML.T0006                     | Varredura Ativa                                       | T-RECON-001, T-RECON-002                                         |
-| AML.T0009                     | Collection                                            | T-EXFIL-001, T-EXFIL-002, T-EXFIL-003                            |
+| AML.T0009                     | Coleta                                                | T-EXFIL-001, T-EXFIL-002, T-EXFIL-003                            |
 | AML.T0010.001 | Cadeia de Suprimentos: Software de IA | T-PERSIST-001, T-PERSIST-002                                     |
 | AML.T0010.002 | Cadeia de Suprimentos: Dados          | T-PERSIST-003                                                    |
 | AML.T0031                     | Erosão da Integridade do Modelo de IA                 | T-IMPACT-001, T-IMPACT-002, T-IMPACT-003                         |

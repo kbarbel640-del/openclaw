@@ -76,7 +76,7 @@ Use a cheaper model for sub-agents to save on token costs:
 }
 ```
 
-### Setting a Default Thinking Level
+### Définir un niveau de réflexion par défaut
 
 ```json5
 {
@@ -135,7 +135,7 @@ Use a cheaper model for sub-agents to save on token costs:
 
 ### 9. Archivage automatique
 
-Sub-agent sessions are automatically archived after a configurable period:
+Les sessions des sous-agents sont automatiquement archivées après une période configurable :
 
 ```json5
 11. {
@@ -149,10 +149,10 @@ Sub-agent sessions are automatically archived after a configurable period:
 }
 ```
 
-<Note>12. L’archivage renomme la transcription en `*.deleted.<timestamp>` (same folder) — transcripts are preserved, not deleted. 14. Les minuteurs d’archivage automatique sont exécutés au mieux ; les minuteurs en attente sont perdus si la passerelle redémarre.
+<Note>12. L’archivage renomme la transcription en `*.deleted.<timestamp>` (même dossier) — les transcriptions sont conservées, non supprimées. 14. Les minuteurs d’archivage automatique sont exécutés au mieux ; les minuteurs en attente sont perdus si la passerelle redémarre.
 </Note>
 
-## The `sessions_spawn` Tool
+## L’outil `sessions_spawn`
 
 16. Il s’agit de l’outil que l’agent appelle pour créer des sous-agents.
 
@@ -397,7 +397,7 @@ L’authentification des sous-agents est résolue par **identifiant d’agent**,
 Fully isolated auth per sub-agent is not currently supported.
 </Note>
 
-## Context and System Prompt
+## Contexte et prompt système
 
 Sub-agents receive a reduced system prompt compared to the main agent:
 
@@ -406,19 +406,19 @@ Sub-agents receive a reduced system prompt compared to the main agent:
 
 The sub-agent also receives a task-focused system prompt that instructs it to stay focused on the assigned task, complete it, and not act as the main agent.
 
-## Stopping Sub-Agents
+## Arrêter les sous-agents
 
-| Method                 | Effect                                                                    |
+| Méthode                | Effect                                                                    |
 | ---------------------- | ------------------------------------------------------------------------- |
 | `/stop` in the chat    | Aborts the main session **and** all active sub-agent runs spawned from it |
 | `/subagents stop <id>` | Stops a specific sub-agent without affecting the main session             |
 | `runTimeoutSeconds`    | Automatically aborts the sub-agent run after the specified time           |
 
 <Note>
-`runTimeoutSeconds` does **not** auto-archive the session. The session remains until the normal archive timer fires.
+`runTimeoutSeconds` does **not** auto-archive the session. La session reste active jusqu’à ce que le minuteur d’archivage normal se déclenche.
 </Note>
 
-## Full Configuration Example
+## Exemple de configuration complète
 
 <Accordion title="Complete sub-agent configuration">
 ```json5

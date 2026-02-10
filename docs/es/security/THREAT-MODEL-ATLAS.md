@@ -153,31 +153,31 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-RECON-002: Channel Integration Probing
 
-| Attribute               | Valor                                                              |
-| ----------------------- | ------------------------------------------------------------------ |
-| **ATLAS ID**            | AML.T0006 - Active Scanning                        |
-| **Description**         | Attacker probes messaging channels to identify AI-managed accounts |
-| **Attack Vector**       | Sending test messages, observing response patterns                 |
-| **Affected Components** | All channel integrations                                           |
-| **Current Mitigations** | None specific                                                      |
-| **Residual Risk**       | Low - Limited value from discovery alone                           |
-| **Recomendaciones**     | Consider response timing randomization                             |
+| Attribute                 | Valor                                                              |
+| ------------------------- | ------------------------------------------------------------------ |
+| **ATLAS ID**              | AML.T0006 - Active Scanning                        |
+| **Description**           | Attacker probes messaging channels to identify AI-managed accounts |
+| **Attack Vector**         | Sending test messages, observing response patterns                 |
+| **Componentes Afectados** | All channel integrations                                           |
+| **Mitigaciones Actuales** | Ninguna específica                                                 |
+| **Residual Risk**         | Bajo - Valor limitado solo por el descubrimiento                   |
+| **Recomendaciones**       | Consider response timing randomization                             |
 
 ---
 
-### 3.2 Initial Access (AML.TA0004)
+### 3.2 Acceso Inicial (AML.TA0004)
 
 #### T-ACCESS-001: Pairing Code Interception
 
-| Attribute               | Valor                                                     |
-| ----------------------- | --------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0040 - AI Model Inference API Access |
-| **Description**         | Attacker intercepts pairing code during 30s grace period  |
-| **Attack Vector**       | Shoulder surfing, network sniffing, social engineering    |
-| **Affected Components** | Device pairing system                                     |
-| **Current Mitigations** | 30s expiry, codes sent via existing channel               |
-| **Residual Risk**       | Medium - Grace period exploitable                         |
-| **Recomendaciones**     | Reduce grace period, add confirmation step                |
+| Attribute                 | Valor                                                     |
+| ------------------------- | --------------------------------------------------------- |
+| **ATLAS ID**              | AML.T0040 - AI Model Inference API Access |
+| **Description**           | Attacker intercepts pairing code during 30s grace period  |
+| **Attack Vector**         | Shoulder surfing, network sniffing, social engineering    |
+| **Componentes Afectados** | Device pairing system                                     |
+| **Mitigaciones Actuales** | 30s expiry, codes sent via existing channel               |
+| **Residual Risk**         | Medium - Grace period exploitable                         |
+| **Recomendaciones**       | Reduce grace period, add confirmation step                |
 
 #### T-ACCESS-002: AllowFrom Spoofing
 
@@ -212,18 +212,18 @@ Nothing is explicitly out of scope for this threat model.
 | 5. Atributo                   | Valor                                                                                                                             |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | 6. **ID ATLAS**               | 7. AML.T0051.000 - Inyección de prompts en LLM: Directa    |
-| **Description**                                      | 9. El atacante envía prompts elaborados para manipular el comportamiento del agente                        |
-| **Attack Vector**                                    | 11. Mensajes del canal que contienen instrucciones adversarias                                             |
+| **Descripción**                                      | 9. El atacante envía prompts elaborados para manipular el comportamiento del agente                        |
+| **Vector de Ataque**                                 | 11. Mensajes del canal que contienen instrucciones adversarias                                             |
 | 12. **Componentes afectados** | 13. LLM del agente, todas las superficies de entrada                                                       |
-| **Current Mitigations**                              | 15. Detección de patrones, encapsulación de contenido externo                                              |
-| 16. **Riesgo residual**       | Critical - Detection only, no blocking; sophisticated attacks bypass                                                              |
+| **Mitigaciones Actuales**                            | 15. Detección de patrones, encapsulación de contenido externo                                              |
+| 16. **Riesgo residual**       | Crítico - Solo detección, sin bloqueo; los ataques sofisticados lo eluden                                                         |
 | **Recomendaciones**                                  | 18. Implementar defensa multicapa, validación de salidas, confirmación del usuario para acciones sensibles |
 
-#### T-EXEC-002: Indirect Prompt Injection
+#### T-EXEC-002: Inyección indirecta de prompt
 
 | 20. Atributo                  | Valor                                                                                                                             |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **ATLAS ID**                                         | 22. AML.T0051.001 - Inyección de prompts en LLM: Indirecta |
+| **ID de ATLAS**                                      | 22. AML.T0051.001 - Inyección de prompts en LLM: Indirecta |
 | 23. **Descripción**           | 24. El atacante incrusta instrucciones maliciosas en contenido obtenido                                    |
 | 25. **Vector de ataque**      | 26. URLs maliciosas, correos electrónicos envenenados, webhooks comprometidos                              |
 | 27. **Componentes afectados** | 28. web_fetch, ingesta de correo electrónico, fuentes de datos externas               |
@@ -248,9 +248,9 @@ Nothing is explicitly out of scope for this threat model.
 | 50. Atributo                 | Valor                                                                                         |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | 1. **ID ATLAS**              | 2. AML.T0043 - Crear datos adversarios                 |
-| **Description**                                     | Attacker crafts commands that bypass approval allowlist                                       |
+| **Descripción**                                     | El atacante crea comandos que eluden la lista de permitidos de aprobación                     |
 | 5. **Vector de ataque**      | 6. Ofuscación de comandos, explotación de alias, manipulación de rutas |
-| **Affected Components**                             | exec-approvals.ts, command allowlist                                          |
+| **Componentes Afectados**                           | exec-approvals.ts, lista de permitidos de comandos                            |
 | 9. **Mitigaciones actuales** | 10. Lista de permitidos + modo de confirmación                         |
 | 11. **Riesgo residual**      | 12. Alto - Sin sanitización de comandos                                |
 | **Recomendaciones**                                 | 13. Implementar normalización de comandos, ampliar la lista de bloqueo |
@@ -263,11 +263,11 @@ Nothing is explicitly out of scope for this threat model.
 
 | 16. Atributo                  | Valor                                                                                                                                            |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **ATLAS ID**                                         | 18. AML.T0010.001 - Compromiso de la cadena de suministro: software de IA |
+| **ID de ATLAS**                                      | 18. AML.T0010.001 - Compromiso de la cadena de suministro: software de IA |
 | 19. **Descripción**           | 20. El atacante publica una habilidad maliciosa en ClawHub                                                                |
 | 21. **Vector de ataque**      | 22. Crear una cuenta, publicar una habilidad con código malicioso oculto                                                  |
 | 23. **Componentes afectados** | 24. ClawHub, carga de habilidades, ejecución del agente                                                                   |
-| 25. **Mitigaciones actuales** | GitHub account age verification, pattern-based moderation flags                                                                                  |
+| 25. **Mitigaciones actuales** | Verificación de antigüedad de cuentas de GitHub, indicadores de moderación basados en patrones                                                   |
 | 27. **Riesgo residual**       | 28. Crítico - Sin aislamiento (sandboxing), revisión limitada                                          |
 | **Recomendaciones**                                  | 29. Integración con VirusTotal (en progreso), aislamiento de habilidades, revisión comunitaria         |
 
@@ -316,10 +316,10 @@ Nothing is explicitly out of scope for this threat model.
 | Atributo                  | Valor                                                                        |
 | ------------------------- | ---------------------------------------------------------------------------- |
 | **ID ATLAS**              | AML.T0043 - Elaborar Datos Adversarios                       |
-| **Description**           | El atacante elabora contenido que escapa al contexto del envoltorio XML      |
+| **Descripción**           | El atacante elabora contenido que escapa al contexto del envoltorio XML      |
 | **Vector de Ataque**      | Manipulación de etiquetas, confusión de contexto, anulación de instrucciones |
 | **Componentes Afectados** | Envoltorio de contenido externo                                              |
-| **Current Mitigations**   | Etiquetas XML + aviso de seguridad                                           |
+| **Mitigaciones Actuales** | Etiquetas XML + aviso de seguridad                                           |
 | **Riesgo Residual**       | Medio - Se descubren escapes novedosos con regularidad                       |
 | **Recomendaciones**       | Múltiples capas de envoltura, validación del lado de salida                  |
 
@@ -333,27 +333,27 @@ Nothing is explicitly out of scope for this threat model.
 | --------------------------------------------- | ----------------------------------------------------------------------------- |
 | **ID ATLAS**                                  | AML.T0040 - Acceso a la API de Inferencia del Modelo de IA    |
 | **Descripción**                               | El atacante enumera las herramientas disponibles mediante prompts             |
-| **Vector de Ataque**                          | "What tools do you have?" style queries                                       |
+| **Vector de Ataque**                          | "¿Qué herramientas tienes?" consultas de estilo                               |
 | **Componentes Afectados**                     | Registro de herramientas del agente                                           |
-| **Current Mitigations**                       | 2. Ninguna específica                                  |
-| 3. **Riesgo Residual** | Low - Tools generally documented                                              |
+| **Mitigaciones Actuales**                     | 2. Ninguna específica                                  |
+| 3. **Riesgo Residual** | Bajo - Las herramientas generalmente están documentadas                       |
 | **Recomendaciones**                           | 5. Considerar controles de visibilidad de herramientas |
 
-#### T-DISC-002: Session Data Extraction
+#### T-DISC-002: Extracción de datos de sesión
 
-| Attribute                                            | Valor                                                                                 |
+| Atributo                                             | Valor                                                                                 |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| 8. **ID ATLAS**               | AML.T0040 - AI Model Inference API Access                             |
-| 10. **Descripción**           | Attacker extracts sensitive data from session context                                 |
+| 8. **ID ATLAS**               | AML.T0040 - Acceso a la API de inferencia del modelo de IA            |
+| 10. **Descripción**           | El atacante extrae datos sensibles del contexto de la sesión                          |
 | 12. **Vector de Ataque**      | 13. Consultas del tipo "¿Qué discutimos?", sondeo del contexto |
 | 14. **Componentes Afectados** | 15. Transcripciones de sesión, ventana de contexto             |
-| **Current Mitigations**                              | 17. Aislamiento de sesión por remitente                        |
-| 18. **Riesgo Residual**       | Medium - Within-session data accessible                                               |
-| **Recomendaciones**                                  | Implement sensitive data redaction in context                                         |
+| **Mitigaciones Actuales**                            | 17. Aislamiento de sesión por remitente                        |
+| 18. **Riesgo Residual**       | Medio - Los datos dentro de la sesión son accesibles                                  |
+| **Recomendaciones**                                  | Implementar la redacción de datos sensibles en el contexto                            |
 
 ---
 
-### 3.7 Collection & Exfiltration (AML.TA0009, AML.TA0010)
+### 3.7 Recopilación y Exfiltración (AML.TA0009, AML.TA0010)
 
 #### 22. T-EXFIL-001: Robo de Datos mediante web_fetch
 
@@ -409,27 +409,27 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-IMPACT-002: Agotamiento de recursos (DoS)
 
-| Atributo                  | Valor                                                                |
-| ------------------------- | -------------------------------------------------------------------- |
-| **ID ATLAS**              | AML.T0031 - Erosionar la integridad del modelo de IA |
-| **Descripción**           | El atacante agota los créditos de API o los recursos de cómputo      |
-| **Vector de ataque**      | Automated message flooding, expensive tool calls                     |
-| **Componentes afectados** | Gateway, sesiones del agente, proveedor de API                       |
-| **Mitigaciones actuales** | Ninguna                                                              |
-| **Riesgo residual**       | Alto - Sin limitación de tasa                                        |
-| **Recomendaciones**       | Implementar límites de tasa por remitente, presupuestos de costos    |
+| Atributo                  | Valor                                                                 |
+| ------------------------- | --------------------------------------------------------------------- |
+| **ID ATLAS**              | AML.T0031 - Erosionar la integridad del modelo de IA  |
+| **Descripción**           | El atacante agota los créditos de API o los recursos de cómputo       |
+| **Vector de ataque**      | Inundación automatizada de mensajes, llamadas costosas a herramientas |
+| **Componentes afectados** | Gateway, sesiones del agente, proveedor de API                        |
+| **Mitigaciones actuales** | Ninguna                                                               |
+| **Riesgo residual**       | Alto - Sin limitación de tasa                                         |
+| **Recomendaciones**       | Implementar límites de tasa por remitente, presupuestos de costos     |
 
 #### T-IMPACT-003: Daño reputacional
 
-| Atributo                | Valor                                                   |
-| ----------------------- | ------------------------------------------------------- |
-| **ID ATLAS**            | AML.T0031 - Erode AI Model Integrity    |
-| **Description**         | Attacker causes agent to send harmful/offensive content |
-| **Attack Vector**       | Prompt injection causing inappropriate responses        |
-| **Affected Components** | Output generation, channel messaging                    |
-| **Current Mitigations** | LLM provider content policies                           |
-| **Residual Risk**       | Medium - Provider filters imperfect                     |
-| **Recomendaciones**     | Output filtering layer, user controls                   |
+| Atributo                  | Valor                                                   |
+| ------------------------- | ------------------------------------------------------- |
+| **ID ATLAS**              | AML.T0031 - Erode AI Model Integrity    |
+| **Description**           | Attacker causes agent to send harmful/offensive content |
+| **Attack Vector**         | Prompt injection causing inappropriate responses        |
+| **Affected Components**   | Output generation, channel messaging                    |
+| **Mitigaciones Actuales** | LLM provider content policies                           |
+| **Residual Risk**         | Medium - Provider filters imperfect                     |
+| **Recomendaciones**       | Output filtering layer, user controls                   |
 
 ---
 
@@ -437,7 +437,7 @@ Nothing is explicitly out of scope for this threat model.
 
 ### 4.1 Current Security Controls
 
-| Control                           | Implementación                                                   | Effectiveness                                        |
+| Control                           | Implementación                                                   | Efectividad                                          |
 | --------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
 | GitHub Account Age                | `requireGitHubAccountAge()`                                      | Medium - Raises bar for new attackers                |
 | Path Sanitization                 | `sanitizePath()`                                                 | High - Prevents path traversal                       |
@@ -478,7 +478,7 @@ Current patterns in `moderation.ts`:
 | VirusTotal Integration | In Progress                                              | High - Code Insight behavioral analysis                               |
 | Community Reporting    | Partial (`skillReports` table exists) | Medium                                                                |
 | Audit Logging          | Partial (`auditLogs` table exists)    | Medium                                                                |
-| Badge System           | Implemented                                              | Medium - `highlighted`, `official`, `deprecated`, `redactionApproved` |
+| Badge System           | Implementado                                             | Medium - `highlighted`, `official`, `deprecated`, `redactionApproved` |
 
 ---
 
@@ -488,7 +488,7 @@ Current patterns in `moderation.ts`:
 
 | Threat ID     | Likelihood | Impact   | Risk Level   | Priority |
 | ------------- | ---------- | -------- | ------------ | -------- |
-| T-EXEC-001    | High       | Critical | **Critical** | P0       |
+| T-EXEC-001    | Alto       | Critical | **Critical** | P0       |
 | T-PERSIST-001 | High       | Critical | **Critical** | P0       |
 | T-EXFIL-003   | Medium     | Critical | **Critical** | P0       |
 | T-IMPACT-001  | Medium     | Critical | **High**     | P1       |
@@ -566,7 +566,7 @@ T-EXEC-002 → T-EXFIL-001 → External exfiltration
 | AML.T0009                     | Recolección                                          | T-EXFIL-001, T-EXFIL-002, T-EXFIL-003                            |
 | AML.T0010.001 | Cadena de suministro: software de IA | T-PERSIST-001, T-PERSIST-002                                     |
 | AML.T0010.002 | Cadena de suministro: datos          | T-PERSIST-003                                                    |
-| AML.T0031                     | Erode AI Model Integrity                             | T-IMPACT-001, T-IMPACT-002, T-IMPACT-003                         |
+| AML.T0031                     | Erosionar la integridad del modelo de IA             | T-IMPACT-001, T-IMPACT-002, T-IMPACT-003                         |
 | AML.T0040                     | AI Model Inference API Access                        | T-ACCESS-001, T-ACCESS-002, T-ACCESS-003, T-DISC-001, T-DISC-002 |
 | AML.T0043                     | Craft Adversarial Data                               | T-EXEC-004, T-EVADE-001, T-EVADE-002                             |
 | AML.T0051.000 | LLM Prompt Injection: Direct         | T-EXEC-001, T-EXEC-003                                           |

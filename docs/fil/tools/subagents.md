@@ -79,9 +79,9 @@ Setting a Default Model
 }
 ```
 
-### Per-Agent Overrides
+### Mga Override bawat Agent
 
-In a multi-agent setup, you can set sub-agent defaults per agent:
+Sa isang multi-agent na setup, maaari mong itakda ang mga default ng sub-agent para sa bawat agent:
 
 ```json5
 {
@@ -124,7 +124,7 @@ Gumagamit ang mga sub-agent ng isang nakalaang queue lane (`subagent`) na hiwala
 
 ### Auto-Archive
 
-Sub-agent sessions are automatically archived after a configurable period:
+Ang mga session ng sub-agent ay awtomatikong ina-archive pagkatapos ng panahong maaaring i-configure:
 
 ```json5
 {

@@ -126,7 +126,7 @@ Nothing is explicitly out of scope for this threat model.
 
 | Flow | Source  | Destination | Data                                   | Protection            |
 | ---- | ------- | ----------- | -------------------------------------- | --------------------- |
-| F1   | Channel | Gateway     | Wiadomości użytkowników                | TLS, AllowFrom        |
+| F1   | Kanał   | Gateway     | Wiadomości użytkowników                | TLS, AllowFrom        |
 | F2   | Gateway | Agent       | Przekierowane wiadomości               | Izolacja sesji        |
 | F3   | Agent   | Narzędzia   | Wywołania narzędzi                     | Egzekwowanie polityk  |
 | F4   | Agent   | Zewnętrzne  | Żądania web_fetch | Blokowanie SSRF       |
@@ -143,10 +143,10 @@ Nothing is explicitly out of scope for this threat model.
 
 | Atrybut                    | Wartość                                                                                                |
 | -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Identyfikator ATLAS**    | AML.T0006 - Active Scanning                                                            |
+| **Identyfikator ATLAS**    | AML.T0006 - Aktywne skanowanie                                                         |
 | **Opis**                   | Atakujący skanuje w poszukiwaniu wystawionych punktów końcowych bramy OpenClaw                         |
 | **Wektor ataku**           | Skanowanie sieci, zapytania Shodan, enumeracja DNS                                                     |
-| **Dotknięte komponenty**   | Gateway, exposed API endpoints                                                                         |
+| **Dotknięte komponenty**   | Brama, wystawione punkty końcowe API                                                                   |
 | **Obecne środki zaradcze** | Opcja uwierzytelniania Tailscale, domyślne wiązanie z loopback                                         |
 | **Ryzyko rezydualne**      | Średnie - publiczne bramy możliwe do wykrycia                                                          |
 | **Zalecenia**              | Udokumentować bezpieczne wdrożenie, dodać ograniczanie liczby zapytań na punktach końcowych wykrywania |
@@ -188,7 +188,7 @@ Nothing is explicitly out of scope for this threat model.
 | **Attack Vector**       | Depends on channel - phone number spoofing, username impersonation             |
 | **Affected Components** | AllowFrom validation per channel                                               |
 | **Current Mitigations** | Channel-specific identity verification                                         |
-| **Residual Risk**       | Medium - Some channels vulnerable to spoofing                                  |
+| **Residual Risk**       | Średnie — Niektóre kanały podatne na podszywanie się                           |
 | **Zalecenia**           | Document channel-specific risks, add cryptographic verification where possible |
 
 #### T-ACCESS-003: Token Theft
@@ -261,22 +261,22 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-PERSIST-001: Malicious Skill Installation
 
-| Attribute               | Wartość                                                                                              |
-| ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0010.001 - Supply Chain Compromise: AI Software |
-| **Description**         | Attacker publishes malicious skill to ClawHub                                                        |
-| **Attack Vector**       | Create account, publish skill with hidden malicious code                                             |
-| **Affected Components** | ClawHub, skill loading, agent execution                                                              |
-| **Current Mitigations** | GitHub account age verification, pattern-based moderation flags                                      |
-| **Residual Risk**       | Critical - No sandboxing, limited review                                                             |
-| **Zalecenia**           | VirusTotal integration (in progress), skill sandboxing, community review          |
+| Attribute               | Wartość                                                                                                          |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **ATLAS ID**            | AML.T0010.001 - Kompromitacja łańcucha dostaw: oprogramowanie AI |
+| **Description**         | Attacker publishes malicious skill to ClawHub                                                                    |
+| **Attack Vector**       | Create account, publish skill with hidden malicious code                                                         |
+| **Affected Components** | ClawHub, skill loading, agent execution                                                                          |
+| **Current Mitigations** | GitHub account age verification, pattern-based moderation flags                                                  |
+| **Residual Risk**       | Critical - No sandboxing, limited review                                                                         |
+| **Zalecenia**           | VirusTotal integration (in progress), skill sandboxing, community review                      |
 
 #### T-PERSIST-002: Skill Update Poisoning
 
 | Attribute               | Wartość                                                                                              |
 | ----------------------- | ---------------------------------------------------------------------------------------------------- |
 | **ATLAS ID**            | AML.T0010.001 - Supply Chain Compromise: AI Software |
-| **Description**         | Attacker compromises popular skill and pushes malicious update                                       |
+| **Opis**                | Attacker compromises popular skill and pushes malicious update                                       |
 | **Attack Vector**       | Account compromise, social engineering of skill owner                                                |
 | **Affected Components** | ClawHub versioning, auto-update flows                                                                |
 | **Current Mitigations** | Version fingerprinting                                                                               |
@@ -315,7 +315,7 @@ Nothing is explicitly out of scope for this threat model.
 
 | Attribute               | Wartość                                                   |
 | ----------------------- | --------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0043 - Craft Adversarial Data        |
+| **Identyfikator ATLAS** | AML.T0043 - Craft Adversarial Data        |
 | **Description**         | Attacker crafts content that escapes XML wrapper context  |
 | **Attack Vector**       | Tag manipulation, context confusion, instruction override |
 | **Affected Components** | External content wrapping                                 |
@@ -357,27 +357,27 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-EXFIL-001: Data Theft via web_fetch
 
-| Attribute               | Wartość                                                                |
-| ----------------------- | ---------------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0009 - Collection                                 |
-| **Description**         | Attacker exfiltrates data by instructing agent to send to external URL |
-| **Attack Vector**       | Prompt injection causing agent to POST data to attacker server         |
-| **Affected Components** | web_fetch tool                                    |
-| **Current Mitigations** | SSRF blocking for internal networks                                    |
-| **Residual Risk**       | High - External URLs permitted                                         |
-| **Zalecenia**           | Implement URL allowlisting, data classification awareness              |
+| Attribute               | Wartość                                                                                 |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| **ATLAS ID**            | AML.T0009 - Collection                                                  |
+| **Description**         | Attacker exfiltrates data by instructing agent to send to external URL                  |
+| **Attack Vector**       | Wstrzykiwanie promptów powodujące, że agent wykonuje POST danych do serwera atakującego |
+| **Affected Components** | web_fetch tool                                                     |
+| **Current Mitigations** | SSRF blocking for internal networks                                                     |
+| **Residual Risk**       | High - External URLs permitted                                                          |
+| **Zalecenia**           | Implement URL allowlisting, data classification awareness                               |
 
 #### T-EXFIL-002: Unauthorized Message Sending
 
-| Attribute               | Wartość                                                          |
-| ----------------------- | ---------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0009 - Collection                           |
-| **Description**         | Attacker causes agent to send messages containing sensitive data |
-| **Attack Vector**       | Prompt injection causing agent to message attacker               |
-| **Affected Components** | Message tool, channel integrations                               |
-| **Current Mitigations** | Outbound messaging gating                                        |
-| **Residual Risk**       | Medium - Gating may be bypassed                                  |
-| **Zalecenia**           | Require explicit confirmation for new recipients                 |
+| Attribute                | Wartość                                                          |
+| ------------------------ | ---------------------------------------------------------------- |
+| **ATLAS ID**             | AML.T0009 - Collection                           |
+| **Description**          | Attacker causes agent to send messages containing sensitive data |
+| **Attack Vector**        | Prompt injection causing agent to message attacker               |
+| **Dotknięte komponenty** | Message tool, channel integrations                               |
+| **Current Mitigations**  | Outbound messaging gating                                        |
+| **Residual Risk**        | Medium - Gating may be bypassed                                  |
+| **Zalecenia**            | Require explicit confirmation for new recipients                 |
 
 #### T-EXFIL-003: Credential Harvesting
 
@@ -439,8 +439,8 @@ Nothing is explicitly out of scope for this threat model.
 
 | Control                           | Implementacja                                                    | Effectiveness                                        |
 | --------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
-| GitHub Account Age                | `requireGitHubAccountAge()`                                      | Medium - Raises bar for new attackers                |
-| Path Sanitization                 | `sanitizePath()`                                                 | High - Prevents path traversal                       |
+| Wiek konta GitHub                 | `requireGitHubAccountAge()`                                      | Medium - Raises bar for new attackers                |
+| Path Sanitization                 | `sanitizePath()`                                                 | Wysokie — Zapobiega atakom path traversal            |
 | File Type Validation              | `isTextFile()`                                                   | Medium - Only text files, but can still be malicious |
 | Size Limits                       | 50MB total bundle                                                | High - Prevents resource exhaustion                  |
 | Required SKILL.md | Mandatory readme                                                 | Low security value - Informational only              |
@@ -477,8 +477,8 @@ Current patterns in `moderation.ts`:
 | ---------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- |
 | VirusTotal Integration       | In Progress                                                | Wysoki - analiza behawioralna Code Insight                            |
 | Zgłaszanie przez społeczność | Częściowe (`skillReports` table exists) | Średni                                                                |
-| Rejestrowanie audytu         | Częściowe (`auditLogs` table exists)    | Medium                                                                |
-| Badge System                 | Wdrożone                                                   | Średni - `highlighted`, `official`, `deprecated`, `redactionApproved` |
+| Rejestrowanie audytu         | Częściowe (`auditLogs` table exists)    | Średnie                                                               |
+| System odznak                | Wdrożone                                                   | Średni - `highlighted`, `official`, `deprecated`, `redactionApproved` |
 
 ---
 
@@ -490,7 +490,7 @@ Current patterns in `moderation.ts`:
 | ------------------------ | ------------------ | --------- | ------------- | --------- |
 | T-EXEC-001               | Wysoki             | Krytyczny | **Krytyczny** | P0        |
 | T-PERSIST-001            | Wysoki             | Krytyczny | **Krytyczny** | P0        |
-| T-EXFIL-003              | Medium             | Critical  | **Krytyczny** | P0        |
+| T-EXFIL-003              | Średnie            | Krytyczne | **Krytyczny** | P0        |
 | T-IMPACT-001             | Średni             | Krytyczny | **Wysoki**    | P1        |
 | T-EXEC-002               | Wysoki             | Wysoki    | **Wysoki**    | P1        |
 | T-EXEC-004               | Średni             | Wysoki    | **Wysoki**    | P1        |
@@ -498,7 +498,7 @@ Current patterns in `moderation.ts`:
 | T-EXFIL-001              | Medium             | High      | **High**      | P1        |
 | T-IMPACT-002             | High               | Medium    | **High**      | P1        |
 | T-EVADE-001              | High               | Medium    | **Medium**    | P2        |
-| T-ACCESS-001             | Low                | High      | **Medium**    | P2        |
+| T-ACCESS-001             | Niskie             | High      | **Medium**    | P2        |
 | T-ACCESS-002             | Low                | High      | **Medium**    | P2        |
 | T-PERSIST-002            | Low                | High      | **Medium**    | P2        |
 
@@ -574,17 +574,17 @@ T-EXEC-002 → T-EXFIL-001 → External exfiltration
 
 ### 7.2 Key Security Files
 
-| Ścieżka                             | Przeznaczenie               | Risk Level   |
-| ----------------------------------- | --------------------------- | ------------ |
-| `src/infra/exec-approvals.ts`       | Command approval logic      | **Critical** |
-| `src/gateway/auth.ts`               | Gateway authentication      | **Critical** |
-| `src/web/inbound/access-control.ts` | Channel access control      | **Critical** |
-| `src/infra/net/ssrf.ts`             | SSRF protection             | **Critical** |
-| `src/security/external-content.ts`  | Prompt injection mitigation | **Critical** |
-| `src/agents/sandbox/tool-policy.ts` | Tool policy enforcement     | **Critical** |
-| `convex/lib/moderation.ts`          | ClawHub moderation          | **High**     |
-| `convex/lib/skillPublish.ts`        | Skill publishing flow       | **High**     |
-| `src/routing/resolve-route.ts`      | Session isolation           | **Medium**   |
+| Ścieżka                             | Przeznaczenie                     | Risk Level   |
+| ----------------------------------- | --------------------------------- | ------------ |
+| `src/infra/exec-approvals.ts`       | Command approval logic            | **Critical** |
+| `src/gateway/auth.ts`               | Gateway authentication            | **Critical** |
+| `src/web/inbound/access-control.ts` | Channel access control            | **Critical** |
+| `src/infra/net/ssrf.ts`             | SSRF protection                   | **Critical** |
+| `src/security/external-content.ts`  | Łagodzenie wstrzykiwania promptów | **Critical** |
+| `src/agents/sandbox/tool-policy.ts` | Tool policy enforcement           | **Critical** |
+| `convex/lib/moderation.ts`          | ClawHub moderation                | **High**     |
+| `convex/lib/skillPublish.ts`        | Skill publishing flow             | **High**     |
+| `src/routing/resolve-route.ts`      | Session isolation                 | **Medium**   |
 
 ### 7.3 Glossary
 

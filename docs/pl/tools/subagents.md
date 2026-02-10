@@ -162,7 +162,7 @@ To jest narzędzie, które agent wywołuje, aby tworzyć sub-agentów.
 | `etykieta`          | string                   | —                                       | Krótka etykieta identyfikacyjna                                                                  |
 | `agentId`           | string                   | _(agent wywołujący)_ | Utwórz pod innym identyfikatorem agenta (musi być dozwolone)                  |
 | `wzór`              | string                   | _(opcjonalne)_       | Nadpisz model dla tego sub-agenta                                                                |
-| `thinking`          | string                   | _(optional)_         | Nadpisz poziom myślenia (`off`, `low`, `medium`, `high` itd.) |
+| `thinking`          | string                   | _(opcjonalne)_       | Nadpisz poziom myślenia (`off`, `low`, `medium`, `high` itd.) |
 | `runTimeoutSeconds` | liczba                   | `0` (brak limitu)    | Przerwij działanie sub-agenta po N sekundach                                                     |
 | `czyszczenie`       | `"delete"` \\| `"keep"` | `"keep"`                                | `"delete"` archiwizuje natychmiast po ogłoszeniu                                                 |
 
@@ -217,7 +217,7 @@ Użyj komendy ukośnika `/subagents`, aby sprawdzić i kontrolować uruchomienia
 | `/subagents info <id\\|#>`                | Pokaż szczegółowe metadane uruchomienia                                                       |
 | `/subagents send <id\\|#> <message>`      | Wyślij wiadomość do działającego subagenta                                                    |
 
-You can reference sub-agents by list index (`1`, `2`), run id prefix, full session key, or `last`.
+Możesz odwoływać się do podagentów według indeksu listy (`1`, `2`), prefiksu identyfikatora uruchomienia, pełnego klucza sesji lub `last`.
 
 <AccordionGroup>
   <Accordion title="Example: list and stop a sub-agent">```

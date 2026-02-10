@@ -196,7 +196,7 @@ L’appairage est une porte d’accès DM pour les expéditeurs inconnus :
 - Les codes expirent après 1 heure ; les demandes en attente sont plafonnées à 3 par canal.
 
 **Can multiple people use different OpenClaw instances on one WhatsApp number?**  
-Yes, by routing each sender to a different agent via `bindings` (peer `kind: "direct"`, sender E.164 like `+15551234567`). Replies still come from the **same WhatsApp account**, and direct chats collapse to each agent's main session, so use **one agent per person**. Le contrôle d’accès DM (`dmPolicy`/`allowFrom`) est global par compte WhatsApp. Voir [Multi‑Agent Routing](/concepts/multi-agent).
+Yes, by routing each sender to a different agent via `bindings` (peer `kind: "direct"`, sender E.164 like `+15551234567`). Les réponses proviennent toujours du **même compte WhatsApp**, et les discussions directes se regroupent dans la session principale de chaque agent ; utilisez donc **un agent par personne**. Le contrôle d’accès DM (`dmPolicy`/`allowFrom`) est global par compte WhatsApp. Voir [Multi‑Agent Routing](/concepts/multi-agent).
 
 **Pourquoi l’assistant me demande‑t‑il mon numéro de téléphone ?**  
 L’assistant l’utilise pour définir votre **liste d’autorisation/propriétaire** afin que vos propres messages privés soient autorisés. Il n’est pas utilisé pour l’envoi automatique. Si vous exécutez sur votre numéro WhatsApp personnel, utilisez ce même numéro et activez `channels.whatsapp.selfChatMode`.

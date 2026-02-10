@@ -167,7 +167,7 @@ Uwagi:
 If the `device-pair` plugin is installed, it adds a Telegram-first flow for pairing a new phone:
 
 1. `/pair` generates a setup code (sent as a separate message for easy copy/paste).
-2. Paste the setup code in the iOS app to connect.
+2. Wklej kod konfiguracji w aplikacji iOS, aby się połączyć.
 3. `/pair approve` approves the latest pending device request.
 
 More details: [Pairing](/channels/pairing#pair-via-telegram-recommended-for-ios).
@@ -480,7 +480,7 @@ For message tool sends, set `asVideoNote: true` with a video `media` URL:
 }
 ```
 
-(Note: Video notes do not support captions. If you provide a message text, it will be sent as a separate message.)
+(Uwaga: Notatki wideo nie obsługują napisów. If you provide a message text, it will be sent as a separate message.)
 
 ## Naklejki
 

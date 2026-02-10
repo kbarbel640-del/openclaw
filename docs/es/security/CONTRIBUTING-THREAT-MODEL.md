@@ -59,7 +59,7 @@ IDs are assigned by maintainers during review. You don't need to pick one.
 | Level        | Meaning                                                           |
 | ------------ | ----------------------------------------------------------------- |
 | **Critical** | Full system compromise, or high likelihood + critical impact      |
-| **High**     | Significant damage likely, or medium likelihood + critical impact |
+| **Alto**     | Significant damage likely, or medium likelihood + critical impact |
 | **Medium**   | Moderate risk, or low likelihood + high impact                    |
 | **Low**      | Unlikely and limited impact                                       |
 

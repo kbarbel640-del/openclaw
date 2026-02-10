@@ -223,7 +223,7 @@ Use the `agents_list` tool to discover which agent ids are currently allowed for
 
 ## Managing Sub-Agents (`/subagents`)
 
-Use the `/subagents` slash command to inspect and control sub-agent runs for the current session:
+Используйте слеш-команду `/subagents` для просмотра и управления запусками субагентов в текущей сессии:
 
 | Команда                                    | Description                                                       |
 | ------------------------------------------ | ----------------------------------------------------------------- |
@@ -267,15 +267,15 @@ You can reference sub-agents by list index (`1`, `2`), run id prefix, full sessi
 
     ````
     ```
-    ℹ️ Subagent info
-    Status: ✅
-    Label: research logs
-    Task: Research the latest server error logs and summarize findings
-    Run: a1b2c3d4-...
-    Session: agent:main:subagent:...
-    Runtime: 2m31s
-    Cleanup: keep
-    Outcome: ok
+    ℹ️ Информация о субагенте
+    Статус: ✅
+    Метка: журналы исследований
+    Задача: Изучить последние журналы ошибок сервера и обобщить выводы
+    Запуск: a1b2c3d4-...
+    Сессия: agent:main:subagent:...
+    Время выполнения: 2m31s
+    Очистка: keep
+    Результат: ok
     ```
     ````
 
@@ -310,7 +310,7 @@ You can reference sub-agents by list index (`1`, `2`), run id prefix, full sessi
 
 When a sub-agent finishes, it goes through an **announce** step:
 
-1. The sub-agent's final reply is captured
+1. Итоговый ответ субагента сохраняется
 2. A summary message is sent to the main agent's session with the result, status, and stats
 3. The main agent posts a natural-language summary to your chat
 
@@ -416,7 +416,7 @@ Sub-agents receive a reduced system prompt compared to the main agent:
 - **Included:** Tooling, Workspace, Runtime sections, plus `AGENTS.md` and `TOOLS.md`
 - **Not included:** `SOUL.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`
 
-The sub-agent also receives a task-focused system prompt that instructs it to stay focused on the assigned task, complete it, and not act as the main agent.
+Субагент также получает системный промпт, ориентированный на задачу, который инструктирует его оставаться сосредоточенным на назначенной задаче, выполнить ее и не действовать как основной агент.
 
 ## Stopping Sub-Agents
 
@@ -430,7 +430,7 @@ The sub-agent also receives a task-focused system prompt that instructs it to st
 `runTimeoutSeconds` does **not** auto-archive the session. The session remains until the normal archive timer fires.
 </Note>
 
-## Full Configuration Example
+## Полный пример конфигурации
 
 <Accordion title="Complete sub-agent configuration">
 ```json5

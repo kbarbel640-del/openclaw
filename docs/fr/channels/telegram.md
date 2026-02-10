@@ -480,7 +480,7 @@ For message tool sends, set `asVideoNote: true` with a video `media` URL:
 }
 ```
 
-(Note: Video notes do not support captions. If you provide a message text, it will be sent as a separate message.)
+(Remarque : les notes vidéo ne prennent pas en charge les sous-titres. Si vous fournissez un texte de message, il sera envoyé comme un message distinct.)
 
 ## Autocollants (stickers)
 

@@ -456,7 +456,7 @@ The sub-agent also receives a task-focused system prompt that instructs it to st
 ## Limitaciones
 
 <Warning>
-- **Best-effort announce:** If the gateway restarts, pending announce work is lost.
+- **Anuncio de mejor esfuerzo:** Si la puerta de enlace se reinicia, el trabajo de anuncio pendiente se pierde.
 - **No nested spawning:** Sub-agents cannot spawn their own sub-agents.
 - **Shared resources:** Sub-agents share the gateway process; use `maxConcurrent` as a safety valve.
 - **Auto-archive is best-effort:** Pending archive timers are lost on gateway restart.

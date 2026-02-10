@@ -39,7 +39,7 @@ This threat model is built on [MITRE ATLAS](https://atlas.mitre.org/) (Adversari
 
 ### Threat IDs
 
-Each threat gets an ID like `T-EXEC-003`. The categories are:
+ہر خطرے کو `T-EXEC-003` جیسی ایک ID دی جاتی ہے۔ The categories are:
 
 | کوڈ     | زمرہ                                       |
 | ------- | ------------------------------------------ |

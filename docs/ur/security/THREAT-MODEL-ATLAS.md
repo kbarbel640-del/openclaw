@@ -127,10 +127,10 @@ Nothing is explicitly out of scope for this threat model.
 | Flow | Source  | Destination | Data                                     | Protection       |
 | ---- | ------- | ----------- | ---------------------------------------- | ---------------- |
 | F1   | چینل    | Gateway     | صارف پیغامات                             | TLS، AllowFrom   |
-| F2   | Gateway | Agent       | Routed messages                          | سیشن آئسولیشن    |
+| F2   | Gateway | ایجنٹ       | روٹ کیے گئے پیغامات                      | سیشن آئسولیشن    |
 | F3   | ایجنٹ   | اوزار       | ٹول انووکیشنز                            | پالیسی نافذ کرنا |
-| F4   | Agent   | بیرونی      | web_fetch درخواستیں | SSRF بلاکنگ      |
-| F5   | ClawHub | Agent       | اسکل کوڈ                                 | موڈریشن، اسکیننگ |
+| F4   | ایجنٹ   | بیرونی      | web_fetch درخواستیں | SSRF بلاکنگ      |
+| F5   | ClawHub | ایجنٹ       | اسکل کوڈ                                 | موڈریشن، اسکیننگ |
 | F6   | ایجنٹ   | چینل        | Responses                                | آؤٹ پٹ فلٹرنگ    |
 
 ---
@@ -159,9 +159,9 @@ Nothing is explicitly out of scope for this threat model.
 | **تفصیل**               | حملہ آور AI کے زیرِ انتظام اکاؤنٹس کی شناخت کے لیے میسجنگ چینلز کی جانچ کرتا ہے |
 | **حملے کا طریقہ**       | آزمائشی پیغامات بھیجنا، جوابی پیٹرنز کا مشاہدہ                                  |
 | **Affected Components** | All channel integrations                                                        |
-| **Current Mitigations** | None specific                                                                   |
-| **Residual Risk**       | Low - Limited value from discovery alone                                        |
-| **سفارشات**             | Consider response timing randomization                                          |
+| **Current Mitigations** | کوئی مخصوص نہیں                                                                 |
+| **Residual Risk**       | کم — صرف دریافت سے محدود قدر                                                    |
+| **سفارشات**             | جوابی وقت میں بے ترتیبی پر غور کریں                                             |
 
 ---
 
@@ -183,7 +183,7 @@ Nothing is explicitly out of scope for this threat model.
 
 | Attribute               | Value                                                                          |
 | ----------------------- | ------------------------------------------------------------------------------ |
-| **ATLAS ID**            | AML.T0040 - AI Model Inference API Access                      |
+| **ATLAS ID**            | AML.T0040 - AI ماڈل انفیرنس API تک رسائی                       |
 | **Description**         | Attacker spoofs allowed sender identity in channel                             |
 | **Attack Vector**       | Depends on channel - phone number spoofing, username impersonation             |
 | **Affected Components** | AllowFrom validation per channel                                               |
@@ -209,27 +209,27 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-EXEC-001: Direct Prompt Injection
 
-| Attribute               | Value                                                                                        |
+| خصوصیت                  | Value                                                                                        |
 | ----------------------- | -------------------------------------------------------------------------------------------- |
 | **ATLAS ID**            | AML.T0051.000 - LLM Prompt Injection: Direct |
 | **Description**         | Attacker sends crafted prompts to manipulate agent behavior                                  |
 | **Attack Vector**       | Channel messages containing adversarial instructions                                         |
-| **Affected Components** | Agent LLM, all input surfaces                                                                |
+| **متاثرہ اجزاء**        | ایجنٹ LLM، تمام ان پٹ سطحیں                                                                  |
 | **Current Mitigations** | Pattern detection, external content wrapping                                                 |
 | **Residual Risk**       | Critical - Detection only, no blocking; sophisticated attacks bypass                         |
 | **سفارشات**             | Implement multi-layer defense, output validation, user confirmation for sensitive actions    |
 
 #### T-EXEC-002: Indirect Prompt Injection
 
-| Attribute               | Value                                                                                          |
-| ----------------------- | ---------------------------------------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0051.001 - LLM Prompt Injection: Indirect |
-| **Description**         | Attacker embeds malicious instructions in fetched content                                      |
-| **Attack Vector**       | Malicious URLs, poisoned emails, compromised webhooks                                          |
-| **Affected Components** | web_fetch, email ingestion, external data sources                         |
-| **Current Mitigations** | Content wrapping with XML tags and security notice                                             |
-| **Residual Risk**       | High - LLM may ignore wrapper instructions                                                     |
-| **سفارشات**             | Implement content sanitization, separate execution contexts                                    |
+| Attribute                 | Value                                                                                          |
+| ------------------------- | ---------------------------------------------------------------------------------------------- |
+| **ATLAS ID**              | AML.T0051.001 - LLM Prompt Injection: Indirect |
+| **Description**           | Attacker embeds malicious instructions in fetched content                                      |
+| **Attack Vector**         | Malicious URLs, poisoned emails, compromised webhooks                                          |
+| **Affected Components**   | web_fetch، ای میل انجیestion، بیرونی ڈیٹا ذرائع                           |
+| **موجودہ تخفیفی اقدامات** | Content wrapping with XML tags and security notice                                             |
+| **Residual Risk**         | High - LLM may ignore wrapper instructions                                                     |
+| **سفارشات**               | Implement content sanitization, separate execution contexts                                    |
 
 #### T-EXEC-003: Tool Argument Injection
 
@@ -245,15 +245,15 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-EXEC-004: Exec Approval Bypass
 
-| Attribute               | Value                                                      |
-| ----------------------- | ---------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0043 - Craft Adversarial Data         |
-| **Description**         | Attacker crafts commands that bypass approval allowlist    |
-| **Attack Vector**       | Command obfuscation, alias exploitation, path manipulation |
-| **Affected Components** | exec-approvals.ts, command allowlist       |
-| **Current Mitigations** | Allowlist + ask mode                                       |
-| **Residual Risk**       | High - No command sanitization                             |
-| **سفارشات**             | Implement command normalization, expand blocklist          |
+| Attribute               | Value                                                   |
+| ----------------------- | ------------------------------------------------------- |
+| **ATLAS ID**            | AML.T0043 - Craft Adversarial Data      |
+| **Description**         | Attacker crafts commands that bypass approval allowlist |
+| **Attack Vector**       | کمانڈ ابہام، عرفی ناموں کا استحصال، راستے کی ہیرا پھیری |
+| **Affected Components** | exec-approvals.ts, command allowlist    |
+| **Current Mitigations** | Allowlist + ask mode                                    |
+| **Residual Risk**       | High - No command sanitization                          |
+| **سفارشات**             | Implement command normalization, expand blocklist       |
 
 ---
 
@@ -261,15 +261,15 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-PERSIST-001: Malicious Skill Installation
 
-| Attribute               | Value                                                                                                |
-| ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0010.001 - Supply Chain Compromise: AI Software |
-| **Description**         | Attacker publishes malicious skill to ClawHub                                                        |
-| **Attack Vector**       | Create account, publish skill with hidden malicious code                                             |
-| **Affected Components** | ClawHub, skill loading, agent execution                                                              |
-| **Current Mitigations** | GitHub account age verification, pattern-based moderation flags                                      |
-| **Residual Risk**       | Critical - No sandboxing, limited review                                                             |
-| **سفارشات**             | VirusTotal integration (in progress), skill sandboxing, community review          |
+| Attribute               | Value                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------ |
+| **ATLAS ID**            | AML.T0010.001 - سپلائی چین سمجھوتہ: AI سافٹ ویئر |
+| **Description**         | Attacker publishes malicious skill to ClawHub                                                    |
+| **Attack Vector**       | Create account, publish skill with hidden malicious code                                         |
+| **Affected Components** | ClawHub, skill loading, agent execution                                                          |
+| **Current Mitigations** | GitHub account age verification, pattern-based moderation flags                                  |
+| **Residual Risk**       | Critical - No sandboxing, limited review                                                         |
+| **سفارشات**             | VirusTotal integration (in progress), skill sandboxing, community review      |
 
 #### T-PERSIST-002: Skill Update Poisoning
 
@@ -320,7 +320,7 @@ Nothing is explicitly out of scope for this threat model.
 | **حملے کا ویکٹر**         | ٹیگ میں ہیرا پھیری، سیاق و سباق میں ابہام، ہدایات کی اووررائیڈ              |
 | **متاثرہ اجزاء**          | بیرونی مواد کی ریپنگ                                                        |
 | **موجودہ تخفیفی اقدامات** | XML ٹیگز + سیکیورٹی نوٹس                                                    |
-| **Residual Risk**         | درمیانی - نئے ایسکیپس باقاعدگی سے دریافت ہوتے ہیں                           |
+| **باقی ماندہ خطرہ**       | درمیانی - نئے ایسکیپس باقاعدگی سے دریافت ہوتے ہیں                           |
 | **سفارشات**               | متعدد ریپر لیئرز، آؤٹ پٹ سائیڈ ویلیڈیشن                                     |
 
 ---
@@ -341,28 +341,28 @@ Nothing is explicitly out of scope for this threat model.
 
 #### T-DISC-002: Session Data Extraction
 
-| Attribute               | Value                                                     |
-| ----------------------- | --------------------------------------------------------- |
-| **ATLAS ID**            | AML.T0040 - AI Model Inference API Access |
-| **Description**         | Attacker extracts sensitive data from session context     |
-| **Attack Vector**       | "What did we discuss?" queries, context probing           |
-| **Affected Components** | Session transcripts, context window                       |
-| **Current Mitigations** | Session isolation per sender                              |
-| **Residual Risk**       | Medium - Within-session data accessible                   |
-| **سفارشات**             | Implement sensitive data redaction in context             |
+| Attribute                 | Value                                                     |
+| ------------------------- | --------------------------------------------------------- |
+| **ATLAS ID**              | AML.T0040 - AI Model Inference API Access |
+| **تفصیل**                 | Attacker extracts sensitive data from session context     |
+| **حملے کا ذریعہ**         | "What did we discuss?" queries, context probing           |
+| **Affected Components**   | Session transcripts, context window                       |
+| **موجودہ تخفیفی اقدامات** | Session isolation per sender                              |
+| **باقی ماندہ خطرہ**       | Medium - Within-session data accessible                   |
+| **سفارشات**               | Implement sensitive data redaction in context             |
 
 ---
 
 ### 3.7 Collection & Exfiltration (AML.TA0009, AML.TA0010)
 
-#### T-EXFIL-001: Data Theft via web_fetch
+#### T-EXFIL-001: web_fetch کے ذریعے ڈیٹا کی چوری
 
 | Attribute               | Value                                                                  |
 | ----------------------- | ---------------------------------------------------------------------- |
 | **ATLAS ID**            | AML.T0009 - Collection                                 |
 | **Description**         | Attacker exfiltrates data by instructing agent to send to external URL |
 | **Attack Vector**       | Prompt injection causing agent to POST data to attacker server         |
-| **Affected Components** | web_fetch tool                                    |
+| **Affected Components** | web_fetch ٹول                                     |
 | **Current Mitigations** | SSRF blocking for internal networks                                    |
 | **Residual Risk**       | High - External URLs permitted                                         |
 | **سفارشات**             | Implement URL allowlisting, data classification awareness              |
@@ -402,7 +402,7 @@ Nothing is explicitly out of scope for this threat model.
 | 20. **ATLAS ID**              | 21. AML.T0031 - اے آئی ماڈل کی سالمیت کو نقصان پہنچانا |
 | 22. **تفصیل**                 | 23. حملہ آور صارف کے سسٹم پر من مانے کمانڈز چلاتا ہے                   |
 | 24. **حملے کا طریقہ**         | 25. پرامپٹ انجیکشن کے ساتھ exec منظوری کی بائی پاسنگ                   |
-| **Affected Components**                              | 27. Bash ٹول، کمانڈ کا اجرا                                            |
+| **متاثرہ اجزاء**                                     | 27. Bash ٹول، کمانڈ کا اجرا                                            |
 | 28. **موجودہ تخفیفی اقدامات** | 29. exec منظوری، Docker سینڈباکس کا اختیار                             |
 | 30. **باقی ماندہ خطرہ**       | 31. انتہائی سنگین - سینڈباکس کے بغیر میزبان پر اجرا                    |
 | **سفارشات**                                          | 32. بطور ڈیفالٹ سینڈباکس، منظوری کے UX میں بہتری                       |
@@ -413,7 +413,7 @@ Nothing is explicitly out of scope for this threat model.
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | 35. **ATLAS ID**              | 36. AML.T0031 - اے آئی ماڈل کی سالمیت کو نقصان پہنچانا |
 | 37. **تفصیل**                 | 38. حملہ آور API کریڈٹس یا کمپیوٹ وسائل ختم کر دیتا ہے                 |
-| 39. **حملے کا طریقہ**         | Automated message flooding, expensive tool calls                                              |
+| 39. **حملے کا طریقہ**         | خودکار پیغام سیلاب، مہنگی ٹول کالز                                                            |
 | 41. **متاثرہ اجزاء**          | 42. گیٹ وے، ایجنٹ سیشنز، API فراہم کنندہ                               |
 | 43. **موجودہ تخفیفی اقدامات** | 44. کوئی نہیں                                                          |
 | 45. **باقی ماندہ خطرہ**       | 46. زیادہ - کوئی ریٹ لمٹنگ نہیں                                        |
@@ -476,9 +476,9 @@ Current patterns in `moderation.ts`:
 | Improvement            | اسٹیٹس                                                 | Impact                                                                 |
 | ---------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------- |
 | VirusTotal Integration | In Progress                                            | اعلیٰ - کوڈ انسائٹ رویّاتی تجزیہ                                       |
-| کمیونٹی رپورٹنگ        | جزوی (`skillReports` ٹیبل موجود ہے) | Medium                                                                 |
-| Audit Logging          | جزوی (`auditLogs` ٹیبل موجود ہے)    | درمیانہ                                                                |
-| Badge System           | Implemented                                            | درمیانہ - `highlighted`, `official`, `deprecated`, `redactionApproved` |
+| کمیونٹی رپورٹنگ        | جزوی (`skillReports` ٹیبل موجود ہے) | درمیانہ                                                                |
+| آڈٹ لاگنگ              | جزوی (`auditLogs` ٹیبل موجود ہے)    | درمیانہ                                                                |
+| بیج سسٹم               | نافذ شدہ                                               | درمیانہ - `highlighted`, `official`, `deprecated`, `redactionApproved` |
 
 ---
 
@@ -511,7 +511,7 @@ T-PERSIST-001 → T-EVADE-001 → T-EXFIL-003
 (Publish malicious skill) → (Evade moderation) → (Harvest credentials)
 ```
 
-**Attack Chain 2: Prompt Injection to RCE**
+**حملہ چین 2: پرامپٹ انجیکشن سے RCE تک**
 
 ```
 T-EXEC-001 → T-EXEC-004 → T-IMPACT-001
@@ -576,7 +576,7 @@ T-EXEC-002 → T-EXFIL-001 → External exfiltration
 
 | پاتھ                                | Purpose                    | خطرے کی سطح     |
 | ----------------------------------- | -------------------------- | --------------- |
-| `src/infra/exec-approvals.ts`       | Command approval logic     | **انتہائی اہم** |
+| `src/infra/exec-approvals.ts`       | کمانڈ منظوری کی منطق       | **انتہائی اہم** |
 | `src/gateway/auth.ts`               | گیٹ وے توثیق               | **انتہائی اہم** |
 | `src/web/inbound/access-control.ts` | چینل تک رسائی کا کنٹرول    | **انتہائی اہم** |
 | `src/infra/net/ssrf.ts`             | SSRF سے تحفظ               | **انتہائی اہم** |

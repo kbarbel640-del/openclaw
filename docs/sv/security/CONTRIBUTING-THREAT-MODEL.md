@@ -37,7 +37,7 @@ Typos, clarifications, outdated info, better examples - PRs welcome, no issue ne
 
 3. Denna hotmodell är byggd på [MITRE ATLAS](https://atlas.mitre.org/) (Adversarial Threat Landscape for AI Systems), ett ramverk som är särskilt utformat för AI/ML-hot som promptinjektion, verktygsmissbruk och agentutnyttjande. 4. Du behöver inte känna till ATLAS för att bidra – vi mappar inskickade bidrag till ramverket under granskningen.
 
-### Threat IDs
+### 1. Hot-ID:n
 
 6. Varje hot får ett ID som `T-EXEC-003`. 7. Kategorierna är:
 
@@ -46,9 +46,9 @@ Typos, clarifications, outdated info, better examples - PRs welcome, no issue ne
 | 8. RECON   | 9. Rekognosering – informationsinsamling         |
 | 10. ACCESS | 11. Initial åtkomst – att få inträde             |
 | 12. EXEC   | 13. Exekvering – att köra skadliga handlingar    |
-| PERSIST                           | Persistence - maintaining access                                        |
+| 2. PERSIST | 3. Persistens – bibehålla åtkomst                |
 | 16. EVADE  | 17. Försvarsförbikoppling – att undvika upptäckt |
-| DISC                              | 19. Upptäckt – att lära sig om miljön            |
+| 4. DISC    | 19. Upptäckt – att lära sig om miljön            |
 | 20. EXFIL  | 21. Exfiltrering – att stjäla data               |
 | 22. IMPACT | 23. Påverkan – skada eller störning              |
 

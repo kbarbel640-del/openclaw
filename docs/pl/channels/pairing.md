@@ -67,7 +67,7 @@ The setup code is a base64-encoded JSON payload that contains:
 - `url`: the Gateway WebSocket URL (`ws://...` or `wss://...`)
 - `token`: a short-lived pairing token
 
-Treat the setup code like a password while it is valid.
+Traktuj kod konfiguracji jak hasło, dopóki jest ważny.
 
 ### Zatwierdzanie urządzenia węzła
 

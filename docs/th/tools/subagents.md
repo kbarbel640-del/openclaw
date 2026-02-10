@@ -10,7 +10,7 @@ title: "ซับเอเจนต์"
 
 ซับเอเจนต์ช่วยให้คุณรันงานเบื้องหลังได้โดยไม่บล็อกการสนทนาหลัก เมื่อคุณสร้างซับเอเจนต์ มันจะรันในเซสชันที่แยกออกมาต่างหาก ทำงานของมัน และประกาศผลลัพธ์กลับมายังแชตเมื่อเสร็จสิ้น
 
-**Use cases:**
+**กรณีการใช้งาน:**
 
 - ค้นคว้าหัวข้อหนึ่งในขณะที่เอเจนต์หลักยังคงตอบคำถามต่อไป
 - รันงานยาวหลายงานพร้อมกัน (การสแครปเว็บ การวิเคราะห์โค้ด การประมวลผลไฟล์)
@@ -58,7 +58,7 @@ title: "ซับเอเจนต์"
 
 ### การตั้งค่าโมเดลเริ่มต้น
 
-Use a cheaper model for sub-agents to save on token costs:
+ใช้โมเดลที่ถูกกว่าสำหรับซับเอเจนต์เพื่อลดค่าใช้จ่ายโทเค็น:
 
 ```json5
 {
@@ -146,7 +146,7 @@ Sub-agent sessions are automatically archived after a configurable period:
 ```
 
 <Note>
-Archive renames the transcript to `*.deleted.<timestamp>` (same folder) — transcripts are preserved, not deleted. Auto-archive timers are best-effort; pending timers are lost if the gateway restarts.
+Archive renames the transcript to `*.deleted.<timestamp>` (โฟลเดอร์เดียวกัน) — มีการเก็บบันทึกการถอดเสียงไว้ ไม่ได้ถูกลบ Auto-archive timers are best-effort; pending timers are lost if the gateway restarts.
 </Note>
 
 ## The `sessions_spawn` Tool
