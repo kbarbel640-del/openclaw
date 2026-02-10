@@ -63,9 +63,9 @@ describe("RateLimitQueue", () => {
       const fn = vi.fn().mockResolvedValue("ok");
 
       // Fill the queue to max (3).
-      trackEnqueue("test:rpm", 60000, acquireFn, fn);
-      trackEnqueue("test:rpm", 60000, acquireFn, fn);
-      trackEnqueue("test:rpm", 60000, acquireFn, fn);
+      void trackEnqueue("test:rpm", 60000, acquireFn, fn);
+      void trackEnqueue("test:rpm", 60000, acquireFn, fn);
+      void trackEnqueue("test:rpm", 60000, acquireFn, fn);
 
       // 4th should be rejected immediately.
       const p4 = queue.enqueue("test:rpm", 60000, acquireFn, fn);
@@ -102,10 +102,10 @@ describe("RateLimitQueue", () => {
         .mockReturnValue({ allowed: false, retryAfterMs: 60000 });
       const fn = vi.fn().mockResolvedValue("ok");
 
-      trackEnqueue("test:rpm", 60000, acquireFn, fn);
+      void trackEnqueue("test:rpm", 60000, acquireFn, fn);
       expect(queue.getQueueDepth("test:rpm")).toBe(1);
 
-      trackEnqueue("test:rpm", 60000, acquireFn, fn);
+      void trackEnqueue("test:rpm", 60000, acquireFn, fn);
       expect(queue.getQueueDepth("test:rpm")).toBe(2);
     });
   });
@@ -117,8 +117,8 @@ describe("RateLimitQueue", () => {
         .mockReturnValue({ allowed: false, retryAfterMs: 60000 });
       const fn = vi.fn().mockResolvedValue("ok");
 
-      trackEnqueue("a:rpm", 60000, acquireFn, fn);
-      trackEnqueue("b:rpm", 60000, acquireFn, fn);
+      void trackEnqueue("a:rpm", 60000, acquireFn, fn);
+      void trackEnqueue("b:rpm", 60000, acquireFn, fn);
 
       expect(queue.getTotalDepth()).toBe(2);
     });

@@ -77,7 +77,7 @@ export function resolveRateLimitsConfig(raw?: RawLimitsConfig): ResolvedLimitsCo
     attempts: positiveIntOrDefault(raw?.retry?.attempts, DEFAULT_RETRY.attempts),
     minDelayMs: positiveIntOrDefault(raw?.retry?.minDelayMs, DEFAULT_RETRY.minDelayMs),
     maxDelayMs: positiveIntOrDefault(raw?.retry?.maxDelayMs, DEFAULT_RETRY.maxDelayMs),
-    jitter: clamp01Limits(raw?.retry?.jitter, DEFAULT_RETRY.jitter),
+    jitter: clamp01RateLimits(raw?.retry?.jitter, DEFAULT_RETRY.jitter),
   };
 
   return { enabled, defaults, providers, queue, budgets, retry };
@@ -93,7 +93,7 @@ function positiveIntOrDefault(value: number | undefined, fallback: number): numb
     : fallback;
 }
 
-function clamp01Limits(value: number | undefined, fallback: number): number {
+function clamp01RateLimits(value: number | undefined, fallback: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
   }

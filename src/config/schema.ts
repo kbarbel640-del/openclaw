@@ -1,6 +1,6 @@
 import { CHANNEL_IDS } from "../channels/registry.js";
 import { VERSION } from "../version.js";
-import { LIMITS_FIELD_LABELS, LIMITS_FIELD_HELP } from "./schema.limits.js";
+import { LIMITS_FIELD_LABELS, LIMITS_FIELD_HELP } from "./limits.schema.js";
 import { OpenClawSchema } from "./zod-schema.js";
 
 export type ConfigUiHint = {
