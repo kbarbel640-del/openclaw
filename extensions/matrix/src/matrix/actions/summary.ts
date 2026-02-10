@@ -12,6 +12,12 @@ type EventSummaryOptions = {
   client?: Pick<MatrixClient, "mxcToHttp">;
 };
 
+/**
+ * Summarizes a raw Matrix event into a simplified structure.
+ *
+ * CAUTION: This function must remain synchronous to be used in array.map()
+ * within readMatrixMessages. Do not introduce async calls here.
+ */
 export function summarizeMatrixRawEvent(
   event: MatrixRawEvent,
   opts: EventSummaryOptions = {},
@@ -54,7 +60,7 @@ export function summarizeMatrixRawEvent(
       media = {
         mxcUrl,
         downloadUrl: opts.client?.mxcToHttp(mxcUrl),
-        encrypted: Boolean(encryptedMxc),
+        encrypted: mxcUrl === encryptedMxc,
         contentType: typeof info?.mimetype === "string" ? info.mimetype : undefined,
         sizeBytes: typeof info?.size === "number" ? info.size : undefined,
         durationMs: typeof info?.duration === "number" ? info.duration : undefined,

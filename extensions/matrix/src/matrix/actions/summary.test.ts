@@ -85,4 +85,30 @@ describe("summarizeMatrixRawEvent", () => {
     expect(summary.media?.encrypted).toBe(true);
     expect(summary.media?.downloadUrl).toBe("https://download/mxc://example.org/encrypted-audio");
   });
+
+  it("prioritizes plain mxc if both present, setting encrypted=false", () => {
+    const event: MatrixRawEvent = {
+      event_id: "$event4",
+      sender: "@bob:example.org",
+      type: EventType.RoomMessage,
+      origin_server_ts: 1700000003000,
+      content: {
+        msgtype: "m.image",
+        body: "image.png",
+        url: "mxc://example.org/plain-image",
+        file: {
+          url: "mxc://example.org/encrypted-image",
+          iv: "y",
+        },
+      },
+    };
+
+    const summary = summarizeMatrixRawEvent(event, {
+      includeMedia: true,
+      client: { mxcToHttp: (mxc) => `https://download/${mxc}` },
+    });
+
+    expect(summary.media?.mxcUrl).toBe("mxc://example.org/plain-image");
+    expect(summary.media?.encrypted).toBe(false);
+  });
 });
