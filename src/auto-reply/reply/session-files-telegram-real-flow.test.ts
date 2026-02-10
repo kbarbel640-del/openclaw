@@ -5,7 +5,6 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { MsgContext } from "../templating.js";
 import { listFiles, getFile } from "../../sessions/files/storage.js";
-import { getReplyFromConfig } from "./get-reply.js";
 
 describe("Telegram file upload - real flow simulation", () => {
   let testDir: string;
