@@ -7,10 +7,9 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import type { OpenClawConfig } from "../config/config.js";
-import { hasBinary } from "../agents/skills.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { runCommandWithTimeout } from "../process/exec.js";
-import { ensureTailscaleEndpoint } from "./gmail-setup-utils.js";
+import { ensureTailscaleEndpoint, type GogBinary, resolveGogBinary } from "./gmail-setup-utils.js";
 import {
   buildGogWatchServeArgs,
   buildGogWatchStartArgs,
@@ -30,21 +29,16 @@ let watcherProcess: ChildProcess | null = null;
 let renewInterval: ReturnType<typeof setInterval> | null = null;
 let shuttingDown = false;
 let currentConfig: GmailHookRuntimeConfig | null = null;
-
-/**
- * Check if gog binary is available
- */
-function isGogAvailable(): boolean {
-  return hasBinary("gog");
-}
+let currentGogBinary: GogBinary | null = null;
 
 /**
  * Start the Gmail watch (registers with Gmail API)
  */
 async function startGmailWatch(
   cfg: Pick<GmailHookRuntimeConfig, "account" | "label" | "topic">,
+  gogBinary: GogBinary,
 ): Promise<boolean> {
-  const args = ["gog", ...buildGogWatchStartArgs(cfg)];
+  const args = [gogBinary, ...buildGogWatchStartArgs(cfg)];
   try {
     const result = await runCommandWithTimeout(args, { timeoutMs: 120_000 });
     if (result.code !== 0) {
@@ -63,12 +57,12 @@ async function startGmailWatch(
 /**
  * Spawn the gog gmail watch serve process
  */
-function spawnGogServe(cfg: GmailHookRuntimeConfig): ChildProcess {
+function spawnGogServe(cfg: GmailHookRuntimeConfig, gogBinary: GogBinary): ChildProcess {
   const args = buildGogWatchServeArgs(cfg);
-  log.info(`starting gog ${args.join(" ")}`);
+  log.info(`starting ${gogBinary} ${args.join(" ")}`);
   let addressInUse = false;
 
-  const child = spawn("gog", args, {
+  const child = spawn(gogBinary, args, {
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
   });
@@ -76,7 +70,7 @@ function spawnGogServe(cfg: GmailHookRuntimeConfig): ChildProcess {
   child.stdout?.on("data", (data: Buffer) => {
     const line = data.toString().trim();
     if (line) {
-      log.info(`[gog] ${line}`);
+      log.info(`[${gogBinary}] ${line}`);
     }
   });
 
@@ -88,7 +82,7 @@ function spawnGogServe(cfg: GmailHookRuntimeConfig): ChildProcess {
     if (isAddressInUseError(line)) {
       addressInUse = true;
     }
-    log.warn(`[gog] ${line}`);
+    log.warn(`[${gogBinary}] ${line}`);
   });
 
   child.on("error", (err) => {
@@ -110,10 +104,10 @@ function spawnGogServe(cfg: GmailHookRuntimeConfig): ChildProcess {
     log.warn(`gog exited (code=${code}, signal=${signal}); restarting in 5s`);
     watcherProcess = null;
     setTimeout(() => {
-      if (shuttingDown || !currentConfig) {
+      if (shuttingDown || !currentConfig || !currentGogBinary) {
         return;
       }
-      watcherProcess = spawnGogServe(currentConfig);
+      watcherProcess = spawnGogServe(currentConfig, currentGogBinary);
     }, 5000);
   });
 
@@ -139,10 +133,10 @@ export async function startGmailWatcher(cfg: OpenClawConfig): Promise<GmailWatch
     return { started: false, reason: "no gmail account configured" };
   }
 
-  // Check if gog is available
-  const gogAvailable = isGogAvailable();
-  if (!gogAvailable) {
-    return { started: false, reason: "gog binary not found" };
+  // Check if gog/gogcli is available
+  const gogBinary = resolveGogBinary();
+  if (!gogBinary) {
+    return { started: false, reason: "gog or gogcli binary not found" };
   }
 
   // Resolve the full runtime config
@@ -153,6 +147,7 @@ export async function startGmailWatcher(cfg: OpenClawConfig): Promise<GmailWatch
 
   const runtimeConfig = resolved.value;
   currentConfig = runtimeConfig;
+  currentGogBinary = gogBinary;
 
   // Set up Tailscale endpoint if needed
   if (runtimeConfig.tailscale.mode !== "off") {
@@ -176,14 +171,14 @@ export async function startGmailWatcher(cfg: OpenClawConfig): Promise<GmailWatch
   }
 
   // Start the Gmail watch (register with Gmail API)
-  const watchStarted = await startGmailWatch(runtimeConfig);
+  const watchStarted = await startGmailWatch(runtimeConfig, gogBinary);
   if (!watchStarted) {
     log.warn("gmail watch start failed, but continuing with serve");
   }
 
   // Spawn the gog serve process
   shuttingDown = false;
-  watcherProcess = spawnGogServe(runtimeConfig);
+  watcherProcess = spawnGogServe(runtimeConfig, gogBinary);
 
   // Set up renewal interval
   const renewMs = runtimeConfig.renewEveryMinutes * 60_000;
@@ -191,7 +186,7 @@ export async function startGmailWatcher(cfg: OpenClawConfig): Promise<GmailWatch
     if (shuttingDown) {
       return;
     }
-    void startGmailWatch(runtimeConfig);
+    void startGmailWatch(runtimeConfig, gogBinary);
   }, renewMs);
 
   log.info(
@@ -235,6 +230,7 @@ export async function stopGmailWatcher(): Promise<void> {
   }
 
   currentConfig = null;
+  currentGogBinary = null;
   log.info("gmail watcher stopped");
 }
 

@@ -4,6 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const itUnix = process.platform === "win32" ? it.skip : it;
+const itNonDarwin = process.platform === "darwin" ? it.skip : it;
 
 beforeEach(() => {
   vi.resetModules();
@@ -122,5 +123,48 @@ describe("ensureTailscaleEndpoint", () => {
     expect(message).toContain("returned invalid JSON");
     expect(message).toContain("stdout: not-json");
     expect(message).toContain("code=0");
+  });
+});
+
+describe("gog binary resolution", () => {
+  itUnix("uses gogcli when gog is unavailable, but prefers gog when present", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gog-"));
+    const originalPath = process.env.PATH;
+    try {
+      process.env.PATH = tmp;
+
+      const gogcliPath = path.join(tmp, "gogcli");
+      await fs.writeFile(gogcliPath, "#!/bin/sh\nexit 0\n", "utf-8");
+      await fs.chmod(gogcliPath, 0o755);
+
+      const { ensureDependency, resolveGogBinary } = await import("./gmail-setup-utils.js");
+
+      expect(resolveGogBinary()).toBe("gogcli");
+      await expect(ensureDependency("gog", ["gogcli"], ["gogcli"])).resolves.toBeUndefined();
+
+      const gogPath = path.join(tmp, "gog");
+      await fs.writeFile(gogPath, "#!/bin/sh\nexit 0\n", "utf-8");
+      await fs.chmod(gogPath, 0o755);
+
+      expect(resolveGogBinary()).toBe("gog");
+    } finally {
+      process.env.PATH = originalPath;
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
+
+  itNonDarwin("includes both binary names in Linux error messaging", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gog-missing-"));
+    const originalPath = process.env.PATH;
+    try {
+      process.env.PATH = tmp;
+      const { ensureDependency } = await import("./gmail-setup-utils.js");
+      await expect(ensureDependency("gog", ["gogcli"], ["gogcli"])).rejects.toThrow(
+        "gog or gogcli not installed; install it and retry",
+      );
+    } finally {
+      process.env.PATH = originalPath;
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
   });
 });

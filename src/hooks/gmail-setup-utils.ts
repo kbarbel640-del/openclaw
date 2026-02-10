@@ -7,6 +7,9 @@ import { normalizeServePath } from "./gmail.js";
 
 let cachedPythonPath: string | null | undefined;
 const MAX_OUTPUT_CHARS = 800;
+const GOG_BIN_CANDIDATES = ["gog", "gogcli"] as const;
+
+export type GogBinary = (typeof GOG_BIN_CANDIDATES)[number];
 
 function trimOutput(value: string): string {
   const trimmed = value.trim();
@@ -165,15 +168,47 @@ async function runGcloudCommand(
   });
 }
 
-export async function ensureDependency(bin: string, brewArgs: string[]) {
+export function resolveGogBinary(): GogBinary | null {
+  for (const candidate of GOG_BIN_CANDIDATES) {
+    if (hasBinary(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function hasAnyBinary(bin: string, alternatives: string[]): boolean {
+  if (hasBinary(bin)) {
+    return true;
+  }
+  for (const alternative of alternatives) {
+    if (hasBinary(alternative)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function formatDependencyLabel(bin: string, alternatives: string[]): string {
+  const labels = [bin, ...alternatives];
+  const unique = labels.filter((value, index) => labels.indexOf(value) === index);
+  return unique.join(" or ");
+}
+
+export async function ensureDependency(
+  bin: string,
+  brewArgs: string[],
+  alternatives: string[] = [],
+) {
   if (bin === "gcloud" && ensureGcloudOnPath()) {
     return;
   }
-  if (hasBinary(bin)) {
+  const label = formatDependencyLabel(bin, alternatives);
+  if (hasAnyBinary(bin, alternatives)) {
     return;
   }
   if (process.platform !== "darwin") {
-    throw new Error(`${bin} not installed; install it and retry`);
+    throw new Error(`${label} not installed; install it and retry`);
   }
   if (!hasBinary("brew")) {
     throw new Error("Homebrew not installed (install brew and retry)");
@@ -186,8 +221,8 @@ export async function ensureDependency(bin: string, brewArgs: string[]) {
   if (result.code !== 0) {
     throw new Error(`brew install failed for ${bin}: ${result.stderr || result.stdout}`);
   }
-  if (!hasBinary(bin)) {
-    throw new Error(`${bin} still not available after brew install`);
+  if (!hasAnyBinary(bin, alternatives)) {
+    throw new Error(`${label} still not available after brew install`);
   }
 }
 

@@ -19,6 +19,8 @@ Goal: Gmail watch -> Pub/Sub push -> `gog gmail watch serve` -> OpenClaw webhook
   Other tunnel services can work, but are DIY/unsupported and require manual wiring.
   Right now, Tailscale is what we support.
 
+OpenClaw accepts either executable name (`gog` or `gogcli`). This guide uses `gog` in examples.
+
 Example hook config (enable Gmail preset mapping):
 
 ```json5

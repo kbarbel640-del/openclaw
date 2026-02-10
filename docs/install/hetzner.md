@@ -207,7 +207,7 @@ All external binaries required by skills must be installed at image build time.
 
 The examples below show three common binaries only:
 
-- `gog` for Gmail access
+- `gog` or `gogcli` for Gmail access
 - `goplaces` for Google Places
 - `wacli` for WhatsApp
 
