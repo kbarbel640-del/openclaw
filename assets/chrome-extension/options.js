@@ -1,8 +1,5 @@
 const DEFAULT_PORT = 18792
-// Historically hardcoded IP. We default to this for existing users if no value is set,
-// but new users might prefer 127.0.0.1.
-// Requirement: "Ensure the current hardcoded value (100.77.161.18) is used as the initial default if no storage value exists"
-const LEGACY_DEFAULT_HOST = '127.0.0.1'
+const DEFAULT_HOST = '127.0.0.1'
 
 function clampPort(value) {
   const n = Number.parseInt(String(value || ''), 10)
@@ -15,7 +12,7 @@ function cleanHost(value) {
   let s = String(value || '').trim()
   // Basic cleanup: remove protocol if user pasted it
   s = s.replace(/^https?:\/\//, '').replace(/\/$/, '')
-  return s || LEGACY_DEFAULT_HOST
+  return s || DEFAULT_HOST
 }
 
 function updateRelayUrl(host, port) {
@@ -52,8 +49,7 @@ async function checkRelayReachable(host, port) {
 async function load() {
   const stored = await chrome.storage.local.get(['relayHost', 'relayPort'])
   
-  // Requirement 4: use legacy default if undefined
-  const host = stored.relayHost ? cleanHost(stored.relayHost) : LEGACY_DEFAULT_HOST
+  const host = stored.relayHost ? cleanHost(stored.relayHost) : DEFAULT_HOST
   const port = clampPort(stored.relayPort)
 
   document.getElementById('host').value = host

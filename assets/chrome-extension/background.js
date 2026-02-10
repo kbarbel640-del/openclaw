@@ -37,7 +37,8 @@ function nowStack() {
 async function getRelayHost() {
   const stored = await chrome.storage.local.get(['relayHost'])
   const h = String(stored.relayHost || '').trim()
-  return h || '127.0.0.1'
+  // Strip protocol and trailing slashes if the user provided them.
+  return h.replace(/^https?:\/\//, '').replace(/\/$/, '') || '127.0.0.1'
 }
 
 async function getRelayPort() {
