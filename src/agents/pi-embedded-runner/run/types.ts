@@ -9,6 +9,7 @@ import type { MessagingToolSend } from "../../pi-embedded-messaging.js";
 import type { BlockReplyChunking, ToolResultFormat } from "../../pi-embedded-subscribe.js";
 import type { AuthStorage, ModelRegistry } from "../../pi-model-discovery.js";
 import type { SkillSnapshot } from "../../skills.js";
+import type { NormalizedUsage } from "../../usage.js";
 import type { ClientToolDefinition } from "./params.js";
 
 export type EmbeddedRunAttemptParams = {
@@ -41,6 +42,7 @@ export type EmbeddedRunAttemptParams = {
   originatingChannel?: string;
   /** Sender ID of the control message. When originating from X, x-reply only allowed to this user's tweets. */
   originatingSenderId?: string;
+  agentId?: string;
   sessionFile: string;
   workspaceDir: string;
   agentDir?: string;
@@ -105,6 +107,10 @@ export type EmbeddedRunAttemptResult = {
   toolMetas: Array<{ toolName: string; meta?: string }>;
   lastAssistant: AssistantMessage | undefined;
   lastToolError?: { toolName: string; meta?: string; error?: string };
+  /** Token usage for this attempt. */
+  attemptUsage?: NormalizedUsage;
+  /** Number of compactions performed during this attempt. */
+  compactionCount?: number;
   didSendViaMessagingTool: boolean;
   messagingToolSentTexts: string[];
   messagingToolSentTargets: MessagingToolSend[];

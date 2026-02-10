@@ -127,8 +127,6 @@ export { resolveAckReaction } from "../agents/identity.js";
 export type { ReplyPayload } from "../auto-reply/types.js";
 export type { ChunkMode } from "../auto-reply/chunk.js";
 export { SILENT_REPLY_TOKEN, isSilentReplyText } from "../auto-reply/tokens.js";
-<<<<<<< HEAD
-=======
 export {
   approveDevicePairing,
   listDevicePairing,
@@ -137,7 +135,6 @@ export {
 export { formatErrorMessage } from "../infra/errors.js";
 export { isWSLSync, isWSL2Sync, isWSLEnv } from "../infra/wsl.js";
 export { isTruthyEnvValue } from "../infra/env.js";
->>>>>>> 137b7d9aab7ea7f9d2dfec72e8f4f6276037f753
 export { resolveToolsBySender } from "../config/group-policy.js";
 export {
   buildPendingHistoryContextFromMap,

@@ -290,11 +290,9 @@ export async function probeDiscordApplicationId(
   try {
     const res = await fetchWithTimeout(
       `${DISCORD_API_BASE}/oauth2/applications/@me`,
+      { headers: { Authorization: `Bot ${normalized}` } },
       timeoutMs,
-      fetcher,
-      {
-        Authorization: `Bot ${normalized}`,
-      },
+      getResolvedFetch(fetcher),
     );
 
     if (!res.ok) {
