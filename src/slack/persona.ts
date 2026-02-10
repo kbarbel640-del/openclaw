@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/config.js";
-import { resolveAgentIdentity } from "../agents/identity.js";
 import type { SlackPersona } from "./send.js";
+import { resolveAgentIdentity } from "../agents/identity.js";
 
 /**
  * Wraps an emoji string in colons for Slack icon_emoji format.
