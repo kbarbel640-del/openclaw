@@ -324,9 +324,10 @@ export async function agentCommand(
     if (directModelOverride) {
       // Split only on first slash to preserve hierarchical model IDs (e.g., openrouter/moonshotai/kimi-k2)
       const slashIndex = directModelOverride.indexOf("/");
-      const [modelProvider, modelName] = slashIndex === -1
-        ? [defaultProvider, directModelOverride]
-        : [directModelOverride.slice(0, slashIndex), directModelOverride.slice(slashIndex + 1)];
+      const [modelProvider, modelName] =
+        slashIndex === -1
+          ? [defaultProvider, directModelOverride]
+          : [directModelOverride.slice(0, slashIndex), directModelOverride.slice(slashIndex + 1)];
       const candidateProvider = modelProvider || defaultProvider;
       const candidateModel = modelName || directModelOverride;
       const key = modelKey(candidateProvider, candidateModel);
