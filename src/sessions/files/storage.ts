@@ -4,7 +4,6 @@ import path from "node:path";
 import type { SessionFileType, SessionFileMetadata } from "./types.js";
 import { parseCsv } from "./csv-parser.js";
 import { loadIndex, addFileToIndex, removeFileFromIndex } from "./index.js";
-import { convertToMarkdown } from "./markdown-converter.js";
 import { resolveSessionFilesDir } from "./paths.js";
 
 export async function saveFile(params: {
@@ -26,9 +25,16 @@ export async function saveFile(params: {
 
   await fs.mkdir(baseDir, { recursive: true });
 
-  // Convert to markdown and save
-  const markdown = await convertToMarkdown(buffer, type, filename);
-  await fs.writeFile(mdPath, markdown, "utf-8");
+  // Save raw content (no conversion)
+  let content: string;
+  if (type === "pdf") {
+    // PDF handled separately (will implement in next task)
+    content = buffer.toString("utf-8"); // Temporary, will fix in Task 2
+  } else {
+    // All other types: save raw content
+    content = buffer.toString("utf-8");
+  }
+  await fs.writeFile(mdPath, content, "utf-8");
 
   const metadata: SessionFileMetadata = {
     id: fileId,
