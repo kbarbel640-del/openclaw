@@ -104,7 +104,7 @@ export function createSessionsManageTool(opts?: {
 
       const resolvedKey = resolvedSession.key;
       const displayKey = resolvedSession.displayKey;
-      const resolvedViaSessionId = resolvedSession.resolvedViaSessionId;
+      const _resolvedViaSessionId = resolvedSession.resolvedViaSessionId;
 
       // If restricted to spawned sessions, we must verify visibility to prevent unauthorized access by guessing IDs.
       // We check if resolvedViaSessionId is true (bypass case), OR just always check to be safe (HEAD behavior).
