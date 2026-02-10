@@ -169,7 +169,13 @@ export function coerceValueToSchema(value: unknown, schema: JsonSchema | null): 
         return undefined;
       }
       const parsed = Number(trimmed);
-      return Number.isNaN(parsed) ? value : parsed;
+      if (Number.isNaN(parsed)) {
+        return value;
+      }
+      if (schemaType === "integer" && !Number.isInteger(parsed)) {
+        return value;
+      }
+      return parsed;
     }
     if (typeof value === "number") {
       return value;

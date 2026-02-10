@@ -367,6 +367,33 @@ describe("updateConfigFormValue with type coercion", () => {
     });
   });
 
+  it("rejects decimal values for integer fields", () => {
+    const state = createState();
+    state.configSchema = {
+      type: "object",
+      properties: {
+        gateway: {
+          type: "object",
+          properties: {
+            port: { type: "integer" },
+          },
+        },
+      },
+    };
+    state.configSnapshot = {
+      config: {},
+      valid: true,
+      issues: [],
+      raw: "{}",
+    };
+
+    updateConfigFormValue(state, ["gateway", "port"], "8080.5");
+
+    expect(state.configForm).toEqual({
+      gateway: { port: "8080.5" },
+    });
+  });
+
   it("works without schema (no coercion)", () => {
     const state = createState();
     state.configSchema = null;
