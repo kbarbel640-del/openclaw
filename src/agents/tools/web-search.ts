@@ -103,7 +103,15 @@ type GrokConfig = {
 };
 
 type GrokSearchResponse = {
-  output_text?: string;
+  output?: Array<{
+    type?: string;
+    role?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }>;
+  }>;
+  output_text?: string; // deprecated field - kept for backwards compatibility
   citations?: string[];
   inline_citations?: Array<{
     start_index: number;
@@ -476,7 +484,8 @@ async function runGrokSearch(params: {
   }
 
   const data = (await res.json()) as GrokSearchResponse;
-  const content = data.output_text ?? "No response";
+  // Extract content from xAI Responses API format: output[0].content[0].text
+  const content = data.output?.[0]?.content?.[0]?.text ?? data.output_text ?? "No response";
   const citations = data.citations ?? [];
   const inlineCitations = data.inline_citations;
 
