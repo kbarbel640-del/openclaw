@@ -2,6 +2,14 @@ import { clearActiveProgressLine } from "./progress-line.js";
 
 const RESET_SEQUENCE = "\x1b[0m\x1b[?25h\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?2004l";
 
+type RestoreTerminalStateOptions = {
+  /**
+   * Resumes paused stdin after restoring terminal mode.
+   * Keep this off when the process should exit immediately after cleanup.
+   */
+  resumeStdin?: boolean;
+};
+
 function reportRestoreFailure(scope: string, err: unknown, reason?: string): void {
   const suffix = reason ? ` (${reason})` : "";
   const message = `[terminal] restore ${scope} failed${suffix}: ${String(err)}`;
@@ -12,7 +20,11 @@ function reportRestoreFailure(scope: string, err: unknown, reason?: string): voi
   }
 }
 
-export function restoreTerminalState(reason?: string): void {
+export function restoreTerminalState(
+  reason?: string,
+  options: RestoreTerminalStateOptions = {},
+): void {
+  const resumeStdin = options.resumeStdin ?? true;
   try {
     clearActiveProgressLine();
   } catch (err) {
@@ -25,6 +37,13 @@ export function restoreTerminalState(reason?: string): void {
       stdin.setRawMode(false);
     } catch (err) {
       reportRestoreFailure("raw mode", err, reason);
+    }
+    if (resumeStdin && typeof stdin.isPaused === "function" && stdin.isPaused()) {
+      try {
+        stdin.resume();
+      } catch (err) {
+        reportRestoreFailure("stdin resume", err, reason);
+      }
     }
   }
 

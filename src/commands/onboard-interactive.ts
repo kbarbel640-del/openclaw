@@ -20,6 +20,7 @@ export async function runInteractiveOnboarding(
     }
     throw err;
   } finally {
-    restoreTerminalState("onboarding finish");
+    // Keep stdin paused so non-daemon runs can exit cleanly (e.g. Docker setup).
+    restoreTerminalState("onboarding finish", { resumeStdin: false });
   }
 }

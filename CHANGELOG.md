@@ -340,6 +340,7 @@ Docs: https://docs.openclaw.ai
 - Tests: harden flaky hotspots by removing timer sleeps, consolidating onboarding provider-auth coverage, and improving memory test realism. (#11598) Thanks @gumadeiras.
 - macOS: honor Nix-managed defaults suite (`ai.openclaw.mac`) for nixMode to prevent onboarding from reappearing after bundle-id churn. (#12205) Thanks @joshp123.
 - Matrix: add multi-account support via `channels.matrix.accounts`; use per-account config for dm policy, allowFrom, groups, and other settings; serialize account startup to avoid race condition. (#7286, #3165, #3085) Thanks @emonty.
+- Docker/macOS: stop interactive onboarding from hanging after completion by keeping stdin paused during onboarding cleanup. (#8189) Thanks @devbyray.
 
 ## 2026.2.6
 
