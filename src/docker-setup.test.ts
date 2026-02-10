@@ -125,7 +125,7 @@ describe("docker-setup.sh", () => {
     const assocCheck = spawnSync(systemBash, ["-c", "declare -A _t=()"], {
       encoding: "utf8",
     });
-    if (assocCheck.status === 0) {
+    if (assocCheck.status === null || assocCheck.status === 0) {
       return;
     }
 
