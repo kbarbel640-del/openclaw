@@ -100,7 +100,6 @@ type PerplexityApiKeySource = "config" | "perplexity_env" | "openrouter_env" | "
 type GrokConfig = {
   apiKey?: string;
   model?: string;
-  inlineCitations?: boolean;
 };
 
 type GrokSearchResult = {
@@ -503,7 +502,7 @@ async function runGrokSearch(params: {
   const citations = parts
     .flatMap((p) => p.annotations ?? [])
     .map((ann) => ({
-      url: wrapWebContent(ann.url, "web_search"),
+      url: ann.url,
       start_index: ann.start_index,
       end_index: ann.end_index,
     }));
