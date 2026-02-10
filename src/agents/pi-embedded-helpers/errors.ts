@@ -379,6 +379,25 @@ export function formatAssistantErrorText(
   return raw.length > 600 ? `${raw.slice(0, 600)}…` : raw;
 }
 
+const MARKDOWN_START_RE = /^(?:#{1,6}\s|[-*]\s|\d+\.\s|`{3})/;
+const CONVERSATIONAL_START_RE = /^(?:I|We|The|Here|Sorry|Hello|Hi|Please|Let|As)\b/;
+
+function isLikelyAssistantContent(text: string): boolean {
+  if (text.length > 500) {
+    return true;
+  }
+  if (text.includes("\n\n")) {
+    return true;
+  }
+  if (MARKDOWN_START_RE.test(text)) {
+    return true;
+  }
+  if (CONVERSATIONAL_START_RE.test(text)) {
+    return true;
+  }
+  return false;
+}
+
 export function sanitizeUserFacingText(text: string): string {
   if (!text) {
     return text;
@@ -387,6 +406,16 @@ export function sanitizeUserFacingText(text: string): string {
   const trimmed = stripped.trim();
   if (!trimmed) {
     return stripped;
+  }
+
+  // If the text looks like structured assistant content (long, markdown, paragraphs),
+  // we assume it's NOT a raw error payload unless proven otherwise.
+  // This prevents rewriting "I faced a context overflow error..." into a generic error message.
+  if (isLikelyAssistantContent(trimmed)) {
+    if (isRawApiErrorPayload(trimmed) || isLikelyHttpErrorText(trimmed)) {
+      return formatRawAssistantErrorForUi(trimmed);
+    }
+    return collapseConsecutiveDuplicateBlocks(stripped);
   }
 
   if (/incorrect role information|roles must alternate/i.test(trimmed)) {
