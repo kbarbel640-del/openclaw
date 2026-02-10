@@ -596,6 +596,12 @@ export class CallManager {
 
     let call = this.findCall(event.callId);
 
+    // Some providers may emit events where `callId` is not our internal callId.
+    // If we have a providerCallId, resolve by providerCallId before considering auto-create.
+    if (!call && event.providerCallId) {
+      call = this.getCallByProviderCallId(event.providerCallId);
+    }
+
     // Handle inbound calls - create record if it doesn't exist
     if (!call && event.direction === "inbound" && event.providerCallId) {
       // Check if we should accept this inbound call
