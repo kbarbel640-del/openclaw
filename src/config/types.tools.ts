@@ -359,10 +359,8 @@ export type ToolsConfig = {
       grok?: {
         /** API key for xAI (defaults to XAI_API_KEY env var). */
         apiKey?: string;
-        /** Model to use (defaults to "grok-4-1-fast"). */
+        /** Model to use (defaults to "grok-4-1-fast-reasoning"). */
         model?: string;
-        /** Include inline citations in response text as markdown links (default: false). */
-        inlineCitations?: boolean;
       };
     };
     fetch?: {
