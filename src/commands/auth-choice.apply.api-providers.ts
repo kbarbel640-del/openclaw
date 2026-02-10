@@ -1,3 +1,5 @@
+import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
+import type { AuthChoice } from "./onboard-types.js";
 import { ensureAuthProfileStore, resolveAuthProfileOrder } from "../agents/auth-profiles.js";
 import { resolveEnvApiKey } from "../agents/model-auth.js";
 import {
@@ -13,7 +15,6 @@ import {
   normalizeTokenProviderInput,
 } from "./auth-choice.apply-helpers.js";
 import { applyAuthChoiceHuggingface } from "./auth-choice.apply.huggingface.js";
-import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import { applyAuthChoiceOpenRouter } from "./auth-choice.apply.openrouter.js";
 import {
   applyGoogleGeminiModelDefault,
@@ -39,6 +40,8 @@ import {
   applyMoonshotProviderConfigCn,
   applyOpencodeZenConfig,
   applyOpencodeZenProviderConfig,
+  applyNovitaConfig,
+  applyNovitaProviderConfig,
   applySyntheticConfig,
   applySyntheticProviderConfig,
   applyTogetherConfig,
@@ -58,6 +61,7 @@ import {
   KIMI_CODING_MODEL_REF,
   MOONSHOT_DEFAULT_MODEL_REF,
   MISTRAL_DEFAULT_MODEL_REF,
+  NOVITA_DEFAULT_MODEL_REF,
   SYNTHETIC_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
   VENICE_DEFAULT_MODEL_REF,
@@ -71,6 +75,7 @@ import {
   setKimiCodingApiKey,
   setMistralApiKey,
   setMoonshotApiKey,
+  setNovitaApiKey,
   setOpencodeZenApiKey,
   setSyntheticApiKey,
   setTogetherApiKey,
@@ -80,7 +85,6 @@ import {
   setZaiApiKey,
   ZAI_DEFAULT_MODEL_REF,
 } from "./onboard-auth.js";
-import type { AuthChoice } from "./onboard-types.js";
 import { OPENCODE_ZEN_DEFAULT_MODEL } from "./opencode-zen-model-default.js";
 import { detectZaiEndpoint } from "./zai-endpoint-detect.js";
 
@@ -99,6 +103,7 @@ const API_KEY_TOKEN_PROVIDER_AUTH_CHOICE: Record<string, AuthChoice> = {
   venice: "venice-api-key",
   together: "together-api-key",
   huggingface: "huggingface-api-key",
+  novita: "novita-api-key",
   mistral: "mistral-api-key",
   opencode: "opencode-zen",
   kilocode: "kilocode-api-key",
@@ -293,6 +298,23 @@ const SIMPLE_API_KEY_PROVIDER_FLOWS: Partial<Record<AuthChoice, SimpleApiKeyProv
     applyDefaultConfig: applyKilocodeConfig,
     applyProviderConfig: applyKilocodeProviderConfig,
     noteDefault: KILOCODE_DEFAULT_MODEL_REF,
+  },
+  "novita-api-key": {
+    provider: "novita",
+    profileId: "novita:default",
+    expectedProviders: ["novita"],
+    envLabel: "NOVITA_API_KEY",
+    promptMessage: "Enter Novita API key",
+    setCredential: setNovitaApiKey,
+    defaultModel: NOVITA_DEFAULT_MODEL_REF,
+    applyDefaultConfig: applyNovitaConfig,
+    applyProviderConfig: applyNovitaProviderConfig,
+    noteDefault: NOVITA_DEFAULT_MODEL_REF,
+    noteMessage: [
+      "Novita AI provides an OpenAI-compatible API endpoint with a broad model catalog.",
+      "Get your API key at: https://novita.ai/settings/key-management",
+    ].join("\n"),
+    noteTitle: "Novita AI",
   },
   "synthetic-api-key": {
     provider: "synthetic",

@@ -1,9 +1,10 @@
+import type { OpenClawConfig } from "../../../config/config.js";
+import type { RuntimeEnv } from "../../../runtime.js";
+import type { AuthChoice, OnboardOptions } from "../../onboard-types.js";
 import { upsertAuthProfile } from "../../../agents/auth-profiles.js";
 import { normalizeProviderId } from "../../../agents/model-selection.js";
 import { parseDurationMs } from "../../../cli/parse-duration.js";
-import type { OpenClawConfig } from "../../../config/config.js";
 import { upsertSharedEnvVar } from "../../../infra/env-file.js";
-import type { RuntimeEnv } from "../../../runtime.js";
 import { shortenHomePath } from "../../../utils.js";
 import { normalizeSecretInput } from "../../../utils/normalize-secret-input.js";
 import { buildTokenProfileId, validateAnthropicSetupToken } from "../../auth-token.js";
@@ -20,6 +21,7 @@ import {
   applyMinimaxConfig,
   applyMoonshotConfig,
   applyMoonshotConfigCn,
+  applyNovitaConfig,
   applyOpencodeZenConfig,
   applyOpenrouterConfig,
   applySyntheticConfig,
@@ -42,6 +44,7 @@ import {
   setMistralApiKey,
   setMinimaxApiKey,
   setMoonshotApiKey,
+  setNovitaApiKey,
   setOpencodeZenApiKey,
   setOpenrouterApiKey,
   setSyntheticApiKey,
@@ -59,7 +62,6 @@ import {
   parseNonInteractiveCustomApiFlags,
   resolveCustomProviderId,
 } from "../../onboard-custom.js";
-import type { AuthChoice, OnboardOptions } from "../../onboard-types.js";
 import { applyOpenAIConfig } from "../../openai-model-default.js";
 import { detectZaiEndpoint } from "../../zai-endpoint-detect.js";
 import { resolveNonInteractiveApiKey } from "../api-keys.js";
@@ -758,6 +760,29 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applyHuggingfaceConfig(nextConfig);
+  }
+
+  if (authChoice === "novita-api-key") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "novita",
+      cfg: baseConfig,
+      flagValue: opts.novitaApiKey,
+      flagName: "--novita-api-key",
+      envVar: "NOVITA_API_KEY",
+      runtime,
+    });
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setNovitaApiKey(resolved.key);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "novita:default",
+      provider: "novita",
+      mode: "api_key",
+    });
+    return applyNovitaConfig(nextConfig);
   }
 
   if (authChoice === "custom-api-key") {
