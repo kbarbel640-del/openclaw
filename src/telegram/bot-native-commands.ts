@@ -719,6 +719,15 @@ export const registerTelegramNativeCommands = ({
             : `telegram:${chatId}`;
           const to = `telegram:${chatId}`;
 
+          const pluginRoute = resolveAgentRoute({
+            cfg,
+            channel: "telegram",
+            accountId,
+            peer: {
+              kind: isGroup ? "group" : "direct",
+              id: isGroup ? buildTelegramGroupPeerId(chatId, threadSpec.id) : String(chatId),
+            },
+          });
           const result = await executePluginCommand({
             command: match.command,
             args: match.args,
@@ -731,6 +740,7 @@ export const registerTelegramNativeCommands = ({
             to,
             accountId,
             messageThreadId: threadSpec.id,
+            sessionKey: pluginRoute?.sessionKey,
           });
 
           await deliverReplies({
