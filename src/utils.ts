@@ -21,6 +21,48 @@ export function clampInt(value: number, min: number, max: number): number {
   return clampNumber(Math.floor(value), min, max);
 }
 
+/** Alias for clampNumber (shorter, more common name) */
+export const clamp = clampNumber;
+
+/**
+ * Escapes special regex characters in a string so it can be used in a RegExp constructor.
+ */
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Safely parse JSON, returning null on error instead of throwing.
+ */
+export function safeParseJson<T>(raw: string): T | null {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Type guard for plain objects (not arrays, null, Date, RegExp, etc.).
+ * Uses Object.prototype.toString for maximum safety.
+ */
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.prototype.toString.call(value) === "[object Object]"
+  );
+}
+
+/**
+ * Type guard for Record<string, unknown> (less strict than isPlainObject).
+ * Accepts any non-null object that isn't an array.
+ */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export type WebChannel = "web";
 
 export function assertWebChannel(input: string): asserts input is WebChannel {
