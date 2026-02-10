@@ -82,34 +82,60 @@ const EXTERNAL_SOURCE_LABELS: Record<ExternalContentSource, string> = {
   unknown: "External",
 };
 
-const FULLWIDTH_ASCII_OFFSET = 0xfee0;
-const FULLWIDTH_LEFT_ANGLE = 0xff1c;
-const FULLWIDTH_RIGHT_ANGLE = 0xff1e;
+const MARKER_IGNORED_CHARS = new Set(["\u200B", "\u200C", "\u200D", "\uFEFF", "\u00AD"]);
 
-function foldMarkerChar(char: string): string {
-  const code = char.charCodeAt(0);
-  if (code >= 0xff21 && code <= 0xff3a) {
-    return String.fromCharCode(code - FULLWIDTH_ASCII_OFFSET);
-  }
-  if (code >= 0xff41 && code <= 0xff5a) {
-    return String.fromCharCode(code - FULLWIDTH_ASCII_OFFSET);
-  }
-  if (code === FULLWIDTH_LEFT_ANGLE) {
-    return "<";
-  }
-  if (code === FULLWIDTH_RIGHT_ANGLE) {
-    return ">";
-  }
-  return char;
-}
+const MARKER_CONFUSABLES: Record<string, string> = {
+  "\u0391": "A",
+  "\u03B1": "a",
+  "\u0395": "E",
+  "\u03B5": "e",
+  "\u039D": "N",
+  "\u03BD": "n",
+  "\u039F": "O",
+  "\u03BF": "o",
+  "\u03A4": "T",
+  "\u03C4": "t",
+  "\u03A7": "X",
+  "\u03C7": "x",
+  "\u0410": "A",
+  "\u0430": "a",
+  "\u0421": "C",
+  "\u0441": "c",
+  "\u0415": "E",
+  "\u0435": "e",
+  "\u041D": "H",
+  "\u043D": "h",
+  "\u041E": "O",
+  "\u043E": "o",
+  "\u0422": "T",
+  "\u0442": "t",
+  "\u0425": "X",
+  "\u0445": "x",
+};
 
-function foldMarkerText(input: string): string {
-  return input.replace(/[\uFF21-\uFF3A\uFF41-\uFF5A\uFF1C\uFF1E]/g, (char) => foldMarkerChar(char));
+function foldMarkerText(input: string): { text: string; map: number[] } {
+  let text = "";
+  const map: number[] = [];
+
+  for (let index = 0; index < input.length; index++) {
+    const rawChar = input[index];
+    const normalized = rawChar.normalize("NFKC");
+    for (let i = 0; i < normalized.length; i++) {
+      const char = normalized[i];
+      if (MARKER_IGNORED_CHARS.has(char)) {
+        continue;
+      }
+      text += MARKER_CONFUSABLES[char] ?? char;
+      map.push(index);
+    }
+  }
+
+  return { text, map };
 }
 
 function replaceMarkers(content: string): string {
   const folded = foldMarkerText(content);
-  if (!/external_untrusted_content/i.test(folded)) {
+  if (!/external_untrusted_content/i.test(folded.text)) {
     return content;
   }
   const replacements: Array<{ start: number; end: number; value: string }> = [];
@@ -121,10 +147,16 @@ function replaceMarkers(content: string): string {
   for (const pattern of patterns) {
     pattern.regex.lastIndex = 0;
     let match: RegExpExecArray | null;
-    while ((match = pattern.regex.exec(folded)) !== null) {
+    while ((match = pattern.regex.exec(folded.text)) !== null) {
+      const start = folded.map[match.index];
+      const endIndex = match.index + match[0].length - 1;
+      const end = folded.map[endIndex];
+      if (start === undefined || end === undefined) {
+        continue;
+      }
       replacements.push({
-        start: match.index,
-        end: match.index + match[0].length,
+        start,
+        end: end + 1,
         value: pattern.value,
       });
     }
