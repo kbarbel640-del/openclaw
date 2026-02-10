@@ -1,13 +1,10 @@
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { loadDotEnv } from "../infra/dotenv.js";
-import { normalizeEnv } from "../infra/env.js";
 import { formatUncaughtError } from "../infra/errors.js";
 import { isMainModule } from "../infra/is-main.js";
 import { ensureOpenClawCliOnPath } from "../infra/path-env.js";
 import { assertSupportedRuntime } from "../infra/runtime-guard.js";
 import { installUnhandledRejectionHandler } from "../infra/unhandled-rejections.js";
-import { enableConsoleCapture } from "../logging.js";
 import { getCommandPath, getPrimaryCommand, hasHelpOrVersion } from "./argv.js";
 import { normalizeWindowsArgv } from "./windows-argv.js";
 
@@ -62,8 +59,14 @@ export function shouldEnsureCliPath(argv: string[]): boolean {
 
 export async function runCli(argv: string[] = process.argv) {
   const normalizedArgv = normalizeWindowsArgv(argv);
-  loadDotEnv({ quiet: true });
-  normalizeEnv();
+  if (!hasHelpOrVersion(normalizedArgv)) {
+    const { loadDotEnv } = await import("../infra/dotenv.js");
+    loadDotEnv({ quiet: true });
+    // Normalize ZAI env alias (inlined to avoid importing env.ts which pulls in tslog)
+    if (!process.env.ZAI_API_KEY?.trim() && process.env.Z_AI_API_KEY?.trim()) {
+      process.env.ZAI_API_KEY = process.env.Z_AI_API_KEY;
+    }
+  }
   if (shouldEnsureCliPath(normalizedArgv)) {
     ensureOpenClawCliOnPath();
   }
@@ -77,9 +80,6 @@ export async function runCli(argv: string[] = process.argv) {
       return;
     }
   }
-
-  // Capture all console output into structured logs while keeping stdout/stderr behavior.
-  enableConsoleCapture();
 
   const { buildProgramShell } = await import("./program/build-program-shell.js");
   const { program, ctx, provideChannelOptions } = buildProgramShell();
@@ -126,6 +126,11 @@ export async function runCli(argv: string[] = process.argv) {
     const { registerPluginCliCommands } = await import("../plugins/cli.js");
     const { loadConfig } = await import("../config/config.js");
     registerPluginCliCommands(program, loadConfig());
+  }
+
+  if (!hasHelpOrVersion(parseArgv)) {
+    const { enableConsoleCapture } = await import("../logging.js");
+    enableConsoleCapture();
   }
 
   await program.parseAsync(parseArgv);
