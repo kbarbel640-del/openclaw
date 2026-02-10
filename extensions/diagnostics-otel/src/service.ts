@@ -386,17 +386,13 @@ export function createDiagnosticsOtelService(): OpenClawPluginService {
           ...(logUrl ? { url: logUrl } : {}),
           ...(headers ? { headers } : {}),
         });
-        logProvider = new LoggerProvider({
-          resource,
-          processors: [
-            new BatchLogRecordProcessor(
-              logExporter,
-              typeof otel.flushIntervalMs === "number"
-                ? { scheduledDelayMillis: Math.max(1000, otel.flushIntervalMs) }
-                : {},
-            ),
-          ],
-        });
+        const processor = new BatchLogRecordProcessor(
+          logExporter,
+          typeof otel.flushIntervalMs === "number"
+            ? { scheduledDelayMillis: Math.max(1000, otel.flushIntervalMs) }
+            : {},
+        );
+        logProvider = new LoggerProvider({ resource, processors: [processor] });
         const otelLogger = logProvider.getLogger("openclaw");
 
         stopLogTransport = registerLogTransport((logObj) => {
