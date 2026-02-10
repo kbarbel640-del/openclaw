@@ -242,7 +242,9 @@ export function resolveAgentRoute(input: ResolveAgentRouteInput): ResolvedAgentR
       const normalizedBindings = new Map<string, string>();
       for (const [key, value] of Object.entries(roleBindings)) {
         const nk = normalizeId(key);
-        if (nk && value) normalizedBindings.set(nk, value);
+        if (nk && value) {
+          normalizedBindings.set(nk, value);
+        }
       }
       for (const roleId of input.mentionedRoleIds) {
         const normalizedRoleId = normalizeId(roleId);
