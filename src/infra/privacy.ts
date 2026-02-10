@@ -85,6 +85,7 @@ export function scrubPIIWithConfig(text: string): string {
 
 /**
  * Scrub PII in a list of agent messages.
+ * Note: uses any[] to support various message types (some may not have 'content').
  */
 export function scrubPIIInMessages<T>(messages: T[]): T[] {
   try {
@@ -102,12 +103,15 @@ export function scrubPIIInMessages<T>(messages: T[]): T[] {
         return msg;
       }
 
+      // Create a shallow copy to modify
       const next = { ...(msg as Record<string, unknown>) };
+
+      // Handle 'content' property (Standard AgentMessage)
       if (typeof next.content === "string") {
         next.content = scrubPII(next.content, patterns);
       } else if (Array.isArray(next.content)) {
         next.content = next.content.map((block: unknown) => {
-          if (block && typeof block === "object") {
+          if (block && typeof block === "object" && block !== null) {
             const b = block as Record<string, unknown>;
             if (b.type === "text" && typeof b.text === "string") {
               return { ...b, text: scrubPII(b.text, patterns) };
@@ -117,7 +121,7 @@ export function scrubPIIInMessages<T>(messages: T[]): T[] {
         });
       }
 
-      // Also check top-level 'text' property which some message types use
+      // Handle 'text' property (fallback for some message types)
       if (typeof next.text === "string") {
         next.text = scrubPII(next.text, patterns);
       }
