@@ -157,6 +157,27 @@ export function markBackgrounded(session: ProcessSession) {
 
 function moveToFinished(session: ProcessSession, status: ProcessStatus) {
   runningSessions.delete(session.id);
+
+  // Clean up child process stdio streams to prevent FD leaks
+  if (session.child) {
+    // Destroy stdio streams to release file descriptors
+    session.child.stdin?.destroy?.();
+    session.child.stdout?.destroy?.();
+    session.child.stderr?.destroy?.();
+
+    // Remove all event listeners to prevent memory leaks
+    session.child.removeAllListeners();
+
+    // Clear the reference
+    delete session.child;
+  }
+
+  // Clean up stdin wrapper
+  if (session.stdin) {
+    session.stdin.destroyed = true;
+    delete session.stdin;
+  }
+
   if (!session.backgrounded) {
     return;
   }
