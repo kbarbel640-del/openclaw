@@ -255,6 +255,35 @@ function mergeCronPayload(existing: CronPayload, patch: CronPayloadPatch): CronP
     return { kind: "systemEvent", text };
   }
 
+  if (patch.kind === "shellGate") {
+    if (existing.kind !== "shellGate") {
+      return buildPayloadFromPatch(patch);
+    }
+    const next: Extract<CronPayload, { kind: "shellGate" }> = { ...existing };
+    if (typeof patch.command === "string") {
+      next.command = patch.command;
+    }
+    if (typeof patch.timeoutMs === "number") {
+      next.timeoutMs = patch.timeoutMs;
+    }
+    if (patch.onOutput) {
+      next.onOutput = { ...next.onOutput };
+      if (typeof patch.onOutput.message === "string") {
+        next.onOutput.message = patch.onOutput.message;
+      }
+      if (typeof patch.onOutput.model === "string") {
+        next.onOutput.model = patch.onOutput.model;
+      }
+      if (typeof patch.onOutput.thinking === "string") {
+        next.onOutput.thinking = patch.onOutput.thinking;
+      }
+      if (typeof patch.onOutput.timeoutSeconds === "number") {
+        next.onOutput.timeoutSeconds = patch.onOutput.timeoutSeconds;
+      }
+    }
+    return next;
+  }
+
   if (existing.kind !== "agentTurn") {
     return buildPayloadFromPatch(patch);
   }
@@ -337,6 +366,31 @@ function buildPayloadFromPatch(patch: CronPayloadPatch): CronPayload {
       throw new Error('cron.update payload.kind="systemEvent" requires text');
     }
     return { kind: "systemEvent", text: patch.text };
+  }
+
+  if (patch.kind === "shellGate") {
+    if (typeof patch.command !== "string" || patch.command.length === 0) {
+      throw new Error('cron.update payload.kind="shellGate" requires command');
+    }
+    if (
+      !patch.onOutput ||
+      typeof patch.onOutput.message !== "string" ||
+      patch.onOutput.message.length === 0
+    ) {
+      throw new Error('cron.update payload.kind="shellGate" requires onOutput.message');
+    }
+    return {
+      kind: "shellGate",
+      command: patch.command,
+      timeoutMs: patch.timeoutMs,
+      onOutput: {
+        kind: "agentTurn",
+        message: patch.onOutput.message,
+        model: patch.onOutput.model,
+        thinking: patch.onOutput.thinking,
+        timeoutSeconds: patch.onOutput.timeoutSeconds,
+      },
+    };
   }
 
   if (typeof patch.message !== "string" || patch.message.length === 0) {

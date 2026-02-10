@@ -261,6 +261,8 @@ PAYLOAD TYPES (payload.kind):
   { "kind": "systemEvent", "text": "<message>" }
 - "agentTurn": Runs agent with message (isolated sessions only)
   { "kind": "agentTurn", "message": "<prompt>", "model": "<optional>", "thinking": "<optional>", "timeoutSeconds": <optional> }
+- "shellGate": Runs a shell command first; only spawns agent if command produces output (isolated sessions only)
+  { "kind": "shellGate", "command": "<shell-command>", "timeoutMs": <optional-default-10000>, "onOutput": { "kind": "agentTurn", "message": "<prompt-with-{{stdout}}-placeholder>", "model": "<optional>", "thinking": "<optional>", "timeoutSeconds": <optional> } }
 
 DELIVERY (isolated-only, top-level):
   { "mode": "none|announce", "channel": "<optional>", "to": "<optional>", "bestEffort": <optional-bool> }
@@ -269,7 +271,7 @@ DELIVERY (isolated-only, top-level):
 
 CRITICAL CONSTRAINTS:
 - sessionTarget="main" REQUIRES payload.kind="systemEvent"
-- sessionTarget="isolated" REQUIRES payload.kind="agentTurn"
+- sessionTarget="isolated" REQUIRES payload.kind="agentTurn" or "shellGate"
 Default: prefer isolated agentTurn jobs unless the user explicitly wants a main-session system event.
 
 WAKE MODES (for wake action):
@@ -367,7 +369,8 @@ Use jobId as the canonical identifier; id is accepted for compatibility. Use con
             job &&
             typeof job === "object" &&
             "payload" in job &&
-            (job as { payload?: { kind?: string } }).payload?.kind === "agentTurn"
+            ((job as { payload?: { kind?: string } }).payload?.kind === "agentTurn" ||
+              (job as { payload?: { kind?: string } }).payload?.kind === "shellGate")
           ) {
             const deliveryValue = (job as { delivery?: unknown }).delivery;
             const delivery = isRecord(deliveryValue) ? deliveryValue : undefined;

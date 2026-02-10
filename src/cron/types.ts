@@ -35,6 +35,18 @@ export type CronPayload =
       channel?: CronMessageChannel;
       to?: string;
       bestEffortDeliver?: boolean;
+    }
+  | {
+      kind: "shellGate";
+      command: string;
+      timeoutMs?: number;
+      onOutput: {
+        kind: "agentTurn";
+        message: string;
+        model?: string;
+        thinking?: string;
+        timeoutSeconds?: number;
+      };
     };
 
 export type CronPayloadPatch =
@@ -50,6 +62,18 @@ export type CronPayloadPatch =
       channel?: CronMessageChannel;
       to?: string;
       bestEffortDeliver?: boolean;
+    }
+  | {
+      kind: "shellGate";
+      command?: string;
+      timeoutMs?: number;
+      onOutput?: {
+        kind: "agentTurn";
+        message?: string;
+        model?: string;
+        thinking?: string;
+        timeoutSeconds?: number;
+      };
     };
 
 export type CronJobState = {

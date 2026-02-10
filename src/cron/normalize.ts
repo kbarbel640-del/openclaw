@@ -428,7 +428,7 @@ export function normalizeCronJobInput(
       if (kind === "systemEvent") {
         next.sessionTarget = "main";
       }
-      if (kind === "agentTurn") {
+      if (kind === "agentTurn" || kind === "shellGate") {
         next.sessionTarget = "isolated";
       }
     }
@@ -444,10 +444,15 @@ export function normalizeCronJobInput(
     const payloadKind = payload && typeof payload.kind === "string" ? payload.kind : "";
     const sessionTarget = typeof next.sessionTarget === "string" ? next.sessionTarget : "";
     const isIsolatedAgentTurn =
-      sessionTarget === "isolated" || (sessionTarget === "" && payloadKind === "agentTurn");
+      sessionTarget === "isolated" ||
+      (sessionTarget === "" && (payloadKind === "agentTurn" || payloadKind === "shellGate"));
     const hasDelivery = "delivery" in next && next.delivery !== undefined;
     const hasLegacyDelivery = payload ? hasLegacyDeliveryHints(payload) : false;
-    if (!hasDelivery && isIsolatedAgentTurn && payloadKind === "agentTurn") {
+    if (
+      !hasDelivery &&
+      isIsolatedAgentTurn &&
+      (payloadKind === "agentTurn" || payloadKind === "shellGate")
+    ) {
       if (payload && hasLegacyDelivery) {
         next.delivery = buildDeliveryFromLegacyPayload(payload);
         stripLegacyDeliveryFields(payload);
