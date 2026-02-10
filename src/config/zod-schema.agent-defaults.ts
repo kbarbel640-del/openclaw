@@ -153,7 +153,7 @@ export const AgentDefaultsSchema = z
           ])
           .optional(),
         thinking: z.string().optional(),
-        suppressAnnounce: z.boolean().optional(),
+        announce: z.union([z.literal("user"), z.literal("parent"), z.literal("skip")]).optional(),
       })
       .strict()
       .optional(),
