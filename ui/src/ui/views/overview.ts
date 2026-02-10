@@ -1,6 +1,7 @@
 import { html } from "lit";
 import type { GatewayHelloOk } from "../gateway.ts";
 import type { UiSettings } from "../storage.ts";
+import type { HealthSnapshot } from "../types.ts";
 import { formatRelativeTimestamp, formatDurationHuman } from "../format.ts";
 import { formatNextRun } from "../presenter.ts";
 
@@ -15,6 +16,7 @@ export type OverviewProps = {
   cronEnabled: boolean | null;
   cronNext: number | null;
   lastChannelsRefresh: number | null;
+  health: HealthSnapshot | null;
   onSettingsChange: (next: UiSettings) => void;
   onPasswordChange: (next: string) => void;
   onSessionKeyChange: (next: string) => void;
@@ -28,6 +30,8 @@ export function renderOverview(props: OverviewProps) {
     | undefined;
   const uptime = snapshot?.uptimeMs ? formatDurationHuman(snapshot.uptimeMs) : "n/a";
   const tick = snapshot?.policy?.tickIntervalMs ? `${snapshot.policy.tickIntervalMs}ms` : "n/a";
+  const vectraHealth = ((props.health as { vectra?: Record<string, unknown> } | null)?.vectra ??
+    null) as Record<string, unknown> | null;
   const authHint = (() => {
     if (props.connected || !props.lastError) {
       return null;
@@ -211,14 +215,14 @@ export function renderOverview(props: OverviewProps) {
             </div>`
             : html`
                 <div class="callout" style="margin-top: 14px">
-                  Use Channels to link WhatsApp, Telegram, Discord, Signal, or iMessage.
+                  Use Channels to link WhatsApp, Telegram, Discord, Signal, or iMessage. Vectra can be integrated as a custom/plugin channel bridge.
                 </div>
               `
         }
       </div>
     </section>
 
-    <section class="grid grid-cols-3" style="margin-top: 18px;">
+    <section class="grid grid-cols-4" style="margin-top: 18px;">
       <div class="card stat-card">
         <div class="stat-label">Instances</div>
         <div class="stat-value">${props.presenceCount}</div>
@@ -235,6 +239,21 @@ export function renderOverview(props: OverviewProps) {
           ${props.cronEnabled == null ? "n/a" : props.cronEnabled ? "Enabled" : "Disabled"}
         </div>
         <div class="muted">Next wake ${formatNextRun(props.cronNext)}</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Vectra Health</div>
+        <div class="stat-value ${vectraHealth?.ok === true ? "ok" : "warn"}">
+          ${vectraHealth ? (vectraHealth.ok === true ? "OK" : "Issue") : "n/a"}
+        </div>
+        <div class="muted">
+          ${
+            vectraHealth
+              ? (vectraHealth.detected === true
+                  ? (vectraHealth.workspace as string | undefined) ?? "workspace detected"
+                  : "Vectra not detected")
+              : "No health snapshot yet"
+          }
+        </div>
       </div>
     </section>
 
