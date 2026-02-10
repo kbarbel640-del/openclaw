@@ -1,0 +1,35 @@
+{
+  "name": "@openclaw/kakao",
+  "version": "2026.2.9",
+  "description": "OpenClaw Kakao channel plugin",
+  "type": "module",
+  "dependencies": {
+    "zod": "4.3.6"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.2.9"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "kakao",
+      "label": "Kakao",
+      "selectionLabel": "Kakao (Skill Webhook)",
+      "docsPath": "/channels/kakao",
+      "docsLabel": "kakao",
+      "blurb": "KakaoTalk bot webhook for routing chats to OpenClaw.",
+      "aliases": [
+        "kakaotalk"
+      ],
+      "order": 85,
+      "quickstartAllowFrom": true
+    },
+    "install": {
+      "npmSpec": "@openclaw/kakao",
+      "localPath": "extensions/kakao",
+      "defaultChoice": "npm"
+    }
+  }
+}
