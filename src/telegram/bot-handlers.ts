@@ -672,9 +672,12 @@ export const registerTelegramHandlers = ({
             process.env.OPENCLAW_WORKSPACE ??
             "/home/node/.openclaw/workspace";
 
-          const { formatAffStatus, loadOrInitState, sorry } = await import(
+          const { formatAffStatus, loadOrInitState, note, reset, sorry } = await import(
             "../affection/v3b-engine.js"
           );
+
+          const bossId = String(process.env.OPENCLAW_BOSS_TELEGRAM_USER_ID ?? "8068585788");
+          const senderId = msg.from?.id != null ? String(msg.from.id) : "";
 
           if (sub === "debug") {
             const state = await loadOrInitState(ws);
@@ -683,8 +686,29 @@ export const registerTelegramHandlers = ({
           }
 
           if (sub === "sorry") {
-            const state = await sorry(ws, `telegram:${msg.from?.id ?? ""}`);
+            const state = await sorry(ws, `telegram:${senderId}`);
             await ctx.reply("ok. (self-repair applied)\n\n" + formatAffStatus(state));
+            return;
+          }
+
+          if (sub === "note") {
+            const reason = t.split(/\s+/).slice(2).join(" ").trim();
+            if (!reason) {
+              await ctx.reply("Usage: /aff note <reason>");
+              return;
+            }
+            const state = await note(ws, reason);
+            await ctx.reply("noted.\n\n" + formatAffStatus(state));
+            return;
+          }
+
+          if (sub === "reset") {
+            if (!senderId || senderId !== bossId) {
+              await ctx.reply("no. (boss-only)");
+              return;
+            }
+            const state = await reset(ws, `telegram:${senderId}`);
+            await ctx.reply("reset.\n\n" + formatAffStatus(state));
             return;
           }
 

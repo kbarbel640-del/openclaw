@@ -8,15 +8,16 @@ export type AffectionToday = {
 
 export type AffectionStateV3b = {
   version: "v3b";
-  // a simple "overall" dial; label is derived from this
+
+  // two axes + one fast state (per spec)
+  closeness: number; // -1..+1
+  trust: number; // -1..+1
+  reliabilityTrust: number; // -1..+1
+  irritation: number; // 0..1
+
+  // computed baseline
   aff: number;
   label: string;
-
-  // sub-dials
-  closeness: number;
-  trust: number;
-  reliabilityTrust: number;
-  irritation: number;
 
   cooldownUntil?: string | null;
   today: AffectionToday;
@@ -27,12 +28,19 @@ export type AffectionAuditEvent = {
   ts: string;
   action: "init" | "touch" | "sorry";
   note?: string;
-  deltas?: Partial<Record<keyof Pick<AffectionStateV3b, "aff" | "closeness" | "trust" | "reliabilityTrust" | "irritation">, number>>;
+  deltas?: Partial<
+    Record<keyof Pick<AffectionStateV3b, "closeness" | "trust" | "reliabilityTrust" | "irritation">, number>
+  >;
 };
 
 function clamp01(n: number) {
   if (Number.isNaN(n) || !Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(1, n));
+}
+
+function clamp11(n: number) {
+  if (Number.isNaN(n) || !Number.isFinite(n)) return 0;
+  return Math.max(-1, Math.min(1, n));
 }
 
 function isoNow() {
@@ -53,12 +61,22 @@ export function resolveAffectionPaths(workspace: string) {
 }
 
 export function labelForAff(aff: number): string {
-  if (aff <= -5) return "hostile";
-  if (aff <= -1) return "irritable";
-  if (aff <= 2) return "neutral";
-  if (aff <= 6) return "fond";
-  if (aff <= 12) return "attached";
-  return "soft";
+  // descriptive only; behavior should use underlying vars.
+  if (aff <= -900) return "BROKEN";
+  if (aff <= -400) return "DISTRESSED";
+  if (aff <= -100) return "UPSET";
+  if (aff <= 150) return "NORMAL";
+  if (aff <= 400) return "HAPPY";
+  if (aff <= 750) return "AFFECTIONATE";
+  if (aff <= 1100) return "ENAMORED";
+  return "LOVE";
+}
+
+export function computeAff(params: { closeness: number; trust: number }) {
+  // From the logs: aff = round(900*closeness + 700*trust)
+  const closeness = clamp11(params.closeness);
+  const trust = clamp11(params.trust);
+  return Math.round(900 * closeness + 700 * trust);
 }
 
 export async function appendAudit(workspace: string, ev: AffectionAuditEvent) {
@@ -81,33 +99,37 @@ export async function loadOrInitState(workspace: string): Promise<AffectionState
         ? { date, affGain: Number(parsed.today?.affGain ?? 0) }
         : { date, affGain: 0 };
 
-    const aff = Number(parsed.aff ?? 0);
+    const closeness = clamp11(Number((parsed as any).closeness ?? 0));
+    const trust = clamp11(Number((parsed as any).trust ?? 0));
+
     const state: AffectionStateV3b = {
       version: "v3b",
-      aff,
-      label: typeof parsed.label === "string" ? parsed.label : labelForAff(aff),
-      closeness: clamp01(Number(parsed.closeness ?? 0.35)),
-      trust: clamp01(Number(parsed.trust ?? 0.4)),
-      reliabilityTrust: clamp01(Number(parsed.reliabilityTrust ?? 0.5)),
-      irritation: clamp01(Number(parsed.irritation ?? 0.1)),
-      cooldownUntil: parsed.cooldownUntil ?? null,
+      closeness,
+      trust,
+      reliabilityTrust: clamp11(Number((parsed as any).reliabilityTrust ?? 0)),
+      irritation: clamp01(Number((parsed as any).irritation ?? 0)),
+      aff: 0, // computed below
+      label: "NORMAL", // computed below
+      cooldownUntil: (parsed as any).cooldownUntil ?? null,
       today,
-      lastMessageAt: typeof parsed.lastMessageAt === "string" ? parsed.lastMessageAt : isoNow(),
+      lastMessageAt: typeof (parsed as any).lastMessageAt === "string" ? (parsed as any).lastMessageAt : isoNow(),
     };
 
-    // keep derived label consistent
+    state.aff = computeAff({ closeness: state.closeness, trust: state.trust });
     state.label = labelForAff(state.aff);
 
     return state;
   } catch {
+    const closeness = 0;
+    const trust = 0;
     const state: AffectionStateV3b = {
       version: "v3b",
-      aff: 0,
-      label: labelForAff(0),
-      closeness: 0.35,
-      trust: 0.4,
-      reliabilityTrust: 0.5,
-      irritation: 0.1,
+      closeness,
+      trust,
+      reliabilityTrust: 0,
+      irritation: 0,
+      aff: computeAff({ closeness, trust }),
+      label: labelForAff(computeAff({ closeness, trust })),
       cooldownUntil: null,
       today: { date: todayDate(), affGain: 0 },
       lastMessageAt: isoNow(),
@@ -140,13 +162,13 @@ export async function sorry(workspace: string, note?: string) {
 
   const before = { ...state };
 
-  // deterministic "self-repair" nudge
-  state.irritation = clamp01(state.irritation - 0.15);
-  state.reliabilityTrust = clamp01(state.reliabilityTrust + 0.12);
-  state.trust = clamp01(state.trust + 0.05);
-  state.aff = Math.min(999, state.aff + 1);
-  state.label = labelForAff(state.aff);
+  // deterministic "self-repair" nudge (does NOT change closeness/trust baseline per spec)
+  state.irritation = clamp01(state.irritation - 0.2);
+  state.reliabilityTrust = clamp11(state.reliabilityTrust + 0.15);
   state.lastMessageAt = isoNow();
+
+  state.aff = computeAff({ closeness: state.closeness, trust: state.trust });
+  state.label = labelForAff(state.aff);
 
   await saveState(workspace, state);
   await appendAudit(workspace, {
@@ -156,15 +178,42 @@ export async function sorry(workspace: string, note?: string) {
     deltas: {
       irritation: state.irritation - before.irritation,
       reliabilityTrust: state.reliabilityTrust - before.reliabilityTrust,
-      trust: state.trust - before.trust,
-      aff: state.aff - before.aff,
     },
   });
 
   return state;
 }
 
+export async function note(workspace: string, reason: string) {
+  const state = await loadOrInitState(workspace);
+  state.lastMessageAt = isoNow();
+  await saveState(workspace, state);
+  await appendAudit(workspace, { ts: isoNow(), action: "touch", note: `note: ${reason}` });
+  return state;
+}
+
+export async function reset(workspace: string, note?: string) {
+  const closeness = 0;
+  const trust = 0;
+  const state: AffectionStateV3b = {
+    version: "v3b",
+    closeness,
+    trust,
+    reliabilityTrust: 0,
+    irritation: 0,
+    aff: computeAff({ closeness, trust }),
+    label: labelForAff(computeAff({ closeness, trust })),
+    cooldownUntil: null,
+    today: { date: todayDate(), affGain: 0 },
+    lastMessageAt: isoNow(),
+  };
+  await saveState(workspace, state);
+  await appendAudit(workspace, { ts: isoNow(), action: "init", note: note ?? "reset" });
+  return state;
+}
+
 export function formatAffStatus(state: AffectionStateV3b) {
+  const temp = 1 - clamp01(state.irritation);
   return (
     `Affection (V3b — deterministic)\n\n` +
     `- label: ${state.label} | aff: ${state.aff}\n` +
@@ -172,6 +221,7 @@ export function formatAffStatus(state: AffectionStateV3b) {
     `- trust: ${state.trust.toFixed(3)}\n` +
     `- reliabilityTrust: ${state.reliabilityTrust.toFixed(3)}\n` +
     `- irritation: ${state.irritation.toFixed(3)}\n` +
+    `- temp: ${temp.toFixed(3)}\n` +
     `- cooldown: ${state.cooldownUntil ? state.cooldownUntil : "none"}\n` +
     `- today affGain: ${state.today?.affGain ?? 0}/12\n` +
     `- lastMessageAt: ${state.lastMessageAt}`
