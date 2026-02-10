@@ -1,11 +1,12 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { OpenClawConfig } from "../config/config.js";
 import {
   clearInternalHooks,
   registerInternalHook,
   type AgentBootstrapHookContext,
 } from "../hooks/internal-hooks.js";
-import { makeTempWorkspace } from "../test-helpers/workspace.js";
+import { makeTempWorkspace, writeWorkspaceFile } from "../test-helpers/workspace.js";
 import { resolveBootstrapContextForRun, resolveBootstrapFilesForRun } from "./bootstrap-files.js";
 
 describe("resolveBootstrapFilesForRun", () => {
@@ -30,6 +31,90 @@ describe("resolveBootstrapFilesForRun", () => {
     const files = await resolveBootstrapFilesForRun({ workspaceDir });
 
     expect(files.some((file) => file.name === "EXTRA.md")).toBe(true);
+  });
+});
+
+describe("heartbeat file filtering", () => {
+  beforeEach(() => clearInternalHooks());
+  afterEach(() => clearInternalHooks());
+
+  it("excludes HEARTBEAT.md from non-heartbeat sessions when dedicated session configured", async () => {
+    const workspaceDir = await makeTempWorkspace("openclaw-bootstrap-hb-");
+    await writeWorkspaceFile({
+      dir: workspaceDir,
+      name: "HEARTBEAT.md",
+      content: "# heartbeat instructions",
+    });
+
+    const config = {
+      agents: { defaults: { heartbeat: { session: "agent:main:heartbeat" } } },
+    } as unknown as OpenClawConfig;
+
+    const files = await resolveBootstrapFilesForRun({
+      workspaceDir,
+      config,
+      sessionKey: "agent:main:main",
+    });
+
+    expect(files.some((f) => f.name === "HEARTBEAT.md")).toBe(false);
+  });
+
+  it("includes HEARTBEAT.md for the heartbeat session", async () => {
+    const workspaceDir = await makeTempWorkspace("openclaw-bootstrap-hb-");
+    await writeWorkspaceFile({
+      dir: workspaceDir,
+      name: "HEARTBEAT.md",
+      content: "# heartbeat instructions",
+    });
+
+    const config = {
+      agents: { defaults: { heartbeat: { session: "agent:main:heartbeat" } } },
+    } as unknown as OpenClawConfig;
+
+    const files = await resolveBootstrapFilesForRun({
+      workspaceDir,
+      config,
+      sessionKey: "agent:main:heartbeat",
+    });
+
+    expect(files.some((f) => f.name === "HEARTBEAT.md")).toBe(true);
+  });
+
+  it("keeps HEARTBEAT.md for all sessions when no dedicated session configured", async () => {
+    const workspaceDir = await makeTempWorkspace("openclaw-bootstrap-hb-");
+    await writeWorkspaceFile({
+      dir: workspaceDir,
+      name: "HEARTBEAT.md",
+      content: "# heartbeat instructions",
+    });
+
+    const files = await resolveBootstrapFilesForRun({
+      workspaceDir,
+      sessionKey: "agent:main:main",
+    });
+
+    expect(files.some((f) => f.name === "HEARTBEAT.md")).toBe(true);
+  });
+
+  it("keeps HEARTBEAT.md when heartbeat session is 'main'", async () => {
+    const workspaceDir = await makeTempWorkspace("openclaw-bootstrap-hb-");
+    await writeWorkspaceFile({
+      dir: workspaceDir,
+      name: "HEARTBEAT.md",
+      content: "# heartbeat instructions",
+    });
+
+    const config = {
+      agents: { defaults: { heartbeat: { session: "main" } } },
+    } as unknown as OpenClawConfig;
+
+    const files = await resolveBootstrapFilesForRun({
+      workspaceDir,
+      config,
+      sessionKey: "agent:main:main",
+    });
+
+    expect(files.some((f) => f.name === "HEARTBEAT.md")).toBe(true);
   });
 });
 
