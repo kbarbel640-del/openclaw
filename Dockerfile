@@ -56,6 +56,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ui/package.json ./ui/package.json
 COPY patches ./patches
 COPY scripts ./scripts
+COPY config ./config
+# Copy extensions before pnpm install so workspace dependencies are installed
+COPY extensions ./extensions
 
 RUN pnpm install --frozen-lockfile
 

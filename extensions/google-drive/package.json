@@ -1,0 +1,27 @@
+{
+  "name": "@openclaw/google-drive",
+  "version": "2026.2.6",
+  "description": "OpenClaw Google Drive plugin for browsing and downloading files",
+  "type": "module",
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48",
+    "google-auth-library": "^10.5.0",
+    "googleapis": "^144.0.0"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "install": {
+      "npmSpec": "@openclaw/google-drive",
+      "localPath": "extensions/google-drive",
+      "defaultChoice": "npm"
+    }
+  }
+}
