@@ -58,6 +58,9 @@ describe("models-config", () => {
             source: "mock",
             baseUrl: "https://api.copilot.example",
           }),
+          resolveGitHubCopilotEndpoints: () => ({
+            defaultCopilotApiBaseUrl: "https://api.individual.githubcopilot.com",
+          }),
         }));
 
         const { ensureOpenClawModelsJson } = await import("./models-config.js");
@@ -98,6 +101,9 @@ describe("models-config", () => {
 
         vi.doMock("../providers/github-copilot-token.js", () => ({
           resolveCopilotApiToken,
+          resolveGitHubCopilotEndpoints: () => ({
+            defaultCopilotApiBaseUrl: "https://api.individual.githubcopilot.com",
+          }),
         }));
 
         const { ensureOpenClawModelsJson } = await import("./models-config.js");

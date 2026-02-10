@@ -53,6 +53,9 @@ describe("models-config", () => {
 
         vi.doMock("../providers/github-copilot-token.js", () => ({
           resolveCopilotApiToken: vi.fn().mockRejectedValue(new Error("boom")),
+          resolveGitHubCopilotEndpoints: () => ({
+            defaultCopilotApiBaseUrl: "https://api.individual.githubcopilot.com",
+          }),
         }));
 
         const { ensureOpenClawModelsJson } = await import("./models-config.js");
@@ -113,6 +116,9 @@ describe("models-config", () => {
             expiresAt: Date.now() + 60 * 60 * 1000,
             source: "mock",
             baseUrl: "https://api.copilot.example",
+          }),
+          resolveGitHubCopilotEndpoints: () => ({
+            defaultCopilotApiBaseUrl: "https://api.individual.githubcopilot.com",
           }),
         }));
 

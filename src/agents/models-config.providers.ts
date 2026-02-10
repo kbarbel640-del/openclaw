@@ -1,6 +1,9 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { ModelDefinitionConfig } from "../config/types.models.js";
-import { resolveGitHubCopilotEndpoints, resolveCopilotApiToken } from "../providers/github-copilot-token.js";
+import {
+  resolveGitHubCopilotEndpoints,
+  resolveCopilotApiToken,
+} from "../providers/github-copilot-token.js";
 import { ensureAuthProfileStore, listProfilesForProvider } from "./auth-profiles.js";
 import { discoverBedrockModels } from "./bedrock-discovery.js";
 import {
