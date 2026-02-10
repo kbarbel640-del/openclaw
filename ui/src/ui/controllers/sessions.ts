@@ -42,7 +42,7 @@ export async function loadSessions(
     const params: Record<string, unknown> = {
       includeGlobal,
       includeUnknown,
-      includeDeleted: true,
+      includeDeleted: state.sessionsShowDeleted === true,
     };
     if (activeMinutes > 0) {
       params.activeMinutes = activeMinutes;
@@ -114,6 +114,8 @@ export async function restoreSession(state: SessionsState, sessionId: string) {
   }
 
   state.sessionsError = null;
+  state.sessionsLoading = true;
+  state.requestUpdate?.();
   try {
     await state.client.request("sessions.restore", { sessionId });
 
@@ -122,6 +124,8 @@ export async function restoreSession(state: SessionsState, sessionId: string) {
   } catch (err) {
     state.sessionsError = String(err);
   } finally {
+    state.sessionsLoading = false;
+    state.requestUpdate?.();
   }
 }
 
@@ -151,6 +155,8 @@ export async function deleteSession(state: SessionsState, key: string) {
   }
 
   state.sessionsError = null;
+  state.sessionsLoading = true;
+  state.requestUpdate?.();
   try {
     await state.client.request("sessions.delete", { key, deleteTranscript: true });
 
@@ -168,5 +174,7 @@ export async function deleteSession(state: SessionsState, key: string) {
   } catch (err) {
     state.sessionsError = String(err);
   } finally {
+    state.sessionsLoading = false;
+    state.requestUpdate?.();
   }
 }

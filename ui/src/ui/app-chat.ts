@@ -107,7 +107,7 @@ async function sendChatMessageNow(
     restoreAttachments?: boolean;
     refreshSessions?: boolean;
   },
-) {
+): Promise<string | null> {
   resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
   const runId = await sendChatMessage(host as unknown as OpenClawApp, message, opts?.attachments);
   const ok = Boolean(runId);
