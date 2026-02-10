@@ -222,8 +222,17 @@ async function loadWebMediaInternal(
     mediaUrl = resolveUserPath(mediaUrl);
   }
 
-  // Local path
-  const data = await fs.readFile(mediaUrl);
+  // Local path — resolve symlinks to prevent traversal outside temp directories.
+  // macOS realpath resolves /tmp → /private/tmp and /var → /private/var.
+  const realPath = await fs.realpath(mediaUrl);
+  const isRealPathUnderTemp =
+    realPath.startsWith("/tmp/") ||
+    realPath.startsWith("/private/tmp/") ||
+    /^\/(private\/)?var\/folders\/[^/]+\/[^/]+\/T\//.test(realPath);
+  if (realPath !== mediaUrl && !isRealPathUnderTemp) {
+    throw new Error(`Symlink target is outside allowed temp directories: ${mediaUrl}`);
+  }
+  const data = await fs.readFile(realPath);
   const mime = await detectMime({ buffer: data, filePath: mediaUrl });
   const kind = mediaKindFromMime(mime);
   let fileName = path.basename(mediaUrl) || undefined;

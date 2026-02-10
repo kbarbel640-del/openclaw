@@ -1033,10 +1033,15 @@ async function runCliEntry(params: {
         },
       );
       mediaPath = wavPath;
-    } catch (convErr) {
+    } catch (convErr: unknown) {
       // ffmpeg not available or conversion failed; proceed with original path
-      if (shouldLogVerbose()) {
-        logVerbose(`ffmpeg conversion failed, proceeding with original: ${convErr}`);
+      const msg = convErr instanceof Error ? convErr.message : String(convErr);
+      if ((convErr as NodeJS.ErrnoException)?.code === "ENOENT") {
+        console.warn(
+          "[media-understanding] ffmpeg not found; proceeding with original audio format",
+        );
+      } else if (shouldLogVerbose()) {
+        logVerbose(`ffmpeg conversion failed, proceeding with original: ${msg}`);
       }
     }
   }
