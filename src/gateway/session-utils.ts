@@ -786,8 +786,9 @@ export function listSessionsFromStore(params: {
     let deletedAgentId: string;
 
     if (storePath === "(multiple)") {
-      // Combined mode - use default agent's sessions directory
-      deletedAgentId = normalizeAgentId(resolveDefaultAgentId(cfg));
+      // Combined mode - use the specified agent's sessions directory if provided,
+      // otherwise fall back to default agent
+      deletedAgentId = agentId || normalizeAgentId(resolveDefaultAgentId(cfg));
       const agentDir = resolveAgentDir(cfg, deletedAgentId);
       const agentScope = path.dirname(agentDir);
       sessionsDir = path.join(agentScope, "sessions");
