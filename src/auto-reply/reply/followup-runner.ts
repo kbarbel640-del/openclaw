@@ -158,6 +158,7 @@ export function createFollowupRunner(params: {
             return runEmbeddedPiAgent({
               sessionId: queued.run.sessionId,
               sessionKey: queued.run.sessionKey,
+              agentId: queued.run.agentId,
               messageProvider: queued.run.messageProvider,
               agentAccountId: queued.run.agentAccountId,
               messageTo: queued.originatingTo,
@@ -235,7 +236,9 @@ export function createFollowupRunner(params: {
             provider: configuredBrainProvider,
             model: configuredBrainModel,
             authProfileId: queued.run.authProfileId,
-            authProfileIdSource: queued.run.authProfileId ? queued.run.authProfileIdSource : undefined,
+            authProfileIdSource: queued.run.authProfileId
+              ? queued.run.authProfileIdSource
+              : undefined,
             thinkLevel: queued.run.thinkLevel,
             verboseLevel: queued.run.verboseLevel,
             reasoningLevel: queued.run.reasoningLevel,

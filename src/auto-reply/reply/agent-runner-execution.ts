@@ -202,6 +202,7 @@ export async function runAgentTurnWithFallback(params: {
                 const result = await runCliAgent({
                   sessionId: params.followupRun.run.sessionId,
                   sessionKey: params.sessionKey,
+                  agentId: params.followupRun.run.agentId,
                   sessionFile: params.followupRun.run.sessionFile,
                   workspaceDir: params.followupRun.run.workspaceDir,
                   config: params.followupRun.run.config,
@@ -279,6 +280,7 @@ export async function runAgentTurnWithFallback(params: {
           return runEmbeddedPiAgent({
             sessionId: params.followupRun.run.sessionId,
             sessionKey: params.sessionKey,
+            agentId: params.followupRun.run.agentId,
             messageProvider: params.sessionCtx.Provider?.trim().toLowerCase() || undefined,
             agentAccountId: params.sessionCtx.AccountId,
             messageTo: params.sessionCtx.OriginatingTo ?? params.sessionCtx.To,
@@ -385,77 +387,78 @@ export async function runAgentTurnWithFallback(params: {
             // Always pass onBlockReply so flushBlockReplyBuffer works before tool execution,
             // even when regular block streaming is disabled. The handler sends directly
             // via opts.onBlockReply when the pipeline isn't available.
-            onBlockReply: allowUserOutput && params.opts?.onBlockReply
-              ? async (payload) => {
-                  const { text, skip } = normalizeStreamingText(payload);
-                  const hasPayloadMedia = (payload.mediaUrls?.length ?? 0) > 0;
-                  if (skip && !hasPayloadMedia) {
-                    return;
-                  }
-                  const currentMessageId =
-                    params.sessionCtx.MessageSidFull ?? params.sessionCtx.MessageSid;
-                  const taggedPayload = applyReplyTagsToPayload(
-                    {
-                      text,
-                      mediaUrls: payload.mediaUrls,
-                      mediaUrl: payload.mediaUrls?.[0],
-                      replyToId: payload.replyToId,
-                      replyToTag: payload.replyToTag,
-                      replyToCurrent: payload.replyToCurrent,
-                    },
-                    currentMessageId,
-                  );
-                  // Let through payloads with audioAsVoice flag even if empty (need to track it)
-                  if (!isRenderablePayload(taggedPayload) && !payload.audioAsVoice) {
-                    return;
-                  }
-                  const parsed = parseReplyDirectives(taggedPayload.text ?? "", {
-                    currentMessageId,
-                    silentToken: SILENT_REPLY_TOKEN,
-                  });
-                  const cleaned = parsed.text || undefined;
-                  const hasRenderableMedia =
-                    Boolean(taggedPayload.mediaUrl) || (taggedPayload.mediaUrls?.length ?? 0) > 0;
-                  // Skip empty payloads unless they have audioAsVoice flag (need to track it)
-                  if (
-                    !cleaned &&
-                    !hasRenderableMedia &&
-                    !payload.audioAsVoice &&
-                    !parsed.audioAsVoice
-                  ) {
-                    return;
-                  }
-                  if (parsed.isSilent && !hasRenderableMedia) {
-                    return;
-                  }
+            onBlockReply:
+              allowUserOutput && params.opts?.onBlockReply
+                ? async (payload) => {
+                    const { text, skip } = normalizeStreamingText(payload);
+                    const hasPayloadMedia = (payload.mediaUrls?.length ?? 0) > 0;
+                    if (skip && !hasPayloadMedia) {
+                      return;
+                    }
+                    const currentMessageId =
+                      params.sessionCtx.MessageSidFull ?? params.sessionCtx.MessageSid;
+                    const taggedPayload = applyReplyTagsToPayload(
+                      {
+                        text,
+                        mediaUrls: payload.mediaUrls,
+                        mediaUrl: payload.mediaUrls?.[0],
+                        replyToId: payload.replyToId,
+                        replyToTag: payload.replyToTag,
+                        replyToCurrent: payload.replyToCurrent,
+                      },
+                      currentMessageId,
+                    );
+                    // Let through payloads with audioAsVoice flag even if empty (need to track it)
+                    if (!isRenderablePayload(taggedPayload) && !payload.audioAsVoice) {
+                      return;
+                    }
+                    const parsed = parseReplyDirectives(taggedPayload.text ?? "", {
+                      currentMessageId,
+                      silentToken: SILENT_REPLY_TOKEN,
+                    });
+                    const cleaned = parsed.text || undefined;
+                    const hasRenderableMedia =
+                      Boolean(taggedPayload.mediaUrl) || (taggedPayload.mediaUrls?.length ?? 0) > 0;
+                    // Skip empty payloads unless they have audioAsVoice flag (need to track it)
+                    if (
+                      !cleaned &&
+                      !hasRenderableMedia &&
+                      !payload.audioAsVoice &&
+                      !parsed.audioAsVoice
+                    ) {
+                      return;
+                    }
+                    if (parsed.isSilent && !hasRenderableMedia) {
+                      return;
+                    }
 
-                  const blockPayload: ReplyPayload = params.applyReplyToMode({
-                    ...taggedPayload,
-                    text: cleaned,
-                    audioAsVoice: Boolean(parsed.audioAsVoice || payload.audioAsVoice),
-                    replyToId: taggedPayload.replyToId ?? parsed.replyToId,
-                    replyToTag: taggedPayload.replyToTag || parsed.replyToTag,
-                    replyToCurrent: taggedPayload.replyToCurrent || parsed.replyToCurrent,
-                  });
-
-                  void params.typingSignals
-                    .signalTextDelta(cleaned ?? taggedPayload.text)
-                    .catch((err) => {
-                      logVerbose(`block reply typing signal failed: ${String(err)}`);
+                    const blockPayload: ReplyPayload = params.applyReplyToMode({
+                      ...taggedPayload,
+                      text: cleaned,
+                      audioAsVoice: Boolean(parsed.audioAsVoice || payload.audioAsVoice),
+                      replyToId: taggedPayload.replyToId ?? parsed.replyToId,
+                      replyToTag: taggedPayload.replyToTag || parsed.replyToTag,
+                      replyToCurrent: taggedPayload.replyToCurrent || parsed.replyToCurrent,
                     });
 
-                  // Use pipeline if available (block streaming enabled), otherwise send directly
-                  if (params.blockStreamingEnabled && params.blockReplyPipeline) {
-                    params.blockReplyPipeline.enqueue(blockPayload);
-                  } else if (params.blockStreamingEnabled) {
-                    // Send directly when flushing before tool execution (no pipeline but streaming enabled).
-                    // Track sent key to avoid duplicate in final payloads.
-                    directlySentBlockKeys.add(createBlockReplyPayloadKey(blockPayload));
-                    await params.opts?.onBlockReply?.(blockPayload);
+                    void params.typingSignals
+                      .signalTextDelta(cleaned ?? taggedPayload.text)
+                      .catch((err) => {
+                        logVerbose(`block reply typing signal failed: ${String(err)}`);
+                      });
+
+                    // Use pipeline if available (block streaming enabled), otherwise send directly
+                    if (params.blockStreamingEnabled && params.blockReplyPipeline) {
+                      params.blockReplyPipeline.enqueue(blockPayload);
+                    } else if (params.blockStreamingEnabled) {
+                      // Send directly when flushing before tool execution (no pipeline but streaming enabled).
+                      // Track sent key to avoid duplicate in final payloads.
+                      directlySentBlockKeys.add(createBlockReplyPayloadKey(blockPayload));
+                      await params.opts?.onBlockReply?.(blockPayload);
+                    }
+                    // When streaming is disabled entirely, blocks are accumulated in final text instead.
                   }
-                  // When streaming is disabled entirely, blocks are accumulated in final text instead.
-                }
-              : undefined,
+                : undefined,
             onBlockReplyFlush:
               params.blockStreamingEnabled && blockReplyPipeline
                 ? async () => {
@@ -464,31 +467,32 @@ export async function runAgentTurnWithFallback(params: {
                 : undefined,
             shouldEmitToolResult: allowUserOutput ? params.shouldEmitToolResult : () => false,
             shouldEmitToolOutput: allowUserOutput ? params.shouldEmitToolOutput : () => false,
-            onToolResult: allowUserOutput && onToolResult
-              ? (payload) => {
-                  // `subscribeEmbeddedPiSession` may invoke tool callbacks without awaiting them.
-                  // If a tool callback starts typing after the run finalized, we can end up with
-                  // a typing loop that never sees a matching markRunComplete(). Track and drain.
-                  const task = (async () => {
-                    const { text, skip } = normalizeStreamingText(payload);
-                    if (skip) {
-                      return;
-                    }
-                    await params.typingSignals.signalTextDelta(text);
-                    await onToolResult({
-                      text,
-                      mediaUrls: payload.mediaUrls,
-                    });
-                  })()
-                    .catch((err) => {
-                      logVerbose(`tool result delivery failed: ${String(err)}`);
-                    })
-                    .finally(() => {
-                      params.pendingToolTasks.delete(task);
-                    });
-                  params.pendingToolTasks.add(task);
-                }
-              : undefined,
+            onToolResult:
+              allowUserOutput && onToolResult
+                ? (payload) => {
+                    // `subscribeEmbeddedPiSession` may invoke tool callbacks without awaiting them.
+                    // If a tool callback starts typing after the run finalized, we can end up with
+                    // a typing loop that never sees a matching markRunComplete(). Track and drain.
+                    const task = (async () => {
+                      const { text, skip } = normalizeStreamingText(payload);
+                      if (skip) {
+                        return;
+                      }
+                      await params.typingSignals.signalTextDelta(text);
+                      await onToolResult({
+                        text,
+                        mediaUrls: payload.mediaUrls,
+                      });
+                    })()
+                      .catch((err) => {
+                        logVerbose(`tool result delivery failed: ${String(err)}`);
+                      })
+                      .finally(() => {
+                        params.pendingToolTasks.delete(task);
+                      });
+                    params.pendingToolTasks.add(task);
+                  }
+                : undefined,
           });
         },
       });
@@ -511,7 +515,8 @@ export async function runAgentTurnWithFallback(params: {
           messageTo: params.sessionCtx.OriginatingTo ?? params.sessionCtx.To,
           messageThreadId: params.sessionCtx.MessageThreadId ?? undefined,
           groupId: resolveGroupSessionKey(params.sessionCtx)?.id,
-          groupChannel: params.sessionCtx.GroupChannel?.trim() ?? params.sessionCtx.GroupSubject?.trim(),
+          groupChannel:
+            params.sessionCtx.GroupChannel?.trim() ?? params.sessionCtx.GroupSubject?.trim(),
           groupSpace: params.sessionCtx.GroupSpace?.trim() ?? undefined,
           senderId: params.sessionCtx.SenderId?.trim() || undefined,
           senderName: params.sessionCtx.SenderName?.trim() || undefined,
@@ -543,7 +548,10 @@ export async function runAgentTurnWithFallback(params: {
           reasoningLevel: params.followupRun.run.reasoningLevel,
           execOverrides: params.followupRun.run.execOverrides,
           toolResultFormat: (() => {
-            const channel = resolveMessageChannel(params.sessionCtx.Surface, params.sessionCtx.Provider);
+            const channel = resolveMessageChannel(
+              params.sessionCtx.Surface,
+              params.sessionCtx.Provider,
+            );
             if (!channel) {
               return "markdown";
             }
