@@ -236,6 +236,7 @@ describe("onboard-hooks", () => {
       // First note should explain what hooks are
       expect(noteCalls[0][0]).toContain("Hooks let you automate actions");
       expect(noteCalls[0][0]).toContain("automate actions");
+      expect(noteCalls[0][0]).toContain("https://docs.openclaw.ai/automation/hooks");
 
       // Second note should confirm configuration
       expect(noteCalls[1][0]).toContain("Enabled 1 hook: session-memory");
