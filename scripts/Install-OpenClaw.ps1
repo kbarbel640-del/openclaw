@@ -176,19 +176,34 @@ Write-Host "  OpenClaw binaries: $openclawBinPath" -ForegroundColor Cyan
 # ==============================================================================
 # Find the main OpenClaw executable
 # ==============================================================================
-$openclawExe = Get-ChildItem $openclawBinPath -Filter "index.js" -ErrorAction SilentlyContinue | Select-Object -First 1
-if (-not $openclawExe) {
-    $openclawExe = Get-ChildItem $openclawBinPath -Filter "openclaw.js" -ErrorAction SilentlyContinue | Select-Object -First 1
-}
-if (-not $openclawExe) {
-    $openclawExe = Get-ChildItem $openclawBinPath -Filter "*.js" -ErrorAction SilentlyContinue | Select-Object -First 1
+# Check common locations for the entry point
+$possiblePaths = @(
+    (Join-Path $openclawBinPath "dist\index.js"),
+    (Join-Path $openclawBinPath "index.js"),
+    (Join-Path $openclawBinPath "openclaw.js")
+)
+
+$openclawExePath = $null
+foreach ($path in $possiblePaths) {
+    if (Test-Path $path) {
+        $openclawExePath = $path
+        Write-Host "Found OpenClaw executable: $openclawExePath" -ForegroundColor Green
+        break
+    }
 }
 
-if (-not $openclawExe) {
-    Write-Host "Warning: Could not find OpenClaw main executable" -ForegroundColor Yellow
-    $openclawExePath = Join-Path $openclawBinPath "index.js"
-} else {
-    $openclawExePath = $openclawExe.FullName
+if (-not $openclawExePath) {
+    # Try to find any index.js recursively
+    $foundExe = Get-ChildItem $openclawBinPath -Filter "index.js" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($foundExe) {
+        $openclawExePath = $foundExe.FullName
+        Write-Host "Found OpenClaw executable: $openclawExePath" -ForegroundColor Green
+    } else {
+        Write-Host "ERROR: Could not find OpenClaw main executable" -ForegroundColor Red
+        Write-Host "Installation may be incomplete." -ForegroundColor Red
+        Read-Host "Press Enter to exit"
+        exit 1
+    }
 }
 
 # ==============================================================================
