@@ -153,7 +153,10 @@ export class MemoryIndexManager implements MemorySearchManager {
         purpose: params.purpose,
       });
       INDEX_CACHE.set(key, manager);
-      log.debug("memory: embedding provider initialized", { key, provider: providerResult.provider.id });
+      log.debug("memory: embedding provider initialized", {
+        key,
+        provider: providerResult.provider.id,
+      });
       return manager;
     })();
 
