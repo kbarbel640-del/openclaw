@@ -95,7 +95,16 @@ export function resolveTranscriptPolicy(params: {
 
   const needsNonImageSanitize = isGoogle || isAnthropic || isMistral || isOpenRouterGemini;
 
-  const sanitizeToolCallIds = isGoogle || isMistral;
+  // Always sanitize tool call IDs for non-OpenAI providers.
+  // Session history may contain IDs from any provider (e.g. nvidia/kimi generates
+  // IDs like "functions.write:0" with dots/colons) and can later be replayed to
+  // Anthropic which requires ^[a-zA-Z0-9_-]+$.  Sanitizing is idempotent for
+  // already-compliant IDs so this is safe to apply universally.
+  // Note: uses the same isOpenAi check as other fields — only true OpenAI
+  // endpoints are exempt.  Aggregators (openrouter, etc.) using openai-responses
+  // API are intentionally NOT exempt because the underlying model may generate
+  // non-compliant IDs.
+  const sanitizeToolCallIds = !isOpenAi;
   const toolCallIdMode: ToolCallIdMode | undefined = isMistral
     ? "strict9"
     : sanitizeToolCallIds
