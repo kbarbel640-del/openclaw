@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   clearAgentRunContext,
   emitAgentEvent,
@@ -7,60 +7,121 @@ import {
   registerAgentRunContext,
   resetAgentRunContextForTest,
 } from "../infra/agent-events.js";
+import {
+  createAgentEventHandler,
+  createChatRunState,
+  createToolEventRecipientRegistry,
+} from "./server-chat.js";
 
 describe("agentRunSeq cleanup on lifecycle end", () => {
   it("deletes runId from agentRunSeq when lifecycle phase is end", () => {
-    // Simulates the core fix: agentRunSeq.delete(runId) on lifecycle end/error
+    const broadcast = vi.fn();
+    const broadcastToConnIds = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const clearAgentRunContextMock = vi.fn();
     const agentRunSeq = new Map<string, number>();
+    const chatRunState = createChatRunState();
+    const toolEventRecipients = createToolEventRecipientRegistry();
+
+    // Pre-populate agentRunSeq to simulate an active run
     agentRunSeq.set("run-1", 5);
     agentRunSeq.set("run-2", 3);
 
-    // Simulate lifecycle end for run-1
-    const endedRunId = "run-1";
-    agentRunSeq.delete(endedRunId);
+    const handler = createAgentEventHandler({
+      broadcast,
+      broadcastToConnIds,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => "session-1",
+      clearAgentRunContext: clearAgentRunContextMock,
+      toolEventRecipients,
+    });
 
+    // Emit lifecycle end event for run-1
+    handler({
+      runId: "run-1",
+      seq: 6,
+      stream: "lifecycle",
+      ts: Date.now(),
+      data: { phase: "end" },
+    });
+
+    // Verify agentRunSeq entry was deleted for run-1 but not run-2
     expect(agentRunSeq.has("run-1")).toBe(false);
     expect(agentRunSeq.has("run-2")).toBe(true);
+    // Verify clearAgentRunContext was called
+    expect(clearAgentRunContextMock).toHaveBeenCalledWith("run-1");
   });
 
-  it("safety-net prunes orphaned agentRunSeq entries", () => {
+  it("deletes runId from agentRunSeq when lifecycle phase is error", () => {
+    const broadcast = vi.fn();
+    const broadcastToConnIds = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const clearAgentRunContextMock = vi.fn();
     const agentRunSeq = new Map<string, number>();
-    const chatAbortControllers = new Map<string, any>();
-    const abortedRuns = new Map<string, number>();
-    const chatRunBuffers = new Map<string, string>();
+    const chatRunState = createChatRunState();
+    const toolEventRecipients = createToolEventRecipientRegistry();
 
-    // Fill with orphaned entries
-    for (let i = 0; i < 600; i++) {
-      agentRunSeq.set(`run-${i}`, i);
-    }
-    // Mark some as still active
-    chatAbortControllers.set("run-0", {});
-    abortedRuns.set("run-1", Date.now());
-    chatRunBuffers.set("run-2", "buf");
+    agentRunSeq.set("run-error", 10);
 
-    // Simulate safety-net logic
-    if (agentRunSeq.size > 500) {
-      const activeRunIds = new Set<string>();
-      for (const runId of chatAbortControllers.keys()) {
-        activeRunIds.add(runId);
-      }
-      for (const runId of abortedRuns.keys()) {
-        activeRunIds.add(runId);
-      }
-      for (const runId of chatRunBuffers.keys()) {
-        activeRunIds.add(runId);
-      }
-      for (const runId of agentRunSeq.keys()) {
-        if (!activeRunIds.has(runId)) {
-          agentRunSeq.delete(runId);
-        }
-      }
-    }
+    const handler = createAgentEventHandler({
+      broadcast,
+      broadcastToConnIds,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => "session-1",
+      clearAgentRunContext: clearAgentRunContextMock,
+      toolEventRecipients,
+    });
 
-    expect(agentRunSeq.size).toBe(3);
-    expect(agentRunSeq.has("run-0")).toBe(true);
-    expect(agentRunSeq.has("run-1")).toBe(true);
-    expect(agentRunSeq.has("run-2")).toBe(true);
+    handler({
+      runId: "run-error",
+      seq: 11,
+      stream: "lifecycle",
+      ts: Date.now(),
+      data: { phase: "error", error: "test error" },
+    });
+
+    expect(agentRunSeq.has("run-error")).toBe(false);
+    expect(clearAgentRunContextMock).toHaveBeenCalledWith("run-error");
+  });
+
+  it("does not delete agentRunSeq entry for non-terminal lifecycle phases", () => {
+    const broadcast = vi.fn();
+    const broadcastToConnIds = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const clearAgentRunContextMock = vi.fn();
+    const agentRunSeq = new Map<string, number>();
+    const chatRunState = createChatRunState();
+    const toolEventRecipients = createToolEventRecipientRegistry();
+
+    agentRunSeq.set("run-active", 2);
+
+    const handler = createAgentEventHandler({
+      broadcast,
+      broadcastToConnIds,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => "session-1",
+      clearAgentRunContext: clearAgentRunContextMock,
+      toolEventRecipients,
+    });
+
+    // Emit lifecycle start event (non-terminal)
+    handler({
+      runId: "run-active",
+      seq: 3,
+      stream: "lifecycle",
+      ts: Date.now(),
+      data: { phase: "start" },
+    });
+
+    // Entry should still exist
+    expect(agentRunSeq.has("run-active")).toBe(true);
+    expect(clearAgentRunContextMock).not.toHaveBeenCalled();
   });
 });
 
