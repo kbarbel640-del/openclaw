@@ -15,7 +15,7 @@ export function resolvePluginSkillDirs(params: {
   workspaceDir: string;
   config?: OpenClawConfig;
 }): string[] {
-  const workspaceDir = params.workspaceDir.trim();
+  const workspaceDir = (params.workspaceDir ?? "").trim();
   if (!workspaceDir) {
     return [];
   }

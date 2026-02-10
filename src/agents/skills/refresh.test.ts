@@ -12,6 +12,14 @@ vi.mock("chokidar", () => {
 });
 
 describe("ensureSkillsWatcher", () => {
+  it("does not crash when workspaceDir is undefined", async () => {
+    const mod = await import("./refresh.js");
+    // Should not throw TypeError: Cannot read properties of undefined (reading 'trim')
+    expect(() =>
+      mod.ensureSkillsWatcher({ workspaceDir: undefined as unknown as string }),
+    ).not.toThrow();
+  });
+
   it("ignores node_modules, dist, .git, and Python venvs by default", async () => {
     const mod = await import("./refresh.js");
     mod.ensureSkillsWatcher({ workspaceDir: "/tmp/workspace" });

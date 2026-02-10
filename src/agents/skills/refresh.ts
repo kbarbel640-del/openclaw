@@ -57,7 +57,7 @@ function emit(event: SkillsChangeEvent) {
 
 function resolveWatchPaths(workspaceDir: string, config?: OpenClawConfig): string[] {
   const paths: string[] = [];
-  if (workspaceDir.trim()) {
+  if ((workspaceDir ?? "").trim()) {
     paths.push(path.join(workspaceDir, "skills"));
   }
   paths.push(path.join(CONFIG_DIR, "skills"));
@@ -107,7 +107,7 @@ export function getSkillsSnapshotVersion(workspaceDir?: string): number {
 }
 
 export function ensureSkillsWatcher(params: { workspaceDir: string; config?: OpenClawConfig }) {
-  const workspaceDir = params.workspaceDir.trim();
+  const workspaceDir = (params.workspaceDir ?? "").trim();
   if (!workspaceDir) {
     return;
   }
