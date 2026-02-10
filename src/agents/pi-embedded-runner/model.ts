@@ -75,7 +75,7 @@ function resolveAnthropicOpus46ForwardCompatModel(
   modelRegistry: ModelRegistry,
 ): Model<Api> | undefined {
   const normalizedProvider = normalizeProviderId(provider);
-  if (normalizedProvider !== "anthropic") {
+  if (normalizedProvider !== "anthropic" && normalizedProvider !== "google-antigravity") {
     return undefined;
   }
 
