@@ -165,8 +165,7 @@ export async function ensureSessionHeader(params: {
 }
 
 export function resolveBootstrapAggregateMaxChars(cfg?: OpenClawConfig): number {
-  const raw = (cfg?.agents?.defaults as Record<string, unknown> | undefined)
-    ?.bootstrapAggregateMaxChars;
+  const raw = cfg?.agents?.defaults?.bootstrapAggregateMaxChars;
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
     return Math.floor(raw);
   }
