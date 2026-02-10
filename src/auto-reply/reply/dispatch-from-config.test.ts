@@ -510,6 +510,73 @@ describe("dispatchReplyFromConfig", () => {
       expect(hookMocks.runner.runMessageSending).not.toHaveBeenCalled();
       expect(dispatcher.sendFinalReply).toHaveBeenCalledTimes(1);
     });
+
+    it("calls message_sending for each reply when resolver returns multiple", async () => {
+      hookMocks.runner.hasHooks.mockImplementation((name: string) => name === "message_sending");
+      hookMocks.runner.runMessageSending.mockResolvedValue(undefined);
+      mocks.tryFastAbortFromMessage.mockResolvedValue({
+        handled: false,
+        aborted: false,
+      });
+
+      const cfg = {} as OpenClawConfig;
+      const dispatcher = createDispatcher();
+      const ctx = buildTestCtx({ Provider: "telegram", From: "user1" });
+      const replyResolver = async () =>
+        [{ text: "first" }, { text: "second" }] satisfies ReplyPayload[];
+
+      await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
+
+      expect(hookMocks.runner.runMessageSending).toHaveBeenCalledTimes(2);
+      expect(dispatcher.sendFinalReply).toHaveBeenCalledTimes(2);
+    });
+
+    it("works with cross-provider routing when message_sending modifies content", async () => {
+      hookMocks.runner.hasHooks.mockImplementation((name: string) => name === "message_sending");
+      hookMocks.runner.runMessageSending.mockResolvedValue({ content: "cross-modified" });
+      mocks.tryFastAbortFromMessage.mockResolvedValue({
+        handled: false,
+        aborted: false,
+      });
+      mocks.routeReply.mockResolvedValue({ ok: true, messageId: "routed-1" });
+
+      const cfg = {} as OpenClawConfig;
+      const dispatcher = createDispatcher();
+      const ctx = buildTestCtx({
+        Provider: "slack",
+        OriginatingChannel: "telegram",
+        OriginatingTo: "telegram:999",
+      });
+      const replyResolver = async () => ({ text: "original" }) satisfies ReplyPayload;
+
+      await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
+
+      expect(mocks.routeReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({ text: "cross-modified" }),
+        }),
+      );
+      expect(dispatcher.sendFinalReply).not.toHaveBeenCalled();
+    });
+
+    it("does not hook fast-abort replies", async () => {
+      hookMocks.runner.hasHooks.mockImplementation((name: string) => name === "message_sending");
+      mocks.tryFastAbortFromMessage.mockResolvedValue({
+        handled: true,
+        aborted: true,
+        stoppedSubagents: 1,
+      });
+
+      const cfg = {} as OpenClawConfig;
+      const dispatcher = createDispatcher();
+      const ctx = buildTestCtx({ Provider: "telegram", From: "user1" });
+      const replyResolver = async () => ({ text: "should not reach" }) satisfies ReplyPayload;
+
+      await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
+
+      expect(hookMocks.runner.runMessageSending).not.toHaveBeenCalled();
+      expect(dispatcher.sendFinalReply).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("message_sent hook", () => {
