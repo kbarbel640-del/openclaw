@@ -3,21 +3,15 @@ import { createReplyDispatcherWithTyping } from "../auto-reply/reply/reply-dispa
 
 const dispatchMock = vi.fn();
 
-vi.mock("@buape/carbon", () => ({
+vi.mock("@buape/carbon", async (importOriginal) => ({
+  ...(await importOriginal()),
+  // Only override what this test needs to control
   ChannelType: { DM: "dm", GroupDM: "group" },
   MessageType: {
     ChatInputCommand: 1,
     ContextMenuCommand: 2,
     Default: 0,
   },
-  Button: class {},
-  Command: class {},
-  Client: class {},
-  MessageCreateListener: class {},
-  MessageReactionAddListener: class {},
-  MessageReactionRemoveListener: class {},
-  PresenceUpdateListener: class {},
-  Row: class {},
 }));
 
 vi.mock("../auto-reply/dispatch.js", async (importOriginal) => {
