@@ -55,7 +55,7 @@ Rollup-specific:
 - `--every <duration>`: run interval for the distiller (e.g., `30m`, `1h`, `2h`). Default: `1h`.
 - `--model <model>`: model override for the distiller agent.
 - `--thinking <level>`: thinking level (`off|minimal|low|medium|high`). Default: `off`.
-- `--timeout <seconds>`: job timeout in seconds. Default: `180`.
+- `--job-timeout-seconds <n>`: distiller job timeout in seconds. Default: `180`.
 
 Notes:
 

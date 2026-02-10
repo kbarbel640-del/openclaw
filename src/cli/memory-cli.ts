@@ -830,7 +830,7 @@ Notes
       .option("--every <duration>", "Run interval (e.g., 1h, 30m)", "1h")
       .option("--model <model>", "Model override for distiller")
       .option("--thinking <level>", "Thinking level (off|minimal|low|medium|high)", "off")
-      .option("--timeout <seconds>", "Job timeout in seconds", "180")
+      .option("--job-timeout-seconds <n>", "Distiller job timeout in seconds", "180")
       .option("--json", "Output JSON", false)
       .action(async (opts: Record<string, unknown>) => {
         const cfg = loadConfig();
@@ -848,7 +848,7 @@ Notes
           return;
         }
 
-        const timeoutSeconds = Number(opts.timeout) || 180;
+        const timeoutSeconds = Number(opts.jobTimeoutSeconds) || 180;
 
         try {
           // Check if job already exists
