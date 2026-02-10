@@ -40,9 +40,9 @@ describe("Markdown storage integration with real files", () => {
     const content = result.buffer.toString("utf-8");
     // Should be raw CSV content (not markdown table)
     expect(content).toContain(",");
-    // Should NOT contain markdown table markers
-    expect(content).not.toContain("|");
-    expect(content).not.toContain("---");
+    // Check for markdown table separator pattern (more specific than just "|")
+    // Markdown tables have "|" followed by "---" separator row
+    expect(content).not.toMatch(/\|\s*\n\s*\|[\s-]+\|/); // No markdown table separator pattern
     // Should contain some data from the CSV
     expect(content.length).toBeGreaterThan(100);
 
@@ -133,13 +133,16 @@ describe("Markdown storage integration with real files", () => {
     });
 
     const content = result.buffer.toString("utf-8");
-    // PDF content should be extracted and saved as markdown
+    // PDF content should be extracted and saved as raw text
     // Note: PDF extraction may fail in test environment if dependencies are missing
-    // In that case, it will return an error message, which is acceptable
+    // In that case, it will return an error message in format [PDF extraction failed: ...]
     expect(content.length).toBeGreaterThan(0);
-    // If extraction succeeded, should contain some text (not just error message)
-    if (!content.includes("PDF extraction failed")) {
+    // If extraction succeeded, should contain some text (not error message)
+    if (!content.includes("[PDF extraction failed")) {
       expect(content.length).toBeGreaterThan(50);
+    } else {
+      // If extraction failed, verify error message format
+      expect(content).toMatch(/^\[PDF extraction failed: .+\]$/);
     }
   });
 

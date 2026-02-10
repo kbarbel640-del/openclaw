@@ -9,6 +9,16 @@ import { parseCsv } from "./csv-parser.js";
 import { loadIndex, addFileToIndex, removeFileFromIndex } from "./index.js";
 import { resolveSessionFilesDir } from "./paths.js";
 
+// PDF extraction limits for session file storage
+// These are more lenient than input file processing limits since files are stored for later use
+const SESSION_FILE_PDF_MAX_BYTES = 50 * 1024 * 1024; // 50MB
+const SESSION_FILE_PDF_MAX_CHARS = 1_000_000; // 1M chars
+const SESSION_FILE_PDF_MAX_PAGES = 100;
+const SESSION_FILE_PDF_MAX_PIXELS = 10_000_000;
+const SESSION_FILE_PDF_MIN_TEXT_CHARS = 10;
+const SESSION_FILE_PDF_MAX_REDIRECTS = 5;
+const SESSION_FILE_PDF_TIMEOUT_MS = 30_000;
+
 export async function saveFile(params: {
   sessionId: string;
   agentId?: string;
@@ -31,29 +41,31 @@ export async function saveFile(params: {
   // Save raw content (no conversion)
   let content: string;
   if (type === "pdf") {
-    // PDF still needs extraction (can't store as raw binary)
+    // PDF still needs extraction (can't store as raw binary). Extracted text is saved as raw content.
     const limits: InputFileLimits = {
       allowUrl: false,
       allowedMimes: new Set(["application/pdf"]),
-      maxBytes: 50 * 1024 * 1024, // 50MB default
-      maxChars: 1_000_000, // 1M chars default
-      maxRedirects: 5,
-      timeoutMs: 30_000,
+      maxBytes: SESSION_FILE_PDF_MAX_BYTES,
+      maxChars: SESSION_FILE_PDF_MAX_CHARS,
+      maxRedirects: SESSION_FILE_PDF_MAX_REDIRECTS,
+      timeoutMs: SESSION_FILE_PDF_TIMEOUT_MS,
       pdf: {
-        maxPages: 100,
-        maxPixels: 10_000_000,
-        minTextChars: 10,
+        maxPages: SESSION_FILE_PDF_MAX_PAGES,
+        maxPixels: SESSION_FILE_PDF_MAX_PIXELS,
+        minTextChars: SESSION_FILE_PDF_MIN_TEXT_CHARS,
       },
     };
     try {
       const extracted = await extractPdfContent({ buffer, limits });
       content = extracted.text || "";
     } catch (err) {
-      // If PDF extraction fails, log error and save empty string
+      // If PDF extraction fails, log error and save error message for user visibility
+      const errorMessage = String(err);
       if (shouldLogVerbose()) {
-        logVerbose(`PDF extraction failed for ${filename}: ${String(err)}`);
+        logVerbose(`PDF extraction failed for ${filename}: ${errorMessage}`);
       }
-      content = ""; // Empty string if extraction fails
+      // Save error message so users/agents know extraction failed (instead of empty string)
+      content = `[PDF extraction failed: ${errorMessage}]`;
     }
   } else {
     // All other types: save raw content
