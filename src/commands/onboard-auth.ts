@@ -30,6 +30,8 @@ export {
   applyXiaomiConfig,
   applyXiaomiProviderConfig,
   applyZaiConfig,
+  applySelfHostedOpenAIConfig,
+  applySelfHostedOpenAIProviderConfig,
 } from "./onboard-auth.config-core.js";
 export {
   applyMinimaxApiConfig,
@@ -88,3 +90,10 @@ export {
   MOONSHOT_DEFAULT_MODEL_ID,
   MOONSHOT_DEFAULT_MODEL_REF,
 } from "./onboard-auth.models.js";
+
+export {
+  DEFAULT_SELF_HOSTED_REASONING,
+  DEFAULT_SELF_HOSTED_CONTEXT_WINDOW,
+  DEFAULT_SELF_HOSTED_MAX_TOKENS,
+  SELF_HOSTED_OPENAI_DEFAULT_MODEL_REF,
+} from "./onboard-auth.self-hosted-openai.js";
