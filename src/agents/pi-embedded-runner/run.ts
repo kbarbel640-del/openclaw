@@ -480,8 +480,15 @@ export async function runEmbeddedPiAgent(
             enforceFinalTag: params.enforceFinalTag,
           });
 
-          const { aborted, promptError, timedOut, timedOutDuringCompaction, sessionIdUsed, lastAssistant } = attempt;
-          const lastAssistantUsage = normalizeUsage(lastAssistant?.usage as UsageLike);
+          const {
+            aborted,
+            promptError,
+            timedOut,
+            timedOutDuringCompaction,
+            sessionIdUsed,
+            lastAssistant,
+          } = attempt;
+	  const lastAssistantUsage = normalizeUsage(lastAssistant?.usage as UsageLike);
           const attemptUsage = attempt.attemptUsage ?? lastAssistantUsage;
           mergeUsageIntoAccumulator(usageAccumulator, attemptUsage);
           // Keep prompt size from the latest model call so session totalTokens
