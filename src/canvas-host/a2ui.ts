@@ -10,7 +10,14 @@ export const CANVAS_HOST_PATH = "/__openclaw__/canvas";
 
 export const CANVAS_WS_PATH = "/__openclaw__/ws";
 
-let cachedA2uiRootReal: string | undefined;
+const A2UI_MISS_CACHE_MS = 500;
+
+type A2uiRootCacheEntry = {
+  value: string | null;
+  resolvedAtMs: number;
+};
+
+let cachedA2uiRootReal: A2uiRootCacheEntry | undefined;
 let resolvingA2uiRoot: Promise<string | null> | null = null;
 
 async function resolveA2uiRoot(): Promise<string | null> {
@@ -65,17 +72,24 @@ async function resolveA2uiRoot(): Promise<string | null> {
 }
 
 async function resolveA2uiRootReal(): Promise<string | null> {
-  if (cachedA2uiRootReal) {
-    return cachedA2uiRootReal;
+  const cached = cachedA2uiRootReal;
+  if (cached !== undefined) {
+    if (cached.value !== null) {
+      return cached.value;
+    }
+    if (Date.now() - cached.resolvedAtMs < A2UI_MISS_CACHE_MS) {
+      return null;
+    }
   }
   if (!resolvingA2uiRoot) {
     resolvingA2uiRoot = (async () => {
       const root = await resolveA2uiRoot();
       if (!root) {
+        cachedA2uiRootReal = { value: null, resolvedAtMs: Date.now() };
         return null;
       }
       const real = await fs.realpath(root);
-      cachedA2uiRootReal = real;
+      cachedA2uiRootReal = { value: real, resolvedAtMs: Date.now() };
       return real;
     })().finally(() => {
       resolvingA2uiRoot = null;

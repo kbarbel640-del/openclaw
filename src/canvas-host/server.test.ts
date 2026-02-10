@@ -282,11 +282,25 @@ describe("canvas host", () => {
         "<html><body>argv-a2ui</body></html>",
         "utf8",
       );
-      await fs.writeFile(path.join(fakeA2uiDir, "a2ui.bundle.js"), "window.argvA2ui = true;", "utf8");
+      await fs.writeFile(
+        path.join(fakeA2uiDir, "a2ui.bundle.js"),
+        "window.argvA2ui = true;",
+        "utf8",
+      );
 
-      const hitRes = await fetch(`http://127.0.0.1:${server.port}/__openclaw__/a2ui/`);
-      expect(hitRes.status).toBe(200);
-      expect(await hitRes.text()).toContain("argv-a2ui");
+      const deadline = Date.now() + 5_000;
+      let hitRes: Response | null = null;
+      while (Date.now() < deadline) {
+        const attempt = await fetch(`http://127.0.0.1:${server.port}/__openclaw__/a2ui/`);
+        if (attempt.status === 200) {
+          hitRes = attempt;
+          break;
+        }
+        expect(attempt.status).toBe(503);
+        await new Promise((resolve) => setTimeout(resolve, 60));
+      }
+      expect(hitRes).not.toBeNull();
+      expect(await hitRes!.text()).toContain("argv-a2ui");
 
       const bundleRes = await fetch(
         `http://127.0.0.1:${server.port}/__openclaw__/a2ui/a2ui.bundle.js`,
