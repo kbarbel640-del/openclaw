@@ -75,9 +75,10 @@ async function startRelayContainer(
     // ignore
   }
 
-  // Socket mode: start directly on internal network (no bridge exposure)
-  // TCP mode: must start on bridge to reach host.docker.internal
-  const network = proxySocketPath ? SECURE_NETWORK_NAME : "bridge";
+  // Always start on the internal network — never on bridge.
+  // On Docker Desktop (Windows), host.docker.internal resolves from any network,
+  // so there's no need to start on bridge and then hot-swap networks.
+  const network = SECURE_NETWORK_NAME;
 
   const args = [
     "run", "-d",
@@ -105,14 +106,6 @@ async function startRelayContainer(
   }
 
   await execDocker(args);
-
-  // TCP mode: connect relay to the internal network, then disconnect from bridge
-  // so only the gateway container (on the internal network) can reach the relay.
-  // Socket mode: relay already started on internal network, no extra steps needed.
-  if (!proxySocketPath) {
-    await execDocker(["network", "connect", SECURE_NETWORK_NAME, RELAY_CONTAINER_NAME]);
-    await execDocker(["network", "disconnect", "bridge", RELAY_CONTAINER_NAME]);
-  }
 
   const mode = proxySocketPath ? `socket:${proxySocketPath}` : `tcp:host.docker.internal:${hostProxyPort}`;
   logger.info(`Relay container started: ${RELAY_CONTAINER_NAME} (${mode} → port ${proxyPort})`);
