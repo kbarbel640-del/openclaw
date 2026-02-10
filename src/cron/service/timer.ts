@@ -479,9 +479,14 @@ async function executeJobCore(
       return { status: "error", error: `shell exit ${shellResult.exitCode}: ${errMsg}` };
     }
 
+    // Gate: only proceed if command produced output
+    const output = (shellResult.stdout || shellResult.stderr).trim();
+    if (!output) {
+      return { status: "ok" };
+    }
+
     // Gate passed — inject output into onOutput message and enqueue as system event
-    const output = (shellResult.stdout || shellResult.stderr).slice(0, 4000);
-    const messageText = onOutput.message.replace("{{output}}", output);
+    const messageText = onOutput.message.replace("{{output}}", output.slice(0, 4000));
     const systemText = `[shellGate:${job.name}] ${messageText}`;
 
     state.deps.enqueueSystemEvent(systemText, { agentId: job.agentId });
