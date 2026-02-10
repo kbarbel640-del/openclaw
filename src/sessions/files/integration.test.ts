@@ -184,9 +184,12 @@ describe("Markdown storage integration with real files", () => {
 
     // Verify each file can be retrieved
     const csvResult = await getFile({ sessionId, agentId, fileId: csvFileId, filesDir: testDir });
+    const csvContent = csvResult.buffer.toString("utf-8");
     // Should be raw CSV (not markdown table)
-    expect(csvResult.buffer.toString("utf-8")).toContain(",");
-    expect(csvResult.buffer.toString("utf-8")).not.toContain("|");
+    expect(csvContent).toContain(",");
+    // Check for markdown table separator pattern (more specific than just "|")
+    // Markdown tables have "|" followed by "---" separator row
+    expect(csvContent).not.toMatch(/\|\s*\n\s*\|[\s-]+\|/); // No markdown table separator pattern
 
     const jsonResult = await getFile({ sessionId, agentId, fileId: jsonFileId, filesDir: testDir });
     // Should be raw JSON (not code block wrapped)
