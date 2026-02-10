@@ -4,6 +4,7 @@ import {
   type Skill,
 } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { OpenClawConfig } from "../../config/config.js";
 import type {
@@ -17,6 +18,7 @@ import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { CONFIG_DIR, resolveUserPath } from "../../utils.js";
 import { resolveBundledSkillsDir } from "./bundled-dir.js";
 import { shouldIncludeSkill } from "./config.js";
+import { createFilteredSkillDir } from "./filter-skill-dirs.js";
 import {
   parseFrontmatter,
   resolveOpenClawMetadata,
@@ -24,8 +26,6 @@ import {
 } from "./frontmatter.js";
 import { resolvePluginSkillDirs } from "./plugin-skills.js";
 import { serializeByKey } from "./serialize.js";
-import { createFilteredSkillDir } from "./filter-skill-dirs.js";
-import os from "node:os";
 
 const fsp = fs.promises;
 const skillsLogger = createSubsystemLogger("skills");
@@ -153,7 +153,10 @@ function loadSkillEntries(
     source: "openclaw-managed",
   });
   let workspaceSkills: Skill[] = [];
-  const tempDir = path.join(os.tmpdir(), `openclaw-skills-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const tempDir = path.join(
+    os.tmpdir(),
+    `openclaw-skills-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   fs.mkdirSync(tempDir, { recursive: true });
   try {
     createFilteredSkillDir(workspaceSkillsDir, tempDir);
@@ -162,15 +165,17 @@ function loadSkillEntries(
       source: "openclaw-workspace",
     });
     // Remap paths from temp dir back to the original workspace skills dir
-    // so that filePath/baseDir survive temp-dir cleanup
-    for (const skill of workspaceSkills) {
-      if (skill.filePath.startsWith(tempDir)) {
-        skill.filePath = path.join(workspaceSkillsDir, path.relative(tempDir, skill.filePath));
-      }
-      if (skill.baseDir.startsWith(tempDir)) {
-        skill.baseDir = path.join(workspaceSkillsDir, path.relative(tempDir, skill.baseDir));
-      }
-    }
+    // so that filePath/baseDir survive temp-dir cleanup.
+    // Use .map() to create new Skill objects instead of mutating originals.
+    workspaceSkills = workspaceSkills.map((skill) => ({
+      ...skill,
+      filePath: skill.filePath.startsWith(tempDir)
+        ? path.join(workspaceSkillsDir, path.relative(tempDir, skill.filePath))
+        : skill.filePath,
+      baseDir: skill.baseDir.startsWith(tempDir)
+        ? path.join(workspaceSkillsDir, path.relative(tempDir, skill.baseDir))
+        : skill.baseDir,
+    }));
   } finally {
     try {
       fs.rmSync(tempDir, { recursive: true, force: true });

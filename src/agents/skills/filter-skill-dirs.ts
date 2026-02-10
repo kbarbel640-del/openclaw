@@ -11,8 +11,8 @@
  */
 
 import fs from "node:fs";
-import path from "node:path";
 import os from "node:os";
+import path from "node:path";
 
 /**
  * Development directories to exclude during skill discovery.
@@ -78,9 +78,13 @@ export function createFilteredSkillDir(sourceDir: string, tempDir: string): void
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(sourceDir, { withFileTypes: true });
-  } catch {
-    // If we can't read the source, silently skip
-    return;
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "EACCES") {
+      // Expected: directory doesn't exist or not readable — silently skip
+      return;
+    }
+    throw err;
   }
 
   for (const entry of entries) {
@@ -108,8 +112,13 @@ export function createFilteredSkillDir(sourceDir: string, tempDir: string): void
         // Symlink individual files back to the original
         fs.symlinkSync(sourcePath, targetPath, "file");
       }
-    } catch {
-      // Log but don't fail - some entries might fail, we can still process others
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "EEXIST") {
+        // Expected race conditions — skip silently
+      } else {
+        console.warn(`[filter-skill-dirs] Failed to process ${sourcePath}:`, err);
+      }
     }
   }
 }
@@ -186,10 +195,7 @@ export function removeTempDir(tempDir: string): boolean {
  */
 export function loadSkillsWithDirFiltering(
   skillsDir: string,
-  loadSkillsFromDirFn: (opts: {
-    dir: string;
-    source: string;
-  }) => unknown,
+  loadSkillsFromDirFn: (opts: { dir: string; source: string }) => unknown,
   loadOpts: { source: string },
 ): unknown {
   if (!fs.existsSync(skillsDir)) {
