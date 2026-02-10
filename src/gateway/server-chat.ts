@@ -407,7 +407,9 @@ export function createAgentEventHandler({
 
     if (lifecyclePhase === "end" || lifecyclePhase === "error") {
       toolEventRecipients.markFinal(evt.runId);
+      // clearAgentRunContext cleans up global seqByRun in agent-events.ts (leak fix)
       clearAgentRunContext(evt.runId);
+      // agentRunSeq is a local tracking map for gap detection (separate from global)
       agentRunSeq.delete(evt.runId);
     }
   };
