@@ -398,7 +398,6 @@
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   background: var(--accent-subtle);
-  box-shadow: 0 0 0 1px var(--accent-subtle);
 }
 
 .btn--icon svg {
