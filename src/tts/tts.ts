@@ -41,12 +41,7 @@ import {
   summarizeText,
 } from "./tts-core.js";
 export { OPENAI_TTS_MODELS, OPENAI_TTS_VOICES } from "./tts-core.js";
-import {
-  callTypecast,
-  callTypecastTelephony,
-  resolveTypecastDefaults,
-  type ResolvedTypecastConfig,
-} from "./typecast.js";
+import * as tc from "./typecast.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_TTS_MAX_LENGTH = 1500;
@@ -68,29 +63,6 @@ const DEFAULT_ELEVENLABS_VOICE_SETTINGS = {
   style: 0.0,
   useSpeakerBoost: true,
   speed: 1.0,
-};
-
-const TELEGRAM_OUTPUT = {
-  openai: "opus" as const,
-  // ElevenLabs output formats use codec_sample_rate_bitrate naming.
-  // Opus @ 48kHz/64kbps is a good voice-note tradeoff for Telegram.
-  elevenlabs: "opus_48000_64",
-  typecast: "mp3" as const,
-  extension: ".opus",
-  voiceCompatible: true,
-};
-
-const DEFAULT_OUTPUT = {
-  openai: "mp3" as const,
-  elevenlabs: "mp3_44100_128",
-  typecast: "mp3" as const,
-  extension: ".mp3",
-  voiceCompatible: false,
-};
-
-const TELEPHONY_OUTPUT = {
-  openai: { format: "pcm" as const, sampleRate: 24000 },
-  elevenlabs: { format: "pcm_22050", sampleRate: 22050 },
 };
 
 const TTS_AUTO_MODES = new Set<TtsAutoMode>(["off", "always", "inbound", "tagged"]);
@@ -123,7 +95,7 @@ export type ResolvedTtsConfig = {
     model: string;
     voice: string;
   };
-  typecast: ResolvedTypecastConfig;
+  typecast: ReturnType<typeof tc.resolveTypecastDefaults>;
   edge: {
     enabled: boolean;
     voice: string;
@@ -299,7 +271,7 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
       model: raw.openai?.model ?? DEFAULT_OPENAI_MODEL,
       voice: raw.openai?.voice ?? DEFAULT_OPENAI_VOICE,
     },
-    typecast: resolveTypecastDefaults(raw.typecast),
+    typecast: tc.resolveTypecastDefaults(raw.typecast),
     edge: {
       enabled: raw.edge?.enabled ?? true,
       voice: raw.edge?.voice?.trim() || DEFAULT_EDGE_VOICE,
@@ -492,9 +464,9 @@ export function setLastTtsAttempt(entry: TtsStatusEntry | undefined): void {
 
 function resolveOutputFormat(channelId?: string | null) {
   if (channelId === "telegram") {
-    return TELEGRAM_OUTPUT;
+    return tc.TELEGRAM_OUTPUT;
   }
-  return DEFAULT_OUTPUT;
+  return tc.DEFAULT_OUTPUT;
 }
 
 function resolveChannelId(channel: string | undefined): ChannelId | null {
@@ -515,10 +487,9 @@ export function resolveTtsApiKey(
   if (provider === "openai") {
     return config.openai.apiKey || process.env.OPENAI_API_KEY;
   }
-  if (provider === "typecast") {
-    return config.typecast.apiKey || process.env.TYPECAST_API_KEY;
-  }
-  return undefined;
+  return provider === "typecast"
+    ? config.typecast.apiKey || process.env.TYPECAST_API_KEY
+    : undefined;
 }
 
 export const TTS_PROVIDERS = ["openai", "elevenlabs", "typecast", "edge"] as const;
@@ -673,7 +644,7 @@ export async function textToSpeech(params: {
           timeoutMs: config.timeoutMs,
         });
       } else if (provider === "typecast") {
-        audioBuffer = await callTypecast(
+        audioBuffer = await tc.callTypecast(
           config.typecast,
           params.text,
           apiKey,
@@ -707,12 +678,7 @@ export async function textToSpeech(params: {
         audioPath,
         latencyMs,
         provider,
-        outputFormat:
-          provider === "elevenlabs"
-            ? output.elevenlabs
-            : provider === "typecast"
-              ? output.typecast
-              : output.openai,
+        outputFormat: (output as unknown as Record<string, string>)[provider] ?? output.openai,
         voiceCompatible: output.voiceCompatible,
       };
     } catch (err) {
@@ -761,7 +727,7 @@ export async function textToSpeechTelephony(params: {
       }
 
       if (provider === "elevenlabs") {
-        const output = TELEPHONY_OUTPUT.elevenlabs;
+        const output = tc.TELEPHONY_OUTPUT.elevenlabs;
         const audioBuffer = await elevenLabsTTS({
           text: params.text,
           apiKey,
@@ -786,22 +752,15 @@ export async function textToSpeechTelephony(params: {
         };
       }
       if (provider === "typecast") {
-        const { audioBuffer, sampleRate } = await callTypecastTelephony(
+        return tc.callTypecastTelephony(
           config.typecast,
           params.text,
           apiKey,
           config.timeoutMs,
+          providerStart,
         );
-        return {
-          success: true,
-          audioBuffer,
-          latencyMs: Date.now() - providerStart,
-          provider,
-          outputFormat: "wav",
-          sampleRate,
-        };
       }
-      const output = TELEPHONY_OUTPUT.openai;
+      const output = tc.TELEPHONY_OUTPUT.openai;
       const audioBuffer = await openaiTTS({
         text: params.text,
         apiKey,
