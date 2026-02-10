@@ -504,7 +504,9 @@ async function executeJobCore(
   // Post a short summary back to the main session.
   const summaryText = res.summary?.trim();
   const deliveryPlan = resolveCronDeliveryPlan(job);
-  if (summaryText && deliveryPlan.requested) {
+  if (deliveryPlan.mode === "silent") {
+    // Silent mode: skip all notifications — job completed invisibly.
+  } else if (summaryText && deliveryPlan.requested) {
     const prefix = "Cron";
     const label =
       res.status === "error" ? `${prefix} (error): ${summaryText}` : `${prefix}: ${summaryText}`;

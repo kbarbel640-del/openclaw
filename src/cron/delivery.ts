@@ -38,9 +38,11 @@ export function resolveCronDeliveryPlan(job: CronJob): CronDeliveryPlan {
       ? "announce"
       : normalizedMode === "none"
         ? "none"
-        : normalizedMode === "deliver"
-          ? "announce"
-          : undefined;
+        : normalizedMode === "silent"
+          ? "silent"
+          : normalizedMode === "deliver"
+            ? "announce"
+            : undefined;
 
   const payloadChannel = normalizeChannel(payload?.channel);
   const payloadTo = normalizeTo(payload?.to);

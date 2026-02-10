@@ -265,7 +265,7 @@ PAYLOAD TYPES (payload.kind):
   { "kind": "shellGate", "command": "<shell-command>", "timeoutMs": <optional-default-10000>, "onOutput": { "kind": "agentTurn", "message": "<prompt-with-{{stdout}}-placeholder>", "model": "<optional>", "thinking": "<optional>", "timeoutSeconds": <optional> } }
 
 DELIVERY (isolated-only, top-level):
-  { "mode": "none|announce", "channel": "<optional>", "to": "<optional>", "bestEffort": <optional-bool> }
+  { "mode": "none|announce|silent", "channel": "<optional>", "to": "<optional>", "bestEffort": <optional-bool> }
   - Default for isolated agentTurn jobs (when delivery omitted): "announce"
   - If the task needs to send to a specific chat/recipient, set delivery.channel/to here; do not call messaging tools inside the run.
 

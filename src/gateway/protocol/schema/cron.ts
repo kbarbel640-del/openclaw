@@ -119,7 +119,7 @@ export const CronPayloadPatchSchema = Type.Union([
 
 export const CronDeliverySchema = Type.Object(
   {
-    mode: Type.Union([Type.Literal("none"), Type.Literal("announce")]),
+    mode: Type.Union([Type.Literal("none"), Type.Literal("announce"), Type.Literal("silent")]),
     channel: Type.Optional(Type.Union([Type.Literal("last"), NonEmptyString])),
     to: Type.Optional(Type.String()),
     bestEffort: Type.Optional(Type.Boolean()),
@@ -129,7 +129,9 @@ export const CronDeliverySchema = Type.Object(
 
 export const CronDeliveryPatchSchema = Type.Object(
   {
-    mode: Type.Optional(Type.Union([Type.Literal("none"), Type.Literal("announce")])),
+    mode: Type.Optional(
+      Type.Union([Type.Literal("none"), Type.Literal("announce"), Type.Literal("silent")]),
+    ),
     channel: Type.Optional(Type.Union([Type.Literal("last"), NonEmptyString])),
     to: Type.Optional(Type.String()),
     bestEffort: Type.Optional(Type.Boolean()),
