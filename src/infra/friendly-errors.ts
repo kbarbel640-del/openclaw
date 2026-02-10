@@ -252,7 +252,7 @@ function extractCode(err: unknown): string | undefined {
 /**
  * Extract message from an error object
  */
-function extractMessage(err: unknown): string {
+function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) {
     return err.message;
   }
@@ -269,7 +269,7 @@ function extractMessage(err: unknown): string {
  * Get a friendly error message for a given error
  */
 export function getFriendlyError(err: unknown): FriendlyError | null {
-  const message = extractMessage(err);
+  const message = extractErrorMessage(err);
   const code = extractCode(err);
 
   for (const pattern of ERROR_PATTERNS) {
@@ -313,7 +313,7 @@ export function formatFriendlyError(friendly: FriendlyError): string {
  */
 export function enhanceErrorMessage(err: unknown): string {
   const friendly = getFriendlyError(err);
-  const originalMessage = extractMessage(err);
+  const originalMessage = extractErrorMessage(err);
 
   if (friendly) {
     return formatFriendlyError(friendly) + `\x1b[2mOriginal error: ${originalMessage}\x1b[0m\n`;
