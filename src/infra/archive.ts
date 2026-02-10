@@ -34,10 +34,6 @@ function resolveSafeEntryPath(params: {
   return path.resolve(params.baseDir, trimmed);
 }
 
-function assertSafeEntry(params: { baseDir: string; entryPath: string; origin: "zip" | "tar" }) {
-  resolveSafeEntryPath(params);
-}
-
 function isArchiveLinkEntry(entry: unknown): boolean {
   if (!entry || typeof entry !== "object") {
     return false;
@@ -138,14 +134,21 @@ export async function extractArchive(params: {
   const label = kind === "zip" ? "extract zip" : "extract tar";
   if (kind === "tar") {
     const baseDir = path.resolve(params.destDir);
+    const rejectedEntries: string[] = [];
     await withTimeout(
       tar.x({
         file: params.archivePath,
         cwd: params.destDir,
         filter: (entryPath, entry) => {
-          assertSafeEntry({ baseDir, entryPath, origin: "tar" });
+          try {
+            resolveSafeEntryPath({ baseDir, entryPath, origin: "tar" });
+          } catch (err) {
+            rejectedEntries.push(err instanceof Error ? err.message : String(err));
+            return false;
+          }
           if (isArchiveLinkEntry(entry)) {
-            throw new Error(`tar entry is a link: ${entryPath}`);
+            rejectedEntries.push(`tar entry is a link: ${entryPath}`);
+            return false;
           }
           return true;
         },
@@ -153,6 +156,9 @@ export async function extractArchive(params: {
       params.timeoutMs,
       label,
     );
+    if (rejectedEntries.length > 0) {
+      throw new Error(rejectedEntries[0]);
+    }
     return;
   }
 
