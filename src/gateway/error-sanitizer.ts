@@ -55,7 +55,22 @@ export function sanitizeErrorMessage(
   err: unknown,
   fallbackMessage = "An internal error occurred. Please try again.",
 ): string {
-  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const raw =
+    err instanceof Error
+      ? err.message
+      : err == null
+        ? ""
+        : typeof err === "string"
+          ? err
+          : typeof err === "number" || typeof err === "boolean" || typeof err === "bigint"
+            ? String(err)
+            : (() => {
+                try {
+                  return JSON.stringify(err);
+                } catch {
+                  return "unstringifiable error";
+                }
+              })();
 
   // Empty or very short errors get the fallback.
   if (!raw || raw.length < 3) {

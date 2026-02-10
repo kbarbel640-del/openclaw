@@ -113,7 +113,11 @@ export function parseForwardedForClientIp(
   if (trustedProxies && trustedProxies.length > 0) {
     // Walk from right to left, skipping trusted proxies.
     for (let i = parts.length - 1; i >= 0; i--) {
-      const ip = normalizeIp(stripOptionalPort(parts[i]!));
+      const part = parts[i];
+      if (!part) {
+        continue;
+      }
+      const ip = normalizeIp(stripOptionalPort(part));
       if (!ip) {
         continue;
       }
@@ -122,11 +126,13 @@ export function parseForwardedForClientIp(
       }
     }
     // All IPs are trusted — return the leftmost as fallback.
-    return normalizeIp(stripOptionalPort(parts[0]!));
+    const first = parts[0];
+    return first ? normalizeIp(stripOptionalPort(first)) : undefined;
   }
 
   // Fallback: leftmost IP (no trusted proxy info available).
-  return normalizeIp(stripOptionalPort(parts[0]!));
+  const first = parts[0];
+  return first ? normalizeIp(stripOptionalPort(first)) : undefined;
 }
 
 function parseRealIp(realIp?: string): string | undefined {
