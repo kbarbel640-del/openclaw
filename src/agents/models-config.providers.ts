@@ -10,6 +10,7 @@ import {
   buildCloudflareAiGatewayModelDefinition,
   resolveCloudflareAiGatewayBaseUrl,
 } from "./cloudflare-ai-gateway.js";
+import { discoverCortecsModels, CORTECS_BASE_URL } from "./cortecs-models.js";
 import { resolveAwsSdkEnvVarName, resolveEnvApiKey } from "./model-auth.js";
 import {
   buildSyntheticModelDefinition,
@@ -405,6 +406,15 @@ async function buildVeniceProvider(): Promise<ProviderConfig> {
   };
 }
 
+async function buildCortecsProvider(): Promise<ProviderConfig> {
+  const models = await discoverCortecsModels();
+  return {
+    baseUrl: CORTECS_BASE_URL,
+    api: "openai-completions",
+    models,
+  };
+}
+
 async function buildOllamaProvider(): Promise<ProviderConfig> {
   const models = await discoverOllamaModels();
   return {
@@ -483,6 +493,13 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "venice", store: authStore });
   if (veniceKey) {
     providers.venice = { ...(await buildVeniceProvider()), apiKey: veniceKey };
+  }
+
+  const cortecsKey =
+    resolveEnvApiKeyVarName("cortecs") ??
+    resolveApiKeyFromProfiles({ provider: "cortecs", store: authStore });
+  if (cortecsKey) {
+    providers.cortecs = { ...(await buildCortecsProvider()), apiKey: cortecsKey };
   }
 
   const qwenProfiles = listProfilesForProvider(authStore, "qwen-portal");

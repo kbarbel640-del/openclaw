@@ -1,4 +1,12 @@
 import type { ModelDefinitionConfig } from "../config/types.js";
+import {
+  CORTECS_BASE_URL,
+  CORTECS_DEFAULT_CONTEXT_WINDOW,
+  CORTECS_DEFAULT_COST,
+  CORTECS_DEFAULT_MAX_TOKENS,
+  CORTECS_DEFAULT_MODEL_ID,
+  CORTECS_DEFAULT_MODEL_REF,
+} from "../agents/cortecs-models.ts";
 import { QIANFAN_BASE_URL, QIANFAN_DEFAULT_MODEL_ID } from "../agents/models-config.providers.js";
 
 export const DEFAULT_MINIMAX_BASE_URL = "https://api.minimax.io/v1";
@@ -16,6 +24,15 @@ export const MOONSHOT_DEFAULT_CONTEXT_WINDOW = 256000;
 export const MOONSHOT_DEFAULT_MAX_TOKENS = 8192;
 export const KIMI_CODING_MODEL_ID = "k2p5";
 export const KIMI_CODING_MODEL_REF = `kimi-coding/${KIMI_CODING_MODEL_ID}`;
+
+export {
+  CORTECS_BASE_URL,
+  CORTECS_DEFAULT_CONTEXT_WINDOW,
+  CORTECS_DEFAULT_COST,
+  CORTECS_DEFAULT_MAX_TOKENS,
+  CORTECS_DEFAULT_MODEL_ID,
+  CORTECS_DEFAULT_MODEL_REF,
+};
 
 export { QIANFAN_BASE_URL, QIANFAN_DEFAULT_MODEL_ID };
 export const QIANFAN_DEFAULT_MODEL_REF = `qianfan/${QIANFAN_DEFAULT_MODEL_ID}`;
@@ -118,5 +135,17 @@ export function buildXaiModelDefinition(): ModelDefinitionConfig {
     cost: XAI_DEFAULT_COST,
     contextWindow: XAI_DEFAULT_CONTEXT_WINDOW,
     maxTokens: XAI_DEFAULT_MAX_TOKENS,
+  };
+}
+
+export function buildCortecsModelDefinition(): ModelDefinitionConfig {
+  return {
+    id: CORTECS_DEFAULT_MODEL_ID,
+    name: "gpt-oss-120b",
+    reasoning: false,
+    input: ["text"],
+    cost: CORTECS_DEFAULT_COST,
+    contextWindow: CORTECS_DEFAULT_CONTEXT_WINDOW,
+    maxTokens: CORTECS_DEFAULT_MAX_TOKENS,
   };
 }

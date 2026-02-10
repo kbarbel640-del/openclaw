@@ -33,6 +33,7 @@ import {
 import {
   buildMoonshotModelDefinition,
   buildXaiModelDefinition,
+  buildCortecsModelDefinition,
   QIANFAN_BASE_URL,
   QIANFAN_DEFAULT_MODEL_REF,
   KIMI_CODING_MODEL_REF,
@@ -40,6 +41,9 @@ import {
   MOONSHOT_CN_BASE_URL,
   MOONSHOT_DEFAULT_MODEL_ID,
   MOONSHOT_DEFAULT_MODEL_REF,
+  CORTECS_BASE_URL,
+  CORTECS_DEFAULT_MODEL_ID,
+  CORTECS_DEFAULT_MODEL_REF,
   XAI_BASE_URL,
   XAI_DEFAULT_MODEL_ID,
 } from "./onboard-auth.models.js";
@@ -526,11 +530,85 @@ export function applyXiaomiConfig(cfg: OpenClawConfig): OpenClawConfig {
 }
 
 /**
+ * Apply Cortecs provider configuration without changing the default model.
+ * Registers Cortecs models and sets up the provider, but preserves existing model selection.
+ */
+export function applyCortecsProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const models = { ...cfg.agents?.defaults?.models };
+  models[CORTECS_DEFAULT_MODEL_REF] = {
+    ...models[CORTECS_DEFAULT_MODEL_REF],
+    alias: models[CORTECS_DEFAULT_MODEL_REF]?.alias ?? "gpt-oss-120b",
+  };
+
+  const providers = { ...cfg.models?.providers };
+  const existingProvider = providers.cortecs;
+  const existingModels = Array.isArray(existingProvider?.models) ? existingProvider.models : [];
+  const defaultModel = buildCortecsModelDefinition();
+  const hasDefaultModel = existingModels.some((model) => model.id === CORTECS_DEFAULT_MODEL_ID);
+  const mergedModels = hasDefaultModel ? existingModels : [...existingModels, defaultModel];
+  const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
+    string,
+    unknown
+  > as { apiKey?: string };
+  const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
+  const normalizedApiKey = resolvedApiKey?.trim();
+  providers.cortecs = {
+    ...existingProviderRest,
+    baseUrl: CORTECS_BASE_URL,
+    api: "openai-completions",
+    ...(normalizedApiKey ? { apiKey: normalizedApiKey } : {}),
+    models: mergedModels.length > 0 ? mergedModels : [defaultModel],
+  };
+
+  return {
+    ...cfg,
+    agents: {
+      ...cfg.agents,
+      defaults: {
+        ...cfg.agents?.defaults,
+        models,
+      },
+    },
+    models: {
+      mode: cfg.models?.mode ?? "merge",
+      providers,
+    },
+  };
+}
+
+/**
+ * Apply Cortecs provider configuration AND set Cortecs as the default model.
+ * Use this when Cortecs is the primary provider choice during onboarding.
+ */
+export function applyCortecsConfig(cfg: OpenClawConfig): OpenClawConfig {
+  const next = applyCortecsProviderConfig(cfg);
+  const existingModel = next.agents?.defaults?.model;
+  return {
+    ...next,
+    agents: {
+      ...next.agents,
+      defaults: {
+        ...next.agents?.defaults,
+        model: {
+          ...(existingModel && "fallbacks" in (existingModel as Record<string, unknown>)
+            ? {
+                fallbacks: (existingModel as { fallbacks?: string[] }).fallbacks,
+              }
+            : undefined),
+          primary: CORTECS_DEFAULT_MODEL_REF,
+        },
+      },
+    },
+  };
+}
+
+/**
  * Apply Venice provider configuration without changing the default model.
  * Registers Venice models and sets up the provider, but preserves existing model selection.
  */
 export function applyVeniceProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
   const models = { ...cfg.agents?.defaults?.models };
+  console.log("models", models);
   models[VENICE_DEFAULT_MODEL_REF] = {
     ...models[VENICE_DEFAULT_MODEL_REF],
     alias: models[VENICE_DEFAULT_MODEL_REF]?.alias ?? "Llama 3.3 70B",

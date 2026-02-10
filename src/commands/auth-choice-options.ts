@@ -24,7 +24,8 @@ export type AuthChoiceGroupId =
   | "venice"
   | "qwen"
   | "qianfan"
-  | "xai";
+  | "xai"
+  | "cortecs";
 
 export type AuthChoiceGroup = {
   value: AuthChoiceGroupId;
@@ -141,6 +142,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
     hint: "Account ID + Gateway ID + API key",
     choices: ["cloudflare-ai-gateway-api-key"],
   },
+  {
+    value: "cortecs",
+    label: "Cortecs",
+    hint: "API key",
+    choices: ["cortecs-api-key"],
+  },
 ];
 
 export function buildAuthChoiceOptions(params: {
@@ -191,6 +198,11 @@ export function buildAuthChoiceOptions(params: {
     value: "venice-api-key",
     label: "Venice AI API key",
     hint: "Privacy-focused inference (uncensored models)",
+  });
+  options.push({
+    value: "cortecs-api-key",
+    label: "Cortecs API key",
+    hint: "Europe's LLMRouter with GDPR compliance",
   });
   options.push({
     value: "github-copilot",

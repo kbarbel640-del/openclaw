@@ -21,6 +21,8 @@ export {
   applySyntheticProviderConfig,
   applyVeniceConfig,
   applyVeniceProviderConfig,
+  applyCortecsConfig,
+  applyCortecsProviderConfig,
   applyVercelAiGatewayConfig,
   applyVercelAiGatewayProviderConfig,
   applyXiaomiConfig,
@@ -56,6 +58,7 @@ export {
   setOpenrouterApiKey,
   setSyntheticApiKey,
   setVeniceApiKey,
+  setCortecsApiKey,
   setVercelAiGatewayApiKey,
   setXiaomiApiKey,
   setZaiApiKey,
@@ -83,4 +86,5 @@ export {
   MOONSHOT_BASE_URL,
   MOONSHOT_DEFAULT_MODEL_ID,
   MOONSHOT_DEFAULT_MODEL_REF,
+  CORTECS_DEFAULT_MODEL_REF,
 } from "./onboard-auth.models.js";

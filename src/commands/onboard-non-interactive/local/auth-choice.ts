@@ -21,6 +21,7 @@ import {
   applyOpenrouterConfig,
   applySyntheticConfig,
   applyVeniceConfig,
+  applyCortecsConfig,
   applyVercelAiGatewayConfig,
   applyXaiConfig,
   applyXiaomiConfig,
@@ -37,6 +38,7 @@ import {
   setSyntheticApiKey,
   setXaiApiKey,
   setVeniceApiKey,
+  setCortecsApiKey,
   setVercelAiGatewayApiKey,
   setXiaomiApiKey,
   setZaiApiKey,
@@ -485,6 +487,29 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applyVeniceConfig(nextConfig);
+  }
+
+  if (authChoice === "cortecs-api-key") {
+    const resolved = await resolveNonInteractiveApiKey({
+      provider: "cortecs",
+      cfg: baseConfig,
+      flagValue: opts.cortecsApiKey,
+      flagName: "--cortecs-api-key",
+      envVar: "CORTECS_API_KEY",
+      runtime,
+    });
+    if (!resolved) {
+      return null;
+    }
+    if (resolved.source !== "profile") {
+      await setCortecsApiKey(resolved.key);
+    }
+    nextConfig = applyAuthProfileConfig(nextConfig, {
+      profileId: "cortecs:default",
+      provider: "cortecs",
+      mode: "api_key",
+    });
+    return applyCortecsConfig(nextConfig);
   }
 
   if (
