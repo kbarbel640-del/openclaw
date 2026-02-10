@@ -44,6 +44,7 @@ export type EmbeddedPiSubscribeState = {
   lastStreamedReasoning?: string;
   lastBlockReplyText?: string;
   assistantMessageIndex: number;
+  hadToolSinceLastText: boolean;
   lastAssistantTextNormalized?: string;
   lastAssistantTextTrimmed?: string;
   assistantTextBaseline: number;

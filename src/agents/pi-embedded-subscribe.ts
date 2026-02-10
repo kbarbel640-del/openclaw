@@ -54,6 +54,7 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     lastStreamedReasoning: undefined,
     lastBlockReplyText: undefined,
     assistantMessageIndex: 0,
+    hadToolSinceLastText: false,
     lastAssistantTextNormalized: undefined,
     lastAssistantTextTrimmed: undefined,
     assistantTextBaseline: 0,
@@ -105,14 +106,20 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     state.lastStreamedAssistant = undefined;
     state.lastStreamedAssistantCleaned = undefined;
     state.emittedAssistantUpdate = false;
-    // Preserve lastBlockReplyText across messages for cross-message dedup.
     state.lastStreamedReasoning = undefined;
     state.lastReasoningSent = undefined;
     state.suppressBlockChunks = false;
     state.assistantMessageIndex += 1;
-    // Preserve lastAssistantTextNormalized and lastAssistantTextTrimmed so
-    // shouldSkipAssistantText can detect duplicates across message boundaries
-    // (e.g. model repeats text after a tool_use + tool_result round-trip).
+    // When a tool executed since the last text, preserve dedup state so
+    // shouldSkipAssistantText can catch models repeating the same text
+    // after a tool_use + tool_result round-trip.  Otherwise clear it so
+    // legitimate identical replies across messages are still delivered.
+    if (!state.hadToolSinceLastText) {
+      state.lastBlockReplyText = undefined;
+      state.lastAssistantTextNormalized = undefined;
+      state.lastAssistantTextTrimmed = undefined;
+    }
+    state.hadToolSinceLastText = false;
     state.assistantTextBaseline = nextAssistantTextBaseline;
   };
 
