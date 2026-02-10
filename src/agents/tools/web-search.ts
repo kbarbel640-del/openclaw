@@ -518,9 +518,9 @@ async function runTavilySearch(params: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${params.apiKey}`,
     },
     body: JSON.stringify({
+      api_key: params.apiKey,
       query: params.query,
       max_results: params.count,
       search_depth: "basic",
