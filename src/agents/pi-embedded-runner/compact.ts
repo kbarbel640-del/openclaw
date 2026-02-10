@@ -119,7 +119,13 @@ function normalizeMessageContent(messages: Array<{ content?: unknown }>): void {
     }
     if (message.content == null) {
       message.content = [];
+      continue;
     }
+    if (typeof message.content === "object") {
+      message.content = [message.content];
+      continue;
+    }
+    message.content = [];
   }
 }
 
