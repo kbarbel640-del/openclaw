@@ -1,3 +1,5 @@
+import { DEFAULT_SENSITIVE_KEY_PATTERNS, isSensitiveKey } from "./sensitive.js";
+
 export const GROUP_LABELS: Record<string, string> = {
   wizard: "Wizard",
   update: "Update",
@@ -731,8 +733,8 @@ export const FIELD_PLACEHOLDERS: Record<string, string> = {
   "agents.list[].identity.avatar": "avatars/openclaw.png",
 };
 
-export const SENSITIVE_PATTERNS = [/token/i, /password/i, /secret/i, /api.?key/i];
+export const SENSITIVE_PATTERNS = DEFAULT_SENSITIVE_KEY_PATTERNS;
 
 export function isSensitivePath(path: string): boolean {
-  return SENSITIVE_PATTERNS.some((pattern) => pattern.test(path));
+  return isSensitiveKey(path);
 }

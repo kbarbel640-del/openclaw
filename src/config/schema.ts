@@ -1,5 +1,6 @@
 import { CHANNEL_IDS } from "../channels/registry.js";
 import { VERSION } from "../version.js";
+import { isSensitiveKey } from "./sensitive.js";
 import { OpenClawSchema } from "./zod-schema.js";
 
 export type ConfigUiHint = {
@@ -778,10 +779,8 @@ const FIELD_PLACEHOLDERS: Record<string, string> = {
   "agents.list[].identity.avatar": "avatars/openclaw.png",
 };
 
-const SENSITIVE_PATTERNS = [/token/i, /password/i, /secret/i, /api.?key/i];
-
 function isSensitivePath(path: string): boolean {
-  return SENSITIVE_PATTERNS.some((pattern) => pattern.test(path));
+  return isSensitiveKey(path);
 }
 
 type JsonSchemaObject = JsonSchemaNode & {
