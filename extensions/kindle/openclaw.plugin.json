@@ -1,0 +1,20 @@
+{
+  "id": "kindle",
+  "name": "Kindle Highlights",
+  "description": "Search and browse your Kindle book highlights and notes.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "clippingsPath": { "type": "string" }
+    },
+    "required": ["clippingsPath"]
+  },
+  "uiHints": {
+    "clippingsPath": {
+      "label": "Clippings File Path",
+      "placeholder": "/Volumes/Kindle/documents/My Clippings.txt",
+      "help": "Path to your Kindle 'My Clippings.txt' file"
+    }
+  }
+}
