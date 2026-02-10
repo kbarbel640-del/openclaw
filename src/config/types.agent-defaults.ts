@@ -211,6 +211,19 @@ export type AgentDefaultsConfig = {
     /** Default thinking level for spawned sub-agents (e.g. "off", "low", "medium", "high"). */
     thinking?: string;
   };
+  /** Pre-prompt hook: runs an external command before each agent turn and injects output as context. */
+  prePromptHook?: {
+    /** Enable the pre-prompt hook. */
+    enabled: boolean;
+    /** Shell command to run. Use {{lastUserMessage}} as a placeholder for the user's message. */
+    command: string;
+    /** Timeout in milliseconds (default: 5000). */
+    timeoutMs?: number;
+    /** Max tokens budget for injected context (default: 2000, ~8KB). */
+    maxTokens?: number;
+    /** Where to inject the hook output: after the system prompt or before the user message. */
+    position?: "afterSystem" | "beforeUser";
+  };
   /** Optional sandbox settings for non-main sessions. */
   sandbox?: {
     /** Enable sandboxing for sessions. */

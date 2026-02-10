@@ -156,6 +156,16 @@ export const AgentDefaultsSchema = z
       })
       .strict()
       .optional(),
+    prePromptHook: z
+      .object({
+        enabled: z.boolean(),
+        command: z.string(),
+        timeoutMs: z.number().int().positive().optional(),
+        maxTokens: z.number().int().positive().optional(),
+        position: z.union([z.literal("afterSystem"), z.literal("beforeUser")]).optional(),
+      })
+      .strict()
+      .optional(),
     sandbox: z
       .object({
         mode: z.union([z.literal("off"), z.literal("non-main"), z.literal("all")]).optional(),

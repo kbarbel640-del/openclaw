@@ -748,6 +748,33 @@ export async function runEmbeddedAttempt(
           }
         }
 
+        // Run pre-prompt hook (vector embedding / external context injection)
+        const prePromptHookConfig = params.config?.agents?.defaults?.prePromptHook;
+        if (prePromptHookConfig?.enabled) {
+          try {
+            const { runPrePromptHook } = await import("../../../infra/pre-prompt-hook.js");
+            const hookOutput = runPrePromptHook(prePromptHookConfig, effectivePrompt);
+            if (hookOutput) {
+              const position = prePromptHookConfig.position ?? "afterSystem";
+              if (position === "beforeUser") {
+                effectivePrompt = `${hookOutput}\n\n${effectivePrompt}`;
+              } else {
+                // "afterSystem" — append to the system prompt override
+                const currentSystem = systemPromptOverride();
+                applySystemPromptOverrideToSession(
+                  activeSession,
+                  currentSystem + "\n\n" + hookOutput,
+                );
+              }
+              log.debug(
+                `prePromptHook: injected ${hookOutput.length} chars (position=${position})`,
+              );
+            }
+          } catch (hookErr) {
+            log.warn(`prePromptHook failed: ${String(hookErr)}`);
+          }
+        }
+
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
         cacheTrace?.recordStage("prompt:before", {
           prompt: effectivePrompt,
