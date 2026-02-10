@@ -18,7 +18,10 @@ import {
 import { normalizeAgentId } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
-import { normalizeSessionDeliveryFields } from "../../utils/delivery-context.js";
+import {
+  normalizeDeliveryContext,
+  normalizeSessionDeliveryFields,
+} from "../../utils/delivery-context.js";
 import {
   INTERNAL_MESSAGE_CHANNEL,
   isDeliverableMessageChannel,
@@ -237,6 +240,17 @@ export const agentHandlers: GatewayRequestHandlers = {
       resolvedGroupChannel = resolvedGroupChannel || inheritedGroup?.groupChannel;
       resolvedGroupSpace = resolvedGroupSpace || inheritedGroup?.groupSpace;
       const deliveryFields = normalizeSessionDeliveryFields(entry);
+      // Build explicit delivery context from request parameters (for cron/subagent announce)
+      const explicitDeliveryContext =
+        request.channel || request.to
+          ? normalizeDeliveryContext({
+              channel: request.channel,
+              to: request.to,
+              accountId: request.accountId,
+              threadId: request.threadId,
+            })
+          : undefined;
+
       const nextEntry: SessionEntry = {
         sessionId,
         updatedAt: now,
@@ -246,10 +260,13 @@ export const agentHandlers: GatewayRequestHandlers = {
         systemSent: entry?.systemSent,
         sendPolicy: entry?.sendPolicy,
         skillsSnapshot: entry?.skillsSnapshot,
-        deliveryContext: deliveryFields.deliveryContext,
-        lastChannel: deliveryFields.lastChannel ?? entry?.lastChannel,
-        lastTo: deliveryFields.lastTo ?? entry?.lastTo,
-        lastAccountId: deliveryFields.lastAccountId ?? entry?.lastAccountId,
+        // Use explicit delivery context from request if provided (cron/subagent announce),
+        // otherwise fall back to session's stored delivery context
+        deliveryContext: explicitDeliveryContext ?? deliveryFields.deliveryContext,
+        lastChannel: explicitDeliveryContext?.channel ?? deliveryFields.lastChannel ?? entry?.lastChannel,
+        lastTo: explicitDeliveryContext?.to ?? deliveryFields.lastTo ?? entry?.lastTo,
+        lastAccountId:
+          explicitDeliveryContext?.accountId ?? deliveryFields.lastAccountId ?? entry?.lastAccountId,
         modelOverride: entry?.modelOverride,
         providerOverride: entry?.providerOverride,
         label: labelValue,
