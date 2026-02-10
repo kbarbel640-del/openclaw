@@ -431,6 +431,8 @@ export async function compactEmbeddedPiSessionDirect(
         const validated = transcriptPolicy.validateAnthropicTurns
           ? validateAnthropicTurns(validatedGemini)
           : validatedGemini;
+        // Capture full message history BEFORE limiting — plugins need the complete conversation
+        const preCompactionMessages = [...session.messages];
         const truncated = limitHistoryTurns(
           validated,
           getDmHistoryLimitFromSessionKey(params.sessionKey, params.config),
@@ -457,8 +459,8 @@ export async function compactEmbeddedPiSessionDirect(
           try {
             await hookRunner.runBeforeCompaction(
               {
-                messageCount: limited.length,
-                messages: [...session.messages],
+                messageCount: preCompactionMessages.length,
+                messages: preCompactionMessages,
               },
               hookCtx,
             );
