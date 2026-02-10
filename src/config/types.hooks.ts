@@ -14,6 +14,8 @@ export type HookMappingConfig = {
   action?: "wake" | "agent";
   wakeMode?: "now" | "next-heartbeat";
   name?: string;
+  /** Route this hook to a specific agent (must exist in agents.list). */
+  agentId?: string;
   sessionKey?: string;
   messageTemplate?: string;
   textTemplate?: string;
