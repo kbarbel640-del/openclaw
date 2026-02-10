@@ -8,7 +8,7 @@ import { stylePromptTitle } from "../terminal/prompt-style.js";
 import {
   resolveGitHubCopilotEndpoints,
   type GitHubCopilotEndpoints,
-} from "./github-copilot-endpoints.js";
+} from "./github-copilot-token.js";
 
 type DeviceCodeResponse = {
   device_code: string;

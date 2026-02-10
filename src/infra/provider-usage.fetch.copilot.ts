@@ -1,5 +1,5 @@
 import type { ProviderUsageSnapshot, UsageWindow } from "./provider-usage.types.js";
-import { resolveGitHubCopilotEndpoints } from "../providers/github-copilot-endpoints.js";
+import { resolveGitHubCopilotEndpoints } from "../providers/github-copilot-token.js";
 import { fetchJson } from "./provider-usage.fetch.shared.js";
 import { clampPercent, PROVIDER_LABELS } from "./provider-usage.shared.js";
 

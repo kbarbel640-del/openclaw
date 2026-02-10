@@ -1,5 +1,79 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// ── Endpoint tests (no mocks needed) ───────────────────────────────────────
+
+describe("resolveGitHubCopilotEndpoints", () => {
+  it("returns github.com defaults when no host provided", async () => {
+    const { resolveGitHubCopilotEndpoints } = await import("./github-copilot-token.js");
+    const ep = resolveGitHubCopilotEndpoints();
+    expect(ep.host).toBe("github.com");
+    expect(ep.clientId).toBe("Iv1.b507a08c87ecfe98");
+    expect(ep.deviceCodeUrl).toBe("https://github.com/login/device/code");
+    expect(ep.accessTokenUrl).toBe("https://github.com/login/oauth/access_token");
+    expect(ep.copilotTokenUrl).toBe("https://api.github.com/copilot_internal/v2/token");
+    expect(ep.copilotUserUrl).toBe("https://api.github.com/copilot_internal/user");
+    expect(ep.defaultCopilotApiBaseUrl).toBe("https://api.individual.githubcopilot.com");
+  });
+
+  it("returns github.com defaults for explicit 'github.com'", async () => {
+    const { resolveGitHubCopilotEndpoints } = await import("./github-copilot-token.js");
+    const ep = resolveGitHubCopilotEndpoints("github.com");
+    expect(ep.host).toBe("github.com");
+    expect(ep.copilotTokenUrl).toBe("https://api.github.com/copilot_internal/v2/token");
+    expect(ep.defaultCopilotApiBaseUrl).toBe("https://api.individual.githubcopilot.com");
+  });
+
+  it("derives GHE Cloud data residency endpoints from host", async () => {
+    const { resolveGitHubCopilotEndpoints } = await import("./github-copilot-token.js");
+    const ep = resolveGitHubCopilotEndpoints("myorg.ghe.com");
+    expect(ep.host).toBe("myorg.ghe.com");
+    expect(ep.clientId).toBe("Iv1.b507a08c87ecfe98");
+    expect(ep.deviceCodeUrl).toBe("https://myorg.ghe.com/login/device/code");
+    expect(ep.accessTokenUrl).toBe("https://myorg.ghe.com/login/oauth/access_token");
+    expect(ep.copilotTokenUrl).toBe("https://api.myorg.ghe.com/copilot_internal/v2/token");
+    expect(ep.copilotUserUrl).toBe("https://api.myorg.ghe.com/copilot_internal/user");
+    expect(ep.defaultCopilotApiBaseUrl).toBe("https://copilot-api.myorg.ghe.com");
+  });
+
+  it("allows overriding the client ID", async () => {
+    const { resolveGitHubCopilotEndpoints } = await import("./github-copilot-token.js");
+    const ep = resolveGitHubCopilotEndpoints("myorg.ghe.com", "Iv1.custom");
+    expect(ep.clientId).toBe("Iv1.custom");
+  });
+
+  it("trims whitespace from host", async () => {
+    const { resolveGitHubCopilotEndpoints } = await import("./github-copilot-token.js");
+    const ep = resolveGitHubCopilotEndpoints("  myorg.ghe.com  ");
+    expect(ep.host).toBe("myorg.ghe.com");
+  });
+
+  it("treats empty string as github.com", async () => {
+    const { resolveGitHubCopilotEndpoints } = await import("./github-copilot-token.js");
+    const ep = resolveGitHubCopilotEndpoints("");
+    expect(ep.host).toBe("github.com");
+    expect(ep.defaultCopilotApiBaseUrl).toBe("https://api.individual.githubcopilot.com");
+  });
+});
+
+describe("isGitHubDotCom", () => {
+  it("returns true for github.com", async () => {
+    const { isGitHubDotCom } = await import("./github-copilot-token.js");
+    expect(isGitHubDotCom("github.com")).toBe(true);
+  });
+
+  it("returns true for empty string", async () => {
+    const { isGitHubDotCom } = await import("./github-copilot-token.js");
+    expect(isGitHubDotCom("")).toBe(true);
+  });
+
+  it("returns false for GHE Cloud host", async () => {
+    const { isGitHubDotCom } = await import("./github-copilot-token.js");
+    expect(isGitHubDotCom("myorg.ghe.com")).toBe(false);
+  });
+});
+
+// ── Token tests (with mocked fs) ───────────────────────────────────────────
+
 const loadJsonFile = vi.fn();
 const saveJsonFile = vi.fn();
 const resolveStateDir = vi.fn().mockReturnValue("/tmp/openclaw-state");
