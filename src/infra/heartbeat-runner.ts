@@ -523,6 +523,8 @@ export async function runHeartbeatOnce(opts: {
   // to process regardless of HEARTBEAT.md content.
   const isExecEventReason = opts.reason === "exec-event";
   const isCronEventReason = Boolean(opts.reason?.startsWith("cron:"));
+  const { entry, sessionKey, storePath } = resolveHeartbeatSession(cfg, agentId, heartbeat);
+  const hasPendingSystemEvents = peekSystemEvents(sessionKey).length > 0;
   const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
   const heartbeatFilePath = path.join(workspaceDir, DEFAULT_HEARTBEAT_FILENAME);
   try {
@@ -530,7 +532,8 @@ export async function runHeartbeatOnce(opts: {
     if (
       isHeartbeatContentEffectivelyEmpty(heartbeatFileContent) &&
       !isExecEventReason &&
-      !isCronEventReason
+      !isCronEventReason &&
+      !hasPendingSystemEvents
     ) {
       emitHeartbeatEvent({
         status: "skipped",
@@ -543,8 +546,6 @@ export async function runHeartbeatOnce(opts: {
     // File doesn't exist or can't be read - proceed with heartbeat.
     // The LLM prompt says "if it exists" so this is expected behavior.
   }
-
-  const { entry, sessionKey, storePath } = resolveHeartbeatSession(cfg, agentId, heartbeat);
   const previousUpdatedAt = entry?.updatedAt;
   const delivery = resolveHeartbeatDeliveryTarget({ cfg, entry, heartbeat });
   const heartbeatAccountId = heartbeat?.accountId?.trim();
