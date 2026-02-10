@@ -38,6 +38,9 @@ const { computeBackoff, sleepWithAbort } = vi.hoisted(() => ({
   computeBackoff: vi.fn(() => 0),
   sleepWithAbort: vi.fn(async () => undefined),
 }));
+const { startTelegramWebhookSpy } = vi.hoisted(() => ({
+  startTelegramWebhookSpy: vi.fn(async () => undefined),
+}));
 
 vi.mock("../config/config.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../config/config.js")>();
@@ -89,6 +92,10 @@ vi.mock("../auto-reply/reply.js", () => ({
   }),
 }));
 
+vi.mock("./webhook.js", () => ({
+  startTelegramWebhook: (...args: unknown[]) => startTelegramWebhookSpy(...args),
+}));
+
 describe("monitorTelegramProvider (grammY)", () => {
   beforeEach(() => {
     loadConfig.mockReturnValue({
@@ -99,6 +106,7 @@ describe("monitorTelegramProvider (grammY)", () => {
     runSpy.mockClear();
     computeBackoff.mockClear();
     sleepWithAbort.mockClear();
+    startTelegramWebhookSpy.mockClear();
   });
 
   it("processes a DM and sends reply", async () => {
@@ -186,5 +194,35 @@ describe("monitorTelegramProvider (grammY)", () => {
     }));
 
     await expect(monitorTelegramProvider({ token: "tok" })).rejects.toThrow("bad token");
+  });
+
+  it("rejects webhook mode without webhook secret", async () => {
+    await expect(
+      monitorTelegramProvider({
+        token: "tok",
+        useWebhook: true,
+      }),
+    ).rejects.toThrow('requires webhookSecret for account "default"');
+    expect(startTelegramWebhookSpy).not.toHaveBeenCalled();
+  });
+
+  it("starts webhook mode when webhook secret is provided", async () => {
+    await monitorTelegramProvider({
+      token: "tok",
+      useWebhook: true,
+      webhookSecret: "secret",
+      webhookPath: "/tg",
+      webhookPort: 9876,
+      webhookUrl: "https://example.com/tg",
+    });
+
+    expect(startTelegramWebhookSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret: "secret",
+        path: "/tg",
+        port: 9876,
+        publicUrl: "https://example.com/tg",
+      }),
+    );
   });
 });

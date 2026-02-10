@@ -151,13 +151,20 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
     });
 
     if (opts.useWebhook) {
+      const webhookSecret = opts.webhookSecret?.trim();
+      if (!webhookSecret) {
+        throw new Error(
+          `Telegram webhook mode requires webhookSecret for account "${account.accountId}"`,
+        );
+      }
+
       await startTelegramWebhook({
         token,
         accountId: account.accountId,
         config: cfg,
         path: opts.webhookPath,
         port: opts.webhookPort,
-        secret: opts.webhookSecret,
+        secret: webhookSecret,
         runtime: opts.runtime as RuntimeEnv,
         fetch: proxyFetch,
         abortSignal: opts.abortSignal,

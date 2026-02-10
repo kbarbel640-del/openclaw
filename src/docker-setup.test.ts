@@ -125,6 +125,9 @@ describe("docker-setup.sh", () => {
     const assocCheck = spawnSync(systemBash, ["-c", "declare -A _t=()"], {
       encoding: "utf8",
     });
+    if (assocCheck.error?.code === "ENOENT") {
+      return;
+    }
     if (assocCheck.status === 0) {
       return;
     }
@@ -139,6 +142,9 @@ describe("docker-setup.sh", () => {
       env,
       encoding: "utf8",
     });
+    if (result.error?.code === "ENOENT") {
+      return;
+    }
 
     expect(result.status).toBe(0);
     expect(result.stderr).not.toContain("declare: -A: invalid option");
