@@ -333,6 +333,7 @@ export function createGatewayHttpServer(opts: {
     try {
       const configSnapshot = loadConfig();
       const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
+      const requestPath = new URL(req.url ?? "/", "http://localhost").pathname;
       if (await handleHooksRequest(req, res)) {
         return;
       }
@@ -347,8 +348,23 @@ export function createGatewayHttpServer(opts: {
       if (await handleSlackHttpRequest(req, res)) {
         return;
       }
-      if (handlePluginRequest && (await handlePluginRequest(req, res))) {
-        return;
+      if (handlePluginRequest) {
+        if (requestPath.startsWith("/api/channels/")) {
+          const token = getBearerToken(req);
+          const authResult = await authorizeGatewayConnect({
+            auth: resolvedAuth,
+            connectAuth: token ? { token, password: token } : null,
+            req,
+            trustedProxies,
+          });
+          if (!authResult.ok) {
+            sendUnauthorized(res);
+            return;
+          }
+        }
+        if (await handlePluginRequest(req, res)) {
+          return;
+        }
       }
       if (openResponsesEnabled) {
         if (
@@ -372,8 +388,7 @@ export function createGatewayHttpServer(opts: {
         }
       }
       if (canvasHost) {
-        const url = new URL(req.url ?? "/", "http://localhost");
-        if (isCanvasPath(url.pathname)) {
+        if (isCanvasPath(requestPath)) {
           const ok = await authorizeCanvasRequest({
             req,
             auth: resolvedAuth,
