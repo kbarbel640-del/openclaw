@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPinnedLookup, resolvePinnedHostname } from "./ssrf.js";
+import { createPinnedLookup, isPrivateIpAddress, resolvePinnedHostname } from "./ssrf.js";
 
 describe("ssrf pinning", () => {
   it("pins resolved addresses for the target hostname", async () => {
@@ -42,6 +42,18 @@ describe("ssrf pinning", () => {
   it("rejects private DNS results", async () => {
     const lookup = vi.fn(async () => [{ address: "10.0.0.8", family: 4 }]);
     await expect(resolvePinnedHostname("example.com", lookup)).rejects.toThrow(/private|internal/i);
+  });
+
+  it("does not treat numeric/hex IPv4 hostname forms as IP literals (documented gap)", () => {
+    expect(isPrivateIpAddress("2130706433")).toBe(false); // 127.0.0.1 in decimal
+    expect(isPrivateIpAddress("0x7f000001")).toBe(false); // 127.0.0.1 in hex
+  });
+
+  it("rejects numeric/hex hostname forms when DNS resolves to private IPs", async () => {
+    const lookup = vi.fn(async () => [{ address: "127.0.0.1", family: 4 }]);
+
+    await expect(resolvePinnedHostname("2130706433", lookup)).rejects.toThrow(/private|internal/i);
+    await expect(resolvePinnedHostname("0x7f000001", lookup)).rejects.toThrow(/private|internal/i);
   });
 
   it("falls back for non-matching hostnames", async () => {
