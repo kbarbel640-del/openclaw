@@ -4,6 +4,7 @@ import {
   Loader,
   ProcessTerminal,
   Text,
+  truncateToWidth,
   TUI,
 } from "@mariozechner/pi-tui";
 import type {
@@ -319,14 +320,15 @@ export async function runTui(opts: TuiOptions) {
 
   currentSessionKey = resolveSessionKey(initialSessionInput);
 
+  const getTerminalWidth = () => process.stdout.columns ?? 80;
+
   const updateHeader = () => {
     const sessionLabel = formatSessionKey(currentSessionKey);
     const agentLabel = formatAgentLabel(currentAgentId);
-    header.setText(
-      theme.header(
-        `openclaw tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`,
-      ),
+    const headerStr = theme.header(
+      `openclaw tui - ${client.connection.url} - agent ${agentLabel} - session ${sessionLabel}`,
     );
+    header.setText(truncateToWidth(headerStr, getTerminalWidth()));
   };
 
   const busyStates = new Set(["sending", "waiting", "streaming", "running"]);
@@ -499,11 +501,13 @@ export async function runTui(opts: TuiOptions) {
       ? `${sessionKeyLabel} (${sessionInfo.displayName})`
       : sessionKeyLabel;
     const agentLabel = formatAgentLabel(currentAgentId);
-    const modelLabel = sessionInfo.model
+    const rawModelLabel = sessionInfo.model
       ? sessionInfo.modelProvider
         ? `${sessionInfo.modelProvider}/${sessionInfo.model}`
         : sessionInfo.model
       : "unknown";
+    const modelLabel =
+      rawModelLabel.length > 40 ? `…${rawModelLabel.slice(-(39))}` : rawModelLabel;
     const tokens = formatTokens(sessionInfo.totalTokens ?? null, sessionInfo.contextTokens ?? null);
     const think = sessionInfo.thinkingLevel ?? "off";
     const verbose = sessionInfo.verboseLevel ?? "off";
@@ -519,7 +523,7 @@ export async function runTui(opts: TuiOptions) {
       reasoningLabel,
       tokens,
     ].filter(Boolean);
-    footer.setText(theme.dim(footerParts.join(" | ")));
+    footer.setText(truncateToWidth(theme.dim(footerParts.join(" | ")), getTerminalWidth()));
   };
 
   const { openOverlay, closeOverlay } = createOverlayHandlers(tui, editor);
