@@ -17,6 +17,7 @@ import type {
 import { resolveAgentDir, resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
 import { resolveMemorySearchConfig } from "../agents/memory-search.js";
 import { resolveSessionTranscriptsDirForAgent } from "../config/sessions/paths.js";
+import { logVerbose, shouldLogVerbose } from "../globals.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { onSessionTranscriptUpdate } from "../sessions/transcript-events.js";
 import { resolveUserPath } from "../utils.js";
@@ -2318,6 +2319,47 @@ export class MemoryIndexManager implements MemorySearchManager {
     const chunks = chunkMarkdown(content, this.settings.chunking).filter(
       (chunk) => chunk.text.trim().length > 0,
     );
+
+    if (shouldLogVerbose()) {
+      const totalLines = content.split("\n").length;
+      const totalBytes = Buffer.byteLength(content, "utf-8");
+      const avgChunkSize = chunks.length > 0 ? Math.round(totalBytes / chunks.length) : 0;
+      let minChunkSize = Infinity;
+      let maxChunkSize = 0;
+      for (const chunk of chunks) {
+        const size = Buffer.byteLength(chunk.text, "utf-8");
+        if (size < minChunkSize) {
+          minChunkSize = size;
+        }
+        if (size > maxChunkSize) {
+          maxChunkSize = size;
+        }
+      }
+      if (chunks.length === 0) {
+        minChunkSize = 0;
+        maxChunkSize = 0;
+      }
+      const avgLinesPerChunk = chunks.length > 0 ? Math.round(totalLines / chunks.length) : 0;
+
+      const maxChars = Math.max(32, this.settings.chunking.tokens * 4);
+      const maxLinesConfig =
+        typeof this.settings.chunking.maxLines === "number"
+          ? `, maxLines=${this.settings.chunking.maxLines}`
+          : "";
+      logVerbose(`📄 ${entry.path}`);
+      logVerbose(
+        `   Chunks: ${chunks.length} from ${totalLines} lines (~${avgLinesPerChunk} lines/chunk)`,
+      );
+      logVerbose(
+        `   Size: ${totalBytes} bytes (avg=${avgChunkSize}, min=${minChunkSize}, max=${maxChunkSize})`,
+      );
+      logVerbose(
+        `   Config: maxChars=${maxChars} (tokens=${this.settings.chunking.tokens}${maxLinesConfig})`,
+      );
+      if (avgLinesPerChunk > 20) {
+        logVerbose(`   ⚠️  Many lines per chunk - consider setting lower maxLines for granularity`);
+      }
+    }
     const embeddings = this.batch.enabled
       ? await this.embedChunksWithBatch(chunks, entry, options.source)
       : await this.embedChunksInBatches(chunks);

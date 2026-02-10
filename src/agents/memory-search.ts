@@ -42,6 +42,7 @@ export type ResolvedMemorySearchConfig = {
   chunking: {
     tokens: number;
     overlap: number;
+    maxLines?: number;
   };
   sync: {
     onSessionStart: boolean;
@@ -194,6 +195,7 @@ function mergeConfig(
   const chunking = {
     tokens: overrides?.chunking?.tokens ?? defaults?.chunking?.tokens ?? DEFAULT_CHUNK_TOKENS,
     overlap: overrides?.chunking?.overlap ?? defaults?.chunking?.overlap ?? DEFAULT_CHUNK_OVERLAP,
+    maxLines: overrides?.chunking?.maxLines ?? defaults?.chunking?.maxLines,
   };
   const sync = {
     onSessionStart: overrides?.sync?.onSessionStart ?? defaults?.sync?.onSessionStart ?? true,
@@ -252,6 +254,10 @@ function mergeConfig(
   const candidateMultiplier = clampInt(hybrid.candidateMultiplier, 1, 20);
   const deltaBytes = clampInt(sync.sessions.deltaBytes, 0, Number.MAX_SAFE_INTEGER);
   const deltaMessages = clampInt(sync.sessions.deltaMessages, 0, Number.MAX_SAFE_INTEGER);
+  const maxLines =
+    typeof chunking.maxLines === "number" && Number.isFinite(chunking.maxLines)
+      ? Math.max(1, Math.floor(chunking.maxLines))
+      : undefined;
   return {
     enabled,
     sources,
@@ -265,7 +271,11 @@ function mergeConfig(
     model,
     local,
     store,
-    chunking: { tokens: Math.max(1, chunking.tokens), overlap },
+    chunking: {
+      tokens: Math.max(1, chunking.tokens),
+      overlap,
+      maxLines,
+    },
     sync: {
       ...sync,
       sessions: {

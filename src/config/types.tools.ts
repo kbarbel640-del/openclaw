@@ -284,6 +284,7 @@ export type MemorySearchConfig = {
   chunking?: {
     tokens?: number;
     overlap?: number;
+    maxLines?: number;
   };
   /** Sync behavior. */
   sync?: {
