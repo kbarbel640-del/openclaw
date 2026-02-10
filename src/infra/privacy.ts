@@ -86,7 +86,7 @@ export function scrubPIIWithConfig(text: string): string {
 /**
  * Scrub PII in a list of agent messages.
  */
-export function scrubPIIInMessages<T extends { content?: unknown }>(messages: T[]): T[] {
+export function scrubPIIInMessages<T>(messages: T[]): T[] {
   try {
     const config = loadConfig();
     const privacy = config.security?.privacy;
@@ -102,20 +102,25 @@ export function scrubPIIInMessages<T extends { content?: unknown }>(messages: T[
         return msg;
       }
 
-      const next = { ...(msg as Record<string, unknown>) };
+      const next = { ...(msg as any) };
       if (typeof next.content === "string") {
         next.content = scrubPII(next.content, patterns);
       } else if (Array.isArray(next.content)) {
-        next.content = next.content.map((block: unknown) => {
+        next.content = next.content.map((block: any) => {
           if (block && typeof block === "object") {
-            const b = block as Record<string, unknown>;
-            if (b.type === "text" && typeof b.text === "string") {
-              return { ...b, text: scrubPII(b.text, patterns) };
+            if (block.type === "text" && typeof block.text === "string") {
+              return { ...block, text: scrubPII(block.text, patterns) };
             }
           }
           return block;
         });
       }
+
+      // Also check top-level 'text' property which some message types use
+      if (typeof next.text === "string") {
+        next.text = scrubPII(next.text, patterns);
+      }
+
       return next as T;
     });
   } catch {
