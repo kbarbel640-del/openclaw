@@ -119,6 +119,21 @@ Avoid Funnel for browser control; treat node pairing like operator access.
 - Funnel only supports ports `443`, `8443`, and `10000` over TLS.
 - Funnel on macOS requires the open-source Tailscale app variant.
 
+## Certificate warning on https://&lt;host&gt;.ts.net
+
+If the browser shows "Your connection is not private" or "NET::ERR_CERT_AUTHORITY_INVALID" when opening `https://openclaw-gateway.tail5587.ts.net/` (or your Serve URL), Tailscale is not yet issuing a trusted TLS certificate for your tailnet.
+
+**Fix (Tailscale admin, not OpenClaw):**
+
+1. Open [Tailscale Admin Console](https://login.tailscale.com/admin/dns) → **DNS**.
+2. Enable **MagicDNS** if it is not already on.
+3. Under **HTTPS Certificates**, select **Enable HTTPS**.
+4. Accept that machine names will appear in the public Certificate Transparency log.
+
+After this, Tailscale will provision a Let's Encrypt certificate for your `*.ts.net` hostnames. Reload the Serve URL; the warning should disappear. If the machine was just added or renamed, wait a minute for the certificate to be issued.
+
+To confirm certificate status: Admin Console → **Machines** → select the gateway machine → check **TLS certificate** (Valid / Invalid / No certificate found).
+
 ## Learn more
 
 - Tailscale Serve overview: [https://tailscale.com/kb/1312/serve](https://tailscale.com/kb/1312/serve)

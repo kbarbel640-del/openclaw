@@ -112,6 +112,22 @@ docker compose run --rm openclaw-cli devices approve <requestId>
 
 More detail: [Dashboard](/web/dashboard), [Devices](/cli/devices).
 
+### Connecting openclaw-cli to the gateway
+
+When you run `docker compose run --rm openclaw-cli status` (or any CLI command), the CLI runs in a **separate container**. It cannot reach the gateway at `127.0.0.1:18789` (that would be the CLI container’s own loopback). The Compose file sets `OPENCLAW_GATEWAY_URL=ws://openclaw-gateway:18789` for the CLI service so it connects to the gateway container over the Compose network.
+
+- **From host**: Use `http://127.0.0.1:18789/` (port is published).
+- **From another container in the same Compose stack**: Use `OPENCLAW_GATEWAY_URL=ws://openclaw-gateway:18789` (default for `openclaw-cli`).
+- **Override**: Set `OPENCLAW_GATEWAY_URL` in `.env` or when running (e.g. `OPENCLAW_GATEWAY_URL=ws://host.docker.internal:18789 docker compose run --rm openclaw-cli status`).
+
+### Security audit warnings (Docker)
+
+After `openclaw status` or `openclaw security audit` you may see:
+
+1. **Reverse proxy headers are not trusted** — Shown when Control UI is enabled and `gateway.trustedProxies` is empty. For a local-only Docker setup, add to your config (e.g. in `OPENCLAW_CONFIG_DIR` / `~/.openclaw/openclaw.json`): `"gateway": { "controlUi": { "localOnly": true } }` to suppress this warning.
+2. **Credentials dir is readable by others** — The gateway entrypoint ensures `/home/node/.openclaw/credentials` is created with mode `700`. If the directory was created earlier by another process with looser permissions, run once: `chmod 700 "$OPENCLAW_CONFIG_DIR/credentials"` on the host (or recreate the config volume).
+3. **Certificate warning on https://&lt;host&gt;.ts.net** — When using Tailscale Serve from Docker, the browser may show "Your connection is not private" until **HTTPS Certificates** are enabled for your tailnet. In [Tailscale Admin](https://login.tailscale.com/admin/dns) → DNS → **HTTPS Certificates** → Enable HTTPS. See [Tailscale (certificate warning)](/gateway/tailscale#certificate-warning-on-httphosttsnet).
+
 ### Extra mounts (optional)
 
 If you want to mount additional host directories into the containers, set

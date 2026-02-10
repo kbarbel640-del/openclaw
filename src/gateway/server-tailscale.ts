@@ -23,19 +23,34 @@ export async function startGatewayTailscaleExposure(params: {
     } else {
       await enableTailscaleFunnel(params.port);
     }
-    const host = await getTailnetHostname().catch(() => null);
+    // Daemon may need a moment to expose status after serve/funnel; retry with short delay.
+    let host: string | null = await getTailnetHostname().catch(() => null);
+    if (!host) {
+      await new Promise((r) => setTimeout(r, 2000));
+      host = await getTailnetHostname().catch(() => null);
+    }
     if (host) {
       const uiPath = params.controlUiBasePath ? `${params.controlUiBasePath}/` : "/";
       params.logTailscale.info(
         `${params.tailscaleMode} enabled: https://${host}${uiPath} (WS via wss://${host})`,
       );
     } else {
-      params.logTailscale.info(`${params.tailscaleMode} enabled`);
+      params.logTailscale.info(
+        `${params.tailscaleMode} enabled (run \`tailscale status\` to see this machine's hostname)`,
+      );
     }
   } catch (err) {
-    params.logTailscale.warn(
-      `${params.tailscaleMode} failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    const msg = err instanceof Error ? err.message : String(err);
+    const daemonDown =
+      /connection refused|not running|dial unix.*connect/i.test(msg) ||
+      (msg.includes("serve") && msg.includes("Failed to connect"));
+    if (daemonDown) {
+      params.logTailscale.info(
+        `Tailscale ${params.tailscaleMode} skipped (daemon not running). Gateway is available on LAN/loopback.`,
+      );
+    } else {
+      params.logTailscale.warn(`${params.tailscaleMode} failed: ${msg}`);
+    }
   }
 
   if (!params.resetOnExit) {

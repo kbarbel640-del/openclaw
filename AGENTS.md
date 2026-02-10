@@ -65,6 +65,21 @@
 - Format fix: `pnpm format:fix` (oxfmt --write)
 - Tests: `pnpm test` (vitest); coverage: `pnpm test:coverage`
 
+## Agent: proactive follow-through
+
+- **做完變更就主動跑後續步驟**：凡變更需要 build/test/重啟等才能生效或驗證的，同一輪內直接執行該步驟，不要只寫「請再執行 xxx」。
+- **範例**：改 Dockerfile → 執行 `docker compose build`；若使用者剛才在起服務，再執行 `docker compose up -d`。改程式/邏輯 → 執行 `pnpm build && pnpm check && pnpm test`（或對應範圍的 test）。修完錯誤後自動重跑前一步（如 build 或 test），通過才視為完成。
+- **失敗就修再跑**：若 build/test 失敗，依錯誤修正後重跑，直到通過或需使用者決策為止；完成時簡短回報結果與有無後續建議。
+
+## Docker image & compose
+
+- **專案內任何會影響執行環境的變更，都要重新套用到執行環境**：不論改的是程式碼、設定、Dockerfile、compose、PATH、ENV、volume、entrypoint 等，只要後續需要在容器/執行環境中生效，就要完成對應的套用步驟（例如：改映像則重建 image、改 compose 則更新並重啟服務），不要只改檔案不套用。
+- **套用後必須自動執行驗證**：套用完成後要主動跑對應驗證（例如改映像後執行 `docker compose build`，再以 `docker compose run --rm --entrypoint sh openclaw-cli -c "which brew && brew --version"` 確認 PATH/指令可用；改程式則跑 `pnpm build && pnpm check && pnpm test`），驗證通過才視為完成，不得只套用不驗證。
+- **映像與 compose 雙處一致**：改動 `Dockerfile` 或 `docker-compose.yml` 任一方時，檢查並同步另一邊（例如新增系統套件、PATH、ENV、volume、command/entrypoint），避免 build 與 run 行為不一致。
+- **PATH 特別注意**：在 Dockerfile 新增的執行路徑（例如 Homebrew、gemini CLI），必須同時寫進 `docker-compose.yml` 的 `environment.PATH`（compose 會覆寫 env）；`openclaw-gateway` 與 `openclaw-cli` 兩服務的 PATH 都要更新。
+- **Skills 依賴 brew**：部分 skills（如 1password、goplaces、summarize、openai-whisper）依賴 Homebrew；映像內須已安裝 brew 且其路徑在 PATH 中，否則 skill install 會失敗並提示 "brew not installed"。
+- **掛載原始碼修補核心**：`docker-compose.yml` 已掛載 `.:/app` 與匿名 volume `/app/node_modules`（保留容器內依賴，避免跨平台 binary 不相容）。改程式後在宿主機跑 `pnpm build`、重啟容器即可驗證。權限：容器以 node (UID 1000) 執行，宿主機目錄需允許讀寫。
+
 ## Coding Style & Naming Conventions
 
 - Language: TypeScript (ESM). Prefer strict typing; avoid `any`.
@@ -120,6 +135,7 @@
 
 ## Agent-Specific Notes
 
+- **Issue/bug fixes:** after applying a fix, run `pnpm build && pnpm check && pnpm test`; if any step fails, fix the failure and re-run the full gate. Repeat until all pass before considering the fix done.
 - Vocabulary: "makeup" = "mac app".
 - Never edit `node_modules` (global/Homebrew/npm/git installs too). Updates overwrite. Skill notes go in `tools.md` or `AGENTS.md`.
 - When adding a new `AGENTS.md` anywhere in the repo, also add a `CLAUDE.md` symlink pointing to it (example: `ln -s AGENTS.md CLAUDE.md`).

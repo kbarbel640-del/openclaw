@@ -74,6 +74,8 @@ IDENTITY.md
 USER.md
 .tgz
 .idea
+# Docker persistent brew install (OPENCLAW_BREW_DIR default)
+data/brew/
 
 # local tooling
 .serena/
@@ -83,3 +85,4 @@ USER.md
 .agent/*.json
 !.agent/workflows/
 local/
+/data

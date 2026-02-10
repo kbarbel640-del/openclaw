@@ -112,13 +112,37 @@ export function renderChannelConfigForm(props: ChannelConfigFormProps) {
     `;
   }
   const node = resolveSchemaNode(normalized, ["channels", props.channelId]);
-  if (!node) {
-    return html`
-      <div class="callout danger">Channel config schema unavailable.</div>
-    `;
-  }
   const configValue = props.configValue ?? {};
   const value = resolveChannelValue(configValue, props.channelId);
+
+  if (!node) {
+    // Channel plugin may not be loaded (e.g. in Docker without extension). Show current value
+    // and hint to edit config file or Config → Raw.
+    return html`
+      <div class="callout warning">
+        <p>
+          <strong>Channel config schema unavailable</strong> for this channel (e.g. channel plugin
+          not loaded in this environment). You can edit <code>channels.${props.channelId}</code> in
+          your config file (e.g. openclaw.json) or use <strong>Config → Raw</strong> to edit the
+          full config.
+        </p>
+        ${
+          Object.keys(value).length > 0
+            ? html`
+              <p class="muted" style="margin-top: 8px;">Current value:</p>
+              <pre class="mono" style="margin: 0; padding: 8px; background: var(--bg-muted); border-radius: 4px; overflow: auto; max-height: 200px;">${JSON.stringify(
+                value,
+                null,
+                2,
+              )}</pre>
+            `
+            : null
+        }
+      </div>
+      ${renderExtraChannelFields(value)}
+    `;
+  }
+
   return html`
     <div class="config-form">
       ${renderNode({

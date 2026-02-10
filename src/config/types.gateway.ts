@@ -74,6 +74,8 @@ export type GatewayControlUiConfig = {
   allowInsecureAuth?: boolean;
   /** DANGEROUS: Disable device identity checks for the Control UI (default: false). */
   dangerouslyDisableDeviceAuth?: boolean;
+  /** If true, Control UI is local-only (no reverse proxy); suppresses trustedProxies warning. */
+  localOnly?: boolean;
 };
 
 export type GatewayAuthMode = "token" | "password";

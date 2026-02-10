@@ -91,6 +91,24 @@ describe("security audit", () => {
     );
   });
 
+  it("does not warn trusted proxies when OPENCLAW_GATEWAY_CONTROL_UI_LOCAL_ONLY=1", async () => {
+    const cfg: OpenClawConfig = {
+      gateway: {
+        bind: "loopback",
+        controlUi: { enabled: true },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      env: { OPENCLAW_GATEWAY_CONTROL_UI_LOCAL_ONLY: "1" },
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "gateway.trusted_proxies_missing")).toBe(false);
+  });
+
   it("flags loopback control UI without auth as critical", async () => {
     const cfg: OpenClawConfig = {
       gateway: {

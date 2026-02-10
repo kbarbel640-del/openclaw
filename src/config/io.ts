@@ -234,7 +234,11 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
             timeoutMs: resolveShellEnvFallbackTimeoutMs(deps.env),
           });
         }
-        return {};
+        const empty: OpenClawConfig = {};
+        if (deps.env.OPENCLAW_GATEWAY_CONTROL_UI_LOCAL_ONLY === "1") {
+          empty.gateway = { controlUi: { localOnly: true } };
+        }
+        return empty;
       }
       const raw = deps.fs.readFileSync(configPath, "utf-8");
       const parsed = deps.json5.parse(raw);
@@ -316,6 +320,16 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           logger: deps.logger,
           timeoutMs: cfg.env?.shellEnv?.timeoutMs ?? resolveShellEnvFallbackTimeoutMs(deps.env),
         });
+      }
+
+      if (deps.env.OPENCLAW_GATEWAY_CONTROL_UI_LOCAL_ONLY === "1") {
+        cfg.gateway = {
+          ...cfg.gateway,
+          controlUi: {
+            ...(cfg.gateway as { controlUi?: { localOnly?: boolean } })?.controlUi,
+            localOnly: true,
+          },
+        };
       }
 
       return applyConfigOverrides(cfg);

@@ -21,6 +21,26 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
+ensure_buildx() {
+  if docker buildx version >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "BuildKit/buildx not found. Trying to install docker-buildx-plugin..."
+
+  if command -v sudo >/dev/null 2>&1; then
+    sudo apt-get update && sudo apt-get install -y docker-buildx-plugin || true
+  elif [[ "$(id -u)" -eq 0 ]]; then
+    apt-get update && apt-get install -y docker-buildx-plugin || true
+  fi
+
+  if ! docker buildx version >/dev/null 2>&1; then
+    echo "Docker buildx is required for this Dockerfile (--mount cache)." >&2
+    echo "Please install it manually, e.g.: sudo apt-get install -y docker-buildx-plugin" >&2
+    exit 1
+  fi
+}
+
 OPENCLAW_CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-$HOME/.openclaw}"
 OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
 
@@ -177,22 +197,32 @@ upsert_env "$ENV_FILE" \
   OPENCLAW_DOCKER_APT_PACKAGES
 
 echo "==> Building Docker image: $IMAGE_NAME"
-docker build \
+ensure_buildx
+DOCKER_BUILDKIT=1 docker buildx build \
+  --load \
   --build-arg "OPENCLAW_DOCKER_APT_PACKAGES=${OPENCLAW_DOCKER_APT_PACKAGES}" \
   -t "$IMAGE_NAME" \
   -f "$ROOT_DIR/Dockerfile" \
   "$ROOT_DIR"
 
 echo ""
-echo "==> Onboarding (interactive)"
-echo "When prompted:"
-echo "  - Gateway bind: lan"
-echo "  - Gateway auth: token"
-echo "  - Gateway token: $OPENCLAW_GATEWAY_TOKEN"
-echo "  - Tailscale exposure: Off"
-echo "  - Install Gateway daemon: No"
-echo ""
-docker compose "${COMPOSE_ARGS[@]}" run --rm openclaw-cli onboard --no-install-daemon
+if [[ -n "${OPENCLAW_ONBOARD_NON_INTERACTIVE:-}" ]]; then
+  echo "==> Onboarding (non-interactive)"
+  docker compose "${COMPOSE_ARGS[@]}" run --rm openclaw-cli onboard \
+    --non-interactive --accept-risk --flow quickstart --mode local \
+    --gateway-bind lan --gateway-auth token --gateway-token "$OPENCLAW_GATEWAY_TOKEN" \
+    --tailscale off --skip-daemon --skip-channels --skip-skills --skip-ui --skip-health
+else
+  echo "==> Onboarding (interactive)"
+  echo "When prompted:"
+  echo "  - Gateway bind: lan"
+  echo "  - Gateway auth: token"
+  echo "  - Gateway token: $OPENCLAW_GATEWAY_TOKEN"
+  echo "  - Tailscale exposure: Off"
+  echo "  - Install Gateway daemon: No"
+  echo ""
+  docker compose "${COMPOSE_ARGS[@]}" run --rm openclaw-cli onboard --no-install-daemon
+fi
 
 echo ""
 echo "==> Provider setup (optional)"

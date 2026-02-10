@@ -288,7 +288,15 @@ function collectGatewayConfigFindings(
     });
   }
 
-  if (bind === "loopback" && controlUiEnabled && trustedProxies.length === 0) {
+  const controlUiLocalOnly =
+    cfg.gateway?.controlUi?.localOnly === true ||
+    env.OPENCLAW_GATEWAY_CONTROL_UI_LOCAL_ONLY === "1";
+  if (
+    bind === "loopback" &&
+    controlUiEnabled &&
+    trustedProxies.length === 0 &&
+    !controlUiLocalOnly
+  ) {
     findings.push({
       checkId: "gateway.trusted_proxies_missing",
       severity: "warn",
@@ -298,7 +306,7 @@ function collectGatewayConfigFindings(
         "If you expose the Control UI through a reverse proxy, configure trusted proxies " +
         "so local-client checks cannot be spoofed.",
       remediation:
-        "Set gateway.trustedProxies to your proxy IPs or keep the Control UI local-only.",
+        "Set gateway.trustedProxies to your proxy IPs or set gateway.controlUi.localOnly to true if Control UI is local-only.",
     });
   }
 

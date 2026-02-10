@@ -13,7 +13,7 @@ import type { GatewayTlsRuntime } from "./server/tls.js";
 import type { GatewayWsClient } from "./server/ws-types.js";
 import { CANVAS_HOST_PATH } from "../canvas-host/a2ui.js";
 import { type CanvasHostHandler, createCanvasHostHandler } from "../canvas-host/server.js";
-import { resolveGatewayListenHosts } from "./net.js";
+import { isLoopbackAddress, resolveGatewayListenHosts } from "./net.js";
 import { createGatewayBroadcaster } from "./server-broadcast.js";
 import {
   type ChatRunEntry,
@@ -123,7 +123,10 @@ export async function createGatewayRuntimeState(params: {
     log: params.logPlugins,
   });
 
-  const bindHosts = await resolveGatewayListenHosts(params.bindHost);
+  let bindHosts = await resolveGatewayListenHosts(params.bindHost);
+  if (process.env.OPENCLAW_GATEWAY_ALSO_BIND_LAN === "1" && isLoopbackAddress(params.bindHost)) {
+    bindHosts = ["0.0.0.0"];
+  }
   const httpServers: HttpServer[] = [];
   const httpBindHosts: string[] = [];
   for (const host of bindHosts) {

@@ -105,17 +105,28 @@ export async function findTailscaleBinary(): Promise<string | null> {
 
 export async function getTailnetHostname(exec: typeof runExec = runExec, detectedBinary?: string) {
   // Derive tailnet hostname (or IP fallback) from tailscale status JSON.
-  const candidates = detectedBinary
-    ? [detectedBinary]
-    : ["tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"];
-  let lastError: unknown;
+  // When no custom binary: try getTailscaleBinary + socket args first (Docker TAILSCALE_SOCKET).
+  const defaultCandidates: { bin: string; args: string[] }[] = detectedBinary
+    ? [{ bin: detectedBinary, args: ["status", "--json"] }]
+    : [
+        {
+          bin: await getTailscaleBinary(),
+          args: [...tailscaleSocketArgs(), "status", "--json"],
+        },
+        { bin: "tailscale", args: ["status", "--json"] },
+        {
+          bin: "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+          args: ["status", "--json"],
+        },
+      ];
 
-  for (const candidate of candidates) {
-    if (candidate.startsWith("/") && !existsSync(candidate)) {
+  let lastError: unknown;
+  for (const { bin, args } of defaultCandidates) {
+    if (bin.startsWith("/") && !existsSync(bin)) {
       continue;
     }
     try {
-      const { stdout } = await exec(candidate, ["status", "--json"], {
+      const { stdout } = await exec(bin, args, {
         timeoutMs: 5000,
         maxBuffer: 400_000,
       });
@@ -267,6 +278,12 @@ function isPermissionDeniedError(err: unknown): boolean {
   );
 }
 
+/** CLI args for non-default tailscaled socket (e.g. Docker uses state-dir socket). */
+function tailscaleSocketArgs(): string[] {
+  const socket = process.env.TAILSCALE_SOCKET?.trim();
+  return socket ? ["--socket", socket] : [];
+}
+
 // Helper to attempt a command, and retry with sudo if it fails.
 async function execWithSudoFallback(
   exec: typeof runExec,
@@ -303,7 +320,9 @@ export async function ensureFunnel(
   // Ensure Funnel is enabled and publish the webhook port.
   try {
     const tailscaleBin = await getTailscaleBinary();
-    const statusOut = (await exec(tailscaleBin, ["funnel", "status", "--json"])).stdout.trim();
+    const statusOut = (
+      await exec(tailscaleBin, [...tailscaleSocketArgs(), "funnel", "status", "--json"])
+    ).stdout.trim();
     const parsed = statusOut ? (JSON.parse(statusOut) as Record<string, unknown>) : {};
     if (!parsed || Object.keys(parsed).length === 0) {
       runtime.error(danger("Tailscale Funnel is not enabled on this tailnet/device."));
@@ -331,11 +350,8 @@ export async function ensureFunnel(
     const { stdout } = await execWithSudoFallback(
       exec,
       tailscaleBin,
-      ["funnel", "--yes", "--bg", `${port}`],
-      {
-        maxBuffer: 200_000,
-        timeoutMs: 15_000,
-      },
+      [...tailscaleSocketArgs(), "funnel", "--yes", "--bg", `${port}`],
+      { maxBuffer: 200_000, timeoutMs: 15_000 },
     );
     if (stdout.trim()) {
       console.log(stdout.trim());
@@ -386,15 +402,17 @@ export async function ensureFunnel(
 
 export async function enableTailscaleServe(port: number, exec: typeof runExec = runExec) {
   const tailscaleBin = await getTailscaleBinary();
-  await execWithSudoFallback(exec, tailscaleBin, ["serve", "--bg", "--yes", `${port}`], {
-    maxBuffer: 200_000,
-    timeoutMs: 15_000,
-  });
+  await execWithSudoFallback(
+    exec,
+    tailscaleBin,
+    [...tailscaleSocketArgs(), "serve", "--bg", "--yes", `${port}`],
+    { maxBuffer: 200_000, timeoutMs: 15_000 },
+  );
 }
 
 export async function disableTailscaleServe(exec: typeof runExec = runExec) {
   const tailscaleBin = await getTailscaleBinary();
-  await execWithSudoFallback(exec, tailscaleBin, ["serve", "reset"], {
+  await execWithSudoFallback(exec, tailscaleBin, [...tailscaleSocketArgs(), "serve", "reset"], {
     maxBuffer: 200_000,
     timeoutMs: 15_000,
   });
@@ -402,15 +420,17 @@ export async function disableTailscaleServe(exec: typeof runExec = runExec) {
 
 export async function enableTailscaleFunnel(port: number, exec: typeof runExec = runExec) {
   const tailscaleBin = await getTailscaleBinary();
-  await execWithSudoFallback(exec, tailscaleBin, ["funnel", "--bg", "--yes", `${port}`], {
-    maxBuffer: 200_000,
-    timeoutMs: 15_000,
-  });
+  await execWithSudoFallback(
+    exec,
+    tailscaleBin,
+    [...tailscaleSocketArgs(), "funnel", "--bg", "--yes", `${port}`],
+    { maxBuffer: 200_000, timeoutMs: 15_000 },
+  );
 }
 
 export async function disableTailscaleFunnel(exec: typeof runExec = runExec) {
   const tailscaleBin = await getTailscaleBinary();
-  await execWithSudoFallback(exec, tailscaleBin, ["funnel", "reset"], {
+  await execWithSudoFallback(exec, tailscaleBin, [...tailscaleSocketArgs(), "funnel", "reset"], {
     maxBuffer: 200_000,
     timeoutMs: 15_000,
   });

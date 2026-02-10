@@ -1,45 +1,89 @@
 services:
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        OPENCLAW_DOCKER_APT_PACKAGES: ${OPENCLAW_DOCKER_APT_PACKAGES:-}
     environment:
       HOME: /home/node
+      # 確保 gemini CLI 在 PATH 內（裝在 /app 下，不受 /home/node mount 影響）
+      PATH: /home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/app/.npm-global/bin:/app/.bun/bin:/usr/local/bin:/usr/bin:/bin
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      OPENCLAW_GATEWAY_ALSO_BIND_LAN: "1"
+      # 消除 security audit「Reverse proxy headers are not trusted」警告（Control UI 僅本機/容器內存取）
+      OPENCLAW_GATEWAY_CONTROL_UI_LOCAL_ONLY: "1"
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
+      OPENCLAW_TAILSCALE_AUTOLOGIN: ${OPENCLAW_TAILSCALE_AUTOLOGIN:-0}
+      TAILSCALE_AUTHKEY: ${TAILSCALE_AUTHKEY:-}
+      TAILSCALE_HOSTNAME: ${TAILSCALE_HOSTNAME:-openclaw-gateway}
+      TAILSCALE_SOCKET: ${TAILSCALE_SOCKET:-/home/node/.openclaw/tailscale/tailscaled.sock}
+      TAILSCALE_TUN_MODE: ${TAILSCALE_TUN_MODE:-userspace-networking}
+      TAILSCALE_ACCEPT_ROUTES: ${TAILSCALE_ACCEPT_ROUTES:-0}
     volumes:
+      - .:/app
+      - /app/node_modules
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      # brew 持久化：skill install 的 brew install 會寫入此處；預設 ./data/brew，首次請 mkdir -p data/brew && chown 1000:1000 data/brew
+      - ${OPENCLAW_BREW_DIR:-./data/brew}:/home/linuxbrew
+      # 供 sandbox 在容器內啟動子容器（agent sandbox / sandbox-browser）
+      - /var/run/docker.sock:/var/run/docker.sock
+    # 使容器內 node 能存取 docker.sock；主機 GID 非 999 時設 OPENCLAW_DOCKER_GID（例：getent group docker）
+    group_add:
+      - "${OPENCLAW_DOCKER_GID:-986}"
     ports:
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
     init: true
     restart: unless-stopped
-    command:
-      [
-        "node",
-        "dist/index.js",
-        "gateway",
-        "--bind",
-        "${OPENCLAW_GATEWAY_BIND:-lan}",
-        "--port",
-        "18789",
-      ]
+    # 使用 image 的 entrypoint（scripts/docker-entrypoint.sh）以啟動 tailscaled；TAILSCALE_SOCKET 由 env 傳入
+    # 傳入完整 argv（node + 入口腳本 + 子指令），避免 entrypoint 只收到 "gateway" 時被當成 node 的腳本路徑
+    # OPENCLAW_GATEWAY_ALSO_BIND_LAN=1：gateway 除 loopback 外再監聽 0.0.0.0，讓同 compose 的 openclaw-cli 可連 openclaw-gateway:18789，同時保留 Tailscale serve
+    command: ["node", "/app/openclaw.mjs", "gateway", "--tailscale", "serve"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://127.0.0.1:18789/'', r => process.exit(r.statusCode === 200 ? 0 : 1)).on(''error'', () => process.exit(1))"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   openclaw-cli:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        OPENCLAW_DOCKER_APT_PACKAGES: ${OPENCLAW_DOCKER_APT_PACKAGES:-}
+    depends_on:
+      openclaw-gateway:
+        condition: service_healthy
     environment:
       HOME: /home/node
+      PATH: /home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/app/.npm-global/bin:/app/.bun/bin:/usr/local/bin:/usr/bin:/bin
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      # 讓 CLI 容器連到 gateway 容器（同 compose 網路下用服務名）
+      OPENCLAW_GATEWAY_URL: ${OPENCLAW_GATEWAY_URL:-ws://openclaw-gateway:18789}
+      OPENCLAW_GATEWAY_CONTROL_UI_LOCAL_ONLY: "1"
       BROWSER: echo
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
     volumes:
+      - .:/app
+      - /app/node_modules
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      - ${OPENCLAW_BREW_DIR:-./data/brew}:/home/linuxbrew
     stdin_open: true
     tty: true
     init: true
