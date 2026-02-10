@@ -49,6 +49,12 @@ export type ProfileUsageStats = {
   errorCount?: number;
   failureCounts?: Partial<Record<AuthProfileFailureReason, number>>;
   lastFailureAt?: number;
+  /**
+   * Number of consecutive timeout failures without an intervening success or
+   * non-timeout failure.  Used to escalate cooldown duration when a provider
+   * silently hangs instead of returning a proper 429.
+   */
+  consecutiveTimeouts?: number;
 };
 
 export type AuthProfileStore = {

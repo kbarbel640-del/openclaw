@@ -25,5 +25,21 @@ export type AuthConfig = {
      * this window, counters reset. Default: 24.
      */
     failureWindowHours?: number;
+    /**
+     * Number of consecutive timeouts before escalated cooldown kicks in.
+     * Default: 2.
+     */
+    timeoutEscalationThreshold?: number;
+    /**
+     * Cooldown duration (minutes) applied when consecutive timeouts reach the
+     * escalation threshold.  Default: 15.
+     */
+    timeoutEscalationMinutes?: number;
+    /**
+     * Maximum cooldown (minutes) for escalated consecutive timeouts.
+     * Applied when consecutive timeouts exceed the threshold by more than 1.
+     * Default: 30.
+     */
+    timeoutEscalationMaxMinutes?: number;
   };
 };

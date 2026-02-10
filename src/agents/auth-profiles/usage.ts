@@ -50,6 +50,7 @@ export async function markAuthProfileUsed(params: {
         disabledUntil: undefined,
         disabledReason: undefined,
         failureCounts: undefined,
+        consecutiveTimeouts: undefined,
       };
       return true;
     },
@@ -71,6 +72,7 @@ export async function markAuthProfileUsed(params: {
     disabledUntil: undefined,
     disabledReason: undefined,
     failureCounts: undefined,
+    consecutiveTimeouts: undefined,
   };
   saveAuthProfileStore(store, agentDir);
 }
@@ -87,6 +89,9 @@ type ResolvedAuthCooldownConfig = {
   billingBackoffMs: number;
   billingMaxMs: number;
   failureWindowMs: number;
+  timeoutEscalationThreshold: number;
+  timeoutEscalationMs: number;
+  timeoutEscalationMaxMs: number;
 };
 
 function resolveAuthCooldownConfig(params: {
@@ -126,10 +131,25 @@ function resolveAuthCooldownConfig(params: {
     defaults.failureWindowHours,
   );
 
+  const resolvePositiveInt = (value: unknown, fallback: number) =>
+    typeof value === "number" && Number.isFinite(value) && value >= 1
+      ? Math.round(value)
+      : fallback;
+
+  const resolvePositive = (value: unknown, fallback: number) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+
+  const timeoutEscalationThreshold = resolvePositiveInt(cooldowns?.timeoutEscalationThreshold, 2);
+  const timeoutEscalationMinutes = resolvePositive(cooldowns?.timeoutEscalationMinutes, 15);
+  const timeoutEscalationMaxMinutes = resolvePositive(cooldowns?.timeoutEscalationMaxMinutes, 30);
+
   return {
     billingBackoffMs: billingBackoffHours * 60 * 60 * 1000,
     billingMaxMs: billingMaxHours * 60 * 60 * 1000,
     failureWindowMs: failureWindowHours * 60 * 60 * 1000,
+    timeoutEscalationThreshold,
+    timeoutEscalationMs: timeoutEscalationMinutes * 60 * 1000,
+    timeoutEscalationMaxMs: timeoutEscalationMaxMinutes * 60 * 1000,
   };
 }
 
@@ -157,7 +177,7 @@ export function resolveProfileUnusableUntilForDisplay(
   return resolveProfileUnusableUntil(stats);
 }
 
-function computeNextProfileUsageStats(params: {
+export function computeNextProfileUsageStats(params: {
   existing: ProfileUsageStats;
   now: number;
   reason: AuthProfileFailureReason;
@@ -174,11 +194,17 @@ function computeNextProfileUsageStats(params: {
   const failureCounts = windowExpired ? {} : { ...params.existing.failureCounts };
   failureCounts[params.reason] = (failureCounts[params.reason] ?? 0) + 1;
 
+  // Track consecutive timeouts for escalation.
+  // Reset to 0 when the failure window expires or the reason is not a timeout.
+  const prevConsecutiveTimeouts = windowExpired ? 0 : (params.existing.consecutiveTimeouts ?? 0);
+  const consecutiveTimeouts = params.reason === "timeout" ? prevConsecutiveTimeouts + 1 : 0;
+
   const updatedStats: ProfileUsageStats = {
     ...params.existing,
     errorCount: nextErrorCount,
     failureCounts,
     lastFailureAt: params.now,
+    consecutiveTimeouts,
   };
 
   if (params.reason === "billing") {
@@ -190,6 +216,19 @@ function computeNextProfileUsageStats(params: {
     });
     updatedStats.disabledUntil = params.now + backoffMs;
     updatedStats.disabledReason = "billing";
+  } else if (
+    params.reason === "timeout" &&
+    consecutiveTimeouts >= params.cfgResolved.timeoutEscalationThreshold
+  ) {
+    // Escalated cooldown: the provider is likely silently rate-limiting
+    // (hanging instead of returning 429).  Apply a longer cooldown to avoid
+    // burning 90s per request in a retry storm.
+    const overThreshold = consecutiveTimeouts - params.cfgResolved.timeoutEscalationThreshold;
+    const escalatedMs =
+      overThreshold >= 1
+        ? params.cfgResolved.timeoutEscalationMaxMs
+        : params.cfgResolved.timeoutEscalationMs;
+    updatedStats.cooldownUntil = params.now + escalatedMs;
   } else {
     const backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);
     updatedStats.cooldownUntil = params.now + backoffMs;
@@ -301,6 +340,7 @@ export async function clearAuthProfileCooldown(params: {
         ...freshStore.usageStats[profileId],
         errorCount: 0,
         cooldownUntil: undefined,
+        consecutiveTimeouts: undefined,
       };
       return true;
     },
@@ -317,6 +357,7 @@ export async function clearAuthProfileCooldown(params: {
     ...store.usageStats[profileId],
     errorCount: 0,
     cooldownUntil: undefined,
+    consecutiveTimeouts: undefined,
   };
   saveAuthProfileStore(store, agentDir);
 }
