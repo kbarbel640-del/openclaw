@@ -1,4 +1,28 @@
-import { spawn } from "node:child_process";
+import { exec } from "node:child_process";
+
+function runCommand(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const fullCommand = `${command} ${args.join(" ")}`;
+    console.log(`Executing: ${fullCommand}`);
+
+    // exec runs in a shell by default, handling command resolution and pipes natively
+    const child = exec(fullCommand, { cwd: ROOT_DIR });
+
+    child.stdout?.on("data", (data) => process.stdout.write(data));
+    child.stderr?.on("data", (data) => process.stderr.write(data));
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Command "${fullCommand}" failed with code ${code}`));
+      }
+    });
+
+    child.on("error", (err) => reject(err));
+  });
+}
+
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { promises as fs } from "node:fs";
@@ -48,9 +72,11 @@ async function main() {
   console.log("Building A2UI bundle...");
 
   // Run tsc
+  console.log("Compiling renderer...");
   await runCommand("pnpm", ["exec", "tsc", "-p", path.join(A2UI_RENDERER_DIR, "tsconfig.json")]);
 
   // Run rolldown
+  console.log("Bundling app...");
   await runCommand("npx", ["rolldown", "-c", path.join(A2UI_APP_DIR, "rolldown.config.mjs")]);
 
   writeFileSync(HASH_FILE, currentHash);
@@ -94,36 +120,6 @@ async function computeHash(paths: string[]): Promise<string> {
   }
 
   return hash.digest("hex");
-}
-
-function runCommand(command: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const cmd = process.platform === "win32" ? `${command}.cmd` : command;
-    const child = spawn(cmd, args, { stdio: "inherit", cwd: ROOT_DIR });
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`Command ${command} ${args.join(" ")} failed with code ${code}`));
-      }
-    });
-    child.on("error", (err) => {
-      // Fallback for non-cmd on windows or validation
-      if (process.platform === "win32" && err.message.includes("ENOENT")) {
-        const child2 = spawn(command, args, { stdio: "inherit", cwd: ROOT_DIR });
-        child2.on("close", (code) => {
-          if (code === 0) {
-            resolve();
-          } else {
-            reject(new Error(`Command ${command} failed with code ${code}`));
-          }
-        });
-        child2.on("error", (err2) => reject(err2));
-        return;
-      }
-      reject(err);
-    });
-  });
 }
 
 main().catch((err) => {
