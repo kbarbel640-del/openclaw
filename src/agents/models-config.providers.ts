@@ -118,7 +118,7 @@ async function discoverOllamaModels(): Promise<ModelDefinitionConfig[]> {
   }
   try {
     const response = await fetch(`${OLLAMA_API_BASE_URL}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) {
       console.warn(`Failed to discover Ollama models: ${response.status}`);
@@ -271,6 +271,51 @@ export function normalizeProviders(params: {
       }
     }
 
+    if (
+      normalizedKey === "google" ||
+      normalizedKey === "google-vertex" ||
+      normalizedKey === "google-antigravity"
+    ) {
+      const hasAuth = listProfilesForProvider(authStore, normalizedKey).length > 0;
+      if (hasAuth && !normalizedProvider.apiKey?.trim()) {
+        mutated = true;
+        normalizedProvider = { ...normalizedProvider, apiKey: "oauth" };
+      }
+      if (normalizedKey === "google-antigravity" && !normalizedProvider.baseUrl) {
+        mutated = true;
+        normalizedProvider = {
+          ...normalizedProvider,
+          baseUrl: "https://generativelanguage.googleapis.com",
+        };
+      }
+      if (!normalizedProvider.api) {
+        mutated = true;
+        normalizedProvider = {
+          ...normalizedProvider,
+          api: normalizedKey === "google" ? "google-generative-ai" : (normalizedKey as any),
+        };
+      }
+    }
+
+    // Ensure providers with models have required baseUrl/apiKey/api for ModelRegistry validation
+    if (normalizedProvider.models && normalizedProvider.models.length > 0) {
+      if (!normalizedProvider.baseUrl) {
+        mutated = true;
+        normalizedProvider = { ...normalizedProvider, baseUrl: "https://unknown" };
+      }
+      if (!normalizedProvider.apiKey) {
+        mutated = true;
+        normalizedProvider = { ...normalizedProvider, apiKey: "local" };
+      }
+      if (!normalizedProvider.api) {
+        mutated = true;
+        normalizedProvider = {
+          ...normalizedProvider,
+          api: normalizedKey === "ollama" ? "openai-completions" : (normalizedKey as any),
+        };
+      }
+    }
+
     if (normalizedKey === "google") {
       const googleNormalized = normalizeGoogleProvider(normalizedProvider);
       if (googleNormalized !== normalizedProvider) {
@@ -279,7 +324,7 @@ export function normalizeProviders(params: {
       normalizedProvider = googleNormalized;
     }
 
-    next[key] = normalizedProvider;
+    next[normalizedKey] = normalizedProvider;
   }
 
   return mutated ? next : providers;
@@ -541,12 +586,13 @@ export async function resolveImplicitProviders(params: {
     break;
   }
 
-  // Ollama provider - only add if explicitly configured
+  // Ollama provider - only add if explicitly configured or locally discovered
   const ollamaKey =
     resolveEnvApiKeyVarName("ollama") ??
     resolveApiKeyFromProfiles({ provider: "ollama", store: authStore });
-  if (ollamaKey) {
-    providers.ollama = { ...(await buildOllamaProvider()), apiKey: ollamaKey };
+  const ollamaModels = await buildOllamaProvider();
+  if (ollamaModels.models.length > 0) {
+    providers.ollama = { ...ollamaModels, apiKey: ollamaKey || "local" };
   }
 
   const togetherKey =
