@@ -544,6 +544,16 @@ importers:
         specifier: workspace:*
         version: link:../..
 
+  extensions/wexa-service:
+    dependencies:
+      '@sinclair/typebox':
+        specifier: 0.34.48
+        version: 0.34.48
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
   extensions/whatsapp:
     devDependencies:
       openclaw:

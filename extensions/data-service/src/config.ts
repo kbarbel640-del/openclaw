@@ -37,10 +37,6 @@ export type DataServiceConfig = {
   connectorIds?: Record<string, string>;
   /** Request timeout in milliseconds */
   timeoutMs?: number;
-  /** Base URL for the Identity-Service API */
-  identityServiceUrl?: string;
-  /** Server key for Identity-Service system calls */
-  identityServiceServerKey?: string;
   /** S3 configuration for project virtual disks */
   s3?: S3Config;
 };
@@ -77,12 +73,6 @@ export function resolveDataServiceConfig(
     serverKey: pc?.serverKey ?? process.env.DATA_SERVICE_SERVER_KEY,
     connectorIds: pc?.connectorIds,
     timeoutMs: pc?.timeoutMs ?? 30000,
-    identityServiceUrl:
-      pc?.identityServiceUrl ?? process.env.IDENTITY_SERVICE_URL ?? "http://localhost:3002",
-    identityServiceServerKey:
-      pc?.identityServiceServerKey ??
-      process.env.IDENTITY_SERVICE_SERVER_KEY ??
-      process.env.DATA_SERVICE_SERVER_KEY,
     s3: s3Config,
   };
 }

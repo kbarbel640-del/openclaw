@@ -6,12 +6,16 @@
  */
 
 import { jsonResult } from "openclaw/plugin-sdk";
-import type { DataServiceConfig } from "./config.js";
-import { getEffectiveUserContext, hasUserContext, MISSING_CONTEXT_ERROR } from "./config.js";
+import type { WexaServiceConfig } from "./config.js";
 import { makeIdentityServiceRequest } from "./http.js";
+import {
+  getEffectiveUserContext,
+  hasUserContext,
+  MISSING_CONTEXT_ERROR,
+} from "./request-context.js";
 import { CoworkerListSchema } from "./schemas.js";
 
-export function createCoworkerListTool(dsConfig: DataServiceConfig) {
+export function createCoworkerListTool(config: WexaServiceConfig) {
   return {
     label: "Coworker List",
     name: "coworker_list",
@@ -35,7 +39,7 @@ This is a read-only/pull action — execute autonomously without asking permissi
       const { userId } = userCtx;
 
       // Debug logging to verify context is being received
-      console.log("[data-service] coworker_list called with context:", {
+      console.log("[wexa-service] coworker_list called with context:", {
         userId,
         hasContext: !!userId,
       });
@@ -43,11 +47,11 @@ This is a read-only/pull action — execute autonomously without asking permissi
       const endpoint = `/system/user-projects?userId=${encodeURIComponent(userId || "")}`;
       const result = await makeIdentityServiceRequest(endpoint, {
         method: "GET",
-        config: dsConfig,
+        config,
       });
 
       // Debug logging to see API response
-      console.log("[data-service] coworker_list API response:", {
+      console.log("[wexa-service] coworker_list API response:", {
         success: result.success,
         error: result.error,
       });

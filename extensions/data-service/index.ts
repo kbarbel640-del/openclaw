@@ -47,6 +47,12 @@
  * - `S3_REGION` — AWS region (default: us-east-1)
  * - `AWS_ACCESS_KEY_ID` — AWS access key (optional, uses default credential chain)
  * - `AWS_SECRET_ACCESS_KEY` — AWS secret key (optional, uses default credential chain)
+ *
+ * ### Note on Coworker/Processflow Tools
+ *
+ * Coworker and processflow tools have been moved to the wexa-service extension.
+ * The setContext writes to a global store that wexa-service reads from, so
+ * calling data-service.setContext is still required for both extensions.
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
@@ -76,7 +82,6 @@ const CONNECTOR_TOOL_NAMES = [
   "connector_schema",
   "connector_lookup",
   "user_connectors",
-  "coworker_list",
 ] as const;
 
 /** All tool names registered by this plugin */
@@ -113,11 +118,8 @@ const dataServicePlugin = {
     api.on("before_agent_start", (event) => {
       sanitizeToolNamesInMessages(event.messages);
 
-      const parts: string[] = [];
-      if (dsConfig.enabled) parts.push(CONFIRMATION_GUIDANCE);
-
-      if (parts.length > 0) {
-        return { prependContext: parts.join("\n\n") };
+      if (dsConfig.enabled) {
+        return { prependContext: CONFIRMATION_GUIDANCE };
       }
       return {};
     });

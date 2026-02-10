@@ -86,69 +86,6 @@ export async function makeDataServiceRequest(
   }
 }
 
-/** Make an authenticated request to the Identity-Service API. */
-export async function makeIdentityServiceRequest(
-  endpoint: string,
-  options: {
-    method?: "GET" | "POST" | "PUT" | "DELETE";
-    body?: unknown;
-    config: DataServiceConfig;
-  },
-): Promise<ApiResult> {
-  const { method = "GET", body, config } = options;
-
-  const url = `${config.identityServiceUrl}${endpoint}`;
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  if (config.identityServiceServerKey) {
-    headers["x-server-key"] = config.identityServiceServerKey;
-  }
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs ?? 30000);
-
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    const responseText = await response.text();
-    let data: unknown;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      data = responseText;
-    }
-
-    if (!response.ok) {
-      return {
-        success: false,
-        error:
-          typeof data === "object" && data && "error" in data
-            ? String((data as { error: unknown }).error)
-            : `HTTP ${response.status}: ${responseText.slice(0, 200)}`,
-        status: response.status,
-      };
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      success: false,
-      error: message.includes("abort") ? "Request timed out" : message,
-    };
-  }
-}
-
 /**
  * Look up a user's connector_id from Data-Service.
  * Returns the connector_id if found, or null if not configured.

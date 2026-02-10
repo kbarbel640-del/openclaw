@@ -7,11 +7,108 @@
  *
  * Architecture:
  * 1. Session-keyed Map stores context with TTL (primary storage)
- * 2. before_tool_call hook sets currentSessionKey for context lookup
- * 3. Tools call getRequestContext() to retrieve orgId/userId
+ * 2. Global store (globalThis.__wexaSessionContext) for cross-extension sharing
+ * 3. before_tool_call hook sets currentSessionKey for context lookup
+ * 4. Tools call getRequestContext() to retrieve orgId/userId
+ *
+ * Cross-extension sharing:
+ * - setSessionContext() writes to both local store AND global store
+ * - wexa-service extension reads from the global store
+ * - This allows wexa-service tools to use the same context without import dependency
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+
+// ============================================================================
+// Global Store for Cross-Extension Sharing
+// ============================================================================
+
+/** Context stored per session in global store */
+type GlobalSessionContext = {
+  orgId: string;
+  userId: string;
+  projectId?: string;
+  apiKey?: string;
+};
+
+/** Entry in the global store with TTL */
+type GlobalStoreEntry = {
+  context: GlobalSessionContext;
+  expiresAt: number;
+};
+
+/** Global store type */
+type GlobalStore = Map<string, GlobalStoreEntry>;
+
+// Declare the global variable that wexa-service also uses
+declare global {
+  // eslint-disable-next-line no-var
+  var __wexaSessionContext: GlobalStore | undefined;
+}
+
+/**
+ * Get the global session context store, creating it if needed.
+ */
+function getGlobalStore(): GlobalStore {
+  if (!globalThis.__wexaSessionContext) {
+    globalThis.__wexaSessionContext = new Map();
+  }
+  return globalThis.__wexaSessionContext;
+}
+
+/**
+ * Write context to the global store for cross-extension sharing.
+ */
+function writeToGlobalStore(
+  sessionKey: string,
+  context: DataServiceRequestContext,
+  ttlMs: number,
+): void {
+  const store = getGlobalStore();
+  const entry = {
+    context: {
+      orgId: context.orgId,
+      userId: context.userId,
+      projectId: context.projectId,
+      apiKey: context.apiKey,
+    },
+    expiresAt: Date.now() + ttlMs,
+  };
+  store.set(sessionKey, entry);
+
+  // Also store under canonical key if different
+  const canonicalKey = sessionKey.startsWith("agent:") ? sessionKey : `agent:main:${sessionKey}`;
+  if (canonicalKey !== sessionKey) {
+    store.set(canonicalKey, entry);
+  }
+
+  // Periodic cleanup when store gets large
+  if (store.size > 100) {
+    const now = Date.now();
+    for (const [key, e] of store) {
+      if (e.expiresAt < now) {
+        store.delete(key);
+      }
+    }
+  }
+}
+
+/**
+ * Clear context from the global store.
+ */
+function clearFromGlobalStore(sessionKey: string): void {
+  const store = getGlobalStore();
+  store.delete(sessionKey);
+
+  const canonicalKey = sessionKey.startsWith("agent:") ? sessionKey : `agent:main:${sessionKey}`;
+  if (canonicalKey !== sessionKey) {
+    store.delete(canonicalKey);
+  }
+}
+
+// ============================================================================
+// Local Context Store
+// ============================================================================
 
 /** Context passed per-request for multi-tenant isolation */
 export type DataServiceRequestContext = {
@@ -102,12 +199,20 @@ export function getRequestContext(sessionKey?: string): DataServiceRequestContex
 /**
  * Set context for a session key.
  * Called by data-service.setContext gateway method.
+ *
+ * Writes to both:
+ * 1. Local session store (for data-service tools)
+ * 2. Global store (for wexa-service tools via globalThis.__wexaSessionContext)
  */
 export function setSessionContext(sessionKey: string, context: DataServiceRequestContext): void {
+  // Write to local store
   sessionContextStore.set(sessionKey, {
     context,
     expiresAt: Date.now() + CONTEXT_TTL_MS,
   });
+
+  // Write to global store for cross-extension sharing (wexa-service)
+  writeToGlobalStore(sessionKey, context, CONTEXT_TTL_MS);
 
   // Periodic cleanup of expired entries (when store gets large)
   if (sessionContextStore.size > 100) {
@@ -118,9 +223,14 @@ export function setSessionContext(sessionKey: string, context: DataServiceReques
 /**
  * Clear context for a session key.
  * Called by data-service.clearContext gateway method.
+ *
+ * Clears from both:
+ * 1. Local session store
+ * 2. Global store (for wexa-service)
  */
 export function clearSessionContext(sessionKey: string): void {
   sessionContextStore.delete(sessionKey);
+  clearFromGlobalStore(sessionKey);
 }
 
 /**
@@ -143,23 +253,4 @@ function cleanupExpiredSessions(): void {
       sessionContextStore.delete(key);
     }
   }
-}
-
-/**
- * Run a function with request context (AsyncLocalStorage).
- * Primarily for testing or special cases.
- */
-export function runWithRequestContext<T>(context: DataServiceRequestContext, fn: () => T): T {
-  return requestContextStorage.run(context, fn);
-}
-
-/**
- * Run an async function with request context (AsyncLocalStorage).
- * Primarily for testing or special cases.
- */
-export function runWithRequestContextAsync<T>(
-  context: DataServiceRequestContext,
-  fn: () => Promise<T>,
-): Promise<T> {
-  return requestContextStorage.run(context, fn);
 }

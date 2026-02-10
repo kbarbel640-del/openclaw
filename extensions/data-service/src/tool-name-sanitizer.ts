@@ -10,11 +10,9 @@
  * When corrupted names end up in the session history, subsequent LLM calls fail
  * with: "Value at '…toolUse.name' failed to satisfy constraint".
  *
- * This module provides sanitization at two levels:
- * 1. `sanitizeToolNamesInMessages()` — cleans the entire message history in-place
- *    before each LLM call (via `before_agent_start` hook).
- * 2. `sanitizeToolNameInMessage()` — cleans a single message being persisted
- *    (via `tool_result_persist` hook) to prevent corruption from being stored.
+ * This module provides sanitization via `sanitizeToolNamesInMessages()` which
+ * cleans the entire message history in-place before each LLM call (via
+ * `before_agent_start` hook).
  */
 
 /** Matches special tokens like <|channel|>, <|endoftext|>, <|im_end|>, etc. */
@@ -99,21 +97,4 @@ export function sanitizeToolNamesInMessages(messages: unknown[] | undefined): vo
     if (role !== "assistant" || !Array.isArray(content)) continue;
     sanitizeContentBlocks(content);
   }
-}
-
-/**
- * Sanitize tool call names in a single message about to be persisted.
- * Returns a new message object if any names were fixed, or the original
- * message if nothing changed.
- *
- * Called from the `tool_result_persist` hook. Although this hook primarily
- * targets toolResult messages, we also accept assistant messages so the
- * function can be reused.
- */
-export function sanitizeToolNameInMessage<T extends Record<string, unknown>>(message: T): T {
-  const content = message.content;
-  if (!Array.isArray(content)) return message;
-  const fixed = sanitizeContentBlocks(content);
-  // Content blocks are mutated in-place; return the same reference
-  return fixed > 0 ? { ...message } : message;
 }

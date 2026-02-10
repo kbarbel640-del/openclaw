@@ -60,8 +60,6 @@ export const ConnectorLookupSchema = Type.Object({
 
 export const UserConnectorsSchema = Type.Object({});
 
-export const CoworkerListSchema = Type.Object({});
-
 export const ConnectorSearchSchema = Type.Object({
   query: Type.String({
     description:

@@ -1,0 +1,35 @@
+{
+  "id": "wexa-service",
+  "name": "Wexa Service",
+  "description": "Wexa coworker and process flow management tools",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Enable/disable the Wexa service tools"
+      },
+      "url": {
+        "type": "string",
+        "description": "Base URL for the Data-Service API"
+      },
+      "serverKey": {
+        "type": "string",
+        "description": "Server key for system calls"
+      },
+      "identityServiceUrl": {
+        "type": "string",
+        "description": "Base URL for the Identity-Service API"
+      },
+      "identityServiceServerKey": {
+        "type": "string",
+        "description": "Server key for Identity-Service system calls"
+      },
+      "timeoutMs": {
+        "type": "number",
+        "description": "Request timeout in milliseconds"
+      }
+    }
+  }
+}
