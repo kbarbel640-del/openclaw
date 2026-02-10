@@ -104,7 +104,9 @@ export class OfflineQueue {
   startAutoRetry(intervalMs = 5000): void {
     if (!this.flushTimer) {
       this.flushTimer = setInterval(() => {
-        if (this.size > 0) void this.flush();
+        if (this.size > 0) {
+          void this.flush();
+        }
       }, intervalMs);
     }
   }

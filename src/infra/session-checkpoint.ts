@@ -29,7 +29,7 @@ function ensureCheckpointDir(): void {
 
 function getCheckpointPath(sessionKey: string): string {
   const dir = getCheckpointDir();
-  const filename = `${sessionKey.replace(/[\/]/g, "_")}.json`;
+  const filename = `${sessionKey.replace(/[/]/g, "_")}.json`;
   return path.join(dir, filename);
 }
 

@@ -2,6 +2,7 @@ import type { HealthSummary } from "../commands/health.js";
 import type { ChatRunEntry } from "./server-chat.js";
 import type { DedupeEntry } from "./server-shared.js";
 import { pruneStaleFollowupQueues } from "../auto-reply/reply/queue/state.js";
+import { pruneOrphanedSeqByRun } from "../infra/agent-events.js";
 import { abortChatRunById, type ChatAbortControllerEntry } from "./chat-abort.js";
 import {
   DEDUPE_MAX,
@@ -119,6 +120,9 @@ export function startGatewayMaintenanceTimers(params: {
 
     // Prune stale followup queues (empty, not draining, idle > 10 min).
     pruneStaleFollowupQueues();
+
+    // Prune orphaned seqByRun entries (runs no longer in runContextById).
+    pruneOrphanedSeqByRun();
 
     // Safety-net: prune agentRunSeq entries for runs no longer tracked anywhere.
     // Normally cleaned on lifecycle end, but stale entries can accumulate if
