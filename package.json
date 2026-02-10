@@ -184,6 +184,9 @@
     "@napi-rs/canvas": "^0.1.89",
     "node-llama-cpp": "3.15.1"
   },
+  "optionalDependencies": {
+    "@lancedb/lancedb": "^0.26.2"
+  },
   "engines": {
     "node": ">=22.12.0"
   },
