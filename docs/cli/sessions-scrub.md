@@ -86,14 +86,14 @@ The `sessions scrub` command provides retroactive scrubbing for:
 
 ## When to use
 
-### Run `sessions scrub` if:
+### Run `sessions scrub` if
 
 - You're upgrading from an older version without runtime redaction
 - You suspect session files contain unredacted secrets from tool calls
 - The `openclaw doctor` command reports unredacted secrets
 - You want to ensure historical sessions are clean before sharing logs
 
-### You probably don't need to run it if:
+### You probably don't need to run it if
 
 - You just set up OpenClaw (sessions are new and already redacted)
 - You haven't used tools that expose secrets
