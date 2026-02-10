@@ -105,7 +105,7 @@ describe("graph-upload", () => {
         expect.objectContaining({ method: "POST" }),
       );
 
-      // Verify chunk uploads with correct Content-Range headers
+      // Verify chunk uploads with correct Content-Range and Content-Type headers
       for (let i = 0; i < 5; i++) {
         const start = i * 1024 * 1024;
         const end = Math.min(start + 1024 * 1024, 5 * 1024 * 1024);
@@ -116,6 +116,7 @@ describe("graph-upload", () => {
             method: "PUT",
             headers: expect.objectContaining({
               "Content-Range": `bytes ${start}-${end - 1}/${5 * 1024 * 1024}`,
+              "Content-Type": "application/octet-stream",
             }),
           }),
         );
