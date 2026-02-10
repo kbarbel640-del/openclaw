@@ -110,7 +110,7 @@ export const SessionSchema = z
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: ["pruneAfter"],
-              message: 'invalid duration (use ms, s, m, h, d)',
+              message: "invalid duration (use ms, s, m, h, d)",
             });
           }
         }
@@ -121,7 +121,7 @@ export const SessionSchema = z
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: ["rotateBytes"],
-              message: 'invalid size (use b, kb, mb, gb, tb)',
+              message: "invalid size (use b, kb, mb, gb, tb)",
             });
           }
         }

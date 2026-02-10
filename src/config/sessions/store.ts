@@ -4,9 +4,9 @@ import fs from "node:fs";
 import path from "node:path";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import type { SessionMaintenanceConfig, SessionMaintenanceMode } from "../types.base.js";
-import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { parseByteSize } from "../../cli/parse-bytes.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
+import { createSubsystemLogger } from "../../logging/subsystem.js";
 import {
   deliveryContextFromSession,
   mergeDeliveryContext,
@@ -322,8 +322,7 @@ export function getActiveSessionMaintenanceWarning(params: {
   }
   const now = params.nowMs ?? Date.now();
   const cutoffMs = now - params.pruneAfterMs;
-  const wouldPrune =
-    activeEntry.updatedAt != null ? activeEntry.updatedAt < cutoffMs : false;
+  const wouldPrune = activeEntry.updatedAt != null ? activeEntry.updatedAt < cutoffMs : false;
   const keys = Object.keys(params.store);
   const wouldCap =
     keys.length > params.maxEntries &&
@@ -693,22 +692,22 @@ export async function recordSessionMetaFromInbound(params: {
   return await updateSessionStore(
     storePath,
     (store) => {
-    const existing = store[sessionKey];
-    const patch = deriveSessionMetaPatch({
-      ctx,
-      sessionKey,
-      existing,
-      groupResolution: params.groupResolution,
-    });
-    if (!patch) {
-      return existing ?? null;
-    }
-    if (!existing && !createIfMissing) {
-      return null;
-    }
-    const next = mergeSessionEntry(existing, patch);
-    store[sessionKey] = next;
-    return next;
+      const existing = store[sessionKey];
+      const patch = deriveSessionMetaPatch({
+        ctx,
+        sessionKey,
+        existing,
+        groupResolution: params.groupResolution,
+      });
+      if (!patch) {
+        return existing ?? null;
+      }
+      if (!existing && !createIfMissing) {
+        return null;
+      }
+      const next = mergeSessionEntry(existing, patch);
+      store[sessionKey] = next;
+      return next;
     },
     { activeSessionKey: sessionKey },
   );

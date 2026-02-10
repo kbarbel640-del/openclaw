@@ -1,9 +1,9 @@
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
 import type { CronJob } from "../types.js";
 import type { CronEvent, CronServiceState } from "./state.js";
+import { DEFAULT_AGENT_ID } from "../../routing/session-key.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
 import { sweepCronRunSessions } from "../session-reaper.js";
-import { DEFAULT_AGENT_ID } from "../../routing/session-key.js";
 import {
   computeJobNextRunAtMs,
   nextWakeAtMs,
@@ -282,9 +282,7 @@ export async function onTimer(state: CronServiceState) {
       if (state.store?.jobs?.length) {
         for (const job of state.store.jobs) {
           const agentId =
-            typeof job.agentId === "string" && job.agentId.trim()
-              ? job.agentId
-              : defaultAgentId;
+            typeof job.agentId === "string" && job.agentId.trim() ? job.agentId : defaultAgentId;
           storePaths.add(state.deps.resolveSessionStorePath(agentId));
         }
       } else {
@@ -305,10 +303,7 @@ export async function onTimer(state: CronServiceState) {
             log: state.deps.log,
           });
         } catch (err) {
-          state.deps.log.warn(
-            { err: String(err), storePath },
-            "cron: session reaper sweep failed",
-          );
+          state.deps.log.warn({ err: String(err), storePath }, "cron: session reaper sweep failed");
         }
       }
     }
