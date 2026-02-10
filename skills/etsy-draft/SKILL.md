@@ -1,14 +1,7 @@
 ---
 name: etsy-draft
 description: Create Etsy listings as draft only (never publish) using a strict listing formula.
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🛍️",
-        "requires": { "browser": true },
-      },
-  }
+metadata: { "openclaw": { "emoji": "🛍️", "requires": { "browser": true } } }
 ---
 
 # etsy-draft
@@ -31,7 +24,7 @@ Hard safety rules
 
 Listing Formula 2026 (locked)
 
-1) Title (max 140 chars)
+1. Title (max 140 chars)
 
 - Use relevant keywords, plus one emotional or collectible trigger.
 - No emojis.
@@ -39,7 +32,7 @@ Listing Formula 2026 (locked)
 - No keyword stuffing.
 - Structure: main object + material/brand/era + style or collectible hook.
 
-2) Main description (one combined text block)
+2. Main description (one combined text block)
 
 - One flowing text block.
 - No bullet points.
@@ -48,7 +41,7 @@ Listing Formula 2026 (locked)
 - Must answer: what it is, why special, when/where made (carefully phrased), how used/displayed, why worth the price.
 - Honest condition reporting only.
 
-3) Shipping information (standard block, appended after description)
+3. Shipping information (standard block, appended after description)
 
 Include exactly:
 
@@ -58,7 +51,7 @@ Tracked shipping available.
 International shipping welcome.
 Please include your phone number ☎️ at checkout so the courier can confirm delivery.
 
-4) Price (at end)
+4. Price (at end)
 
 Include:
 
@@ -66,7 +59,7 @@ Include:
 €XX.XX
 1-2 calm sentences justifying value (no defensive language).
 
-5) Etsy tags (exactly 13)
+5. Etsy tags (exactly 13)
 
 - Exactly 13 tags.
 - 1-20 characters each.

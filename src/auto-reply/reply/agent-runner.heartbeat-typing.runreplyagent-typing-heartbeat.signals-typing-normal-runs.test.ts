@@ -159,7 +159,6 @@ describe("runReplyAgent typing (heartbeat)", () => {
     expect(onPartialReply).toHaveBeenCalledWith({ text: "brain partial", mediaUrls: undefined });
     expect(typing.startTypingOnText).toHaveBeenCalledWith("brain partial");
     expect(reply).toEqual({ text: "brain final" });
-
   });
 
   it("signals typing for normal runs", async () => {

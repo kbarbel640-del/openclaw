@@ -1,6 +1,7 @@
 # Railway Deployment Fix
 
 ## Problem
+
 Railway deployment was failing with error: `mkdir: cannot create directory '/data/.openclaw': Permission denied`
 
 ## Root Cause Analysis
@@ -12,24 +13,29 @@ Railway deployment was failing with error: `mkdir: cannot create directory '/dat
 ## Solution
 
 ### 1. Updated `docker-entrypoint.sh`
+
 - Creates config as root (before dropping privileges)
 - Runs `chown -R node:node /data` at runtime to fix volume permissions
 - Uses `su node -c "..."` to exec the gateway as the node user
 
 ### 2. Updated `Dockerfile`
+
 - Removed build-time `chown` (ineffective for Railway volumes)
 - Kept `USER node` for security hardening
 
 ### 2. Updated `Dockerfile`
+
 - Copies and makes the entrypoint script executable
 - Changed from `CMD` to `ENTRYPOINT` to use the shell script
 - Ensures proper port handling for Railway deployments
 
 ### 3. Updated `package.json`
+
 - Changed the `start` script to run the gateway command with proper port handling
 - Uses `${PORT:-8080}` to default to 8080 if PORT is not set
 
 ### 4. Updated `railway.json`
+
 - Removed the `startCommand` override (now handled by Dockerfile ENTRYPOINT)
 - Kept the volume mount, health check, and restart policy configuration
 
@@ -67,6 +73,7 @@ curl http://localhost:8080/health
 ## Deployment
 
 After pushing these changes to Railway:
+
 1. Railway will rebuild using the Dockerfile
 2. The entrypoint script will map PORT to OPENCLAW_GATEWAY_PORT
 3. The gateway server will start on the correct port
@@ -75,10 +82,12 @@ After pushing these changes to Railway:
 ## Environment Variables Required
 
 Make sure these are set in Railway:
+
 - `CLAWDBOT_GATEWAY_TOKEN` - Gateway authentication token
 - `CLAWDBOT_PAIRING_ADMIN_SECRET` - Admin secret for remote pairing
 - `CLAWDBOT_STATE_DIR=/data/.clawdbot` - State directory (uses volume mount)
 - `CLAWDBOT_CONFIG_DIR=/data/.clawdbot` - Config directory (uses volume mount)
 
 Railway automatically sets:
+
 - `PORT` - The port the service should listen on (mapped by entrypoint script)

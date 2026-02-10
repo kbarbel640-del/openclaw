@@ -182,13 +182,7 @@ function detectBrowserExecutable(): BrowserExecutable | null {
     },
     {
       kind: "brave",
-      path: joinWin(
-        programFilesX86,
-        "BraveSoftware",
-        "Brave-Browser",
-        "Application",
-        "brave.exe",
-      ),
+      path: joinWin(programFilesX86, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
     },
   ];
 

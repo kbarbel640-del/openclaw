@@ -13,9 +13,9 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { OpenClawConfig } from "../config/types.js";
 import type { DevicePairingPendingRequest } from "../infra/device-pairing.js";
 import { approveDevicePairing, listDevicePairing } from "../infra/device-pairing.js";
-import type { OpenClawConfig } from "../config/types.js";
 
 /**
  * Configuration for remote pairing approval
@@ -48,7 +48,9 @@ export function resolveRemotePairingConfig(
   cfg: OpenClawConfig,
 ): RemotePairingResolvedConfig | null {
   const raw = cfg.gateway?.remotePairing;
-  if (raw?.enabled !== true) return null;
+  if (raw?.enabled !== true) {
+    return null;
+  }
 
   const secret = raw.adminSecret?.trim();
   if (!secret) {
@@ -103,7 +105,9 @@ export function verifySignature(
  * Parse Authorization header
  */
 export function parseAuthHeader(auth: string | undefined): string | null {
-  if (!auth) return null;
+  if (!auth) {
+    return null;
+  }
   const trimmed = auth.trim();
   if (trimmed.toLowerCase().startsWith("bearer ")) {
     return trimmed.slice(7).trim();
@@ -124,7 +128,9 @@ class NonceCache {
   }
 
   checkAndAdd(nonce: string): boolean {
-    if (this.cache.has(nonce)) return false;
+    if (this.cache.has(nonce)) {
+      return false;
+    }
     this.cache.add(nonce);
 
     // Evict oldest if over size limit
@@ -221,9 +227,12 @@ export async function handleRemotePairingRequest(
   }
 
   // Extract signature headers
-  const timestamp = req.headers["x-moltbot-timestamp"];
-  const nonce = req.headers["x-moltbot-nonce"];
-  const signature = req.headers["x-moltbot-signature"];
+  const timestampHeader = req.headers["x-moltbot-timestamp"];
+  const nonceHeader = req.headers["x-moltbot-nonce"];
+  const signatureHeader = req.headers["x-moltbot-signature"];
+  const timestamp = Array.isArray(timestampHeader) ? timestampHeader[0] : timestampHeader;
+  const nonce = Array.isArray(nonceHeader) ? nonceHeader[0] : nonceHeader;
+  const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
 
   if (!timestamp || !nonce || !signature) {
     sendError(

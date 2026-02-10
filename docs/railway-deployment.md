@@ -33,17 +33,18 @@ This document describes how to deploy Moltbot Gateway on Railway (or similar clo
 
 ### Threat Model
 
-| Attacker Capability | With Gateway Token Only | With Device Pairing |
-|---------------------|-------------------------|---------------------|
-| Send messages to connected channels | ✅ Yes | ❌ No |
-| Read conversation history | ✅ Yes | ❌ No |
-| Execute approved commands | ✅ Yes | ❌ No |
-| Access agent workspace files | ✅ Yes | ❌ No |
-| Approve new device pairings | ❌ No | ❌ No (requires admin secret) |
-| Execute shell commands | ❌ No | ❌ No (exec approval required) |
-| Access provider API keys | ❌ No | ❌ No (encrypted) |
+| Attacker Capability                 | With Gateway Token Only | With Device Pairing            |
+| ----------------------------------- | ----------------------- | ------------------------------ |
+| Send messages to connected channels | ✅ Yes                  | ❌ No                          |
+| Read conversation history           | ✅ Yes                  | ❌ No                          |
+| Execute approved commands           | ✅ Yes                  | ❌ No                          |
+| Access agent workspace files        | ✅ Yes                  | ❌ No                          |
+| Approve new device pairings         | ❌ No                   | ❌ No (requires admin secret)  |
+| Execute shell commands              | ❌ No                   | ❌ No (exec approval required) |
+| Access provider API keys            | ❌ No                   | ❌ No (encrypted)              |
 
 **Device pairing prevents**: An attacker who obtains the gateway token cannot:
+
 1. Connect new devices without admin approval
 2. Escalate privileges beyond what's paired
 3. Persist access if the token is rotated
@@ -51,6 +52,7 @@ This document describes how to deploy Moltbot Gateway on Railway (or similar clo
 ### Remote Pairing Approval Security
 
 The remote pairing approval endpoint uses:
+
 - **Authorization header only** - secret never in JSON body
 - **HMAC signature** - prevents request tampering
 - **Timestamp + nonce** - prevents replay attacks
@@ -59,8 +61,9 @@ The remote pairing approval endpoint uses:
 ## ⚠️ CRITICAL: Volume Mount Required
 
 Railway deployments **MUST** have a persistent volume mounted at `/data`. Without this:
+
 - Device pairing approvals will be lost on container restart
-- Session data will be ephemeral  
+- Session data will be ephemeral
 - Gateway will require re-pairing after each deployment
 - **Pairing will appear to work but fail on reconnect**
 
@@ -179,11 +182,13 @@ After deployment, the Control UI will show "Pairing Required" because device pai
 **Step 1: Check logs for the pairing requestId**
 
 In Railway dashboard or CLI, look for this log line:
+
 ```
 device pair requested requestId=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx deviceId=... role=operator remoteIp=...
 ```
 
 Or query the pending endpoint:
+
 ```bash
 curl -H "Authorization: Bearer $CLAWDBOT_PAIRING_ADMIN_SECRET" \
   "https://your-app.up.railway.app/.moltbot/pairing/pending"
@@ -260,17 +265,20 @@ Settings
 
 **Option 1: Check Gateway Logs**
 Look for this log line in Railway logs:
+
 ```
 device pair requested requestId=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx deviceId=... role=operator remoteIp=...
 ```
 
 **Option 2: Query Pending Endpoint**
+
 ```bash
 curl -H "Authorization: Bearer $CLAWDBOT_PAIRING_ADMIN_SECRET" \
   "https://your-app.up.railway.app/.moltbot/pairing/pending"
 ```
 
 Response:
+
 ```json
 {
   "ok": true,

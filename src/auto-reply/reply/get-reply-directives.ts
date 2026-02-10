@@ -16,11 +16,11 @@ import { type InlineDirectives, parseInlineDirectives } from "./directive-handli
 import { applyInlineDirectiveOverrides } from "./get-reply-directives-apply.js";
 import { clearInlineDirectives } from "./get-reply-directives-utils.js";
 import { defaultGroupActivation, resolveGroupRequireMention } from "./groups.js";
+import { requiresBrain } from "./intent-gate.js";
 import { CURRENT_MESSAGE_MARKER, stripMentions, stripStructuralPrefixes } from "./mentions.js";
 import { createModelSelectionState, resolveContextTokens } from "./model-selection.js";
 import { formatElevatedUnavailableMessage, resolveElevatedPermissions } from "./reply-elevated.js";
 import { stripInlineStatus } from "./reply-inline.js";
-import { requiresBrain } from "./intent-gate.js";
 
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 type ExecOverrides = Pick<ExecToolDefaults, "host" | "security" | "ask" | "node">;

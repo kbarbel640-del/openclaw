@@ -1,10 +1,7 @@
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ReplyPayload } from "../types.js";
 import { buildModelAliasIndex, parseModelRef } from "../../agents/model-selection.js";
-import {
-  buildMuscleSynthesisPrompt,
-  resolveMuscleSynthesisPolicy,
-} from "./muscle-synthesis.js";
+import { buildMuscleSynthesisPrompt, resolveMuscleSynthesisPolicy } from "./muscle-synthesis.js";
 
 export type BrainPlan = {
   useMuscle: boolean;
@@ -131,9 +128,7 @@ export function parseBrainPlan(raw: string): BrainPlan | null {
     };
     const useMuscle = Boolean(parsed.use_muscle ?? parsed.useMuscle);
     const tasks = Array.isArray(parsed.tasks)
-      ? parsed.tasks
-          .map((task) => (typeof task === "string" ? task.trim() : ""))
-          .filter(Boolean)
+      ? parsed.tasks.map((task) => (typeof task === "string" ? task.trim() : "")).filter(Boolean)
       : [];
     const response =
       typeof parsed.response === "string" ? parsed.response.trim() || undefined : undefined;
@@ -149,18 +144,9 @@ export function parseBrainPlan(raw: string): BrainPlan | null {
   }
 }
 
-export function buildMuscleTaskPrompt(params: {
-  tasks: string[];
-  userMessage: string;
-}): string {
+export function buildMuscleTaskPrompt(params: { tasks: string[]; userMessage: string }): string {
   const lines = params.tasks.map((task, idx) => `${idx + 1}. ${task}`);
-  return [
-    "User request:",
-    params.userMessage.trim(),
-    "",
-    "Tasks:",
-    ...lines,
-  ].join("\n");
+  return ["User request:", params.userMessage.trim(), "", "Tasks:", ...lines].join("\n");
 }
 
 export function buildPipelineSynthesisPrompt(params: {

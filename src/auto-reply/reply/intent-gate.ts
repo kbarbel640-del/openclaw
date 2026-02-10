@@ -63,6 +63,6 @@ export function requiresBrain(message: string, context: IntentGateContext): bool
   const hasBrainHint =
     typeof session?.modelOverride === "string" &&
     /(opus|o1|o3|gpt-5|sonnet|claude)/i.test(session.modelOverride);
-  const isAmbiguousRequest = normalized.split(/\s+/).length <= 6 && /\?$/.test(normalized);
+  const isAmbiguousRequest = normalized.split(/\s+/).length <= 6 && normalized.trim().endsWith("?");
   return Boolean(hasBrainHint && isAmbiguousRequest);
 }

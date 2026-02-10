@@ -121,7 +121,6 @@ describe("createModelSelectionState parent inheritance", () => {
     expect(state.model).toBe("claude-opus-4-5");
   });
 
-
   it("keeps configured default when forceDefaultModel is set", async () => {
     const cfg = {} as OpenClawConfig;
     const sessionEntry = makeEntry({
