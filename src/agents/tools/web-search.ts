@@ -103,7 +103,8 @@ type GrokConfig = {
 };
 
 type GrokSearchResponse = {
-  output_text?: string;
+  content?: string;
+  output_text?: string; // Keep for backwards compatibility
   citations?: string[];
   inline_citations?: Array<{
     start_index: number;
@@ -476,7 +477,8 @@ async function runGrokSearch(params: {
   }
 
   const data = (await res.json()) as GrokSearchResponse;
-  const content = data.output_text ?? "No response";
+  // xAI API returns 'content' field, not 'output_text'
+  const content = data.content ?? data.output_text ?? "No response";
   const citations = data.citations ?? [];
   const inlineCitations = data.inline_citations;
 
