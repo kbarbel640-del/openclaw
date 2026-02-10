@@ -190,6 +190,7 @@ export async function initSessionState(params: {
   let systemSent = false;
   let abortedLastRun = false;
   let resetTriggered = false;
+  let resetTriggerReason: "new" | "reset" | undefined;
 
   let persistedThinking: string | undefined;
   let persistedVerbose: string | undefined;
@@ -242,6 +243,7 @@ export async function initSessionState(params: {
       isNewSession = true;
       bodyStripped = "";
       resetTriggered = true;
+      resetTriggerReason = triggerLower.startsWith("/reset") ? "reset" : "new";
       break;
     }
     const triggerPrefixLower = `${triggerLower} `;
@@ -252,6 +254,7 @@ export async function initSessionState(params: {
       isNewSession = true;
       bodyStripped = strippedForReset.slice(trigger.length).trimStart();
       resetTriggered = true;
+      resetTriggerReason = triggerLower.startsWith("/reset") ? "reset" : "new";
       break;
     }
   }
@@ -284,6 +287,29 @@ export async function initSessionState(params: {
   const freshEntry = entry
     ? evaluateSessionFreshness({ updatedAt: entry.updatedAt, now, policy: resetPolicy }).fresh
     : false;
+
+  const resetReason = resetTriggered ? (resetTriggerReason ?? "new") : "auto";
+  if ((isNewSession || !freshEntry) && entry && entry.sessionId) {
+    // Session is ending (either explicitly via /new or implicitly via auto-reset)
+    const hookRunner = getGlobalHookRunner();
+    if (hookRunner?.hasHooks("session_before_end")) {
+      void hookRunner
+        .runSessionBeforeEnd(
+          {
+            sessionId: entry.sessionId,
+            reason: resetReason,
+            messageCount: entry.messageCount ?? 0,
+          },
+          {
+            sessionId: entry.sessionId,
+            agentId,
+          },
+        )
+        .catch((err) => {
+          log.warn(`session_before_end hook failed: ${String(err)}`);
+        });
+    }
+  }
 
   if (!isNewSession && freshEntry) {
     sessionId = entry.sessionId;
