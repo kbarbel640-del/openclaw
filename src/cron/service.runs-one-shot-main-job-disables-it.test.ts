@@ -612,7 +612,9 @@ describe("CronService", () => {
 
     // Job should be disabled but not deleted when deleteAfterRun is false
     const jobs = await waitForJobs(cron, (items) =>
-      items.some((item) => item.id === job.id && !item.enabled && item.state.lastStatus === "skipped"),
+      items.some(
+        (item) => item.id === job.id && !item.enabled && item.state.lastStatus === "skipped",
+      ),
     );
     const updated = jobs.find((j) => j.id === job.id);
     expect(updated?.enabled).toBe(false);
