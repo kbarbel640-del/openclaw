@@ -164,6 +164,7 @@ class NodeRuntime(context: Context) {
         _seamColorArgb.value = DEFAULT_SEAM_COLOR_ARGB
         applyMainSessionKey(mainSessionKey)
         updateStatus()
+        maybeNavigateToA2uiOnConnect()
         scope.launch { refreshBrandingFromGateway() }
         scope.launch { refreshWakeWordsFromGateway() }
       },
@@ -202,7 +203,11 @@ class NodeRuntime(context: Context) {
         nodeConnected = false
         nodeStatusText = message
         updateStatus()
-        showLocalCanvasOnDisconnect()
+        if (operatorConnected) {
+          maybeNavigateToA2uiOnConnect()
+        } else {
+          showLocalCanvasOnDisconnect()
+        }
       },
       onEvent = { _, _ -> },
       onInvoke = { req ->
