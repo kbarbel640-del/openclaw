@@ -15,9 +15,11 @@ export function buildEndpoint(to: string, trunk?: string): string {
 
 // NOTE: Omit<Union, K> does NOT preserve per-variant fields because keyof(Union)
 // only includes keys common to all members. Use a distributive conditional.
-export type NormalizedEventInput = NormalizedEvent extends any
-  ? Omit<NormalizedEvent, "id" | "timestamp">
-  : never;
+//
+// We must distribute over a *type parameter*; using `NormalizedEvent extends any` directly
+// does not distribute.
+type DistributeEventInput<T> = T extends any ? Omit<T, "id" | "timestamp"> : never;
+export type NormalizedEventInput = DistributeEventInput<NormalizedEvent>;
 
 export function makeEvent(partial: NormalizedEventInput): NormalizedEvent {
   return {
