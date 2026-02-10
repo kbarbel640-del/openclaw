@@ -974,8 +974,11 @@ async function runProviderEntry(params: {
     fileName: media.fileName,
     mime: media.mime,
     apiKey,
-    baseUrl: providerConfig?.baseUrl,
-    headers: providerConfig?.headers,
+    baseUrl: entry.baseUrl ?? providerConfig?.baseUrl,
+    headers: {
+      ...providerConfig?.headers,
+      ...entry.headers,
+    },
     model: entry.model,
     prompt,
     timeoutMs,

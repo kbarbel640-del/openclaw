@@ -22,7 +22,6 @@ export async function describeMoonshotVideo(
 ): Promise<VideoDescriptionResult> {
   const fetchFn = params.fetchFn ?? fetch;
   const baseUrl = normalizeBaseUrl(params.baseUrl, DEFAULT_MOONSHOT_VIDEO_BASE_URL);
-  const allowPrivate = Boolean(params.baseUrl?.trim());
   const model = resolveModel(params.model);
   const url = `${baseUrl}/chat/completions`;
 
@@ -63,7 +62,7 @@ export async function describeMoonshotVideo(
     },
     params.timeoutMs,
     fetchFn,
-    allowPrivate ? { ssrfPolicy: { allowPrivateNetwork: true } } : undefined,
+    undefined,
   );
 
   try {
