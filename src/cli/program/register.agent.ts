@@ -1,12 +1,5 @@
 import type { Command } from "commander";
 import { DEFAULT_CHAT_CHANNEL } from "../../channels/registry.js";
-import { agentCliCommand } from "../../commands/agent-via-gateway.js";
-import {
-  agentsAddCommand,
-  agentsDeleteCommand,
-  agentsListCommand,
-  agentsSetIdentityCommand,
-} from "../../commands/agents.js";
 import { setVerbose } from "../../globals.js";
 import { defaultRuntime } from "../../runtime.js";
 import { formatDocsLink } from "../../terminal/links.js";
@@ -76,6 +69,7 @@ ${theme.muted("Docs:")} ${formatDocsLink("/cli/agent", "docs.openclaw.ai/cli/age
       // Build default deps (keeps parity with other commands; future-proofing).
       const deps = createDefaultDeps();
       await runCommandWithRuntime(defaultRuntime, async () => {
+        const { agentCliCommand } = await import("../../commands/agent-via-gateway.js");
         await agentCliCommand(opts, defaultRuntime, deps);
       });
     });
@@ -96,6 +90,7 @@ ${theme.muted("Docs:")} ${formatDocsLink("/cli/agent", "docs.openclaw.ai/cli/age
     .option("--bindings", "Include routing bindings", false)
     .action(async (opts) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
+        const { agentsListCommand } = await import("../../commands/agents.js");
         await agentsListCommand(
           { json: Boolean(opts.json), bindings: Boolean(opts.bindings) },
           defaultRuntime,
@@ -121,6 +116,7 @@ ${theme.muted("Docs:")} ${formatDocsLink("/cli/agent", "docs.openclaw.ai/cli/age
           "bind",
           "nonInteractive",
         ]);
+        const { agentsAddCommand } = await import("../../commands/agents.js");
         await agentsAddCommand(
           {
             name: typeof name === "string" ? name : undefined,
@@ -170,6 +166,7 @@ ${formatHelpExamples([
     )
     .action(async (opts) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
+        const { agentsSetIdentityCommand } = await import("../../commands/agents.js");
         await agentsSetIdentityCommand(
           {
             agent: opts.agent as string | undefined,
@@ -194,6 +191,7 @@ ${formatHelpExamples([
     .option("--json", "Output JSON summary", false)
     .action(async (id, opts) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
+        const { agentsDeleteCommand } = await import("../../commands/agents.js");
         await agentsDeleteCommand(
           {
             id: String(id),
@@ -207,6 +205,7 @@ ${formatHelpExamples([
 
   agents.action(async () => {
     await runCommandWithRuntime(defaultRuntime, async () => {
+      const { agentsListCommand } = await import("../../commands/agents.js");
       await agentsListCommand({}, defaultRuntime);
     });
   });
