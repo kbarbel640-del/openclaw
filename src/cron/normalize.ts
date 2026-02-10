@@ -373,15 +373,21 @@ export function normalizeCronJobInput(
 
   if (typeof base.schedule === "string") {
     const trimmed = base.schedule.trim();
+    let parsed = false;
     if (trimmed) {
       if (CRON_EXPR_RE.test(trimmed)) {
         next.schedule = coerceSchedule({ kind: "cron", expr: trimmed });
+        parsed = true;
       } else {
         const parsedMs = parseAbsoluteTimeMs(trimmed);
         if (parsedMs !== null) {
           next.schedule = coerceSchedule({ kind: "at", at: new Date(parsedMs).toISOString() });
+          parsed = true;
         }
       }
+    }
+    if (!parsed) {
+      delete next.schedule;
     }
   } else if (isRecord(base.schedule)) {
     next.schedule = coerceSchedule(base.schedule);
@@ -391,8 +397,11 @@ export function normalizeCronJobInput(
     const trimmed = base.payload.trim();
     if (trimmed) {
       next.payload = coercePayload({ kind: "systemEvent", text: trimmed });
+    } else {
+      delete next.payload;
     }
-  } else if (!("payload" in next) || !isRecord(next.payload)) {
+  }
+  if (!("payload" in next) || !isRecord(next.payload)) {
     const message = typeof next.message === "string" ? next.message.trim() : "";
     const text = typeof next.text === "string" ? next.text.trim() : "";
     if (message) {
