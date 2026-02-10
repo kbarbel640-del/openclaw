@@ -17,6 +17,18 @@ import { resolveSlackBotToken } from "./token.js";
 
 const SLACK_TEXT_LIMIT = 4000;
 
+/** Detect Slack API errors caused by a missing OAuth scope (e.g. chat:write.customize). */
+function isSlackMissingScopeError(err: unknown): boolean {
+  if (typeof err === "object" && err !== null && "data" in err) {
+    const data = (err as { data?: { error?: string } }).data;
+    if (data?.error === "missing_scope" || data?.error === "not_allowed_token_type") {
+      return true;
+    }
+  }
+  const message = err instanceof Error ? err.message : "";
+  return message.includes("missing_scope") || message.includes("not_allowed_token_type");
+}
+
 type SlackRecipient =
   | {
       kind: "user";
@@ -191,6 +203,27 @@ export async function sendMessageSlack(
   } else if (opts.persona?.iconEmoji) {
     personaFields.icon_emoji = opts.persona.iconEmoji;
   }
+  const hasPersona = Object.keys(personaFields).length > 0;
+
+  // Wrapper: post with persona, fall back to plain if scope is missing.
+  let personaDisabled = false;
+  async function postMessage(params: { channel: string; text: string; thread_ts?: string }) {
+    if (hasPersona && !personaDisabled) {
+      try {
+        return await client.chat.postMessage({ ...params, ...personaFields });
+      } catch (err: unknown) {
+        if (isSlackMissingScopeError(err)) {
+          personaDisabled = true;
+          logVerbose(
+            "slack send: chat:write.customize scope missing — falling back to default identity",
+          );
+        } else {
+          throw err;
+        }
+      }
+    }
+    return client.chat.postMessage(params);
+  }
 
   let lastMessageId = "";
   if (opts.mediaUrl) {
@@ -204,21 +237,19 @@ export async function sendMessageSlack(
       maxBytes: mediaMaxBytes,
     });
     for (const chunk of rest) {
-      const response = await client.chat.postMessage({
+      const response = await postMessage({
         channel: channelId,
         text: chunk,
         thread_ts: opts.threadTs,
-        ...personaFields,
       });
       lastMessageId = response.ts ?? lastMessageId;
     }
   } else {
     for (const chunk of chunks.length ? chunks : [""]) {
-      const response = await client.chat.postMessage({
+      const response = await postMessage({
         channel: channelId,
         text: chunk,
         thread_ts: opts.threadTs,
-        ...personaFields,
       });
       lastMessageId = response.ts ?? lastMessageId;
     }

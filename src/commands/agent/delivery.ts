@@ -183,6 +183,7 @@ export async function deliverAgentCommandResult(params: {
         channel: deliveryChannel,
         to: deliveryTarget,
         accountId: resolvedAccountId,
+        agentId: opts.agentId,
         payloads: deliveryPayloads,
         replyToId: resolvedReplyToId ?? null,
         threadId: resolvedThreadTarget ?? null,
