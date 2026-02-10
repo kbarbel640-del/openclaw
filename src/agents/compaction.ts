@@ -6,7 +6,12 @@ import { repairToolUseResultPairing } from "./session-transcript-repair.js";
 
 export const BASE_CHUNK_RATIO = 0.4;
 export const MIN_CHUNK_RATIO = 0.15;
-export const SAFETY_MARGIN = 1.2; // 20% buffer for estimateTokens() inaccuracy
+export const SAFETY_MARGIN = 1.1; // 10% buffer for estimateTokens() inaccuracy (reduced from 1.2)
+/**
+ * Ratio of context window at which proactive compaction should trigger.
+ * Prevents wasted API calls from reactive-only overflow compaction.
+ */
+export const PROACTIVE_COMPACTION_RATIO = 0.85;
 const DEFAULT_SUMMARY_FALLBACK = "No prior history.";
 const DEFAULT_PARTS = 2;
 const MERGE_SUMMARIES_INSTRUCTIONS =
@@ -370,4 +375,30 @@ export function pruneHistoryForContextShare(params: {
 
 export function resolveContextWindowTokens(model?: ExtensionContext["model"]): number {
   return Math.max(1, Math.floor(model?.contextWindow ?? DEFAULT_CONTEXT_TOKENS));
+}
+
+/**
+ * Check if the current session history is large enough that proactive compaction
+ * should be triggered before the next API call. This avoids wasting a full API call
+ * on an overflow error that triggers reactive compaction.
+ *
+ * @param estimatedHistoryTokens - Estimated tokens in the current session history
+ * @param contextWindowTokens - Total context window tokens for the model
+ * @param systemPromptTokens - Estimated tokens consumed by system prompt + tool schemas
+ * @param ratio - Threshold ratio (default: PROACTIVE_COMPACTION_RATIO = 0.85)
+ * @returns true if proactive compaction should be attempted
+ */
+export function shouldProactivelyCompact(params: {
+  estimatedHistoryTokens: number;
+  contextWindowTokens: number;
+  systemPromptTokens?: number;
+  ratio?: number;
+}): boolean {
+  const ratio = params.ratio ?? PROACTIVE_COMPACTION_RATIO;
+  const systemTokens = params.systemPromptTokens ?? 0;
+  const availableForHistory = params.contextWindowTokens - systemTokens;
+  if (availableForHistory <= 0) {
+    return false;
+  }
+  return params.estimatedHistoryTokens / availableForHistory >= ratio;
 }

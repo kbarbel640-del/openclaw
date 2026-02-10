@@ -236,6 +236,27 @@ async function resolveMemoryBootstrapEntries(
   return deduped;
 }
 
+/**
+ * Cache for bootstrap files. Avoids re-reading unchanged files from disk on every run.
+ * Cache is keyed by directory and invalidated when file mtimes change.
+ */
+const bootstrapCache = new Map<string, {
+  files: WorkspaceBootstrapFile[];
+  mtimes: Map<string, number>;
+  cachedAt: number;
+}>();
+
+const BOOTSTRAP_CACHE_MAX_AGE_MS = 30_000; // 30s max age
+
+async function getFileMtime(filePath: string): Promise<number | null> {
+  try {
+    const stat = await fs.stat(filePath);
+    return stat.mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadWorkspaceBootstrapFiles(dir: string): Promise<WorkspaceBootstrapFile[]> {
   const resolvedDir = resolveUserPath(dir);
 
@@ -275,10 +296,33 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
 
   entries.push(...(await resolveMemoryBootstrapEntries(resolvedDir)));
 
+  // Check cache validity
+  const cached = bootstrapCache.get(resolvedDir);
+  if (cached && Date.now() - cached.cachedAt < BOOTSTRAP_CACHE_MAX_AGE_MS) {
+    // Verify mtimes haven't changed
+    let cacheValid = true;
+    for (const entry of entries) {
+      const currentMtime = await getFileMtime(entry.filePath);
+      const cachedMtime = cached.mtimes.get(entry.filePath) ?? null;
+      if (currentMtime !== cachedMtime) {
+        cacheValid = false;
+        break;
+      }
+    }
+    if (cacheValid) {
+      return cached.files;
+    }
+  }
+
   const result: WorkspaceBootstrapFile[] = [];
+  const mtimes = new Map<string, number>();
   for (const entry of entries) {
     try {
       const content = await fs.readFile(entry.filePath, "utf-8");
+      const mtime = await getFileMtime(entry.filePath);
+      if (mtime !== null) {
+        mtimes.set(entry.filePath, mtime);
+      }
       result.push({
         name: entry.name,
         path: entry.filePath,
@@ -289,6 +333,9 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
       result.push({ name: entry.name, path: entry.filePath, missing: true });
     }
   }
+
+  // Update cache
+  bootstrapCache.set(resolvedDir, { files: result, mtimes, cachedAt: Date.now() });
   return result;
 }
 

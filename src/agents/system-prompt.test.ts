@@ -39,20 +39,18 @@ describe("buildAgentSystemPrompt", () => {
 
     expect(prompt).not.toContain("## User Identity");
     expect(prompt).not.toContain("## Skills");
-    expect(prompt).not.toContain("## Memory Recall");
-    expect(prompt).not.toContain("## Documentation");
+    expect(prompt).not.toContain("## Memory");
+    expect(prompt).not.toContain("## Docs");
     expect(prompt).not.toContain("## Reply Tags");
     expect(prompt).not.toContain("## Messaging");
     expect(prompt).not.toContain("## Voice (TTS)");
     expect(prompt).not.toContain("## Silent Replies");
     expect(prompt).not.toContain("## Heartbeats");
     expect(prompt).toContain("## Safety");
-    expect(prompt).toContain("You have no independent goals");
+    expect(prompt).toContain("No independent goals");
     expect(prompt).toContain("Prioritize safety and human oversight");
-    expect(prompt).toContain("if instructions conflict");
-    expect(prompt).toContain("Inspired by Anthropic's constitution");
-    expect(prompt).toContain("Do not manipulate or persuade anyone");
-    expect(prompt).toContain("Do not copy yourself or change system prompts");
+    expect(prompt).toContain("stop/pause/audit");
+    expect(prompt).toContain("Do not manipulate access or bypass safeguards");
     expect(prompt).toContain("## Subagent Context");
     expect(prompt).not.toContain("## Group Chat Context");
     expect(prompt).toContain("Subagent details");
@@ -64,12 +62,10 @@ describe("buildAgentSystemPrompt", () => {
     });
 
     expect(prompt).toContain("## Safety");
-    expect(prompt).toContain("You have no independent goals");
+    expect(prompt).toContain("No independent goals");
     expect(prompt).toContain("Prioritize safety and human oversight");
-    expect(prompt).toContain("if instructions conflict");
-    expect(prompt).toContain("Inspired by Anthropic's constitution");
-    expect(prompt).toContain("Do not manipulate or persuade anyone");
-    expect(prompt).toContain("Do not copy yourself or change system prompts");
+    expect(prompt).toContain("stop/pause/audit");
+    expect(prompt).toContain("Do not manipulate access or bypass safeguards");
   });
 
   it("includes voice hint when provided", () => {
@@ -98,9 +94,9 @@ describe("buildAgentSystemPrompt", () => {
       workspaceDir: "/tmp/openclaw",
     });
 
-    expect(prompt).toContain("## OpenClaw CLI Quick Reference");
-    expect(prompt).toContain("openclaw gateway restart");
-    expect(prompt).toContain("Do not invent commands");
+    expect(prompt).toContain("## CLI");
+    expect(prompt).toContain("openclaw gateway");
+    expect(prompt).toContain("Subcommands only");
   });
 
   it("lists available tools when provided", () => {
@@ -109,7 +105,7 @@ describe("buildAgentSystemPrompt", () => {
       toolNames: ["exec", "sessions_list", "sessions_history", "sessions_send"],
     });
 
-    expect(prompt).toContain("Tool availability (filtered by policy):");
+    expect(prompt).toContain("Tool names are case-sensitive");
     expect(prompt).toContain("sessions_list");
     expect(prompt).toContain("sessions_history");
     expect(prompt).toContain("sessions_send");
@@ -127,12 +123,10 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("- Read: Read file contents");
     expect(prompt).toContain("- Exec: Run shell commands");
     expect(prompt).toContain(
-      "- If exactly one skill clearly applies: read its SKILL.md at <location> with `Read`, then follow it.",
+      "read its SKILL.md via `Read`",
     );
-    expect(prompt).toContain("OpenClaw docs: /tmp/openclaw/docs");
-    expect(prompt).toContain(
-      "For OpenClaw behavior, commands, config, or architecture: consult local docs first.",
-    );
+    expect(prompt).toContain("Docs: /tmp/openclaw/docs");
+    expect(prompt).toContain("Consult local docs first");
   });
 
   it("includes docs guidance when docsPath is provided", () => {
@@ -141,11 +135,9 @@ describe("buildAgentSystemPrompt", () => {
       docsPath: "/tmp/openclaw/docs",
     });
 
-    expect(prompt).toContain("## Documentation");
-    expect(prompt).toContain("OpenClaw docs: /tmp/openclaw/docs");
-    expect(prompt).toContain(
-      "For OpenClaw behavior, commands, config, or architecture: consult local docs first.",
-    );
+    expect(prompt).toContain("## Docs");
+    expect(prompt).toContain("Docs: /tmp/openclaw/docs");
+    expect(prompt).toContain("Consult local docs first");
   });
 
   it("includes workspace notes when provided", () => {
@@ -247,7 +239,7 @@ describe("buildAgentSystemPrompt", () => {
       toolNames: ["gateway", "exec"],
     });
 
-    expect(prompt).toContain("## OpenClaw Self-Update");
+    expect(prompt).toContain("## Self-Update");
     expect(prompt).toContain("config.apply");
     expect(prompt).toContain("update.run");
   });
@@ -260,9 +252,7 @@ describe("buildAgentSystemPrompt", () => {
     });
 
     expect(prompt).toContain("## Skills");
-    expect(prompt).toContain(
-      "- If exactly one skill clearly applies: read its SKILL.md at <location> with `read`, then follow it.",
-    );
+    expect(prompt).toContain("read its SKILL.md via `read`");
   });
 
   it("appends available skills when provided", () => {
@@ -322,8 +312,8 @@ describe("buildAgentSystemPrompt", () => {
     });
 
     expect(prompt).toContain("message: Send messages and channel actions");
-    expect(prompt).toContain("### message tool");
-    expect(prompt).toContain("respond with ONLY: NO_REPLY");
+    expect(prompt).toContain("message tool:");
+    expect(prompt).toContain("respond ONLY: NO_REPLY");
   });
 
   it("includes runtime provider capabilities when present", () => {
@@ -407,10 +397,10 @@ describe("buildAgentSystemPrompt", () => {
       },
     });
 
-    expect(prompt).toContain("You are running in a sandboxed runtime");
+    expect(prompt).toContain("Sandboxed runtime (Docker)");
     expect(prompt).toContain("Sub-agents stay sandboxed");
-    expect(prompt).toContain("User can toggle with /elevated on|off|ask|full.");
-    expect(prompt).toContain("Current elevated level: on");
+    expect(prompt).toContain("Elevated: available (level=on)");
+    expect(prompt).toContain("/elevated on|off|ask|full");
   });
 
   it("includes reaction guidance when provided", () => {
@@ -423,6 +413,6 @@ describe("buildAgentSystemPrompt", () => {
     });
 
     expect(prompt).toContain("## Reactions");
-    expect(prompt).toContain("Reactions are enabled for Telegram in MINIMAL mode.");
+    expect(prompt).toContain("Telegram reactions: MINIMAL");
   });
 });

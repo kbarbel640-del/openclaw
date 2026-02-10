@@ -9,6 +9,7 @@ export default function contextPruningExtension(api: ExtensionAPI): void {
       return undefined;
     }
 
+    // "always" mode skips cache-ttl checks — prune on every context event.
     if (runtime.settings.mode === "cache-ttl") {
       const ttlMs = runtime.settings.ttlMs;
       const lastTouch = runtime.lastCacheTouchAt ?? null;

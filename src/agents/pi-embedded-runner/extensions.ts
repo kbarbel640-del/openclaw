@@ -43,10 +43,11 @@ function buildContextPruningExtension(params: {
   model: Model<Api> | undefined;
 }): { additionalExtensionPaths?: string[] } {
   const raw = params.cfg?.agents?.defaults?.contextPruning;
-  if (raw?.mode !== "cache-ttl") {
+  if (!raw || raw.mode === "off") {
     return {};
   }
-  if (!isCacheTtlEligibleProvider(params.provider, params.modelId)) {
+  // "cache-ttl" mode requires Anthropic; "always" mode works for all providers
+  if (raw.mode === "cache-ttl" && !isCacheTtlEligibleProvider(params.provider, params.modelId)) {
     return {};
   }
 
@@ -59,7 +60,9 @@ function buildContextPruningExtension(params: {
     settings,
     contextWindowTokens: resolveContextWindowTokens(params),
     isToolPrunable: makeToolPrunablePredicate(settings.tools),
-    lastCacheTouchAt: readLastCacheTtlTimestamp(params.sessionManager),
+    lastCacheTouchAt: settings.mode === "cache-ttl"
+      ? readLastCacheTtlTimestamp(params.sessionManager)
+      : Date.now(),
   });
 
   return {
