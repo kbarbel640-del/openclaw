@@ -107,8 +107,8 @@ export async function createThreadDiscord(
   }
   let channelType: ChannelType | undefined;
   if (!payload.messageId) {
-    // Only detect channel kind for route-less thread creation.
-    // If this lookup fails, keep prior behavior and let Discord validate.
+    // Detect channel kind for route-less thread creation.
+    // If lookup fails, leave type unset and let Discord validate.
     try {
       const channel = (await rest.get(Routes.channel(channelId))) as APIChannel | null | undefined;
       channelType = channel?.type;
@@ -118,10 +118,14 @@ export async function createThreadDiscord(
   }
   const isForumLike =
     channelType === ChannelType.GuildForum || channelType === ChannelType.GuildMedia;
+  const isTextLike =
+    channelType === ChannelType.GuildText || channelType === ChannelType.GuildAnnouncement;
   if (isForumLike) {
     const starterContent = payload.content?.trim() ? payload.content : payload.name;
     body.message = { content: starterContent };
-  } else if (!payload.messageId) {
+  } else if (!payload.messageId && isTextLike) {
+    // Default to public thread for text-like channels.
+    // Without this, Discord API defaults to private thread (type 12).
     body.type = ChannelType.PublicThread;
   }
   const route = payload.messageId

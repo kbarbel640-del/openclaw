@@ -123,19 +123,14 @@ describe("sendMessageDiscord", () => {
     );
   });
 
-  it("falls back when channel lookup is unavailable", async () => {
+  it("does not force type when channel lookup fails", async () => {
     const { rest, getMock, postMock } = makeRest();
     getMock.mockRejectedValue(new Error("lookup failed"));
     postMock.mockResolvedValue({ id: "t1" });
     await createThreadDiscord("chan1", { name: "thread" }, { rest, token: "t" });
     expect(postMock).toHaveBeenCalledWith(
       Routes.threads("chan1"),
-      expect.objectContaining({
-        body: {
-          name: "thread",
-          type: ChannelType.PublicThread,
-        },
-      }),
+      expect.objectContaining({ body: { name: "thread" } }),
     );
   });
 
