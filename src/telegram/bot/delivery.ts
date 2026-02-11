@@ -63,6 +63,7 @@ export async function deliverReplies(params: {
   const chunkMode = params.chunkMode ?? "length";
   let hasReplied = false;
   let hasDelivered = false;
+  let reactionTargetId: number | undefined;
   const markDelivered = () => {
     hasDelivered = true;
   };
@@ -96,6 +97,9 @@ export async function deliverReplies(params: {
       continue;
     }
     const replyToId = replyToMode === "off" ? undefined : resolveTelegramReplyId(reply.replyToId);
+    if (!reactionTargetId && replyToId) {
+      reactionTargetId = replyToId;
+    }
     const mediaList = reply.mediaUrls?.length
       ? reply.mediaUrls
       : reply.mediaUrl
@@ -283,6 +287,33 @@ export async function deliverReplies(params: {
           }
         }
         pendingFollowUpText = undefined;
+      }
+    }
+  }
+
+  if (hasDelivered && reactionTargetId) {
+    const reactionApi = (bot.api as { setMessageReaction?: typeof bot.api.setMessageReaction })
+      .setMessageReaction;
+    if (typeof reactionApi === "function") {
+      const setReaction = reactionApi.bind(bot.api);
+      try {
+        await withTelegramApiErrorLogging({
+          operation: "setMessageReaction",
+          runtime,
+          fn: () => setReaction(chatId, reactionTargetId!, []),
+        });
+      } catch {
+        // best-effort cleanup
+      }
+      try {
+        await withTelegramApiErrorLogging({
+          operation: "setMessageReaction",
+          runtime,
+          fn: () =>
+            setReaction(chatId, reactionTargetId!, [{ type: "emoji", emoji: "👌" }]),
+        });
+      } catch {
+        // best-effort completion signal
       }
     }
   }

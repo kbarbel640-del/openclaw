@@ -28,6 +28,8 @@ import {
   type ResolvedTelegramAccount,
   type TelegramProbe,
 } from "openclaw/plugin-sdk";
+import { promises as fs } from "node:fs";
+import { dirname } from "node:path";
 import { getTelegramRuntime } from "./runtime.js";
 
 const meta = getChatChannelMeta("telegram");
@@ -67,6 +69,117 @@ function parseThreadId(threadId?: string | number | null) {
   }
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+type TelegramThreadCapability = {
+  supportsTopic: boolean;
+  lastCheckedAt: string;
+  lastKnownThreadId?: number;
+  lastThreadErrorAt?: string;
+};
+
+type TelegramThreadCapabilityStore = {
+  chats: Record<string, TelegramThreadCapability>;
+};
+
+const THREAD_CAPABILITY_PATH =
+  "/home/node/.openclaw/workspace/memory/telegram-thread-capability.json";
+
+async function readThreadCapabilityStore(): Promise<TelegramThreadCapabilityStore> {
+  try {
+    const raw = await fs.readFile(THREAD_CAPABILITY_PATH, "utf8");
+    const parsed = JSON.parse(raw) as TelegramThreadCapabilityStore;
+    if (!parsed || typeof parsed !== "object" || typeof parsed.chats !== "object") {
+      return { chats: {} };
+    }
+    return parsed;
+  } catch {
+    return { chats: {} };
+  }
+}
+
+async function writeThreadCapabilityStore(store: TelegramThreadCapabilityStore) {
+  try {
+    await fs.mkdir(dirname(THREAD_CAPABILITY_PATH), { recursive: true });
+    await fs.writeFile(THREAD_CAPABILITY_PATH, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  } catch {
+    // Best-effort cache only.
+  }
+}
+
+async function markThreadCapability(chatId: string, data: TelegramThreadCapability) {
+  const store = await readThreadCapabilityStore();
+  store.chats[chatId] = data;
+  await writeThreadCapabilityStore(store);
+}
+
+function isThreadNotFoundError(err: unknown): boolean {
+  const text = String(err ?? "").toLowerCase();
+  return text.includes("message thread not found");
+}
+
+async function sendWithThreadFallback(opts: {
+  to: string;
+  text: string;
+  accountId?: string;
+  replyToMessageId?: number;
+  messageThreadId?: number;
+  mediaUrl?: string;
+  send: (
+    to: string,
+    text: string,
+    params: {
+      verbose: boolean;
+      messageThreadId?: number;
+      replyToMessageId?: number;
+      accountId?: string;
+      mediaUrl?: string;
+    },
+  ) => Promise<{ messageId: string; chatId: string }>;
+}) {
+  const { to, text, accountId, replyToMessageId, messageThreadId, mediaUrl, send } = opts;
+  const store = await readThreadCapabilityStore();
+  const cached = store.chats[to];
+  const allowThread = messageThreadId != null && cached?.supportsTopic !== false;
+
+  try {
+    const result = await send(to, text, {
+      verbose: false,
+      messageThreadId: allowThread ? messageThreadId : undefined,
+      replyToMessageId,
+      accountId,
+      mediaUrl,
+    });
+
+    if (allowThread && messageThreadId != null) {
+      await markThreadCapability(to, {
+        supportsTopic: true,
+        lastCheckedAt: new Date().toISOString(),
+        lastKnownThreadId: messageThreadId,
+      });
+    }
+
+    return result;
+  } catch (err) {
+    if (!allowThread || messageThreadId == null || !isThreadNotFoundError(err)) {
+      throw err;
+    }
+
+    await markThreadCapability(to, {
+      supportsTopic: false,
+      lastCheckedAt: new Date().toISOString(),
+      lastKnownThreadId: messageThreadId,
+      lastThreadErrorAt: new Date().toISOString(),
+    });
+
+    return send(to, text, {
+      verbose: false,
+      replyToMessageId,
+      accountId,
+      mediaUrl,
+      messageThreadId: undefined,
+    });
+  }
 }
 
 async function applyCompletionReactions(opts: {
@@ -309,11 +422,13 @@ export const telegramPlugin: ChannelPlugin<ResolvedTelegramAccount, TelegramProb
       const send = deps?.sendTelegram ?? getTelegramRuntime().channel.telegram.sendMessageTelegram;
       const replyToMessageId = parseReplyToMessageId(replyToId);
       const messageThreadId = parseThreadId(threadId);
-      const result = await send(to, text, {
-        verbose: false,
-        messageThreadId,
-        replyToMessageId,
+      const result = await sendWithThreadFallback({
+        to,
+        text,
         accountId: accountId ?? undefined,
+        replyToMessageId,
+        messageThreadId,
+        send,
       });
       await applyCompletionReactions({
         chatId: to,
@@ -326,12 +441,14 @@ export const telegramPlugin: ChannelPlugin<ResolvedTelegramAccount, TelegramProb
       const send = deps?.sendTelegram ?? getTelegramRuntime().channel.telegram.sendMessageTelegram;
       const replyToMessageId = parseReplyToMessageId(replyToId);
       const messageThreadId = parseThreadId(threadId);
-      const result = await send(to, text, {
-        verbose: false,
+      const result = await sendWithThreadFallback({
+        to,
+        text,
         mediaUrl,
-        messageThreadId,
-        replyToMessageId,
         accountId: accountId ?? undefined,
+        replyToMessageId,
+        messageThreadId,
+        send,
       });
       await applyCompletionReactions({
         chatId: to,

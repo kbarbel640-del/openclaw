@@ -335,4 +335,26 @@ describe("deliverReplies", () => {
     expect(sendVoice).toHaveBeenCalledTimes(1);
     expect(sendMessage).not.toHaveBeenCalled();
   });
+
+  it("removes ack reaction then adds 👌 after replying to a target message", async () => {
+    const runtime = { error: vi.fn(), log: vi.fn() };
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 11, chat: { id: "123" } });
+    const setMessageReaction = vi.fn().mockResolvedValue(undefined);
+    const bot = { api: { sendMessage, setMessageReaction } } as unknown as Bot;
+
+    await deliverReplies({
+      replies: [{ text: "done", replyToId: "777" }],
+      chatId: "123",
+      token: "tok",
+      runtime,
+      bot,
+      replyToMode: "all",
+      textLimit: 4000,
+    });
+
+    expect(setMessageReaction).toHaveBeenNthCalledWith(1, "123", 777, []);
+    expect(setMessageReaction).toHaveBeenNthCalledWith(2, "123", 777, [
+      { type: "emoji", emoji: "👌" },
+    ]);
+  });
 });

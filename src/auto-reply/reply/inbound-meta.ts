@@ -104,13 +104,14 @@ export function buildInboundUserContextPrefix(ctx: TemplateContext): string {
     );
   }
 
-  if (ctx.ReplyToBody) {
+  if (ctx.ReplyToBody || safeTrim(ctx.ReplyToId)) {
     blocks.push(
       [
         "Replied message (untrusted, for context):",
         "```json",
         JSON.stringify(
           {
+            message_id: safeTrim(ctx.ReplyToId),
             sender_label: safeTrim(ctx.ReplyToSender),
             is_quote: ctx.ReplyToIsQuote === true ? true : undefined,
             body: ctx.ReplyToBody,
