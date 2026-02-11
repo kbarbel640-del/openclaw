@@ -2289,7 +2289,7 @@ public struct DeviceTokenRevokeParams: Codable, Sendable {
 
     public init(
         deviceid: String,
-        role: String,
+        role: String
     ) {
         self.deviceid = deviceid
         self.role = role
@@ -2330,7 +2330,7 @@ public struct DevicePairRequestedEvent: Codable, Sendable {
         remoteip: String?,
         silent: Bool?,
         isrepair: Bool?,
-        ts: Int,
+        ts: Int
     ) {
         self.requestid = requestid
         self.deviceid = deviceid
@@ -2375,7 +2375,7 @@ public struct DevicePairResolvedEvent: Codable, Sendable {
         requestid: String,
         deviceid: String,
         decision: String,
-        ts: Int,
+        ts: Int
     ) {
         self.requestid = requestid
         self.deviceid = deviceid
@@ -2396,7 +2396,7 @@ public struct ChatHistoryParams: Codable, Sendable {
 
     public init(
         sessionkey: String,
-        limit: Int?,
+        limit: Int?
     ) {
         self.sessionkey = sessionkey
         self.limit = limit
@@ -2423,7 +2423,7 @@ public struct ChatSendParams: Codable, Sendable {
         deliver: Bool?,
         attachments: [AnyCodable]?,
         timeoutms: Int?,
-        idempotencykey: String,
+        idempotencykey: String
     ) {
         self.sessionkey = sessionkey
         self.message = message
@@ -2450,7 +2450,7 @@ public struct ChatAbortParams: Codable, Sendable {
 
     public init(
         sessionkey: String,
-        runid: String?,
+        runid: String?
     ) {
         self.sessionkey = sessionkey
         self.runid = runid
@@ -2469,7 +2469,7 @@ public struct ChatInjectParams: Codable, Sendable {
     public init(
         sessionkey: String,
         message: String,
-        label: String?,
+        label: String?
     ) {
         self.sessionkey = sessionkey
         self.message = message
@@ -2500,7 +2500,7 @@ public struct ChatEvent: Codable, Sendable {
         message: AnyCodable?,
         errormessage: String?,
         usage: AnyCodable?,
-        stopreason: String?,
+        stopreason: String?
     ) {
         self.runid = runid
         self.sessionkey = sessionkey
@@ -2533,7 +2533,7 @@ public struct UpdateRunParams: Codable, Sendable {
         sessionkey: String?,
         note: String?,
         restartdelayms: Int?,
-        timeoutms: Int?,
+        timeoutms: Int?
     ) {
         self.sessionkey = sessionkey
         self.note = note
@@ -2552,7 +2552,7 @@ public struct TickEvent: Codable, Sendable {
     public let ts: Int
 
     public init(
-        ts: Int,
+        ts: Int
     ) {
         self.ts = ts
     }
@@ -2567,7 +2567,7 @@ public struct ShutdownEvent: Codable, Sendable {
 
     public init(
         reason: String,
-        restartexpectedms: Int?,
+        restartexpectedms: Int?
     ) {
         self.reason = reason
         self.restartexpectedms = restartexpectedms
