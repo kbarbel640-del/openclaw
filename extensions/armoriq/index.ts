@@ -124,6 +124,7 @@ Tool access enforcement:
 
 const clientCache = new Map<string, ArmorIQClient>();
 const planCache = new Map<string, PlanCacheEntry>();
+const sessionKeyIndex = new Map<string, string>();
 const contextTokenExecutionCache = new Map<string, ContextTokenExecutionEntry>();
 
 function stringEnum<T extends readonly string[]>(
@@ -1713,6 +1714,9 @@ export default function register(api: OpenClawPluginApi) {
 
   api.on("before_agent_start", async (event, ctx) => {
     const runKey = resolveRunKey(ctx as ToolContext);
+    api.logger.info(
+      `armoriq: [agent_start] runKey=${runKey} runId=${(ctx as ToolContext).runId} sessionKey=${(ctx as ToolContext).sessionKey}`,
+    );
     if (!runKey) {
       return cfg.policyUpdateEnabled ? { prependContext: POLICY_UPDATE_INSTRUCTIONS } : undefined;
     }
@@ -1779,6 +1783,10 @@ export default function register(api: OpenClawPluginApi) {
               ? token.expiresAt
               : undefined,
       });
+      const sessionKey = (ctx as ToolContext).sessionKey?.trim();
+      if (sessionKey && runKey !== sessionKey) {
+        sessionKeyIndex.set(sessionKey, runKey);
+      }
       return cfg.policyUpdateEnabled ? { prependContext: POLICY_UPDATE_INSTRUCTIONS } : undefined;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -1797,8 +1805,15 @@ export default function register(api: OpenClawPluginApi) {
   api.on("agent_end", async (_event, ctx) => {
     const runKey = resolveRunKey(ctx as ToolContext);
     if (runKey) {
-      planCache.delete(runKey);
-      contextTokenExecutionCache.delete(runKey);
+      const indexed = sessionKeyIndex.get(runKey);
+      if (indexed) {
+        planCache.delete(indexed);
+        contextTokenExecutionCache.delete(indexed);
+        sessionKeyIndex.delete(runKey);
+      } else {
+        planCache.delete(runKey);
+        contextTokenExecutionCache.delete(runKey);
+      }
     }
   });
 
@@ -1807,6 +1822,9 @@ export default function register(api: OpenClawPluginApi) {
     const toolCtx = ctx as ToolContext;
     const intentTokenRaw = readString(toolCtx.intentTokenRaw);
     const runKey = resolveRunKey(toolCtx);
+    api.logger.info(
+      `armoriq: [tool_call] tool=${normalizedTool} runKey=${runKey} runId=${toolCtx.runId} sessionKey=${toolCtx.sessionKey} cacheKeys=[${[...planCache.keys()].join(",")}]`,
+    );
     const policyCheck = async (): Promise<{ block: true; blockReason: string } | null> => {
       if (normalizedTool === "policy_update") {
         return null;
@@ -2042,7 +2060,7 @@ export default function register(api: OpenClawPluginApi) {
       };
     }
 
-    const cached = planCache.get(runKey);
+    const cached = planCache.get(runKey) ?? planCache.get(sessionKeyIndex.get(runKey) ?? "");
 
     if (!cached) {
       return {
