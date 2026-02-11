@@ -99,3 +99,6 @@ export function markdownToTelegramChunks(
 export function markdownToTelegramHtmlChunks(markdown: string, limit: number): string[] {
   return markdownToTelegramChunks(markdown, limit).map((chunk) => chunk.html);
 }
+
+// Explicit re-exports for bundlers that rely on named export lists.
+export { escapeHtml, escapeHtmlAttr };
