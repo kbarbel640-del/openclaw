@@ -61,9 +61,11 @@ function writeTrashInfo(trashDir: string, destName: string, originalPath: string
 /**
  * Move a file or directory to the system Trash.
  *
- * Returns the original `targetPath` on success — CLI trash commands do not
- * expose the destination path, so the return value is consistently the path
- * that was trashed rather than where it ended up.
+ * Returns the expected trash destination path. When a CLI trash command
+ * succeeds the exact destination is inferred from the platform trash
+ * directory (e.g. `~/.Trash/<name>` on macOS). When the manual fallback
+ * is used the destination is known precisely because we perform the move
+ * ourselves.
  */
 export async function movePathToTrash(targetPath: string): Promise<string> {
   const commands = resolveTrashCommands();
@@ -71,7 +73,10 @@ export async function movePathToTrash(targetPath: string): Promise<string> {
   for (const { cmd, args } of commands) {
     try {
       await runExec(cmd, args(targetPath), { timeoutMs: 10_000 });
-      return targetPath;
+      // CLI trash utilities place the file in the platform trash directory
+      // under its original basename.
+      const trashDir = resolveTrashDir();
+      return path.join(trashDir, path.basename(targetPath));
     } catch {
       // Try the next command.
     }
@@ -96,5 +101,5 @@ export async function movePathToTrash(targetPath: string): Promise<string> {
     writeTrashInfo(trashDir, destName, path.resolve(targetPath));
   }
 
-  return targetPath;
+  return dest;
 }

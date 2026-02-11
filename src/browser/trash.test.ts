@@ -26,12 +26,14 @@ describe("movePathToTrash", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("returns early when the first trash command succeeds", async () => {
+  it("returns the expected trash destination when the first trash command succeeds", async () => {
     runExecMock.mockResolvedValueOnce({ stdout: "", stderr: "" });
 
     const result = await movePathToTrash(targetFile);
 
-    expect(result).toBe(targetFile);
+    // On macOS (default test platform), the trash destination is ~/.Trash/<basename>.
+    const expected = path.join(os.homedir(), ".Trash", "test-file.txt");
+    expect(result).toBe(expected);
     expect(runExecMock).toHaveBeenCalledTimes(1);
     expect(runExecMock).toHaveBeenCalledWith("trash", [targetFile], { timeoutMs: 10_000 });
   });
@@ -41,6 +43,11 @@ describe("movePathToTrash", () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", { value: "linux", writable: true });
 
+    // Use a custom XDG_DATA_HOME so the expected path is deterministic.
+    const originalXdg = process.env["XDG_DATA_HOME"];
+    const xdgDataHome = path.join(tmpDir, ".local", "share");
+    process.env["XDG_DATA_HOME"] = xdgDataHome;
+
     try {
       // trash fails, gio trash succeeds
       runExecMock.mockRejectedValueOnce(new Error("trash not found"));
@@ -48,7 +55,8 @@ describe("movePathToTrash", () => {
 
       const result = await movePathToTrash(targetFile);
 
-      expect(result).toBe(targetFile);
+      const expected = path.join(xdgDataHome, "Trash", "files", "test-file.txt");
+      expect(result).toBe(expected);
       expect(runExecMock).toHaveBeenCalledTimes(2);
       expect(runExecMock).toHaveBeenNthCalledWith(1, "trash", [targetFile], { timeoutMs: 10_000 });
       expect(runExecMock).toHaveBeenNthCalledWith(2, "gio", ["trash", targetFile], {
@@ -56,12 +64,22 @@ describe("movePathToTrash", () => {
       });
     } finally {
       Object.defineProperty(process, "platform", { value: originalPlatform, writable: true });
+      if (originalXdg === undefined) {
+        delete process.env["XDG_DATA_HOME"];
+      } else {
+        process.env["XDG_DATA_HOME"] = originalXdg;
+      }
     }
   });
 
   it("tries trash-put when trash and gio both fail (Linux)", async () => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, "platform", { value: "linux", writable: true });
+
+    // Use a custom XDG_DATA_HOME so the expected path is deterministic.
+    const originalXdg = process.env["XDG_DATA_HOME"];
+    const xdgDataHome = path.join(tmpDir, ".local", "share");
+    process.env["XDG_DATA_HOME"] = xdgDataHome;
 
     try {
       runExecMock.mockRejectedValueOnce(new Error("trash not found"));
@@ -70,13 +88,19 @@ describe("movePathToTrash", () => {
 
       const result = await movePathToTrash(targetFile);
 
-      expect(result).toBe(targetFile);
+      const expected = path.join(xdgDataHome, "Trash", "files", "test-file.txt");
+      expect(result).toBe(expected);
       expect(runExecMock).toHaveBeenCalledTimes(3);
       expect(runExecMock).toHaveBeenNthCalledWith(3, "trash-put", [targetFile], {
         timeoutMs: 10_000,
       });
     } finally {
       Object.defineProperty(process, "platform", { value: originalPlatform, writable: true });
+      if (originalXdg === undefined) {
+        delete process.env["XDG_DATA_HOME"];
+      } else {
+        process.env["XDG_DATA_HOME"] = originalXdg;
+      }
     }
   });
 
@@ -95,9 +119,6 @@ describe("movePathToTrash", () => {
 
       const result = await movePathToTrash(targetFile);
 
-      // Return value should be the original path (consistent with CLI commands).
-      expect(result).toBe(targetFile);
-
       // File should no longer exist at original location.
       expect(fs.existsSync(targetFile)).toBe(false);
 
@@ -106,6 +127,9 @@ describe("movePathToTrash", () => {
       const trashedEntries = fs.readdirSync(trashFilesDir);
       expect(trashedEntries.length).toBe(1);
       expect(fs.existsSync(path.join(trashFilesDir, trashedEntries[0]))).toBe(true);
+
+      // Return value should be the actual trash destination.
+      expect(result).toBe(path.join(trashFilesDir, trashedEntries[0]));
 
       // A .trashinfo file should exist in the info directory.
       const infoFile = path.join(xdgDataHome, "Trash", "info", `${trashedEntries[0]}.trashinfo`);
@@ -133,8 +157,10 @@ describe("movePathToTrash", () => {
 
       const result = await movePathToTrash(targetFile);
 
-      // Return value should be the original path (consistent with CLI commands).
-      expect(result).toBe(targetFile);
+      // Return value should be the actual trash destination (inside ~/.Trash).
+      const trashDir = path.join(os.homedir(), ".Trash");
+      expect(result).toContain(trashDir);
+      expect(result).toContain("test-file.txt");
       expect(fs.existsSync(targetFile)).toBe(false);
     } finally {
       Object.defineProperty(process, "platform", { value: originalPlatform, writable: true });
