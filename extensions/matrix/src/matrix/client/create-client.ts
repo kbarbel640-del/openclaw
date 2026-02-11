@@ -1,4 +1,8 @@
-import type { ICryptoStorageProvider, IStorageProvider, MatrixClient } from "@vector-im/matrix-bot-sdk";
+import type {
+  ICryptoStorageProvider,
+  IStorageProvider,
+  MatrixClient,
+} from "@vector-im/matrix-bot-sdk";
 import fs from "node:fs";
 import { ensureMatrixSdkLoggingConfigured } from "./logging.js";
 import {
