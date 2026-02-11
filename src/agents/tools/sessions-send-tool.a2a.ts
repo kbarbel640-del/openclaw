@@ -77,12 +77,17 @@ export async function runSessionsSendA2AFlow(params: {
           turn,
           maxTurns: params.maxPingPongTurns,
         });
+        const replyChannel =
+          currentSessionKey === params.requesterSessionKey
+            ? params.requesterChannel
+            : announceTarget?.channel;
         const replyText = await runAgentStep({
           sessionKey: currentSessionKey,
           message: incomingMessage,
           extraSystemPrompt: replyPrompt,
           timeoutMs: params.announceTimeoutMs,
           lane: AGENT_LANE_NESTED,
+          channel: replyChannel,
         });
         if (!replyText || isReplySkip(replyText)) {
           break;
@@ -110,6 +115,7 @@ export async function runSessionsSendA2AFlow(params: {
       extraSystemPrompt: announcePrompt,
       timeoutMs: params.announceTimeoutMs,
       lane: AGENT_LANE_NESTED,
+      channel: announceTarget?.channel,
     });
     if (announceTarget && announceReply && announceReply.trim() && !isAnnounceSkip(announceReply)) {
       try {
