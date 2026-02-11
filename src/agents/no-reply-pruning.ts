@@ -1,29 +1,23 @@
 import type { AgentMessage, AssistantMessage } from "@mariozechner/pi-agent-core";
-
-/**
- * The literal sentinel text that indicates "nothing to say".
- * Matching is case-insensitive and ignores leading/trailing whitespace.
- */
-const NO_REPLY_SENTINEL = "NO_REPLY";
+import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 
 /**
  * Check if an assistant message is a NO_REPLY sentinel.
+ * Scans all text blocks to handle Gemini-style merged turns.
  */
 function isNoReplyMessage(msg: AssistantMessage): boolean {
   const content = msg.content;
   if (!Array.isArray(content) || content.length === 0) {
     return false;
   }
-  // NO_REPLY messages typically have a single text block
-  if (content.length !== 1) {
-    return false;
+  // Scan all text blocks — Gemini's validateGeminiTurns may merge consecutive
+  // assistant turns into a single multi-block message
+  for (const block of content) {
+    if (block?.type === "text" && isSilentReplyText(block.text, SILENT_REPLY_TOKEN)) {
+      return true;
+    }
   }
-  const block = content[0];
-  if (block?.type !== "text") {
-    return false;
-  }
-  const text = block.text?.trim().toUpperCase();
-  return text === NO_REPLY_SENTINEL;
+  return false;
 }
 
 /**
@@ -45,7 +39,7 @@ export function pruneConsecutiveNoReplies(
   messages: AgentMessage[],
   maxConsecutive: number = 1,
 ): AgentMessage[] {
-  if (messages.length === 0 || maxConsecutive < 0) {
+  if (messages.length === 0) {
     return messages;
   }
 

@@ -566,12 +566,15 @@ export async function runEmbeddedAttempt(
         // where the model learns that NO_REPLY is always the correct response.
         // See: https://github.com/openclaw/openclaw/issues/13387
         const pruneNoReply = params.config?.agents?.defaults?.pruneConsecutiveNoReply;
+        const maxConsecutive =
+          pruneNoReply === false
+            ? -1 // disabled
+            : Math.max(0, typeof pruneNoReply === "number" ? pruneNoReply : 1);
         const pruned =
-          pruneNoReply !== false
-            ? pruneConsecutiveNoReplies(limited, typeof pruneNoReply === "number" ? pruneNoReply : 1)
-            : limited;
+          maxConsecutive >= 0 ? pruneConsecutiveNoReplies(limited, maxConsecutive) : limited;
         cacheTrace?.recordStage("session:no-reply-pruned", { messages: pruned });
-        if (pruned.length > 0) {
+        // Always update if pruning changed the array (even if result is empty)
+        if (pruned !== limited || pruned.length > 0) {
           activeSession.agent.replaceMessages(pruned);
         }
       } catch (err) {

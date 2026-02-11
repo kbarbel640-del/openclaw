@@ -133,6 +133,53 @@ describe("pruneConsecutiveNoReplies", () => {
       makeAssistantMessage("  NO_REPLY  "),
     ]);
   });
+
+  it("handles multi-block assistant messages (Gemini-style merged turns)", () => {
+    // Gemini's validateGeminiTurns merges consecutive assistant turns into one multi-block message
+    const multiBlockNoReply: AgentMessage = {
+      role: "assistant",
+      content: [
+        { type: "text", text: "thinking..." },
+        { type: "text", text: "NO_REPLY" },
+      ],
+    };
+    const messages = [
+      makeUserMessage("hi"),
+      multiBlockNoReply,
+      multiBlockNoReply,
+      multiBlockNoReply,
+    ];
+    const result = pruneConsecutiveNoReplies(messages);
+    expect(result).toEqual([makeUserMessage("hi"), multiBlockNoReply]);
+  });
+
+  it("handles NO_REPLY as prefix with trailing content", () => {
+    // isSilentReplyText matches NO_REPLY at start with word boundary
+    const messages = [
+      makeUserMessage("hi"),
+      makeAssistantMessage("NO_REPLY (nothing to say)"),
+      makeAssistantMessage("NO_REPLY"),
+    ];
+    const result = pruneConsecutiveNoReplies(messages);
+    expect(result).toEqual([
+      makeUserMessage("hi"),
+      makeAssistantMessage("NO_REPLY (nothing to say)"),
+    ]);
+  });
+
+  it("handles NO_REPLY as suffix", () => {
+    // isSilentReplyText matches NO_REPLY at end with word boundary
+    const messages = [
+      makeUserMessage("hi"),
+      makeAssistantMessage("Silent: NO_REPLY"),
+      makeAssistantMessage("NO_REPLY"),
+    ];
+    const result = pruneConsecutiveNoReplies(messages);
+    expect(result).toEqual([
+      makeUserMessage("hi"),
+      makeAssistantMessage("Silent: NO_REPLY"),
+    ]);
+  });
 });
 
 describe("countNoReplies", () => {
