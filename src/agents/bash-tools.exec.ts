@@ -30,6 +30,10 @@ import { logInfo, logWarn } from "../logger.js";
 import { formatSpawnError, spawnWithFallback } from "../process/spawn-utils.js";
 import { parseAgentSessionKey, resolveAgentIdFromSessionKey } from "../routing/session-key.js";
 import {
+  resolveApprovalRunningNoticeMs,
+  resolveApprovalTimeoutMs,
+} from "./exec-approval-timeouts.js";
+import {
   type ProcessSession,
   type SessionStdin,
   addSession,
@@ -120,8 +124,6 @@ const DEFAULT_PENDING_MAX_OUTPUT = clampWithDefault(
 const DEFAULT_PATH =
   process.env.PATH ?? "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 const DEFAULT_NOTIFY_TAIL_CHARS = 400;
-const DEFAULT_APPROVAL_TIMEOUT_MS = 120_000;
-const DEFAULT_APPROVAL_RUNNING_NOTICE_MS = 10_000;
 const APPROVAL_SLUG_LENGTH = 8;
 
 type PtyExitEvent = { exitCode: number; signal?: number };
@@ -397,24 +399,6 @@ function maybeNotifyOnExit(session: ProcessSession, status: "completed" | "faile
 
 function createApprovalSlug(id: string) {
   return id.slice(0, APPROVAL_SLUG_LENGTH);
-}
-
-function resolveApprovalRunningNoticeMs(value?: number) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return DEFAULT_APPROVAL_RUNNING_NOTICE_MS;
-  }
-  if (value <= 0) {
-    return 0;
-  }
-  return Math.floor(value);
-}
-
-// Resolve approval timeout from config (seconds) to milliseconds.
-function resolveApprovalTimeoutMs(valueSec?: number) {
-  if (typeof valueSec !== "number" || !Number.isFinite(valueSec) || valueSec <= 0) {
-    return DEFAULT_APPROVAL_TIMEOUT_MS;
-  }
-  return Math.floor(valueSec) * 1000;
 }
 
 function emitExecSystemEvent(text: string, opts: { sessionKey?: string; contextKey?: string }) {
