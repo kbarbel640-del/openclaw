@@ -158,7 +158,7 @@ export async function readFullToolOutput(
 
 type TextContent = { type: "text"; text: string; [key: string]: unknown };
 
-function getToolResultTextLength(msg: AgentMessage): number {
+function estimateToolResultTextLength(msg: AgentMessage): number {
   const content = (msg as { content?: unknown }).content;
   if (!Array.isArray(content)) {
     return 0;
@@ -219,7 +219,7 @@ export async function pruneToolResults(params: {
 
     const toolName = (msg as { toolName?: string }).toolName;
     const maxTokens = getToolLimit(toolName, config);
-    const textLength = getToolResultTextLength(msg);
+    const textLength = estimateToolResultTextLength(msg);
     const maxChars = maxTokens * CHARS_PER_TOKEN;
 
     if (textLength <= maxChars) {
