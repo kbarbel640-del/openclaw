@@ -1179,7 +1179,6 @@ extension MenuSessionsInjector {
         if highlighted {
             return HighlightedMenuItemHostView(rootView: rootView, width: width)
         }
-
         let hosting = NSHostingView(rootView: rootView)
         hosting.frame.size.width = max(1, width)
         let size = hosting.fittingSize
