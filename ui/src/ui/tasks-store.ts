@@ -15,21 +15,23 @@ export type TaskItem = {
 };
 
 export type TaskStore = {
+  currentEndeavor?: string;
   topOutcomes: string[];
   tasks: TaskItem[];
 };
 
 export function loadTaskStore(): TaskStore {
   if (typeof window === "undefined") {
-    return { topOutcomes: [], tasks: [] };
+    return { currentEndeavor: "", topOutcomes: [], tasks: [] };
   }
   try {
     const raw = window.localStorage.getItem(TASK_STORE_KEY);
     if (!raw) {
-      return { topOutcomes: [], tasks: [] };
+      return { currentEndeavor: "", topOutcomes: [], tasks: [] };
     }
     const parsed = JSON.parse(raw) as Partial<TaskStore>;
     return {
+      currentEndeavor: typeof parsed.currentEndeavor === "string" ? parsed.currentEndeavor : "",
       topOutcomes: Array.isArray(parsed.topOutcomes)
         ? parsed.topOutcomes.filter((entry) => typeof entry === "string")
         : [],
@@ -72,8 +74,15 @@ export function loadTaskStore(): TaskStore {
         : [],
     };
   } catch {
-    return { topOutcomes: [], tasks: [] };
+    return { currentEndeavor: "", topOutcomes: [], tasks: [] };
   }
+}
+
+export function saveTaskStore(store: TaskStore): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(TASK_STORE_KEY, JSON.stringify(store));
 }
 
 export function laneLabel(lane: TaskLane): string {
