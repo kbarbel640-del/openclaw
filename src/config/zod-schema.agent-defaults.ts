@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HeimdallSchema } from "../security/heimdall/config-schema.js";
 import {
   HeartbeatSchema,
   MemorySearchSchema,
@@ -156,6 +157,7 @@ export const AgentDefaultsSchema = z
       })
       .strict()
       .optional(),
+    heimdall: HeimdallSchema,
     sandbox: z
       .object({
         mode: z.union([z.literal("off"), z.literal("non-main"), z.literal("all")]).optional(),

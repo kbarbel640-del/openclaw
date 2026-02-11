@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HeimdallSchema } from "../security/heimdall/config-schema.js";
 import {
   normalizeTelegramCommandDescription,
   normalizeTelegramCommandName,
@@ -140,6 +141,7 @@ export const TelegramAccountSchemaBase = z
     heartbeat: ChannelHeartbeatVisibilitySchema,
     linkPreview: z.boolean().optional(),
     responsePrefix: z.string().optional(),
+    heimdall: HeimdallSchema,
   })
   .strict();
 
