@@ -148,7 +148,9 @@ export async function refreshTokens(params: {
   const now = params.now ?? Date.now();
 
   if (!params.credentials.refreshToken) {
-    throw new Error("No refresh token available - please re-authenticate with 'clawdbot rube login'");
+    throw new Error(
+      "No refresh token available - please re-authenticate with 'clawdbot rube login'",
+    );
   }
 
   const body = new URLSearchParams({
@@ -222,8 +224,9 @@ export function startCallbackServer(params: {
 
       if (error) {
         // Escape error description to prevent HTML injection
-        const safeDesc = (errorDescription || error).replace(/[&<>"']/g, (c) =>
-          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c
+        const safeDesc = (errorDescription || error).replace(
+          /[&<>"']/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
         );
         res.writeHead(400, { "Content-Type": "text/html" });
         res.end(`<html><body><h1>Authentication failed</h1><p>${safeDesc}</p></body></html>`);
@@ -298,6 +301,6 @@ export function startCallbackServer(params: {
 /**
  * Check if credentials are expired or about to expire
  */
-export function isExpired(credentials: RubeOAuthCredentials, now = Date.now()): boolean {
+export function isRubeTokenExpired(credentials: RubeOAuthCredentials, now = Date.now()): boolean {
   return now >= credentials.expiresAt;
 }

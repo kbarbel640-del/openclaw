@@ -1,9 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { ListToolsResultSchema, CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
-
 import type { RubeOAuthCredentials } from "./auth.js";
-import { isExpired, refreshTokens } from "./auth.js";
+import { isRubeTokenExpired, refreshTokens } from "./auth.js";
 
 export const RUBE_MCP_ENDPOINT = "https://rube.app/mcp";
 
@@ -50,7 +49,7 @@ export class RubeMcpClient {
    * Ensure we have a valid access token, refreshing if needed
    */
   private async ensureValidToken(): Promise<string> {
-    if (isExpired(this.credentials)) {
+    if (isRubeTokenExpired(this.credentials)) {
       this.credentials = await refreshTokens({
         credentials: this.credentials,
         fetchFn: this.fetchFn,
@@ -81,20 +80,17 @@ export class RubeMcpClient {
       },
       {
         capabilities: {},
-      }
+      },
     );
 
     // Create HTTP transport with auth headers
-    this.transport = new StreamableHTTPClientTransport(
-      new URL(RUBE_MCP_ENDPOINT),
-      {
-        requestInit: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+    this.transport = new StreamableHTTPClientTransport(new URL(RUBE_MCP_ENDPOINT), {
+      requestInit: {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      }
-    );
+      },
+    });
 
     await this.client.connect(this.transport);
 
@@ -109,7 +105,7 @@ export class RubeMcpClient {
 
     const result = await client.request(
       { method: "tools/list", params: {} },
-      ListToolsResultSchema
+      ListToolsResultSchema,
     );
 
     return (result.tools ?? []).map((tool) => ({
@@ -130,7 +126,7 @@ export class RubeMcpClient {
         method: "tools/call",
         params: { name, arguments: args },
       },
-      CallToolResultSchema
+      CallToolResultSchema,
     );
 
     return {
