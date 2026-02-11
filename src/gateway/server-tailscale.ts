@@ -41,9 +41,14 @@ export async function startGatewayTailscaleExposure(params: {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    const stderr =
+      typeof (err as { stderr?: string }).stderr === "string"
+        ? (err as { stderr: string }).stderr
+        : "";
+    const full = `${msg}\n${stderr}`.trim();
     const daemonDown =
-      /connection refused|not running|dial unix.*connect/i.test(msg) ||
-      (msg.includes("serve") && msg.includes("Failed to connect"));
+      /connection refused|not running|dial unix.*connect/i.test(full) ||
+      (full.includes("serve") && full.includes("Failed to connect"));
     if (daemonDown) {
       params.logTailscale.info(
         `Tailscale ${params.tailscaleMode} skipped (daemon not running). Gateway is available on LAN/loopback.`,

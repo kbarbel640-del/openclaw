@@ -86,3 +86,4 @@ data/brew/
 !.agent/workflows/
 local/
 /data
+/.env-store*

@@ -70,9 +70,17 @@ repos:
         exclude: "^(vendor/|Swabble/)"
 
   # Project checks (same commands as CI)
+  # oxlint --fix + oxfmt --write on staged files, then re-stage (merged from git-hooks/pre-commit)
   - repo: local
     hooks:
-      # oxlint --type-aware src test
+      - id: oxlint-oxfmt-fix
+        name: oxlint + oxfmt (fix staged)
+        entry: scripts/pre-commit/oxlint-oxfmt-fix.sh
+        language: system
+        pass_filenames: true
+        types_or: [javascript, jsx, ts, tsx]
+
+      # oxlint --type-aware on full tree (CI parity)
       - id: oxlint
         name: oxlint
         entry: scripts/pre-commit/run-node-tool.sh oxlint --type-aware src test
@@ -80,7 +88,7 @@ repos:
         pass_filenames: false
         types_or: [javascript, jsx, ts, tsx]
 
-      # oxfmt --check src test
+      # oxfmt --check on full tree (CI parity)
       - id: oxfmt
         name: oxfmt
         entry: scripts/pre-commit/run-node-tool.sh oxfmt --check src test

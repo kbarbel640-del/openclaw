@@ -115,32 +115,25 @@ export function buildGatewayConnectionDetails(
     typeof options.url === "string" && options.url.trim().length > 0
       ? options.url.trim()
       : undefined;
-  const envUrl =
-    typeof process.env.OPENCLAW_GATEWAY_URL === "string" &&
-    process.env.OPENCLAW_GATEWAY_URL.trim().length > 0
-      ? process.env.OPENCLAW_GATEWAY_URL.trim()
-      : undefined;
   const remoteUrl =
     typeof remote?.url === "string" && remote.url.trim().length > 0 ? remote.url.trim() : undefined;
-  const remoteMisconfigured = isRemoteMode && !urlOverride && !envUrl && !remoteUrl;
-  const url = urlOverride || envUrl || remoteUrl || localUrl;
+  const remoteMisconfigured = isRemoteMode && !urlOverride && !remoteUrl;
+  const url = urlOverride || remoteUrl || localUrl;
   const urlSource = urlOverride
     ? "cli --url"
-    : envUrl
-      ? "env OPENCLAW_GATEWAY_URL"
-      : remoteUrl
-        ? "config gateway.remote.url"
-        : remoteMisconfigured
-          ? "missing gateway.remote.url (fallback local)"
-          : preferTailnet && tailnetIPv4
-            ? `local tailnet ${tailnetIPv4}`
-            : preferLan && lanIPv4
-              ? `local lan ${lanIPv4}`
-              : "local loopback";
+    : remoteUrl
+      ? "config gateway.remote.url"
+      : remoteMisconfigured
+        ? "missing gateway.remote.url (fallback local)"
+        : preferTailnet && tailnetIPv4
+          ? `local tailnet ${tailnetIPv4}`
+          : preferLan && lanIPv4
+            ? `local lan ${lanIPv4}`
+            : "local loopback";
   const remoteFallbackNote = remoteMisconfigured
     ? "Warn: gateway.mode=remote but gateway.remote.url is missing; set gateway.remote.url or switch gateway.mode=local."
     : undefined;
-  const bindDetail = !urlOverride && !envUrl && !remoteUrl ? `Bind: ${bindMode}` : undefined;
+  const bindDetail = !urlOverride && !remoteUrl ? `Bind: ${bindMode}` : undefined;
   const message = [
     `Gateway target: ${url}`,
     `Source: ${urlSource}`,

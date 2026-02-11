@@ -8,8 +8,9 @@ services:
         OPENCLAW_DOCKER_APT_PACKAGES: ${OPENCLAW_DOCKER_APT_PACKAGES:-}
     environment:
       HOME: /home/node
-      # 確保 gemini CLI 在 PATH 內（裝在 /app 下，不受 /home/node mount 影響）
-      PATH: /home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/app/.npm-global/bin:/app/.bun/bin:/usr/local/bin:/usr/bin:/bin
+      CI: "true"
+      # /usr/sbin + /usr/bin 優先（tailscaled 在 sbin、tailscale 在 bin）；gemini 在 /app/.npm-global
+      PATH: /usr/sbin:/usr/bin:/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/app/.npm-global/bin:/app/.bun/bin:/usr/local/bin
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
       OPENCLAW_GATEWAY_ALSO_BIND_LAN: "1"
@@ -24,6 +25,8 @@ services:
       TAILSCALE_SOCKET: ${TAILSCALE_SOCKET:-/home/node/.openclaw/tailscale/tailscaled.sock}
       TAILSCALE_TUN_MODE: ${TAILSCALE_TUN_MODE:-userspace-networking}
       TAILSCALE_ACCEPT_ROUTES: ${TAILSCALE_ACCEPT_ROUTES:-0}
+      # Tailscale serve 從 localhost 轉發，須信任 proxy 以消除「Proxy headers from untrusted address」
+      OPENCLAW_GATEWAY_TRUSTED_PROXIES: ${OPENCLAW_GATEWAY_TRUSTED_PROXIES:-127.0.0.1,::1}
     volumes:
       - .:/app
       - /app/node_modules
@@ -41,9 +44,8 @@ services:
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
     init: true
     restart: unless-stopped
-    # 使用 image 的 entrypoint（scripts/docker-entrypoint.sh）以啟動 tailscaled；TAILSCALE_SOCKET 由 env 傳入
-    # 傳入完整 argv（node + 入口腳本 + 子指令），避免 entrypoint 只收到 "gateway" 時被當成 node 的腳本路徑
-    # OPENCLAW_GATEWAY_ALSO_BIND_LAN=1：gateway 除 loopback 外再監聽 0.0.0.0，讓同 compose 的 openclaw-cli 可連 openclaw-gateway:18789，同時保留 Tailscale serve
+    # 入口為 just start（前置 + Control UI build + exec）；傳入完整 argv 給 just start
+    # OPENCLAW_GATEWAY_ALSO_BIND_LAN=1：gateway 除 loopback 外再監聽 0.0.0.0，讓同 compose 的 openclaw-cli 可連
     command: ["node", "/app/openclaw.mjs", "gateway", "--tailscale", "serve"]
     healthcheck:
       test:

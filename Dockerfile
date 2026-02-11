@@ -46,6 +46,9 @@ RUN curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
+# just：容器入口改為 just start（前置 + build-app + exec）
+RUN curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
 # Homebrew（skills 如 1password、goplaces、summarize、openai-whisper 依賴）；Linux 非互動安裝（Docker 內允許 root）
 # 建立 tarball 供 volume 首次掛載時還原；chown node 讓 runtime 可執行 brew install 並持久化（搭配 volume）
 RUN apt-get update \
@@ -80,14 +83,14 @@ COPY --chown=node:node . .
 RUN --mount=type=cache,target=/app/.pnpm-store,id=openclaw-pnpm-store,uid=1000,gid=1000 \
     pnpm install -r --offline --frozen-lockfile
 RUN chmod +x scripts/docker-entrypoint.sh
+# 容器入口為 just start（見 repo justfile：前置 + build-app + exec）
 # Build tool caches (vite/esbuild/tsc) so rebuilds are faster when layer runs
 # A2UI bundle needs vendor/apps (excluded by .dockerignore); skip copy when missing
 ENV OPENCLAW_A2UI_SKIP_MISSING=1
 RUN --mount=type=cache,target=/app/node_modules/.cache,uid=1000,gid=1000 \
     pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
-RUN --mount=type=cache,target=/app/node_modules/.cache,uid=1000,gid=1000 \
-    pnpm ui:build
+# Control UI 改為容器啟動時 build（just start 內 just build-app），不再在 image 內預建
 # Gemini CLI（供 onboard Google Gemini CLI OAuth 使用）必須裝在 /app 下，不可改回 /home/node：
 # 執行期 /home/node 常被 volume mount 覆蓋，會導致 .npm-global 消失、which gemini 失敗。
 # 若改動此路徑，須同步改 docker-compose.yml 兩處 PATH（openclaw-gateway / openclaw-cli）。
@@ -107,6 +110,7 @@ ENV NODE_ENV=production
 #
 # For container platforms requiring external health checks:
 #   1. Set OPENCLAW_GATEWAY_TOKEN or OPENCLAW_GATEWAY_PASSWORD env var
-#   2. Override CMD: ["node","openclaw.mjs","gateway","--allow-unconfigured","--bind","lan"]
-ENTRYPOINT ["bash", "scripts/docker-entrypoint.sh"]
-CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]
+#   2. Override command: ["just", "start", "node", "/app/openclaw.mjs", "gateway", "--bind", "lan"]
+# just start = entrypoint 前置（tailscale 等） + just build-app（Control UI） + exec
+ENTRYPOINT ["just", "start"]
+CMD ["node", "/app/openclaw.mjs", "gateway", "--allow-unconfigured"]

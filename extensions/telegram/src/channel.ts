@@ -7,6 +7,7 @@ import {
   formatPairingApproveHint,
   getChatChannelMeta,
   listTelegramAccountIds,
+  reactMessageTelegram,
   listTelegramDirectoryGroupsFromConfig,
   listTelegramDirectoryPeersFromConfig,
   looksLikeTelegramTargetId,
@@ -67,6 +68,37 @@ function parseThreadId(threadId?: string | number | null) {
   const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
+
+async function applyCompletionReactions(opts: {
+  chatId: string;
+  replyToMessageId?: number;
+  accountId?: string;
+}) {
+  const { chatId, replyToMessageId, accountId } = opts;
+  if (!replyToMessageId || !Number.isFinite(replyToMessageId)) {
+    return;
+  }
+
+  try {
+    await reactMessageTelegram(chatId, replyToMessageId, "👀", {
+      remove: true,
+      accountId,
+      verbose: false,
+    });
+  } catch {
+    // Best-effort cleanup only.
+  }
+
+  try {
+    await reactMessageTelegram(chatId, replyToMessageId, "👌", {
+      accountId,
+      verbose: false,
+    });
+  } catch {
+    // Best-effort completion signal only.
+  }
+}
+
 export const telegramPlugin: ChannelPlugin<ResolvedTelegramAccount, TelegramProbe> = {
   id: "telegram",
   meta: {
@@ -283,6 +315,11 @@ export const telegramPlugin: ChannelPlugin<ResolvedTelegramAccount, TelegramProb
         replyToMessageId,
         accountId: accountId ?? undefined,
       });
+      await applyCompletionReactions({
+        chatId: to,
+        replyToMessageId,
+        accountId: accountId ?? undefined,
+      });
       return { channel: "telegram", ...result };
     },
     sendMedia: async ({ to, text, mediaUrl, accountId, deps, replyToId, threadId }) => {
@@ -293,6 +330,11 @@ export const telegramPlugin: ChannelPlugin<ResolvedTelegramAccount, TelegramProb
         verbose: false,
         mediaUrl,
         messageThreadId,
+        replyToMessageId,
+        accountId: accountId ?? undefined,
+      });
+      await applyCompletionReactions({
+        chatId: to,
         replyToMessageId,
         accountId: accountId ?? undefined,
       });

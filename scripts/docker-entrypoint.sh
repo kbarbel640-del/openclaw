@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --setup-only：只做 tailscale/credentials 等前置，不 exec；供 just start 先跑 build-app 再 exec
+SETUP_ONLY=0
+if [[ "${1:-}" == "--setup-only" ]]; then
+  SETUP_ONLY=1
+  shift
+fi
+
 # 讓 gateway 的 tailscale CLI 一律用此 socket（與下方 tailscaled 相同路徑）
 export TAILSCALE_SOCKET="${TAILSCALE_SOCKET:-/home/node/.openclaw/tailscale/tailscaled.sock}"
-# 確保 entrypoint 與子行程能找到 /usr/bin 的 tailscale/tailscaled（compose 可能覆寫 PATH）
-export PATH="/usr/bin:/bin:${PATH:-}"
+# 確保 entrypoint 與子行程能找到 tailscale/tailscaled（Debian: tailscaled 在 /usr/sbin）
+export PATH="/usr/sbin:/usr/bin:/bin:${PATH:-}"
 
 # 確保 credentials 目錄存在且權限 700，消除 security audit 的「Credentials dir is readable by others」警告
 mkdir -p /home/node/.openclaw/credentials
@@ -28,10 +35,21 @@ need_tailscale_daemon() {
   [[ $has_gateway -eq 1 && $has_serve_or_funnel -eq 1 ]]
 }
 
+# 使用絕對路徑：tailscaled 在 Debian 裝於 /usr/sbin，tailscale CLI 在 /usr/bin
+TS_BIN_TAILSCALED="/usr/sbin/tailscaled"
+TS_BIN_TAILSCALE="/usr/bin/tailscale"
+[[ ! -x "${TS_BIN_TAILSCALED}" ]] && TS_BIN_TAILSCALED="/usr/bin/tailscaled" || true
+[[ ! -x "${TS_BIN_TAILSCALED}" ]] && TS_BIN_TAILSCALED="" || true
+[[ ! -x "${TS_BIN_TAILSCALE}" ]] && TS_BIN_TAILSCALE="" || true
+if [[ -z "${TS_BIN_TAILSCALED}" ]] || [[ -z "${TS_BIN_TAILSCALE}" ]]; then
+  TS_BIN_TAILSCALED="$(command -v tailscaled 2>/dev/null)" || TS_BIN_TAILSCALED=""
+  TS_BIN_TAILSCALE="$(command -v tailscale 2>/dev/null)" || TS_BIN_TAILSCALE=""
+fi
+
 # 僅啟動 tailscaled daemon 並等待 socket；不執行 tailscale up（留給 start_tailscale_if_enabled 在 autologin 時做）
 ensure_tailscaled_daemon() {
-  if ! command -v tailscaled >/dev/null 2>&1 || ! command -v tailscale >/dev/null 2>&1; then
-    echo "openclaw entrypoint: tailscale binary not installed; cannot start tailscaled" >&2
+  if [[ -z "${TS_BIN_TAILSCALED}" ]] || [[ -z "${TS_BIN_TAILSCALE}" ]]; then
+    echo "openclaw entrypoint: tailscale not installed; gateway will run without Tailscale serve" >&2
     return 1
   fi
   local ts_state_dir="${TAILSCALE_STATE_DIR:-/home/node/.openclaw/tailscale}"
@@ -42,11 +60,12 @@ ensure_tailscaled_daemon() {
   export TAILSCALE_SOCKET="${ts_socket}"
   if ! pgrep -x tailscaled >/dev/null 2>&1; then
     [[ -S "${ts_socket}" ]] && rm -f "${ts_socket}"
-    nohup tailscaled --state="${ts_state_file}" --socket="${ts_socket}" --tun="${ts_tun_mode}" </dev/null >>/tmp/tailscaled.log 2>&1 &
+    nohup "${TS_BIN_TAILSCALED}" --state="${ts_state_file}" --socket="${ts_socket}" --tun="${ts_tun_mode}" </dev/null >>/tmp/tailscaled.log 2>&1 &
     disown -a 2>/dev/null || true
   fi
   for _ in $(seq 1 45); do
     if [[ -S "${ts_socket}" ]]; then
+      sleep 2
       return 0
     fi
     sleep 1
@@ -63,7 +82,7 @@ start_tailscale_if_enabled() {
     return
   fi
 
-  if ! command -v tailscaled >/dev/null 2>&1 || ! command -v tailscale >/dev/null 2>&1; then
+  if [[ -z "${TS_BIN_TAILSCALED}" ]] || [[ -z "${TS_BIN_TAILSCALE}" ]]; then
     echo "openclaw entrypoint: tailscale binary not installed; skipping autologin" >&2
     return
   fi
@@ -96,7 +115,7 @@ start_tailscale_if_enabled() {
   fi
   local i
   for i in $(seq 1 30); do
-    if tailscale --socket="${ts_socket}" up "${up_args[@]}" 2>/tmp/tailscale-up.log; then
+    if "${TS_BIN_TAILSCALE}" --socket="${ts_socket}" up "${up_args[@]}" 2>/tmp/tailscale-up.log; then
       return 0
     fi
     local err
@@ -124,11 +143,16 @@ start_tailscale_if_enabled() {
   return 0
 }
 
-# 使用 --tailscale serve/funnel 時必須先有 tailscaled，否則 gateway 會 connection refused；一律先起 daemon，tailscale up 僅在 autologin 時跑
+# 使用 --tailscale serve/funnel 時必須先有 tailscaled；失敗則 exit 以利存取（不可 skipped）
 if need_tailscale_daemon "$@"; then
-  ensure_tailscaled_daemon || true
+  ensure_tailscaled_daemon || exit 1
 fi
 start_tailscale_if_enabled
+
+if [[ "${SETUP_ONLY}" == "1" ]]; then
+  exit 0
+fi
+
 # 若已傳入完整指令（例如 compose command: [node, /app/openclaw.mjs, gateway, ...]）則直接 exec；否則補上 node + 入口
 if [[ "${1:-}" == "node" ]] && [[ -n "${2:-}" ]]; then
   exec "$@"

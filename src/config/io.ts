@@ -331,6 +331,16 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
           },
         };
       }
+      const trustedProxiesEnv = deps.env.OPENCLAW_GATEWAY_TRUSTED_PROXIES?.trim();
+      if (trustedProxiesEnv) {
+        const prox = trustedProxiesEnv
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (prox.length > 0) {
+          cfg.gateway = { ...cfg.gateway, trustedProxies: prox };
+        }
+      }
 
       return applyConfigOverrides(cfg);
     } catch (err) {
