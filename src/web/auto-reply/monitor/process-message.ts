@@ -188,18 +188,21 @@ export async function processMessage(params: {
     return false;
   }
 
-  // Send ack reaction immediately upon message receipt (post-gating)
-  maybeSendAckReaction({
-    cfg: params.cfg,
-    msg: params.msg,
-    agentId: params.route.agentId,
-    sessionKey: params.route.sessionKey,
-    conversationId,
-    verbose: params.verbose,
-    accountId: params.route.accountId,
-    info: params.replyLogger.info.bind(params.replyLogger),
-    warn: params.replyLogger.warn.bind(params.replyLogger),
-  });
+  // Send ack reaction immediately upon message receipt (post-gating).
+  // Skip when auto-reply is suppressed so the channel stays fully silent.
+  if (params.msg.suppressAutoReply !== true) {
+    maybeSendAckReaction({
+      cfg: params.cfg,
+      msg: params.msg,
+      agentId: params.route.agentId,
+      sessionKey: params.route.sessionKey,
+      conversationId,
+      verbose: params.verbose,
+      accountId: params.route.accountId,
+      info: params.replyLogger.info.bind(params.replyLogger),
+      warn: params.replyLogger.warn.bind(params.replyLogger),
+    });
+  }
 
   const correlationId = params.msg.id ?? newConnectionId();
   params.replyLogger.info(
@@ -363,7 +366,7 @@ export async function processMessage(params: {
         // but keep the LLM call so the message stays in session context for cross-channel use
         // (e.g., Telegram primary + WhatsApp receive-only).
         if (params.msg.suppressAutoReply === true) {
-          logVerbose(
+          whatsappOutboundLog.info(
             `Suppressed auto-reply to ${params.msg.from ?? conversationId} (channel autoReply: false)`,
           );
           return;

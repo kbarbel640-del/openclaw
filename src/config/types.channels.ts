@@ -35,6 +35,7 @@ export type ExtensionChannelConfig = {
   allowFrom?: string | string[];
   dmPolicy?: string;
   groupPolicy?: GroupPolicy;
+  autoReply?: boolean;
   accounts?: Record<string, unknown>;
   [key: string]: unknown;
 };

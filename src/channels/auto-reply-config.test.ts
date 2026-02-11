@@ -62,4 +62,9 @@ describe("resolveAutoReplyEnabled", () => {
     const cfg = { channels: { whatsapp: { autoReply: false } } };
     expect(resolveAutoReplyEnabled({ cfg, channel: "telegram" })).toBe(true);
   });
+
+  it("falls through to channel when accounts map is absent", () => {
+    const cfg = { channels: { whatsapp: { autoReply: false } } };
+    expect(resolveAutoReplyEnabled({ cfg, channel: "whatsapp", accountId: "work" })).toBe(false);
+  });
 });

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import type { DmPolicy, GroupPolicy, WhatsAppAccountConfig } from "../config/types.js";
+import { resolveAutoReplyEnabled } from "../channels/auto-reply-config.js";
 import { resolveOAuthDir } from "../config/paths.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 import { resolveUserPath } from "../utils.js";
@@ -20,7 +21,7 @@ export type ResolvedWhatsAppAccount = {
   groupAllowFrom?: string[];
   groupPolicy?: GroupPolicy;
   dmPolicy?: DmPolicy;
-  autoReply?: boolean;
+  autoReply: boolean;
   textChunkLimit?: number;
   chunkMode?: "length" | "newline";
   mediaMaxMb?: number;
@@ -160,8 +161,11 @@ export function resolveWhatsAppAccount(params: {
     allowFrom: accountCfg?.allowFrom ?? rootCfg?.allowFrom,
     groupAllowFrom: accountCfg?.groupAllowFrom ?? rootCfg?.groupAllowFrom,
     groupPolicy: accountCfg?.groupPolicy ?? rootCfg?.groupPolicy,
-    autoReply:
-      accountCfg?.autoReply ?? rootCfg?.autoReply ?? params.cfg.channels?.defaults?.autoReply,
+    autoReply: resolveAutoReplyEnabled({
+      cfg: params.cfg,
+      channel: "whatsapp",
+      accountId,
+    }),
     textChunkLimit: accountCfg?.textChunkLimit ?? rootCfg?.textChunkLimit,
     chunkMode: accountCfg?.chunkMode ?? rootCfg?.chunkMode,
     mediaMaxMb: accountCfg?.mediaMaxMb ?? rootCfg?.mediaMaxMb,
