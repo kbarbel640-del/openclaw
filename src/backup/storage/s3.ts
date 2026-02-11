@@ -9,8 +9,6 @@
 
 import type { BackupEntry, BackupManifest, BackupStorageConfig, StorageBackend } from "../types.js";
 
-type S3Client = import("@aws-sdk/client-s3").S3Client;
-
 /** Lazy-load the AWS SDK to keep it optional. */
 async function loadS3SDK() {
   try {
@@ -52,7 +50,8 @@ export async function createS3Storage(config: BackupStorageConfig): Promise<Stor
     };
   }
 
-  const client: S3Client = new sdk.S3Client(clientOptions);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamically loaded SDK
+  const client: any = new sdk.S3Client(clientOptions);
 
   function fullKey(key: string): string {
     return `${prefix}${key}`;

@@ -29,13 +29,13 @@ function deriveKey(passphrase: string, salt: Buffer): Buffer {
 /**
  * Encrypt data with a passphrase.
  */
-export function encrypt(data: Buffer, passphrase: string): Buffer {
+export function encrypt(data: Uint8Array, passphrase: string): Buffer {
   const salt = crypto.randomBytes(SALT_LENGTH);
   const key = deriveKey(passphrase, salt);
   const iv = crypto.randomBytes(IV_LENGTH);
 
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv, { authTagLength: TAG_LENGTH });
-  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+  const encrypted = Buffer.concat([cipher.update(Buffer.from(data)), cipher.final()]);
   const authTag = cipher.getAuthTag();
 
   return Buffer.concat([salt, iv, authTag, encrypted]);
@@ -44,15 +44,16 @@ export function encrypt(data: Buffer, passphrase: string): Buffer {
 /**
  * Decrypt data with a passphrase.
  */
-export function decrypt(data: Buffer, passphrase: string): Buffer {
-  if (data.length < SALT_LENGTH + IV_LENGTH + TAG_LENGTH) {
+export function decrypt(data: Uint8Array, passphrase: string): Buffer {
+  if (data.byteLength < SALT_LENGTH + IV_LENGTH + TAG_LENGTH) {
     throw new Error("encrypted data too short");
   }
 
-  const salt = data.subarray(0, SALT_LENGTH);
-  const iv = data.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
-  const authTag = data.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + TAG_LENGTH);
-  const ciphertext = data.subarray(SALT_LENGTH + IV_LENGTH + TAG_LENGTH);
+  const buf = Buffer.from(data);
+  const salt = buf.subarray(0, SALT_LENGTH);
+  const iv = buf.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
+  const authTag = buf.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + TAG_LENGTH);
+  const ciphertext = buf.subarray(SALT_LENGTH + IV_LENGTH + TAG_LENGTH);
 
   const key = deriveKey(passphrase, salt);
 
