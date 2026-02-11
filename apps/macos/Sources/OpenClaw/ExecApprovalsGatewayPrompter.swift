@@ -47,12 +47,13 @@ final class ExecApprovalsGatewayPrompter {
             let request = try JSONDecoder().decode(GatewayApprovalRequest.self, from: data)
             let presentation = self.shouldPresent(request: request)
             guard presentation.needsApproval else {
-                // Policy says no approval needed – auto-approve
+                // No prompt needed – resolve based on security policy
+                let decision: ExecApprovalDecision = presentation.security == .full ? .allowOnce : .deny
                 try await GatewayConnection.shared.requestVoid(
                     method: .execApprovalResolve,
                     params: [
                         "id": AnyCodable(request.id),
-                        "decision": AnyCodable(ExecApprovalDecision.allowOnce.rawValue),
+                        "decision": AnyCodable(decision.rawValue),
                     ],
                     timeoutMs: 10000)
                 return
@@ -96,6 +97,7 @@ final class ExecApprovalsGatewayPrompter {
     struct PresentationDecision {
         var needsApproval: Bool
         var canPresent: Bool
+        var security: ExecSecurity
         var askFallback: ExecSecurity
     }
 
@@ -121,6 +123,7 @@ final class ExecApprovalsGatewayPrompter {
         return PresentationDecision(
             needsApproval: needsApproval,
             canPresent: canPresent,
+            security: security,
             askFallback: approvals.agent.askFallback)
     }
 
