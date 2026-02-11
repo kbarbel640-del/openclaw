@@ -221,6 +221,72 @@
 
   footer { text-align: center; padding: 20px; color: var(--muted); font-size: 0.7rem; border-top: 1px solid var(--border); margin-top: 20px; }
 
+  /* Shift Planning Styles */
+  .skill-checkbox { width: 20px; height: 20px; cursor: pointer; accent-color: var(--green); }
+  .skill-matrix-cell { text-align: center !important; }
+  .worker-assignment-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .worker-assignment-card.warning { border-color: var(--yellow); background: rgba(251,191,36,0.05); }
+  .worker-assignment-card.error { border-color: var(--red); background: rgba(248,113,113,0.05); }
+  .worker-assignment-card.complete { border-color: var(--green); background: rgba(74,222,128,0.05); }
+  .worker-assignment-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .worker-assignment-header h4 { font-size: 0.9rem; color: var(--accent); margin: 0; }
+  .worker-assignment-header .total { font-size: 0.85rem; font-weight: 600; }
+  .worker-assignment-header .total.complete { color: var(--green); }
+  .worker-assignment-header .total.incomplete { color: var(--yellow); }
+  .worker-assignment-header .total.over { color: var(--red); }
+  .assignment-row {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+    padding: 8px; background: var(--surface); border-radius: 6px;
+  }
+  .assignment-row select { flex: 1; max-width: 200px; }
+  .assignment-row input[type="range"] { flex: 2; max-width: 200px; }
+  .assignment-row .percent-display { width: 50px; text-align: right; font-weight: 600; color: var(--accent); }
+  .assignment-row .btn-remove { padding: 4px 8px; background: var(--red); color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+  .btn-add-assignment { padding: 6px 12px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+  .btn-add-assignment:hover { background: var(--accent); color: #0f172a; }
+  .coverage-status { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .coverage-status.full { background: rgba(74,222,128,0.2); color: var(--green); }
+  .coverage-status.under { background: rgba(251,191,36,0.2); color: var(--yellow); }
+  .coverage-status.over { background: rgba(56,189,248,0.2); color: var(--accent); }
+  .coverage-status.empty { background: rgba(248,113,113,0.2); color: var(--red); }
+  .worker-fill-bar {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .worker-fill-stack {
+    width: 100%; display: flex; flex-direction: column-reverse;
+    border-radius: 6px; overflow: hidden; border: 1px solid var(--border);
+  }
+  .worker-fill-segment {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 600; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    min-height: 20px; transition: all 0.3s;
+  }
+  .worker-fill-segment:hover { filter: brightness(1.2); }
+  .worker-fill-gap {
+    background: repeating-linear-gradient(45deg, var(--surface), var(--surface) 5px, var(--bg) 5px, var(--bg) 10px);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.6rem; color: var(--red); min-height: 20px;
+  }
+  .worker-legend-item {
+    display: flex; align-items: center; gap: 6px; padding: 4px 10px;
+    background: var(--surface); border-radius: 4px; font-size: 0.75rem;
+  }
+  .worker-legend-color { width: 16px; height: 16px; border-radius: 3px; }
+
+  /* Colors for workers */
+  .worker-color-0 { background: #38bdf8; } .worker-color-1 { background: #818cf8; }
+  .worker-color-2 { background: #f472b6; } .worker-color-3 { background: #4ade80; }
+  .worker-color-4 { background: #fbbf24; } .worker-color-5 { background: #f87171; }
+  .worker-color-6 { background: #2dd4bf; } .worker-color-7 { background: #e879f9; }
+  .worker-color-8 { background: #fb923c; } .worker-color-9 { background: #a78bfa; }
+  .worker-color-10 { background: #94a3b8; } .worker-color-11 { background: #67e8f9; }
+
   /* Colors for tasks */
   .color-0 { background: #38bdf8; } .color-1 { background: #818cf8; } .color-2 { background: #a78bfa; }
   .color-3 { background: #f472b6; } .color-4 { background: #fb923c; } .color-5 { background: #4ade80; }
@@ -242,6 +308,7 @@
     <button class="tab-btn active" data-tab="setup">📋 Process Setup</button>
     <button class="tab-btn" data-tab="workers">👷 Workforce</button>
     <button class="tab-btn" data-tab="balance">⚖️ Line Balancing</button>
+    <button class="tab-btn" data-tab="planning">📅 Shift Planning</button>
     <button class="tab-btn" data-tab="analysis">📊 Analysis & Output</button>
   </div>
 
@@ -402,6 +469,78 @@
     </div>
   </div>
 
+  <!-- TAB: Shift Planning -->
+  <div id="tab-planning" class="tab-content">
+    <div class="section">
+      <div class="section-title">📋 Station Requirements <span class="badge">FROM LINE BALANCING</span></div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;">
+        These requirements are pulled from the Line Balancing tab. Assign workers below to meet these targets.
+      </p>
+      <div class="kpi-row" id="planningRequirementsKPIs"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">🎯 Skill Matrix <span class="badge" style="background:var(--green);">WORKER QUALIFICATIONS</span></div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;">
+        Define which workers are qualified to work at each station. Check the boxes to indicate skills.
+        <span style="color:var(--yellow);">⚠️ Specialized stations (e.g., Overmolding) may require certified operators.</span>
+      </p>
+      <div class="table-scroll">
+        <table class="form-table" id="skillMatrixTable">
+          <thead id="skillMatrixHead"></thead>
+          <tbody id="skillMatrixBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">👷 Worker Assignments <span class="badge" style="background:var(--accent2);">ALLOCATE TIME</span></div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;">
+        Assign workers to stations with percentage of their time. Total must equal 100% per worker.
+        Only qualified stations (from skill matrix) can be assigned.
+      </p>
+      <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="secondary" onclick="autoAssignWorkers()">🤖 Auto-Assign</button>
+        <button class="secondary" onclick="clearAllAssignments()">🗑️ Clear All Assignments</button>
+      </div>
+      <div id="workerAssignmentsContainer"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">✅ Coverage Validation <span class="badge" style="background:var(--green);">STATUS CHECK</span></div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;">
+        Compares station requirements (from Line Balancing) with actual worker assignments.
+      </p>
+      <div class="table-scroll">
+        <table class="form-table" id="coverageTable">
+          <thead>
+            <tr>
+              <th>Station</th>
+              <th>Processes</th>
+              <th style="text-align:right">Required</th>
+              <th style="text-align:right">Assigned</th>
+              <th style="text-align:right">Gap</th>
+              <th>Status</th>
+              <th>Assigned Workers</th>
+            </tr>
+          </thead>
+          <tbody id="coverageTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section" style="border: 2px solid var(--accent2); background: rgba(129,140,248,0.05);">
+      <div class="section-title" style="color:var(--accent2);">📊 Worker Coverage Chart <span class="badge" style="background:var(--accent2);">VISUAL FILL</span></div>
+      <p style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;">
+        Visual representation of how workers fill each station's capacity. Each color represents a different worker.
+      </p>
+      <div id="workerLegend" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;"></div>
+      <div class="chart-wrapper" style="overflow:visible;">
+        <div class="bar-chart" id="workerFillChart" style="min-width:auto;"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- TAB: Analysis -->
   <div id="tab-analysis" class="tab-content">
     <div class="section">
@@ -468,11 +607,11 @@ let processes = [
 ];
 
 let workers = [
-  { uid: 'w1', code: 'M01 - MC', name: 'Muhitdin Cagin', shiftStart: '06:00', shiftEnd: '11:15', breakMin: 15, participationRate: 60, hourlyRate: 17.42 },
-  { uid: 'w2', code: 'M02 - PK', name: 'Petra Krause', shiftStart: '06:00', shiftEnd: '14:00', breakMin: 30, participationRate: 30, hourlyRate: 17.42 },
-  { uid: 'w3', code: 'M03 - DM', name: 'Diana Menger', shiftStart: '07:00', shiftEnd: '12:15', breakMin: 15, participationRate: 97, hourlyRate: 17.42 },
-  { uid: 'w4', code: 'M04 - JN', name: 'Jonas Nickel', shiftStart: '06:00', shiftEnd: '13:30', breakMin: 30, participationRate: 97, hourlyRate: 17.42 },
-  { uid: 'w5', code: 'M05 - SA', name: 'Saeideh Alinezhad', shiftStart: '07:00', shiftEnd: '15:30', breakMin: 30, participationRate: 97, hourlyRate: 17.42 },
+  { uid: 'w1', code: 'M01 - MC', name: 'Muhitdin Cagin', shiftStart: '06:00', shiftEnd: '11:15', breakMin: 15, participationRate: 60, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w2', code: 'M02 - PK', name: 'Petra Krause', shiftStart: '06:00', shiftEnd: '14:00', breakMin: 30, participationRate: 30, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w3', code: 'M03 - DM', name: 'Diana Menger', shiftStart: '07:00', shiftEnd: '12:15', breakMin: 15, participationRate: 97, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w4', code: 'M04 - JN', name: 'Jonas Nickel', shiftStart: '06:00', shiftEnd: '13:30', breakMin: 30, participationRate: 97, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w5', code: 'M05 - SA', name: 'Saeideh Alinezhad', shiftStart: '07:00', shiftEnd: '15:30', breakMin: 30, participationRate: 97, hourlyRate: 17.42, skills: [], assignments: [] },
 ];
 
 // Global capacity settings
@@ -701,7 +840,9 @@ function addWorker() {
     shiftEnd: '14:00',
     breakMin: 30,
     participationRate: 97,
-    hourlyRate: rate
+    hourlyRate: rate,
+    skills: [],
+    assignments: []
   });
   renderWorkerTable();
   renderAll();
@@ -1063,6 +1204,418 @@ function changeMachineQty(si, mi, qty) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// SHIFT PLANNING FUNCTIONS
+// ══════════════════════════════════════════════════════════════
+
+const WORKER_COLORS = [
+  '#38bdf8', '#818cf8', '#f472b6', '#4ade80', '#fbbf24', '#f87171',
+  '#2dd4bf', '#e879f9', '#fb923c', '#a78bfa', '#94a3b8', '#67e8f9'
+];
+
+function getWorkerColor(workerIndex) {
+  return WORKER_COLORS[workerIndex % WORKER_COLORS.length];
+}
+
+function ensureWorkerFields(w) {
+  if (!w.skills) w.skills = [];
+  if (!w.assignments) w.assignments = [];
+}
+
+function toggleWorkerSkill(workerIdx, stationIdx) {
+  const w = workers[workerIdx];
+  ensureWorkerFields(w);
+  const idx = w.skills.indexOf(stationIdx);
+  if (idx >= 0) {
+    w.skills.splice(idx, 1);
+    // Also remove any assignments to this station
+    w.assignments = w.assignments.filter(a => a.station !== stationIdx);
+  } else {
+    w.skills.push(stationIdx);
+  }
+  renderShiftPlanning();
+  saveToLocalStorage();
+}
+
+function addWorkerAssignment(workerIdx) {
+  const w = workers[workerIdx];
+  ensureWorkerFields(w);
+  // Find first available station (that worker is skilled for and not already assigned)
+  const assignedStations = w.assignments.map(a => a.station);
+  const availableStation = w.skills.find(s => !assignedStations.includes(s));
+  if (availableStation !== undefined) {
+    w.assignments.push({ station: availableStation, percent: 25 });
+    renderShiftPlanning();
+    saveToLocalStorage();
+  }
+}
+
+function removeWorkerAssignment(workerIdx, assignmentIdx) {
+  const w = workers[workerIdx];
+  ensureWorkerFields(w);
+  w.assignments.splice(assignmentIdx, 1);
+  renderShiftPlanning();
+  saveToLocalStorage();
+}
+
+function updateAssignmentStation(workerIdx, assignmentIdx, newStation) {
+  const w = workers[workerIdx];
+  ensureWorkerFields(w);
+  w.assignments[assignmentIdx].station = parseInt(newStation);
+  renderShiftPlanning();
+  saveToLocalStorage();
+}
+
+function updateAssignmentPercent(workerIdx, assignmentIdx, newPercent) {
+  const w = workers[workerIdx];
+  ensureWorkerFields(w);
+  w.assignments[assignmentIdx].percent = parseInt(newPercent);
+  renderShiftPlanning();
+  saveToLocalStorage();
+}
+
+function clearAllAssignments() {
+  workers.forEach(w => {
+    ensureWorkerFields(w);
+    w.assignments = [];
+  });
+  renderShiftPlanning();
+  saveToLocalStorage();
+}
+
+function autoAssignWorkers() {
+  // First, ensure all workers have all skills (for auto-assign to work)
+  // Then distribute workers to meet station requirements
+  const requirements = stations.map((st, si) => ({
+    station: si,
+    required: stationResources[si]?.workers || 1,
+    assigned: 0
+  }));
+
+  // Clear existing assignments
+  workers.forEach(w => {
+    ensureWorkerFields(w);
+    w.assignments = [];
+    // Auto-grant all skills if none set
+    if (w.skills.length === 0) {
+      w.skills = stations.map((_, i) => i);
+    }
+  });
+
+  // Sort workers by available hours (descending)
+  const sortedWorkers = workers.map((w, i) => ({ worker: w, index: i, hours: getWorkerNetWorkHours(w) }))
+    .sort((a, b) => b.hours - a.hours);
+
+  // Assign workers to stations
+  for (const { worker, index } of sortedWorkers) {
+    let remaining = 100; // percentage to assign
+
+    // Sort requirements by gap (most understaffed first)
+    requirements.sort((a, b) => (a.required - a.assigned) - (b.required - b.assigned)).reverse();
+
+    for (const req of requirements) {
+      if (remaining <= 0) break;
+      if (!worker.skills.includes(req.station)) continue;
+
+      const gap = req.required - req.assigned;
+      if (gap <= 0) continue;
+
+      // How much can this worker contribute?
+      const contribution = Math.min(remaining / 100, gap);
+      const percent = Math.round(contribution * 100);
+
+      if (percent >= 5) { // minimum 5% assignment
+        worker.assignments.push({ station: req.station, percent });
+        req.assigned += contribution;
+        remaining -= percent;
+      }
+    }
+
+    // If still has remaining time, assign to least covered station they're skilled for
+    if (remaining > 0) {
+      const availableStations = worker.skills.filter(s =>
+        !worker.assignments.some(a => a.station === s)
+      );
+      if (availableStations.length > 0) {
+        const station = availableStations[0];
+        worker.assignments.push({ station, percent: remaining });
+      }
+    }
+  }
+
+  renderShiftPlanning();
+  saveToLocalStorage();
+}
+
+function getWorkerNetWorkHours(w) {
+  const hoursPerDay = getWorkerHoursPerDay(w);
+  return hoursPerDay * (w.participationRate / 100);
+}
+
+function getStationAssignedWorkers(stationIdx) {
+  let total = 0;
+  const assignedWorkers = [];
+  workers.forEach((w, wi) => {
+    ensureWorkerFields(w);
+    w.assignments.forEach(a => {
+      if (a.station === stationIdx) {
+        total += a.percent / 100;
+        assignedWorkers.push({ worker: w, workerIndex: wi, percent: a.percent });
+      }
+    });
+  });
+  return { total, workers: assignedWorkers };
+}
+
+function renderShiftPlanning() {
+  renderPlanningRequirements();
+  renderSkillMatrix();
+  renderWorkerAssignments();
+  renderCoverageTable();
+  renderWorkerFillChart();
+}
+
+function renderPlanningRequirements() {
+  const container = document.getElementById('planningRequirementsKPIs');
+  if (!container) return;
+
+  const effTimes = stations.map((_, si) => effectiveStationTime(si));
+  const bottleneck = Math.max(...effTimes, 0.01);
+  const totalRequired = Object.values(stationResources).reduce((s, r) => s + r.workers, 0);
+
+  let html = '';
+  stations.forEach((st, si) => {
+    const required = stationResources[si]?.workers || 1;
+    const { total } = getStationAssignedWorkers(si);
+    const status = total >= required ? 'full' : total > 0 ? 'under' : 'empty';
+    const statusIcon = status === 'full' ? '✅' : status === 'under' ? '⚠️' : '❌';
+    html += `<div class="kpi-card"><div class="kpi-value">${required.toFixed(2)}</div><div class="kpi-label">Stn ${si + 1} Required ${statusIcon}</div></div>`;
+  });
+  html += `<div class="kpi-card highlight"><div class="kpi-value">${totalRequired.toFixed(2)}</div><div class="kpi-label">Total Workers Needed</div></div>`;
+
+  container.innerHTML = html;
+}
+
+function renderSkillMatrix() {
+  const headEl = document.getElementById('skillMatrixHead');
+  const bodyEl = document.getElementById('skillMatrixBody');
+  if (!headEl || !bodyEl) return;
+
+  // Header row
+  let headHtml = '<tr><th>Worker</th><th>Code</th>';
+  stations.forEach((st, si) => {
+    const stName = `Stn ${si + 1}`;
+    headHtml += `<th class="skill-matrix-cell" style="width:70px;">${stName}</th>`;
+  });
+  headHtml += '<th style="width:80px;">Skills Count</th></tr>';
+  headEl.innerHTML = headHtml;
+
+  // Body rows
+  let bodyHtml = '';
+  workers.forEach((w, wi) => {
+    ensureWorkerFields(w);
+    bodyHtml += `<tr>
+      <td>${w.name}</td>
+      <td>${w.code}</td>`;
+    stations.forEach((st, si) => {
+      const isSkilled = w.skills.includes(si);
+      bodyHtml += `<td class="skill-matrix-cell">
+        <input type="checkbox" class="skill-checkbox"
+          ${isSkilled ? 'checked' : ''}
+          onchange="toggleWorkerSkill(${wi}, ${si})">
+      </td>`;
+    });
+    bodyHtml += `<td style="text-align:center;font-weight:600;color:var(--accent);">${w.skills.length}</td></tr>`;
+  });
+  bodyEl.innerHTML = bodyHtml;
+}
+
+function renderWorkerAssignments() {
+  const container = document.getElementById('workerAssignmentsContainer');
+  if (!container) return;
+
+  let html = '';
+  workers.forEach((w, wi) => {
+    ensureWorkerFields(w);
+    const totalPercent = w.assignments.reduce((s, a) => s + a.percent, 0);
+    const statusClass = totalPercent === 100 ? 'complete' : totalPercent > 100 ? 'error' : totalPercent > 0 ? 'warning' : '';
+    const totalClass = totalPercent === 100 ? 'complete' : totalPercent > 100 ? 'over' : 'incomplete';
+    const netHours = getWorkerNetWorkHours(w).toFixed(2);
+
+    html += `<div class="worker-assignment-card ${statusClass}">
+      <div class="worker-assignment-header">
+        <h4><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${getWorkerColor(wi)};margin-right:8px;vertical-align:middle;"></span>${w.code} - ${w.name} (${netHours}h net)</h4>
+        <span class="total ${totalClass}">${totalPercent}% assigned</span>
+      </div>`;
+
+    // Assignment rows
+    w.assignments.forEach((a, ai) => {
+      html += `<div class="assignment-row">
+        <select onchange="updateAssignmentStation(${wi}, ${ai}, this.value)">`;
+      w.skills.forEach(si => {
+        const selected = a.station === si ? 'selected' : '';
+        html += `<option value="${si}" ${selected}>Station ${si + 1}</option>`;
+      });
+      html += `</select>
+        <input type="range" min="5" max="100" step="5" value="${a.percent}"
+          oninput="document.getElementById('pct-${wi}-${ai}').textContent=this.value+'%'"
+          onchange="updateAssignmentPercent(${wi}, ${ai}, this.value)">
+        <span class="percent-display" id="pct-${wi}-${ai}">${a.percent}%</span>
+        <button class="btn-remove" onclick="removeWorkerAssignment(${wi}, ${ai})">×</button>
+      </div>`;
+    });
+
+    // Add button (only if skilled for more stations)
+    const assignedStations = w.assignments.map(a => a.station);
+    const canAddMore = w.skills.some(s => !assignedStations.includes(s));
+    if (canAddMore && w.skills.length > 0) {
+      html += `<button class="btn-add-assignment" onclick="addWorkerAssignment(${wi})">+ Add Station Assignment</button>`;
+    } else if (w.skills.length === 0) {
+      html += `<p style="color:var(--muted);font-size:0.8rem;">⚠️ No skills assigned. Check skill matrix above.</p>`;
+    }
+
+    html += `</div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function renderCoverageTable() {
+  const tbody = document.getElementById('coverageTableBody');
+  if (!tbody) return;
+
+  let html = '';
+  let totalRequired = 0;
+  let totalAssigned = 0;
+
+  stations.forEach((st, si) => {
+    const required = stationResources[si]?.workers || 1;
+    const { total, workers: assignedList } = getStationAssignedWorkers(si);
+    const gap = total - required;
+    const gapStr = gap >= 0 ? `+${gap.toFixed(2)}` : gap.toFixed(2);
+
+    totalRequired += required;
+    totalAssigned += total;
+
+    let statusClass, statusText;
+    if (total >= required - 0.01) {
+      statusClass = 'full';
+      statusText = total > required + 0.01 ? 'OVERSTAFFED' : 'FULLY STAFFED';
+    } else if (total > 0) {
+      statusClass = 'under';
+      statusText = 'UNDERSTAFFED';
+    } else {
+      statusClass = 'empty';
+      statusText = 'NO COVERAGE';
+    }
+
+    const processNames = st.tasks.map(ti => processes[ti]?.sapNo || `P${ti+1}`).join(', ');
+    const workerNames = assignedList.map(w => `${w.worker.code.split(' ')[0]}(${w.percent}%)`).join(', ') || '-';
+
+    html += `<tr>
+      <td><strong>Station ${si + 1}</strong></td>
+      <td style="font-size:0.75rem;color:var(--muted);">${processNames}</td>
+      <td style="text-align:right;font-weight:600;">${required.toFixed(2)}</td>
+      <td style="text-align:right;font-weight:600;color:${total >= required ? 'var(--green)' : 'var(--yellow)'};">${total.toFixed(2)}</td>
+      <td style="text-align:right;color:${gap >= 0 ? 'var(--green)' : 'var(--red)'};">${gapStr}</td>
+      <td><span class="coverage-status ${statusClass}">${statusText}</span></td>
+      <td style="font-size:0.75rem;">${workerNames}</td>
+    </tr>`;
+  });
+
+  // Total row
+  const totalGap = totalAssigned - totalRequired;
+  html += `<tr style="background:var(--surface2);font-weight:600;">
+    <td colspan="2">TOTAL</td>
+    <td style="text-align:right;">${totalRequired.toFixed(2)}</td>
+    <td style="text-align:right;">${totalAssigned.toFixed(2)}</td>
+    <td style="text-align:right;color:${totalGap >= 0 ? 'var(--green)' : 'var(--red)'};">${totalGap >= 0 ? '+' : ''}${totalGap.toFixed(2)}</td>
+    <td colspan="2"></td>
+  </tr>`;
+
+  tbody.innerHTML = html;
+}
+
+function renderWorkerFillChart() {
+  const chartEl = document.getElementById('workerFillChart');
+  const legendEl = document.getElementById('workerLegend');
+  if (!chartEl || !legendEl) return;
+
+  const effTimes = stations.map((_, si) => effectiveStationTime(si));
+  const maxTime = Math.max(...effTimes, 1);
+  const chartHeight = 280;
+  const topPadding = 30;
+
+  // Legend
+  let legendHtml = '';
+  workers.forEach((w, wi) => {
+    ensureWorkerFields(w);
+    if (w.assignments.length > 0) {
+      legendHtml += `<div class="worker-legend-item">
+        <div class="worker-legend-color" style="background:${getWorkerColor(wi)};"></div>
+        <span>${w.code.split(' ')[0]}</span>
+      </div>`;
+    }
+  });
+  legendEl.innerHTML = legendHtml;
+
+  // Chart bars
+  let chartHtml = '';
+  stations.forEach((st, si) => {
+    const required = stationResources[si]?.workers || 1;
+    const effTime = effTimes[si];
+    const barHeight = (effTime / maxTime) * (chartHeight - topPadding);
+    const { total, workers: assignedList } = getStationAssignedWorkers(si);
+
+    // Build stack segments for workers
+    let stackHtml = '';
+    let usedPercent = 0;
+
+    assignedList.forEach(({ worker, workerIndex, percent }) => {
+      const segmentPercent = percent / 100 / required; // relative to requirement
+      const segmentHeight = Math.max(20, barHeight * segmentPercent);
+      usedPercent += percent / 100;
+
+      stackHtml += `<div class="worker-fill-segment worker-color-${workerIndex % 12}"
+        style="height:${segmentHeight}px;"
+        title="${worker.code} - ${percent}%">
+        ${worker.code.split(' ')[0]}
+      </div>`;
+    });
+
+    // Add gap if understaffed
+    const gap = required - total;
+    if (gap > 0.01) {
+      const gapPercent = gap / required;
+      const gapHeight = Math.max(20, barHeight * gapPercent);
+      stackHtml += `<div class="worker-fill-gap" style="height:${gapHeight}px;" title="Gap: ${gap.toFixed(2)} workers">
+        -${gap.toFixed(2)}
+      </div>`;
+    }
+
+    const statusColor = total >= required ? 'var(--green)' : total > 0 ? 'var(--yellow)' : 'var(--red)';
+
+    chartHtml += `<div class="worker-fill-bar" style="flex:1;max-width:120px;">
+      <div class="worker-fill-stack" style="height:${barHeight}px;">
+        ${stackHtml}
+      </div>
+      <div style="text-align:center;margin-top:8px;">
+        <div style="font-weight:600;color:var(--accent);">Stn ${si + 1}</div>
+        <div style="font-size:0.75rem;color:var(--muted);">${effTime.toFixed(1)}s</div>
+        <div style="font-size:0.75rem;color:${statusColor};">${total.toFixed(2)} / ${required.toFixed(2)}</div>
+      </div>
+    </div>`;
+  });
+
+  chartEl.innerHTML = chartHtml;
+  chartEl.style.height = (chartHeight + 60) + 'px';
+  chartEl.style.display = 'flex';
+  chartEl.style.alignItems = 'flex-end';
+  chartEl.style.justifyContent = 'space-around';
+  chartEl.style.gap = '12px';
+  chartEl.style.paddingTop = topPadding + 'px';
+}
+
+// ══════════════════════════════════════════════════════════════
 // RENDERING
 // ══════════════════════════════════════════════════════════════
 
@@ -1073,6 +1626,7 @@ function renderAll() {
   renderResources();
   renderGauge();
   renderAnalysis();
+  renderShiftPlanning();
 }
 
 function renderKPIs() {
