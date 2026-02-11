@@ -366,6 +366,7 @@ export async function connectReq(
     token?: string;
     password?: string;
     skipDefaultAuth?: boolean;
+    omitScopes?: boolean;
     minProtocol?: number;
     maxProtocol?: number;
     client?: {
@@ -415,7 +416,12 @@ export async function connectReq(
         : process.env.OPENCLAW_GATEWAY_PASSWORD;
   const token = opts?.token ?? defaultToken;
   const password = opts?.password ?? defaultPassword;
-  const requestedScopes = Array.isArray(opts?.scopes) ? opts?.scopes : [];
+  const effectiveScopes = opts?.omitScopes
+    ? []
+    : Array.isArray(opts?.scopes)
+      ? opts.scopes
+      : ["operator.admin"];
+  const requestedScopes = effectiveScopes;
   const device = (() => {
     if (opts?.device === null) {
       return undefined;
@@ -455,7 +461,7 @@ export async function connectReq(
         commands: opts?.commands ?? [],
         permissions: opts?.permissions ?? undefined,
         role,
-        scopes: opts?.scopes,
+        scopes: opts?.omitScopes ? undefined : effectiveScopes,
         auth:
           token || password
             ? {
