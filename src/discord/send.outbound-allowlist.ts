@@ -15,12 +15,26 @@ export function enforceOutboundAllowlist(params: {
   cfg: OpenClawConfig;
   accountId: string;
   channelId: string;
+  channelName?: string;
   guildId?: string;
   guildName?: string;
   isDm?: boolean;
+  isThread?: boolean;
   parentChannelId?: string;
+  parentChannelName?: string;
 }): void {
-  const { cfg, accountId, channelId, guildId, guildName, isDm, parentChannelId } = params;
+  const {
+    cfg,
+    accountId,
+    channelId,
+    channelName,
+    guildId,
+    guildName,
+    isDm,
+    isThread,
+    parentChannelId,
+    parentChannelName,
+  } = params;
 
   // DM bypass — DMs are not guild-gated.
   if (isDm) {
@@ -82,14 +96,18 @@ export function enforceOutboundAllowlist(params: {
   }
 
   // Resolve channel config using existing helper (handles ID/slug/wildcard/thread→parent fallback).
+  const channelSlug = channelName ? normalizeDiscordSlug(channelName) : "";
+  const parentSlug = parentChannelName ? normalizeDiscordSlug(parentChannelName) : "";
+  const useParentFallback = Boolean(isThread && (parentChannelId || parentChannelName));
   const channelConfig = resolveDiscordChannelConfigWithFallback({
     guildInfo: guildEntry,
     channelId,
-    channelName: undefined,
-    channelSlug: "",
-    parentId: parentChannelId,
-    parentName: undefined,
-    parentSlug: "",
+    channelName,
+    channelSlug,
+    parentId: useParentFallback ? parentChannelId : undefined,
+    parentName: useParentFallback ? parentChannelName : undefined,
+    parentSlug: useParentFallback ? parentSlug : "",
+    scope: isThread ? "thread" : "channel",
   });
 
   // Derive policy decision inputs.
@@ -172,10 +190,13 @@ export async function enforceOutboundAllowlistAsync(params: {
   cfg: OpenClawConfig;
   accountId: string;
   channelId: string;
+  channelName?: string;
   guildId?: string;
   guildName?: string;
   isDm?: boolean;
+  isThread?: boolean;
   parentChannelId?: string;
+  parentChannelName?: string;
   rest?: RequestClient;
 }): Promise<void> {
   const { cfg, accountId, guildId, isDm, rest } = params;
@@ -185,15 +206,8 @@ export async function enforceOutboundAllowlistAsync(params: {
     enforceOutboundAllowlist(params);
     return;
   } catch (err) {
-    // If the error is outbound-blocked due to guild not found and we have slug-keyed entries,
-    // try fetching guild name for slug resolution.
-    if (
-      !(err instanceof DiscordSendError) ||
-      err.kind !== "outbound-blocked" ||
-      !guildId ||
-      isDm ||
-      !rest
-    ) {
+    // Retry once with enriched metadata (guild/channel names) for slug-keyed configs.
+    if (!(err instanceof DiscordSendError) || err.kind !== "outbound-blocked" || isDm || !rest) {
       throw err;
     }
 
@@ -203,27 +217,56 @@ export async function enforceOutboundAllowlistAsync(params: {
       throw err;
     }
 
-    // Only fetch if there are slug-keyed entries and we didn't already have a guild name.
-    const slugKeys = Object.keys(guildEntries).filter((key) => key !== "*" && !/^\d+$/.test(key));
-    if (slugKeys.length === 0 || params.guildName) {
+    const retryParams = { ...params };
+    let enriched = false;
+
+    const guildSlugKeys = Object.keys(guildEntries).filter(
+      (key) => key !== "*" && !/^\d+$/.test(key),
+    );
+    if (guildId && guildSlugKeys.length > 0 && !retryParams.guildName) {
+      try {
+        const guild = (await rest.get(`/guilds/${guildId}`)) as { name?: string } | undefined;
+        if (guild?.name) {
+          retryParams.guildName = guild.name;
+          enriched = true;
+        }
+      } catch {
+        // best-effort enrichment
+      }
+    }
+
+    if (!retryParams.channelName) {
+      try {
+        const channel = (await rest.get(`/channels/${params.channelId}`)) as
+          | { name?: string }
+          | undefined;
+        if (channel?.name) {
+          retryParams.channelName = channel.name;
+          enriched = true;
+        }
+      } catch {
+        // best-effort enrichment
+      }
+    }
+
+    if (retryParams.isThread && retryParams.parentChannelId && !retryParams.parentChannelName) {
+      try {
+        const parent = (await rest.get(`/channels/${retryParams.parentChannelId}`)) as
+          | { name?: string }
+          | undefined;
+        if (parent?.name) {
+          retryParams.parentChannelName = parent.name;
+          enriched = true;
+        }
+      } catch {
+        // best-effort enrichment
+      }
+    }
+
+    if (!enriched) {
       throw err;
     }
 
-    // Fetch guild name from Discord API.
-    let guildName: string | undefined;
-    try {
-      const guild = (await rest.get(`/guilds/${guildId}`)) as { name?: string } | undefined;
-      guildName = guild?.name;
-    } catch {
-      // If guild fetch fails, re-throw the original blocked error.
-      throw err;
-    }
-
-    if (!guildName) {
-      throw err;
-    }
-
-    // Retry with guild name.
-    enforceOutboundAllowlist({ ...params, guildName });
+    enforceOutboundAllowlist(retryParams);
   }
 }

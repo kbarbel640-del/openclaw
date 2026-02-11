@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
-import { enforceOutboundAllowlist } from "./send.outbound-allowlist.js";
+import {
+  enforceOutboundAllowlist,
+  enforceOutboundAllowlistAsync,
+} from "./send.outbound-allowlist.js";
 import { DiscordSendError } from "./send.types.js";
 
 function makeCfg(overrides: {
@@ -187,6 +190,26 @@ describe("enforceOutboundAllowlist", () => {
     ).not.toThrow();
   });
 
+  it("allows sends when channel key is slug and channelName is provided", () => {
+    const cfg = makeCfg({
+      groupPolicy: "allowlist",
+      guilds: {
+        "guild-1": {
+          channels: { general: { allow: true } },
+        },
+      },
+    });
+    expect(() =>
+      enforceOutboundAllowlist({
+        cfg,
+        accountId: "default",
+        channelId: "chan-123",
+        channelName: "General",
+        guildId: "guild-1",
+      }),
+    ).not.toThrow();
+  });
+
   // 10. Channel enabled: false
   it("blocks sends when channel is explicitly disabled", () => {
     const cfg = makeCfg({
@@ -302,6 +325,7 @@ describe("enforceOutboundAllowlist", () => {
         accountId: "default",
         channelId: "thread-123",
         guildId: "guild-1",
+        isThread: true,
         parentChannelId: "parent-chan",
       }),
     ).not.toThrow();
@@ -328,6 +352,31 @@ describe("enforceOutboundAllowlist", () => {
         parentChannelId: "parent-not-allowed",
       }),
     ).toThrow(DiscordSendError);
+  });
+
+  it("allows thread sends when parent channel slug is allowlisted", () => {
+    const cfg = makeCfg({
+      groupPolicy: "allowlist",
+      guilds: {
+        "guild-1": {
+          channels: {
+            general: { allow: true },
+          },
+        },
+      },
+    });
+    expect(() =>
+      enforceOutboundAllowlist({
+        cfg,
+        accountId: "default",
+        channelId: "thread-123",
+        channelName: "Thread name",
+        guildId: "guild-1",
+        isThread: true,
+        parentChannelId: "parent-id",
+        parentChannelName: "General",
+      }),
+    ).not.toThrow();
   });
 
   // 16. Default policy resolution — no groupPolicy set anywhere → falls back to "open"
@@ -382,5 +431,33 @@ describe("enforceOutboundAllowlist", () => {
         guildId: "12345",
       }),
     ).toThrow(DiscordSendError);
+  });
+
+  it("async enforcement resolves slug-keyed guilds by fetching guild name", async () => {
+    const cfg = makeCfg({
+      groupPolicy: "allowlist",
+      guilds: {
+        "my-cool-server": {
+          channels: { "chan-1": { allow: true } },
+        },
+      },
+    });
+    const rest = {
+      get: async (path: string) => {
+        if (path === "/guilds/12345") {
+          return { name: "My Cool Server" };
+        }
+        throw new Error(`Unexpected path: ${path}`);
+      },
+    };
+    await expect(
+      enforceOutboundAllowlistAsync({
+        cfg,
+        accountId: "default",
+        channelId: "chan-1",
+        guildId: "12345",
+        rest: rest as never,
+      }),
+    ).resolves.toBeUndefined();
   });
 });

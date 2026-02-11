@@ -15,7 +15,7 @@ import { extensionForMime } from "../media/mime.js";
 import type { PollInput } from "../polls.js";
 import { loadWebMediaRaw } from "../web/media.js";
 import { resolveDiscordAccount } from "./accounts.js";
-import { enforceOutboundAllowlist } from "./send.outbound-allowlist.js";
+import { enforceOutboundAllowlistAsync } from "./send.outbound-allowlist.js";
 import {
   buildDiscordMessagePayload,
   buildDiscordSendError,
@@ -105,6 +105,29 @@ function isForumLikeType(channelType?: number): boolean {
   return channelType === ChannelType.GuildForum || channelType === ChannelType.GuildMedia;
 }
 
+function isThreadType(channelType?: number): boolean {
+  return (
+    channelType === ChannelType.PublicThread ||
+    channelType === ChannelType.PrivateThread ||
+    channelType === ChannelType.AnnouncementThread
+  );
+}
+
+function readGuildChannelMeta(channel: APIChannel | undefined): {
+  channelName?: string;
+  guildId?: string;
+  parentChannelId?: string;
+} {
+  const data = channel as
+    | (APIChannel & { guild_id?: string; parent_id?: string; name?: string })
+    | undefined;
+  return {
+    channelName: typeof data?.name === "string" ? data.name : undefined,
+    guildId: typeof data?.guild_id === "string" ? data.guild_id : undefined,
+    parentChannelId: typeof data?.parent_id === "string" ? data.parent_id : undefined,
+  };
+}
+
 function toDiscordSendResult(
   result: DiscordChannelMessageResult,
   fallbackChannelId: string,
@@ -153,18 +176,21 @@ export async function sendMessageDiscord(
     }
   }
   const channelType = channel?.type;
-  const guildId = channel?.guild_id;
-  const parentChannelId = channel?.parent_id ?? undefined;
+  const isThread = isThreadType(channelType);
+  const { channelName, guildId, parentChannelId } = readGuildChannelMeta(channel);
 
   // Enforce outbound allowlist for non-DM sends.
   if (!isDm) {
-    enforceOutboundAllowlist({
+    await enforceOutboundAllowlistAsync({
       cfg,
       accountId: accountInfo.accountId,
       channelId,
+      channelName,
       guildId,
       isDm: false,
+      isThread,
       parentChannelId,
+      rest,
     });
   }
 
@@ -442,13 +468,19 @@ export async function sendStickerDiscord(
         { kind: "channel-metadata-unavailable", channelId },
       );
     }
-    enforceOutboundAllowlist({
+    const channelType = ch?.type;
+    const isThread = isThreadType(channelType);
+    const { channelName, guildId, parentChannelId } = readGuildChannelMeta(ch);
+    await enforceOutboundAllowlistAsync({
       cfg,
       accountId: accountInfo.accountId,
       channelId,
-      guildId: ch?.guild_id,
+      channelName,
+      guildId,
       isDm: false,
-      parentChannelId: ch?.parent_id ?? undefined,
+      isThread,
+      parentChannelId,
+      rest,
     });
   }
 
@@ -493,13 +525,19 @@ export async function sendPollDiscord(
         { kind: "channel-metadata-unavailable", channelId },
       );
     }
-    enforceOutboundAllowlist({
+    const channelType = ch?.type;
+    const isThread = isThreadType(channelType);
+    const { channelName, guildId, parentChannelId } = readGuildChannelMeta(ch);
+    await enforceOutboundAllowlistAsync({
       cfg,
       accountId: accountInfo.accountId,
       channelId,
-      guildId: ch?.guild_id,
+      channelName,
+      guildId,
       isDm: false,
-      parentChannelId: ch?.parent_id ?? undefined,
+      isThread,
+      parentChannelId,
+      rest,
     });
   }
 

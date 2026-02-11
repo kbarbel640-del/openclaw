@@ -14,11 +14,14 @@
 import { writeFileSync } from "node:fs";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { OpenClawConfig } from "../src/config/config.js";
 import { loadConfig } from "../src/config/config.js";
 import {
   listEnabledDiscordAccounts,
   type ResolvedDiscordAccount,
 } from "../src/discord/accounts.js";
+import { enforceOutboundAllowlist } from "../src/discord/send.outbound-allowlist.js";
+import { DiscordSendError } from "../src/discord/send.types.js";
 
 // Discord permission bit for SendMessages.
 const SEND_MESSAGES_BIT = 1n << 11n; // 2048
@@ -43,6 +46,7 @@ type ChannelInfo = {
   guild_id?: string;
   type: number;
   name?: string;
+  parent_id?: string;
   permission_overwrites?: PermissionOverwrite[];
 };
 
@@ -127,35 +131,37 @@ async function getBotGuilds(token: string): Promise<Array<{ id: string; name: st
   return fetchJson<Array<{ id: string; name: string }>>(token, "/users/@me/guilds");
 }
 
-function isChannelAllowed(
-  account: ResolvedDiscordAccount,
-  guildId: string,
-  channelId: string,
-): boolean {
-  const guilds = account.config.guilds;
-  if (!guilds) {
-    return false;
-  }
-
-  // Check guild entry by ID, wildcard, or slug.
-  const guildEntry = guilds[guildId] ?? guilds["*"];
-  if (!guildEntry) {
-    return false;
-  }
-
-  // No channels config = guild-level allow (all channels).
-  const channels = guildEntry.channels;
-  if (!channels || Object.keys(channels).length === 0) {
+function isChannelAllowed(params: {
+  cfg: OpenClawConfig;
+  account: ResolvedDiscordAccount;
+  guildId: string;
+  guildName: string;
+  channelId: string;
+  channelName?: string;
+  isThread: boolean;
+  parentChannelId?: string;
+  parentChannelName?: string;
+}): boolean {
+  try {
+    enforceOutboundAllowlist({
+      cfg: params.cfg,
+      accountId: params.account.accountId,
+      channelId: params.channelId,
+      channelName: params.channelName,
+      guildId: params.guildId,
+      guildName: params.guildName,
+      isDm: false,
+      isThread: params.isThread,
+      parentChannelId: params.parentChannelId,
+      parentChannelName: params.parentChannelName,
+    });
     return true;
+  } catch (err) {
+    if (err instanceof DiscordSendError && err.kind === "outbound-blocked") {
+      return false;
+    }
+    throw err;
   }
-
-  // Check channel entry by ID or wildcard.
-  const channelEntry = channels[channelId] ?? channels["*"];
-  if (!channelEntry) {
-    return false;
-  }
-
-  return channelEntry.allow !== false && channelEntry.enabled !== false;
 }
 
 function formatTable(rows: ActionRow[]): string {
@@ -178,9 +184,9 @@ function formatTable(rows: ActionRow[]): string {
     Math.max(h.length, ...data.map((row) => (row[i] ?? "").length)),
   );
   const sep = widths.map((w) => "-".repeat(w)).join(" | ");
-  const headerLine = headers.map((h, i) => h.padEnd(widths[i]!)).join(" | ");
+  const headerLine = headers.map((h, i) => h.padEnd(widths[i])).join(" | ");
   const dataLines = data.map((row) =>
-    row.map((cell, i) => (cell ?? "").padEnd(widths[i]!)).join(" | "),
+    row.map((cell, i) => (cell ?? "").padEnd(widths[i])).join(" | "),
   );
   return [headerLine, sep, ...dataLines].join("\n");
 }
@@ -223,6 +229,9 @@ async function runLockdown(apply: boolean): Promise<void> {
 
     for (const guild of guilds) {
       const channels = await getGuildChannels(account.token, guild.id);
+      const channelNameById = new Map(
+        channels.map((channel) => [channel.id, channel.name]).filter(([id]) => Boolean(id)),
+      );
 
       for (const channel of channels) {
         if (!MESSAGE_CAPABLE_TYPES.has(channel.type)) {
@@ -239,7 +248,23 @@ async function runLockdown(apply: boolean): Promise<void> {
           continue;
         }
 
-        const allowed = isChannelAllowed(account, guild.id, channel.id);
+        const isThread = channel.type === 11 || channel.type === 12 || channel.type === 10;
+        const parentChannelId =
+          typeof channel.parent_id === "string" ? channel.parent_id : undefined;
+        const parentChannelName = parentChannelId
+          ? channelNameById.get(parentChannelId)
+          : undefined;
+        const allowed = isChannelAllowed({
+          cfg,
+          account,
+          guildId: guild.id,
+          guildName: guild.name,
+          channelId: channel.id,
+          channelName: channel.name,
+          isThread,
+          parentChannelId,
+          parentChannelName: parentChannelName ?? undefined,
+        });
 
         if (allowed) {
           allActions.push({

@@ -11,26 +11,30 @@ vi.mock("../web/media.js", () => ({
   }),
 }));
 
-const ALLOWLIST_CONFIG = {
-  channels: {
-    discord: {
-      groupPolicy: "allowlist" as const,
-      guilds: {
-        "guild-allowed": {
-          channels: {
-            "chan-allowed": { allow: true },
+function createAllowlistConfig() {
+  return {
+    channels: {
+      discord: {
+        groupPolicy: "allowlist" as const,
+        guilds: {
+          "guild-allowed": {
+            channels: {
+              "chan-allowed": { allow: true },
+            },
           },
         },
       },
     },
-  },
-};
+  };
+}
+
+let testConfig = createAllowlistConfig();
 
 vi.mock("../config/config.js", async (importOriginal) => {
-  const mod = (await importOriginal()) as Record<string, unknown>;
+  const mod = await importOriginal();
   return {
     ...mod,
-    loadConfig: vi.fn().mockReturnValue(ALLOWLIST_CONFIG),
+    loadConfig: vi.fn(() => testConfig),
   };
 });
 
@@ -59,6 +63,7 @@ const makeRest = () => {
 describe("outbound sends blocked by allowlist", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    testConfig = createAllowlistConfig();
   });
 
   describe("sendMessageDiscord", () => {
@@ -93,6 +98,76 @@ describe("outbound sends blocked by allowlist", () => {
         guild_id: "guild-allowed",
         parent_id: null,
       });
+      postMock.mockResolvedValue({ id: "msg1", channel_id: "chan-allowed" });
+
+      const result = await sendMessageDiscord("channel:chan-allowed", "hello", {
+        rest,
+        token: "t",
+      });
+
+      expect(result.messageId).toBe("msg1");
+    });
+
+    it("allows slug-keyed channel entries when channel name matches", async () => {
+      testConfig = {
+        channels: {
+          discord: {
+            groupPolicy: "allowlist",
+            guilds: {
+              "guild-allowed": {
+                channels: {
+                  general: { allow: true },
+                },
+              },
+            },
+          },
+        },
+      };
+      const { sendMessageDiscord } = await import("./send.outbound.js");
+      const { rest, getMock, postMock } = makeRest();
+      getMock.mockResolvedValueOnce({
+        type: ChannelType.GuildText,
+        name: "general",
+        guild_id: "guild-allowed",
+        parent_id: null,
+      });
+      postMock.mockResolvedValue({ id: "msg1", channel_id: "123" });
+
+      const result = await sendMessageDiscord("channel:123", "hello", {
+        rest,
+        token: "t",
+      });
+
+      expect(result.messageId).toBe("msg1");
+    });
+
+    it("allows slug-keyed guild entries by resolving guild name", async () => {
+      testConfig = {
+        channels: {
+          discord: {
+            groupPolicy: "allowlist",
+            guilds: {
+              "my-cool-server": {
+                channels: {
+                  "chan-allowed": { allow: true },
+                },
+              },
+            },
+          },
+        },
+      };
+      const { sendMessageDiscord } = await import("./send.outbound.js");
+      const { rest, getMock, postMock } = makeRest();
+      getMock
+        .mockResolvedValueOnce({
+          type: ChannelType.GuildText,
+          guild_id: "guild-123",
+          name: "chan-allowed",
+          parent_id: null,
+        })
+        .mockResolvedValueOnce({
+          name: "My Cool Server",
+        });
       postMock.mockResolvedValue({ id: "msg1", channel_id: "chan-allowed" });
 
       const result = await sendMessageDiscord("channel:chan-allowed", "hello", {
