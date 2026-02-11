@@ -128,7 +128,7 @@ def _validate_place_id(place_id: str) -> None:
     
     # Block dangerous special characters that could be used for injection
     # Fixed: Escaped the single quote properly
-    if re.search(r"[\s?#<>|*%$&\'`;]", place_id):
+    if re.search(r"[\s?#<>|*%$&'`;]", place_id):
         raise HTTPException(
             status_code=400,
             detail="Invalid place_id format: contains disallowed special characters.",
