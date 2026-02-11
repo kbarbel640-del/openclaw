@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { serializePayload, type MessagePayloadObject, type RequestClient } from "@buape/carbon";
-import { ChannelType, Routes } from "discord-api-types/v10";
+import { type APIChannel, ChannelType, Routes } from "discord-api-types/v10";
 import { resolveChunkMode } from "../auto-reply/chunk.js";
 import { loadConfig } from "../config/config.js";
 import { resolveMarkdownTableMode } from "../config/markdown-tables.js";
@@ -15,6 +15,7 @@ import { extensionForMime } from "../media/mime.js";
 import type { PollInput } from "../polls.js";
 import { loadWebMediaRaw } from "../web/media.js";
 import { resolveDiscordAccount } from "./accounts.js";
+import { enforceOutboundAllowlist } from "./send.outbound-allowlist.js";
 import {
   buildDiscordMessagePayload,
   buildDiscordSendError,
@@ -24,7 +25,6 @@ import {
   normalizeStickerIds,
   parseAndResolveRecipient,
   resolveChannelId,
-  resolveDiscordChannelType,
   resolveDiscordSendComponents,
   resolveDiscordSendEmbeds,
   sendDiscordMedia,
@@ -34,7 +34,7 @@ import {
   type DiscordSendComponents,
   type DiscordSendEmbeds,
 } from "./send.shared.js";
-import type { DiscordSendResult } from "./send.types.js";
+import { DiscordSendError, type DiscordSendResult } from "./send.types.js";
 import {
   ensureOggOpus,
   getVoiceMessageMetadata,
@@ -115,17 +115,6 @@ function toDiscordSendResult(
   };
 }
 
-async function resolveDiscordSendTarget(
-  to: string,
-  opts: DiscordSendOpts,
-): Promise<{ rest: RequestClient; request: DiscordClientRequest; channelId: string }> {
-  const cfg = loadConfig();
-  const { rest, request } = createDiscordClient(opts, cfg);
-  const recipient = await parseAndResolveRecipient(to, opts.accountId);
-  const { channelId } = await resolveChannelId(rest, recipient, request);
-  return { rest, request, channelId };
-}
-
 export async function sendMessageDiscord(
   to: string,
   text: string,
@@ -146,9 +135,38 @@ export async function sendMessageDiscord(
   const { token, rest, request } = createDiscordClient(opts, cfg);
   const recipient = await parseAndResolveRecipient(to, opts.accountId);
   const { channelId } = await resolveChannelId(rest, recipient, request);
+  const isDm = recipient.kind === "user";
 
-  // Forum/Media channels reject POST /messages; auto-create a thread post instead.
-  const channelType = await resolveDiscordChannelType(rest, channelId);
+  // Fetch channel metadata (needed for forum detection and outbound allowlist).
+  let channel: APIChannel | undefined;
+  try {
+    channel = (await request(
+      () => rest.get(Routes.channel(channelId)) as Promise<APIChannel>,
+      "channel-metadata",
+    )) as APIChannel | undefined;
+  } catch (err) {
+    if (!isDm) {
+      throw new DiscordSendError(
+        `Cannot verify outbound allowlist: channel metadata fetch failed for ${channelId}`,
+        { kind: "channel-metadata-unavailable", channelId },
+      );
+    }
+  }
+  const channelType = channel?.type;
+  const guildId = channel?.guild_id;
+  const parentChannelId = channel?.parent_id ?? undefined;
+
+  // Enforce outbound allowlist for non-DM sends.
+  if (!isDm) {
+    enforceOutboundAllowlist({
+      cfg,
+      accountId: accountInfo.accountId,
+      channelId,
+      guildId,
+      isDm: false,
+      parentChannelId,
+    });
+  }
 
   if (isForumLikeType(channelType)) {
     const threadName = deriveForumThreadName(textWithTables);
@@ -403,7 +421,37 @@ export async function sendStickerDiscord(
   stickerIds: string[],
   opts: DiscordSendOpts & { content?: string } = {},
 ): Promise<DiscordSendResult> {
-  const { rest, request, channelId } = await resolveDiscordSendTarget(to, opts);
+  const cfg = loadConfig();
+  const accountInfo = resolveDiscordAccount({ cfg, accountId: opts.accountId });
+  const { rest, request } = createDiscordClient(opts, cfg);
+  const recipient = await parseAndResolveRecipient(to, opts.accountId);
+  const { channelId } = await resolveChannelId(rest, recipient, request);
+  const isDm = recipient.kind === "user";
+
+  // Enforce outbound allowlist for non-DM sends.
+  if (!isDm) {
+    let ch: APIChannel | undefined;
+    try {
+      ch = (await request(
+        () => rest.get(Routes.channel(channelId)) as Promise<APIChannel>,
+        "channel-metadata",
+      )) as APIChannel | undefined;
+    } catch {
+      throw new DiscordSendError(
+        `Cannot verify outbound allowlist: channel metadata fetch failed for ${channelId}`,
+        { kind: "channel-metadata-unavailable", channelId },
+      );
+    }
+    enforceOutboundAllowlist({
+      cfg,
+      accountId: accountInfo.accountId,
+      channelId,
+      guildId: ch?.guild_id,
+      isDm: false,
+      parentChannelId: ch?.parent_id ?? undefined,
+    });
+  }
+
   const content = opts.content?.trim();
   const stickers = normalizeStickerIds(stickerIds);
   const res = (await request(
@@ -424,7 +472,37 @@ export async function sendPollDiscord(
   poll: PollInput,
   opts: DiscordSendOpts & { content?: string } = {},
 ): Promise<DiscordSendResult> {
-  const { rest, request, channelId } = await resolveDiscordSendTarget(to, opts);
+  const cfg = loadConfig();
+  const accountInfo = resolveDiscordAccount({ cfg, accountId: opts.accountId });
+  const { rest, request } = createDiscordClient(opts, cfg);
+  const recipient = await parseAndResolveRecipient(to, opts.accountId);
+  const { channelId } = await resolveChannelId(rest, recipient, request);
+  const isDm = recipient.kind === "user";
+
+  // Enforce outbound allowlist for non-DM sends.
+  if (!isDm) {
+    let ch: APIChannel | undefined;
+    try {
+      ch = (await request(
+        () => rest.get(Routes.channel(channelId)) as Promise<APIChannel>,
+        "channel-metadata",
+      )) as APIChannel | undefined;
+    } catch {
+      throw new DiscordSendError(
+        `Cannot verify outbound allowlist: channel metadata fetch failed for ${channelId}`,
+        { kind: "channel-metadata-unavailable", channelId },
+      );
+    }
+    enforceOutboundAllowlist({
+      cfg,
+      accountId: accountInfo.accountId,
+      channelId,
+      guildId: ch?.guild_id,
+      isDm: false,
+      parentChannelId: ch?.parent_id ?? undefined,
+    });
+  }
+
   const content = opts.content?.trim();
   if (poll.durationSeconds !== undefined) {
     throw new Error("Discord polls do not support durationSeconds; use durationHours");
