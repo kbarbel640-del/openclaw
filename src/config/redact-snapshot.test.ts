@@ -109,6 +109,37 @@ describe("redactConfigSnapshot", () => {
     expect(result.config).toEqual(snapshot.config);
   });
 
+  it("does not redact maxTokens-style fields", () => {
+    const snapshot = makeSnapshot({
+      models: {
+        providers: {
+          openai: {
+            models: [
+              {
+                id: "gpt-5",
+                maxTokens: 65536,
+                contextTokens: 200000,
+                maxTokensField: "max_completion_tokens",
+              },
+            ],
+            apiKey: "sk-proj-abcdef1234567890ghij",
+          },
+        },
+      },
+    });
+
+    const result = redactConfigSnapshot(snapshot);
+    const models = result.config.models as Record<string, unknown>;
+    const providerList = (((models.providers as Record<string, unknown>).openai as Record<string, unknown>)
+      .models ?? []) as Array<Record<string, unknown>>;
+    expect(providerList[0]?.maxTokens).toBe(65536);
+    expect(providerList[0]?.contextTokens).toBe(200000);
+    expect(providerList[0]?.maxTokensField).toBe("max_completion_tokens");
+
+    const providers = (models.providers as Record<string, Record<string, string>>) ?? {};
+    expect(providers.openai.apiKey).toBe(REDACTED_SENTINEL);
+  });
+
   it("preserves hash unchanged", () => {
     const snapshot = makeSnapshot({ gateway: { auth: { token: "secret-token-value-here" } } });
     const result = redactConfigSnapshot(snapshot);
