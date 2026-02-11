@@ -129,7 +129,8 @@ jobs:
 
           # Use pnpm deploy to create a standalone directory with all deps resolved
           # --legacy flag is required for pnpm v10+
-          pnpm deploy --prod --legacy ./deploy-temp
+          # Deploy from root (.) since openclaw is the root package
+          pnpm --filter=. deploy --prod --legacy ./deploy-temp
 
           echo "Deploy complete. Creating tarball..."
           mkdir -p ./artifacts
