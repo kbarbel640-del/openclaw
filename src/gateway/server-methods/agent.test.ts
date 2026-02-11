@@ -410,4 +410,137 @@ describe("gateway agent handler", () => {
     // New threadId should override existing one
     expect(capturedEntry?.lastThreadId).toBe("new-thread-456");
   });
+
+  it("stores explicit accountId-only delivery context and merges with stored context", async () => {
+    mocks.loadSessionEntry.mockReturnValue({
+      cfg: {},
+      storePath: "/tmp/sessions.json",
+      entry: {
+        sessionId: "existing-session-id",
+        updatedAt: Date.now(),
+        lastTo: "@olduser",
+        lastChannel: "telegram",
+      },
+      canonicalKey: "agent:main:main",
+    });
+
+    let capturedEntry: Record<string, unknown> | undefined;
+    mocks.updateSessionStore.mockImplementation(async (_path, updater) => {
+      const store: Record<string, unknown> = {};
+      await updater(store);
+      capturedEntry = store["agent:main:main"] as Record<string, unknown>;
+    });
+
+    mocks.agentCommand.mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: { durationMs: 100 },
+    });
+
+    await agentHandlers.agent({
+      params: {
+        message: "test",
+        agentId: "main",
+        sessionKey: "agent:main:main",
+        idempotencyKey: "test-account-only",
+        accountId: "new-account",
+      },
+      respond: vi.fn(),
+      context: makeContext(),
+      req: { type: "req", id: "7", method: "agent" },
+      client: null,
+      isWebchatConnect: () => false,
+    });
+
+    expect(capturedEntry?.lastAccountId).toBe("new-account");
+    // lastTo and lastChannel should be preserved from stored context because of merge
+    expect(capturedEntry?.lastTo).toBe("@olduser");
+    expect(capturedEntry?.lastChannel).toBe("telegram");
+  });
+
+  it("stores explicit threadId-only delivery context", async () => {
+    mocks.loadSessionEntry.mockReturnValue({
+      cfg: {},
+      storePath: "/tmp/sessions.json",
+      entry: {
+        sessionId: "existing-session-id",
+        updatedAt: Date.now(),
+      },
+      canonicalKey: "agent:main:main",
+    });
+
+    let capturedEntry: Record<string, unknown> | undefined;
+    mocks.updateSessionStore.mockImplementation(async (_path, updater) => {
+      const store: Record<string, unknown> = {};
+      await updater(store);
+      capturedEntry = store["agent:main:main"] as Record<string, unknown>;
+    });
+
+    mocks.agentCommand.mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: { durationMs: 100 },
+    });
+
+    await agentHandlers.agent({
+      params: {
+        message: "test",
+        agentId: "main",
+        sessionKey: "agent:main:main",
+        idempotencyKey: "test-thread-only",
+        threadId: "thread-456",
+      },
+      respond: vi.fn(),
+      context: makeContext(),
+      req: { type: "req", id: "8", method: "agent" },
+      client: null,
+      isWebchatConnect: () => false,
+    });
+
+    expect(capturedEntry?.lastThreadId).toBe("thread-456");
+  });
+
+  it("does not overwrite session routing from channel-only requests (prevents clobbering)", async () => {
+    mocks.loadSessionEntry.mockReturnValue({
+      cfg: {},
+      storePath: "/tmp/sessions.json",
+      entry: {
+        sessionId: "existing-session-id",
+        updatedAt: Date.now(),
+        lastTo: "@olduser",
+        lastChannel: "telegram",
+      },
+      canonicalKey: "agent:main:main",
+    });
+
+    let capturedEntry: Record<string, unknown> | undefined;
+    mocks.updateSessionStore.mockImplementation(async (_path, updater) => {
+      const store: Record<string, unknown> = {};
+      await updater(store);
+      capturedEntry = store["agent:main:main"] as Record<string, unknown>;
+    });
+
+    mocks.agentCommand.mockResolvedValue({
+      payloads: [{ text: "ok" }],
+      meta: { durationMs: 100 },
+    });
+
+    await agentHandlers.agent({
+      params: {
+        message: "test",
+        agentId: "main",
+        sessionKey: "agent:main:main",
+        idempotencyKey: "test-channel-only",
+        channel: "discord", // CLI often sends channel, but it shouldn't clobber 'lastTo'
+      },
+      respond: vi.fn(),
+      context: makeContext(),
+      req: { type: "req", id: "9", method: "agent" },
+      client: null,
+      isWebchatConnect: () => false,
+    });
+
+    // lastTo should still be @olduser, and lastChannel should still be telegram
+    // because the channel-only request was not treated as an explicit delivery context.
+    expect(capturedEntry?.lastTo).toBe("@olduser");
+    expect(capturedEntry?.lastChannel).toBe("telegram");
+  });
 });
