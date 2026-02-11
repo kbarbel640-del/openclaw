@@ -108,6 +108,13 @@ describe("buildGatewayReloadPlan", () => {
     expect(plan.noopPaths).toContain("gateway.remote.url");
   });
 
+  it("treats meta fields as no-op (prevents self-modification restart loop)", () => {
+    const plan = buildGatewayReloadPlan(["meta.lastTouchedVersion", "meta.lastTouchedAt"]);
+    expect(plan.restartGateway).toBe(false);
+    expect(plan.noopPaths).toContain("meta.lastTouchedVersion");
+    expect(plan.noopPaths).toContain("meta.lastTouchedAt");
+  });
+
   it("defaults unknown paths to restart", () => {
     const plan = buildGatewayReloadPlan(["unknownField"]);
     expect(plan.restartGateway).toBe(true);
