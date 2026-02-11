@@ -447,7 +447,8 @@ Rules:
 - Escape with `$${VAR}` for literal output
 - Works inside `$include` files
 - Inline substitution: `"${BASE}/v1"` → `"https://api.example.com/v1"`
-  </Accordion>
+
+</Accordion>
 
 See [Environment](/help/environment) for full precedence and sources.
 

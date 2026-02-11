@@ -1495,7 +1495,8 @@ Notes:
 
 - Use `cerebras/zai-glm-4.7` for Cerebras; use `zai/glm-4.7` for Z.AI direct.
 - Set `CEREBRAS_API_KEY` in the environment or config.
-  </Accordion>
+
+</Accordion>
 
 ## Session
 
@@ -1662,7 +1663,8 @@ Notes:
 
 - `transport: "direct"` requires `ws://` or `wss://` URL
 - macOS app watches config and switches modes live
-  </Accordion>
+
+</Accordion>
 
 <Accordion title="Auth and Tailscale details">
 - `gateway.auth.mode`: `token` or `password`
@@ -1758,7 +1760,8 @@ Notes:
 - Gateway auto-starts `gog gmail watch serve` on boot when enabled
 - Set `OPENCLAW_SKIP_GMAIL_WATCHER=1` to disable
 - Avoid running a separate `gog gmail watch serve` alongside the Gateway
-  </Accordion>
+
+</Accordion>
 
 ## Canvas host
 
