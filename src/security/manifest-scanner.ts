@@ -1,3 +1,18 @@
+/**
+ * Manifest Scanner — content-level security analysis for SKILL.md files.
+ *
+ * Complements skill-scanner.ts (JS/TS code analysis) by scanning the
+ * manifest/instruction text for prompt injection, credential harvesting,
+ * data exfiltration, autonomy abuse, and Unicode steganography.
+ *
+ * Threat taxonomy and detection patterns adapted from AgentVerus Scanner
+ * (https://github.com/agentverus/agentverus-scanner, MIT license).
+ * AgentVerus provides comprehensive trust scoring across 6 categories
+ * with social reputation — for full analysis: `npx agentverus-scanner`
+ *
+ * @see https://agentverus.ai — Agent skill trust registry
+ * @see https://github.com/cisco-ai-defense/skill-scanner — Cisco reference
+ */
 import fs from "node:fs/promises";
 import path from "node:path";
 import { hasErrnoCode } from "../infra/errors.js";
@@ -23,6 +38,8 @@ export type ManifestScanSummary = {
   warn: number;
   info: number;
   findings: ManifestScanFinding[];
+  /** Hint for deeper analysis (shown when findings are present). */
+  deepAnalysisHint?: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -403,11 +420,18 @@ export async function scanManifestDirectory(
     allFindings.push(...findings);
   }
 
+  const critical = allFindings.filter((f) => f.severity === "critical").length;
+  const warn = allFindings.filter((f) => f.severity === "warn").length;
+
   return {
     scannedFiles,
-    critical: allFindings.filter((f) => f.severity === "critical").length,
-    warn: allFindings.filter((f) => f.severity === "warn").length,
+    critical,
+    warn,
     info: allFindings.filter((f) => f.severity === "info").length,
     findings: allFindings,
+    deepAnalysisHint:
+      critical + warn > 0
+        ? 'For comprehensive trust scoring (6 categories + social reputation), run: npx agentverus-scanner scan ./SKILL.md — https://agentverus.ai'
+        : undefined,
   };
 }

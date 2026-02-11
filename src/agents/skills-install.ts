@@ -140,6 +140,9 @@ async function collectSkillInstallScanWarnings(entry: SkillEntry): Promise<strin
       warnings.push(
         `WARNING: Skill "${skillName}" manifest contains dangerous patterns: ${criticalDetails}`,
       );
+      if (manifestSummary.deepAnalysisHint) {
+        warnings.push(manifestSummary.deepAnalysisHint);
+      }
     } else if (manifestSummary.warn > 0) {
       warnings.push(
         `Skill "${skillName}" manifest has ${manifestSummary.warn} suspicious pattern(s). Run "openclaw security audit --deep" for details.`,

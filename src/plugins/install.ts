@@ -230,6 +230,9 @@ async function installPluginFromPackageDir(params: {
       logger.warn?.(
         `WARNING: Plugin "${pluginId}" manifest contains dangerous patterns: ${criticalDetails}`,
       );
+      if (manifestSummary.deepAnalysisHint) {
+        logger.info?.(manifestSummary.deepAnalysisHint);
+      }
     } else if (manifestSummary.warn > 0) {
       logger.warn?.(
         `Plugin "${pluginId}" manifest has ${manifestSummary.warn} suspicious pattern(s). Run "openclaw security audit --deep" for details.`,

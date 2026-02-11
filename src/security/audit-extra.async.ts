@@ -770,11 +770,12 @@ export async function collectInstalledSkillsManifestSafetyFindings(params: {
             return `  ${f.message} (${filePart}:${f.line})`;
           })
           .join("\n");
+        const hint = summary.deepAnalysisHint ? `\n\n${summary.deepAnalysisHint}` : "";
         findings.push({
           checkId: "skills.manifest_safety",
           severity: "critical",
           title: `Skill "${skillName}" manifest contains dangerous patterns`,
-          detail: `Found ${summary.critical} critical issue(s) in ${summary.scannedFiles} manifest file(s) under ${skillDir}:\n${details}`,
+          detail: `Found ${summary.critical} critical issue(s) in ${summary.scannedFiles} manifest file(s) under ${skillDir}:\n${details}${hint}`,
           remediation: `Review the skill manifest (SKILL.md) before use. If untrusted, remove "${skillDir}".`,
         });
       } else if (summary.warn > 0) {
