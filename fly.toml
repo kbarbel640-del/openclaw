@@ -3,8 +3,8 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'openclaw-gsalzq'
-primary_region = 'iad'
+app = "openclaw-npadilla"
+primary_region = "iad" # change to your closest region
 
 [build]
 
