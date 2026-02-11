@@ -7,22 +7,24 @@ import {
   setAuthProfileOrder,
 } from "../../agents/auth-profiles.js";
 import { normalizeProviderId } from "../../agents/model-selection.js";
-import { loadConfig } from "../../config/config.js";
+import { loadConfig, type OpenClawConfig } from "../../config/config.js";
 import { resolveProfileDisplayInfos, type ProfileDisplayInfo } from "./list.auth-overview.js";
 import { resolveKnownAgentId } from "./shared.js";
 
 export type AuthSwitchContext = {
-  cfg: ReturnType<typeof loadConfig>;
+  cfg: OpenClawConfig;
   agentDir: string;
   store: AuthProfileStore;
   provider: string;
 };
 
-export function getAuthSwitchContext(opts: {
-  provider: string;
-  agent?: string;
-}): AuthSwitchContext {
-  const cfg = loadConfig();
+export function getAuthSwitchContext(
+  opts: {
+    provider: string;
+    agent?: string;
+  },
+  cfg: OpenClawConfig = loadConfig(),
+): AuthSwitchContext {
   const provider = normalizeProviderId(opts.provider.trim());
   const agentId = resolveKnownAgentId({ cfg, rawAgentId: opts.agent });
   const agentDir = agentId ? resolveAgentDir(cfg, agentId) : resolveOpenClawAgentDir();

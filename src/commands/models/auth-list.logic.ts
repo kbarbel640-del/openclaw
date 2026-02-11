@@ -6,7 +6,7 @@ import {
   resolveAuthStorePathForDisplay,
 } from "../../agents/auth-profiles.js";
 import { normalizeProviderId } from "../../agents/model-selection.js";
-import { loadConfig } from "../../config/config.js";
+import { loadConfig, type OpenClawConfig } from "../../config/config.js";
 import { shortenHomePath } from "../../utils.js";
 import { type ProfileDisplayInfo, resolveProfileDisplayInfos } from "./list.auth-overview.js";
 import { resolveKnownAgentId } from "./shared.js";
@@ -35,8 +35,8 @@ export type ModelsAuthListResult = {
 
 export async function modelsAuthListLogic(
   opts: ModelsAuthListOptions,
+  cfg: OpenClawConfig = loadConfig(),
 ): Promise<ModelsAuthListResult> {
-  const cfg = loadConfig();
   const agentId = resolveKnownAgentId({ cfg, rawAgentId: opts.agent });
   const agentDir = agentId ? resolveAgentDir(cfg, agentId) : resolveOpenClawAgentDir();
   const store = ensureAuthProfileStore(agentDir);

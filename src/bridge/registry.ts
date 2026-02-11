@@ -1,6 +1,6 @@
 import { BridgeCommand } from "./types.js";
 
-class CommandBridgeRegistry {
+export class CommandBridgeRegistry {
   private commands = new Map<string, BridgeCommand>();
 
   register<T>(command: BridgeCommand<T>) {
@@ -10,12 +10,24 @@ class CommandBridgeRegistry {
     this.commands.set(command.name, command as BridgeCommand<unknown>);
   }
 
+  unregister(name: string): boolean {
+    return this.commands.delete(name);
+  }
+
+  has(name: string): boolean {
+    return this.commands.has(name);
+  }
+
   get(name: string): BridgeCommand | undefined {
     return this.commands.get(name);
   }
 
   getAll(): BridgeCommand[] {
     return Array.from(this.commands.values());
+  }
+
+  clear(): void {
+    this.commands.clear();
   }
 }
 

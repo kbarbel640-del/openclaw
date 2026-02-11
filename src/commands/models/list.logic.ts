@@ -2,7 +2,7 @@ import type { Api, Model } from "@mariozechner/pi-ai";
 import type { ModelRow } from "./list.types.js";
 import { ensureAuthProfileStore } from "../../agents/auth-profiles.js";
 import { parseModelRef } from "../../agents/model-selection.js";
-import { loadConfig } from "../../config/config.js";
+import { loadConfig, type OpenClawConfig } from "../../config/config.js";
 import { resolveConfiguredEntries } from "./list.configured.js";
 import { loadModelRegistry, toModelRow } from "./list.registry.js";
 import { DEFAULT_PROVIDER, modelKey } from "./shared.js";
@@ -15,8 +15,8 @@ export type ModelsListOptions = {
 
 export async function modelsListLogic(
   opts: ModelsListOptions,
+  cfg: OpenClawConfig = loadConfig(),
 ): Promise<{ rows: ModelRow[]; error?: string }> {
-  const cfg = loadConfig();
   const authStore = ensureAuthProfileStore();
   const providerFilter = (() => {
     const raw = opts.provider?.trim();
@@ -36,6 +36,8 @@ export async function modelsListLogic(
     models = loaded.models;
     availableKeys = loaded.availableKeys;
   } catch (err) {
+    // In logic layer, we capture the error but still return rows derived from config if possible.
+    // This allows partial results (e.g. static config) even if registry fails.
     error = `Model registry unavailable: ${String(err)}`;
   }
 
