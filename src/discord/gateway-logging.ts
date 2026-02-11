@@ -1,6 +1,6 @@
 import type { EventEmitter } from "node:events";
-import { logVerbose } from "../globals.js";
 import type { RuntimeEnv } from "../runtime.js";
+import { logVerbose } from "../globals.js";
 
 type GatewayEmitter = Pick<EventEmitter, "on" | "removeListener">;
 
@@ -8,6 +8,7 @@ const INFO_DEBUG_MARKERS = [
   "WebSocket connection closed",
   "Reconnecting with backoff",
   "Attempting resume with backoff",
+  "connection stable",
 ];
 
 const shouldPromoteGatewayDebug = (message: string) =>
