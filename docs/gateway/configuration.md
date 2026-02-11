@@ -9,7 +9,7 @@ title: "Configuration"
 
 # Configuration
 
-OpenClaw reads an optional **JSON5** config from `~/.openclaw/openclaw.json` (comments + trailing commas allowed).
+OpenClaw reads an optional <Tooltip tip="JSON5 supports comments and trailing commas">**JSON5**</Tooltip> config from `~/.openclaw/openclaw.json`.
 
 If the file is missing, OpenClaw uses safe defaults. You usually only need a config to:
 
