@@ -85,6 +85,18 @@ function packToArchive({
   return dest;
 }
 
+function runNpmLikeCommand(argv: string[], cwd?: string) {
+  const npmCli = resolveNpmCliJs();
+  const cmd = npmCli ? process.execPath : process.platform === "win32" ? "npm.cmd" : "npm";
+  const args = npmCli ? [npmCli, ...argv.slice(1)] : argv.slice(1);
+  return spawnSync(cmd, args, {
+    cwd,
+    encoding: "utf-8",
+    env: process.env,
+    windowsHide: true,
+  });
+}
+
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
     try {
@@ -326,13 +338,15 @@ describe("installPluginFromArchive", () => {
         if (!Array.isArray(argv) || argv.length === 0) {
           throw new Error("expected argv");
         }
-        const command = process.platform === "win32" && argv[0] === "npm" ? "npm.cmd" : argv[0];
-        const res = spawnSync(command, argv.slice(1), {
-          cwd: options?.cwd,
-          encoding: "utf-8",
-          env: process.env,
-          windowsHide: true,
-        });
+        const res =
+          argv[0] === "npm"
+            ? runNpmLikeCommand(argv, options?.cwd)
+            : spawnSync(argv[0], argv.slice(1), {
+                cwd: options?.cwd,
+                encoding: "utf-8",
+                env: process.env,
+                windowsHide: true,
+              });
         return {
           code: res.status ?? 1,
           stdout: res.stdout ?? "",
@@ -353,7 +367,7 @@ describe("installPluginFromArchive", () => {
         extensionsDir,
       });
 
-      expect(result.ok).toBe(true);
+      expect(result.ok, result.ok ? undefined : result.error).toBe(true);
       expect(fs.existsSync(markerPath)).toBe(false);
     } finally {
       const { runCommandWithTimeout } = await import("../process/exec.js");
