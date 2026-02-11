@@ -545,40 +545,41 @@ describe("BlueBubbles webhook monitor", () => {
       expect(res.statusCode).toBe(401);
     });
 
-    it("requires authentication for localhost requests when password is configured", async () => {
+    it("requires authentication for loopback requests when password is configured", async () => {
       const account = createMockAccount({ password: "secret-token" });
       const config: OpenClawConfig = {};
       const core = createMockRuntime();
       setBlueBubblesRuntime(core);
+      for (const remoteAddress of ["127.0.0.1", "::1", "::ffff:127.0.0.1"]) {
+        const req = createMockRequest("POST", "/bluebubbles-webhook", {
+          type: "new-message",
+          data: {
+            text: "hello",
+            handle: { address: "+15551234567" },
+            isGroup: false,
+            isFromMe: false,
+            guid: "msg-1",
+          },
+        });
+        (req as unknown as { socket: { remoteAddress: string } }).socket = {
+          remoteAddress,
+        };
 
-      const req = createMockRequest("POST", "/bluebubbles-webhook", {
-        type: "new-message",
-        data: {
-          text: "hello",
-          handle: { address: "+15551234567" },
-          isGroup: false,
-          isFromMe: false,
-          guid: "msg-1",
-        },
-      });
-      // Localhost address
-      (req as unknown as { socket: { remoteAddress: string } }).socket = {
-        remoteAddress: "127.0.0.1",
-      };
+        const loopbackUnregister = registerBlueBubblesWebhookTarget({
+          account,
+          config,
+          runtime: { log: vi.fn(), error: vi.fn() },
+          core,
+          path: "/bluebubbles-webhook",
+        });
 
-      unregister = registerBlueBubblesWebhookTarget({
-        account,
-        config,
-        runtime: { log: vi.fn(), error: vi.fn() },
-        core,
-        path: "/bluebubbles-webhook",
-      });
+        const res = createMockResponse();
+        const handled = await handleBlueBubblesWebhookRequest(req, res);
+        expect(handled).toBe(true);
+        expect(res.statusCode).toBe(401);
 
-      const res = createMockResponse();
-      const handled = await handleBlueBubblesWebhookRequest(req, res);
-
-      expect(handled).toBe(true);
-      expect(res.statusCode).toBe(401);
+        loopbackUnregister();
+      }
     });
 
     it("ignores unregistered webhook paths", async () => {
