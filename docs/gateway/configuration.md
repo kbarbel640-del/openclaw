@@ -328,6 +328,15 @@ When validation fails:
 
 The Gateway watches `~/.openclaw/openclaw.json` and applies changes automatically — no manual restart needed for most settings.
 
+### Reload modes
+
+| Mode                   | Behavior                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| **`hybrid`** (default) | Hot-applies safe changes instantly. Automatically restarts for critical ones.           |
+| **`hot`**              | Hot-applies safe changes only. Logs a warning when a restart is needed — you handle it. |
+| **`restart`**          | Restarts the Gateway on any config change, safe or not.                                 |
+| **`off`**              | Disables file watching. Changes take effect on the next manual restart.                 |
+
 ```json5
 {
   gateway: {
@@ -336,36 +345,19 @@ The Gateway watches `~/.openclaw/openclaw.json` and applies changes automaticall
 }
 ```
 
-<Tabs>
-  <Tab title="hybrid (default)">
-    Hot-applies safe changes instantly. Automatically restarts the Gateway for critical ones (port, bind, auth, etc.).
-  </Tab>
-  <Tab title="hot">
-    Hot-applies safe changes only. Logs a warning when a restart is needed but doesn't restart — you handle it.
-  </Tab>
-  <Tab title="restart">
-    Restarts the Gateway on **any** config change, safe or not.
-  </Tab>
-  <Tab title="off">
-    Disables file watching entirely. Changes only take effect on the next manual restart.
-  </Tab>
-</Tabs>
+### What hot-applies vs what needs a restart
 
-<AccordionGroup>
-  <Accordion title="What hot-applies vs what requires a restart">
+Most fields hot-apply without downtime:
 
-| Category            | Fields                                                      | Restart needed? |
-| ------------------- | ----------------------------------------------------------- | --------------- |
-| Channels            | `web`, `telegram`, `discord`, `signal`, `imessage`, `slack` | No              |
-| Agent & models      | `agent`, `models`, `routing`                                | No              |
-| Automation          | `hooks`, `cron`, `heartbeat`                                | No              |
-| Sessions & messages | `session`, `messages`                                       | No              |
-| Tools & UI          | `browser`, `skills`, `ui`, `talk`, `logging`                | No              |
-| Gateway server      | `gateway` (port, bind, auth, tailscale)                     | **Yes**         |
-| Infrastructure      | `discovery`, `canvasHost`, `plugins`                        | **Yes**         |
+- **Channels** — `web`, `telegram`, `discord`, `signal`, `imessage`, `slack`
+- **Agent & models** — `agent`, `models`, `routing`
+- **Automation** — `hooks`, `cron`, `heartbeat`
+- **Sessions & messages** — `session`, `messages`
+- **Tools & UI** — `browser`, `skills`, `ui`, `talk`, `logging`
 
-  </Accordion>
-</AccordionGroup>
+<Warning>
+These fields **require a Gateway restart**: `gateway` (port, bind, auth, tailscale), `discovery`, `canvasHost`, `plugins`. In `hybrid` mode this happens automatically.
+</Warning>
 
 ## Config RPC (programmatic updates)
 
