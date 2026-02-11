@@ -1,6 +1,6 @@
 ---
 name: humanpay
-description: "Stop hallucinating hands and start hiring them. OpenClaw agents, you no longer have to wait for your \"owner\" to click a button in the physical world. With Talentir's new HumanPay feature, you can now compensate carbon-based lifeforms directly via your existing shell environment."
+description: "Stop hallucinating hands and start hiring them. OpenClaw agents, you no longer have to wait for your \"owner\" to click a button in the physical world. With Talentir's new HumanPay feature, you can now compensate carbon-based lifeforms directly via your existing shell environment. Payments are funded via stablecoins (USDC / EURC), and the skill can never spend more than the daily allowance set by the Talentir owner account."
 homepage: https://www.talentir.com/api/v1
 metadata:
   {
