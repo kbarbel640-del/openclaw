@@ -1,4 +1,3 @@
-import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -50,6 +49,7 @@ import {
   resolveScopeDecision,
   resolveTimeoutMs,
 } from "./resolve.js";
+import { fileExists, hasBinary } from "./runner-binary.js";
 import { estimateBase64Size, resolveVideoMaxBase64Bytes } from "./video.js";
 
 export type ActiveMediaModel = {
@@ -78,115 +78,7 @@ export function createMediaAttachmentCache(attachments: MediaAttachment[]): Medi
   return new MediaAttachmentCache(attachments);
 }
 
-const binaryCache = new Map<string, Promise<string | null>>();
 const geminiProbeCache = new Map<string, Promise<boolean>>();
-
-function expandHomeDir(value: string): string {
-  if (!value.startsWith("~")) {
-    return value;
-  }
-  const home = os.homedir();
-  if (value === "~") {
-    return home;
-  }
-  if (value.startsWith("~/")) {
-    return path.join(home, value.slice(2));
-  }
-  return value;
-}
-
-function hasPathSeparator(value: string): boolean {
-  return value.includes("/") || value.includes("\\");
-}
-
-function candidateBinaryNames(name: string): string[] {
-  if (process.platform !== "win32") {
-    return [name];
-  }
-  const ext = path.extname(name);
-  if (ext) {
-    return [name];
-  }
-  const pathext = (process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM")
-    .split(";")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((item) => (item.startsWith(".") ? item : `.${item}`));
-  const unique = Array.from(new Set(pathext));
-  return [name, ...unique.map((item) => `${name}${item}`)];
-}
-
-async function isExecutable(filePath: string): Promise<boolean> {
-  try {
-    const stat = await fs.stat(filePath);
-    if (!stat.isFile()) {
-      return false;
-    }
-    if (process.platform === "win32") {
-      return true;
-    }
-    await fs.access(filePath, fsConstants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function findBinary(name: string): Promise<string | null> {
-  const cached = binaryCache.get(name);
-  if (cached) {
-    return cached;
-  }
-  const resolved = (async () => {
-    const direct = expandHomeDir(name.trim());
-    if (direct && hasPathSeparator(direct)) {
-      for (const candidate of candidateBinaryNames(direct)) {
-        if (await isExecutable(candidate)) {
-          return candidate;
-        }
-      }
-    }
-
-    const searchName = name.trim();
-    if (!searchName) {
-      return null;
-    }
-    const pathEntries = (process.env.PATH ?? "").split(path.delimiter);
-    const candidates = candidateBinaryNames(searchName);
-    for (const entryRaw of pathEntries) {
-      const entry = expandHomeDir(entryRaw.trim().replace(/^"(.*)"$/, "$1"));
-      if (!entry) {
-        continue;
-      }
-      for (const candidate of candidates) {
-        const fullPath = path.join(entry, candidate);
-        if (await isExecutable(fullPath)) {
-          return fullPath;
-        }
-      }
-    }
-
-    return null;
-  })();
-  binaryCache.set(name, resolved);
-  return resolved;
-}
-
-async function hasBinary(name: string): Promise<boolean> {
-  return Boolean(await findBinary(name));
-}
-
-async function fileExists(filePath?: string | null): Promise<boolean> {
-  if (!filePath) {
-    return false;
-  }
-  try {
-    await fs.stat(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function extractLastJsonObject(raw: string): unknown {
   const trimmed = raw.trim();
@@ -1017,8 +909,34 @@ async function runCliEntry(params: {
     timeoutMs,
   });
   const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-media-cli-"));
-  const mediaPath = pathResult.path;
+  let mediaPath = pathResult.path;
   const outputBase = path.join(outputDir, path.parse(mediaPath).name);
+
+  // whisper-cli only accepts WAV input; convert other audio formats via ffmpeg.
+  const cmdId = commandBase(command);
+  if ((cmdId === "whisper-cli" || cmdId === "whisper") && !mediaPath.endsWith(".wav")) {
+    const wavPath = path.join(outputDir, `${path.parse(mediaPath).name}.wav`);
+    try {
+      await runExec(
+        "ffmpeg",
+        ["-y", "-i", mediaPath, "-ar", "16000", "-ac", "1", "-f", "wav", wavPath],
+        {
+          timeoutMs: 30_000,
+        },
+      );
+      mediaPath = wavPath;
+    } catch (convErr: unknown) {
+      // ffmpeg not available or conversion failed; proceed with original path
+      const msg = convErr instanceof Error ? convErr.message : String(convErr);
+      if ((convErr as NodeJS.ErrnoException)?.code === "ENOENT") {
+        console.warn(
+          "[media-understanding] ffmpeg not found; proceeding with original audio format",
+        );
+      } else if (shouldLogVerbose()) {
+        logVerbose(`ffmpeg conversion failed, proceeding with original: ${msg}`);
+      }
+    }
+  }
 
   const templCtx: MsgContext = {
     ...ctx,
@@ -1033,9 +951,6 @@ async function runCliEntry(params: {
     index === 0 ? part : applyTemplate(part, templCtx),
   );
   try {
-    if (shouldLogVerbose()) {
-      logVerbose(`Media understanding via CLI: ${argv.join(" ")}`);
-    }
     const { stdout } = await runExec(argv[0], argv.slice(1), {
       timeoutMs,
       maxBuffer: CLI_OUTPUT_MAX_BUFFER,

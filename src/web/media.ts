@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SsrFPolicy } from "../infra/net/ssrf.js";
@@ -222,8 +223,22 @@ async function loadWebMediaInternal(
     mediaUrl = resolveUserPath(mediaUrl);
   }
 
-  // Local path
-  const data = await fs.readFile(mediaUrl);
+  // Local path — resolve symlinks to prevent traversal outside temp directories.
+  // realpath canonicalises the path: macOS /tmp → /private/tmp, Windows 8.3 → long names.
+  const realPath = await fs.realpath(mediaUrl);
+  if (realPath !== mediaUrl) {
+    const realTmpDir = await fs.realpath(os.tmpdir());
+    const sep = path.sep;
+    const isRealPathUnderTemp =
+      realPath.startsWith(realTmpDir + sep) ||
+      realPath.startsWith("/tmp/") ||
+      realPath.startsWith("/private/tmp/") ||
+      /^\/(private\/)?var\/folders\/[^/]+\/[^/]+\/T\//.test(realPath);
+    if (!isRealPathUnderTemp) {
+      throw new Error(`Symlink target is outside allowed temp directories: ${mediaUrl}`);
+    }
+  }
+  const data = await fs.readFile(realPath);
   const mime = await detectMime({ buffer: data, filePath: mediaUrl });
   const kind = mediaKindFromMime(mime);
   let fileName = path.basename(mediaUrl) || undefined;
