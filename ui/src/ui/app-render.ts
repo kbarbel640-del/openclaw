@@ -52,7 +52,7 @@ import {
 } from "./controllers/skills.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
-import type { UsageSummary } from "./types.ts";
+import type { CostUsageSummary, UsageSummary } from "./types.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
@@ -82,45 +82,76 @@ const debouncedLoadUsage = (state: UsageState) => {
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
 
-function buildApiQuotaPreview(summary: UsageSummary | null): { label: string; hover: string } {
+function buildApiQuotaPreview(
+  summary: UsageSummary | null,
+  usageHistory: CostUsageSummary | null,
+): {
+  label: string;
+  providers: Array<{
+    provider: string;
+    left: number;
+    window: string;
+    resetMin: number | null;
+    risk: "safe" | "tight" | "risk";
+    predictedDowntimeMin: number | null;
+  }>;
+  history: { avgDailyTokens: number; todayTokens: number; avgHourlyTokens: number; currentHourlyTokens: number; pressure: number } | null;
+} {
+  const history = (() => {
+    const daily = usageHistory?.daily ?? [];
+    if (!Array.isArray(daily) || daily.length === 0) {
+      return null;
+    }
+    const sorted = [...daily].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const tail = sorted.slice(-7);
+    const avgDailyTokens =
+      tail.reduce((sum, d) => sum + (typeof d.totalTokens === "number" ? d.totalTokens : 0), 0) /
+      Math.max(1, tail.length);
+    const todayTokens = typeof sorted[sorted.length - 1]?.totalTokens === "number" ? sorted[sorted.length - 1].totalTokens : 0;
+    const hour = new Date().getHours();
+    const currentHourlyTokens = todayTokens / Math.max(1, hour + 1);
+    const avgHourlyTokens = avgDailyTokens / 24;
+    const pressure = avgHourlyTokens > 0 ? currentHourlyTokens / avgHourlyTokens : 1;
+    return { avgDailyTokens, todayTokens, avgHourlyTokens, currentHourlyTokens, pressure };
+  })();
+
   if (!summary || !Array.isArray(summary.providers) || summary.providers.length === 0) {
-    return { label: "n/a", hover: "No provider usage data available yet." };
+    return { label: "n/a", providers: [], history };
   }
 
-  const rows = summary.providers
+  const providers = summary.providers
     .filter((p) => !p.error && Array.isArray(p.windows) && p.windows.length > 0)
     .map((p) => {
-      const peak = p.windows.reduce((best, w) =>
-        typeof w.usedPercent === "number" && w.usedPercent > best ? w.usedPercent : best,
-      0);
       const topWindow = [...p.windows].sort((a, b) => (b.usedPercent ?? 0) - (a.usedPercent ?? 0))[0];
-      const left = Math.max(0, 100 - Math.round(peak));
-      const reset =
+      const used = typeof topWindow?.usedPercent === "number" ? topWindow.usedPercent : 0;
+      const left = Math.max(0, 100 - Math.round(used));
+      const resetMin =
         typeof topWindow?.resetAt === "number" && Number.isFinite(topWindow.resetAt)
           ? Math.max(0, Math.round((topWindow.resetAt - Date.now()) / 60000))
+          : null;
+      const pressure = history?.pressure ?? 1;
+      const riskScore = (1 - left / 100) * pressure;
+      const risk: "safe" | "tight" | "risk" = riskScore >= 0.9 ? "risk" : riskScore >= 0.65 ? "tight" : "safe";
+      const predictedDowntimeMin =
+        risk === "risk" && resetMin != null
+          ? Math.max(0, Math.round(resetMin * Math.min(0.9, (riskScore - 0.75) / Math.max(0.1, riskScore))))
           : null;
       return {
         provider: p.displayName || p.provider,
         left,
         window: topWindow?.label || "window",
-        reset,
+        resetMin,
+        risk,
+        predictedDowntimeMin,
       };
     })
     .sort((a, b) => a.left - b.left);
 
-  if (rows.length === 0) {
-    return { label: "n/a", hover: "No provider usage data available yet." };
+  if (providers.length === 0) {
+    return { label: "n/a", providers: [], history };
   }
 
-  const top = rows[0];
-  const hover = rows
-    .map((r) => {
-      const resetText = r.reset == null ? "" : r.reset <= 0 ? " · resets now" : ` · resets in ${r.reset}m`;
-      return `${r.provider}: ${r.left}% left (${r.window})${resetText}`;
-    })
-    .join("\n");
-
-  return { label: `${top.left}%`, hover };
+  return { label: `${providers[0].left}%`, providers, history };
 }
 
 function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
@@ -151,7 +182,10 @@ export function renderApp(state: AppViewState) {
   const chatAvatarUrl = state.chatAvatarUrl ?? assistantAvatarUrl ?? null;
   const configValue =
     state.configForm ?? (state.configSnapshot?.config as Record<string, unknown> | null);
-  const apiQuota = buildApiQuotaPreview(state.usageStatusSummary ?? null);
+  const apiQuota = buildApiQuotaPreview(
+    state.usageStatusSummary ?? null,
+    state.usageCostSummary ?? null,
+  );
   const basePath = normalizeBasePath(state.basePath ?? "");
   const resolvedAgentId =
     state.agentsSelectedId ??
@@ -191,9 +225,51 @@ export function renderApp(state: AppViewState) {
             <span>Health</span>
             <span class="mono">${state.connected ? "OK" : "Offline"}</span>
           </div>
-          <div class="pill" title=${apiQuota.hover}>
+          <div class="pill pill--api" title="API quota + prediction">
             <span>API</span>
             <span class="mono">${apiQuota.label}</span>
+            <div class="api-quota-popover" role="tooltip">
+              <div class="api-quota-popover__title">Quota & Prediction</div>
+              ${
+                apiQuota.providers.length === 0
+                  ? html`<div class="muted">No provider quota data yet.</div>`
+                  : html`
+                      <ul class="api-quota-popover__list">
+                        ${apiQuota.providers.map(
+                          (row) => html`
+                            <li>
+                              <div><strong>${row.provider}</strong> · ${row.left}% left (${row.window})</div>
+                              <div class="muted">
+                                reset ${
+                                  row.resetMin == null
+                                    ? "n/a"
+                                    : row.resetMin <= 0
+                                      ? "now"
+                                      : `in ${row.resetMin}m`
+                                }
+                                · risk ${row.risk}
+                                ${
+                                  row.predictedDowntimeMin != null
+                                    ? ` · est. downtime ${row.predictedDowntimeMin}m`
+                                    : ""
+                                }
+                              </div>
+                            </li>
+                          `,
+                        )}
+                      </ul>
+                    `
+              }
+              ${
+                apiQuota.history
+                  ? html`<div class="api-quota-popover__history muted">
+                      Usage history signal: avg daily ${Math.round(apiQuota.history.avgDailyTokens).toLocaleString()} tokens,
+                      current hourly ${Math.round(apiQuota.history.currentHourlyTokens).toLocaleString()} tokens,
+                      pressure x${apiQuota.history.pressure.toFixed(2)}.
+                    </div>`
+                  : nothing
+              }
+            </div>
           </div>
           ${renderThemeToggle(state)}
         </div>

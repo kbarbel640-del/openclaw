@@ -207,6 +207,53 @@
   color: var(--danger);
 }
 
+.pill--api {
+  position: relative;
+}
+
+.api-quota-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(420px, 68vw);
+  max-height: 60vh;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  display: none;
+  z-index: 40;
+}
+
+.pill--api:hover .api-quota-popover,
+.pill--api:focus-within .api-quota-popover {
+  display: block;
+}
+
+.api-quota-popover__title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.api-quota-popover__list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.api-quota-popover__history {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+  font-size: 12px;
+}
+
 /* ===========================================
    Theme Toggle
    =========================================== */

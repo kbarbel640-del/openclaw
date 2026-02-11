@@ -10,6 +10,7 @@ import type {
   HealthSnapshot,
   StatusSummary,
   UsageSummary,
+  CostUsageSummary,
 } from "./types.ts";
 import { CHAT_SESSIONS_ACTIVE_MINUTES, flushChatQueueForEvent } from "./app-chat.ts";
 import {
@@ -53,6 +54,7 @@ type GatewayHost = {
   agentsError: string | null;
   debugHealth: HealthSnapshot | null;
   usageStatusSummary: UsageSummary | null;
+  usageCostSummary: CostUsageSummary | null;
   assistantName: string;
   assistantAvatar: string | null;
   assistantAgentId: string | null;
@@ -156,6 +158,14 @@ export function connectGateway(host: GatewayHost) {
         })
         .catch(() => {
           host.usageStatusSummary = null;
+        });
+      void host.client
+        ?.request("usage.cost", { days: 14 })
+        .then((summary) => {
+          host.usageCostSummary = summary as CostUsageSummary;
+        })
+        .catch(() => {
+          host.usageCostSummary = null;
         });
       void loadNodes(host as unknown as OpenClawApp, { quiet: true });
       void loadDevices(host as unknown as OpenClawApp, { quiet: true });
