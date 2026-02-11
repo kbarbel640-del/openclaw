@@ -17,7 +17,7 @@ title: "ClawPool"
 | ----------------- | ------------------------- | ------------------------------------- |
 | Anthropic API     | $50–500+/mo (per token)   | Production apps, high volume          |
 | Claude Max        | $200/mo                   | Heavy personal use, unlimited         |
-| **ClawPool**      | **$8/mo flat**            | Personal use, development, OpenClaw   |
+| **ClawPool**      | **$8/mo flat**            | Low-cost Opus 4.6 access              |
 
 If you're spending $50+/mo on Claude API calls through OpenClaw, ClawPool can cut that to $8/mo with the same models and no per-token billing.
 
