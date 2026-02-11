@@ -1,6 +1,7 @@
 import type { FollowupRun } from "./types.js";
 import { defaultRuntime } from "../../../runtime.js";
 import {
+  applyQueueDropPolicy,
   buildCollectPrompt,
   buildQueueSummaryPrompt,
   hasCrossChannelItems,
@@ -147,11 +148,20 @@ export function scheduleFollowupDrain(
               originatingThreadId,
             },
             // On lock, restore the original items and summary state so they
-            // can be re-collected on the next attempt.
+            // can be re-collected on the next attempt.  Merge any concurrent
+            // overflow that accumulated while the locked run was in-flight
+            // instead of blindly overwriting (P2), and re-apply the cap so
+            // the queue never exceeds its configured limit (P1).
             () => {
               queue.items.unshift(...items);
-              queue.droppedCount = savedDroppedCount;
-              queue.summaryLines = savedSummaryLines;
+              // Merge: add back the saved counts, then layer concurrent ones on top.
+              queue.droppedCount += savedDroppedCount;
+              queue.summaryLines.push(...savedSummaryLines);
+              // Re-apply cap/drop policy so restored items don't inflate past the limit.
+              applyQueueDropPolicy({
+                queue,
+                summarize: (item) => item.prompt,
+              });
             },
           );
           continue;
