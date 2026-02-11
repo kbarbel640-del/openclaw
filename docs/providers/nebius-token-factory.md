@@ -46,7 +46,7 @@ You usually don't need a manual `models.providers` block, but you can pin it exp
     providers: {
       "nebius-token-factory": {
         api: "openai-completions",
-        baseUrl: "https://api.tokenfactory.nebius.com/v1/",
+        baseUrl: "https://api.tokenfactory.nebius.com/v1",
         apiKey: "${NEBIUS_TOKEN_FACTORY}",
       },
     },
