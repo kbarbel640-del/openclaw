@@ -9,12 +9,12 @@ function resolveClient(accountId?: string | null): ZulipClient {
   const cfg = core.config.loadConfig();
   const account = resolveZulipAccount({ cfg, accountId });
 
-  const baseUrl = account.baseUrl;
+  const baseUrls = account.baseUrls;
   const email = account.email?.trim();
   const apiKey = account.apiKey?.trim();
-  if (!baseUrl) {
+  if (!baseUrls?.length) {
     throw new Error(
-      `Zulip base URL missing for account "${account.accountId}" (set channels.zulip.realm or channels.zulip.site, or env ZULIP_REALM/ZULIP_SITE).`,
+      `Zulip base URL missing for account "${account.accountId}" (set channels.zulip.apiBaseUrls, or channels.zulip.realm/site, or env ZULIP_API_BASE_URLS/ZULIP_REALM/ZULIP_SITE).`,
     );
   }
   if (!email || !apiKey) {
@@ -22,7 +22,7 @@ function resolveClient(accountId?: string | null): ZulipClient {
       `Zulip email/apiKey missing for account "${account.accountId}" (set channels.zulip.email/apiKey, or env ZULIP_EMAIL/ZULIP_API_KEY).`,
     );
   }
-  return { baseUrl, email, apiKey };
+  return { baseUrls, baseUrl: baseUrls[0], email, apiKey };
 }
 
 export async function sendMessageZulip(

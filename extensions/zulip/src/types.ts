@@ -5,6 +5,9 @@ export type ZulipAccountConfig = {
   enabled?: boolean;
 
   // Auth
+  // apiBaseUrls allows configuring multiple API endpoints (e.g. LAN primary + tunnel fallback).
+  // If set, it takes precedence over realm/site.
+  apiBaseUrls?: string[];
   realm?: string; // preferred (ZULIP_REALM)
   site?: string; // alias for realm
   email?: string;

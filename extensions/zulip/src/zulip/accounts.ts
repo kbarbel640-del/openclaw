@@ -7,6 +7,8 @@ export type ResolvedZulipAccount = {
   accountId: string;
   enabled: boolean;
   name?: string;
+  baseUrls: string[];
+  /** @deprecated Prefer baseUrls. Present for backward-compat logging/usage. */
   baseUrl?: string;
   email?: string;
   apiKey?: string;
@@ -79,12 +81,33 @@ export function resolveZulipAccount(params: {
   const configEmail = merged.email?.trim();
   const configApiKey = merged.apiKey?.trim();
 
-  const baseUrl = normalizeZulipBaseUrl(configSite || configRealm || envSite || envRealm);
+  const configApiBaseUrls = Array.isArray(merged.apiBaseUrls)
+    ? merged.apiBaseUrls.map((v) => String(v))
+    : [];
+  const envApiBaseUrls = allowEnv
+    ? (process.env.ZULIP_API_BASE_URLS || "")
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean)
+    : [];
+
+  const resolvedFromRealm = normalizeZulipBaseUrl(configSite || configRealm || envSite || envRealm);
+  const candidateBaseUrls = [
+    ...configApiBaseUrls,
+    ...envApiBaseUrls,
+    ...(resolvedFromRealm ? [resolvedFromRealm] : []),
+  ]
+    .map((raw) => normalizeZulipBaseUrl(raw))
+    .filter((v): v is string => Boolean(v));
+
+  const baseUrls = Array.from(new Set(candidateBaseUrls));
+  const baseUrl = baseUrls[0];
 
   return {
     accountId,
     enabled,
     name: merged.name?.trim() || undefined,
+    baseUrls,
     baseUrl,
     email: configEmail || envEmail,
     apiKey: configApiKey || envApiKey,

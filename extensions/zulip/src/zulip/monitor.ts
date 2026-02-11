@@ -91,13 +91,14 @@ function buildStreamReplyTarget(message: ZulipMessage): string {
 }
 
 function resolveClient(account: ResolvedZulipAccount): ZulipClient {
-  const baseUrl = account.baseUrl;
+  const baseUrls = account.baseUrls;
   const email = account.email?.trim();
   const apiKey = account.apiKey?.trim();
-  if (!baseUrl || !email || !apiKey) {
+  if (!baseUrls?.length || !email || !apiKey) {
     throw new Error(`Zulip not configured for account "${account.accountId}".`);
   }
-  return { baseUrl, email, apiKey };
+  // Keep baseUrl for back-compat (tests/logging) but use baseUrls for failover.
+  return { baseUrls, baseUrl: baseUrls[0], email, apiKey };
 }
 
 function createZulipAuthFetch(client: ZulipClient) {
@@ -163,7 +164,7 @@ export async function monitorZulipProvider(opts: MonitorZulipOpts = {}): Promise
   });
 
   opts.statusSink?.({ connected: true, lastConnectedAt: Date.now(), lastError: null });
-  runtime.log?.(`zulip connected: ${client.email} @ ${client.baseUrl}`);
+  runtime.log?.(`zulip connected: ${client.email} @ ${client.baseUrls?.[0] ?? client.baseUrl}`);
 
   const handleMessage = async (message: ZulipMessage) => {
     if (!message.sender_email) {
@@ -369,7 +370,7 @@ export async function monitorZulipProvider(opts: MonitorZulipOpts = {}): Promise
     try {
       const uploadUrls = extractZulipUploadUrls({
         contentHtml: message.content,
-        baseUrl: client.baseUrl,
+        baseUrl: client.baseUrls?.[0] ?? client.baseUrl ?? "",
         max: 3,
       });
       if (uploadUrls.length > 0) {
@@ -502,7 +503,6 @@ export async function monitorZulipProvider(opts: MonitorZulipOpts = {}): Promise
       const looksLikeBadQueue = /BAD_EVENT_QUEUE_ID|Bad event queue/i.test(message);
       const statusMatch = message.match(/HTTP\s+(\d{3})/i);
       const httpStatus = statusMatch ? Number(statusMatch[1]) : null;
-      const isServerError = httpStatus != null && httpStatus >= 500;
 
       runtime.error?.(`zulip events error: ${message}`);
       opts.statusSink?.({
@@ -516,13 +516,9 @@ export async function monitorZulipProvider(opts: MonitorZulipOpts = {}): Promise
       const delayMs = Math.min(30000, 2000 + Math.max(0, consecutivePollFailures - 1) * 2000);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
 
-      // Only re-register when the queue is invalid, or after repeated server errors.
-      const shouldReRegister =
-        looksLikeBadQueue ||
-        (isServerError && consecutivePollFailures >= 3) ||
-        (!isServerError && consecutivePollFailures >= 5);
-
-      if (!shouldReRegister) {
+      // Only re-register when the queue is invalid (BAD_EVENT_QUEUE_ID). Avoid
+      // re-registering on generic 5xx/proxy issues; those are often transient.
+      if (!looksLikeBadQueue) {
         continue;
       }
 

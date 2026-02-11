@@ -6,6 +6,8 @@ const ZulipAccountSchemaBase = z
     name: z.string().optional(),
     enabled: z.boolean().optional(),
 
+    apiBaseUrls: z.array(z.string()).optional(),
+
     realm: z.string().optional(),
     site: z.string().optional(),
     email: z.string().optional(),
