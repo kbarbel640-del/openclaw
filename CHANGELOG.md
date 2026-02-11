@@ -13,6 +13,9 @@ Docs: https://docs.openclaw.ai
 ### Fixes
 
 - Ollama: use configured `models.providers.ollama.baseUrl` for model discovery and normalize `/v1` endpoints to the native Ollama API root. (#14131) Thanks @shtse8.
+- Slack: detect control commands when channel messages start with bot mention prefixes (for example, `@Bot /new`). (#14142) Thanks @beefiker.
+- Discord tests: use a partial @buape/carbon mock in slash command coverage. (#13262) Thanks @arosstale.
+- CLI/Wizard: exit with code 1 when `configure`, `agents add`, or interactive `onboard` wizards are canceled, so `set -e` automation stops correctly. (#14156) Thanks @0xRaini.
 
 ## 2026.2.9
 
@@ -68,6 +71,7 @@ Docs: https://docs.openclaw.ai
 - Gateway: fix multi-agent sessions.usage discovery. (#11523) Thanks @Takhoffman.
 - Agents: recover from context overflow caused by oversized tool results (pre-emptive capping + fallback truncation). (#11579) Thanks @tyler6204.
 - Subagents/compaction: stabilize announce timing and preserve compaction metrics across retries. (#11664) Thanks @tyler6204.
+- Subagents: report timeout-aborted runs as timed out instead of completed successfully in parent-session announcements. (#13996) Thanks @dario-github.
 - Cron: share isolated announce flow and harden scheduling/delivery reliability. (#11641) Thanks @tyler6204.
 - Cron tool: recover flat params when LLM omits the `job` wrapper for add requests. (#12124) Thanks @tyler6204.
 - Gateway/CLI: when `gateway.bind=lan`, use a LAN IP for probe URLs and Control UI links. (#11448) Thanks @AnonO6.
