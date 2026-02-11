@@ -67,7 +67,11 @@ Save to `~/.openclaw/openclaw.json` and you can DM the bot from that number.
   // Auth profile metadata (secrets live in auth-profiles.json)
   auth: {
     profiles: {
-      "anthropic:[redacted-email]": { provider: "anthropic", mode: "oauth", email: "[redacted-email]" },
+      "anthropic:[redacted-email]": {
+        provider: "anthropic",
+        mode: "oauth",
+        email: "[redacted-email]",
+      },
       "anthropic:work": { provider: "anthropic", mode: "api_key" },
       "openai:default": { provider: "openai", mode: "api_key" },
       "openai-codex:default": { provider: "openai-codex", mode: "oauth" },
@@ -375,7 +379,10 @@ Save to `~/.openclaw/openclaw.json` and you can DM the bot from that number.
         to: "+15555550123",
         thinking: "low",
         timeoutSeconds: 300,
-        transform: { module: "./transforms/gmail.js", export: "transformGmail" },
+        transform: {
+          module: "./transforms/gmail.js",
+          export: "transformGmail",
+        },
       },
     ],
     gmail: {
