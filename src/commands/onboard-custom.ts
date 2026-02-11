@@ -32,6 +32,51 @@ export type ApplyCustomApiConfigParams = {
   alias?: string;
 };
 
+export type ParseNonInteractiveCustomApiFlagsParams = {
+  baseUrl?: string;
+  modelId?: string;
+  compatibility?: string;
+  apiKey?: string;
+  providerId?: string;
+};
+
+export type ParsedNonInteractiveCustomApiFlags = {
+  baseUrl: string;
+  modelId: string;
+  compatibility: CustomApiCompatibility;
+  apiKey?: string;
+  providerId?: string;
+};
+
+export type CustomApiErrorCode =
+  | "missing_required"
+  | "invalid_compatibility"
+  | "invalid_base_url"
+  | "invalid_model_id"
+  | "invalid_provider_id"
+  | "invalid_alias";
+
+export class CustomApiError extends Error {
+  readonly code: CustomApiErrorCode;
+
+  constructor(code: CustomApiErrorCode, message: string) {
+    super(message);
+    this.name = "CustomApiError";
+    this.code = code;
+  }
+}
+
+export type ResolveCustomProviderIdParams = {
+  config: OpenClawConfig;
+  baseUrl: string;
+  providerId?: string;
+};
+
+export type ResolvedCustomProviderId = {
+  providerId: string;
+  providerIdRenamedFrom?: string;
+};
+
 const COMPATIBILITY_OPTIONS: Array<{
   value: CustomApiCompatibilityChoice;
   label: string;
@@ -260,27 +305,108 @@ function resolveProviderApi(
   return compatibility === "anthropic" ? "anthropic-messages" : "openai-completions";
 }
 
-export function applyCustomApiConfig(params: ApplyCustomApiConfigParams): CustomApiResult {
-  const baseUrl = params.baseUrl.trim();
-  try {
-    new URL(baseUrl);
-  } catch {
-    throw new Error("Custom provider base URL must be a valid URL.");
+function parseCustomApiCompatibility(raw?: string): CustomApiCompatibility {
+  const compatibilityRaw = raw?.trim().toLowerCase();
+  if (!compatibilityRaw) {
+    return "openai";
   }
-
-  const modelId = params.modelId.trim();
-  if (!modelId) {
-    throw new Error("Custom provider model ID is required.");
+  if (compatibilityRaw !== "openai" && compatibilityRaw !== "anthropic") {
+    throw new CustomApiError(
+      "invalid_compatibility",
+      'Invalid --custom-compatibility (use "openai" or "anthropic").',
+    );
   }
+  return compatibilityRaw;
+}
 
+export function resolveCustomProviderId(
+  params: ResolveCustomProviderIdParams,
+): ResolvedCustomProviderId {
   const providers = params.config.models?.providers ?? {};
-  const requestedProviderId = params.providerId?.trim() || buildEndpointIdFromUrl(baseUrl);
+  const baseUrl = params.baseUrl.trim();
+  const explicitProviderId = params.providerId?.trim();
+  if (explicitProviderId && !normalizeEndpointId(explicitProviderId)) {
+    throw new CustomApiError(
+      "invalid_provider_id",
+      "Custom provider ID must include letters, numbers, or hyphens.",
+    );
+  }
+  const requestedProviderId = explicitProviderId || buildEndpointIdFromUrl(baseUrl);
   const providerIdResult = resolveUniqueEndpointId({
     requestedId: requestedProviderId,
     baseUrl,
     providers,
   });
+
+  return {
+    providerId: providerIdResult.providerId,
+    ...(providerIdResult.renamed
+      ? {
+          providerIdRenamedFrom: normalizeEndpointId(requestedProviderId) || "custom",
+        }
+      : {}),
+  };
+}
+
+export function parseNonInteractiveCustomApiFlags(
+  params: ParseNonInteractiveCustomApiFlagsParams,
+): ParsedNonInteractiveCustomApiFlags {
+  const baseUrl = params.baseUrl?.trim() ?? "";
+  const modelId = params.modelId?.trim() ?? "";
+  if (!baseUrl || !modelId) {
+    throw new CustomApiError(
+      "missing_required",
+      [
+        'Auth choice "custom-api-key" requires a base URL and model ID.',
+        "Use --custom-base-url and --custom-model-id.",
+      ].join("\n"),
+    );
+  }
+
+  const apiKey = params.apiKey?.trim();
+  const providerId = params.providerId?.trim();
+  if (providerId && !normalizeEndpointId(providerId)) {
+    throw new CustomApiError(
+      "invalid_provider_id",
+      "Custom provider ID must include letters, numbers, or hyphens.",
+    );
+  }
+  return {
+    baseUrl,
+    modelId,
+    compatibility: parseCustomApiCompatibility(params.compatibility),
+    ...(apiKey ? { apiKey } : {}),
+    ...(providerId ? { providerId } : {}),
+  };
+}
+
+export function applyCustomApiConfig(params: ApplyCustomApiConfigParams): CustomApiResult {
+  const baseUrl = params.baseUrl.trim();
+  try {
+    new URL(baseUrl);
+  } catch {
+    throw new CustomApiError("invalid_base_url", "Custom provider base URL must be a valid URL.");
+  }
+
+  if (params.compatibility !== "openai" && params.compatibility !== "anthropic") {
+    throw new CustomApiError(
+      "invalid_compatibility",
+      'Custom provider compatibility must be "openai" or "anthropic".',
+    );
+  }
+
+  const modelId = params.modelId.trim();
+  if (!modelId) {
+    throw new CustomApiError("invalid_model_id", "Custom provider model ID is required.");
+  }
+
+  const providerIdResult = resolveCustomProviderId({
+    config: params.config,
+    baseUrl,
+    providerId: params.providerId,
+  });
   const providerId = providerIdResult.providerId;
+  const providers = params.config.models?.providers ?? {};
 
   const modelRef = modelKey(providerId, modelId);
   const alias = params.alias?.trim() ?? "";
@@ -290,7 +416,7 @@ export function applyCustomApiConfig(params: ApplyCustomApiConfigParams): Custom
     modelRef,
   });
   if (aliasError) {
-    throw new Error(aliasError);
+    throw new CustomApiError("invalid_alias", aliasError);
   }
 
   const existingProvider = providers[providerId];
@@ -352,10 +478,8 @@ export function applyCustomApiConfig(params: ApplyCustomApiConfigParams): Custom
     config,
     providerId,
     modelId,
-    ...(providerIdResult.renamed
-      ? {
-          providerIdRenamedFrom: normalizeEndpointId(requestedProviderId) || "custom",
-        }
+    ...(providerIdResult.providerIdRenamedFrom
+      ? { providerIdRenamedFrom: providerIdResult.providerIdRenamedFrom }
       : {}),
   };
 }
