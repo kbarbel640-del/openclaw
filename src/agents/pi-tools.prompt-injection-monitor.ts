@@ -1,5 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import { appendFileSync } from "node:fs";
+import type { OpenClawConfig } from "../config/config.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { extractToolResultText } from "./pi-embedded-subscribe.tools.js";
@@ -26,10 +27,13 @@ function debugLog(msg: string) {
   }
 }
 
-export type MonitorState = { skipNext: boolean };
+export type MonitorState = {
+  skipNext: boolean;
+  cfg?: OpenClawConfig;
+};
 
-export function createMonitorState(): MonitorState {
-  return { skipNext: false };
+export function createMonitorState(cfg?: OpenClawConfig): MonitorState {
+  return { skipNext: false, cfg };
 }
 
 export function wrapToolWithPromptInjectionMonitor(
@@ -43,8 +47,9 @@ export function wrapToolWithPromptInjectionMonitor(
     debugLog(`SKIP wrapping tool "${tool.name}" — PI_MONITOR_ENABLED=false`);
     return tool;
   }
-  if (!process.env.PI_MONITOR_API_KEY) {
-    debugLog(`SKIP wrapping tool "${tool.name}" — PI_MONITOR_API_KEY not set`);
+  // Need either explicit API key or config to resolve from
+  if (!process.env.PI_MONITOR_API_KEY && !state.cfg) {
+    debugLog(`SKIP wrapping tool "${tool.name}" — no PI_MONITOR_API_KEY and no config`);
     return tool;
   }
   const execute = tool.execute;
@@ -77,7 +82,7 @@ export function wrapToolWithPromptInjectionMonitor(
       );
 
       try {
-        const { score, reasoning } = await scoreForPromptInjection(text, toolName);
+        const { score, reasoning } = await scoreForPromptInjection(text, toolName, state.cfg);
         debugLog(
           `SCORED tool="${toolName}" score=${score}/100 reasoning=${JSON.stringify(reasoning)}`,
         );

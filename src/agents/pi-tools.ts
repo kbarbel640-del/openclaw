@@ -25,17 +25,17 @@ import { createOpenClawTools } from "./openclaw-tools.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
 import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
 import {
-  createDisablePiMonitorTool,
-  createMonitorState,
-  wrapToolWithPromptInjectionMonitor,
-} from "./pi-tools.prompt-injection-monitor.js";
-import {
   filterToolsByPolicy,
   isToolAllowedByPolicies,
   resolveEffectiveToolPolicy,
   resolveGroupToolPolicy,
   resolveSubagentToolPolicy,
 } from "./pi-tools.policy.js";
+import {
+  createDisablePiMonitorTool,
+  createMonitorState,
+  wrapToolWithPromptInjectionMonitor,
+} from "./pi-tools.prompt-injection-monitor.js";
 import {
   assertRequiredParams,
   CLAUDE_PARAM_GROUPS,
@@ -316,7 +316,7 @@ export function createOpenClawCodingTools(options?: {
           cwd: sandboxRoot ?? workspaceRoot,
           sandboxRoot: sandboxRoot && allowWorkspaceWrites ? sandboxRoot : undefined,
         });
-  const monitorState = createMonitorState();
+  const monitorState = createMonitorState(options?.config);
   const tools: AnyAgentTool[] = [
     ...base,
     ...(sandboxRoot
@@ -449,7 +449,9 @@ export function createOpenClawCodingTools(options?: {
       sessionKey: options?.sessionKey,
     }),
   );
-  const withMonitor = withHooks.map((tool) => wrapToolWithPromptInjectionMonitor(tool, monitorState));
+  const withMonitor = withHooks.map((tool) =>
+    wrapToolWithPromptInjectionMonitor(tool, monitorState),
+  );
   const withAbort = options?.abortSignal
     ? withMonitor.map((tool) => wrapToolWithAbortSignal(tool, options.abortSignal))
     : withMonitor;
