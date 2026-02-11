@@ -7,7 +7,7 @@ import type { ModelDefinitionConfig } from "../config/types.js";
  */
 
 export const CORTECS_BASE_URL = "https://api.cortecs.ai/v1/";
-export const CORTECS_MODELS_URL = `${CORTECS_BASE_URL}models?tag=Instruct`;
+export const CORTECS_MODELS_URL = `${CORTECS_BASE_URL}models?tag=OpenClaw`;
 
 export const CORTECS_DEFAULT_MODEL_ID = "gpt-oss-120b";
 export const CORTECS_DEFAULT_MODEL_REF = `cortecs/${CORTECS_DEFAULT_MODEL_ID}`;
