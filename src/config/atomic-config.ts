@@ -1,6 +1,6 @@
 /**
  * Atomic Configuration Management for OpenClaw
- * 
+ *
  * Provides atomic config operations with validation, backup, rollback, and health checks.
  * Ensures configuration changes are applied safely with fail-safe defaults.
  */
@@ -10,10 +10,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { OpenClawConfig, ConfigFileSnapshot } from "./types.js";
-import { validateConfigObjectWithPlugins } from "./validation.js";
+import { resolveRequiredHomeDir } from "../infra/dotenv.js";
 import { writeConfigFile as originalWriteConfigFile, readConfigFileSnapshot } from "./io.js";
 import { resolveConfigPath, resolveStateDir } from "./paths.js";
-import { resolveRequiredHomeDir } from "../infra/dotenv.js";
+import { validateConfigObjectWithPlugins } from "./validation.js";
 
 export type ConfigBackup = {
   id: string;
@@ -72,15 +72,20 @@ export class AtomicConfigManager {
 
   constructor(options: AtomicConfigOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
-    this.configPath = resolveConfigPath(process.env, resolveStateDir(process.env, () => resolveRequiredHomeDir(process.env, () => require("os").homedir())));
-    
+    this.configPath = resolveConfigPath(
+      process.env,
+      resolveStateDir(process.env, () =>
+        resolveRequiredHomeDir(process.env, () => require("os").homedir()),
+      ),
+    );
+
     const stateDir = path.dirname(this.configPath);
     this.backupDir = path.join(stateDir, "config-backups");
-    
+
     if (!this.options.tempDir) {
       this.options.tempDir = path.join(stateDir, "config-temp");
     }
-    
+
     this.ensureDirectories();
   }
 
@@ -130,7 +135,9 @@ export class AtomicConfigManager {
 
     // Factor 10: Dev/Prod Parity - Check for development-specific settings
     if (this.hasDevelopmentOnlySettings(config)) {
-      issues.push("Configuration contains development-only settings that may not work in production");
+      issues.push(
+        "Configuration contains development-only settings that may not work in production",
+      );
     }
 
     // Factor 11: Logs - Check logging configuration
@@ -150,8 +157,8 @@ export class AtomicConfigManager {
       /['"](bot[a-zA-Z0-9:_-]+)['"]/, // Discord bot tokens
       /['"](AIza[a-zA-Z0-9_-]+)['"]/, // Google API keys
     ];
-    
-    return secretPatterns.some(pattern => pattern.test(configStr));
+
+    return secretPatterns.some((pattern) => pattern.test(configStr));
   }
 
   private hasHardcodedServiceUrls(config: OpenClawConfig): boolean {
@@ -162,8 +169,8 @@ export class AtomicConfigManager {
       /['"]https?:\/\/[^'"]*\.googleapis\.com[^'"]*['"]/, // Google endpoints
       /['"]https?:\/\/api\.[^'"]*\.com[^'"]*['"]/, // API endpoints
     ];
-    
-    return urlPatterns.some(pattern => pattern.test(configStr));
+
+    return urlPatterns.some((pattern) => pattern.test(configStr));
   }
 
   private hasEnvironmentSpecificConfig(config: OpenClawConfig): boolean {
@@ -178,7 +185,7 @@ export class AtomicConfigManager {
       config.gateway?.auth?.disabled === true,
       config.sandbox?.enabled === false,
     ];
-    
+
     return debugSettings.some(Boolean);
   }
 
@@ -204,13 +211,12 @@ export class AtomicConfigManager {
       const validated = validateConfigObjectWithPlugins(config);
       if (!validated.ok) {
         result.valid = false;
-        result.errors = validated.issues.map(issue => 
-          `${issue.path || 'root'}: ${issue.message}`
+        result.errors = validated.issues.map(
+          (issue) => `${issue.path || "root"}: ${issue.message}`,
         );
       }
-      result.warnings = validated.warnings?.map(warning => 
-        `${warning.path || 'root'}: ${warning.message}`
-      ) || [];
+      result.warnings =
+        validated.warnings?.map((warning) => `${warning.path || "root"}: ${warning.message}`) || [];
 
       // 12-factor validation
       result.twelveFactorIssues = this.validate12Factor(config);
@@ -221,10 +227,9 @@ export class AtomicConfigManager {
         result.valid = false;
         result.errors.push(...customResult.errors);
       }
-
     } catch (error) {
       result.valid = false;
-      result.errors.push(`Validation failed: ${error}`);
+      result.errors.push(`Validation failed: ${String(error)}`);
     }
 
     return result;
@@ -237,7 +242,7 @@ export class AtomicConfigManager {
     try {
       const snapshot = await readConfigFileSnapshot();
       const backupId = this.generateBackupId();
-      
+
       const backup: ConfigBackup = {
         id: backupId,
         timestamp: Date.now(),
@@ -251,22 +256,22 @@ export class AtomicConfigManager {
       // Write backup data
       const backupPath = this.getBackupPath(backupId);
       const metaPath = this.getBackupMetaPath(backupId);
-      
+
       await fs.promises.writeFile(backupPath, backup.raw, { encoding: "utf-8", mode: 0o600 });
-      await fs.promises.writeFile(metaPath, JSON.stringify(backup, null, 2), { 
-        encoding: "utf-8", 
-        mode: 0o600 
+      await fs.promises.writeFile(metaPath, JSON.stringify(backup, null, 2), {
+        encoding: "utf-8",
+        mode: 0o600,
       });
 
       this.options.logger.info(`Created config backup: ${backupId}`);
-      
+
       // Cleanup old backups
       await this.cleanupOldBackups();
-      
+
       return backupId;
     } catch (error) {
       this.options.logger.error("Failed to create config backup:", error);
-      throw new Error(`Backup creation failed: ${error}`);
+      throw new Error(`Backup creation failed: ${String(error)}`, { cause: error });
     }
   }
 
@@ -276,10 +281,10 @@ export class AtomicConfigManager {
   async listBackups(): Promise<ConfigBackup[]> {
     try {
       const files = await fs.promises.readdir(this.backupDir);
-      const metaFiles = files.filter(f => f.endsWith('.meta.json'));
-      
+      const metaFiles = files.filter((f) => f.endsWith(".meta.json"));
+
       const backups: ConfigBackup[] = [];
-      
+
       for (const metaFile of metaFiles) {
         try {
           const metaPath = path.join(this.backupDir, metaFile);
@@ -290,8 +295,8 @@ export class AtomicConfigManager {
           this.options.logger.warn(`Failed to read backup meta ${metaFile}:`, error);
         }
       }
-      
-      return backups.sort((a, b) => b.timestamp - a.timestamp);
+
+      return backups.toSorted((a, b) => b.timestamp - a.timestamp);
     } catch (error) {
       this.options.logger.error("Failed to list backups:", error);
       return [];
@@ -303,7 +308,7 @@ export class AtomicConfigManager {
    */
   async getLastHealthyBackup(): Promise<ConfigBackup | null> {
     const backups = await this.listBackups();
-    return backups.find(backup => backup.healthy) || null;
+    return backups.find((backup) => backup.healthy) || null;
   }
 
   /**
@@ -312,12 +317,17 @@ export class AtomicConfigManager {
   async rollback(backupId: string): Promise<AtomicApplyResult> {
     try {
       this.options.logger.info(`Rolling back to backup: ${backupId}`);
-      
+
       const metaPath = this.getBackupMetaPath(backupId);
       if (!fs.existsSync(metaPath)) {
         return {
           success: false,
-          validationResult: { valid: false, errors: [`Backup ${backupId} not found`], warnings: [], twelveFactorIssues: [] },
+          validationResult: {
+            valid: false,
+            errors: [`Backup ${backupId} not found`],
+            warnings: [],
+            twelveFactorIssues: [],
+          },
           error: `Backup ${backupId} not found`,
         };
       }
@@ -341,7 +351,12 @@ export class AtomicConfigManager {
       this.options.logger.error(`Rollback to ${backupId} failed:`, error);
       return {
         success: false,
-        validationResult: { valid: false, errors: [`Rollback failed: ${error}`], warnings: [], twelveFactorIssues: [] },
+        validationResult: {
+          valid: false,
+          errors: [`Rollback failed: ${String(error)}`],
+          warnings: [],
+          twelveFactorIssues: [],
+        },
         error: String(error),
       };
     }
@@ -353,14 +368,17 @@ export class AtomicConfigManager {
   async performHealthCheck(): Promise<boolean> {
     try {
       this.options.logger.debug("Performing config health check...");
-      
+
       // TODO: Implement actual health check by attempting to load config and validate it
       // For now, we'll do basic validation
       const snapshot = await readConfigFileSnapshot();
       const validation = await this.validateConfig(snapshot.config);
-      
+
       if (!validation.valid) {
-        this.options.logger.warn("Health check failed due to validation errors:", validation.errors);
+        this.options.logger.warn(
+          "Health check failed due to validation errors:",
+          validation.errors,
+        );
         return false;
       }
 
@@ -376,20 +394,20 @@ export class AtomicConfigManager {
    * Apply configuration changes atomically with validation and optional health check
    */
   async applyConfigAtomic(
-    newConfig: OpenClawConfig, 
+    newConfig: OpenClawConfig,
     notes?: string,
-    enableHealthCheck = true
+    enableHealthCheck = true,
   ): Promise<AtomicApplyResult> {
     const startTime = Date.now();
     let backupId: string | undefined;
-    
+
     try {
       this.options.logger.info("Starting atomic config apply...");
-      
+
       // Step 1: Validate new config
       this.options.logger.debug("Validating new configuration...");
       const validation = await this.validateConfig(newConfig);
-      
+
       if (!validation.valid) {
         this.options.logger.error("Config validation failed:", validation.errors);
         return {
@@ -404,7 +422,10 @@ export class AtomicConfigManager {
       }
 
       if (validation.twelveFactorIssues.length > 0) {
-        this.options.logger.warn("12-factor app principle violations:", validation.twelveFactorIssues);
+        this.options.logger.warn(
+          "12-factor app principle violations:",
+          validation.twelveFactorIssues,
+        );
       }
 
       // Step 2: Create backup of current config
@@ -423,31 +444,31 @@ export class AtomicConfigManager {
       let healthCheckPassed = true;
       if (enableHealthCheck && this.options.enableHealthCheck) {
         this.options.logger.debug("Performing post-apply health check...");
-        
+
         // Give the system a moment to stabilize
         await delay(1000);
-        
+
         const healthCheckStart = Date.now();
         const timeoutPromise = delay(this.options.healthCheckTimeoutMs).then(() => false);
         const healthCheckPromise = this.performHealthCheck();
-        
+
         healthCheckPassed = await Promise.race([healthCheckPromise, timeoutPromise]);
-        
+
         if (!healthCheckPassed) {
           this.options.logger.error(`Health check failed after ${Date.now() - healthCheckStart}ms`);
-          
+
           // Auto-rollback if we have a backup
           if (backupId) {
             this.options.logger.info("Initiating automatic rollback...");
             const rollbackResult = await this.rollback(backupId);
-            
+
             return {
               success: false,
               backupId,
               validationResult: validation,
               healthCheckPassed: false,
               rolledBack: rollbackResult.success,
-              error: `Health check failed, ${rollbackResult.success ? 'rolled back successfully' : 'rollback also failed'}`,
+              error: `Health check failed, ${rollbackResult.success ? "rolled back successfully" : "rollback also failed"}`,
             };
           } else {
             return {
@@ -467,7 +488,7 @@ export class AtomicConfigManager {
 
       const duration = Date.now() - startTime;
       this.options.logger.info(`Atomic config apply completed successfully in ${duration}ms`);
-      
+
       return {
         success: true,
         backupId,
@@ -475,27 +496,36 @@ export class AtomicConfigManager {
         healthCheckPassed,
         rolledBack: false,
       };
-
     } catch (error) {
       this.options.logger.error("Atomic config apply failed:", error);
-      
+
       // Attempt rollback if we created a backup
       if (backupId) {
         this.options.logger.info("Attempting rollback due to apply failure...");
         const rollbackResult = await this.rollback(backupId);
-        
+
         return {
           success: false,
           backupId,
-          validationResult: { valid: false, errors: [String(error)], warnings: [], twelveFactorIssues: [] },
+          validationResult: {
+            valid: false,
+            errors: [String(error)],
+            warnings: [],
+            twelveFactorIssues: [],
+          },
           rolledBack: rollbackResult.success,
-          error: `Apply failed: ${error}${rollbackResult.success ? ', rolled back successfully' : ', rollback also failed'}`,
+          error: `Apply failed: ${String(error)}${rollbackResult.success ? ", rolled back successfully" : ", rollback also failed"}`,
         };
       }
-      
+
       return {
         success: false,
-        validationResult: { valid: false, errors: [String(error)], warnings: [], twelveFactorIssues: [] },
+        validationResult: {
+          valid: false,
+          errors: [String(error)],
+          warnings: [],
+          twelveFactorIssues: [],
+        },
         error: String(error),
       };
     }
@@ -506,9 +536,9 @@ export class AtomicConfigManager {
       const metaPath = this.getBackupMetaPath(backupId);
       const metaContent = await fs.promises.readFile(metaPath, "utf-8");
       const backup = JSON.parse(metaContent) as ConfigBackup;
-      
+
       backup.healthy = true;
-      
+
       await fs.promises.writeFile(metaPath, JSON.stringify(backup, null, 2), {
         encoding: "utf-8",
         mode: 0o600,
@@ -521,10 +551,10 @@ export class AtomicConfigManager {
   private async cleanupOldBackups(): Promise<void> {
     try {
       const backups = await this.listBackups();
-      
+
       if (backups.length > this.options.maxBackups) {
         const toDelete = backups.slice(this.options.maxBackups);
-        
+
         for (const backup of toDelete) {
           try {
             await fs.promises.unlink(this.getBackupPath(backup.id));
@@ -545,13 +575,18 @@ export class AtomicConfigManager {
    */
   async emergencyRecover(): Promise<AtomicApplyResult> {
     this.options.logger.info("Initiating emergency recovery...");
-    
+
     const lastHealthy = await this.getLastHealthyBackup();
-    
+
     if (!lastHealthy) {
       return {
         success: false,
-        validationResult: { valid: false, errors: ["No healthy backup available for recovery"], warnings: [], twelveFactorIssues: [] },
+        validationResult: {
+          valid: false,
+          errors: ["No healthy backup available for recovery"],
+          warnings: [],
+          twelveFactorIssues: [],
+        },
         error: "No healthy backup available for recovery",
       };
     }
@@ -579,7 +614,7 @@ export function getAtomicConfigManager(options?: AtomicConfigOptions): AtomicCon
 export async function applyConfigAtomic(
   config: OpenClawConfig,
   notes?: string,
-  options?: AtomicConfigOptions
+  options?: AtomicConfigOptions,
 ): Promise<AtomicApplyResult> {
   const manager = getAtomicConfigManager(options);
   return await manager.applyConfigAtomic(config, notes);
@@ -588,7 +623,9 @@ export async function applyConfigAtomic(
 /**
  * Convenience function for emergency recovery
  */
-export async function emergencyRecoverConfig(options?: AtomicConfigOptions): Promise<AtomicApplyResult> {
+export async function emergencyRecoverConfig(
+  options?: AtomicConfigOptions,
+): Promise<AtomicApplyResult> {
   const manager = getAtomicConfigManager(options);
   return await manager.emergencyRecover();
 }

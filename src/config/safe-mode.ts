@@ -1,6 +1,6 @@
 /**
  * Safe Mode Configuration for OpenClaw
- * 
+ *
  * Provides a minimal, safe configuration for recovery scenarios when the main
  * configuration is broken or causes startup failures. Safe mode reduces
  * functionality to core operations only.
@@ -32,8 +32,8 @@ export type SafeModeOptions = {
  */
 export function isSafeModeEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return !!(
-    env.OPENCLAW_SAFE_MODE === "1" || 
-    env.OPENCLAW_SAFE_MODE === "true" || 
+    env.OPENCLAW_SAFE_MODE === "1" ||
+    env.OPENCLAW_SAFE_MODE === "true" ||
     env.OPENCLAW_SAFE_MODE === "on"
   );
 }
@@ -44,13 +44,17 @@ export function isSafeModeEnabled(env: NodeJS.ProcessEnv = process.env): boolean
 export function getSafeModeOptions(env: NodeJS.ProcessEnv = process.env): SafeModeOptions {
   return {
     enableChannels: env.OPENCLAW_SAFE_MODE_CHANNELS === "true",
-    enableCustomAgents: env.OPENCLAW_SAFE_MODE_AGENTS === "true", 
+    enableCustomAgents: env.OPENCLAW_SAFE_MODE_AGENTS === "true",
     enablePlugins: env.OPENCLAW_SAFE_MODE_PLUGINS === "true",
     enableCron: env.OPENCLAW_SAFE_MODE_CRON === "true",
     enableBrowser: env.OPENCLAW_SAFE_MODE_BROWSER === "true",
-    gatewayPort: env.OPENCLAW_SAFE_MODE_PORT ? parseInt(env.OPENCLAW_SAFE_MODE_PORT, 10) : undefined,
+    gatewayPort: env.OPENCLAW_SAFE_MODE_PORT
+      ? parseInt(env.OPENCLAW_SAFE_MODE_PORT, 10)
+      : undefined,
     adminPassword: env.OPENCLAW_SAFE_MODE_PASSWORD,
-    adminAllowedIps: env.OPENCLAW_SAFE_MODE_ALLOWED_IPS?.split(",").map(ip => ip.trim()).filter(Boolean),
+    adminAllowedIps: env.OPENCLAW_SAFE_MODE_ALLOWED_IPS?.split(",")
+      .map((ip) => ip.trim())
+      .filter(Boolean),
   };
 }
 
@@ -119,17 +123,20 @@ export function createSafeModeConfig(options: SafeModeOptions = {}): OpenClawCon
         thinking: "off", // Disable thinking mode to save tokens
         retries: 1, // Minimal retries
       },
-      list: options.enableCustomAgents ? [] : [
-        {
-          id: "recovery",
-          name: "Recovery Assistant",
-          description: "Minimal assistant for configuration recovery",
-          model: "gpt-3.5-turbo",
-          maxTokens: 500,
-          systemPrompt: "You are a recovery assistant. Help the user fix OpenClaw configuration issues. Be concise and focus on essential operations only.",
-          capabilities: ["read", "write"], // Basic file operations only
-        },
-      ],
+      list: options.enableCustomAgents
+        ? []
+        : [
+            {
+              id: "recovery",
+              name: "Recovery Assistant",
+              description: "Minimal assistant for configuration recovery",
+              model: "gpt-3.5-turbo",
+              maxTokens: 500,
+              systemPrompt:
+                "You are a recovery assistant. Help the user fix OpenClaw configuration issues. Be concise and focus on essential operations only.",
+              capabilities: ["read", "write"], // Basic file operations only
+            },
+          ],
     },
 
     // Session configuration - restrictive
@@ -146,7 +153,7 @@ export function createSafeModeConfig(options: SafeModeOptions = {}): OpenClawCon
     tools: {
       allowlist: [
         "read",
-        "write", 
+        "write",
         "exec", // For recovery commands
         "config.*", // Config operations
       ],
@@ -154,8 +161,14 @@ export function createSafeModeConfig(options: SafeModeOptions = {}): OpenClawCon
       exec: {
         security: "allowlist",
         allowlist: [
-          "ls", "cat", "pwd", "echo", // Basic file operations
-          "ps", "top", "df", "free", // System inspection
+          "ls",
+          "cat",
+          "pwd",
+          "echo", // Basic file operations
+          "ps",
+          "top",
+          "df",
+          "free", // System inspection
           "openclaw", // OpenClaw commands
         ],
         timeout: 10000, // 10 second timeout
@@ -163,34 +176,42 @@ export function createSafeModeConfig(options: SafeModeOptions = {}): OpenClawCon
     },
 
     // Channels - disabled by default for security
-    channels: options.enableChannels ? {
-      // Enable minimal local-only channels if requested
-      web: {
-        enabled: true,
-        host: "127.0.0.1",
-        port: 0, // Auto-assign
-        auth: {
-          required: true,
-          token: options.adminPassword || generateSecureToken(),
-        },
-      },
-    } : {},
+    channels: options.enableChannels
+      ? {
+          // Enable minimal local-only channels if requested
+          web: {
+            enabled: true,
+            host: "127.0.0.1",
+            port: 0, // Auto-assign
+            auth: {
+              required: true,
+              token: options.adminPassword || generateSecureToken(),
+            },
+          },
+        }
+      : {},
 
     // Plugins - disabled for safety
-    plugins: options.enablePlugins ? {} : {
-      enabled: false,
-      autoEnable: false,
-    },
+    plugins: options.enablePlugins
+      ? {}
+      : {
+          enabled: false,
+          autoEnable: false,
+        },
 
     // Cron - disabled to prevent automated actions
-    cron: options.enableCron ? {} : {
-      enabled: false,
-    },
+    cron: options.enableCron
+      ? {}
+      : {
+          enabled: false,
+        },
 
     // Browser - disabled for security
-    browser: options.enableBrowser ? {} : {
-      enabled: false,
-    },
+    browser: options.enableBrowser
+      ? {}
+      : {
+          enabled: false,
+        },
 
     // Security - maximum security settings
     security: {
@@ -234,11 +255,18 @@ function generateSecureToken(): string {
 /**
  * Validate that a config is suitable for safe mode
  */
-export function validateSafeModeConfig(config: OpenClawConfig): { valid: boolean; issues: string[] } {
+export function validateSafeModeConfig(config: OpenClawConfig): {
+  valid: boolean;
+  issues: string[];
+} {
   const issues: string[] = [];
 
   // Check that gateway is localhost only
-  if (config.gateway?.host && config.gateway.host !== "127.0.0.1" && config.gateway.host !== "localhost") {
+  if (
+    config.gateway?.host &&
+    config.gateway.host !== "127.0.0.1" &&
+    config.gateway.host !== "localhost"
+  ) {
     issues.push("Safe mode gateway must bind to localhost only");
   }
 
@@ -276,7 +304,10 @@ export function validateSafeModeConfig(config: OpenClawConfig): { valid: boolean
 /**
  * Apply safe mode restrictions to an existing config
  */
-export function applySafeModeRestrictions(config: OpenClawConfig, options: SafeModeOptions = {}): OpenClawConfig {
+export function applySafeModeRestrictions(
+  config: OpenClawConfig,
+  options: SafeModeOptions = {},
+): OpenClawConfig {
   const safeConfig = { ...config };
 
   // Override gateway settings
@@ -323,7 +354,10 @@ export function applySafeModeRestrictions(config: OpenClawConfig, options: SafeM
   if (safeConfig.tools) {
     safeConfig.tools.security = "allowlist";
     safeConfig.tools.allowlist = safeConfig.tools.allowlist || [
-      "read", "write", "exec", "config.*"
+      "read",
+      "write",
+      "exec",
+      "config.*",
     ];
   }
 
@@ -367,8 +401,10 @@ function getSafeModeSentinelPath(env: NodeJS.ProcessEnv): string {
   const { resolveStateDir } = require("./paths.js");
   const { resolveRequiredHomeDir } = require("../infra/dotenv.js");
   const path = require("path");
-  
-  const stateDir = resolveStateDir(env, () => resolveRequiredHomeDir(env, () => require("os").homedir()));
+
+  const stateDir = resolveStateDir(env, () =>
+    resolveRequiredHomeDir(env, () => require("os").homedir()),
+  );
   return path.join(stateDir, "safe-mode.sentinel");
 }
 
@@ -378,7 +414,7 @@ function getSafeModeSentinelPath(env: NodeJS.ProcessEnv): string {
 export async function createSafeModeSentinel(reason?: string): Promise<void> {
   const sentinelPath = getSafeModeSentinelPath();
   const fs = require("fs").promises;
-  
+
   const sentinelData = {
     created: new Date().toISOString(),
     reason: reason || "Manual safe mode activation",
@@ -397,7 +433,7 @@ export async function createSafeModeSentinel(reason?: string): Promise<void> {
 export async function removeSafeModeSentinel(): Promise<void> {
   const sentinelPath = getSafeModeSentinelPath();
   const fs = require("fs").promises;
-  
+
   try {
     await fs.unlink(sentinelPath);
   } catch (error) {
@@ -411,7 +447,9 @@ export async function removeSafeModeSentinel(): Promise<void> {
 /**
  * Log safe mode activation
  */
-export function logSafeModeActivation(logger: Pick<typeof console, "info" | "warn" | "error"> = console): void {
+export function logSafeModeActivation(
+  logger: Pick<typeof console, "info" | "warn" | "error"> = console,
+): void {
   logger.warn("🔒 OpenClaw Safe Mode Activated");
   logger.info("Safe mode provides minimal functionality for recovery operations");
   logger.info("External channels, plugins, and advanced features are disabled");

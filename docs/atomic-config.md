@@ -7,7 +7,7 @@ OpenClaw's atomic configuration management system provides safe, atomic operatio
 The atomic configuration management system addresses several critical concerns:
 
 1. **Atomic Operations**: Configuration changes are applied atomically - either they succeed completely or fail with no partial state
-2. **Automatic Backup**: Every configuration change automatically creates a backup of the previous working configuration  
+2. **Automatic Backup**: Every configuration change automatically creates a backup of the previous working configuration
 3. **Validation**: Comprehensive validation including OpenClaw schema validation and 12-factor app principles
 4. **Health Checking**: Post-apply health checks verify that OpenClaw can start successfully with the new configuration
 5. **Auto-Rollback**: If health checks fail, the system automatically rolls back to the last known good configuration
@@ -21,14 +21,14 @@ The atomic configuration management system addresses several critical concerns:
 # Apply configuration atomically with full validation and health checking
 openclaw config apply ./new-config.json --notes "Enable new features"
 
-# Patch configuration with atomic guarantees  
+# Patch configuration with atomic guarantees
 openclaw config patch ./config-patch.json --notes "Update API keys"
 
 # Emergency recovery using last known good configuration
 openclaw config emergency-recover
 ```
 
-### Backup Management
+### Backup Management Usage
 
 ```bash
 # Create manual backup
@@ -41,7 +41,7 @@ openclaw config backups
 openclaw config rollback 2026-02-11T22-45-30-123Z-abc12345
 ```
 
-### Safe Mode
+### Safe Mode Usage
 
 ```bash
 # Enable safe mode for next startup
@@ -74,7 +74,7 @@ openclaw config health-check --timeout 30000
 The `AtomicConfigManager` class provides the core atomic operations:
 
 ```typescript
-import { getAtomicConfigManager } from '@openclaw/config';
+import { getAtomicConfigManager } from "@openclaw/config";
 
 const manager = getAtomicConfigManager({
   maxBackups: 10,
@@ -94,12 +94,12 @@ if (result.success) {
 }
 ```
 
-### Safe Mode
+### Safe Mode Implementation
 
 Safe mode provides a minimal, secure configuration for recovery scenarios:
 
 ```typescript
-import { createSafeModeConfig, shouldStartInSafeMode } from '@openclaw/config';
+import { createSafeModeConfig, shouldStartInSafeMode } from "@openclaw/config";
 
 // Check if safe mode should be activated
 if (shouldStartInSafeMode()) {
@@ -108,7 +108,7 @@ if (shouldStartInSafeMode()) {
     enablePlugins: false,
     adminPassword: process.env.OPENCLAW_RECOVERY_PASSWORD,
   });
-  
+
   // Use safe configuration for startup
   return safeConfig;
 }
@@ -119,7 +119,7 @@ if (shouldStartInSafeMode()) {
 The startup safety system handles crash detection and recovery:
 
 ```typescript
-import { determineStartupConfig } from '@openclaw/config';
+import { determineStartupConfig } from "@openclaw/config";
 
 // Determine configuration based on safety conditions
 const startupResult = await determineStartupConfig({
@@ -188,36 +188,36 @@ The atomic configuration system extends the gateway API with new endpoints:
 
 ```typescript
 // Apply configuration atomically
-await gateway.request('config.apply.atomic', {
+await gateway.request("config.apply.atomic", {
   raw: JSON.stringify(newConfig),
   baseHash: currentConfigHash,
   enableHealthCheck: true,
   healthCheckTimeoutMs: 30000,
-  notes: "Enable new features"
+  notes: "Enable new features",
 });
 
-// Patch configuration atomically  
-await gateway.request('config.patch.atomic', {
+// Patch configuration atomically
+await gateway.request("config.patch.atomic", {
   raw: JSON.stringify(configPatch),
   baseHash: currentConfigHash,
-  notes: "Update settings"
+  notes: "Update settings",
 });
 ```
 
-### Backup Management
+### Backup Management API
 
 ```typescript
 // Create backup
-const { backupId } = await gateway.request('config.backup.create', {
-  notes: "Pre-deployment backup"
+const { backupId } = await gateway.request("config.backup.create", {
+  notes: "Pre-deployment backup",
 });
 
 // List backups
-const { backups } = await gateway.request('config.backup.list');
+const { backups } = await gateway.request("config.backup.list");
 
 // Rollback
-await gateway.request('config.backup.rollback', {
-  backupId: "2026-02-11T22-45-30-123Z-abc12345"
+await gateway.request("config.backup.rollback", {
+  backupId: "2026-02-11T22-45-30-123Z-abc12345",
 });
 ```
 
@@ -225,16 +225,16 @@ await gateway.request('config.backup.rollback', {
 
 ```typescript
 // Enable safe mode
-await gateway.request('config.safemode.enable', {
-  reason: "Configuration recovery"
+await gateway.request("config.safemode.enable", {
+  reason: "Configuration recovery",
 });
 
 // Check status
-const { active } = await gateway.request('config.safemode.status');
+const { active } = await gateway.request("config.safemode.status");
 
 // Generate safe config
-const { config } = await gateway.request('config.safemode.generate', {
-  options: { enableChannels: false }
+const { config } = await gateway.request("config.safemode.generate", {
+  options: { enableChannels: false },
 });
 ```
 
@@ -278,14 +278,14 @@ const { config } = await gateway.request('config.safemode.generate', {
 3. **Test configurations** in staging before production
 4. **Monitor health checks** and be prepared for auto-rollback
 
-### Safe Mode
+### Safe Mode Best Practices
 
 1. **Use safe mode for recovery** when normal configuration is broken
 2. **Keep safe mode minimal** - disable unnecessary features
 3. **Secure safe mode access** with strong passwords and IP restrictions
 4. **Document safe mode procedures** for your team
 
-### Backup Management
+### Backup Management Best Practices
 
 1. **Regular backups** before major changes
 2. **Clean up old backups** periodically (automatic with configurable limits)
@@ -369,7 +369,7 @@ Legacy `config.apply` and `config.patch` endpoints remain available, but `config
 ### Atomic Write Pattern
 
 1. **Validation**: Comprehensive validation before any changes
-2. **Backup Creation**: Automatic backup of current configuration  
+2. **Backup Creation**: Automatic backup of current configuration
 3. **Temporary Write**: Write new configuration to temporary file
 4. **Atomic Rename**: Atomic rename to replace current configuration
 5. **Health Check**: Verify OpenClaw can start with new configuration
@@ -378,14 +378,16 @@ Legacy `config.apply` and `config.patch` endpoints remain available, but `config
 ### Health Check Implementation
 
 Health checks verify that:
+
 - Configuration loads successfully
-- All required dependencies are available  
+- All required dependencies are available
 - Validation passes completely
 - No startup-blocking errors occur
 
 ### Backup Format
 
 Backups include:
+
 - **Configuration data**: Full JSON configuration
 - **Metadata**: Timestamp, hash, notes, health status
 - **Versioning**: Backup ID with timestamp and random suffix

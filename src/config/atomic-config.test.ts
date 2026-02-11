@@ -2,12 +2,12 @@
  * Tests for atomic configuration management
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
-import path from "node:path";
 import os from "node:os";
-import { AtomicConfigManager, type AtomicConfigOptions } from "./atomic-config.js";
+import path from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "./types.js";
+import { AtomicConfigManager, type AtomicConfigOptions } from "./atomic-config.js";
 
 // Mock dependencies
 vi.mock("./io.js", () => ({
@@ -27,7 +27,7 @@ describe("AtomicConfigManager", () => {
   beforeEach(async () => {
     // Create temporary directory for tests
     tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "openclaw-atomic-test-"));
-    
+
     const options: AtomicConfigOptions = {
       tempDir: path.join(tempDir, "temp"),
       logger: {
@@ -106,9 +106,7 @@ describe("AtomicConfigManager", () => {
 
       const result = await manager.validateConfig(configWithSecrets);
 
-      expect(result.twelveFactorIssues).toContain(
-        expect.stringMatching(/hardcoded secrets/i)
-      );
+      expect(result.twelveFactorIssues).toContain(expect.stringMatching(/hardcoded secrets/i));
     });
 
     it("should detect hardcoded service URLs", async () => {
@@ -123,9 +121,7 @@ describe("AtomicConfigManager", () => {
 
       const result = await manager.validateConfig(configWithUrls);
 
-      expect(result.twelveFactorIssues).toContain(
-        expect.stringMatching(/hardcoded service URLs/i)
-      );
+      expect(result.twelveFactorIssues).toContain(expect.stringMatching(/hardcoded service URLs/i));
     });
 
     it("should detect environment-specific config", async () => {
@@ -136,9 +132,7 @@ describe("AtomicConfigManager", () => {
 
       const result = await manager.validateConfig(configWithEnv);
 
-      expect(result.twelveFactorIssues).toContain(
-        expect.stringMatching(/environment-specific/i)
-      );
+      expect(result.twelveFactorIssues).toContain(expect.stringMatching(/environment-specific/i));
     });
 
     it("should detect development-only settings", async () => {
@@ -154,7 +148,7 @@ describe("AtomicConfigManager", () => {
       const result = await manager.validateConfig(devConfig);
 
       expect(result.twelveFactorIssues).toContain(
-        expect.stringMatching(/development-only settings/i)
+        expect.stringMatching(/development-only settings/i),
       );
     });
 
@@ -169,9 +163,7 @@ describe("AtomicConfigManager", () => {
 
       const result = await manager.validateConfig(logConfig);
 
-      expect(result.twelveFactorIssues).toContain(
-        expect.stringMatching(/logs should.*stdout/i)
-      );
+      expect(result.twelveFactorIssues).toContain(expect.stringMatching(/logs should.*stdout/i));
     });
   });
 
@@ -186,9 +178,9 @@ describe("AtomicConfigManager", () => {
     it("should list backups in reverse chronological order", async () => {
       // Create multiple backups
       const backup1 = await manager.createBackup("First backup");
-      await new Promise(resolve => setTimeout(resolve, 10)); // Ensure different timestamps
+      await new Promise((resolve) => setTimeout(resolve, 10)); // Ensure different timestamps
       const backup2 = await manager.createBackup("Second backup");
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       const backup3 = await manager.createBackup("Third backup");
 
       const backups = await manager.listBackups();
@@ -205,17 +197,17 @@ describe("AtomicConfigManager", () => {
       for (let i = 0; i < 7; i++) {
         const id = await manager.createBackup(`Backup ${i}`);
         backupIds.push(id);
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
       const backups = await manager.listBackups();
 
       expect(backups).toHaveLength(5); // Should be limited to maxBackups
-      
+
       // Should keep the 5 most recent
       const recentIds = backupIds.slice(-5);
-      const backupIdsFromList = backups.map(b => b.id);
-      
+      const backupIdsFromList = backups.map((b) => b.id);
+
       for (const recentId of recentIds) {
         expect(backupIdsFromList).toContain(recentId);
       }
@@ -223,16 +215,16 @@ describe("AtomicConfigManager", () => {
 
     it("should find last healthy backup", async () => {
       await manager.createBackup("Healthy backup 1");
-      await new Promise(resolve => setTimeout(resolve, 10));
-      
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
       const unhealthyBackupId = await manager.createBackup("Unhealthy backup");
-      await new Promise(resolve => setTimeout(resolve, 10));
-      
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
       const healthyBackupId = await manager.createBackup("Healthy backup 2");
 
       // Mark one as unhealthy by manually editing the meta file
       const backups = await manager.listBackups();
-      const unhealthyBackup = backups.find(b => b.id === unhealthyBackupId);
+      const unhealthyBackup = backups.find((b) => b.id === unhealthyBackupId);
       if (unhealthyBackup) {
         unhealthyBackup.healthy = false;
         const metaPath = path.join(tempDir, "config-backups", `${unhealthyBackupId}.meta.json`);
@@ -258,7 +250,7 @@ describe("AtomicConfigManager", () => {
 
     it("should report validation errors", async () => {
       const { validateConfigObjectWithPlugins } = await import("./validation.js");
-      
+
       vi.mocked(validateConfigObjectWithPlugins).mockReturnValue({
         ok: false,
         config: mockConfig,
@@ -266,9 +258,7 @@ describe("AtomicConfigManager", () => {
           { path: "gateway.port", message: "Port must be a number" },
           { path: "agents", message: "Agents configuration is invalid" },
         ],
-        warnings: [
-          { path: "logging", message: "Deprecated logging option" },
-        ],
+        warnings: [{ path: "logging", message: "Deprecated logging option" }],
       });
 
       const result = await manager.validateConfig(mockConfig);
@@ -281,7 +271,7 @@ describe("AtomicConfigManager", () => {
 
     it("should handle validation exceptions", async () => {
       const { validateConfigObjectWithPlugins } = await import("./validation.js");
-      
+
       vi.mocked(validateConfigObjectWithPlugins).mockImplementation(() => {
         throw new Error("Validation crashed");
       });

@@ -2,10 +2,11 @@
  * Tests for safe mode configuration
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
-import path from "node:path";
 import os from "node:os";
+import path from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { OpenClawConfig } from "./types.js";
 import {
   isSafeModeEnabled,
   getSafeModeOptions,
@@ -16,7 +17,6 @@ import {
   createSafeModeSentinel,
   removeSafeModeSentinel,
 } from "./safe-mode.js";
-import type { OpenClawConfig } from "./types.js";
 
 // Mock the paths module
 vi.mock("./paths.js", () => ({
@@ -297,8 +297,8 @@ describe("Safe Mode", () => {
     });
 
     it("should use custom admin password", () => {
-      const restricted = applySafeModeRestrictions(normalConfig, { 
-        adminPassword: "custom-password"
+      const restricted = applySafeModeRestrictions(normalConfig, {
+        adminPassword: "custom-password",
       });
 
       expect(restricted.gateway?.auth?.token).toBe("custom-password");
@@ -359,7 +359,10 @@ describe("Safe Mode", () => {
 
     it("should detect sentinel file", async () => {
       const sentinelPath = path.join(tempDir, "safe-mode.sentinel");
-      await fs.promises.writeFile(sentinelPath, JSON.stringify({ created: new Date().toISOString() }));
+      await fs.promises.writeFile(
+        sentinelPath,
+        JSON.stringify({ created: new Date().toISOString() }),
+      );
 
       expect(shouldStartInSafeMode({})).toBe(true);
     });

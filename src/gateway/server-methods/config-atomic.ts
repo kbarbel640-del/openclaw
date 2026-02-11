@@ -1,28 +1,33 @@
 /**
  * Enhanced config server methods with atomic configuration management
- * 
+ *
  * Extends the existing config methods with atomic operations, validation,
  * backup, rollback, and safe mode support.
  */
 
 import type { GatewayRequestHandlers, RespondFn } from "./types.js";
-import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
-import { listChannelPlugins } from "../../channels/plugins/index.js";
+import {
+  getAtomicConfigManager,
+  applyConfigAtomic,
+  emergencyRecoverConfig,
+  type AtomicConfigOptions,
+} from "../../config/atomic-config.js";
 import {
   CONFIG_PATH,
-  loadConfig,
   parseConfigJson5,
   readConfigFileSnapshot,
   resolveConfigSnapshotHash,
-  validateConfigObjectWithPlugins,
 } from "../../config/config.js";
 import { applyLegacyMigrations } from "../../config/legacy.js";
 import { applyMergePatch } from "../../config/merge-patch.js";
+import { redactConfigObject, restoreRedactedValues } from "../../config/redact-snapshot.js";
 import {
-  redactConfigObject,
-  redactConfigSnapshot,
-  restoreRedactedValues,
-} from "../../config/redact-snapshot.js";
+  createSafeModeConfig,
+  createSafeModeSentinel,
+  removeSafeModeSentinel,
+  isSafeModeEnabled,
+  shouldStartInSafeMode,
+} from "../../config/safe-mode.js";
 import { buildConfigSchema } from "../../config/schema.js";
 import {
   formatDoctorNonInteractiveHint,
@@ -41,22 +46,6 @@ import {
   validateConfigSchemaParams,
   validateConfigSetParams,
 } from "../protocol/index.js";
-import { 
-  getAtomicConfigManager,
-  applyConfigAtomic,
-  emergencyRecoverConfig,
-  type AtomicConfigOptions 
-} from "../../config/atomic-config.js";
-import { 
-  createSafeModeConfig,
-  createSafeModeSentinel,
-  removeSafeModeSentinel,
-  isSafeModeEnabled,
-  shouldStartInSafeMode,
-  applySafeModeRestrictions,
-  validateSafeModeConfig,
-  logSafeModeActivation
-} from "../../config/safe-mode.js";
 
 // Re-export existing validation functions
 function resolveBaseHash(params: unknown): string | null {
@@ -156,10 +145,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
 
     let restoredApply: any;
     try {
-      restoredApply = restoreRedactedValues(
-        parsedRes.parsed,
-        snapshot.config,
-      );
+      restoredApply = restoreRedactedValues(parsedRes.parsed, snapshot.config);
     } catch (err) {
       respond(
         false,
@@ -172,13 +158,15 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
     // Extract atomic options from params
     const sessionKey = (params as any).sessionKey?.trim() || undefined;
     const note = (params as any).note?.trim() || undefined;
-    const restartDelayMs = typeof (params as any).restartDelayMs === "number" 
-      ? Math.max(0, Math.floor((params as any).restartDelayMs))
-      : undefined;
+    const restartDelayMs =
+      typeof (params as any).restartDelayMs === "number"
+        ? Math.max(0, Math.floor((params as any).restartDelayMs))
+        : undefined;
     const enableHealthCheck = (params as any).enableHealthCheck !== false;
-    const healthCheckTimeoutMs = typeof (params as any).healthCheckTimeoutMs === "number"
-      ? Math.max(5000, Math.floor((params as any).healthCheckTimeoutMs))
-      : 30000;
+    const healthCheckTimeoutMs =
+      typeof (params as any).healthCheckTimeoutMs === "number"
+        ? Math.max(5000, Math.floor((params as any).healthCheckTimeoutMs))
+        : 30000;
 
     // Apply config atomically
     const atomicOptions: AtomicConfigOptions = {
@@ -193,7 +181,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
         false,
         undefined,
         errorShape(ErrorCodes.INVALID_REQUEST, result.error || "Atomic apply failed", {
-          details: { 
+          details: {
             validationResult: result.validationResult,
             rolledBack: result.rolledBack,
             healthCheckPassed: result.healthCheckPassed,
@@ -294,7 +282,11 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
       return;
     }
 
-    if (!parsedRes.parsed || typeof parsedRes.parsed !== "object" || Array.isArray(parsedRes.parsed)) {
+    if (
+      !parsedRes.parsed ||
+      typeof parsedRes.parsed !== "object" ||
+      Array.isArray(parsedRes.parsed)
+    ) {
       respond(
         false,
         undefined,
@@ -322,13 +314,15 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
     // Extract atomic options from params
     const sessionKey = (params as any).sessionKey?.trim() || undefined;
     const note = (params as any).note?.trim() || undefined;
-    const restartDelayMs = typeof (params as any).restartDelayMs === "number" 
-      ? Math.max(0, Math.floor((params as any).restartDelayMs))
-      : undefined;
+    const restartDelayMs =
+      typeof (params as any).restartDelayMs === "number"
+        ? Math.max(0, Math.floor((params as any).restartDelayMs))
+        : undefined;
     const enableHealthCheck = (params as any).enableHealthCheck !== false;
-    const healthCheckTimeoutMs = typeof (params as any).healthCheckTimeoutMs === "number"
-      ? Math.max(5000, Math.floor((params as any).healthCheckTimeoutMs))
-      : 30000;
+    const healthCheckTimeoutMs =
+      typeof (params as any).healthCheckTimeoutMs === "number"
+        ? Math.max(5000, Math.floor((params as any).healthCheckTimeoutMs))
+        : 30000;
 
     // Apply config atomically
     const atomicOptions: AtomicConfigOptions = {
@@ -343,7 +337,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
         false,
         undefined,
         errorShape(ErrorCodes.INVALID_REQUEST, result.error || "Atomic patch failed", {
-          details: { 
+          details: {
             validationResult: result.validationResult,
             rolledBack: result.rolledBack,
             healthCheckPassed: result.healthCheckPassed,
@@ -404,13 +398,13 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
       const notes = typeof (params as any).notes === "string" ? (params as any).notes : undefined;
       const manager = getAtomicConfigManager();
       const backupId = await manager.createBackup(notes);
-      
+
       respond(true, { backupId, notes }, undefined);
     } catch (error) {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to create backup: ${error}`),
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to create backup: ${String(error)}`),
       );
     }
   },
@@ -419,13 +413,13 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
     try {
       const manager = getAtomicConfigManager();
       const backups = await manager.listBackups();
-      
+
       respond(true, { backups }, undefined);
     } catch (error) {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to list backups: ${error}`),
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to list backups: ${String(error)}`),
       );
     }
   },
@@ -444,10 +438,10 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
     try {
       const manager = getAtomicConfigManager();
       const result = await manager.rollback(backupId);
-      
+
       if (result.success) {
         respond(
-          true, 
+          true,
           {
             ok: true,
             backupId,
@@ -461,7 +455,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
           false,
           undefined,
           errorShape(ErrorCodes.INVALID_REQUEST, result.error || "Rollback failed", {
-            details: { 
+            details: {
               validationResult: result.validationResult,
               healthCheckPassed: result.healthCheckPassed,
             },
@@ -472,7 +466,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INTERNAL_ERROR, `Rollback failed: ${error}`),
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Rollback failed: ${String(error)}`),
       );
     }
   },
@@ -481,7 +475,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
   "config.emergency.recover": async ({ params, respond }) => {
     try {
       const result = await emergencyRecoverConfig();
-      
+
       if (result.success) {
         respond(
           true,
@@ -506,7 +500,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INTERNAL_ERROR, `Emergency recovery failed: ${error}`),
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Emergency recovery failed: ${String(error)}`),
       );
     }
   },
@@ -514,15 +508,16 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
   // Safe mode management
   "config.safemode.enable": async ({ params, respond }) => {
     try {
-      const reason = typeof (params as any).reason === "string" ? (params as any).reason : undefined;
+      const reason =
+        typeof (params as any).reason === "string" ? (params as any).reason : undefined;
       await createSafeModeSentinel(reason);
-      
+
       respond(true, { enabled: true, reason }, undefined);
     } catch (error) {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to enable safe mode: ${error}`),
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to enable safe mode: ${String(error)}`),
       );
     }
   },
@@ -530,13 +525,13 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
   "config.safemode.disable": async ({ params, respond }) => {
     try {
       await removeSafeModeSentinel();
-      
+
       respond(true, { enabled: false }, undefined);
     } catch (error) {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to disable safe mode: ${error}`),
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to disable safe mode: ${String(error)}`),
       );
     }
   },
@@ -545,7 +540,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
     const envEnabled = isSafeModeEnabled();
     const shouldStart = shouldStartInSafeMode();
     const active = envEnabled || shouldStart;
-    
+
     respond(
       true,
       {
@@ -561,7 +556,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
     try {
       const options = (params as any).options || {};
       const safeModeConfig = createSafeModeConfig(options);
-      
+
       respond(
         true,
         {
@@ -574,7 +569,10 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INTERNAL_ERROR, `Failed to generate safe mode config: ${error}`),
+        errorShape(
+          ErrorCodes.INTERNAL_ERROR,
+          `Failed to generate safe mode config: ${String(error)}`,
+        ),
       );
     }
   },
@@ -582,13 +580,14 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
   // Health check
   "config.health.check": async ({ params, respond }) => {
     try {
-      const timeoutMs = typeof (params as any).timeoutMs === "number" 
-        ? Math.max(5000, Math.floor((params as any).timeoutMs))
-        : 30000;
+      const timeoutMs =
+        typeof (params as any).timeoutMs === "number"
+          ? Math.max(5000, Math.floor((params as any).timeoutMs))
+          : 30000;
 
       const manager = getAtomicConfigManager({ healthCheckTimeoutMs: timeoutMs });
       const healthy = await manager.performHealthCheck();
-      
+
       respond(
         true,
         {
@@ -602,7 +601,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INTERNAL_ERROR, `Health check failed: ${error}`),
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Health check failed: ${String(error)}`),
       );
     }
   },
@@ -613,7 +612,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
       const manager = getAtomicConfigManager();
       const snapshot = await readConfigFileSnapshot();
       const validation = await manager.validateConfig(snapshot.config);
-      
+
       respond(
         true,
         {
@@ -626,7 +625,7 @@ export const configAtomicHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INTERNAL_ERROR, `Enhanced validation failed: ${error}`),
+        errorShape(ErrorCodes.INTERNAL_ERROR, `Enhanced validation failed: ${String(error)}`),
       );
     }
   },

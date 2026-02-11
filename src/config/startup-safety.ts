@@ -1,24 +1,24 @@
 /**
  * Startup Safety Integration for OpenClaw
- * 
+ *
  * Handles safe mode detection, crash recovery, and startup validation
  * to ensure OpenClaw can always start in a recoverable state.
  */
 
 import fs from "node:fs";
 import path from "node:path";
-import { resolveStateDir } from "./paths.js";
-import { resolveRequiredHomeDir } from "../infra/dotenv.js";
 import type { OpenClawConfig } from "./types.js";
-import { 
+import { resolveRequiredHomeDir } from "../infra/dotenv.js";
+import { getAtomicConfigManager, emergencyRecoverConfig } from "./atomic-config.js";
+import { loadConfig, writeConfigFile } from "./io.js";
+import { resolveStateDir } from "./paths.js";
+import {
   shouldStartInSafeMode,
   createSafeModeConfig,
   applySafeModeRestrictions,
   logSafeModeActivation,
-  type SafeModeOptions
+  type SafeModeOptions,
 } from "./safe-mode.js";
-import { getAtomicConfigManager, emergencyRecoverConfig } from "./atomic-config.js";
-import { loadConfig, writeConfigFile } from "./io.js";
 
 export type StartupSafetyOptions = {
   /** Maximum number of consecutive startup failures before forcing safe mode */
@@ -65,12 +65,11 @@ export class StartupSafetyManager {
 
   constructor(options: StartupSafetyOptions = {}) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
-    this.stateDir = resolveStateDir(
-      process.env, 
-      () => resolveRequiredHomeDir(process.env, () => require("os").homedir())
+    this.stateDir = resolveStateDir(process.env, () =>
+      resolveRequiredHomeDir(process.env, () => require("os").homedir()),
     );
     this.failureLogPath = path.join(this.stateDir, "startup-failures.json");
-    
+
     this.ensureStateDir();
   }
 
@@ -87,13 +86,13 @@ export class StartupSafetyManager {
       if (!fs.existsSync(this.failureLogPath)) {
         return [];
       }
-      
+
       const content = await fs.promises.readFile(this.failureLogPath, "utf-8");
       const failures = JSON.parse(content) as StartupFailureRecord[];
-      
+
       // Clean up old failures outside the window
       const cutoff = Date.now() - this.options.failureWindowMs;
-      return failures.filter(failure => failure.timestamp > cutoff);
+      return failures.filter((failure) => failure.timestamp > cutoff);
     } catch (error) {
       this.options.logger.warn("Failed to load startup failure history:", error);
       return [];
@@ -102,11 +101,10 @@ export class StartupSafetyManager {
 
   private async saveFailureHistory(failures: StartupFailureRecord[]): Promise<void> {
     try {
-      await fs.promises.writeFile(
-        this.failureLogPath, 
-        JSON.stringify(failures, null, 2),
-        { encoding: "utf-8", mode: 0o600 }
-      );
+      await fs.promises.writeFile(this.failureLogPath, JSON.stringify(failures, null, 2), {
+        encoding: "utf-8",
+        mode: 0o600,
+      });
     } catch (error) {
       this.options.logger.error("Failed to save startup failure history:", error);
     }
@@ -118,7 +116,7 @@ export class StartupSafetyManager {
   async recordStartupFailure(reason: string): Promise<void> {
     try {
       const failures = await this.loadFailureHistory();
-      
+
       failures.push({
         timestamp: Date.now(),
         reason,
@@ -127,12 +125,16 @@ export class StartupSafetyManager {
       });
 
       await this.saveFailureHistory(failures);
-      
+
       this.options.logger.warn(`Recorded startup failure: ${reason}`);
-      this.options.logger.warn(`Total recent failures: ${failures.length}/${this.options.maxStartupFailures}`);
-      
+      this.options.logger.warn(
+        `Total recent failures: ${failures.length}/${this.options.maxStartupFailures}`,
+      );
+
       if (failures.length >= this.options.maxStartupFailures) {
-        this.options.logger.error("🚨 Maximum startup failures reached - safe mode will be activated on next restart");
+        this.options.logger.error(
+          "🚨 Maximum startup failures reached - safe mode will be activated on next restart",
+        );
       }
     } catch (error) {
       this.options.logger.error("Failed to record startup failure:", error);
@@ -182,7 +184,7 @@ export class StartupSafetyManager {
     if (hasFailures) {
       this.options.logger.warn("🚨 Excessive startup failures detected - activating safe mode");
       logSafeModeActivation(this.options.logger);
-      
+
       return {
         useSafeMode: true,
         config: createSafeModeConfig(),
@@ -194,25 +196,23 @@ export class StartupSafetyManager {
     try {
       this.options.logger.debug("Attempting to load normal configuration...");
       const config = loadConfig();
-      
+
       // Validate the loaded config
       const manager = getAtomicConfigManager();
       const validation = await manager.validateConfig(config);
-      
+
       if (!validation.valid) {
         this.options.logger.error("Configuration validation failed:");
-        validation.errors.forEach(error => 
-          this.options.logger.error(`  - ${error}`)
-        );
+        validation.errors.forEach((error) => this.options.logger.error(`  - ${error}`));
 
         if (this.options.autoRecover) {
           this.options.logger.info("Attempting emergency recovery...");
-          
+
           const recoveryResult = await emergencyRecoverConfig();
-          
+
           if (recoveryResult.success) {
             this.options.logger.info("✓ Emergency recovery successful");
-            
+
             return {
               useSafeMode: false,
               config: loadConfig(), // Reload recovered config
@@ -223,7 +223,7 @@ export class StartupSafetyManager {
           } else {
             this.options.logger.error("✗ Emergency recovery failed, falling back to safe mode");
             logSafeModeActivation(this.options.logger);
-            
+
             return {
               useSafeMode: true,
               config: createSafeModeConfig(),
@@ -233,7 +233,7 @@ export class StartupSafetyManager {
         } else {
           this.options.logger.error("Auto-recovery disabled, falling back to safe mode");
           logSafeModeActivation(this.options.logger);
-          
+
           return {
             useSafeMode: true,
             config: createSafeModeConfig(),
@@ -244,19 +244,15 @@ export class StartupSafetyManager {
 
       // Configuration is valid
       this.options.logger.debug("Configuration loaded and validated successfully");
-      
+
       if (validation.warnings.length > 0) {
         this.options.logger.warn("Configuration warnings:");
-        validation.warnings.forEach(warning => 
-          this.options.logger.warn(`  - ${warning}`)
-        );
+        validation.warnings.forEach((warning) => this.options.logger.warn(`  - ${warning}`));
       }
 
       if (validation.twelveFactorIssues.length > 0) {
         this.options.logger.warn("12-factor app principle violations:");
-        validation.twelveFactorIssues.forEach(issue => 
-          this.options.logger.warn(`  - ${issue}`)
-        );
+        validation.twelveFactorIssues.forEach((issue) => this.options.logger.warn(`  - ${issue}`));
       }
 
       return {
@@ -264,20 +260,19 @@ export class StartupSafetyManager {
         config,
         reason: "Normal configuration loaded successfully",
       };
-
     } catch (error) {
       this.options.logger.error("Failed to load configuration:", error);
-      await this.recordStartupFailure(`Configuration load error: ${error}`);
+      await this.recordStartupFailure(`Configuration load error: ${String(error)}`);
 
       if (this.options.autoRecover) {
         this.options.logger.info("Attempting emergency recovery...");
-        
+
         try {
           const recoveryResult = await emergencyRecoverConfig();
-          
+
           if (recoveryResult.success) {
             this.options.logger.info("✓ Emergency recovery successful");
-            
+
             return {
               useSafeMode: false,
               config: loadConfig(), // Reload recovered config
@@ -293,7 +288,7 @@ export class StartupSafetyManager {
 
       this.options.logger.error("Falling back to safe mode");
       logSafeModeActivation(this.options.logger);
-      
+
       return {
         useSafeMode: true,
         config: createSafeModeConfig(),
@@ -316,7 +311,7 @@ export class StartupSafetyManager {
     // Handle unhandled promise rejections
     process.on("unhandledRejection", async (reason, promise) => {
       this.options.logger.error("Unhandled promise rejection during startup:", reason);
-      await this.recordStartupFailure(`Unhandled rejection: ${reason}`);
+      await this.recordStartupFailure(`Unhandled rejection: ${String(reason)}`);
       process.exit(1);
     });
 
@@ -351,7 +346,7 @@ export class StartupSafetyManager {
     failures: StartupFailureRecord[];
   }> {
     const failures = await this.loadFailureHistory();
-    
+
     return {
       recentFailures: failures.length,
       maxFailures: this.options.maxStartupFailures,
@@ -376,7 +371,9 @@ export function getStartupSafetyManager(options?: StartupSafetyOptions): Startup
 /**
  * Convenience function to determine startup configuration
  */
-export async function determineStartupConfig(options?: StartupSafetyOptions): Promise<StartupSafetyResult> {
+export async function determineStartupConfig(
+  options?: StartupSafetyOptions,
+): Promise<StartupSafetyResult> {
   const manager = getStartupSafetyManager(options);
   return await manager.determineStartupConfig();
 }
@@ -384,7 +381,10 @@ export async function determineStartupConfig(options?: StartupSafetyOptions): Pr
 /**
  * Convenience function to record startup failure
  */
-export async function recordStartupFailure(reason: string, options?: StartupSafetyOptions): Promise<void> {
+export async function recordStartupFailure(
+  reason: string,
+  options?: StartupSafetyOptions,
+): Promise<void> {
   const manager = getStartupSafetyManager(options);
   await manager.recordStartupFailure(reason);
 }

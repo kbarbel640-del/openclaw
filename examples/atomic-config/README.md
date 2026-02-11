@@ -26,6 +26,7 @@ openclaw config patch ./api-key-update.json --notes "Rotate API keys"
 ```
 
 **api-key-update.json:**
+
 ```json
 {
   "models": {
@@ -104,6 +105,7 @@ openclaw config emergency-recover
 ```
 
 **Issues detected by validation:**
+
 - Hardcoded API keys (Factor 3: Config)
 - Hardcoded service URLs (Factor 4: Backing Services)
 - Environment-specific values (Factor 5: Build, Release, Run)
@@ -138,6 +140,7 @@ openclaw config emergency-recover
 ```
 
 **Environment variables (.env file):**
+
 ```env
 # API Keys (Factor 3: Config)
 OPENAI_API_KEY=sk-your-actual-key
@@ -162,6 +165,7 @@ openclaw config safe-mode generate > minimal-safe.json
 ```
 
 **Generated minimal-safe.json:**
+
 ```json
 {
   "meta": {
@@ -227,12 +231,12 @@ This enables local web interface for recovery operations.
 ### TypeScript/JavaScript
 
 ```typescript
-import { 
-  getAtomicConfigManager, 
+import {
+  getAtomicConfigManager,
   applyConfigAtomic,
   createSafeModeConfig,
-  determineStartupConfig 
-} from '@openclaw/config';
+  determineStartupConfig,
+} from "@openclaw/config";
 
 // Apply configuration with custom validation
 const manager = getAtomicConfigManager({
@@ -245,7 +249,7 @@ const manager = getAtomicConfigManager({
       return { valid: false, errors: ["OpenAI API key required"] };
     }
     return { valid: true, errors: [] };
-  }
+  },
 });
 
 const result = await manager.applyConfigAtomic(newConfig, "Deploy v2.1.0");
@@ -253,7 +257,7 @@ const result = await manager.applyConfigAtomic(newConfig, "Deploy v2.1.0");
 if (result.success) {
   console.log(`✓ Configuration applied successfully`);
   console.log(`  Backup ID: ${result.backupId}`);
-  console.log(`  Health check: ${result.healthCheckPassed ? 'PASSED' : 'SKIPPED'}`);
+  console.log(`  Health check: ${result.healthCheckPassed ? "PASSED" : "SKIPPED"}`);
 } else {
   console.error(`✗ Configuration apply failed: ${result.error}`);
   if (result.rolledBack) {
@@ -280,37 +284,39 @@ class ConfigManager {
   async applyConfigChanges(configUpdates: Partial<OpenClawConfig>) {
     try {
       // Get current config hash for optimistic concurrency
-      const current = await this.gateway.request('config.get');
-      
+      const current = await this.gateway.request("config.get");
+
       // Apply changes atomically
-      const result = await this.gateway.request('config.patch.atomic', {
+      const result = await this.gateway.request("config.patch.atomic", {
         raw: JSON.stringify(configUpdates),
         baseHash: current.hash,
         enableHealthCheck: true,
-        notes: `UI update: ${new Date().toISOString()}`
+        notes: `UI update: ${new Date().toISOString()}`,
       });
-      
+
       if (result.ok) {
         this.showSuccess(`Configuration updated successfully. Backup: ${result.backupId}`);
         return result;
       }
     } catch (error) {
-      if (error.code === 'INVALID_REQUEST' && error.message.includes('config changed')) {
-        this.showError('Configuration was modified by another process. Please refresh and try again.');
+      if (error.code === "INVALID_REQUEST" && error.message.includes("config changed")) {
+        this.showError(
+          "Configuration was modified by another process. Please refresh and try again.",
+        );
       } else {
         this.showError(`Configuration update failed: ${error.message}`);
       }
       throw error;
     }
   }
-  
+
   async emergencyRecover() {
-    const result = await this.gateway.request('config.emergency.recover');
-    
+    const result = await this.gateway.request("config.emergency.recover");
+
     if (result.ok) {
       this.showSuccess(`Emergency recovery completed. Restored backup: ${result.backupId}`);
     } else {
-      this.showError('Emergency recovery failed. Consider safe mode.');
+      this.showError("Emergency recovery failed. Consider safe mode.");
       throw new Error(result.error);
     }
   }
@@ -325,23 +331,23 @@ class ConfigManager {
 name: Deploy Configuration
 on:
   push:
-    paths: ['config/production.json']
-    branches: ['main']
+    paths: ["config/production.json"]
+    branches: ["main"]
 
 jobs:
   deploy-config:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Validate Configuration  
+
+      - name: Validate Configuration
         run: |
           # Install OpenClaw CLI
           npm install -g @openclaw/cli
-          
+
           # Validate against 12-factor principles
           openclaw config validate --12-factor config/production.json
-          
+
       - name: Deploy to Production
         env:
           OPENCLAW_GATEWAY_TOKEN: ${{ secrets.OPENCLAW_GATEWAY_TOKEN }}
@@ -349,12 +355,12 @@ jobs:
         run: |
           # Create backup
           openclaw config backup --notes "Pre-deployment backup $(date)"
-          
+
           # Apply configuration atomically
           openclaw config apply config/production.json \
             --notes "Deploy commit ${{ github.sha }}" \
             --timeout 60000
-            
+
       - name: Rollback on Failure
         if: failure()
         run: |
@@ -391,35 +397,35 @@ spec:
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 0  # Ensure zero downtime
+      maxUnavailable: 0 # Ensure zero downtime
   template:
     spec:
       containers:
-      - name: openclaw
-        image: openclaw:latest
-        env:
-        - name: OPENCLAW_AUTO_RECOVER
-          value: "true"
-        - name: OPENCLAW_MAX_STARTUP_FAILURES  
-          value: "2"
-        readinessProbe:
-          exec:
-            command: ["openclaw", "config", "health-check", "--timeout", "10000"]
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 60
-          periodSeconds: 30
+        - name: openclaw
+          image: openclaw:latest
+          env:
+            - name: OPENCLAW_AUTO_RECOVER
+              value: "true"
+            - name: OPENCLAW_MAX_STARTUP_FAILURES
+              value: "2"
+          readinessProbe:
+            exec:
+              command: ["openclaw", "config", "health-check", "--timeout", "10000"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
       initContainers:
-      - name: config-validator
-        image: openclaw:latest
-        command: ["openclaw", "config", "validate", "--12-factor"]
-        env:
-        - name: OPENCLAW_CONFIG_PATH
-          value: "/config/openclaw.json"
+        - name: config-validator
+          image: openclaw:latest
+          command: ["openclaw", "config", "validate", "--12-factor"]
+          env:
+            - name: OPENCLAW_CONFIG_PATH
+              value: "/config/openclaw.json"
 ```
 
 ## Monitoring and Alerting
@@ -429,28 +435,28 @@ spec:
 ```yaml
 # openclaw-config-metrics.yml
 groups:
-- name: openclaw-config
-  rules:
-  - alert: ConfigValidationFailure
-    expr: openclaw_config_validation_failures_total > 0
-    labels:
-      severity: warning
-    annotations:
-      summary: "OpenClaw configuration validation failed"
-      
-  - alert: ConfigRollbackOccurred  
-    expr: increase(openclaw_config_rollbacks_total[5m]) > 0
-    labels:
-      severity: critical
-    annotations:
-      summary: "OpenClaw configuration was rolled back"
-      
-  - alert: SafeModeActivated
-    expr: openclaw_safe_mode_active == 1
-    labels:
-      severity: critical
-    annotations:
-      summary: "OpenClaw is running in safe mode"
+  - name: openclaw-config
+    rules:
+      - alert: ConfigValidationFailure
+        expr: openclaw_config_validation_failures_total > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "OpenClaw configuration validation failed"
+
+      - alert: ConfigRollbackOccurred
+        expr: increase(openclaw_config_rollbacks_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "OpenClaw configuration was rolled back"
+
+      - alert: SafeModeActivated
+        expr: openclaw_safe_mode_active == 1
+        labels:
+          severity: critical
+        annotations:
+          summary: "OpenClaw is running in safe mode"
 ```
 
 ### Log Analysis
