@@ -760,6 +760,25 @@ export type SkillStatusReport = {
 
 export type StatusSummary = Record<string, unknown>;
 
+export type UsageWindow = {
+  label: string;
+  usedPercent: number;
+  resetAt?: number;
+};
+
+export type ProviderUsageSnapshot = {
+  provider: string;
+  displayName: string;
+  windows: UsageWindow[];
+  plan?: string;
+  error?: string;
+};
+
+export type UsageSummary = {
+  updatedAt: number;
+  providers: ProviderUsageSnapshot[];
+};
+
 export type HealthSnapshot = Record<string, unknown>;
 
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";

@@ -52,6 +52,7 @@ import {
 } from "./controllers/skills.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
+import type { UsageSummary } from "./types.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
@@ -67,9 +68,41 @@ import { renderOverview } from "./views/overview.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
 import { renderTasks } from "./views/tasks.ts";
+import { loadUsage, UsageState } from "./controllers/usage.ts";
+
+// Module-scope debounce for usage date changes (avoids type-unsafe hacks on state object)
+let usageDateDebounceTimeout: number | null = null;
+const debouncedLoadUsage = (state: UsageState) => {
+  if (usageDateDebounceTimeout) {
+    clearTimeout(usageDateDebounceTimeout);
+  }
+  usageDateDebounceTimeout = window.setTimeout(() => void loadUsage(state), 400);
+};
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
+
+function formatApiQuotaBadge(summary: UsageSummary | null): string {
+  if (!summary || !Array.isArray(summary.providers) || summary.providers.length === 0) {
+    return "API n/a";
+  }
+  const candidates = summary.providers
+    .filter((p) => !p.error && Array.isArray(p.windows) && p.windows.length > 0)
+    .map((p) => {
+      const peak = p.windows.reduce((best, w) =>
+        typeof w.usedPercent === "number" && w.usedPercent > best ? w.usedPercent : best,
+      0);
+      return { displayName: p.displayName || p.provider, used: peak };
+    })
+    .sort((a, b) => b.used - a.used);
+
+  if (candidates.length === 0) {
+    return "API n/a";
+  }
+  const top = candidates[0];
+  const left = Math.max(0, 100 - Math.round(top.used));
+  return `${top.displayName}: ${left}% left`;
+}
 
 function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   const list = state.agentsList?.agents ?? [];
@@ -99,6 +132,7 @@ export function renderApp(state: AppViewState) {
   const chatAvatarUrl = state.chatAvatarUrl ?? assistantAvatarUrl ?? null;
   const configValue =
     state.configForm ?? (state.configSnapshot?.config as Record<string, unknown> | null);
+  const apiQuotaLabel = formatApiQuotaBadge(state.usageStatusSummary ?? null);
   const basePath = normalizeBasePath(state.basePath ?? "");
   const resolvedAgentId =
     state.agentsSelectedId ??
@@ -137,6 +171,10 @@ export function renderApp(state: AppViewState) {
             <span class="statusDot ${state.connected ? "ok" : ""}"></span>
             <span>Health</span>
             <span class="mono">${state.connected ? "OK" : "Offline"}</span>
+          </div>
+          <div class="pill" title="Highest-pressure provider quota window">
+            <span>API</span>
+            <span class="mono">${apiQuotaLabel}</span>
           </div>
           ${renderThemeToggle(state)}
         </div>
