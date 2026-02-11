@@ -1,6 +1,6 @@
+import dingtalk from "@alicloud/dingtalk";
 import * as $OpenApi from "@alicloud/openapi-client";
 import * as $Util from "@alicloud/tea-util";
-import dingtalk from "@alicloud/dingtalk";
 import type { ResolvedDingTalkAccount, WebhookResponse, MarkdownReplyBody } from "./types.js";
 import { logger } from "./logger.js";
 
@@ -90,7 +90,7 @@ export async function replyViaWebhook(
   options?: {
     atUserIds?: string[];
     isAtAll?: boolean;
-  }
+  },
 ): Promise<WebhookResponse> {
   const contentPreview = content.slice(0, 50).replace(/\n/g, " ");
   logger.log(`[回复消息] via Webhook | ${contentPreview}${content.length > 50 ? "..." : ""}`);
@@ -134,14 +134,14 @@ export async function replyViaWebhook(
  * @see https://open.dingtalk.com/document/orgapp/types-of-messages-sent-by-enterprise-robots
  */
 export type DingTalkMsgKey =
-  | "sampleText"      // 文本
-  | "sampleMarkdown"  // Markdown
-  | "sampleImageMsg"  // 图片
-  | "sampleLink"      // 链接
-  | "sampleAudio"     // 语音
-  | "sampleVideo"     // 视频
-  | "sampleFile"      // 文件
-  | "sampleActionCard"  // 卡片
+  | "sampleText" // 文本
+  | "sampleMarkdown" // Markdown
+  | "sampleImageMsg" // 图片
+  | "sampleLink" // 链接
+  | "sampleAudio" // 语音
+  | "sampleVideo" // 视频
+  | "sampleFile" // 文件
+  | "sampleActionCard" // 卡片
   | "sampleActionCard2" // 卡片（独立跳转）
   | "sampleActionCard3" // 卡片（竖向按钮）
   | "sampleActionCard4" // 卡片（横向按钮）
@@ -156,7 +156,7 @@ async function sendOTOMessage(
   userId: string,
   msgKey: DingTalkMsgKey,
   msgParam: Record<string, unknown>,
-  options: SendMessageOptions
+  options: SendMessageOptions,
 ): Promise<SendMessageResult> {
   const accessToken = await getAccessToken(options.account);
   const robotClient = createRobotClient();
@@ -175,7 +175,7 @@ async function sendOTOMessage(
   const response = await robotClient.batchSendOTOWithOptions(
     request,
     headers,
-    new $Util.RuntimeOptions({})
+    new $Util.RuntimeOptions({}),
   );
 
   const processQueryKey = response.body?.processQueryKey ?? `dingtalk-${Date.now()}`;
@@ -192,10 +192,12 @@ async function sendOTOMessage(
 export async function sendTextMessage(
   userId: string,
   content: string,
-  options: SendMessageOptions
+  options: SendMessageOptions,
 ): Promise<SendMessageResult> {
   const contentPreview = content.slice(0, 50).replace(/\n/g, " ");
-  logger.log(`[主动发送] 文本消息 | to: ${userId} | ${contentPreview}${content.length > 50 ? "..." : ""}`);
+  logger.log(
+    `[主动发送] 文本消息 | to: ${userId} | ${contentPreview}${content.length > 50 ? "..." : ""}`,
+  );
 
   const title = content.slice(0, 10).replace(/\n/g, " ");
   const result = await sendOTOMessage(userId, "sampleMarkdown", { title, text: content }, options);
@@ -211,7 +213,7 @@ export async function sendTextMessage(
 export async function sendImageMessage(
   userId: string,
   photoURL: string,
-  options: SendMessageOptions
+  options: SendMessageOptions,
 ): Promise<SendMessageResult> {
   logger.log(`[主动发送] 图片消息 | to: ${userId} | photoURL: ${photoURL.slice(0, 80)}...`);
 
@@ -231,9 +233,11 @@ export async function sendAudioMessage(
   mediaId: string,
   options: SendMessageOptions & {
     duration?: string;
-  }
+  },
 ): Promise<SendMessageResult> {
-  logger.log(`[主动发送] 语音消息 | to: ${userId} | mediaId: ${mediaId} | duration: ${options.duration ?? "未知"}`);
+  logger.log(
+    `[主动发送] 语音消息 | to: ${userId} | mediaId: ${mediaId} | duration: ${options.duration ?? "未知"}`,
+  );
 
   // 构建 msgParam，只包含有值的字段
   const msgParam: Record<string, string> = { mediaId };
@@ -263,7 +267,7 @@ export async function sendVideoMessage(
     picMediaId?: string;
     width?: string;
     height?: string;
-  }
+  },
 ): Promise<SendMessageResult> {
   logger.log(`[主动发送] 视频消息 | to: ${userId} | videoMediaId: ${videoMediaId}`);
 
@@ -302,11 +306,16 @@ export async function sendFileMessage(
   mediaId: string,
   fileName: string,
   fileType: string,
-  options: SendMessageOptions
+  options: SendMessageOptions,
 ): Promise<SendMessageResult> {
   logger.log(`[主动发送] 文件消息 | to: ${userId} | fileName: ${fileName} | fileType: ${fileType}`);
 
-  const result = await sendOTOMessage(userId, "sampleFile", { mediaId, fileName, fileType }, options);
+  const result = await sendOTOMessage(
+    userId,
+    "sampleFile",
+    { mediaId, fileName, fileType },
+    options,
+  );
 
   logger.log(`[主动发送] 文件消息发送成功 | messageId: ${result.messageId}`);
   return result;
@@ -326,7 +335,7 @@ export async function sendLinkMessage(
     text: string;
     messageUrl: string;
     picUrl?: string;
-  }
+  },
 ): Promise<SendMessageResult> {
   logger.log(`[主动发送] 链接消息 | to: ${userId} | title: ${options.title}`);
 
@@ -339,7 +348,7 @@ export async function sendLinkMessage(
       messageUrl: options.messageUrl,
       picUrl: options.picUrl ?? "",
     },
-    options
+    options,
   );
 
   logger.log(`[主动发送] 链接消息发送成功 | messageId: ${result.messageId}`);
@@ -362,7 +371,7 @@ export interface DingTalkProbeResult {
  */
 export async function probeDingTalkBot(
   account: ResolvedDingTalkAccount,
-  _timeoutMs?: number
+  _timeoutMs?: number,
 ): Promise<DingTalkProbeResult> {
   try {
     // 尝试获取 access_token 来验证凭据是否有效
@@ -392,7 +401,7 @@ export async function probeDingTalkBot(
  */
 export async function getFileDownloadUrl(
   downloadCode: string,
-  account: ResolvedDingTalkAccount
+  account: ResolvedDingTalkAccount,
 ): Promise<string> {
   const accessToken = await getAccessToken(account);
   const robotClient = createRobotClient();
@@ -409,7 +418,7 @@ export async function getFileDownloadUrl(
   const response = await robotClient.robotMessageFileDownloadWithOptions(
     request,
     headers,
-    new $Util.RuntimeOptions({})
+    new $Util.RuntimeOptions({}),
   );
 
   if (response.body?.downloadUrl) {
@@ -507,7 +516,7 @@ export async function uploadMedia(
     type?: DingTalkMediaType;
     /** MIME 类型，用于推断媒体类型和设置 Content-Type */
     mimeType?: string;
-  }
+  },
 ): Promise<UploadMediaResult> {
   const mimeType = options?.mimeType;
   const type = options?.type ?? (mimeType ? inferMediaType(mimeType) : "image");
@@ -529,7 +538,7 @@ export async function uploadMedia(
     {
       method: "POST",
       body: formData,
-    }
+    },
   );
 
   const result = (await response.json()) as {
@@ -542,9 +551,10 @@ export async function uploadMedia(
     logger.log(`[上传媒体] 上传成功 | mediaId: ${result.media_id}`);
 
     // 只有图片类型才构造公网可访问的 URL
-    const url = type === "image"
-      ? `https://oapi.dingtalk.com/media/downloadFile?access_token=${accessToken}&media_id=${result.media_id}`
-      : "";
+    const url =
+      type === "image"
+        ? `https://oapi.dingtalk.com/media/downloadFile?access_token=${accessToken}&media_id=${result.media_id}`
+        : "";
 
     return {
       mediaId: result.media_id,

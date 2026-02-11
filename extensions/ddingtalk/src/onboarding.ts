@@ -2,10 +2,7 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import type { ChannelOnboardingAdapter } from "openclaw/plugin-sdk";
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk";
 import type { DingTalkConfig } from "./types.js";
-import {
-  listDingTalkAccountIds,
-  resolveDingTalkAccount,
-} from "./accounts.js";
+import { listDingTalkAccountIds, resolveDingTalkAccount } from "./accounts.js";
 import { PLUGIN_ID } from "./constants.js";
 
 const channel = PLUGIN_ID;
@@ -24,7 +21,7 @@ async function noteDingTalkCredentialsHelp(prompter: {
       "4) Enable Stream mode in app configuration",
       "Docs: https://open.dingtalk.com/document/",
     ].join("\n"),
-    "DingTalk bot setup"
+    "DingTalk bot setup",
   );
 }
 
@@ -46,14 +43,11 @@ export const dingtalkOnboardingAdapter: ChannelOnboardingAdapter = {
       quickstartScore: configured ? 1 : 5,
     };
   },
-  configure: async ({
-    cfg,
-    prompter,
-  }) => {
+  configure: async ({ cfg, prompter }) => {
     let next = cfg;
     const resolvedAccount = resolveDingTalkAccount({ cfg: next });
     const accountConfigured = Boolean(
-      resolvedAccount.clientId?.trim() && resolvedAccount.clientSecret?.trim()
+      resolvedAccount.clientId?.trim() && resolvedAccount.clientSecret?.trim(),
     );
     const dingtalkConfig = (next.channels?.[PLUGIN_ID] ?? {}) as DingTalkConfig;
     const hasConfigCredentials = Boolean(dingtalkConfig.clientId);
@@ -75,13 +69,13 @@ export const dingtalkOnboardingAdapter: ChannelOnboardingAdapter = {
           await prompter.text({
             message: "Enter DingTalk AppKey (Client ID)",
             validate: (value) => (value?.trim() ? undefined : "Required"),
-          })
+          }),
         ).trim();
         clientSecret = String(
           await prompter.text({
             message: "Enter DingTalk AppSecret (Client Secret)",
             validate: (value) => (value?.trim() ? undefined : "Required"),
-          })
+          }),
         ).trim();
       }
     } else {
@@ -89,13 +83,13 @@ export const dingtalkOnboardingAdapter: ChannelOnboardingAdapter = {
         await prompter.text({
           message: "Enter DingTalk AppKey (Client ID)",
           validate: (value) => (value?.trim() ? undefined : "Required"),
-        })
+        }),
       ).trim();
       clientSecret = String(
         await prompter.text({
           message: "Enter DingTalk AppSecret (Client Secret)",
           validate: (value) => (value?.trim() ? undefined : "Required"),
-        })
+        }),
       ).trim();
     }
 

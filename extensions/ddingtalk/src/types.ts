@@ -140,7 +140,12 @@ export interface RichTextContent {
 }
 
 /** 消息内容联合类型 */
-export type MessageContent = PictureContent | AudioContent | VideoContent | FileContent | RichTextContent;
+export type MessageContent =
+  | PictureContent
+  | AudioContent
+  | VideoContent
+  | FileContent
+  | RichTextContent;
 
 /**
  * 钉钉机器人消息数据（来自 Stream 回调）

@@ -10,19 +10,30 @@ import {
   type OpenClawConfig,
 } from "openclaw/plugin-sdk";
 import path from "path";
-import { getDingTalkRuntime } from "./runtime.js";
 import {
   listDingTalkAccountIds,
   normalizeAccountId,
   resolveDefaultDingTalkAccountId,
   resolveDingTalkAccount,
 } from "./accounts.js";
-import { DingTalkConfigSchema, type DingTalkConfig, type ResolvedDingTalkAccount } from "./types.js";
-import { sendTextMessage, sendImageMessage, sendFileMessage, uploadMedia, probeDingTalkBot, inferMediaType } from "./client.js";
+import {
+  sendTextMessage,
+  sendImageMessage,
+  sendFileMessage,
+  uploadMedia,
+  probeDingTalkBot,
+  inferMediaType,
+} from "./client.js";
+import { PLUGIN_ID } from "./constants.js";
 import { logger } from "./logger.js";
 import { monitorDingTalkProvider } from "./monitor.js";
 import { dingtalkOnboardingAdapter } from "./onboarding.js";
-import { PLUGIN_ID } from "./constants.js";
+import { getDingTalkRuntime } from "./runtime.js";
+import {
+  DingTalkConfigSchema,
+  type DingTalkConfig,
+  type ResolvedDingTalkAccount,
+} from "./types.js";
 
 // ======================= Target Normalization =======================
 
@@ -246,10 +257,7 @@ export const dingtalkPlugin: ChannelPlugin<ResolvedDingTalkAccount> = {
           }
           return {
             ok: false,
-            error: missingTargetError(
-              "DingTalk",
-              `<userId> 或 channels.${PLUGIN_ID}.allowFrom[0]`,
-            ),
+            error: missingTargetError("DingTalk", `<userId> 或 channels.${PLUGIN_ID}.allowFrom[0]`),
           };
         }
 
@@ -280,10 +288,7 @@ export const dingtalkPlugin: ChannelPlugin<ResolvedDingTalkAccount> = {
 
       return {
         ok: false,
-        error: missingTargetError(
-          "DingTalk",
-          `<userId> 或 channels.${PLUGIN_ID}.allowFrom[0]`,
-        ),
+        error: missingTargetError("DingTalk", `<userId> 或 channels.${PLUGIN_ID}.allowFrom[0]`),
       };
     },
     sendText: async ({ to, text, cfg }) => {
@@ -308,7 +313,9 @@ export const dingtalkPlugin: ChannelPlugin<ResolvedDingTalkAccount> = {
         const mimeType = media.contentType ?? "application/octet-stream";
         const mediaType = inferMediaType(mimeType);
 
-        logger.log(`加载媒体成功 | type: ${mediaType} | mimeType: ${mimeType} | size: ${(media.buffer.length / 1024).toFixed(2)} KB`);
+        logger.log(
+          `加载媒体成功 | type: ${mediaType} | mimeType: ${mimeType} | size: ${(media.buffer.length / 1024).toFixed(2)} KB`,
+        );
 
         // 上传到钉钉
         const fileName = media.fileName || path.basename(mediaUrl) || `file_${Date.now()}`;
@@ -329,7 +336,9 @@ export const dingtalkPlugin: ChannelPlugin<ResolvedDingTalkAccount> = {
           sendResult = await sendFileMessage(to, uploadResult.mediaId, fileName, ext, { account });
         }
 
-        logger.log(`发送${mediaType}消息成功（${mediaType !== "image" ? "文件形式" : "图片形式"}）`);
+        logger.log(
+          `发送${mediaType}消息成功（${mediaType !== "image" ? "文件形式" : "图片形式"}）`,
+        );
 
         // 如果有文本，再发送文本消息
         if (text?.trim()) {
@@ -438,10 +447,7 @@ export const dingtalkPlugin: ChannelPlugin<ResolvedDingTalkAccount> = {
       let cleared = false;
       let changed = false;
 
-      if (
-        nextDingTalk.clientId ||
-        nextDingTalk.clientSecret
-      ) {
+      if (nextDingTalk.clientId || nextDingTalk.clientSecret) {
         delete nextDingTalk.clientId;
         delete nextDingTalk.clientSecret;
         cleared = true;

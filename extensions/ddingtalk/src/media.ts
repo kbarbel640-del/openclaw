@@ -1,7 +1,7 @@
 import type { ResolvedDingTalkAccount } from "./types.js";
 import { getFileDownloadUrl, downloadFromUrl } from "./client.js";
-import { getDingTalkRuntime } from "./runtime.js";
 import { logger } from "./logger.js";
+import { getDingTalkRuntime } from "./runtime.js";
 
 // ============================================================================
 // 媒体信息类型定义
@@ -130,7 +130,7 @@ export interface DownloadMediaResult {
  * 失败时直接抛出错误，错误消息可直接展示给用户
  */
 export async function downloadAndSaveMedia(
-  options: DownloadMediaOptions
+  options: DownloadMediaOptions,
 ): Promise<DownloadMediaResult> {
   const { downloadCode, account, mediaKind, fileName } = options;
   const pluginRuntime = getDingTalkRuntime();
@@ -148,9 +148,10 @@ export async function downloadAndSaveMedia(
 
   // 2. 下载文件
   const buffer = await downloadFromUrl(downloadUrl);
-  const sizeStr = buffer.length > 1024 * 1024
-    ? `${(buffer.length / 1024 / 1024).toFixed(2)} MB`
-    : `${(buffer.length / 1024).toFixed(2)} KB`;
+  const sizeStr =
+    buffer.length > 1024 * 1024
+      ? `${(buffer.length / 1024 / 1024).toFixed(2)} MB`
+      : `${(buffer.length / 1024).toFixed(2)} KB`;
   logger.log(`下载${kindLabel}成功，大小: ${sizeStr}`);
 
   // 3. 使用 OpenClaw 的 media 工具保存，让 OpenClaw 自己处理文件名和后缀
@@ -159,7 +160,7 @@ export async function downloadAndSaveMedia(
     undefined, // contentType: 让 OpenClaw 自动检测
     "inbound",
     buffer.length, // maxBytes: 使用实际大小，避免默认 5MB 限制
-    fileName // originalFilename: 直接传原始文件名
+    fileName, // originalFilename: 直接传原始文件名
   );
 
   logger.log(`${kindLabel}已保存到: ${saved.path}`);

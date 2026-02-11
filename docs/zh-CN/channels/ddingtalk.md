@@ -24,7 +24,7 @@ openclaw plugins install @openclaw/ddingtalk
 openclaw plugins install ./extensions/ddingtalk
 ```
 
-___
+---
 
 ## 快速开始
 

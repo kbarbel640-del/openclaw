@@ -1,14 +1,14 @@
-import { DWClient, TOPIC_ROBOT, type DWClientDownStream } from "dingtalk-stream";
 import type { OpenClawConfig, RuntimeEnv } from "openclaw/plugin-sdk";
-import type { DingTalkMessageData } from "./types.js";
-import { replyViaWebhook } from "./client.js";
-import { resolveDingTalkAccount } from "./accounts.js";
-import { getDingTalkRuntime } from "./runtime.js";
-import { logger } from "./logger.js";
-import { PLUGIN_ID } from "./constants.js";
+import { DWClient, TOPIC_ROBOT, type DWClientDownStream } from "dingtalk-stream";
 import type { InboundMediaContext } from "./media.js";
-import { generateMediaPlaceholder, buildMediaContextFields, getErrorMessage } from "./media.js";
+import type { DingTalkMessageData } from "./types.js";
+import { resolveDingTalkAccount } from "./accounts.js";
+import { replyViaWebhook } from "./client.js";
+import { PLUGIN_ID } from "./constants.js";
 import { getMessageHandler } from "./handlers.js";
+import { logger } from "./logger.js";
+import { generateMediaPlaceholder, buildMediaContextFields, getErrorMessage } from "./media.js";
+import { getDingTalkRuntime } from "./runtime.js";
 
 export interface MonitorOptions {
   clientId: string;
@@ -87,9 +87,7 @@ export function monitorDingTalkProvider(options: MonitorOptions): MonitorResult 
       return true;
     }
     const prefixPattern = new RegExp(`^${PLUGIN_ID}:(?:user:)?`, "i");
-    return allowList
-      .map((entry) => entry.replace(prefixPattern, ""))
-      .includes(senderId);
+    return allowList.map((entry) => entry.replace(prefixPattern, "")).includes(senderId);
   };
 
   // Record starting state
@@ -145,7 +143,7 @@ export function monitorDingTalkProvider(options: MonitorOptions): MonitorResult 
     data: DingTalkMessageData,
     sender: ReturnType<typeof buildSenderInfo>,
     rawBody: string,
-    media?: InboundMediaContext
+    media?: InboundMediaContext,
   ) => {
     // 解析路由
     const route = pluginRuntime.channel.routing.resolveAgentRoute({
@@ -229,10 +227,7 @@ export function monitorDingTalkProvider(options: MonitorOptions): MonitorResult 
   });
 
   /** 异步处理消息（不阻塞钉钉响应） */
-  const processMessageAsync = async (
-    data: DingTalkMessageData,
-    media?: InboundMediaContext
-  ) => {
+  const processMessageAsync = async (data: DingTalkMessageData, media?: InboundMediaContext) => {
     try {
       // 1. 构建发送者信息
       const sender = buildSenderInfo(data);
@@ -244,12 +239,13 @@ export function monitorDingTalkProvider(options: MonitorOptions): MonitorResult 
       const ctxPayload = buildInboundContext(data, sender, rawBody, media);
 
       // 4. 分发消息给 OpenClaw
-      const { queuedFinal } = await pluginRuntime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
-        ctx: ctxPayload,
-        cfg: config,
-        dispatcherOptions: createReplyDispatcher(data),
-        replyOptions: {},
-      });
+      const { queuedFinal } =
+        await pluginRuntime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+          ctx: ctxPayload,
+          cfg: config,
+          dispatcherOptions: createReplyDispatcher(data),
+          replyOptions: {},
+        });
 
       if (!queuedFinal) {
         logger.log(`no response generated for message from ${sender.label}`);
@@ -303,7 +299,8 @@ export function monitorDingTalkProvider(options: MonitorOptions): MonitorResult 
       }
 
       // 异步处理消息
-      handler.handle(data, account)
+      handler
+        .handle(data, account)
         .then((result) => {
           if (!result.success) {
             replyError(data.sessionWebhook, result.errorMessage);

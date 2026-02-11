@@ -1,12 +1,9 @@
 ---
-
 summary: "DingTalk App Robot Support Status, Features, and Configuration"
 read_when:
-
-- You want to connect a DingTalk app robot
-  - You are configuring the DingTalk channel
+  - You want to connect a DingTalk app robot
+    - You are configuring the DingTalk channel
 title: DingTalk
-
 ---
 
 # DingTalk App Robot
@@ -27,7 +24,7 @@ Local checkout (run inside the git repository):
 openclaw plugins install ./extensions/ddingtalk
 ```
 
-___
+---
 
 ## Quick Start
 

@@ -1,7 +1,17 @@
-import type { DingTalkMessageData, ResolvedDingTalkAccount, AudioContent, VideoContent, FileContent, PictureContent, RichTextContent, RichTextElement, RichTextPictureElement } from "./types.js";
 import type { MediaItem, InboundMediaContext } from "./media.js";
-import { downloadAndSaveMedia, getErrorMessage } from "./media.js";
+import type {
+  DingTalkMessageData,
+  ResolvedDingTalkAccount,
+  AudioContent,
+  VideoContent,
+  FileContent,
+  PictureContent,
+  RichTextContent,
+  RichTextElement,
+  RichTextPictureElement,
+} from "./types.js";
 import { logger } from "./logger.js";
+import { downloadAndSaveMedia, getErrorMessage } from "./media.js";
 
 // ============================================================================
 // 消息处理器类型定义
@@ -377,9 +387,8 @@ const richTextMessageHandler: MessageHandler = {
         data.text = { content: combinedText };
       }
 
-      const media: InboundMediaContext | undefined = mediaItems.length > 0
-        ? { items: mediaItems, primary: mediaItems[0] }
-        : undefined;
+      const media: InboundMediaContext | undefined =
+        mediaItems.length > 0 ? { items: mediaItems, primary: mediaItems[0] } : undefined;
 
       return {
         success: true,
