@@ -249,7 +249,12 @@ export async function prepareSlackMessage(params: {
     cfg,
     surface: "slack",
   });
-  const hasControlCommandInMessage = hasControlCommand(message.text ?? "", cfg);
+  // Strip Slack mentions (<@U123>) before command detection so "@Labrador /new" is recognized
+  const textForCommandDetection = (message.text ?? "")
+    .replace(/<@[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const hasControlCommandInMessage = hasControlCommand(textForCommandDetection, cfg);
 
   const ownerAuthorized = resolveSlackAllowListMatch({
     allowList: allowFromLower,
