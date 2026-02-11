@@ -21,6 +21,8 @@ export {
   applySyntheticProviderConfig,
   applyTogetherConfig,
   applyTogetherProviderConfig,
+  applyDeepseekConfig,
+  applyDeepseekProviderConfig,
   applyVeniceConfig,
   applyVeniceProviderConfig,
   applyVercelAiGatewayConfig,
@@ -58,6 +60,7 @@ export {
   setOpenrouterApiKey,
   setSyntheticApiKey,
   setTogetherApiKey,
+  setDeepseekApiKey,
   setVeniceApiKey,
   setVercelAiGatewayApiKey,
   setXiaomiApiKey,
@@ -68,6 +71,7 @@ export {
   XIAOMI_DEFAULT_MODEL_REF,
   ZAI_DEFAULT_MODEL_REF,
   TOGETHER_DEFAULT_MODEL_REF,
+  DEEPSEEK_DEFAULT_MODEL_REF,
   XAI_DEFAULT_MODEL_REF,
 } from "./onboard-auth.credentials.js";
 export {

@@ -20,6 +20,7 @@ export type AuthChoice =
   | "synthetic-api-key"
   | "venice-api-key"
   | "together-api-key"
+  | "deepseek-api-key"
   | "codex-cli"
   | "apiKey"
   | "gemini-api-key"
@@ -57,6 +58,7 @@ export type AuthChoiceGroupId =
   | "venice"
   | "qwen"
   | "qianfan"
+  | "deepseek"
   | "xai"
   | "custom";
 export type GatewayAuthChoice = "token" | "password";
@@ -102,6 +104,7 @@ export type OnboardOptions = {
   syntheticApiKey?: string;
   veniceApiKey?: string;
   togetherApiKey?: string;
+  deepseekApiKey?: string;
   opencodeZenApiKey?: string;
   xaiApiKey?: string;
   qianfanApiKey?: string;
