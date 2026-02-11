@@ -189,7 +189,7 @@ Stop the VM and restart without display:
 
 ```bash
 lume stop openclaw
-lume run openclaw --no-display > /dev/null 2>&1 &
+lume run openclaw --no-display
 ```
 
 The VM runs in the background. OpenClaw's daemon keeps the gateway running.
