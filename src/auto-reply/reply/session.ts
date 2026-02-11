@@ -365,19 +365,34 @@ export async function initSessionState(params: {
     },
   );
 
+  // For new sessions triggered by reset commands, prepend a reminder to check workspace context.
+  let effectiveBody =
+    bodyStripped ??
+    ctx.BodyForAgent ??
+    ctx.Body ??
+    ctx.CommandBody ??
+    ctx.RawBody ??
+    ctx.BodyForCommands ??
+    "";
+
+  if (isNewSession && resetTriggered) {
+    // When a session reset is triggered, remind the AI to review workspace context files.
+    // These files (SOUL.md, USER.md, MEMORY.md, memory/*.md) are auto-loaded in the
+    // system prompt's "Project Context" section, but an explicit reminder helps ensure
+    // they are actively referenced at session start, as specified in AGENTS.md.
+    const contextReminder =
+      "[System: New session started. Review the Project Context section in your system prompt " +
+      "(SOUL.md, USER.md, MEMORY.md, and recent memory/*.md files) before responding.]";
+    effectiveBody = effectiveBody.trim()
+      ? `${contextReminder}\n\n${effectiveBody}`
+      : `${contextReminder}\n\nGreet the user based on the context above.`;
+  }
+
   const sessionCtx: TemplateContext = {
     ...ctx,
     // Keep BodyStripped aligned with Body (best default for agent prompts).
     // RawBody is reserved for command/directive parsing and may omit context.
-    BodyStripped: normalizeInboundTextNewlines(
-      bodyStripped ??
-        ctx.BodyForAgent ??
-        ctx.Body ??
-        ctx.CommandBody ??
-        ctx.RawBody ??
-        ctx.BodyForCommands ??
-        "",
-    ),
+    BodyStripped: normalizeInboundTextNewlines(effectiveBody),
     SessionId: sessionId,
     IsNewSession: isNewSession ? "true" : "false",
   };
