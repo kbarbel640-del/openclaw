@@ -360,20 +360,15 @@ export async function runReplyAgent(params: {
         defaultRuntime.log?.(
           `Session locked (retry ${retryCount + 1}/${MAX_LOCK_RETRIES}), queuing message for retry: ${sessionKey ?? followupRun.run.sessionId}`,
         );
-        if (queue) {
-          queue.lockRetryCount = retryCount + 1;
-          // Use the standard enqueue path so cap/drop-policy and dedupe
-          // checks are respected — this item was never dequeued from the
-          // queue (it's the initial direct run), so raw unshift would
-          // bypass those safeguards and could grow the queue past cap.
-          enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
-        } else {
-          enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
-          // Seed lockRetryCount on the newly created queue so the retry cap
-          // is consistent with the drain-path counter.
-          const newQueue = FOLLOWUP_QUEUES.get(queueKey);
-          if (newQueue) {
-            newQueue.lockRetryCount = retryCount + 1;
+        // Use the standard enqueue path so cap/drop-policy and dedupe
+        // checks are respected. Only increment the retry counter if the
+        // item was actually accepted — otherwise the budget is consumed
+        // without a queued retry, causing premature drops under contention.
+        const accepted = enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
+        if (accepted) {
+          const q = queue ?? FOLLOWUP_QUEUES.get(queueKey);
+          if (q) {
+            q.lockRetryCount = retryCount + 1;
           }
         }
         // Wait before retrying so we don't spam the lock.

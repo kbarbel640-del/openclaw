@@ -176,6 +176,11 @@ export function scheduleFollowupDrain(
                   }
                 }
               }
+              // Bound summary lines to cap so overflow prompts stay bounded.
+              const summaryLimit = Math.max(0, cap);
+              if (queue.summaryLines.length > summaryLimit) {
+                queue.summaryLines.splice(0, queue.summaryLines.length - summaryLimit);
+              }
             },
           );
           continue;
