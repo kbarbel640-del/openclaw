@@ -485,10 +485,43 @@ async function executeJobCore(
       return { status: "ok" };
     }
 
-    // Gate passed — inject output into onOutput message and enqueue as system event
+    // Gate passed — build the message from template
     const messageText = onOutput.message.replace("{{output}}", output.slice(0, 4000));
-    const systemText = `[shellGate:${job.name}] ${messageText}`;
 
+    if (job.sessionTarget === "isolated") {
+      // Spawn a proper isolated agent session with full tool access
+      const isolatedMessage = `[shellGate:${job.name}] ${messageText}`;
+      const res = await state.deps.runIsolatedAgentJob({
+        job: {
+          ...job,
+          payload: {
+            kind: "agentTurn" as const,
+            message: isolatedMessage,
+            model: onOutput.model,
+            thinking: onOutput.thinking,
+            timeoutSeconds: onOutput.timeoutSeconds,
+          },
+        },
+        message: isolatedMessage,
+      });
+
+      // Post summary back to main session if delivery is configured
+      const summaryText = res.summary?.trim();
+      const deliveryPlan = resolveCronDeliveryPlan(job);
+      if (deliveryPlan.mode !== "silent" && summaryText && deliveryPlan.requested) {
+        const label = `[cron:${job.id} ${job.name ?? ""}] ${summaryText}`.slice(0, 400);
+        state.deps.enqueueSystemEvent(label, { agentId: job.agentId });
+      }
+
+      return {
+        status: res.error ? "error" : "ok",
+        error: res.error,
+        summary: (res.summary ?? isolatedMessage).slice(0, 200),
+      };
+    }
+
+    // Main session path — inject as system event
+    const systemText = `[shellGate:${job.name}] ${messageText}`;
     state.deps.enqueueSystemEvent(systemText, { agentId: job.agentId });
     if (job.wakeMode === "now") {
       state.deps.requestHeartbeatNow({ reason: `cron:${job.id}` });

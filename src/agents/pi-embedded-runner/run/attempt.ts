@@ -753,7 +753,7 @@ export async function runEmbeddedAttempt(
         if (prePromptHookConfig?.enabled) {
           try {
             const { runPrePromptHook } = await import("../../../infra/pre-prompt-hook.js");
-            const hookOutput = runPrePromptHook(prePromptHookConfig, effectivePrompt);
+            const hookOutput = await runPrePromptHook(prePromptHookConfig, effectivePrompt);
             if (hookOutput) {
               const position = prePromptHookConfig.position ?? "afterSystem";
               if (position === "beforeUser") {
