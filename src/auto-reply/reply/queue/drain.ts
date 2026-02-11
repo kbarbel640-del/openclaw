@@ -158,10 +158,15 @@ export function scheduleFollowupDrain(
               queue.droppedCount += savedDroppedCount;
               queue.summaryLines.push(...savedSummaryLines);
               // Re-apply cap/drop policy so restored items don't inflate past the limit.
-              applyQueueDropPolicy({
+              // For dropPolicy "new", applyQueueDropPolicy returns false without
+              // trimming, so we manually truncate to cap to prevent unbounded growth.
+              const accepted = applyQueueDropPolicy({
                 queue,
                 summarize: (item) => item.prompt,
               });
+              if (!accepted && queue.items.length > queue.cap) {
+                queue.items.length = queue.cap;
+              }
             },
           );
           continue;

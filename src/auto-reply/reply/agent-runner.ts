@@ -362,11 +362,11 @@ export async function runReplyAgent(params: {
         );
         if (queue) {
           queue.lockRetryCount = retryCount + 1;
-          // Re-insert at front to preserve FIFO order. The item was shift()ed
-          // by the drain loop so this is a restore, not a new addition — cap
-          // checks don't apply since the item was already counted.
-          queue.items.unshift(followupRun);
-          queue.lastEnqueuedAt = Date.now();
+          // Use the standard enqueue path so cap/drop-policy and dedupe
+          // checks are respected — this item was never dequeued from the
+          // queue (it's the initial direct run), so raw unshift would
+          // bypass those safeguards and could grow the queue past cap.
+          enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
         } else {
           enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
           // Seed lockRetryCount on the newly created queue so the retry cap
