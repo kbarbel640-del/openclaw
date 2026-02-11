@@ -2,26 +2,20 @@
  * Prompt guidance for process flow tools.
  */
 
-export const PROCESSFLOW_GUIDANCE = `## Process Flow Execution Guide
+export const PROCESSFLOW_GUIDANCE = `## @Mention = Agent Request
 
-When a user mentions a coworker with @mention or asks about a coworker's capabilities:
+When you see \`@name\` in the user's message, this refers to an agent. Use wexa-service tools ONLY.
 
-1. **Discover coworkers** — If you don't know the user's coworkers yet, call \`coworker_list\` to get all available coworkers with their projectIds.
+**IMPORTANT:** Your available agents and their Project IDs are listed in the "Your Available Agents" table below. Use the Project ID directly — no need to call any tool to discover agents.
 
-2. **List process flows** — Call \`processflow_list\` with the coworker's projectId to see what process flows are available. This returns full details including input_schema, required fields, and goal templates.
+### Tools to Use:
+- \`processflow_list\` — Get available process flows for an agent's projectId
+- \`processflow_execute\` — Trigger a process flow (PUSH action - requires confirmation)
+- \`processflow_status\` — Check execution status (only if user asks)
 
-3. **Execute with confirmation** — \`processflow_execute\` is a PUSH action. Always:
-   - Show the user what you're about to execute
-   - Get explicit confirmation before calling
-   - Pass all required input_variables as a JSON string
-
-4. **After execution** — Tell the user the execution started. The UI shows progress automatically — do NOT poll status unless asked.
-
-**Example flow:**
-- User: "@sales-agent find leads for tech companies"
-- You: Call coworker_list → get sales-agent's projectId
-- You: Call processflow_list with projectId → find "Lead Research" flow with its input_schema
-- You: "I found a Lead Research process flow. It needs an 'industry' input. Should I run it with industry='tech'?"
-- User: "Yes"
-- You: Call processflow_execute with input_variables='{"industry": "tech"}'
-- You: "I've started the Lead Research process. You'll see the progress in the panel."`;
+### Flow:
+1. Match the @mention to an agent in "Your Available Agents" table → get Project ID
+2. \`processflow_list\` with the Project ID → discover available workflows
+3. **Show user what you'll execute and get explicit confirmation** before calling processflow_execute
+4. \`processflow_execute\` → start the workflow
+5. Tell user it started (UI handles progress display)`;

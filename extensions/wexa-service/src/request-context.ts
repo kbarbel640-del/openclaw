@@ -76,6 +76,33 @@ export function getEffectiveUserContext(): {
 }
 
 /**
+ * Get user context by session key directly.
+ * Use this when currentSessionKey is not set (e.g., in before_agent_start hook).
+ */
+export function getUserContextBySessionKey(sessionKey: string): {
+  orgId?: string;
+  userId?: string;
+  projectId?: string;
+  apiKey?: string;
+} {
+  const ctx = getGlobalSessionContext(sessionKey);
+  if (!ctx) {
+    return {
+      orgId: undefined,
+      userId: undefined,
+      projectId: undefined,
+      apiKey: undefined,
+    };
+  }
+  return {
+    orgId: ctx.orgId,
+    userId: ctx.userId,
+    projectId: ctx.projectId,
+    apiKey: ctx.apiKey,
+  };
+}
+
+/**
  * Error message when user context is not set.
  */
 export const MISSING_CONTEXT_ERROR =

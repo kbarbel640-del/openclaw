@@ -33,7 +33,7 @@ export function createProcessflowExecuteTool(config: WexaServiceConfig) {
 3. Showed the user a preview of what will be executed and got confirmation
 
 **Parameters:**
-- project_id: The coworker's project ID (from coworker_list)
+- project_id: The agent's project ID (from "Your Available Agents" table)
 - agentflow_id: The process flow to execute (from processflow_list)
 - goal: The goal template (from processflow_list, optionally filled with specifics)
 - input_variables: JSON string of input field values matching the input_schema from processflow_list
@@ -60,7 +60,8 @@ export function createProcessflowExecuteTool(config: WexaServiceConfig) {
       if (!projectId) {
         return jsonResult({
           success: false,
-          error: "project_id is required. Use coworker_list to get the projectId.",
+          error:
+            "project_id is required. Get the projectId from the 'Your Available Agents' table in your context.",
         });
       }
       if (!agentflowId) {

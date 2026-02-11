@@ -5,25 +5,20 @@
 import { Type } from "@sinclair/typebox";
 
 // ============================================================================
-// Coworker Tool Schemas
-// ============================================================================
-
-export const CoworkerListSchema = Type.Object({});
-
-// ============================================================================
 // Process Flow Tool Schemas
 // ============================================================================
 
 export const ProcessflowListSchema = Type.Object({
   project_id: Type.String({
     description:
-      "The project ID of the coworker whose process flows you want to list. Get this from coworker_list.",
+      "The project ID of the agent whose process flows you want to list. Get this from the 'Your Available Agents' table in your context.",
   }),
 });
 
 export const ProcessflowExecuteSchema = Type.Object({
   project_id: Type.String({
-    description: "The project ID of the coworker. Get this from coworker_list.",
+    description:
+      "The project ID of the agent. Get this from the 'Your Available Agents' table in your context.",
   }),
   agentflow_id: Type.String({
     description: "The process flow (agentflow) ID to execute. Get this from processflow_list.",

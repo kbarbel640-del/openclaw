@@ -2,7 +2,7 @@
  * processflow_list tool: lists all process flows (agentflows) for a given project.
  *
  * This tool calls the Data-Service API to retrieve available process flows
- * that can be executed for a specific coworker/project.
+ * that can be executed for a specific agent/project.
  *
  * The API returns full input_schema and template in the response, so this
  * is the only tool needed to discover flows and their input requirements.
@@ -18,16 +18,16 @@ export function createProcessflowListTool(config: WexaServiceConfig) {
   return {
     label: "Process Flow List",
     name: "processflow_list",
-    description: `List all process flows (agentflows) available for a coworker/project with full input schemas.
+    description: `List all process flows (agentflows) available for an agent/project with full input schemas.
 
 **Use this when:**
-- User mentions a specific coworker via @mention and you need to see what it can do
-- User asks "what can [coworker] do?" or "show me [coworker]'s workflows"
+- User mentions a specific agent via @mention and you need to see what it can do
+- User asks "what can [agent] do?" or "show me [agent]'s workflows"
 - You need to discover available process flows before executing one
 - You need the agentflow_id and input_schema before calling processflow_execute
 
 **Prerequisites:**
-- Call coworker_list first to get the projectId for the target coworker
+- Get the projectId from the "Your Available Agents" table in your context
 
 **Returns:** List of process flows with:
 - id: The agentflow_id to use with processflow_execute
@@ -52,7 +52,7 @@ This is a read-only/pull action — execute autonomously without asking permissi
         return jsonResult({
           success: false,
           error:
-            "project_id is required. Use coworker_list to get the projectId for the target coworker.",
+            "project_id is required. Get the projectId from the 'Your Available Agents' table in your context.",
         });
       }
 
