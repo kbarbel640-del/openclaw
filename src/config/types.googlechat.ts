@@ -119,6 +119,8 @@ export type GoogleChatAccountConfig = {
    * Auto-populated when users message the bot.
    */
   knownSpaces?: GoogleChatKnownSpaces;
+  /** Outbound response prefix override for this channel/account. */
+  responsePrefix?: string;
 };
 
 export type GoogleChatConfig = {

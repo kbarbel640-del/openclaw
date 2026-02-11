@@ -6,7 +6,9 @@ import { getCachedSpaceForUser } from "./space-cache.js";
 
 export function normalizeGoogleChatTarget(raw?: string | null): string | undefined {
   const trimmed = raw?.trim();
-  if (!trimmed) return undefined;
+  if (!trimmed) {
+    return undefined;
+  }
   const withoutPrefix = trimmed.replace(/^(googlechat|google-chat|gchat):/i, "");
   const normalized = withoutPrefix
     .replace(/^user:(users\/)?/i, "users/")
@@ -15,8 +17,12 @@ export function normalizeGoogleChatTarget(raw?: string | null): string | undefin
     const suffix = normalized.slice("users/".length);
     return suffix.includes("@") ? `users/${suffix.toLowerCase()}` : normalized;
   }
-  if (isGoogleChatSpaceTarget(normalized)) return normalized;
-  if (normalized.includes("@")) return `users/${normalized.toLowerCase()}`;
+  if (isGoogleChatSpaceTarget(normalized)) {
+    return normalized;
+  }
+  if (normalized.includes("@")) {
+    return `users/${normalized.toLowerCase()}`;
+  }
   return normalized;
 }
 
@@ -30,7 +36,9 @@ export function isGoogleChatSpaceTarget(value: string): boolean {
 
 function stripMessageSuffix(target: string): string {
   const index = target.indexOf("/messages/");
-  if (index === -1) return target;
+  if (index === -1) {
+    return target;
+  }
   return target.slice(0, index);
 }
 
@@ -65,10 +73,12 @@ export async function resolveGoogleChatOutboundSpace(
   }
   
   const base = stripMessageSuffix(normalized);
-  
+
   // 1. Already a space target
-  if (isGoogleChatSpaceTarget(base)) return base;
-  
+  if (isGoogleChatSpaceTarget(base)) {
+    return base;
+  }
+
   // 2. User target - try cache first
   if (isGoogleChatUserTarget(base) && useCache && cfg) {
     const cached = getCachedSpaceForUser(cfg, base, account.accountId);
@@ -76,7 +86,7 @@ export async function resolveGoogleChatOutboundSpace(
       return cached.spaceId;
     }
   }
-  
+
   // 3. User target - try findDirectMessage API
   if (isGoogleChatUserTarget(base) && useFindDirectMessage) {
     const dm = await findGoogleChatDirectMessage({
@@ -87,15 +97,15 @@ export async function resolveGoogleChatOutboundSpace(
       return dm.name;
     }
   }
-  
+
   // 4. Failed to resolve
   if (isGoogleChatUserTarget(base)) {
     throw new Error(
       `No Google Chat DM found for ${base}. ` +
-      `The user must message the bot first, or you can use: ` +
-      `moltbot message send --channel googlechat --to "spaces/XXX" --text "..."`
+        `The user must message the bot first, or you can use: ` +
+        `moltbot message send --channel googlechat --to "spaces/XXX" --text "..."`,
     );
   }
-  
+
   return base;
 }
