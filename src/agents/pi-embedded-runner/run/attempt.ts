@@ -87,7 +87,7 @@ import {
 } from "../system-prompt.js";
 import { splitSdkTools } from "../tool-split.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
-import { detectAndLoadPromptImages } from "./images.js";
+import { detectAndLoadPromptImages, stripImageContentForTextModel } from "./images.js";
 
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
@@ -561,8 +561,24 @@ export async function runEmbeddedAttempt(
           getDmHistoryLimitFromSessionKey(params.sessionKey, params.config),
         );
         cacheTrace?.recordStage("session:limited", { messages: limited });
-        if (limited.length > 0) {
-          activeSession.agent.replaceMessages(limited);
+
+        // Strip image content blocks when the model doesn't support vision (#14129).
+        // This allows seamless switching from a vision model to a text-only model
+        // without the API rejecting image blocks it cannot process.
+        const final = modelHasVision
+          ? limited
+          : (() => {
+              const { messages: stripped, strippedCount } = stripImageContentForTextModel(limited);
+              if (strippedCount > 0) {
+                log.info(
+                  `Stripped ${strippedCount} image block(s) from history (model lacks vision support).`,
+                );
+              }
+              return stripped;
+            })();
+
+        if (final.length > 0) {
+          activeSession.agent.replaceMessages(final);
         }
       } catch (err) {
         sessionManager.flushPendingToolResults?.();

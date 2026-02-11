@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -444,4 +445,87 @@ export async function detectAndLoadPromptImages(params: {
     loadedCount,
     skippedCount,
   };
+}
+
+/**
+ * Strip image content blocks from session messages when the target model
+ * does not support image input. This allows model switching from a
+ * vision-capable model to a text-only model without API errors.
+ *
+ * Image blocks are replaced with a text placeholder so the model understands
+ * that an image was present (preserving conversational context).
+ *
+ * Returns the cleaned messages and the number of image blocks stripped.
+ */
+export function stripImageContentForTextModel(messages: AgentMessage[]): {
+  messages: AgentMessage[];
+  strippedCount: number;
+} {
+  let strippedCount = 0;
+  const cleaned: AgentMessage[] = [];
+
+  for (const msg of messages) {
+    if (!msg || typeof msg !== "object") {
+      cleaned.push(msg);
+      continue;
+    }
+
+    const role = (msg as { role?: string }).role;
+
+    if (role === "user") {
+      const userMsg = msg as Extract<AgentMessage, { role: "user" }>;
+      const content = userMsg.content;
+      if (Array.isArray(content)) {
+        const filtered = [];
+        let imageCount = 0;
+        for (const block of content) {
+          if (block && typeof block === "object" && (block as { type?: string }).type === "image") {
+            imageCount++;
+            strippedCount++;
+          } else {
+            filtered.push(block);
+          }
+        }
+        if (imageCount > 0) {
+          const placeholder =
+            imageCount === 1
+              ? "[An image was shared but is not available to this model]"
+              : `[${imageCount} images were shared but are not available to this model]`;
+          filtered.push({ type: "text" as const, text: placeholder });
+        }
+        cleaned.push({ ...userMsg, content: filtered } as AgentMessage);
+        continue;
+      }
+    }
+
+    if (role === "toolResult") {
+      const toolMsg = msg as Extract<AgentMessage, { role: "toolResult" }>;
+      const content = Array.isArray(toolMsg.content) ? toolMsg.content : [];
+      const filtered = [];
+      let imageCount = 0;
+      for (const block of content) {
+        if (block && typeof block === "object" && (block as { type?: string }).type === "image") {
+          imageCount++;
+          strippedCount++;
+        } else {
+          filtered.push(block);
+        }
+      }
+      if (imageCount > 0) {
+        filtered.push({ type: "text" as const, text: "[image content stripped for text model]" });
+      }
+      cleaned.push({ ...toolMsg, content: filtered } as AgentMessage);
+      continue;
+    }
+
+    cleaned.push(msg);
+  }
+
+  if (strippedCount > 0) {
+    log.debug(
+      `stripImageContentForTextModel: stripped ${strippedCount} image block(s) from ${messages.length} message(s)`,
+    );
+  }
+
+  return { messages: cleaned, strippedCount };
 }
