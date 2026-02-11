@@ -50,61 +50,15 @@ import {
   resolveSandboxWorkdir,
   resolveWorkdir,
   truncateMiddle,
+  enforceSecurityBlock,
+  validateHostEnv,
+  validateSandboxEnv,
 } from "./bash-tools.shared.js";
 import { buildCursorPositionResponse, stripDsrRequests } from "./pty-dsr.js";
 import { getShellConfig, sanitizeBinaryOutput } from "./shell-utils.js";
 import { callGatewayTool } from "./tools/gateway.js";
 import { listNodes, resolveNodeIdFromList } from "./tools/nodes-utils.js";
 
-// Security: Blocklist of environment variables that could alter execution flow
-// or inject code when running on non-sandboxed hosts (Gateway/Node).
-const DANGEROUS_HOST_ENV_VARS = new Set([
-  "LD_PRELOAD",
-  "LD_LIBRARY_PATH",
-  "LD_AUDIT",
-  "DYLD_INSERT_LIBRARIES",
-  "DYLD_LIBRARY_PATH",
-  "NODE_OPTIONS",
-  "NODE_PATH",
-  "PYTHONPATH",
-  "PYTHONHOME",
-  "RUBYLIB",
-  "PERL5LIB",
-  "BASH_ENV",
-  "ENV",
-  "GCONV_PATH",
-  "IFS",
-  "SSLKEYLOGFILE",
-]);
-const DANGEROUS_HOST_ENV_PREFIXES = ["DYLD_", "LD_"];
-
-// Centralized sanitization helper.
-// Throws an error if dangerous variables or PATH modifications are detected on the host.
-function validateHostEnv(env: Record<string, string>): void {
-  for (const key of Object.keys(env)) {
-    const upperKey = key.toUpperCase();
-
-    // 1. Block known dangerous variables (Fail Closed)
-    if (DANGEROUS_HOST_ENV_PREFIXES.some((prefix) => upperKey.startsWith(prefix))) {
-      throw new Error(
-        `Security Violation: Environment variable '${key}' is forbidden during host execution.`,
-      );
-    }
-    if (DANGEROUS_HOST_ENV_VARS.has(upperKey)) {
-      throw new Error(
-        `Security Violation: Environment variable '${key}' is forbidden during host execution.`,
-      );
-    }
-
-    // 2. Strictly block PATH modification on host
-    // Allowing custom PATH on the gateway/node can lead to binary hijacking.
-    if (upperKey === "PATH") {
-      throw new Error(
-        "Security Violation: Custom 'PATH' variable is forbidden during host execution.",
-      );
-    }
-  }
-}
 const DEFAULT_MAX_OUTPUT = clampWithDefault(
   readEnvInt("PI_BASH_MAX_OUTPUT_CHARS"),
   200_000,
@@ -182,6 +136,8 @@ export type ExecToolDefaults = {
   messageProvider?: string;
   notifyOnExit?: boolean;
   cwd?: string;
+  /** When set, host-mode workdir is restricted to these directory roots. */
+  allowedWorkdirRoots?: string[];
 };
 
 export type { BashSandboxConfig } from "./bash-tools.shared.js";
@@ -966,15 +922,19 @@ export function createExecTool(
         workdir = resolved.hostWorkdir;
         containerWorkdir = resolved.containerWorkdir;
       } else {
-        workdir = resolveWorkdir(rawWorkdir, warnings);
+        workdir = resolveWorkdir(rawWorkdir, warnings, defaults?.allowedWorkdirRoots);
       }
 
       const baseEnv = coerceEnv(process.env);
 
-      // Logic: Sandbox gets raw env. Host (gateway/node) must pass validation.
-      // We validate BEFORE merging to prevent any dangerous vars from entering the stream.
-      if (host !== "sandbox" && params.env) {
-        validateHostEnv(params.env);
+      // Validate env vars BEFORE merging to prevent dangerous vars from entering the stream.
+      // Both sandbox and host execution paths are validated (with different blocklists).
+      if (params.env) {
+        if (host === "sandbox") {
+          validateSandboxEnv(params.env);
+        } else {
+          validateHostEnv(params.env);
+        }
       }
 
       const mergedEnv = params.env ? { ...baseEnv, ...params.env } : baseEnv;
@@ -1083,11 +1043,18 @@ export function createExecTool(
               });
               allowlistSatisfied = allowlistEval.allowlistSatisfied;
               analysisOk = allowlistEval.analysisOk;
+              enforceSecurityBlock(allowlistEval, warnings);
             }
-          } catch {
+          } catch (err) {
+            // Re-throw security blocks; fall back for other errors.
+            if (err instanceof Error && err.message.startsWith("Command blocked by security")) {
+              throw err;
+            }
             // Fall back to requiring approval if node approvals cannot be fetched.
           }
         }
+        // Hard-block from base analysis (no node approvals fetched).
+        enforceSecurityBlock(baseAllowlistEval, warnings);
         const requiresAsk = requiresExecApproval({
           ask: hostAsk,
           security: hostSecurity,
@@ -1295,6 +1262,9 @@ export function createExecTool(
         const analysisOk = allowlistEval.analysisOk;
         const allowlistSatisfied =
           hostSecurity === "allowlist" && analysisOk ? allowlistEval.allowlistSatisfied : false;
+
+        enforceSecurityBlock(allowlistEval, warnings);
+
         const requiresAsk = requiresExecApproval({
           ask: hostAsk,
           security: hostSecurity,

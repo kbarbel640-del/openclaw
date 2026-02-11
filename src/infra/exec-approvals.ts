@@ -4,6 +4,12 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { DEFAULT_AGENT_ID } from "../routing/session-key.js";
+import {
+  ANALYSIS_FAILED,
+  evaluateSuspiciousPatterns,
+  type ExecAllowlistAnalysis,
+} from "./exec-suspicious-patterns.js";
+export type { ExecAllowlistAnalysis } from "./exec-suspicious-patterns.js";
 
 export type ExecHost = "sandbox" | "gateway" | "node";
 export type ExecSecurity = "deny" | "allowlist" | "full";
@@ -1301,13 +1307,6 @@ function splitCommandChain(command: string): string[] | null {
   return parts.length > 0 ? parts : null;
 }
 
-export type ExecAllowlistAnalysis = {
-  analysisOk: boolean;
-  allowlistSatisfied: boolean;
-  allowlistMatches: ExecAllowlistEntry[];
-  segments: ExecCommandSegment[];
-};
-
 /**
  * Evaluates allowlist for shell commands (including &&, ||, ;) and returns analysis metadata.
  */
@@ -1330,12 +1329,7 @@ export function evaluateShellAllowlist(params: {
       platform: params.platform,
     });
     if (!analysis.ok) {
-      return {
-        analysisOk: false,
-        allowlistSatisfied: false,
-        allowlistMatches: [],
-        segments: [],
-      };
+      return ANALYSIS_FAILED;
     }
     const evaluation = evaluateExecAllowlist({
       analysis,
@@ -1350,6 +1344,7 @@ export function evaluateShellAllowlist(params: {
       allowlistSatisfied: evaluation.allowlistSatisfied,
       allowlistMatches: evaluation.allowlistMatches,
       segments: analysis.segments,
+      ...evaluateSuspiciousPatterns(params.command, analysis.segments),
     };
   }
 
@@ -1364,12 +1359,7 @@ export function evaluateShellAllowlist(params: {
       platform: params.platform,
     });
     if (!analysis.ok) {
-      return {
-        analysisOk: false,
-        allowlistSatisfied: false,
-        allowlistMatches: [],
-        segments: [],
-      };
+      return ANALYSIS_FAILED;
     }
 
     segments.push(...analysis.segments);
@@ -1388,6 +1378,7 @@ export function evaluateShellAllowlist(params: {
         allowlistSatisfied: false,
         allowlistMatches,
         segments,
+        ...evaluateSuspiciousPatterns(params.command, segments),
       };
     }
   }
@@ -1397,6 +1388,7 @@ export function evaluateShellAllowlist(params: {
     allowlistSatisfied: true,
     allowlistMatches,
     segments,
+    ...evaluateSuspiciousPatterns(params.command, segments),
   };
 }
 

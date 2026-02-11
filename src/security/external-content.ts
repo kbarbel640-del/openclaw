@@ -30,7 +30,7 @@ const SUSPICIOUS_PATTERNS = [
 /**
  * Check if content contains suspicious patterns that may indicate injection.
  */
-export function detectSuspiciousPatterns(content: string): string[] {
+export function detectPromptInjectionPatterns(content: string): string[] {
   const matches: string[] = [];
   for (const pattern of SUSPICIOUS_PATTERNS) {
     if (pattern.test(content)) {

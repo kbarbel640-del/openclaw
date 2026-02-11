@@ -1,12 +1,10 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import lockfile from "proper-lockfile";
 import type { ChannelId, ChannelPairingAdapter } from "../channels/plugins/types.js";
 import { getPairingAdapter } from "../channels/plugins/pairing.js";
-import { resolveOAuthDir, resolveStateDir } from "../config/paths.js";
-import { resolveRequiredHomeDir } from "../infra/home-dir.js";
+import { resolveCredentialsDir } from "../config/paths.js";
 import { safeParseJson } from "../utils.js";
 
 const PAIRING_CODE_LENGTH = 8;
@@ -43,11 +41,6 @@ type AllowFromStore = {
   version: 1;
   allowFrom: string[];
 };
-
-function resolveCredentialsDir(env: NodeJS.ProcessEnv = process.env): string {
-  const stateDir = resolveStateDir(env, () => resolveRequiredHomeDir(env, os.homedir));
-  return resolveOAuthDir(env, stateDir);
-}
 
 /** Sanitize channel ID for use in filenames (prevent path traversal). */
 function safeChannelKey(channel: PairingChannel): string {

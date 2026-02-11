@@ -122,12 +122,26 @@ export function killSession(session: { pid?: number; child?: ChildProcessWithout
   }
 }
 
-export function resolveWorkdir(workdir: string, warnings: string[]) {
+export function resolveWorkdir(workdir: string, warnings: string[], allowedRoots?: string[]) {
   const current = safeCwd();
   const fallback = current ?? homedir();
   try {
     const stats = statSync(workdir);
     if (stats.isDirectory()) {
+      // When allowedRoots is configured, restrict workdir to those directories.
+      if (allowedRoots && allowedRoots.length > 0) {
+        const resolved = path.resolve(workdir);
+        const isAllowed = allowedRoots.some((root) => {
+          const resolvedRoot = path.resolve(root);
+          return resolved === resolvedRoot || resolved.startsWith(resolvedRoot + path.sep);
+        });
+        if (!isAllowed) {
+          warnings.push(
+            `Warning: workdir "${workdir}" is outside allowed roots; using "${fallback}".`,
+          );
+          return fallback;
+        }
+      }
       return workdir;
     }
   } catch {
@@ -245,6 +259,102 @@ function stripQuotes(value: string): string {
     return trimmed.slice(1, -1);
   }
   return trimmed;
+}
+
+// Security: Blocklist of environment variables that could alter execution flow
+// or inject code when running on non-sandboxed hosts (Gateway/Node).
+const DANGEROUS_HOST_ENV_VARS = new Set([
+  "LD_PRELOAD",
+  "LD_LIBRARY_PATH",
+  "LD_AUDIT",
+  "DYLD_INSERT_LIBRARIES",
+  "DYLD_LIBRARY_PATH",
+  "NODE_OPTIONS",
+  "NODE_PATH",
+  "PYTHONPATH",
+  "PYTHONHOME",
+  "RUBYLIB",
+  "PERL5LIB",
+  "BASH_ENV",
+  "ENV",
+  "GCONV_PATH",
+  "IFS",
+  "SSLKEYLOGFILE",
+]);
+const DANGEROUS_HOST_ENV_PREFIXES = ["DYLD_", "LD_"];
+
+// Security: Blocklist of environment variables that could alter execution flow
+// inside a sandbox container (e.g. via LD_PRELOAD, BASH_ENV).
+const DANGEROUS_SANDBOX_ENV_VARS = new Set([
+  "LD_PRELOAD",
+  "LD_LIBRARY_PATH",
+  "LD_AUDIT",
+  "BASH_ENV",
+  "ENV",
+  "GCONV_PATH",
+  "PYTHONPATH",
+  "PYTHONHOME",
+  "NODE_OPTIONS",
+  "IFS",
+]);
+const DANGEROUS_SANDBOX_ENV_PREFIXES = ["LD_"];
+
+// Centralized sanitization helper.
+// Throws an error if dangerous variables or PATH modifications are detected on the host.
+export function validateHostEnv(env: Record<string, string>): void {
+  for (const key of Object.keys(env)) {
+    const upperKey = key.toUpperCase();
+    if (DANGEROUS_HOST_ENV_PREFIXES.some((prefix) => upperKey.startsWith(prefix))) {
+      throw new Error(
+        `Security Violation: Environment variable '${key}' is forbidden during host execution.`,
+      );
+    }
+    if (DANGEROUS_HOST_ENV_VARS.has(upperKey)) {
+      throw new Error(
+        `Security Violation: Environment variable '${key}' is forbidden during host execution.`,
+      );
+    }
+    if (upperKey === "PATH") {
+      throw new Error(
+        "Security Violation: Custom 'PATH' variable is forbidden during host execution.",
+      );
+    }
+  }
+}
+
+// Validates environment variables for sandbox execution.
+// Blocks variables that could escape sandbox isolation (e.g. LD_PRELOAD, BASH_ENV).
+export function validateSandboxEnv(env: Record<string, string>): void {
+  for (const key of Object.keys(env)) {
+    const upperKey = key.toUpperCase();
+    if (DANGEROUS_SANDBOX_ENV_PREFIXES.some((prefix) => upperKey.startsWith(prefix))) {
+      throw new Error(
+        `Security Violation: Environment variable '${key}' is forbidden during sandbox execution.`,
+      );
+    }
+    if (DANGEROUS_SANDBOX_ENV_VARS.has(upperKey)) {
+      throw new Error(
+        `Security Violation: Environment variable '${key}' is forbidden during sandbox execution.`,
+      );
+    }
+  }
+}
+
+/** Surface security warnings into warnings array and throw on hard-blocked commands. */
+export function enforceSecurityBlock(
+  analysis: { securityWarnings: string[]; securityBlocked: boolean },
+  warnings: string[],
+): void {
+  for (const sw of analysis.securityWarnings) {
+    warnings.push(`Security: ${sw}`);
+  }
+  if (analysis.securityBlocked) {
+    const reasons = analysis.securityWarnings.filter((w) => w.startsWith("[BLOCKED]")).join("; ");
+    throw new Error(
+      `Command blocked by security policy: ${reasons}. ` +
+        `This command contains patterns that are never allowed for automated execution.`,
+    );
+  }
 }
 
 export function pad(str: string, width: number) {

@@ -49,7 +49,7 @@ import { logWarn } from "../../logger.js";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../../routing/session-key.js";
 import {
   buildSafeExternalPrompt,
-  detectSuspiciousPatterns,
+  detectPromptInjectionPatterns,
   getHookType,
   isExternalHookSession,
 } from "../../security/external-content.js";
@@ -298,7 +298,7 @@ export async function runCronIsolatedAgentTurn(params: {
 
   if (isExternalHook) {
     // Log suspicious patterns for security monitoring
-    const suspiciousPatterns = detectSuspiciousPatterns(params.message);
+    const suspiciousPatterns = detectPromptInjectionPatterns(params.message);
     if (suspiciousPatterns.length > 0) {
       logWarn(
         `[security] Suspicious patterns detected in external hook content ` +

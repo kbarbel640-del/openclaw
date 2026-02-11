@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PluginHttpRouteRegistration, PluginRegistry } from "./registry.js";
+import { safeEqual } from "../infra/safe-equal.js";
 import { normalizePluginHttpPath } from "./http-path.js";
 import { requireActivePluginRegistry } from "./runtime.js";
 
@@ -7,6 +8,34 @@ export type PluginHttpRouteHandler = (
   req: IncomingMessage,
   res: ServerResponse,
 ) => Promise<void> | void;
+
+// Re-export for existing tests.
+export { safeEqual } from "../infra/safe-equal.js";
+
+function createAuthGuardedHandler(handler: PluginHttpRouteHandler): PluginHttpRouteHandler {
+  return async (req, res) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+    if (!token) {
+      res.statusCode = 401;
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end("Unauthorized");
+      return;
+    }
+    // Lazy-load config and auth to avoid circular dependency issues at import time.
+    const { loadConfig } = await import("../config/config.js");
+    const { resolveGatewayAuth } = await import("../gateway/auth.js");
+    const config = loadConfig();
+    const resolvedAuth = resolveGatewayAuth({ authConfig: config.gateway?.auth });
+    if (!resolvedAuth.token || !safeEqual(token, resolvedAuth.token)) {
+      res.statusCode = 403;
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.end("Forbidden");
+      return;
+    }
+    return handler(req, res);
+  };
+}
 
 export function registerPluginHttpRoute(params: {
   path?: string | null;
@@ -17,6 +46,8 @@ export function registerPluginHttpRoute(params: {
   accountId?: string;
   log?: (message: string) => void;
   registry?: PluginRegistry;
+  /** When true, reject requests without valid gateway auth token. */
+  requireAuth?: boolean;
 }): () => void {
   const registry = params.registry ?? requireActivePluginRegistry();
   const routes = registry.httpRoutes ?? [];
@@ -35,9 +66,13 @@ export function registerPluginHttpRoute(params: {
     return () => {};
   }
 
+  const finalHandler = params.requireAuth
+    ? createAuthGuardedHandler(params.handler)
+    : params.handler;
+
   const entry: PluginHttpRouteRegistration = {
     path: normalizedPath,
-    handler: params.handler,
+    handler: finalHandler,
     pluginId: params.pluginId,
     source: params.source,
   };

@@ -246,6 +246,11 @@ export function resolveOAuthDir(
   return path.join(stateDir, "credentials");
 }
 
+/** Resolve the credentials directory (convenience wrapper over resolveStateDir + resolveOAuthDir). */
+export function resolveCredentialsDir(env: NodeJS.ProcessEnv = process.env): string {
+  return resolveOAuthDir(env, resolveStateDir(env, envHomedir(env)));
+}
+
 export function resolveOAuthPath(
   env: NodeJS.ProcessEnv = process.env,
   stateDir: string = resolveStateDir(env, envHomedir(env)),
