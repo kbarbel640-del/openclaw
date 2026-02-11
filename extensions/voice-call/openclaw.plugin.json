@@ -347,10 +347,6 @@
           },
           "allowNgrokFreeTierLoopbackBypass": {
             "type": "boolean"
-          },
-          "allowNgrokFreeTier": {
-            "type": "boolean",
-            "description": "Deprecated: use allowNgrokFreeTierLoopbackBypass. Kept for backward compatibility."
           }
         }
       },
