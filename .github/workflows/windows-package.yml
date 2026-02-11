@@ -263,16 +263,31 @@ jobs:
 
           Write-Host "Testing OpenClaw CLI..." -ForegroundColor Cyan
 
-          # Test --version
+          # Test --version (capture exit code)
           Write-Host "`nTesting: node dist/index.js --version" -ForegroundColor Yellow
-          node dist/index.js --version
+          $versionOutput = & node dist/index.js --version 2>&1
+          Write-Host $versionOutput
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "[FAIL] --version failed with exit code $LASTEXITCODE" -ForegroundColor Red
+            Pop-Location
+            exit 1
+          }
 
-          # Test --help
+          # Test --help (some CLIs return non-zero for help, so just check output)
           Write-Host "`nTesting: node dist/index.js --help" -ForegroundColor Yellow
-          node dist/index.js --help | Select-Object -First 20
+          $helpOutput = & node dist/index.js --help 2>&1 | Select-Object -First 20
+          Write-Host $helpOutput
+
+          # Check if help output contains expected content
+          if ($helpOutput -match "OpenClaw|Usage|Commands") {
+            Write-Host "`n[OK] OpenClaw CLI works!" -ForegroundColor Green
+          } else {
+            Write-Host "`n[FAIL] Help output doesn't look correct" -ForegroundColor Red
+            Pop-Location
+            exit 1
+          }
 
           Pop-Location
-          Write-Host "`n[OK] OpenClaw CLI works!" -ForegroundColor Green
 
       - name: Test Install-OpenClaw.ps1 script syntax
         shell: powershell
