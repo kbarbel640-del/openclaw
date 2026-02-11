@@ -46,10 +46,14 @@ export function scheduleFollowupDrain(
               `Session locked in drain (retry ${retryCount + 1}/${MAX_LOCK_RETRIES}), re-enqueueing: ${key}`,
             );
             queue.lockRetryCount = retryCount + 1;
-            // Re-insert at front to preserve FIFO order.
-            queue.items.unshift(item);
+            if (restoreOnLock) {
+              // Collect mode: restore original items instead of the synthetic merged prompt.
+              restoreOnLock();
+            } else {
+              // Individual mode: re-insert at front to preserve FIFO order.
+              queue.items.unshift(item);
+            }
             queue.lastEnqueuedAt = Date.now();
-            restoreOnLock?.();
             await new Promise<void>((resolve) => setTimeout(resolve, LOCK_RETRY_DELAY_MS));
             return;
           }
