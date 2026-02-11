@@ -264,6 +264,8 @@ importers:
         specifier: link:../../../agent-wallet/packages/saw
         version: link:../../../agent-wallet/packages/saw
 
+  extensions/daydreams-x402-auth: {}
+
   extensions/diagnostics-otel:
     dependencies:
       '@opentelemetry/api':
