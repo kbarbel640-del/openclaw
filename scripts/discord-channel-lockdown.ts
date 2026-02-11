@@ -46,12 +46,6 @@ type ChannelInfo = {
   permission_overwrites?: PermissionOverwrite[];
 };
 
-type GuildInfo = {
-  id: string;
-  name: string;
-  channels: ChannelInfo[];
-};
-
 type RollbackEntry = {
   channelId: string;
   channelName?: string;

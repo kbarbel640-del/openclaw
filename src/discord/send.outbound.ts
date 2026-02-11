@@ -144,7 +144,7 @@ export async function sendMessageDiscord(
       () => rest.get(Routes.channel(channelId)) as Promise<APIChannel>,
       "channel-metadata",
     )) as APIChannel | undefined;
-  } catch (err) {
+  } catch {
     if (!isDm) {
       throw new DiscordSendError(
         `Cannot verify outbound allowlist: channel metadata fetch failed for ${channelId}`,
