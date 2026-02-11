@@ -7,7 +7,7 @@ This document describes how **Angel OS** relates to OpenClaw and provides enough
 **Angel OS** = OpenClaw + adoption of the **Angel OS Constitution**. OpenClaw is the conversation and interface layer; **Angel OS Core** (Payload CMS) is the backend and config store. The Constitution is the single path that ties everything together. Minimal changes to OpenClaw and to the Seed constitution are intended—alignment is achieved through the Constitution first.
 
 **Canonical Constitution:** [Angel OS Constitution](https://github.com/The-Angel-OS/angels-os/blob/main/docs/Angel_OS_Constitution.md) (Angel OS repo).  
-A minimal **Seed**—the set of principles OpenClaw commits to when running as Angel OS—is summarized in [ANGEL_OS_CONSTITUTION_SEED](/ANGEL_OS_CONSTITUTION_SEED) in this repo.
+A minimal **Seed**—the set of principles OpenClaw commits to when running as Angel OS—is summarized in [ANGEL_OS_CONSTITUTION_SEED](ANGEL_OS_CONSTITUTION_SEED) in this repo.
 
 A longer-term goal is an **immutable seed prompt**—a stable constitutional core—with content and governance open for discussion and refinement (in line with Answer 53).
 
