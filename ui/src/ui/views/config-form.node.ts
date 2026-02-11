@@ -1,5 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import type { ConfigUiHints } from "../types.ts";
+import { t } from "../i18n.ts";
 import {
   defaultValue,
   hintForPath,
@@ -116,7 +117,7 @@ export function renderNode(params: {
   if (unsupported.has(key)) {
     return html`<div class="cfg-field cfg-field--error">
       <div class="cfg-field__label">${label}</div>
-      <div class="cfg-field__error">Unsupported schema node. Use Raw mode.</div>
+      <div class="cfg-field__error">${t("config.unsupportedSchemaNode")}</div>
     </div>`;
   }
 
@@ -287,7 +288,7 @@ export function renderNode(params: {
   return html`
     <div class="cfg-field cfg-field--error">
       <div class="cfg-field__label">${label}</div>
-      <div class="cfg-field__error">Unsupported type: ${type}. Use Raw mode.</div>
+      <div class="cfg-field__error">${t("config.unsupportedType", { type: type ?? "unknown" })}</div>
     </div>
   `;
 }
@@ -314,7 +315,7 @@ function renderTextInput(params: {
     (isSensitive
       ? "••••"
       : schema.default !== undefined
-        ? `Default: ${String(schema.default)}`
+        ? `${t("config.default")}: ${String(schema.default)}`
         : "");
   const displayValue = value ?? "";
 
@@ -356,7 +357,7 @@ function renderTextInput(params: {
           <button
             type="button"
             class="cfg-input__reset"
-            title="Reset to default"
+            title=${t("config.resetToDefault")}
             ?disabled=${disabled}
             @click=${() => onPatch(path, schema.default)}
           >↺</button>
@@ -452,7 +453,7 @@ function renderSelect(params: {
           onPatch(path, val === unset ? undefined : options[Number(val)]);
         }}
       >
-        <option value=${unset}>Select...</option>
+        <option value=${unset}>${t("config.select")}</option>
         ${options.map(
           (opt, idx) => html`
           <option value=${String(idx)}>${String(opt)}</option>
@@ -593,7 +594,7 @@ function renderArray(params: {
     return html`
       <div class="cfg-field cfg-field--error">
         <div class="cfg-field__label">${label}</div>
-        <div class="cfg-field__error">Unsupported array schema. Use Raw mode.</div>
+        <div class="cfg-field__error">${t("config.unsupportedArraySchema")}</div>
       </div>
     `;
   }
@@ -623,7 +624,7 @@ function renderArray(params: {
       ${
         arr.length === 0
           ? html`
-              <div class="cfg-array__empty">No items yet. Click "Add" to create one.</div>
+              <div class="cfg-array__empty">${t("config.noItemsYet")}</div>
             `
           : html`
         <div class="cfg-array__items">
@@ -635,7 +636,7 @@ function renderArray(params: {
                 <button
                   type="button"
                   class="cfg-array__item-remove"
-                  title="Remove item"
+                  title=${t("config.removeItem")}
                   ?disabled=${disabled}
                   @click=${() => {
                     const next = [...arr];
@@ -685,7 +686,7 @@ function renderMapField(params: {
   return html`
     <div class="cfg-map">
       <div class="cfg-map__header">
-        <span class="cfg-map__label">Custom entries</span>
+        <span class="cfg-map__label">${t("config.customEntries")}</span>
         <button
           type="button"
           class="cfg-map__add"
@@ -710,7 +711,7 @@ function renderMapField(params: {
       ${
         entries.length === 0
           ? html`
-              <div class="cfg-map__empty">No custom entries.</div>
+              <div class="cfg-map__empty">${t("config.noCustomEntries")}</div>
             `
           : html`
         <div class="cfg-map__items">
@@ -723,7 +724,7 @@ function renderMapField(params: {
                   <input
                     type="text"
                     class="cfg-input cfg-input--sm"
-                    placeholder="Key"
+                    placeholder=${t("config.key")}
                     .value=${key}
                     ?disabled=${disabled}
                     @change=${(e: Event) => {
@@ -747,7 +748,7 @@ function renderMapField(params: {
                       ? html`
                         <textarea
                           class="cfg-textarea cfg-textarea--sm"
-                          placeholder="JSON value"
+                          placeholder=${t("config.jsonValue")}
                           rows="2"
                           .value=${fallback}
                           ?disabled=${disabled}
@@ -781,7 +782,7 @@ function renderMapField(params: {
                 <button
                   type="button"
                   class="cfg-map__item-remove"
-                  title="Remove entry"
+                  title=${t("config.removeEntry")}
                   ?disabled=${disabled}
                   @click=${() => {
                     const next = { ...value };

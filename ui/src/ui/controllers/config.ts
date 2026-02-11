@@ -1,5 +1,6 @@
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ConfigSchemaResponse, ConfigSnapshot, ConfigUiHints } from "../types.ts";
+import { t } from "../i18n.ts";
 import {
   cloneConfigObject,
   removePathValue,
@@ -112,7 +113,7 @@ export async function saveConfig(state: ConfigState) {
         : state.configRaw;
     const baseHash = state.configSnapshot?.hash;
     if (!baseHash) {
-      state.lastError = "Config hash missing; reload and retry.";
+      state.lastError = t("config.hashMissing");
       return;
     }
     await state.client.request("config.set", { raw, baseHash });
@@ -138,7 +139,7 @@ export async function applyConfig(state: ConfigState) {
         : state.configRaw;
     const baseHash = state.configSnapshot?.hash;
     if (!baseHash) {
-      state.lastError = "Config hash missing; reload and retry.";
+      state.lastError = t("config.hashMissing");
       return;
     }
     await state.client.request("config.apply", {

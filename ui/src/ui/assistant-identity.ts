@@ -1,7 +1,8 @@
 const MAX_ASSISTANT_NAME = 50;
+import { t } from "./i18n.ts";
 const MAX_ASSISTANT_AVATAR = 200;
 
-export const DEFAULT_ASSISTANT_NAME = "Assistant";
+export const DEFAULT_ASSISTANT_NAME = t("chat.assistant");
 export const DEFAULT_ASSISTANT_AVATAR = "A";
 
 export type AssistantIdentity = {

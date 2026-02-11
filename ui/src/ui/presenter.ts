@@ -1,5 +1,6 @@
 import type { CronJob, GatewaySessionRow, PresenceEntry } from "./types.ts";
 import { formatRelativeTimestamp, formatDurationHuman, formatMs } from "./format.ts";
+import { t } from "./i18n.ts";
 
 export function formatPresenceSummary(entry: PresenceEntry): string {
   const host = entry.host ?? "unknown";
@@ -54,20 +55,20 @@ export function formatCronSchedule(job: CronJob) {
   const s = job.schedule;
   if (s.kind === "at") {
     const atMs = Date.parse(s.at);
-    return Number.isFinite(atMs) ? `At ${formatMs(atMs)}` : `At ${s.at}`;
+    return Number.isFinite(atMs) ? `${t("cron.at")} ${formatMs(atMs)}` : `${t("cron.at")} ${s.at}`;
   }
   if (s.kind === "every") {
-    return `Every ${formatDurationHuman(s.everyMs)}`;
+    return `${t("cron.every")} ${formatDurationHuman(s.everyMs)}`;
   }
-  return `Cron ${s.expr}${s.tz ? ` (${s.tz})` : ""}`;
+  return `${t("cron.cronExpr")} ${s.expr}${s.tz ? ` (${s.tz})` : ""}`;
 }
 
 export function formatCronPayload(job: CronJob) {
   const p = job.payload;
   if (p.kind === "systemEvent") {
-    return `System: ${p.text}`;
+    return `${t("usage.system")}: ${p.text}`;
   }
-  const base = `Agent: ${p.message}`;
+  const base = `${t("common.agent")}: ${p.message}`;
   const delivery = job.delivery;
   if (delivery && delivery.mode !== "none") {
     const target =

@@ -7,6 +7,7 @@ import {
   waitWhatsAppLogin,
 } from "./controllers/channels.ts";
 import { loadConfig, saveConfig } from "./controllers/config.ts";
+import { t } from "./i18n.ts";
 import { createNostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 
 export async function handleWhatsAppStart(host: OpenClawApp, force: boolean) {
@@ -144,7 +145,8 @@ export async function handleNostrProfileSave(host: OpenClawApp) {
     } | null;
 
     if (!response.ok || data?.ok === false || !data) {
-      const errorMessage = data?.error ?? `Profile update failed (${response.status})`;
+      const errorMessage =
+        data?.error ?? t("channels.profileUpdateFailed", { status: String(response.status) });
       host.nostrProfileFormState = {
         ...state,
         saving: false,
@@ -159,7 +161,7 @@ export async function handleNostrProfileSave(host: OpenClawApp) {
       host.nostrProfileFormState = {
         ...state,
         saving: false,
-        error: "Profile publish failed on all relays.",
+        error: t("channels.profilePublishFailed"),
         success: null,
       };
       return;
@@ -169,7 +171,7 @@ export async function handleNostrProfileSave(host: OpenClawApp) {
       ...state,
       saving: false,
       error: null,
-      success: "Profile published to relays.",
+      success: t("channels.profilePublished"),
       fieldErrors: {},
       original: { ...state.values },
     };
@@ -178,7 +180,7 @@ export async function handleNostrProfileSave(host: OpenClawApp) {
     host.nostrProfileFormState = {
       ...state,
       saving: false,
-      error: `Profile update failed: ${String(err)}`,
+      error: t("channels.profileUpdateFailed", { status: String(err) }),
       success: null,
     };
   }
@@ -236,9 +238,7 @@ export async function handleNostrProfileImport(host: OpenClawApp) {
       importing: false,
       values: nextValues,
       error: null,
-      success: data.saved
-        ? "Profile imported from relays. Review and publish."
-        : "Profile imported. Review and publish.",
+      success: data.saved ? t("channels.profileImportedFromRelays") : t("channels.profileImported"),
       showAdvanced,
     };
 

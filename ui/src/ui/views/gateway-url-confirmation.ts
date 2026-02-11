@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import type { AppViewState } from "../app-view-state.ts";
+import { t } from "../i18n.ts";
 
 export function renderGatewayUrlConfirmation(state: AppViewState) {
   const { pendingGatewayUrl } = state;
@@ -12,8 +13,8 @@ export function renderGatewayUrlConfirmation(state: AppViewState) {
       <div class="exec-approval-card">
         <div class="exec-approval-header">
           <div>
-            <div class="exec-approval-title">Change Gateway URL</div>
-            <div class="exec-approval-sub">This will reconnect to a different gateway server</div>
+            <div class="exec-approval-title">${t("overview.changeGatewayUrl")}</div>
+            <div class="exec-approval-sub">${t("overview.reconnectWarning")}</div>
           </div>
         </div>
         <div class="exec-approval-command mono">${pendingGatewayUrl}</div>

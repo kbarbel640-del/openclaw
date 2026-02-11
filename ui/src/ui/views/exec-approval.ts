@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import type { AppViewState } from "../app-view-state.ts";
+import { t } from "../i18n.ts";
 
 function formatRemaining(ms: number): string {
   const remaining = Math.max(0, ms);
@@ -36,7 +37,7 @@ export function renderExecApprovalPrompt(state: AppViewState) {
       <div class="exec-approval-card">
         <div class="exec-approval-header">
           <div>
-            <div class="exec-approval-title">Exec approval needed</div>
+            <div class="exec-approval-title">${t("execApproval.title")}</div>
             <div class="exec-approval-sub">${remaining}</div>
           </div>
           ${
@@ -47,13 +48,13 @@ export function renderExecApprovalPrompt(state: AppViewState) {
         </div>
         <div class="exec-approval-command mono">${request.command}</div>
         <div class="exec-approval-meta">
-          ${renderMetaRow("Host", request.host)}
-          ${renderMetaRow("Agent", request.agentId)}
-          ${renderMetaRow("Session", request.sessionKey)}
+          ${renderMetaRow(t("common.host"), request.host)}
+          ${renderMetaRow(t("common.agent"), request.agentId)}
+          ${renderMetaRow(t("common.session"), request.sessionKey)}
           ${renderMetaRow("CWD", request.cwd)}
-          ${renderMetaRow("Resolved", request.resolvedPath)}
-          ${renderMetaRow("Security", request.security)}
-          ${renderMetaRow("Ask", request.ask)}
+          ${renderMetaRow(t("execApproval.resolved"), request.resolvedPath)}
+          ${renderMetaRow(t("execApproval.security"), request.security)}
+          ${renderMetaRow(t("execApproval.ask"), request.ask)}
         </div>
         ${
           state.execApprovalError

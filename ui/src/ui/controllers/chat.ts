@@ -1,6 +1,7 @@
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ChatAttachment } from "../ui-types.ts";
 import { extractText } from "../chat/message-extract.ts";
+import { t } from "../i18n.ts";
 import { generateUUID } from "../uuid.ts";
 
 export type ChatState = {
@@ -141,7 +142,7 @@ export async function sendChatMessage(
       ...state.chatMessages,
       {
         role: "assistant",
-        content: [{ type: "text", text: "Error: " + error }],
+        content: [{ type: "text", text: t("common.error") + ": " + error }],
         timestamp: Date.now(),
       },
     ];

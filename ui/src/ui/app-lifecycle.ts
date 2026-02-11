@@ -17,6 +17,8 @@ import {
   syncTabWithLocation,
   syncThemeWithSettings,
 } from "./app-settings.ts";
+import { setLocale, detectBrowserLocale, onLocaleChange } from "./i18n.ts";
+import { loadSettings } from "./storage.ts";
 
 type LifecycleHost = {
   basePath: string;
@@ -35,6 +37,20 @@ type LifecycleHost = {
 };
 
 export function handleConnected(host: LifecycleHost) {
+  // Initialize locale from saved settings or detect from browser
+  const savedSettings = loadSettings();
+  const locale =
+    savedSettings.locale && savedSettings.locale !== "en"
+      ? savedSettings.locale
+      : detectBrowserLocale();
+  setLocale(locale);
+  // Re-render on locale change
+  onLocaleChange(() => {
+    if (typeof (host as unknown as { requestUpdate: () => void }).requestUpdate === "function") {
+      (host as unknown as { requestUpdate: () => void }).requestUpdate();
+    }
+  });
+
   host.basePath = inferBasePath();
   applySettingsFromUrl(host as unknown as Parameters<typeof applySettingsFromUrl>[0]);
   syncTabWithLocation(host as unknown as Parameters<typeof syncTabWithLocation>[0], true);

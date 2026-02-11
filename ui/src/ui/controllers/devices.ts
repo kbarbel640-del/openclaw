@@ -1,6 +1,7 @@
 import type { GatewayBrowserClient } from "../gateway.ts";
 import { clearDeviceAuthToken, storeDeviceAuthToken } from "../device-auth.ts";
 import { loadOrCreateDeviceIdentity } from "../device-identity.ts";
+import { t } from "../i18n.ts";
 
 export type DeviceTokenSummary = {
   role: string;
@@ -90,7 +91,7 @@ export async function rejectDevicePairing(state: DevicesState, requestId: string
   if (!state.client || !state.connected) {
     return;
   }
-  const confirmed = window.confirm("Reject this device pairing request?");
+  const confirmed = window.confirm(t("devices.rejectConfirm"));
   if (!confirmed) {
     return;
   }
@@ -142,7 +143,9 @@ export async function revokeDeviceToken(
   if (!state.client || !state.connected) {
     return;
   }
-  const confirmed = window.confirm(`Revoke token for ${params.deviceId} (${params.role})?`);
+  const confirmed = window.confirm(
+    t("devices.revokeConfirm", { deviceId: params.deviceId, role: params.role }),
+  );
   if (!confirmed) {
     return;
   }
