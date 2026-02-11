@@ -72,6 +72,8 @@ export type SpawnResult = {
 
 export type CommandOptions = {
   timeoutMs: number;
+  /** Kill process if no stdout/stderr activity for this duration (ms). */
+  idleTimeoutMs?: number;
   cwd?: string;
   input?: string;
   env?: NodeJS.ProcessEnv;
@@ -84,7 +86,7 @@ export async function runCommandWithTimeout(
 ): Promise<SpawnResult> {
   const options: CommandOptions =
     typeof optionsOrTimeout === "number" ? { timeoutMs: optionsOrTimeout } : optionsOrTimeout;
-  const { timeoutMs, cwd, input, env } = options;
+  const { timeoutMs, idleTimeoutMs, cwd, input, env } = options;
   const { windowsVerbatimArguments } = options;
   const hasInput = input !== undefined;
 
@@ -128,6 +130,19 @@ export async function runCommandWithTimeout(
       }
     }, timeoutMs);
 
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    const resetIdleTimer = idleTimeoutMs
+      ? () => {
+          if (idleTimer) clearTimeout(idleTimer);
+          idleTimer = setTimeout(() => {
+            if (typeof child.kill === "function") {
+              child.kill("SIGKILL");
+            }
+          }, idleTimeoutMs);
+        }
+      : undefined;
+    resetIdleTimer?.();
+
     if (hasInput && child.stdin) {
       child.stdin.write(input ?? "");
       child.stdin.end();
@@ -135,9 +150,11 @@ export async function runCommandWithTimeout(
 
     child.stdout?.on("data", (d) => {
       stdout += d.toString();
+      resetIdleTimer?.();
     });
     child.stderr?.on("data", (d) => {
       stderr += d.toString();
+      resetIdleTimer?.();
     });
     child.on("error", (err) => {
       if (settled) {
@@ -145,6 +162,7 @@ export async function runCommandWithTimeout(
       }
       settled = true;
       clearTimeout(timer);
+      if (idleTimer) clearTimeout(idleTimer);
       reject(err);
     });
     child.on("close", (code, signal) => {
@@ -153,6 +171,7 @@ export async function runCommandWithTimeout(
       }
       settled = true;
       clearTimeout(timer);
+      if (idleTimer) clearTimeout(idleTimer);
       resolve({ stdout, stderr, code, signal, killed: child.killed });
     });
   });

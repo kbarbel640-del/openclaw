@@ -170,6 +170,15 @@ export async function runAgentTurnWithFallback(params: {
                 startedAt,
               },
             });
+            // Patience notice: if CLI run takes >10s, let the user know.
+            let patienceTimer: ReturnType<typeof setTimeout> | undefined;
+            if (params.opts?.onPartialReply && !params.isHeartbeat) {
+              patienceTimer = setTimeout(() => {
+                void params.opts?.onPartialReply?.({
+                  text: "Working on this — give me a moment.",
+                });
+              }, 10_000);
+            }
             const cliSessionId = getCliSessionId(params.getActiveSessionEntry(), provider);
             return runCliAgent({
               sessionId: params.followupRun.run.sessionId,
@@ -190,6 +199,7 @@ export async function runAgentTurnWithFallback(params: {
               images: params.opts?.images,
             })
               .then((result) => {
+                if (patienceTimer) clearTimeout(patienceTimer);
                 // CLI backends don't emit streaming assistant events, so we need to
                 // emit one with the final text so server-chat can populate its buffer
                 // and send the response to TUI/WebSocket clients.
@@ -213,6 +223,7 @@ export async function runAgentTurnWithFallback(params: {
                 return result;
               })
               .catch((err) => {
+                if (patienceTimer) clearTimeout(patienceTimer);
                 emitAgentEvent({
                   runId,
                   stream: "lifecycle",

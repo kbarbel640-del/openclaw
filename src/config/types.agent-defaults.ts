@@ -93,6 +93,8 @@ export type CliBackendConfig = {
   serialize?: boolean;
   /** Per-backend timeout in ms (overrides agents.defaults.timeoutSeconds). */
   timeoutMs?: number;
+  /** Idle timeout in ms — kill process if no stdout/stderr activity for this duration. */
+  idleTimeoutMs?: number;
 };
 
 export type AgentDefaultsConfig = {

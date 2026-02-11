@@ -223,6 +223,7 @@ export async function runCliAgent(params: {
       const effectiveTimeout = backend.timeoutMs ?? params.timeoutMs;
       const result = await runCommandWithTimeout([backend.command, ...args], {
         timeoutMs: effectiveTimeout,
+        idleTimeoutMs: backend.idleTimeoutMs,
         cwd: workspaceDir,
         env,
         input: stdinPayload,

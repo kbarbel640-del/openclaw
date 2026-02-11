@@ -370,6 +370,7 @@ export function parseCliJsonl(raw: string, backend: CliBackendConfig): CliOutput
   }
   let sessionId: string | undefined;
   let usage: CliUsage | undefined;
+  let isError = false;
   const texts: string[] = [];
   for (const line of lines) {
     let parsed: unknown;
@@ -390,6 +391,7 @@ export function parseCliJsonl(raw: string, backend: CliBackendConfig): CliOutput
     if (isRecord(parsed.usage)) {
       usage = toUsage(parsed.usage) ?? usage;
     }
+    // Codex item-based format
     const item = isRecord(parsed.item) ? parsed.item : null;
     if (item && typeof item.text === "string") {
       const type = typeof item.type === "string" ? item.type.toLowerCase() : "";
@@ -397,6 +399,7 @@ export function parseCliJsonl(raw: string, backend: CliBackendConfig): CliOutput
         texts.push(item.text);
       }
     }
+    // Codex msg-based format (v0.40)
     const msg = isRecord(parsed.msg) ? parsed.msg : null;
     if (msg) {
       if (
@@ -413,12 +416,25 @@ export function parseCliJsonl(raw: string, backend: CliBackendConfig): CliOutput
         }
       }
     }
+    // Claude CLI stream-json result event
+    if (typeof parsed.type === "string" && parsed.type === "result") {
+      const resultText = collectText(parsed.result);
+      if (resultText) {
+        texts.push(resultText);
+      }
+      if (isRecord(parsed.usage)) {
+        usage = toUsage(parsed.usage) ?? usage;
+      }
+      if (parsed.is_error === true) {
+        isError = true;
+      }
+    }
   }
   const text = texts.join("\n").trim();
   if (!text) {
     return null;
   }
-  return { text, sessionId, usage };
+  return { text, sessionId, usage, isError: isError || undefined };
 }
 
 export function resolveSystemPromptUsage(params: {
