@@ -94,6 +94,9 @@ describe.skipIf(!isLive)("Databricks service principal (LIVE)", () => {
 
   it(
     "calls databricks-claude-opus-4-6 via OpenAI-compatible chat completions",
+    {
+      timeout: 60_000,
+    },
     async () => {
       const config = resolveDatabricksServicePrincipalEnv();
       expect(config).not.toBeNull();
@@ -156,6 +159,5 @@ describe.skipIf(!isLive)("Databricks service principal (LIVE)", () => {
       // The response should contain the expected phrase
       expect(reply.toLowerCase()).toContain("hello from databricks");
     },
-    { timeout: 60_000 },
   );
 });
