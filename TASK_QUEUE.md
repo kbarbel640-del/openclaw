@@ -57,7 +57,7 @@
 - **Completed:** 2026-02-07
 
 ### INGEST-001: Commit ingest_local_file tool + tests
-- **Status:** IN_PROGRESS
+- **Status:** COMPLETED
 - **Type:** feature
 - **Prerequisites:** None
 - **Definition of Done:** The 4 files (`src/agents/tools/ingest-tool.ts`, `src/agents/tools/ingest-tool.test.ts`, `src/agents/moltbot-tools.ts`, `RUNBOOK.md`) are committed to main. `pnpm lint`, `pnpm build`, and targeted `pnpm test` for the ingest tool pass. Commit message: `feat(ingest): add ingest_local_file tool (v0)`.
@@ -65,7 +65,18 @@
 - **Notes:** Implementation already complete. Commit only — no refactors, no new features.
 - **Assigned:** claude-code
 - **Branch:** main
-- **Completed:** --
+- **Completed:** 2026-02-10
+
+### MEM-001: Enable memory_search indexing so ingest can confirm INDEXED
+- **Status:** COMPLETED
+- **Type:** fix
+- **Prerequisites:** INGEST-001 (completed)
+- **Definition of Done:** `pnpm dev:up` starts with memory_search enabled. `ingest_local_file` returns `{ status: "INDEXED" }` for a test `.md` file. `memory_search` with the `ingest_id` returns matching results. No new subsystems or dependencies.
+- **Max Diff:** 0 lines of code (configuration only)
+- **Notes:** Solution: Added `"memorySearch": { "provider": "local" }` to `~/.clawdbot-dev/moltbot.json` agents.defaults. Uses `node-llama-cpp` + `embeddinggemma-300M-Q8_0.gguf` (328MB, cached at `~/.node-llama-cpp/models/`). Zero API keys needed. Zero code changes. Verified: `ingest_local_file` returns `INDEXED`; `memory_search` for `ingest-15570b31` returns `memory/ingest/ingest_demo.md` at score 0.7630.
+- **Assigned:** claude-code
+- **Branch:** main
+- **Completed:** 2026-02-10
 
 ### FIX-001: Fix overflow-compaction test vi.mock missing resolveDefaultProvider export
 - **Status:** READY
