@@ -12,6 +12,36 @@ export type ArchiveLogger = {
 
 const TAR_SUFFIXES = [".tgz", ".tar.gz", ".tar"];
 
+function isPathInside(basePath: string, candidatePath: string): boolean {
+  const base = path.resolve(basePath);
+  const candidate = path.resolve(base, candidatePath);
+  const rel = path.relative(base, candidate);
+  return rel === "" || (!rel.startsWith(`..${path.sep}`) && rel !== ".." && !path.isAbsolute(rel));
+}
+
+function resolveSafeEntryPath(params: {
+  baseDir: string;
+  entryPath: string;
+  origin: "zip" | "tar";
+}): string {
+  const trimmed = params.entryPath.trim();
+  if (!trimmed) {
+    throw new Error(`${params.origin} entry has empty path`);
+  }
+  if (!isPathInside(params.baseDir, trimmed)) {
+    throw new Error(`${params.origin} entry escapes destination: ${params.entryPath}`);
+  }
+  return path.resolve(params.baseDir, trimmed);
+}
+
+function isArchiveLinkEntry(entry: unknown): boolean {
+  if (!entry || typeof entry !== "object") {
+    return false;
+  }
+  const entryType = String((entry as { type?: unknown }).type ?? "").toLowerCase();
+  return entryType.includes("link");
+}
+
 export function resolveArchiveKind(filePath: string): ArchiveKind | null {
   const lower = filePath.toLowerCase();
   if (lower.endsWith(".zip")) {
@@ -73,22 +103,17 @@ async function extractZip(params: { archivePath: string; destDir: string }): Pro
   const buffer = await fs.readFile(params.archivePath);
   const zip = await JSZip.loadAsync(buffer);
   const entries = Object.values(zip.files);
+  const baseDir = path.resolve(params.destDir);
 
   for (const entry of entries) {
     const entryPath = entry.name.replaceAll("\\", "/");
     if (!entryPath || entryPath.endsWith("/")) {
-      const dirPath = path.resolve(params.destDir, entryPath);
-      if (!dirPath.startsWith(params.destDir)) {
-        throw new Error(`zip entry escapes destination: ${entry.name}`);
-      }
+      const dirPath = resolveSafeEntryPath({ baseDir, entryPath, origin: "zip" });
       await fs.mkdir(dirPath, { recursive: true });
       continue;
     }
 
-    const outPath = path.resolve(params.destDir, entryPath);
-    if (!outPath.startsWith(params.destDir)) {
-      throw new Error(`zip entry escapes destination: ${entry.name}`);
-    }
+    const outPath = resolveSafeEntryPath({ baseDir, entryPath, origin: "zip" });
     await fs.mkdir(path.dirname(outPath), { recursive: true });
     const data = await entry.async("nodebuffer");
     await fs.writeFile(outPath, data);
@@ -108,11 +133,32 @@ export async function extractArchive(params: {
 
   const label = kind === "zip" ? "extract zip" : "extract tar";
   if (kind === "tar") {
+    const baseDir = path.resolve(params.destDir);
+    const rejectedEntries: string[] = [];
     await withTimeout(
-      tar.x({ file: params.archivePath, cwd: params.destDir }),
+      tar.x({
+        file: params.archivePath,
+        cwd: params.destDir,
+        filter: (entryPath, entry) => {
+          try {
+            resolveSafeEntryPath({ baseDir, entryPath, origin: "tar" });
+          } catch (err) {
+            rejectedEntries.push(err instanceof Error ? err.message : String(err));
+            return false;
+          }
+          if (isArchiveLinkEntry(entry)) {
+            rejectedEntries.push(`tar entry is a link: ${entryPath}`);
+            return false;
+          }
+          return true;
+        },
+      }),
       params.timeoutMs,
       label,
     );
+    if (rejectedEntries.length > 0) {
+      throw new Error(rejectedEntries[0]);
+    }
     return;
   }
 
