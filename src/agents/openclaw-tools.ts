@@ -113,6 +113,7 @@ export function createOpenClawTools(options?: {
     createAgentsListTool({
       agentSessionKey: options?.agentSessionKey,
       requesterAgentIdOverride: options?.requesterAgentIdOverride,
+      config: options?.config,
     }),
     createSessionsListTool({
       agentSessionKey: options?.agentSessionKey,
@@ -138,6 +139,7 @@ export function createOpenClawTools(options?: {
       agentGroupSpace: options?.agentGroupSpace,
       sandboxed: options?.sandboxed,
       requesterAgentIdOverride: options?.requesterAgentIdOverride,
+      config: options?.config,
     }),
     createSessionStatusTool({
       agentSessionKey: options?.agentSessionKey,

@@ -311,7 +311,13 @@ export async function ensureAllowAgentsSnapshot(params: {
     resolveAgentConfig(cfg, normalizedAgentId)?.subagents?.allowAgents ?? [];
 
   // Also detect data drift (config changed without a version bump).
-  const storedAllowAgents = nextEntry?.allowAgentsSnapshot?.allowAgents;
+  // Use same sessionStore fallback as persistedVersion to avoid unnecessary rebuilds
+  // when sessionEntry is undefined but sessionStore[sessionKey] already has a current snapshot.
+  const storedAllowAgents =
+    nextEntry?.allowAgentsSnapshot?.allowAgents ??
+    (sessionStore && sessionKey
+      ? sessionStore[sessionKey]?.allowAgentsSnapshot?.allowAgents
+      : undefined);
   const dataChanged =
     !storedAllowAgents || !arraysEqualSorted(currentAllowAgents, storedAllowAgents);
 

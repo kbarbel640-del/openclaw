@@ -215,7 +215,46 @@ describe("ensureAllowAgentsSnapshot", () => {
   });
 
   // -----------------------------------------------------------------------
-  // 6. No session store — returns snapshot without persisting
+  // 6. Data drift check uses sessionStore fallback (no unnecessary rebuild)
+  // -----------------------------------------------------------------------
+  it("skips rebuild when sessionEntry is undefined but sessionStore has a current snapshot", async () => {
+    const cfg = buildConfig([{ id: "main", allowAgents: ["analyst"] }]);
+    const sessionKey = "agent:main:test";
+    const sessionStore: Record<string, SessionEntry> = {};
+
+    // Build initial snapshot via the normal path.
+    await ensureAllowAgentsSnapshot({
+      cfg,
+      agentId: "main",
+      sessionEntry: undefined,
+      sessionStore,
+      sessionKey,
+      sessionId: "s1",
+    });
+
+    const storedSnapshot = sessionStore[sessionKey]?.allowAgentsSnapshot;
+    expect(storedSnapshot?.allowAgents).toEqual(["analyst"]);
+    const storedVersion = storedSnapshot?.version ?? 0;
+
+    // Now call again with sessionEntry=undefined but sessionStore populated with
+    // a snapshot that matches the live config.  Before the fix, storedAllowAgents
+    // would be undefined (only read from nextEntry), forcing an unnecessary rebuild.
+    const result = await ensureAllowAgentsSnapshot({
+      cfg,
+      agentId: "main",
+      sessionEntry: undefined,
+      sessionStore,
+      sessionKey,
+      sessionId: "s1",
+    });
+
+    // Should reuse — version and data are current, no rebuild needed.
+    expect(result.allowAgentsSnapshot?.allowAgents).toEqual(["analyst"]);
+    expect(result.allowAgentsSnapshot?.version).toBe(storedVersion);
+  });
+
+  // -----------------------------------------------------------------------
+  // 7. No session store — returns snapshot without persisting
   // -----------------------------------------------------------------------
   it("returns snapshot without persisting when no sessionStore is provided", async () => {
     const cfg = buildConfig([{ id: "main", allowAgents: ["x"] }]);

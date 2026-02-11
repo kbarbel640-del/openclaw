@@ -77,6 +77,8 @@ export function createSessionsSpawnTool(opts?: {
   sandboxed?: boolean;
   /** Explicit agent ID override for cron/hook sessions where session key parsing may not work. */
   requesterAgentIdOverride?: string;
+  /** Pre-loaded config from the pipeline — avoids a redundant loadConfig() call. */
+  config?: ReturnType<typeof loadConfig>;
 }): AnyAgentTool {
   return {
     label: "Sessions",
@@ -116,7 +118,7 @@ export function createSessionsSpawnTool(opts?: {
       let modelWarning: string | undefined;
       let modelApplied = false;
 
-      const cfg = loadConfig();
+      const cfg = opts?.config ?? loadConfig();
       const { mainKey, alias } = resolveMainSessionAlias(cfg);
       const requesterSessionKey = opts?.agentSessionKey;
       if (typeof requesterSessionKey === "string" && isSubagentSessionKey(requesterSessionKey)) {

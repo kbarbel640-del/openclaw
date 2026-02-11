@@ -22,6 +22,8 @@ export function createAgentsListTool(opts?: {
   agentSessionKey?: string;
   /** Explicit agent ID override for cron/hook sessions. */
   requesterAgentIdOverride?: string;
+  /** Pre-loaded config from the pipeline — avoids a redundant loadConfig() call. */
+  config?: ReturnType<typeof loadConfig>;
 }): AnyAgentTool {
   return {
     label: "Agents",
@@ -29,7 +31,7 @@ export function createAgentsListTool(opts?: {
     description: "List agent ids you can target with sessions_spawn (based on allowlists).",
     parameters: AgentsListToolSchema,
     execute: async () => {
-      const cfg = loadConfig();
+      const cfg = opts?.config ?? loadConfig();
       const { mainKey, alias } = resolveMainSessionAlias(cfg);
       const requesterInternalKey =
         typeof opts?.agentSessionKey === "string" && opts.agentSessionKey.trim()
