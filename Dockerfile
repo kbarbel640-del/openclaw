@@ -112,6 +112,9 @@ ENV PATH="/data/npm-global/bin:/data/pnpm-global:/data/go/bin:${PATH}"
 # Allow non-root user to write temp files during runtime/tests.
 RUN chown -R node:node /app
 
+# Make fly entrypoint executable for self-healing tool installs
+RUN chmod +x /app/scripts/fly-entrypoint.sh
+
 # Prepare Homebrew install dir with correct ownership before switching to node user
 RUN mkdir -p /home/linuxbrew/.linuxbrew && chown -R node:node /home/linuxbrew
 
