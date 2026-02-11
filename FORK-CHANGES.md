@@ -46,7 +46,7 @@ Explicit listing of changes in this fork relative to upstream [OpenClaw](https:/
   - One config/restart/cron change per request; report and ask before retry (`394341893`).
 - **Native compaction command**
   - **CLI:** `openclaw memory compact --agent <id>` runs compaction on the latest session transcript for that agent (optional `--instructions <string>`, `--force` reserved). Uses the same core as `/compact` (summarize + prune); session is loaded from disk and workspace/model come from config and cwd. See [CLI memory](https://docs.openclaw.ai/cli/memory).
-  - **Proactive auto-compaction:** In the embedded Pi run loop, if estimated session tokens ≥ 80% of the model context window before the next turn, OpenClaw compacts once and then proceeds, reducing context-overflow errors.
+  - **Proactive auto-compaction:** In the embedded Pi run loop, if estimated session tokens ≥ 80% of the model context window before the next turn, OpenClaw compacts once and then proceeds, reducing context-overflow errors. If compaction reports "Already compacted" (or does not reduce the session), the loop proceeds to the turn instead of retrying indefinitely.
   - **/compact scope:** `/compact` is registered with `scope: "both"` and `nativeName: "compact"` so channels that support native UI (e.g. Telegram) can show a compact button as well as the slash command.
 
 ### Scheduler and cron reliability

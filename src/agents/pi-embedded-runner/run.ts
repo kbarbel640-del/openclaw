@@ -438,12 +438,11 @@ export async function runEmbeddedPiAgent(
               log.info(
                 `proactive compaction succeeded for ${provider}/${modelId}; proceeding with turn`,
               );
-            } else {
-              log.debug(
-                `proactive compaction skipped or failed: ${compactResult.reason ?? "unknown"}`,
-              );
+              continue;
             }
-            continue;
+            log.debug(
+              `proactive compaction skipped or failed: ${compactResult.reason ?? "unknown"}; proceeding with turn anyway`,
+            );
           }
 
           const prompt =
