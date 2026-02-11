@@ -16,6 +16,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { hasErrnoCode } from "../infra/errors.js";
+import { truncateEvidence } from "./skill-scanner.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -264,13 +265,6 @@ function detectUnicodeSteganography(
 // ---------------------------------------------------------------------------
 // Core scanner
 // ---------------------------------------------------------------------------
-
-function truncateEvidence(evidence: string, maxLen = 120): string {
-  if (evidence.length <= maxLen) {
-    return evidence;
-  }
-  return `${evidence.slice(0, maxLen)}…`;
-}
 
 export function scanManifest(
   content: string,
