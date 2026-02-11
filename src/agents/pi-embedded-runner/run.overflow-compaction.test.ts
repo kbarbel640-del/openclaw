@@ -477,4 +477,27 @@ describe("overflow compaction in run loop", () => {
     );
     expect(result.meta.error).toBeUndefined();
   });
+
+  it("proceeds to attempt when proactive compaction returns already compacted (no infinite loop)", async () => {
+    mockedGetEstimatedSessionTokens.mockResolvedValue(170_000);
+
+    mockedCompactDirect.mockResolvedValueOnce({
+      ok: true,
+      compacted: false,
+      reason: "Already compacted",
+    });
+    mockedRunEmbeddedAttempt.mockResolvedValueOnce(makeAttemptResult({ promptError: null }));
+
+    const result = await runEmbeddedPiAgent(baseParams);
+
+    expect(mockedGetEstimatedSessionTokens).toHaveBeenCalledTimes(1);
+    expect(mockedCompactDirect).toHaveBeenCalledTimes(1);
+    expect(mockedRunEmbeddedAttempt).toHaveBeenCalledTimes(1);
+    expect(log.debug).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "proactive compaction skipped or failed: Already compacted; proceeding with turn anyway",
+      ),
+    );
+    expect(result.meta.error).toBeUndefined();
+  });
 });
