@@ -86,10 +86,26 @@ async function convertMarkdown(client: Lark.Client, markdown: string) {
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
+  
+  const blocks = res.data?.blocks ?? [];
+  
   return {
-    blocks: res.data?.blocks ?? [],
+    blocks: blocks,
     firstLevelBlockIds: res.data?.first_level_block_ids ?? [],
   };
+}
+
+/**
+ * Sort blocks by first_level_block_ids to maintain correct content order
+ */
+function sortBlocksByFirstLevel(blocks: any[], firstLevelIds: string[]): any[] {
+  if (!firstLevelIds || firstLevelIds.length === 0) {
+    return blocks;
+  }
+  
+  return firstLevelIds
+    .map((id) => blocks.find((b) => b.block_id === id))
+    .filter(Boolean);
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK block types */
@@ -279,12 +295,15 @@ async function createDoc(client: Lark.Client, title: string, folderToken?: strin
 async function writeDoc(client: Lark.Client, docToken: string, markdown: string) {
   const deleted = await clearDocumentContent(client, docToken);
 
-  const { blocks } = await convertMarkdown(client, markdown);
+  const { blocks, firstLevelBlockIds } = await convertMarkdown(client, markdown);
   if (blocks.length === 0) {
     return { success: true, blocks_deleted: deleted, blocks_added: 0, images_processed: 0 };
   }
 
-  const { children: inserted, skipped } = await insertBlocks(client, docToken, blocks);
+  // Sort by first_level_block_ids to maintain correct content order
+  const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
+
+  const { children: inserted, skipped } = await insertBlocks(client, docToken, sortedBlocks);
   const imagesProcessed = await processImages(client, docToken, markdown, inserted);
 
   return {
@@ -299,12 +318,16 @@ async function writeDoc(client: Lark.Client, docToken: string, markdown: string)
 }
 
 async function appendDoc(client: Lark.Client, docToken: string, markdown: string) {
-  const { blocks } = await convertMarkdown(client, markdown);
+  const { blocks, firstLevelBlockIds } = await convertMarkdown(client, markdown);
+  
   if (blocks.length === 0) {
     throw new Error("Content is empty");
   }
 
-  const { children: inserted, skipped } = await insertBlocks(client, docToken, blocks);
+  // Sort by first_level_block_ids to maintain correct content order
+  const sortedBlocks = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
+
+  const { children: inserted, skipped } = await insertBlocks(client, docToken, sortedBlocks);
   const imagesProcessed = await processImages(client, docToken, markdown, inserted);
 
   return {
