@@ -209,53 +209,36 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
         },
       });
 
-      // heartbeatModelOverride should be undefined when no model is configured.
-      expect(replySpy).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.objectContaining({
-          isHeartbeat: true,
-          heartbeatModelOverride: undefined,
-        }),
-        cfg,
-      );
+      expect(replySpy).toHaveBeenCalledTimes(1);
+      const replyOpts = replySpy.mock.calls[0]?.[1];
+      expect(replyOpts).toStrictEqual({ isHeartbeat: true });
+      expect(replyOpts).not.toHaveProperty("heartbeatModelOverride");
     } finally {
       replySpy.mockRestore();
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it("per-agent heartbeat model takes precedence over defaults heartbeat model", async () => {
+  it("trims heartbeat model override before passing it downstream", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-hb-model-"));
     const storePath = path.join(tmpDir, "sessions.json");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
     try {
-      // defaults.heartbeat.model = "openai/gpt-4o-mini"
-      // ops agent overrides with "ollama/llama3.2:1b"
-      // The merged config should pick the per-agent override.
       const cfg: OpenClawConfig = {
         agents: {
           defaults: {
+            workspace: tmpDir,
             heartbeat: {
-              every: "30m",
-              model: "openai/gpt-4o-mini",
+              every: "5m",
+              target: "whatsapp",
+              model: "  ollama/llama3.2:1b  ",
             },
           },
-          list: [
-            { id: "main", default: true },
-            {
-              id: "ops",
-              heartbeat: {
-                every: "5m",
-                target: "telegram",
-                to: "123",
-                model: "ollama/llama3.2:1b",
-              },
-            },
-          ],
         },
+        channels: { whatsapp: { allowFrom: ["*"] } },
         session: { store: storePath },
       };
-      const sessionKey = resolveAgentMainSessionKey({ cfg, agentId: "ops" });
+      const sessionKey = resolveMainSessionKey(cfg);
 
       await fs.writeFile(
         storePath,
@@ -264,8 +247,8 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
             [sessionKey]: {
               sessionId: "sid",
               updatedAt: Date.now(),
-              lastChannel: "telegram",
-              lastTo: "123",
+              lastChannel: "whatsapp",
+              lastTo: "+1555",
             },
           },
           null,
@@ -277,14 +260,12 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
 
       await runHeartbeatOnce({
         cfg,
-        agentId: "ops",
         deps: {
           getQueueSize: () => 0,
           nowMs: () => 0,
         },
       });
 
-      // The per-agent model "ollama/llama3.2:1b" must override defaults "openai/gpt-4o-mini".
       expect(replySpy).toHaveBeenCalledWith(
         expect.any(Object),
         expect.objectContaining({
