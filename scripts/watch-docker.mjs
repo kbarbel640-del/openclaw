@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Watch Dockerfile and docker-compose.yml; on change run:
- *   docker compose up -d --build --force-recreate openclaw-gateway
+ *   docker compose down openclaw-gateway && docker compose up -d --build openclaw-gateway
  * Intended to be run as a long-lived daemon (e.g. under PM2).
  */
 import chokidar from "chokidar";
@@ -47,36 +47,48 @@ function runCompose(retrying = false) {
   const myRunId = ++currentRunId;
   const childRef = {};
   const ts = new Date().toISOString();
-  console.log(`[${ts}] Triggering: docker compose up -d --build --force-recreate openclaw-gateway`);
-  run("docker", ["compose", "up", "-d", "--build", "--force-recreate", "openclaw-gateway"], {
-    capture: true,
-    childRef,
-  }).then(({ code, signal, stderr }) => {
-    composeChild = null;
-    if (myRunId !== currentRunId) {
+  console.log(
+    `[${ts}] Triggering: docker compose down openclaw-gateway && docker compose up -d --build openclaw-gateway`,
+  );
+  run("docker", ["compose", "down", "openclaw-gateway"], { capture: true })
+    .then(({ code }) => {
+      if (myRunId !== currentRunId) {
+        running = false;
+        return;
+      }
+      const upPromise = run(
+        "docker",
+        ["compose", "up", "-d", "--build", "openclaw-gateway"],
+        { capture: true, childRef },
+      );
+      composeChild = childRef.current;
+      return upPromise;
+    })
+    .then((result) => {
+      composeChild = null;
+      if (!result) return;
+      const { code, signal, stderr } = result;
+      if (myRunId !== currentRunId) {
+        running = false;
+        return;
+      }
       running = false;
-      return;
-    }
-    running = false;
-    const ts2 = new Date().toISOString();
-    if (signal === "SIGTERM") {
-      return;
-    }
-    if (code === 0) {
-      console.log(`[${ts2}] Rebuild finished successfully.`);
-      return;
-    }
-    const conflictMatch =
-      !retrying && stderr.match(/container name "(\/[^"]+)" is already in use by container/);
-    if (conflictMatch) {
-      const name = conflictMatch[1].replace(/^\//, "");
-      console.log(`[${ts2}] Removing conflicting container "${name}" and retrying…`);
-      run("docker", ["rm", "-f", name]).then(() => runCompose(true));
-      return;
-    }
-    console.error(`[${ts2}] Rebuild exited with code=${code}. Daemon keeps watching.`);
-  });
-  composeChild = childRef.current;
+      const ts2 = new Date().toISOString();
+      if (signal === "SIGTERM") return;
+      if (code === 0) {
+        console.log(`[${ts2}] Rebuild finished successfully.`);
+        return;
+      }
+      const conflictMatch =
+        !retrying && stderr.match(/container name "(\/[^"]+)" is already in use by container/);
+      if (conflictMatch) {
+        const name = conflictMatch[1].replace(/^\//, "");
+        console.log(`[${ts2}] Removing conflicting container "${name}" and retrying…`);
+        run("docker", ["rm", "-f", name]).then(() => runCompose(true));
+        return;
+      }
+      console.error(`[${ts2}] Rebuild exited with code=${code}. Daemon keeps watching.`);
+    });
 }
 
 function scheduleRebuild() {
