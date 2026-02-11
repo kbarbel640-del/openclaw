@@ -428,10 +428,14 @@ function parseSseResponse(text: string): ZsearchJsonRpcResponse {
   for (const line of lines) {
     if (line.startsWith("data:")) {
       const jsonStr = line.slice("data:".length).trim();
-      return JSON.parse(jsonStr) as ZsearchJsonRpcResponse;
+      try {
+        return JSON.parse(jsonStr) as ZsearchJsonRpcResponse;
+      } catch {
+        throw new Error(`ZAI Search returned malformed JSON: ${jsonStr.slice(0, 200)}`);
+      }
     }
   }
-  throw new Error("No SSE data line found in ZAI Search response");
+  throw new Error(`No SSE data line found in ZAI Search response: ${text.slice(0, 200)}`);
 }
 
 async function initZsearchSession(
@@ -548,7 +552,7 @@ async function runZsearchSearch(params: {
   const parsed = parseSseResponse(responseText);
 
   if (parsed.error) {
-    throw new Error(`ZAI Search JSON-RPC error: ${parsed.error.message}`);
+    throw new Error(`ZAI Search JSON-RPC error [${parsed.error.code}]: ${parsed.error.message}`);
   }
 
   if (parsed.result?.isError) {
@@ -556,7 +560,7 @@ async function runZsearchSearch(params: {
     throw new Error(`ZAI Search tool error: ${errorText}`);
   }
 
-  const content = parsed.result?.content?.[0]?.text ?? "No results";
+  const content = parsed.result?.content?.[0]?.text || "No results";
   return { content };
 }
 
