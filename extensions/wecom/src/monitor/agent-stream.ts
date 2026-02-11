@@ -31,7 +31,7 @@ import {
   getActiveReplyUrl,
   useActiveReplyOnce,
 } from "./delivery.js";
-import { logVerbose, logInfo, truncateUtf8Bytes } from "./http-utils.js";
+import { logVerbose, wecomLogInfo, truncateUtf8Bytes } from "./http-utils.js";
 import { resolveWecomSenderUserId, processInboundMessage } from "./message-parser.js";
 import { buildStreamReplyFromState } from "./reply-builder.js";
 import { monitorState, LIMITS } from "./state.js";
@@ -78,7 +78,7 @@ export async function flushPending(pending: PendingInbound): Promise<void> {
   } catch (err) {
     logVerbose(target, `flush pending: runtime not ready: ${String(err)}`);
     streamStore.markFinished(streamId);
-    logInfo(target, `queue: runtime not ready，结束批次并推进 streamId=${streamId}`);
+    wecomLogInfo(target, `queue: runtime not ready，结束批次并推进 streamId=${streamId}`);
     streamStore.onStreamFinished(streamId);
     return;
   }
@@ -86,7 +86,7 @@ export async function flushPending(pending: PendingInbound): Promise<void> {
   if (core) {
     streamStore.markStarted(streamId);
     const enrichedTarget: WecomWebhookTarget = { ...target, core };
-    logInfo(
+    wecomLogInfo(
       target,
       `flush pending: start batch streamId=${streamId} batchKey=${batchKey} conversationKey=${conversationKey} mergedCount=${contents.length}`,
     );
@@ -430,7 +430,7 @@ export async function startAgentForStream(params: {
     });
     try {
       await sendBotFallbackPromptNow({ streamId, text: prompt });
-      logInfo(target, `authz: 未授权命令已提示用户 streamId=${streamId}`);
+      wecomLogInfo(target, `authz: 未授权命令已提示用户 streamId=${streamId}`);
     } catch (err) {
       target.runtime.error?.(`authz: 未授权命令提示推送失败 streamId=${streamId}: ${String(err)}`);
     }
@@ -908,7 +908,7 @@ export async function startAgentForStream(params: {
   }
 
   // 推进会话队列：如果 2/3 已排队，当前批次结束后自动开始下一批次
-  logInfo(target, `queue: 当前批次结束，尝试推进下一批 streamId=${streamId}`);
+  wecomLogInfo(target, `queue: 当前批次结束，尝试推进下一批 streamId=${streamId}`);
 
   // 体验优化：如果本批次中有"回执流"(ack stream)（例如 3 被合并到 2），则在批次结束时更新这些回执流，
   // 避免它们永久停留在"已合并排队处理中…"。
@@ -921,7 +921,10 @@ export async function startAgentForStream(params: {
         s.finished = true;
       });
     }
-    logInfo(target, `queue: 已更新回执流 count=${ackStreamIds.length} batchStreamId=${streamId}`);
+    wecomLogInfo(
+      target,
+      `queue: 已更新回执流 count=${ackStreamIds.length} batchStreamId=${streamId}`,
+    );
   }
 
   streamStore.onStreamFinished(streamId);

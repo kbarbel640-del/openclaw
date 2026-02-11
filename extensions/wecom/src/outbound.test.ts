@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./agent/api-client.js", () => ({
-  sendText: vi.fn(),
+  sendWecomText: vi.fn(),
   sendMedia: vi.fn(),
   uploadMedia: vi.fn(),
 }));
@@ -23,7 +23,7 @@ describe("wecomOutbound", () => {
     const { wecomOutbound } = await import("./outbound.js");
     const api = await import("./agent/api-client.js");
     const now = vi.spyOn(Date, "now").mockReturnValue(123);
-    (api.sendText as any).mockResolvedValue(undefined);
+    (api.sendWecomText as any).mockResolvedValue(undefined);
 
     const cfg = {
       channels: {
@@ -44,7 +44,7 @@ describe("wecomOutbound", () => {
     await expect(
       wecomOutbound.sendText({ cfg, to: "wr123", text: "hello" } as any),
     ).rejects.toThrow(/不支持向群 chatId 发送/);
-    expect(api.sendText).not.toHaveBeenCalled();
+    expect(api.sendWecomText).not.toHaveBeenCalled();
 
     // Test: User ID (Default)
     const userResult = await wecomOutbound.sendText({
@@ -52,7 +52,7 @@ describe("wecomOutbound", () => {
       to: "userid123",
       text: "hi",
     } as any);
-    expect(api.sendText).toHaveBeenCalledWith(
+    expect(api.sendWecomText).toHaveBeenCalledWith(
       expect.objectContaining({
         chatId: undefined,
         toUser: "userid123",
@@ -63,35 +63,35 @@ describe("wecomOutbound", () => {
     );
     expect(userResult.messageId).toBe("agent-123");
 
-    (api.sendText as any).mockClear();
+    (api.sendWecomText as any).mockClear();
 
     // Test: User ID explicit
     await wecomOutbound.sendText({ cfg, to: "user:zhangsan", text: "hi" } as any);
-    expect(api.sendText).toHaveBeenCalledWith(
+    expect(api.sendWecomText).toHaveBeenCalledWith(
       expect.objectContaining({ toUser: "zhangsan", toParty: undefined }),
     );
 
-    (api.sendText as any).mockClear();
+    (api.sendWecomText as any).mockClear();
 
     // Test: Party ID (Numeric)
     await wecomOutbound.sendText({ cfg, to: "1001", text: "hi party" } as any);
-    expect(api.sendText).toHaveBeenCalledWith(
+    expect(api.sendWecomText).toHaveBeenCalledWith(
       expect.objectContaining({ toUser: undefined, toParty: "1001" }),
     );
 
-    (api.sendText as any).mockClear();
+    (api.sendWecomText as any).mockClear();
 
     // Test: Party ID Explicit
     await wecomOutbound.sendText({ cfg, to: "party:2002", text: "hi party 2" } as any);
-    expect(api.sendText).toHaveBeenCalledWith(
+    expect(api.sendWecomText).toHaveBeenCalledWith(
       expect.objectContaining({ toUser: undefined, toParty: "2002" }),
     );
 
-    (api.sendText as any).mockClear();
+    (api.sendWecomText as any).mockClear();
 
     // Test: Tag ID Explicit
     await wecomOutbound.sendText({ cfg, to: "tag:1", text: "hi tag" } as any);
-    expect(api.sendText).toHaveBeenCalledWith(
+    expect(api.sendWecomText).toHaveBeenCalledWith(
       expect.objectContaining({ toUser: undefined, toTag: "1" }),
     );
 
@@ -102,8 +102,8 @@ describe("wecomOutbound", () => {
     const { wecomOutbound } = await import("./outbound.js");
     const api = await import("./agent/api-client.js");
     const now = vi.spyOn(Date, "now").mockReturnValue(456);
-    (api.sendText as any).mockResolvedValue(undefined);
-    (api.sendText as any).mockClear();
+    (api.sendWecomText as any).mockResolvedValue(undefined);
+    (api.sendWecomText as any).mockClear();
 
     const cfg = {
       channels: {
@@ -124,14 +124,14 @@ describe("wecomOutbound", () => {
 
     // Bot 会话（wecom:...）应抑制，避免私信回执
     const r1 = await wecomOutbound.sendText({ cfg, to: "wecom:userid123", text: ack } as any);
-    expect(api.sendText).not.toHaveBeenCalled();
+    expect(api.sendWecomText).not.toHaveBeenCalled();
     expect(r1.messageId).toBe("suppressed-456");
 
-    (api.sendText as any).mockClear();
+    (api.sendWecomText as any).mockClear();
 
     // Agent 会话（wecom-agent:...）允许发送回执
     await wecomOutbound.sendText({ cfg, to: "wecom-agent:userid123", text: ack } as any);
-    expect(api.sendText).toHaveBeenCalledWith(
+    expect(api.sendWecomText).toHaveBeenCalledWith(
       expect.objectContaining({
         toUser: "userid123",
         text: "✅ 已开启新会话（模型：openai-codex/gpt-5.2）",

@@ -148,6 +148,6 @@ export function logVerbose(target: WecomWebhookTarget, message: string): void {
   target.runtime.log?.(`[wecom] ${message}`);
 }
 
-export function logInfo(target: WecomWebhookTarget, message: string): void {
+export function wecomLogInfo(target: WecomWebhookTarget, message: string): void {
   target.runtime.log?.(`[wecom] ${message}`);
 }

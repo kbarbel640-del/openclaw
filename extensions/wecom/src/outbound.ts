@@ -1,6 +1,6 @@
 import type { ChannelOutboundAdapter, ChannelOutboundContext } from "openclaw/plugin-sdk";
 import {
-  sendText as sendAgentText,
+  sendWecomText as sendAgentText,
   sendMedia as sendAgentMedia,
   uploadMedia,
 } from "./agent/api-client.js";

@@ -210,10 +210,10 @@ openclaw config set channels.wecom.network.egressProxyUrl "http://proxy.company.
 Always use `api-client.ts` methods which handle token management:
 
 ```typescript
-import { sendText, uploadMedia } from "./agent/api-client.js";
+import { sendWecomText, uploadMedia } from "./agent/api-client.js";
 
 // Token is automatically cached and refreshed
-await sendText({ agent, toUser: "userid", text: "Hello" });
+await sendWecomText({ agent, toUser: "userid", text: "Hello" });
 ```
 
 ### Stream Content Updates

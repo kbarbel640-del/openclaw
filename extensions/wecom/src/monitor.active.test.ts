@@ -22,7 +22,7 @@ vi.mock("undici", () => ({
 }));
 
 vi.mock("./agent/api-client.js", () => ({
-  sendText: vi.fn(),
+  sendWecomText: vi.fn(),
   sendMedia: vi.fn(),
   uploadMedia: vi.fn(),
 }));

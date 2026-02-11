@@ -44,7 +44,7 @@ type ResolvedWecomAccount = {
  * 从全局配置中解析出 WeCom 渠道的配置状态。
  * 兼容 Bot 和 Agent 两种模式的配置检查。
  */
-function resolveWecomAccount(cfg: OpenClawConfig): ResolvedWecomAccount {
+function resolveWecomChannelAccount(cfg: OpenClawConfig): ResolvedWecomAccount {
   const enabled = (cfg.channels?.wecom as { enabled?: boolean } | undefined)?.enabled !== false;
   const accounts = resolveWecomAccounts(cfg);
   const bot = accounts.bot;
@@ -76,7 +76,7 @@ export const wecomPlugin: ChannelPlugin<ResolvedWecomAccount> = {
   configSchema: buildChannelConfigSchema(WecomConfigSchema),
   config: {
     listAccountIds: () => [DEFAULT_ACCOUNT_ID],
-    resolveAccount: (cfg) => resolveWecomAccount(cfg as OpenClawConfig),
+    resolveAccount: (cfg) => resolveWecomChannelAccount(cfg as OpenClawConfig),
     defaultAccountId: () => DEFAULT_ACCOUNT_ID,
     setAccountEnabled: ({ cfg, accountId, enabled }) =>
       setAccountEnabledInConfigSection({
@@ -108,7 +108,7 @@ export const wecomPlugin: ChannelPlugin<ResolvedWecomAccount> = {
           : "/wecom",
     }),
     resolveAllowFrom: ({ cfg, accountId }) => {
-      const account = resolveWecomAccount(cfg as OpenClawConfig);
+      const account = resolveWecomChannelAccount(cfg as OpenClawConfig);
       // 与其他渠道保持一致：直接返回 allowFrom，空则允许所有人
       const allowFrom =
         account.agent?.config.dm?.allowFrom ?? account.bot?.config.dm?.allowFrom ?? [];

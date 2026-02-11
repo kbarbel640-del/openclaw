@@ -94,7 +94,7 @@ export async function getAccessToken(agent: ResolvedAgentAccount): Promise<strin
  * @param params.chatId 接收群 ID (群聊模式必填，互斥)
  * @param params.text 消息内容
  */
-export async function sendText(params: {
+export async function sendWecomText(params: {
   agent: ResolvedAgentAccount;
   toUser?: string;
   toParty?: string;

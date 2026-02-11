@@ -21,7 +21,7 @@ import {
   resolvePath,
   resolveSignatureParam,
   logVerbose,
-  logInfo,
+  wecomLogInfo,
   setTargetRegistryRefs,
 } from "./monitor/http-utils.js";
 import {
@@ -240,7 +240,7 @@ export async function handleWecomWebhookRequest(
   }
 
   // 选定 target 后，把 reqId 带入结构化日志，方便串联排查
-  logInfo(
+  wecomLogInfo(
     target,
     `inbound(bot): reqId=${reqId} selectedAccount=${target.account.accountId} path=${path}`,
   );
@@ -357,7 +357,7 @@ export async function handleWecomWebhookRequest(
     const conversationKey = `wecom:${target.account.accountId}:${userid}:${chatId}`;
     const msgContent = buildInboundBody(msg);
 
-    logInfo(
+    wecomLogInfo(
       target,
       `inbound: msgtype=${msgtype} chattype=${String(msg.chattype ?? "")} chatid=${String(msg.chatid ?? "")} from=${userid} msgid=${String(msg.msgid ?? "")} hasResponseUrl=${Boolean((msg as any).response_url)}`,
     );
@@ -366,7 +366,7 @@ export async function handleWecomWebhookRequest(
     if (msg.msgid) {
       const existingStreamId = streamStore.getStreamByMsgId(String(msg.msgid));
       if (existingStreamId) {
-        logInfo(
+        wecomLogInfo(
           target,
           `message: 重复的 msgid=${msg.msgid}，跳过处理并返回占位符 streamId=${existingStreamId}`,
         );
@@ -424,7 +424,7 @@ export async function handleWecomWebhookRequest(
     }
 
     if (status === "queued_new") {
-      logInfo(
+      wecomLogInfo(
         target,
         `queue: 已进入下一批次 streamId=${streamId} msgid=${String(msg.msgid ?? "")}`,
       );
@@ -453,7 +453,7 @@ export async function handleWecomWebhookRequest(
     });
     if (msg.msgid) streamStore.setStreamIdForMsgId(String(msg.msgid), ackStreamId);
     streamStore.addAckStreamForBatch({ batchStreamId: streamId, ackStreamId });
-    logInfo(
+    wecomLogInfo(
       target,
       `queue: 已合并排队（回执流） ackStreamId=${ackStreamId} mergedIntoStreamId=${streamId} msgid=${String(msg.msgid ?? "")}`,
     );

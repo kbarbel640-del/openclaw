@@ -3,7 +3,7 @@ import type { WecomInboundMessage } from "../types.js";
 import type { ResolvedAgentAccount } from "../types/index.js";
 import type { WecomWebhookTarget, StreamState } from "./types.js";
 import {
-  sendText as sendAgentText,
+  sendWecomText as sendAgentText,
   sendMedia as sendAgentMedia,
   uploadMedia,
 } from "../agent/api-client.js";

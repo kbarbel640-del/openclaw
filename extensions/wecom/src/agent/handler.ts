@@ -22,6 +22,7 @@ import {
   shouldUseDynamicAgent,
   ensureDynamicAgentListed,
 } from "../dynamic-agent.js";
+import { resolveQueryParams } from "../monitor/http-utils.js";
 import { getWecomRuntime } from "../runtime.js";
 import {
   buildWecomUnauthorizedCommandPrompt,
@@ -38,7 +39,7 @@ import {
   extractFileName,
 } from "../shared/xml-parser.js";
 import { LIMITS } from "../types/constants.js";
-import { sendText, downloadMedia } from "./api-client.js";
+import { sendWecomText, downloadMedia } from "./api-client.js";
 
 /** 错误提示信息 */
 const ERROR_HELP = "\n\n遇到问题？联系作者: YanHaidao (微信: YanHaidao)";
@@ -128,22 +129,12 @@ export type AgentWebhookParams = {
 };
 
 /**
- * **resolveQueryParams (解析查询参数)**
- *
- * 辅助函数：从 IncomingMessage 中解析 URL 查询字符串，用于获取签名、时间戳等参数。
- */
-function resolveQueryParams(req: IncomingMessage): URLSearchParams {
-  const url = new URL(req.url ?? "/", "http://localhost");
-  return url.searchParams;
-}
-
-/**
  * **readRawBody (读取原始请求体)**
  *
  * 异步读取 HTTP POST 请求的原始 BODY 数据（XML 字符串）。
  * 包含最大体积限制检查，防止内存溢出攻击。
  */
-async function readRawBody(
+async function readWecomRawBody(
   req: IncomingMessage,
   maxSize: number = LIMITS.MAX_REQUEST_BODY_SIZE,
 ): Promise<string> {
@@ -245,7 +236,7 @@ async function handleMessageCallback(params: AgentWebhookParams): Promise<boolea
     log?.(
       `[wecom-agent] inbound: method=${req.method ?? "UNKNOWN"} remote=${req.socket?.remoteAddress ?? "unknown"}`,
     );
-    const rawXml = await readRawBody(req);
+    const rawXml = await readWecomRawBody(req);
     log?.(`[wecom-agent] inbound: rawXmlBytes=${Buffer.byteLength(rawXml, "utf8")}`);
     const encrypted = extractEncryptFromXml(rawXml);
     log?.(
@@ -549,7 +540,7 @@ async function processAgentMessage(params: {
       scope: "agent",
     });
     try {
-      await sendText({ agent, toUser: fromUser, chatId: undefined, text: prompt });
+      await sendWecomText({ agent, toUser: fromUser, chatId: undefined, text: prompt });
       log?.(`[wecom-agent] unauthorized command: replied via DM to ${fromUser}`);
     } catch (err: unknown) {
       error?.(`[wecom-agent] unauthorized command reply failed: ${String(err)}`);
@@ -604,7 +595,7 @@ async function processAgentMessage(params: {
 
         try {
           // 统一策略：Agent 模式在群聊场景默认只私信触发者（避免 wr/wc chatId 86008）
-          await sendText({ agent, toUser: fromUser, chatId: undefined, text });
+          await sendWecomText({ agent, toUser: fromUser, chatId: undefined, text });
           log?.(`[wecom-agent] reply delivered (${info.kind}) to ${fromUser}`);
         } catch (err: unknown) {
           error?.(`[wecom-agent] reply failed: ${String(err)}`);
