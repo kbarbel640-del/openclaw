@@ -25,7 +25,6 @@ import { resolveImageSanitizationLimits } from "./image-sanitization.js";
 import type { ModelAuthMode } from "./model-auth.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
-import { wrapToolWithAgentShieldApproval } from "./pi-tools.agentshield.js";
 import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
 import {
   isToolAllowedByPolicies,
@@ -521,13 +520,7 @@ export function createOpenClawCodingTools(options?: {
   const normalized = subagentFiltered.map((tool) =>
     normalizeToolParameters(tool, { modelProvider: options?.modelProvider }),
   );
-  const withAgentShield = normalized.map((tool) =>
-    wrapToolWithAgentShieldApproval(tool, {
-      agentId,
-      sessionKey: options?.sessionKey,
-    }),
-  );
-  const withHooks = withAgentShield.map((tool) =>
+  const withHooks = normalized.map((tool) =>
     wrapToolWithBeforeToolCallHook(tool, {
       agentId,
       sessionKey: options?.sessionKey,
