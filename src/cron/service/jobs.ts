@@ -95,6 +95,43 @@ export function recomputeNextRuns(state: CronServiceState) {
   }
 }
 
+/**
+ * Maintenance-only version of recomputeNextRuns that handles disabled jobs
+ * and stuck markers, but does NOT recompute nextRunAtMs for enabled jobs.
+ * Used during timer ticks when no due jobs were found to prevent silently
+ * advancing past-due nextRunAtMs values without execution (see #13992).
+ */
+export function recomputeNextRunsForMaintenance(state: CronServiceState) {
+  if (!state.store) {
+    return;
+  }
+  const now = state.deps.nowMs();
+  for (const job of state.store.jobs) {
+    if (!job.state) {
+      job.state = {};
+    }
+    if (!job.enabled) {
+      job.state.nextRunAtMs = undefined;
+      job.state.runningAtMs = undefined;
+      continue;
+    }
+    const runningAt = job.state.runningAtMs;
+    if (typeof runningAt === "number" && now - runningAt > STUCK_RUN_MS) {
+      state.deps.log.warn(
+        { jobId: job.id, runningAtMs: runningAt },
+        "cron: clearing stuck running marker",
+      );
+      job.state.runningAtMs = undefined;
+    }
+    // Only compute missing nextRunAtMs, do NOT recompute existing ones.
+    // If a job was past-due but not found by runDueJobs, recomputing would
+    // cause it to be silently skipped.
+    if (job.state.nextRunAtMs === undefined) {
+      job.state.nextRunAtMs = computeJobNextRunAtMs(job, now);
+    }
+  }
+}
+
 export function nextWakeAtMs(state: CronServiceState) {
   const jobs = state.store?.jobs ?? [];
   const enabled = jobs.filter((j) => j.enabled && typeof j.state.nextRunAtMs === "number");

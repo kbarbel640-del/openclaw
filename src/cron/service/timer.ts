@@ -5,6 +5,7 @@ import {
   computeJobNextRunAtMs,
   nextWakeAtMs,
   recomputeNextRuns,
+  recomputeNextRunsForMaintenance,
   resolveJobPayloadTextForMain,
 } from "./jobs.js";
 import { locked } from "./locked.js";
@@ -45,8 +46,15 @@ export async function onTimer(state: CronServiceState) {
       // the original nextRunAtMs values.  Recomputing first would advance
       // every/cron slots past the current tick when the timer fires late (#9788).
       await ensureLoaded(state, { forceReload: true, skipRecompute: true });
-      await runDueJobs(state);
-      recomputeNextRuns(state);
+      const executedCount = await runDueJobs(state);
+      
+      // If no jobs were executed but some were expected to be due, use maintenance-only
+      // recompute to avoid advancing past-due nextRunAtMs values without execution (#13992).
+      if (executedCount === 0) {
+        recomputeNextRunsForMaintenance(state);
+      } else {
+        recomputeNextRuns(state);
+      }
       await persist(state);
     });
   } finally {
@@ -56,9 +64,9 @@ export async function onTimer(state: CronServiceState) {
   }
 }
 
-export async function runDueJobs(state: CronServiceState) {
+export async function runDueJobs(state: CronServiceState): Promise<number> {
   if (!state.store) {
-    return;
+    return 0;
   }
   const now = state.deps.nowMs();
   const due = state.store.jobs.filter((j) => {
@@ -74,6 +82,7 @@ export async function runDueJobs(state: CronServiceState) {
   for (const job of due) {
     await executeJob(state, job, now, { forced: false });
   }
+  return due.length;
 }
 
 export async function executeJob(
