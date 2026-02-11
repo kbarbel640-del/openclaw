@@ -229,6 +229,7 @@ export const TtsConfigSchema = z
         baseUrl: z.string().optional(),
         model: z.string().optional(),
         speaker: z.string().optional(),
+        languageCode: z.string().optional(),
         outputAudioCodec: z.string().optional(),
         speechSampleRate: z.number().int().positive().optional(),
         pace: z.number().min(0.7).max(1.2).optional(),

@@ -81,6 +81,8 @@ export type TtsConfig = {
     model?: string;
     /** Speaker id (example: anushka). */
     speaker?: string;
+    /** Target language code for TTS output (example: en-IN, te-IN, kn-IN). */
+    languageCode?: string;
     /** Output codec (mp3, wav, pcm). */
     outputAudioCodec?: string;
     /** Optional sample rate for output audio. */

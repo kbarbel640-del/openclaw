@@ -52,6 +52,7 @@ const DEFAULT_EDGE_OUTPUT_FORMAT = "audio-24khz-48kbitrate-mono-mp3";
 const DEFAULT_SARVAM_BASE_URL = "https://api.sarvam.ai";
 const DEFAULT_SARVAM_TTS_MODEL = "bulbul:v2";
 const DEFAULT_SARVAM_TTS_SPEAKER = "anushka";
+const DEFAULT_SARVAM_TTS_LANGUAGE = "en-IN";
 const DEFAULT_SARVAM_TTS_CODEC = "mp3";
 
 const DEFAULT_ELEVENLABS_VOICE_SETTINGS = {
@@ -134,6 +135,7 @@ export type ResolvedTtsConfig = {
     baseUrl: string;
     model: string;
     speaker: string;
+    languageCode: string;
     outputAudioCodec: string;
     speechSampleRate?: number;
     pace?: number;
@@ -318,6 +320,7 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
       baseUrl: raw.sarvam?.baseUrl?.trim() || DEFAULT_SARVAM_BASE_URL,
       model: raw.sarvam?.model?.trim() || DEFAULT_SARVAM_TTS_MODEL,
       speaker: raw.sarvam?.speaker?.trim() || DEFAULT_SARVAM_TTS_SPEAKER,
+      languageCode: raw.sarvam?.languageCode?.trim() || DEFAULT_SARVAM_TTS_LANGUAGE,
       outputAudioCodec: raw.sarvam?.outputAudioCodec?.trim() || DEFAULT_SARVAM_TTS_CODEC,
       speechSampleRate: raw.sarvam?.speechSampleRate,
       pace: raw.sarvam?.pace,
@@ -1192,6 +1195,7 @@ async function sarvamTTS(params: {
   baseUrl: string;
   model: string;
   speaker: string;
+  languageCode: string;
   outputAudioCodec: string;
   speechSampleRate?: number;
   pace?: number;
@@ -1209,7 +1213,7 @@ async function sarvamTTS(params: {
       },
       body: JSON.stringify({
         inputs: [params.text],
-        target_language_code: "en-IN",
+        target_language_code: params.languageCode,
         speaker: params.speaker,
         model: params.model,
         output_audio_codec: params.outputAudioCodec,
@@ -1323,6 +1327,7 @@ export async function textToSpeech(params: {
           baseUrl: config.sarvam.baseUrl,
           model: config.sarvam.model,
           speaker: config.sarvam.speaker,
+          languageCode: config.sarvam.languageCode,
           outputAudioCodec: sarvamCodec,
           speechSampleRate: config.sarvam.speechSampleRate,
           pace: config.sarvam.pace,
@@ -1530,6 +1535,7 @@ export async function textToSpeechTelephony(params: {
           baseUrl: config.sarvam.baseUrl,
           model: config.sarvam.model,
           speaker: config.sarvam.speaker,
+          languageCode: config.sarvam.languageCode,
           outputAudioCodec: output.format,
           speechSampleRate: output.sampleRate,
           pace: config.sarvam.pace,
