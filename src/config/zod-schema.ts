@@ -94,6 +94,10 @@ const MemorySchema = z
 const CoreMemoriesSchema = z
   .object({
     compression: z.union([z.literal("auto"), z.literal("rule"), z.literal("ollama")]).optional(),
+    /** Enable automatic Flash memory injection into system context (default: false). */
+    flashAmbientEnabled: z.boolean().optional(),
+    /** Max tokens for Flash context injection (default: 1000, range: 800-1200). */
+    flashAmbientTokenMax: z.number().int().min(800).max(1200).optional(),
   })
   .strict()
   .optional();
