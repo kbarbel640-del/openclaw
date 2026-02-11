@@ -53,7 +53,10 @@ function mergeAllOfNodes(base: JsonSchema, patch: JsonSchema): JsonSchema | null
   return merged;
 }
 
-function normalizeAllOf(schema: JsonSchema, path: Array<string | number>): ConfigSchemaAnalysis | null {
+function normalizeAllOf(
+  schema: JsonSchema,
+  path: Array<string | number>,
+): ConfigSchemaAnalysis | null {
   const allOf = schema.allOf;
   if (!allOf || allOf.length === 0) {
     return null;
