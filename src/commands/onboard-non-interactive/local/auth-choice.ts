@@ -46,6 +46,7 @@ import {
   setXiaomiApiKey,
   setZaiApiKey,
 } from "../../onboard-auth.js";
+import { applyCustomApiConfig } from "../../onboard-custom.js";
 import { applyOpenAIConfig } from "../../openai-model-default.js";
 import { resolveNonInteractiveApiKey } from "../api-keys.js";
 
@@ -592,6 +593,54 @@ export async function applyNonInteractiveAuthChoice(params: {
       mode: "api_key",
     });
     return applyTogetherConfig(nextConfig);
+  }
+
+  if (authChoice === "custom-api-key") {
+    const baseUrl = opts.customBaseUrl?.trim() ?? "";
+    const modelId = opts.customModelId?.trim() ?? "";
+    if (!baseUrl || !modelId) {
+      runtime.error(
+        [
+          'Auth choice "custom-api-key" requires a base URL and model ID.',
+          "Use --custom-base-url and --custom-model-id.",
+        ].join("\n"),
+      );
+      runtime.exit(1);
+      return null;
+    }
+
+    const compatibilityRaw = opts.customCompatibility?.trim().toLowerCase();
+    let compatibility: "openai" | "anthropic" = "openai";
+    if (compatibilityRaw) {
+      if (compatibilityRaw !== "openai" && compatibilityRaw !== "anthropic") {
+        runtime.error('Invalid --custom-compatibility (use "openai" or "anthropic").');
+        runtime.exit(1);
+        return null;
+      }
+      compatibility = compatibilityRaw;
+    }
+
+    try {
+      const result = applyCustomApiConfig({
+        config: nextConfig,
+        baseUrl,
+        modelId,
+        compatibility,
+        apiKey: opts.customApiKey,
+        providerId: opts.customProviderId,
+      });
+      if (result.providerIdRenamedFrom && result.providerId) {
+        runtime.log(
+          `Custom provider ID "${result.providerIdRenamedFrom}" already exists for a different base URL. Using "${result.providerId}".`,
+        );
+      }
+      return result.config;
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      runtime.error(`Invalid custom provider config: ${reason}`);
+      runtime.exit(1);
+      return null;
+    }
   }
 
   if (
