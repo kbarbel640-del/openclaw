@@ -501,6 +501,11 @@ export async function runAgentTurnWithFallback(params: {
 
       break;
     } catch (err) {
+      // Re-throw lock errors so agent-runner can queue for retry.
+      if (err instanceof Error && err.message.includes("session file locked")) {
+        throw err;
+      }
+
       const message = err instanceof Error ? err.message : String(err);
       const isContextOverflow = isLikelyContextOverflowError(message);
       const isCompactionFailure = isCompactionFailureError(message);
