@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 /**
  * **decodeEncodingAESKey (解码 AES Key)**
- * 
+ *
  * 将企业微信配置的 Base64 编码的 AES Key 解码为 Buffer。
  * 包含补全 Padding 和长度校验 (必须32字节)。
  */
@@ -12,7 +12,9 @@ export function decodeEncodingAESKey(encodingAESKey: string): Buffer {
   const withPadding = trimmed.endsWith("=") ? trimmed : `${trimmed}=`;
   const key = Buffer.from(withPadding, "base64");
   if (key.length !== 32) {
-    throw new Error(`invalid encodingAESKey (expected 32 bytes after base64 decode, got ${key.length})`);
+    throw new Error(
+      `invalid encodingAESKey (expected 32 bytes after base64 decode, got ${key.length})`,
+    );
   }
   return key;
 }
@@ -30,7 +32,7 @@ function pkcs7Pad(buf: Buffer, blockSize: number): Buffer {
 
 /**
  * **pkcs7Unpad (去除 PKCS#7 填充)**
- * 
+ *
  * 移除 AES 解密后的 PKCS#7 填充字节。
  * 包含填充合法性校验。
  */
@@ -58,7 +60,7 @@ function sha1Hex(input: string): string {
 
 /**
  * **computeWecomMsgSignature (计算消息签名)**
- * 
+ *
  * 算法：sha1(sort(token, timestamp, nonce, encrypt_msg))
  */
 export function computeWecomMsgSignature(params: {
@@ -75,7 +77,7 @@ export function computeWecomMsgSignature(params: {
 
 /**
  * **verifyWecomSignature (验证消息签名)**
- * 
+ *
  * 比较计算出的签名与企业微信传入的签名是否一致。
  */
 export function verifyWecomSignature(params: {
@@ -96,7 +98,7 @@ export function verifyWecomSignature(params: {
 
 /**
  * **decryptWecomEncrypted (解密企业微信消息)**
- * 
+ *
  * 将企业微信的 AES 加密包解密为明文。
  * 流程：
  * 1. Base64 解码 AESKey 并获取 IV (前16字节)。
@@ -121,7 +123,9 @@ export function decryptWecomEncrypted(params: {
   const decrypted = pkcs7Unpad(decryptedPadded, WECOM_PKCS7_BLOCK_SIZE);
 
   if (decrypted.length < 20) {
-    throw new Error(`invalid decrypted payload (expected at least 20 bytes, got ${decrypted.length})`);
+    throw new Error(
+      `invalid decrypted payload (expected at least 20 bytes, got ${decrypted.length})`,
+    );
   }
 
   // 16 bytes random + 4 bytes network-order length + msg + receiveId (optional)
@@ -129,7 +133,9 @@ export function decryptWecomEncrypted(params: {
   const msgStart = 20;
   const msgEnd = msgStart + msgLen;
   if (msgEnd > decrypted.length) {
-    throw new Error(`invalid decrypted msg length (msgEnd=${msgEnd}, payloadLength=${decrypted.length})`);
+    throw new Error(
+      `invalid decrypted msg length (msgEnd=${msgEnd}, payloadLength=${decrypted.length})`,
+    );
   }
   const msg = decrypted.subarray(msgStart, msgEnd).toString("utf8");
 
@@ -146,7 +152,7 @@ export function decryptWecomEncrypted(params: {
 
 /**
  * **encryptWecomPlaintext (加密回复消息)**
- * 
+ *
  * 将明文消息打包为企业微信的加密格式。
  * 流程：
  * 1. 构造协议包: [16字节随机串][4字节长度][消息体][接收者ID]。

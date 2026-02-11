@@ -25,9 +25,9 @@ openclaw plugins install .
 
 本插件支持两种模式，您可以根据需求选择一种或同时启用：
 
-| 模式 | 适用场景 | 核心能力 |
-| :--- | :--- | :--- |
-| **Bot（智能体）** | 实时对话 | 流式响应（打字机效果）、群聊 @回复 |
+| 模式                  | 适用场景   | 核心能力                                                 |
+| :-------------------- | :--------- | :------------------------------------------------------- |
+| **Bot（智能体）**     | 实时对话   | 流式响应（打字机效果）、群聊 @回复                       |
 | **Agent（自建应用）** | 企业级推送 | 文件发送、主动推送、Cronjob 定时广播、图片/语音/视频接收 |
 
 推荐同时启用两种模式，获得最佳体验。
@@ -78,7 +78,6 @@ openclaw plugins install .
 ![corpid](../../images/wecom-step3-corpid.png)
 ![agentid and secret](../../images/wecom-step3-agentid-secret.png)
 
-
 ### 3. 设置 API 接收
 
 在应用详情中设置「接收消息 - 设置 API 接收」：
@@ -94,7 +93,6 @@ openclaw plugins install .
 
 如果您使用内网穿透或动态 IP，建议在步骤3中配置 `channels.wecom.network.egressProxyUrl` 走固定出口代理，否则可能出现 `60020 not allow to access from your ip` 错误。
 ![trusted ip config](../../images/wecom-step2-agent-config-ip.png)
-
 
 # 步骤3：配置 OpenClaw
 

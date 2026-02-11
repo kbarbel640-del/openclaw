@@ -25,10 +25,10 @@ openclaw plugins install .
 
 This plugin supports two modes. You can choose one or enable both according to your needs:
 
-| Mode | Applicable Scenarios | Core Capabilities |
-| :--- | :--- | :--- |
-| **Bot (Intelligent Agent)** | Real-time Conversation | Streaming Response (Typewriter Effect), Group Chat @ Reply |
-| **Agent (Self-built Application)** | Enterprise-level Push | File Sending, Proactive Push, Cronjob Scheduled Broadcasts, Image/Voice/Video Reception |
+| Mode                               | Applicable Scenarios   | Core Capabilities                                                                       |
+| :--------------------------------- | :--------------------- | :-------------------------------------------------------------------------------------- |
+| **Bot (Intelligent Agent)**        | Real-time Conversation | Streaming Response (Typewriter Effect), Group Chat @ Reply                              |
+| **Agent (Self-built Application)** | Enterprise-level Push  | File Sending, Proactive Push, Cronjob Scheduled Broadcasts, Image/Voice/Video Reception |
 
 It is recommended to enable both modes for the best experience.
 

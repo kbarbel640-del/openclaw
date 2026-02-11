@@ -15,43 +15,45 @@
 ```typescript
 /** 动态 Agent 配置 */
 export type WecomDynamicAgentsConfig = {
-    /** 是否启用动态 Agent */
-    enabled?: boolean;
-    /** 私聊：是否为每个用户创建独立 Agent */
-    dmCreateAgent?: boolean;
-    /** 群聊：是否启用动态 Agent */
-    groupEnabled?: boolean;
-    /** 管理员列表（绕过动态路由，使用主 Agent） */
-    adminUsers?: string[];
+  /** 是否启用动态 Agent */
+  enabled?: boolean;
+  /** 私聊：是否为每个用户创建独立 Agent */
+  dmCreateAgent?: boolean;
+  /** 群聊：是否启用动态 Agent */
+  groupEnabled?: boolean;
+  /** 管理员列表（绕过动态路由，使用主 Agent） */
+  adminUsers?: string[];
 };
 
 export type WecomConfig = {
-    enabled?: boolean;
-    bot?: WecomBotConfig;
-    agent?: WecomAgentConfig;
-    media?: WecomMediaConfig;
-    network?: WecomNetworkConfig;
-    dynamicAgents?: WecomDynamicAgentsConfig;  // 新增
+  enabled?: boolean;
+  bot?: WecomBotConfig;
+  agent?: WecomAgentConfig;
+  media?: WecomMediaConfig;
+  network?: WecomNetworkConfig;
+  dynamicAgents?: WecomDynamicAgentsConfig; // 新增
 };
 ```
 
 ### 2.2 Schema 定义 (src/config/schema.ts)
 
 ```typescript
-const dynamicAgentsSchema = z.object({
+const dynamicAgentsSchema = z
+  .object({
     enabled: z.boolean().optional(),
     dmCreateAgent: z.boolean().optional(),
     groupEnabled: z.boolean().optional(),
     adminUsers: z.array(z.string()).optional(),
-}).optional();
+  })
+  .optional();
 
 export const WecomConfigSchema = z.object({
-    enabled: z.boolean().optional(),
-    bot: botSchema,
-    agent: agentSchema,
-    media: mediaSchema,
-    network: networkSchema,
-    dynamicAgents: dynamicAgentsSchema,  // 新增
+  enabled: z.boolean().optional(),
+  bot: botSchema,
+  agent: agentSchema,
+  media: mediaSchema,
+  network: networkSchema,
+  dynamicAgents: dynamicAgentsSchema, // 新增
 });
 ```
 
@@ -61,23 +63,23 @@ export const WecomConfigSchema = z.object({
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 
 export interface DynamicAgentConfig {
-    enabled: boolean;
-    dmCreateAgent: boolean;
-    groupEnabled: boolean;
-    adminUsers: string[];
+  enabled: boolean;
+  dmCreateAgent: boolean;
+  groupEnabled: boolean;
+  adminUsers: string[];
 }
 
 /**
  * 读取动态 Agent 配置（带默认值）
  */
 export function getDynamicAgentConfig(config: OpenClawConfig): DynamicAgentConfig {
-    const dynamicAgents = (config as any)?.channels?.wecom?.dynamicAgents;
-    return {
-        enabled: dynamicAgents?.enabled ?? false,
-        dmCreateAgent: dynamicAgents?.dmCreateAgent ?? true,
-        groupEnabled: dynamicAgents?.groupEnabled ?? true,
-        adminUsers: dynamicAgents?.adminUsers ?? [],
-    };
+  const dynamicAgents = (config as any)?.channels?.wecom?.dynamicAgents;
+  return {
+    enabled: dynamicAgents?.enabled ?? false,
+    dmCreateAgent: dynamicAgents?.dmCreateAgent ?? true,
+    groupEnabled: dynamicAgents?.groupEnabled ?? true,
+    adminUsers: dynamicAgents?.adminUsers ?? [],
+  };
 }
 
 /**
@@ -86,40 +88,38 @@ export function getDynamicAgentConfig(config: OpenClawConfig): DynamicAgentConfi
  * type: dm | group
  */
 export function generateAgentId(chatType: "dm" | "group", peerId: string): string {
-    const sanitized = String(peerId)
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]/g, "_");
-    return `wecom-${chatType}-${sanitized}`;
+  const sanitized = String(peerId)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_");
+  return `wecom-${chatType}-${sanitized}`;
 }
 
 /**
  * 检查是否应该使用动态 Agent
  */
 export function shouldUseDynamicAgent(params: {
-    chatType: "dm" | "group";
-    senderId: string;
-    config: OpenClawConfig;
+  chatType: "dm" | "group";
+  senderId: string;
+  config: OpenClawConfig;
 }): boolean {
-    const { chatType, senderId, config } = params;
-    const dynamicConfig = getDynamicAgentConfig(config);
+  const { chatType, senderId, config } = params;
+  const dynamicConfig = getDynamicAgentConfig(config);
 
-    if (!dynamicConfig.enabled) {
-        return false;
-    }
+  if (!dynamicConfig.enabled) {
+    return false;
+  }
 
-    // 管理员绕过动态路由
-    const sender = String(senderId).trim().toLowerCase();
-    const isAdmin = dynamicConfig.adminUsers.some(
-        admin => admin.trim().toLowerCase() === sender
-    );
-    if (isAdmin) {
-        return false;
-    }
+  // 管理员绕过动态路由
+  const sender = String(senderId).trim().toLowerCase();
+  const isAdmin = dynamicConfig.adminUsers.some((admin) => admin.trim().toLowerCase() === sender);
+  if (isAdmin) {
+    return false;
+  }
 
-    if (chatType === "group") {
-        return dynamicConfig.groupEnabled;
-    }
-    return dynamicConfig.dmCreateAgent;
+  if (chatType === "group") {
+    return dynamicConfig.groupEnabled;
+  }
+  return dynamicConfig.dmCreateAgent;
 }
 
 /**
@@ -136,73 +136,71 @@ let ensureDynamicAgentWriteQueue: Promise<void> = Promise.resolve();
  * 将动态 Agent 添加到 agents.list
  */
 export async function ensureDynamicAgentListed(
-    agentId: string,
-    runtime: { config?: { loadConfig?: () => any; writeConfigFile?: (cfg: any) => Promise<void> } }
+  agentId: string,
+  runtime: { config?: { loadConfig?: () => any; writeConfigFile?: (cfg: any) => Promise<void> } },
 ): Promise<void> {
-    const normalizedId = String(agentId).trim().toLowerCase();
-    if (!normalizedId) return;
-    if (ensuredDynamicAgentIds.has(normalizedId)) return;
+  const normalizedId = String(agentId).trim().toLowerCase();
+  if (!normalizedId) return;
+  if (ensuredDynamicAgentIds.has(normalizedId)) return;
 
-    const configRuntime = runtime?.config;
-    if (!configRuntime?.loadConfig || !configRuntime?.writeConfigFile) return;
+  const configRuntime = runtime?.config;
+  if (!configRuntime?.loadConfig || !configRuntime?.writeConfigFile) return;
 
-    ensureDynamicAgentWriteQueue = ensureDynamicAgentWriteQueue
-        .then(async () => {
-            if (ensuredDynamicAgentIds.has(normalizedId)) return;
+  ensureDynamicAgentWriteQueue = ensureDynamicAgentWriteQueue
+    .then(async () => {
+      if (ensuredDynamicAgentIds.has(normalizedId)) return;
 
-            const latestConfig = configRuntime.loadConfig!();
-            if (!latestConfig || typeof latestConfig !== "object") return;
+      const latestConfig = configRuntime.loadConfig!();
+      if (!latestConfig || typeof latestConfig !== "object") return;
 
-            const changed = upsertAgentIdOnlyEntry(latestConfig, normalizedId);
-            if (changed) {
-                await configRuntime.writeConfigFile!(latestConfig);
-                console.log(`[wecom] 动态 Agent 已添加: ${normalizedId}`);
-            }
+      const changed = upsertAgentIdOnlyEntry(latestConfig, normalizedId);
+      if (changed) {
+        await configRuntime.writeConfigFile!(latestConfig);
+        console.log(`[wecom] 动态 Agent 已添加: ${normalizedId}`);
+      }
 
-            ensuredDynamicAgentIds.add(normalizedId);
-        })
-        .catch((err) => {
-            console.warn(`[wecom] 动态 Agent 添加失败: ${normalizedId}`, err);
-        });
+      ensuredDynamicAgentIds.add(normalizedId);
+    })
+    .catch((err) => {
+      console.warn(`[wecom] 动态 Agent 添加失败: ${normalizedId}`, err);
+    });
 
-    await ensureDynamicAgentWriteQueue;
+  await ensureDynamicAgentWriteQueue;
 }
 
 /**
  * 将 Agent ID 插入 agents.list（如果不存在）
  */
 function upsertAgentIdOnlyEntry(cfg: any, agentId: string): boolean {
-    if (!cfg.agents || typeof cfg.agents !== "object") {
-        cfg.agents = {};
-    }
+  if (!cfg.agents || typeof cfg.agents !== "object") {
+    cfg.agents = {};
+  }
 
-    const currentList: Array<{ id: string }> = Array.isArray(cfg.agents.list) ? cfg.agents.list : [];
-    const existingIds = new Set(
-        currentList
-            .map((entry) => entry?.id?.trim().toLowerCase())
-            .filter(Boolean)
-    );
+  const currentList: Array<{ id: string }> = Array.isArray(cfg.agents.list) ? cfg.agents.list : [];
+  const existingIds = new Set(
+    currentList.map((entry) => entry?.id?.trim().toLowerCase()).filter(Boolean),
+  );
 
-    let changed = false;
-    const nextList = [...currentList];
+  let changed = false;
+  const nextList = [...currentList];
 
-    // 首次创建时保留 main 作为默认
-    if (nextList.length === 0) {
-        nextList.push({ id: "main" });
-        existingIds.add("main");
-        changed = true;
-    }
+  // 首次创建时保留 main 作为默认
+  if (nextList.length === 0) {
+    nextList.push({ id: "main" });
+    existingIds.add("main");
+    changed = true;
+  }
 
-    if (!existingIds.has(agentId.toLowerCase())) {
-        nextList.push({ id: agentId });
-        changed = true;
-    }
+  if (!existingIds.has(agentId.toLowerCase())) {
+    nextList.push({ id: agentId });
+    changed = true;
+  }
 
-    if (changed) {
-        cfg.agents.list = nextList;
-    }
+  if (changed) {
+    cfg.agents.list = nextList;
+  }
 
-    return changed;
+  return changed;
 }
 ```
 
@@ -215,33 +213,34 @@ function upsertAgentIdOnlyEntry(cfg: any, agentId: string): boolean {
 ```typescript
 // 约第 923 行，路由解析后
 const route = core.channel.routing.resolveAgentRoute({
-    cfg: config,
-    channel: "wecom",
-    accountId: account.accountId,
-    peer: { kind: chatType === "group" ? "group" : "dm", id: chatId },
+  cfg: config,
+  channel: "wecom",
+  accountId: account.accountId,
+  peer: { kind: chatType === "group" ? "group" : "dm", id: chatId },
 });
 
 // ===== 动态 Agent 注入开始 =====
-import { shouldUseDynamicAgent, generateAgentId, ensureDynamicAgentListed } from "./dynamic-agent.js";
+import {
+  shouldUseDynamicAgent,
+  generateAgentId,
+  ensureDynamicAgentListed,
+} from "./dynamic-agent.js";
 
 const useDynamicAgent = shouldUseDynamicAgent({
-    chatType: chatType === "group" ? "group" : "dm",
-    senderId: userid,
-    config,
+  chatType: chatType === "group" ? "group" : "dm",
+  senderId: userid,
+  config,
 });
 
 if (useDynamicAgent) {
-    const targetAgentId = generateAgentId(
-        chatType === "group" ? "group" : "dm",
-        chatId
-    );
+  const targetAgentId = generateAgentId(chatType === "group" ? "group" : "dm", chatId);
 
-    // 覆盖路由
-    route.agentId = targetAgentId;
-    route.sessionKey = `agent:${targetAgentId}:${chatType === "group" ? "group" : "dm"}:${chatId}`;
+  // 覆盖路由
+  route.agentId = targetAgentId;
+  route.sessionKey = `agent:${targetAgentId}:${chatType === "group" ? "group" : "dm"}:${chatId}`;
 
-    // 异步添加到 agents.list（不阻塞）
-    ensureDynamicAgentListed(targetAgentId, core).catch(() => {});
+  // 异步添加到 agents.list（不阻塞）
+  ensureDynamicAgentListed(targetAgentId, core).catch(() => {});
 }
 // ===== 动态 Agent 注入结束 =====
 ```
@@ -253,33 +252,34 @@ if (useDynamicAgent) {
 ```typescript
 // 约第 438 行，路由解析后
 const route = core.channel.routing.resolveAgentRoute({
-    cfg: config,
-    channel: "wecom",
-    accountId: agent.accountId,
-    peer: { kind: isGroup ? "group" : "dm", id: peerId },
+  cfg: config,
+  channel: "wecom",
+  accountId: agent.accountId,
+  peer: { kind: isGroup ? "group" : "dm", id: peerId },
 });
 
 // ===== 动态 Agent 注入开始 =====
-import { shouldUseDynamicAgent, generateAgentId, ensureDynamicAgentListed } from "../dynamic-agent.js";
+import {
+  shouldUseDynamicAgent,
+  generateAgentId,
+  ensureDynamicAgentListed,
+} from "../dynamic-agent.js";
 
 const useDynamicAgent = shouldUseDynamicAgent({
-    chatType: isGroup ? "group" : "dm",
-    senderId: fromUser,
-    config,
+  chatType: isGroup ? "group" : "dm",
+  senderId: fromUser,
+  config,
 });
 
 if (useDynamicAgent) {
-    const targetAgentId = generateAgentId(
-        isGroup ? "group" : "dm",
-        peerId
-    );
+  const targetAgentId = generateAgentId(isGroup ? "group" : "dm", peerId);
 
-    // 覆盖路由
-    route.agentId = targetAgentId;
-    route.sessionKey = `agent:${targetAgentId}:${isGroup ? "group" : "dm"}:${peerId}`;
+  // 覆盖路由
+  route.agentId = targetAgentId;
+  route.sessionKey = `agent:${targetAgentId}:${isGroup ? "group" : "dm"}:${peerId}`;
 
-    // 异步添加到 agents.list
-    ensureDynamicAgentListed(targetAgentId, core).catch(() => {});
+  // 异步添加到 agents.list
+  ensureDynamicAgentListed(targetAgentId, core).catch(() => {});
 }
 // ===== 动态 Agent 注入结束 =====
 ```
@@ -329,12 +329,12 @@ openclaw config set channels.wecom.dynamicAgents.adminUsers '["admin1","admin2"]
 
 ## 6. Agent ID 生成规则
 
-| 场景 | Peer ID | 生成的 Agent ID |
-|------|---------|-----------------|
-| 私聊 | zhangsan | `wecom-dm-zhangsan` |
-| 群聊 | wr123456 | `wecom-group-wr123456` |
-| 特殊字符 | zhang.san | `wecom-dm-zhang_san` |
-| 大写 | ZhangSan | `wecom-dm-zhangsan` |
+| 场景     | Peer ID   | 生成的 Agent ID        |
+| -------- | --------- | ---------------------- |
+| 私聊     | zhangsan  | `wecom-dm-zhangsan`    |
+| 群聊     | wr123456  | `wecom-group-wr123456` |
+| 特殊字符 | zhang.san | `wecom-dm-zhang_san`   |
+| 大写     | ZhangSan  | `wecom-dm-zhangsan`    |
 
 ## 7. 实现步骤
 

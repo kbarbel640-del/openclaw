@@ -16,10 +16,10 @@ This is an **OpenClaw Channel Plugin** for WeCom (企业微信 / WeChat Work). I
 
 The plugin implements a unique dual-mode architecture:
 
-| Mode | Purpose | Webhook Path | Capabilities |
-|------|---------|--------------|--------------|
-| **Bot** (智能体) | Real-time streaming chat | `/wecom`, `/wecom/bot` | Streaming responses, low latency, text/image only |
-| **Agent** (自建应用) | Fallback & broadcast | `/wecom/agent` | File sending, broadcasts, long tasks (>6min) |
+| Mode                 | Purpose                  | Webhook Path           | Capabilities                                      |
+| -------------------- | ------------------------ | ---------------------- | ------------------------------------------------- |
+| **Bot** (智能体)     | Real-time streaming chat | `/wecom`, `/wecom/bot` | Streaming responses, low latency, text/image only |
+| **Agent** (自建应用) | Fallback & broadcast     | `/wecom/agent`         | File sending, broadcasts, long tasks (>6min)      |
 
 **Key Design Principle**: Bot is preferred for conversations; Agent is used as fallback when Bot cannot deliver (files, timeouts) or for proactive broadcasts.
 
@@ -59,6 +59,7 @@ The plugin uses a sophisticated stream state system (`src/monitor/state.ts`):
 ### Token Management
 
 Agent mode uses automatic AccessToken caching (`src/agent/api-client.ts`):
+
 - Token cached with 60-second refresh buffer
 - Automatic retry on expiration
 - Thread-safe refresh deduplication
@@ -84,6 +85,7 @@ npx vitest --config vitest.config.ts --watch
 ```
 
 Test files are located alongside source files with `.test.ts` suffix:
+
 - `src/crypto.test.ts`
 - `src/monitor.integration.test.ts`
 - `src/monitor/state.queue.test.ts`
@@ -151,6 +153,7 @@ openclaw config set channels.wecom.dynamicAgents.adminUsers '["admin1","admin2"]
 ```
 
 **Generated Agent ID format**: `wecom-{type}-{peerId}`
+
 - DM: `wecom-dm-zhangsan`
 - Group: `wecom-group-wr123456`
 
@@ -167,6 +170,7 @@ Dynamic agents are automatically added to `agents.list` in the config file.
 ### Timeout Handling
 
 Bot mode has a 6-minute window (360s) for streaming responses. The plugin:
+
 - Tracks deadline: `createdAt + 6 * 60 * 1000`
 - Switches to Agent fallback at `deadline - 30s` margin
 - Sends DM via Agent for remaining content

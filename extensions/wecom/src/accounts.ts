@@ -1,6 +1,5 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk";
-
 import type { ResolvedWecomAccount, WecomAccountConfig, WecomConfig } from "./types.js";
 
 function listConfiguredAccountIds(cfg: OpenClawConfig): string[] {
