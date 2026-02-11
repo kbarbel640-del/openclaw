@@ -45,8 +45,8 @@ export class ElevenLabsScribeSTTProvider {
     this.apiKey = config.apiKey;
     this.model = config.model || "scribe_v2_realtime";
     this.languageCode = config.languageCode;
-    this.vadSilenceThresholdSecs = config.vadSilenceThresholdSecs ?? 0.5;
-    this.vadThreshold = config.vadThreshold ?? 0.4;
+    this.vadSilenceThresholdSecs = config.vadSilenceThresholdSecs ?? 0.3;
+    this.vadThreshold = config.vadThreshold ?? 0.7;
   }
 
   /**
