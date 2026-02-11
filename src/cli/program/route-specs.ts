@@ -8,7 +8,6 @@ export type RouteSpec = {
 
 const routeHealth: RouteSpec = {
   match: (path) => path[0] === "health",
-  loadPlugins: true,
   run: async (argv) => {
     const json = hasFlag(argv, "--json");
     const verbose = getVerboseFlag(argv, { includeDebug: true });
@@ -25,7 +24,6 @@ const routeHealth: RouteSpec = {
 
 const routeStatus: RouteSpec = {
   match: (path) => path[0] === "status",
-  loadPlugins: true,
   run: async (argv) => {
     const json = hasFlag(argv, "--json");
     const deep = hasFlag(argv, "--deep");
