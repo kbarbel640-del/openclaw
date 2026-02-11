@@ -44,6 +44,7 @@ import { createOpenClawCodingTools } from "../pi-tools.js";
 import { resolveSandboxContext } from "../sandbox.js";
 import { repairSessionFileIfNeeded } from "../session-file-repair.js";
 import { guardSessionManager } from "../session-tool-result-guard-wrapper.js";
+import { sanitizeToolUseResultPairing } from "../session-transcript-repair.js";
 import { acquireSessionWriteLock } from "../session-write-lock.js";
 import { detectRuntimeShell } from "../shell-utils.js";
 import {
@@ -429,10 +430,17 @@ export async function compactEmbeddedPiSessionDirect(
         const validated = transcriptPolicy.validateAnthropicTurns
           ? validateAnthropicTurns(validatedGemini)
           : validatedGemini;
-        const limited = limitHistoryTurns(
+        const truncated = limitHistoryTurns(
           validated,
           getDmHistoryLimitFromSessionKey(params.sessionKey, params.config),
         );
+        // Re-run tool_use/tool_result pairing repair after truncation.
+        // limitHistoryTurns() can slice away assistant tool_use messages while
+        // keeping their orphaned tool_result blocks, causing API 400 errors.
+        // See: https://github.com/openclaw/openclaw/issues/13896
+        const limited = transcriptPolicy.repairToolUseResultPairing
+          ? sanitizeToolUseResultPairing(truncated)
+          : truncated;
         if (limited.length > 0) {
           session.agent.replaceMessages(limited);
         }
