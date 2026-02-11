@@ -86,7 +86,7 @@ export function resolveMatrixSessionKey(params: {
     return { sessionKey: baseSessionKey, parentSessionKey: undefined };
   }
   return {
-    sessionKey: `${baseSessionKey}:thread:${threadRootId.toLowerCase()}`,
+    sessionKey: `${baseSessionKey}:thread:${threadRootId}`,
     parentSessionKey: baseSessionKey,
   };
 }
@@ -477,6 +477,7 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
 
       let threadStarterBody: string | undefined;
       let threadLabel: string | undefined;
+      let shouldRecordSession = true;
       const parentSessionKey = resolvedParentSessionKey;
 
       if (threadRootId && parentSessionKey) {
@@ -491,9 +492,8 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
           try {
             const rootEvent = await fetchEventSummary(client, roomId, threadRootId);
             if (!rootEvent) {
-              logVerboseMessage(
-                `matrix: thread root ${threadRootId} not found; continuing without thread starter`,
-              );
+              shouldRecordSession = false;
+              logVerboseMessage(`matrix: thread root ${threadRootId} not found (retryable)`);
             } else if (rootEvent.body) {
               const rootSenderName = rootEvent.sender
                 ? await getMemberDisplayName(roomId, rootEvent.sender)
@@ -510,8 +510,9 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
               threadLabel = `Matrix thread in ${roomName ?? roomId}`;
             }
           } catch (err) {
+            shouldRecordSession = false;
             logVerboseMessage(
-              `matrix: failed to fetch thread root ${threadRootId}; continuing without thread starter: ${String(err)}`,
+              `matrix: failed to fetch thread root ${threadRootId} (retryable): ${String(err)}`,
             );
           }
         }
@@ -577,26 +578,28 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         ParentSessionKey: parentSessionKey,
       });
 
-      await core.channel.session.recordInboundSession({
-        storePath,
-        sessionKey: ctxPayload.SessionKey ?? sessionKey,
-        ctx: ctxPayload,
-        updateLastRoute: isDirectMessage
-          ? {
-              sessionKey: route.mainSessionKey,
-              channel: "matrix",
-              to: `room:${roomId}`,
-              accountId: route.accountId,
-            }
-          : undefined,
-        onRecordError: (err) => {
-          logger.warn("failed updating session meta", {
-            error: String(err),
-            storePath,
-            sessionKey: ctxPayload.SessionKey ?? sessionKey,
-          });
-        },
-      });
+      if (shouldRecordSession) {
+        await core.channel.session.recordInboundSession({
+          storePath,
+          sessionKey: ctxPayload.SessionKey ?? sessionKey,
+          ctx: ctxPayload,
+          updateLastRoute: isDirectMessage
+            ? {
+                sessionKey: route.mainSessionKey,
+                channel: "matrix",
+                to: `room:${roomId}`,
+                accountId: route.accountId,
+              }
+            : undefined,
+          onRecordError: (err) => {
+            logger.warn("failed updating session meta", {
+              error: String(err),
+              storePath,
+              sessionKey: ctxPayload.SessionKey ?? sessionKey,
+            });
+          },
+        });
+      }
 
       const preview = bodyText.slice(0, 200).replace(/\n/g, "\\n");
       logVerboseMessage(`matrix inbound: room=${roomId} from=${senderId} preview="${preview}"`);
