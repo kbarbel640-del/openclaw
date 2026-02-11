@@ -3,6 +3,13 @@ import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { OpenClawConfig } from "../../config/config.js";
+import { HashEmbedding } from "../../../extensions/memory-context/src/core/embedding.js";
+import { KnowledgeStore } from "../../../extensions/memory-context/src/core/knowledge-store.js";
+import {
+  setMemoryContextRuntime,
+  type MemoryContextConfig,
+} from "../../../extensions/memory-context/src/core/runtime.js";
+import { WarmStore } from "../../../extensions/memory-context/src/core/store.js";
 import { resolveContextWindowInfo } from "../context-window-guard.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { setCompactionSafeguardRuntime } from "../pi-extensions/compaction-safeguard-runtime.js";
@@ -94,10 +101,65 @@ export function buildEmbeddedExtensionPaths(params: {
     });
     paths.push(resolvePiExtensionPath("compaction-safeguard"));
   }
+  // context-pruning: micro-level tool result pruning (runs first in context chain)
   const pruning = buildContextPruningExtension(params);
   if (pruning.additionalExtensionPaths) {
     paths.push(...pruning.additionalExtensionPaths);
   }
+
+  // memory-context: recall injection (runs after context-pruning in context chain)
+  // + archive (runs on session_before_compact, independent of context chain)
+  const memCtxCfg = params.cfg?.agents?.defaults?.memoryContext;
+  if (memCtxCfg?.enabled) {
+    const contextWindowTokens = resolveContextWindowTokens(params);
+    const compactionCfg = params.cfg?.agents?.defaults?.compaction;
+    const storagePath = memCtxCfg.storagePath ?? "~/.openclaw/memory/context";
+    const resolvedPath = storagePath.startsWith("~")
+      ? storagePath.replace(/^~/, process.env.HOME ?? "/root")
+      : storagePath;
+
+    const config: MemoryContextConfig = {
+      enabled: true,
+      hardCapTokens: memCtxCfg.hardCapTokens ?? 4000,
+      embeddingModel: memCtxCfg.embeddingModel ?? "hash",
+      storagePath: resolvedPath,
+      redaction: memCtxCfg.redaction !== false,
+      knowledgeExtraction: memCtxCfg.knowledgeExtraction !== false,
+      maxSegments: memCtxCfg.maxSegments ?? 20000,
+      crossSession: memCtxCfg.crossSession === true,
+      autoRecallMinScore: memCtxCfg.autoRecallMinScore ?? 0.7,
+      evictionDays: memCtxCfg.evictionDays ?? 90,
+    };
+
+    const embedding = new HashEmbedding(384);
+    const rawStore = new WarmStore({
+      sessionId: params.sessionManager.sessionId ?? "default",
+      embedding,
+      coldStore: { path: resolvedPath },
+      maxSegments: config.maxSegments,
+      crossSession: config.crossSession,
+      eviction: {
+        enabled: config.evictionDays > 0,
+        maxAgeDays: config.evictionDays,
+      },
+      vectorPersist: true,
+    });
+    const knowledgeStore = new KnowledgeStore(resolvedPath);
+
+    setMemoryContextRuntime(params.sessionManager, {
+      config,
+      rawStore,
+      knowledgeStore,
+      contextWindowTokens,
+      maxHistoryShare: compactionCfg?.maxHistoryShare ?? 0.5,
+    });
+
+    // Order matters: recall (context event) before archive (session_before_compact)
+    // in paths array, but they listen to different events so order only affects loading.
+    paths.push(resolvePiExtensionPath("memory-context-recall"));
+    paths.push(resolvePiExtensionPath("memory-context-archive"));
+  }
+
   return paths;
 }
 
