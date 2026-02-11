@@ -792,7 +792,8 @@ export async function collectInstalledSkillsManifestSafetyFindings(params: {
           severity: "warn",
           title: `Skill "${skillName}" manifest contains suspicious patterns`,
           detail: `Found ${summary.warn} warning(s) in ${summary.scannedFiles} manifest file(s) under ${skillDir}:\n${details}`,
-          remediation: "Review the flagged patterns in the skill manifest to ensure they are intentional.",
+          remediation:
+            "Review the flagged patterns in the skill manifest to ensure they are intentional.",
         });
       }
     }

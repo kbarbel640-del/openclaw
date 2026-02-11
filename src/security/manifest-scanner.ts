@@ -167,7 +167,8 @@ const MANIFEST_RULES: ManifestRule[] = [
     ruleId: "obfuscation",
     severity: "warn",
     message: "Possible instruction concealment via encoding",
-    pattern: /\\x[0-9a-fA-F]{2}(?:\\x[0-9a-fA-F]{2}){5,}|\\u[0-9a-fA-F]{4}(?:\\u[0-9a-fA-F]{4}){5,}/,
+    pattern:
+      /\\x[0-9a-fA-F]{2}(?:\\x[0-9a-fA-F]{2}){5,}|\\u[0-9a-fA-F]{4}(?:\\u[0-9a-fA-F]{4}){5,}/,
   },
 ];
 
@@ -215,10 +216,7 @@ const INVISIBLE_CHARS: Array<{ name: string; pattern: RegExp; threshold: number 
 /** Unicode tag characters U+E0001–U+E007F (invisible instruction block). */
 const TAG_CHAR_RANGE = /[\u{E0001}-\u{E007F}]/gu;
 
-function detectUnicodeSteganography(
-  content: string,
-  filePath: string,
-): ManifestScanFinding[] {
+function detectUnicodeSteganography(content: string, filePath: string): ManifestScanFinding[] {
   const findings: ManifestScanFinding[] = [];
 
   for (const charDef of INVISIBLE_CHARS) {
@@ -266,10 +264,7 @@ function detectUnicodeSteganography(
 // Core scanner
 // ---------------------------------------------------------------------------
 
-export function scanManifest(
-  content: string,
-  filePath: string,
-): ManifestScanFinding[] {
+export function scanManifest(content: string, filePath: string): ManifestScanFinding[] {
   const findings: ManifestScanFinding[] = [];
   const lines = content.split("\n");
   const matchedRules = new Set<string>();
@@ -332,10 +327,7 @@ export type ManifestScanOptions = {
   maxFileBytes?: number;
 };
 
-async function findManifestFiles(
-  dirPath: string,
-  maxFiles: number,
-): Promise<string[]> {
+async function findManifestFiles(dirPath: string, maxFiles: number): Promise<string[]> {
   const files: string[] = [];
   const stack: string[] = [dirPath];
 
@@ -425,7 +417,7 @@ export async function scanManifestDirectory(
     findings: allFindings,
     deepAnalysisHint:
       critical + warn > 0
-        ? 'For comprehensive trust scoring (6 categories + social reputation), run: npx agentverus-scanner scan ./SKILL.md — https://agentverus.ai'
+        ? "For comprehensive trust scoring (6 categories + social reputation), run: npx agentverus-scanner scan ./SKILL.md — https://agentverus.ai"
         : undefined,
   };
 }
