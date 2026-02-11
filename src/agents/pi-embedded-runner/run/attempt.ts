@@ -761,20 +761,26 @@ export async function runEmbeddedAttempt(
         });
 
         // Log complete prompt with messages context
-        const messagesForLogging = activeSession.messages.map((msg) => ({
-          role: msg.role,
-          content:
-            typeof msg.content === "string"
-              ? msg.content
-              : Array.isArray(msg.content)
-                ? msg.content.map((block) => {
-                    if (typeof block === "object" && block !== null) {
-                      return { type: block.type, ...block };
-                    }
-                    return block;
-                  })
-                : msg.content,
-        }));
+        const messagesForLogging = activeSession.messages.map((msg) => {
+          // Type guard: only process messages that have content
+          if (!("content" in msg)) {
+            return { role: msg.role, content: "(no content)" };
+          }
+          return {
+            role: msg.role,
+            content:
+              typeof msg.content === "string"
+                ? msg.content
+                : Array.isArray(msg.content)
+                  ? msg.content.map((block: any) => {
+                      if (typeof block === "object" && block !== null) {
+                        return { type: block.type, ...block };
+                      }
+                      return block;
+                    })
+                  : msg.content,
+          };
+        });
 
         log.info(`complete prompt context: ${messagesForLogging.length} messages`, {
           runId: params.runId,
