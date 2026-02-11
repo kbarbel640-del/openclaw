@@ -36,7 +36,12 @@ import { appendUsageLine, formatResponseUsageLine } from "./agent-runner-utils.j
 import { createAudioAsVoiceBuffer, createBlockReplyPipeline } from "./block-reply-pipeline.js";
 import { resolveBlockStreamingCoalescing } from "./block-streaming.js";
 import { createFollowupRunner } from "./followup-runner.js";
-import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
+import {
+  enqueueFollowupRun,
+  scheduleFollowupDrain,
+  type FollowupRun,
+  type QueueSettings,
+} from "./queue.js";
 import { createReplyToModeFilterForChannel, resolveReplyToMode } from "./reply-threading.js";
 import { incrementCompactionCount } from "./session-updates.js";
 import { persistSessionUsageUpdate } from "./session-usage.js";
@@ -307,29 +312,49 @@ export async function runReplyAgent(params: {
     });
   try {
     const runStartedAt = Date.now();
-    const runOutcome = await runAgentTurnWithFallback({
-      commandBody,
-      followupRun,
-      sessionCtx,
-      opts,
-      typingSignals,
-      blockReplyPipeline,
-      blockStreamingEnabled,
-      blockReplyChunking,
-      resolvedBlockStreamingBreak,
-      applyReplyToMode,
-      shouldEmitToolResult,
-      shouldEmitToolOutput,
-      pendingToolTasks,
-      resetSessionAfterCompactionFailure,
-      resetSessionAfterRoleOrderingConflict,
-      isHeartbeat,
-      sessionKey,
-      getActiveSessionEntry: () => activeSessionEntry,
-      activeSessionStore,
-      storePath,
-      resolvedVerboseLevel,
-    });
+    let runOutcome: Awaited<ReturnType<typeof runAgentTurnWithFallback>>;
+    try {
+      runOutcome = await runAgentTurnWithFallback({
+        commandBody,
+        followupRun,
+        sessionCtx,
+        opts,
+        typingSignals,
+        blockReplyPipeline,
+        blockStreamingEnabled,
+        blockReplyChunking,
+        resolvedBlockStreamingBreak,
+        applyReplyToMode,
+        shouldEmitToolResult,
+        shouldEmitToolOutput,
+        pendingToolTasks,
+        resetSessionAfterCompactionFailure,
+        resetSessionAfterRoleOrderingConflict,
+        isHeartbeat,
+        sessionKey,
+        getActiveSessionEntry: () => activeSessionEntry,
+        activeSessionStore,
+        storePath,
+        resolvedVerboseLevel,
+      });
+    } catch (lockErr) {
+      // When the session file is locked by another process (e.g. cron, sub-agent),
+      // queue the message for retry instead of dropping it.
+      if (lockErr instanceof Error && lockErr.message.includes("session file locked")) {
+        defaultRuntime.log?.(
+          `Session locked, queuing message for retry: ${sessionKey ?? followupRun.run.sessionId}`,
+        );
+        enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
+        // Schedule a delayed drain to process the queued message once the lock is released.
+        const LOCK_RETRY_DELAY_MS = 5_000;
+        setTimeout(() => {
+          scheduleFollowupDrain(queueKey, runFollowupTurn);
+        }, LOCK_RETRY_DELAY_MS);
+        typing.cleanup();
+        return undefined;
+      }
+      throw lockErr;
+    }
 
     if (runOutcome.kind === "final") {
       return finalizeWithFollowup(runOutcome.payload, queueKey, runFollowupTurn);
