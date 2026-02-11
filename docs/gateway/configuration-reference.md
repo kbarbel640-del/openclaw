@@ -35,6 +35,7 @@ All channels support DM policies and group policies:
 <Note>
 `channels.defaults.groupPolicy` sets the default when a provider's `groupPolicy` is unset.
 Pairing codes expire after 1 hour. Pending DM pairing requests are capped at **3 per channel**.
+Slack/Discord have a special fallback: if their provider section is missing entirely, runtime group policy can resolve to `open` (with a startup warning).
 </Note>
 
 ### WhatsApp
@@ -323,7 +324,8 @@ WhatsApp runs through the gateway's web channel (Baileys Web). It starts automat
 }
 ```
 
-- Requires both `botToken` and `appToken` (Socket Mode). Env fallbacks: `SLACK_BOT_TOKEN` + `SLACK_APP_TOKEN`.
+- **Socket mode** requires both `botToken` and `appToken` (`SLACK_BOT_TOKEN` + `SLACK_APP_TOKEN` for default account env fallback).
+- **HTTP mode** requires `botToken` plus `signingSecret` (at root or per-account).
 - `configWrites: false` blocks Slack-initiated config writes.
 - Use `user:<id>` (DM) or `channel:<id>` for delivery targets.
 
@@ -751,7 +753,8 @@ Prunes **old tool results** from in-memory context before sending to the LLM. Do
   agents: {
     defaults: {
       contextPruning: {
-        mode: "adaptive", // off | adaptive | aggressive
+        mode: "cache-ttl", // off | cache-ttl
+        ttl: "1h", // duration (ms/s/m/h), default unit: minutes
         keepLastAssistants: 3,
         softTrimRatio: 0.3,
         hardClearRatio: 0.5,
@@ -765,19 +768,20 @@ Prunes **old tool results** from in-memory context before sending to the LLM. Do
 }
 ```
 
-<Accordion title="Pruning modes explained">
+<Accordion title="cache-ttl mode behavior">
 
-- **Adaptive**: soft-trims oversized tool results (keep head/tail) at `softTrimRatio`, then hard-clears the oldest at `hardClearRatio` when enough prunable bulk exists.
-- **Aggressive**: always replaces eligible tool results with the placeholder (no ratio checks).
+- `mode: "cache-ttl"` enables pruning passes.
+- `ttl` controls how often pruning can run again (after the last cache touch).
+- Pruning soft-trims oversized tool results first, then hard-clears older tool results if needed.
 
-**Soft-trim**: keeps beginning + end, inserts `...` in the middle.
+**Soft-trim** keeps beginning + end and inserts `...` in the middle.
 
-**Hard-clear**: replaces the entire tool result with the placeholder.
+**Hard-clear** replaces the entire tool result with the placeholder.
 
 Notes:
 
 - Image blocks are never trimmed/cleared.
-- Context ratio is character-based (approximate), not exact tokens.
+- Ratios are character-based (approximate), not exact token counts.
 - If fewer than `keepLastAssistants` assistant messages exist, pruning is skipped.
 
 </Accordion>
@@ -871,9 +875,6 @@ Optional **Docker sandboxing** for the embedded agent. See [Sandboxing](/gateway
           headless: false,
           enableNoVnc: true,
           allowHostControl: false,
-          allowedControlUrls: ["http://10.0.0.42:18791"],
-          allowedControlHosts: ["browser.lab.local"],
-          allowedControlPorts: [18791],
           autoStart: true,
           autoStartTimeoutMs: 12000,
         },
@@ -932,7 +933,6 @@ Optional **Docker sandboxing** for the embedded agent. See [Sandboxing](/gateway
 **Sandboxed browser** (`sandbox.browser.enabled`): Chromium + CDP in a container. noVNC URL injected into system prompt. Does not require `browser.enabled` in main config.
 
 - `allowHostControl: false` (default) blocks sandboxed sessions from targeting the host browser.
-- `allowedControlUrls`, `allowedControlHosts`, `allowedControlPorts`: restrict remote browser targets for `target: "custom"`.
 
 </Accordion>
 
@@ -1150,7 +1150,7 @@ See [Multi-Agent Sandbox & Tools](/tools/multi-agent-sandbox-tools) for preceden
       maxEntries: 500,
       rotateBytes: "10mb",
     },
-    mainKey: "main",
+    mainKey: "main", // legacy (runtime always uses "main")
     agentToAgent: { maxPingPongTurns: 5 },
     sendPolicy: {
       rules: [{ action: "deny", match: { channel: "discord", chatType: "group" } }],
@@ -1170,9 +1170,8 @@ See [Multi-Agent Sandbox & Tools](/tools/multi-agent-sandbox-tools) for preceden
 - **`identityLinks`**: map canonical ids to provider-prefixed peers for cross-channel session sharing.
 - **`reset`**: primary reset policy. `daily` resets at `atHour` local time; `idle` resets after `idleMinutes`. When both configured, whichever expires first wins.
 - **`resetByType`**: per-type overrides (`direct`, `group`, `thread`). Legacy `dm` accepted as alias for `direct`.
-- **`heartbeatIdleMinutes`**: optional idle override for heartbeat checks.
-- **`mainKey`**: direct-chat bucket key (default: `"main"`). `sandbox.mode: "non-main"` uses this to detect the main session.
-- **`sendPolicy`**: match by `channel`, `chatType` (`direct|group|room`), or `keyPrefix`. First deny wins.
+- **`mainKey`**: legacy field. Runtime now always uses `"main"` for the main direct-chat bucket.
+- **`sendPolicy`**: match by `channel`, `chatType` (`direct|group|channel`, with legacy `dm` alias), or `keyPrefix`. First deny wins.
 - **`maintenance`**: `warn` warns the active session on eviction; `enforce` applies pruning and rotation.
 
 </Accordion>
@@ -1189,7 +1188,7 @@ See [Multi-Agent Sandbox & Tools](/tools/multi-agent-sandbox-tools) for preceden
     ackReactionScope: "group-mentions", // group-mentions | group-all | direct | all
     removeAckAfterReply: false,
     queue: {
-      mode: "collect", // steer | followup | collect | steer-backlog | interrupt
+      mode: "collect", // steer | followup | collect | steer-backlog | steer+backlog | queue | interrupt
       debounceMs: 1000,
       cap: 20,
       drop: "summarize", // old | new | summarize
@@ -1326,7 +1325,7 @@ Defaults for Talk mode (macOS/iOS/Android).
 
 | Group              | Tools                                                                                    |
 | ------------------ | ---------------------------------------------------------------------------------------- |
-| `group:runtime`    | `exec`, `bash`, `process`                                                                |
+| `group:runtime`    | `exec`, `process` (`bash` is accepted as an alias for `exec`)                            |
 | `group:fs`         | `read`, `write`, `edit`, `apply_patch`                                                   |
 | `group:sessions`   | `sessions_list`, `sessions_history`, `sessions_send`, `sessions_spawn`, `session_status` |
 | `group:memory`     | `memory_search`, `memory_get`                                                            |
@@ -1424,13 +1423,6 @@ Controls elevated (host) exec access:
         timeoutSeconds: 30,
         cacheTtlMinutes: 15,
         userAgent: "custom-ua",
-        readability: true,
-        firecrawl: {
-          enabled: true,
-          apiKey: "firecrawl_key", // or FIRECRAWL_API_KEY
-          baseUrl: "https://api.firecrawl.dev",
-          onlyMainContent: true,
-        },
       },
     },
   },
@@ -1928,7 +1920,7 @@ See [Plugins](/tools/plugin).
 
 - `mode`: `local` (run gateway) or `remote` (connect to remote gateway). Gateway refuses to start unless `local`.
 - `port`: single multiplexed port for WS + HTTP. Precedence: `--port` > `OPENCLAW_GATEWAY_PORT` > `gateway.port` > `18789`.
-- `bind`: `loopback` (default), `lan` (`0.0.0.0`), `tailnet` (Tailscale IP only).
+- `bind`: `auto`, `loopback` (default), `lan` (`0.0.0.0`), `tailnet` (Tailscale IP only), or `custom`.
 - **Auth**: required by default. Non-loopback binds require a shared token/password. Onboarding wizard generates a token by default.
 - `auth.allowTailscale`: when `true`, Tailscale Serve identity headers satisfy auth (verified via `tailscale whois`). Defaults to `true` when `tailscale.mode = "serve"`.
 - `tailscale.mode`: `serve` (tailnet only, loopback bind) or `funnel` (public, requires auth).
@@ -2228,22 +2220,21 @@ Written by the macOS onboarding assistant. Derives defaults:
 
 ## Bridge (legacy, removed)
 
-Current builds no longer include the TCP bridge. Nodes connect over the Gateway WebSocket. `bridge.*` config keys are ignored.
+Current builds no longer include the TCP bridge. Nodes connect over the Gateway WebSocket. `bridge.*` keys are no longer part of the config schema (validation fails until removed; `openclaw doctor --fix` can strip unknown keys).
 
 <Accordion title="Legacy bridge config (historical reference)">
 
-```json5
+```json
 {
-  bridge: {
-    enabled: true,
-    port: 18790,
-    bind: "tailnet", // lan | tailnet | loopback | auto
-    tls: {
-      enabled: true,
-      autoGenerate: true,
-      // certPath, keyPath, caPath
-    },
-  },
+  "bridge": {
+    "enabled": true,
+    "port": 18790,
+    "bind": "tailnet",
+    "tls": {
+      "enabled": true,
+      "autoGenerate": true
+    }
+  }
 }
 ```
 
