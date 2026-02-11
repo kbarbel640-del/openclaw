@@ -349,15 +349,20 @@ The Gateway watches `~/.openclaw/openclaw.json` and applies changes automaticall
 
 Most fields hot-apply without downtime. In `hybrid` mode, restart-required changes are handled automatically.
 
-| Category            | Fields                                                      | Restart needed? |
-| ------------------- | ----------------------------------------------------------- | --------------- |
-| Channels            | `web`, `telegram`, `discord`, `signal`, `imessage`, `slack` | No              |
-| Agent & models      | `agent`, `models`, `routing`                                | No              |
-| Automation          | `hooks`, `cron`, `heartbeat`                                | No              |
-| Sessions & messages | `session`, `messages`                                       | No              |
-| Tools & UI          | `browser`, `skills`, `ui`, `talk`, `logging`                | No              |
-| Gateway server      | `gateway` (port, bind, auth, tailscale)                     | **Yes**         |
-| Infrastructure      | `discovery`, `canvasHost`, `plugins`                        | **Yes**         |
+| Category            | Fields                                                               | Restart needed? |
+| ------------------- | -------------------------------------------------------------------- | --------------- |
+| Channels            | `channels.*`, `web` (WhatsApp) — all built-in and extension channels | No              |
+| Agent & models      | `agent`, `agents`, `models`, `routing`                               | No              |
+| Automation          | `hooks`, `cron`, `agent.heartbeat`                                   | No              |
+| Sessions & messages | `session`, `messages`                                                | No              |
+| Tools & media       | `tools`, `browser`, `skills`, `audio`, `talk`                        | No              |
+| UI & misc           | `ui`, `logging`, `identity`, `bindings`                              | No              |
+| Gateway server      | `gateway.*` (port, bind, auth, tailscale, TLS, HTTP)                 | **Yes**         |
+| Infrastructure      | `discovery`, `canvasHost`, `plugins`                                 | **Yes**         |
+
+<Note>
+`gateway.reload` and `gateway.remote` are exceptions — changing them does **not** trigger a restart.
+</Note>
 
 ## Config RPC (programmatic updates)
 
