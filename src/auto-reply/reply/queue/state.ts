@@ -11,6 +11,8 @@ export type FollowupQueueState = {
   droppedCount: number;
   summaryLines: string[];
   lastRun?: FollowupRun["run"];
+  /** Tracks consecutive lock-retry attempts across drain iterations (survives collect-mode rebuilds). */
+  lockRetryCount?: number;
 };
 
 export const DEFAULT_QUEUE_DEBOUNCE_MS = 1000;

@@ -42,6 +42,7 @@ import {
   type FollowupRun,
   type QueueSettings,
 } from "./queue.js";
+import { FOLLOWUP_QUEUES } from "./queue/state.js";
 import { createReplyToModeFilterForChannel, resolveReplyToMode } from "./reply-threading.js";
 import { incrementCompactionCount } from "./session-updates.js";
 import { persistSessionUsageUpdate } from "./session-usage.js";
@@ -341,24 +342,34 @@ export async function runReplyAgent(params: {
       // When the session file is locked by another process (e.g. cron, sub-agent),
       // queue the message for retry instead of dropping it.
       if (lockErr instanceof Error && lockErr.message.includes("session file locked")) {
-        // Track retry count to prevent infinite cycling under persistent contention.
-        // The drain loop shift()s the item before calling us, so re-enqueue is not
-        // a dedup conflict — the queue is empty when we push it back.
+        // Track retry count on the queue state (not on followupRun) so it
+        // persists across collect-mode rebuilds that create fresh payload objects.
+        const queue = FOLLOWUP_QUEUES.get(queueKey);
         const MAX_LOCK_RETRIES = 3;
-        const retryCount =
-          ((followupRun as Record<string, unknown>)._lockRetryCount as number) ?? 0;
+        const retryCount = queue?.lockRetryCount ?? 0;
         if (retryCount >= MAX_LOCK_RETRIES) {
           defaultRuntime.error?.(
             `Session locked after ${MAX_LOCK_RETRIES} retries, dropping message: ${sessionKey ?? followupRun.run.sessionId}`,
           );
+          if (queue) {
+            queue.lockRetryCount = 0;
+          }
           typing.cleanup();
           return undefined;
         }
         defaultRuntime.log?.(
           `Session locked (retry ${retryCount + 1}/${MAX_LOCK_RETRIES}), queuing message for retry: ${sessionKey ?? followupRun.run.sessionId}`,
         );
-        (followupRun as Record<string, unknown>)._lockRetryCount = retryCount + 1;
-        enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
+        if (queue) {
+          queue.lockRetryCount = retryCount + 1;
+          // Unshift to preserve FIFO order — the item was shift()ed by the
+          // drain loop, so pushing to the front keeps it ahead of any items
+          // that arrived while we were waiting.
+          queue.items.unshift(followupRun);
+          queue.lastEnqueuedAt = Date.now();
+        } else {
+          enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
+        }
         // Wait before retrying so we don't spam the lock.
         const LOCK_RETRY_DELAY_MS = 5_000;
         await new Promise<void>((resolve) => setTimeout(resolve, LOCK_RETRY_DELAY_MS));
@@ -371,6 +382,12 @@ export async function runReplyAgent(params: {
         return undefined;
       }
       throw lockErr;
+    }
+
+    // Reset lock retry counter on successful execution.
+    const queueAfterRun = FOLLOWUP_QUEUES.get(queueKey);
+    if (queueAfterRun?.lockRetryCount) {
+      queueAfterRun.lockRetryCount = 0;
     }
 
     if (runOutcome.kind === "final") {
