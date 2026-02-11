@@ -1951,11 +1951,20 @@ soft threshold below the compaction limit.
 
 Legacy defaults:
 
+- `memoryFlush.mode`: `durable` (recommended) or `off`
 - `memoryFlush.enabled`: `true`
 - `memoryFlush.softThresholdTokens`: `4000`
 - `memoryFlush.prompt` / `memoryFlush.systemPrompt`: built-in defaults with `NO_REPLY`
 - Note: memory flush is skipped when the session workspace is read-only
   (`agents.defaults.sandbox.workspaceAccess: "ro"` or `"none"`).
+
+`memoryFlush.mode` is the readable on/off switch for this behavior:
+
+- `durable`: run a silent durable-memory checkpoint before compaction
+- `off`: disable this checkpoint
+
+When `memoryFlush.mode` is set, it takes precedence over the legacy
+`memoryFlush.enabled` boolean.
 
 Example (tuned):
 
@@ -1967,7 +1976,7 @@ Example (tuned):
         mode: "safeguard",
         reserveTokensFloor: 24000,
         memoryFlush: {
-          enabled: true,
+          mode: "durable",
           softThresholdTokens: 6000,
           systemPrompt: "Session nearing compaction. Store durable memories now.",
           prompt: "Write any lasting notes to memory/YYYY-MM-DD.md; reply with NO_REPLY if nothing to store.",

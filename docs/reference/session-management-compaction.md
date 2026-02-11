@@ -256,10 +256,13 @@ OpenClaw uses the **pre-threshold flush** approach:
 
 Config (`agents.defaults.compaction.memoryFlush`):
 
+- `mode` (`durable` or `off`, recommended switch)
 - `enabled` (default: `true`)
 - `softThresholdTokens` (default: `4000`)
 - `prompt` (user message for the flush turn)
 - `systemPrompt` (extra system prompt appended for the flush turn)
+
+If `mode` is set, it takes precedence over `enabled`.
 
 Notes:
 

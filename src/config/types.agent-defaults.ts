@@ -256,7 +256,16 @@ export type AgentCompactionConfig = {
   memoryFlush?: AgentCompactionMemoryFlushConfig;
 };
 
+export type AgentCompactionMemoryFlushMode = "durable" | "off";
+
 export type AgentCompactionMemoryFlushConfig = {
+  /**
+   * Named pre-compaction memory flush mode.
+   * - "durable": run the durable-memory checkpoint turn before compaction
+   * - "off": disable pre-compaction memory flush
+   * When set, this takes precedence over `enabled`.
+   */
+  mode?: AgentCompactionMemoryFlushMode;
   /** Enable the pre-compaction memory flush (default: true). */
   enabled?: boolean;
   /** Run the memory flush when context is within this many tokens of the compaction threshold. */

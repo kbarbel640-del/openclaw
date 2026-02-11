@@ -37,7 +37,11 @@ const normalizeNonNegativeInt = (value: unknown): number | null => {
 
 export function resolveMemoryFlushSettings(cfg?: OpenClawConfig): MemoryFlushSettings | null {
   const defaults = cfg?.agents?.defaults?.compaction?.memoryFlush;
-  const enabled = defaults?.enabled ?? true;
+  const mode = defaults?.mode;
+  if (mode === "off") {
+    return null;
+  }
+  const enabled = mode === "durable" ? true : (defaults?.enabled ?? true);
   if (!enabled) {
     return null;
   }

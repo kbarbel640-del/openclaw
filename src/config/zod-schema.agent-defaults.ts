@@ -95,6 +95,7 @@ export const AgentDefaultsSchema = z
         maxHistoryShare: z.number().min(0.1).max(0.9).optional(),
         memoryFlush: z
           .object({
+            mode: z.union([z.literal("durable"), z.literal("off")]).optional(),
             enabled: z.boolean().optional(),
             softThresholdTokens: z.number().int().nonnegative().optional(),
             prompt: z.string().optional(),

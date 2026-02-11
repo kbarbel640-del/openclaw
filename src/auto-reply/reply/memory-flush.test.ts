@@ -25,6 +25,23 @@ describe("memory flush settings", () => {
     ).toBeNull();
   });
 
+  it("supports named memory flush modes", () => {
+    const enabled = resolveMemoryFlushSettings({
+      agents: {
+        defaults: { compaction: { memoryFlush: { mode: "durable", enabled: false } } },
+      },
+    });
+    expect(enabled).not.toBeNull();
+    expect(enabled?.enabled).toBe(true);
+
+    const disabled = resolveMemoryFlushSettings({
+      agents: {
+        defaults: { compaction: { memoryFlush: { mode: "off", enabled: true } } },
+      },
+    });
+    expect(disabled).toBeNull();
+  });
+
   it("appends NO_REPLY hint when missing", () => {
     const settings = resolveMemoryFlushSettings({
       agents: {
