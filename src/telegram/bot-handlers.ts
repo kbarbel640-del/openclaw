@@ -52,6 +52,7 @@ import {
 } from "./group-access.js";
 import { migrateTelegramGroupConfig } from "./group-migration.js";
 import { resolveTelegramInlineButtonsScope } from "./inline-buttons.js";
+import { resolveIgnoreMediaTypes, resolveTelegramMediaType } from "./media-type-filter.js";
 import {
   buildModelsKeyboard,
   buildProviderKeyboard,
@@ -70,35 +71,6 @@ function isMediaSizeLimitError(err: unknown): boolean {
 
 function isRecoverableMediaGroupError(err: unknown): boolean {
   return err instanceof MediaFetchError || isMediaSizeLimitError(err);
-}
-
-/** Media types silently skipped in group chats when ignoreMediaTypes is not explicitly configured. */
-const GROUP_DEFAULT_IGNORE_MEDIA_TYPES: readonly string[] = ["video_note", "video"];
-
-/** Resolve the Telegram media type string from a message, or null if no media. */
-function resolveTelegramMediaType(msg: Message): string | null {
-  if (msg.video_note) {
-    return "video_note";
-  }
-  if (msg.voice) {
-    return "voice";
-  }
-  if (msg.audio) {
-    return "audio";
-  }
-  if (msg.video) {
-    return "video";
-  }
-  if (msg.document) {
-    return "document";
-  }
-  if (msg.photo) {
-    return "photo";
-  }
-  if (msg.sticker) {
-    return "sticker";
-  }
-  return null;
 }
 
 export const registerTelegramHandlers = ({
@@ -339,8 +311,7 @@ export const registerTelegramHandlers = ({
         isGroupAlbum && groupBotUsername
           ? entry.messages.some(({ msg: m }) => hasBotMention(m, groupBotUsername))
           : false;
-      const albumIgnoreList =
-        telegramCfg.ignoreMediaTypes ?? (isGroupAlbum ? GROUP_DEFAULT_IGNORE_MEDIA_TYPES : []);
+      const albumIgnoreList = resolveIgnoreMediaTypes(telegramCfg.ignoreMediaTypes, isGroupAlbum);
 
       const allMedia: TelegramMediaRef[] = [];
       for (const { ctx } of entry.messages) {
@@ -1236,8 +1207,7 @@ export const registerTelegramHandlers = ({
       const detectedMediaType = resolveTelegramMediaType(msg);
       const botUsername = ctx.me?.username?.toLowerCase();
       const mentionedInGroup = isGroup && botUsername ? hasBotMention(msg, botUsername) : false;
-      const effectiveIgnoreList =
-        telegramCfg.ignoreMediaTypes ?? (isGroup ? GROUP_DEFAULT_IGNORE_MEDIA_TYPES : []);
+      const effectiveIgnoreList = resolveIgnoreMediaTypes(telegramCfg.ignoreMediaTypes, isGroup);
       const isIgnoredMediaType =
         detectedMediaType != null &&
         !mentionedInGroup &&
