@@ -583,7 +583,7 @@ export class TwilioProvider implements VoiceCallProvider {
       // Prefer streaming TTS for lower latency
       if (ttsProvider.streamForTelephony) {
         console.log(`[voice-call] Using streaming TTS for stream ${streamSid}`);
-        let remainder = Buffer.alloc(0);
+        let remainder: Buffer = Buffer.alloc(0);
         let audioSent = false;
         let abortListenerAttached = false;
         const onAbort = () => {

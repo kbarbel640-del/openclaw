@@ -447,7 +447,7 @@ export class VoiceCallWebhookServer {
           // Agent requested hangup — give TTS a moment to finish, then hang up
           console.log(`[voice-call] Agent requested end_call for ${callId}`);
           setTimeout(() => {
-            this.manager.hangup(callId).catch((err) => {
+            this.manager.endCall(callId).catch((err: unknown) => {
               console.warn(`[voice-call] Hangup failed:`, err);
             });
           }, 1000);
