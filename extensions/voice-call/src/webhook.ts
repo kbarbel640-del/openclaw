@@ -111,7 +111,6 @@ export class VoiceCallWebhookServer {
           isFinal: true,
         };
         this.manager.processEvent(event);
-
       },
       onSpeechStart: (providerCallId) => {
         if (this.provider.name === "twilio") {
@@ -332,7 +331,6 @@ export class VoiceCallWebhookServer {
       req.on("close", () => finish(() => reject(new Error("Connection closed"))));
     });
   }
-
 }
 
 /**
