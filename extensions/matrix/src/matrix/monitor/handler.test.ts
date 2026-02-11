@@ -96,4 +96,106 @@ describe("resolveMatrixSessionKey", () => {
       parentSessionKey: undefined,
     });
   });
+
+  it("does not create thread session for direct messages with agent scope", () => {
+    const resolved = resolveMatrixSessionKey({
+      sessionScope: "agent",
+      route: {
+        agentId: "Main-Agent",
+        sessionKey: "agent:main-agent:matrix:direct:@alice:example.org",
+      },
+      threadRootId: "$ThreadRoot:Example.Org",
+      isDirectMessage: true,
+    });
+
+    expect(resolved).toEqual({
+      sessionKey: "agent:main-agent:matrix:main",
+      parentSessionKey: undefined,
+    });
+  });
+
+  it("normalizes threadRootId to lowercase", () => {
+    const resolved = resolveMatrixSessionKey({
+      sessionScope: "room",
+      route: {
+        agentId: "main",
+        sessionKey: "agent:main:matrix:channel:!room:example.org",
+      },
+      threadRootId: "$UPPERCASE:THREAD.ID",
+      isDirectMessage: false,
+    });
+
+    expect(resolved.sessionKey).toBe(
+      "agent:main:matrix:channel:!room:example.org:thread:$uppercase:thread.id",
+    );
+  });
+
+  it("trims whitespace from threadRootId", () => {
+    const resolved = resolveMatrixSessionKey({
+      sessionScope: "room",
+      route: {
+        agentId: "main",
+        sessionKey: "agent:main:matrix:channel:!room:example.org",
+      },
+      threadRootId: "  \$thread:event.org  ",
+      isDirectMessage: false,
+    });
+
+    expect(resolved.sessionKey).toBe(
+      "agent:main:matrix:channel:!room:example.org:thread:\$thread:event.org",
+    );
+  });
+
+  it("normalizes agentId to lowercase when sessionScope is agent", () => {
+    const resolved = resolveMatrixSessionKey({
+      sessionScope: "agent",
+      route: {
+        agentId: "UPPER_AGENT",
+        sessionKey: "agent:upper_agent:matrix:channel:!room:example.org",
+      },
+    });
+
+    expect(resolved.sessionKey).toBe("agent:upper_agent:matrix:main");
+  });
+
+  it("trims whitespace from agentId when sessionScope is agent", () => {
+    const resolved = resolveMatrixSessionKey({
+      sessionScope: "agent",
+      route: {
+        agentId: "  my-agent  ",
+        sessionKey: "agent:my-agent:matrix:channel:!room:example.org",
+      },
+    });
+
+    expect(resolved.sessionKey).toBe("agent:my-agent:matrix:main");
+  });
+
+  it("uses 'main' as fallback when agentId is empty with agent scope", () => {
+    const resolved = resolveMatrixSessionKey({
+      sessionScope: "agent",
+      route: {
+        agentId: "   ",
+        sessionKey: "agent::matrix:channel:!room:example.org",
+      },
+    });
+
+    expect(resolved.sessionKey).toBe("agent:main:matrix:main");
+  });
+
+  it("combines thread isolation with agent scope normalization", () => {
+    const resolved = resolveMatrixSessionKey({
+      sessionScope: "agent",
+      route: {
+        agentId: "MyAgent",
+        sessionKey: "agent:myagent:matrix:channel:!room:example.org",
+      },
+      threadRootId: "$MixedCase:Thread.ID",
+      isDirectMessage: false,
+    });
+
+    expect(resolved).toEqual({
+      sessionKey: "agent:myagent:matrix:main:thread:$mixedcase:thread.id",
+      parentSessionKey: "agent:myagent:matrix:main",
+    });
+  });
 });
