@@ -68,6 +68,16 @@ export async function handleToolExecutionStart(
     `embedded run tool start: runId=${ctx.params.runId} tool=${toolName} toolCallId=${toolCallId}`,
   );
 
+  // Log detailed tool call information
+  ctx.log.info(`tool call start: ${toolName}`, {
+    runId: ctx.params.runId,
+    sessionId: ctx.params.sessionId,
+    toolName: toolName,
+    toolCallId: toolCallId,
+    meta: meta,
+    arguments: args,
+  });
+
   const shouldEmitToolEvents = ctx.shouldEmitToolResult();
   emitAgentEvent({
     runId: ctx.params.runId,
@@ -219,6 +229,23 @@ export function handleToolExecutionEnd(
   ctx.log.debug(
     `embedded run tool end: runId=${ctx.params.runId} tool=${toolName} toolCallId=${toolCallId}`,
   );
+
+  // Log detailed tool result information
+  const resultText = extractToolResultText(sanitizedResult);
+  const resultPreview = resultText ? resultText.slice(0, 500) : undefined;
+  const isTruncated = resultText && resultText.length > 500;
+  
+  ctx.log.info(`tool call end: ${toolName}${isTruncated ? " (truncated)" : ""}`, {
+    runId: ctx.params.runId,
+    sessionId: ctx.params.sessionId,
+    toolName: toolName,
+    toolCallId: toolCallId,
+    meta: meta,
+    isError: isToolError,
+    resultPreview: resultPreview,
+    resultLength: resultText?.length || 0,
+    fullResult: sanitizedResult,
+  });
 
   if (ctx.params.onToolResult && ctx.shouldEmitToolOutput()) {
     const outputText = extractToolResultText(sanitizedResult);
