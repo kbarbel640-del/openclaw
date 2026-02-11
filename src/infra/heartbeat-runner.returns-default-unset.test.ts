@@ -327,6 +327,7 @@ describe("runHeartbeatOnce", () => {
 
   it("uses the last non-empty payload for delivery", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storePath = path.join(tmpDir, "sessions.json");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
     try {
@@ -385,18 +386,21 @@ describe("runHeartbeatOnce", () => {
 
   it("uses per-agent heartbeat overrides and session keys", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storePath = path.join(tmpDir, "sessions.json");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
     try {
       const cfg: MoltbotConfig = {
         agents: {
           defaults: {
+            workspace: tmpDir,
             heartbeat: { every: "30m", prompt: "Default prompt" },
           },
           list: [
             { id: "main", default: true },
             {
               id: "ops",
+              workspace: tmpDir,
               heartbeat: { every: "5m", target: "whatsapp", prompt: "Ops check" },
             },
           ],
@@ -455,6 +459,7 @@ describe("runHeartbeatOnce", () => {
 
   it("runs heartbeats in the explicit session key when configured", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storePath = path.join(tmpDir, "sessions.json");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
     try {
@@ -538,6 +543,7 @@ describe("runHeartbeatOnce", () => {
 
   it("suppresses duplicate heartbeat payloads within 24h", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storePath = path.join(tmpDir, "sessions.json");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
     try {
@@ -594,6 +600,7 @@ describe("runHeartbeatOnce", () => {
 
   it("can include reasoning payloads when enabled", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storePath = path.join(tmpDir, "sessions.json");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
     try {
@@ -666,6 +673,7 @@ describe("runHeartbeatOnce", () => {
 
   it("delivers reasoning even when the main heartbeat reply is HEARTBEAT_OK", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storePath = path.join(tmpDir, "sessions.json");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
     try {
@@ -737,6 +745,7 @@ describe("runHeartbeatOnce", () => {
 
   it("loads the default agent session from templated stores", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storeTemplate = path.join(tmpDir, "agents", "{agentId}", "sessions.json");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
     try {
@@ -801,6 +810,7 @@ describe("runHeartbeatOnce", () => {
 
   it("skips heartbeat when HEARTBEAT.md is effectively empty (saves API calls)", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storePath = path.join(tmpDir, "sessions.json");
     const workspaceDir = path.join(tmpDir, "workspace");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
@@ -873,6 +883,7 @@ describe("runHeartbeatOnce", () => {
 
   it("runs heartbeat when HEARTBEAT.md has actionable content", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storePath = path.join(tmpDir, "sessions.json");
     const workspaceDir = path.join(tmpDir, "workspace");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
@@ -941,7 +952,7 @@ describe("runHeartbeatOnce", () => {
     }
   });
 
-  it("runs heartbeat when HEARTBEAT.md does not exist (lets LLM decide)", async () => {
+  it("skips heartbeat when HEARTBEAT.md does not exist (no wasted LLM call)", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
     const storePath = path.join(tmpDir, "sessions.json");
     const workspaceDir = path.join(tmpDir, "workspace");
@@ -960,44 +971,21 @@ describe("runHeartbeatOnce", () => {
         channels: { whatsapp: { allowFrom: ["*"] } },
         session: { store: storePath },
       };
-      const sessionKey = resolveMainSessionKey(cfg);
-
-      await fs.writeFile(
-        storePath,
-        JSON.stringify(
-          {
-            [sessionKey]: {
-              sessionId: "sid",
-              updatedAt: Date.now(),
-              lastChannel: "whatsapp",
-              lastTo: "+1555",
-            },
-          },
-          null,
-          2,
-        ),
-      );
 
       replySpy.mockResolvedValue({ text: "HEARTBEAT_OK" });
-      const sendWhatsApp = vi.fn().mockResolvedValue({
-        messageId: "m1",
-        toJid: "jid",
-      });
 
       const res = await runHeartbeatOnce({
         cfg,
         deps: {
-          sendWhatsApp,
           getQueueSize: () => 0,
           nowMs: () => 0,
-          webAuthExists: async () => true,
-          hasActiveWebListener: () => true,
         },
       });
 
-      // Should run (not skip) - let LLM decide since file doesn't exist
-      expect(res.status).toBe("ran");
-      expect(replySpy).toHaveBeenCalled();
+      // Should skip - no HEARTBEAT.md means no work, no wasted LLM call
+      expect(res.status).toBe("skipped");
+      expect(res).toMatchObject({ reason: "no-heartbeat-file" });
+      expect(replySpy).not.toHaveBeenCalled();
     } finally {
       replySpy.mockRestore();
       await fs.rm(tmpDir, { recursive: true, force: true });

@@ -11,6 +11,11 @@ export function resolveDefaultAgentWorkspaceDir(
   env: NodeJS.ProcessEnv = process.env,
   homedir: () => string = os.homedir,
 ): string {
+  // Highest priority: explicit workspace override via env var.
+  // This allows `pnpm dev:up` (or any launcher) to pin workspace to the repo root.
+  const explicit = env.CLAWDBOT_WORKSPACE?.trim();
+  if (explicit) return path.resolve(explicit);
+
   const profile = env.CLAWDBOT_PROFILE?.trim();
   if (profile && profile.toLowerCase() !== "default") {
     return path.join(homedir(), `clawd-${profile}`);

@@ -222,6 +222,14 @@ export function stripPluginOnlyAllowlist(
   };
 }
 
+/**
+ * Hardcoded deny list for the "sophie" agent.
+ * Sophie MUST NOT use exec/process for filesystem operations;
+ * she must use list_local_files (allowlist-enforced) instead.
+ * This deny list is merged at the policy level and cannot be overridden by config.
+ */
+export const SOPHIE_AGENT_TOOL_DENY: readonly string[] = ["exec", "process"];
+
 export function resolveToolProfilePolicy(profile?: string): ToolProfilePolicy | undefined {
   if (!profile) return undefined;
   const resolved = TOOL_PROFILES[profile as ToolProfileId];

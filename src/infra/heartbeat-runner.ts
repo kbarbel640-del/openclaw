@@ -457,8 +457,8 @@ export async function runHeartbeatOnce(opts: {
     return { status: "skipped", reason: "requests-in-flight" };
   }
 
-  // Skip heartbeat if HEARTBEAT.md exists but has no actionable content.
-  // This saves API calls/costs when the file is effectively empty (only comments/headers).
+  // Skip heartbeat if HEARTBEAT.md is missing or has no actionable content.
+  // This saves API calls/costs when the file doesn't exist or is effectively empty.
   // EXCEPTION: Don't skip for exec events - they have pending system events to process.
   const isExecEventReason = opts.reason === "exec-event";
   const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
@@ -474,8 +474,17 @@ export async function runHeartbeatOnce(opts: {
       return { status: "skipped", reason: "empty-heartbeat-file" };
     }
   } catch {
-    // File doesn't exist or can't be read - proceed with heartbeat.
-    // The LLM prompt says "if it exists" so this is expected behavior.
+    // File doesn't exist or can't be read — skip the LLM call entirely.
+    // No point paying for an API round-trip when there's nothing to read.
+    if (!isExecEventReason) {
+      log.debug("heartbeat: HEARTBEAT.md not found, skipping", { path: heartbeatFilePath });
+      emitHeartbeatEvent({
+        status: "skipped",
+        reason: "no-heartbeat-file",
+        durationMs: Date.now() - startedAt,
+      });
+      return { status: "skipped", reason: "no-heartbeat-file" };
+    }
   }
 
   const { entry, sessionKey, storePath } = resolveHeartbeatSession(cfg, agentId, heartbeat);

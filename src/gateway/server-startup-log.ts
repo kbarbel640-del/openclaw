@@ -12,6 +12,7 @@ export function logGatewayStartup(params: {
   tlsEnabled?: boolean;
   log: { info: (msg: string, meta?: Record<string, unknown>) => void };
   isNixMode: boolean;
+  workspace?: { dir: string; source: string };
 }) {
   const effectiveDefaultProvider = resolveDefaultProvider();
   const effectiveDefaultModel = resolveDefaultModel(effectiveDefaultProvider);
@@ -24,6 +25,12 @@ export function logGatewayStartup(params: {
   params.log.info(`agent model: ${modelRef}`, {
     consoleMessage: `agent model: ${chalk.whiteBright(modelRef)}`,
   });
+  if (params.workspace) {
+    const wsLabel = `${params.workspace.dir} (${params.workspace.source})`;
+    params.log.info(`workspace: ${wsLabel}`, {
+      consoleMessage: `workspace: ${chalk.whiteBright(wsLabel)}`,
+    });
+  }
   const scheme = params.tlsEnabled ? "wss" : "ws";
   const formatHost = (host: string) => (host.includes(":") ? `[${host}]` : host);
   const hosts =

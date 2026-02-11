@@ -4,7 +4,7 @@ import { resolveChannelGroupToolsPolicy } from "../config/group-policy.js";
 import { resolveAgentConfig, resolveAgentIdFromSessionKey } from "./agent-scope.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxToolPolicy } from "./sandbox.js";
-import { expandToolGroups, normalizeToolName } from "./tool-policy.js";
+import { SOPHIE_AGENT_TOOL_DENY, expandToolGroups, normalizeToolName } from "./tool-policy.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
 import { resolveThreadParentSessionKey } from "../sessions/session-key-utils.js";
 
@@ -202,11 +202,22 @@ export function resolveEffectiveToolPolicy(params: {
     modelProvider: params.modelProvider,
     modelId: params.modelId,
   });
+  // Enforce hardcoded deny list for the "sophie" agent.
+  // This prevents Sophie from ever using exec/process regardless of config.
+  const isSophie = agentId === "sophie";
+  const resolvedAgentPolicy = pickToolPolicy(agentTools);
+  const sophiePolicy: SandboxToolPolicy | undefined = isSophie
+    ? {
+        allow: resolvedAgentPolicy?.allow,
+        deny: [...(resolvedAgentPolicy?.deny ?? []), ...SOPHIE_AGENT_TOOL_DENY],
+      }
+    : resolvedAgentPolicy;
+
   return {
     agentId,
     globalPolicy: pickToolPolicy(globalTools),
     globalProviderPolicy: pickToolPolicy(providerPolicy),
-    agentPolicy: pickToolPolicy(agentTools),
+    agentPolicy: sophiePolicy,
     agentProviderPolicy: pickToolPolicy(agentProviderPolicy),
     profile,
     providerProfile: agentProviderPolicy?.profile ?? providerPolicy?.profile,

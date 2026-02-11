@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -135,15 +136,57 @@ export function resolveAgentModelFallbacksOverride(
 
 export function resolveAgentWorkspaceDir(cfg: MoltbotConfig, agentId: string) {
   const id = normalizeAgentId(agentId);
+  const defaultAgentId = resolveDefaultAgentId(cfg);
+  // CLAWDBOT_WORKSPACE env var is the highest-priority workspace override
+  // for the default agent. It supersedes ALL config values (per-agent and
+  // defaults.workspace) to prevent stale moltbot.json entries from a prior
+  // install from silently taking over.
+  const envWorkspace = process.env.CLAWDBOT_WORKSPACE?.trim();
+  if (envWorkspace && id === defaultAgentId) return path.resolve(envWorkspace);
   const configured = resolveAgentConfig(cfg, id)?.workspace?.trim();
   if (configured) return resolveUserPath(configured);
-  const defaultAgentId = resolveDefaultAgentId(cfg);
   if (id === defaultAgentId) {
     const fallback = cfg.agents?.defaults?.workspace?.trim();
-    if (fallback) return resolveUserPath(fallback);
+    if (fallback) {
+      const resolvedFallback = resolveUserPath(fallback);
+      // Ignore defaults.workspace if the directory doesn't exist (stale config).
+      if (fs.existsSync(resolvedFallback)) return resolvedFallback;
+    }
     return DEFAULT_AGENT_WORKSPACE_DIR;
   }
   return path.join(os.homedir(), `clawd-${id}`);
+}
+
+export type WorkspaceSource = "agent-config" | "env" | "config-defaults" | "default";
+
+/**
+ * Returns the workspace directory AND the source that determined it.
+ * Used for startup diagnostics and integration tests.
+ */
+export function resolveAgentWorkspaceDirWithSource(
+  cfg: MoltbotConfig,
+  agentId: string,
+): { dir: string; source: WorkspaceSource } {
+  const id = normalizeAgentId(agentId);
+  const defaultAgentId = resolveDefaultAgentId(cfg);
+  const envWorkspace = process.env.CLAWDBOT_WORKSPACE?.trim();
+  if (envWorkspace && id === defaultAgentId) {
+    return { dir: path.resolve(envWorkspace), source: "env" };
+  }
+  const configured = resolveAgentConfig(cfg, id)?.workspace?.trim();
+  if (configured) {
+    return { dir: resolveUserPath(configured), source: "agent-config" };
+  }
+  if (id === defaultAgentId) {
+    const fallback = cfg.agents?.defaults?.workspace?.trim();
+    if (fallback) {
+      const resolvedFallback = resolveUserPath(fallback);
+      if (fs.existsSync(resolvedFallback))
+        return { dir: resolvedFallback, source: "config-defaults" };
+    }
+    return { dir: DEFAULT_AGENT_WORKSPACE_DIR, source: "default" };
+  }
+  return { dir: path.join(os.homedir(), `clawd-${id}`), source: "default" };
 }
 
 export function resolveAgentDir(cfg: MoltbotConfig, agentId: string) {

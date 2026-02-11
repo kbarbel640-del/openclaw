@@ -112,6 +112,13 @@ const envPath = path.join(repoRoot, ".env");
 const envVars = loadEnvFile(envPath);
 const mergedEnv = { ...process.env, ...envVars };
 
+// Pin workspace to repo root so stale moltbot.json defaults (e.g. ~/clawd-dev) are ignored.
+// Only set if the user hasn't already exported CLAWDBOT_WORKSPACE themselves.
+if (!mergedEnv.CLAWDBOT_WORKSPACE) {
+  mergedEnv.CLAWDBOT_WORKSPACE = repoRoot;
+  console.log(`[dev-up] CLAWDBOT_WORKSPACE=${repoRoot} (auto)`);
+}
+
 // Print env diagnostics (no secrets)
 const envKeys = Object.keys(envVars);
 const hasKeys = {

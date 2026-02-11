@@ -37,6 +37,7 @@ beforeEach(() => {
 describe("runHeartbeatOnce", () => {
   it("uses the delivery target as sender when lastTo differs", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "moltbot-hb-"));
+    await fs.writeFile(path.join(tmpDir, "HEARTBEAT.md"), "- [ ] heartbeat check\n");
     const storePath = path.join(tmpDir, "sessions.json");
     const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
     try {

@@ -1,5 +1,8 @@
 import { resolveMoltbotAgentDir } from "../agents/agent-paths.js";
-import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import {
+  resolveAgentWorkspaceDirWithSource,
+  resolveDefaultAgentId,
+} from "../agents/agent-scope.js";
 import { initSubagentRegistry } from "../agents/subagent-registry.js";
 import { registerSkillsChangeListener } from "../agents/skills/refresh.js";
 import type { CanvasHostServer } from "../canvas-host/server.js";
@@ -219,7 +222,8 @@ export async function startGatewayServer(
   setGatewaySigusr1RestartPolicy({ allowExternal: cfgAtStart.commands?.restart === true });
   initSubagentRegistry();
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);
-  const defaultWorkspaceDir = resolveAgentWorkspaceDir(cfgAtStart, defaultAgentId);
+  const workspaceResolution = resolveAgentWorkspaceDirWithSource(cfgAtStart, defaultAgentId);
+  const defaultWorkspaceDir = workspaceResolution.dir;
 
   // Fail-fast: validate that the configured default model can resolve before accepting connections.
   const agentDir = resolveMoltbotAgentDir();
@@ -499,6 +503,7 @@ export async function startGatewayServer(
     tlsEnabled: gatewayTls.enabled,
     log,
     isNixMode,
+    workspace: workspaceResolution,
   });
   scheduleGatewayUpdateCheck({ cfg: cfgAtStart, log, isNixMode });
   const tailscaleCleanup = await startGatewayTailscaleExposure({
