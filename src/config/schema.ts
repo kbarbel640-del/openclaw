@@ -1,7 +1,10 @@
+import { applySensitiveHints, buildBaseHints } from "./schema.field-metadata.js";
+
 import { CHANNEL_IDS } from "../channels/registry.js";
 import { VERSION } from "../version.js";
-import { applySensitiveHints, buildBaseHints } from "./schema.field-metadata.js";
+
 import { LIMITS_FIELD_LABELS, LIMITS_FIELD_HELP } from "./schema.rate-limits.js";
+
 import {
   ConfigSchema,
   ConfigSchemaResponse,
@@ -10,6 +13,7 @@ import {
   PluginUiMetadata,
   JsonSchemaNode,
 } from "./schema.types.js";
+
 import { OpenClawSchema } from "./zod-schema.js";
 
 type JsonSchemaObject = JsonSchemaNode & {
@@ -44,8 +48,14 @@ function isObjectSchema(schema: JsonSchemaObject): boolean {
   return Boolean(schema.properties || schema.additionalProperties);
 }
 
-function mergeObjectSchema(base: JsonSchemaObject, extension: JsonSchemaObject): JsonSchemaObject {
-  const mergedRequired = new Set<string>([...(base.required ?? []), ...(extension.required ?? [])]);
+function mergeObjectSchema(
+  base: JsonSchemaObject,
+  extension: JsonSchemaObject,
+): JsonSchemaObject {
+  const mergedRequired = new Set<string>([
+    ...(base.required ?? []),
+    ...(extension.required ?? []),
+  ]);
 
   const merged: JsonSchemaObject = {
     ...base,
@@ -68,7 +78,10 @@ function mergeObjectSchema(base: JsonSchemaObject, extension: JsonSchemaObject):
   return merged;
 }
 
-function applyPluginHints(hints: ConfigUiHints, plugins: PluginUiMetadata[]): ConfigUiHints {
+function applyPluginHints(
+  hints: ConfigUiHints,
+  plugins: PluginUiMetadata[],
+): ConfigUiHints {
   const next: ConfigUiHints = { ...hints };
 
   for (const plugin of plugins) {
@@ -115,7 +128,10 @@ function applyPluginHints(hints: ConfigUiHints, plugins: PluginUiMetadata[]): Co
   return next;
 }
 
-function applyChannelHints(hints: ConfigUiHints, channels: ChannelUiMetadata[]): ConfigUiHints {
+function applyChannelHints(
+  hints: ConfigUiHints,
+  channels: ChannelUiMetadata[],
+): ConfigUiHints {
   const next: ConfigUiHints = { ...hints };
 
   for (const channel of channels) {
@@ -185,7 +201,10 @@ function applyHeartbeatTargetHints(
     `Delivery target ("last", "none", or a channel id).` +
     (channelList.length ? ` Known channels: ${channelList.join(", ")}.` : "");
 
-  for (const path of ["agents.defaults.heartbeat.target", "agents.list.*.heartbeat.target"]) {
+  for (const path of [
+    "agents.defaults.heartbeat.target",
+    "agents.list.*.heartbeat.target",
+  ]) {
     const current = next[path] ?? {};
     next[path] = {
       ...current,
@@ -197,10 +216,15 @@ function applyHeartbeatTargetHints(
   return next;
 }
 
-function applyPluginSchemas(schema: ConfigSchema, plugins: PluginUiMetadata[]): ConfigSchema {
+function applyPluginSchemas(
+  schema: ConfigSchema,
+  plugins: PluginUiMetadata[],
+): ConfigSchema {
   const next = cloneSchema(schema);
   const root = asSchemaObject(next);
-  const entriesNode = asSchemaObject(root?.properties?.plugins?.properties?.entries);
+  const entriesNode = asSchemaObject(
+    root?.properties?.plugins?.properties?.entries,
+  );
 
   if (!entriesNode) {
     return next;
@@ -239,7 +263,10 @@ function applyPluginSchemas(schema: ConfigSchema, plugins: PluginUiMetadata[]): 
   return next;
 }
 
-function applyChannelSchemas(schema: ConfigSchema, channels: ChannelUiMetadata[]): ConfigSchema {
+function applyChannelSchemas(
+  schema: ConfigSchema,
+  channels: ChannelUiMetadata[],
+): ConfigSchema {
   const next = cloneSchema(schema);
   const root = asSchemaObject(next);
   const channelsNode = asSchemaObject(root?.properties?.channels);
@@ -297,7 +324,7 @@ function buildBaseConfigSchema(): ConfigSchemaResponse {
 
   const hints = applySensitiveHints(buildBaseHints());
 
-  // 🔑 Merge rate-limit UI metadata
+  // merge rate-limit UI metadata
   Object.assign(hints, LIMITS_FIELD_LABELS, LIMITS_FIELD_HELP);
 
   cachedBase = {
@@ -330,7 +357,10 @@ export function buildConfigSchema(params?: {
         channels,
       ),
     ),
-    schema: applyChannelSchemas(applyPluginSchemas(base.schema, plugins), channels),
+    schema: applyChannelSchemas(
+      applyPluginSchemas(base.schema, plugins),
+      channels,
+    ),
   };
 }
 
