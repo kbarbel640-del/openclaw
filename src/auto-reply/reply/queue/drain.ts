@@ -1,7 +1,6 @@
 import type { FollowupRun } from "./types.js";
 import { defaultRuntime } from "../../../runtime.js";
 import {
-  applyQueueDropPolicy,
   buildCollectPrompt,
   buildQueueSummaryPrompt,
   hasCrossChannelItems,
@@ -157,15 +156,25 @@ export function scheduleFollowupDrain(
               // Merge: add back the saved counts, then layer concurrent ones on top.
               queue.droppedCount += savedDroppedCount;
               queue.summaryLines.push(...savedSummaryLines);
-              // Re-apply cap/drop policy so restored items don't inflate past the limit.
-              // For dropPolicy "new", applyQueueDropPolicy returns false without
-              // trimming, so we manually truncate to cap to prevent unbounded growth.
-              const accepted = applyQueueDropPolicy({
-                queue,
-                summarize: (item) => item.prompt,
-              });
-              if (!accepted && queue.items.length > queue.cap) {
-                queue.items.length = queue.cap;
+              // Enforce cap directly instead of using applyQueueDropPolicy,
+              // which drops `len - cap + 1` (designed for pre-enqueue) and
+              // would over-trim by one item in this restore context.
+              const cap = queue.cap;
+              if (cap > 0 && queue.items.length > cap) {
+                if (queue.dropPolicy === "new") {
+                  // Drop the newest (tail) items that were concurrently enqueued.
+                  queue.items.length = cap;
+                } else {
+                  // Drop oldest (front) items, summarizing if configured.
+                  const excess = queue.items.length - cap;
+                  const dropped = queue.items.splice(0, excess);
+                  if (queue.dropPolicy === "summarize") {
+                    for (const item of dropped) {
+                      queue.droppedCount += 1;
+                      queue.summaryLines.push(item.prompt.slice(0, 140));
+                    }
+                  }
+                }
               }
             },
           );
