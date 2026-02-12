@@ -717,10 +717,10 @@ async function runWebSearch(params: {
       query: params.query,
       count: params.count,
       timeoutSeconds: params.timeoutSeconds,
-      proxy: (params as any).duckduckgoProxy,
-      region: (params as any).duckduckgoRegion,
-      safesearch: (params as any).duckduckgoSafesearch,
-      timelimit: (params as any).duckduckgoTimelimit,
+      proxy: params.duckduckgoProxy,
+      region: params.duckduckgoRegion,
+      safesearch: params.duckduckgoSafesearch,
+      timelimit: params.duckduckgoTimelimit,
     });
 
     const mapped = results.map((entry) => ({
