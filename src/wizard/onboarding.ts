@@ -29,6 +29,7 @@ import {
   summarizeExistingConfig,
 } from "../commands/onboard-helpers.js";
 import { setupInternalHooks } from "../commands/onboard-hooks.js";
+import { ensureCliOperatorPaired } from "../commands/onboard-pair-cli.js";
 import { promptRemoteGatewayConfig } from "../commands/onboard-remote.js";
 import { setupSkills } from "../commands/onboard-skills.js";
 import {
@@ -466,6 +467,10 @@ export async function runOnboardingWizard(
 
   nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode });
   await writeConfigFile(nextConfig);
+
+  // Pre-pair the CLI operator device so it can connect to the gateway
+  // immediately, even when binding to a non-loopback address (LAN, custom, etc).
+  await ensureCliOperatorPaired();
 
   const { launchedTui } = await finalizeOnboardingWizard({
     flow,

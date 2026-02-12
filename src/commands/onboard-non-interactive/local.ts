@@ -13,6 +13,7 @@ import {
   resolveControlUiLinks,
   waitForGatewayReachable,
 } from "../onboard-helpers.js";
+import { ensureCliOperatorPaired } from "../onboard-pair-cli.js";
 import { inferAuthChoiceFromFlags } from "./local/auth-choice-inference.js";
 import { applyNonInteractiveAuthChoice } from "./local/auth-choice.js";
 import { installGatewayDaemonNonInteractive } from "./local/daemon-install.js";
@@ -96,6 +97,10 @@ export async function runNonInteractiveOnboardingLocal(params: {
   await ensureWorkspaceAndSessions(workspaceDir, runtime, {
     skipBootstrap: Boolean(nextConfig.agents?.defaults?.skipBootstrap),
   });
+
+  // Pre-pair the CLI operator device so it can connect to the gateway
+  // immediately, even when binding to a non-loopback address (LAN, custom, etc).
+  await ensureCliOperatorPaired();
 
   await installGatewayDaemonNonInteractive({
     nextConfig,

@@ -361,6 +361,58 @@ export async function rejectDevicePairing(
   });
 }
 
+/**
+ * Directly add a device as paired without going through the pending→approve flow.
+ * Used during onboarding to pre-pair the CLI operator device so it can connect
+ * immediately, even when the gateway binds to a non-loopback address.
+ */
+export async function addPairedDevice(
+  params: {
+    deviceId: string;
+    publicKey: string;
+    displayName?: string;
+    platform?: string;
+    clientId?: string;
+    clientMode?: string;
+    role?: string;
+    roles?: string[];
+    scopes?: string[];
+  },
+  baseDir?: string,
+): Promise<{ device: PairedDevice; created: boolean }> {
+  return await withLock(async () => {
+    const state = await loadState(baseDir);
+    const deviceId = normalizeDeviceId(params.deviceId);
+    if (!deviceId) {
+      throw new Error("deviceId required");
+    }
+    const existing = state.pairedByDeviceId[deviceId];
+    if (existing) {
+      return { device: existing, created: false };
+    }
+    const now = Date.now();
+    const roles = mergeRoles(params.roles, params.role);
+    const scopes = mergeScopes(params.scopes);
+    const device: PairedDevice = {
+      deviceId,
+      publicKey: params.publicKey,
+      displayName: params.displayName,
+      platform: params.platform,
+      clientId: params.clientId,
+      clientMode: params.clientMode,
+      role: params.role,
+      roles,
+      scopes,
+      tokens: {},
+      createdAtMs: now,
+      approvedAtMs: now,
+    };
+    state.pairedByDeviceId[deviceId] = device;
+    await persistState(state, baseDir);
+    return { device, created: true };
+  });
+}
+
 export async function updatePairedDeviceMetadata(
   deviceId: string,
   patch: Partial<Omit<PairedDevice, "deviceId" | "createdAtMs" | "approvedAtMs">>,

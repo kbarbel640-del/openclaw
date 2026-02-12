@@ -289,6 +289,15 @@ describe("onboard (non-interactive): gateway and remote auth", () => {
     const resToken = await authorizeGatewayConnect({ auth, connectAuth: { token } });
     expect(resToken.ok).toBe(true);
 
+    // Verify the CLI operator device was pre-paired during onboarding
+    const { loadOrCreateDeviceIdentity } = await import("../infra/device-identity.js");
+    const { getPairedDevice } = await import("../infra/device-pairing.js");
+    const identity = loadOrCreateDeviceIdentity();
+    const paired = await getPairedDevice(identity.deviceId);
+    expect(paired).not.toBeNull();
+    expect(paired?.role).toBe("operator");
+    expect(paired?.roles).toContain("operator");
+
     await fs.rm(stateDir, { recursive: true, force: true });
   }, 60_000);
 });
