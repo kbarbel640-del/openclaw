@@ -278,6 +278,68 @@ describe("mergeDecayConfig — new group fields", () => {
     expect(result?.groupSummarizationModel).toBe("sonnet");
   });
 
+  it("auto-clamps stripToolResultsAfterTurns when <= summarizeToolResultsAfterTurns", () => {
+    const config = makeConfig({
+      defaults: {
+        summarizeToolResultsAfterTurns: 5,
+        stripToolResultsAfterTurns: 3, // strip < summarize — misconfigured
+      },
+    });
+    const result = resolveContextDecayConfig(undefined, config);
+    // Should be auto-clamped to summarize + 1 = 6
+    expect(result?.stripToolResultsAfterTurns).toBe(6);
+    expect(result?.summarizeToolResultsAfterTurns).toBe(5);
+  });
+
+  it("auto-clamps stripToolResultsAfterTurns when <= summarizeWindowAfterTurns", () => {
+    const config = makeConfig({
+      defaults: {
+        summarizeWindowAfterTurns: 8,
+        stripToolResultsAfterTurns: 5, // strip < groupSummarize — misconfigured
+      },
+    });
+    const result = resolveContextDecayConfig(undefined, config);
+    // Should be auto-clamped to groupSummarize + 1 = 9
+    expect(result?.stripToolResultsAfterTurns).toBe(9);
+    expect(result?.summarizeWindowAfterTurns).toBe(8);
+  });
+
+  it("auto-clamps strip to max of both summarization thresholds + 1", () => {
+    const config = makeConfig({
+      defaults: {
+        summarizeToolResultsAfterTurns: 4,
+        summarizeWindowAfterTurns: 7,
+        stripToolResultsAfterTurns: 3, // below both
+      },
+    });
+    const result = resolveContextDecayConfig(undefined, config);
+    // Should be clamped to max(4, 7) + 1 = 8
+    expect(result?.stripToolResultsAfterTurns).toBe(8);
+  });
+
+  it("does not clamp stripToolResultsAfterTurns when already above summarization thresholds", () => {
+    const config = makeConfig({
+      defaults: {
+        summarizeToolResultsAfterTurns: 3,
+        summarizeWindowAfterTurns: 6,
+        stripToolResultsAfterTurns: 10, // already above both
+      },
+    });
+    const result = resolveContextDecayConfig(undefined, config);
+    expect(result?.stripToolResultsAfterTurns).toBe(10); // unchanged
+  });
+
+  it("auto-clamps when strip equals summarize (edge case)", () => {
+    const config = makeConfig({
+      defaults: {
+        summarizeToolResultsAfterTurns: 5,
+        stripToolResultsAfterTurns: 5, // equal — summaries would never display
+      },
+    });
+    const result = resolveContextDecayConfig(undefined, config);
+    expect(result?.stripToolResultsAfterTurns).toBe(6);
+  });
+
   it("treats summarizeWindowAfterTurns=0 as disabled", () => {
     const config = makeConfig({
       defaults: { summarizeWindowAfterTurns: 6 },
