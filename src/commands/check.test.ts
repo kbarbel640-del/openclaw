@@ -19,6 +19,10 @@ import {
   checkDatabasePermissions,
   checkDatabaseConnection,
   checkDatabaseConnectivity,
+  checkSkillsDirExists,
+  getSkillsList,
+  checkSkillHasMetadata,
+  validateSkills,
 } from "./check.js";
 
 describe("check command", () => {
@@ -55,6 +59,7 @@ describe("check command", () => {
     expect(checkIds).toContain("gateway-mode");
     expect(checkIds).toContain("package-root");
     expect(checkIds).toContain("database");
+    expect(checkIds).toContain("skills-dir");
   });
 
   it("should output JSON when json option is true", async () => {
@@ -511,5 +516,143 @@ describe("checkDatabaseConnectivity", () => {
 
     fs.unlinkSync(dbPath);
     fs.rmdirSync(tmpDir);
+  });
+});
+
+describe("skills validation", () => {
+  it("should check if skills directory exists", () => {
+    const result = checkSkillsDirExists();
+    // In the test environment, this may or may not exist depending on where tests are run
+    expect(typeof result.ok).toBe("boolean");
+    expect(typeof result.exists).toBe("boolean");
+    // path is either a string or undefined
+    expect(result.path === undefined || typeof result.path === "string").toBe(true);
+  });
+
+  it("should list skills from a directory", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "skills-test-"));
+
+    // Create mock skill directories
+    fs.mkdirSync(path.join(tmpDir, "skill-a"));
+    fs.mkdirSync(path.join(tmpDir, "skill-b"));
+    fs.mkdirSync(path.join(tmpDir, ".hidden"));
+    fs.writeFileSync(path.join(tmpDir, "not-a-skill.txt"), "content");
+
+    const skills = getSkillsList(tmpDir);
+
+    expect(skills).toContain("skill-a");
+    expect(skills).toContain("skill-b");
+    expect(skills).not.toContain(".hidden");
+    expect(skills).not.toContain("not-a-skill.txt");
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it("should return empty array for non-existent directory", () => {
+    const skills = getSkillsList("/non/existent/path");
+    expect(skills).toEqual([]);
+  });
+
+  it("should check if a skill has SKILL.md", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "skill-test-"));
+    const skillDir = path.join(tmpDir, "test-skill");
+    fs.mkdirSync(skillDir);
+
+    // Initially no SKILL.md
+    const resultNoFile = checkSkillHasMetadata(skillDir);
+    expect(resultNoFile.ok).toBe(false);
+    expect(resultNoFile.hasSkillMd).toBe(false);
+
+    // Create SKILL.md
+    fs.writeFileSync(path.join(skillDir, "SKILL.md"), "# Test Skill\n");
+    const resultWithFile = checkSkillHasMetadata(skillDir);
+    expect(resultWithFile.ok).toBe(true);
+    expect(resultWithFile.hasSkillMd).toBe(true);
+    expect(resultWithFile.skillPath).toBe(path.join(skillDir, "SKILL.md"));
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it("should validate skills and report valid skills", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "skills-validate-test-"));
+    const skillsDir = path.join(tmpDir, "skills");
+    fs.mkdirSync(skillsDir);
+
+    // Create a valid skill
+    const validSkillDir = path.join(skillsDir, "valid-skill");
+    fs.mkdirSync(validSkillDir);
+    fs.writeFileSync(path.join(validSkillDir, "SKILL.md"), "# Valid Skill\n");
+
+    // Create an invalid skill (missing SKILL.md)
+    const invalidSkillDir = path.join(skillsDir, "invalid-skill");
+    fs.mkdirSync(invalidSkillDir);
+
+    // Mock the bundled skills dir by creating a temporary environment
+    const originalEnv = process.env.OPENCLAW_BUNDLED_SKILLS_DIR;
+    process.env.OPENCLAW_BUNDLED_SKILLS_DIR = skillsDir;
+
+    try {
+      const result = validateSkills();
+
+      expect(result.skillsDir).toBe(skillsDir);
+      expect(result.totalSkills).toBe(2);
+      expect(result.validSkills).toContain("valid-skill");
+      expect(result.validSkills).not.toContain("invalid-skill");
+      expect(result.invalidSkills.length).toBe(1);
+      expect(result.invalidSkills[0].name).toBe("invalid-skill");
+      expect(result.invalidSkills[0].reason).toBe("Missing SKILL.md");
+      expect(result.ok).toBe(false); // Not all valid since one is invalid
+    } finally {
+      process.env.OPENCLAW_BUNDLED_SKILLS_DIR = originalEnv;
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("should return ok=true when all skills are valid", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "skills-all-valid-test-"));
+    const skillsDir = path.join(tmpDir, "skills");
+    fs.mkdirSync(skillsDir);
+
+    // Create two valid skills
+    const skill1Dir = path.join(skillsDir, "skill-one");
+    fs.mkdirSync(skill1Dir);
+    fs.writeFileSync(path.join(skill1Dir, "SKILL.md"), "# Skill One\n");
+
+    const skill2Dir = path.join(skillsDir, "skill-two");
+    fs.mkdirSync(skill2Dir);
+    fs.writeFileSync(path.join(skill2Dir, "SKILL.md"), "# Skill Two\n");
+
+    const originalEnv = process.env.OPENCLAW_BUNDLED_SKILLS_DIR;
+    process.env.OPENCLAW_BUNDLED_SKILLS_DIR = skillsDir;
+
+    try {
+      const result = validateSkills();
+
+      expect(result.ok).toBe(true);
+      expect(result.totalSkills).toBe(2);
+      expect(result.validSkills.length).toBe(2);
+      expect(result.invalidSkills.length).toBe(0);
+    } finally {
+      process.env.OPENCLAW_BUNDLED_SKILLS_DIR = originalEnv;
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  it("should handle missing skills directory", () => {
+    const originalEnv = process.env.OPENCLAW_BUNDLED_SKILLS_DIR;
+    process.env.OPENCLAW_BUNDLED_SKILLS_DIR = "/non/existent/skills/dir";
+
+    try {
+      const result = validateSkills();
+
+      expect(result.ok).toBe(false);
+      expect(result.skillsDir).toBe("/non/existent/skills/dir");
+      expect(result.totalSkills).toBe(0);
+      expect(result.validSkills).toEqual([]);
+      expect(result.invalidSkills).toEqual([]);
+      expect(result.error).toBe("Skills directory not found");
+    } finally {
+      process.env.OPENCLAW_BUNDLED_SKILLS_DIR = originalEnv;
+    }
   });
 });

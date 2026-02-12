@@ -3,6 +3,7 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { RuntimeEnv } from "../runtime.js";
+import { resolveBundledSkillsDir } from "../agents/skills/bundled-dir.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { loadConfig, CONFIG_PATH } from "../config/config.js";
 import { STATE_DIR } from "../config/paths.js";
@@ -435,6 +436,124 @@ export function checkDatabaseConnectivity(dbPath: string = getDefaultDatabasePat
   };
 }
 
+/**
+ * Get the bundled skills directory path
+ * Returns the path where bundled skills should be located
+ */
+export function getBundledSkillsDir(): string | undefined {
+  return resolveBundledSkillsDir();
+}
+
+/**
+ * Check if the skills directory exists
+ */
+export function checkSkillsDirExists(): {
+  ok: boolean;
+  path: string | undefined;
+  exists: boolean;
+} {
+  const skillsDir = getBundledSkillsDir();
+  if (!skillsDir) {
+    return {
+      ok: false,
+      path: undefined,
+      exists: false,
+    };
+  }
+  const exists = fs.existsSync(skillsDir);
+  return {
+    ok: exists,
+    path: skillsDir,
+    exists,
+  };
+}
+
+/**
+ * Get a list of all skills in the skills directory
+ * Returns an array of skill directory names
+ */
+export function getSkillsList(skillsDir: string): string[] {
+  try {
+    const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Check if a skill has a valid SKILL.md file
+ */
+export function checkSkillHasMetadata(skillDir: string): {
+  ok: boolean;
+  hasSkillMd: boolean;
+  skillPath: string;
+} {
+  const skillMdPath = path.join(skillDir, "SKILL.md");
+  const hasSkillMd = fs.existsSync(skillMdPath);
+  return {
+    ok: hasSkillMd,
+    hasSkillMd,
+    skillPath: skillMdPath,
+  };
+}
+
+/**
+ * Validate all skills in the skills directory
+ * Returns a summary of valid and invalid skills
+ */
+export function validateSkills(): {
+  ok: boolean;
+  skillsDir: string | undefined;
+  totalSkills: number;
+  validSkills: string[];
+  invalidSkills: { name: string; reason: string }[];
+  error?: string;
+} {
+  const dirCheck = checkSkillsDirExists();
+  if (!dirCheck.exists || !dirCheck.path) {
+    return {
+      ok: false,
+      skillsDir: dirCheck.path,
+      totalSkills: 0,
+      validSkills: [],
+      invalidSkills: [],
+      error: "Skills directory not found",
+    };
+  }
+
+  const skillsDir = dirCheck.path;
+  const skillNames = getSkillsList(skillsDir);
+  const validSkills: string[] = [];
+  const invalidSkills: { name: string; reason: string }[] = [];
+
+  for (const skillName of skillNames) {
+    const skillDir = path.join(skillsDir, skillName);
+    const metadataCheck = checkSkillHasMetadata(skillDir);
+
+    if (metadataCheck.hasSkillMd) {
+      validSkills.push(skillName);
+    } else {
+      invalidSkills.push({
+        name: skillName,
+        reason: "Missing SKILL.md",
+      });
+    }
+  }
+
+  const allValid = invalidSkills.length === 0;
+
+  return {
+    ok: allValid,
+    skillsDir,
+    totalSkills: skillNames.length,
+    validSkills,
+    invalidSkills,
+  };
+}
+
 export interface CheckOptions {
   /** Run without interactive prompts */
   nonInteractive?: boolean;
@@ -597,6 +716,26 @@ async function runInstallationChecks(): Promise<CheckResult> {
     name: "Database is accessible",
     ok: dbCheck.ok,
     message: dbCheck.ok ? undefined : dbCheck.error || "Database is not accessible",
+  });
+
+  // Check 10: Skills directory exists and is valid
+  const skillsCheck = validateSkills();
+  checks.push({
+    id: "skills-dir",
+    name: "Skills directory is valid",
+    ok: skillsCheck.ok && skillsCheck.skillsDir !== undefined,
+    message: (() => {
+      if (!skillsCheck.skillsDir) {
+        return "Skills directory not found";
+      }
+      if (skillsCheck.invalidSkills.length > 0) {
+        const invalidList = skillsCheck.invalidSkills
+          .map((s) => `${s.name} (${s.reason})`)
+          .join(", ");
+        return `${skillsCheck.invalidSkills.length} skill(s) missing metadata: ${invalidList}`;
+      }
+      return undefined;
+    })(),
   });
 
   const allOk = checks.every((c) => c.ok);
