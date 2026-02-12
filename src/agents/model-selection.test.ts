@@ -171,7 +171,7 @@ describe("buildAllowedModelSet", () => {
 
     const result = buildAllowedModelSet({
       cfg,
-      catalog: baseCatalog as any,
+      catalog: baseCatalog as unknown,
       defaultProvider: "anthropic",
     });
 
@@ -191,7 +191,7 @@ describe("buildAllowedModelSet", () => {
 
     const result = buildAllowedModelSet({
       cfg,
-      catalog: baseCatalog as any,
+      catalog: baseCatalog as unknown,
       defaultProvider: "anthropic",
     });
 
@@ -211,7 +211,7 @@ describe("buildAllowedModelSet", () => {
 
     const result = buildAllowedModelSet({
       cfg,
-      catalog: baseCatalog as any,
+      catalog: baseCatalog as unknown,
       defaultProvider: "anthropic",
     });
 
@@ -222,7 +222,7 @@ describe("buildAllowedModelSet", () => {
     const cfg: OpenClawConfig = {};
     const result = buildAllowedModelSet({
       cfg,
-      catalog: baseCatalog as any,
+      catalog: baseCatalog as unknown,
       defaultProvider: "anthropic",
     });
 
