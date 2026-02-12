@@ -6,6 +6,28 @@ import type { SessionMaintenanceConfig, SessionMaintenanceMode } from "../types.
 import { parseByteSize } from "../../cli/parse-bytes.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
+
+// ============================================================================
+// Session Store Lock Timeout Error
+// ============================================================================
+
+/**
+ * Thrown when the session store lock cannot be acquired within the timeout period.
+ * Callers can check `instanceof SessionStoreLockTimeoutError` to distinguish lock
+ * contention from other failures and surface user-visible feedback instead of
+ * silently dropping the inbound message.
+ */
+export class SessionStoreLockTimeoutError extends Error {
+  public readonly lockPath: string;
+  public readonly timeoutMs: number;
+
+  constructor(lockPath: string, timeoutMs: number, cause?: unknown) {
+    super(`timeout acquiring session store lock: ${lockPath}`, { cause });
+    this.name = "SessionStoreLockTimeoutError";
+    this.lockPath = lockPath;
+    this.timeoutMs = timeoutMs;
+  }
+}
 import {
   deliveryContextFromSession,
   mergeDeliveryContext,
@@ -584,19 +606,34 @@ type SessionStoreLockOptions = {
   staleMs?: number;
 };
 
+/**
+ * Compute the next backoff delay using exponential backoff with jitter.
+ * Starts at `baseMs` and doubles each attempt, capped at `maxMs`.
+ * A small random jitter (±25%) is added to reduce lock convoys.
+ */
+function computeBackoffDelay(attempt: number, baseMs: number, maxMs: number): number {
+  const exponential = Math.min(maxMs, baseMs * Math.pow(2, attempt));
+  // Add ±25% jitter to prevent synchronized retries across concurrent callers.
+  const jitter = exponential * (0.75 + Math.random() * 0.5);
+  return Math.min(maxMs, Math.max(baseMs, jitter));
+}
+
 async function withSessionStoreLock<T>(
   storePath: string,
   fn: () => Promise<T>,
   opts: SessionStoreLockOptions = {},
 ): Promise<T> {
-  const timeoutMs = opts.timeoutMs ?? 10_000;
-  const pollIntervalMs = opts.pollIntervalMs ?? 25;
+  const timeoutMs = opts.timeoutMs ?? 30_000;
   const staleMs = opts.staleMs ?? 30_000;
   const lockPath = `${storePath}.lock`;
   const startedAt = Date.now();
 
+  const BACKOFF_BASE_MS = 50;
+  const BACKOFF_MAX_MS = 2_000;
+
   await fs.promises.mkdir(path.dirname(storePath), { recursive: true });
 
+  let attempt = 0;
   while (true) {
     try {
       const handle = await fs.promises.open(lockPath, "wx");
@@ -621,7 +658,9 @@ async function withSessionStoreLock<T>(
         await fs.promises
           .mkdir(path.dirname(storePath), { recursive: true })
           .catch(() => undefined);
-        await new Promise((r) => setTimeout(r, pollIntervalMs));
+        const delay = computeBackoffDelay(attempt, BACKOFF_BASE_MS, BACKOFF_MAX_MS);
+        attempt += 1;
+        await new Promise((r) => setTimeout(r, delay));
         continue;
       }
       if (code !== "EEXIST") {
@@ -630,7 +669,7 @@ async function withSessionStoreLock<T>(
 
       const now = Date.now();
       if (now - startedAt > timeoutMs) {
-        throw new Error(`timeout acquiring session store lock: ${lockPath}`, { cause: err });
+        throw new SessionStoreLockTimeoutError(lockPath, timeoutMs, err);
       }
 
       // Best-effort stale lock eviction (e.g. crashed process).
@@ -645,7 +684,16 @@ async function withSessionStoreLock<T>(
         // ignore
       }
 
-      await new Promise((r) => setTimeout(r, pollIntervalMs));
+      if (attempt === 0) {
+        log.warn("session store lock contention, retrying with backoff", {
+          lockPath,
+          timeoutMs,
+        });
+      }
+
+      const delay = computeBackoffDelay(attempt, BACKOFF_BASE_MS, BACKOFF_MAX_MS);
+      attempt += 1;
+      await new Promise((r) => setTimeout(r, delay));
     }
   }
 
@@ -789,3 +837,7 @@ export async function updateLastRoute(params: {
     return next;
   });
 }
+
+export const __testing = {
+  withSessionStoreLock,
+};

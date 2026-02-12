@@ -3,7 +3,11 @@ import type { FinalizedMsgContext } from "../templating.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import type { ReplyDispatcher, ReplyDispatchKind } from "./reply-dispatcher.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
-import { loadSessionStore, resolveStorePath } from "../../config/sessions.js";
+import {
+  loadSessionStore,
+  resolveStorePath,
+  SessionStoreLockTimeoutError,
+} from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
 import { isDiagnosticsEnabled } from "../../infra/diagnostic-events.js";
 import {
@@ -453,6 +457,39 @@ export async function dispatchReplyFromConfig(params: {
   } catch (err) {
     recordProcessed("error", { error: String(err) });
     markIdle("message_error");
+
+    // When the session store lock times out, send a user-visible error instead
+    // of silently dropping the message. This prevents silent message loss during
+    // lock contention (see #14796).
+    if (err instanceof SessionStoreLockTimeoutError) {
+      const errorPayload: ReplyPayload = {
+        text: "⚠️ Your message could not be processed due to high contention. Please try again in a moment.",
+      };
+      let queuedFinal = false;
+      try {
+        if (shouldRouteToOriginating && originatingChannel && originatingTo) {
+          const result = await routeReply({
+            payload: errorPayload,
+            channel: originatingChannel,
+            to: originatingTo,
+            sessionKey: ctx.SessionKey,
+            accountId: ctx.AccountId,
+            threadId: ctx.MessageThreadId,
+            cfg,
+          });
+          queuedFinal = result.ok;
+        } else {
+          queuedFinal = dispatcher.sendFinalReply(errorPayload);
+        }
+        await dispatcher.waitForIdle();
+      } catch (deliveryErr) {
+        logVerbose(
+          `dispatch-from-config: failed to deliver lock-timeout error to user: ${String(deliveryErr)}`,
+        );
+      }
+      return { queuedFinal, counts: dispatcher.getQueuedCounts() };
+    }
+
     throw err;
   }
 }
