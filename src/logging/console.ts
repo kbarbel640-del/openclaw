@@ -137,6 +137,7 @@ function isEpipeError(err: unknown): boolean {
 
 function formatConsoleTimestamp(style: ConsoleStyle): string {
   const now = new Date();
+
   if (style === "pretty") {
     return now.toLocaleTimeString('en-GB', { 
       hour12: false,
@@ -145,9 +146,7 @@ function formatConsoleTimestamp(style: ConsoleStyle): string {
       second: '2-digit'
     });
   }
-  
-  const offset = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, -1);
+  return now.toISOString();
 }
 
 function hasTimestampPrefix(value: string): boolean {
