@@ -662,8 +662,13 @@ export async function resolveImplicitProviders(params: {
     resolveApiKeyFromProfiles({ provider: "ollama-cloud", store: authStore });
   if (ollamaCloudKey) {
     const ollamaCloudBaseUrl = params.explicitProviders?.["ollama-cloud"]?.baseUrl;
+    // Resolve the actual API key value for model discovery —
+    // resolveEnvApiKeyVarName returns the env-var NAME, not its value.
+    const ollamaCloudDiscoveryKey =
+      resolveEnvApiKey("ollama-cloud")?.apiKey ??
+      resolveApiKeyFromProfiles({ provider: "ollama-cloud", store: authStore });
     providers["ollama-cloud"] = {
-      ...(await buildOllamaCloudProvider(ollamaCloudBaseUrl, ollamaCloudKey)),
+      ...(await buildOllamaCloudProvider(ollamaCloudBaseUrl, ollamaCloudDiscoveryKey)),
       apiKey: ollamaCloudKey,
     };
   }
