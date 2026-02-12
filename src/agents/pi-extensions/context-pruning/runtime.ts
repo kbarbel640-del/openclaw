@@ -5,6 +5,10 @@ export type ContextPruningRuntimeValue = {
   contextWindowTokens?: number | null;
   isToolPrunable: (toolName: string) => boolean;
   lastCacheTouchAt?: number | null;
+  /** Session key used to persist metadata after pruning. */
+  sessionKey?: string;
+  /** Path to sessions.json — used to persist metadata after pruning. */
+  storePath?: string;
 };
 
 // Session-scoped runtime registry keyed by object identity.
