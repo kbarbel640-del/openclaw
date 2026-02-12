@@ -19,7 +19,7 @@
       "commandTimeoutMs": {
         "type": "number",
         "description": "Timeout for individual commands in milliseconds",
-        "default": 30000
+        "default": 300000
       }
     }
   }

@@ -30,7 +30,7 @@ Configure the plugin via OpenClaw's plugin configuration:
   "stateful-ssh": {
     "maxSessions": 5, // Maximum concurrent sessions (default: 5)
     "sessionTimeoutMs": 600000, // Idle timeout in ms (default: 10 minutes)
-    "commandTimeoutMs": 30000 // Command timeout in ms (default: 30 seconds)
+    "commandTimeoutMs": 300000 // Command timeout in ms (default: 5 minutes)
   }
 }
 ```
@@ -72,6 +72,7 @@ Executes a command in an existing SSH session.
 
 - `session_id` (required): Session ID from `open_ssh_session`
 - `command` (required): Command to execute
+- `timeout_ms` (optional): Override the default command timeout in milliseconds
 
 **Returns:**
 

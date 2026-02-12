@@ -40,7 +40,7 @@ export class SSHSessionManager {
   constructor(options: SSHSessionManagerOptions = {}) {
     this.maxSessions = options.maxSessions ?? 5;
     this.sessionTimeoutMs = options.sessionTimeoutMs ?? 600000; // 10 minutes
-    this.commandTimeoutMs = options.commandTimeoutMs ?? 30000; // 30 seconds
+    this.commandTimeoutMs = options.commandTimeoutMs ?? 300000; // 5 minutes
 
     // Start cleanup interval
     this.cleanupInterval = setInterval(() => {
@@ -348,7 +348,7 @@ export class SSHSessionManager {
     });
   }
 
-  async executeCommand(sessionId: string, command: string): Promise<string> {
+  async executeCommand(sessionId: string, command: string, timeoutMs?: number): Promise<string> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error(`Session not found: ${sessionId}`);
@@ -358,7 +358,7 @@ export class SSHSessionManager {
     await session.commandQueue;
 
     // Execute this command and update the queue
-    const commandPromise = this.executeCommandInternal(session, command);
+    const commandPromise = this.executeCommandInternal(session, command, timeoutMs);
     session.commandQueue = commandPromise.then(
       () => {},
       () => {},
@@ -367,7 +367,7 @@ export class SSHSessionManager {
     return commandPromise;
   }
 
-  private async executeCommandInternal(session: SSHSession, command: string): Promise<string> {
+  private async executeCommandInternal(session: SSHSession, command: string, timeoutMs?: number): Promise<string> {
     session.lastActivity = Date.now();
     session.buffer = "";
 
@@ -383,7 +383,7 @@ export class SSHSessionManager {
       const timeout = setTimeout(() => {
         cleanup();
         reject(new Error("Command execution timeout"));
-      }, this.commandTimeoutMs);
+      }, timeoutMs ?? this.commandTimeoutMs);
 
       // Listen for data
       const dataHandler = (data: Buffer) => {

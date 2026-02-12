@@ -182,6 +182,7 @@ extensions/stateful-ssh/
    - Erhält den Kontext (Verzeichnis, Umgebungsvariablen)
    - Wartet auf Shell-Prompt zur Erkennung des Befehls-Endes
    - Filtert Command-Echo und Prompt aus der Ausgabe
+   - Akzeptiert einen optionalen `timeout_ms` Parameter, um das Standard-Timeout zu überschreiben
 
 3. **close_ssh_session**
    - Schließt eine Session sauber
@@ -201,7 +202,7 @@ Das Plugin kann über `openclaw.plugin.json` konfiguriert werden:
 {
   "maxSessions": 5, // Max. gleichzeitige Sessions (Default: 5)
   "sessionTimeoutMs": 600000, // Idle-Timeout in ms (Default: 10 Min)
-  "commandTimeoutMs": 30000 // Command-Timeout in ms (Default: 30 Sek)
+  "commandTimeoutMs": 300000 // Command-Timeout in ms (Default: 5 Min)
 }
 ```
 
@@ -210,7 +211,7 @@ Das Plugin kann über `openclaw.plugin.json` konfiguriert werden:
 ✅ **Session-Limit**: Maximal 5 gleichzeitige Sessions (konfigurierbar)
 ✅ **Idle-Timeout**: Sessions werden nach 10 Minuten Inaktivität automatisch geschlossen
 ✅ **Auto-Cleanup**: Bei Prozessbeendigung (SIGINT/SIGTERM) werden alle Sessions geschlossen
-✅ **Command-Timeout**: Befehle haben ein Timeout von 30 Sekunden
+✅ **Command-Timeout**: Befehle haben ein Timeout von 5 Minuten, das pro Befehl überschrieben werden kann
 ✅ **Sandbox-Mode**: Tools sind in sandboxed Kontexten deaktiviert
 
 ### Technische Details

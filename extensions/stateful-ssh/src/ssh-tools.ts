@@ -114,6 +114,11 @@ export function createExecuteSSHCommandTool(api: OpenClawPluginApi) {
       command: Type.String({
         description: "The command to execute in the SSH session",
       }),
+      timeout_ms: Type.Optional(
+        Type.Number({
+          description: "Optional: The timeout for this command in milliseconds. Overrides the default command timeout.",
+        }),
+      ),
     }),
     async execute(_id: string, params: Record<string, unknown>) {
       const manager = getSessionManager(api);
@@ -121,6 +126,7 @@ export function createExecuteSSHCommandTool(api: OpenClawPluginApi) {
       try {
         const sessionId = params.session_id as string;
         const command = params.command as string;
+        const timeoutMs = params.timeout_ms as number | undefined;
 
         if (!sessionId) {
           throw new Error("session_id is required");
@@ -130,7 +136,7 @@ export function createExecuteSSHCommandTool(api: OpenClawPluginApi) {
           throw new Error("command is required");
         }
 
-        const output = await manager.executeCommand(sessionId, command);
+        const output = await manager.executeCommand(sessionId, command, timeoutMs);
 
         return {
           content: [{ type: "text" as const, text: output || "(command executed, no output)" }],
