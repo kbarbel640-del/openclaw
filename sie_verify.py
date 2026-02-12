@@ -58,7 +58,12 @@ def main() -> int:
     if not f.exists():
         raise SystemExit(f"File not found: {f}")
 
-    env = json.loads(f.read_text(encoding="utf-8"))
+    try:
+        env = json.loads(f.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        print("[FAIL] Malformed envelope JSON.")
+        return 2
+
 
     try:
         pub = resolve_pubkey(env, args)
