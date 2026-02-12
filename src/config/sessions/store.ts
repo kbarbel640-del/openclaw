@@ -687,6 +687,9 @@ export async function recordSessionMetaFromInbound(params: {
   createIfMissing?: boolean;
 }): Promise<SessionEntry | null> {
   const { storePath, sessionKey, ctx } = params;
+  if (!storePath) {
+    return null;
+  }
   const createIfMissing = params.createIfMissing ?? true;
   return await updateSessionStore(
     storePath,
