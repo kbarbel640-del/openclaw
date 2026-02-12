@@ -408,6 +408,7 @@ export function createBrowserTool(opts?: {
         case "open": {
           const targetUrl = readStringParam(params, "targetUrl", {
             required: true,
+            label: "targetUrl is required for the open action — provide the URL to open",
           });
           if (proxyRequest) {
             const result = await proxyRequest({
@@ -638,6 +639,7 @@ export function createBrowserTool(opts?: {
         case "navigate": {
           const targetUrl = readStringParam(params, "targetUrl", {
             required: true,
+            label: "targetUrl is required for the navigate action — provide the URL to navigate to",
           });
           const targetId = readStringParam(params, "targetId");
           if (proxyRequest) {
