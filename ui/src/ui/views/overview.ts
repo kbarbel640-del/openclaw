@@ -210,9 +210,7 @@ export function renderOverview(props: OverviewProps) {
               ${insecureContextHint ?? ""}
             </div>`
             : html`
-                <div class="callout" style="margin-top: 14px">
-                  Use Channels to link WhatsApp, Telegram, Discord, Signal, or iMessage.
-                </div>
+                <div class="callout" style="margin-top: 14px">Use Channels to link Telegram or Slack.</div>
               `
         }
       </div>
