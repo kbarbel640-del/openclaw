@@ -226,7 +226,7 @@ export function handleToolExecutionEnd(
   // Log detailed tool result information
   const resultText = extractToolResultText(sanitizedResult);
   const resultPreview = resultText ? resultText.slice(0, 200) : undefined;
-  
+
   ctx.log.debug(
     `tool call end: ${toolName} runId=${ctx.params.runId} toolCallId=${toolCallId} isError=${isToolError}${resultPreview ? ` preview=${resultPreview}` : ""}`,
   );
