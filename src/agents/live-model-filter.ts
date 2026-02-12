@@ -19,7 +19,7 @@ const CODEX_MODELS = [
   "gpt-5.1-codex-max",
 ];
 const GOOGLE_PREFIXES = ["gemini-3"];
-const ZAI_PREFIXES = ["glm-4.7"];
+const ZAI_PREFIXES = ["glm-4.7", "glm-5"];
 const MINIMAX_PREFIXES = ["minimax-m2.1"];
 const XAI_PREFIXES = ["grok-4"];
 
