@@ -1011,6 +1011,7 @@
                 "group": "Remote access and deployment",
                 "pages": [
                   "gateway/remote",
+                  "gateway/mcp-bridge",
                   "gateway/remote-gateway-readme",
                   "gateway/tailscale",
                   "platforms/fly",
