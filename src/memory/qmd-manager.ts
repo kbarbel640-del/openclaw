@@ -686,8 +686,7 @@ export class QmdMemoryManager implements MemorySearchManager {
         .get(`${normalized}%`) as { collection: string; path: string } | undefined;
     } catch (err) {
       if (this.isSqliteBusyError(err)) {
-        log.warn(`qmd index is busy while resolving doc path, skipping entry: ${String(err)}`);
-        return null;
+        throw this.createQmdBusyError(err);
       }
       throw err;
     }

@@ -20,6 +20,8 @@ import {
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import {
   resolveAgentIdFromSessionKey,
+  resolveSessionFilePath,
+  resolveThreadContextFromSessionKey,
   resolveGroupSessionKey,
   resolveSessionTranscriptPath,
   type SessionEntry,
@@ -547,6 +549,8 @@ export async function runAgentTurnWithFallback(params: {
         const sessionKey = params.sessionKey;
         const activeSessionEntry = params.getActiveSessionEntry();
         const corruptedSessionId = activeSessionEntry?.sessionId;
+        const agentId = resolveAgentIdFromSessionKey(sessionKey);
+        const threadContext = resolveThreadContextFromSessionKey(sessionKey);
         defaultRuntime.error(
           `Session history corrupted (Gemini function call ordering). Resetting session: ${params.sessionKey}`,
         );
@@ -564,11 +568,25 @@ export async function runAgentTurnWithFallback(params: {
 
           // Delete transcript file if it exists
           if (corruptedSessionId) {
-            const transcriptPath = resolveSessionTranscriptPath(corruptedSessionId);
-            try {
-              fs.unlinkSync(transcriptPath);
-            } catch {
-              // Ignore if file doesn't exist
+            const transcriptCandidates = new Set<string>();
+            const resolved = resolveSessionFilePath(corruptedSessionId, activeSessionEntry, {
+              agentId,
+            });
+            if (resolved && resolved.toLowerCase().includes(corruptedSessionId.toLowerCase())) {
+              transcriptCandidates.add(resolved);
+            }
+            transcriptCandidates.add(resolveSessionTranscriptPath(corruptedSessionId, agentId));
+            if (threadContext) {
+              transcriptCandidates.add(
+                resolveSessionTranscriptPath(corruptedSessionId, agentId, threadContext),
+              );
+            }
+            for (const transcriptPath of transcriptCandidates) {
+              try {
+                fs.unlinkSync(transcriptPath);
+              } catch {
+                // Ignore if file doesn't exist
+              }
             }
           }
 

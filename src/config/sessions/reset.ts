@@ -31,6 +31,28 @@ export function isThreadSessionKey(sessionKey?: string | null): boolean {
   return THREAD_SESSION_MARKERS.some((marker) => normalized.includes(marker));
 }
 
+export function resolveThreadContextFromSessionKey(sessionKey?: string | null): string | undefined {
+  const raw = (sessionKey ?? "").trim();
+  if (!raw) {
+    return undefined;
+  }
+  const normalized = raw.toLowerCase();
+  let markerIndex = -1;
+  let marker = "";
+  for (const candidate of THREAD_SESSION_MARKERS) {
+    const index = normalized.lastIndexOf(candidate);
+    if (index > markerIndex) {
+      markerIndex = index;
+      marker = candidate;
+    }
+  }
+  if (markerIndex < 0 || !marker) {
+    return undefined;
+  }
+  const value = raw.slice(markerIndex + marker.length).trim();
+  return value || undefined;
+}
+
 export function resolveSessionResetType(params: {
   sessionKey?: string | null;
   isGroup?: boolean;

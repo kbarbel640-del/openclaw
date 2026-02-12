@@ -5,7 +5,8 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { resolveAgentWorkspaceDir } from "../../agents/agent-scope.js";
 import {
   resolveAgentIdFromSessionKey,
-  resolveSessionFilePath,
+  resolveSessionTranscriptPath,
+  resolveThreadContextFromSessionKey,
   type SessionEntry,
 } from "../../config/sessions.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
@@ -18,6 +19,25 @@ type SessionLogMessage = {
   role: "user" | "assistant";
   text: string;
 };
+
+function sessionFileMatchesSessionId(sessionFile: string, sessionId: string): boolean {
+  const fileName = path.basename(sessionFile).trim().toLowerCase();
+  const normalizedSessionId = sessionId.trim().toLowerCase();
+  if (!fileName || !normalizedSessionId) {
+    return false;
+  }
+  if (!fileName.endsWith(".jsonl")) {
+    return false;
+  }
+  return (
+    fileName === `${normalizedSessionId}.jsonl` ||
+    fileName.startsWith(`${normalizedSessionId}-`) ||
+    fileName.includes(`_${normalizedSessionId}.`) ||
+    fileName.includes(`_${normalizedSessionId}-`) ||
+    fileName.includes(`-${normalizedSessionId}.`) ||
+    fileName.includes(`-${normalizedSessionId}-`)
+  );
+}
 
 function sanitizeSlug(value: string): string {
   const normalized = value
@@ -131,15 +151,25 @@ export async function saveSessionSnapshotToMemory(params: {
   try {
     const agentId = resolveAgentIdFromSessionKey(normalizedSessionKey);
     const workspaceDir = resolveAgentWorkspaceDir(params.cfg, agentId);
-    const sessionFile =
-      params.sessionEntry.sessionFile ||
-      resolveSessionFilePath(sessionId, params.sessionEntry, { agentId });
-    if (!sessionFile) {
-      return null;
+    const threadContext = resolveThreadContextFromSessionKey(normalizedSessionKey);
+    const storedSessionFile = params.sessionEntry.sessionFile?.trim() ?? "";
+    const sessionFileCandidates = new Set<string>();
+    if (storedSessionFile && sessionFileMatchesSessionId(storedSessionFile, sessionId)) {
+      sessionFileCandidates.add(storedSessionFile);
+    }
+    sessionFileCandidates.add(resolveSessionTranscriptPath(sessionId, agentId, threadContext));
+    if (threadContext) {
+      sessionFileCandidates.add(resolveSessionTranscriptPath(sessionId, agentId));
     }
 
     const messageCount = Math.max(1, Math.floor(params.messageCount ?? DEFAULT_MESSAGE_COUNT));
-    const snapshotBody = await readSnapshotBody({ sessionFile, messageCount });
+    let snapshotBody: { heading: string; body: string } | null = null;
+    for (const sessionFile of sessionFileCandidates) {
+      snapshotBody = await readSnapshotBody({ sessionFile, messageCount });
+      if (snapshotBody) {
+        break;
+      }
+    }
 
     const now = new Date();
     const iso = now.toISOString();
