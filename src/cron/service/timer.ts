@@ -70,7 +70,8 @@ function applyJobResult(
   }
 
   const shouldDelete =
-    job.schedule.kind === "at" && job.deleteAfterRun === true &&
+    job.schedule.kind === "at" &&
+    job.deleteAfterRun === true &&
     (result.status === "ok" || result.status === "skipped");
 
   if (!shouldDelete) {
