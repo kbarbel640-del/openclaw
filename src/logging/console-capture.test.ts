@@ -86,7 +86,11 @@ describe("enableConsoleCapture", () => {
     console.warn("[EventQueue] Slow listener detected");
     expect(warn).toHaveBeenCalledTimes(1);
     const firstArg = String(warn.mock.calls[0]?.[0] ?? "");
-    expect(firstArg.startsWith("2026-01-17T18:01:02.000 [EventQueue]")).toBe(true);
+    // formatConsoleTimestamp converts to local time via offset subtraction,
+    // so derive the expected prefix the same way to avoid TZ-dependent failures.
+    const offset = now.getTimezoneOffset() * 60000;
+    const localIso = new Date(now.getTime() - offset).toISOString().slice(0, -1);
+    expect(firstArg.startsWith(`${localIso} [EventQueue]`)).toBe(true);
     vi.useRealTimers();
   });
 
