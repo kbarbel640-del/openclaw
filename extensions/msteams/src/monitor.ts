@@ -240,10 +240,21 @@ export async function monitorMSTeamsProvider(
   // Create Express server
   const expressApp = express.default();
   expressApp.use(express.json());
-  expressApp.use(authorizeJWT(authConfig));
 
   // Set up the messages endpoint - use configured path and /api/messages as fallback
   const configuredPath = msteamsCfg.webhook?.path ?? "/api/messages";
+
+  // Apply JWT auth to all routes except the webhook paths — Bot Framework
+  // sends its own Azure Bearer tokens that the adapter validates internally.
+  const webhookPaths = new Set([configuredPath, "/api/messages"]);
+  expressApp.use((req: Request, res: Response, next: () => void) => {
+    if (webhookPaths.has(req.path)) {
+      next();
+      return;
+    }
+    authorizeJWT(authConfig)(req, res, next);
+  });
+
   const messageHandler = (req: Request, res: Response) => {
     void adapter
       .process(req, res, (context: unknown) => handler.run!(context))
