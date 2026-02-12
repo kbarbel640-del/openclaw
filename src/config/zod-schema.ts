@@ -495,6 +495,12 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
+        ws: z
+          .object({
+            maxPayloadBytes: z.number().int().positive().optional(),
+          })
+          .strict()
+          .optional(),
         nodes: z
           .object({
             browser: z

@@ -1,5 +1,18 @@
-export const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024; // cap incoming frame size (~8 MiB; fits ~5,000,000 decoded bytes as base64 + JSON overhead)
-export const MAX_BUFFERED_BYTES = 16 * 1024 * 1024; // per-connection send buffer limit (2x max payload)
+export const DEFAULT_MAX_PAYLOAD_BYTES = 50 * 1024 * 1024; // default incoming frame size cap (~50 MiB; large enough for typical screenshot uploads)
+let maxPayloadBytes = DEFAULT_MAX_PAYLOAD_BYTES;
+/** Resolved max incoming WS frame size in bytes. */
+export const getMaxPayloadBytes = () => maxPayloadBytes;
+/** Set max payload from gateway config (call once at startup). */
+export const setMaxPayloadBytes = (value: number | undefined) => {
+  if (value !== undefined && Number.isFinite(value) && value > 0) {
+    maxPayloadBytes = value;
+  } else {
+    maxPayloadBytes = DEFAULT_MAX_PAYLOAD_BYTES;
+  }
+};
+export const MAX_BUFFERED_BYTES_FACTOR = 2;
+/** Per-connection send buffer limit (2x max payload). */
+export const getMaxBufferedBytes = () => maxPayloadBytes * MAX_BUFFERED_BYTES_FACTOR;
 
 const DEFAULT_MAX_CHAT_HISTORY_MESSAGES_BYTES = 6 * 1024 * 1024; // keep history responses comfortably under client WS limits
 let maxChatHistoryMessagesBytes = DEFAULT_MAX_CHAT_HISTORY_MESSAGES_BYTES;

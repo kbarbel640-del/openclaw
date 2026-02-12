@@ -211,6 +211,15 @@ export type GatewayNodesConfig = {
   denyCommands?: string[];
 };
 
+export type GatewayWsConfig = {
+  /**
+   * Maximum incoming WebSocket frame size in bytes.
+   * Increase this if webchat image uploads fail with "Max payload size exceeded".
+   * Default: 50 MiB (52428800).
+   */
+  maxPayloadBytes?: number;
+};
+
 export type GatewayConfig = {
   /** Single multiplexed port for Gateway WS + HTTP (default: 18789). */
   port?: number;
@@ -239,6 +248,7 @@ export type GatewayConfig = {
   tls?: GatewayTlsConfig;
   http?: GatewayHttpConfig;
   nodes?: GatewayNodesConfig;
+  ws?: GatewayWsConfig;
   /**
    * IPs of trusted reverse proxies (e.g. Traefik, nginx). When a connection
    * arrives from one of these IPs, the Gateway trusts `x-forwarded-for` (or

@@ -41,7 +41,11 @@ import {
   validateConnectParams,
   validateRequestFrame,
 } from "../../protocol/index.js";
-import { MAX_BUFFERED_BYTES, MAX_PAYLOAD_BYTES, TICK_INTERVAL_MS } from "../../server-constants.js";
+import {
+  getMaxBufferedBytes,
+  getMaxPayloadBytes,
+  TICK_INTERVAL_MS,
+} from "../../server-constants.js";
 import { handleGatewayRequest } from "../../server-methods.js";
 import { formatError } from "../../server-utils.js";
 import { formatForLog, logWs } from "../../ws-log.js";
@@ -865,8 +869,8 @@ export function attachGatewayWsMessageHandler(params: {
               }
             : undefined,
           policy: {
-            maxPayload: MAX_PAYLOAD_BYTES,
-            maxBufferedBytes: MAX_BUFFERED_BYTES,
+            maxPayload: getMaxPayloadBytes(),
+            maxBufferedBytes: getMaxBufferedBytes(),
             tickIntervalMs: TICK_INTERVAL_MS,
           },
         };
