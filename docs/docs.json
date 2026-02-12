@@ -564,6 +564,14 @@
       "destination": "/gateway/security"
     },
     {
+      "source": "/openclaw/getting-started/security",
+      "destination": "/gateway/security"
+    },
+    {
+      "source": "/openclaw/getting-started/security/",
+      "destination": "/gateway/security"
+    },
+    {
       "source": "/session",
       "destination": "/concepts/session"
     },
