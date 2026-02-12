@@ -479,6 +479,9 @@ importers:
 
   extensions/stateful-ssh:
     dependencies:
+      '@sinclair/typebox':
+        specifier: 0.34.48
+        version: 0.34.48
       ssh2:
         specifier: ^1.15.0
         version: 1.17.0
