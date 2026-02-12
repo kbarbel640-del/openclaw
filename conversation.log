@@ -1,0 +1,22 @@
+[2026-02-11 14:00:00] User: Initialize my "Token Governance" protocol.
+[2026-02-11 14:01:15] User: I want you to read files automatically ONLY when they are direct dependencies.
+[2026-02-11 14:01:45] User: Before a large-scale read (more than 3 files), stop and summarize why those files are needed.
+[2026-02-11 14:02:30] User: Always prioritize direct file paths (@filename) over broad directory searches.
+[2026-02-11 14:03:00] User: Reminder: I prefer efficiency to keep my API bills low.
+[2026-02-11 14:15:00] User: Act as a Senior AI Architect building the "Brain" and "Evolution" systems.
+[2026-02-11 14:16:30] User: I like the kernel vs plugin architecture for safety.
+[2026-02-11 14:17:00] User: Never update core/ files - they are immutable.
+[2026-02-11 14:18:00] User: I prefer comprehensive docstrings in Google style.
+[2026-02-11 14:19:00] User: Always add type hints to function signatures.
+[2026-02-11 14:20:00] User: I like emoji status indicators in print statements (✅ ❌ ⚠️ 🔒).
+[2026-02-11 14:21:00] User: Don't blindly copy code from external sources - personalize it.
+[2026-02-11 14:22:00] User: I prefer security checks and error handling in all critical code.
+[2026-02-11 14:30:00] System: Created core/memory.py with ChromaDB vector embeddings.
+[2026-02-11 14:31:00] System: Created core/kernel_guard.py for immutability protection.
+[2026-02-11 14:32:00] System: Created modules/dream.py for nightly learning cycles.
+[2026-02-11 14:33:00] System: Created modules/scout.py for GitHub release monitoring.
+[2026-02-11 14:34:00] System: Created evolve.py as the main evolution orchestrator.
+[2026-02-11 14:40:00] User: The architecture is perfect. Now, let's make the Memory functional.
+[2026-02-11 14:41:00] User: I want a remember_preference function that tags facts about my coding style.
+[2026-02-11 14:42:00] User: Parse any file ending in .log and look for preference statements.
+[2026-02-11 14:43:00] User: I like when systems can learn my preferences automatically.
