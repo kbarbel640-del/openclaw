@@ -2,6 +2,12 @@
 
 Docs: https://docs.openclaw.ai
 
+## Unreleased
+
+### Fixes
+
+- CLI: warn on `--key` / `--api-key` global flags by adding hidden aliases and a `preAction` hint to reduce confusion with provider-specific flags (e.g. `--anthropic-api-key`). (#14333) Thanks @ddemott.
+
 ## 2026.2.9
 
 ### Added
