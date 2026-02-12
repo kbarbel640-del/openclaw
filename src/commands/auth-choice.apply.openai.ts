@@ -1,4 +1,3 @@
-import { loginOpenAICodex } from "@mariozechner/pi-ai";
 import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import { resolveEnvApiKey } from "../agents/model-auth.js";
 import { upsertSharedEnvVar } from "../infra/env-file.js";
@@ -9,13 +8,13 @@ import {
 } from "./auth-choice.api-key.js";
 import { applyDefaultModelChoice } from "./auth-choice.default-model.js";
 import { isRemoteEnvironment } from "./oauth-env.js";
-import { createVpsAwareOAuthHandlers } from "./oauth-flow.js";
 import { applyAuthProfileConfig, writeOAuthCredentials } from "./onboard-auth.js";
 import { openUrl } from "./onboard-helpers.js";
 import {
   applyOpenAICodexModelDefault,
   OPENAI_CODEX_DEFAULT_MODEL,
 } from "./openai-codex-model-default.js";
+import { loginOpenAICodexOAuth } from "./openai-codex-oauth.js";
 import {
   applyOpenAIConfig,
   applyOpenAIProviderConfig,
@@ -125,42 +124,20 @@ export async function applyAuthChoiceOpenAI(
       );
     };
 
-    const isRemote = isRemoteEnvironment();
-    await params.prompter.note(
-      isRemote
-        ? [
-            "You are running in a remote/VPS environment.",
-            "A URL will be shown for you to open in your LOCAL browser.",
-            "After signing in, paste the redirect URL back here.",
-          ].join("\n")
-        : [
-            "Browser will open for OpenAI authentication.",
-            "If the callback doesn't auto-complete, paste the redirect URL.",
-            "OpenAI OAuth uses localhost:1455 for the callback.",
-          ].join("\n"),
-      "OpenAI Codex OAuth",
-    );
-    const spin = params.prompter.progress("Starting OAuth flow…");
     try {
-      const { onAuth, onPrompt } = createVpsAwareOAuthHandlers({
-        isRemote,
+      const creds = await loginOpenAICodexOAuth({
         prompter: params.prompter,
         runtime: params.runtime,
-        spin,
+        isRemote: isRemoteEnvironment(),
         openUrl,
-        localBrowserMessage: "Complete sign-in in browser…",
       });
-
-      const creds = await loginOpenAICodex({
-        onAuth,
-        onPrompt,
-        onProgress: (msg) => spin.update(msg),
-      });
-      spin.stop("OpenAI OAuth complete");
       if (creds) {
+        const email =
+          typeof creds.email === "string" && creds.email.trim() ? creds.email.trim() : "default";
+        const profileId = `openai-codex:${email}`;
         await writeOAuthCredentials("openai-codex", creds, params.agentDir);
         nextConfig = applyAuthProfileConfig(nextConfig, {
-          profileId: "openai-codex:default",
+          profileId,
           provider: "openai-codex",
           mode: "oauth",
         });
@@ -178,13 +155,8 @@ export async function applyAuthChoiceOpenAI(
           await noteAgentModel(OPENAI_CODEX_DEFAULT_MODEL);
         }
       }
-    } catch (err) {
-      spin.stop("OpenAI OAuth failed");
-      params.runtime.error(String(err));
-      await params.prompter.note(
-        "Trouble with OAuth? See https://docs.openclaw.ai/start/faq",
-        "OAuth help",
-      );
+    } catch {
+      // Errors are handled in loginOpenAICodexOAuth.
     }
     return { config: nextConfig, agentModelOverride };
   }
