@@ -560,7 +560,7 @@ export async function runEmbeddedAttempt(
       tools,
     });
     const systemPromptOverride = createSystemPromptOverride(appendPrompt);
-    const systemPromptText = systemPromptOverride();
+    let systemPromptText = systemPromptOverride();
 
     const sessionLock = await acquireSessionWriteLock({
       sessionFile: params.sessionFile,
@@ -1037,6 +1037,15 @@ export async function runEmbeddedAttempt(
             log.debug(
               `hooks: prepended context to prompt (${hookResult.prependContext.length} chars)`,
             );
+          }
+          if (
+            typeof hookResult?.systemPrompt === "string" &&
+            hookResult.systemPrompt.trim().length > 0
+          ) {
+            const override = hookResult.systemPrompt.trim();
+            applySystemPromptOverrideToSession(activeSession, override);
+            systemPromptText = override;
+            log.debug(`hooks: applied systemPrompt override (${override.length} chars)`);
           }
         }
 
