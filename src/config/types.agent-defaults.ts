@@ -53,12 +53,18 @@ export type ContextDecayConfig = {
   stripThinkingAfterTurns?: number;
   /** Replace tool results with LLM summary after N turns. */
   summarizeToolResultsAfterTurns?: number;
+  /** Group-summarize a window of turns after N turns of age. */
+  summarizeWindowAfterTurns?: number;
+  /** Number of turns per group-summarization window (default: 4). */
+  summarizeWindowSize?: number;
   /** Replace tool results with placeholder after N turns. */
   stripToolResultsAfterTurns?: number;
   /** Hard cap on total messages in context. */
   maxContextMessages?: number;
   /** Model ref for summarization (e.g., "haiku", "anthropic/claude-haiku-4-5"). */
   summarizationModel?: string;
+  /** Model for group summaries (falls back to summarizationModel if unset). */
+  groupSummarizationModel?: string;
 };
 
 export type CliBackendConfig = {

@@ -195,4 +195,71 @@ describe("isContextDecayActive", () => {
   it("returns false when only summarizationModel is set", () => {
     expect(isContextDecayActive({ summarizationModel: "haiku" })).toBe(false);
   });
+
+  it("returns true when summarizeWindowAfterTurns is set", () => {
+    expect(isContextDecayActive({ summarizeWindowAfterTurns: 6 })).toBe(true);
+  });
+
+  it("returns false when only groupSummarizationModel is set", () => {
+    expect(isContextDecayActive({ groupSummarizationModel: "sonnet" })).toBe(false);
+  });
+});
+
+describe("mergeDecayConfig — new group fields", () => {
+  it("merges summarizeWindowAfterTurns from global", () => {
+    const config = makeConfig({
+      defaults: { summarizeWindowAfterTurns: 6, summarizeWindowSize: 3 },
+    });
+    const result = resolveContextDecayConfig(undefined, config);
+    expect(result?.summarizeWindowAfterTurns).toBe(6);
+    expect(result?.summarizeWindowSize).toBe(3);
+  });
+
+  it("per-account overrides summarizeWindowAfterTurns", () => {
+    const config = makeConfig({
+      defaults: { summarizeWindowAfterTurns: 6, summarizeWindowSize: 4 },
+      channels: {
+        discord: {
+          contextDecay: { summarizeWindowAfterTurns: 10 },
+        },
+      },
+    });
+    const result = resolveContextDecayConfig("discord:direct:123", config);
+    expect(result?.summarizeWindowAfterTurns).toBe(10);
+    expect(result?.summarizeWindowSize).toBe(4); // inherited from global
+  });
+
+  it("merges groupSummarizationModel", () => {
+    const config = makeConfig({
+      defaults: { summarizeWindowAfterTurns: 6, groupSummarizationModel: "sonnet" },
+    });
+    const result = resolveContextDecayConfig(undefined, config);
+    expect(result?.groupSummarizationModel).toBe("sonnet");
+  });
+
+  it("override groupSummarizationModel takes precedence", () => {
+    const config = makeConfig({
+      defaults: { summarizeWindowAfterTurns: 6, groupSummarizationModel: "haiku" },
+      channels: {
+        discord: {
+          contextDecay: { groupSummarizationModel: "opus" },
+        },
+      },
+    });
+    const result = resolveContextDecayConfig("discord:direct:123", config);
+    expect(result?.groupSummarizationModel).toBe("opus");
+  });
+
+  it("treats summarizeWindowAfterTurns=0 as disabled", () => {
+    const config = makeConfig({
+      defaults: { summarizeWindowAfterTurns: 6 },
+      channels: {
+        discord: {
+          contextDecay: { summarizeWindowAfterTurns: 0 },
+        },
+      },
+    });
+    const result = resolveContextDecayConfig("discord:direct:123", config);
+    expect(result?.summarizeWindowAfterTurns).toBe(6);
+  });
 });

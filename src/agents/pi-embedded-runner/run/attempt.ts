@@ -27,6 +27,7 @@ import {
   listChannelSupportedActions,
   resolveChannelMessageToolHints,
 } from "../../channel-tools.js";
+import { summarizeAgedTurnWindows } from "../../context-decay/group-summarizer.js";
 import { summarizeAgedToolResults } from "../../context-decay/summarizer.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
@@ -1012,6 +1013,20 @@ export async function runEmbeddedAttempt(
             abortSignal: params.abortSignal,
           }).catch((err) => {
             log.warn(`context-decay summarization failed: ${err}`);
+          });
+        }
+
+        // Fire-and-forget: group-summarize aged turn windows
+        if (contextDecayConfig?.summarizeWindowAfterTurns && params.model) {
+          void summarizeAgedTurnWindows({
+            sessionFilePath: params.sessionFile,
+            messages: messagesSnapshot,
+            config: contextDecayConfig,
+            model: params.model,
+            authStorage: params.authStorage,
+            abortSignal: params.abortSignal,
+          }).catch((err) => {
+            log.warn(`context-decay group summarization failed: ${err}`);
           });
         }
       } finally {

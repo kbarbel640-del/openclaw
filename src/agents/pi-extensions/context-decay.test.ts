@@ -1,7 +1,7 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { describe, expect, it } from "vitest";
 import type { ContextDecayConfig } from "../../config/types.agent-defaults.js";
-import type { SummaryStore } from "../context-decay/summary-store.js";
+import type { GroupSummaryStore, SummaryStore } from "../context-decay/summary-store.js";
 import { applyContextDecay } from "./context-decay/decay.js";
 
 // ---------------------------------------------------------------------------
@@ -354,6 +354,260 @@ describe("applyContextDecay", () => {
           expect(result.some((m) => m === tr)).toBe(false);
         }
       }
+    });
+  });
+
+  describe("group summaries", () => {
+    it("replaces anchor message with group summary text", () => {
+      const messages = [
+        makeUser("user1"),
+        makeAssistantWithToolUse("call_1", "read_file"),
+        makeToolResult("call_1", "read_file", "file content here"),
+        makeUser("user2"),
+        makeAssistant("response2"),
+        makeUser("user3"),
+        makeAssistant("latest"),
+      ];
+
+      const groupSummaryStore = [
+        {
+          summary: "User asked to read a file. Tool read /src/foo.ts and found function bar().",
+          anchorIndex: 0,
+          indices: [0, 1, 2],
+          turnRange: [2, 2] as [number, number],
+          originalTokenEstimate: 100,
+          summaryTokenEstimate: 20,
+          summarizedAt: new Date().toISOString(),
+          model: "sonnet",
+        },
+      ];
+
+      const config: ContextDecayConfig = { summarizeWindowAfterTurns: 2 };
+      const result = applyContextDecay({
+        messages,
+        config,
+        summaryStore: emptySummaryStore,
+        groupSummaryStore,
+      });
+
+      // Anchor message (index 0, user) should have group summary
+      expect(getContentText(result[0])).toContain("[Group Summary");
+      expect(getContentText(result[0])).toContain("User asked to read a file");
+    });
+
+    it("replaces absorbed messages with placeholder", () => {
+      const messages = [
+        makeUser("user1"),
+        makeAssistantWithToolUse("call_1", "read_file"),
+        makeToolResult("call_1", "read_file", "file content here"),
+        makeUser("user2"),
+        makeAssistant("response2"),
+        makeUser("user3"),
+        makeAssistant("latest"),
+      ];
+
+      const groupSummaryStore = [
+        {
+          summary: "Group summary text.",
+          anchorIndex: 0,
+          indices: [0, 1, 2],
+          turnRange: [2, 2] as [number, number],
+          originalTokenEstimate: 100,
+          summaryTokenEstimate: 20,
+          summarizedAt: new Date().toISOString(),
+          model: "sonnet",
+        },
+      ];
+
+      const config: ContextDecayConfig = { summarizeWindowAfterTurns: 2 };
+      const result = applyContextDecay({
+        messages,
+        config,
+        summaryStore: emptySummaryStore,
+        groupSummaryStore,
+      });
+
+      // Absorbed assistant (index 1)
+      expect(getContentText(result[1])).toContain("[Absorbed into group summary above]");
+      // Absorbed toolResult (index 2)
+      expect(getContentText(result[2])).toContain("[Absorbed into group summary above]");
+    });
+
+    it("preserves tool_use blocks structurally in absorbed assistant messages", () => {
+      const messages = [
+        makeUser("user1"),
+        makeAssistantWithToolUse("call_1", "read_file"),
+        makeToolResult("call_1", "read_file", "file content"),
+        makeUser("user2"),
+        makeAssistant("latest"),
+      ];
+
+      const groupSummaryStore = [
+        {
+          summary: "Summary.",
+          anchorIndex: 0,
+          indices: [0, 1, 2],
+          turnRange: [1, 1] as [number, number],
+          originalTokenEstimate: 100,
+          summaryTokenEstimate: 10,
+          summarizedAt: new Date().toISOString(),
+          model: "sonnet",
+        },
+      ];
+
+      const config: ContextDecayConfig = { summarizeWindowAfterTurns: 1 };
+      const result = applyContextDecay({
+        messages,
+        config,
+        summaryStore: emptySummaryStore,
+        groupSummaryStore,
+      });
+
+      // Absorbed assistant should still have tool_use block for pairing
+      const assistantContent = result[1].content as Array<Record<string, unknown>>;
+      const toolUseBlocks = assistantContent.filter((b) => b.type === "tool_use");
+      expect(toolUseBlocks).toHaveLength(1);
+      expect(toolUseBlocks[0].id).toBe("call_1");
+      expect(toolUseBlocks[0].name).toBe("read_file");
+      expect(toolUseBlocks[0].input).toEqual({});
+    });
+
+    it("preserves toolCallId on absorbed toolResult messages", () => {
+      const messages = [
+        makeUser("user1"),
+        makeAssistantWithToolUse("call_1", "read_file"),
+        makeToolResult("call_1", "read_file", "file content"),
+        makeUser("user2"),
+        makeAssistant("latest"),
+      ];
+
+      const groupSummaryStore = [
+        {
+          summary: "Summary.",
+          anchorIndex: 0,
+          indices: [0, 1, 2],
+          turnRange: [1, 1] as [number, number],
+          originalTokenEstimate: 100,
+          summaryTokenEstimate: 10,
+          summarizedAt: new Date().toISOString(),
+          model: "sonnet",
+        },
+      ];
+
+      const config: ContextDecayConfig = { summarizeWindowAfterTurns: 1 };
+      const result = applyContextDecay({
+        messages,
+        config,
+        summaryStore: emptySummaryStore,
+        groupSummaryStore,
+      });
+
+      // Absorbed toolResult should preserve toolCallId
+      const toolResult = result[2] as unknown as { toolCallId?: string };
+      expect(toolResult.toolCallId).toBe("call_1");
+    });
+
+    it("skips individual summarization for messages in group summaries", () => {
+      const messages = [
+        makeUser("user1"),
+        makeAssistantWithToolUse("call_1", "read_file"),
+        makeToolResult("call_1", "read_file", "file content"),
+        makeUser("user2"),
+        makeAssistant("response"),
+        makeUser("user3"),
+        makeAssistant("latest"),
+      ];
+
+      // Both individual and group summaries exist for index 2
+      const summaryStore: SummaryStore = {
+        2: {
+          summary: "Individual summary of file content.",
+          originalTokenEstimate: 50,
+          summaryTokenEstimate: 10,
+          summarizedAt: new Date().toISOString(),
+          model: "haiku",
+        },
+      };
+
+      const groupSummaryStore = [
+        {
+          summary: "Group summary that covers everything.",
+          anchorIndex: 0,
+          indices: [0, 1, 2],
+          turnRange: [2, 2] as [number, number],
+          originalTokenEstimate: 200,
+          summaryTokenEstimate: 20,
+          summarizedAt: new Date().toISOString(),
+          model: "sonnet",
+        },
+      ];
+
+      const config: ContextDecayConfig = {
+        summarizeToolResultsAfterTurns: 1,
+        summarizeWindowAfterTurns: 2,
+      };
+      const result = applyContextDecay({
+        messages,
+        config,
+        summaryStore,
+        groupSummaryStore,
+      });
+
+      // Index 2 should have the absorbed placeholder, NOT the individual summary
+      expect(getContentText(result[2])).toContain("[Absorbed into group summary above]");
+      expect(getContentText(result[2])).not.toContain("[Summarized]");
+    });
+
+    it("does not strip tool results that are already in a group summary", () => {
+      const messages = [
+        makeUser("user1"),
+        makeAssistantWithToolUse("call_1", "read_file"),
+        makeToolResult("call_1", "read_file", "file content"),
+        makeUser("user2"),
+        makeAssistant("response"),
+        makeUser("user3"),
+        makeAssistant("latest"),
+      ];
+
+      const groupSummaryStore = [
+        {
+          summary: "Group summary.",
+          anchorIndex: 0,
+          indices: [0, 1, 2],
+          turnRange: [2, 2] as [number, number],
+          originalTokenEstimate: 200,
+          summaryTokenEstimate: 20,
+          summarizedAt: new Date().toISOString(),
+          model: "sonnet",
+        },
+      ];
+
+      const config: ContextDecayConfig = {
+        stripToolResultsAfterTurns: 1,
+        summarizeWindowAfterTurns: 2,
+      };
+      const result = applyContextDecay({
+        messages,
+        config,
+        summaryStore: emptySummaryStore,
+        groupSummaryStore,
+      });
+
+      // Index 2 should be absorbed, not stripped
+      expect(getContentText(result[2])).toContain("[Absorbed into group summary above]");
+      expect(getContentText(result[2])).not.toContain("[Tool result removed");
+    });
+
+    it("returns same reference when no group summaries exist and no other decay applies", () => {
+      const messages = [makeUser("hi"), makeAssistant("hello")];
+      const config: ContextDecayConfig = { summarizeWindowAfterTurns: 5 };
+      const result = applyContextDecay({
+        messages,
+        config,
+        summaryStore: emptySummaryStore,
+        groupSummaryStore: [],
+      });
+      expect(result).toBe(messages);
     });
   });
 
