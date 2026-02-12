@@ -59,4 +59,43 @@ describe("markdownToWhatsApp", () => {
       "Before ```**bold** and ~~strike~~``` after *real bold*",
     );
   });
+
+  it("converts markdown links to text with URL", () => {
+    expect(markdownToWhatsApp("Visit [Google](https://google.com) now")).toBe(
+      "Visit Google (https://google.com) now",
+    );
+  });
+
+  it("converts multiple links", () => {
+    expect(markdownToWhatsApp("[A](https://a.com) and [B](https://b.com)")).toBe(
+      "A (https://a.com) and B (https://b.com)",
+    );
+  });
+
+  it("converts headings to bold", () => {
+    expect(markdownToWhatsApp("# Title")).toBe("*Title*");
+    expect(markdownToWhatsApp("## Subtitle")).toBe("*Subtitle*");
+    expect(markdownToWhatsApp("### Section")).toBe("*Section*");
+  });
+
+  it("converts headings in multiline text", () => {
+    expect(markdownToWhatsApp("# Title\n\nSome text\n\n## Next")).toBe(
+      "*Title*\n\nSome text\n\n*Next*",
+    );
+  });
+
+  it("strips language hints from fenced code blocks", () => {
+    const input = "```javascript\nconst x = 1;\n```";
+    expect(markdownToWhatsApp(input)).toBe("```\nconst x = 1;\n```");
+  });
+
+  it("strips language hints but preserves content", () => {
+    const input = "```python\ndef hello():\n    pass\n```";
+    expect(markdownToWhatsApp(input)).toBe("```\ndef hello():\n    pass\n```");
+  });
+
+  it("leaves fenced code blocks without language hints unchanged", () => {
+    const input = "```\nplain code\n```";
+    expect(markdownToWhatsApp(input)).toBe("```\nplain code\n```");
+  });
 });
