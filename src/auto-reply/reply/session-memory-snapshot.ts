@@ -20,7 +20,10 @@ type SessionLogMessage = {
 };
 
 function sanitizeSlug(value: string): string {
-  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-");
   const collapsed = normalized.replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
   return (collapsed || "session-reset").slice(0, 48);
 }
