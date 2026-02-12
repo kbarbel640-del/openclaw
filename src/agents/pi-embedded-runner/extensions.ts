@@ -68,9 +68,7 @@ function buildContextPruningExtension(params: {
           storePath,
           sessionKey: params.sessionKey!,
           update: async () => ({
-            totalTokens: estimatedTokens,
-            inputTokens: undefined,
-            outputTokens: undefined,
+            contextTokens: estimatedTokens,
             updatedAt: Date.now(),
           }),
         }).catch(() => {
