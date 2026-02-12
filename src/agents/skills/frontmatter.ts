@@ -82,6 +82,12 @@ function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
   if (typeof raw.stripComponents === "number") {
     spec.stripComponents = raw.stripComponents;
   }
+  if (typeof raw.apt === "string") {
+    spec.apt = raw.apt;
+  }
+  if (typeof raw.apk === "string") {
+    spec.apk = raw.apk;
+  }
   if (typeof raw.targetDir === "string") {
     spec.targetDir = raw.targetDir;
   }

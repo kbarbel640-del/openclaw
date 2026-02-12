@@ -7,6 +7,10 @@ export type SkillInstallSpec = {
   bins?: string[];
   os?: string[];
   formula?: string;
+  /** Explicit apt package name (Debian/Ubuntu) when it differs from the brew formula. */
+  apt?: string;
+  /** Explicit apk package name (Alpine) when it differs from the brew formula. */
+  apk?: string;
   package?: string;
   module?: string;
   url?: string;

@@ -5,6 +5,11 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { OpenClawConfig } from "../config/config.js";
 import { resolveBrewExecutable } from "../infra/brew.js";
+import {
+  buildLinuxInstallCommand,
+  detectLinuxPackageManager,
+  resolveLinuxPackageName,
+} from "../infra/linux-package-manager.js";
 import { fetchWithSsrFGuard } from "../infra/net/fetch-guard.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { scanDirectoryWithSummary } from "../security/skill-scanner.js";
@@ -444,6 +449,56 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
 
   const brewExe = hasBinary("brew") ? "brew" : resolveBrewExecutable();
   if (spec.kind === "brew" && !brewExe) {
+    // Fallback: try the system Linux package manager when brew is unavailable.
+    const linuxMgr = detectLinuxPackageManager();
+    if (linuxMgr && spec.formula) {
+      const linuxPkg = resolveLinuxPackageName(linuxMgr, spec.formula, spec);
+      if (linuxPkg) {
+        const linuxArgv = buildLinuxInstallCommand(linuxMgr, linuxPkg);
+        if (linuxArgv) {
+          try {
+            const linuxResult = await runCommandWithTimeout(linuxArgv, { timeoutMs });
+            const linuxOk = linuxResult.code === 0;
+            return withWarnings(
+              {
+                ok: linuxOk,
+                message: linuxOk
+                  ? `Installed via ${linuxMgr}`
+                  : formatInstallFailureMessage(linuxResult),
+                stdout: linuxResult.stdout.trim(),
+                stderr: linuxResult.stderr.trim(),
+                code: linuxResult.code,
+              },
+              warnings,
+            );
+          } catch (err) {
+            const stderr = err instanceof Error ? err.message : String(err);
+            return withWarnings(
+              {
+                ok: false,
+                message: `${linuxMgr} install failed: ${stderr}`,
+                stdout: "",
+                stderr,
+                code: null,
+              },
+              warnings,
+            );
+          }
+        }
+      } else {
+        // Tap formula with no Linux mapping — provide a helpful message.
+        return withWarnings(
+          {
+            ok: false,
+            message: `brew not installed and no ${linuxMgr} equivalent for formula "${spec.formula}". Install Homebrew or the package manually.`,
+            stdout: "",
+            stderr: "",
+            code: null,
+          },
+          warnings,
+        );
+      }
+    }
     return withWarnings(
       {
         ok: false,
