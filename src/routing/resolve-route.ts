@@ -171,7 +171,12 @@ function matchesTeam(match: { teamId?: string | undefined } | undefined, teamId:
 export function resolveAgentRoute(input: ResolveAgentRouteInput): ResolvedAgentRoute {
   const channel = normalizeToken(input.channel);
   const accountId = normalizeAccountId(input.accountId);
-  const peer = input.peer ? { kind: input.peer.kind, id: normalizeId(input.peer.id) } : null;
+  const peer = input.peer
+    ? {
+        kind: normalizeChatType(input.peer.kind) ?? input.peer.kind,
+        id: normalizeId(input.peer.id),
+      }
+    : null;
   const guildId = normalizeId(input.guildId);
   const teamId = normalizeId(input.teamId);
 
@@ -221,7 +226,10 @@ export function resolveAgentRoute(input: ResolveAgentRouteInput): ResolvedAgentR
 
   // Thread parent inheritance: if peer (thread) didn't match, check parent peer binding
   const parentPeer = input.parentPeer
-    ? { kind: input.parentPeer.kind, id: normalizeId(input.parentPeer.id) }
+    ? {
+        kind: normalizeChatType(input.parentPeer.kind) ?? input.parentPeer.kind,
+        id: normalizeId(input.parentPeer.id),
+      }
     : null;
   if (parentPeer && parentPeer.id) {
     const parentPeerMatch = bindings.find((b) => matchesPeer(b.match, parentPeer));

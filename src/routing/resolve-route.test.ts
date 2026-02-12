@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import type { ChatType } from "../channels/chat-type.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { resolveAgentRoute } from "./resolve-route.js";
 
@@ -432,6 +433,76 @@ describe("backward compatibility: peer.kind dm → direct", () => {
       peer: { kind: "direct", id: "+15551234567" },
     });
     expect(route.agentId).toBe("alex");
+    expect(route.matchedBy).toBe("binding.peer");
+  });
+});
+
+describe("normalize incoming peer.kind in resolveAgentRoute (#14612)", () => {
+  test("runtime dm peer matches config direct binding", () => {
+    const cfg: OpenClawConfig = {
+      bindings: [
+        {
+          agentId: "alex",
+          match: {
+            channel: "telegram",
+            peer: { kind: "direct", id: "12345" },
+          },
+        },
+      ],
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "telegram",
+      accountId: null,
+      // Runtime sends raw "dm" — should be normalized to "direct"
+      peer: { kind: "dm" as unknown as ChatType, id: "12345" },
+    });
+    expect(route.agentId).toBe("alex");
+    expect(route.matchedBy).toBe("binding.peer");
+  });
+
+  test("runtime dm parentPeer matches config direct binding", () => {
+    const cfg: OpenClawConfig = {
+      bindings: [
+        {
+          agentId: "support",
+          match: {
+            channel: "discord",
+            peer: { kind: "direct", id: "parent-dm-100" },
+          },
+        },
+      ],
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "discord",
+      peer: { kind: "channel", id: "thread-200" },
+      // parentPeer uses raw "dm" — should be normalized
+      parentPeer: { kind: "dm" as unknown as ChatType, id: "parent-dm-100" },
+    });
+    expect(route.agentId).toBe("support");
+    expect(route.matchedBy).toBe("binding.peer.parent");
+  });
+
+  test("both config dm and runtime dm normalize symmetrically", () => {
+    const cfg: OpenClawConfig = {
+      bindings: [
+        {
+          agentId: "bob",
+          match: {
+            channel: "whatsapp",
+            peer: { kind: "dm", id: "+1000" },
+          },
+        },
+      ],
+    };
+    const route = resolveAgentRoute({
+      cfg,
+      channel: "whatsapp",
+      accountId: null,
+      peer: { kind: "dm" as unknown as ChatType, id: "+1000" },
+    });
+    expect(route.agentId).toBe("bob");
     expect(route.matchedBy).toBe("binding.peer");
   });
 });
