@@ -146,20 +146,39 @@ export type DiagnosticEventInput = DiagnosticEventPayload extends infer Event
     ? Omit<Event, "seq" | "ts">
     : never
   : never;
-let seq = 0;
-const listeners = new Set<(evt: DiagnosticEventPayload) => void>();
+
+// ---------------------------------------------------------------------------
+// Singleton state anchored on globalThis so that every bundler chunk shares
+// the *same* listener Set and sequence counter.  Without this, bundlers that
+// duplicate the module across chunks (e.g. tsdown/rollup code-splitting)
+// create isolated copies — the gateway emits into an empty private Set while
+// plugins subscribe to a different one.  See #14902.
+// ---------------------------------------------------------------------------
+type DiagnosticGlobalState = {
+  listeners: Set<(evt: DiagnosticEventPayload) => void>;
+  seq: number;
+};
+
+const GLOBAL_KEY = "__openclaw_diag" as const;
+
+function getDiagState(): DiagnosticGlobalState {
+  const g = globalThis as unknown as Record<string, DiagnosticGlobalState | undefined>;
+  return (g[GLOBAL_KEY] ??= { listeners: new Set(), seq: 0 });
+}
 
 export function isDiagnosticsEnabled(config?: OpenClawConfig): boolean {
   return config?.diagnostics?.enabled === true;
 }
 
 export function emitDiagnosticEvent(event: DiagnosticEventInput) {
+  const state = getDiagState();
+  state.seq += 1;
   const enriched = {
     ...event,
-    seq: (seq += 1),
+    seq: state.seq,
     ts: Date.now(),
   } satisfies DiagnosticEventPayload;
-  for (const listener of listeners) {
+  for (const listener of state.listeners) {
     try {
       listener(enriched);
     } catch {
@@ -169,11 +188,13 @@ export function emitDiagnosticEvent(event: DiagnosticEventInput) {
 }
 
 export function onDiagnosticEvent(listener: (evt: DiagnosticEventPayload) => void): () => void {
+  const { listeners } = getDiagState();
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
 export function resetDiagnosticEventsForTest(): void {
-  seq = 0;
-  listeners.clear();
+  const state = getDiagState();
+  state.seq = 0;
+  state.listeners.clear();
 }

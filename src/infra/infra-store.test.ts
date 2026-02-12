@@ -105,6 +105,33 @@ describe("infra store", () => {
 
       expect(types).toEqual(["webhook.received", "message.queued", "session.state"]);
     });
+
+    it("shares state via globalThis to survive bundler chunk duplication (#14902)", () => {
+      resetDiagnosticEventsForTest();
+
+      // Simulate what happens when the bundler duplicates the module:
+      // one copy subscribes, a different copy emits.  Both must resolve
+      // to the same globalThis-backed state.
+      const g = globalThis as unknown as Record<
+        string,
+        { listeners: Set<(evt: unknown) => void>; seq: number } | undefined
+      >;
+      const sharedState = g["__openclaw_diag"];
+      expect(sharedState).toBeDefined();
+      expect(sharedState!.listeners).toBeInstanceOf(Set);
+
+      const received: string[] = [];
+      const stop = onDiagnosticEvent((evt) => received.push(evt.type));
+
+      // Verify the listener registered on the globalThis-backed Set
+      expect(sharedState!.listeners.size).toBe(1);
+
+      emitDiagnosticEvent({ type: "model.usage", usage: { total: 1 } });
+      expect(received).toEqual(["model.usage"]);
+
+      stop();
+      expect(sharedState!.listeners.size).toBe(0);
+    });
   });
 
   describe("channel activity", () => {
