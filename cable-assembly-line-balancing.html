@@ -542,9 +542,16 @@
       <p style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;">
         Compares station requirements (from Line Balancing) with actual worker assignments.
       </p>
+      <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+        <label style="font-size:0.8rem;color:var(--muted);">View:</label>
+        <select class="filter-dropdown" id="coverageViewFilter" onchange="renderCoverageTable()">
+          <option value="station">By Station</option>
+          <option value="worker">By Worker</option>
+        </select>
+      </div>
       <div class="table-scroll">
         <table class="form-table" id="coverageTable">
-          <thead>
+          <thead id="coverageTableHead">
             <tr>
               <th>Station</th>
               <th>Processes</th>
@@ -1281,11 +1288,18 @@ function toggleWorkerSkill(workerIdx, stationIdx) {
 function addWorkerAssignment(workerIdx) {
   const w = workers[workerIdx];
   ensureWorkerFields(w);
+  // Check remaining capacity before adding
+  const { remainingPercent } = getWorkerRemainingHours(workerIdx);
+  if (remainingPercent < 5) {
+    alert(`${w.code} has no remaining capacity (${remainingPercent}% available). Cannot add another assignment.`);
+    return;
+  }
   // Find first available station (that worker is skilled for and not already assigned)
   const assignedStations = w.assignments.map(a => a.station);
   const availableStation = w.skills.find(s => !assignedStations.includes(s));
   if (availableStation !== undefined) {
-    w.assignments.push({ station: availableStation, percent: 25 });
+    const defaultPercent = Math.min(25, remainingPercent);
+    w.assignments.push({ station: availableStation, percent: defaultPercent });
     renderShiftPlanning();
     saveToLocalStorage();
   }
@@ -1504,29 +1518,40 @@ function renderAssignmentsByWorker(container) {
     // Assignment rows
     w.assignments.forEach((a, ai) => {
       const assignedHours = (dailyPartHours * a.percent / 100).toFixed(2);
-      html += `<div class="assignment-row">
+      // Calculate remaining capacity excluding current assignment
+      const { remainingPercent } = getWorkerRemainingHours(wi, a.station);
+      const maxPercent = Math.min(100, a.percent + remainingPercent);
+      const availableHours = (dailyPartHours * remainingPercent / 100).toFixed(2);
+      const isOverAllocated = totalPercent > 100;
+
+      html += `<div class="assignment-row" style="${isOverAllocated ? 'border:1px solid var(--red);border-radius:4px;padding:4px;' : ''}">
         <select onchange="updateAssignmentStation(${wi}, ${ai}, this.value)">`;
       w.skills.forEach(si => {
         const selected = a.station === si ? 'selected' : '';
         html += `<option value="${si}" ${selected}>Station ${si + 1}</option>`;
       });
       html += `</select>
-        <input type="range" min="5" max="100" step="5" value="${a.percent}"
+        <input type="range" min="5" max="${maxPercent}" step="5" value="${a.percent}"
           oninput="updateAssignmentSliderDisplay(${wi}, ${ai}, this.value, ${dailyPartHours})"
           onchange="updateAssignmentPercent(${wi}, ${ai}, this.value)">
         <span class="percent-display" id="pct-${wi}-${ai}">${a.percent}%</span>
         <span class="hours-display" id="hrs-${wi}-${ai}">→ ${assignedHours}h</span>
+        <span style="font-size:0.7rem;color:${remainingPercent > 0 ? 'var(--muted)' : 'var(--yellow)'};">(${availableHours}h avail)</span>
         <button class="btn-remove" onclick="removeWorkerAssignment(${wi}, ${ai})">×</button>
       </div>`;
     });
 
-    // Add button (only if skilled for more stations)
+    // Add button (only if skilled for more stations AND has remaining capacity)
     const assignedStations = w.assignments.map(a => a.station);
     const canAddMore = w.skills.some(s => !assignedStations.includes(s));
-    if (canAddMore && w.skills.length > 0) {
-      html += `<button class="btn-add-assignment" onclick="addWorkerAssignment(${wi})">+ Add Station Assignment</button>`;
+    const workerRemaining = getWorkerRemainingHours(wi);
+    const hasCapacity = workerRemaining.remainingPercent >= 5;
+    if (canAddMore && w.skills.length > 0 && hasCapacity) {
+      html += `<button class="btn-add-assignment" onclick="addWorkerAssignment(${wi})">+ Add Station Assignment (${workerRemaining.remainingHours.toFixed(2)}h avail)</button>`;
     } else if (w.skills.length === 0) {
       html += `<p style="color:var(--muted);font-size:0.8rem;">⚠️ No skills assigned. Check skill matrix above.</p>`;
+    } else if (!hasCapacity && canAddMore) {
+      html += `<p style="color:var(--yellow);font-size:0.8rem;">⚠️ No remaining capacity (100% allocated)</p>`;
     }
 
     html += `</div>`;
@@ -1556,22 +1581,30 @@ function renderAssignmentsByStation(container) {
       const assignedHours = (dailyPartHours * percent / 100).toFixed(2);
       const assignmentIdx = worker.assignments.findIndex(a => a.station === si);
 
-      html += `<div class="station-worker-row">
+      // Calculate max allowed for this slider (current + remaining from other stations)
+      const { remainingPercent } = getWorkerRemainingHours(workerIndex, si);
+      const maxPercent = Math.min(100, percent + remainingPercent);
+      const availableHours = (dailyPartHours * remainingPercent / 100).toFixed(2);
+      const isOverAllocated = getWorkerTotalAssigned(workerIndex) > 100;
+
+      html += `<div class="station-worker-row" style="${isOverAllocated ? 'border:1px solid var(--red);' : ''}">
         <div class="worker-color" style="background:${getWorkerColor(workerIndex)};"></div>
         <span class="worker-name">${worker.code}</span>
-        <input type="range" min="5" max="100" step="5" value="${percent}"
+        <input type="range" min="5" max="${maxPercent}" step="5" value="${percent}"
           oninput="updateAssignmentSliderDisplay(${workerIndex}, ${assignmentIdx}, this.value, ${dailyPartHours})"
           onchange="updateAssignmentPercent(${workerIndex}, ${assignmentIdx}, this.value)">
         <span class="percent-display" id="pct-${workerIndex}-${assignmentIdx}">${percent}%</span>
         <span class="hours-display" id="hrs-${workerIndex}-${assignmentIdx}">→ ${assignedHours}h</span>
+        <span style="font-size:0.7rem;color:${remainingPercent > 0 ? 'var(--muted)' : 'var(--yellow)'};">(${availableHours}h avail)</span>
         <button class="btn-remove" onclick="removeWorkerAssignment(${workerIndex}, ${assignmentIdx})">×</button>
       </div>`;
     });
 
-    // Show workers who are skilled but not assigned
+    // Show workers who are skilled but not assigned (and have remaining hours)
     const skilledWorkers = workers.filter((w, wi) => {
       ensureWorkerFields(w);
-      return w.skills.includes(si) && !w.assignments.some(a => a.station === si);
+      const { remainingPercent } = getWorkerRemainingHours(wi);
+      return w.skills.includes(si) && !w.assignments.some(a => a.station === si) && remainingPercent > 0;
     });
 
     if (skilledWorkers.length > 0) {
@@ -1580,11 +1613,22 @@ function renderAssignmentsByStation(container) {
           <option value="">+ Add worker...</option>`;
       skilledWorkers.forEach((w, idx) => {
         const wi = workers.indexOf(w);
-        html += `<option value="${wi}">${w.code} - ${w.name}</option>`;
+        const { remainingHours } = getWorkerRemainingHours(wi);
+        html += `<option value="${wi}">${w.code} (${remainingHours.toFixed(2)}h avail)</option>`;
       });
       html += `</select>
         <button class="btn-add-assignment" style="margin-left:4px;" onclick="addWorkerToStation(${si})">Add</button>
       </div>`;
+    } else {
+      // Check if there are workers with no remaining hours
+      const fullyAssignedWorkers = workers.filter((w, wi) => {
+        ensureWorkerFields(w);
+        const { remainingPercent } = getWorkerRemainingHours(wi);
+        return w.skills.includes(si) && !w.assignments.some(a => a.station === si) && remainingPercent <= 0;
+      });
+      if (fullyAssignedWorkers.length > 0) {
+        html += `<p style="font-size:0.75rem;color:var(--muted);margin-top:8px;">⚠️ ${fullyAssignedWorkers.length} skilled worker(s) fully assigned elsewhere</p>`;
+      }
     }
 
     html += `</div>`;
@@ -1606,14 +1650,65 @@ function addWorkerToStation(stationIdx) {
   const workerIdx = parseInt(select.value);
   const w = workers[workerIdx];
   ensureWorkerFields(w);
-  w.assignments.push({ station: stationIdx, percent: 25 });
+  // Default to remaining percentage (capped at 25% minimum if available)
+  const { remainingPercent } = getWorkerRemainingHours(workerIdx);
+  if (remainingPercent < 5) {
+    alert(`${w.code} has no remaining capacity (${remainingPercent}% available). Cannot add to station.`);
+    return;
+  }
+  const defaultPercent = Math.min(25, remainingPercent);
+  w.assignments.push({ station: stationIdx, percent: defaultPercent });
   renderShiftPlanning();
   saveToLocalStorage();
 }
 
+// Calculate worker's remaining available hours (excluding a specific station if provided)
+function getWorkerRemainingHours(workerIdx, excludeStation = null) {
+  const w = workers[workerIdx];
+  ensureWorkerFields(w);
+  const dailyPartHours = getWorkerDailyParticipationHours(w);
+  let usedPercent = 0;
+  w.assignments.forEach(a => {
+    if (excludeStation === null || a.station !== excludeStation) {
+      usedPercent += a.percent;
+    }
+  });
+  const remainingPercent = Math.max(0, 100 - usedPercent);
+  const remainingHours = dailyPartHours * remainingPercent / 100;
+  return { remainingPercent, remainingHours, usedPercent, dailyPartHours };
+}
+
+// Calculate worker's total assigned percentage across all stations
+function getWorkerTotalAssigned(workerIdx) {
+  const w = workers[workerIdx];
+  ensureWorkerFields(w);
+  return w.assignments.reduce((sum, a) => sum + a.percent, 0);
+}
+
 function renderCoverageTable() {
+  const viewFilter = document.getElementById('coverageViewFilter')?.value || 'station';
+  const thead = document.getElementById('coverageTableHead');
   const tbody = document.getElementById('coverageTableBody');
-  if (!tbody) return;
+  if (!thead || !tbody) return;
+
+  if (viewFilter === 'station') {
+    renderCoverageByStation(thead, tbody);
+  } else {
+    renderCoverageByWorker(thead, tbody);
+  }
+}
+
+function renderCoverageByStation(thead, tbody) {
+  // Header
+  thead.innerHTML = `<tr>
+    <th>Station</th>
+    <th>Processes</th>
+    <th style="text-align:right">Required</th>
+    <th style="text-align:right">Assigned</th>
+    <th style="text-align:right">Gap</th>
+    <th>Status</th>
+    <th>Assigned Workers</th>
+  </tr>`;
 
   let html = '';
   let totalRequired = 0;
@@ -1661,6 +1756,77 @@ function renderCoverageTable() {
     <td style="text-align:right;">${totalRequired.toFixed(2)}</td>
     <td style="text-align:right;">${totalAssigned.toFixed(2)}</td>
     <td style="text-align:right;color:${totalGap >= 0 ? 'var(--green)' : 'var(--red)'};">${totalGap >= 0 ? '+' : ''}${totalGap.toFixed(2)}</td>
+    <td colspan="2"></td>
+  </tr>`;
+
+  tbody.innerHTML = html;
+}
+
+function renderCoverageByWorker(thead, tbody) {
+  // Header
+  thead.innerHTML = `<tr>
+    <th>Worker</th>
+    <th>Daily Part. Hrs</th>
+    <th style="text-align:right">Assigned %</th>
+    <th style="text-align:right">Assigned Hrs</th>
+    <th style="text-align:right">Remaining</th>
+    <th>Status</th>
+    <th>Station Assignments</th>
+  </tr>`;
+
+  let html = '';
+  let totalDailyHrs = 0;
+  let totalAssignedHrs = 0;
+
+  workers.forEach((w, wi) => {
+    ensureWorkerFields(w);
+    const dailyPartHours = getWorkerDailyParticipationHours(w);
+    const totalPercent = w.assignments.reduce((s, a) => s + a.percent, 0);
+    const assignedHours = dailyPartHours * totalPercent / 100;
+    const remainingHours = dailyPartHours - assignedHours;
+
+    totalDailyHrs += dailyPartHours;
+    totalAssignedHrs += Math.min(assignedHours, dailyPartHours); // Cap at daily max
+
+    let statusClass, statusText;
+    if (totalPercent === 100) {
+      statusClass = 'full';
+      statusText = 'FULLY ASSIGNED';
+    } else if (totalPercent > 100) {
+      statusClass = 'empty'; // Use red for over-allocation
+      statusText = 'OVER-ALLOCATED';
+    } else if (totalPercent > 0) {
+      statusClass = 'under';
+      statusText = 'PARTIAL';
+    } else {
+      statusClass = 'empty';
+      statusText = 'UNASSIGNED';
+    }
+
+    const stationList = w.assignments.map(a => {
+      const hrs = (dailyPartHours * a.percent / 100).toFixed(2);
+      return `Stn${a.station + 1}(${a.percent}%→${hrs}h)`;
+    }).join(', ') || '-';
+
+    html += `<tr>
+      <td><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${getWorkerColor(wi)};margin-right:6px;vertical-align:middle;"></span><strong>${w.code}</strong></td>
+      <td style="text-align:center;">${dailyPartHours.toFixed(2)}h</td>
+      <td style="text-align:right;font-weight:600;color:${totalPercent <= 100 ? 'var(--green)' : 'var(--red)'};">${totalPercent}%</td>
+      <td style="text-align:right;font-weight:600;">${assignedHours.toFixed(2)}h</td>
+      <td style="text-align:right;color:${remainingHours >= 0 ? 'var(--muted)' : 'var(--red)'};">${remainingHours.toFixed(2)}h</td>
+      <td><span class="coverage-status ${statusClass}">${statusText}</span></td>
+      <td style="font-size:0.75rem;">${stationList}</td>
+    </tr>`;
+  });
+
+  // Total row
+  const totalRemainingHrs = totalDailyHrs - totalAssignedHrs;
+  html += `<tr style="background:var(--surface2);font-weight:600;">
+    <td>TOTAL (${workers.length} workers)</td>
+    <td style="text-align:center;">${totalDailyHrs.toFixed(2)}h</td>
+    <td style="text-align:right;">-</td>
+    <td style="text-align:right;">${totalAssignedHrs.toFixed(2)}h</td>
+    <td style="text-align:right;">${totalRemainingHrs.toFixed(2)}h</td>
     <td colspan="2"></td>
   </tr>`;
 
