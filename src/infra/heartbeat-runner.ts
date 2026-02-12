@@ -12,6 +12,7 @@ import {
 } from "../agents/agent-scope.js";
 import { appendCronStyleCurrentTimeLine } from "../agents/current-time.js";
 import { resolveEffectiveMessagesConfig } from "../agents/identity.js";
+import { resolveEmbeddedSessionLane } from "../agents/pi-embedded.js";
 import { DEFAULT_HEARTBEAT_FILENAME } from "../agents/workspace.js";
 import {
   DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
@@ -420,8 +421,11 @@ export async function runHeartbeatOnce(opts: {
     return { status: "skipped", reason: "quiet-hours" };
   }
 
-  const queueSize = (opts.deps?.getQueueSize ?? getQueueSize)(CommandLane.Main);
-  if (queueSize > 0) {
+  const { entry, sessionKey, storePath } = resolveHeartbeatSession(cfg, agentId, heartbeat);
+  const queueReader = opts.deps?.getQueueSize ?? getQueueSize;
+  const mainQueueSize = queueReader(CommandLane.Main);
+  const sessionQueueSize = queueReader(resolveEmbeddedSessionLane(sessionKey));
+  if (mainQueueSize > 0 || sessionQueueSize > 0) {
     return { status: "skipped", reason: "requests-in-flight" };
   }
 
@@ -452,7 +456,6 @@ export async function runHeartbeatOnce(opts: {
     // The LLM prompt says "if it exists" so this is expected behavior.
   }
 
-  const { entry, sessionKey, storePath } = resolveHeartbeatSession(cfg, agentId, heartbeat);
   const previousUpdatedAt = entry?.updatedAt;
   const delivery = resolveHeartbeatDeliveryTarget({ cfg, entry, heartbeat });
   const heartbeatAccountId = heartbeat?.accountId?.trim();
