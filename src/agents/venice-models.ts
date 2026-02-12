@@ -327,19 +327,38 @@ interface VeniceModelsResponse {
 /**
  * Discover models from Venice API with fallback to static catalog.
  * The /models endpoint is public and doesn't require authentication.
+ *
+ * @param options.skipNetwork - When true, skip API discovery and return the
+ *   static catalog immediately. Callers should set this when the Venice
+ *   provider is not configured to avoid unnecessary network requests.
  */
-export async function discoverVeniceModels(): Promise<ModelDefinitionConfig[]> {
-  // Skip API discovery in test environment
-  if (process.env.NODE_ENV === "test" || process.env.VITEST) {
+export async function discoverVeniceModels(options?: {
+  skipNetwork?: boolean;
+}): Promise<ModelDefinitionConfig[]> {
+  // Skip API discovery in test environment or when explicitly requested
+  if (process.env.NODE_ENV === "test" || process.env.VITEST || options?.skipNetwork) {
     return VENICE_MODEL_CATALOG.map(buildVeniceModelDefinition);
   }
 
+  // Use a manual AbortController so we can clear the timeout in `finally`.
+  // AbortSignal.timeout() keeps its internal timer alive even after the fetch
+  // settles, which can fire into an already-resolved promise chain and produce
+  // an unhandled rejection in some Node.js versions.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(new Error("Venice API request timed out")),
+    5000,
+  );
+  let response: Response | undefined;
+
   try {
-    const response = await fetch(`${VENICE_BASE_URL}/models`, {
-      signal: AbortSignal.timeout(5000),
+    response = await fetch(`${VENICE_BASE_URL}/models`, {
+      signal: controller.signal,
     });
 
     if (!response.ok) {
+      // Consume the body to prevent dangling socket/stream errors.
+      response.body?.cancel?.().catch(() => {});
       console.warn(
         `[venice-models] Failed to discover models: HTTP ${response.status}, using static catalog`,
       );
@@ -387,7 +406,17 @@ export async function discoverVeniceModels(): Promise<ModelDefinitionConfig[]> {
 
     return models.length > 0 ? models : VENICE_MODEL_CATALOG.map(buildVeniceModelDefinition);
   } catch (error) {
+    // Ensure the response body stream is cancelled to prevent unhandled
+    // rejections from a half-read body (e.g. when the timeout fires
+    // mid-stream).
+    try {
+      response?.body?.cancel?.().catch(() => {});
+    } catch {
+      // Ignore - body may already be consumed or locked.
+    }
     console.warn(`[venice-models] Discovery failed: ${String(error)}, using static catalog`);
     return VENICE_MODEL_CATALOG.map(buildVeniceModelDefinition);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
