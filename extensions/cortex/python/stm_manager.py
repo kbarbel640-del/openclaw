@@ -1,58 +1,55 @@
 #!/usr/bin/env python3
 """
-Short-Term Memory (STM) Manager
+Short-Term Memory (STM) Manager — brain.db backend
 
-Implements Cortex-style dual-tier memory:
-- STM: Last 10-20 significant events (fast access)
-- LTM: Daily markdown files + collections (persistent)
+Thin wrapper around UnifiedBrain.remember() / get_stm().
+Same API as the original stm.json-based manager for backward compat.
 
-STM auto-expires to daily logs AND collections after 7 days.
-
-Data directory can be configured via CORTEX_DATA_DIR environment variable.
-Defaults to the script's directory for backward compatibility.
+All reads/writes go to brain.db (WAL mode, FTS5 indexed).
 """
 import json
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-try:
-    from collections_manager import add_memory as add_to_collection
-    COLLECTIONS_ENABLED = True
-except ImportError:
-    COLLECTIONS_ENABLED = False
-
-# Data directory: use CORTEX_DATA_DIR env var or default to script directory
+# Data directory
 DATA_DIR = Path(os.environ.get("CORTEX_DATA_DIR", Path(__file__).parent))
-STM_PATH = DATA_DIR / "stm.json"
+
+# Import UnifiedBrain (same directory)
+from brain import UnifiedBrain
+
+# Singleton brain instance
+_brain = None
+
+def _get_brain() -> UnifiedBrain:
+    global _brain
+    if _brain is None:
+        _brain = UnifiedBrain()  # Uses brain.py's default path (~/.openclaw/workspace/memory/brain.db)
+    return _brain
+
 
 def load_stm():
-    """Load short-term memory"""
-    if STM_PATH.exists():
-        with open(STM_PATH, 'r') as f:
-            return json.load(f)
+    """Load STM — returns format compatible with old stm.json consumers."""
+    b = _get_brain()
+    items = b.get_stm(limit=50000)  # Get all (capacity handled by caller)
     return {
-        "short_term_memory": [],
-        "capacity": 20,
-        "auto_expire_days": 7,
-        "last_cleanup": None
+        "short_term_memory": [_brain_to_stm_item(i) for i in items],
+        "capacity": 50000,
+        "auto_expire_days": 30,
+        "last_cleanup": None,
     }
 
+
 def save_stm(stm):
-    """Save short-term memory"""
-    with open(STM_PATH, 'w') as f:
-        json.dump(stm, f, indent=2)
+    """No-op — brain.db handles persistence. Kept for backward compat."""
+    pass
+
 
 def add_to_stm(content, category=None, categories=None, importance=1.0):
-    """Add item to short-term memory
+    """Add item to STM via brain.db."""
+    b = _get_brain()
 
-    PHASE 2B: Multi-category support
-    - categories: list of category strings (preferred)
-    - category: single category string (deprecated, for backward compat)
-    """
-    stm = load_stm()
-
-    # Normalize categories: prefer categories list, fall back to single category
+    # Normalize categories
     if categories is not None:
         cats = categories if isinstance(categories, list) else [categories]
     elif category is not None:
@@ -60,117 +57,73 @@ def add_to_stm(content, category=None, categories=None, importance=1.0):
     else:
         cats = ["general"]
 
+    mem_id = b.remember(content, categories=cats, importance=importance, source="agent")
+
     item = {
+        "id": mem_id,
         "content": content,
         "timestamp": datetime.now().isoformat(),
-        "categories": cats,  # PHASE 2B: Multi-category
-        "category": cats[0] if cats else "general",  # Backward compat
+        "categories": cats,
+        "category": cats[0] if cats else "general",
         "importance": importance,
-        "access_count": 0
+        "access_count": 0,
     }
-
-    # Add to beginning (most recent first)
-    stm["short_term_memory"].insert(0, item)
-
-    # Trim if over capacity
-    if len(stm["short_term_memory"]) > stm["capacity"]:
-        # Keep high-importance items, expire low-importance
-        stm["short_term_memory"] = sorted(
-            stm["short_term_memory"],
-            key=lambda x: x["importance"],
-            reverse=True
-        )[:stm["capacity"]]
-
-    save_stm(stm)
     return item
 
+
 def get_recent(limit=10, category=None, categories=None):
-    """Get recent items from STM
+    """Get recent STM items from brain.db."""
+    b = _get_brain()
 
-    PHASE 2B: Multi-category filtering support
-    - categories: list of categories to filter by (any match)
-    - category: single category (deprecated)
-    """
-    stm = load_stm()
-    items = stm["short_term_memory"]
-
-    # Determine filter categories
-    filter_cats = None
+    # Determine filter category (brain.db supports single category filter)
+    filter_cat = None
     if categories is not None:
         filter_cats = categories if isinstance(categories, list) else [categories]
+        filter_cat = filter_cats[0] if filter_cats else None
     elif category is not None:
-        filter_cats = [category]
+        filter_cat = category
 
-    if filter_cats:
-        def matches(item):
-            # Get item's categories (handle both old and new format)
-            item_cats = item.get("categories", [item.get("category", "general")])
-            if isinstance(item_cats, str):
-                item_cats = [item_cats]
-            # Check if any item category matches any filter category
-            return any(ic in filter_cats for ic in item_cats)
-        items = [i for i in items if matches(i)]
+    items = b.get_stm(limit=limit, category=filter_cat)
 
-    # Update access counts
-    for item in items[:limit]:
-        item["access_count"] += 1
-    save_stm(stm)
+    # Convert to legacy format
+    result = []
+    for item in items:
+        result.append(_brain_to_stm_item(item))
+    return result
 
-    return items[:limit]
 
 def cleanup_expired():
-    """Move expired items to daily logs"""
-    stm = load_stm()
-    now = datetime.now()
-    expire_date = now - timedelta(days=stm["auto_expire_days"])
-    
-    kept = []
-    expired = []
-    
-    for item in stm["short_term_memory"]:
-        ts = datetime.fromisoformat(item["timestamp"])
-        if ts > expire_date or item.get("importance", 0) >= 2.0:
-            kept.append(item)
-        else:
-            expired.append(item)
-    
-    # Archive expired items to daily log AND collections
-    if expired:
-        for item in expired:
-            ts = datetime.fromisoformat(item["timestamp"])
-            daily_file = DATA_DIR / f"{ts.strftime('%Y-%m-%d')}.md"
-            
-            # Add to daily log
-            with open(daily_file, 'a') as f:
-                f.write(f"\n## Archived from STM\n")
-                f.write(f"**Time:** {ts.strftime('%H:%M:%S')}\n")
-                f.write(f"**Category:** {item.get('category', 'general')}\n")
-                f.write(f"{item['content']}\n\n")
-            
-            # Add to collections (if enabled)
-            if COLLECTIONS_ENABLED:
-                try:
-                    add_to_collection(
-                        content=item['content'],
-                        importance=item.get('importance', 1.0),
-                        force_category=item.get('category')
-                    )
-                except Exception as e:
-                    print(f"Warning: Failed to add to collection: {e}")
-    
-    stm["short_term_memory"] = kept
-    stm["last_cleanup"] = now.isoformat()
-    save_stm(stm)
-    
-    return len(expired)
+    """No-op — brain.db doesn't auto-expire. Kept for backward compat."""
+    return 0
+
+
+def _brain_to_stm_item(item: dict) -> dict:
+    """Convert brain.db STM dict to legacy stm.json format."""
+    cats = item.get("categories", ["general"])
+    if isinstance(cats, str):
+        try:
+            cats = json.loads(cats)
+        except (json.JSONDecodeError, TypeError):
+            cats = [cats]
+
+    return {
+        "id": item.get("id", ""),
+        "content": item.get("content", ""),
+        "timestamp": item.get("created_at", datetime.now().isoformat()),
+        "categories": cats,
+        "category": cats[0] if cats else "general",
+        "importance": item.get("importance", 1.0),
+        "access_count": item.get("access_count", 0),
+    }
+
 
 if __name__ == "__main__":
     # Test
     add_to_stm("System started", category="system", importance=1.0)
     add_to_stm("Found quiet hours bug in config", category="debug", importance=2.0)
-    
+
     print("Recent STM items:")
     for item in get_recent(limit=5):
         print(f"- [{item['category']}] {item['content'][:60]}")
-    
+
     print(f"\nCleaned up {cleanup_expired()} expired items")

@@ -21,9 +21,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 
-# Data directory: use CORTEX_DATA_DIR env var or default to script directory
-DATA_DIR = Path(os.environ.get("CORTEX_DATA_DIR", Path(__file__).parent))
-ATOMS_DB_PATH = DATA_DIR / ".atoms.db"
+# Data directory: use CORTEX_DATA_DIR env var or default to workspace memory
+_DEFAULT_DATA_DIR = Path.home() / ".openclaw" / "workspace" / "memory"
+DATA_DIR = Path(os.environ.get("CORTEX_DATA_DIR", _DEFAULT_DATA_DIR))
+ATOMS_DB_PATH = DATA_DIR / "brain.db"  # Unified brain.db (was .atoms.db)
 
 # GPU embeddings daemon URL (already running on localhost)
 EMBEDDINGS_URL = os.environ.get("EMBEDDINGS_URL", "http://localhost:8030")

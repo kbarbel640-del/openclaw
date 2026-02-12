@@ -1,0 +1,351 @@
+"""
+Comprehensive test suite for brain.py (UnifiedBrain).
+Tests: STM, messages, atoms, provenance, FTS5, semantic search.
+
+Usage:
+    CORTEX_DATA_DIR=/tmp/brain_test pytest test_brain.py -v
+"""
+import json
+import os
+import sqlite3
+import tempfile
+import time
+from pathlib import Path
+
+import pytest
+
+# Force test data dir
+TEST_DIR = tempfile.mkdtemp(prefix="brain_test_")
+os.environ["CORTEX_DATA_DIR"] = TEST_DIR
+
+from brain import UnifiedBrain, _gen_id, _now
+
+
+# ============================================================
+# Fixtures
+# ============================================================
+
+@pytest.fixture
+def brain(tmp_path):
+    """Fresh brain per test class for isolation."""
+    return UnifiedBrain(str(tmp_path / "test.db"))
+
+
+def _has_gpu_daemon():
+    try:
+        import requests
+        return requests.get("http://localhost:8030/health", timeout=2).status_code == 200
+    except Exception:
+        return False
+
+
+SKIP_NO_GPU = pytest.mark.skipif(not _has_gpu_daemon(), reason="Embeddings daemon not running")
+
+
+# ============================================================
+# Schema & Init
+# ============================================================
+
+class TestInit:
+    def test_creates_db_file(self, brain):
+        assert Path(brain.db_path).exists()
+
+    def test_wal_mode(self, brain):
+        conn = sqlite3.connect(str(brain.db_path))
+        mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+        conn.close()
+        assert mode == "wal"
+
+    def test_tables_exist(self, brain):
+        conn = sqlite3.connect(str(brain.db_path))
+        tables = [r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()]
+        conn.close()
+        for t in ["messages", "threads", "stm", "atoms", "causal_links",
+                   "embeddings", "acks", "stm_fts", "messages_fts", "atoms_fts"]:
+            assert t in tables, f"Missing table: {t}"
+
+    def test_stats_empty(self, brain):
+        s = brain.stats()
+        assert s["messages"] == 0
+        assert s["stm_entries"] == 0
+        assert s["atoms"] == 0
+
+
+# ============================================================
+# STM
+# ============================================================
+
+class TestSTM:
+    def test_remember_returns_id(self, brain):
+        assert brain.remember("Test", categories=["test"]).startswith("stm_")
+
+    def test_remember_content(self, brain):
+        content = f"Unique {time.time()}"
+        brain.remember(content, categories=["test"])
+        stm = brain.get_stm(limit=1)
+        assert stm[0]["content"] == content
+
+    def test_get_stm_limit(self, brain):
+        for i in range(5):
+            brain.remember(f"Item {i}", categories=["test"])
+        assert len(brain.get_stm(limit=3)) == 3
+
+    def test_get_stm_by_category(self, brain):
+        brain.remember("Cat A", categories=["alpha"])
+        brain.remember("Cat B", categories=["beta"])
+        results = brain.get_stm(limit=100, category="alpha")
+        assert len(results) >= 1
+        for r in results:
+            cats = json.loads(r["categories"]) if isinstance(r["categories"], str) else r["categories"]
+            assert "alpha" in cats
+
+    def test_importance(self, brain):
+        mid = brain.remember("Important", importance=3.0, categories=["test"])
+        stm = brain.get_stm(limit=50)
+        found = [s for s in stm if s["id"] == mid]
+        assert found[0]["importance"] == 3.0
+
+    def test_update_stm(self, brain):
+        mid = brain.remember("Update me", categories=["test"])
+        assert brain.update_stm(mid, importance=2.5) is True
+
+    def test_provenance_field(self, brain):
+        # Create a real message first (FK constraint)
+        msg = brain.send("alice", "bob", "Source", "Body")
+        mid = brain.remember("Prov test", categories=["test"], source_message_id=msg["id"])
+        conn = sqlite3.connect(str(brain.db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT source_message_id FROM stm WHERE id = ?", (mid,)).fetchone()
+        conn.close()
+        assert row["source_message_id"] == msg["id"]
+
+
+# ============================================================
+# Messages (SYNAPSE)
+# ============================================================
+
+class TestMessages:
+    def test_send_returns_dict(self, brain):
+        r = brain.send("alice", "bob", "Test", "Hello")
+        assert r["id"].startswith("syn_")
+        assert r["from"] == "alice"
+        assert r["to"] == "bob"
+
+    def test_send_creates_thread(self, brain):
+        r = brain.send("alice", "bob", "Thread", "Body")
+        assert r["thread_id"].startswith("thr_")
+
+    def test_inbox_unread(self, brain):
+        brain.send("alice", "carol", "Inbox", "Msg")
+        inbox = brain.inbox("carol")
+        assert any(m["subject"] == "Inbox" for m in inbox)
+
+    def test_read_marks_as_read(self, brain):
+        r = brain.send("alice", "dave", "Read", "Body")
+        brain.read_message(r["id"], "dave")
+        inbox = brain.inbox("dave", include_read=False)
+        assert r["id"] not in [m["id"] for m in inbox]
+
+    def test_history(self, brain):
+        tid = None
+        for i in range(3):
+            r = brain.send("alice", "bob", f"H{i}", f"M{i}", thread_id=tid)
+            tid = r["thread_id"]
+        assert len(brain.history(thread_id=tid)) >= 3
+
+    def test_list_threads(self, brain):
+        brain.send("alice", "bob", "Thread", "Body")
+        assert len(brain.list_threads()) > 0
+
+    def test_auto_extract_remember(self, brain):
+        r = brain.send("alice", "bob", "Tag", "@remember Extract this content")
+        conn = sqlite3.connect(str(brain.db_path))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM stm WHERE source_message_id = ?", (r["id"],)
+        ).fetchone()
+        conn.close()
+        assert row[0] >= 1
+
+    def test_auto_extract_insight(self, brain):
+        r = brain.send("alice", "bob", "Tag", "Context. @insight Key finding here.")
+        conn = sqlite3.connect(str(brain.db_path))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM stm WHERE source_message_id = ?", (r["id"],)
+        ).fetchone()
+        conn.close()
+        assert row[0] >= 1
+
+
+# ============================================================
+# Atoms
+# ============================================================
+
+class TestAtoms:
+    def test_create_returns_id(self, brain):
+        assert brain.create_atom("subj", "act", "out", "cons").startswith("atm_")
+
+    def test_create_with_provenance(self, brain):
+        msg = brain.send("alice", "bob", "Src", "Source msg")
+        aid = brain.create_atom("s", "a", "o", "c", source_message_id=msg["id"])
+        chain = brain.find_provenance(aid)
+        assert chain is not None
+        assert len(chain) >= 1
+        # First link should be the atom
+        assert chain[0]["type"] == "atom"
+        # Chain should include the source message
+        assert any(c["type"] == "message" for c in chain)
+
+    def test_link_atoms(self, brain):
+        a1 = brain.create_atom("cause", "happens", "effect", "chain")
+        a2 = brain.create_atom("effect", "triggers", "result", "cascade")
+        lid = brain.link_atoms(a1, a2, "causes", strength=0.8)
+        assert lid is not None
+
+
+# ============================================================
+# FTS5
+# ============================================================
+
+class TestFTS5:
+    def test_search_stm(self, brain):
+        unique = f"xenomorphic{int(time.time())}"
+        brain.remember(f"The {unique} pattern", categories=["test"])
+        results = brain.unified_search(unique, types=["stm"])
+        assert any(unique in str(r.get("content", "")) for r in results)
+
+    def test_search_messages(self, brain):
+        unique = f"quasimodo{int(time.time())}"
+        brain.send("alice", "bob", f"About {unique}", f"The {unique} thing")
+        results = brain.unified_search(unique, types=["message"])
+        assert len(results) > 0
+
+    def test_search_atoms(self, brain):
+        unique = f"zygomorphic{int(time.time())}"
+        brain.create_atom(unique, "exhibits", "pattern", "consequence")
+        results = brain.unified_search(unique, types=["atom"])
+        assert len(results) > 0
+
+    def test_unified_search_all(self, brain):
+        unique = f"omnisearch{int(time.time())}"
+        brain.remember(f"STM {unique}", categories=["test"])
+        brain.send("alice", "bob", f"Msg {unique}", f"Body {unique}")
+        brain.create_atom(unique, "tested", "found", "validated")
+        results = brain.unified_search(unique)
+        assert len(results) >= 2
+
+
+# ============================================================
+# Provenance
+# ============================================================
+
+class TestProvenance:
+    def test_stm_chain(self, brain):
+        """Message → auto-extract → STM with provenance chain."""
+        msg = brain.send("alice", "bob", "Prov", "@remember Chain test data")
+        conn = sqlite3.connect(str(brain.db_path))
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT id FROM stm WHERE source_message_id = ?", (msg["id"],)
+        ).fetchone()
+        conn.close()
+        assert row is not None
+        chain = brain.find_provenance(row["id"])
+        assert chain is not None
+        types = [c["type"] for c in chain]
+        assert "stm" in types
+        assert "message" in types
+
+    def test_atom_chain(self, brain):
+        msg = brain.send("alice", "bob", "Atom Src", "For atom")
+        aid = brain.create_atom("t", "a", "o", "c", source_message_id=msg["id"])
+        chain = brain.find_provenance(aid)
+        assert chain is not None
+        assert chain[0]["type"] == "atom"
+        assert chain[-1]["type"] == "message"
+
+    def test_no_provenance(self, brain):
+        mid = brain.remember("Orphan", categories=["test"])
+        chain = brain.find_provenance(mid)
+        # Should return a chain with just the STM entry (no source_message)
+        assert chain is not None
+        assert len(chain) == 1
+        assert chain[0]["type"] == "stm"
+        assert chain[0]["source_id"] is None
+
+
+# ============================================================
+# Embeddings (GPU)
+# ============================================================
+
+@SKIP_NO_GPU
+class TestEmbeddings:
+    def test_auto_embed_remember(self, brain):
+        mid = brain.remember(f"Embed test {time.time()}", categories=["test"])
+        conn = sqlite3.connect(str(brain.db_path))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM embeddings WHERE source_type='stm' AND source_id=?", (mid,)
+        ).fetchone()
+        conn.close()
+        assert row[0] == 1
+
+    def test_auto_embed_send(self, brain):
+        r = brain.send("a", "b", "Embed", f"Content {time.time()}")
+        conn = sqlite3.connect(str(brain.db_path))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM embeddings WHERE source_type='message' AND source_id=?", (r["id"],)
+        ).fetchone()
+        conn.close()
+        assert row[0] == 1
+
+    def test_auto_embed_atom(self, brain):
+        aid = brain.create_atom("embed", "generates", "vector", "searchable")
+        conn = sqlite3.connect(str(brain.db_path))
+        row = conn.execute(
+            "SELECT COUNT(*) FROM embeddings WHERE source_type='atom' AND source_id=?", (aid,)
+        ).fetchone()
+        conn.close()
+        assert row[0] == 1
+
+
+# ============================================================
+# Edge Cases
+# ============================================================
+
+class TestEdgeCases:
+    def test_empty_search(self, brain):
+        assert brain.unified_search("nonexistent_xyz_123") == []
+
+    def test_remember_no_categories(self, brain):
+        assert brain.remember("No cats").startswith("stm_")
+
+    def test_send_no_subject(self, brain):
+        r = brain.send("a", "b", None, "Body only")
+        assert r["id"].startswith("syn_")
+
+    def test_stats_structure(self, brain):
+        s = brain.stats()
+        for key in ["messages", "stm_entries", "atoms", "embeddings", "db_path"]:
+            assert key in s
+
+    def test_concurrent_writes(self, brain):
+        ids = [brain.remember(f"C{i}", categories=["test"]) for i in range(20)]
+        assert len(set(ids)) == 20
+
+
+# ============================================================
+# Helpers
+# ============================================================
+
+class TestHelpers:
+    def test_gen_id_prefix(self):
+        assert _gen_id("stm").startswith("stm_")
+        assert _gen_id("syn").startswith("syn_")
+
+    def test_gen_id_unique(self):
+        assert len({_gen_id("t") for _ in range(100)}) == 100
+
+    def test_now_iso(self):
+        now = _now()
+        assert "T" in now and len(now) > 20

@@ -71,3 +71,10 @@ USER.md
 
 # local tooling
 .serena/
+# Brain DB files
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
+.legacy_archive/

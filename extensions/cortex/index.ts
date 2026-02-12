@@ -20,7 +20,8 @@ import { Type } from "@sinclair/typebox";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { existsSync } from "node:fs";
+import { existsSync, renameSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import type { OpenClawPlugin, OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { CortexBridge, type STMItem, estimateTokens } from "./cortex-bridge.js";
 
@@ -2229,6 +2230,237 @@ const cortexPlugin: OpenClawPlugin = {
         },
       },
       { names: ["working_memory", "wm"] },
+    );
+
+    // =========================================================================
+    // SYNAPSE — Inter-agent messaging (Helios <-> Claude Code)
+    // =========================================================================
+    const synapsePath = join(homedir(), ".openclaw", "workspace", "memory", "synapse.json");
+    const MAX_SYNAPSE_MESSAGES = 200;
+
+    interface SynapseMessage {
+      id: string;
+      from: string;
+      to: string;
+      priority: "info" | "action" | "urgent";
+      subject: string;
+      body: string;
+      status: "unread" | "read" | "acknowledged";
+      timestamp: string;
+      read_by: string[];
+      thread_id: string;
+      ack_body: string | null;
+    }
+
+    interface SynapseStore {
+      messages: SynapseMessage[];
+      agents: string[];
+      version: number;
+    }
+
+    function generateSynapseId(): string {
+      return `syn_${randomBytes(6).toString("hex")}`;
+    }
+
+    function generateThreadId(): string {
+      return `thr_${randomBytes(6).toString("hex")}`;
+    }
+
+    function loadSynapse(): SynapseStore {
+      try {
+        const data = JSON.parse(require("node:fs").readFileSync(synapsePath, "utf-8")) as SynapseStore;
+        return data;
+      } catch {
+        return { messages: [], agents: ["helios", "claude-code"], version: 1 };
+      }
+    }
+
+    function saveSynapse(data: SynapseStore): void {
+      const tmpPath = synapsePath + ".tmp";
+      writeFileSync(tmpPath, JSON.stringify(data, null, 2));
+      renameSync(tmpPath, synapsePath);
+    }
+
+    function pruneSynapseMessages(data: SynapseStore): void {
+      if (data.messages.length <= MAX_SYNAPSE_MESSAGES) {
+        return;
+      }
+
+      const unread = data.messages.filter((m) => m.status === "unread");
+      const read = data.messages.filter((m) => m.status === "read");
+      const acked = data.messages.filter((m) => m.status === "acknowledged");
+
+      // Sort oldest first for pruning
+      read.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      acked.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+      let excess = data.messages.length - MAX_SYNAPSE_MESSAGES;
+
+      // Prune acknowledged first, then read. Never prune unread.
+      while (excess > 0 && acked.length > 0) {
+        acked.shift();
+        excess--;
+      }
+      while (excess > 0 && read.length > 0) {
+        read.shift();
+        excess--;
+      }
+
+      data.messages = [...unread, ...read, ...acked].sort((a, b) =>
+        a.timestamp.localeCompare(b.timestamp),
+      );
+    }
+
+    // Tool: synapse - 1 action-discriminated tool with 5 actions
+    api.registerTool(
+      {
+        name: "synapse",
+        description:
+          "SYNAPSE — inter-agent messaging between Helios and Claude Code. " +
+          "Structured messages with addressing, read/unread tracking, priority, " +
+          "and threading. Actions: send, inbox, read, ack, history",
+        parameters: Type.Object({
+          action: Type.String({ description: "Action: 'send', 'inbox', 'read', 'ack', 'history'" }),
+          to: Type.Optional(Type.String({ description: "Recipient agent ID (for send). e.g. 'claude-code', 'all'" })),
+          subject: Type.Optional(Type.String({ description: "Message subject (for send)" })),
+          body: Type.Optional(Type.String({ description: "Message body (for send, ack)" })),
+          priority: Type.Optional(Type.String({ description: "Priority: 'info', 'action', 'urgent' (for send). Default: info" })),
+          thread_id: Type.Optional(Type.String({ description: "Thread ID to continue a conversation (for send, history)" })),
+          message_id: Type.Optional(Type.String({ description: "Message ID (for read, ack)" })),
+          agent_id: Type.Optional(Type.String({ description: "Agent ID for filtering (for inbox, history)" })),
+          include_read: Type.Optional(Type.Boolean({ description: "Include read messages in inbox. Default: false" })),
+          limit: Type.Optional(Type.Number({ description: "Max messages to return (for history). Default: 20" })),
+        }),
+        async execute(_toolCallId, params) {
+          const p = params as {
+            action: string;
+            to?: string;
+            subject?: string;
+            body?: string;
+            priority?: string;
+            thread_id?: string;
+            message_id?: string;
+            agent_id?: string;
+            include_read?: boolean;
+            limit?: number;
+          };
+
+          try {
+            switch (p.action) {
+              case "send": {
+                if (!p.to || !p.subject || !p.body) {
+                  return { content: [{ type: "text", text: "Error: to, subject, and body are required for send" }], details: { error: "missing params" } };
+                }
+                const priority = (["info", "action", "urgent"].includes(p.priority || "") ? p.priority : "info") as SynapseMessage["priority"];
+                const msg: SynapseMessage = {
+                  id: generateSynapseId(),
+                  from: "helios",
+                  to: p.to,
+                  priority,
+                  subject: p.subject,
+                  body: p.body,
+                  status: "unread",
+                  timestamp: new Date().toISOString(),
+                  read_by: [],
+                  thread_id: p.thread_id || generateThreadId(),
+                  ack_body: null,
+                };
+                const data = loadSynapse();
+                data.messages.push(msg);
+                pruneSynapseMessages(data);
+                saveSynapse(data);
+                return {
+                  content: [{ type: "text", text: `Sent SYNAPSE message ${msg.id} to ${msg.to} [${msg.priority}]: ${msg.subject}` }],
+                  details: { id: msg.id, thread_id: msg.thread_id, to: msg.to, priority: msg.priority },
+                };
+              }
+              case "inbox": {
+                const agentId = p.agent_id || "helios";
+                const includeRead = p.include_read || false;
+                const data = loadSynapse();
+                let results = data.messages.filter((m) => m.to === agentId || m.to === "all");
+                if (includeRead) {
+                  results = results.filter((m) => m.status !== "acknowledged");
+                } else {
+                  results = results.filter((m) => !m.read_by.includes(agentId));
+                }
+                results.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+                return {
+                  content: [{ type: "text", text: JSON.stringify({ agent_id: agentId, count: results.length, messages: results }, null, 2) }],
+                  details: { count: results.length },
+                };
+              }
+              case "read": {
+                if (!p.message_id) {
+                  return { content: [{ type: "text", text: "Error: message_id is required for read" }], details: { error: "missing message_id" } };
+                }
+                const readerAgent = p.agent_id || "helios";
+                const data = loadSynapse();
+                const msg = data.messages.find((m) => m.id === p.message_id);
+                if (!msg) {
+                  return { content: [{ type: "text", text: `Error: Message not found: ${p.message_id}` }], details: { error: "not_found" } };
+                }
+                if (!msg.read_by.includes(readerAgent)) {
+                  msg.read_by.push(readerAgent);
+                }
+                if (msg.status === "unread") {
+                  msg.status = "read";
+                }
+                saveSynapse(data);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(msg, null, 2) }],
+                  details: { id: msg.id, status: msg.status },
+                };
+              }
+              case "ack": {
+                if (!p.message_id) {
+                  return { content: [{ type: "text", text: "Error: message_id is required for ack" }], details: { error: "missing message_id" } };
+                }
+                const ackerAgent = p.agent_id || "helios";
+                const data = loadSynapse();
+                const msg = data.messages.find((m) => m.id === p.message_id);
+                if (!msg) {
+                  return { content: [{ type: "text", text: `Error: Message not found: ${p.message_id}` }], details: { error: "not_found" } };
+                }
+                msg.status = "acknowledged";
+                if (!msg.read_by.includes(ackerAgent)) {
+                  msg.read_by.push(ackerAgent);
+                }
+                if (p.body) {
+                  msg.ack_body = p.body;
+                }
+                saveSynapse(data);
+                return {
+                  content: [{ type: "text", text: `Acknowledged ${msg.id}: ${msg.subject}` }],
+                  details: { id: msg.id, status: "acknowledged", ack_body: msg.ack_body },
+                };
+              }
+              case "history": {
+                const data = loadSynapse();
+                let results = data.messages;
+                if (p.agent_id) {
+                  results = results.filter((m) => m.from === p.agent_id || m.to === p.agent_id || m.to === "all");
+                }
+                if (p.thread_id) {
+                  results = results.filter((m) => m.thread_id === p.thread_id);
+                }
+                results.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+                const limit = p.limit || 20;
+                results = results.slice(0, limit);
+                return {
+                  content: [{ type: "text", text: JSON.stringify({ count: results.length, messages: results }, null, 2) }],
+                  details: { count: results.length },
+                };
+              }
+              default:
+                return { content: [{ type: "text", text: `Unknown synapse action: ${p.action}` }], details: { error: "unknown action" } };
+            }
+          } catch (err) {
+            return { content: [{ type: "text", text: `Synapse error: ${err}` }], details: { error: String(err) } };
+          }
+        },
+      },
+      { names: ["synapse"] },
     );
 
     // =========================================================================

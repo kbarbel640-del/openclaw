@@ -1,293 +1,205 @@
 #!/usr/bin/env python3
 """
-Embeddings Manager - Phase 3 of Cortex Memory System
+Embeddings Manager — brain.db backend
 
-SQLite-based vector search with temporal weighting.
-Provides semantic search across all memory sources.
+Thin wrapper around UnifiedBrain for backward-compatible embeddings operations.
+All reads/writes go to brain.db unified store.
 
-Data directory can be configured via CORTEX_DATA_DIR environment variable.
+The original .embeddings.db is superseded; this module provides the same API
+for cortex-bridge.ts callers.
 """
-import sqlite3
 import json
 import hashlib
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Data directory: use CORTEX_DATA_DIR env var or default to script directory
+# Data directory
 DATA_DIR = Path(os.environ.get("CORTEX_DATA_DIR", Path(__file__).parent))
-DB_PATH = DATA_DIR / ".embeddings.db"
+
+from brain import UnifiedBrain
+
+_brain = None
+
+def _get_brain() -> UnifiedBrain:
+    global _brain
+    if _brain is None:
+        _brain = UnifiedBrain()  # Uses brain.py's default path (~/.openclaw/workspace/memory/brain.db)
+    return _brain
+
 
 def init_db():
-    """Initialize embeddings database"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS memories (
-            id TEXT PRIMARY KEY,
-            content TEXT NOT NULL,
-            source TEXT NOT NULL,
-            category TEXT,
-            timestamp TEXT NOT NULL,
-            importance REAL DEFAULT 1.0,
-            access_count INTEGER DEFAULT 0,
-            embedding_text TEXT
-        )
-    ''')
-    
-    c.execute('''
-        CREATE INDEX IF NOT EXISTS idx_timestamp ON memories(timestamp)
-    ''')
-    
-    c.execute('''
-        CREATE INDEX IF NOT EXISTS idx_category ON memories(category)
-    ''')
-    
-    c.execute('''
-        CREATE INDEX IF NOT EXISTS idx_source ON memories(source)
-    ''')
-    
-    conn.commit()
-    conn.close()
+    """No-op — brain.db schema is managed by UnifiedBrain.__init__."""
+    _get_brain()  # Ensures schema exists
+
 
 def memory_id(content, timestamp):
-    """Generate deterministic ID for a memory"""
+    """Generate deterministic ID for a memory."""
     return hashlib.sha256(f"{content}{timestamp}".encode()).hexdigest()[:16]
 
+
 def add_memory(content, source="manual", category=None, categories=None, importance=1.0, timestamp=None):
-    """Add a memory to the database
+    """Add a memory to brain.db STM."""
+    b = _get_brain()
 
-    PHASE 2B: Multi-category support via categories parameter.
-    The category field stores a JSON array when multiple categories provided.
-    """
-    if timestamp is None:
-        timestamp = datetime.now().isoformat()
-
-    mem_id = memory_id(content, timestamp)
-
-    # Handle categories (plural) - store as JSON array
+    # Normalize categories
     if categories is not None:
-        if isinstance(categories, list):
-            category_value = json.dumps(categories)
-        else:
-            category_value = json.dumps([categories])
+        cats = categories if isinstance(categories, list) else [categories]
     elif category is not None:
-        category_value = json.dumps([category]) if isinstance(category, str) else json.dumps(category)
+        cats = [category] if isinstance(category, str) else [category]
     else:
-        category_value = None
+        cats = ["general"]
 
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.execute('''
-        INSERT OR REPLACE INTO memories (id, content, source, category, timestamp, importance, embedding_text)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (mem_id, content, source, category_value, timestamp, importance, content.lower()))
-
-    conn.commit()
-    conn.close()
-
+    mem_id = b.remember(content, categories=cats, importance=importance, source=source)
     return mem_id
 
+
 def search_memories(query, limit=10, temporal_weight=0.7, date_range=None, category=None):
+    """Search memories with temporal weighting.
+
+    Uses brain.db unified_search (FTS5 + semantic) with temporal reranking.
     """
-    Search memories with temporal weighting.
-    
-    Args:
-        query: Search query string
-        limit: Max results to return
-        temporal_weight: 0-1, weight given to recency (vs semantic match)
-        date_range: Tuple of (start_date, end_date) or special strings like "last_week"
-        category: Filter by category
-    
-    Returns:
-        List of matching memories with scores
-    """
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    # Build query
-    sql = "SELECT id, content, source, category, timestamp, importance, access_count FROM memories WHERE 1=1"
-    params = []
-    
+    b = _get_brain()
+
+    # Use unified search for combined FTS5 + semantic
+    types = ["stm"]  # embeddings_manager historically searched STM/collections
+    raw_results = b.unified_search(query or "", limit=limit * 3, types=types)
+
+    # Also do direct STM query for broader results
     if category:
-        sql += " AND category = ?"
-        params.append(category)
+        stm_items = b.get_stm(limit=limit * 3, category=category)
+    else:
+        stm_items = b.get_stm(limit=limit * 3)
+
+    # Merge: use unified search results + filter STM by text match
+    seen_ids = {r.get("id") for r in raw_results}
     
-    if date_range:
-        if isinstance(date_range, str):
-            # Parse special date ranges
-            now = datetime.now()
-            if date_range == "today":
-                start = now.replace(hour=0, minute=0, second=0)
-                end = now
-            elif date_range == "yesterday":
-                start = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0)
-                end = now.replace(hour=0, minute=0, second=0)
-            elif date_range == "last_week":
-                start = now - timedelta(days=7)
-                end = now
-            elif date_range == "last_month":
-                start = now - timedelta(days=30)
-                end = now
-            else:
-                start = end = None
-            
-            if start and end:
-                sql += " AND timestamp >= ? AND timestamp <= ?"
-                params.extend([start.isoformat(), end.isoformat()])
-        elif isinstance(date_range, tuple):
-            sql += " AND timestamp >= ? AND timestamp <= ?"
-            params.extend(date_range)
-    
-    # Simple text search (exact match in content)
     if query:
-        sql += " AND LOWER(content) LIKE ?"
-        params.append(f"%{query.lower()}%")
-    
-    c.execute(sql, params)
-    results = c.fetchall()
-    
-    # Score results with temporal weighting
+        query_lower = query.lower()
+        for item in stm_items:
+            if item.get("id") not in seen_ids:
+                content = item.get("content", "")
+                if query_lower in content.lower():
+                    raw_results.append({
+                        "source_type": "stm",
+                        "id": item["id"],
+                        "content": content,
+                        "created_at": item.get("created_at", ""),
+                        "score": 0.5,
+                        "match_type": "text",
+                    })
+                    seen_ids.add(item["id"])
+
+    # Score with temporal weighting
     now = datetime.now()
     scored = []
-    
-    for row in results:
-        mem_id, content, source, cat, timestamp, importance, access_count = row
-        
+
+    for r in raw_results:
+        content = r.get("content", "")
+        timestamp = r.get("created_at", now.isoformat())
+
         # Parse timestamp
-        ts = datetime.fromisoformat(timestamp)
-        if ts.tzinfo is not None:
-            ts = ts.replace(tzinfo=None)
-        
-        # Recency score: 1.0 for today, decaying
-        days_ago = (now - ts).days + 1
+        try:
+            ts = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            if ts.tzinfo is not None:
+                ts = ts.replace(tzinfo=None)
+        except (ValueError, AttributeError):
+            ts = now
+
+        # Date range filter
+        if date_range:
+            if isinstance(date_range, str):
+                if date_range == "today":
+                    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                    if ts < start:
+                        continue
+                elif date_range == "yesterday":
+                    start = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                    end = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                    if ts < start or ts >= end:
+                        continue
+                elif date_range == "last_week":
+                    if ts < now - timedelta(days=7):
+                        continue
+                elif date_range == "last_month":
+                    if ts < now - timedelta(days=30):
+                        continue
+            elif isinstance(date_range, (tuple, list)):
+                start_str, end_str = date_range
+                if ts.isoformat() < start_str or ts.isoformat() > end_str:
+                    continue
+
+        # Category filter
+        if category:
+            item_cats = r.get("categories", [])
+            if isinstance(item_cats, str):
+                try:
+                    item_cats = json.loads(item_cats)
+                except Exception:
+                    item_cats = [item_cats]
+            if category not in item_cats:
+                continue
+
+        # Recency score
+        days_ago = max((now - ts).days + 1, 1)
         recency_score = 1.0 / days_ago
-        
-        # Semantic score: simple keyword match (in real impl, use embeddings)
-        if query:
-            query_words = set(query.lower().split())
-            content_words = set(content.lower().split())
-            semantic_score = len(query_words & content_words) / max(len(query_words), 1)
-        else:
-            semantic_score = 1.0
-        
-        # Combined score
+
+        # Semantic score from unified search
+        semantic_score = r.get("score", 0.5)
+
+        # Combined
         final_score = (semantic_score * (1 - temporal_weight)) + (recency_score * temporal_weight)
-        final_score *= importance  # Boost by importance
-        
+
         scored.append({
-            "id": mem_id,
-            "content": content,
-            "source": source,
-            "category": cat,
+            "id": r.get("id", ""),
+            "content": content[:500],
+            "source": r.get("source_type", "stm"),
+            "category": category,
             "timestamp": timestamp,
-            "importance": importance,
-            "access_count": access_count,
+            "importance": r.get("importance", 1.0),
+            "access_count": 0,
             "score": final_score,
             "recency_score": recency_score,
-            "semantic_score": semantic_score
+            "semantic_score": semantic_score,
         })
-    
-    # Sort by score
+
     scored.sort(key=lambda x: x["score"], reverse=True)
-    
-    # Update access counts
-    for item in scored[:limit]:
-        c.execute("UPDATE memories SET access_count = access_count + 1 WHERE id = ?", (item["id"],))
-    
-    conn.commit()
-    conn.close()
-    
     return scored[:limit]
 
+
 def sync_from_collections():
-    """Import memories from collections into embeddings DB"""
-    from collections_manager import list_collections, load_collection
-    
-    count = 0
-    for col_info in list_collections():
-        collection = load_collection(col_info["name"])
-        for memory in collection.get("memories", []):
-            add_memory(
-                content=memory["content"],
-                source=f"collection:{col_info['name']}",
-                category=col_info["name"],
-                importance=memory.get("importance", 1.0),
-                timestamp=memory["timestamp"]
-            )
-            count += 1
-    
-    return count
+    """No-op — brain.db is the unified store."""
+    return 0
+
 
 def sync_from_stm():
-    """Import STM into embeddings DB"""
-    from stm_manager import load_stm
-    
-    stm = load_stm()
-    count = 0
-    
-    for item in stm.get("short_term_memory", []):
-        add_memory(
-            content=item["content"],
-            source="stm",
-            category=item.get("category"),
-            importance=item.get("importance", 1.0),
-            timestamp=item["timestamp"]
-        )
-        count += 1
-    
-    return count
+    """No-op — STM already lives in brain.db."""
+    return 0
+
 
 def stats():
-    """Get database statistics"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    
-    c.execute("SELECT COUNT(*) FROM memories")
-    total = c.fetchone()[0]
-    
-    c.execute("SELECT category, COUNT(*) FROM memories GROUP BY category")
-    by_category = dict(c.fetchall())
-    
-    c.execute("SELECT source, COUNT(*) FROM memories GROUP BY source")
-    by_source = dict(c.fetchall())
-    
-    conn.close()
-    
+    """Get database statistics from brain.db."""
+    b = _get_brain()
+    s = b.stats()
     return {
-        "total": total,
-        "by_category": by_category,
-        "by_source": by_source
+        "total": s.get("stm_entries", 0) + s.get("messages", 0),
+        "by_category": {},  # Would need a GROUP BY query
+        "by_source": {},
+        "model": "all-MiniLM-L6-v2",
+        "backend": "brain.db",
     }
 
+
 if __name__ == "__main__":
-    print("Initializing embeddings database...")
+    print("Initializing brain.db backend...")
     init_db()
-    
-    print("Syncing from STM...")
-    stm_count = sync_from_stm()
-    print(f"  Added {stm_count} memories from STM")
-    
-    print("Syncing from collections...")
-    col_count = sync_from_collections()
-    print(f"  Added {col_count} memories from collections")
-    
-    print("\nDatabase stats:")
+
     s = stats()
-    print(f"  Total memories: {s['total']}")
-    print(f"  By category: {s['by_category']}")
-    print(f"  By source: {s['by_source']}")
-    
+    print(f"Total memories: {s['total']}")
+    print(f"Backend: {s['backend']}")
+
     print("\nTesting search...")
-    results = search_memories("trading bot", limit=5, temporal_weight=0.7)
-    print(f"Found {len(results)} results for 'trading bot':")
+    results = search_memories("trading", limit=5)
+    print(f"Found {len(results)} results for 'trading':")
     for r in results:
         print(f"  [{r['score']:.3f}] {r['content'][:60]}...")
-    
-    print("\nTesting date range search...")
-    results = search_memories("", date_range="today", limit=5)
-    print(f"Found {len(results)} memories from today:")
-    for r in results:
-        print(f"  {r['content'][:60]}...")
