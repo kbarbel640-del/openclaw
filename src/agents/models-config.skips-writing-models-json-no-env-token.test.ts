@@ -242,7 +242,7 @@ describe("models-config", () => {
           >;
         };
         expect(parsed.providers.deepseek?.baseUrl).toBe("https://api.deepseek.com/v1");
-        expect(parsed.providers.deepseek?.apiKey).toBe("DEEPSEEK_API_KEY");
+        expect(parsed.providers.deepseek?.apiKey).toBe("sk-deepseek-test");
         const ids = parsed.providers.deepseek?.models?.map((model) => model.id);
         expect(ids).toContain("deepseek-chat");
         expect(ids).toContain("deepseek-reasoner");
