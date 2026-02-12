@@ -20,6 +20,8 @@ import {
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import {
   resolveAgentIdFromSessionKey,
+  resolveSessionFilePath,
+  resolveThreadContextFromSessionKey,
   resolveGroupSessionKey,
   resolveSessionTranscriptPath,
   type SessionEntry,
@@ -38,6 +40,7 @@ import { buildThreadingToolContext, resolveEnforceFinalTag } from "./agent-runne
 import { createBlockReplyPayloadKey, type BlockReplyPipeline } from "./block-reply-pipeline.js";
 import { parseReplyDirectives } from "./reply-directives.js";
 import { applyReplyTagsToPayload, isRenderablePayload } from "./reply-payloads.js";
+import { saveSessionSnapshotToMemory } from "./session-memory-snapshot.js";
 
 export type AgentRunLoopResult =
   | {
@@ -544,19 +547,46 @@ export async function runAgentTurnWithFallback(params: {
         params.storePath
       ) {
         const sessionKey = params.sessionKey;
-        const corruptedSessionId = params.getActiveSessionEntry()?.sessionId;
+        const activeSessionEntry = params.getActiveSessionEntry();
+        const corruptedSessionId = activeSessionEntry?.sessionId;
+        const agentId = resolveAgentIdFromSessionKey(sessionKey);
+        const threadContext = resolveThreadContextFromSessionKey(sessionKey);
         defaultRuntime.error(
           `Session history corrupted (Gemini function call ordering). Resetting session: ${params.sessionKey}`,
         );
 
         try {
+          if (activeSessionEntry) {
+            await saveSessionSnapshotToMemory({
+              cfg: params.followupRun.run.config,
+              sessionKey,
+              sessionEntry: activeSessionEntry,
+              reason: "session corruption",
+              source: params.sessionCtx.Provider ?? params.sessionCtx.Surface,
+            });
+          }
+
           // Delete transcript file if it exists
           if (corruptedSessionId) {
-            const transcriptPath = resolveSessionTranscriptPath(corruptedSessionId);
-            try {
-              fs.unlinkSync(transcriptPath);
-            } catch {
-              // Ignore if file doesn't exist
+            const transcriptCandidates = new Set<string>();
+            const resolved = resolveSessionFilePath(corruptedSessionId, activeSessionEntry, {
+              agentId,
+            });
+            if (resolved && resolved.toLowerCase().includes(corruptedSessionId.toLowerCase())) {
+              transcriptCandidates.add(resolved);
+            }
+            transcriptCandidates.add(resolveSessionTranscriptPath(corruptedSessionId, agentId));
+            if (threadContext) {
+              transcriptCandidates.add(
+                resolveSessionTranscriptPath(corruptedSessionId, agentId, threadContext),
+              );
+            }
+            for (const transcriptPath of transcriptCandidates) {
+              try {
+                fs.unlinkSync(transcriptPath);
+              } catch {
+                // Ignore if file doesn't exist
+              }
             }
           }
 

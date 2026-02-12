@@ -53,6 +53,7 @@ function createMinimalRun(params?: {
   storePath?: string;
   typingMode?: TypingMode;
   blockStreamingEnabled?: boolean;
+  config?: Record<string, unknown>;
 }) {
   const typing = createMockTypingController();
   const opts = params?.opts;
@@ -72,7 +73,7 @@ function createMinimalRun(params?: {
       messageProvider: "whatsapp",
       sessionFile: "/tmp/session.jsonl",
       workspaceDir: "/tmp",
-      config: {},
+      config: params?.config ?? {},
       skillsSnapshot: {},
       provider: "anthropic",
       model: "claude",
@@ -127,6 +128,7 @@ describe("runReplyAgent typing (heartbeat)", () => {
     process.env.OPENCLAW_STATE_DIR = stateDir;
     try {
       const sessionId = "session-corrupt";
+      const workspaceDir = path.join(stateDir, "workspace");
       const storePath = path.join(stateDir, "sessions", "sessions.json");
       const sessionEntry = { sessionId, updatedAt: Date.now() };
       const sessionStore = { main: sessionEntry };
@@ -149,6 +151,9 @@ describe("runReplyAgent typing (heartbeat)", () => {
         sessionStore,
         sessionKey: "main",
         storePath,
+        config: {
+          agents: { defaults: { workspace: workspaceDir } },
+        },
       });
       const res = await run();
 
@@ -160,6 +165,69 @@ describe("runReplyAgent typing (heartbeat)", () => {
 
       const persisted = JSON.parse(await fs.readFile(storePath, "utf-8"));
       expect(persisted.main).toBeUndefined();
+      const memoryFiles = await fs.readdir(path.join(workspaceDir, "memory"));
+      expect(memoryFiles.some((name) => name.includes("session-corruption"))).toBe(true);
+    } finally {
+      if (prevStateDir) {
+        process.env.OPENCLAW_STATE_DIR = prevStateDir;
+      } else {
+        delete process.env.OPENCLAW_STATE_DIR;
+      }
+    }
+  });
+  it("resets corrupted topic session using agent+topic transcript path and ignores stale sessionFile", async () => {
+    const prevStateDir = process.env.OPENCLAW_STATE_DIR;
+    const stateDir = await fs.mkdtemp(path.join(tmpdir(), "openclaw-session-reset-topic-"));
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    try {
+      const sessionKey = "agent:ops:telegram:group:123:topic:456";
+      const sessionId = "session-corrupt-topic";
+      const staleSessionFile = sessions.resolveSessionTranscriptPath(
+        "session-old-topic",
+        "ops",
+        "456",
+      );
+      const storePath = path.join(stateDir, "agents", "ops", "sessions", "sessions.json");
+      const sessionEntry = {
+        sessionId,
+        updatedAt: Date.now(),
+        sessionFile: staleSessionFile,
+      };
+      const sessionStore = { [sessionKey]: sessionEntry };
+
+      await fs.mkdir(path.dirname(storePath), { recursive: true });
+      await fs.writeFile(storePath, JSON.stringify(sessionStore), "utf-8");
+
+      const transcriptPath = sessions.resolveSessionTranscriptPath(sessionId, "ops", "456");
+      await fs.mkdir(path.dirname(transcriptPath), { recursive: true });
+      await fs.writeFile(transcriptPath, "bad", "utf-8");
+
+      await fs.mkdir(path.dirname(staleSessionFile), { recursive: true });
+      await fs.writeFile(staleSessionFile, "stale", "utf-8");
+
+      runEmbeddedPiAgentMock.mockImplementationOnce(async () => {
+        throw new Error(
+          "function call turn comes immediately after a user turn or after a function response turn",
+        );
+      });
+
+      const { run } = createMinimalRun({
+        sessionEntry,
+        sessionStore,
+        sessionKey,
+        storePath,
+      });
+      const res = await run();
+
+      expect(res).toMatchObject({
+        text: expect.stringContaining("Session history was corrupted"),
+      });
+      expect(sessionStore[sessionKey]).toBeUndefined();
+      await expect(fs.access(transcriptPath)).rejects.toThrow();
+      await expect(fs.access(staleSessionFile)).resolves.toBeUndefined();
+
+      const persisted = JSON.parse(await fs.readFile(storePath, "utf-8"));
+      expect(persisted[sessionKey]).toBeUndefined();
     } finally {
       if (prevStateDir) {
         process.env.OPENCLAW_STATE_DIR = prevStateDir;
