@@ -14,7 +14,7 @@ const ANTHROPIC_MODEL_REF = `x402/${ANTHROPIC_MODEL_ID}`;
 const DEFAULT_AUTO_REF = "x402/auto";
 
 const PRIVATE_KEY_REGEX = /^0x[0-9a-fA-F]{64}$/;
-const DEFAULT_SAW_SOCKET = "/run/saw.sock";
+const DEFAULT_SAW_SOCKET = process.env.SAW_SOCKET || "/run/saw/saw.sock";
 const DEFAULT_SAW_WALLET = "main";
 
 function normalizePrivateKey(value: string): string | null {
