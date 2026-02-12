@@ -46,7 +46,11 @@ import { readPostCompactionContext } from "./post-compaction-context.js";
 import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
 import { createReplyToModeFilterForChannel, resolveReplyToMode } from "./reply-threading.js";
 import { incrementRunCompactionCount, persistRunSessionUsage } from "./session-run-accounting.js";
-import { formatCompactionNotice, shouldEmitCompactionNotice } from "./session-updates.js";
+import {
+  formatCompactionNotice,
+  formatCompactionVerboseSummary,
+  shouldEmitCompactionNotice,
+} from "./session-updates.js";
 import { createTypingSignaler } from "./typing-mode.js";
 import type { TypingController } from "./typing.js";
 
@@ -576,17 +580,23 @@ export async function runReplyAgent(params: {
         pendingPostCompactionAudits.set(sessionKey, true);
       }
 
+      const compactionNoticeStats = {
+        tokensBefore: compactionStats?.tokensBefore,
+        tokensAfter: compactionStats?.tokensAfter,
+        contextTokens: contextTokensUsed,
+      };
+      const prependPayloads: { text: string }[] = [];
       if (shouldEmitCompactionNotice({ cfg: followupRun.run.config, verboseEnabled })) {
-        finalPayloads = [
-          {
-            text: formatCompactionNotice(count, {
-              tokensBefore: compactionStats?.tokensBefore,
-              tokensAfter: compactionStats?.tokensAfter,
-              contextTokens: contextTokensUsed,
-            }),
-          },
-          ...finalPayloads,
-        ];
+        prependPayloads.push({ text: formatCompactionNotice(count, compactionNoticeStats) });
+      }
+      if (resolvedVerboseLevel === "full") {
+        const verboseSummary = formatCompactionVerboseSummary(compactionNoticeStats);
+        if (verboseSummary) {
+          prependPayloads.push({ text: verboseSummary });
+        }
+      }
+      if (prependPayloads.length > 0) {
+        finalPayloads = [...prependPayloads, ...finalPayloads];
       }
     }
     if (verboseEnabled && activeIsNewSession) {

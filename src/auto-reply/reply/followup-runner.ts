@@ -24,7 +24,11 @@ import {
 import { resolveReplyToMode } from "./reply-threading.js";
 import { isRoutableChannel, routeReply } from "./route-reply.js";
 import { incrementRunCompactionCount, persistRunSessionUsage } from "./session-run-accounting.js";
-import { formatCompactionNotice, shouldEmitCompactionNotice } from "./session-updates.js";
+import {
+  formatCompactionNotice,
+  formatCompactionVerboseSummary,
+  shouldEmitCompactionNotice,
+} from "./session-updates.js";
 import { createTypingSignaler } from "./typing-mode.js";
 import type { TypingController } from "./typing.js";
 
@@ -298,19 +302,28 @@ export function createFollowupRunner(params: {
           contextTokensUsed,
         });
         const verboseEnabled = queued.run.verboseLevel && queued.run.verboseLevel !== "off";
+        const contextTokensUsed =
+          agentCfgContextTokens ??
+          lookupContextTokens(fallbackModel ?? defaultModel) ??
+          sessionEntry?.contextTokens ??
+          DEFAULT_CONTEXT_TOKENS;
+        const compactionNoticeStats = {
+          tokensBefore: compactionStats?.tokensBefore,
+          tokensAfter: compactionStats?.tokensAfter,
+          contextTokens: contextTokensUsed,
+        };
+        const prependPayloads: ReplyPayload[] = [];
         if (shouldEmitCompactionNotice({ cfg: queued.run.config, verboseEnabled })) {
-          const contextTokensUsed =
-            agentCfgContextTokens ??
-            lookupContextTokens(fallbackModel ?? defaultModel) ??
-            sessionEntry?.contextTokens ??
-            DEFAULT_CONTEXT_TOKENS;
-          finalPayloads.unshift({
-            text: formatCompactionNotice(count, {
-              tokensBefore: compactionStats?.tokensBefore,
-              tokensAfter: compactionStats?.tokensAfter,
-              contextTokens: contextTokensUsed,
-            }),
-          });
+          prependPayloads.push({ text: formatCompactionNotice(count, compactionNoticeStats) });
+        }
+        if (queued.run.verboseLevel === "full") {
+          const verboseSummary = formatCompactionVerboseSummary(compactionNoticeStats);
+          if (verboseSummary) {
+            prependPayloads.push({ text: verboseSummary });
+          }
+        }
+        if (prependPayloads.length > 0) {
+          finalPayloads.unshift(...prependPayloads);
         }
       }
 

@@ -229,6 +229,42 @@ describe("createFollowupRunner compaction", () => {
     expect(notice).toContain("window 50.0%→20.0%");
   });
 
+
+  it("adds verbose full compaction summary block", async () => {
+    const onBlockReply = vi.fn(async () => {});
+    runEmbeddedPiAgentMock.mockImplementationOnce(
+      async (params: {
+        onAgentEvent?: (evt: { stream: string; data: Record<string, unknown> }) => void;
+      }) => {
+        params.onAgentEvent?.({
+          stream: "compaction",
+          data: { phase: "end", willRetry: false, tokensBefore: 120_000, tokensAfter: 60_000 },
+        });
+        return { payloads: [{ text: "final" }], meta: {} };
+      },
+    );
+
+    const runner = createFollowupRunner({
+      opts: { onBlockReply },
+      typing: createMockTypingController(),
+      typingMode: "instant",
+      defaultModel: "anthropic/claude-opus-4-5",
+    });
+
+    const queued = baseQueuedRun();
+    queued.run.verboseLevel = "full";
+    queued.run.config = { agents: { defaults: { contextTokens: 240_000, compaction: { notify: "always" } } } };
+
+    await runner(queued);
+
+    expect(onBlockReply).toHaveBeenCalled();
+    const first = String(onBlockReply.mock.calls[0]?.[0]?.text ?? "");
+    const second = String(onBlockReply.mock.calls[1]?.[0]?.text ?? "");
+    expect(first).toContain("Context auto-compacted");
+    expect(second).toContain("Compaction summary");
+    expect(second).toContain("120k → 60k");
+  });
+
   it("shows compaction notice when notify=always even if verbose is off", async () => {
     const onBlockReply = vi.fn(async () => {});
 
