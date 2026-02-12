@@ -178,15 +178,23 @@ docker build \
   "$ROOT_DIR"
 
 echo ""
-echo "==> Onboarding (interactive)"
-echo "When prompted:"
+echo "==> Onboarding (non-interactive)"
+echo "Configuring with defaults:"
 echo "  - Gateway bind: lan"
 echo "  - Gateway auth: token"
 echo "  - Gateway token: $OPENCLAW_GATEWAY_TOKEN"
 echo "  - Tailscale exposure: Off"
 echo "  - Install Gateway daemon: No"
 echo ""
-docker compose "${COMPOSE_ARGS[@]}" run --rm openclaw-cli onboard --no-install-daemon
+timeout 120 docker compose "${COMPOSE_ARGS[@]}" run --rm openclaw-cli onboard \
+  --non-interactive \
+  --no-install-daemon \
+  --gateway-bind lan \
+  --gateway-auth token \
+  --gateway-token "$OPENCLAW_GATEWAY_TOKEN" || {
+    echo "Error: Onboarding timed out or failed. Check Docker logs for details."
+    exit 1
+  }
 
 echo ""
 echo "==> Provider setup (optional)"
