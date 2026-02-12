@@ -21,12 +21,12 @@ Automatically tracks AI coding sessions using [Entire CLI](https://entire.dev) c
 
 This hook integrates OpenClaw with Entire CLI's agent hook system. It maps OpenClaw lifecycle events to Entire checkpoint verbs:
 
-| OpenClaw Event     | Entire Verb                          | Description                              |
-| ------------------ | ------------------------------------ | ---------------------------------------- |
-| `gateway:startup`  | `session-start`                      | Begins a new Entire tracking session     |
-| `command:new`      | `stop` → `session-end`              | Ends current checkpoint, closes session  |
-| `command:reset`    | `stop` → `session-end`              | Ends current checkpoint, closes session  |
-| `command:stop`     | `stop`                               | Ends the current checkpoint              |
+| OpenClaw Event    | Entire Verb            | Description                             |
+| ----------------- | ---------------------- | --------------------------------------- |
+| `gateway:startup` | `session-start`        | Begins a new Entire tracking session    |
+| `command:new`     | `stop` → `session-end` | Ends current checkpoint, closes session |
+| `command:reset`   | `stop` → `session-end` | Ends current checkpoint, closes session |
+| `command:stop`    | `stop`                 | Ends the current checkpoint             |
 
 Each call pipes a JSON payload to `entire hooks openclaw <verb>` via stdin:
 

@@ -100,10 +100,7 @@ const entireCheckpoints: HookHandler = async (event) => {
 
   if (event.type === "gateway" && event.action === "startup") {
     verbs = ["session-start"];
-  } else if (
-    event.type === "command" &&
-    (event.action === "new" || event.action === "reset")
-  ) {
+  } else if (event.type === "command" && (event.action === "new" || event.action === "reset")) {
     verbs = ["stop", "session-end"];
   } else if (event.type === "command" && event.action === "stop") {
     verbs = ["stop"];

@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HookHandler } from "../../hooks.js";
-import { createHookEvent } from "../../hooks.js";
 import { makeTempWorkspace } from "../../../test-helpers/workspace.js";
+import { createHookEvent } from "../../hooks.js";
 
 // Mock child_process.execFile
 const mockExecFile = vi.fn();
