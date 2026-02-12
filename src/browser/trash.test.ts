@@ -27,15 +27,23 @@ describe("movePathToTrash", () => {
   });
 
   it("returns the expected trash destination when the first trash command succeeds", async () => {
-    runExecMock.mockResolvedValueOnce({ stdout: "", stderr: "" });
+    // Pin platform to darwin so the expected path is deterministic across CI environments.
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "darwin", writable: true });
 
-    const result = await movePathToTrash(targetFile);
+    try {
+      runExecMock.mockResolvedValueOnce({ stdout: "", stderr: "" });
 
-    // On macOS (default test platform), the trash destination is ~/.Trash/<basename>.
-    const expected = path.join(os.homedir(), ".Trash", "test-file.txt");
-    expect(result).toBe(expected);
-    expect(runExecMock).toHaveBeenCalledTimes(1);
-    expect(runExecMock).toHaveBeenCalledWith("trash", [targetFile], { timeoutMs: 10_000 });
+      const result = await movePathToTrash(targetFile);
+
+      // On macOS the trash destination is ~/.Trash/<basename>.
+      const expected = path.join(os.homedir(), ".Trash", "test-file.txt");
+      expect(result).toBe(expected);
+      expect(runExecMock).toHaveBeenCalledTimes(1);
+      expect(runExecMock).toHaveBeenCalledWith("trash", [targetFile], { timeoutMs: 10_000 });
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform, writable: true });
+    }
   });
 
   it("tries subsequent commands when earlier ones fail (Linux)", async () => {
