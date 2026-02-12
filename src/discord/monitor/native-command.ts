@@ -524,11 +524,15 @@ async function dispatchDiscordCommandInteraction(params: {
   };
 
   const useAccessGroups = cfg.commands?.useAccessGroups !== false;
-  const user = interaction.user;
+  const user = interaction.member?.user ?? interaction.user;
   if (!user) {
     return;
   }
-  const sender = resolveDiscordSenderIdentity({ author: user, pluralkitInfo: null });
+  const sender = resolveDiscordSenderIdentity({
+    author: user,
+    member: interaction.member,
+    pluralkitInfo: null,
+  });
   const channel = interaction.channel;
   const channelType = channel?.type;
   const isDirectMessage = channelType === ChannelType.DM;
@@ -736,7 +740,7 @@ async function dispatchDiscordCommandInteraction(params: {
     accountId,
     guildId: interaction.guild?.id ?? undefined,
     peer: {
-      kind: isDirectMessage ? "dm" : isGroupDm ? "group" : "channel",
+      kind: isDirectMessage ? "direct" : isGroupDm ? "group" : "channel",
       id: isDirectMessage ? user.id : channelId,
     },
     parentPeer: threadParentId ? { kind: "channel", id: threadParentId } : undefined,
@@ -749,6 +753,7 @@ async function dispatchDiscordCommandInteraction(params: {
   });
   const ctxPayload = finalizeInboundContext({
     Body: prompt,
+    BodyForAgent: prompt,
     RawBody: prompt,
     CommandBody: prompt,
     CommandArgs: commandArgs,
