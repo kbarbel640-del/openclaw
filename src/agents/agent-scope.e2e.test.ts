@@ -444,6 +444,34 @@ describe("resolveAgentCompaction", () => {
     expect(result?.memoryFlush?.enabled).toBe(false);
   });
 
+  it("per-agent memoryFlush with no default memoryFlush does not throw", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          compaction: {
+            mode: "safeguard",
+            // no memoryFlush at all
+          },
+        },
+        list: [
+          {
+            id: "agent",
+            compaction: {
+              memoryFlush: {
+                enabled: false,
+                softThresholdTokens: 3000,
+              },
+            },
+          },
+        ],
+      },
+    };
+    const result = resolveAgentCompaction(cfg, "agent");
+    expect(result?.mode).toBe("safeguard"); // inherited
+    expect(result?.memoryFlush?.enabled).toBe(false);
+    expect(result?.memoryFlush?.softThresholdTokens).toBe(3000);
+  });
+
   it("no memoryFlush in either per-agent or defaults returns undefined", () => {
     const cfg: OpenClawConfig = {
       agents: {
