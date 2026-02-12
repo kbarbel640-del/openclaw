@@ -643,24 +643,43 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   }
   // Timeout to detect zombie connections where HELLO is never received.
   const HELLO_TIMEOUT_MS = 30000;
+  const MAX_ZOMBIE_RECONNECTS = 5;
+  const ZOMBIE_BACKOFF_BASE_MS = 1000;
   let helloTimeoutId: ReturnType<typeof setTimeout> | undefined;
+  let zombieReconnectCount = 0;
   const onGatewayDebug = (msg: unknown) => {
     const message = String(msg);
     if (!message.includes("WebSocket connection opened")) {
       return;
     }
+    // Successful WebSocket open resets the zombie counter.
+    zombieReconnectCount = 0;
     if (helloTimeoutId) {
       clearTimeout(helloTimeoutId);
     }
     helloTimeoutId = setTimeout(() => {
       if (!gateway?.isConnected) {
+        zombieReconnectCount++;
+        if (zombieReconnectCount > MAX_ZOMBIE_RECONNECTS) {
+          runtime.error?.(
+            danger(
+              `connection stalled: exceeded ${String(MAX_ZOMBIE_RECONNECTS)} zombie reconnect attempts, giving up`,
+            ),
+          );
+          gateway?.disconnect();
+          helloTimeoutId = undefined;
+          return;
+        }
+        const backoffMs = ZOMBIE_BACKOFF_BASE_MS * 2 ** (zombieReconnectCount - 1);
         runtime.log?.(
           danger(
-            `connection stalled: no HELLO received within ${HELLO_TIMEOUT_MS}ms, forcing reconnect`,
+            `connection stalled: no HELLO received within ${String(HELLO_TIMEOUT_MS)}ms, forcing reconnect (attempt ${String(zombieReconnectCount)}/${String(MAX_ZOMBIE_RECONNECTS)}, backoff ${String(backoffMs)}ms)`,
           ),
         );
         gateway?.disconnect();
-        gateway?.connect(false);
+        setTimeout(() => {
+          gateway?.connect(false);
+        }, backoffMs);
       }
       helloTimeoutId = undefined;
     }, HELLO_TIMEOUT_MS);
