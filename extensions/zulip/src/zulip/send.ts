@@ -55,11 +55,14 @@ function resolveZulipLocalPath(value: string): string | null {
   return null;
 }
 
-async function writeTempFile(buffer: Buffer, filename: string): Promise<string> {
+async function writeTempFile(
+  buffer: Buffer,
+  filename: string,
+): Promise<{ filePath: string; dir: string }> {
   const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "zulip-upload-"));
   const filePath = path.join(dir, filename);
   await fsPromises.writeFile(filePath, buffer);
-  return filePath;
+  return { filePath, dir };
 }
 
 function parseZulipTarget(raw: string): ZulipTarget {
@@ -143,6 +146,7 @@ export async function sendMessageZulip(
   const rawMediaUrl = opts.mediaUrl?.trim();
   let mediaUrl = rawMediaUrl;
   let tempFilePath: string | undefined;
+  let tempDir: string | undefined;
   let tempFileCleanup = false;
 
   if (mediaUrl) {
@@ -174,13 +178,18 @@ export async function sendMessageZulip(
         );
         tempFilePath = saved.path;
       } else {
-        tempFilePath = await writeTempFile(fetched.buffer, filename);
+        const temp = await writeTempFile(fetched.buffer, filename);
+        tempFilePath = temp.filePath;
+        tempDir = temp.dir;
         tempFileCleanup = true;
       }
       const upload = await uploadZulipFile(client, tempFilePath);
       mediaUrl = upload.url;
       if (tempFileCleanup && tempFilePath) {
         await fsPromises.unlink(tempFilePath).catch(() => undefined);
+        if (tempDir) {
+          await fsPromises.rmdir(tempDir).catch(() => undefined);
+        }
       }
     }
     message = normalizeMessage(message, mediaUrl);

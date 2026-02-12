@@ -334,7 +334,9 @@ export async function monitorZulipProvider(opts: MonitorZulipOpts = {}): Promise
             mediaTypes.push(saved.contentType);
             mediaUrls.push(uploadUrl);
           }
-        } catch (err) {}
+        } catch (err) {
+          logVerboseMessage(`zulip: failed to download/save upload ${uploadUrl}: ${String(err)}`);
+        }
       }
     }
     const oncharTriggered = oncharEnabled && oncharResult.triggered;
@@ -830,7 +832,7 @@ export async function monitorZulipProvider(opts: MonitorZulipOpts = {}): Promise
         if (!Number.isNaN(nextEventId) && nextEventId > 0) {
           lastEventId = nextEventId;
         }
-        
+
         if (event.type === "message" && event.message) {
           // Start processing without awaiting (fire-and-forget with error handling)
           processMessage(event.message).catch((err) => {
