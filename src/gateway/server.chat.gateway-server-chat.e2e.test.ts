@@ -245,8 +245,9 @@ describe("gateway server chat", () => {
 
       const imagePathDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gw-path-"));
       tempDirs.push(imagePathDir);
-      const imagePath = path.join(imagePathDir, "dot.png");
-      await fs.writeFile(imagePath, Buffer.from(pngB64, "base64"));
+      testState.agentConfig = { workspace: imagePathDir };
+      const imageRelPath = "dot.png";
+      await fs.writeFile(path.join(imagePathDir, imageRelPath), Buffer.from(pngB64, "base64"));
 
       const callsBeforePath = spy.mock.calls.length;
       const reqPath = "chat-img-path";
@@ -264,7 +265,7 @@ describe("gateway server chat", () => {
                 type: "image",
                 mimeType: "image/png",
                 fileName: "dot.png",
-                path: imagePath,
+                path: imageRelPath,
                 content: "%not-base64%",
               },
             ],
@@ -281,6 +282,74 @@ describe("gateway server chat", () => {
         | { images?: Array<{ type: string; data: string; mimeType: string }> }
         | undefined;
       expect(imgPathOpts?.images).toEqual([{ type: "image", data: pngB64, mimeType: "image/png" }]);
+
+      const reqPathEscape = "chat-img-path-escape";
+      ws.send(
+        JSON.stringify({
+          type: "req",
+          id: reqPathEscape,
+          method: "chat.send",
+          params: {
+            sessionKey: "main",
+            message: "escape test",
+            idempotencyKey: "idem-img-path-escape",
+            attachments: [{ type: "image", path: "../outside.png" }],
+          },
+        }),
+      );
+      const pathEscapeRes = await onceMessage(
+        ws,
+        (o) => o.type === "res" && o.id === reqPathEscape,
+        8000,
+      );
+      expect(pathEscapeRes.ok).toBe(false);
+      expect((pathEscapeRes.error as { message?: string } | undefined)?.message ?? "").toMatch(
+        /escapes workspace directory/i,
+      );
+
+      const secondRelPath = "dot-2.png";
+      await fs.writeFile(path.join(imagePathDir, secondRelPath), Buffer.from(pngB64, "base64"));
+      const callsBeforeMediaCtx = spy.mock.calls.length;
+      const reqMediaCtx = "chat-img-path-media-ctx";
+      ws.send(
+        JSON.stringify({
+          type: "req",
+          id: reqMediaCtx,
+          method: "chat.send",
+          params: {
+            sessionKey: "main",
+            message: "path media context",
+            idempotencyKey: "idem-img-path-media-ctx",
+            attachments: [
+              {
+                type: "image",
+                mimeType: "image/png",
+                fileName: "dot.png",
+                path: imageRelPath,
+              },
+              {
+                type: "image",
+                fileName: "dot-2.png",
+                path: secondRelPath,
+              },
+            ],
+          },
+        }),
+      );
+      const mediaCtxRes = await onceMessage(
+        ws,
+        (o) => o.type === "res" && o.id === reqMediaCtx,
+        8000,
+      );
+      expect(mediaCtxRes.ok).toBe(true);
+      await waitFor(() => spy.mock.calls.length > callsBeforeMediaCtx, 8000);
+      const mediaCtx = spy.mock.calls.at(-1)?.[0] as
+        | { MediaPath?: string; MediaPaths?: string[]; MediaTypes?: string[] }
+        | undefined;
+      expect(mediaCtx?.MediaPath).toBe(imageRelPath);
+      expect(mediaCtx?.MediaPaths).toEqual([imageRelPath, secondRelPath]);
+      expect(mediaCtx?.MediaTypes).toEqual(["image/png", "application/octet-stream"]);
+      testState.agentConfig = undefined;
 
       const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gw-"));
       tempDirs.push(historyDir);

@@ -257,4 +257,22 @@ describe("parseMessageWithAttachments", () => {
       await fs.rm(workspaceDir, { recursive: true, force: true });
     }
   });
+
+  it("rejects paths that escape workspace directory", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-att-"));
+    const workspaceDir = path.join(root, "workspace");
+    const outsidePath = path.join(root, "outside.png");
+    await fs.mkdir(workspaceDir, { recursive: true });
+    await fs.writeFile(outsidePath, Buffer.from(PNG_1x1, "base64"));
+    try {
+      await expect(
+        parseMessageWithAttachments("x", [{ type: "image", path: "../outside.png" }], {
+          log: { warn: () => {} },
+          workspaceDir,
+        }),
+      ).rejects.toThrow(/escapes workspace directory/i);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
 });

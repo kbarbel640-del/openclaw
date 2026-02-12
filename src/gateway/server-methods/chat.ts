@@ -356,7 +356,7 @@ export const chatHandlers: GatewayRequestHandlers = {
           type: typeof a?.type === "string" ? a.type : undefined,
           mimeType: typeof a?.mimeType === "string" ? a.mimeType : undefined,
           fileName: typeof a?.fileName === "string" ? a.fileName : undefined,
-          path: typeof a?.path === "string" ? a.path : undefined,
+          path: typeof a?.path === "string" ? a.path.trim() : undefined,
           content:
             typeof a?.content === "string"
               ? a.content
@@ -496,15 +496,18 @@ export const chatHandlers: GatewayRequestHandlers = {
         SenderUsername: clientInfo?.displayName,
         GatewayClientScopes: client?.connect?.scopes,
       };
-      const mediaPaths = normalizedAttachments
-        .map((a) => (typeof a.path === "string" ? a.path : undefined))
-        .filter((p): p is string => Boolean(p));
-      if (mediaPaths.length > 0) {
-        ctx.MediaPath = mediaPaths[0];
-        ctx.MediaPaths = mediaPaths;
-        ctx.MediaTypes = normalizedAttachments
-          .map((a) => (a.path && typeof a.mimeType === "string" ? a.mimeType : undefined))
-          .filter((m): m is string => Boolean(m));
+      const pathAttachments = normalizedAttachments.filter(
+        (a): a is typeof a & { path: string } => typeof a.path === "string" && a.path.length > 0,
+      );
+      if (pathAttachments.length > 0) {
+        const paths = pathAttachments.map((a) => a.path);
+        ctx.MediaPath = paths[0];
+        ctx.MediaPaths = paths;
+        ctx.MediaTypes = pathAttachments.map((a) =>
+          typeof a.mimeType === "string" && a.mimeType.trim().length > 0
+            ? a.mimeType
+            : "application/octet-stream",
+        );
       }
 
       const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({

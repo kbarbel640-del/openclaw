@@ -63,7 +63,12 @@ async function loadImageFromPath(
   opts?: { maxBytes?: number; log?: AttachmentLog },
 ): Promise<ChatImageContent> {
   const maxBytes = opts?.maxBytes ?? 5_000_000;
-  const absPath = nodePath.isAbsolute(filePath) ? filePath : nodePath.join(workspaceDir, filePath);
+  const workspaceRoot = nodePath.resolve(workspaceDir);
+  const absPath = nodePath.resolve(workspaceRoot, filePath);
+  const relative = nodePath.relative(workspaceRoot, absPath);
+  if (relative.startsWith("..") || nodePath.isAbsolute(relative)) {
+    throw new Error("attachment path escapes workspace directory");
+  }
 
   const stat = await fs.stat(absPath);
   if (stat.size > maxBytes) {
