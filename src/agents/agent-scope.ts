@@ -21,7 +21,11 @@ type ResolvedAgentConfig = {
   workspace?: string;
   agentDir?: string;
   model?: AgentEntry["model"];
+  modelByComplexity?: AgentEntry["modelByComplexity"];
   skills?: AgentEntry["skills"];
+  capabilities?: string[];
+  expertise?: string[];
+  persona?: string;
   memorySearch?: AgentEntry["memorySearch"];
   humanDelay?: AgentEntry["humanDelay"];
   heartbeat?: AgentEntry["heartbeat"];
@@ -116,7 +120,14 @@ export function resolveAgentConfig(
       typeof entry.model === "string" || (entry.model && typeof entry.model === "object")
         ? entry.model
         : undefined,
+    modelByComplexity:
+      typeof entry.modelByComplexity === "object" && entry.modelByComplexity
+        ? entry.modelByComplexity
+        : undefined,
     skills: Array.isArray(entry.skills) ? entry.skills : undefined,
+    capabilities: Array.isArray(entry.capabilities) ? entry.capabilities : undefined,
+    expertise: Array.isArray(entry.expertise) ? entry.expertise : undefined,
+    persona: typeof entry.persona === "string" ? entry.persona : undefined,
     memorySearch: entry.memorySearch,
     humanDelay: entry.humanDelay,
     heartbeat: entry.heartbeat,
@@ -173,15 +184,14 @@ export function resolveAgentWorkspaceDir(cfg: OpenClawConfig, agentId: string) {
   if (configured) {
     return resolveUserPath(configured);
   }
-  const defaultAgentId = resolveDefaultAgentId(cfg);
-  if (id === defaultAgentId) {
-    const fallback = cfg.agents?.defaults?.workspace?.trim();
-    if (fallback) {
-      return resolveUserPath(fallback);
-    }
-    return DEFAULT_AGENT_WORKSPACE_DIR;
+  // All agents share the default workspace unless explicitly configured.
+  // Isolated per-agent workspaces caused agents to lose context of the
+  // main project (missing deps, wrong paths, build loops).
+  const fallback = cfg.agents?.defaults?.workspace?.trim();
+  if (fallback) {
+    return resolveUserPath(fallback);
   }
-  return path.join(os.homedir(), ".openclaw", `workspace-${id}`);
+  return DEFAULT_AGENT_WORKSPACE_DIR;
 }
 
 export const AGENT_ROLE_RANK: Record<AgentRole, number> = {

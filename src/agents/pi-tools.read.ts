@@ -292,7 +292,21 @@ export function createOpenClawReadTool(base: AnyAgentTool): AnyAgentTool {
       const record =
         normalized ??
         (params && typeof params === "object" ? (params as Record<string, unknown>) : undefined);
-      assertRequiredParams(record, CLAUDE_PARAM_GROUPS.read, base.name);
+
+      // Validate required params and return instructive error instead of throwing.
+      try {
+        assertRequiredParams(record, CLAUDE_PARAM_GROUPS.read, base.name);
+      } catch {
+        const cwd = process.cwd();
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Error: Missing required parameter "path" (or "file_path"). You must provide the file path to read as a string.\nYour current working directory is "${cwd}".\nExample: {"path": "${cwd}/README.md"}\nUse the exec tool with "ls" to discover available files.`,
+            },
+          ],
+        } as AgentToolResult<unknown>;
+      }
       const filePath = typeof record?.path === "string" ? String(record.path) : "<unknown>";
 
       try {
