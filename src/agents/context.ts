@@ -5,7 +5,7 @@ import { loadConfig } from "../config/config.js";
 import { resolveOpenClawAgentDir } from "./agent-paths.js";
 import { ensureOpenClawModelsJson } from "./models-config.js";
 
-type ModelEntry = { id: string; contextWindow?: number };
+type ModelEntry = { id: string; provider?: string; contextWindow?: number };
 
 const MODEL_CACHE = new Map<string, number>();
 const loadPromise = (async () => {
@@ -22,7 +22,13 @@ const loadPromise = (async () => {
         continue;
       }
       if (typeof m.contextWindow === "number" && m.contextWindow > 0) {
-        MODEL_CACHE.set(m.id, m.contextWindow);
+        const key = m.provider ? `${m.provider}/${m.id}` : m.id;
+        MODEL_CACHE.set(key, m.contextWindow);
+        // Also store by bare model ID as fallback for callers without provider info.
+        // First-writer-wins: don't overwrite if a provider-qualified entry already set it.
+        if (!MODEL_CACHE.has(m.id)) {
+          MODEL_CACHE.set(m.id, m.contextWindow);
+        }
       }
     }
   } catch {
@@ -30,11 +36,18 @@ const loadPromise = (async () => {
   }
 })();
 
-export function lookupContextTokens(modelId?: string): number | undefined {
+export function lookupContextTokens(modelId?: string, provider?: string): number | undefined {
   if (!modelId) {
     return undefined;
   }
   // Best-effort: kick off loading, but don't block.
   void loadPromise;
+  // Prefer provider-qualified key; fall back to bare model ID.
+  if (provider) {
+    const qualified = MODEL_CACHE.get(`${provider}/${modelId}`);
+    if (qualified !== undefined) {
+      return qualified;
+    }
+  }
   return MODEL_CACHE.get(modelId);
 }

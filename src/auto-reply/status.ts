@@ -323,7 +323,7 @@ export function buildStatusMessage(args: StatusArgs): string {
   let contextTokens =
     entry?.contextTokens ??
     args.agent?.contextTokens ??
-    lookupContextTokens(model) ??
+    lookupContextTokens(model, provider) ??
     DEFAULT_CONTEXT_TOKENS;
 
   let inputTokens = entry?.inputTokens;
@@ -343,7 +343,7 @@ export function buildStatusMessage(args: StatusArgs): string {
         model = logUsage.model ?? model;
       }
       if (!contextTokens && logUsage.model) {
-        contextTokens = lookupContextTokens(logUsage.model) ?? contextTokens;
+        contextTokens = lookupContextTokens(logUsage.model, provider) ?? contextTokens;
       }
       if (!inputTokens || inputTokens === 0) {
         inputTokens = logUsage.input;

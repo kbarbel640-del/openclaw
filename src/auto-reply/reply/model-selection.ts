@@ -584,8 +584,11 @@ export function resolveModelDirectiveSelection(params: {
 export function resolveContextTokens(params: {
   agentCfg: NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]> | undefined;
   model: string;
+  provider?: string;
 }): number {
   return (
-    params.agentCfg?.contextTokens ?? lookupContextTokens(params.model) ?? DEFAULT_CONTEXT_TOKENS
+    params.agentCfg?.contextTokens ??
+    lookupContextTokens(params.model, params.provider) ??
+    DEFAULT_CONTEXT_TOKENS
   );
 }
