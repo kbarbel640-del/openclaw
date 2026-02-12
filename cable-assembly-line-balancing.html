@@ -250,6 +250,31 @@
   .assignment-row .btn-remove { padding: 4px 8px; background: var(--red); color: #fff; border: none; border-radius: 4px; cursor: pointer; }
   .btn-add-assignment { padding: 6px 12px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
   .btn-add-assignment:hover { background: var(--accent); color: #0f172a; }
+  .worker-assignments-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (max-width: 1200px) { .worker-assignments-grid { grid-template-columns: 1fr; } }
+  .station-assignment-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .station-assignment-card .station-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .station-assignment-card .station-header h4 { font-size: 0.9rem; color: var(--green); margin: 0; }
+  .station-worker-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+    padding: 6px 8px; background: var(--surface); border-radius: 4px; font-size: 0.8rem;
+  }
+  .station-worker-row .worker-color { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+  .station-worker-row .worker-name { flex: 1; }
+  .station-worker-row input[type="range"] { width: 80px; }
+  .station-worker-row .hours-display { color: var(--accent); font-weight: 600; min-width: 50px; text-align: right; }
+  .filter-dropdown { padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.8rem; }
+  .process-cards-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+  .process-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .process-card h5 { font-size: 0.8rem; color: var(--accent); margin-bottom: 8px; }
+  .process-card ul { list-style: none; font-size: 0.7rem; color: var(--muted); }
+  .process-card li { margin-bottom: 4px; padding-left: 8px; border-left: 2px solid var(--border); }
   .coverage-status { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
   .coverage-status.full { background: rgba(74,222,128,0.2); color: var(--green); }
   .coverage-status.under { background: rgba(251,191,36,0.2); color: var(--yellow); }
@@ -373,7 +398,8 @@
               <th class="calc-col" style="width:70px">Hours/Day</th>
               <th class="calc-col" style="width:75px">Hours/Week</th>
               <th class="input-col" style="width:80px">Participation %</th>
-              <th class="calc-col" style="width:85px">Working Days/Yr</th>
+              <th class="calc-col" style="width:85px">Daily Part. Hrs</th>
+              <th class="input-col" style="width:70px">Work Days/Yr</th>
               <th class="calc-col" style="width:80px">Net Work Hrs</th>
               <th class="input-col" style="width:80px">Hourly Rate</th>
               <th style="width:60px">Actions</th>
@@ -499,11 +525,16 @@
         Assign workers to stations with percentage of their time. Total must equal 100% per worker.
         Only qualified stations (from skill matrix) can be assigned.
       </p>
-      <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
+      <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <label style="font-size:0.8rem;color:var(--muted);">View:</label>
+        <select class="filter-dropdown" id="assignmentViewFilter" onchange="renderWorkerAssignments()">
+          <option value="worker">By Worker</option>
+          <option value="station">By Station</option>
+        </select>
         <button class="secondary" onclick="autoAssignWorkers()">🤖 Auto-Assign</button>
         <button class="secondary" onclick="clearAllAssignments()">🗑️ Clear All Assignments</button>
       </div>
-      <div id="workerAssignmentsContainer"></div>
+      <div id="workerAssignmentsContainer" class="worker-assignments-grid"></div>
     </div>
 
     <div class="section">
@@ -538,6 +569,8 @@
       <div class="chart-wrapper" style="overflow:visible;">
         <div class="bar-chart" id="workerFillChart" style="min-width:auto;"></div>
       </div>
+      <div class="section-title" style="margin-top:20px;font-size:0.85rem;">📋 Station Process Reference</div>
+      <div id="processCardsContainer" class="process-cards-container"></div>
     </div>
   </div>
 
@@ -607,11 +640,11 @@ let processes = [
 ];
 
 let workers = [
-  { uid: 'w1', code: 'M01 - MC', name: 'Muhitdin Cagin', shiftStart: '06:00', shiftEnd: '11:15', breakMin: 15, participationRate: 60, hourlyRate: 17.42, skills: [], assignments: [] },
-  { uid: 'w2', code: 'M02 - PK', name: 'Petra Krause', shiftStart: '06:00', shiftEnd: '14:00', breakMin: 30, participationRate: 30, hourlyRate: 17.42, skills: [], assignments: [] },
-  { uid: 'w3', code: 'M03 - DM', name: 'Diana Menger', shiftStart: '07:00', shiftEnd: '12:15', breakMin: 15, participationRate: 97, hourlyRate: 17.42, skills: [], assignments: [] },
-  { uid: 'w4', code: 'M04 - JN', name: 'Jonas Nickel', shiftStart: '06:00', shiftEnd: '13:30', breakMin: 30, participationRate: 97, hourlyRate: 17.42, skills: [], assignments: [] },
-  { uid: 'w5', code: 'M05 - SA', name: 'Saeideh Alinezhad', shiftStart: '07:00', shiftEnd: '15:30', breakMin: 30, participationRate: 97, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w1', code: 'M01 - MC', name: 'Muhitdin Cagin', shiftStart: '06:00', shiftEnd: '11:15', breakMin: 15, participationRate: 60, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w2', code: 'M02 - PK', name: 'Petra Krause', shiftStart: '06:00', shiftEnd: '14:00', breakMin: 30, participationRate: 30, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w3', code: 'M03 - DM', name: 'Diana Menger', shiftStart: '07:00', shiftEnd: '12:15', breakMin: 15, participationRate: 97, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w4', code: 'M04 - JN', name: 'Jonas Nickel', shiftStart: '06:00', shiftEnd: '13:30', breakMin: 30, participationRate: 97, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
+  { uid: 'w5', code: 'M05 - SA', name: 'Saeideh Alinezhad', shiftStart: '07:00', shiftEnd: '15:30', breakMin: 30, participationRate: 97, workingDaysPerYear: 210, hourlyRate: 17.42, skills: [], assignments: [] },
 ];
 
 // Global capacity settings
@@ -682,9 +715,15 @@ function getWorkerHoursPerWeek(w) {
   return getWorkerHoursPerDay(w) * 5;
 }
 
-function getWorkerNetWorkingHours(w) {
-  // Net Working Hours = Hours/Day * Participation Rate
+function getWorkerDailyParticipationHours(w) {
+  // Daily Participation Hours = Hours/Day × Participation%
   return getWorkerHoursPerDay(w) * ((w.participationRate || 0) / 100);
+}
+
+function getWorkerNetWorkingHours(w) {
+  // Net Working Hours = Hours/Day × Participation% × Working Days/Year (YEARLY)
+  const workingDays = w.workingDaysPerYear || WORKING_DAYS_PER_YEAR;
+  return getWorkerDailyParticipationHours(w) * workingDays;
 }
 
 function getWorkingDaysPerYearPercent() {
@@ -794,13 +833,14 @@ function moveProcess(idx, dir) {
 function renderWorkerTable() {
   const tbody = document.getElementById('workerTableBody');
   let html = '';
-  const workingDaysPct = getWorkingDaysPerYearPercent();
 
   workers.forEach((w, i) => {
     const hoursPerDay = getWorkerHoursPerDay(w);
     const hoursPerWeek = getWorkerHoursPerWeek(w);
+    const dailyParticipation = getWorkerDailyParticipationHours(w);
     const netWorkHrs = getWorkerNetWorkingHours(w);
     const participationRate = w.participationRate || 0;
+    const workingDays = w.workingDaysPerYear || WORKING_DAYS_PER_YEAR;
 
     html += `<tr>
       <td class="row-num">${i + 1}</td>
@@ -812,7 +852,8 @@ function renderWorkerTable() {
       <td><input type="text" class="readonly calc" value="${hoursPerDay.toFixed(2)}" readonly></td>
       <td><input type="text" class="readonly calc" value="${hoursPerWeek.toFixed(0)}" readonly></td>
       <td><input type="number" value="${participationRate}" min="0" max="100" step="1" onchange="updateWorker(${i},'participationRate',parseFloat(this.value)||0)"></td>
-      <td><input type="text" class="readonly calc" value="${workingDaysPct.toFixed(1)}%" readonly></td>
+      <td><input type="text" class="readonly calc" value="${dailyParticipation.toFixed(2)}" readonly></td>
+      <td><input type="number" value="${workingDays}" min="1" max="365" step="1" onchange="updateWorker(${i},'workingDaysPerYear',parseInt(this.value)||210)"></td>
       <td><input type="text" class="readonly calc" value="${netWorkHrs.toFixed(2)}" readonly></td>
       <td><input type="number" value="${w.hourlyRate.toFixed(2)}" min="0" step="0.01" onchange="updateWorker(${i},'hourlyRate',parseFloat(this.value)||0)"></td>
       <td class="actions">
@@ -840,6 +881,7 @@ function addWorker() {
     shiftEnd: '14:00',
     breakMin: 30,
     participationRate: 97,
+    workingDaysPerYear: WORKING_DAYS_PER_YEAR,
     hourlyRate: rate,
     skills: [],
     assignments: []
@@ -1372,6 +1414,7 @@ function renderShiftPlanning() {
   renderWorkerAssignments();
   renderCoverageTable();
   renderWorkerFillChart();
+  renderProcessCards();
 }
 
 function renderPlanningRequirements() {
@@ -1433,22 +1476,34 @@ function renderWorkerAssignments() {
   const container = document.getElementById('workerAssignmentsContainer');
   if (!container) return;
 
+  const viewFilter = document.getElementById('assignmentViewFilter')?.value || 'worker';
+
+  if (viewFilter === 'worker') {
+    renderAssignmentsByWorker(container);
+  } else {
+    renderAssignmentsByStation(container);
+  }
+}
+
+function renderAssignmentsByWorker(container) {
   let html = '';
   workers.forEach((w, wi) => {
     ensureWorkerFields(w);
     const totalPercent = w.assignments.reduce((s, a) => s + a.percent, 0);
     const statusClass = totalPercent === 100 ? 'complete' : totalPercent > 100 ? 'error' : totalPercent > 0 ? 'warning' : '';
     const totalClass = totalPercent === 100 ? 'complete' : totalPercent > 100 ? 'over' : 'incomplete';
-    const netHours = getWorkerNetWorkHours(w).toFixed(2);
+    const dailyPartHours = getWorkerDailyParticipationHours(w);
+    const totalHours = (dailyPartHours * totalPercent / 100).toFixed(2);
 
     html += `<div class="worker-assignment-card ${statusClass}">
       <div class="worker-assignment-header">
-        <h4><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${getWorkerColor(wi)};margin-right:8px;vertical-align:middle;"></span>${w.code} - ${w.name} (${netHours}h net)</h4>
-        <span class="total ${totalClass}">${totalPercent}% assigned</span>
+        <h4><span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${getWorkerColor(wi)};margin-right:8px;vertical-align:middle;"></span>${w.code} - ${w.name} (${dailyPartHours.toFixed(2)}h/day)</h4>
+        <span class="total ${totalClass}">${totalPercent}% = ${totalHours}h</span>
       </div>`;
 
     // Assignment rows
     w.assignments.forEach((a, ai) => {
+      const assignedHours = (dailyPartHours * a.percent / 100).toFixed(2);
       html += `<div class="assignment-row">
         <select onchange="updateAssignmentStation(${wi}, ${ai}, this.value)">`;
       w.skills.forEach(si => {
@@ -1457,9 +1512,10 @@ function renderWorkerAssignments() {
       });
       html += `</select>
         <input type="range" min="5" max="100" step="5" value="${a.percent}"
-          oninput="document.getElementById('pct-${wi}-${ai}').textContent=this.value+'%'"
+          oninput="updateAssignmentSliderDisplay(${wi}, ${ai}, this.value, ${dailyPartHours})"
           onchange="updateAssignmentPercent(${wi}, ${ai}, this.value)">
         <span class="percent-display" id="pct-${wi}-${ai}">${a.percent}%</span>
+        <span class="hours-display" id="hrs-${wi}-${ai}">→ ${assignedHours}h</span>
         <button class="btn-remove" onclick="removeWorkerAssignment(${wi}, ${ai})">×</button>
       </div>`;
     });
@@ -1477,6 +1533,82 @@ function renderWorkerAssignments() {
   });
 
   container.innerHTML = html;
+}
+
+function renderAssignmentsByStation(container) {
+  let html = '';
+  stations.forEach((st, si) => {
+    const required = stationResources[si]?.workers || 1;
+    const { total, workers: assignedList } = getStationAssignedWorkers(si);
+    const gap = total - required;
+    const statusClass = total >= required ? 'complete' : total > 0 ? 'warning' : '';
+    const processNames = st.tasks.map(ti => processes[ti]?.sapNo || `P${ti+1}`).join(', ');
+
+    html += `<div class="station-assignment-card ${statusClass}">
+      <div class="station-header">
+        <h4>Station ${si + 1} <span style="font-weight:400;color:var(--muted);font-size:0.75rem;">(${processNames})</span></h4>
+        <span style="font-size:0.8rem;color:${total >= required ? 'var(--green)' : 'var(--yellow)'};">${total.toFixed(2)} / ${required.toFixed(2)} workers</span>
+      </div>`;
+
+    // Show assigned workers
+    assignedList.forEach(({ worker, workerIndex, percent }) => {
+      const dailyPartHours = getWorkerDailyParticipationHours(worker);
+      const assignedHours = (dailyPartHours * percent / 100).toFixed(2);
+      const assignmentIdx = worker.assignments.findIndex(a => a.station === si);
+
+      html += `<div class="station-worker-row">
+        <div class="worker-color" style="background:${getWorkerColor(workerIndex)};"></div>
+        <span class="worker-name">${worker.code}</span>
+        <input type="range" min="5" max="100" step="5" value="${percent}"
+          oninput="updateAssignmentSliderDisplay(${workerIndex}, ${assignmentIdx}, this.value, ${dailyPartHours})"
+          onchange="updateAssignmentPercent(${workerIndex}, ${assignmentIdx}, this.value)">
+        <span class="percent-display" id="pct-${workerIndex}-${assignmentIdx}">${percent}%</span>
+        <span class="hours-display" id="hrs-${workerIndex}-${assignmentIdx}">→ ${assignedHours}h</span>
+        <button class="btn-remove" onclick="removeWorkerAssignment(${workerIndex}, ${assignmentIdx})">×</button>
+      </div>`;
+    });
+
+    // Show workers who are skilled but not assigned
+    const skilledWorkers = workers.filter((w, wi) => {
+      ensureWorkerFields(w);
+      return w.skills.includes(si) && !w.assignments.some(a => a.station === si);
+    });
+
+    if (skilledWorkers.length > 0) {
+      html += `<div style="margin-top:8px;">
+        <select id="addWorkerToStation-${si}" class="filter-dropdown" style="width:auto;">
+          <option value="">+ Add worker...</option>`;
+      skilledWorkers.forEach((w, idx) => {
+        const wi = workers.indexOf(w);
+        html += `<option value="${wi}">${w.code} - ${w.name}</option>`;
+      });
+      html += `</select>
+        <button class="btn-add-assignment" style="margin-left:4px;" onclick="addWorkerToStation(${si})">Add</button>
+      </div>`;
+    }
+
+    html += `</div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function updateAssignmentSliderDisplay(wi, ai, value, dailyPartHours) {
+  const pctEl = document.getElementById(`pct-${wi}-${ai}`);
+  const hrsEl = document.getElementById(`hrs-${wi}-${ai}`);
+  if (pctEl) pctEl.textContent = value + '%';
+  if (hrsEl) hrsEl.textContent = '→ ' + (dailyPartHours * value / 100).toFixed(2) + 'h';
+}
+
+function addWorkerToStation(stationIdx) {
+  const select = document.getElementById(`addWorkerToStation-${stationIdx}`);
+  if (!select || !select.value) return;
+  const workerIdx = parseInt(select.value);
+  const w = workers[workerIdx];
+  ensureWorkerFields(w);
+  w.assignments.push({ station: stationIdx, percent: 25 });
+  renderShiftPlanning();
+  saveToLocalStorage();
 }
 
 function renderCoverageTable() {
@@ -1613,6 +1745,32 @@ function renderWorkerFillChart() {
   chartEl.style.justifyContent = 'space-around';
   chartEl.style.gap = '12px';
   chartEl.style.paddingTop = topPadding + 'px';
+}
+
+function renderProcessCards() {
+  const container = document.getElementById('processCardsContainer');
+  if (!container) return;
+
+  let html = '';
+  stations.forEach((st, si) => {
+    const effTime = effectiveStationTime(si);
+    const required = stationResources[si]?.workers || 1;
+
+    html += `<div class="process-card">
+      <h5>Station ${si + 1} <span style="color:var(--muted);font-weight:400;">(${effTime.toFixed(1)}s, ${required.toFixed(2)}W)</span></h5>
+      <ul>`;
+
+    st.tasks.forEach(ti => {
+      const p = processes[ti];
+      if (p) {
+        html += `<li><strong>${p.sapNo}</strong> - ${p.desc}</li>`;
+      }
+    });
+
+    html += `</ul></div>`;
+  });
+
+  container.innerHTML = html;
 }
 
 // ══════════════════════════════════════════════════════════════
