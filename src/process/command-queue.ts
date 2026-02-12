@@ -19,11 +19,13 @@ type LaneState = {
   lane: string;
   queue: QueueEntry[];
   active: number;
+  activeTaskIds: Set<number>;
   maxConcurrent: number;
   draining: boolean;
 };
 
 const lanes = new Map<string, LaneState>();
+let nextTaskId = 1;
 
 function getLaneState(lane: string): LaneState {
   const existing = lanes.get(lane);
@@ -34,6 +36,7 @@ function getLaneState(lane: string): LaneState {
     lane,
     queue: [],
     active: 0,
+    activeTaskIds: new Set(),
     maxConcurrent: 1,
     draining: false,
   };
@@ -59,12 +62,15 @@ function drainLane(lane: string) {
         );
       }
       logLaneDequeue(lane, waitedMs, state.queue.length);
+      const taskId = nextTaskId++;
       state.active += 1;
+      state.activeTaskIds.add(taskId);
       void (async () => {
         const startTime = Date.now();
         try {
           const result = await entry.task();
           state.active -= 1;
+          state.activeTaskIds.delete(taskId);
           diag.debug(
             `lane task done: lane=${lane} durationMs=${Date.now() - startTime} active=${state.active} queued=${state.queue.length}`,
           );
@@ -72,6 +78,7 @@ function drainLane(lane: string) {
           entry.resolve(result);
         } catch (err) {
           state.active -= 1;
+          state.activeTaskIds.delete(taskId);
           const isProbeLane = lane.startsWith("auth-probe:") || lane.startsWith("session:probe-");
           if (!isProbeLane) {
             diag.error(
@@ -182,10 +189,34 @@ export function getActiveTaskCount(): number {
 export function waitForActiveTasks(timeoutMs: number): Promise<{ drained: boolean }> {
   const POLL_INTERVAL_MS = 250;
   const deadline = Date.now() + timeoutMs;
+  const activeAtStart = new Set<number>();
+  for (const state of lanes.values()) {
+    for (const taskId of state.activeTaskIds) {
+      activeAtStart.add(taskId);
+    }
+  }
 
   return new Promise((resolve) => {
     const check = () => {
-      if (getActiveTaskCount() === 0) {
+      if (activeAtStart.size === 0) {
+        resolve({ drained: true });
+        return;
+      }
+
+      let hasPending = false;
+      for (const state of lanes.values()) {
+        for (const taskId of state.activeTaskIds) {
+          if (activeAtStart.has(taskId)) {
+            hasPending = true;
+            break;
+          }
+        }
+        if (hasPending) {
+          break;
+        }
+      }
+
+      if (!hasPending) {
         resolve({ drained: true });
         return;
       }
