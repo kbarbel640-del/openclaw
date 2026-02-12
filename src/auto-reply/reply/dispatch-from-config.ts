@@ -223,6 +223,7 @@ export async function dispatchReplyFromConfig(params: {
       accountId: ctx.AccountId,
       mediaUrls: ctx.MediaUrls,
       mediaTypes: ctx.MediaTypes,
+      groupId: ctx.OriginatingTo,
     });
     void triggerInternalHook(hookEvent).catch((err) => {
       logVerbose(`dispatch-from-config: message:received hook failed: ${String(err)}`);
