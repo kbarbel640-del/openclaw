@@ -28,9 +28,28 @@ export type ShapePoints = [Point, Point, Point, Point];
 // Fill & Stroke
 // ============================================================================
 
+export type GradientStop = {
+  color: string;
+  offset: number;
+  opacity: number;
+};
+
+export type Gradient = {
+  type: "linear" | "radial";
+  "start-x": number;
+  "start-y": number;
+  "end-x": number;
+  "end-y": number;
+  width: number;
+  stops: GradientStop[];
+};
+
 export type Fill = {
   "fill-color"?: string;
   "fill-opacity"?: number;
+  "fill-color-gradient"?: Gradient;
+  "fill-color-ref-id"?: string;
+  "fill-color-ref-file"?: string;
 };
 
 export type Stroke = {
@@ -39,7 +58,88 @@ export type Stroke = {
   "stroke-width"?: number;
   "stroke-alignment"?: "inner" | "center" | "outer";
   "stroke-style"?: "solid" | "dotted" | "dashed" | "mixed" | "none" | "svg";
+  "stroke-color-gradient"?: Gradient;
+  "stroke-color-ref-id"?: string;
+  "stroke-color-ref-file"?: string;
+  "stroke-cap-start"?:
+    | "round"
+    | "square"
+    | "line-arrow"
+    | "triangle-arrow"
+    | "square-marker"
+    | "circle-marker"
+    | "diamond-marker";
+  "stroke-cap-end"?:
+    | "round"
+    | "square"
+    | "line-arrow"
+    | "triangle-arrow"
+    | "square-marker"
+    | "circle-marker"
+    | "diamond-marker";
 };
+
+// ============================================================================
+// Path Content
+// ============================================================================
+
+export type PathCommandMoveTo = { command: "move-to"; x: number; y: number };
+export type PathCommandLineTo = { command: "line-to"; x: number; y: number };
+export type PathCommandCurveTo = {
+  command: "curve-to";
+  x: number;
+  y: number;
+  c1x: number;
+  c1y: number;
+  c2x: number;
+  c2y: number;
+};
+export type PathCommandClosePath = { command: "close-path" };
+
+export type PathCommand =
+  | PathCommandMoveTo
+  | PathCommandLineTo
+  | PathCommandCurveTo
+  | PathCommandClosePath;
+
+// ============================================================================
+// Effects (Shadow, Blur)
+// ============================================================================
+
+export type Shadow = {
+  id: string;
+  style: "drop-shadow" | "inner-shadow";
+  "offset-x": number;
+  "offset-y": number;
+  blur: number;
+  spread: number;
+  hidden?: boolean;
+  color: { color: string; opacity: number };
+};
+
+export type Blur = {
+  id: string;
+  type: "layer-blur";
+  value: number;
+  hidden?: boolean;
+};
+
+// ============================================================================
+// Exports
+// ============================================================================
+
+export type ExportSetting = {
+  type: "png" | "jpeg" | "svg" | "pdf" | "webp";
+  scale: number;
+  suffix: string;
+};
+
+// ============================================================================
+// Constraints
+// ============================================================================
+
+export type ConstraintH = "left" | "right" | "leftright" | "center" | "scale";
+export type ConstraintV = "top" | "bottom" | "topbottom" | "center" | "scale";
 
 // ============================================================================
 // Text Content
@@ -58,6 +158,9 @@ export type TextSpan = {
   "line-height"?: string;
   "text-decoration"?: string;
   "text-transform"?: string;
+  "text-direction"?: "ltr" | "rtl" | "auto";
+  "typography-ref-id"?: string;
+  "typography-ref-file"?: string;
 };
 
 export type TextParagraph = {
@@ -99,6 +202,13 @@ export type AlignContent =
   | "space-evenly"
   | "stretch";
 
+export type GridTrackType = "flex" | "percent" | "fixed" | "auto";
+
+export type GridTrack = {
+  type: GridTrackType;
+  value?: number;
+};
+
 export type LayoutProps = {
   layout?: LayoutType;
   "layout-flex-dir"?: FlexDirection;
@@ -108,13 +218,98 @@ export type LayoutProps = {
   "layout-align-items"?: AlignItems;
   "layout-align-content"?: AlignContent;
   "layout-wrap-type"?: "wrap" | "nowrap";
+  "layout-grid-columns"?: GridTrack[];
+  "layout-grid-rows"?: GridTrack[];
+};
+
+// ============================================================================
+// Interactions
+// ============================================================================
+
+export type InteractionEventType =
+  | "click"
+  | "mouse-press"
+  | "mouse-over"
+  | "mouse-enter"
+  | "mouse-leave"
+  | "after-delay";
+
+export type InteractionActionType =
+  | "navigate"
+  | "open-overlay"
+  | "toggle-overlay"
+  | "close-overlay"
+  | "prev-screen"
+  | "open-url";
+
+export type AnimationType = "dissolve" | "slide" | "push";
+export type AnimationEasing = "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out";
+export type AnimationDirection = "right" | "left" | "up" | "down";
+
+export type OverlayPosType =
+  | "manual"
+  | "center"
+  | "top-left"
+  | "top-right"
+  | "top-center"
+  | "bottom-left"
+  | "bottom-right"
+  | "bottom-center";
+
+export type Interaction = {
+  "event-type": InteractionEventType;
+  "action-type": InteractionActionType;
+  destination?: string | null;
+  "preserve-scroll"?: boolean;
+  delay?: number;
+  url?: string;
+  "animation-type"?: AnimationType;
+  duration?: number;
+  easing?: AnimationEasing;
+  direction?: AnimationDirection;
+  way?: "in" | "out";
+  "overlay-position"?: Point;
+  "overlay-pos-type"?: OverlayPosType;
+  "close-click-outside"?: boolean;
+  "background-overlay"?: boolean;
+  "position-relative-to"?: string | null;
+};
+
+// ============================================================================
+// Layout Child Properties
+// ============================================================================
+
+export type LayoutItemSizing = "fill" | "fix" | "auto";
+export type LayoutItemAlignSelf = "start" | "end" | "center" | "stretch";
+
+export type LayoutChildProps = {
+  "layout-item-h-sizing"?: LayoutItemSizing;
+  "layout-item-v-sizing"?: LayoutItemSizing;
+  "layout-item-align-self"?: LayoutItemAlignSelf;
+  "layout-item-absolute"?: boolean;
+  "layout-item-z-index"?: number;
+  "layout-item-min-w"?: number;
+  "layout-item-max-w"?: number;
+  "layout-item-min-h"?: number;
+  "layout-item-max-h"?: number;
+  "layout-item-margin-type"?: "simple" | "multiple";
+  "layout-item-margin"?: { m1: number; m2: number; m3: number; m4: number };
 };
 
 // ============================================================================
 // Shape Types
 // ============================================================================
 
-export type ShapeType = "rect" | "circle" | "text" | "frame" | "path" | "group" | "image" | "bool";
+export type ShapeType =
+  | "rect"
+  | "circle"
+  | "text"
+  | "frame"
+  | "path"
+  | "group"
+  | "image"
+  | "bool"
+  | "svg-raw";
 
 export type ShapeBase = {
   id: string;
@@ -141,7 +336,20 @@ export type ShapeBase = {
   "frame-id"?: string;
   /** Parent shape ID */
   "parent-id"?: string;
-};
+  shadow?: Shadow[];
+  blur?: Blur;
+  "constraints-h"?: ConstraintH;
+  "constraints-v"?: ConstraintV;
+  exports?: ExportSetting[];
+  interactions?: Interaction[];
+  "proportion-lock"?: boolean;
+  proportion?: number;
+  "blend-mode"?: string;
+  "component-id"?: string;
+  "component-file"?: string;
+  "component-root"?: boolean;
+  "masked-group"?: boolean;
+} & LayoutChildProps;
 
 export type RectShape = ShapeBase & {
   type: "rect";
@@ -159,6 +367,7 @@ export type TextShape = ShapeBase & {
   type: "text";
   content?: TextContent;
   "grow-type"?: "auto-width" | "auto-height" | "fixed";
+  "vertical-align"?: "top" | "center" | "bottom";
 };
 
 export type FrameShape = ShapeBase & {
@@ -166,6 +375,12 @@ export type FrameShape = ShapeBase & {
   "fill-color"?: string;
   "fill-opacity"?: number;
   "hide-fill-on-export"?: boolean;
+  "show-content"?: boolean;
+  "hide-in-viewer"?: boolean;
+  r1?: number;
+  r2?: number;
+  r3?: number;
+  r4?: number;
   shapes: string[];
 } & LayoutProps;
 
@@ -174,7 +389,43 @@ export type GroupShape = ShapeBase & {
   shapes: string[];
 };
 
-export type PenpotShape = RectShape | CircleShape | TextShape | FrameShape | GroupShape;
+export type PathShape = ShapeBase & {
+  type: "path";
+  content: PathCommand[];
+};
+
+export type ImageShape = ShapeBase & {
+  type: "image";
+  metadata: {
+    id: string;
+    width: number;
+    height: number;
+    mtype: string;
+  };
+};
+
+export type BoolShape = ShapeBase & {
+  type: "bool";
+  "bool-type": "union" | "difference" | "intersection" | "exclude";
+  shapes: string[];
+  "bool-content"?: PathCommand[];
+};
+
+export type SvgRawShape = ShapeBase & {
+  type: "svg-raw";
+  content: Record<string, unknown>;
+};
+
+export type PenpotShape =
+  | RectShape
+  | CircleShape
+  | TextShape
+  | FrameShape
+  | GroupShape
+  | PathShape
+  | ImageShape
+  | BoolShape
+  | SvgRawShape;
 
 // ============================================================================
 // Changes

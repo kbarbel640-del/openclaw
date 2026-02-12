@@ -113,6 +113,15 @@ export class PenpotClient {
     return this.rpc("get-file", params) as Promise<Record<string, unknown>>;
   }
 
+  async createFileMediaObjectFromUrl(fileId: string, url: string, name: string) {
+    return this.rpc("create-file-media-object-from-url", {
+      "file-id": fileId,
+      "is-local": true,
+      url,
+      name,
+    }) as Promise<Record<string, unknown>>;
+  }
+
   async updateFile(params: {
     id: string;
     revn: number;

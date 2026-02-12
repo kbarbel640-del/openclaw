@@ -13,6 +13,7 @@
 
 import type {
   AddColorChange,
+  AddComponentChange,
   AddObjChange,
   AddPageChange,
   AddTypographyChange,
@@ -21,6 +22,7 @@ import type {
   Fill,
   LayoutProps,
   ModObjChange,
+  ModPageChange,
   MovObjectsChange,
   PenpotChange,
   Selrect,
@@ -67,6 +69,9 @@ export type TextSpanInput = {
   lineHeight?: string;
   textDecoration?: string;
   textTransform?: string;
+  textDirection?: "ltr" | "rtl" | "auto";
+  typographyRefId?: string;
+  typographyRefFile?: string;
 };
 
 export type TextParagraphInput = {
@@ -96,6 +101,9 @@ export function buildTextContent(paragraphs: TextParagraphInput[]): TextContent 
             ...(s.lineHeight ? { "line-height": s.lineHeight } : {}),
             ...(s.textDecoration ? { "text-decoration": s.textDecoration } : {}),
             ...(s.textTransform ? { "text-transform": s.textTransform } : {}),
+            ...(s.textDirection ? { "text-direction": s.textDirection } : {}),
+            ...(s.typographyRefId ? { "typography-ref-id": s.typographyRefId } : {}),
+            ...(s.typographyRefFile ? { "typography-ref-file": s.typographyRefFile } : {}),
           })),
         })),
       },
@@ -106,6 +114,47 @@ export function buildTextContent(paragraphs: TextParagraphInput[]): TextContent 
 // ============================================================================
 // Shape input types (what the user/Frank provides)
 // ============================================================================
+
+export type ShadowInput = {
+  style: "drop-shadow" | "inner-shadow";
+  offsetX: number;
+  offsetY: number;
+  blur: number;
+  spread: number;
+  hidden?: boolean;
+  color: string;
+  colorOpacity?: number;
+};
+
+export type BlurInput = {
+  value: number;
+  hidden?: boolean;
+};
+
+export type ExportInput = {
+  type: "png" | "jpeg" | "svg" | "pdf" | "webp";
+  scale?: number;
+  suffix?: string;
+};
+
+export type InteractionInput = {
+  eventType: string;
+  actionType: string;
+  destination?: string | null;
+  preserveScroll?: boolean;
+  delay?: number;
+  url?: string;
+  animationType?: string;
+  duration?: number;
+  easing?: string;
+  direction?: string;
+  way?: "in" | "out";
+  overlayPosition?: { x: number; y: number };
+  overlayPosType?: string;
+  closeClickOutside?: boolean;
+  backgroundOverlay?: boolean;
+  positionRelativeTo?: string | null;
+};
 
 export type BaseShapeInput = {
   id?: string;
@@ -119,6 +168,38 @@ export type BaseShapeInput = {
   hidden?: boolean;
   fills?: Fill[];
   strokes?: Stroke[];
+  shadow?: ShadowInput[];
+  blur?: BlurInput;
+  constraintsH?: "left" | "right" | "leftright" | "center" | "scale";
+  constraintsV?: "top" | "bottom" | "topbottom" | "center" | "scale";
+  exports?: ExportInput[];
+  gridCellRow?: number;
+  gridCellColumn?: number;
+  gridCellRowSpan?: number;
+  gridCellColumnSpan?: number;
+  // Layout child properties
+  layoutItemHSizing?: "fill" | "fix" | "auto";
+  layoutItemVSizing?: "fill" | "fix" | "auto";
+  layoutItemAlignSelf?: "start" | "end" | "center" | "stretch";
+  layoutItemAbsolute?: boolean;
+  layoutItemZIndex?: number;
+  layoutItemMinW?: number;
+  layoutItemMaxW?: number;
+  layoutItemMinH?: number;
+  layoutItemMaxH?: number;
+  layoutItemMarginType?: "simple" | "multiple";
+  layoutItemMargin?: { m1: number; m2: number; m3: number; m4: number };
+  // Interactions
+  interactions?: InteractionInput[];
+  // Proportion
+  proportionLock?: boolean;
+  proportion?: number;
+  // Blend mode
+  blendMode?: string;
+  // Component instance
+  componentId?: string;
+  componentFile?: string;
+  componentRoot?: boolean;
 };
 
 export type RectInput = BaseShapeInput & {
@@ -137,6 +218,7 @@ export type TextInput = BaseShapeInput & {
   type: "text";
   paragraphs?: TextParagraphInput[];
   growType?: "auto-width" | "auto-height" | "fixed";
+  verticalAlign?: "top" | "center" | "bottom";
 };
 
 export type FrameInput = BaseShapeInput & {
@@ -145,14 +227,64 @@ export type FrameInput = BaseShapeInput & {
   fillOpacity?: number;
   layout?: LayoutProps;
   children?: ShapeInput[];
+  r1?: number;
+  r2?: number;
+  r3?: number;
+  r4?: number;
+  showContent?: boolean;
+  hideInViewer?: boolean;
 };
 
 export type GroupInput = BaseShapeInput & {
   type: "group";
   children?: ShapeInput[];
+  maskedGroup?: boolean;
 };
 
-export type ShapeInput = RectInput | CircleInput | TextInput | FrameInput | GroupInput;
+export type PathCommandInput = {
+  command: "move-to" | "line-to" | "curve-to" | "close-path";
+  x?: number;
+  y?: number;
+  c1x?: number;
+  c1y?: number;
+  c2x?: number;
+  c2y?: number;
+};
+
+export type PathInput = BaseShapeInput & {
+  type: "path";
+  content: PathCommandInput[];
+};
+
+export type ImageInput = BaseShapeInput & {
+  type: "image";
+  mediaId: string;
+  mediaWidth: number;
+  mediaHeight: number;
+  mediaMtype: string;
+};
+
+export type BoolInput = BaseShapeInput & {
+  type: "bool";
+  boolType: "union" | "difference" | "intersection" | "exclude";
+  children: ShapeInput[];
+};
+
+export type SvgRawInput = BaseShapeInput & {
+  type: "svg-raw";
+  svgContent: Record<string, unknown>;
+};
+
+export type ShapeInput =
+  | RectInput
+  | CircleInput
+  | TextInput
+  | FrameInput
+  | GroupInput
+  | PathInput
+  | ImageInput
+  | BoolInput
+  | SvgRawInput;
 
 // ============================================================================
 // ChangesBuilder
@@ -224,6 +356,104 @@ export class ChangesBuilder {
       ...(input.strokes ? { strokes: input.strokes } : {}),
       ...extra,
     };
+
+    // Shadow
+    if (input.shadow) {
+      obj.shadow = input.shadow.map((s) => ({
+        id: generateUuid(),
+        style: s.style,
+        "offset-x": s.offsetX,
+        "offset-y": s.offsetY,
+        blur: s.blur,
+        spread: s.spread,
+        hidden: s.hidden ?? false,
+        color: { color: s.color, opacity: s.colorOpacity ?? 1 },
+      }));
+    }
+
+    // Blur
+    if (input.blur) {
+      obj.blur = {
+        id: generateUuid(),
+        type: "layer-blur",
+        value: input.blur.value,
+        hidden: input.blur.hidden ?? false,
+      };
+    }
+
+    // Constraints
+    if (input.constraintsH) obj["constraints-h"] = input.constraintsH;
+    if (input.constraintsV) obj["constraints-v"] = input.constraintsV;
+
+    // Exports
+    if (input.exports) {
+      obj.exports = input.exports.map((e) => ({
+        type: e.type,
+        scale: e.scale ?? 1,
+        suffix: e.suffix ?? "",
+      }));
+    }
+
+    // Grid cell positioning
+    if (input.gridCellRow !== undefined) obj["layout-grid-cell-row"] = input.gridCellRow;
+    if (input.gridCellColumn !== undefined) obj["layout-grid-cell-column"] = input.gridCellColumn;
+    if (input.gridCellRowSpan !== undefined)
+      obj["layout-grid-cell-row-span"] = input.gridCellRowSpan;
+    if (input.gridCellColumnSpan !== undefined)
+      obj["layout-grid-cell-column-span"] = input.gridCellColumnSpan;
+
+    // Layout child properties
+    if (input.layoutItemHSizing) obj["layout-item-h-sizing"] = input.layoutItemHSizing;
+    if (input.layoutItemVSizing) obj["layout-item-v-sizing"] = input.layoutItemVSizing;
+    if (input.layoutItemAlignSelf) obj["layout-item-align-self"] = input.layoutItemAlignSelf;
+    if (input.layoutItemAbsolute !== undefined)
+      obj["layout-item-absolute"] = input.layoutItemAbsolute;
+    if (input.layoutItemZIndex !== undefined) obj["layout-item-z-index"] = input.layoutItemZIndex;
+    if (input.layoutItemMinW !== undefined) obj["layout-item-min-w"] = input.layoutItemMinW;
+    if (input.layoutItemMaxW !== undefined) obj["layout-item-max-w"] = input.layoutItemMaxW;
+    if (input.layoutItemMinH !== undefined) obj["layout-item-min-h"] = input.layoutItemMinH;
+    if (input.layoutItemMaxH !== undefined) obj["layout-item-max-h"] = input.layoutItemMaxH;
+    if (input.layoutItemMarginType) obj["layout-item-margin-type"] = input.layoutItemMarginType;
+    if (input.layoutItemMargin) obj["layout-item-margin"] = input.layoutItemMargin;
+
+    // Interactions
+    if (input.interactions) {
+      obj.interactions = input.interactions.map((i) => ({
+        "event-type": i.eventType,
+        "action-type": i.actionType,
+        ...(i.destination !== undefined ? { destination: i.destination } : {}),
+        ...(i.preserveScroll !== undefined ? { "preserve-scroll": i.preserveScroll } : {}),
+        ...(i.delay !== undefined ? { delay: i.delay } : {}),
+        ...(i.url ? { url: i.url } : {}),
+        ...(i.animationType ? { "animation-type": i.animationType } : {}),
+        ...(i.duration !== undefined ? { duration: i.duration } : {}),
+        ...(i.easing ? { easing: i.easing } : {}),
+        ...(i.direction ? { direction: i.direction } : {}),
+        ...(i.way ? { way: i.way } : {}),
+        ...(i.overlayPosition ? { "overlay-position": i.overlayPosition } : {}),
+        ...(i.overlayPosType ? { "overlay-pos-type": i.overlayPosType } : {}),
+        ...(i.closeClickOutside !== undefined
+          ? { "close-click-outside": i.closeClickOutside }
+          : {}),
+        ...(i.backgroundOverlay !== undefined ? { "background-overlay": i.backgroundOverlay } : {}),
+        ...(i.positionRelativeTo !== undefined
+          ? { "position-relative-to": i.positionRelativeTo }
+          : {}),
+      }));
+    }
+
+    // Proportion
+    if (input.proportionLock !== undefined) obj["proportion-lock"] = input.proportionLock;
+    if (input.proportion !== undefined) obj.proportion = input.proportion;
+
+    // Blend mode
+    if (input.blendMode) obj["blend-mode"] = input.blendMode;
+
+    // Component instance
+    if (input.componentId) obj["component-id"] = input.componentId;
+    if (input.componentFile) obj["component-file"] = input.componentFile;
+    if (input.componentRoot !== undefined) obj["component-root"] = input.componentRoot;
+
     return obj;
   }
 
@@ -290,6 +520,9 @@ export class ChangesBuilder {
     if (input.growType) {
       extra["grow-type"] = input.growType;
     }
+    if (input.verticalAlign) {
+      extra["vertical-align"] = input.verticalAlign;
+    }
 
     const obj = this.buildShapeObj(input, "text", extra);
     obj["frame-id"] = frameId;
@@ -321,6 +554,16 @@ export class ChangesBuilder {
       extra.fills = [{ "fill-color": input.fillColor, "fill-opacity": input.fillOpacity ?? 1 }];
     }
 
+    // Frame corners
+    if (input.r1 !== undefined) extra.r1 = input.r1;
+    if (input.r2 !== undefined) extra.r2 = input.r2;
+    if (input.r3 !== undefined) extra.r3 = input.r3;
+    if (input.r4 !== undefined) extra.r4 = input.r4;
+
+    // Frame-specific properties
+    if (input.showContent !== undefined) extra["show-content"] = input.showContent;
+    if (input.hideInViewer !== undefined) extra["hide-in-viewer"] = input.hideInViewer;
+
     // Layout properties
     if (input.layout) {
       const lp = input.layout;
@@ -333,6 +576,8 @@ export class ChangesBuilder {
       if (lp["layout-align-items"]) extra["layout-align-items"] = lp["layout-align-items"];
       if (lp["layout-align-content"]) extra["layout-align-content"] = lp["layout-align-content"];
       if (lp["layout-wrap-type"]) extra["layout-wrap-type"] = lp["layout-wrap-type"];
+      if (lp["layout-grid-columns"]) extra["layout-grid-columns"] = lp["layout-grid-columns"];
+      if (lp["layout-grid-rows"]) extra["layout-grid-rows"] = lp["layout-grid-rows"];
     }
 
     const obj = this.buildShapeObj(input, "frame", extra);
@@ -366,6 +611,8 @@ export class ChangesBuilder {
     frameId: string = ROOT_FRAME_ID,
   ): string {
     const extra: Record<string, unknown> = { shapes: [] };
+    if (input.maskedGroup !== undefined) extra["masked-group"] = input.maskedGroup;
+
     const obj = this.buildShapeObj(input, "group", extra);
     obj["frame-id"] = frameId;
     obj["parent-id"] = parentId;
@@ -390,6 +637,140 @@ export class ChangesBuilder {
     return id;
   }
 
+  addPath(
+    input: PathInput,
+    parentId: string = ROOT_FRAME_ID,
+    frameId: string = ROOT_FRAME_ID,
+  ): string {
+    const content = input.content.map((cmd) => {
+      const params: Record<string, unknown> = {};
+      if (cmd.x !== undefined) params.x = cmd.x;
+      if (cmd.y !== undefined) params.y = cmd.y;
+      if (cmd.c1x !== undefined) params.c1x = cmd.c1x;
+      if (cmd.c1y !== undefined) params.c1y = cmd.c1y;
+      if (cmd.c2x !== undefined) params.c2x = cmd.c2x;
+      if (cmd.c2y !== undefined) params.c2y = cmd.c2y;
+      return { command: cmd.command, params };
+    });
+
+    const obj = this.buildShapeObj(input, "path", { content });
+    obj["frame-id"] = frameId;
+    obj["parent-id"] = parentId;
+    const id = obj.id as string;
+
+    const change: AddObjChange = {
+      type: "add-obj",
+      id,
+      "page-id": this.pageId,
+      "frame-id": frameId,
+      "parent-id": parentId,
+      obj,
+    };
+    this.changes.push(change);
+    return id;
+  }
+
+  addImage(
+    input: ImageInput,
+    parentId: string = ROOT_FRAME_ID,
+    frameId: string = ROOT_FRAME_ID,
+  ): string {
+    const extra: Record<string, unknown> = {
+      metadata: {
+        id: input.mediaId,
+        width: input.mediaWidth,
+        height: input.mediaHeight,
+        mtype: input.mediaMtype,
+      },
+    };
+
+    const obj = this.buildShapeObj(input, "image", extra);
+    obj["frame-id"] = frameId;
+    obj["parent-id"] = parentId;
+    const id = obj.id as string;
+
+    const change: AddObjChange = {
+      type: "add-obj",
+      id,
+      "page-id": this.pageId,
+      "frame-id": frameId,
+      "parent-id": parentId,
+      obj,
+    };
+    this.changes.push(change);
+    return id;
+  }
+
+  addBool(
+    input: BoolInput,
+    parentId: string = ROOT_FRAME_ID,
+    frameId: string = ROOT_FRAME_ID,
+  ): string {
+    // Pre-generate IDs for children so we can include them in shapes array
+    const childIds: string[] = [];
+    const childInputs = input.children ?? [];
+    for (const child of childInputs) {
+      const childId = child.id ?? generateUuid();
+      child.id = childId;
+      childIds.push(childId);
+    }
+
+    const extra: Record<string, unknown> = {
+      shapes: childIds,
+      "bool-type": input.boolType,
+      // Bool shapes require content (path description of the result).
+      // Provide a minimal placeholder; Penpot recomputes on open.
+      content: [],
+    };
+
+    const obj = this.buildShapeObj(input, "bool", extra);
+    obj["frame-id"] = frameId;
+    obj["parent-id"] = parentId;
+    const id = obj.id as string;
+
+    const change: AddObjChange = {
+      type: "add-obj",
+      id,
+      "page-id": this.pageId,
+      "frame-id": frameId,
+      "parent-id": parentId,
+      obj,
+    };
+    this.changes.push(change);
+
+    for (const child of childInputs) {
+      this.addShape(child, id, frameId);
+    }
+
+    return id;
+  }
+
+  addSvgRaw(
+    input: SvgRawInput,
+    parentId: string = ROOT_FRAME_ID,
+    frameId: string = ROOT_FRAME_ID,
+  ): string {
+    const extra: Record<string, unknown> = {
+      content: input.svgContent,
+    };
+
+    const obj = this.buildShapeObj(input, "svg-raw", extra);
+    obj["frame-id"] = frameId;
+    obj["parent-id"] = parentId;
+    const id = obj.id as string;
+
+    const change: AddObjChange = {
+      type: "add-obj",
+      id,
+      "page-id": this.pageId,
+      "frame-id": frameId,
+      "parent-id": parentId,
+      obj,
+    };
+    this.changes.push(change);
+    return id;
+  }
+
   /**
    * Add any shape type, dispatching to the appropriate method.
    */
@@ -409,6 +790,14 @@ export class ChangesBuilder {
         return this.addFrame(input, parentId, frameId);
       case "group":
         return this.addGroup(input, parentId, frameId);
+      case "path":
+        return this.addPath(input, parentId, frameId);
+      case "image":
+        return this.addImage(input, parentId, frameId);
+      case "bool":
+        return this.addBool(input, parentId, frameId);
+      case "svg-raw":
+        return this.addSvgRaw(input, parentId, frameId);
       default:
         throw new Error(`Unknown shape type: ${(input as ShapeInput).type}`);
     }
@@ -454,6 +843,11 @@ export class ChangesBuilder {
     this.changes.push(change);
   }
 
+  modPage(pageId: string, name: string): void {
+    const change: ModPageChange = { type: "mod-page", id: pageId, name };
+    this.changes.push(change);
+  }
+
   // --------------------------------------------------------------------------
   // Library
   // --------------------------------------------------------------------------
@@ -496,6 +890,24 @@ export class ChangesBuilder {
         "letter-spacing": opts.letterSpacing ?? "0",
         "text-transform": opts.textTransform ?? "none",
       },
+    };
+    this.changes.push(change);
+  }
+
+  addComponent(
+    id: string,
+    name: string,
+    mainInstanceId: string,
+    mainInstancePage: string,
+    path?: string,
+  ): void {
+    const change: AddComponentChange = {
+      type: "add-component",
+      id,
+      name,
+      "main-instance-id": mainInstanceId,
+      "main-instance-page": mainInstancePage,
+      ...(path ? { path } : {}),
     };
     this.changes.push(change);
   }

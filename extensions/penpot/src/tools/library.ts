@@ -25,12 +25,19 @@ const TypographySchema = Type.Object({
   letterSpacing: Type.Optional(Type.String({ description: "Letter spacing (e.g., '0', '0.5')" })),
 });
 
+const ComponentSchema = Type.Object({
+  name: Type.String({ description: "Component name (e.g., 'Button', 'Card')" }),
+  path: Type.Optional(Type.String({ description: "Component path/group (e.g., 'Atoms/Buttons')" })),
+  mainInstanceId: Type.String({ description: "Shape ID of the main component instance" }),
+  mainInstancePage: Type.String({ description: "Page ID where the main instance lives" }),
+});
+
 export function createManageLibraryTool(client: PenpotClient): AnyAgentTool {
   return {
     name: "penpot_manage_library",
     label: "PenPot: Manage Library",
     description:
-      "Add colors and typography styles to a PenPot file's library. These can be reused across the design file for consistent styling.",
+      "Add colors, typography styles, and components to a PenPot file's library. These can be reused across the design file for consistent styling.",
     parameters: Type.Object({
       fileId: Type.String({ description: "The file ID" }),
       revn: Type.Number({ description: "Current file revision number" }),
@@ -40,9 +47,12 @@ export function createManageLibraryTool(client: PenpotClient): AnyAgentTool {
       typographies: Type.Optional(
         Type.Array(TypographySchema, { description: "Typography styles to add" }),
       ),
+      components: Type.Optional(
+        Type.Array(ComponentSchema, { description: "Components to register in the library" }),
+      ),
     }),
     async execute(_toolCallId, params) {
-      const { fileId, revn, colors, typographies } = params as {
+      const { fileId, revn, colors, typographies, components } = params as {
         fileId: string;
         revn: number;
         colors?: Array<{ name: string; color: string; opacity?: number }>;
@@ -55,6 +65,12 @@ export function createManageLibraryTool(client: PenpotClient): AnyAgentTool {
           lineHeight?: string;
           letterSpacing?: string;
         }>;
+        components?: Array<{
+          name: string;
+          path?: string;
+          mainInstanceId: string;
+          mainInstancePage: string;
+        }>;
       };
 
       const sessionId = generateUuid();
@@ -63,6 +79,7 @@ export function createManageLibraryTool(client: PenpotClient): AnyAgentTool {
 
       const colorIds: Array<{ id: string; name: string }> = [];
       const typographyIds: Array<{ id: string; name: string }> = [];
+      const componentIds: Array<{ id: string; name: string }> = [];
 
       if (colors) {
         for (const c of colors) {
@@ -84,6 +101,20 @@ export function createManageLibraryTool(client: PenpotClient): AnyAgentTool {
         }
       }
 
+      if (components) {
+        for (const comp of components) {
+          const id = generateUuid();
+          builder.addComponent(
+            id,
+            comp.name,
+            comp.mainInstanceId,
+            comp.mainInstancePage,
+            comp.path,
+          );
+          componentIds.push({ id, name: comp.name });
+        }
+      }
+
       const changes = builder.getChanges();
 
       if (changes.length === 0) {
@@ -101,6 +132,7 @@ export function createManageLibraryTool(client: PenpotClient): AnyAgentTool {
         success: true,
         colorsAdded: colorIds,
         typographiesAdded: typographyIds,
+        componentsAdded: componentIds,
         newRevn: revn + 1,
       });
     },

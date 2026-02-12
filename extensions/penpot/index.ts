@@ -18,6 +18,7 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { PenpotClient } from "./src/client.js";
 import { createDesignUiTool } from "./src/tools/design.js";
 import { createCreateFileTool, createInspectFileTool } from "./src/tools/files.js";
+import { createUploadImageTool } from "./src/tools/images.js";
 import { createManageLibraryTool } from "./src/tools/library.js";
 import { createAddPageTool } from "./src/tools/pages.js";
 import { createListProjectsTool } from "./src/tools/projects.js";
@@ -89,6 +90,7 @@ const penpotPlugin = {
     api.registerTool(createAddPageTool(client), { name: "penpot_add_page" });
     api.registerTool(createDesignUiTool(client), { name: "penpot_design_ui" });
     api.registerTool(createUpdateFileTool(client), { name: "penpot_update_file" });
+    api.registerTool(createUploadImageTool(client), { name: "penpot_upload_image" });
     api.registerTool(createManageLibraryTool(client), { name: "penpot_manage_library" });
 
     // Register service for lifecycle management
