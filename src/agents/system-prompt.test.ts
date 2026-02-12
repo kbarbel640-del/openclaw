@@ -103,6 +103,16 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("Do not invent commands");
   });
 
+  it("includes execute-first tool call guardrails", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+    });
+
+    expect(prompt).toContain("run the tool call first and then report results");
+    expect(prompt).toContain("Do not send placeholder status text");
+    expect(prompt).toContain("avoid blamey certainty");
+  });
+
   it("lists available tools when provided", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",

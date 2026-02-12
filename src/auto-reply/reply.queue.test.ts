@@ -111,6 +111,7 @@ describe("queue followups", () => {
       expect(queuedPrompt).toContain("Queued #1");
       expect(queuedPrompt).toContain("first");
       expect(queuedPrompt).not.toContain("[message_id:");
+      expect(queuedPrompt).toContain("They may invalidate earlier assumptions.");
     });
   });
 

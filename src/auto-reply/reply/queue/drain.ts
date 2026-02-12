@@ -83,10 +83,13 @@ export function scheduleFollowupDrain(
             (i) => i.originatingThreadId != null,
           )?.originatingThreadId;
 
+          const staleStateReminder =
+            "These queued messages arrived while you were busy. They may invalidate earlier assumptions.";
+          const collectSummary = [summary, staleStateReminder].filter(Boolean).join("\n");
           const prompt = buildCollectPrompt({
             title: "[Queued messages while agent was busy]",
             items,
-            summary,
+            summary: collectSummary,
             renderItem: (item, idx) => `---\nQueued #${idx + 1}\n${item.prompt}`.trim(),
           });
           await runFollowup({

@@ -16,6 +16,9 @@ metadata:
 # OpenAI Whisper API (curl)
 
 Transcribe an audio file via OpenAI’s `/v1/audio/transcriptions` endpoint.
+This skill always sends audio to OpenAI over the network.
+
+If you want local transcription (including whisperfile server mode or on-demand `whisper -f`), use the `openai-whisper` skill instead.
 
 ## Quick start
 
