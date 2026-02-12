@@ -12,6 +12,7 @@ export function logGatewayStartup(params: {
   tlsEnabled?: boolean;
   log: { info: (msg: string, meta?: Record<string, unknown>) => void };
   isNixMode: boolean;
+  hardenMode?: boolean;
 }) {
   const { provider: agentProvider, model: agentModel } = resolveConfiguredModelRef({
     cfg: params.cfg,
@@ -36,5 +37,11 @@ export function logGatewayStartup(params: {
   params.log.info(`log file: ${getResolvedLoggerSettings().file}`);
   if (params.isNixMode) {
     params.log.info("gateway: running in Nix mode (config managed externally)");
+  }
+  if (params.hardenMode) {
+    params.log.info(
+      "security: hardened mode active (loopback only, token auth required, TLS enabled)",
+      { consoleMessage: chalk.green("security: hardened mode active") },
+    );
   }
 }

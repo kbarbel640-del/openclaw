@@ -150,6 +150,13 @@ export type GatewayServerOptions = {
     runtime: import("../runtime.js").RuntimeEnv,
     prompter: import("../wizard/prompts.js").WizardPrompter,
   ) => Promise<void>;
+  /**
+   * Apply security-hardened defaults:
+   * - Force TLS enabled
+   * - Disable dangerous Control UI overrides
+   * - Enforce stricter default tool restrictions
+   */
+  harden?: boolean;
 };
 
 export async function startGatewayServer(
@@ -253,6 +260,7 @@ export async function startGatewayServer(
     openResponsesEnabled: opts.openResponsesEnabled,
     auth: opts.auth,
     tailscale: opts.tailscale,
+    harden: opts.harden,
   });
   const {
     bindHost,
@@ -265,6 +273,7 @@ export async function startGatewayServer(
     resolvedAuth,
     tailscaleConfig,
     tailscaleMode,
+    hardenMode,
   } = runtimeConfig;
   let hooksConfig = runtimeConfig.hooksConfig;
   const canvasHostEnabled = runtimeConfig.canvasHostEnabled;
@@ -535,6 +544,7 @@ export async function startGatewayServer(
     tlsEnabled: gatewayTls.enabled,
     log,
     isNixMode,
+    hardenMode,
   });
   scheduleGatewayUpdateCheck({ cfg: cfgAtStart, log, isNixMode });
   const tailscaleCleanup = await startGatewayTailscaleExposure({

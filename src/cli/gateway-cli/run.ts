@@ -47,6 +47,7 @@ type GatewayRunOpts = {
   rawStreamPath?: unknown;
   dev?: boolean;
   reset?: boolean;
+  harden?: boolean;
 };
 
 const gatewayLog = createSubsystemLogger("gateway");
@@ -90,6 +91,30 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
 
   if (devMode) {
     await ensureDevGatewayConfig({ reset: Boolean(opts.reset) });
+  }
+
+  // Hardened mode: apply security-first defaults
+  const hardenMode = Boolean(opts.harden);
+  if (hardenMode) {
+    gatewayLog.info("harden: security-hardened mode enabled");
+    // Force loopback bind (warn if user tried to override)
+    if (opts.bind && opts.bind !== "loopback") {
+      gatewayLog.warn(
+        `harden: ignoring --bind ${opts.bind}; hardened mode forces loopback binding`,
+      );
+    }
+    // Force token auth mode
+    if (opts.auth && opts.auth !== "token") {
+      gatewayLog.warn(
+        `harden: ignoring --auth ${opts.auth}; hardened mode forces token authentication`,
+      );
+    }
+    // Warn about tailscale in hardened mode
+    if (opts.tailscale && opts.tailscale !== "off") {
+      gatewayLog.warn(
+        `harden: ignoring --tailscale ${opts.tailscale}; hardened mode disables external exposure`,
+      );
+    }
   }
 
   const cfg = loadConfig();
@@ -137,7 +162,8 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
       process.env.OPENCLAW_GATEWAY_TOKEN = token;
     }
   }
-  const authModeRaw = toOptionString(opts.auth);
+  // In hardened mode, force token auth; otherwise use CLI option
+  const authModeRaw = hardenMode ? "token" : toOptionString(opts.auth);
   const authMode: GatewayAuthMode | null =
     authModeRaw === "token" || authModeRaw === "password" ? authModeRaw : null;
   if (authModeRaw && !authMode) {
@@ -145,7 +171,8 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
     defaultRuntime.exit(1);
     return;
   }
-  const tailscaleRaw = toOptionString(opts.tailscale);
+  // In hardened mode, disable tailscale exposure
+  const tailscaleRaw = hardenMode ? "off" : toOptionString(opts.tailscale);
   const tailscaleMode =
     tailscaleRaw === "off" || tailscaleRaw === "serve" || tailscaleRaw === "funnel"
       ? tailscaleRaw
@@ -174,7 +201,10 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
     defaultRuntime.exit(1);
     return;
   }
-  const bindRaw = toOptionString(opts.bind) ?? cfg.gateway?.bind ?? "loopback";
+  // In hardened mode, force loopback; otherwise use CLI option or config
+  const bindRaw = hardenMode
+    ? "loopback"
+    : (toOptionString(opts.bind) ?? cfg.gateway?.bind ?? "loopback");
   const bind =
     bindRaw === "loopback" ||
     bindRaw === "lan" ||
@@ -278,6 +308,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
                   resetOnExit: Boolean(opts.tailscaleResetOnExit),
                 }
               : undefined,
+          harden: hardenMode,
         }),
     });
   } catch (err) {
@@ -349,6 +380,11 @@ export function addGatewayRunCommand(cmd: Command): Command {
     .option("--compact", 'Alias for "--ws-log compact"', false)
     .option("--raw-stream", "Log raw model stream events to jsonl", false)
     .option("--raw-stream-path <path>", "Raw stream jsonl path")
+    .option(
+      "--harden",
+      "Apply security-hardened defaults (loopback bind, token auth required, TLS enabled, dangerous features disabled)",
+      false,
+    )
     .action(async (opts) => {
       await runGatewayCommand(opts);
     });
