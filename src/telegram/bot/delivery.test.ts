@@ -336,7 +336,7 @@ describe("deliverReplies", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("removes ack reaction then adds 👌 after replying to a target message", async () => {
+  it("does not mutate reactions after replying to a target message", async () => {
     const runtime = { error: vi.fn(), log: vi.fn() };
     const sendMessage = vi.fn().mockResolvedValue({ message_id: 11, chat: { id: "123" } });
     const setMessageReaction = vi.fn().mockResolvedValue(undefined);
@@ -352,9 +352,90 @@ describe("deliverReplies", () => {
       textLimit: 4000,
     });
 
-    expect(setMessageReaction).toHaveBeenNthCalledWith(1, "123", 777, []);
-    expect(setMessageReaction).toHaveBeenNthCalledWith(2, "123", 777, [
-      { type: "emoji", emoji: "👌" },
-    ]);
+    expect(setMessageReaction).not.toHaveBeenCalled();
+  });
+
+  it("uses sourceMessageId as canonical reply anchor", async () => {
+    const runtime = { error: vi.fn(), log: vi.fn() };
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 12, chat: { id: "123" } });
+    const setMessageReaction = vi.fn().mockResolvedValue(undefined);
+    const bot = { api: { sendMessage, setMessageReaction } } as unknown as Bot;
+
+    await deliverReplies({
+      replies: [{ text: "done", replyToId: "999" }],
+      chatId: "123",
+      token: "tok",
+      runtime,
+      bot,
+      replyToMode: "all",
+      textLimit: 4000,
+      sourceMessageId: 555,
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123",
+      expect.any(String),
+      expect.objectContaining({
+        reply_to_message_id: 555,
+      }),
+    );
+    expect(setMessageReaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps canonical sourceMessageId even when payload includes explicit reply tag", async () => {
+    const runtime = { error: vi.fn(), log: vi.fn() };
+    const sendMessage = vi.fn().mockResolvedValue({ message_id: 14, chat: { id: "123" } });
+    const bot = { api: { sendMessage } } as unknown as Bot;
+
+    await deliverReplies({
+      replies: [{ text: "done", replyToId: "999", replyToTag: true }],
+      chatId: "123",
+      token: "tok",
+      runtime,
+      bot,
+      replyToMode: "all",
+      textLimit: 4000,
+      sourceMessageId: 555,
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123",
+      expect.any(String),
+      expect.objectContaining({
+        reply_to_message_id: 555,
+      }),
+    );
+  });
+
+  it("retries without reply_to_message_id when reply target is missing", async () => {
+    const runtime = { error: vi.fn(), log: vi.fn() };
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("400: Bad Request: message to be replied not found"))
+      .mockResolvedValueOnce({ message_id: 13, chat: { id: "123" } });
+    const bot = { api: { sendMessage } } as unknown as Bot;
+
+    await deliverReplies({
+      replies: [{ text: "done", replyToId: "777" }],
+      chatId: "123",
+      token: "tok",
+      runtime,
+      bot,
+      replyToMode: "all",
+      textLimit: 4000,
+    });
+
+    expect(sendMessage).toHaveBeenNthCalledWith(
+      1,
+      "123",
+      expect.any(String),
+      expect.objectContaining({ reply_to_message_id: 777 }),
+    );
+    expect(sendMessage).toHaveBeenNthCalledWith(
+      2,
+      "123",
+      expect.any(String),
+      expect.not.objectContaining({ reply_to_message_id: 777 }),
+    );
   });
 });

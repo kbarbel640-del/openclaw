@@ -903,11 +903,11 @@ export function renderApp(state: AppViewState) {
                   if (!configValue) {
                     return;
                   }
-                  const list = (configValue as { agents?: { list?: unknown[] } }).agents?.list;
-                  if (!Array.isArray(list)) {
-                    return;
-                  }
-                  const index = list.findIndex(
+                  const agents = (
+                    configValue as { agents?: { list?: unknown[]; defaults?: { model?: unknown } } }
+                  ).agents;
+                  let list = Array.isArray(agents?.list) ? [...agents.list] : [];
+                  let index = list.findIndex(
                     (entry) =>
                       entry &&
                       typeof entry === "object" &&
@@ -915,12 +915,13 @@ export function renderApp(state: AppViewState) {
                       (entry as { id?: string }).id === agentId,
                   );
                   if (index < 0) {
-                    return;
+                    list = [...list, { id: agentId }];
+                    index = list.length - 1;
+                    updateConfigFormValue(state, ["agents", "list"], list);
                   }
-                  const basePath = ["agents", "list", index, "model"];
                   const entry = list[index] as { model?: unknown };
                   const normalized = fallbacks.map((name) => name.trim()).filter(Boolean);
-                  const existing = entry.model;
+                  const existing = entry?.model;
                   const resolvePrimary = () => {
                     if (typeof existing === "string") {
                       return existing.trim() || null;
@@ -935,6 +936,7 @@ export function renderApp(state: AppViewState) {
                     return null;
                   };
                   const primary = resolvePrimary();
+                  const basePath = ["agents", "list", index, "model"];
                   if (normalized.length === 0) {
                     if (primary) {
                       updateConfigFormValue(state, basePath, primary);

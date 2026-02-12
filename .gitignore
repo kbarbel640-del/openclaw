@@ -12,6 +12,7 @@ __pycache__/
 .tsbuildinfo
 .pnpm-store
 .worktrees/
+.watch-docker-build-pending
 .DS_Store
 **/.DS_Store
 ui/src/ui/__screenshots__/
@@ -76,6 +77,9 @@ USER.md
 .idea
 # Docker persistent brew install (OPENCLAW_BREW_DIR default)
 data/brew/
+
+# Docker gateway logs (tail 至 logs/，由 logrotate 輪替)
+logs/
 
 # local tooling
 .serena/

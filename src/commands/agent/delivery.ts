@@ -71,7 +71,8 @@ export async function deliverAgentCommandResult(params: {
   const bestEffortDeliver = opts.bestEffortDeliver === true;
   const deliveryPlan = resolveAgentDeliveryPlan({
     sessionEntry,
-    requestedChannel: opts.replyChannel ?? opts.channel,
+    requestedChannel:
+      opts.replyChannel ?? opts.channel ?? opts.messageChannel ?? opts.runContext?.messageChannel,
     explicitTo: opts.replyTo ?? opts.to,
     explicitThreadId: opts.threadId,
     accountId: opts.replyAccountId ?? opts.accountId,
@@ -151,8 +152,11 @@ export async function deliverAgentCommandResult(params: {
     }
   }
 
+  const shouldLogUndeliveredOutput = opts.logUndeliveredOutput !== false;
   if (!payloads || payloads.length === 0) {
-    runtime.log("No reply from agent.");
+    if (shouldLogUndeliveredOutput && !deliver) {
+      runtime.log("No reply from agent.");
+    }
     return { payloads: [], meta: result.meta };
   }
 
@@ -171,7 +175,7 @@ export async function deliverAgentCommandResult(params: {
     }
     runtime.log(output);
   };
-  if (!deliver) {
+  if (!deliver && shouldLogUndeliveredOutput) {
     for (const payload of deliveryPayloads) {
       logPayload(payload);
     }

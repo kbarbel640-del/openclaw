@@ -2,7 +2,9 @@ import type { ChannelOutboundTargetMode } from "../../channels/plugins/types.js"
 import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import type { OutboundTargetResolution } from "./targets.js";
+import { getChannelPlugin, normalizeChannelId } from "../../channels/plugins/index.js";
 import { DEFAULT_CHAT_CHANNEL } from "../../channels/registry.js";
+import { CHAT_CHANNEL_ORDER } from "../../channels/registry.js";
 import { normalizeAccountId } from "../../utils/account-id.js";
 import {
   INTERNAL_MESSAGE_CHANNEL,
@@ -25,6 +27,43 @@ export type AgentDeliveryPlan = {
   resolvedThreadId?: string | number;
   deliveryTargetMode?: ChannelOutboundTargetMode;
 };
+
+function resolveFallbackDeliveryChannel(wantsDelivery: boolean): GatewayMessageChannel {
+  if (!wantsDelivery) {
+    return INTERNAL_MESSAGE_CHANNEL;
+  }
+
+  const defaultChannel = normalizeChannelId(DEFAULT_CHAT_CHANNEL) ?? DEFAULT_CHAT_CHANNEL;
+  if (getChannelPlugin(defaultChannel)) {
+    return defaultChannel;
+  }
+
+  for (const channel of CHAT_CHANNEL_ORDER) {
+    const normalized = normalizeChannelId(channel) ?? channel;
+    if (getChannelPlugin(normalized)) {
+      return normalized;
+    }
+  }
+
+  return INTERNAL_MESSAGE_CHANNEL;
+}
+
+function resolveConfiguredDeliverableChannel(
+  requested: GatewayMessageChannel,
+  wantsDelivery: boolean,
+): GatewayMessageChannel {
+  if (!wantsDelivery || requested === INTERNAL_MESSAGE_CHANNEL) {
+    return requested;
+  }
+  if (!isDeliverableMessageChannel(requested)) {
+    return requested;
+  }
+  const normalized = normalizeChannelId(requested) ?? requested;
+  if (getChannelPlugin(normalized)) {
+    return normalized;
+  }
+  return resolveFallbackDeliveryChannel(wantsDelivery);
+}
 
 export function resolveAgentDeliveryPlan(params: {
   sessionEntry?: SessionEntry;
@@ -57,19 +96,19 @@ export function resolveAgentDeliveryPlan(params: {
     }
     if (requestedChannel === "last") {
       if (baseDelivery.channel && baseDelivery.channel !== INTERNAL_MESSAGE_CHANNEL) {
-        return baseDelivery.channel;
+        return resolveConfiguredDeliverableChannel(baseDelivery.channel, params.wantsDelivery);
       }
-      return params.wantsDelivery ? DEFAULT_CHAT_CHANNEL : INTERNAL_MESSAGE_CHANNEL;
+      return resolveFallbackDeliveryChannel(params.wantsDelivery);
     }
 
     if (isGatewayMessageChannel(requestedChannel)) {
-      return requestedChannel;
+      return resolveConfiguredDeliverableChannel(requestedChannel, params.wantsDelivery);
     }
 
     if (baseDelivery.channel && baseDelivery.channel !== INTERNAL_MESSAGE_CHANNEL) {
-      return baseDelivery.channel;
+      return resolveConfiguredDeliverableChannel(baseDelivery.channel, params.wantsDelivery);
     }
-    return params.wantsDelivery ? DEFAULT_CHAT_CHANNEL : INTERNAL_MESSAGE_CHANNEL;
+    return resolveFallbackDeliveryChannel(params.wantsDelivery);
   })();
 
   const deliveryTargetMode = explicitTo

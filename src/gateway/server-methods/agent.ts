@@ -404,6 +404,7 @@ export const agentHandlers: GatewayRequestHandlers = {
         lane: request.lane,
         extraSystemPrompt: request.extraSystemPrompt,
         inputProvenance,
+        logUndeliveredOutput: false,
       },
       defaultRuntime,
       context.deps,

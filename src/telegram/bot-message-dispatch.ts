@@ -1,4 +1,5 @@
 import type { Bot } from "grammy";
+import { spawn } from "node:child_process";
 import type { OpenClawConfig, ReplyToMode, TelegramAccountConfig } from "../config/types.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { TelegramMessageContext } from "./bot-message-context.js";
@@ -15,8 +16,7 @@ import { EmbeddedBlockChunker } from "../agents/pi-embedded-block-chunker.js";
 import { resolveChunkMode } from "../auto-reply/chunk.js";
 import { clearHistoryEntriesIfEnabled } from "../auto-reply/reply/history.js";
 import { dispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/reply/provider-dispatcher.js";
-import { removeAckReactionAfterReply } from "../channels/ack-reactions.js";
-import { logAckFailure, logTypingFailure } from "../channels/logging.js";
+import { logTypingFailure } from "../channels/logging.js";
 import { createReplyPrefixOptions } from "../channels/reply-prefix.js";
 import { createTypingCallbacks } from "../channels/typing.js";
 import { resolveMarkdownTableMode } from "../config/markdown-tables.js";
@@ -27,6 +27,7 @@ import { createTelegramDraftStream } from "./draft-stream.js";
 import { cacheSticker, describeStickerImage } from "./sticker-cache.js";
 
 const EMPTY_RESPONSE_FALLBACK = "No response generated. Please try again.";
+const TELEGRAM_INBOUND_QUEUE_SCRIPT_ENV = "OPENCLAW_TELEGRAM_INBOUND_QUEUE_SCRIPT";
 
 async function resolveStickerVisionSupport(cfg: OpenClawConfig, agentId: string) {
   try {
@@ -83,10 +84,50 @@ export const dispatchTelegramMessage = async ({
     skillFilter,
     sendTyping,
     sendRecordVoice,
-    ackReactionPromise,
-    reactionApi,
-    removeAckAfterReply,
   } = context;
+
+  const inboundQueueScript = process.env[TELEGRAM_INBOUND_QUEUE_SCRIPT_ENV]?.trim();
+  const replyMessageId = String(ctxPayload.MessageSid || msg.message_id || "").trim();
+  if (inboundQueueScript && replyMessageId) {
+    const queueText = (msg.text ?? msg.caption ?? ctxPayload.Body ?? "").trim();
+    const queueArgs = [
+      inboundQueueScript,
+      "--chat-id",
+      String(chatId),
+      "--message-id",
+      replyMessageId,
+      "--text",
+      queueText || "(no text)",
+      "--agent",
+      route.agentId,
+    ];
+    const queueResult = await new Promise<{ code: number; stderr: string }>((resolve) => {
+      const proc = spawn("/bin/sh", queueArgs, {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stderr = "";
+      proc.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+      proc.on("error", (err) => {
+        resolve({ code: -1, stderr: String(err) });
+      });
+      proc.on("close", (code) => {
+        resolve({ code: typeof code === "number" ? code : -1, stderr });
+      });
+    });
+    if (queueResult.code === 0) {
+      logVerbose(
+        `telegram inbound queued: chatId=${String(chatId)} messageId=${replyMessageId} script=${inboundQueueScript}`,
+      );
+      return;
+    }
+    runtime.error?.(
+      danger(
+        `telegram inbound queue handoff failed: script=${inboundQueueScript} chatId=${String(chatId)} messageId=${replyMessageId} exit=${queueResult.code} stderr=${queueResult.stderr.trim() || "-"}`,
+      ),
+    );
+  }
 
   const isPrivateChat = msg.chat.type === "private";
   const draftThreadId = threadSpec.id;
@@ -275,6 +316,7 @@ export const dispatchTelegramMessage = async ({
           onVoiceRecording: sendRecordVoice,
           linkPreview: telegramCfg.linkPreview,
           replyQuoteText,
+          sourceMessageId: msg.message_id,
         });
         if (result.delivered) {
           deliveryState.delivered = true;
@@ -323,6 +365,7 @@ export const dispatchTelegramMessage = async ({
       chunkMode,
       linkPreview: telegramCfg.linkPreview,
       replyQuoteText,
+      sourceMessageId: msg.message_id,
     });
     sentFallback = result.delivered;
   }
@@ -334,23 +377,6 @@ export const dispatchTelegramMessage = async ({
     }
     return;
   }
-  removeAckReactionAfterReply({
-    removeAfterReply: removeAckAfterReply,
-    ackReactionPromise,
-    ackReactionValue: ackReactionPromise ? "ack" : null,
-    remove: () => reactionApi?.(chatId, msg.message_id ?? 0, []) ?? Promise.resolve(),
-    onError: (err) => {
-      if (!msg.message_id) {
-        return;
-      }
-      logAckFailure({
-        log: logVerbose,
-        channel: "telegram",
-        target: `${chatId}/${msg.message_id}`,
-        error: err,
-      });
-    },
-  });
   if (isGroup && historyKey) {
     clearHistoryEntriesIfEnabled({ historyMap: groupHistories, historyKey, limit: historyLimit });
   }

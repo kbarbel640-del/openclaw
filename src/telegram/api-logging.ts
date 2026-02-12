@@ -14,6 +14,7 @@ type TelegramApiLoggingParams<T> = {
 };
 
 const fallbackLogger = createSubsystemLogger("telegram/api");
+const REACTION_NOT_FOUND_RE = /message to react not found|message not found/i;
 
 function resolveTelegramApiLogger(runtime?: RuntimeEnv, logger?: TelegramApiLogger) {
   if (logger) {
@@ -37,8 +38,14 @@ export async function withTelegramApiErrorLogging<T>({
   } catch (err) {
     if (!shouldLog || shouldLog(err)) {
       const errText = formatErrorMessage(err);
-      const log = resolveTelegramApiLogger(runtime, logger);
-      log(danger(`telegram ${operation} failed: ${errText}`));
+      // Suppress benign reaction-not-found errors (message deleted or too old).
+      const isReactionOperation = operation === "setMessageReaction" || operation === "reaction";
+      if (isReactionOperation && REACTION_NOT_FOUND_RE.test(errText)) {
+        // do not log
+      } else {
+        const log = resolveTelegramApiLogger(runtime, logger);
+        log(danger(`telegram ${operation} failed: ${errText}`));
+      }
     }
     throw err;
   }

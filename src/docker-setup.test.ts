@@ -40,14 +40,15 @@ exit 0
 
 async function createDockerSetupSandbox(): Promise<DockerSetupSandbox> {
   const rootDir = await mkdtemp(join(tmpdir(), "openclaw-docker-setup-"));
-  const scriptPath = join(rootDir, "docker-setup.sh");
+  const scriptPath = join(rootDir, "docker", "setup.sh");
   const dockerfilePath = join(rootDir, "Dockerfile");
   const composePath = join(rootDir, "docker-compose.yml");
   const binDir = join(rootDir, "bin");
   const logPath = join(rootDir, "docker-stub.log");
 
-  const script = await readFile(join(repoRoot, "docker-setup.sh"), "utf8");
-  await writeFile(scriptPath, script, { mode: 0o755 });
+  const setupScript = await readFile(join(repoRoot, "docker", "setup.sh"), "utf8");
+  await mkdir(join(rootDir, "docker"), { recursive: true });
+  await writeFile(scriptPath, setupScript, { mode: 0o755 });
   await writeFile(dockerfilePath, "FROM scratch\n");
   await writeFile(
     composePath,
@@ -84,7 +85,7 @@ function resolveBashForCompatCheck(): string | null {
   return null;
 }
 
-describe("docker-setup.sh", () => {
+describe("docker/setup.sh", () => {
   it("handles unset optional env vars under strict mode", async () => {
     const sandbox = await createDockerSetupSandbox();
     const env = createEnv(sandbox, {
@@ -129,7 +130,7 @@ describe("docker-setup.sh", () => {
   });
 
   it("avoids associative arrays so the script remains Bash 3.2-compatible", async () => {
-    const script = await readFile(join(repoRoot, "docker-setup.sh"), "utf8");
+    const script = await readFile(join(repoRoot, "docker", "setup.sh"), "utf8");
     expect(script).not.toMatch(/^\s*declare -A\b/m);
 
     const systemBash = resolveBashForCompatCheck();
@@ -187,6 +188,7 @@ describe("docker-setup.sh", () => {
   it("keeps docker-compose gateway command in sync", async () => {
     const compose = await readFile(join(repoRoot, "docker-compose.yml"), "utf8");
     expect(compose).not.toContain("gateway-daemon");
-    expect(compose).toContain('"gateway"');
+    expect(compose).toContain('"pm2-runtime"');
+    expect(compose).toContain("docker/pm2.gateway-dev.config.cjs");
   });
 });

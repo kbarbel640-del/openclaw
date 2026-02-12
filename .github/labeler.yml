@@ -170,7 +170,7 @@
           - "Dockerfile"
           - "Dockerfile.*"
           - "docker-compose.yml"
-          - "docker-setup.sh"
+          - "docker/setup.sh"
           - ".dockerignore"
           - "scripts/**/*docker*"
           - "scripts/**/Dockerfile*"

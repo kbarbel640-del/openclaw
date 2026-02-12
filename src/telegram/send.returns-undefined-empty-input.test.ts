@@ -508,6 +508,40 @@ describe("sendMessageTelegram", () => {
     expect(res.messageId).toBe("58");
   });
 
+  it("retries without reply params when Telegram reports missing reply target", async () => {
+    const chatId = "123";
+    const replyErr = new Error("400: Bad Request: message to be replied not found");
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(replyErr)
+      .mockResolvedValueOnce({
+        message_id: 59,
+        chat: { id: chatId },
+      });
+    const api = { sendMessage } as unknown as {
+      sendMessage: typeof sendMessage;
+    };
+
+    const res = await sendMessageTelegram(chatId, "hello", {
+      token: "tok",
+      api,
+      replyToMessageId: 777,
+      quoteText: "quoted",
+    });
+
+    expect(sendMessage).toHaveBeenNthCalledWith(1, chatId, "hello", {
+      parse_mode: "HTML",
+      reply_parameters: {
+        message_id: 777,
+        quote: "quoted",
+      },
+    });
+    expect(sendMessage).toHaveBeenNthCalledWith(2, chatId, "hello", {
+      parse_mode: "HTML",
+    });
+    expect(res.messageId).toBe("59");
+  });
+
   it("does not retry thread-not-found when no message_thread_id was provided", async () => {
     const chatId = "123";
     const threadErr = new Error("400: Bad Request: message thread not found");

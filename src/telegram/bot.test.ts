@@ -754,7 +754,7 @@ describe("createTelegramBot", () => {
     expect(payload.SenderUsername).toBe("ada");
   });
 
-  it("reacts to mention-gated group messages when ackReaction is enabled", async () => {
+  it("does not apply legacy ack reactions for mention-gated group messages", async () => {
     onSpy.mockReset();
     setMessageReactionSpy.mockReset();
     const replySpy = replyModule.__replySpy as unknown as ReturnType<typeof vi.fn>;
@@ -789,7 +789,7 @@ describe("createTelegramBot", () => {
       getFile: async () => ({ download: async () => new Uint8Array() }),
     });
 
-    expect(setMessageReactionSpy).toHaveBeenCalledWith(7, 123, [{ type: "emoji", emoji: "👀" }]);
+    expect(setMessageReactionSpy).not.toHaveBeenCalled();
   });
 
   it("clears native commands when disabled", () => {
@@ -1027,9 +1027,8 @@ describe("createTelegramBot", () => {
     });
 
     expect(sendMessageSpy.mock.calls.length).toBeGreaterThan(1);
-    for (const call of sendMessageSpy.mock.calls) {
-      expect(call[2]?.reply_to_message_id).toBeUndefined();
-    }
+    const replyToIds = sendMessageSpy.mock.calls.map((call) => call[2]?.reply_to_message_id);
+    expect(replyToIds).toContain(101);
   });
 
   it("honors replyToMode=first for threaded replies", async () => {
@@ -1557,7 +1556,7 @@ describe("createTelegramBot", () => {
     expect(sendAnimationSpy).toHaveBeenCalledWith("1234", expect.anything(), {
       caption: "caption",
       parse_mode: "HTML",
-      reply_to_message_id: undefined,
+      reply_to_message_id: 5,
     });
     expect(sendPhotoSpy).not.toHaveBeenCalled();
   });

@@ -10,6 +10,7 @@ import {
   resolveStorePath,
 } from "../config/sessions.js";
 import { callGateway } from "../gateway/call.js";
+import { formatErrorMessage } from "../infra/errors.js";
 import { formatDurationCompact } from "../infra/format-time/format-duration.ts";
 import { normalizeMainKey } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
@@ -26,6 +27,18 @@ import {
 } from "./pi-embedded.js";
 import { type AnnounceQueueItem, enqueueAnnounce } from "./subagent-announce-queue.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
+
+const TRANSIENT_GATEWAY_CLOSE_RE =
+  /gateway closed \(1006|abnormal closure \(no close frame\)|ECONNREFUSED|ECONNRESET/i;
+
+function isTransientGatewayDisconnectError(err: unknown): boolean {
+  const message = formatErrorMessage(err);
+  return TRANSIENT_GATEWAY_CLOSE_RE.test(message);
+}
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function formatTokenCount(value?: number) {
   if (!value || !Number.isFinite(value)) {
@@ -117,21 +130,32 @@ async function sendAnnounce(item: AnnounceQueueItem) {
   const origin = item.origin;
   const threadId =
     origin?.threadId != null && origin.threadId !== "" ? String(origin.threadId) : undefined;
-  await callGateway({
-    method: "agent",
-    params: {
-      sessionKey: item.sessionKey,
-      message: item.prompt,
-      channel: origin?.channel,
-      accountId: origin?.accountId,
-      to: origin?.to,
-      threadId,
-      deliver: true,
-      idempotencyKey: crypto.randomUUID(),
-    },
-    expectFinal: true,
-    timeoutMs: 60_000,
-  });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await callGateway({
+        method: "agent",
+        params: {
+          sessionKey: item.sessionKey,
+          message: item.prompt,
+          channel: origin?.channel,
+          accountId: origin?.accountId,
+          to: origin?.to,
+          threadId,
+          deliver: true,
+          idempotencyKey: crypto.randomUUID(),
+        },
+        expectFinal: false,
+        timeoutMs: 15_000,
+      });
+      return;
+    } catch (err) {
+      const shouldRetry = attempt === 0 && isTransientGatewayDisconnectError(err);
+      if (!shouldRetry) {
+        throw err;
+      }
+      await sleep(400);
+    }
+  }
 }
 
 function resolveRequesterStoreKey(
@@ -544,13 +568,19 @@ export async function runSubagentAnnounceFlow(params: {
             : undefined,
         idempotencyKey: crypto.randomUUID(),
       },
-      expectFinal: true,
-      timeoutMs: 60_000,
+      expectFinal: false,
+      timeoutMs: 15_000,
     });
 
     didAnnounce = true;
   } catch (err) {
-    defaultRuntime.error?.(`Subagent announce failed: ${String(err)}`);
+    if (isTransientGatewayDisconnectError(err)) {
+      defaultRuntime.log?.(
+        `Subagent announce skipped (transient gateway reconnect): ${String(err)}`,
+      );
+    } else {
+      defaultRuntime.error?.(`Subagent announce failed: ${String(err)}`);
+    }
     // Best-effort follow-ups; ignore failures to avoid breaking the caller response.
   } finally {
     // Patch label after all writes complete

@@ -304,7 +304,7 @@ describe("createTelegramBot", () => {
       new RegExp(`^\\[Telegram Ops id:42 (\\+\\d+[smhd] )?${timestampPattern}\\]`),
     );
   });
-  it("reacts to mention-gated group messages when ackReaction is enabled", async () => {
+  it("does not apply legacy ack reactions for mention-gated group messages", async () => {
     onSpy.mockReset();
     setMessageReactionSpy.mockReset();
     const replySpy = replyModule.__replySpy as unknown as ReturnType<typeof vi.fn>;
@@ -339,7 +339,7 @@ describe("createTelegramBot", () => {
       getFile: async () => ({ download: async () => new Uint8Array() }),
     });
 
-    expect(setMessageReactionSpy).toHaveBeenCalledWith(7, 123, [{ type: "emoji", emoji: "👀" }]);
+    expect(setMessageReactionSpy).not.toHaveBeenCalled();
   });
   it("clears native commands when disabled", () => {
     loadConfig.mockReturnValue({

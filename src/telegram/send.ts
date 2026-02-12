@@ -72,7 +72,21 @@ type TelegramReactionOpts = {
 
 const PARSE_ERR_RE = /can't parse entities|parse entities|find end of the entity/i;
 const THREAD_NOT_FOUND_RE = /400:\s*Bad Request:\s*message thread not found/i;
+const REPLY_TARGET_NOT_FOUND_RE = /400:\s*Bad Request:\s*message to be replied not found/i;
 const diagLogger = createSubsystemLogger("telegram/diagnostic");
+const reactionLogger = createSubsystemLogger("telegram/reactions");
+const TELEGRAM_REPLY_TRACE_FLAG = "telegram.reply-route";
+
+function traceTelegramReplyRoute(
+  cfg: ReturnType<typeof loadConfig>,
+  event: string,
+  fields: Record<string, unknown>,
+) {
+  if (!isDiagnosticFlagEnabled(TELEGRAM_REPLY_TRACE_FLAG, cfg)) {
+    return;
+  }
+  diagLogger.debug(`[reply-route] ${event} ${JSON.stringify(fields)}`);
+}
 
 function createTelegramHttpLogger(cfg: ReturnType<typeof loadConfig>) {
   const enabled = isDiagnosticFlagEnabled("telegram.http", cfg);
@@ -180,6 +194,10 @@ function isTelegramThreadNotFoundError(err: unknown): boolean {
   return THREAD_NOT_FOUND_RE.test(formatErrorMessage(err));
 }
 
+function isTelegramReplyTargetNotFoundError(err: unknown): boolean {
+  return REPLY_TARGET_NOT_FOUND_RE.test(formatErrorMessage(err));
+}
+
 function hasMessageThreadIdParam(params?: Record<string, unknown>): boolean {
   if (!params) {
     return false;
@@ -202,6 +220,29 @@ function removeMessageThreadIdParam(
   }
   const next = { ...params };
   delete next.message_thread_id;
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function hasReplyTargetParam(params?: Record<string, unknown>): boolean {
+  if (!params) {
+    return false;
+  }
+  if (params.reply_to_message_id !== undefined) {
+    return true;
+  }
+  const replyParameters = params.reply_parameters;
+  return typeof replyParameters === "object" && replyParameters !== null;
+}
+
+function removeReplyTargetParams(
+  params?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (!params || !hasReplyTargetParam(params)) {
+    return params;
+  }
+  const next = { ...params };
+  delete next.reply_to_message_id;
+  delete next.reply_parameters;
   return Object.keys(next).length > 0 ? next : undefined;
 }
 
@@ -268,6 +309,17 @@ export async function sendMessageTelegram(
       threadParams.reply_to_message_id = Math.trunc(opts.replyToMessageId);
     }
   }
+  traceTelegramReplyRoute(cfg, "resolve-send-target", {
+    inputTo: to,
+    resolvedChatId: chatId,
+    targetChatId: target.chatId,
+    targetThreadId: target.messageThreadId,
+    optionMessageThreadId: opts.messageThreadId,
+    resolvedMessageThreadId: threadParams.message_thread_id,
+    optionReplyToMessageId: opts.replyToMessageId,
+    hasReplyToMessageId: threadParams.reply_to_message_id !== undefined,
+    hasReplyParameters: threadParams.reply_parameters !== undefined,
+  });
   const hasThreadParams = Object.keys(threadParams).length > 0;
   const request = createTelegramRetryRunner({
     retry: opts.retry,
@@ -276,9 +328,14 @@ export async function sendMessageTelegram(
     shouldRetry: (err) => isRecoverableTelegramNetworkError(err, { context: "send" }),
   });
   const logHttpError = createTelegramHttpLogger(cfg);
-  const requestWithDiag = <T>(fn: () => Promise<T>, label?: string) =>
+  const requestWithDiag = <T>(
+    fn: () => Promise<T>,
+    label?: string,
+    shouldLog?: (err: unknown) => boolean,
+  ) =>
     withTelegramApiErrorLogging({
       operation: label ?? "request",
+      shouldLog,
       fn: () => request(fn, label),
     }).catch((err) => {
       logHttpError(label ?? "request", err);
@@ -308,16 +365,34 @@ export async function sendMessageTelegram(
     try {
       return await attempt(params, label);
     } catch (err) {
-      if (!hasMessageThreadIdParam(params) || !isTelegramThreadNotFoundError(err)) {
-        throw err;
+      if (hasMessageThreadIdParam(params) && isTelegramThreadNotFoundError(err)) {
+        if (opts.verbose) {
+          console.warn(
+            `telegram ${label} failed with message_thread_id, retrying without thread: ${formatErrorMessage(err)}`,
+          );
+        }
+        const retriedParams = removeMessageThreadIdParam(params);
+        return await attempt(retriedParams, `${label}-threadless`);
       }
-      if (opts.verbose) {
-        console.warn(
-          `telegram ${label} failed with message_thread_id, retrying without thread: ${formatErrorMessage(err)}`,
-        );
+      if (hasReplyTargetParam(params) && isTelegramReplyTargetNotFoundError(err)) {
+        traceTelegramReplyRoute(cfg, "retry-no-reply-target", {
+          label,
+          chatId,
+          hadReplyToMessageId:
+            params && typeof params === "object" ? "reply_to_message_id" in params : false,
+          hadReplyParameters:
+            params && typeof params === "object" ? "reply_parameters" in params : false,
+          message: formatErrorMessage(err),
+        });
+        if (opts.verbose) {
+          console.warn(
+            `telegram ${label} failed with reply target, retrying without reply params: ${formatErrorMessage(err)}`,
+          );
+        }
+        const retriedParams = removeReplyTargetParams(params);
+        return await attempt(retriedParams, `${label}-noreply`);
       }
-      const retriedParams = removeMessageThreadIdParam(params);
-      return await attempt(retriedParams, `${label}-threadless`);
+      throw err;
     }
   };
 
@@ -339,6 +414,14 @@ export async function sendMessageTelegram(
     fallbackText?: string,
   ) => {
     return await sendWithThreadFallback(params, "message", async (effectiveParams, label) => {
+      traceTelegramReplyRoute(cfg, "sendMessage-attempt", {
+        label,
+        chatId,
+        hasParams: Boolean(effectiveParams),
+        replyToMessageId: effectiveParams?.reply_to_message_id,
+        hasReplyParameters: Boolean(effectiveParams?.reply_parameters),
+        messageThreadId: effectiveParams?.message_thread_id,
+      });
       const htmlText = renderHtmlText(rawText);
       const baseParams = effectiveParams ? { ...effectiveParams } : {};
       if (linkPreviewOptions) {
@@ -354,6 +437,19 @@ export async function sendMessageTelegram(
         () =>
           api.sendMessage(chatId, htmlText, sendParams as Parameters<typeof api.sendMessage>[2]),
         label,
+        (err) => {
+          const errText = formatErrorMessage(err);
+          if (PARSE_ERR_RE.test(errText)) {
+            return false;
+          }
+          if (hasMessageThreadIdParam(effectiveParams) && isTelegramThreadNotFoundError(err)) {
+            return false;
+          }
+          if (hasReplyTargetParam(effectiveParams) && isTelegramReplyTargetNotFoundError(err)) {
+            return false;
+          }
+          return true;
+        },
       ).catch(async (err) => {
         // Telegram rejects malformed HTML (e.g., unsupported tags or entities).
         // When that happens, fall back to plain text so the message still delivers.
@@ -635,10 +731,24 @@ export async function reactMessageTelegram(
   }
   try {
     await requestWithDiag(() => api.setMessageReaction(chatId, messageId, reactions), "reaction");
+    const action = remove || !trimmedEmoji ? "cleared" : "added";
+    const emojiForLog = remove || !trimmedEmoji ? "(cleared)" : trimmedEmoji;
+    reactionLogger.info(
+      `telegram reaction ${action} ${emojiForLog} chat=${chatId} message=${messageId}`,
+    );
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = formatErrorMessage(err);
     if (/REACTION_INVALID/i.test(msg)) {
       return { ok: false as const, warning: `Reaction unavailable: ${trimmedEmoji}` };
+    }
+    if (
+      /400: Bad Request: message to react not found/i.test(msg) ||
+      /400: Bad Request: message not found/i.test(msg)
+    ) {
+      if (opts.verbose) {
+        console.warn(`[telegram] Failed to react to missing message ${messageId}: ${msg}`);
+      }
+      return { ok: true };
     }
     throw err;
   }
@@ -882,18 +992,27 @@ export async function sendStickerTelegram(
     try {
       return await attempt(params, label);
     } catch (err) {
-      if (!hasMessageThreadIdParam(params) || !isTelegramThreadNotFoundError(err)) {
-        throw err;
+      if (hasMessageThreadIdParam(params) && isTelegramThreadNotFoundError(err)) {
+        if (opts.verbose) {
+          console.warn(
+            `telegram ${label} failed with message_thread_id, retrying without thread: ${formatErrorMessage(err)}`,
+          );
+        }
+        const retriedParams = removeMessageThreadIdParam(params) as
+          | Record<string, number>
+          | undefined;
+        return await attempt(retriedParams, `${label}-threadless`);
       }
-      if (opts.verbose) {
-        console.warn(
-          `telegram ${label} failed with message_thread_id, retrying without thread: ${formatErrorMessage(err)}`,
-        );
+      if (hasReplyTargetParam(params) && isTelegramReplyTargetNotFoundError(err)) {
+        if (opts.verbose) {
+          console.warn(
+            `telegram ${label} failed with reply target, retrying without reply params: ${formatErrorMessage(err)}`,
+          );
+        }
+        const retriedParams = removeReplyTargetParams(params) as Record<string, number> | undefined;
+        return await attempt(retriedParams, `${label}-noreply`);
       }
-      const retriedParams = removeMessageThreadIdParam(params) as
-        | Record<string, number>
-        | undefined;
-      return await attempt(retriedParams, `${label}-threadless`);
+      throw err;
     }
   };
 

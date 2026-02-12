@@ -604,6 +604,7 @@ export const registerTelegramNativeCommands = ({
                   tableMode,
                   chunkMode,
                   linkPreview: telegramCfg.linkPreview,
+                  sourceMessageId: msg.message_id,
                 });
                 if (result.delivered) {
                   deliveryState.delivered = true;
@@ -637,6 +638,7 @@ export const registerTelegramNativeCommands = ({
               tableMode,
               chunkMode,
               linkPreview: telegramCfg.linkPreview,
+              sourceMessageId: msg.message_id,
             });
           }
         });
@@ -722,6 +724,7 @@ export const registerTelegramNativeCommands = ({
             tableMode,
             chunkMode,
             linkPreview: telegramCfg.linkPreview,
+            sourceMessageId: msg.message_id,
           });
         });
       }

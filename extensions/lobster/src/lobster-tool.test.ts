@@ -19,15 +19,14 @@ async function writeFakeLobsterScript(scriptBody: string, prefix = "openclaw-lob
   }
 
   const binPath = path.join(dir, "lobster");
-  const file = `#!/usr/bin/env node\n${scriptBody}\n`;
+  const file = `#!/bin/sh\n${scriptBody}\n`;
   await fs.writeFile(binPath, file, { encoding: "utf8", mode: 0o755 });
   return { dir, binPath };
 }
 
 async function writeFakeLobster(params: { payload: unknown }) {
-  const scriptBody =
-    `const payload = ${JSON.stringify(params.payload)};\n` +
-    `process.stdout.write(JSON.stringify(payload));\n`;
+  const payload = JSON.stringify(params.payload).replaceAll("'", `'\"'\"'`);
+  const scriptBody = `printf '%s' '${payload}'\n`;
   return await writeFakeLobsterScript(scriptBody);
 }
 
@@ -96,10 +95,9 @@ describe("lobster plugin tool", () => {
 
   it("tolerates noisy stdout before the JSON envelope", async () => {
     const payload = { ok: true, status: "ok", output: [], requiresApproval: null };
+    const escaped = JSON.stringify(payload).replaceAll("'", `'\"'\"'`);
     const { dir } = await writeFakeLobsterScript(
-      `const payload = ${JSON.stringify(payload)};\n` +
-        `console.log("noise before json");\n` +
-        `process.stdout.write(JSON.stringify(payload));\n`,
+      `printf '%s\\n' 'noise before json'\n` + `printf '%s' '${escaped}'\n`,
       "openclaw-lobster-plugin-noisy-",
     );
 
@@ -212,7 +210,7 @@ describe("lobster plugin tool", () => {
 
   it("rejects invalid JSON from lobster", async () => {
     const { dir } = await writeFakeLobsterScript(
-      `process.stdout.write("nope");\n`,
+      `printf '%s' 'nope'\n`,
       "openclaw-lobster-plugin-bad-",
     );
 

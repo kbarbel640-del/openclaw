@@ -13,8 +13,8 @@ OPENCLAW_E2E_MODELS="${OPENCLAW_E2E_MODELS:-${CLAWDBOT_E2E_MODELS:-}}"
 echo "==> Build image: $IMAGE_NAME"
 docker build \
   -t "$IMAGE_NAME" \
-  -f "$ROOT_DIR/scripts/docker/install-sh-e2e/Dockerfile" \
-  "$ROOT_DIR/scripts/docker/install-sh-e2e"
+  -f "$ROOT_DIR/docker/install-sh-e2e/Dockerfile" \
+  "$ROOT_DIR/docker/install-sh-e2e"
 
 echo "==> Run E2E installer test"
 docker run --rm \

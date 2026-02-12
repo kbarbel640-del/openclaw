@@ -35,7 +35,7 @@ Sandboxing details: [Sandboxing](/gateway/sandboxing)
 From repo root:
 
 ```bash
-./docker-setup.sh
+./docker/setup.sh
 ```
 
 This script:
@@ -131,7 +131,7 @@ After `openclaw status` or `openclaw security audit` you may see:
 ### Extra mounts (optional)
 
 If you want to mount additional host directories into the containers, set
-`OPENCLAW_EXTRA_MOUNTS` before running `docker-setup.sh`. This accepts a
+`OPENCLAW_EXTRA_MOUNTS` before running `docker/setup.sh`. This accepts a
 comma-separated list of Docker bind mounts and applies them to both
 `openclaw-gateway` and `openclaw-cli` by generating `docker-compose.extra.yml`.
 
@@ -139,13 +139,13 @@ Example:
 
 ```bash
 export OPENCLAW_EXTRA_MOUNTS="$HOME/.codex:/home/node/.codex:ro,$HOME/github:/home/node/github:rw"
-./docker-setup.sh
+./docker/setup.sh
 ```
 
 Notes:
 
 - Paths must be shared with Docker Desktop on macOS/Windows.
-- If you edit `OPENCLAW_EXTRA_MOUNTS`, rerun `docker-setup.sh` to regenerate the
+- If you edit `OPENCLAW_EXTRA_MOUNTS`, rerun `docker/setup.sh` to regenerate the
   extra compose file.
 - `docker-compose.extra.yml` is generated. Don’t hand-edit it.
 
@@ -161,7 +161,7 @@ Example:
 
 ```bash
 export OPENCLAW_HOME_VOLUME="openclaw_home"
-./docker-setup.sh
+./docker/setup.sh
 ```
 
 You can combine this with extra mounts:
@@ -169,19 +169,19 @@ You can combine this with extra mounts:
 ```bash
 export OPENCLAW_HOME_VOLUME="openclaw_home"
 export OPENCLAW_EXTRA_MOUNTS="$HOME/.codex:/home/node/.codex:ro,$HOME/github:/home/node/github:rw"
-./docker-setup.sh
+./docker/setup.sh
 ```
 
 Notes:
 
-- If you change `OPENCLAW_HOME_VOLUME`, rerun `docker-setup.sh` to regenerate the
+- If you change `OPENCLAW_HOME_VOLUME`, rerun `docker/setup.sh` to regenerate the
   extra compose file.
 - The named volume persists until removed with `docker volume rm <name>`.
 
 ### Install extra apt packages (optional)
 
 If you need system packages inside the image (for example, build tools or media
-libraries), set `OPENCLAW_DOCKER_APT_PACKAGES` before running `docker-setup.sh`.
+libraries), set `OPENCLAW_DOCKER_APT_PACKAGES` before running `docker/setup.sh`.
 This installs the packages during the image build, so they persist even if the
 container is deleted.
 
@@ -189,13 +189,13 @@ Example:
 
 ```bash
 export OPENCLAW_DOCKER_APT_PACKAGES="ffmpeg build-essential"
-./docker-setup.sh
+./docker/setup.sh
 ```
 
 Notes:
 
 - This accepts a space-separated list of apt package names.
-- If you change `OPENCLAW_DOCKER_APT_PACKAGES`, rerun `docker-setup.sh` to rebuild
+- If you change `OPENCLAW_DOCKER_APT_PACKAGES`, rerun `docker/setup.sh` to rebuild
   the image.
 
 ### Power-user / full-featured container (opt-in)
@@ -213,14 +213,14 @@ If you want a more full-featured container, use these opt-in knobs:
 
 ```bash
 export OPENCLAW_HOME_VOLUME="openclaw_home"
-./docker-setup.sh
+./docker/setup.sh
 ```
 
 2. **Bake system deps into the image** (repeatable + persistent):
 
 ```bash
 export OPENCLAW_DOCKER_APT_PACKAGES="git curl jq"
-./docker-setup.sh
+./docker/setup.sh
 ```
 
 3. **Install Playwright browsers without `npx`** (avoids npm override conflicts):

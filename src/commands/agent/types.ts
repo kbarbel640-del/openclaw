@@ -76,4 +76,9 @@ export type AgentCommandOpts = {
   inputProvenance?: InputProvenance;
   /** Per-call stream param overrides (best-effort). */
   streamParams?: AgentStreamParams;
+  /**
+   * When false, do not print undelivered agent payloads to runtime logs.
+   * Useful for gateway/background callers that already consume structured results.
+   */
+  logUndeliveredOutput?: boolean;
 };

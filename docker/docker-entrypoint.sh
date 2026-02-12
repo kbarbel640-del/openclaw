@@ -144,7 +144,8 @@ start_tailscale_if_enabled() {
 }
 
 # 使用 --tailscale serve/funnel 時必須先有 tailscaled；失敗則 exit 以利存取（不可 skipped）
-if need_tailscale_daemon "$@"; then
+# PM2 模式下 command 不含 gateway args，透過 OPENCLAW_GATEWAY_FORCE_TAILSCALED=1 強制啟動 daemon。
+if need_tailscale_daemon "$@" || [[ "${OPENCLAW_GATEWAY_FORCE_TAILSCALED:-0}" == "1" ]]; then
   ensure_tailscaled_daemon || exit 1
 fi
 start_tailscale_if_enabled

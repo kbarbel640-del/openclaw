@@ -13,8 +13,8 @@ LATEST_FILE="${LATEST_DIR}/latest"
 echo "==> Build smoke image (upgrade, root): $SMOKE_IMAGE"
 docker build \
   -t "$SMOKE_IMAGE" \
-  -f "$ROOT_DIR/scripts/docker/install-sh-smoke/Dockerfile" \
-  "$ROOT_DIR/scripts/docker/install-sh-smoke"
+  -f "$ROOT_DIR/docker/install-sh-smoke/Dockerfile" \
+  "$ROOT_DIR/docker/install-sh-smoke"
 
 echo "==> Run installer smoke test (root): $INSTALL_URL"
 docker run --rm -t \
@@ -38,8 +38,8 @@ else
   echo "==> Build non-root image: $NONROOT_IMAGE"
   docker build \
     -t "$NONROOT_IMAGE" \
-    -f "$ROOT_DIR/scripts/docker/install-sh-nonroot/Dockerfile" \
-    "$ROOT_DIR/scripts/docker/install-sh-nonroot"
+    -f "$ROOT_DIR/docker/install-sh-nonroot/Dockerfile" \
+    "$ROOT_DIR/docker/install-sh-nonroot"
 
   echo "==> Run installer non-root test: $INSTALL_URL"
   docker run --rm -t \

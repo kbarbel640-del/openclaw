@@ -399,13 +399,6 @@ function resolveModelFallbacks(model?: unknown): string[] | null {
   return null;
 }
 
-function parseFallbackList(value: string): string[] {
-  return value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
 type ConfiguredModelOption = {
   value: string;
   label: string;
@@ -449,6 +442,31 @@ function buildModelOptions(configForm: Record<string, unknown> | null, current?:
     `;
   }
   return options.map((option) => html`<option value=${option.value}>${option.label}</option>`);
+}
+
+function getModelLabel(configForm: Record<string, unknown> | null, modelId: string): string {
+  const options = resolveConfiguredModels(configForm);
+  const found = options.find((o) => o.value === modelId);
+  return found?.label ?? modelId;
+}
+
+function buildFallbackAddOptions(
+  configForm: Record<string, unknown> | null,
+  modelFallbacks: string[] | null,
+) {
+  const options = [...resolveConfiguredModels(configForm)];
+  const fallbacks = modelFallbacks ?? [];
+  const existingSet = new Set(fallbacks);
+  for (const fb of fallbacks) {
+    if (fb && !options.some((o) => o.value === fb)) {
+      options.push({ value: fb, label: `Current (${fb})` });
+    }
+  }
+  const available = options.filter((o) => !existingSet.has(o.value));
+  return html`
+    <option value="">-- Add model --</option>
+    ${available.map((opt) => html`<option value=${opt.value}>${opt.label}</option>`)}
+  `;
 }
 
 type CompiledPattern =
@@ -821,7 +839,6 @@ function renderAgentOverview(params: {
     (defaultModel !== "-" ? normalizeModelValue(defaultModel) : null);
   const effectivePrimary = modelPrimary ?? defaultPrimary ?? null;
   const modelFallbacks = resolveModelFallbacks(config.entry?.model);
-  const fallbackText = modelFallbacks ? modelFallbacks.join(", ") : "";
   const identityName =
     agentIdentity?.name?.trim() ||
     agent.identity?.name?.trim() ||
@@ -873,7 +890,7 @@ function renderAgentOverview(params: {
 
       <div class="agent-model-select" style="margin-top: 20px;">
         <div class="label">Model Selection</div>
-        <div class="row" style="gap: 12px; flex-wrap: wrap;">
+        <div class="agent-model-select-row">
           <label class="field" style="min-width: 260px; flex: 1;">
             <span>Primary model${isDefault ? " (default)" : ""}</span>
             <select
@@ -896,19 +913,97 @@ function renderAgentOverview(params: {
               ${buildModelOptions(configForm, effectivePrimary ?? undefined)}
             </select>
           </label>
-          <label class="field" style="min-width: 260px; flex: 1;">
-            <span>Fallbacks (comma-separated)</span>
-            <input
-              .value=${fallbackText}
-              ?disabled=${!configForm || configLoading || configSaving}
-              placeholder="provider/model, provider/model"
-              @input=${(e: Event) =>
-                onModelFallbacksChange(
-                  agent.id,
-                  parseFallbackList((e.target as HTMLInputElement).value),
-                )}
-            />
-          </label>
+          <div class="field agent-fallbacks-field agent-fallbacks-field--full">
+            <span>Fallbacks</span>
+            <div class="agent-fallbacks-list">
+              ${
+                (modelFallbacks ?? []).length === 0
+                  ? html`
+                      <div class="agent-fallback-empty muted">No fallbacks</div>
+                    `
+                  : (modelFallbacks ?? []).map(
+                      (modelId, i) => html`
+                  <div
+                    class="agent-fallback-row${!configForm || configLoading || configSaving ? " is-disabled" : ""}"
+                    draggable=${configForm && !configLoading && !configSaving}
+                    data-index=${i}
+                    @dragstart=${(e: DragEvent) => {
+                      if (!configForm || configLoading || configSaving) {
+                        return;
+                      }
+                      e.dataTransfer!.setData("text/plain", String(i));
+                      e.dataTransfer!.effectAllowed = "move";
+                      (e.currentTarget as HTMLElement).classList.add("drag-source");
+                    }}
+                    @dragend=${(e: DragEvent) => {
+                      (e.currentTarget as HTMLElement).classList.remove("drag-source");
+                    }}
+                    @dragover=${(e: DragEvent) => {
+                      e.preventDefault();
+                      e.dataTransfer!.dropEffect = "move";
+                    }}
+                    @drop=${(e: DragEvent) => {
+                      e.preventDefault();
+                      if (!configForm || configLoading || configSaving) {
+                        return;
+                      }
+                      const fromIdx = parseInt(e.dataTransfer!.getData("text/plain"), 10);
+                      const toIdx = parseInt(
+                        (e.currentTarget as HTMLElement).dataset.index ?? "",
+                        10,
+                      );
+                      if (Number.isNaN(fromIdx) || Number.isNaN(toIdx) || fromIdx === toIdx) {
+                        return;
+                      }
+                      const next = [...(modelFallbacks ?? [])];
+                      const [removed] = next.splice(fromIdx, 1);
+                      next.splice(toIdx, 0, removed);
+                      onModelFallbacksChange(agent.id, next);
+                    }}
+                  >
+                    <span class="agent-fallback-drag-handle">≡</span>
+                    <span class="agent-fallback-label"
+                      >${getModelLabel(configForm, modelId)}</span
+                    >
+                    <button
+                      type="button"
+                      class="agent-fallback-remove"
+                      ?disabled=${!configForm || configLoading || configSaving}
+                      aria-label="Remove fallback"
+                      @click=${() => {
+                        const next = (modelFallbacks ?? []).filter((_, idx) => idx !== i);
+                        onModelFallbacksChange(agent.id, next);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                `,
+                    )
+              }
+            </div>
+            <div class="agent-fallback-add">
+              <select
+                ?disabled=${!configForm || configLoading || configSaving}
+                @change=${(e: Event) => {
+                  const sel = e.target as HTMLSelectElement;
+                  const value = sel.value?.trim();
+                  if (!value) {
+                    return;
+                  }
+                  const fallbacks = modelFallbacks ?? [];
+                  if (fallbacks.includes(value)) {
+                    sel.value = "";
+                    return;
+                  }
+                  onModelFallbacksChange(agent.id, [...fallbacks, value]);
+                  sel.value = "";
+                }}
+              >
+                ${buildFallbackAddOptions(configForm, modelFallbacks)}
+              </select>
+            </div>
+          </div>
         </div>
         <div class="row" style="justify-content: flex-end; gap: 8px;">
           <button

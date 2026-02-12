@@ -219,6 +219,42 @@ describe("deliverAgentCommandResult", () => {
     );
   });
 
+  it("prefers messageChannel for delivery when channel overrides are absent", async () => {
+    const cfg = {} as OpenClawConfig;
+    const deps = {} as CliDeps;
+    const runtime = {
+      log: vi.fn(),
+      error: vi.fn(),
+    } as unknown as RuntimeEnv;
+    const sessionEntry = {
+      lastChannel: "whatsapp",
+      lastTo: "+15550001111",
+    } as SessionEntry;
+    const result = {
+      payloads: [{ text: "hi" }],
+      meta: {},
+    };
+
+    const { deliverAgentCommandResult } = await import("./agent/delivery.js");
+    await deliverAgentCommandResult({
+      cfg,
+      deps,
+      runtime,
+      opts: {
+        message: "hello",
+        deliver: true,
+        messageChannel: "telegram",
+      },
+      sessionEntry,
+      result,
+      payloads: result.payloads,
+    });
+
+    expect(mocks.resolveOutboundTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: "telegram" }),
+    );
+  });
+
   it("uses reply overrides for delivery routing", async () => {
     const cfg = {} as OpenClawConfig;
     const deps = {} as CliDeps;
@@ -296,5 +332,96 @@ describe("deliverAgentCommandResult", () => {
     expect(line).toContain("run=run-announce");
     expect(line).toContain("channel=webchat");
     expect(line).toContain("ANNOUNCE_SKIP");
+  });
+
+  it("suppresses undelivered payload logs when requested", async () => {
+    const cfg = {} as OpenClawConfig;
+    const deps = {} as CliDeps;
+    const runtime = {
+      log: vi.fn(),
+      error: vi.fn(),
+    } as unknown as RuntimeEnv;
+    const result = {
+      payloads: [{ text: "should stay out of logs" }],
+      meta: {},
+    };
+
+    const { deliverAgentCommandResult } = await import("./agent/delivery.js");
+    await deliverAgentCommandResult({
+      cfg,
+      deps,
+      runtime,
+      opts: {
+        message: "hello",
+        deliver: false,
+        logUndeliveredOutput: false,
+      },
+      sessionEntry: undefined,
+      result,
+      payloads: result.payloads,
+    });
+
+    expect(runtime.log).not.toHaveBeenCalled();
+  });
+
+  it("suppresses no-reply logs when undelivered output is disabled", async () => {
+    const cfg = {} as OpenClawConfig;
+    const deps = {} as CliDeps;
+    const runtime = {
+      log: vi.fn(),
+      error: vi.fn(),
+    } as unknown as RuntimeEnv;
+    const result = {
+      payloads: [],
+      meta: {},
+    };
+
+    const { deliverAgentCommandResult } = await import("./agent/delivery.js");
+    await deliverAgentCommandResult({
+      cfg,
+      deps,
+      runtime,
+      opts: {
+        message: "hello",
+        deliver: false,
+        logUndeliveredOutput: false,
+      },
+      sessionEntry: undefined,
+      result,
+      payloads: result.payloads,
+    });
+
+    expect(runtime.log).not.toHaveBeenCalled();
+  });
+
+  it("suppresses no-reply logs in deliver mode when payload is empty", async () => {
+    const cfg = {} as OpenClawConfig;
+    const deps = {} as CliDeps;
+    const runtime = {
+      log: vi.fn(),
+      error: vi.fn(),
+    } as unknown as RuntimeEnv;
+    const result = {
+      payloads: [],
+      meta: {},
+    };
+
+    const { deliverAgentCommandResult } = await import("./agent/delivery.js");
+    await deliverAgentCommandResult({
+      cfg,
+      deps,
+      runtime,
+      opts: {
+        message: "hello",
+        deliver: true,
+        channel: "telegram",
+        to: "123",
+      },
+      sessionEntry: undefined,
+      result,
+      payloads: result.payloads,
+    });
+
+    expect(runtime.log).not.toHaveBeenCalledWith("No reply from agent.");
   });
 });

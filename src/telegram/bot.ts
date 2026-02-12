@@ -256,7 +256,8 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     globalSetting: cfg.commands?.native,
   });
   const useAccessGroups = cfg.commands?.useAccessGroups !== false;
-  const ackReactionScope = cfg.messages?.ackReactionScope ?? "group-mentions";
+  // Queue-driven Telegram flow owns status reactions (⏳/👀/👌), so legacy ack hook stays off.
+  const ackReactionScope = "off";
   const mediaMaxBytes = (opts.mediaMaxMb ?? telegramCfg.mediaMaxMb ?? 5) * 1024 * 1024;
   const logger = getChildLogger({ module: "telegram-auto-reply" });
   const streamMode = resolveTelegramStreamMode(telegramCfg);

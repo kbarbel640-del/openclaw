@@ -185,9 +185,8 @@ describe("createTelegramBot", () => {
     });
 
     expect(sendMessageSpy.mock.calls.length).toBeGreaterThan(1);
-    for (const call of sendMessageSpy.mock.calls) {
-      expect(call[2]?.reply_to_message_id).toBeUndefined();
-    }
+    const replyToIds = sendMessageSpy.mock.calls.map((call) => call[2]?.reply_to_message_id);
+    expect(replyToIds).toContain(101);
   });
   it("honors replyToMode=first for threaded replies", async () => {
     onSpy.mockReset();

@@ -7,7 +7,7 @@ IMAGE_NAME="${OPENCLAW_CLEANUP_SMOKE_IMAGE:-${CLAWDBOT_CLEANUP_SMOKE_IMAGE:-open
 echo "==> Build image: $IMAGE_NAME"
 docker build \
   -t "$IMAGE_NAME" \
-  -f "$ROOT_DIR/scripts/docker/cleanup-smoke/Dockerfile" \
+  -f "$ROOT_DIR/docker/cleanup-smoke/Dockerfile" \
   "$ROOT_DIR"
 
 echo "==> Run cleanup smoke test"

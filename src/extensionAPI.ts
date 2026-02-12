@@ -6,6 +6,7 @@ export { resolveThinkingDefault } from "./agents/model-selection.ts";
 export { runEmbeddedPiAgent } from "./agents/pi-embedded.ts";
 export { resolveAgentTimeoutMs } from "./agents/timeout.ts";
 export { ensureAgentWorkspace } from "./agents/workspace.ts";
+export { createMessageTool } from "./agents/tools/message-tool.ts";
 export {
   resolveStorePath,
   loadSessionStore,

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
-EXTRA_COMPOSE_FILE="$ROOT_DIR/docker-compose.extra.yml"
+DOCKER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$DOCKER_DIR")"
+COMPOSE_FILE="$REPO_ROOT/docker-compose.yml"
+EXTRA_COMPOSE_FILE="$REPO_ROOT/docker-compose.extra.yml"
 IMAGE_NAME="${OPENCLAW_IMAGE:-openclaw:local}"
 EXTRA_MOUNTS="${OPENCLAW_EXTRA_MOUNTS:-}"
 HOME_VOLUME_NAME="${OPENCLAW_HOME_VOLUME:-}"
@@ -146,7 +147,7 @@ for compose_file in "${COMPOSE_FILES[@]}"; do
   COMPOSE_HINT+=" -f ${compose_file}"
 done
 
-ENV_FILE="$ROOT_DIR/.env"
+ENV_FILE="$REPO_ROOT/.env"
 upsert_env() {
   local file="$1"
   shift
@@ -202,8 +203,8 @@ DOCKER_BUILDKIT=1 docker buildx build \
   --load \
   --build-arg "OPENCLAW_DOCKER_APT_PACKAGES=${OPENCLAW_DOCKER_APT_PACKAGES}" \
   -t "$IMAGE_NAME" \
-  -f "$ROOT_DIR/Dockerfile" \
-  "$ROOT_DIR"
+  -f "$REPO_ROOT/Dockerfile" \
+  "$REPO_ROOT"
 
 echo ""
 if [[ -n "${OPENCLAW_ONBOARD_NON_INTERACTIVE:-}" ]]; then

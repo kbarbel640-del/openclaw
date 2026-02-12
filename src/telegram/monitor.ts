@@ -79,23 +79,14 @@ const isGetUpdatesConflict = (err: unknown) => {
   return haystack.includes("getupdates");
 };
 
-/** Check if error is a Grammy HttpError (used to scope unhandled rejection handling) */
-const isGrammyHttpError = (err: unknown): boolean => {
-  if (!err || typeof err !== "object") {
-    return false;
-  }
-  return (err as { name?: string }).name === "HttpError";
-};
-
 export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
   const log = opts.runtime?.error ?? console.error;
 
   // Register handler for Grammy HttpError unhandled rejections.
   // This catches network errors that escape the polling loop's try-catch
   // (e.g., from setMyCommands during bot setup).
-  // We gate on isGrammyHttpError to avoid suppressing non-Telegram errors.
   const unregisterHandler = registerUnhandledRejectionHandler((err) => {
-    if (isGrammyHttpError(err) && isRecoverableTelegramNetworkError(err, { context: "polling" })) {
+    if (isRecoverableTelegramNetworkError(err, { context: "polling" })) {
       log(`[telegram] Suppressed network error: ${formatErrorMessage(err)}`);
       return true; // handled - don't crash
     }

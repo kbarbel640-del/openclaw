@@ -5,6 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
+        HTTP_PROXY: ""
+        HTTPS_PROXY: ""
         OPENCLAW_DOCKER_APT_PACKAGES: ${OPENCLAW_DOCKER_APT_PACKAGES:-}
     environment:
       HOME: /home/node
@@ -19,19 +21,27 @@ services:
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
-      OPENCLAW_TAILSCALE_AUTOLOGIN: ${OPENCLAW_TAILSCALE_AUTOLOGIN:-0}
+      # Direct integrations
+      MATON_API_KEY: ${MATON_API_KEY}
+      TICKTICK_CLIENT_ID: ${TICKTICK_CLIENT_ID}
+      TICKTICK_CLIENT_SECRET: ${TICKTICK_CLIENT_SECRET}
+      TICKTICK_REDIRECT_URI: ${TICKTICK_REDIRECT_URI}
+      OUTLINE_TOKEN: ${OUTLINE_TOKEN}
+      OUTLINE_API_TOKEN: ${OUTLINE_API_TOKEN}
+      OPENCLAW_TAILSCALE_AUTOLOGIN: "0"
       TAILSCALE_AUTHKEY: ${TAILSCALE_AUTHKEY:-}
       TAILSCALE_HOSTNAME: ${TAILSCALE_HOSTNAME:-openclaw-gateway}
       TAILSCALE_SOCKET: ${TAILSCALE_SOCKET:-/home/node/.openclaw/tailscale/tailscaled.sock}
       TAILSCALE_TUN_MODE: ${TAILSCALE_TUN_MODE:-userspace-networking}
       TAILSCALE_ACCEPT_ROUTES: ${TAILSCALE_ACCEPT_ROUTES:-0}
+      OPENCLAW_GATEWAY_FORCE_TAILSCALED: "1"
       # Tailscale serve 從 localhost 轉發，須信任 proxy 以消除「Proxy headers from untrusted address」
       OPENCLAW_GATEWAY_TRUSTED_PROXIES: ${OPENCLAW_GATEWAY_TRUSTED_PROXIES:-127.0.0.1,::1}
+      OPENCLAW_UI_DEV: "1"
+      OPENCLAW_TELEGRAM_INBOUND_QUEUE_SCRIPT: /home/node/.openclaw/workspace/scripts/enqueue_telegram_inbound.sh
     volumes:
       - .:/app
       - /app/node_modules
-      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
       # brew 持久化：skill install 的 brew install 會寫入此處；預設 ./data/brew，首次請 mkdir -p data/brew && chown 1000:1000 data/brew
       - ${OPENCLAW_BREW_DIR:-./data/brew}:/home/linuxbrew
       # 供 sandbox 在容器內啟動子容器（agent sandbox / sandbox-browser）
@@ -42,11 +52,17 @@ services:
     ports:
       - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
+      - "${OPENCLAW_UI_DEV_PORT:-5173}:5173"
     init: true
     restart: unless-stopped
-    # 入口為 just start（前置 + Control UI build + exec）；傳入完整 argv 給 just start
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 開發模式：用 PM2 同時跑 gateway(tsx watch) + control-ui(vite dev)。
     # OPENCLAW_GATEWAY_ALSO_BIND_LAN=1：gateway 除 loopback 外再監聽 0.0.0.0，讓同 compose 的 openclaw-cli 可連
-    command: ["node", "/app/openclaw.mjs", "gateway", "--tailscale", "serve"]
+    command: ["pnpm", "exec", "pm2-runtime", "start", "docker/pm2.gateway-dev.config.cjs"]
     healthcheck:
       test:
         [
@@ -55,8 +71,8 @@ services:
         ]
       interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 20
+      start_period: 90s
 
   openclaw-cli:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
@@ -64,10 +80,12 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
+        HTTP_PROXY: ""
+        HTTPS_PROXY: ""
         OPENCLAW_DOCKER_APT_PACKAGES: ${OPENCLAW_DOCKER_APT_PACKAGES:-}
     depends_on:
       openclaw-gateway:
-        condition: service_healthy
+        condition: service_started
     environment:
       HOME: /home/node
       PATH: /home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/app/.npm-global/bin:/app/.bun/bin:/usr/local/bin:/usr/bin:/bin
@@ -83,10 +101,8 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
       - ${OPENCLAW_BREW_DIR:-./data/brew}:/home/linuxbrew
     stdin_open: true
     tty: true
     init: true
-    entrypoint: ["node", "dist/index.js"]
+    entrypoint: ["pnpm", "exec", "tsx", "src/entry.ts"]

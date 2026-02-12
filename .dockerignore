@@ -47,6 +47,22 @@ Core/
 Users/
 vendor/
 
+# docs, test, CI, misc (reduce build context)
+docs/
+test/
+.github/
+.agent/
+.agents/
+.markdownlint-cli2.jsonc
+.pre-commit-config.yaml
+.shellcheckrc
+.swiftlint.yml
+.vscode/
+render.yaml
+fly.private.toml
+fly.toml
+zizmor.yml
+
 # Needed for building the Canvas A2UI bundle during Docker image builds.
 # Keep the rest of apps/ and vendor/ excluded to avoid a large build context.
 !apps/shared/

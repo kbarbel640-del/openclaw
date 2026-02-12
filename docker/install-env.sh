@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 依 OpenClaw Docker 安裝計畫匯出環境變數，供 docker-setup.sh 使用。
-# 使用方式： source scripts/openclaw-docker-install-env.sh && ./docker-setup.sh
-# 或：        . scripts/openclaw-docker-install-env.sh && ./docker-setup.sh
+# 依 OpenClaw Docker 安裝計畫匯出環境變數，供 docker/setup.sh 使用。
+# 使用方式： source docker/install-env.sh && ./docker/setup.sh
+# 或：        . docker/install-env.sh && ./docker/setup.sh
 
 set -euo pipefail
 

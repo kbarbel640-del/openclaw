@@ -31,6 +31,24 @@ export default defineConfig(() => {
       outDir: path.resolve(here, "../dist/control-ui"),
       emptyOutDir: true,
       sourcemap: true,
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules")) {
+              if (id.includes("lit")) {
+                return "lit";
+              }
+              if (id.includes("marked")) {
+                return "marked";
+              }
+              if (id.includes("dompurify")) {
+                return "dompurify";
+              }
+            }
+          },
+        },
+      },
     },
     server: {
       host: true,

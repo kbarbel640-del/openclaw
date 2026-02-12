@@ -290,3 +290,52 @@ describe("message tool sandbox passthrough", () => {
     expect(call?.sandboxRoot).toBeUndefined();
   });
 });
+
+describe("message tool action alias compatibility", () => {
+  it("maps action=message with reaction fields to react", async () => {
+    mocks.runMessageAction.mockClear();
+    mocks.runMessageAction.mockResolvedValue({
+      kind: "react",
+      action: "react",
+      channel: "telegram",
+      handledBy: "plugin",
+      payload: {},
+      dryRun: true,
+    } satisfies MessageActionRunResult);
+
+    const tool = createMessageTool({ config: {} as never });
+    await tool.execute("1", {
+      action: "message",
+      channel: "telegram",
+      target: "123",
+      messageId: "969",
+      emoji: "👌",
+    });
+
+    const call = mocks.runMessageAction.mock.calls[0]?.[0];
+    expect(call?.action).toBe("react");
+  });
+
+  it("maps action=message without reaction fields to send", async () => {
+    mocks.runMessageAction.mockClear();
+    mocks.runMessageAction.mockResolvedValue({
+      kind: "send",
+      action: "send",
+      channel: "telegram",
+      handledBy: "plugin",
+      payload: {},
+      dryRun: true,
+    } satisfies MessageActionRunResult);
+
+    const tool = createMessageTool({ config: {} as never });
+    await tool.execute("1", {
+      action: "message",
+      channel: "telegram",
+      target: "123",
+      message: "hi",
+    });
+
+    const call = mocks.runMessageAction.mock.calls[0]?.[0];
+    expect(call?.action).toBe("send");
+  });
+});

@@ -128,6 +128,23 @@ async function runLobsterSubprocessOnce(
     let stdout = "";
     let stdoutBytes = 0;
     let stderr = "";
+    let settled = false;
+
+    const settleReject = (err: unknown) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      reject(err);
+    };
+
+    const settleResolve = (value: { stdout: string }) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolve(value);
+    };
 
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
@@ -139,7 +156,7 @@ async function runLobsterSubprocessOnce(
         try {
           child.kill("SIGKILL");
         } finally {
-          reject(new Error("lobster output exceeded maxStdoutBytes"));
+          settleReject(new Error("lobster output exceeded maxStdoutBytes"));
         }
         return;
       }
@@ -154,22 +171,24 @@ async function runLobsterSubprocessOnce(
       try {
         child.kill("SIGKILL");
       } finally {
-        reject(new Error("lobster subprocess timed out"));
+        settleReject(new Error("lobster subprocess timed out"));
       }
     }, timeoutMs);
 
     child.once("error", (err) => {
       clearTimeout(timer);
-      reject(err);
+      settleReject(err);
     });
 
-    child.once("exit", (code) => {
+    child.once("close", (code) => {
       clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(`lobster failed (${code ?? "?"}): ${stderr.trim() || stdout.trim()}`));
+        settleReject(
+          new Error(`lobster failed (${code ?? "?"}): ${stderr.trim() || stdout.trim()}`),
+        );
         return;
       }
-      resolve({ stdout });
+      settleResolve({ stdout: stdout || stderr });
     });
   });
 }
@@ -202,14 +221,78 @@ function parseEnvelope(stdout: string): LobsterEnvelope {
     }
   };
 
-  let parsed: unknown = tryParse(trimmed);
+  const extractJsonCandidates = (input: string): string[] => {
+    const candidates: string[] = [];
+    let start = -1;
+    const stack: string[] = [];
+    let inString = false;
+    let escaping = false;
 
-  // Some environments can leak extra stdout (e.g. warnings/logs) before the
-  // final JSON envelope. Be tolerant and parse the last JSON-looking suffix.
+    for (let i = 0; i < input.length; i += 1) {
+      const ch = input[i];
+
+      if (inString) {
+        if (escaping) {
+          escaping = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaping = true;
+          continue;
+        }
+        if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (stack.length === 0 && (ch === "{" || ch === "[")) {
+        start = i;
+      }
+
+      if (ch === "{" || ch === "[") {
+        stack.push(ch);
+        continue;
+      }
+
+      if (ch !== "}" && ch !== "]") {
+        continue;
+      }
+
+      const open = stack.pop();
+      if (!open) {
+        continue;
+      }
+
+      const isValidPair = (open === "{" && ch === "}") || (open === "[" && ch === "]");
+      if (!isValidPair) {
+        stack.length = 0;
+        start = -1;
+        continue;
+      }
+
+      if (stack.length === 0 && start >= 0) {
+        candidates.push(input.slice(start, i + 1));
+        start = -1;
+      }
+    }
+
+    return candidates;
+  };
+
+  let parsed: unknown = tryParse(trimmed);
   if (parsed === undefined) {
-    const suffixMatch = trimmed.match(/({[\s\S]*}|\[[\s\S]*])\s*$/);
-    if (suffixMatch?.[1]) {
-      parsed = tryParse(suffixMatch[1]);
+    const candidates = extractJsonCandidates(trimmed);
+    for (let i = candidates.length - 1; i >= 0; i -= 1) {
+      parsed = tryParse(candidates[i]);
+      if (parsed !== undefined) {
+        break;
+      }
     }
   }
 

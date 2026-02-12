@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   resolveOutboundTarget: vi.fn(() => ({ ok: true as const, to: "+1999" })),
+  getChannelPlugin: vi.fn(() => ({ id: "whatsapp" })),
+  normalizeChannelId: vi.fn((value: string) => value),
 }));
 
 vi.mock("./targets.js", async () => {
@@ -12,11 +14,63 @@ vi.mock("./targets.js", async () => {
   };
 });
 
+vi.mock("../../channels/plugins/index.js", () => ({
+  getChannelPlugin: mocks.getChannelPlugin,
+  normalizeChannelId: mocks.normalizeChannelId,
+}));
+
 import type { OpenClawConfig } from "../../config/config.js";
 import { resolveAgentDeliveryPlan, resolveAgentOutboundTarget } from "./agent-delivery.js";
 
 describe("agent delivery helpers", () => {
+  beforeEach(() => {
+    mocks.resolveOutboundTarget.mockClear();
+    mocks.getChannelPlugin.mockReset();
+    mocks.normalizeChannelId.mockReset();
+    mocks.getChannelPlugin.mockImplementation(() => ({ id: "whatsapp" }));
+    mocks.normalizeChannelId.mockImplementation((value: string) => value);
+  });
+
+  it("falls back to first available channel when default channel plugin is unavailable", () => {
+    mocks.getChannelPlugin.mockImplementation((id: string) => (id === "telegram" ? {} : undefined));
+    const plan = resolveAgentDeliveryPlan({
+      sessionEntry: undefined,
+      requestedChannel: "last",
+      explicitTo: undefined,
+      accountId: undefined,
+      wantsDelivery: true,
+    });
+    expect(plan.resolvedChannel).toBe("telegram");
+  });
+
+  it("falls back when requested deliverable channel plugin is unavailable", () => {
+    mocks.getChannelPlugin.mockImplementation((id: string) => (id === "telegram" ? {} : undefined));
+    const plan = resolveAgentDeliveryPlan({
+      sessionEntry: undefined,
+      requestedChannel: "whatsapp",
+      explicitTo: undefined,
+      accountId: undefined,
+      wantsDelivery: true,
+    });
+    expect(plan.resolvedChannel).toBe("telegram");
+  });
+
+  it("falls back when session last channel plugin is unavailable", () => {
+    mocks.getChannelPlugin.mockImplementation((id: string) => (id === "telegram" ? {} : undefined));
+    const plan = resolveAgentDeliveryPlan({
+      sessionEntry: {
+        deliveryContext: { channel: "whatsapp", to: "+1555", accountId: "work" },
+      },
+      requestedChannel: "last",
+      explicitTo: undefined,
+      accountId: undefined,
+      wantsDelivery: true,
+    });
+    expect(plan.resolvedChannel).toBe("telegram");
+  });
+
   it("builds a delivery plan from session delivery context", () => {
+    mocks.getChannelPlugin.mockImplementation(() => ({ id: "whatsapp" }));
     const plan = resolveAgentDeliveryPlan({
       sessionEntry: {
         deliveryContext: { channel: "whatsapp", to: "+1555", accountId: "work" },

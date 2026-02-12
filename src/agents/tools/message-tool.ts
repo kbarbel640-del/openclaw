@@ -24,6 +24,7 @@ import { channelTargetSchema, channelTargetsSchema, stringEnum } from "../schema
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
 
 const AllMessageActions = CHANNEL_MESSAGE_ACTION_NAMES;
+const MESSAGE_ACTION_ALIAS = "message";
 const EXPLICIT_TARGET_ACTIONS = new Set<ChannelMessageActionName>([
   "send",
   "sendWithEffect",
@@ -279,9 +280,10 @@ function buildMessageToolSchemaFromActions(
   actions: readonly string[],
   options: { includeButtons: boolean; includeCards: boolean },
 ) {
+  const actionValues = Array.from(new Set([...actions, MESSAGE_ACTION_ALIAS]));
   const props = buildMessageToolSchemaProps(options);
   return Type.Object({
-    action: stringEnum(actions),
+    action: stringEnum(actionValues),
     ...props,
   });
 }
@@ -418,9 +420,21 @@ export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
       }
 
       const cfg = options?.config ?? loadConfig();
-      const action = readStringParam(params, "action", {
+      const rawAction = readStringParam(params, "action", {
         required: true,
-      }) as ChannelMessageActionName;
+      });
+      const action = (() => {
+        if (rawAction !== MESSAGE_ACTION_ALIAS) {
+          return rawAction as ChannelMessageActionName;
+        }
+        // Backward compatibility: older prompts sometimes emit action="message".
+        // Infer intent from reaction fields, otherwise default to send.
+        const hasReactionFields =
+          typeof params.emoji === "string" ||
+          typeof params.messageId === "string" ||
+          typeof params.remove === "boolean";
+        return hasReactionFields ? "react" : "send";
+      })();
       const requireExplicitTarget = options?.requireExplicitTarget === true;
       if (requireExplicitTarget && actionNeedsExplicitTarget(action)) {
         const explicitTarget =
@@ -468,25 +482,43 @@ export function createMessageTool(options?: MessageToolOptions): AnyAgentTool {
             }
           : undefined;
 
-      const result = await runMessageAction({
-        cfg,
-        action,
-        params,
-        defaultAccountId: accountId ?? undefined,
-        gateway,
-        toolContext,
-        agentId: options?.agentSessionKey
-          ? resolveSessionAgentId({ sessionKey: options.agentSessionKey, config: cfg })
-          : undefined,
-        sandboxRoot: options?.sandboxRoot,
-        abortSignal: signal,
-      });
+      try {
+        const result = await runMessageAction({
+          cfg,
+          action,
+          params,
+          defaultAccountId: accountId ?? undefined,
+          gateway,
+          toolContext,
+          agentId: options?.agentSessionKey
+            ? resolveSessionAgentId({ sessionKey: options.agentSessionKey, config: cfg })
+            : undefined,
+          sandboxRoot: options?.sandboxRoot,
+          abortSignal: signal,
+        });
 
-      const toolResult = getToolResult(result);
-      if (toolResult) {
-        return toolResult;
+        const toolResult = getToolResult(result);
+        if (toolResult) {
+          return toolResult;
+        }
+        return jsonResult(result.payload);
+      } catch (err) {
+        // Swallow 400 Bad Request errors from message actions (e.g. "message to react to not found")
+        // to prevent tool failures from crashing the agent loop or looking like system errors.
+        if (
+          err instanceof Error &&
+          (err.message.includes("400") ||
+            err.message.includes("Bad Request") ||
+            err.message.includes("not found"))
+        ) {
+          return jsonResult({
+            ok: false,
+            ignored: true,
+            error: `Action failed (ignored): ${err.message}`,
+          });
+        }
+        throw err;
       }
-      return jsonResult(result.payload);
     },
   };
 }

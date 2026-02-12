@@ -33,15 +33,16 @@ function resolveCommand(command: string): string {
 export async function runExec(
   command: string,
   args: string[],
-  opts: number | { timeoutMs?: number; maxBuffer?: number } = 10_000,
+  opts: number | { timeoutMs?: number; maxBuffer?: number; quietOnError?: boolean } = 10_000,
 ): Promise<{ stdout: string; stderr: string }> {
   const options =
     typeof opts === "number"
-      ? { timeout: opts, encoding: "utf8" as const }
+      ? { timeout: opts, encoding: "utf8" as const, quietOnError: false }
       : {
           timeout: opts.timeoutMs,
           maxBuffer: opts.maxBuffer,
           encoding: "utf8" as const,
+          quietOnError: opts.quietOnError ?? false,
         };
   try {
     const { stdout, stderr } = await execFileAsync(resolveCommand(command), args, options);
@@ -55,7 +56,7 @@ export async function runExec(
     }
     return { stdout, stderr };
   } catch (err) {
-    if (shouldLogVerbose()) {
+    if (shouldLogVerbose() && !options.quietOnError) {
       logError(danger(`Command failed: ${command} ${args.join(" ")}`));
     }
     throw err;

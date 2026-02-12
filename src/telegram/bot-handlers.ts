@@ -32,6 +32,7 @@ import {
 } from "./bot/helpers.js";
 import { migrateTelegramGroupConfig } from "./group-migration.js";
 import { resolveTelegramInlineButtonsScope } from "./inline-buttons.js";
+import { handleQuestionCallback, handleQuestionTextReply } from "./interactive-question.js";
 import {
   buildModelsKeyboard,
   buildProviderKeyboard,
@@ -284,6 +285,11 @@ export const registerTelegramHandlers = ({
     if (shouldSkipUpdate(ctx)) {
       return;
     }
+    // Interactive Question Callback Hook
+    if (await handleQuestionCallback(ctx)) {
+      return;
+    }
+
     // Answer immediately to prevent Telegram from retrying while we process
     await withTelegramApiErrorLogging({
       operation: "answerCallbackQuery",
@@ -681,6 +687,10 @@ export const registerTelegramHandlers = ({
         return;
       }
       if (shouldSkipUpdate(ctx)) {
+        return;
+      }
+      // Interactive Question Text Hook
+      if (await handleQuestionTextReply(ctx)) {
         return;
       }
 

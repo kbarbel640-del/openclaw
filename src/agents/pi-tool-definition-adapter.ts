@@ -55,6 +55,74 @@ function describeToolExecutionError(err: unknown): {
   return { message: String(err) };
 }
 
+function truncateLogValue(value: string, max = 280): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= max) {
+    return normalized;
+  }
+  return `${normalized.slice(0, max - 3)}...`;
+}
+
+function formatExecFailureContext(params: unknown): string | undefined {
+  if (!isPlainObject(params)) {
+    return undefined;
+  }
+  const commandRaw = params.command ?? params.cmd;
+  const command =
+    typeof commandRaw === "string" && commandRaw.trim() ? truncateLogValue(commandRaw) : undefined;
+  if (!command) {
+    return undefined;
+  }
+
+  const details: string[] = [`command="${command}"`];
+  const appendIfPresent = (key: string) => {
+    const value = params[key];
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
+    if (typeof value === "string") {
+      details.push(`${key}="${truncateLogValue(value, 120)}"`);
+      return;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      details.push(`${key}=${String(value)}`);
+    }
+  };
+
+  appendIfPresent("workdir");
+  appendIfPresent("timeout");
+  appendIfPresent("yieldMs");
+  appendIfPresent("background");
+  appendIfPresent("pty");
+  appendIfPresent("elevated");
+  appendIfPresent("host");
+  appendIfPresent("security");
+  appendIfPresent("ask");
+  appendIfPresent("node");
+  appendIfPresent("cmd");
+
+  const env = params.env;
+  if (isPlainObject(env)) {
+    const envKeys = Object.keys(env)
+      .map((key) => key.trim())
+      .filter(Boolean)
+      .toSorted();
+    if (envKeys.length > 0) {
+      details.push(`envKeys=${envKeys.join(",")}`);
+    }
+  }
+  const args = params.args;
+  if (Array.isArray(args) && args.length > 0) {
+    const argPreview = args
+      .slice(0, 5)
+      .map((value) => truncateLogValue(String(value), 40))
+      .join(" ");
+    details.push(`args="${argPreview}${args.length > 5 ? " ..." : ""}"`);
+  }
+
+  return details.join(" ");
+}
+
 function splitToolExecuteArgs(args: ToolExecuteArgsAny): {
   toolCallId: string;
   params: unknown;
@@ -138,8 +206,10 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
           if (described.stack && described.stack !== described.message) {
             logDebug(`tools: ${normalizedName} failed stack:\n${described.stack}`);
           }
-          logError(`[tools] ${normalizedName} failed: ${described.message}`);
-
+          const context = normalizedName === "exec" ? formatExecFailureContext(params) : undefined;
+          logError(
+            `[tools] ${normalizedName} failed: ${described.message}${context ? ` (${context})` : ""}`,
+          );
           const errorResult = jsonResult({
             status: "error",
             tool: normalizedName,

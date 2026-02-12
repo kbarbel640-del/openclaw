@@ -484,7 +484,7 @@ describe("createTelegramBot", () => {
     expect(sendAnimationSpy).toHaveBeenCalledWith("1234", expect.anything(), {
       caption: "caption",
       parse_mode: "HTML",
-      reply_to_message_id: undefined,
+      reply_to_message_id: 5,
     });
     expect(sendPhotoSpy).not.toHaveBeenCalled();
   });

@@ -503,6 +503,7 @@ export async function readTailscaleWhoisIdentity(
     const { stdout } = await exec(tailscaleBin, ["whois", "--json", normalized], {
       timeoutMs: opts?.timeoutMs ?? 5_000,
       maxBuffer: 200_000,
+      quietOnError: true,
     });
     const parsed = stdout ? parsePossiblyNoisyJsonObject(stdout) : {};
     const identity = parseWhoisIdentity(parsed);

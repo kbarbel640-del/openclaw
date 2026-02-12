@@ -6,6 +6,7 @@ import type { RuntimeEnv } from "../../runtime.js";
 import type { StickerMetadata, TelegramContext } from "./types.js";
 import { chunkMarkdownTextWithMode, type ChunkMode } from "../../auto-reply/chunk.js";
 import { danger, logVerbose } from "../../globals.js";
+import { isDiagnosticFlagEnabled } from "../../infra/diagnostic-flags.js";
 import { formatErrorMessage } from "../../infra/errors.js";
 import { mediaKindFromMime } from "../../media/constants.js";
 import { fetchRemoteMedia } from "../../media/fetch.js";
@@ -30,6 +31,19 @@ import {
 
 const PARSE_ERR_RE = /can't parse entities|parse entities|find end of the entity/i;
 const VOICE_FORBIDDEN_RE = /VOICE_MESSAGES_FORBIDDEN/;
+const REPLY_TARGET_NOT_FOUND_RE = /400:\s*Bad Request:\s*message to be replied not found/i;
+const TELEGRAM_REPLY_TRACE_FLAG = "telegram.reply-route";
+
+function traceTelegramReplyRoute(
+  runtime: RuntimeEnv,
+  event: string,
+  fields: Record<string, unknown>,
+) {
+  if (!isDiagnosticFlagEnabled(TELEGRAM_REPLY_TRACE_FLAG)) {
+    return;
+  }
+  runtime.log?.(`[telegram.reply-route] ${event} ${JSON.stringify(fields)}`);
+}
 
 export async function deliverReplies(params: {
   replies: ReplyPayload[];
@@ -48,6 +62,11 @@ export async function deliverReplies(params: {
   linkPreview?: boolean;
   /** Optional quote text for Telegram reply_parameters. */
   replyQuoteText?: string;
+  /**
+   * Canonical inbound Telegram message id for this run.
+   * When set, this is preferred as reply/reaction anchor over payload-level ids.
+   */
+  sourceMessageId?: number;
 }): Promise<{ delivered: boolean }> {
   const {
     replies,
@@ -63,7 +82,10 @@ export async function deliverReplies(params: {
   const chunkMode = params.chunkMode ?? "length";
   let hasReplied = false;
   let hasDelivered = false;
-  let reactionTargetId: number | undefined;
+  const canonicalReplyId =
+    typeof params.sourceMessageId === "number" && Number.isFinite(params.sourceMessageId)
+      ? Math.trunc(params.sourceMessageId)
+      : undefined;
   const markDelivered = () => {
     hasDelivered = true;
   };
@@ -96,10 +118,29 @@ export async function deliverReplies(params: {
       runtime.error?.(danger("reply missing text/media"));
       continue;
     }
-    const replyToId = replyToMode === "off" ? undefined : resolveTelegramReplyId(reply.replyToId);
-    if (!reactionTargetId && replyToId) {
-      reactionTargetId = replyToId;
+    const payloadReplyToId =
+      replyToMode === "off" ? undefined : resolveTelegramReplyId(reply.replyToId);
+    const replyToId = replyToMode === "off" ? undefined : (canonicalReplyId ?? payloadReplyToId);
+    if (
+      canonicalReplyId !== undefined &&
+      payloadReplyToId !== undefined &&
+      payloadReplyToId !== canonicalReplyId
+    ) {
+      traceTelegramReplyRoute(runtime, "model-reply-tag-mismatch", {
+        chatId,
+        canonicalReplyId,
+        modelReplyToId: payloadReplyToId,
+        replyToTag: Boolean(reply.replyToTag),
+      });
     }
+    traceTelegramReplyRoute(runtime, "resolve-reply-target", {
+      chatId,
+      payloadReplyToId,
+      canonicalReplyId,
+      replyToTag: Boolean(reply.replyToTag),
+      chosenReplyToId: replyToId,
+      replyToMode,
+    });
     const mediaList = reply.mediaUrls?.length
       ? reply.mediaUrls
       : reply.mediaUrl
@@ -287,33 +328,6 @@ export async function deliverReplies(params: {
           }
         }
         pendingFollowUpText = undefined;
-      }
-    }
-  }
-
-  if (hasDelivered && reactionTargetId) {
-    const reactionApi = (bot.api as { setMessageReaction?: typeof bot.api.setMessageReaction })
-      .setMessageReaction;
-    if (typeof reactionApi === "function") {
-      const setReaction = reactionApi.bind(bot.api);
-      try {
-        await withTelegramApiErrorLogging({
-          operation: "setMessageReaction",
-          runtime,
-          fn: () => setReaction(chatId, reactionTargetId!, []),
-        });
-      } catch {
-        // best-effort cleanup
-      }
-      try {
-        await withTelegramApiErrorLogging({
-          operation: "setMessageReaction",
-          runtime,
-          fn: () =>
-            setReaction(chatId, reactionTargetId!, [{ type: "emoji", emoji: "👌" }]),
-        });
-      } catch {
-        // best-effort completion signal
       }
     }
   }
@@ -541,6 +555,13 @@ async function sendTelegramText(
     replyToMessageId: opts?.replyToMessageId,
     thread: opts?.thread,
   });
+  traceTelegramReplyRoute(runtime, "sendMessage-attempt", {
+    chatId,
+    replyToMessageId: opts?.replyToMessageId,
+    messageThreadId: baseParams.message_thread_id,
+    hasReplyMarkup: Boolean(opts?.replyMarkup),
+    textMode: opts?.textMode ?? "markdown",
+  });
   // Add link_preview_options when link preview is disabled.
   const linkPreviewEnabled = opts?.linkPreview ?? true;
   const linkPreviewOptions = linkPreviewEnabled ? undefined : { is_disabled: true };
@@ -550,7 +571,19 @@ async function sendTelegramText(
     const res = await withTelegramApiErrorLogging({
       operation: "sendMessage",
       runtime,
-      shouldLog: (err) => !PARSE_ERR_RE.test(formatErrorMessage(err)),
+      shouldLog: (err) => {
+        const errText = formatErrorMessage(err);
+        if (PARSE_ERR_RE.test(errText)) {
+          return false;
+        }
+        if (REPLY_TARGET_NOT_FOUND_RE.test(errText)) {
+          return false;
+        }
+        if (errText.includes("message thread not found")) {
+          return false;
+        }
+        return true;
+      },
       fn: () =>
         bot.api.sendMessage(chatId, htmlText, {
           parse_mode: "HTML",
@@ -562,6 +595,49 @@ async function sendTelegramText(
     return res.message_id;
   } catch (err) {
     const errText = formatErrorMessage(err);
+    if (REPLY_TARGET_NOT_FOUND_RE.test(errText)) {
+      runtime.log?.(`telegram reply target missing; retrying without reply target: ${errText}`);
+      const fallbackParams = { ...baseParams };
+      delete fallbackParams.reply_to_message_id;
+      delete fallbackParams.reply_parameters;
+      traceTelegramReplyRoute(runtime, "sendMessage-retry-no-reply-target", {
+        chatId,
+        originalReplyToMessageId: opts?.replyToMessageId,
+        originalMessageThreadId: baseParams.message_thread_id,
+      });
+      const res = await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        runtime,
+        fn: () =>
+          bot.api.sendMessage(chatId, htmlText, {
+            parse_mode: "HTML",
+            ...(linkPreviewOptions ? { link_preview_options: linkPreviewOptions } : {}),
+            ...(opts?.replyMarkup ? { reply_markup: opts.replyMarkup } : {}),
+            ...fallbackParams,
+          }),
+      });
+      return res.message_id;
+    }
+    // Retry on bad thread ID by dropping it
+    if (errText.includes("message thread not found")) {
+      runtime.log?.(`telegram thread not found; retrying to main chat: ${errText}`);
+      const fallbackParams = { ...baseParams };
+      delete fallbackParams.message_thread_id;
+
+      const res = await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        runtime,
+        fn: () =>
+          bot.api.sendMessage(chatId, htmlText, {
+            parse_mode: "HTML",
+            ...(linkPreviewOptions ? { link_preview_options: linkPreviewOptions } : {}),
+            ...(opts?.replyMarkup ? { reply_markup: opts.replyMarkup } : {}),
+            ...fallbackParams,
+          }),
+      });
+      return res.message_id;
+    }
+
     if (PARSE_ERR_RE.test(errText)) {
       runtime.log?.(`telegram HTML parse failed; retrying without formatting: ${errText}`);
       const fallbackText = opts?.plainText ?? text;
