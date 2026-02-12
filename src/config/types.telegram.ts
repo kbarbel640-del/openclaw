@@ -101,6 +101,8 @@ export type TelegramAccountConfig = {
   mediaMaxMb?: number;
   /** Telegram API client timeout in seconds (grammY ApiClientOptions). */
   timeoutSeconds?: number;
+  /** Custom Telegram Bot API root URL (e.g. for a local Bot API server). */
+  apiRoot?: string;
   /** Retry policy for outbound Telegram API calls. */
   retry?: OutboundRetryConfig;
   /** Network transport overrides for Telegram. */
