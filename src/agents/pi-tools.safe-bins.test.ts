@@ -130,4 +130,62 @@ describe("createOpenClawCodingTools safeBins", () => {
     expect(result.details.status).toBe("completed");
     expect(text).toContain(marker);
   });
+
+  it("threads agent-level tools.exec.safeBins into exec allowlist checks", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    const { createOpenClawCodingTools } = await import("./pi-tools.js");
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-agent-safe-bins-"));
+    const cfg: OpenClawConfig = {
+      // No global safeBins configured
+      agents: {
+        list: [
+          {
+            id: "ops",
+            tools: {
+              exec: {
+                host: "gateway",
+                security: "allowlist",
+                ask: "off",
+                safeBins: ["echo"],
+              },
+            },
+          },
+        ],
+      },
+    };
+
+    const tools = createOpenClawCodingTools({
+      config: cfg,
+      sessionKey: "agent:ops:main",
+      workspaceDir: tmpDir,
+      agentDir: path.join(tmpDir, "agent"),
+    });
+    const execTool = tools.find((tool) => tool.name === "exec");
+    expect(execTool).toBeDefined();
+
+    const marker = `agent-safe-bins-${Date.now()}`;
+    const prevShellEnvTimeoutMs = process.env.OPENCLAW_SHELL_ENV_TIMEOUT_MS;
+    process.env.OPENCLAW_SHELL_ENV_TIMEOUT_MS = "1000";
+    const result = await (async () => {
+      try {
+        return await execTool!.execute("call1", {
+          command: `echo ${marker}`,
+          workdir: tmpDir,
+        });
+      } finally {
+        if (prevShellEnvTimeoutMs === undefined) {
+          delete process.env.OPENCLAW_SHELL_ENV_TIMEOUT_MS;
+        } else {
+          process.env.OPENCLAW_SHELL_ENV_TIMEOUT_MS = prevShellEnvTimeoutMs;
+        }
+      }
+    })();
+    const text = result.content.find((content) => content.type === "text")?.text ?? "";
+
+    expect(result.details.status).toBe("completed");
+    expect(text).toContain(marker);
+  });
 });
