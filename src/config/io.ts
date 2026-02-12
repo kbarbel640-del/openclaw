@@ -26,6 +26,7 @@ import {
 } from "./defaults.js";
 import { MissingEnvVarError, resolveConfigEnvVars } from "./env-substitution.js";
 import { collectConfigEnvVars } from "./env-vars.js";
+import { hasIncludeDirective, restoreIncludeDirectives } from "./include-preserve.js";
 import { ConfigIncludeError, resolveConfigIncludes } from "./includes.js";
 import { findLegacyConfigIssues } from "./legacy.js";
 import { normalizeConfigPaths } from "./normalize-paths.js";
@@ -505,9 +506,34 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         .join("\n");
       deps.logger.warn(`Config warnings:\n${details}`);
     }
+    // Restore $include directives that were resolved during config loading.
+    // Read the current file (pre-resolution) and restore any $include directives
+    // so we don't inline included content into the root config on write-back.
+    let cfgToWrite: OpenClawConfig = cfg;
+    try {
+      if (deps.fs.existsSync(configPath)) {
+        const currentRaw = await deps.fs.promises.readFile(configPath, "utf-8");
+        const parsedRes = parseConfigJson5(currentRaw, deps.json5);
+        if (parsedRes.ok && hasIncludeDirective(parsedRes.parsed)) {
+          const resolver = {
+            readFile: (p: string) => deps.fs.readFileSync(p, "utf-8"),
+            parseJson: (raw: string) => deps.json5.parse(raw),
+          };
+          cfgToWrite = restoreIncludeDirectives(
+            cfg,
+            parsedRes.parsed,
+            configPath,
+            resolver,
+          ) as OpenClawConfig;
+        }
+      }
+    } catch {
+      // If reading/parsing the current file fails, write cfg as-is (no include restoration)
+    }
+
     const dir = path.dirname(configPath);
     await deps.fs.promises.mkdir(dir, { recursive: true, mode: 0o700 });
-    const json = JSON.stringify(applyModelDefaults(stampConfigVersion(cfg)), null, 2)
+    const json = JSON.stringify(applyModelDefaults(stampConfigVersion(cfgToWrite)), null, 2)
       .trimEnd()
       .concat("\n");
 
