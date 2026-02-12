@@ -1006,10 +1006,19 @@ export async function runMessageAction(
     }
   }
   const explicitChannel = typeof params.channel === "string" ? params.channel.trim() : "";
-  if (!explicitChannel) {
+  if (!explicitChannel && input.agentId === "main") {
+    // Luna (main agent) needs a smart fallback when no channel is specified
     const inferredChannel = normalizeMessageChannel(input.toolContext?.currentChannelProvider);
     if (inferredChannel && isDeliverableMessageChannel(inferredChannel)) {
       params.channel = inferredChannel;
+    } else {
+      // Fallback: Get configured channels and prefer webchat, then first available
+      const configured = await listConfiguredMessageChannels(cfg);
+      if (configured.length > 0) {
+        // Prefer webchat if available, otherwise use first configured
+        const preferredChannel = configured.includes("webchat") ? "webchat" : configured[0];
+        params.channel = preferredChannel;
+      }
     }
   }
 

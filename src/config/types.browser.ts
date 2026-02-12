@@ -34,6 +34,8 @@ export type BrowserConfig = {
   attachOnly?: boolean;
   /** Default profile to use when profile param is omitted. Default: "chrome" */
   defaultProfile?: string;
+  /** If false, don't auto-create the built-in "chrome" extension relay profile. Default: true */
+  chromeExtensionRelay?: boolean;
   /** Named browser profiles with explicit CDP ports or URLs. */
   profiles?: Record<string, BrowserProfileConfig>;
   /** Default snapshot options (applied by the browser tool/CLI when unset). */

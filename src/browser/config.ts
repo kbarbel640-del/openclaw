@@ -197,10 +197,16 @@ export function resolveBrowserConfig(
   const defaultProfileFromConfig = cfg?.defaultProfile?.trim() || undefined;
   // Use legacy cdpUrl port for backward compatibility when no profiles configured
   const legacyCdpPort = rawCdpUrl ? cdpInfo.port : undefined;
-  const profiles = ensureDefaultChromeExtensionProfile(
-    ensureDefaultProfile(cfg?.profiles, defaultColor, legacyCdpPort, derivedCdpRange.start),
-    controlPort,
+  const baseProfiles = ensureDefaultProfile(
+    cfg?.profiles,
+    defaultColor,
+    legacyCdpPort,
+    derivedCdpRange.start,
   );
+  const profiles =
+    cfg?.chromeExtensionRelay === false
+      ? baseProfiles
+      : ensureDefaultChromeExtensionProfile(baseProfiles, controlPort);
   const cdpProtocol = cdpInfo.parsed.protocol === "https:" ? "https" : "http";
   const defaultProfile =
     defaultProfileFromConfig ??

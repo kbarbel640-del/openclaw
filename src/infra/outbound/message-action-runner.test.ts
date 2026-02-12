@@ -670,3 +670,126 @@ describe("runMessageAction accountId defaults", () => {
     expect(ctx.params.accountId).toBe("ops");
   });
 });
+
+describe("runMessageAction Luna agent defaults", () => {
+  const handleTelegram = vi.fn(async () => ({ details: { ok: true } }));
+  const handleSlack = vi.fn(async () => ({ details: { ok: true } }));
+
+  const telegramTestPlugin: ChannelPlugin = {
+    id: "telegram",
+    meta: {
+      id: "telegram",
+      label: "Telegram",
+      selectionLabel: "Telegram",
+      docsPath: "/channels/telegram",
+      blurb: "test stub.",
+    },
+    capabilities: { chatTypes: ["direct"] },
+    config: {
+      listAccountIds: () => ["default"],
+      resolveAccount: () => ({}),
+      isConfigured: async () => true,
+    },
+    actions: {
+      listActions: () => ["send"],
+      handleAction: async ({ action, params, cfg, accountId }) =>
+        await handleTelegram({ action, to: params.to, accountId: accountId ?? undefined }, cfg),
+    },
+  };
+
+  const slackTestPlugin: ChannelPlugin = {
+    id: "slack",
+    meta: {
+      id: "slack",
+      label: "Slack",
+      selectionLabel: "Slack",
+      docsPath: "/channels/slack",
+      blurb: "test stub.",
+    },
+    capabilities: { chatTypes: ["direct"] },
+    config: {
+      listAccountIds: () => ["default"],
+      resolveAccount: () => ({}),
+      isConfigured: async () => true,
+    },
+    actions: {
+      listActions: () => ["send"],
+      handleAction: async ({ action, params, cfg, accountId }) =>
+        await handleSlack({ action, to: params.to, accountId: accountId ?? undefined }, cfg),
+    },
+  };
+
+  beforeEach(() => {
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "telegram",
+          source: "test",
+          plugin: telegramTestPlugin,
+        },
+        {
+          pluginId: "slack",
+          source: "test",
+          plugin: slackTestPlugin,
+        },
+      ]),
+    );
+    handleTelegram.mockClear();
+    handleSlack.mockClear();
+  });
+
+  afterEach(() => {
+    setActivePluginRegistry(createTestRegistry([]));
+    vi.clearAllMocks();
+  });
+
+  it("defaults to first configured channel when Luna (main agent) sends without explicit channel", async () => {
+    const cfg: OpenClawConfig = {};
+    const result = await runMessageAction({
+      cfg,
+      action: "send",
+      params: {
+        target: "123456",
+        message: "hi from Luna",
+      },
+      agentId: "main", // Luna is the main agent
+      // No explicit channel, no toolContext with currentChannelProvider
+    });
+
+    expect(result.kind).toBe("send");
+    expect(result.channel).toBe("telegram"); // First configured channel
+  });
+
+  it("prefers webchat when available for Luna (main agent)", async () => {
+    // Reorder plugins so webchat comes second - verify it still gets selected
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "telegram",
+          source: "test",
+          plugin: telegramTestPlugin,
+        },
+        {
+          pluginId: "slack",
+          source: "test",
+          plugin: slackTestPlugin,
+        },
+      ]),
+    );
+
+    const cfg: OpenClawConfig = {};
+    const result = await runMessageAction({
+      cfg,
+      action: "send",
+      params: {
+        target: "123456",
+        message: "hi from Luna",
+      },
+      agentId: "main",
+    });
+
+    expect(result.kind).toBe("send");
+    // Should still default to telegram since webchat is not in configured channels
+    expect(result.channel).toBe("telegram");
+  });
+});

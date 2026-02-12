@@ -237,6 +237,7 @@ export const OpenClawSchema = z
         noSandbox: z.boolean().optional(),
         attachOnly: z.boolean().optional(),
         defaultProfile: z.string().optional(),
+        chromeExtensionRelay: z.boolean().optional(),
         snapshotDefaults: BrowserSnapshotDefaultsSchema,
         profiles: z
           .record(
