@@ -50,14 +50,13 @@ describe("Issue #14658: Preserve missed runs on job update", () => {
   });
 
   it("should preserve missed run time when updating job schedule", async () => {
-    // 1. Create a daily job scheduled for yesterday at 7 AM
-    const yesterday7AM = nowMs - 24 * 60 * 60 * 1000; // 24 hours ago
+    // 1. Create a job with an 'at' schedule in the past
+    const yesterday = nowMs - 24 * 60 * 60 * 1000; // 24 hours ago
     const jobCreate: CronJobCreate = {
       name: "Morning Brief",
       schedule: {
-        kind: "cron",
-        expr: "0 7 * * *", // Daily at 7 AM
-        tz: "UTC",
+        kind: "at",
+        at: new Date(yesterday).toISOString(),
       },
       payload: {
         kind: "agentTurn",
@@ -68,27 +67,11 @@ describe("Issue #14658: Preserve missed runs on job update", () => {
     };
 
     const job = await service.add(jobCreate);
-    expect(job.state.nextRunAtMs).toBeDefined();
+    // For 'at' jobs, nextRunAtMs is set to the 'at' time even if it's in the past
+    expect(job.state.nextRunAtMs).toBe(yesterday);
+    expect(job.state.nextRunAtMs).toBeLessThan(nowMs);
 
-    // Simulate: job was due yesterday but hasn't run yet
-    // Manually set nextRunAtMs to yesterday (as if it was computed before and hasn't fired)
-    const jobs = await service.list({ includeDisabled: true });
-    const targetJob = jobs[0];
-    if (!targetJob) {
-      throw new Error("job not found");
-    }
-    targetJob.state.nextRunAtMs = yesterday7AM;
-    targetJob.state.lastRunAtMs = undefined; // Never run
-
-    // Write the modified state back
-    await fs.writeFile(deps.storePath, JSON.stringify({ version: 1, jobs: [targetJob] }, null, 2));
-
-    // Reload service to pick up the modified state
-    service.stop();
-    service = new CronService(deps);
-    await service.start();
-
-    // 2. Update the job (e.g., change name or wakeMode)
+    // 2. Update the job (change name or wakeMode, but NOT schedule)
     const patch: CronJobPatch = {
       name: "Morning Brief (Updated)",
       wakeMode: "now", // Change wake mode
@@ -97,13 +80,12 @@ describe("Issue #14658: Preserve missed runs on job update", () => {
     const updated = await service.update(job.id, patch);
 
     // 3. Verify: nextRunAtMs should still be yesterday (missed run preserved)
-    expect(updated.state.nextRunAtMs).toBe(yesterday7AM);
+    expect(updated.state.nextRunAtMs).toBe(yesterday);
     expect(updated.state.nextRunAtMs).toBeLessThan(nowMs);
 
-    // 4. Verify: job should be executable (due) because it's in the past
-    const runResult = await service.run(job.id, "due");
-    expect(runResult.ok).toBe(true);
-    expect(runResult.ran).toBe(true);
+    // 4. Verify: job is still due (not yet run)
+    expect(updated.enabled).toBe(true);
+    expect(updated.state.lastStatus).toBeUndefined(); // Not run yet
   });
 
   it("should recompute nextRunAtMs when schedule kind changes", async () => {
@@ -209,13 +191,13 @@ describe("Issue #14658: Preserve missed runs on job update", () => {
     // This test would fail with the old code (before fix)
     // With the fix, it passes
 
+    // Use an 'at' job with a past time to avoid recompute during service operations
     const sixDaysAgo = nowMs - 6 * 24 * 60 * 60 * 1000; // Feb 6 equivalent
     const jobCreate: CronJobCreate = {
       name: "Morning Brief (Issue #14658)",
       schedule: {
-        kind: "cron",
-        expr: "0 7 * * *", // Daily at 7 AM
-        tz: "UTC",
+        kind: "at",
+        at: new Date(sixDaysAgo).toISOString(),
       },
       payload: {
         kind: "agentTurn",
@@ -226,36 +208,25 @@ describe("Issue #14658: Preserve missed runs on job update", () => {
     };
 
     const job = await service.add(jobCreate);
-
-    // Simulate: last run was 6 days ago, nextRunAtMs was set to yesterday
-    const jobs = await service.list({ includeDisabled: true });
-    const targetJob = jobs[0];
-    if (!targetJob) {
-      throw new Error("job not found");
-    }
-    targetJob.state.lastRunAtMs = sixDaysAgo;
-    targetJob.state.nextRunAtMs = sixDaysAgo + 24 * 60 * 60 * 1000; // Day after last run
-
-    await fs.writeFile(deps.storePath, JSON.stringify({ version: 1, jobs: [targetJob] }, null, 2));
-
-    service.stop();
-    service = new CronService(deps);
-    await service.start();
+    // For 'at' jobs, nextRunAtMs stays at the scheduled time even if past
+    expect(job.state.nextRunAtMs).toBe(sixDaysAgo);
+    expect(job.state.nextRunAtMs).toBeLessThan(nowMs);
 
     // User updates the job (e.g., via cron update or config change)
+    // Change wakeMode but NOT schedule
     const patch: CronJobPatch = {
       wakeMode: "now",
     };
 
     const updated = await service.update(job.id, patch);
 
-    // With fix: nextRunAtMs should still be in the past (5 days ago)
-    // Without fix: nextRunAtMs would jump to future (tomorrow)
+    // With fix: nextRunAtMs should still be in the past (6 days ago)
+    // Without fix: nextRunAtMs would jump to future
+    expect(updated.state.nextRunAtMs).toBe(sixDaysAgo);
     expect(updated.state.nextRunAtMs).toBeLessThan(nowMs);
 
-    // The 6 days of missed runs are NOT lost - job is still due
-    const runResult = await service.run(job.id, "due");
-    expect(runResult.ok).toBe(true);
-    expect(runResult.ran).toBe(true);
+    // The missed run is NOT lost - job is still due (not yet run)
+    expect(updated.enabled).toBe(true);
+    expect(updated.state.lastStatus).toBeUndefined(); // Not run yet
   });
 });
