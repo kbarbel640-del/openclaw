@@ -34,10 +34,12 @@ graph LR
 
 ### 1. Install on your local machine
 
-Run the following command in your local terminal:
+Install the bridge using the provided installer script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lucas-jo/openclaw-bridge-remote/main/install.sh | bash
+git clone https://github.com/lucas-jo/openclaw-bridge-remote.git
+cd openclaw-bridge-remote
+./install.sh
 ```
 
 ### 2. Configure your Remote Agent
