@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getMemorySearchManager, type MemoryIndexManager } from "./index.js";
 
 let embedDelay = 0;
+let embedShouldFail = false;
 
 vi.mock("chokidar", () => ({
   default: {
@@ -22,8 +23,16 @@ vi.mock("./embeddings.js", () => {
       provider: {
         id: "mock",
         model: "mock-embed",
-        embedQuery: async () => [1, 0, 0],
+        embedQuery: async () => {
+          if (embedShouldFail) {
+            throw new Error("Mock embedding failure");
+          }
+          return [1, 0, 0];
+        },
         embedBatch: async (texts: string[]) => {
+          if (embedShouldFail) {
+            throw new Error("Mock embedding failure");
+          }
           if (embedDelay > 0) {
             await new Promise((resolve) => setTimeout(resolve, embedDelay));
           }
@@ -59,6 +68,7 @@ describe("memory manager DB lifecycle", () => {
 
   beforeEach(async () => {
     embedDelay = 0;
+    embedShouldFail = false;
     workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-mem-lifecycle-"));
     indexPath = path.join(workspaceDir, "index.sqlite");
     await fs.mkdir(path.join(workspaceDir, "memory"));
@@ -184,20 +194,24 @@ describe("memory manager DB lifecycle", () => {
     const before = manager.status();
     expect(before.files).toBeGreaterThan(0);
 
-    // Make subsequent embeddings fail
-    embedDelay = -1; // We'll use a different flag
-    const origModule = await import("./embeddings.js");
-    const _origCreate = origModule.createEmbeddingProvider;
+    // Make embeddings throw to force the error-recovery path in
+    // runSafeReindex (restoreOriginalState + removeIndexFilesSync)
+    embedShouldFail = true;
 
-    // Force a reindex that will fail by removing the workspace files
-    await fs.rm(path.join(workspaceDir, "MEMORY.md"));
-    await fs.rm(path.join(workspaceDir, "memory"), { recursive: true });
+    // Sync should reject because embedBatch throws inside runSafeReindex
+    await expect(manager.sync({ force: true })).rejects.toThrow("Mock embedding failure");
 
-    // Sync should succeed (no files to index)
-    await manager.sync({ force: true });
+    // Disable failure mode so subsequent operations succeed
+    embedShouldFail = false;
 
-    // DB should still be usable
+    // DB should still be usable — restoreOriginalState() put the
+    // original handle back before the error propagated
     const status = manager.status();
     expect(typeof status.files).toBe("number");
+    expect(status.files).toBeGreaterThan(0);
+
+    // Search should still work on the recovered database
+    const results = await manager.search("Hello");
+    expect(Array.isArray(results)).toBe(true);
   });
 });

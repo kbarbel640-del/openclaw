@@ -877,17 +877,6 @@ export class MemoryIndexManager implements MemorySearchManager {
     }
   }
 
-  /**
-   * Fire-and-forget cleanup of leftover temp index files after a failed
-   * reindex.  The DB handle has already been restored synchronously before
-   * this runs, so this.db points to a valid open database.
-   */
-  private removeIndexFilesInBackground(basePath: string): void {
-    this.removeIndexFiles(basePath).catch((err) => {
-      log.debug(`Failed to clean up temp index files: ${String(err)}`);
-    });
-  }
-
   private ensureSchema() {
     const result = ensureMemoryIndexSchema({
       db: this.db,
