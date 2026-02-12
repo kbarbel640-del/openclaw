@@ -254,8 +254,8 @@ export function handleToolExecutionEnd(
         },
         {
           toolName,
-          agentId: ctx.params.agentId,
-          sessionKey: ctx.params.sessionKey,
+          agentId: undefined,
+          sessionKey: undefined,
         },
       )
       .catch((err) => {
