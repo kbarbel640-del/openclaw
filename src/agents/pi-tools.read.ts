@@ -205,7 +205,9 @@ export function assertRequiredParams(
   toolName: string,
 ): void {
   if (!record || typeof record !== "object") {
-    throw new Error(`Missing parameters for ${toolName}`);
+    throw new Error(
+      `Missing parameters for ${toolName}. This is a validation error — do not retry with the same input.`,
+    );
   }
 
   for (const group of groups) {
@@ -225,7 +227,9 @@ export function assertRequiredParams(
 
     if (!satisfied) {
       const label = group.label ?? group.keys.join(" or ");
-      throw new Error(`Missing required parameter: ${label}`);
+      throw new Error(
+        `Missing required parameter: ${label}. Provide a valid value — do not retry with empty or missing parameters.`,
+      );
     }
   }
 }
