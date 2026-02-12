@@ -116,8 +116,8 @@ describeLive("Discord message integrity", () => {
       throw new Error(`Channel ${CHANNEL_ID} not found or not text-based`);
     }
 
-    // Send a simple greeting and wait for the bot to respond.
-    await channel.send("Hello! What's your name?");
+    // Mention the Claw bot so it responds in the guild channel.
+    await channel.send(`<@${CLAW_BOT_ID}> Hello! What's your name?`);
 
     // Wait for the bot to finish responding. Poll until we see at least
     // one created message and then a 10-second quiet period with no new
@@ -166,11 +166,12 @@ describeLive("Discord message integrity", () => {
       throw new Error(`Channel ${CHANNEL_ID} not found or not text-based`);
     }
 
-    // Send a more complex request that would trigger smart-ack and
-    // tool usage, which is where the edit/delete bug was most visible.
+    // Mention the bot with a complex request that would trigger
+    // smart-ack and tool usage, where the edit/delete bug was most
+    // visible.
     await channel.send(
-      "Can you explain the difference between TCP and UDP protocols? " +
-        "Include some real-world examples of when you'd use each one.",
+      `<@${CLAW_BOT_ID}> Can you explain the difference between TCP and UDP ` +
+        `protocols? Include some real-world examples of when you'd use each one.`,
     );
 
     const startTime = Date.now();
