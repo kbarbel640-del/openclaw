@@ -1,0 +1,32 @@
+{
+  "name": "@openclaw/claw-matrix",
+  "version": "0.1.0",
+  "description": "OpenClaw Matrix channel plugin with direct OlmMachine E2E encryption",
+  "type": "module",
+  "dependencies": {
+    "@matrix-org/matrix-sdk-crypto-nodejs": "^0.4.0",
+    "markdown-it": "14.1.0",
+    "sanitize-html": "^2.13.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "claw-matrix",
+      "label": "Matrix (claw-matrix)",
+      "selectionLabel": "Matrix — direct OlmMachine E2E",
+      "blurb": "Matrix channel with direct Rust crypto FFI, UTD retry queue, and rate-limited key distribution.",
+      "order": 71
+    },
+    "install": {
+      "npmSpec": "@openclaw/claw-matrix",
+      "localPath": "extensions/claw-matrix",
+      "defaultChoice": "npm"
+    }
+  }
+}
