@@ -50,3 +50,24 @@ Started: Thursday, February 12th, 2026 — 5:32 PM
 - When .env is missing but .env.example exists, all required vars are reported as missing
 
 ---
+
+## 2026-02-12 - US-004: Implement database connectivity check
+- Added database check functions: `getDefaultDatabasePath`, `checkDatabaseExists`, `checkDatabasePermissions`, `checkDatabaseConnection`, `checkDatabaseConnectivity`
+- Check reports database file location and existence via `checkDatabaseExists`
+- Check verifies database is readable and writable via `checkDatabasePermissions` using `fs.accessSync`
+- Check validates SQLite file integrity by checking magic header "SQLite format 3"
+- Added `database` check to `runInstallationChecks` with helpful error messages
+- Added comprehensive unit tests (7 new test cases covering all database check functions)
+- Build passes, all 40 tests pass, typecheck passes
+
+**Files changed:**
+- `src/commands/check.ts` - Added database check functions and integrated database check
+- `src/commands/check.test.ts` - Added 7 new test cases for database connectivity checks
+
+**Learnings:**
+- Database path defaults to `${STATE_DIR}/memory.sqlite` via `STATE_DIR` import from config/paths
+- SQLite validation checks for magic header "SQLite format 3\0" at offset 0
+- `fs.accessSync` with `R_OK`/`W_OK` flags tests permissions without opening the file
+- Small files (<16 bytes) fail with "too small" error before header validation
+
+---
