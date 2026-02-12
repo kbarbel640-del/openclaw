@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { theme } from "../../terminal/theme.js";
 import { registerProgramCommands } from "./command-registry.js";
 import { createProgramContext } from "./context.js";
@@ -14,12 +14,12 @@ export function buildProgram() {
   registerPreActionHooks(program, ctx.programVersion);
 
   // Catch --key/--api-key usage early to provide a helpful hint (often mistaken for provider-specific flags)
-  program.option("--key <value>", "Shorthand for API key (not supported directly)", {
-    hidden: true,
-  });
-  program.option("--api-key <value>", "Shorthand for API key (not supported directly)", {
-    hidden: true,
-  });
+  program.addOption(
+    new Option("--key <value>", "Shorthand for API key (not supported directly)").hideHelp(),
+  );
+  program.addOption(
+    new Option("--api-key <value>", "Shorthand for API key (not supported directly)").hideHelp(),
+  );
 
   program.hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
