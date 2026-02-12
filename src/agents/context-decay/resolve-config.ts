@@ -40,6 +40,14 @@ function mergeDecayConfig(
     base?.summarizeToolResultsAfterTurns,
     override?.summarizeToolResultsAfterTurns,
   );
+  merged.summarizeWindowAfterTurns = pickPositiveInt(
+    base?.summarizeWindowAfterTurns,
+    override?.summarizeWindowAfterTurns,
+  );
+  merged.summarizeWindowSize = pickPositiveInt(
+    base?.summarizeWindowSize,
+    override?.summarizeWindowSize,
+  );
   merged.stripToolResultsAfterTurns = pickPositiveInt(
     base?.stripToolResultsAfterTurns,
     override?.stripToolResultsAfterTurns,
@@ -49,11 +57,14 @@ function mergeDecayConfig(
     override?.maxContextMessages,
   );
   merged.summarizationModel = override?.summarizationModel ?? base?.summarizationModel;
+  merged.groupSummarizationModel =
+    override?.groupSummarizationModel ?? base?.groupSummarizationModel;
 
   // Check if anything is actually enabled
   const hasAnything =
     merged.stripThinkingAfterTurns !== undefined ||
     merged.summarizeToolResultsAfterTurns !== undefined ||
+    merged.summarizeWindowAfterTurns !== undefined ||
     merged.stripToolResultsAfterTurns !== undefined ||
     merged.maxContextMessages !== undefined;
 
@@ -166,6 +177,8 @@ export function isContextDecayActive(config: ContextDecayConfig | undefined): bo
     (typeof config.stripThinkingAfterTurns === "number" && config.stripThinkingAfterTurns >= 1) ||
     (typeof config.summarizeToolResultsAfterTurns === "number" &&
       config.summarizeToolResultsAfterTurns >= 1) ||
+    (typeof config.summarizeWindowAfterTurns === "number" &&
+      config.summarizeWindowAfterTurns >= 1) ||
     (typeof config.stripToolResultsAfterTurns === "number" &&
       config.stripToolResultsAfterTurns >= 1) ||
     (typeof config.maxContextMessages === "number" && config.maxContextMessages >= 1)
