@@ -199,6 +199,116 @@ def cmd_provenance(args):
         print("(Knowledge item may not have a source_message_id link)")
 
 
+def cmd_recent(args):
+    b = _brain()
+    types = args.types.split(",") if args.types else None
+    items = b.recent(hours=args.hours, types=types, limit=args.limit)
+    if not items:
+        print(f"Nothing in the last {args.hours} hours.")
+        return
+    for item in items:
+        t = item.get("type", "?").upper()[:3]
+        ts = item.get("created_at", "")[:19]
+        summary = item.get("summary", "")
+        content = item.get("content", "")[:100].replace("\n", " ")
+        print(f"  [{t}] {ts} {summary}")
+        print(f"       {content}")
+    print(f"\n{len(items)} items in last {args.hours}h")
+
+
+def cmd_test(args):
+    """Comprehensive validation of brain.db."""
+    b = _brain()
+    import time
+    passed = 0
+    failed = 0
+
+    def check(name, condition):
+        nonlocal passed, failed
+        if condition:
+            print(f"  ✅ {name}")
+            passed += 1
+        else:
+            print(f"  ❌ {name}")
+            failed += 1
+
+    print("🧪 brain.db validation suite\n")
+
+    # 1. Stats
+    s = b.stats()
+    check("Stats returns data", s["stm_entries"] > 0)
+    check("Messages exist", s["messages"] > 0)
+    check("Atoms exist", s["atoms"] > 0)
+    check("Embeddings exist", s["embeddings"] > 0)
+
+    # 2. STM read/write
+    mem_id = b.remember("brain test: validation entry", categories=["test"], importance=0.5)
+    check("STM write returns ID", mem_id.startswith("stm_"))
+    items = b.get_stm(limit=1, category="test")
+    check("STM read finds test entry", len(items) > 0 and "validation" in items[0].get("content", ""))
+
+    # 3. Auto-embed on write
+    import sqlite3
+    conn = sqlite3.connect(str(DB_PATH))
+    row = conn.execute("SELECT count(*) FROM embeddings WHERE source_id = ?", (mem_id,)).fetchone()
+    check("Auto-embed on remember()", row[0] > 0)
+
+    # 4. FTS search
+    results = b.unified_search("validation entry", limit=5)
+    check("FTS5 unified search works", len(results) > 0)
+
+    # 5. SYNAPSE send/inbox
+    msg = b.send("helios", "test-agent", "Test subject", "Test body", priority="info")
+    check("SYNAPSE send returns msg", msg.get("id", "").startswith("syn_"))
+    inbox = b.inbox("test-agent")
+    check("SYNAPSE inbox finds message", len(inbox) > 0)
+
+    # 6. Auto-embed on send
+    row = conn.execute("SELECT count(*) FROM embeddings WHERE source_id = ?", (msg["id"],)).fetchone()
+    check("Auto-embed on send()", row[0] > 0)
+
+    # 7. Provenance chain
+    linked_mem = b.remember("Provenance test knowledge", source_message_id=msg["id"])
+    chain = b.find_provenance(linked_mem)
+    check("Provenance chain works", chain is not None and len(chain) >= 2)
+    if chain:
+        check("Provenance reaches message", any(c["type"] == "message" for c in chain))
+
+    # 8. Atom stats
+    a = b.atom_stats()
+    check("Atom stats returns data", a["total_atoms"] > 0)
+
+    # 9. Recent
+    recent = b.recent(hours=1, limit=5)
+    check("Recent query works", len(recent) > 0)
+
+    # 10. Threads
+    threads = b.list_threads()
+    check("Thread listing works", len(threads) > 0)
+
+    # Cleanup
+    conn.execute("DELETE FROM stm WHERE id IN (?, ?)", (mem_id, linked_mem))
+    conn.execute("DELETE FROM messages WHERE id = ?", (msg["id"],))
+    conn.execute("DELETE FROM embeddings WHERE source_id IN (?, ?, ?)", (mem_id, msg["id"], linked_mem))
+    conn.commit()
+    conn.close()
+
+    print(f"\n{'='*40}")
+    print(f"Results: {passed} passed, {failed} failed")
+    if failed == 0:
+        print("🎉 All tests passed!")
+    else:
+        print("⚠️  Some tests failed — check above")
+
+
+def cmd_embed(args):
+    b = _brain()
+    n = b.embed_pending(batch_size=args.batch)
+    print(f"Embedded {n} pending items")
+    if n == 0:
+        print("All items have embeddings ✅")
+
+
 def cmd_export_synapse(args):
     b = _brain()
     data = b.export_synapse_json()
@@ -263,6 +373,19 @@ def main():
     p = sub.add_parser("provenance", help="Find source conversation for knowledge")
     p.add_argument("knowledge_id")
 
+    # recent
+    p = sub.add_parser("recent", help="Recent items across all types")
+    p.add_argument("--hours", type=int, default=24)
+    p.add_argument("--types", default=None, help="Comma-separated: message,stm,atom")
+    p.add_argument("--limit", type=int, default=20)
+
+    # test
+    sub.add_parser("test", help="Run comprehensive validation suite")
+
+    # embed
+    p = sub.add_parser("embed", help="Embed pending items (fills gaps)")
+    p.add_argument("--batch", type=int, default=100, help="Batch size")
+
     # export
     sub.add_parser("export-synapse", help="Export messages as JSON (legacy compat)")
 
@@ -282,6 +405,9 @@ def main():
         "threads": cmd_threads,
         "atoms": cmd_atoms,
         "provenance": cmd_provenance,
+        "recent": cmd_recent,
+        "test": cmd_test,
+        "embed": cmd_embed,
         "export-synapse": cmd_export_synapse,
     }
 
