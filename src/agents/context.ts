@@ -8,7 +8,7 @@ import { ensureOpenClawModelsJson } from "./models-config.js";
 type ModelEntry = { id: string; provider?: string; contextWindow?: number };
 
 const MODEL_CACHE = new Map<string, number>();
-const loadPromise = (async () => {
+export const loadPromise = (async () => {
   try {
     const { discoverAuthStorage, discoverModels } = await import("./pi-model-discovery.js");
     const cfg = loadConfig();

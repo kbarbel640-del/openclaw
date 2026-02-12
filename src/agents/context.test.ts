@@ -35,8 +35,8 @@ vi.mock("./pi-model-discovery.js", () => ({
 
 describe("MODEL_CACHE provider-qualified keys (#14708)", () => {
   it("returns correct context window per provider for same model ID", async () => {
-    const { lookupContextTokens } = await import("./context.js");
-    await new Promise((r) => setTimeout(r, 50));
+    const { lookupContextTokens, loadPromise } = await import("./context.js");
+    await loadPromise;
 
     // Provider-qualified lookups return the correct value for each provider
     expect(lookupContextTokens("claude-opus-4-6", "anthropic")).toBe(200_000);
@@ -47,15 +47,16 @@ describe("MODEL_CACHE provider-qualified keys (#14708)", () => {
   });
 
   it("bare model ID fallback uses first-writer-wins", async () => {
-    const { lookupContextTokens } = await import("./context.js");
-    await new Promise((r) => setTimeout(r, 50));
+    const { lookupContextTokens, loadPromise } = await import("./context.js");
+    await loadPromise;
 
     // Without provider, falls back to bare model ID (first-writer-wins: anthropic's 200k)
     expect(lookupContextTokens("claude-opus-4-6")).toBe(200_000);
   });
 
   it("lookupContextTokens accepts optional provider parameter", async () => {
-    const { lookupContextTokens } = await import("./context.js");
+    const { lookupContextTokens, loadPromise } = await import("./context.js");
+    await loadPromise;
     // Function now accepts 2 params: modelId and optional provider
     expect(lookupContextTokens.length).toBeGreaterThanOrEqual(1);
     // Calling without provider still works (backward compatible)
