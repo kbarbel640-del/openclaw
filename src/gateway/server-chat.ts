@@ -349,6 +349,15 @@ export function createAgentEventHandler({
     jobState: "done" | "error",
     error?: unknown,
   ) => {
+    // Finalize any in-progress block into the buffer so the final payload
+    // contains all blocks even when lifecycle "end" fires without a trailing
+    // assistant delta after the last block boundary.
+    const lastBlock = chatRunState.lastBlockTexts.get(clientRunId);
+    if (lastBlock !== undefined) {
+      const base = chatRunState.blockBases.get(clientRunId) ?? "";
+      const fullText = base ? base + "\n\n" + lastBlock : lastBlock;
+      chatRunState.buffers.set(clientRunId, fullText);
+    }
     const bufferedText = stripInlineDirectiveTagsForDisplay(
       chatRunState.buffers.get(clientRunId) ?? "",
     ).text.trim();
