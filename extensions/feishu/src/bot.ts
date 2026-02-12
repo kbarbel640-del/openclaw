@@ -25,13 +25,14 @@ import { getMessageFeishu } from "./send.js";
 
 // --- Message deduplication ---
 // Prevent duplicate processing when WebSocket reconnects or Feishu redelivers messages.
+// Scoped per account so multi-bot processes don't suppress cross-account deliveries.
 const DEDUP_TTL_MS = 30 * 60 * 1000; // 30 minutes
-const DEDUP_MAX_SIZE = 1_000;
+const DEDUP_MAX_SIZE = 5_000;
 const DEDUP_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // cleanup every 5 minutes
-const processedMessageIds = new Map<string, number>(); // messageId -> timestamp
+const processedMessageIds = new Map<string, number>();
 let lastCleanupTime = Date.now();
 
-function tryRecordMessage(messageId: string): boolean {
+function tryRecordMessage(messageId: string, accountId?: string): boolean {
   const now = Date.now();
 
   // Throttled cleanup: evict expired entries at most once per interval
@@ -42,7 +43,8 @@ function tryRecordMessage(messageId: string): boolean {
     lastCleanupTime = now;
   }
 
-  if (processedMessageIds.has(messageId)) return false;
+  const dedupKey = accountId ? `${accountId}:${messageId}` : messageId;
+  if (processedMessageIds.has(dedupKey)) return false;
 
   // Evict oldest entries if cache is full
   if (processedMessageIds.size >= DEDUP_MAX_SIZE) {
@@ -50,7 +52,7 @@ function tryRecordMessage(messageId: string): boolean {
     processedMessageIds.delete(first);
   }
 
-  processedMessageIds.set(messageId, now);
+  processedMessageIds.set(dedupKey, now);
   return true;
 }
 
@@ -571,10 +573,10 @@ export async function handleFeishuMessage(params: {
   const log = runtime?.log ?? console.log;
   const error = runtime?.error ?? console.error;
 
-  // Dedup check: skip if this message was already processed
+  // Dedup check: skip if this message was already processed by this account
   const messageId = event.message.message_id;
-  if (!tryRecordMessage(messageId)) {
-    log(`feishu: skipping duplicate message ${messageId}`);
+  if (!tryRecordMessage(messageId, account.accountId)) {
+    log(`feishu: skipping duplicate message ${messageId} (account=${account.accountId})`);
     return;
   }
 
