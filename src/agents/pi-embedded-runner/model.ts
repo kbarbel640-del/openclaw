@@ -266,7 +266,12 @@ export function resolveModel(
     if (forwardCompat) {
       return { model: forwardCompat, authStorage, modelRegistry };
     }
-    const providerCfg = providers[provider];
+    // Lookup provider config using normalized comparison to handle casing differences
+    // (e.g., config has "OpenRouter" but model string has "openrouter")
+    const providerCfgKey = Object.keys(providers).find(
+      (key) => normalizeProviderId(key) === normalizedProvider,
+    );
+    const providerCfg = providerCfgKey ? providers[providerCfgKey] : undefined;
     const wellKnownDefaults = WELL_KNOWN_PROVIDER_DEFAULTS[normalizedProvider];
     if (providerCfg || wellKnownDefaults || modelId.startsWith("mock-")) {
       const fallbackModel: Model<Api> = normalizeModelCompat({
