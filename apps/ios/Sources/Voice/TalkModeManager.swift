@@ -38,6 +38,9 @@ final class TalkModeManager: NSObject {
     private var pttTimeoutTask: Task<Void, Never>?
 
     private let allowSimulatorCapture: Bool
+    /// When true, the audio session is kept alive during background to prevent iOS suspension.
+    var backgroundKeepAlive: Bool = false
+    private var backgroundAudioPlayer: AVAudioPlayer?
 
     private let audioEngine = AVAudioEngine()
     private var inputTapInstalled = false
@@ -208,6 +211,8 @@ final class TalkModeManager: NSObject {
         self.resumeContinuousAfterPTT = false
         self.activePTTCaptureId = nil
         TalkSystemSpeechSynthesizer.shared.stop()
+        self.backgroundKeepAlive = false
+        self.stopBackgroundAudioKeepAlive()
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
         } catch {
@@ -225,8 +230,10 @@ final class TalkModeManager: NSObject {
         let wasActive = self.isListening || self.isSpeaking || self.isPushToTalkActive
 
         if keepActive {
-            // Keep Talk Mode running in the background. The audio session stays active
-            // (UIBackgroundModes=audio keeps the process alive while audio is in use).
+            // Keep Talk Mode running in the background. Start a silent audio loop so iOS
+            // doesn't suspend us between recognition/TTS cycles (UIBackgroundModes=audio).
+            self.backgroundKeepAlive = true
+            self.startBackgroundAudioKeepAlive()
             self.logger.info("backgrounding with talk mode active (keepActive=true)")
             GatewayDiagnostics.log("talk: background keepActive=true listening=\(self.isListening)")
             return wasActive
@@ -259,8 +266,10 @@ final class TalkModeManager: NSObject {
     func resumeAfterBackground(wasSuspended: Bool, wasKeptActive: Bool = false) async {
         guard wasSuspended else { return }
         guard self.isEnabled else { return }
-        // If talk mode was kept active in the background, no restart needed.
+        // If talk mode was kept active in the background, stop the keepalive and continue.
         if wasKeptActive {
+            self.backgroundKeepAlive = false
+            self.stopBackgroundAudioKeepAlive()
             self.logger.info("foregrounding with talk mode still active (wasKeptActive=true)")
             return
         }
@@ -725,12 +734,48 @@ final class TalkModeManager: NSObject {
         continuation.resume(returning: payload)
     }
 
+    /// Plays a short, subtle chime to indicate the assistant is processing.
+    private func playThinkingSound() {
+        let sampleRate: Float = 44100
+        let duration: Float = 0.15
+        let frequency: Float = 880 // A5 note
+        let numSamples = Int(sampleRate * duration)
+        let numChannels: UInt32 = 1
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: Double(sampleRate), channels: numChannels),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(numSamples))
+        else { return }
+        buffer.frameLength = AVAudioFrameCount(numSamples)
+        guard let data = buffer.floatChannelData?[0] else { return }
+        for i in 0..<numSamples {
+            let t = Float(i) / sampleRate
+            let envelope = 1.0 - (t / duration) // linear fade out
+            data[i] = sin(2.0 * .pi * frequency * t) * envelope * 0.15
+        }
+        // Write as WAV to temp file and play with AVAudioPlayer for simplicity.
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("thinking_chime.wav")
+        do {
+            let file = try AVAudioFile(forWriting: tempURL, settings: format.settings)
+            try file.write(from: buffer)
+            let player = try AVAudioPlayer(contentsOf: tempURL)
+            player.volume = 0.4
+            player.play()
+            // Hold reference briefly so playback completes.
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000) + 50_000_000)
+                _ = player // prevent early dealloc
+            }
+        } catch {
+            self.logger.debug("thinking sound failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     private func processTranscript(_ transcript: String, restartAfter: Bool) async {
         self.isListening = false
         self.captureMode = .idle
         self.statusText = "Thinking…"
         self.lastTranscript = ""
         self.lastHeard = nil
+        self.playThinkingSound()
         self.stopRecognition()
 
         GatewayDiagnostics.log("talk: process transcript chars=\(transcript.count) restartAfter=\(restartAfter)")
@@ -1736,6 +1781,54 @@ extension TalkModeManager {
         try? session.setPreferredSampleRate(48_000)
         try? session.setPreferredIOBufferDuration(0.02)
         try session.setActive(true, options: [])
+    }
+
+    // MARK: - Background audio keepalive
+
+    /// Starts a silent audio loop to prevent iOS from suspending the app in the background.
+    /// This leverages UIBackgroundModes=audio to keep the process alive between speech
+    /// recognition cycles (e.g. during the "Thinking…" phase).
+    func startBackgroundAudioKeepAlive() {
+        guard self.backgroundKeepAlive else { return }
+        guard self.backgroundAudioPlayer == nil else { return }
+        // Generate a tiny silent WAV in memory (44-byte header + 8000 silent samples).
+        let sampleRate: UInt32 = 8000
+        let numSamples: UInt32 = sampleRate // 1 second of silence
+        let dataSize = numSamples * 2 // 16-bit mono
+        let fileSize = 36 + dataSize
+        var wav = Data(capacity: Int(44 + dataSize))
+        wav.append(contentsOf: [0x52, 0x49, 0x46, 0x46]) // "RIFF"
+        wav.append(contentsOf: withUnsafeBytes(of: fileSize.littleEndian) { Array($0) })
+        wav.append(contentsOf: [0x57, 0x41, 0x56, 0x45]) // "WAVE"
+        wav.append(contentsOf: [0x66, 0x6D, 0x74, 0x20]) // "fmt "
+        wav.append(contentsOf: withUnsafeBytes(of: UInt32(16).littleEndian) { Array($0) }) // chunk size
+        wav.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) }) // PCM
+        wav.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) }) // mono
+        wav.append(contentsOf: withUnsafeBytes(of: sampleRate.littleEndian) { Array($0) })
+        wav.append(contentsOf: withUnsafeBytes(of: (sampleRate * 2).littleEndian) { Array($0) }) // byte rate
+        wav.append(contentsOf: withUnsafeBytes(of: UInt16(2).littleEndian) { Array($0) }) // block align
+        wav.append(contentsOf: withUnsafeBytes(of: UInt16(16).littleEndian) { Array($0) }) // bits per sample
+        wav.append(contentsOf: [0x64, 0x61, 0x74, 0x61]) // "data"
+        wav.append(contentsOf: withUnsafeBytes(of: dataSize.littleEndian) { Array($0) })
+        wav.append(Data(count: Int(dataSize))) // silent samples
+        do {
+            let player = try AVAudioPlayer(data: wav)
+            player.numberOfLoops = -1 // loop forever
+            player.volume = 0.0
+            player.play()
+            self.backgroundAudioPlayer = player
+            self.logger.info("background audio keepalive started")
+            GatewayDiagnostics.log("talk: background audio keepalive started")
+        } catch {
+            self.logger.warning("background audio keepalive failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func stopBackgroundAudioKeepAlive() {
+        guard let player = self.backgroundAudioPlayer else { return }
+        player.stop()
+        self.backgroundAudioPlayer = nil
+        self.logger.info("background audio keepalive stopped")
     }
 
     private static func describeAudioSession() -> String {
