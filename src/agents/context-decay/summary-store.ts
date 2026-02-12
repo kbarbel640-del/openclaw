@@ -143,20 +143,19 @@ export async function clearGroupSummaryStore(sessionFilePath: string): Promise<v
   }
 }
 
-/** Atomically persist the group summary store (tmp + rename). Creates directories as needed. */
-export async function saveGroupSummaryStore(
-  sessionFilePath: string,
-  store: GroupSummaryStore,
-): Promise<void> {
-  const filePath = groupSummaryStorePath(sessionFilePath);
+// ---------------------------------------------------------------------------
+// Atomic write helper
+// ---------------------------------------------------------------------------
+
+/** Atomically write JSON data to a file (tmp + rename). Creates directories as needed. */
+async function atomicWriteJson(filePath: string, data: unknown): Promise<void> {
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
   const tmpPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
   try {
-    await fs.writeFile(tmpPath, JSON.stringify(store, null, 2), "utf-8");
+    await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), "utf-8");
     await fs.rename(tmpPath, filePath);
   } catch (err) {
-    // Clean up tmp file on failure
     await fs.unlink(tmpPath).catch(() => {});
     throw err;
   }
@@ -172,15 +171,14 @@ export async function saveSummaryStore(
   store: SummaryStore,
 ): Promise<void> {
   const filePath = summaryStorePath(sessionFilePath);
-  const dir = path.dirname(filePath);
-  await fs.mkdir(dir, { recursive: true });
-  const tmpPath = `${filePath}.tmp.${process.pid}.${Date.now()}`;
-  try {
-    await fs.writeFile(tmpPath, JSON.stringify(store, null, 2), "utf-8");
-    await fs.rename(tmpPath, filePath);
-  } catch (err) {
-    // Clean up tmp file on failure
-    await fs.unlink(tmpPath).catch(() => {});
-    throw err;
-  }
+  await atomicWriteJson(filePath, store);
+}
+
+/** Atomically persist the group summary store (tmp + rename). Creates directories as needed. */
+export async function saveGroupSummaryStore(
+  sessionFilePath: string,
+  store: GroupSummaryStore,
+): Promise<void> {
+  const filePath = groupSummaryStorePath(sessionFilePath);
+  await atomicWriteJson(filePath, store);
 }

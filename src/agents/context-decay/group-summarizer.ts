@@ -4,6 +4,7 @@ import { type AuthStorage, estimateTokens, generateSummary } from "@mariozechner
 import type { ContextDecayConfig } from "../../config/types.agent-defaults.js";
 import type { GroupSummaryEntry, GroupSummaryStore, SummaryStore } from "./summary-store.js";
 import { log } from "../pi-embedded-runner/logger.js";
+import { extractContentText, extractToolInfo } from "./message-utils.js";
 import { loadGroupSummaryStore, loadSummaryStore, saveGroupSummaryStore } from "./summary-store.js";
 import { computeTurnAges, groupIndicesByTurn } from "./turn-ages.js";
 
@@ -43,50 +44,6 @@ export interface TurnWindow {
 // ---------------------------------------------------------------------------
 // Window identification
 // ---------------------------------------------------------------------------
-
-function extractContentText(msg: AgentMessage): string {
-  const msgUnk = msg as unknown as { content: unknown };
-  if (typeof msgUnk.content === "string") {
-    return msgUnk.content;
-  }
-  if (!Array.isArray(msgUnk.content)) {
-    return JSON.stringify(msgUnk.content);
-  }
-  return (msgUnk.content as Array<Record<string, unknown>>)
-    .filter((b) => b.type === "text")
-    .map((b) => b.text as string)
-    .join("\n");
-}
-
-function extractToolInfo(
-  messages: AgentMessage[],
-  toolResultIndex: number,
-): { toolName: string; args: string } {
-  const toolResultMsg = messages[toolResultIndex] as unknown as Record<string, unknown>;
-  const toolCallId = toolResultMsg.toolCallId as string | undefined;
-  if (!toolCallId) {
-    return { toolName: "unknown", args: "{}" };
-  }
-  for (let i = toolResultIndex - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (msg.role !== "assistant") {
-      continue;
-    }
-    const msgContent = (msg as unknown as { content: unknown }).content;
-    if (!Array.isArray(msgContent)) {
-      continue;
-    }
-    for (const block of msgContent) {
-      if (block.type === "tool_use" && block.id === toolCallId) {
-        return {
-          toolName: (block.name as string) ?? "unknown",
-          args: JSON.stringify(block.input ?? {}),
-        };
-      }
-    }
-  }
-  return { toolName: "unknown", args: "{}" };
-}
 
 /**
  * Find eligible windows of turns ready for group summarization.
@@ -225,7 +182,9 @@ export function buildGroupSummarizationPrompt(params: {
           if (block.type === "text") {
             textParts.push(block.text as string);
           } else if (block.type === "tool_use") {
-            textParts.push(`[Called tool: ${block.name}(${JSON.stringify(block.input ?? {})})]`);
+            const argsStr = JSON.stringify(block.input ?? {});
+            const truncatedArgs = argsStr.length > 500 ? argsStr.slice(0, 500) + "..." : argsStr;
+            textParts.push(`[Called tool: ${block.name}(${truncatedArgs})]`);
           }
           // Skip thinking blocks
         }
