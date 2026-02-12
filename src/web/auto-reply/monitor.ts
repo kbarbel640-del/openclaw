@@ -89,9 +89,7 @@ export async function monitorWebChannel(
 
   const configuredMaxMb = cfg.agents?.defaults?.mediaMaxMb;
   const maxMediaBytes =
-    typeof configuredMaxMb === "number" && configuredMaxMb > 0
-      ? configuredMaxMb * 1024 * 1024
-      : DEFAULT_WEB_MEDIA_BYTES;
+    typeof configuredMaxMb === "number" ? configuredMaxMb * 1024 * 1024 : DEFAULT_WEB_MEDIA_BYTES;
   const heartbeatSeconds = resolveHeartbeatSeconds(cfg, tuning.heartbeatSeconds);
   const reconnectPolicy = resolveReconnectPolicy(cfg, tuning.reconnect);
   const baseMentionConfig = buildMentionConfig(cfg);

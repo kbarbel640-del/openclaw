@@ -217,6 +217,45 @@ describe("web inbound media saves with extension", () => {
     await listener.close();
   });
 
+  it("skips media download when mediaMaxMb is 0", async () => {
+    const onMessage = vi.fn();
+    const listener = await monitorWebInbox({
+      verbose: false,
+      onMessage,
+      mediaMaxMb: 0,
+    });
+    const { createWaSocket } = await import("./session.js");
+    const realSock = await (
+      createWaSocket as unknown as () => Promise<{
+        ev: import("node:events").EventEmitter;
+      }>
+    )();
+
+    saveMediaBufferSpy.mockClear();
+
+    const upsert = {
+      type: "notify",
+      messages: [
+        {
+          key: { id: "img-disabled", fromMe: false, remoteJid: "333@s.whatsapp.net" },
+          message: { imageMessage: { mimetype: "image/jpeg" } },
+          messageTimestamp: 1_700_000_010,
+        },
+      ],
+    };
+
+    realSock.ev.emit("messages.upsert", upsert);
+
+    await waitForMessage(onMessage);
+    // saveMediaBuffer should NOT have been called since media is disabled
+    expect(saveMediaBufferSpy).not.toHaveBeenCalled();
+    // The message should still be delivered, just without media
+    const msg = onMessage.mock.calls.at(-1)?.[0];
+    expect(msg.mediaPath).toBeUndefined();
+
+    await listener.close();
+  });
+
   it("passes document filenames to saveMediaBuffer", async () => {
     const onMessage = vi.fn();
     const listener = await monitorWebInbox({ verbose: false, onMessage });

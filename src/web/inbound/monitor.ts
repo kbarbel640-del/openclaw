@@ -254,27 +254,30 @@ export async function monitorWebInbox(options: {
       let mediaPath: string | undefined;
       let mediaType: string | undefined;
       let mediaFileName: string | undefined;
-      try {
-        const inboundMedia = await downloadInboundMedia(msg as proto.IWebMessageInfo, sock);
-        if (inboundMedia) {
-          const maxMb =
-            typeof options.mediaMaxMb === "number" && options.mediaMaxMb > 0
-              ? options.mediaMaxMb
-              : 50;
-          const maxBytes = maxMb * 1024 * 1024;
-          const saved = await saveMediaBuffer(
-            inboundMedia.buffer,
-            inboundMedia.mimetype,
-            "inbound",
-            maxBytes,
-            inboundMedia.fileName,
-          );
-          mediaPath = saved.path;
-          mediaType = inboundMedia.mimetype;
-          mediaFileName = inboundMedia.fileName;
+      const mediaDisabled = options.mediaMaxMb === 0;
+      if (!mediaDisabled) {
+        try {
+          const inboundMedia = await downloadInboundMedia(msg as proto.IWebMessageInfo, sock);
+          if (inboundMedia) {
+            const maxMb =
+              typeof options.mediaMaxMb === "number" && options.mediaMaxMb > 0
+                ? options.mediaMaxMb
+                : 50;
+            const maxBytes = maxMb * 1024 * 1024;
+            const saved = await saveMediaBuffer(
+              inboundMedia.buffer,
+              inboundMedia.mimetype,
+              "inbound",
+              maxBytes,
+              inboundMedia.fileName,
+            );
+            mediaPath = saved.path;
+            mediaType = inboundMedia.mimetype;
+            mediaFileName = inboundMedia.fileName;
+          }
+        } catch (err) {
+          logVerbose(`Inbound media download failed: ${String(err)}`);
         }
-      } catch (err) {
-        logVerbose(`Inbound media download failed: ${String(err)}`);
       }
 
       const chatJid = remoteJid;
