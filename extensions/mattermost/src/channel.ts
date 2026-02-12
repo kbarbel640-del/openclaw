@@ -7,6 +7,8 @@ import {
   migrateBaseNameToDefaultAccount,
   normalizeAccountId,
   setAccountEnabledInConfigSection,
+  type ChannelMessageActionAdapter,
+  type ChannelMessageActionName,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
 import { MattermostConfigSchema } from "./config-schema.js";
@@ -20,10 +22,86 @@ import {
 import { normalizeMattermostBaseUrl } from "./mattermost/client.js";
 import { monitorMattermostProvider } from "./mattermost/monitor.js";
 import { probeMattermost } from "./mattermost/probe.js";
+import { addMattermostReaction, removeMattermostReaction } from "./mattermost/reactions.js";
 import { sendMessageMattermost } from "./mattermost/send.js";
 import { looksLikeMattermostTargetId, normalizeMattermostMessagingTarget } from "./normalize.js";
 import { mattermostOnboardingAdapter } from "./onboarding.js";
 import { getMattermostRuntime } from "./runtime.js";
+
+const mattermostMessageActions: ChannelMessageActionAdapter = {
+  listActions: ({ cfg }) => {
+    const accounts = listMattermostAccountIds(cfg)
+      .map((accountId) => resolveMattermostAccount({ cfg, accountId }))
+      .filter((account) => account.enabled)
+      .filter((account) => Boolean(account.botToken?.trim() && account.baseUrl?.trim()));
+
+    if (accounts.length === 0) {
+      return [];
+    }
+
+    const actions = new Set<ChannelMessageActionName>(["send", "react"]);
+    return Array.from(actions);
+  },
+  supportsAction: ({ action }) => {
+    return action === "react" || action === "send";
+  },
+  handleAction: async ({ action, params, cfg, accountId }) => {
+    if (action !== "react") {
+      throw new Error(`Mattermost action ${action} not supported`);
+    }
+
+    const postIdRaw =
+      typeof (params as any)?.messageId === "string"
+        ? (params as any).messageId
+        : typeof (params as any)?.postId === "string"
+          ? (params as any).postId
+          : "";
+    const postId = postIdRaw.trim();
+    if (!postId) {
+      throw new Error("Mattermost react requires messageId (post id)");
+    }
+
+    const emojiRaw = typeof (params as any)?.emoji === "string" ? (params as any).emoji : "";
+    const emojiName = emojiRaw.trim().replace(/^:+|:+$/g, "");
+    if (!emojiName) {
+      throw new Error("Mattermost react requires emoji");
+    }
+
+    const remove = Boolean((params as any)?.remove);
+    if (remove) {
+      const result = await removeMattermostReaction({
+        cfg,
+        postId,
+        emojiName,
+        accountId: accountId ?? undefined,
+      });
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+      return {
+        content: [
+          { type: "text" as const, text: `Removed reaction :${emojiName}: from ${postId}` },
+        ],
+        details: {},
+      };
+    }
+
+    const result = await addMattermostReaction({
+      cfg,
+      postId,
+      emojiName,
+      accountId: accountId ?? undefined,
+    });
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    return {
+      content: [{ type: "text" as const, text: `Reacted with :${emojiName}: on ${postId}` }],
+      details: {},
+    };
+  },
+};
 
 const meta = {
   id: "mattermost",
@@ -146,6 +224,7 @@ export const mattermostPlugin: ChannelPlugin<ResolvedMattermostAccount> = {
   groups: {
     resolveRequireMention: resolveMattermostGroupRequireMention,
   },
+  actions: mattermostMessageActions,
   messaging: {
     normalizeTarget: normalizeMattermostMessagingTarget,
     targetResolver: {
