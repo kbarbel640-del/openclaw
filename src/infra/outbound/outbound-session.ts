@@ -36,21 +36,8 @@ export type ResolveOutboundSessionRouteParams = {
   threadId?: string | number | null;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const UUID_COMPACT_RE = /^[0-9a-f]{32}$/i;
 // Cache Slack channel type lookups to avoid repeated API calls.
 const SLACK_CHANNEL_TYPE_CACHE = new Map<string, "channel" | "group" | "dm" | "unknown">();
-
-function looksLikeUuid(value: string): boolean {
-  if (UUID_RE.test(value) || UUID_COMPACT_RE.test(value)) {
-    return true;
-  }
-  const compact = value.replace(/-/g, "");
-  if (!/^[0-9a-f]+$/i.test(compact)) {
-    return false;
-  }
-  return /[a-f]/i.test(compact);
-}
 
 function normalizeThreadId(value?: string | number | null): string | undefined {
   if (value == null) {
