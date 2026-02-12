@@ -23,6 +23,7 @@ import type { ModelsConfig } from "./types.models.js";
 import type { NodeHostConfig } from "./types.node-host.js";
 import type { PluginsConfig } from "./types.plugins.js";
 import type { SkillsConfig } from "./types.skills.js";
+import type { SttConfig } from "./types.stt.js";
 import type { ToolsConfig } from "./types.tools.js";
 
 export type OpenClawConfig = {
@@ -84,6 +85,7 @@ export type OpenClawConfig = {
   bindings?: AgentBinding[];
   broadcast?: BroadcastConfig;
   audio?: AudioConfig;
+  stt?: SttConfig;
   messages?: MessagesConfig;
   commands?: CommandsConfig;
   approvals?: ApprovalsConfig;

@@ -230,6 +230,17 @@ export const TtsConfigSchema = z
   .strict()
   .optional();
 
+export const SttConfigSchema = z
+  .object({
+    provider: z.string().min(1).optional(),
+    language: z.string().optional(),
+    continuous: z.boolean().optional(),
+    interimResults: z.boolean().optional(),
+    timeoutMs: z.number().int().min(1000).max(120000).optional(),
+  })
+  .strict()
+  .optional();
+
 export const HumanDelaySchema = z
   .object({
     mode: z.union([z.literal("off"), z.literal("natural"), z.literal("custom")]).optional(),
