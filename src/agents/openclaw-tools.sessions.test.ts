@@ -88,15 +88,15 @@ describe("sessions tools", () => {
               kind: "direct",
               sessionId: "s-main",
               updatedAt: 10,
-              lastChannel: "whatsapp",
+              lastChannel: "telegram",
             },
             {
-              key: "discord:group:dev",
+              key: "telegram:group:dev",
               kind: "group",
               sessionId: "s-group",
               updatedAt: 11,
-              channel: "discord",
-              displayName: "discord:g-dev",
+              channel: "webchat",
+              displayName: "telegram:g-dev",
             },
             {
               key: "cron:job-1",
@@ -135,7 +135,7 @@ describe("sessions tools", () => {
     };
     expect(details.sessions).toHaveLength(3);
     const main = details.sessions?.find((s) => s.key === "main");
-    expect(main?.channel).toBe("whatsapp");
+    expect(main?.channel).toBe("telegram");
     expect(main?.messages?.length).toBe(1);
     expect(main?.messages?.[0]?.role).toBe("assistant");
 
@@ -306,7 +306,7 @@ describe("sessions tools", () => {
   it("sessions_history resolves sessionId inputs", async () => {
     callGatewayMock.mockReset();
     const sessionId = "sess-group";
-    const targetKey = "agent:main:discord:channel:1457165743010611293";
+    const targetKey = "agent:main:telegram:channel:1457165743010611293";
     callGatewayMock.mockImplementation(async (opts: unknown) => {
       const request = opts as {
         method?: string;
@@ -374,7 +374,7 @@ describe("sessions tools", () => {
     let sendCallCount = 0;
     let lastWaitedRunId: string | undefined;
     const replyByRunId = new Map<string, string>();
-    const requesterKey = "discord:group:req";
+    const requesterKey = "telegram:group:req";
     callGatewayMock.mockImplementation(async (opts: unknown) => {
       const request = opts as { method?: string; params?: unknown };
       calls.push(request);
@@ -430,7 +430,7 @@ describe("sessions tools", () => {
 
     const tool = createOpenClawTools({
       agentSessionKey: requesterKey,
-      agentChannel: "discord",
+      agentChannel: "telegram",
     }).find((candidate) => candidate.name === "sessions_send");
     expect(tool).toBeDefined();
     if (!tool) {
@@ -474,8 +474,13 @@ describe("sessions tools", () => {
     for (const call of agentCalls) {
       expect(call.params).toMatchObject({
         lane: "nested",
-        channel: "webchat",
       });
+      const params = call.params as { sessionKey?: string; channel?: string };
+      if (params.sessionKey === requesterKey) {
+        expect(params.channel).toBe("telegram");
+      } else {
+        expect(params.channel).toBe("webchat");
+      }
     }
     expect(
       agentCalls.some(
@@ -512,7 +517,7 @@ describe("sessions tools", () => {
   it("sessions_send resolves sessionId inputs", async () => {
     callGatewayMock.mockReset();
     const sessionId = "sess-send";
-    const targetKey = "agent:main:discord:channel:123";
+    const targetKey = "agent:main:telegram:channel:123";
     callGatewayMock.mockImplementation(async (opts: unknown) => {
       const request = opts as {
         method?: string;
@@ -535,7 +540,7 @@ describe("sessions tools", () => {
 
     const tool = createOpenClawTools({
       agentSessionKey: "main",
-      agentChannel: "discord",
+      agentChannel: "telegram",
     }).find((candidate) => candidate.name === "sessions_send");
     expect(tool).toBeDefined();
     if (!tool) {
@@ -564,8 +569,8 @@ describe("sessions tools", () => {
     let agentCallCount = 0;
     let lastWaitedRunId: string | undefined;
     const replyByRunId = new Map<string, string>();
-    const requesterKey = "discord:group:req";
-    const targetKey = "discord:group:target";
+    const requesterKey = "telegram:group:req";
+    const targetKey = "telegram:group:target";
     let sendParams: { to?: string; channel?: string; message?: string } = {};
     callGatewayMock.mockImplementation(async (opts: unknown) => {
       const request = opts as { method?: string; params?: unknown };
@@ -627,7 +632,7 @@ describe("sessions tools", () => {
 
     const tool = createOpenClawTools({
       agentSessionKey: requesterKey,
-      agentChannel: "discord",
+      agentChannel: "telegram",
     }).find((candidate) => candidate.name === "sessions_send");
     expect(tool).toBeDefined();
     if (!tool) {
@@ -651,7 +656,7 @@ describe("sessions tools", () => {
     for (const call of agentCalls) {
       expect(call.params).toMatchObject({
         lane: "nested",
-        channel: "webchat",
+        channel: "telegram",
       });
     }
 
@@ -665,8 +670,8 @@ describe("sessions tools", () => {
     );
     expect(replySteps).toHaveLength(2);
     expect(sendParams).toMatchObject({
-      to: "channel:target",
-      channel: "discord",
+      to: "group:target",
+      channel: "telegram",
       message: "announce now",
     });
   });

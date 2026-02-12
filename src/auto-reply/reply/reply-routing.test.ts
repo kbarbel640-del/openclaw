@@ -158,8 +158,7 @@ describe("resolveReplyToMode", () => {
     expect(resolveReplyToMode(emptyCfg, "telegram")).toBe("first");
   });
 
-  it("defaults to off for Discord and Slack", () => {
-    expect(resolveReplyToMode(emptyCfg, "discord")).toBe("off");
+  it("defaults to off for Slack", () => {
     expect(resolveReplyToMode(emptyCfg, "slack")).toBe("off");
   });
 
@@ -171,12 +170,10 @@ describe("resolveReplyToMode", () => {
     const cfg = {
       channels: {
         telegram: { replyToMode: "all" },
-        discord: { replyToMode: "first" },
         slack: { replyToMode: "all" },
       },
     } as OpenClawConfig;
     expect(resolveReplyToMode(cfg, "telegram")).toBe("all");
-    expect(resolveReplyToMode(cfg, "discord")).toBe("first");
     expect(resolveReplyToMode(cfg, "slack")).toBe("all");
   });
 

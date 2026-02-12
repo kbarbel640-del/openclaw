@@ -88,11 +88,10 @@ describe("commands registry", () => {
   it("applies provider-specific native names", () => {
     const native = listNativeCommandSpecsForConfig(
       { commands: { native: true } },
-      { provider: "discord" },
+      { provider: "telegram" },
     );
-    expect(native.find((spec) => spec.name === "voice")).toBeTruthy();
-    expect(findCommandByNativeName("voice", "discord")?.key).toBe("tts");
-    expect(findCommandByNativeName("tts", "discord")).toBeUndefined();
+    expect(native.find((spec) => spec.name === "help")).toBeTruthy();
+    expect(findCommandByNativeName("help", "telegram")?.key).toBe("help");
   });
 
   it("detects known text commands", () => {
@@ -122,25 +121,35 @@ describe("commands registry", () => {
 
   it("respects text command gating", () => {
     const cfg = { commands: { text: false } };
+    // Telegram and Slack have native commands, so text commands are disabled when commands.text is false
     expect(
       shouldHandleTextCommands({
         cfg,
-        surface: "discord",
+        surface: "telegram",
         commandSource: "text",
       }),
     ).toBe(false);
     expect(
       shouldHandleTextCommands({
         cfg,
-        surface: "whatsapp",
+        surface: "slack",
         commandSource: "text",
       }),
-    ).toBe(true);
+    ).toBe(false);
+    // Native commands always work regardless of commands.text setting
     expect(
       shouldHandleTextCommands({
         cfg,
-        surface: "discord",
+        surface: "telegram",
         commandSource: "native",
+      }),
+    ).toBe(true);
+    // Webchat doesn't have native commands, so text commands still work
+    expect(
+      shouldHandleTextCommands({
+        cfg,
+        surface: "webchat",
+        commandSource: "text",
       }),
     ).toBe(true);
   });

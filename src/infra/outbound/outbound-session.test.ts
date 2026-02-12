@@ -47,51 +47,6 @@ describe("resolveOutboundSessionRoute", () => {
     expect(route?.chatType).toBe("direct");
   });
 
-  it("honors dmScope identity links", async () => {
-    const cfg = {
-      session: {
-        dmScope: "per-peer",
-        identityLinks: {
-          alice: ["discord:123"],
-        },
-      },
-    } as OpenClawConfig;
-
-    const route = await resolveOutboundSessionRoute({
-      cfg,
-      channel: "discord",
-      agentId: "main",
-      target: "user:123",
-    });
-
-    expect(route?.sessionKey).toBe("agent:main:direct:alice");
-  });
-
-  it("strips chat_* prefixes for BlueBubbles group session keys", async () => {
-    const route = await resolveOutboundSessionRoute({
-      cfg: baseConfig,
-      channel: "bluebubbles",
-      agentId: "main",
-      target: "chat_guid:ABC123",
-    });
-
-    expect(route?.sessionKey).toBe("agent:main:bluebubbles:group:abc123");
-    expect(route?.from).toBe("group:ABC123");
-  });
-
-  it("treats Zalo Personal DM targets as direct sessions", async () => {
-    const cfg = { session: { dmScope: "per-channel-peer" } } as OpenClawConfig;
-    const route = await resolveOutboundSessionRoute({
-      cfg,
-      channel: "zalouser",
-      agentId: "main",
-      target: "123456",
-    });
-
-    expect(route?.sessionKey).toBe("agent:main:zalouser:direct:123456");
-    expect(route?.chatType).toBe("direct");
-  });
-
   it("uses group session keys for Slack mpim allowlist entries", async () => {
     const cfg = {
       channels: {

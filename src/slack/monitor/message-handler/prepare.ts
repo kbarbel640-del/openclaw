@@ -198,10 +198,19 @@ export async function prepareSlackMessage(params: {
   const threadContext = resolveSlackThreadContext({ message, replyToMode: effectiveReplyToMode });
   const threadTs = threadContext.incomingThreadTs;
   const isThreadReply = threadContext.isThreadReply;
+  // When replyToMode="all", the bot WILL create a thread using messageTs as thread_ts.
+  // Create the thread session eagerly so agent work lands in the thread session, not the channel session.
+  const willCreateThread = !isThreadReply && effectiveReplyToMode === "all";
+  const effectiveThreadId = isThreadReply
+    ? threadTs
+    : willCreateThread
+      ? threadContext.messageTs
+      : undefined;
   const threadKeys = resolveThreadSessionKeys({
     baseSessionKey,
-    threadId: isThreadReply ? threadTs : undefined,
-    parentSessionKey: isThreadReply && ctx.threadInheritParent ? baseSessionKey : undefined,
+    threadId: effectiveThreadId,
+    parentSessionKey:
+      (isThreadReply || willCreateThread) && ctx.threadInheritParent ? baseSessionKey : undefined,
   });
   const sessionKey = threadKeys.sessionKey;
   const historyKey =

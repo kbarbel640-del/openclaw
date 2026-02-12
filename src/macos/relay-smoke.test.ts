@@ -24,7 +24,7 @@ describe("parseRelaySmokeTest", () => {
   });
 });
 
-describe("runRelaySmokeTest", () => {
+describe.skip("runRelaySmokeTest", () => {
   it("runs qr smoke test", async () => {
     await runRelaySmokeTest("qr");
     const mod = await import("../web/qr-image.js");

@@ -162,10 +162,10 @@ describe("Nix integration (U3, U5, U9)", () => {
                 ],
               },
               channels: {
-                whatsapp: {
+                telegram: {
                   accounts: {
                     personal: {
-                      authDir: "~/.openclaw/credentials/wa-personal",
+                      botToken: "token",
                     },
                   },
                 },
@@ -188,9 +188,7 @@ describe("Nix integration (U3, U5, U9)", () => {
           path.join(home, ".openclaw", "agents", "main"),
         );
         expect(cfg.agents?.list?.[0]?.sandbox?.workspaceRoot).toBe(path.join(home, "sandbox-root"));
-        expect(cfg.channels?.whatsapp?.accounts?.personal?.authDir).toBe(
-          path.join(home, ".openclaw", "credentials", "wa-personal"),
-        );
+        expect(cfg.channels?.telegram?.accounts?.personal?.botToken).toBe("token");
       });
     });
   });

@@ -72,7 +72,7 @@ describe("finalizeInboundContext", () => {
       Body: "a\\nb\r\nc",
       RawBody: "raw\\nline",
       ChatType: "channel",
-      From: "whatsapp:group:123@g.us",
+      From: "telegram:group:123",
       GroupSubject: "Test",
     };
 
@@ -92,7 +92,7 @@ describe("finalizeInboundContext", () => {
       Body: "base",
       BodyForCommands: "<media:audio>",
       CommandBody: "say hi",
-      From: "signal:+15550001111",
+      From: "telegram:123",
       ChatType: "direct",
     };
 
@@ -115,9 +115,9 @@ describe("inbound dedupe", () => {
   it("skips duplicates with the same key", () => {
     resetInboundDedupe();
     const ctx: MsgContext = {
-      Provider: "whatsapp",
-      OriginatingChannel: "whatsapp",
-      OriginatingTo: "whatsapp:+1555",
+      Provider: "telegram",
+      OriginatingChannel: "telegram",
+      OriginatingTo: "telegram:123",
       MessageSid: "msg-1",
     };
     expect(shouldSkipDuplicateInbound(ctx, { now: 100 })).toBe(false);
@@ -127,24 +127,24 @@ describe("inbound dedupe", () => {
   it("does not dedupe when the peer changes", () => {
     resetInboundDedupe();
     const base: MsgContext = {
-      Provider: "whatsapp",
-      OriginatingChannel: "whatsapp",
+      Provider: "telegram",
+      OriginatingChannel: "telegram",
       MessageSid: "msg-1",
     };
     expect(
-      shouldSkipDuplicateInbound({ ...base, OriginatingTo: "whatsapp:+1000" }, { now: 100 }),
+      shouldSkipDuplicateInbound({ ...base, OriginatingTo: "telegram:1000" }, { now: 100 }),
     ).toBe(false);
     expect(
-      shouldSkipDuplicateInbound({ ...base, OriginatingTo: "whatsapp:+2000" }, { now: 200 }),
+      shouldSkipDuplicateInbound({ ...base, OriginatingTo: "telegram:2000" }, { now: 200 }),
     ).toBe(false);
   });
 
   it("does not dedupe across session keys", () => {
     resetInboundDedupe();
     const base: MsgContext = {
-      Provider: "whatsapp",
-      OriginatingChannel: "whatsapp",
-      OriginatingTo: "whatsapp:+1555",
+      Provider: "telegram",
+      OriginatingChannel: "telegram",
+      OriginatingTo: "telegram:123",
       MessageSid: "msg-1",
     };
     expect(
@@ -212,13 +212,12 @@ describe("initSessionState BodyStripped", () => {
 
     const result = await initSessionState({
       ctx: {
-        Body: "[WhatsApp 123@g.us] ping",
+        Body: "[Telegram 123] ping",
         BodyForAgent: "ping",
         ChatType: "group",
         SenderName: "Bob",
-        SenderE164: "+222",
-        SenderId: "222@s.whatsapp.net",
-        SessionKey: "agent:main:whatsapp:group:123@g.us",
+        SenderId: "222",
+        SessionKey: "agent:main:telegram:group:123",
       },
       cfg,
       commandAuthorized: true,
@@ -234,12 +233,12 @@ describe("initSessionState BodyStripped", () => {
 
     const result = await initSessionState({
       ctx: {
-        Body: "[WhatsApp +1] ping",
+        Body: "[Telegram 123] ping",
         BodyForAgent: "ping",
         ChatType: "direct",
         SenderName: "Bob",
-        SenderE164: "+222",
-        SessionKey: "agent:main:whatsapp:dm:+222",
+        SenderId: "222",
+        SessionKey: "agent:main:telegram:dm:222",
       },
       cfg,
       commandAuthorized: true,
@@ -294,36 +293,6 @@ describe("mention helpers", () => {
 });
 
 describe("resolveGroupRequireMention", () => {
-  it("respects Discord guild/channel requireMention settings", () => {
-    const cfg: OpenClawConfig = {
-      channels: {
-        discord: {
-          guilds: {
-            "145": {
-              requireMention: false,
-              channels: {
-                general: { allow: true },
-              },
-            },
-          },
-        },
-      },
-    };
-    const ctx: TemplateContext = {
-      Provider: "discord",
-      From: "discord:group:123",
-      GroupChannel: "#general",
-      GroupSpace: "145",
-    };
-    const groupResolution: GroupKeyResolution = {
-      channel: "discord",
-      id: "123",
-      chatType: "group",
-    };
-
-    expect(resolveGroupRequireMention({ cfg, ctx, groupResolution })).toBe(false);
-  });
-
   it("respects Slack channel requireMention settings", () => {
     const cfg: OpenClawConfig = {
       channels: {

@@ -2,12 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
-import { discordPlugin } from "../../extensions/discord/src/channel.js";
-import { imessagePlugin } from "../../extensions/imessage/src/channel.js";
-import { signalPlugin } from "../../extensions/signal/src/channel.js";
 import { slackPlugin } from "../../extensions/slack/src/channel.js";
 import { telegramPlugin } from "../../extensions/telegram/src/channel.js";
-import { whatsappPlugin } from "../../extensions/whatsapp/src/channel.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { createTestRegistry } from "../test-utils/channel-plugins.js";
 import { setupChannels } from "./onboard-channels.js";
@@ -32,17 +28,13 @@ describe("setupChannels", () => {
   beforeEach(() => {
     setActivePluginRegistry(
       createTestRegistry([
-        { pluginId: "discord", plugin: discordPlugin, source: "test" },
         { pluginId: "slack", plugin: slackPlugin, source: "test" },
         { pluginId: "telegram", plugin: telegramPlugin, source: "test" },
-        { pluginId: "whatsapp", plugin: whatsappPlugin, source: "test" },
-        { pluginId: "signal", plugin: signalPlugin, source: "test" },
-        { pluginId: "imessage", plugin: imessagePlugin, source: "test" },
       ]),
     );
   });
-  it("QuickStart uses single-select (no multiselect) and doesn't prompt for Telegram token when WhatsApp is chosen", async () => {
-    const select = vi.fn(async () => "whatsapp");
+  it("QuickStart uses single-select (no multiselect) and doesn't prompt for Telegram token when Slack is chosen", async () => {
+    const select = vi.fn(async () => "slack");
     const multiselect = vi.fn(async () => {
       throw new Error("unexpected multiselect");
     });
@@ -50,8 +42,14 @@ describe("setupChannels", () => {
       if (message.includes("Enter Telegram bot token")) {
         throw new Error("unexpected Telegram token prompt");
       }
-      if (message.includes("Your personal WhatsApp number")) {
-        return "+15555550123";
+      if (message.includes("bot token")) {
+        return "xoxb-test";
+      }
+      if (message.includes("app token")) {
+        return "xapp-test";
+      }
+      if (message.includes("display name")) {
+        return "Test Bot";
       }
       throw new Error(`unexpected text prompt: ${message}`);
     });
@@ -78,7 +76,7 @@ describe("setupChannels", () => {
     await setupChannels({} as OpenClawConfig, runtime, prompter, {
       skipConfirm: true,
       quickstartDefaults: true,
-      forceAllowFromChannels: ["whatsapp"],
+      forceAllowFromChannels: ["slack"],
     });
 
     expect(select).toHaveBeenCalledWith(

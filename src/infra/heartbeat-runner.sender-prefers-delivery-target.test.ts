@@ -7,8 +7,6 @@ import { slackPlugin } from "../../extensions/slack/src/channel.js";
 import { setSlackRuntime } from "../../extensions/slack/src/runtime.js";
 import { telegramPlugin } from "../../extensions/telegram/src/channel.js";
 import { setTelegramRuntime } from "../../extensions/telegram/src/runtime.js";
-import { whatsappPlugin } from "../../extensions/whatsapp/src/channel.js";
-import { setWhatsAppRuntime } from "../../extensions/whatsapp/src/runtime.js";
 import * as replyModule from "../auto-reply/reply.js";
 import { resolveMainSessionKey } from "../config/sessions.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
@@ -23,11 +21,9 @@ beforeEach(() => {
   const runtime = createPluginRuntime();
   setSlackRuntime(runtime);
   setTelegramRuntime(runtime);
-  setWhatsAppRuntime(runtime);
   setActivePluginRegistry(
     createTestRegistry([
       { pluginId: "slack", plugin: slackPlugin, source: "test" },
-      { pluginId: "whatsapp", plugin: whatsappPlugin, source: "test" },
       { pluginId: "telegram", plugin: telegramPlugin, source: "test" },
     ]),
   );
