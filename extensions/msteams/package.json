@@ -10,8 +10,8 @@
     "express": "^5.2.1",
     "proper-lockfile": "^4.1.2"
   },
-  "devDependencies": {
-    "openclaw": "workspace:*"
+  "peerDependencies": {
+    "openclaw": ">=2026.0.0"
   },
   "openclaw": {
     "extensions": [

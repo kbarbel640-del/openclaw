@@ -4,8 +4,8 @@
   "private": true,
   "description": "OpenClaw JSON-only LLM task plugin",
   "type": "module",
-  "devDependencies": {
-    "openclaw": "workspace:*"
+  "peerDependencies": {
+    "openclaw": ">=2026.0.0"
   },
   "openclaw": {
     "extensions": [
