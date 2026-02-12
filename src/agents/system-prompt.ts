@@ -549,7 +549,9 @@ export function buildAgentSystemPrompt(params: {
     lines.push("## Reasoning Format", reasoningHint, "");
   }
 
-  const contextFiles = params.contextFiles ?? [];
+  const contextFiles = (params.contextFiles ?? []).filter(
+    (f) => typeof f.path === "string" && f.path.trim(),
+  );
   if (contextFiles.length > 0) {
     const hasSoulFile = contextFiles.some((file) => {
       const normalizedPath = file.path.trim().replace(/\\/g, "/");

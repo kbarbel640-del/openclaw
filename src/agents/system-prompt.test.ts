@@ -315,6 +315,22 @@ describe("buildAgentSystemPrompt", () => {
     );
   });
 
+  it("skips context files with undefined or empty path", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      contextFiles: [
+        { path: undefined as unknown as string, content: "ghost" },
+        { path: "", content: "blank" },
+        { path: "VALID.md", content: "real" },
+      ],
+    });
+
+    expect(prompt).toContain("## VALID.md");
+    expect(prompt).toContain("real");
+    expect(prompt).not.toContain("ghost");
+    expect(prompt).not.toContain("blank");
+  });
+
   it("summarizes the message tool when available", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",
