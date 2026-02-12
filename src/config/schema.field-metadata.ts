@@ -270,6 +270,8 @@ export const FIELD_LABELS: Record<string, string> = {
   "browser.remoteCdpHandshakeTimeoutMs": "Remote CDP Handshake Timeout (ms)",
   "session.dmScope": "DM Session Scope",
   "session.agentToAgent.maxPingPongTurns": "Agent-to-Agent Ping-Pong Turns",
+  "session.lock.timeoutMs": "Lock Timeout (ms)",
+  "session.lock.staleMs": "Stale Lock Threshold (ms)",
   "messages.ackReaction": "Ack Reaction Emoji",
   "messages.ackReactionScope": "Ack Reaction Scope",
   "messages.inbound.debounceMs": "Inbound Message Debounce (ms)",
@@ -662,6 +664,10 @@ export const FIELD_HELP: Record<string, string> = {
     'Override native skill commands for Slack (bool or "auto").',
   "session.agentToAgent.maxPingPongTurns":
     "Max reply-back turns between requester and target (0–5).",
+  "session.lock.timeoutMs":
+    "Maximum time (ms) to wait when acquiring a session file lock. Increase for heavy-thinking models. Default: 10000.",
+  "session.lock.staleMs":
+    "Age (ms) after which an existing lock file is considered stale and automatically reclaimed. Default: 30000.",
   "channels.telegram.customCommands":
     "Additional Telegram bot menu commands (merged with native; conflicts ignored).",
   "messages.ackReaction": "Emoji reaction used to acknowledge inbound messages (empty disables).",

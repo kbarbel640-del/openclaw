@@ -101,6 +101,8 @@ export type SessionConfig = {
   };
   /** Automatic session store maintenance (pruning, capping, file rotation). */
   maintenance?: SessionMaintenanceConfig;
+  /** Session file lock tuning (timeout, stale detection). */
+  lock?: SessionLockConfig;
 };
 
 export type SessionMaintenanceMode = "enforce" | "warn";
@@ -116,6 +118,13 @@ export type SessionMaintenanceConfig = {
   maxEntries?: number;
   /** Rotate sessions.json when it exceeds this size (e.g. "10mb"). Default: 10mb. */
   rotateBytes?: number | string;
+};
+
+export type SessionLockConfig = {
+  /** Maximum time (ms) to wait when acquiring a session file lock. Default: 10000. */
+  timeoutMs?: number;
+  /** Age (ms) after which an existing lock file is considered stale and reclaimed. Default: 30000. */
+  staleMs?: number;
 };
 
 export type LoggingConfig = {

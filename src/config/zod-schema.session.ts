@@ -128,6 +128,13 @@ export const SessionSchema = z
         }
       })
       .optional(),
+    lock: z
+      .object({
+        timeoutMs: z.number().int().min(1_000).max(600_000).optional(),
+        staleMs: z.number().int().min(5_000).max(3_600_000).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .optional();

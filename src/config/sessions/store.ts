@@ -578,6 +578,31 @@ export async function updateSessionStore<T>(
   });
 }
 
+const DEFAULT_LOCK_TIMEOUT_MS = 10_000;
+const DEFAULT_LOCK_STALE_MS = 30_000;
+
+type ResolvedSessionLockConfig = {
+  timeoutMs: number;
+  staleMs: number;
+};
+
+/**
+ * Resolve session lock settings from openclaw.json (`session.lock`).
+ * Falls back to built-in defaults when config is missing or unset.
+ */
+export function resolveSessionLockConfig(): ResolvedSessionLockConfig {
+  let lock: import("../types.base.js").SessionLockConfig | undefined;
+  try {
+    lock = loadConfig().session?.lock;
+  } catch {
+    // Config may not be available (e.g. in tests). Use defaults.
+  }
+  return {
+    timeoutMs: lock?.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS,
+    staleMs: lock?.staleMs ?? DEFAULT_LOCK_STALE_MS,
+  };
+}
+
 type SessionStoreLockOptions = {
   timeoutMs?: number;
   pollIntervalMs?: number;
@@ -589,9 +614,10 @@ async function withSessionStoreLock<T>(
   fn: () => Promise<T>,
   opts: SessionStoreLockOptions = {},
 ): Promise<T> {
-  const timeoutMs = opts.timeoutMs ?? 10_000;
+  const lockConfig = resolveSessionLockConfig();
+  const timeoutMs = opts.timeoutMs ?? lockConfig.timeoutMs;
   const pollIntervalMs = opts.pollIntervalMs ?? 25;
-  const staleMs = opts.staleMs ?? 30_000;
+  const staleMs = opts.staleMs ?? lockConfig.staleMs;
   const lockPath = `${storePath}.lock`;
   const startedAt = Date.now();
 

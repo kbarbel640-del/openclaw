@@ -1,6 +1,7 @@
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { resolveSessionLockConfig } from "../config/sessions/store.js";
 
 type LockFilePayload = {
   pid: number;
@@ -117,8 +118,9 @@ export async function acquireSessionWriteLock(params: {
   release: () => Promise<void>;
 }> {
   registerCleanupHandlers();
-  const timeoutMs = params.timeoutMs ?? 10_000;
-  const staleMs = params.staleMs ?? 30 * 60 * 1000;
+  const lockConfig = resolveSessionLockConfig();
+  const timeoutMs = params.timeoutMs ?? lockConfig.timeoutMs;
+  const staleMs = params.staleMs ?? lockConfig.staleMs;
   const sessionFile = path.resolve(params.sessionFile);
   const sessionDir = path.dirname(sessionFile);
   await fs.mkdir(sessionDir, { recursive: true });
