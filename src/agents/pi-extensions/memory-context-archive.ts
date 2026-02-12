@@ -8,6 +8,7 @@
  * so it does NOT interfere with compaction-safeguard's summarization.
  */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { completeSimple } from "@mariozechner/pi-ai";
 import {
   archiveCompactedMessages,
   scheduleKnowledgeExtraction,
