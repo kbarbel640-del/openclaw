@@ -5,6 +5,7 @@ import {
   resolveModelRefFromString,
   resolveConfiguredModelRef,
   buildModelAliasIndex,
+  buildAllowedModelSet,
   normalizeProviderId,
   modelKey,
 } from "./model-selection.js";
@@ -147,5 +148,84 @@ describe("model-selection", () => {
       });
       expect(result).toEqual({ provider: "openai", model: "gpt-4" });
     });
+  });
+});
+
+describe("buildAllowedModelSet", () => {
+  const baseCatalog = [
+    { provider: "anthropic", id: "claude-opus-4-5", name: "Opus 4.5", contextWindow: 200000 },
+    { provider: "anthropic", id: "claude-sonnet-4-5", name: "Sonnet 4.5", contextWindow: 200000 },
+    { provider: "openai", id: "gpt-4.1", name: "GPT 4.1", contextWindow: 128000 },
+  ];
+
+  it("allows forward-compat model for built-in provider in catalog", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          models: {
+            "anthropic/claude-opus-4-6": { alias: "opus" },
+          },
+        },
+      },
+    };
+
+    const result = buildAllowedModelSet({
+      cfg,
+      catalog: baseCatalog as any,
+      defaultProvider: "anthropic",
+    });
+
+    expect(result.allowedKeys.has("anthropic/claude-opus-4-6")).toBe(true);
+  });
+
+  it("allows model that exists in catalog", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          models: {
+            "anthropic/claude-opus-4-5": { alias: "opus" },
+          },
+        },
+      },
+    };
+
+    const result = buildAllowedModelSet({
+      cfg,
+      catalog: baseCatalog as any,
+      defaultProvider: "anthropic",
+    });
+
+    expect(result.allowedKeys.has("anthropic/claude-opus-4-5")).toBe(true);
+  });
+
+  it("does not allow model from unknown provider not in catalog or config", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          models: {
+            "unknown-provider/some-model": { alias: "test" },
+          },
+        },
+      },
+    };
+
+    const result = buildAllowedModelSet({
+      cfg,
+      catalog: baseCatalog as any,
+      defaultProvider: "anthropic",
+    });
+
+    expect(result.allowedKeys.has("unknown-provider/some-model")).toBe(false);
+  });
+
+  it("allows any model when allowlist is empty", () => {
+    const cfg: OpenClawConfig = {};
+    const result = buildAllowedModelSet({
+      cfg,
+      catalog: baseCatalog as any,
+      defaultProvider: "anthropic",
+    });
+
+    expect(result.allowAny).toBe(true);
   });
 });

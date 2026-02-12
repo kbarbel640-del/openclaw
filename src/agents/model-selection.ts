@@ -295,6 +295,12 @@ export function buildAllowedModelSet(params: {
     }
     const key = modelKey(parsed.provider, parsed.model);
     const providerKey = normalizeProviderId(parsed.provider);
+    // Determine whether this provider has any models in the built-in catalog.
+    // Built-in providers (anthropic, openai, google, xai, etc.) should be
+    // allowlist-able for forward-compat models that aren't yet in the catalog.
+    const providerInCatalog = params.catalog.some(
+      (entry) => normalizeProviderId(entry.provider) === providerKey,
+    );
     if (isCliProvider(parsed.provider, params.cfg)) {
       allowedKeys.add(key);
     } else if (catalogKeys.has(key)) {
@@ -302,6 +308,11 @@ export function buildAllowedModelSet(params: {
     } else if (configuredProviders[providerKey] != null) {
       // Explicitly configured providers should be allowlist-able even when
       // they don't exist in the curated model catalog.
+      allowedKeys.add(key);
+    } else if (providerInCatalog) {
+      // Built-in providers with catalog entries should allow forward-compat
+      // model IDs that aren't yet in the catalog (e.g., opus-4-6 before it's
+      // added to the Pi SDK ModelRegistry).
       allowedKeys.add(key);
     }
   }
