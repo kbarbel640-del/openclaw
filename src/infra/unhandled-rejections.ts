@@ -142,7 +142,9 @@ export function isUnhandledRejectionHandled(reason: unknown): boolean {
 
 export type UnhandledRejectionsMode = "exit" | "warn";
 
-export function installUnhandledRejectionHandler(opts: { mode?: UnhandledRejectionsMode } = {}): void {
+export function installUnhandledRejectionHandler(
+  opts: { mode?: UnhandledRejectionsMode } = {},
+): void {
   const mode: UnhandledRejectionsMode = opts.mode ?? "exit";
 
   process.on("unhandledRejection", (reason, _promise) => {
@@ -178,7 +180,9 @@ export function installUnhandledRejectionHandler(opts: { mode?: UnhandledRejecti
     }
 
     console.error("[openclaw] Unhandled promise rejection:", formatUncaughtError(reason));
-    if (mode === "warn") return;
+    if (mode === "warn") {
+      return;
+    }
     process.exit(1);
   });
 }
