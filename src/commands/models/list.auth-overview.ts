@@ -1,8 +1,12 @@
 import type { OpenClawConfig } from "../../config/config.js";
-import type { ProviderAuthOverview } from "./list.types.js";
+import type { ProfileKindInfo, ProviderAuthOverview } from "./list.types.js";
 import { formatRemainingShort } from "../../agents/auth-health.js";
 import {
   type AuthProfileStore,
+  credentialKindDisplayLabel,
+  credentialKindLabel,
+  credentialBillingHint,
+  detectCredentialKindFromKey,
   listProfilesForProvider,
   resolveAuthProfileDisplayLabel,
   resolveAuthStorePathForDisplay,
@@ -11,6 +15,22 @@ import {
 import { getCustomProviderApiKey, resolveEnvApiKey } from "../../agents/model-auth.js";
 import { shortenHomePath } from "../../utils.js";
 import { maskApiKey } from "./list.format.js";
+
+function buildProfileKindInfo(
+  type: "oauth" | "token" | "api_key",
+  provider: string,
+): ProfileKindInfo {
+  // Build a minimal credential-like object so we can reuse the display helpers.
+  const credential = {
+    type,
+    provider,
+  } as import("../../agents/auth-profiles.js").AuthProfileCredential;
+  return {
+    kind: type,
+    kindLabel: credentialKindDisplayLabel(credential),
+    billingHint: credentialBillingHint(credential) ?? undefined,
+  };
+}
 
 export function resolveProviderAuthOverview(params: {
   provider: string;
@@ -34,16 +54,30 @@ export function resolveProviderAuthOverview(params: {
     const remaining = formatRemainingShort(unusableUntil - now);
     return `${base} [${kind} ${remaining}]`;
   };
+
+  const kinds: ProfileKindInfo[] = [];
+
   const labels = profiles.map((profileId) => {
     const profile = store.profiles[profileId];
     if (!profile) {
+      kinds.push({ kind: "api_key", kindLabel: "Unknown" });
       return `${profileId}=missing`;
     }
+
+    const kindInfo = buildProfileKindInfo(profile.type, profile.provider);
+    kinds.push(kindInfo);
+
     if (profile.type === "api_key") {
-      return withUnusableSuffix(`${profileId}=${maskApiKey(profile.key ?? "")}`, profileId);
+      return withUnusableSuffix(
+        `${profileId}=${maskApiKey(profile.key ?? "")} [${kindInfo.kindLabel}]`,
+        profileId,
+      );
     }
     if (profile.type === "token") {
-      return withUnusableSuffix(`${profileId}=token:${maskApiKey(profile.token)}`, profileId);
+      return withUnusableSuffix(
+        `${profileId}=token:${maskApiKey(profile.token)} [${kindInfo.kindLabel}]`,
+        profileId,
+      );
     }
     const display = resolveAuthProfileDisplayLabel({ cfg, store, profileId });
     const suffix =
@@ -52,7 +86,7 @@ export function resolveProviderAuthOverview(params: {
         : display.startsWith(profileId)
           ? display.slice(profileId.length).trim()
           : `(${display})`;
-    const base = `${profileId}=OAuth${suffix ? ` ${suffix}` : ""}`;
+    const base = `${profileId}=${kindInfo.kindLabel}${suffix ? ` ${suffix}` : ""}`;
     return withUnusableSuffix(base, profileId);
   });
   const oauthCount = profiles.filter((id) => store.profiles[id]?.type === "oauth").length;
@@ -83,6 +117,21 @@ export function resolveProviderAuthOverview(params: {
     return { kind: "missing", detail: "missing" };
   })();
 
+  // Build credential kind info for env key
+  const envCredentialKind: ProfileKindInfo | undefined = (() => {
+    if (!envKey) {
+      return undefined;
+    }
+    const detected = detectCredentialKindFromKey(provider, envKey.apiKey);
+    return {
+      kind: detected.kind,
+      kindLabel: detected.billingHint
+        ? `${credentialKindLabel(detected.kind)} (${detected.billingHint})`
+        : credentialKindLabel(detected.kind),
+      billingHint: detected.billingHint,
+    };
+  })();
+
   return {
     provider,
     effective,
@@ -92,6 +141,7 @@ export function resolveProviderAuthOverview(params: {
       token: tokenCount,
       apiKey: apiKeyCount,
       labels,
+      kinds,
     },
     ...(envKey
       ? {
@@ -101,6 +151,7 @@ export function resolveProviderAuthOverview(params: {
                 ? "OAuth (env)"
                 : maskApiKey(envKey.apiKey),
             source: envKey.source,
+            credentialKind: envCredentialKind,
           },
         }
       : {}),

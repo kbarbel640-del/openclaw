@@ -12,6 +12,8 @@ import {
   formatRemainingShort,
 } from "../../agents/auth-health.js";
 import {
+  credentialBillingHint,
+  credentialKindDisplayLabel,
   ensureAuthProfileStore,
   resolveAuthStorePathForDisplay,
   resolveProfileUnusableUntilForDisplay,
@@ -280,6 +282,7 @@ export async function modelsStatusCommand(
   const oauthProfiles = authHealth.profiles.filter(
     (profile) => profile.type === "oauth" || profile.type === "token",
   );
+  const allAuthProfiles = authHealth.profiles;
 
   const unusableProfiles = (() => {
     const now = Date.now();
@@ -361,7 +364,19 @@ export async function modelsStatusCommand(
             unusableProfiles,
             oauth: {
               warnAfterMs: authHealth.warnAfterMs,
-              profiles: authHealth.profiles,
+              profiles: authHealth.profiles.map((profile) => {
+                const credential = store.profiles[profile.profileId];
+                return {
+                  ...profile,
+                  credentialKind: credential
+                    ? {
+                        kind: credential.type,
+                        kindLabel: credentialKindDisplayLabel(credential),
+                        billingHint: credentialBillingHint(credential) ?? undefined,
+                      }
+                    : undefined,
+                };
+              }),
               providers: authHealth.providers,
             },
             probes: probeSummary,
@@ -549,14 +564,14 @@ export async function modelsStatusCommand(
   }
 
   runtime.log("");
-  runtime.log(colorize(rich, theme.heading, "OAuth/token status"));
-  if (oauthProfiles.length === 0) {
+  runtime.log(colorize(rich, theme.heading, "Auth profile status"));
+  if (allAuthProfiles.length === 0) {
     runtime.log(colorize(rich, theme.muted, "- none"));
   } else {
     const usageByProvider = new Map<string, string>();
     const usageProviders = Array.from(
       new Set(
-        oauthProfiles
+        allAuthProfiles
           .map((profile) => resolveUsageProviderId(profile.provider))
           .filter((provider): provider is UsageProviderId => Boolean(provider)),
       ),
@@ -599,8 +614,8 @@ export async function modelsStatusCommand(
       return colorize(rich, theme.error, "expired");
     };
 
-    const profilesByProvider = new Map<string, typeof oauthProfiles>();
-    for (const profile of oauthProfiles) {
+    const profilesByProvider = new Map<string, typeof allAuthProfiles>();
+    for (const profile of allAuthProfiles) {
       const current = profilesByProvider.get(profile.provider);
       if (current) {
         current.push(profile);
@@ -617,6 +632,10 @@ export async function modelsStatusCommand(
       for (const profile of profiles) {
         const labelText = profile.label || profile.profileId;
         const label = colorize(rich, theme.accent, labelText);
+        const credential = store.profiles[profile.profileId];
+        const kindLabel = credential
+          ? colorize(rich, theme.muted, `[${credentialKindDisplayLabel(credential)}]`)
+          : "";
         const status = formatStatus(profile.status);
         const expiry =
           profile.status === "static"
@@ -624,7 +643,7 @@ export async function modelsStatusCommand(
             : profile.expiresAt
               ? ` expires in ${formatRemainingShort(profile.remainingMs)}`
               : " expires unknown";
-        runtime.log(`  - ${label} ${status}${expiry}`);
+        runtime.log(`  - ${label} ${kindLabel ? `${kindLabel} ` : ""}${status}${expiry}`);
       }
     }
   }

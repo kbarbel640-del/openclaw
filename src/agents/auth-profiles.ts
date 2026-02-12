@@ -1,4 +1,11 @@
 export { CLAUDE_CLI_PROFILE_ID, CODEX_CLI_PROFILE_ID } from "./auth-profiles/constants.js";
+export {
+  credentialBillingHint,
+  credentialKindDisplayLabel,
+  credentialKindLabel,
+  detectCredentialKindFromKey,
+} from "./auth-profiles/credential-kind.js";
+export type { CredentialKind } from "./auth-profiles/credential-kind.js";
 export { resolveAuthProfileDisplayLabel } from "./auth-profiles/display.js";
 export { formatAuthDoctorHint } from "./auth-profiles/doctor.js";
 export { resolveApiKeyForProfile } from "./auth-profiles/oauth.js";

@@ -157,6 +157,36 @@ describe("modelsStatusCommand auth overview", () => {
     expect(
       (payload.auth.providersWithOAuth as string[]).some((e) => e.startsWith("openai-codex")),
     ).toBe(true);
+
+    // Verify credentialKind is included in oauth profile data
+    const oauthProfiles = payload.auth.oauth.profiles as Array<{
+      profileId: string;
+      type: string;
+      credentialKind?: { kind: string; kindLabel: string; billingHint?: string };
+    }>;
+
+    const anthropicOAuth = oauthProfiles.find((p) => p.profileId === "anthropic:default");
+    expect(anthropicOAuth?.credentialKind).toBeTruthy();
+    expect(anthropicOAuth?.credentialKind?.kind).toBe("oauth");
+    expect(anthropicOAuth?.credentialKind?.kindLabel).toBe("OAuth (Max)");
+    expect(anthropicOAuth?.credentialKind?.billingHint).toBe("Max");
+
+    const anthropicApiKey = oauthProfiles.find((p) => p.profileId === "anthropic:work");
+    expect(anthropicApiKey?.credentialKind).toBeTruthy();
+    expect(anthropicApiKey?.credentialKind?.kind).toBe("api_key");
+    expect(anthropicApiKey?.credentialKind?.kindLabel).toBe("API Key");
+    expect(anthropicApiKey?.credentialKind?.billingHint).toBeUndefined();
+
+    const openaiCodexOAuth = oauthProfiles.find((p) => p.profileId === "openai-codex:default");
+    expect(openaiCodexOAuth?.credentialKind).toBeTruthy();
+    expect(openaiCodexOAuth?.credentialKind?.kind).toBe("oauth");
+    expect(openaiCodexOAuth?.credentialKind?.kindLabel).toBe("OAuth");
+    expect(openaiCodexOAuth?.credentialKind?.billingHint).toBeUndefined();
+
+    // Verify provider auth labels include kind indicators
+    const anthropicProvider = providers.find((p) => p.provider === "anthropic");
+    expect(anthropicProvider?.profiles.kinds).toBeTruthy();
+    expect(anthropicProvider?.profiles.kinds.length).toBeGreaterThan(0);
   });
 
   it("uses agent overrides and reports sources", async () => {
@@ -190,6 +220,29 @@ describe("modelsStatusCommand auth overview", () => {
       mocks.resolveAgentModelFallbacksOverride.mockImplementation(originalFallbacks);
       mocks.resolveAgentDir.mockImplementation(originalAgentDir);
     }
+  });
+
+  it("displays credential kind labels in rich output", async () => {
+    const localRuntime = {
+      log: vi.fn(),
+      error: vi.fn(),
+      exit: vi.fn(),
+    };
+    await modelsStatusCommand({}, localRuntime as never);
+    const output = (localRuntime.log as vi.Mock).mock.calls
+      .map((call) => String(call[0]))
+      .join("\n");
+
+    // Should show "Auth profile status" heading (renamed from "OAuth/token status")
+    expect(output).toContain("Auth profile status");
+
+    // Should include credential kind labels for profiles
+    expect(output).toContain("OAuth (Max)");
+    expect(output).toContain("API Key");
+
+    // Auth overview labels should also include kind info
+    const providerLines = output.split("\n").filter((line) => line.includes("anthropic"));
+    expect(providerLines.length).toBeGreaterThan(0);
   });
 
   it("labels defaults when --agent has no overrides", async () => {
