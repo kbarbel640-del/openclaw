@@ -9,6 +9,7 @@ import { getFlagValue, getPositiveIntFlagValue, getVerboseFlag, hasFlag } from "
 import { registerBrowserCli } from "../browser-cli.js";
 import { registerConfigCli } from "../config-cli.js";
 import { registerMemoryCli, runMemoryStatus } from "../memory-cli.js";
+import { registerResearchCommand } from "../register.research.js";
 import { registerAgentCommands } from "./register.agent.js";
 import { registerConfigureCommand } from "./register.configure.js";
 import { registerMaintenanceCommands } from "./register.maintenance.js";
@@ -129,10 +130,8 @@ export const commandRegistry: CommandRegistration[] = [
     id: "config",
     register: ({ program }) => registerConfigCli(program),
   },
-  {
-    id: "maintenance",
-    register: ({ program }) => registerMaintenanceCommands(program),
-  },
+  { id: "research", register: ({ program }) => registerResearchCommand(program) },
+  { id: "maintenance", register: ({ program }) => registerMaintenanceCommands(program) },
   {
     id: "message",
     register: ({ program, ctx }) => registerMessageCommands(program, ctx),
