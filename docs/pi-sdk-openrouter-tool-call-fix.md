@@ -67,22 +67,25 @@ finishCurrentBlock(currentBlock);
 
 // NEW: Fallback for providers that don't stream tool_calls
 // Guard: only if stopReason is toolUse AND no toolCall blocks were ever emitted
-const parsedToolCalls = output.content.filter(b => b.type === "toolCall");
+const parsedToolCalls = output.content.filter((b) => b.type === "toolCall");
 if (output.stopReason === "toolUse" && parsedToolCalls.length === 0) {
   // Re-issue non-streaming request using same params to get tool_calls
   // IMPORTANT: params must remain in scope from buildParams() call above
   try {
     const nonStreamParams = { ...params, stream: false };
     delete nonStreamParams.stream_options; // Not needed for non-streaming
-    const completion = await client.chat.completions.create(nonStreamParams, { signal: options?.signal });
+    const completion = await client.chat.completions.create(nonStreamParams, {
+      signal: options?.signal,
+    });
     const choice = completion.choices[0];
 
     if (choice?.message?.tool_calls?.length) {
       for (const tc of choice.message.tool_calls) {
         // Safe parse: some proxies return arguments as object, others as string
-        const args = typeof tc.function.arguments === "string"
-          ? JSON.parse(tc.function.arguments || "{}")
-          : tc.function.arguments ?? {};
+        const args =
+          typeof tc.function.arguments === "string"
+            ? JSON.parse(tc.function.arguments || "{}")
+            : (tc.function.arguments ?? {});
 
         const block: ToolCallBlock = {
           type: "toolCall",
@@ -93,8 +96,17 @@ if (output.stopReason === "toolUse" && parsedToolCalls.length === 0) {
         output.content.push(block);
 
         // Emit synthetic events for the tool execution pipeline
-        stream.push({ type: "toolcall_start", contentIndex: output.content.length - 1, partial: output });
-        stream.push({ type: "toolcall_end", contentIndex: output.content.length - 1, toolCall: block, partial: output });
+        stream.push({
+          type: "toolcall_start",
+          contentIndex: output.content.length - 1,
+          partial: output,
+        });
+        stream.push({
+          type: "toolcall_end",
+          contentIndex: output.content.length - 1,
+          toolCall: block,
+          partial: output,
+        });
       }
     }
   } catch (fallbackError) {
@@ -154,11 +166,13 @@ describe("OpenRouter tool call recovery", () => {
     const output = await streamOpenAICompletions(model, context, options);
 
     // Verify toolcall_start/toolcall_end events were emitted
-    const toolCallEvents = events.filter(e => e.type === "toolcall_start" || e.type === "toolcall_end");
+    const toolCallEvents = events.filter(
+      (e) => e.type === "toolcall_start" || e.type === "toolcall_end",
+    );
     expect(toolCallEvents.length).toBeGreaterThan(0);
 
     // Verify tool call is in output
-    const toolCalls = output.content.filter(b => b.type === "toolCall");
+    const toolCalls = output.content.filter((b) => b.type === "toolCall");
     expect(toolCalls).toHaveLength(1);
     expect(toolCalls[0].name).toBe("read");
   });
