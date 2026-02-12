@@ -144,6 +144,7 @@ export class OpenClawApp extends LitElement {
   }> = [];
   @state() chatModelLoading = false;
   @state() chatModelError: string | null = null;
+  @state() chatSelectedProvider: string | null = null;
   @state() chatSelectedModel: string | null = null;
   @state() chatSwitchingModel = false;
   @state() chatQueue: ChatQueueItem[] = [];

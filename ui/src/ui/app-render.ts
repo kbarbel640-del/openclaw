@@ -930,6 +930,7 @@ export function renderApp(state: AppViewState) {
                   state.chatStreamStartedAt = null;
                   state.chatRunId = null;
                   state.chatQueue = [];
+                  state.chatSelectedProvider = null;
                   state.chatSelectedModel = null;
                   state.resetToolStream();
                   state.resetChatScroll();
@@ -978,6 +979,14 @@ export function renderApp(state: AppViewState) {
                 modelOptions: state.chatModelOptions,
                 modelLoading: state.chatModelLoading,
                 modelError: state.chatModelError,
+                selectedProvider:
+                  state.chatSelectedProvider ??
+                  (() => {
+                    const active = state.sessionsResult?.sessions?.find(
+                      (row) => row.key === state.sessionKey,
+                    );
+                    return active?.modelProvider?.trim() || null;
+                  })(),
                 selectedModel:
                   state.chatSelectedModel ??
                   (() => {
@@ -989,6 +998,12 @@ export function renderApp(state: AppViewState) {
                     return provider && model ? `${provider}/${model}` : null;
                   })(),
                 switchingModel: state.chatSwitchingModel,
+                onProviderChange: (provider) => {
+                  state.chatSelectedProvider = provider || null;
+                  if (state.chatSelectedModel?.startsWith(`${provider}/`) !== true) {
+                    state.chatSelectedModel = null;
+                  }
+                },
                 onModelChange: (modelRef) => void state.handleSwitchChatModel(modelRef),
                 attachments: state.chatAttachments,
                 onAttachmentsChange: (next) => (state.chatAttachments = next),

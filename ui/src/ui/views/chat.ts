@@ -79,8 +79,10 @@ export type ChatProps = {
   modelOptions: ChatModelOption[];
   modelLoading?: boolean;
   modelError?: string | null;
+  selectedProvider?: string | null;
   selectedModel?: string | null;
   switchingModel?: boolean;
+  onProviderChange?: (provider: string) => void;
   onModelChange?: (modelRef: string) => void;
   onSend: () => void;
   onAbort?: () => void;
@@ -477,33 +479,62 @@ export function renderChat(props: ChatProps) {
       <div class="chat-compose">
         ${renderAttachmentPreview(props)}
         <div class="chat-compose__meta">
-          <label class="chat-model-select">
-            <span>Model</span>
-            <select
-              .value=${props.selectedModel ?? ""}
-              ?disabled=${!props.connected || (props.modelLoading ?? false) || (props.switchingModel ?? false)}
-              @change=${(e: Event) => {
-                const value = (e.target as HTMLSelectElement).value;
-                if (!value) {
-                  return;
-                }
-                props.onModelChange?.(value);
-              }}
-            >
-              <option value="">${props.modelLoading ? "Loading models…" : "Select model"}</option>
-              ${Array.from(new Set((props.modelOptions ?? []).map((opt) => opt.providerLabel))).map(
-                (providerLabel) => html`
-                  <optgroup label=${providerLabel}>
-                    ${(props.modelOptions ?? [])
-                      .filter((opt) => opt.providerLabel === providerLabel)
-                      .map(
-                        (opt) => html`<option value=${opt.value}>${opt.label}</option>`,
-                      )}
-                  </optgroup>
-                `,
-              )}
-            </select>
-          </label>
+          ${(() => {
+            const providers = Array.from(
+              new Map((props.modelOptions ?? []).map((o) => [o.provider, o.providerLabel])).entries(),
+            ).map(([provider, providerLabel]) => ({ provider, providerLabel }));
+            const selectedProvider =
+              props.selectedProvider ??
+              (props.selectedModel?.includes("/") ? (props.selectedModel.split("/")[0] ?? null) : null) ??
+              providers[0]?.provider ??
+              null;
+            const providerModels = (props.modelOptions ?? []).filter(
+              (opt) => opt.provider === selectedProvider,
+            );
+            const selectedModel =
+              props.selectedModel && providerModels.some((m) => m.value === props.selectedModel)
+                ? props.selectedModel
+                : providerModels[0]?.value ?? "";
+            return html`
+              <label class="chat-model-select">
+                <span>Provider</span>
+                <select
+                  .value=${selectedProvider ?? ""}
+                  ?disabled=${!props.connected || (props.modelLoading ?? false) || (props.switchingModel ?? false)}
+                  @change=${(e: Event) => {
+                    const value = (e.target as HTMLSelectElement).value;
+                    props.onProviderChange?.(value);
+                  }}
+                >
+                  <option value="">${props.modelLoading ? "Loading providers…" : "Select provider"}</option>
+                  ${providers.map(
+                    (p) => html`<option value=${p.provider}>${p.providerLabel}</option>`,
+                  )}
+                </select>
+              </label>
+              <label class="chat-model-select">
+                <span>Model</span>
+                <select
+                  .value=${selectedModel}
+                  ?disabled=${
+                    !props.connected ||
+                    (props.modelLoading ?? false) ||
+                    (props.switchingModel ?? false) ||
+                    !selectedProvider
+                  }
+                  @change=${(e: Event) => {
+                    const value = (e.target as HTMLSelectElement).value;
+                    if (value) {
+                      props.onModelChange?.(value);
+                    }
+                  }}
+                >
+                  <option value="">${props.modelLoading ? "Loading models…" : "Select model"}</option>
+                  ${providerModels.map((opt) => html`<option value=${opt.value}>${opt.label}</option>`)}
+                </select>
+              </label>
+            `;
+          })()}
           ${props.switchingModel ? html`<span class="muted">Switching…</span>` : nothing}
           ${props.modelError ? html`<span class="muted">${props.modelError}</span>` : nothing}
         </div>

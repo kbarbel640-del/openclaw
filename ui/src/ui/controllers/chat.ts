@@ -21,6 +21,7 @@ export type ChatState = {
   chatModelOptions: ChatModelOption[];
   chatModelLoading: boolean;
   chatModelError: string | null;
+  chatSelectedProvider: string | null;
   chatSelectedModel: string | null;
   chatSwitchingModel: boolean;
   chatSending: boolean;
@@ -90,6 +91,9 @@ export async function loadChatModels(state: ChatState) {
   try {
     const raw = await state.client.request("models.list", {});
     state.chatModelOptions = normalizeModelOptions(raw);
+    if (!state.chatSelectedProvider && state.chatSelectedModel?.includes("/")) {
+      state.chatSelectedProvider = state.chatSelectedModel.split("/")[0] ?? null;
+    }
   } catch (err) {
     state.chatModelOptions = [];
     state.chatModelError = String(err);
@@ -116,6 +120,7 @@ export async function switchChatModel(state: ChatState, modelRef: string): Promi
       idempotencyKey: generateUUID(),
     });
     state.chatSelectedModel = next;
+    state.chatSelectedProvider = next.includes("/") ? (next.split("/")[0] ?? null) : null;
     await loadChatHistory(state);
     return true;
   } catch (err) {

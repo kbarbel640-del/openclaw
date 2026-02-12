@@ -72,6 +72,7 @@ export type AppViewState = {
   }>;
   chatModelLoading: boolean;
   chatModelError: string | null;
+  chatSelectedProvider: string | null;
   chatSelectedModel: string | null;
   chatSwitchingModel: boolean;
   chatQueue: ChatQueueItem[];

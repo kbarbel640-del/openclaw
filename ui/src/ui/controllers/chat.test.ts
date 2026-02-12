@@ -21,6 +21,7 @@ function createState(overrides: Partial<ChatState> = {}): ChatState {
     chatModelOptions: [],
     chatModelLoading: false,
     chatModelError: null,
+    chatSelectedProvider: null,
     chatSelectedModel: null,
     chatSwitchingModel: false,
     client: null,
