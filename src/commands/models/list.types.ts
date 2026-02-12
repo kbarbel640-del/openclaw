@@ -19,7 +19,7 @@ export type ModelRow = {
 };
 
 export type ProfileKindInfo = {
-  kind: CredentialKind;
+  kind: CredentialKind | "missing";
   /** Human-readable label, e.g. "OAuth (Max)", "API Key" */
   kindLabel: string;
   /** Optional billing-context hint, e.g. "Max" */

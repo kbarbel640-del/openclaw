@@ -60,7 +60,7 @@ export function resolveProviderAuthOverview(params: {
   const labels = profiles.map((profileId) => {
     const profile = store.profiles[profileId];
     if (!profile) {
-      kinds.push({ kind: "api_key", kindLabel: "Unknown" });
+      kinds.push({ kind: "missing", kindLabel: "Missing" });
       return `${profileId}=missing`;
     }
 
