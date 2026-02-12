@@ -4,56 +4,12 @@ import { type AuthStorage, estimateTokens, generateSummary } from "@mariozechner
 import type { ContextDecayConfig } from "../../config/types.agent-defaults.js";
 import type { SummaryEntry } from "./summary-store.js";
 import { log } from "../pi-embedded-runner/logger.js";
+import { extractContentText, extractToolInfo } from "./message-utils.js";
 import { loadSummaryStore, saveSummaryStore } from "./summary-store.js";
 import { computeTurnAges } from "./turn-ages.js";
 
 /** Reserve tokens for the summarization model response. */
 const SUMMARY_RESERVE_TOKENS = 500;
-
-function extractToolResultText(msg: AgentMessage): string {
-  const msgUnk = msg as unknown as { content: unknown };
-  if (!Array.isArray(msgUnk.content)) {
-    return typeof msgUnk.content === "string" ? msgUnk.content : JSON.stringify(msgUnk.content);
-  }
-  return (msgUnk.content as Array<Record<string, unknown>>)
-    .filter((b) => b.type === "text")
-    .map((b) => b.text as string)
-    .join("\n");
-}
-
-function extractToolInfo(
-  messages: AgentMessage[],
-  toolResultIndex: number,
-): { toolName: string; args: string } {
-  // Walk backward from toolResult to find the matching assistant tool_use
-  const toolResultMsg = messages[toolResultIndex] as unknown as Record<string, unknown>;
-  const toolCallId = toolResultMsg.toolCallId as string | undefined;
-
-  if (!toolCallId) {
-    return { toolName: "unknown", args: "{}" };
-  }
-
-  for (let i = toolResultIndex - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (msg.role !== "assistant") {
-      continue;
-    }
-    const msgContent = (msg as unknown as { content: unknown }).content;
-    if (!Array.isArray(msgContent)) {
-      continue;
-    }
-    for (const block of msgContent) {
-      if (block.type === "tool_use" && block.id === toolCallId) {
-        return {
-          toolName: (block.name as string) ?? "unknown",
-          args: JSON.stringify(block.input ?? {}),
-        };
-      }
-    }
-  }
-
-  return { toolName: "unknown", args: "{}" };
-}
 
 /**
  * Build the summarization prompt for a tool result.
@@ -117,7 +73,7 @@ export async function summarizeAgedToolResults(params: {
       continue;
     }
 
-    const content = extractToolResultText(msg);
+    const content = extractContentText(msg);
     // Skip very short results (not worth summarizing)
     if (content.length < 200) {
       continue;
@@ -153,7 +109,9 @@ export async function summarizeAgedToolResults(params: {
     }
 
     try {
-      const prompt = buildSummarizationPrompt(item.toolName, item.args, item.content);
+      // Truncate args independently to prevent them from pushing tool result content off the end
+      const truncatedArgs = item.args.length > 500 ? item.args.slice(0, 500) + "..." : item.args;
+      const prompt = buildSummarizationPrompt(item.toolName, truncatedArgs, item.content);
 
       // Truncate very long content to avoid excessive summarization costs
       const maxPromptChars = 50_000;
