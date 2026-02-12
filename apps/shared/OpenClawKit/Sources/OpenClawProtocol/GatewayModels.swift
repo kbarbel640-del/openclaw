@@ -1150,6 +1150,16 @@ public struct SessionsUsageParams: Codable, Sendable {
 }
 
 public struct ConfigGetParams: Codable, Sendable {
+    public let includesecrets: Bool?
+
+    public init(
+        includesecrets: Bool?
+    ) {
+        self.includesecrets = includesecrets
+    }
+    private enum CodingKeys: String, CodingKey {
+        case includesecrets = "includeSecrets"
+    }
 }
 
 public struct ConfigSetParams: Codable, Sendable {
