@@ -58,15 +58,19 @@ function resolveRequestUrl(input: RequestInfo | URL): string {
 }
 
 function createSlackMediaFetch(token: string): FetchLike {
-  let includeAuth = true;
   return async (input, init) => {
     const url = resolveRequestUrl(input);
     const { headers: initHeaders, redirect: _redirect, ...rest } = init ?? {};
     const headers = new Headers(initHeaders);
 
-    if (includeAuth) {
-      includeAuth = false;
-      const parsed = assertSlackFileUrl(url);
+    let parsed: URL | null = null;
+    try {
+      parsed = new URL(url);
+    } catch {
+      parsed = null;
+    }
+
+    if (parsed?.protocol === "https:" && isSlackHostname(parsed.hostname)) {
       headers.set("Authorization", `Bearer ${token}`);
       return fetch(parsed.href, { ...rest, headers, redirect: "manual" });
     }
@@ -74,6 +78,11 @@ function createSlackMediaFetch(token: string): FetchLike {
     headers.delete("Authorization");
     return fetch(url, { ...rest, headers, redirect: "manual" });
   };
+}
+
+function isLikelyHtmlPayload(buffer: Buffer): boolean {
+  const leadingText = buffer.subarray(0, 512).toString("utf8").trimStart().toLowerCase();
+  return leadingText.startsWith("<!doctype html") || leadingText.startsWith("<html");
 }
 
 /**
@@ -144,6 +153,12 @@ export async function resolveSlackMedia(params: {
       if (fetched.buffer.byteLength > params.maxBytes) {
         continue;
       }
+
+      const resolvedContentType = (fetched.contentType ?? file.mimetype ?? "").toLowerCase();
+      if (resolvedContentType.startsWith("text/html") || isLikelyHtmlPayload(fetched.buffer)) {
+        continue;
+      }
+
       const saved = await saveMediaBuffer(
         fetched.buffer,
         fetched.contentType ?? file.mimetype,

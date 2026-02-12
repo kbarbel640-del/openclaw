@@ -297,4 +297,69 @@ describe("resolveSlackMedia", () => {
     expect(result).not.toBeNull();
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
+
+  it("keeps Authorization header for Slack-hosted redirect hops", async () => {
+    vi.doMock("../../media/store.js", () => ({
+      saveMediaBuffer: vi.fn().mockResolvedValue({
+        path: "/tmp/test.jpg",
+        contentType: "image/jpeg",
+      }),
+    }));
+
+    const { resolveSlackMedia } = await import("./media.js");
+
+    const redirectResponse = new Response(null, {
+      status: 302,
+      headers: { location: "https://files.slack.com/files-pri/T123-F123/download/image.jpg" },
+    });
+    const successResponse = new Response(Buffer.from("image data"), {
+      status: 200,
+      headers: { "content-type": "image/jpeg" },
+    });
+
+    mockFetch.mockResolvedValueOnce(redirectResponse).mockResolvedValueOnce(successResponse);
+
+    const token = "xoxb-test-token";
+    const result = await resolveSlackMedia({
+      files: [{ url_private: "https://files.slack.com/original.jpg", name: "test.jpg" }],
+      token,
+      maxBytes: 1024 * 1024,
+    });
+
+    expect(result).not.toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    const firstHeaders = new Headers((mockFetch.mock.calls[0]?.[1] as RequestInit)?.headers);
+    const secondHeaders = new Headers((mockFetch.mock.calls[1]?.[1] as RequestInit)?.headers);
+    expect(firstHeaders.get("Authorization")).toBe(`Bearer ${token}`);
+    expect(secondHeaders.get("Authorization")).toBe(`Bearer ${token}`);
+  });
+
+  it("skips HTML login payloads instead of saving them as media", async () => {
+    const saveMediaBufferMock = vi.fn().mockResolvedValue({
+      path: "/tmp/test.jpg",
+      contentType: "image/jpeg",
+    });
+    vi.doMock("../../media/store.js", () => ({
+      saveMediaBuffer: saveMediaBufferMock,
+    }));
+
+    const { resolveSlackMedia } = await import("./media.js");
+
+    const htmlResponse = new Response(Buffer.from("<!doctype html><html><body>Sign in</body></html>"), {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+
+    mockFetch.mockResolvedValueOnce(htmlResponse);
+
+    const result = await resolveSlackMedia({
+      files: [{ url_private: "https://files.slack.com/test.jpg", name: "test.jpg" }],
+      token: "xoxb-test-token",
+      maxBytes: 1024 * 1024,
+    });
+
+    expect(result).toBeNull();
+    expect(saveMediaBufferMock).not.toHaveBeenCalled();
+  });
 });
