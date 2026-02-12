@@ -62,6 +62,28 @@ By default, the service is of type `ClusterIP`. To access it:
 - **NodePort / LoadBalancer:**
   Edit `service.yaml` and change `type: ClusterIP` to `NodePort` or `LoadBalancer`.
 
+### Ingress with TLS (Traefik + cert-manager)
+
+For HTTPS access with automatic Let's Encrypt certificates, apply the ingress manifest:
+
+```bash
+kubectl apply -f ingress.yaml
+```
+
+This creates an Ingress resource that:
+
+- Routes traffic from `openclaw.vibebrowser.app` to the gateway service.
+- Uses Traefik as the ingress controller.
+- Provisions a TLS certificate via cert-manager and the `letsencrypt-prod` ClusterIssuer.
+
+**Prerequisites:**
+
+- Traefik ingress controller running (default on k3s).
+- cert-manager installed with a `letsencrypt-prod` ClusterIssuer.
+- DNS A record for `openclaw.vibebrowser.app` pointing to your cluster's public IP.
+
+**Customization:** Update the `host` field in `ingress.yaml` to use your own domain.
+
 ## Customization
 
 - **Image:** Update `deployment.yaml` to point to your specific Docker image tag.
