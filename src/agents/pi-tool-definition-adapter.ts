@@ -79,7 +79,19 @@ function splitToolExecuteArgs(args: ToolExecuteArgsAny): {
 }
 
 export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
-  return tools.map((tool) => {
+  // Deduplicate tools by name — some providers (OpenAI, OpenRouter) reject
+  // requests with duplicate tool names.  Keep the last definition so that
+  // plugin/skill overrides win over built-in tools.
+  const seen = new Map<string, number>();
+  for (let i = 0; i < tools.length; i++) {
+    seen.set((tools[i].name || "tool").toLowerCase(), i);
+  }
+  const dedupedTools = tools.filter((_, i) => {
+    const name = (tools[i].name || "tool").toLowerCase();
+    return seen.get(name) === i;
+  });
+
+  return dedupedTools.map((tool) => {
     const name = tool.name || "tool";
     const normalizedName = normalizeToolName(name);
     return {
