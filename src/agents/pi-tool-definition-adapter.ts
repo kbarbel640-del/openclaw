@@ -10,6 +10,27 @@ import { isPlainObject } from "../utils.js";
 import { runBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
 import { normalizeToolName } from "./tool-policy.js";
 import { jsonResult } from "./tools/common.js";
+/**
+ * Safely coerce tool arguments to a plain object.
+ *
+ * Some providers / code-paths deliver the arguments payload as a JSON **string**
+ * rather than a parsed object (e.g. when the LLM emits `"{}"` for an empty-args
+ * tool call).  This guard normalises both cases so downstream tool handlers
+ * always receive a `Record<string, unknown>`.
+ */
+function coerceToolArgs(params: unknown): unknown {
+  if (typeof params === "string") {
+    try {
+      const parsed = JSON.parse(params);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch {
+      // Not valid JSON – fall through and return as-is.
+    }
+  }
+  return params;
+}
 
 // oxlint-disable-next-line typescript/no-explicit-any
 type AnyAgentTool = AgentTool<any, unknown>;
@@ -89,8 +110,9 @@ export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
       parameters: tool.parameters,
       execute: async (...args: ToolExecuteArgs): Promise<AgentToolResult<unknown>> => {
         const { toolCallId, params, onUpdate, signal } = splitToolExecuteArgs(args);
+        const coercedParams = coerceToolArgs(params);
         try {
-          return await tool.execute(toolCallId, params, signal, onUpdate);
+          return await tool.execute(toolCallId, coercedParams, signal, onUpdate);
         } catch (err) {
           if (signal?.aborted) {
             throw err;
@@ -135,9 +157,10 @@ export function toClientToolDefinitions(
       parameters: func.parameters as any,
       execute: async (...args: ToolExecuteArgs): Promise<AgentToolResult<unknown>> => {
         const { toolCallId, params } = splitToolExecuteArgs(args);
+        const coercedParams = coerceToolArgs(params);
         const outcome = await runBeforeToolCallHook({
           toolName: func.name,
-          params,
+          params: coercedParams,
           toolCallId,
           ctx: hookContext,
         });
