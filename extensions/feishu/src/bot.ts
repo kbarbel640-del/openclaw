@@ -6,6 +6,7 @@ import {
   DEFAULT_GROUP_HISTORY_LIMIT,
   type HistoryEntry,
 } from "openclaw/plugin-sdk";
+import { resolveControlCommandGate } from "openclaw/plugin-sdk";
 import type { FeishuMessageContext, FeishuMediaInfo, ResolvedFeishuAccount } from "./types.js";
 import type { DynamicAgentCreationConfig } from "./types.js";
 import { resolveFeishuAccount } from "./accounts.js";
@@ -815,7 +816,7 @@ export async function handleFeishuMessage(params: {
         MessageSid: `${ctx.messageId}:permission-error`,
         Timestamp: Date.now(),
         WasMentioned: false,
-        CommandAuthorized: true,
+        CommandAuthorized: false,
         OriginatingChannel: "feishu" as const,
         OriginatingTo: feishuTo,
       });
@@ -903,7 +904,15 @@ export async function handleFeishuMessage(params: {
       ReplyToBody: quotedContent ?? undefined,
       Timestamp: Date.now(),
       WasMentioned: ctx.mentionedBot,
-      CommandAuthorized: true,
+      CommandAuthorized: resolveControlCommandGate({
+        useAccessGroups: cfg.accessGroups?.enabled ?? false,
+        authorizers:
+          senderAllowFrom.length > 0
+            ? [{ configured: true, allowed: true }] // already passed allowlist check above
+            : [],
+        allowTextCommands: true,
+        hasControlCommand: false,
+      }).commandAuthorized,
       OriginatingChannel: "feishu" as const,
       OriginatingTo: feishuTo,
       ...mediaPayload,
