@@ -361,6 +361,80 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
     if (slackMode === "socket") {
       await app.start();
       runtime.log?.("slack socket mode connected");
+
+      // --- Socket health monitoring (upstream gap: close-handler reconnect is fire-and-forget) ---
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const receiver = (app as unknown as { receiver?: { client?: import("events").EventEmitter } }).receiver;
+      const socketClient = receiver?.client as
+        | (import("events").EventEmitter & {
+            start?: () => Promise<unknown>;
+            shuttingDown?: boolean;
+            autoReconnectEnabled?: boolean;
+            websocket?: { readyState?: number } | null;
+          })
+        | undefined;
+
+      if (socketClient) {
+        socketClient.on("close", () => {
+          runtime.log?.("[slack-health] socket close event fired — SDK should auto-reconnect");
+        });
+        socketClient.on("error", (err: Error) => {
+          runtime.error?.(`[slack-health] socket error: ${err.message}`);
+        });
+        socketClient.on("reconnecting", () => {
+          runtime.log?.("[slack-health] socket reconnecting...");
+        });
+        socketClient.on("connected", () => {
+          runtime.log?.("[slack-health] socket reconnected");
+        });
+        socketClient.on("disconnected", () => {
+          runtime.error?.("[slack-health] socket disconnected (not reconnecting!)");
+        });
+      }
+
+      // Global Bolt error handler — without this, listener errors are silently swallowed.
+      app.error(async (error) => {
+        runtime.error?.(`[slack-health] bolt app error: ${(error as Error).message ?? error}`);
+      });
+
+      // Periodic socket liveness probe — catches cases where the SDK's own
+      // reconnect silently fails or the event loop stalls long enough to kill
+      // the WebSocket without firing a close event.
+      const HEALTH_INTERVAL_MS = 60_000;
+      const healthTimer = setInterval(() => {
+        if (opts.abortSignal?.aborted) {
+          clearInterval(healthTimer);
+          return;
+        }
+        if (!socketClient) return;
+
+        const ws = socketClient.websocket;
+        // ws.readyState: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
+        const wsState = ws?.readyState;
+        const isShuttingDown = socketClient.shuttingDown;
+
+        if (wsState !== undefined && wsState !== 1 && !isShuttingDown) {
+          const stateLabel = ["CONNECTING", "OPEN", "CLOSING", "CLOSED"][wsState] ?? `unknown(${wsState})`;
+          runtime.error?.(
+            `[slack-health] socket in bad state: ${stateLabel} — forcing reconnect`,
+          );
+          // Force reconnect by calling start() directly
+          if (typeof socketClient.start === "function") {
+            socketClient.start().catch((err: Error) => {
+              runtime.error?.(
+                `[slack-health] forced reconnect failed: ${err.message} — will retry in ${HEALTH_INTERVAL_MS / 1000}s`,
+              );
+            });
+          }
+        }
+      }, HEALTH_INTERVAL_MS);
+
+      // Clean up on abort
+      opts.abortSignal?.addEventListener(
+        "abort",
+        () => clearInterval(healthTimer),
+        { once: true },
+      );
     } else {
       runtime.log?.(`slack http mode listening at ${slackWebhookPath}`);
     }
