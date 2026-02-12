@@ -69,6 +69,7 @@ type TelegramMessageContextOptions = {
 
 type TelegramLogger = {
   info: (obj: Record<string, unknown>, msg: string) => void;
+  warn?: (obj: Record<string, unknown>, msg: string) => void;
 };
 
 type ResolveTelegramGroupConfig = (
@@ -489,7 +490,13 @@ export const buildTelegramMessageContext = async ({
         }).then(
           () => true,
           (err) => {
-            logVerbose(`telegram react failed for chat ${chatId}: ${String(err)}`);
+            const errStr = String(err);
+            const isReactionInvalid = /REACTION_INVALID/i.test(errStr);
+            if (isReactionInvalid) {
+              const warnMsg = `telegram ack reaction failed for chat ${chatId}: invalid emoji "${ackReaction}" — check channels.telegram.ackReaction.emoji`;
+              logger.warn?.({ chatId, emoji: ackReaction, error: errStr }, warnMsg);
+            }
+            logVerbose(`telegram react failed for chat ${chatId}: ${errStr}`);
             return false;
           },
         )
