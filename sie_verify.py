@@ -14,20 +14,15 @@ def load_trusted_issuers(path: Path) -> dict:
         raise ValueError("Trusted issuer file must be a JSON object: {issuer: pubkey_b64}")
     return data
 
-
 def resolve_issuer(env: dict) -> str:
     issuer = env.get("issuer") or env.get("payload", {}).get("issuer")
     if not issuer:
         raise ValueError("Envelope missing issuer field")
     return issuer
 
-
 def resolve_pubkey(env: dict, args) -> str:
-    # 1) Explicit CLI pubkey override (highest priority)
     if args.pubkey:
         return args.pubkey
-
-    # 2) Trusted keyring lookup by issuer
     issuer = resolve_issuer(env)
     keyring = load_trusted_issuers(Path(args.trusted_issuers))
     pub = keyring.get(issuer)
@@ -35,35 +30,25 @@ def resolve_pubkey(env: dict, args) -> str:
         raise ValueError(f"Issuer '{issuer}' is not trusted.")
     return pub
 
-
 def main() -> int:
     p = argparse.ArgumentParser(description="Verify a .sie.json envelope (SIE v0.1).")
     p.add_argument("--file", required=True, help="Path to .sie.json file")
     p.add_argument("--pubkey", required=False, help="Public key base64 override")
-    p.add_argument(
-        "--check-file",
-        required=False,
-        help="Path to external file to hash-check against payload.sha256",
-    )
-    p.add_argument(
-        "--trusted-issuers",
-        required=False,
-        default="trusted_issuers.json",
-        help="Path to trusted issuer keyring JSON (default: trusted_issuers.json)",
-    )
-
+    p.add_argument("--check-file", required=False, help="Path to external file to hash-check against payload.sha256")
+    p.add_argument("--trusted-issuers", required=False, default="trusted_issuers.json",
+                   help="Path to trusted issuer keyring JSON (default: trusted_issuers.json)")
     args = p.parse_args()
 
     f = Path(args.file)
     if not f.exists():
-        raise ValueError(f"File not found: {f}")
+        print(f"[FAIL] File not found: {f}")
+        return 2
 
     try:
         env = json.loads(f.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         print("[FAIL] Malformed envelope JSON.")
         return 2
-
 
     try:
         pub = resolve_pubkey(env, args)
@@ -74,8 +59,6 @@ def main() -> int:
             if not cf.exists():
                 raise ValueError(f"Check file not found: {cf}")
 
-            # Hash text content with UTF-8 to stay consistent with signing flow
-            # across platforms/checkouts (e.g., Windows CRLF conversions).
             disk_hash = hashlib.sha256(cf.read_text(encoding="utf-8").encode("utf-8")).hexdigest()
             env_hash = env.get("payload", {}).get("sha256")
 
@@ -94,6 +77,5 @@ def main() -> int:
     print("[OK] Signature verified and basic checks passed.")
     return 0
 
-
-    if __name__ == "__main__":
-        raise SystemExit(main())
+if __name__ == "__main__":
+    raise SystemExit(main())

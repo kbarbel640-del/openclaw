@@ -24,6 +24,13 @@ class EnforcementDecision:
 
 
 def _run_verify(verify_script: Path, envelope: Path, trusted_issuers: Path, skill_file: Path) -> tuple[bool, str]:
+    if not sys.executable:
+        return False, "verifier runtime unavailable: sys.executable is empty"
+    if not verify_script.exists():
+        return False, f"verifier script not found: {verify_script}"
+    if not verify_script.is_file():
+        return False, f"verifier script is not a file: {verify_script}"
+
     cmd = [
         sys.executable,
         str(verify_script),
@@ -34,24 +41,14 @@ def _run_verify(verify_script: Path, envelope: Path, trusted_issuers: Path, skil
         "--check-file",
         str(skill_file),
     ]
-    if not sys.executable:
-        return False, "verifier runtime unavailable: sys.executable is empty"
-
-    if not verify_script.exists():
-        return False, f"verifier script not found: {verify_script}"
-
-    if not verify_script.is_file():
-        return False, f"verifier script is not a file: {verify_script}"
 
     try:
         r = subprocess.run(cmd, capture_output=True, text=True)
     except OSError as e:
         return False, f"verifier execution failed: {e}"
 
-    if r.returncode != 0:
-        return False, f"verifier returned non-zero exit code: {r.returncode} (stdout: {r.stdout}, stderr: {r.stderr})"
-
-    return True, "verification successful"
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    return r.returncode == 0, out
 
 
 def evaluate_skill(
