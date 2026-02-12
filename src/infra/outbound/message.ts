@@ -38,6 +38,7 @@ type MessageSendParams = {
   accountId?: string;
   dryRun?: boolean;
   bestEffort?: boolean;
+  replyToId?: string | null;
   deps?: OutboundSendDeps;
   cfg?: OpenClawConfig;
   gateway?: MessageGatewayOptions;
@@ -165,6 +166,7 @@ export async function sendMessage(params: MessageSendParams): Promise<MessageSen
       to: resolvedTarget.to,
       accountId: params.accountId,
       payloads: normalizedPayloads,
+      replyToId: params.replyToId,
       gifPlayback: params.gifPlayback,
       deps: params.deps,
       bestEffort: params.bestEffort,
