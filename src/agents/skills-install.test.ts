@@ -6,6 +6,7 @@ import { installSkill } from "./skills-install.js";
 
 const runCommandWithTimeoutMock = vi.fn();
 const scanDirectoryWithSummaryMock = vi.fn();
+const hasBinaryMock = vi.fn<(bin: string) => boolean>();
 
 vi.mock("../process/exec.js", () => ({
   runCommandWithTimeout: (...args: unknown[]) => runCommandWithTimeoutMock(...args),
@@ -18,6 +19,18 @@ vi.mock("../security/skill-scanner.js", async (importOriginal) => {
     scanDirectoryWithSummary: (...args: unknown[]) => scanDirectoryWithSummaryMock(...args),
   };
 });
+
+vi.mock("./skills.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./skills.js")>();
+  return {
+    ...actual,
+    hasBinary: (bin: string) => hasBinaryMock(bin),
+  };
+});
+
+vi.mock("../infra/brew.js", () => ({
+  resolveBrewExecutable: () => undefined,
+}));
 
 async function writeInstallableSkill(workspaceDir: string, name: string): Promise<string> {
   const skillDir = path.join(workspaceDir, "skills", name);
@@ -42,6 +55,8 @@ describe("installSkill code safety scanning", () => {
   beforeEach(() => {
     runCommandWithTimeoutMock.mockReset();
     scanDirectoryWithSummaryMock.mockReset();
+    hasBinaryMock.mockReset();
+    hasBinaryMock.mockReturnValue(false);
     runCommandWithTimeoutMock.mockResolvedValue({
       code: 0,
       stdout: "ok",
@@ -155,6 +170,8 @@ describe("installSkill apt package manager support", () => {
   beforeEach(() => {
     runCommandWithTimeoutMock.mockReset();
     scanDirectoryWithSummaryMock.mockReset();
+    hasBinaryMock.mockReset();
+    hasBinaryMock.mockReturnValue(false);
     scanDirectoryWithSummaryMock.mockResolvedValue({
       scannedFiles: 0,
       critical: 0,
