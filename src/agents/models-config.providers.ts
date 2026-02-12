@@ -16,6 +16,11 @@ import {
   SYNTHETIC_BASE_URL,
   SYNTHETIC_MODEL_CATALOG,
 } from "./synthetic-models.js";
+import {
+  TOGETHER_BASE_URL,
+  TOGETHER_MODEL_CATALOG,
+  buildTogetherModelDefinition,
+} from "./together-models.js";
 import { discoverVeniceModels, VENICE_BASE_URL } from "./venice-models.js";
 
 type ModelsConfig = NonNullable<OpenClawConfig["models"]>;
@@ -83,6 +88,11 @@ const OLLAMA_DEFAULT_COST = {
 const GOOGLE_GEMINI_CLI_DEFAULT_CONTEXT_WINDOW = 1048576;
 const GOOGLE_GEMINI_CLI_DEFAULT_MAX_TOKENS = 8192;
 const GOOGLE_GEMINI_CLI_DEFAULT_COST = {
+export const QIANFAN_BASE_URL = "https://qianfan.baidubce.com/v2";
+export const QIANFAN_DEFAULT_MODEL_ID = "deepseek-v3.2";
+const QIANFAN_DEFAULT_CONTEXT_WINDOW = 98304;
+const QIANFAN_DEFAULT_MAX_TOKENS = 32768;
+const QIANFAN_DEFAULT_COST = {
   input: 0,
   output: 0,
   cacheRead: 0,
@@ -104,13 +114,31 @@ interface OllamaTagsResponse {
   models: OllamaModel[];
 }
 
-async function discoverOllamaModels(): Promise<ModelDefinitionConfig[]> {
+/**
+ * Derive the Ollama native API base URL from a configured base URL.
+ *
+ * Users typically configure `baseUrl` with a `/v1` suffix (e.g.
+ * `http://192.168.20.14:11434/v1`) for the OpenAI-compatible endpoint.
+ * The native Ollama API lives at the root (e.g. `/api/tags`), so we
+ * strip the `/v1` suffix when present.
+ */
+export function resolveOllamaApiBase(configuredBaseUrl?: string): string {
+  if (!configuredBaseUrl) {
+    return OLLAMA_API_BASE_URL;
+  }
+  // Strip trailing slash, then strip /v1 suffix if present
+  const trimmed = configuredBaseUrl.replace(/\/+$/, "");
+  return trimmed.replace(/\/v1$/i, "");
+}
+
+async function discoverOllamaModels(baseUrl?: string): Promise<ModelDefinitionConfig[]> {
   // Skip Ollama discovery in test environments
   if (process.env.VITEST || process.env.NODE_ENV === "test") {
     return [];
   }
   try {
-    const response = await fetch(`${OLLAMA_API_BASE_URL}/api/tags`, {
+    const apiBase = resolveOllamaApiBase(baseUrl);
+    const response = await fetch(`${apiBase}/api/tags`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
@@ -403,10 +431,10 @@ async function buildVeniceProvider(): Promise<ProviderConfig> {
   };
 }
 
-async function buildOllamaProvider(): Promise<ProviderConfig> {
-  const models = await discoverOllamaModels();
+async function buildOllamaProvider(configuredBaseUrl?: string): Promise<ProviderConfig> {
+  const models = await discoverOllamaModels(configuredBaseUrl);
   return {
-    baseUrl: OLLAMA_BASE_URL,
+    baseUrl: configuredBaseUrl ?? OLLAMA_BASE_URL,
     api: "openai-completions",
     models,
   };
@@ -461,6 +489,36 @@ function buildGoogleGeminiCliProvider(): ProviderConfig {
         cost: GOOGLE_GEMINI_CLI_DEFAULT_COST,
         contextWindow: GOOGLE_GEMINI_CLI_DEFAULT_CONTEXT_WINDOW,
         maxTokens: GOOGLE_GEMINI_CLI_DEFAULT_MAX_TOKENS,
+function buildTogetherProvider(): ProviderConfig {
+  return {
+    baseUrl: TOGETHER_BASE_URL,
+    api: "openai-completions",
+    models: TOGETHER_MODEL_CATALOG.map(buildTogetherModelDefinition),
+  };
+}
+
+export function buildQianfanProvider(): ProviderConfig {
+  return {
+    baseUrl: QIANFAN_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: QIANFAN_DEFAULT_MODEL_ID,
+        name: "DEEPSEEK V3.2",
+        reasoning: true,
+        input: ["text"],
+        cost: QIANFAN_DEFAULT_COST,
+        contextWindow: QIANFAN_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: QIANFAN_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "ernie-5.0-thinking-preview",
+        name: "ERNIE-5.0-Thinking-Preview",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: QIANFAN_DEFAULT_COST,
+        contextWindow: 119000,
+        maxTokens: 64000,
       },
     ],
   };
@@ -468,6 +526,7 @@ function buildGoogleGeminiCliProvider(): ProviderConfig {
 
 export async function resolveImplicitProviders(params: {
   agentDir: string;
+  explicitProviders?: Record<string, ProviderConfig> | null;
 }): Promise<ModelsConfig["providers"]> {
   const providers: Record<string, ProviderConfig> = {};
   const authStore = ensureAuthProfileStore(params.agentDir, {
@@ -553,12 +612,32 @@ export async function resolveImplicitProviders(params: {
     break;
   }
 
-  // Ollama provider - only add if explicitly configured
+  // Ollama provider - only add if explicitly configured.
+  // Use the user's configured baseUrl (from explicit providers) for model
+  // discovery so that remote / non-default Ollama instances are reachable.
   const ollamaKey =
     resolveEnvApiKeyVarName("ollama") ??
     resolveApiKeyFromProfiles({ provider: "ollama", store: authStore });
   if (ollamaKey) {
-    providers.ollama = { ...(await buildOllamaProvider()), apiKey: ollamaKey };
+    const ollamaBaseUrl = params.explicitProviders?.ollama?.baseUrl;
+    providers.ollama = { ...(await buildOllamaProvider(ollamaBaseUrl)), apiKey: ollamaKey };
+  }
+
+  const togetherKey =
+    resolveEnvApiKeyVarName("together") ??
+    resolveApiKeyFromProfiles({ provider: "together", store: authStore });
+  if (togetherKey) {
+    providers.together = {
+      ...buildTogetherProvider(),
+      apiKey: togetherKey,
+    };
+  }
+
+  const qianfanKey =
+    resolveEnvApiKeyVarName("qianfan") ??
+    resolveApiKeyFromProfiles({ provider: "qianfan", store: authStore });
+  if (qianfanKey) {
+    providers.qianfan = { ...buildQianfanProvider(), apiKey: qianfanKey };
   }
 
   const googleGeminiProfiles = listProfilesForProvider(authStore, "google-gemini-cli");
@@ -574,7 +653,9 @@ export async function resolveImplicitCopilotProvider(params: {
   env?: NodeJS.ProcessEnv;
 }): Promise<ProviderConfig | null> {
   const env = params.env ?? process.env;
-  const authStore = ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false });
+  const authStore = ensureAuthProfileStore(params.agentDir, {
+    allowKeychainPrompt: false,
+  });
   const hasProfile = listProfilesForProvider(authStore, "github-copilot").length > 0;
   const envToken = env.COPILOT_GITHUB_TOKEN ?? env.GH_TOKEN ?? env.GITHUB_TOKEN;
   const githubToken = (envToken ?? "").trim();
@@ -645,7 +726,10 @@ export async function resolveImplicitBedrockProvider(params: {
   }
 
   const region = discoveryConfig?.region ?? env.AWS_REGION ?? env.AWS_DEFAULT_REGION ?? "us-east-1";
-  const models = await discoverBedrockModels({ region, config: discoveryConfig });
+  const models = await discoverBedrockModels({
+    region,
+    config: discoveryConfig,
+  });
   if (models.length === 0) {
     return null;
   }
