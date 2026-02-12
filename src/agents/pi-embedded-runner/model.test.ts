@@ -94,6 +94,70 @@ describe("buildInlineProviderModels", () => {
     expect(result[0].api).toBe("anthropic-messages");
   });
 
+  it("inherits headers from provider when model has no headers", () => {
+    const providers = {
+      custom: {
+        baseUrl: "http://localhost:8000",
+        headers: { "x-custom": "provider-value" },
+        models: [makeModel("custom-model")],
+      },
+    };
+
+    const result = buildInlineProviderModels(providers);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].headers).toEqual({ "x-custom": "provider-value" });
+  });
+
+  it("uses model headers when provider has no headers", () => {
+    const providers = {
+      custom: {
+        baseUrl: "http://localhost:8000",
+        models: [{ ...makeModel("custom-model"), headers: { "x-model": "model-value" } }],
+      },
+    };
+
+    const result = buildInlineProviderModels(providers);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].headers).toEqual({ "x-model": "model-value" });
+  });
+
+  it("model-level headers take precedence over provider-level headers", () => {
+    const providers = {
+      custom: {
+        baseUrl: "http://localhost:8000",
+        headers: { "x-shared": "provider", "x-provider-only": "kept" },
+        models: [
+          { ...makeModel("custom-model"), headers: { "x-shared": "model", "x-model-only": "new" } },
+        ],
+      },
+    };
+
+    const result = buildInlineProviderModels(providers);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].headers).toEqual({
+      "x-shared": "model",
+      "x-provider-only": "kept",
+      "x-model-only": "new",
+    });
+  });
+
+  it("omits headers when neither provider nor model specify them", () => {
+    const providers = {
+      custom: {
+        baseUrl: "http://localhost:8000",
+        models: [makeModel("custom-model")],
+      },
+    };
+
+    const result = buildInlineProviderModels(providers);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].headers).toBeUndefined();
+  });
+
   it("inherits both baseUrl and api from provider config", () => {
     const providers = {
       custom: {

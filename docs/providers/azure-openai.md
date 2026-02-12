@@ -8,9 +8,23 @@ title: "Azure OpenAI"
 
 # Azure OpenAI
 
-OpenClaw supports Azure OpenAI via custom provider configuration. You can connect to your Azure OpenAI resource by specifying the endpoint, API key, and deployment details.
+OpenClaw supports Azure OpenAI via the `azure-openai-responses` API adapter powered by the
+[Azure OpenAI SDK](https://learn.microsoft.com/en-us/azure/ai-services/openai/).
 
 ## Configuration
+
+### Environment variables
+
+Set the following environment variables (or add them to the `env` section of your config):
+
+| Variable                           | Required               | Description                                                                  |
+| ---------------------------------- | ---------------------- | ---------------------------------------------------------------------------- |
+| `AZURE_OPENAI_API_KEY`             | Yes                    | Your Azure API key                                                           |
+| `AZURE_OPENAI_RESOURCE_NAME`       | Yes (or use `baseUrl`) | Your Azure resource name (the `{resource}` in `{resource}.openai.azure.com`) |
+| `AZURE_OPENAI_API_VERSION`         | No                     | API version (e.g. `2025-04-01-preview`). Defaults to `v1` if unset.          |
+| `AZURE_OPENAI_DEPLOYMENT_NAME_MAP` | No                     | Comma-separated `model=deployment` pairs (e.g. `gpt-4=my-gpt4-deploy`)       |
+
+### Config file
 
 Add the following to your `openclaw.json` (or `config.json`):
 
@@ -19,59 +33,74 @@ Add the following to your `openclaw.json` (or `config.json`):
   models: {
     providers: {
       azure: {
-        // Your Azure OpenAI Endpoint
-        baseUrl: "https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME",
+        // Base URL for your Azure OpenAI resource.
+        // The adapter uses the Azure OpenAI SDK which handles
+        // deployment routing and api-version parameters internally.
+        baseUrl: "https://YOUR_RESOURCE_NAME.openai.azure.com/openai/v1",
 
-        // Use the specialized Azure adapter
+        // Use the specialized Azure adapter (uses OpenAI Responses API)
         api: "azure-openai-responses",
 
-        // Your Azure API Key (not the OpenAI 'sk-' key)
+        // Your Azure API Key
         apiKey: "YOUR_AZURE_API_KEY",
 
-        // Define the models available on this deployment
+        // Define the models available on this resource.
+        // The model id is used as the deployment name by default,
+        // or configure AZURE_OPENAI_DEPLOYMENT_NAME_MAP for custom mapping.
         models: [
           {
-            id: "gpt-4",
-            name: "gpt-4", // or your deployment name if different
+            id: "gpt-4o",
+            name: "gpt-4o",
           },
         ],
       },
     },
   },
+  // Set the API version via env if needed
+  env: {
+    AZURE_OPENAI_API_VERSION: "2025-04-01-preview",
+  },
 }
 ```
 
-### Important Notes on URLs
+### Alternative: environment-only setup
 
-Azure OpenAI URLs typically follow this pattern:
-`https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions?api-version={version}`
+If you prefer environment variables over config file entries:
 
-OpenClaw's `azure-openai-responses` adapter expects the `baseUrl` to be the deployment root. It will append `/chat/completions` and the API version parameters automatically, or you can specify the full path if needed depending on your specific setup.
+```bash
+export AZURE_OPENAI_API_KEY="your-key"
+export AZURE_OPENAI_RESOURCE_NAME="your-resource"
+export AZURE_OPENAI_API_VERSION="2025-04-01-preview"
+```
 
-If you need to strictly control the URL or headers:
+Then in your config, just reference the provider and model:
 
 ```json5
 {
   models: {
     providers: {
-      "azure-custom": {
-        baseUrl: "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT",
-        // Fallback to generic OpenAI if the Azure adapter doesn't match your version needs
-        api: "openai-responses",
-        apiKey: "YOUR_KEY",
-        headers: {
-          "api-key": "YOUR_KEY", // Azure requires this header if not using Bearer
-        },
+      azure: {
+        api: "azure-openai-responses",
+        models: [{ id: "gpt-4o", name: "gpt-4o" }],
       },
     },
   },
 }
 ```
 
-## Usage
+## Deployment name mapping
 
-Once configured, you can use the model by referencing `provider/model-id`:
+By default, the model `id` is used as the Azure deployment name. If your deployment
+names differ from model IDs, set the mapping via environment variable:
 
 ```bash
-openclaw chat --model azure/gpt-4
+export AZURE_OPENAI_DEPLOYMENT_NAME_MAP="gpt-4o=my-gpt4o-deployment,gpt-4=prod-gpt4"
+```
+
+## Usage
+
+Once configured, reference your model as `azure/model-id`:
+
+```bash
+openclaw chat --model azure/gpt-4o
 ```

@@ -25,10 +25,12 @@ spec:
             - node
             - dist/index.js
             - gateway
+            - run
             - --bind
             - lan
             - --port
             - "18789"
+            - --allow-unconfigured
           ports:
             - containerPort: 18789
               name: gateway

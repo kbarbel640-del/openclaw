@@ -6,6 +6,8 @@ Docs: https://docs.openclaw.ai
 
 ### Added
 
+- Providers: add native Azure OpenAI support (`azure-openai-responses` API type) with provider-level headers merging and documentation. (#14475) Thanks @dzianisv.
+- Ops: add Kubernetes deployment manifests and bootstrap scripts for self-hosted gateway. (#14475) Thanks @dzianisv.
 - Gateway: add `agents.create`, `agents.update`, `agents.delete` RPC methods for web UI agent management. (#11045) Thanks @advaitpaliwal.
 - Gateway: add node command allowlists (default-deny unknown node commands; configurable via `gateway.nodes.allowCommands` / `gateway.nodes.denyCommands`). (#11755) Thanks @mbelinky.
 - Plugins: add `device-pair` (Telegram `/pair` flow) and `phone-control` (iOS/Android node controls). (#11755) Thanks @mbelinky.
