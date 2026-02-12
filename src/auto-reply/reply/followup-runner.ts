@@ -193,15 +193,15 @@ export function createFollowupRunner(params: {
         return;
       }
 
-      if (storePath && sessionKey) {
-        const usage = runResult.meta.agentMeta?.usage;
-        const modelUsed = runResult.meta.agentMeta?.model ?? fallbackModel ?? defaultModel;
-        const contextTokensUsed =
-          agentCfgContextTokens ??
-          lookupContextTokens(modelUsed) ??
-          sessionEntry?.contextTokens ??
-          DEFAULT_CONTEXT_TOKENS;
+      const usage = runResult.meta.agentMeta?.usage;
+      const modelUsed = runResult.meta.agentMeta?.model ?? fallbackModel ?? defaultModel;
+      const contextTokensUsed =
+        agentCfgContextTokens ??
+        lookupContextTokens(modelUsed) ??
+        sessionEntry?.contextTokens ??
+        DEFAULT_CONTEXT_TOKENS;
 
+      if (storePath && sessionKey) {
         await persistRunSessionUsage({
           storePath,
           sessionKey,
