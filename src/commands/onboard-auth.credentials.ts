@@ -362,7 +362,7 @@ export function setXaiApiKey(key: string, agentDir?: string) {
   });
 }
 
-export function setMistralApiKey(key: string, agentDir?: string) {
+export async function setMistralApiKey(key: string, agentDir?: string) {
   upsertAuthProfile({
     profileId: "mistral:default",
     credential: {
