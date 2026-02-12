@@ -9,7 +9,7 @@ import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
 import { resolveModelAuthMode } from "../../agents/model-auth.js";
 import { isCliProvider } from "../../agents/model-selection.js";
 import { queueEmbeddedPiMessage } from "../../agents/pi-embedded.js";
-import { hasNonzeroUsage } from "../../agents/usage.js";
+import { deriveSessionTotalTokens, hasNonzeroUsage } from "../../agents/usage.js";
 import {
   resolveAgentIdFromSessionKey,
   resolveSessionFilePath,
@@ -388,6 +388,7 @@ export async function runReplyAgent(params: {
       storePath,
       sessionKey,
       usage,
+      lastCallUsage: runResult.meta.agentMeta?.lastCallUsage,
       modelUsed,
       providerUsed,
       contextTokensUsed,
@@ -495,11 +496,19 @@ export async function runReplyAgent(params: {
     let finalPayloads = replyPayloads;
     const verboseEnabled = resolvedVerboseLevel !== "off";
     if (autoCompactionCompleted) {
+      // Derive post-compaction token count from the last API call's usage.
+      // This reflects the actual context size after compaction, not the
+      // accumulated sum across all calls in the run.
+      const lastCallUsage = runResult.meta.agentMeta?.lastCallUsage;
+      const tokensAfterCompaction = lastCallUsage
+        ? deriveSessionTotalTokens({ usage: lastCallUsage, contextTokens: contextTokensUsed })
+        : undefined;
       const count = await incrementCompactionCount({
         sessionEntry: activeSessionEntry,
         sessionStore: activeSessionStore,
         sessionKey,
         storePath,
+        tokensAfter: tokensAfterCompaction,
       });
       if (verboseEnabled) {
         const suffix = typeof count === "number" ? ` (count ${count})` : "";
