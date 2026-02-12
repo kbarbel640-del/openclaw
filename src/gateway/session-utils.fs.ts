@@ -109,6 +109,36 @@ export function archiveFileOnDisk(filePath: string, reason: string): string {
   return archived;
 }
 
+/**
+ * Archives all transcript files for a given session.
+ * Best-effort: silently skips files that don't exist or fail to rename.
+ */
+export function archiveSessionTranscripts(opts: {
+  sessionId: string;
+  storePath: string | undefined;
+  sessionFile?: string;
+  agentId?: string;
+  reason: string;
+}): string[] {
+  const archived: string[] = [];
+  for (const candidate of resolveSessionTranscriptCandidates(
+    opts.sessionId,
+    opts.storePath,
+    opts.sessionFile,
+    opts.agentId,
+  )) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
+    try {
+      archived.push(archiveFileOnDisk(candidate, opts.reason));
+    } catch {
+      // Best-effort.
+    }
+  }
+  return archived;
+}
+
 function jsonUtf8Bytes(value: unknown): number {
   try {
     return Buffer.byteLength(JSON.stringify(value), "utf8");

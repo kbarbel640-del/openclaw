@@ -28,6 +28,7 @@ import {
 } from "../protocol/index.js";
 import {
   archiveFileOnDisk,
+  archiveSessionTranscripts,
   listSessionsFromStore,
   loadCombinedSessionStoreForGateway,
   loadSessionEntry,
@@ -259,9 +260,13 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     const cfg = loadConfig();
     const target = resolveGatewaySessionStoreTarget({ cfg, key });
     const storePath = target.storePath;
+    let oldSessionId: string | undefined;
+    let oldSessionFile: string | undefined;
     const next = await updateSessionStore(storePath, (store) => {
       const { primaryKey } = migrateAndPruneSessionStoreKey({ cfg, key, store });
       const entry = store[primaryKey];
+      oldSessionId = entry?.sessionId;
+      oldSessionFile = entry?.sessionFile;
       const now = Date.now();
       const nextEntry: SessionEntry = {
         sessionId: randomUUID(),
@@ -289,6 +294,16 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       store[primaryKey] = nextEntry;
       return nextEntry;
     });
+    // Archive old transcript so it doesn't accumulate on disk (#14869).
+    if (oldSessionId) {
+      archiveSessionTranscripts({
+        sessionId: oldSessionId,
+        storePath,
+        sessionFile: oldSessionFile,
+        agentId: target.agentId,
+        reason: "reset",
+      });
+    }
     respond(true, { ok: true, key: target.canonicalKey, entry: next }, undefined);
   },
   "sessions.delete": async ({ params, respond }) => {
@@ -357,24 +372,16 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       }
     });
 
-    const archived: string[] = [];
-    if (deleteTranscript && sessionId) {
-      for (const candidate of resolveSessionTranscriptCandidates(
-        sessionId,
-        storePath,
-        entry?.sessionFile,
-        target.agentId,
-      )) {
-        if (!fs.existsSync(candidate)) {
-          continue;
-        }
-        try {
-          archived.push(archiveFileOnDisk(candidate, "deleted"));
-        } catch {
-          // Best-effort.
-        }
-      }
-    }
+    const archived =
+      deleteTranscript && sessionId
+        ? archiveSessionTranscripts({
+            sessionId,
+            storePath,
+            sessionFile: entry?.sessionFile,
+            agentId: target.agentId,
+            reason: "deleted",
+          })
+        : [];
 
     respond(true, { ok: true, key: target.canonicalKey, deleted: existed, archived }, undefined);
   },
