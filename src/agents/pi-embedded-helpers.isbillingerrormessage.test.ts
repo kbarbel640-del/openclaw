@@ -22,6 +22,24 @@ describe("isBillingErrorMessage", () => {
       expect(isBillingErrorMessage(sample)).toBe(true);
     }
   });
+  it("ignores conversational text containing numbers (False Positives)", () => {
+    const samples = [
+      "Hi Robbie, testing the 402 text sanitizer bug fix",
+      "My address is 402 Main Street",
+      "Room 402 is available",
+      "Bug 402 has been fixed",
+      "Port 402 is open",
+      "There are 402 items in the list",
+      "Call me at 402-555-1234",
+      "Section 402 of the tax code",
+      "Flight 402 departs at 3pm",
+    ];
+    for (const sample of samples) {
+      expect(isBillingErrorMessage(sample), `Expected '${sample}' NOT to be a billing error`).toBe(
+        false,
+      );
+    }
+  });
   it("ignores unrelated errors", () => {
     expect(isBillingErrorMessage("rate limit exceeded")).toBe(false);
     expect(isBillingErrorMessage("invalid api key")).toBe(false);

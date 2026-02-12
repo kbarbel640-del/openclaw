@@ -525,7 +525,7 @@ type ErrorPattern = RegExp | string;
 
 const ERROR_PATTERNS = {
   rateLimit: [
-    /rate[_ ]limit|too many requests|429/,
+    /rate[_ ]limit|too many requests|\b429\b/,
     "exceeded your current quota",
     "resource has been exhausted",
     "quota exceeded",
@@ -535,7 +535,10 @@ const ERROR_PATTERNS = {
   overloaded: [/overloaded_error|"type"\s*:\s*"overloaded_error"/i, "overloaded"],
   timeout: ["timeout", "timed out", "deadline exceeded", "context deadline exceeded"],
   billing: [
-    /\b402\b/,
+    /(?:^|[\s:])402\s+payment\s+required/i,
+    /(?:status|code|error|http )[:\s]+\b402\b/i,
+    /\b402\b.*(?:credits?|billing|payment|balance|subscription|quota)/i,
+    /(?:credits?|billing|payment|balance|subscription|quota).*\b402\b/i,
     "payment required",
     "insufficient credits",
     "credit balance",
@@ -554,8 +557,8 @@ const ERROR_PATTERNS = {
     "access denied",
     "expired",
     "token has expired",
-    /\b401\b/,
-    /\b403\b/,
+    /(?:status|code|error|http )[:\s]+\b401\b/i, // Unauthorized
+    /(?:status|code|error|http )[:\s]+\b403\b/i, // Forbidden
     "no credentials found",
     "no api key found",
   ],
