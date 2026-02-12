@@ -10,6 +10,7 @@ import type { ModelAuthMode } from "./model-auth.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
 import { logWarn } from "../logger.js";
+import { createLspTools, wrapToolWithLspDiagnostics, isFileWriteTool } from "../lsp/index.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
@@ -363,9 +364,18 @@ export function createOpenClawCodingTools(options?: {
       requesterAgentIdOverride: agentId,
     }),
   ];
+  // LSP integration: wrap write/edit tools with reactive diagnostics,
+  // and add explicit LSP query tools.
+  const lspEnabled = options?.config?.lsp?.enabled !== false;
+  const toolsWithLsp: AnyAgentTool[] = lspEnabled
+    ? tools.map((tool) => (isFileWriteTool(tool.name) ? wrapToolWithLspDiagnostics(tool) : tool))
+    : tools;
+  const toolsWithLspTools: AnyAgentTool[] = lspEnabled
+    ? [...toolsWithLsp, ...createLspTools()]
+    : toolsWithLsp;
   // Security: treat unknown/undefined as unauthorized (opt-in, not opt-out)
   const senderIsOwner = options?.senderIsOwner === true;
-  const toolsByAuthorization = applyOwnerOnlyToolPolicy(tools, senderIsOwner);
+  const toolsByAuthorization = applyOwnerOnlyToolPolicy(toolsWithLspTools, senderIsOwner);
   const coreToolNames = new Set(
     toolsByAuthorization
       .filter((tool) => !getPluginToolMeta(tool))

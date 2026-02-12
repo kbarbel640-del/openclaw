@@ -97,6 +97,13 @@ export type OpenClawConfig = {
   talk?: TalkConfig;
   gateway?: GatewayConfig;
   memory?: MemoryConfig;
+  /** LSP (Language Server Protocol) integration for reactive code diagnostics. */
+  lsp?: {
+    /** Enable LSP integration (default: true). */
+    enabled?: boolean;
+    /** Idle timeout in minutes before shutting down LSP servers (default: 10). */
+    idleTimeoutMinutes?: number;
+  };
 };
 
 export type ConfigValidationIssue = {
