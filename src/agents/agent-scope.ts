@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
+import type { AgentCompactionConfig } from "../config/types.agent-defaults.js";
 import { resolveStateDir } from "../config/paths.js";
 import {
   DEFAULT_AGENT_ID,
@@ -25,6 +26,7 @@ type ResolvedAgentConfig = {
   identity?: AgentEntry["identity"];
   groupChat?: AgentEntry["groupChat"];
   subagents?: AgentEntry["subagents"];
+  compaction?: AgentEntry["compaction"];
   sandbox?: AgentEntry["sandbox"];
   tools?: AgentEntry["tools"];
 };
@@ -119,8 +121,40 @@ export function resolveAgentConfig(
     identity: entry.identity,
     groupChat: entry.groupChat,
     subagents: typeof entry.subagents === "object" && entry.subagents ? entry.subagents : undefined,
+    compaction: entry.compaction,
     sandbox: entry.sandbox,
     tools: entry.tools,
+  };
+}
+
+/**
+ * Resolve the effective compaction config for an agent by merging per-agent
+ * overrides with global defaults. Per-agent fields take precedence; the
+ * `memoryFlush` sub-object is shallow-merged one level deeper so partial
+ * overrides (e.g., `enabled: false`) don't wipe unrelated default fields.
+ */
+export function resolveAgentCompaction(
+  cfg: OpenClawConfig,
+  agentId?: string,
+): AgentCompactionConfig | undefined {
+  const perAgent = agentId ? resolveAgentConfig(cfg, agentId)?.compaction : undefined;
+  const defaults = cfg?.agents?.defaults?.compaction;
+  if (!perAgent && !defaults) {
+    return undefined;
+  }
+  if (!perAgent) {
+    return defaults;
+  }
+  if (!defaults) {
+    return perAgent;
+  }
+  return {
+    ...defaults,
+    ...perAgent,
+    memoryFlush:
+      perAgent.memoryFlush || defaults.memoryFlush
+        ? { ...defaults.memoryFlush, ...perAgent.memoryFlush }
+        : undefined,
   };
 }
 
