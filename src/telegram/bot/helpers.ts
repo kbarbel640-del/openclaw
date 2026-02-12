@@ -56,15 +56,16 @@ export function resolveTelegramThreadSpec(params: {
 
 /**
  * Build thread params for Telegram API calls (messages, media).
- * General forum topic (id=1) must be treated like a regular supergroup send:
- * Telegram rejects sendMessage/sendMedia with message_thread_id=1 ("thread not found").
+ * General topic (id=1) must be omitted for all chat types:
+ * Telegram rejects sendMessage/sendMedia with message_thread_id=1 ("thread not found")
+ * in both forum supergroups and private chats with Topics enabled (Premium).
  */
 export function buildTelegramThreadParams(thread?: TelegramThreadSpec | null) {
   if (!thread?.id) {
     return undefined;
   }
   const normalized = Math.trunc(thread.id);
-  if (normalized === TELEGRAM_GENERAL_TOPIC_ID && thread.scope === "forum") {
+  if (normalized === TELEGRAM_GENERAL_TOPIC_ID) {
     return undefined;
   }
   return { message_thread_id: normalized };

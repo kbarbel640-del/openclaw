@@ -34,7 +34,7 @@ describe("createTelegramDraftStream", () => {
     expect(api.sendMessageDraft).toHaveBeenCalledWith(123, 42, "Hello", undefined);
   });
 
-  it("keeps message_thread_id for dm threads", () => {
+  it("omits message_thread_id=1 for dm threads (Premium Topics)", () => {
     const api = { sendMessageDraft: vi.fn().mockResolvedValue(true) };
     const stream = createTelegramDraftStream({
       // oxlint-disable-next-line typescript/no-explicit-any
@@ -46,8 +46,23 @@ describe("createTelegramDraftStream", () => {
 
     stream.update("Hello");
 
+    expect(api.sendMessageDraft).toHaveBeenCalledWith(123, 42, "Hello", undefined);
+  });
+
+  it("keeps non-General message_thread_id for dm threads", () => {
+    const api = { sendMessageDraft: vi.fn().mockResolvedValue(true) };
+    const stream = createTelegramDraftStream({
+      // oxlint-disable-next-line typescript/no-explicit-any
+      api: api as any,
+      chatId: 123,
+      draftId: 42,
+      thread: { id: 77, scope: "dm" },
+    });
+
+    stream.update("Hello");
+
     expect(api.sendMessageDraft).toHaveBeenCalledWith(123, 42, "Hello", {
-      message_thread_id: 1,
+      message_thread_id: 77,
     });
   });
 });
