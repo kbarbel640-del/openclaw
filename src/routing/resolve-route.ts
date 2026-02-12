@@ -150,9 +150,14 @@ function matchesPeer(
 }
 
 function matchesGuild(
-  match: { guildId?: string | undefined } | undefined,
+  match: { guildId?: string | undefined; peer?: { id?: string } | undefined } | undefined,
   guildId: string,
 ): boolean {
+  // Skip bindings that specify a peer.id — those are exact-peer bindings,
+  // not guild-wide fallbacks (#14752).
+  if (normalizeId(match?.peer?.id)) {
+    return false;
+  }
   const id = normalizeId(match?.guildId);
   if (!id) {
     return false;
@@ -160,7 +165,14 @@ function matchesGuild(
   return id === guildId;
 }
 
-function matchesTeam(match: { teamId?: string | undefined } | undefined, teamId: string): boolean {
+function matchesTeam(
+  match: { teamId?: string | undefined; peer?: { id?: string } | undefined } | undefined,
+  teamId: string,
+): boolean {
+  // Skip bindings that specify a peer.id — those are exact-peer bindings (#14752).
+  if (normalizeId(match?.peer?.id)) {
+    return false;
+  }
   const id = normalizeId(match?.teamId);
   if (!id) {
     return false;
@@ -231,14 +243,17 @@ export function resolveAgentRoute(input: ResolveAgentRouteInput): ResolvedAgentR
   }
 
   if (guildId) {
-    const guildMatch = bindings.find((b) => matchesGuild(b.match, guildId));
+    // Skip bindings that specify a peer — those are exact-channel bindings
+    // and should not act as guild-wide fallbacks (#14752).
+    const guildMatch = bindings.find((b) => !b.match?.peer && matchesGuild(b.match, guildId));
     if (guildMatch) {
       return choose(guildMatch.agentId, "binding.guild");
     }
   }
 
   if (teamId) {
-    const teamMatch = bindings.find((b) => matchesTeam(b.match, teamId));
+    // Same logic: skip bindings with a peer for team-wide matching.
+    const teamMatch = bindings.find((b) => !b.match?.peer && matchesTeam(b.match, teamId));
     if (teamMatch) {
       return choose(teamMatch.agentId, "binding.team");
     }
