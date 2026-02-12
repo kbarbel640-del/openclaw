@@ -27,9 +27,9 @@ function extractToolInfo(
 ): { toolName: string; args: string } {
   // Walk backward from toolResult to find the matching assistant tool_use
   const toolResultMsg = messages[toolResultIndex] as unknown as Record<string, unknown>;
-  const toolUseId = toolResultMsg.toolUseId as string | undefined;
+  const toolCallId = toolResultMsg.toolCallId as string | undefined;
 
-  if (!toolUseId) {
+  if (!toolCallId) {
     return { toolName: "unknown", args: "{}" };
   }
 
@@ -43,7 +43,7 @@ function extractToolInfo(
       continue;
     }
     for (const block of msgContent) {
-      if (block.type === "tool_use" && block.id === toolUseId) {
+      if (block.type === "tool_use" && block.id === toolCallId) {
         return {
           toolName: (block.name as string) ?? "unknown",
           args: JSON.stringify(block.input ?? {}),
@@ -106,6 +106,11 @@ export async function summarizeAgedToolResults(params: {
 
     const age = turnAges.get(i) ?? 0;
     if (age < summarizeAfter) {
+      continue;
+    }
+    // Skip tool results past the strip threshold — they'll be stripped in the view anyway,
+    // so summarizing them would waste API calls on summaries that are never displayed.
+    if (config.stripToolResultsAfterTurns && age >= config.stripToolResultsAfterTurns) {
       continue;
     }
     if (existingSummaries[i]) {

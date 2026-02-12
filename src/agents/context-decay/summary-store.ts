@@ -59,8 +59,10 @@ export async function clearSummaryStore(sessionFilePath: string): Promise<void> 
   const filePath = summaryStorePath(sessionFilePath);
   try {
     await fs.unlink(filePath);
-  } catch {
-    // File doesn't exist — nothing to clear.
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
   }
 }
 

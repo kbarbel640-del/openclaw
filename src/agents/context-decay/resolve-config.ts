@@ -23,10 +23,10 @@ function mergeDecayConfig(
   const merged: ContextDecayConfig = {};
 
   const pickPositiveInt = (a: number | undefined, b: number | undefined): number | undefined => {
-    if (typeof b === "number" && b >= 1) {
+    if (typeof b === "number" && Number.isInteger(b) && b >= 1) {
       return b;
     }
-    if (typeof a === "number" && a >= 1) {
+    if (typeof a === "number" && Number.isInteger(a) && a >= 1) {
       return a;
     }
     return undefined;
@@ -83,7 +83,7 @@ export function resolveContextDecayConfig(
   }
 
   // Parse session key: "agent:<agentId>:<provider>:<kind>:<userId>" or "<provider>:<kind>:<userId>"
-  const parts = sessionKey.split(":").filter(Boolean);
+  const parts = sessionKey.split(":");
   const providerParts = parts.length >= 3 && parts[0] === "agent" ? parts.slice(2) : parts;
 
   const provider = providerParts[0]?.toLowerCase();
