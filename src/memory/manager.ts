@@ -273,9 +273,11 @@ export class MemoryIndexManager implements MemorySearchManager {
   ): Promise<MemorySearchResult[]> {
     void this.warmSession(opts?.sessionKey);
     if (this.settings.sync.onSearch && (this.dirty || this.sessionsDirty)) {
-      void this.sync({ reason: "search" }).catch((err) => {
+      try {
+        await this.sync({ reason: "search" });
+      } catch (err) {
         log.warn(`memory sync failed (search): ${String(err)}`);
-      });
+      }
     }
     const cleaned = query.trim();
     if (!cleaned) {
