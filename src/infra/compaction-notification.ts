@@ -83,3 +83,11 @@ export async function deliverCompactionNotification(
 export function clearCompactionNotification(sessionKey: string): void {
   notifiedSessions.delete(sessionKey);
 }
+
+/**
+ * Reset all compaction notification state.  Test-only — prevents dedupe
+ * leaking between test cases that share the same process.
+ */
+export function resetCompactionNotificationForTest(): void {
+  notifiedSessions.clear();
+}
