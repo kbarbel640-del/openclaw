@@ -58,4 +58,24 @@ describe("splitMediaFromOutput", () => {
     expect(result.mediaUrls).toEqual(["./screenshot.png"]);
     expect(result.text).toBe("");
   });
+
+  it("handles TTS response with audio_as_voice and MEDIA path", () => {
+    const input = "[[audio_as_voice]]\nMEDIA:/tmp/tts-1PWlpK/voice-1770856964222.mp3";
+    const result = splitMediaFromOutput(input);
+    expect(result.audioAsVoice).toBe(true);
+    expect(result.mediaUrls).toEqual(["/tmp/tts-1PWlpK/voice-1770856964222.mp3"]);
+    expect(result.text).toBe("");
+  });
+
+  it("still rejects dangerous absolute paths", () => {
+    const result = splitMediaFromOutput("MEDIA:/etc/passwd");
+    expect(result.mediaUrls).toBeUndefined();
+    expect(result.text).toBe("MEDIA:/etc/passwd");
+  });
+
+  it("still rejects root paths", () => {
+    const result = splitMediaFromOutput("MEDIA:/root/secret.key");
+    expect(result.mediaUrls).toBeUndefined();
+    expect(result.text).toBe("MEDIA:/root/secret.key");
+  });
 });

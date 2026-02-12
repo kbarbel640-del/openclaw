@@ -28,6 +28,11 @@ function isValidMedia(candidate: string, opts?: { allowSpaces?: boolean }) {
     return true;
   }
 
+  // Allow temporary files from system temp directory (safe for internal use)
+  if (candidate.startsWith("/tmp/") || candidate.startsWith("/var/folders/")) {
+    return true;
+  }
+
   // Local paths: only allow safe relative paths starting with ./ that do not traverse upwards.
   return candidate.startsWith("./") && !candidate.includes("..");
 }
