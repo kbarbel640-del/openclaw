@@ -162,12 +162,17 @@ export function loadPluginManifestRegistry(params: {
     }
 
     if (seenIds.has(manifest.id)) {
-      diagnostics.push({
-        level: "warn",
-        pluginId: manifest.id,
-        source: candidate.source,
-        message: `duplicate plugin id detected; later plugin may be overridden (${candidate.source})`,
-      });
+      // Bundled plugins are lowest priority – silently skip the warning when a
+      // higher-priority origin (config / workspace / global) already registered
+      // the same id.  This avoids spurious warnings during onboarding (#14255).
+      if (candidate.origin !== "bundled") {
+        diagnostics.push({
+          level: "warn",
+          pluginId: manifest.id,
+          source: candidate.source,
+          message: `duplicate plugin id detected; later plugin may be overridden (${candidate.source})`,
+        });
+      }
     } else {
       seenIds.add(manifest.id);
     }
