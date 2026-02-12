@@ -36,6 +36,14 @@ type ChatModelOption = {
   label: string;
 };
 
+type ChatProviderQuota = {
+  provider: string;
+  left: number;
+  window: string;
+  risk: "safe" | "tight" | "risk";
+  resetMin: number | null;
+};
+
 export type ChatProps = {
   sessionKey: string;
   onSessionKeyChange: (next: string) => void;
@@ -77,6 +85,7 @@ export type ChatProps = {
   onToggleFocusMode: () => void;
   onDraftChange: (next: string) => void;
   modelOptions: ChatModelOption[];
+  providerQuotas?: ChatProviderQuota[];
   modelLoading?: boolean;
   modelError?: string | null;
   selectedProvider?: string | null;
@@ -538,6 +547,22 @@ export function renderChat(props: ChatProps) {
           ${props.switchingModel ? html`<span class="muted">Switching…</span>` : nothing}
           ${props.modelError ? html`<span class="muted">${props.modelError}</span>` : nothing}
         </div>
+        ${(props.providerQuotas?.length ?? 0) > 0
+          ? html`
+              <div class="chat-provider-quotas" aria-label="Provider quotas">
+                ${props.providerQuotas!.map(
+                  (q) => html`
+                    <span class="chat-provider-quotas__chip" title=${`${q.provider}: ${q.left}% left (${q.window})`}>
+                      <strong>${q.provider}</strong>
+                      <span>${q.left}%</span>
+                      <span class="chat-provider-quotas__risk chat-provider-quotas__risk--${q.risk}">${q.risk}</span>
+                      ${q.resetMin != null ? html`<span>${q.resetMin <= 0 ? "now" : `${q.resetMin}m`}</span>` : nothing}
+                    </span>
+                  `,
+                )}
+              </div>
+            `
+          : nothing}
         <div class="chat-compose__row">
           <label class="field chat-compose__field">
             <span>Message</span>

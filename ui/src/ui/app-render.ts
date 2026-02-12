@@ -977,6 +977,7 @@ export function renderApp(state: AppViewState) {
                 onChatScroll: (event) => state.handleChatScroll(event),
                 onDraftChange: (next) => (state.chatMessage = next),
                 modelOptions: state.chatModelOptions,
+                providerQuotas: apiQuota.providers,
                 modelLoading: state.chatModelLoading,
                 modelError: state.chatModelError,
                 selectedProvider:
