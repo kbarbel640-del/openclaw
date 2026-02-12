@@ -896,7 +896,11 @@ final class TalkModeManager: NSObject {
     private func buildPrompt(transcript: String) -> String {
         let interrupted = self.lastInterruptedAtSeconds
         self.lastInterruptedAtSeconds = nil
-        return TalkPromptBuilder.build(transcript: transcript, interruptedAtSeconds: interrupted)
+        let includeVoiceHint = UserDefaults.standard.bool(forKey: "talk.voiceDirectiveHint.enabled")
+        return TalkPromptBuilder.build(
+            transcript: transcript,
+            interruptedAtSeconds: interrupted,
+            includeVoiceDirectiveHint: includeVoiceHint)
     }
 
     private enum ChatCompletionState: CustomStringConvertible {
