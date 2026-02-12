@@ -25,7 +25,8 @@ function makeCatalogEntry(
     name: id,
     provider,
     contextWindow: 128_000,
-    reasoning: false,
+    // Leave undefined by default so registry values aren't overwritten by test scaffolding.
+    reasoning: undefined,
     input: ["text"],
     ...overrides,
   };
@@ -35,34 +36,18 @@ function makeCatalogEntry(
 function buildTestCatalog(): ModelCatalogEntry[] {
   return [
     // Expensive + powerful + reasoning
-    makeCatalogEntry("anthropic", "claude-opus-4-6", {
-      reasoning: true,
-      input: ["text", "image"],
-    }),
-    makeCatalogEntry("anthropic", "claude-opus-4-5", {
-      reasoning: true,
-      input: ["text", "image"],
-    }),
-    // Moderate + balanced + coding
-    makeCatalogEntry("anthropic", "claude-sonnet-4-5", {
-      reasoning: true,
-      input: ["text", "image"],
-    }),
-    makeCatalogEntry("openai", "gpt-4.1", {
-      input: ["text", "image"],
-    }),
-    // Cheap + fast + coding
-    makeCatalogEntry("anthropic", "claude-3-5-haiku", {
-      input: ["text"],
-    }),
-    makeCatalogEntry("openai", "gpt-4.1-mini", {
-      input: ["text", "image"],
-    }),
-    makeCatalogEntry("google", "gemini-2.0-flash", {
-      input: ["text", "image"],
-    }),
+    makeCatalogEntry("anthropic", "claude-opus-4-6", { input: ["text", "image"] }),
+    // Moderate + balanced + coding/reasoning
+    makeCatalogEntry("anthropic", "claude-sonnet-4-5", { input: ["text", "image"] }),
+    makeCatalogEntry("openai", "gpt-5-mini", { input: ["text", "image"] }),
+    // Cheap + fast
+    makeCatalogEntry("openai", "gpt-5-nano", { input: ["text", "image"] }),
+    makeCatalogEntry("google", "gemini-3-flash-preview", { input: ["text", "image"] }),
     // Cheap + fast + general only (no coding)
     makeCatalogEntry("groq", "llama-3.1-8b-instant", {}),
+    // Legacy models (should be filtered by auto-selection)
+    makeCatalogEntry("openai", "gpt-4o", { input: ["text", "image"] }),
+    makeCatalogEntry("anthropic", "claude-3-5-haiku", { input: ["text"] }),
     // Dated snapshot (should be filtered)
     makeCatalogEntry("anthropic", "claude-3-5-sonnet-20241022", {
       input: ["text", "image"],
@@ -215,8 +200,15 @@ describe("rankModelsForRole", () => {
     expect(ids).not.toContain("claude-3-5-sonnet-20241022");
   });
 
+  it("should exclude legacy models", () => {
+    const ranked = rankModelsForRole(catalog, ROLE_REQUIREMENTS.specialist);
+    const ids = ranked.map((m) => m.entry.id);
+    expect(ids).not.toContain("gpt-4o");
+    expect(ids).not.toContain("claude-3-5-haiku");
+  });
+
   it("should filter by allowedKeys when provided", () => {
-    const allowedKeys = new Set(["anthropic/claude-3-5-haiku", "openai/gpt-4.1-mini"]);
+    const allowedKeys = new Set(["openai/gpt-5-nano", "openai/gpt-5-mini"]);
     const ranked = rankModelsForRole(catalog, ROLE_REQUIREMENTS.specialist, allowedKeys);
     for (const m of ranked) {
       const key = `${m.entry.provider}/${m.entry.id}`;
@@ -238,9 +230,16 @@ describe("selectModelForRole", () => {
   it("should select reasoning model for orchestrator", () => {
     const selected = selectModelForRole(catalog, "orchestrator");
     expect(selected).not.toBeNull();
-    // Must be a reasoning-capable model
-    expect(selected?.provider).toBe("anthropic");
-    expect(selected?.model).toMatch(/claude-(sonnet|opus)/);
+    // Must be a modern reasoning-capable model (avoid legacy families).
+    const key = `${selected?.provider}/${selected?.model}`;
+    expect(
+      [
+        "openai/gpt-5-mini",
+        "openai/gpt-5.2",
+        "anthropic/claude-opus-4-6",
+        "anthropic/claude-sonnet-4-5",
+      ].includes(key),
+    ).toBe(true);
   });
 
   it("should select cheap model for worker", () => {
@@ -333,11 +332,11 @@ describe("initAutoModelSelection / getAutoSelectedModel", () => {
   });
 
   it("should respect allowedKeys filter", () => {
-    const allowedKeys = new Set(["anthropic/claude-opus-4-6", "anthropic/claude-3-5-haiku"]);
+    const allowedKeys = new Set(["anthropic/claude-opus-4-6", "openai/gpt-5-nano"]);
     initAutoModelSelection(catalog, allowedKeys);
     const worker = getAutoSelectedModel("worker");
-    // Worker should get haiku (cheap + coding) since it's the cheapest allowed
-    expect(worker?.model).toBe("claude-3-5-haiku");
+    // Worker should get gpt-5-nano (cheap + fast) since it's the cheapest allowed
+    expect(worker?.model).toBe("gpt-5-nano");
   });
 
   it("should reset properly", () => {

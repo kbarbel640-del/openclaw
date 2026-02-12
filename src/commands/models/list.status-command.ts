@@ -27,6 +27,7 @@ import {
 import { formatCliCommand } from "../../cli/command-format.js";
 import { withProgressTotals } from "../../cli/progress.js";
 import { CONFIG_PATH, loadConfig } from "../../config/config.js";
+import { callGateway } from "../../gateway/call.js";
 import {
   formatUsageWindowSummary,
   loadProviderUsageSummary,
@@ -95,6 +96,14 @@ export async function modelsStatusCommand(
     | { primary?: string; fallbacks?: string[] }
     | string
     | undefined;
+  const toolConfig = cfg.agents?.defaults?.toolModel as
+    | { primary?: string; fallbacks?: string[] }
+    | string
+    | undefined;
+  const codingConfig = cfg.agents?.defaults?.codingModel as
+    | { primary?: string; fallbacks?: string[] }
+    | string
+    | undefined;
   const rawDefaultsModel =
     typeof modelConfig === "string" ? modelConfig.trim() : (modelConfig?.primary?.trim() ?? "");
   const rawModel = agentModelPrimary ?? rawDefaultsModel;
@@ -105,6 +114,12 @@ export async function modelsStatusCommand(
   const imageModel =
     typeof imageConfig === "string" ? imageConfig.trim() : (imageConfig?.primary?.trim() ?? "");
   const imageFallbacks = typeof imageConfig === "object" ? (imageConfig?.fallbacks ?? []) : [];
+  const toolModel =
+    typeof toolConfig === "string" ? toolConfig.trim() : (toolConfig?.primary?.trim() ?? "");
+  const toolFallbacks = typeof toolConfig === "object" ? (toolConfig?.fallbacks ?? []) : [];
+  const codingModel =
+    typeof codingConfig === "string" ? codingConfig.trim() : (codingConfig?.primary?.trim() ?? "");
+  const codingFallbacks = typeof codingConfig === "object" ? (codingConfig?.fallbacks ?? []) : [];
   const aliases = Object.entries(cfg.agents?.defaults?.models ?? {}).reduce<Record<string, string>>(
     (acc, [key, entry]) => {
       const alias = entry?.alias?.trim();
@@ -132,13 +147,32 @@ export async function modelsStatusCommand(
   );
   const providersFromModels = new Set<string>();
   const providersInUse = new Set<string>();
-  for (const raw of [defaultLabel, ...fallbacks, imageModel, ...imageFallbacks, ...allowed]) {
+  for (const raw of [
+    defaultLabel,
+    ...fallbacks,
+    imageModel,
+    ...imageFallbacks,
+    toolModel,
+    ...toolFallbacks,
+    codingModel,
+    ...codingFallbacks,
+    ...allowed,
+  ]) {
     const parsed = parseModelRef(String(raw ?? ""), DEFAULT_PROVIDER);
     if (parsed?.provider) {
       providersFromModels.add(parsed.provider);
     }
   }
-  for (const raw of [defaultLabel, ...fallbacks, imageModel, ...imageFallbacks]) {
+  for (const raw of [
+    defaultLabel,
+    ...fallbacks,
+    imageModel,
+    ...imageFallbacks,
+    toolModel,
+    ...toolFallbacks,
+    codingModel,
+    ...codingFallbacks,
+  ]) {
     const parsed = parseModelRef(String(raw ?? ""), DEFAULT_PROVIDER);
     if (parsed?.provider) {
       providersInUse.add(parsed.provider);
@@ -224,6 +258,10 @@ export async function modelsStatusCommand(
     ...fallbacks,
     imageModel,
     ...imageFallbacks,
+    toolModel,
+    ...toolFallbacks,
+    codingModel,
+    ...codingFallbacks,
     ...allowed,
   ].filter(Boolean);
   const resolvedCandidates = rawCandidates
@@ -237,6 +275,23 @@ export async function modelsStatusCommand(
     )
     .filter((ref): ref is { provider: string; model: string } => Boolean(ref));
   const modelCandidates = resolvedCandidates.map((ref) => `${ref.provider}/${ref.model}`);
+
+  type ModelCooldown = {
+    key: string;
+    provider: string;
+    model: string;
+    untilMs: number;
+    remainingMs: number;
+    failures: number;
+    reason: string;
+  };
+
+  const modelCooldowns = await callGateway<{ cooldowns: ModelCooldown[] }>({
+    method: "models.cooldowns",
+    timeoutMs: 1200,
+  })
+    .then((res) => (Array.isArray(res?.cooldowns) ? res.cooldowns : []))
+    .catch(() => []);
 
   let probeSummary: AuthProbeSummary | undefined;
   if (opts.probe) {
@@ -339,6 +394,10 @@ export async function modelsStatusCommand(
           fallbacks,
           imageModel: imageModel || null,
           imageFallbacks,
+          toolModel: toolModel || null,
+          toolFallbacks,
+          codingModel: codingModel || null,
+          codingFallbacks,
           ...(agentId
             ? {
                 modelConfig: {
@@ -349,6 +408,7 @@ export async function modelsStatusCommand(
             : {}),
           aliases,
           allowed,
+          modelCooldowns,
           auth: {
             storePath: resolveAuthStorePathForDisplay(agentDir),
             shellEnvFallback: {
@@ -438,6 +498,40 @@ export async function modelsStatusCommand(
     )}`,
   );
   runtime.log(
+    `${labelWithSource("Tool model", agentId ? "defaults" : undefined)}${colorize(
+      rich,
+      theme.muted,
+      ":",
+    )} ${colorize(rich, toolModel ? theme.accentBright : theme.muted, toolModel || "-")}`,
+  );
+  runtime.log(
+    `${labelWithSource(
+      `Tool fallbacks (${toolFallbacks.length || 0})`,
+      agentId ? "defaults" : undefined,
+    )}${colorize(rich, theme.muted, ":")} ${colorize(
+      rich,
+      toolFallbacks.length ? theme.accentBright : theme.muted,
+      toolFallbacks.length ? toolFallbacks.join(", ") : "-",
+    )}`,
+  );
+  runtime.log(
+    `${labelWithSource("Coding model", agentId ? "defaults" : undefined)}${colorize(
+      rich,
+      theme.muted,
+      ":",
+    )} ${colorize(rich, codingModel ? theme.accentBright : theme.muted, codingModel || "-")}`,
+  );
+  runtime.log(
+    `${labelWithSource(
+      `Coding fallbacks (${codingFallbacks.length || 0})`,
+      agentId ? "defaults" : undefined,
+    )}${colorize(rich, theme.muted, ":")} ${colorize(
+      rich,
+      codingFallbacks.length ? theme.accentBright : theme.muted,
+      codingFallbacks.length ? codingFallbacks.join(", ") : "-",
+    )}`,
+  );
+  runtime.log(
     `${label(`Aliases (${Object.keys(aliases).length || 0})`)}${colorize(rich, theme.muted, ":")} ${colorize(
       rich,
       Object.keys(aliases).length ? theme.accent : theme.muted,
@@ -459,6 +553,55 @@ export async function modelsStatusCommand(
       allowed.length ? allowed.join(", ") : "all",
     )}`,
   );
+
+  runtime.log(
+    `${label(`Model cooldowns (${modelCooldowns.length || 0})`)}${colorize(
+      rich,
+      theme.muted,
+      ":",
+    )} ${colorize(rich, modelCooldowns.length ? theme.warn : theme.muted, modelCooldowns.length ? "active" : "-")}`,
+  );
+
+  if (modelCooldowns.length > 0) {
+    const rows = modelCooldowns
+      .map((entry) => {
+        const key = entry.key?.trim();
+        const remainingMs =
+          typeof entry.remainingMs === "number" && Number.isFinite(entry.remainingMs)
+            ? entry.remainingMs
+            : 0;
+        const failures =
+          typeof entry.failures === "number" && Number.isFinite(entry.failures)
+            ? entry.failures
+            : 0;
+        const reason = entry.reason?.trim();
+        if (!key) {
+          return null;
+        }
+        return {
+          model: colorize(rich, theme.warn, key),
+          remaining: colorize(rich, theme.info, formatRemainingShort(remainingMs)),
+          failures: colorize(rich, theme.muted, String(Number.isFinite(failures) ? failures : "-")),
+          reason: colorize(rich, theme.muted, reason || "-"),
+        };
+      })
+      .filter(Boolean) as Array<Record<string, string>>;
+
+    if (rows.length > 0) {
+      runtime.log(
+        renderTable({
+          columns: [
+            { key: "model", header: "Model", flex: true },
+            { key: "remaining", header: "Remaining" },
+            { key: "failures", header: "Failures", align: "right" },
+            { key: "reason", header: "Reason" },
+          ],
+          rows,
+          border: "ascii",
+        }),
+      );
+    }
+  }
 
   runtime.log("");
   runtime.log(colorize(rich, theme.heading, "Auth overview"));

@@ -2,7 +2,7 @@
  * COLLABORATION SYSTEM TESTS
  */
 
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect } from "vitest";
 import {
   initializeCollaborativeSession,
   publishProposal,
@@ -10,11 +10,16 @@ import {
   agreeToProposal,
   finalizeDecision,
   getDecisionThread,
+  resetCollaborationStateForTests,
 } from "../gateway/server-methods/collaboration.js";
 import { getCollaborationSystemPrompt, getRoleSpecificGuidance } from "./collaboration-prompts.js";
 import { buildCollaborationContext, formatDecisionsForTask } from "./collaboration-spawn.js";
 
 describe("Collaboration System", () => {
+  beforeEach(() => {
+    resetCollaborationStateForTests();
+  });
+
   it("should initialize a collaborative session", () => {
     const session = initializeCollaborativeSession({
       topic: "Test Debate",
@@ -71,6 +76,30 @@ describe("Collaboration System", () => {
     }).not.toThrow();
   });
 
+  it("should reject challenge from non-member agent", () => {
+    const session = initializeCollaborativeSession({
+      topic: "API Design",
+      agents: ["backend", "frontend"],
+    });
+
+    const proposal = publishProposal({
+      sessionKey: session.sessionKey,
+      agentId: "backend",
+      decisionTopic: "Auth Method",
+      proposal: "Use JWT",
+      reasoning: "Stateless",
+    });
+
+    expect(() => {
+      challengeProposal({
+        sessionKey: session.sessionKey,
+        decisionId: proposal.decisionId,
+        agentId: "random-agent",
+        challenge: "I disagree",
+      });
+    }).toThrow(/not authorized/i);
+  });
+
   it("should track agreement", () => {
     const session = initializeCollaborativeSession({
       topic: "Database",
@@ -100,6 +129,7 @@ describe("Collaboration System", () => {
       topic: "Architecture",
       agents: ["backend", "frontend", "security"],
       moderator: "cto",
+      minRounds: 0,
     });
 
     const proposal = publishProposal({
@@ -120,6 +150,32 @@ describe("Collaboration System", () => {
     const decision = session.decisions[0];
     expect(decision.consensus).toBeDefined();
     expect(decision.consensus?.finalDecision).toContain("OAuth2");
+  });
+
+  it("should reject finalization by non-moderator when moderator is set", () => {
+    const session = initializeCollaborativeSession({
+      topic: "Architecture",
+      agents: ["backend", "frontend", "security"],
+      moderator: "cto",
+      minRounds: 0,
+    });
+
+    const proposal = publishProposal({
+      sessionKey: session.sessionKey,
+      agentId: "backend",
+      decisionTopic: "Security",
+      proposal: "Use OAuth2 + PKCE",
+      reasoning: "Most secure for all client types",
+    });
+
+    expect(() => {
+      finalizeDecision({
+        sessionKey: session.sessionKey,
+        decisionId: proposal.decisionId,
+        finalDecision: "OAuth2 Authorization Code Flow with PKCE",
+        moderatorId: "frontend",
+      });
+    }).toThrow(/not authorized/i);
   });
 
   it("should retrieve decision thread", () => {

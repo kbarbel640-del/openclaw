@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../config/config.js";
 
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 600;
+const MAX_SET_TIMEOUT_MS = 2 ** 31 - 1;
 
 const normalizeNumber = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : undefined;
@@ -18,10 +19,12 @@ export function resolveAgentTimeoutMs(opts: {
   minMs?: number;
 }): number {
   const minMs = Math.max(normalizeNumber(opts.minMs) ?? 1, 1);
-  const defaultMs = resolveAgentTimeoutSeconds(opts.cfg) * 1000;
-  // Use a very large timeout value (30 days) to represent "no timeout"
-  // when explicitly set to 0. This avoids setTimeout issues with Infinity.
-  const NO_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000;
+  const clampTimeout = (value: number) =>
+    Math.min(MAX_SET_TIMEOUT_MS, Math.max(Math.floor(value), minMs));
+  const defaultMs = clampTimeout(resolveAgentTimeoutSeconds(opts.cfg) * 1000);
+  // Use the largest safe JS setTimeout value to represent "no timeout"
+  // when explicitly set to 0.
+  const NO_TIMEOUT_MS = MAX_SET_TIMEOUT_MS;
   const overrideMs = normalizeNumber(opts.overrideMs);
   if (overrideMs !== undefined) {
     if (overrideMs === 0) {
@@ -30,7 +33,7 @@ export function resolveAgentTimeoutMs(opts: {
     if (overrideMs < 0) {
       return defaultMs;
     }
-    return Math.max(overrideMs, minMs);
+    return clampTimeout(overrideMs);
   }
   const overrideSeconds = normalizeNumber(opts.overrideSeconds);
   if (overrideSeconds !== undefined) {
@@ -40,7 +43,7 @@ export function resolveAgentTimeoutMs(opts: {
     if (overrideSeconds < 0) {
       return defaultMs;
     }
-    return Math.max(overrideSeconds * 1000, minMs);
+    return clampTimeout(overrideSeconds * 1000);
   }
-  return Math.max(defaultMs, minMs);
+  return defaultMs;
 }

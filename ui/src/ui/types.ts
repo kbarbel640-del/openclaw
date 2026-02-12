@@ -394,12 +394,16 @@ export type GatewaySessionRow = {
   thinkingLevel?: string;
   verboseLevel?: string;
   reasoningLevel?: string;
+  thinkingModelOverride?: string;
+  codingModelOverride?: string;
   elevatedLevel?: string;
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
   model?: string;
   modelProvider?: string;
+  projectDir?: string;
+  workspaceDir?: string;
   contextTokens?: number;
 };
 
@@ -590,6 +594,7 @@ export type AgentHierarchyNode = {
   agentRole?: string;
   label?: string;
   task?: string;
+  model?: string;
   status: "running" | "completed" | "error" | "pending" | "idle";
   startedAt?: number;
   endedAt?: number;

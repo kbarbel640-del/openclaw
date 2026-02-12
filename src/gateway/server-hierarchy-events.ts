@@ -1,12 +1,15 @@
 import type { DelegationMetrics } from "../agents/delegation-types.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import {
   listAgentIds,
   resolveAgentConfig,
+  resolveAgentModelPrimary,
   resolveAgentRole,
   resolveDefaultAgentId,
 } from "../agents/agent-scope.js";
 import { getAllDelegations, getAgentDelegationMetrics } from "../agents/delegation-registry.js";
 import { resolveAgentIdentity } from "../agents/identity.js";
+import { resolveDefaultModelForAgent } from "../agents/model-selection.js";
 import {
   listAllSubagentRuns,
   type SubagentRunRecord,
@@ -48,6 +51,7 @@ export type HierarchyNode = {
   agentRole?: string;
   label?: string;
   task?: string;
+  model?: string;
   status: "running" | "completed" | "error" | "pending" | "idle";
   startedAt?: number;
   endedAt?: number;
@@ -95,6 +99,29 @@ let hierarchyBroadcast: HierarchyBroadcast | null = null;
 let listenerStop: (() => void) | null = null;
 let lastEventSeq = 0;
 
+const SNAPSHOT_CACHE_MS = 250;
+let snapshotCache: { snapshot: HierarchySnapshot; builtAt: number } | null = null;
+
+function shouldForceSnapshotRebuild(eventType?: HierarchyEventType): boolean {
+  // Usage/progress updates can fire frequently; throttle those to reduce CPU.
+  if (eventType === "usage-update" || eventType === "progress-update") {
+    return false;
+  }
+  return true;
+}
+
+function getHierarchySnapshotCached(opts?: { force?: boolean }): HierarchySnapshot {
+  const now = Date.now();
+  const cached = snapshotCache;
+  const force = opts?.force === true;
+  if (!force && cached && now - cached.builtAt < SNAPSHOT_CACHE_MS) {
+    return cached.snapshot;
+  }
+  const snapshot = buildHierarchySnapshot();
+  snapshotCache = { snapshot, builtAt: now };
+  return snapshot;
+}
+
 function extractAgentIdFromSessionKey(sessionKey: string): string | undefined {
   const parsed = parseAgentSessionKey(sessionKey);
   return parsed?.agentId ?? undefined;
@@ -136,13 +163,54 @@ function computeAgentDisplayLabel(cfg: ReturnType<typeof loadConfig>, agentId: s
 }
 
 /** Recursively collect all agentIds present in a hierarchy tree. */
-function collectAgentIds(node: HierarchyNode, out: Set<string>) {
+function collectAgentIds(node: HierarchyNode, out: Set<string>, visitedSessionKeys?: Set<string>) {
+  const visited = visitedSessionKeys ?? new Set<string>();
+  if (visited.has(node.sessionKey)) {
+    return;
+  }
+  visited.add(node.sessionKey);
   if (node.agentId) {
     out.add(node.agentId);
   }
   for (const child of node.children) {
-    collectAgentIds(child, out);
+    collectAgentIds(child, out, visited);
   }
+}
+
+function isAgentMainSessionKey(sessionKey: string, agentId: string): boolean {
+  return sessionKey === `agent:${agentId}:main`;
+}
+
+function indexNodeByAgentId(node: HierarchyNode, map: Map<string, HierarchyNode>) {
+  const agentId = node.agentId;
+  if (agentId) {
+    const existing = map.get(agentId);
+    if (!existing) {
+      map.set(agentId, node);
+    } else if (
+      !isAgentMainSessionKey(existing.sessionKey, agentId) &&
+      isAgentMainSessionKey(node.sessionKey, agentId)
+    ) {
+      map.set(agentId, node);
+    }
+  }
+}
+
+function hasAgentIdInSubtree(root: HierarchyNode, agentId: string, visited?: Set<string>): boolean {
+  const seen = visited ?? new Set<string>();
+  if (seen.has(root.sessionKey)) {
+    return false;
+  }
+  seen.add(root.sessionKey);
+  if (root.agentId === agentId) {
+    return true;
+  }
+  for (const child of root.children) {
+    if (hasAgentIdInSubtree(child, agentId, seen)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function resolveKnownAgentId(cfg: ReturnType<typeof loadConfig>, raw: string): string | undefined {
@@ -165,6 +233,15 @@ function resolveKnownAgentId(cfg: ReturnType<typeof loadConfig>, raw: string): s
   }
 
   return undefined;
+}
+
+function resolveAgentModelLabel(cfg: OpenClawConfig, agentId: string): string | undefined {
+  const override = resolveAgentModelPrimary(cfg, agentId);
+  if (override) {
+    return override;
+  }
+  const ref = resolveDefaultModelForAgent({ cfg, agentId });
+  return `${ref.provider}/${ref.model}`;
 }
 
 function buildHierarchySnapshot(): HierarchySnapshot {
@@ -209,6 +286,7 @@ function buildHierarchySnapshot(): HierarchySnapshot {
       label:
         (agentId ? computeAgentDisplayLabel(cfg, agentId) : undefined) || run.label || agentName,
       task: run.task,
+      model: agentId ? resolveAgentModelLabel(cfg, agentId) : undefined,
       status,
       startedAt: run.startedAt,
       endedAt: run.endedAt,
@@ -249,6 +327,9 @@ function buildHierarchySnapshot(): HierarchySnapshot {
         const rootAgentId = rawRootAgentId ? resolveKnownAgentId(cfg, rawRootAgentId) : undefined;
         const rootRole = rootAgentId ? resolveAgentRole(cfg, rootAgentId) : undefined;
         const rootName = rootAgentId ? resolveAgentConfig(cfg, rootAgentId)?.name : undefined;
+        const hasActiveChild = children.some(
+          (child) => child.status === "running" || child.status === "pending",
+        );
         const rootNode: HierarchyNode = {
           sessionKey: parentKey,
           agentId: rootAgentId,
@@ -257,7 +338,9 @@ function buildHierarchySnapshot(): HierarchySnapshot {
             (rootAgentId ? computeAgentDisplayLabel(cfg, rootAgentId) : undefined) ||
             rootName ||
             "Root Session",
-          status: "running",
+          model: rootAgentId ? resolveAgentModelLabel(cfg, rootAgentId) : undefined,
+          // Root session keys are containers for runs; treat them as active only when children are active.
+          status: hasActiveChild ? "running" : "idle",
           children,
         };
         roots.push(rootNode);
@@ -272,13 +355,20 @@ function buildHierarchySnapshot(): HierarchySnapshot {
   const defaultSessionKey = `agent:${defaultAgentId}:main`;
   if (!rootSessionKeysUsed.has(defaultSessionKey)) {
     const defaultRole = resolveAgentRole(cfg, defaultAgentId);
+    const delegMetrics = getAgentDelegationMetrics(defaultAgentId);
+    const pendingDelegations =
+      (delegMetrics && "pending" in delegMetrics && typeof delegMetrics.pending === "number"
+        ? delegMetrics.pending
+        : 0) > 0;
     roots.unshift({
       sessionKey: defaultSessionKey,
       agentId: defaultAgentId,
       agentRole: defaultRole,
       label: computeAgentDisplayLabel(cfg, defaultAgentId),
-      status: "running",
+      model: resolveAgentModelLabel(cfg, defaultAgentId),
+      status: pendingDelegations ? "running" : "idle",
       children: [],
+      delegations: delegMetrics,
     });
   }
 
@@ -462,12 +552,12 @@ function buildHierarchySnapshot(): HierarchySnapshot {
     }
     const role = resolveAgentRole(cfg, agentId);
     const delegMetrics = getAgentDelegationMetrics(agentId);
-    // Agents only referenced via delegation edges inherit status from delegation state:
-    // "running" if they have active delegations, "completed" otherwise.
-    const derivedStatus = agentsWithActiveDelegations.has(agentId) ? "running" : "completed";
-    // Set endedAt so the TTL filter can expire this node when it's completed.
-    // Use current time as a conservative anchor (it will expire after COMPLETED_TTL_MS).
-    const derivedEndedAt = derivedStatus === "completed" ? snapshotNow : undefined;
+    // Agents referenced via edges but without active runs:
+    // - "running" when they have active delegations
+    // - otherwise "idle" (they exist in the graph for context, then TTL-expires)
+    const derivedStatus = agentsWithActiveDelegations.has(agentId) ? "running" : "idle";
+    // Anchor idle nodes so they can TTL-expire, otherwise the graph may grow without bound.
+    const derivedEndedAt = derivedStatus === "idle" ? snapshotNow : undefined;
     roots.push({
       sessionKey,
       agentId,
@@ -486,17 +576,22 @@ function buildHierarchySnapshot(): HierarchySnapshot {
   // Only include agents that are already active in the graph
   const allAgentIds = listAgentIds(cfg);
   const nodeByAgentId = new Map<string, HierarchyNode>();
+  const rootAgentIds = new Set<string>();
   for (const root of roots) {
     if (root.agentId) {
-      nodeByAgentId.set(root.agentId, root);
+      rootAgentIds.add(root.agentId);
     }
+    indexNodeByAgentId(root, nodeByAgentId);
     // Also index children recursively
-    const indexChildren = (node: HierarchyNode) => {
+    const indexChildren = (node: HierarchyNode, visited?: Set<string>) => {
+      const seen = visited ?? new Set<string>();
+      if (seen.has(node.sessionKey)) {
+        return;
+      }
+      seen.add(node.sessionKey);
       for (const child of node.children) {
-        if (child.agentId) {
-          nodeByAgentId.set(child.agentId, child);
-        }
-        indexChildren(child);
+        indexNodeByAgentId(child, nodeByAgentId);
+        indexChildren(child, seen);
       }
     };
     indexChildren(root);
@@ -505,7 +600,7 @@ function buildHierarchySnapshot(): HierarchySnapshot {
   // Remove completed/error agents that have been idle longer than the TTL.
   // Agents without endedAt are kept (they have no known completion time).
   const filterByTTL = (node: HierarchyNode): boolean => {
-    if (node.status === "completed" || node.status === "error") {
+    if (node.status === "completed" || node.status === "error" || node.status === "idle") {
       if (typeof node.endedAt === "number" && node.endedAt > 0) {
         if (snapshotNow - node.endedAt > COMPLETED_TTL_MS) {
           return false; // expired — remove from graph
@@ -536,15 +631,16 @@ function buildHierarchySnapshot(): HierarchySnapshot {
   // Rebuild the agentId index after TTL filtering removed expired nodes.
   nodeByAgentId.clear();
   for (const root of roots) {
-    if (root.agentId) {
-      nodeByAgentId.set(root.agentId, root);
-    }
-    const reindexChildren = (node: HierarchyNode) => {
+    indexNodeByAgentId(root, nodeByAgentId);
+    const reindexChildren = (node: HierarchyNode, visited?: Set<string>) => {
+      const seen = visited ?? new Set<string>();
+      if (seen.has(node.sessionKey)) {
+        return;
+      }
+      seen.add(node.sessionKey);
       for (const child of node.children) {
-        if (child.agentId) {
-          nodeByAgentId.set(child.agentId, child);
-        }
-        reindexChildren(child);
+        indexNodeByAgentId(child, nodeByAgentId);
+        reindexChildren(child, seen);
       }
     };
     reindexChildren(root);
@@ -570,11 +666,25 @@ function buildHierarchySnapshot(): HierarchySnapshot {
       if (existingChildIds.has(childId)) {
         continue;
       }
+      if (childId === agentId) {
+        continue;
+      }
+      // Avoid double-parenting: only attach roots via allowAgents.
+      if (!rootAgentIds.has(childId)) {
+        continue;
+      }
       const childNode = nodeByAgentId.get(childId);
       if (!childNode) {
         continue;
       }
       if (agentsAttachedToParent.has(childId)) {
+        continue;
+      }
+      // Cycle guard: don't attach if the parent already exists in the child's subtree.
+      if (
+        typeof parentNode.agentId === "string" &&
+        hasAgentIdInSubtree(childNode, parentNode.agentId)
+      ) {
         continue;
       }
       parentNode.children.push(childNode);
@@ -589,6 +699,29 @@ function buildHierarchySnapshot(): HierarchySnapshot {
       finalRoots.push(root);
     }
   }
+
+  // Stable ordering: keep roots and children predictable for UI diffing.
+  const sortNodes = (nodes: HierarchyNode[], visited?: Set<string>) => {
+    const seen = visited ?? new Set<string>();
+    nodes.sort((a, b) => {
+      const aT = a.startedAt ?? 0;
+      const bT = b.startedAt ?? 0;
+      if (aT !== bT) {
+        return aT - bT;
+      }
+      const aL = a.label ?? a.agentId ?? a.sessionKey;
+      const bL = b.label ?? b.agentId ?? b.sessionKey;
+      return aL.localeCompare(bL);
+    });
+    for (const node of nodes) {
+      if (seen.has(node.sessionKey)) {
+        continue;
+      }
+      seen.add(node.sessionKey);
+      sortNodes(node.children, seen);
+    }
+  };
+  sortNodes(finalRoots);
 
   return {
     roots: finalRoots,
@@ -612,7 +745,7 @@ function broadcastHierarchyEvent(event: HierarchyEvent) {
   const payload = {
     ...event,
     seq: lastEventSeq,
-    snapshot: buildHierarchySnapshot(),
+    snapshot: getHierarchySnapshotCached({ force: shouldForceSnapshotRebuild(event.type) }),
   };
   hierarchyBroadcast("hierarchy", payload, { dropIfSlow: true });
 }
@@ -759,8 +892,9 @@ export function stopHierarchyEventBroadcaster() {
     listenerStop = null;
   }
   hierarchyBroadcast = null;
+  snapshotCache = null;
 }
 
 export function getHierarchySnapshot(): HierarchySnapshot {
-  return buildHierarchySnapshot();
+  return getHierarchySnapshotCached();
 }

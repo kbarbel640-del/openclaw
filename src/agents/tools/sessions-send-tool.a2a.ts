@@ -7,7 +7,7 @@ import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { resolveAgentIdentity } from "../identity.js";
 import { AGENT_LANE_NESTED } from "../lanes.js";
-import { resolveRootSessionKey } from "../subagent-registry.js";
+import { resolveTeamChatSessionKey } from "../team-chat.js";
 import { readLatestAssistantReply, runAgentStep } from "./agent-step.js";
 import { resolveAnnounceTarget } from "./sessions-announce-target.js";
 import {
@@ -18,6 +18,27 @@ import {
 } from "./sessions-send-helpers.js";
 
 const log = createSubsystemLogger("agents/sessions-send");
+
+async function injectIntoTeamChat(params: {
+  senderAgentId: string;
+  message: string;
+}): Promise<void> {
+  const cfg = loadConfig();
+  const rootSession = resolveTeamChatSessionKey({ cfg });
+  const identity = resolveAgentIdentity(cfg, params.senderAgentId);
+  await callGateway({
+    method: "chat.inject",
+    params: {
+      sessionKey: rootSession,
+      message: params.message,
+      senderAgentId: params.senderAgentId,
+      senderName: identity?.name ?? params.senderAgentId,
+      senderEmoji: identity?.emoji ?? "💬",
+      senderAvatar: identity?.avatar,
+    },
+    timeoutMs: 5_000,
+  });
+}
 
 export async function runSessionsSendA2AFlow(params: {
   targetSessionKey: string;
@@ -34,6 +55,8 @@ export async function runSessionsSendA2AFlow(params: {
   try {
     let primaryReply = params.roundOneReply;
     let latestReply = params.roundOneReply;
+    let waitStatus: string | undefined;
+    let waitError: string | undefined;
     if (!primaryReply && params.waitRunId) {
       const waitMs = Math.min(params.announceTimeoutMs, 60_000);
       const wait = await callGateway<{ status: string }>({
@@ -44,6 +67,9 @@ export async function runSessionsSendA2AFlow(params: {
         },
         timeoutMs: waitMs + 2000,
       });
+      waitStatus = typeof wait?.status === "string" ? wait.status : undefined;
+      const waitWithError = wait as { status?: string; error?: unknown } | undefined;
+      waitError = typeof waitWithError?.error === "string" ? waitWithError.error : undefined;
       if (wait?.status === "ok") {
         primaryReply = await readLatestAssistantReply({
           sessionKey: params.targetSessionKey,
@@ -51,7 +77,24 @@ export async function runSessionsSendA2AFlow(params: {
         latestReply = primaryReply;
       }
     }
-    if (!latestReply) {
+    const targetAgentId = resolveAgentIdFromSessionKey(params.targetSessionKey);
+    if (!latestReply?.trim()) {
+      // Some runs finish without a textual assistant message (e.g. tool-only output).
+      // Avoid silent failures in team chat; always provide a concise fallback status.
+      const statusPart = waitStatus ? `status=${waitStatus}` : "status=unknown";
+      const errorPart = waitError?.trim() ? ` error=${waitError.trim()}` : "";
+      const fallbackMessage = `[delivery warning] ${targetAgentId} completed without assistant text (${statusPart}${errorPart}). Retry with another model/profile or check provider auth/rate limits.`;
+      try {
+        await injectIntoTeamChat({ senderAgentId: targetAgentId, message: fallbackMessage });
+      } catch {
+        // Non-critical.
+      }
+      log.warn("sessions_send announce skipped: no assistant output captured", {
+        runId: runContextId,
+        targetSessionKey: params.targetSessionKey,
+        waitStatus,
+        waitError,
+      });
       return;
     }
 
@@ -94,24 +137,8 @@ export async function runSessionsSendA2AFlow(params: {
 
         // Inject each ping-pong turn into root webchat for Slack-like visibility
         try {
-          const rootSession = resolveRootSessionKey(
-            params.requesterSessionKey ?? currentSessionKey,
-          );
           const speakerAgentId = resolveAgentIdFromSessionKey(currentSessionKey);
-          const cfg = loadConfig();
-          const speakerIdentity = resolveAgentIdentity(cfg, speakerAgentId);
-          callGateway({
-            method: "chat.inject",
-            params: {
-              sessionKey: rootSession,
-              message: replyText.slice(0, 600),
-              senderAgentId: speakerAgentId,
-              senderName: speakerIdentity?.name ?? speakerAgentId,
-              senderEmoji: speakerIdentity?.emoji ?? "💬",
-              senderAvatar: speakerIdentity?.avatar,
-            },
-            timeoutMs: 5_000,
-          }).catch(() => {});
+          await injectIntoTeamChat({ senderAgentId: speakerAgentId, message: replyText });
         } catch {
           // Non-critical
         }
@@ -133,20 +160,35 @@ export async function runSessionsSendA2AFlow(params: {
       roundOneReply: primaryReply,
       latestReply,
     });
-    const announceReply = await runAgentStep({
-      sessionKey: params.targetSessionKey,
-      message: "Agent-to-agent announce step.",
-      extraSystemPrompt: announcePrompt,
-      timeoutMs: params.announceTimeoutMs,
-      lane: AGENT_LANE_NESTED,
-    });
-    if (announceTarget && announceReply && announceReply.trim() && !isAnnounceSkip(announceReply)) {
+
+    // Prefer announcing the actual last reply (already computed), because a second LLM call
+    // for "announce" is fragile (rate limits, auth, etc.) and can make the agent look silent.
+    let announceMessage = latestReply.trim();
+
+    try {
+      const announceReply = await runAgentStep({
+        sessionKey: params.targetSessionKey,
+        message: "Agent-to-agent announce step.",
+        extraSystemPrompt: announcePrompt,
+        timeoutMs: params.announceTimeoutMs,
+        lane: AGENT_LANE_NESTED,
+      });
+      if (announceReply && announceReply.trim() && !isAnnounceSkip(announceReply)) {
+        announceMessage = announceReply.trim();
+      }
+    } catch {
+      // Fall back to latestReply.
+    }
+
+    // Deliver announce to an external channel when we can resolve a target. Otherwise,
+    // always inject into the team chat so the requester isn't left hanging.
+    if (announceTarget && announceTarget.channel !== "webchat" && announceTarget.to) {
       try {
         await callGateway({
           method: "send",
           params: {
             to: announceTarget.to,
-            message: announceReply.trim(),
+            message: announceMessage,
             channel: announceTarget.channel,
             accountId: announceTarget.accountId,
             idempotencyKey: crypto.randomUUID(),
@@ -161,6 +203,16 @@ export async function runSessionsSendA2AFlow(params: {
           error: formatErrorMessage(err),
         });
       }
+      return;
+    }
+
+    try {
+      await injectIntoTeamChat({ senderAgentId: targetAgentId, message: announceMessage });
+    } catch (err) {
+      log.warn("sessions_send announce inject failed", {
+        runId: runContextId,
+        error: formatErrorMessage(err),
+      });
     }
   } catch (err) {
     log.warn("sessions_send announce flow failed", {

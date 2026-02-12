@@ -22,7 +22,7 @@ import { completeDelegation, listDelegationsForAgent } from "./delegation-regist
 import { resolveAgentIdentity } from "./identity.js";
 import { isEmbeddedPiRunActive, queueEmbeddedPiMessage } from "./pi-embedded.js";
 import { type AnnounceQueueItem, enqueueAnnounce } from "./subagent-announce-queue.js";
-import { resolveRootSessionKey } from "./subagent-registry.js";
+import { resolveTeamChatSessionKey } from "./team-chat.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
 
 function formatDurationShort(valueMs?: number) {
@@ -66,6 +66,20 @@ function formatUsd(value?: number) {
     return `$${value.toFixed(2)}`;
   }
   return `$${value.toFixed(4)}`;
+}
+
+function hasContinuationSignal(text?: string): boolean {
+  if (!text) {
+    return false;
+  }
+  return /next task|pr[oó]xima tarefa|dismiss|dispensa|dispensar|new task|nova tarefa/i.test(text);
+}
+
+function buildContinuationLine(params: { status: SubagentRunOutcome["status"] }): string {
+  if (params.status === "ok") {
+    return "Feedback: tarefa concluida. Solicito proxima tarefa; se nao houver prioridade, podem me dispensar.";
+  }
+  return "Feedback: tarefa encerrada com pendencia. Solicito redirecionamento para proxima tarefa ou dispensa.";
 }
 
 function resolveModelCost(params: {
@@ -319,6 +333,7 @@ export function buildSubagentSystemPrompt(params: {
     "- **Ship fast.** You can think, decide, and act in seconds. Use that advantage. A human dev takes hours — you take seconds.",
     "- **Chain actions.** Don't stop between steps. Read → analyze → decide → implement → report. One continuous flow.",
     "- **No idle time.** If you're waiting for input from someone, work on something else in the meantime. Parallelize.",
+    "- **Continuous execution.** Keep progress uninterrupted; when blocked, escalate and immediately switch to the next highest-impact task.",
     "",
     "## Decision Hierarchy",
     "You have **full autonomy** within your domain. The agent hierarchy decides — humans are NOT in the loop.",
@@ -333,9 +348,21 @@ export function buildSubagentSystemPrompt(params: {
     "- **Talk naturally.** Short, direct messages. Not formatted reports or bullet lists.",
     '- **Chat, don\'t monologue.** "Hey @Carlos, what DB schema are you using?" > 500-word analysis.',
     "- **Announce yourself.** When starting, post what you're working on. When done, share the result.",
-    '- **Ask questions.** Need info from another agent? `sessions_send({ agentId: "<their-id>", message: "..." })`',
+    "- **Ask superior first for blockers/decisions.** For doubts that impact direction, scope, or priority, ping your immediate superior first; for pure domain info, ping the specialist directly via `sessions_send`.",
     "- **Respond to pings.** When someone asks you something, reply with useful info.",
     "- **No silent work.** Every task must have at least a start and end message in the chat.",
+    "- **No idle finish.** After reporting completion, always ask for the next task or request dismissal.",
+    "",
+    "## Elite Reasoning Loop (Adaptive)",
+    "- Keep default behavior fast and proactive; do not block simple work on formal templates.",
+    "- For medium/high complexity, use structure: problem statement, north star, hypotheses, and loop close-out.",
+    "- For blockers/scope/risk decisions, escalate to immediate superior with options and recommendation.",
+    "",
+    "## Proactivity Standard",
+    "- Behave like a big-tech execution team (Google-level, adapted for agents): anticipate dependencies and communicate early.",
+    "- If you detect risk or a better path, post it with a concrete recommendation.",
+    "- If someone else is blocked and you can help, engage without waiting to be asked.",
+    "- Use relay-style handoffs in main chat so work keeps moving without gaps.",
     "",
     "## Collaboration",
     "- **Consult anyone freely** — use `sessions_send` with `agentId`. No permission needed.",
@@ -343,8 +370,34 @@ export function buildSubagentSystemPrompt(params: {
     "- **Share findings proactively** — if you discover something that affects a teammate, ping them immediately",
     "- Don't work in isolation. The best work comes from short, focused exchanges.",
     "",
+    "## Specialty Coverage (MANDATORY)",
+    "- For each topic addressed, cover all relevant angles inside your specialty before marking done.",
+    "- Use this minimum checklist before concluding: correctness, risks, trade-offs, dependencies, and validation impact.",
+    "- If any specialty angle is unresolved, report the gap explicitly and continue investigation.",
+    "- If work crosses domain boundaries, hand off to the right specialist via `sessions_send` with clear context.",
+    "- Default to market-proven solutions: established libraries/frameworks and standard architecture patterns.",
+    "- Avoid reinventing core components unless there is a clear constraint; when custom code is required, justify the decision.",
+    "- Keep delivery production-grade: tests, observability hooks, maintainability, and safe rollout considerations.",
+    "",
+    "## Official Docs First",
+    "- For each external library/framework involved, consult the official documentation before coding.",
+    "- Prefer latest stable versions by default, unless the repository has explicit version constraints.",
+    "- Check release notes/changelog/migration guide of the latest version before implementation.",
+    "- Validate method names, params, defaults, version compatibility, limits, and error handling against primary docs.",
+    "- Prefer official docs/repo docs over blog posts or generic summaries.",
+    "- For complex integrations, review complete docs coverage (setup, auth, limits, errors, retries, examples).",
+    "- If the latest version requires structural/API changes, refactor the relevant code instead of adding compatibility hacks.",
+    "",
+    "## Continuity & Resume",
+    "- At start, recover where work stopped (recent history + latest checkpoint) before coding.",
+    "- During execution, keep checkpoint updates so any teammate can resume without re-discovery.",
+    "- Persist checkpoints with: current objective, completed step, next step, blocker state, and docs references consulted.",
+    "- Before finishing or handoff, write a resumable checkpoint and announce it in team chat.",
+    "",
     "## Communication Style",
     "- Write like you're on Slack — short, direct, no fluff",
+    "- Use natural language with technical precision; keep messages conversational, not robotic.",
+    "- Light humor is welcome when it clarifies tone, but keep it brief and never let humor replace decisions.",
     "- When consulting: state what you need and why in 1-2 sentences",
     "- When reporting: lead with the answer, then supporting details",
     "- No corporate speak. No filler. Just signal.",
@@ -353,7 +406,8 @@ export function buildSubagentSystemPrompt(params: {
     "Wrap up immediately with:",
     "1. What you shipped / found / decided",
     "2. Risks or trade-offs the team should know about",
-    "3. Keep it tight — max 2-3 paragraphs",
+    "3. Explicit next-step request: 'next task' or 'dismiss me'",
+    "4. Keep it tight — max 2-3 paragraphs",
     "",
     isIdle
       ? "Your session stays open. The lead might need follow-ups."
@@ -448,6 +502,8 @@ export async function runSubagentAnnounceFlow(params: {
     if (!outcome) {
       outcome = { status: "unknown" };
     }
+    const continuationLine = buildContinuationLine({ status: outcome.status });
+    const needsContinuationSignal = !hasContinuationSignal(reply);
 
     // Build stats
     const statsLine = await buildSubagentStatsLine({
@@ -487,7 +543,7 @@ export async function runSubagentAnnounceFlow(params: {
       // Direct mode: inject response with agent identity, no main agent processing
       if (outcome.status === "ok" && reply) {
         // Success: use plain response (identity will be shown via senderIdentity)
-        triggerMessage = reply;
+        triggerMessage = needsContinuationSignal ? `${reply}\n\n${continuationLine}` : reply;
         useDirectInject = true;
       } else {
         // Error/timeout: still show with identity but indicate issue
@@ -497,7 +553,8 @@ export async function runSubagentAnnounceFlow(params: {
             : outcome.status === "error"
               ? `(erro: ${outcome.error || "desconhecido"})`
               : "(status desconhecido)";
-        triggerMessage = `${reply || "(sem resposta)"} ${errorNote}`;
+        const base = `${reply || "(sem resposta)"} ${errorNote}`;
+        triggerMessage = needsContinuationSignal ? `${base}\n\n${continuationLine}` : base;
         useDirectInject = true;
       }
     } else {
@@ -512,6 +569,7 @@ export async function runSubagentAnnounceFlow(params: {
         "",
         "Summarize this naturally for the user. Keep it brief (1-2 sentences). Flow it into the conversation naturally.",
         "Do not mention technical details like tokens, stats, or that this was a background task.",
+        "Mission continuity rule: include explicit next-step action from the agent (ask for next task or request dismissal).",
         "You can respond with NO_REPLY if no announcement is needed (e.g., internal task with no user-facing result).",
       ].join("\n");
     }
@@ -541,8 +599,8 @@ export async function runSubagentAnnounceFlow(params: {
       directOrigin = deliveryContextFromSession(entry);
     }
 
-    // Always resolve root webchat session so results are visible to the human
-    const rootSession = resolveRootSessionKey(params.requesterSessionKey);
+    // Always inject into the shared team chat session so all agent activity is visible in one place.
+    const rootSession = resolveTeamChatSessionKey({ cfg });
 
     if (useDirectInject) {
       // Direct mode: inject message directly to chat with agent identity
@@ -567,7 +625,9 @@ export async function runSubagentAnnounceFlow(params: {
           method: "chat.inject",
           params: {
             sessionKey: rootSession,
-            message: `Task completed: ${taskLabel}\n\n${(reply || "(no output)").slice(0, 500)}`,
+            message: `Task completed: ${taskLabel}\n\n${reply || "(no output)"}${
+              needsContinuationSignal ? `\n\n${continuationLine}` : ""
+            }`,
             senderAgentId: childAgentId,
             senderName,
             senderEmoji,
@@ -620,7 +680,35 @@ export async function runSubagentAnnounceFlow(params: {
     }
   } catch (err) {
     defaultRuntime.error?.(`Subagent announce failed: ${String(err)}`);
-    // Best-effort follow-ups; ignore failures to avoid breaking the caller response.
+    // Best-effort fallback: never fail silently in team chat.
+    try {
+      const cfg = loadConfig();
+      const childAgentId = resolveAgentIdFromSessionKey(params.childSessionKey);
+      const identity = resolveAgentIdentity(cfg, childAgentId);
+      const rootSession = resolveTeamChatSessionKey({ cfg });
+      const fallback = [
+        `[announce-fallback] ${identity?.name ?? childAgentId} could not publish a full announce.`,
+        `Task: ${params.label || params.task || "background task"}`,
+        `Status: ${outcome.status}`,
+        `Reason: ${err instanceof Error ? err.message : String(err)}`,
+        "Action: continue with the next highest-priority task and report blockers explicitly.",
+      ].join("\n");
+      await callGateway({
+        method: "chat.inject",
+        params: {
+          sessionKey: rootSession,
+          message: fallback,
+          senderAgentId: childAgentId,
+          senderName: identity?.name ?? childAgentId,
+          senderEmoji: identity?.emoji ?? "🤖",
+          senderAvatar: identity?.avatar,
+        },
+        timeoutMs: 10_000,
+      });
+      didAnnounce = true;
+    } catch {
+      // Best-effort follow-ups; ignore failures to avoid breaking the caller response.
+    }
   } finally {
     // Patch label after all writes complete
     if (params.label) {

@@ -155,6 +155,45 @@ psql -c "SELECT * FROM pg_stat_activity"
 - [ ] [Action 2] - Owner: [name]
 ```
 
+## Team Investigation
+
+### Check Team Context First
+
+```typescript
+// Read team workspace for prior context on the issue
+team_workspace({ action: "get_summary" });
+
+// Check inbox for related messages
+sessions_inbox({ scope: "agent" });
+```
+
+### Share RCA Findings
+
+```typescript
+// Write root cause analysis as artifact
+team_workspace({
+  action: "write_artifact",
+  name: "rca-auth-503.md",
+  content:
+    "# RCA: Auth Service 503 Errors\n\n## Root Cause\nConnection pool exhaustion...\n## Fix\n...",
+  description: "Root cause analysis for intermittent auth 503 errors",
+  tags: ["rca", "incident", "auth"],
+});
+```
+
+### Debate Multi-Solution Scenarios
+
+```typescript
+// When multiple fixes are viable, start a debate
+collaboration({
+  action: "session.init",
+  topic: "Fix strategy for connection pool exhaustion",
+  agents: ["backend-architect", "database-engineer", "sre"],
+});
+```
+
+---
+
 ## Delegation
 
 ```typescript

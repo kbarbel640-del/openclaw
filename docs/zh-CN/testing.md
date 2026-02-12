@@ -198,7 +198,7 @@ OPENCLAW_LIVE_SETUP_TOKEN=1 OPENCLAW_LIVE_SETUP_TOKEN_PROFILE=anthropic:setup-to
 - 默认值：
   - 模型：`claude-cli/claude-sonnet-4-5`
   - 命令：`claude`
-  - 参数：`["-p","--output-format","json","--dangerously-skip-permissions"]`
+  - 参数：`["-p","--output-format","json","--permission-mode","default","--tools",""]`
 - 覆盖（可选）：
   - `OPENCLAW_LIVE_CLI_BACKEND_MODEL="claude-cli/claude-opus-4-5"`
   - `OPENCLAW_LIVE_CLI_BACKEND_MODEL="codex-cli/gpt-5.2-codex"`

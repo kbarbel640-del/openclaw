@@ -93,7 +93,25 @@ export async function getReplyFromConfig(
     }
   }
 
-  const workspaceDirRaw = resolveAgentWorkspaceDir(cfg, agentId) ?? DEFAULT_AGENT_WORKSPACE_DIR;
+  const finalized = finalizeInboundContext(ctx);
+
+  const commandAuthorized = finalized.CommandAuthorized;
+  resolveCommandAuthorization({
+    ctx: finalized,
+    cfg,
+    commandAuthorized,
+  });
+  const sessionState = await initSessionState({
+    ctx: finalized,
+    cfg,
+    commandAuthorized,
+  });
+
+  const workspaceDirRaw =
+    sessionState.sessionEntry.workspaceDir ||
+    sessionState.sessionEntry.projectDir ||
+    resolveAgentWorkspaceDir(cfg, agentId) ||
+    DEFAULT_AGENT_WORKSPACE_DIR;
   const workspace = await ensureAgentWorkspace({
     dir: workspaceDirRaw,
     ensureBootstrapFiles: !agentCfg?.skipBootstrap && !isFastTestEnv,
@@ -113,8 +131,6 @@ export async function getReplyFromConfig(
   });
   opts?.onTypingController?.(typing);
 
-  const finalized = finalizeInboundContext(ctx);
-
   if (!isFastTestEnv) {
     await applyMediaUnderstanding({
       ctx: finalized,
@@ -127,18 +143,6 @@ export async function getReplyFromConfig(
       cfg,
     });
   }
-
-  const commandAuthorized = finalized.CommandAuthorized;
-  resolveCommandAuthorization({
-    ctx: finalized,
-    cfg,
-    commandAuthorized,
-  });
-  const sessionState = await initSessionState({
-    ctx: finalized,
-    cfg,
-    commandAuthorized,
-  });
   let {
     sessionCtx,
     sessionEntry,

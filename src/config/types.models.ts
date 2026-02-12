@@ -3,6 +3,8 @@ export type ModelApi =
   | "openai-responses"
   | "anthropic-messages"
   | "google-generative-ai"
+  | "google-gemini-cli"
+  | "google-antigravity"
   | "github-copilot"
   | "bedrock-converse-stream";
 
@@ -34,7 +36,7 @@ export type ModelDefinitionConfig = {
 };
 
 export type ModelProviderConfig = {
-  baseUrl: string;
+  baseUrl?: string;
   apiKey?: string;
   auth?: ModelProviderAuthMode;
   api?: ModelApi;

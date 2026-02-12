@@ -23,6 +23,32 @@ export type AgentModelListConfig = {
   fallbacks?: string[];
 };
 
+export type ModelByComplexityConfig = {
+  /**
+   * Enable complexity-based model routing for prompts.
+   *
+   * When enabled, OpenClaw can pick different models for trivial/moderate/complex tasks.
+   * This does not change tool availability or agent capabilities.
+   */
+  enabled?: boolean;
+  /**
+   * Auto-pick models from the configured allowlist based on detected complexity.
+   *
+   * When true, OpenClaw will select "fast" models for trivial tasks, "balanced" models
+   * for moderate tasks, and "powerful" models for complex tasks (falling back as needed).
+   *
+   * This is intended to power the "Auto" model selector UX without requiring an explicit
+   * per-complexity mapping.
+   */
+  autoPickFromPool?: boolean;
+  /** Model override for trivial tasks (provider/model or alias). */
+  trivial?: string;
+  /** Model override for moderate tasks (provider/model or alias). */
+  moderate?: string;
+  /** Model override for complex tasks (provider/model or alias). */
+  complex?: string;
+};
+
 export type AgentContextPruningConfig = {
   mode?: "off" | "cache-ttl";
   /** TTL to consider cache expired (duration string, default unit: minutes). */
@@ -94,12 +120,22 @@ export type CliBackendConfig = {
 export type AgentDefaultsConfig = {
   /** Default hierarchy role for agents without an explicit role. Default: "specialist". */
   role?: import("./types.agents.js").AgentRole;
+  /**
+   * Optional default persona override for agents that don't specify `agents.list[].persona`.
+   *
+   * See `agents.list[].persona` for resolution rules.
+   */
+  persona?: string;
   /** Primary model and fallbacks (provider/model). */
   model?: AgentModelListConfig;
   /** Optional image-capable model and fallbacks (provider/model). */
   imageModel?: AgentModelListConfig;
+  /** Optional tool-use/system-operations model and fallbacks (provider/model). */
+  toolModel?: AgentModelListConfig;
   /** Optional coding-specialized model and fallbacks (provider/model). */
   codingModel?: AgentModelListConfig;
+  /** Optional complexity-based model routing overrides. */
+  modelByComplexity?: ModelByComplexityConfig;
   /** Model catalog with optional aliases (full provider/model keys). */
   models?: Record<string, AgentModelEntryConfig>;
   /** Agent working directory (preferred). Used as the default cwd for agent runs. */
@@ -205,6 +241,26 @@ export type AgentDefaultsConfig = {
   };
   /** Max concurrent agent runs across all conversations. Default: 1 (sequential). */
   maxConcurrent?: number;
+  /**
+   * Delegation automation defaults.
+   *
+   * These settings are opt-in and do not change delegation behavior unless enabled.
+   */
+  delegation?: {
+    /**
+     * When enabled, the gateway will automatically trigger the assignee/reviewer agent
+     * after a delegation is created, so work starts without manual prompting.
+     *
+     * Default: false
+     */
+    autoRun?: boolean;
+    /**
+     * Debounce window to batch multiple delegations for the same agent into a single run.
+     *
+     * Default: 1200ms
+     */
+    debounceMs?: number;
+  };
   /** Sub-agent defaults (spawned via sessions_spawn). */
   subagents?: {
     /** Max concurrent sub-agent runs (global lane: "subagent"). Default: 1. */

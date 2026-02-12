@@ -436,22 +436,30 @@ export function attachGatewayWsMessageHandler(params: {
           const canSkipDevice = sharedAuthOk;
 
           if (isControlUi && !allowControlUiBypass) {
-            const errorMessage = "control ui requires HTTPS or localhost (secure context)";
-            setHandshakeState("failed");
-            setCloseCause("control-ui-insecure-auth", {
-              client: connectParams.client.id,
-              clientDisplayName: connectParams.client.displayName,
-              mode: connectParams.client.mode,
-              version: connectParams.client.version,
-            });
-            send({
-              type: "res",
-              id: frame.id,
-              ok: false,
-              error: errorShape(ErrorCodes.INVALID_REQUEST, errorMessage),
-            });
-            close(1008, errorMessage);
-            return;
+            // Browsers treat loopback origins as secure contexts even over http://.
+            // We only reject "insecure" control-ui auth when the connection is remote and
+            // not protected by TLS.
+            const isTls = Boolean(
+              (upgradeReq.socket as { encrypted?: boolean } | undefined)?.encrypted,
+            );
+            if (!isLocalClient && !isTls) {
+              const errorMessage = "control ui requires HTTPS or localhost (secure context)";
+              setHandshakeState("failed");
+              setCloseCause("control-ui-insecure-auth", {
+                client: connectParams.client.id,
+                clientDisplayName: connectParams.client.displayName,
+                mode: connectParams.client.mode,
+                version: connectParams.client.version,
+              });
+              send({
+                type: "res",
+                id: frame.id,
+                ok: false,
+                error: errorShape(ErrorCodes.INVALID_REQUEST, errorMessage),
+              });
+              close(1008, errorMessage);
+              return;
+            }
           }
 
           // Allow shared-secret authenticated connections (e.g., control-ui) to skip device identity

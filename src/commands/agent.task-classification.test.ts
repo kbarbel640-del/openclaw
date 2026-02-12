@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
-import { resolveModelForTaskType } from "../agents/model-selection.js";
-import { classifyTask } from "../agents/task-classifier.js";
+import { resolveModelForTaskIntent, resolveModelForTaskType } from "../agents/model-selection.js";
+import { classifyComplexity, classifyTask } from "../agents/task-classifier.js";
 
 describe("agent task classification integration", () => {
   describe("classifyTask for agent prompts", () => {
@@ -108,6 +108,111 @@ describe("agent task classification integration", () => {
       const result = resolveModelForTaskType({ cfg, taskType: "reasoning" });
       expect(result.provider).toBe("anthropic");
       expect(result.model).toBe("claude-opus-4-5");
+    });
+  });
+
+  describe("resolveModelForTaskIntent (complexity-aware)", () => {
+    it("uses modelByComplexity mapping when enabled", () => {
+      const cfg: OpenClawConfig = {
+        agents: {
+          defaults: {
+            model: { primary: "anthropic/claude-sonnet-4-5" },
+            modelByComplexity: {
+              enabled: true,
+              trivial: "openai/gpt-5-nano",
+              moderate: "openai/gpt-5-mini",
+              complex: "anthropic/claude-opus-4-6",
+            },
+          },
+        },
+      };
+
+      const prompt = "Summarize this in one line.";
+      const taskType = classifyTask(prompt);
+      const complexity = classifyComplexity(prompt);
+      expect(complexity).toBe("trivial");
+
+      const result = resolveModelForTaskIntent({ cfg, taskType, complexity });
+      expect(result.reason).toBe("complexity");
+      expect(result.ref.provider).toBe("openai");
+      expect(result.ref.model).toBe("gpt-5-nano");
+    });
+
+    it("does not let complexity override vision routing", () => {
+      const cfg: OpenClawConfig = {
+        agents: {
+          defaults: {
+            model: { primary: "anthropic/claude-sonnet-4-5" },
+            imageModel: { primary: "openai/gpt-5-mini" },
+            modelByComplexity: {
+              enabled: true,
+              complex: "openai/gpt-5.2",
+            },
+          },
+        },
+      };
+
+      const prompt = "Analyze this screenshot [image] and describe what you see";
+      const taskType = classifyTask(prompt);
+      const complexity = classifyComplexity(prompt);
+      expect(taskType).toBe("vision");
+
+      const result = resolveModelForTaskIntent({ cfg, taskType, complexity });
+      expect(result.reason).toBe("taskType");
+      expect(result.ref.provider).toBe("openai");
+      expect(result.ref.model).toBe("gpt-5-mini");
+    });
+
+    it("does not auto-route by complexity when thinking auto-pick is disabled", () => {
+      const cfg: OpenClawConfig = {
+        agents: {
+          defaults: {
+            model: { primary: "anthropic/claude-sonnet-4-5" },
+            modelByComplexity: {
+              enabled: true,
+              autoPickFromPool: false,
+              trivial: "openai/gpt-5-nano",
+              moderate: "openai/gpt-5-mini",
+              complex: "anthropic/claude-opus-4-6",
+            },
+          },
+        },
+      };
+
+      const prompt = "Summarize this quickly.";
+      const taskType = classifyTask(prompt);
+      const complexity = classifyComplexity(prompt);
+
+      const result = resolveModelForTaskIntent({ cfg, taskType, complexity });
+      expect(result.reason).toBe("default");
+      expect(result.ref.provider).toBe("anthropic");
+      expect(result.ref.model).toBe("claude-sonnet-4-5");
+    });
+
+    it("does not let complexity override explicit coding model", () => {
+      const cfg: OpenClawConfig = {
+        agents: {
+          defaults: {
+            model: { primary: "anthropic/claude-sonnet-4-5" },
+            codingModel: { primary: "openai-codex/gpt-5.1-codex-mini" },
+            modelByComplexity: {
+              enabled: true,
+              autoPickFromPool: true,
+              complex: "anthropic/claude-opus-4-6",
+            },
+          },
+        },
+      };
+
+      const prompt = "Implement auth, retries, caching, metrics, and tests for this API.";
+      const taskType = classifyTask(prompt);
+      const complexity = classifyComplexity(prompt);
+      expect(taskType).toBe("coding");
+
+      const result = resolveModelForTaskIntent({ cfg, taskType, complexity });
+      expect(result.reason).toBe("taskType");
+      expect(result.ref.provider).toBe("openai-codex");
+      expect(result.ref.model).toBe("gpt-5.1-codex-mini");
     });
   });
 

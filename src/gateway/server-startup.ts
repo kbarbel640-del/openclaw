@@ -3,7 +3,8 @@ import type { loadConfig } from "../config/config.js";
 import type { loadOpenClawPlugins } from "../plugins/loader.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../agents/defaults.js";
 import { initAutoModelSelection } from "../agents/model-auto-select.js";
-import { loadModelCatalog } from "../agents/model-catalog.js";
+import { filterModelsByOperationalHealth } from "../agents/model-availability.js";
+import { loadAvailableModels, loadModelCatalog } from "../agents/model-catalog.js";
 import {
   buildAllowedModelSet,
   getModelRefStatus,
@@ -51,15 +52,21 @@ export async function startGatewaySidecars(params: {
   // Initialize auto-model-selection: discover available models, classify by
   // cost/capability/recency, and pre-compute the optimal model for each agent role.
   try {
-    const catalog = await loadModelCatalog({ config: params.cfg });
-    if (catalog.length > 0) {
-      const { allowedKeys, allowAny } = buildAllowedModelSet({
+    if (!isTruthyEnvValue(process.env.OPENCLAW_DISABLE_MODEL_AUTO_SELECT)) {
+      const availableCatalog = await loadAvailableModels({ config: params.cfg });
+      const catalog = filterModelsByOperationalHealth({
+        models: availableCatalog,
         cfg: params.cfg,
-        catalog,
-        defaultProvider: DEFAULT_PROVIDER,
-        defaultModel: DEFAULT_MODEL,
       });
-      initAutoModelSelection(catalog, allowAny ? undefined : allowedKeys);
+      if (catalog.length > 0) {
+        const { allowedKeys, allowAny } = buildAllowedModelSet({
+          cfg: params.cfg,
+          catalog,
+          defaultProvider: DEFAULT_PROVIDER,
+          defaultModel: DEFAULT_MODEL,
+        });
+        initAutoModelSelection(catalog, allowAny ? undefined : allowedKeys);
+      }
     }
   } catch (err) {
     params.log.warn(`auto-model-selection init failed: ${String(err)}`);
@@ -143,7 +150,7 @@ export async function startGatewaySidecars(params: {
     }
   } else {
     params.logChannels.info(
-      "skipping channel start (OPENCLAW_SKIP_CHANNELS=1 or OPENCLAW_SKIP_PROVIDERS=1)",
+      "skipping messaging channels start (OPENCLAW_SKIP_CHANNELS=1 configured for dev mode)",
     );
   }
 

@@ -123,6 +123,35 @@ echo "✅ All validations passed!"
 [ ] Has blocking issues
 ```
 
+## Team Validation Workflow
+
+### Share Validation Reports
+
+```typescript
+// Write validation report as team artifact
+team_workspace({
+  action: "write_artifact",
+  name: "validation-report-orders.md",
+  content: "# Validation Report: Orders Module\n\n| Check | Status |\n| Lint | Pass |\n...",
+  description: "Pre-delivery validation report for orders module",
+  tags: ["validation", "quality", "orders"],
+});
+```
+
+### Request Release Sign-Off
+
+```typescript
+// Submit validation for release approval
+collaboration({
+  action: "submit_review",
+  artifact: "Pre-delivery validation report for v2.0.0 release",
+  reviewers: ["tech-lead", "qa-lead"],
+  context: "All quality gates passed. Requesting sign-off for release.",
+});
+```
+
+---
+
 ## Delegation
 
 ```typescript

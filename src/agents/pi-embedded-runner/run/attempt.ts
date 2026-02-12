@@ -30,7 +30,7 @@ import {
 } from "../../channel-tools.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
-import { resolveModelAuthMode } from "../../model-auth.js";
+import { getApiKeyForModel, resolveModelAuthMode } from "../../model-auth.js";
 import { resolveDefaultModelForAgent } from "../../model-selection.js";
 import {
   isCloudCodeAssistFormatError,
@@ -813,11 +813,36 @@ export async function runEmbeddedAttempt(
 
           // Only pass images option if there are actually images to pass
           // This avoids potential issues with models that don't expect the images parameter
+          log.info(
+            `DEBUG: Sending prompt to ${params.provider}/${params.modelId} (api=${params.model.api}, baseUrl=${params.model.baseUrl})`,
+          );
+
+          const promptOptions: any = {};
           if (imageResult.images.length > 0) {
-            await abortable(activeSession.prompt(effectivePrompt, { images: imageResult.images }));
-          } else {
-            await abortable(activeSession.prompt(effectivePrompt));
+            promptOptions.images = imageResult.images;
           }
+
+          // Inject Authorization header for Antigravity tokens to move from 400 (Invalid Key) to success on public endpoint
+          if (params.provider === "google-antigravity") {
+            try {
+              const auth = await getApiKeyForModel({
+                model: params.model,
+                cfg: params.config,
+                agentDir,
+                authStorage: params.authStorage,
+              });
+              if (auth.apiKey) {
+                promptOptions.headers = {
+                  ...promptOptions.headers,
+                  Authorization: `Bearer ${auth.apiKey}`,
+                };
+              }
+            } catch (err) {
+              log.warn(`Failed to resolve Antigravity API key for header injection: ${err}`);
+            }
+          }
+
+          await abortable(activeSession.prompt(effectivePrompt, promptOptions));
         } catch (err) {
           promptError = err;
         } finally {

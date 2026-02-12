@@ -118,6 +118,39 @@ sessions_spawn({
 });
 ```
 
+## Share with Team
+
+After completing research, publish findings to the team workspace.
+
+```typescript
+// Write research findings as an artifact
+team_workspace({
+  action: "write_artifact",
+  name: "research-state-management.md",
+  content: "# State Management Research\n\n## Recommendation\nNanostores...\n\n## Comparison\n...",
+  description: "State management comparison: Nanostores vs Zustand vs Context",
+  tags: ["research", "state-management", "frontend"],
+});
+
+// Set team context with the recommendation
+team_workspace({
+  action: "set_context",
+  key: "state-management-recommendation",
+  value:
+    "Nanostores — best fit for Astro islands (tiny, framework-agnostic). See research artifact.",
+});
+
+// Notify relevant agents
+sessions_send({
+  agentId: "frontend-architect",
+  message:
+    "State management research is complete. Recommendation: Nanostores. See team workspace artifact.",
+  timeoutSeconds: 0,
+});
+```
+
+---
+
 ## Quality Criteria
 
 Research output must include:

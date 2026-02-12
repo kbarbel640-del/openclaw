@@ -32,8 +32,8 @@ export const PROVIDER_REGISTRY: ProviderDefinition[] = [
   {
     id: "google-antigravity",
     name: "Google Antigravity",
-    envVars: [],
-    authModes: ["oauth"],
+    envVars: ["ANTIGRAVITY_API_KEY"],
+    authModes: ["oauth", "api-key"],
   },
   {
     id: "google-gemini-cli",

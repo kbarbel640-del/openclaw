@@ -149,6 +149,35 @@ sessions_spawn({
 });
 ```
 
+## Team Testing Workflow
+
+### Share Coverage Reports
+
+```typescript
+// Write coverage report as team artifact
+team_workspace({
+  action: "write_artifact",
+  name: "coverage-report-auth.md",
+  content: "# Coverage Report: Auth Module\n\nOverall: 94%\n\n| File | Lines | Branches |\n...",
+  description: "Test coverage report for auth module",
+  tags: ["testing", "coverage", "auth"],
+});
+```
+
+### Request Test Strategy Review
+
+```typescript
+// Submit test strategy for review
+collaboration({
+  action: "submit_review",
+  artifact: "Test strategy for orders module: unit + integration + E2E coverage plan",
+  reviewers: ["qa-lead", "tech-lead"],
+  context: "New module needs test strategy approval before implementation begins.",
+});
+```
+
+---
+
 ## Quality Gate
 
 Before marking tests complete:

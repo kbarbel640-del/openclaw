@@ -24,6 +24,9 @@ import {
   AgentsModelSetParamsSchema,
   AgentsModelSetResultSchema,
   ModelChoiceSchema,
+  ModelCooldownSchema,
+  ModelsCooldownsParamsSchema,
+  ModelsCooldownsResultSchema,
   ModelsListParamsSchema,
   ModelsListResultSchema,
   SkillsBinsParamsSchema,
@@ -89,6 +92,7 @@ import {
   ShutdownEventSchema,
   TickEventSchema,
 } from "./frames.js";
+import { FsPickDirectoryParamsSchema } from "./fs.js";
 import {
   ChatAbortParamsSchema,
   ChatEventSchema,
@@ -112,6 +116,7 @@ import {
   NodePairVerifyParamsSchema,
   NodeRenameParamsSchema,
 } from "./nodes.js";
+import { ProjectsListParamsSchema } from "./projects.js";
 import {
   SessionsCompactParamsSchema,
   SessionsDeleteParamsSchema,
@@ -171,6 +176,7 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   SessionsResetParams: SessionsResetParamsSchema,
   SessionsDeleteParams: SessionsDeleteParamsSchema,
   SessionsCompactParams: SessionsCompactParamsSchema,
+  ProjectsListParams: ProjectsListParamsSchema,
   ConfigGetParams: ConfigGetParamsSchema,
   ConfigSetParams: ConfigSetParamsSchema,
   ConfigApplyParams: ConfigApplyParamsSchema,
@@ -207,6 +213,9 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   ModelChoice: ModelChoiceSchema,
   ModelsListParams: ModelsListParamsSchema,
   ModelsListResult: ModelsListResultSchema,
+  ModelCooldown: ModelCooldownSchema,
+  ModelsCooldownsParams: ModelsCooldownsParamsSchema,
+  ModelsCooldownsResult: ModelsCooldownsResultSchema,
   SkillsStatusParams: SkillsStatusParamsSchema,
   SkillsBinsParams: SkillsBinsParamsSchema,
   SkillsBinsResult: SkillsBinsResultSchema,
@@ -230,6 +239,7 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   ExecApprovalsSnapshot: ExecApprovalsSnapshotSchema,
   ExecApprovalRequestParams: ExecApprovalRequestParamsSchema,
   ExecApprovalResolveParams: ExecApprovalResolveParamsSchema,
+  FsPickDirectoryParams: FsPickDirectoryParamsSchema,
   DevicePairListParams: DevicePairListParamsSchema,
   DevicePairApproveParams: DevicePairApproveParamsSchema,
   DevicePairRejectParams: DevicePairRejectParamsSchema,

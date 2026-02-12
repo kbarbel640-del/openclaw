@@ -2,6 +2,7 @@ import fs from "node:fs";
 import type { OpenClawConfig } from "../config/config.js";
 import { listAgentIds, resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
 import { buildWorkspaceSkillCommandSpecs, type SkillCommandSpec } from "../agents/skills.js";
+export type { SkillCommandSpec };
 import { getRemoteSkillEligibility } from "../infra/skills-remote.js";
 import { listChatCommands } from "./commands-registry.js";
 
@@ -38,10 +39,12 @@ export function listSkillCommandsForWorkspace(params: {
 export function listSkillCommandsForAgents(params: {
   cfg: OpenClawConfig;
   agentIds?: string[];
+  uniqueOnly?: boolean;
 }): SkillCommandSpec[] {
   const used = resolveReservedCommandNames();
   const entries: SkillCommandSpec[] = [];
   const agentIds = params.agentIds ?? listAgentIds(params.cfg);
+  const seenSkillNames = new Set<string>();
   for (const agentId of agentIds) {
     const workspaceDir = resolveAgentWorkspaceDir(params.cfg, agentId);
     if (!fs.existsSync(workspaceDir)) {
@@ -53,7 +56,12 @@ export function listSkillCommandsForAgents(params: {
       reservedNames: used,
     });
     for (const command of commands) {
-      used.add(command.name.toLowerCase());
+      const lowerName = command.name.toLowerCase();
+      if (params.uniqueOnly && seenSkillNames.has(lowerName)) {
+        continue;
+      }
+      seenSkillNames.add(lowerName);
+      used.add(lowerName);
       entries.push(command);
     }
   }

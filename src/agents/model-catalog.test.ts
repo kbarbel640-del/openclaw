@@ -113,7 +113,8 @@ describe("isLatestModel", () => {
 
   it("should return false for IDs ending with YYYYMMDD", () => {
     expect(isLatestModel(entry("claude-opus-4-5-20251101"))).toBe(false);
-    expect(isLatestModel(entry("claude-3-5-haiku-20241022"))).toBe(false);
+    // claude-3-5-haiku-20241022 is allowlisted as canonical (not a snapshot)
+    expect(isLatestModel(entry("claude-3-5-haiku-20241022"))).toBe(true);
   });
 
   it("should return false for IDs ending with YYYY-MM-DD", () => {

@@ -4,6 +4,16 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+// When piping output (e.g. `pnpm openclaw ... | head`), the downstream process may close early.
+// Avoid crashing with an unhandled EPIPE on stdout/stderr writes.
+for (const stream of [process.stdout, process.stderr]) {
+  stream.on("error", (err) => {
+    if (err && err.code === "EPIPE") {
+      process.exit(0);
+    }
+  });
+}
+
 const args = process.argv.slice(2);
 const env = { ...process.env };
 const cwd = process.cwd();
@@ -107,11 +117,18 @@ const logRunner = (message) => {
 };
 
 const runNode = () => {
+  // Use piped stdio so downstream pipes closing early don't crash child processes with EPIPE.
   const nodeProcess = spawn(process.execPath, ["openclaw.mjs", ...args], {
     cwd,
     env,
-    stdio: "inherit",
+    stdio: ["inherit", "pipe", "pipe"],
   });
+  if (nodeProcess.stdout) {
+    nodeProcess.stdout.pipe(process.stdout);
+  }
+  if (nodeProcess.stderr) {
+    nodeProcess.stderr.pipe(process.stderr);
+  }
 
   nodeProcess.on("exit", (exitCode, exitSignal) => {
     if (exitSignal) {
@@ -142,8 +159,14 @@ if (!shouldBuild()) {
   const build = spawn(buildCmd, buildArgs, {
     cwd,
     env,
-    stdio: "inherit",
+    stdio: ["inherit", "pipe", "pipe"],
   });
+  if (build.stdout) {
+    build.stdout.pipe(process.stdout);
+  }
+  if (build.stderr) {
+    build.stderr.pipe(process.stderr);
+  }
 
   build.on("exit", (code, signal) => {
     if (signal) {

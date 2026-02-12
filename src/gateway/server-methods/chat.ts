@@ -8,12 +8,14 @@ import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { resolveEffectiveMessagesConfig, resolveIdentityName } from "../../agents/identity.js";
 import { resolveThinkingDefault } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
+import { isAnnounceSkip, isReplySkip } from "../../agents/tools/sessions-send-helpers.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
 import {
   extractShortModelName,
   type ResponsePrefixContext,
 } from "../../auto-reply/reply/response-prefix-template.js";
+import { isSilentReplyText } from "../../auto-reply/tokens.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
 import {
@@ -48,6 +50,13 @@ type TranscriptAppendResult = {
   messageId?: string;
   message?: Record<string, unknown>;
   error?: string;
+};
+
+export type ChatInjectedSenderIdentity = {
+  agentId?: string;
+  name?: string;
+  emoji?: string;
+  avatar?: string;
 };
 
 function resolveTranscriptPath(params: {
@@ -88,13 +97,15 @@ function ensureTranscriptFile(params: { transcriptPath: string; sessionId: strin
   }
 }
 
-function appendAssistantTranscriptMessage(params: {
+function appendTranscriptMessage(params: {
   message: string;
   label?: string;
   sessionId: string;
   storePath: string | undefined;
   sessionFile?: string;
   createIfMissing?: boolean;
+  senderIdentity?: ChatInjectedSenderIdentity;
+  role?: "system" | "assistant" | "user";
 }): TranscriptAppendResult {
   const transcriptPath = resolveTranscriptPath({
     sessionId: params.sessionId,
@@ -121,13 +132,28 @@ function appendAssistantTranscriptMessage(params: {
   const now = Date.now();
   const messageId = randomUUID().slice(0, 8);
   const labelPrefix = params.label ? `[${params.label}]\n\n` : "";
+  const role = (params.role ?? "assistant").trim().toLowerCase() as "system" | "assistant" | "user";
   const messageBody: Record<string, unknown> = {
-    role: "assistant",
+    role,
     content: [{ type: "text", text: `${labelPrefix}${params.message}` }],
     timestamp: now,
-    stopReason: "injected",
+    stopReason: role === "assistant" ? "injected" : "system",
     usage: { input: 0, output: 0, totalTokens: 0 },
   };
+  if (
+    params.senderIdentity &&
+    (params.senderIdentity.agentId ||
+      params.senderIdentity.name ||
+      params.senderIdentity.emoji ||
+      params.senderIdentity.avatar)
+  ) {
+    messageBody.senderIdentity = {
+      agentId: params.senderIdentity.agentId,
+      name: params.senderIdentity.name,
+      emoji: params.senderIdentity.emoji,
+      avatar: params.senderIdentity.avatar,
+    };
+  }
   const transcriptEntry = {
     type: "message",
     id: messageId,
@@ -184,6 +210,48 @@ function broadcastChatError(params: {
   };
   params.context.broadcast("chat", payload);
   params.context.nodeSendToSession(params.sessionKey, "chat", payload);
+}
+
+/**
+ * Internal helper for injecting a Slack-like message into a session transcript.
+ * Used by other gateway handlers (delegation, collaboration) so they can write
+ * into the team chat without going through a WS client loopback.
+ */
+export function injectChatMessage(params: {
+  context: Pick<GatewayRequestContext, "broadcast" | "nodeSendToSession" | "agentRunSeq">;
+  sessionKey: string;
+  message: string;
+  role?: "system" | "assistant" | "user";
+  label?: string;
+  senderIdentity?: ChatInjectedSenderIdentity;
+}): { ok: boolean; messageId?: string; error?: string } {
+  const { storePath, entry } = loadSessionEntry(params.sessionKey);
+  const sessionId = entry?.sessionId;
+  if (!sessionId || !storePath) {
+    return { ok: false, error: "session not found" };
+  }
+  const appended = appendTranscriptMessage({
+    message: params.message,
+    label: params.label,
+    sessionId,
+    storePath,
+    sessionFile: entry?.sessionFile,
+    // Slack-like team chat should always be writeable even when the transcript
+    // has not been created yet (fresh install, migrated state, etc.).
+    createIfMissing: true,
+    senderIdentity: params.senderIdentity,
+    role: params.role,
+  });
+  if (!appended.ok || !appended.messageId) {
+    return { ok: false, error: appended.error ?? "failed to inject message" };
+  }
+  broadcastChatFinal({
+    context: params.context,
+    runId: `inject-${appended.messageId}`,
+    sessionKey: params.sessionKey,
+    message: appended.message,
+  });
+  return { ok: true, messageId: appended.messageId };
 }
 
 export const chatHandlers: GatewayRequestHandlers = {
@@ -491,7 +559,7 @@ export const chatHandlers: GatewayRequestHandlers = {
             return;
           }
           const text = payload.text?.trim() ?? "";
-          if (!text) {
+          if (!text || isSilentReplyText(text) || isReplySkip(text) || isAnnounceSkip(text)) {
             return;
           }
           finalReplyParts.push(text);
@@ -532,7 +600,7 @@ export const chatHandlers: GatewayRequestHandlers = {
                 p.sessionKey,
               );
               const sessionId = latestEntry?.sessionId ?? entry?.sessionId ?? clientRunId;
-              const appended = appendAssistantTranscriptMessage({
+              const appended = appendTranscriptMessage({
                 message: combinedReply,
                 sessionId,
                 storePath: latestStorePath,
@@ -624,6 +692,7 @@ export const chatHandlers: GatewayRequestHandlers = {
     const p = params as {
       sessionKey: string;
       message: string;
+      role?: "system" | "assistant" | "user";
       label?: string;
       /** Agent identity for direct announce mode (Slack-like display) */
       senderAgentId?: string;
@@ -632,79 +701,27 @@ export const chatHandlers: GatewayRequestHandlers = {
       senderAvatar?: string;
     };
 
-    // Load session to find transcript file
-    const { storePath, entry } = loadSessionEntry(p.sessionKey);
-    const sessionId = entry?.sessionId;
-    if (!sessionId || !storePath) {
-      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "session not found"));
-      return;
-    }
-
-    // Resolve transcript path
-    const transcriptPath = entry?.sessionFile
-      ? entry.sessionFile
-      : path.join(path.dirname(storePath), `${sessionId}.jsonl`);
-
-    if (!fs.existsSync(transcriptPath)) {
-      respond(
-        false,
-        undefined,
-        errorShape(ErrorCodes.INVALID_REQUEST, "transcript file not found"),
-      );
-      return;
-    }
-
-    // Build transcript entry
-    const now = Date.now();
-    const messageId = randomUUID().slice(0, 8);
-    const labelPrefix = p.label ? `[${p.label}]\n\n` : "";
-    const messageBody: Record<string, unknown> = {
-      role: "assistant",
-      content: [{ type: "text", text: `${labelPrefix}${p.message}` }],
-      timestamp: now,
-      stopReason: "injected",
-      usage: { input: 0, output: 0, totalTokens: 0 },
-    };
-    // Add sender identity if provided (for direct announce mode)
-    if (p.senderAgentId || p.senderName || p.senderEmoji || p.senderAvatar) {
-      messageBody.senderIdentity = {
+    const injected = injectChatMessage({
+      context,
+      sessionKey: p.sessionKey,
+      message: p.message,
+      role: p.role,
+      label: p.label,
+      senderIdentity: {
         agentId: p.senderAgentId,
         name: p.senderName,
         emoji: p.senderEmoji,
         avatar: p.senderAvatar,
-      };
-    }
-    const transcriptEntry = {
-      type: "message",
-      id: messageId,
-      timestamp: new Date(now).toISOString(),
-      message: messageBody,
-    };
-
-    // Append to transcript file
-    try {
-      fs.appendFileSync(transcriptPath, `${JSON.stringify(transcriptEntry)}\n`, "utf-8");
-    } catch (err) {
-      const errMessage = err instanceof Error ? err.message : String(err);
+      },
+    });
+    if (!injected.ok) {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.UNAVAILABLE, `failed to write transcript: ${errMessage}`),
+        errorShape(ErrorCodes.UNAVAILABLE, injected.error ?? "failed to inject"),
       );
       return;
     }
-
-    // Broadcast to webchat for immediate UI update
-    const chatPayload = {
-      runId: `inject-${messageId}`,
-      sessionKey: p.sessionKey,
-      seq: 0,
-      state: "final" as const,
-      message: transcriptEntry.message,
-    };
-    context.broadcast("chat", chatPayload);
-    context.nodeSendToSession(p.sessionKey, "chat", chatPayload);
-
-    respond(true, { ok: true, messageId });
+    respond(true, { ok: true, messageId: injected.messageId });
   },
 };

@@ -19,13 +19,14 @@ import {
   isCliProvider,
   modelKey,
   resolveConfiguredModelRef,
-  resolveModelForTaskType,
+  resolveDefaultModelForAgent,
+  resolveModelForTaskIntent,
   resolveThinkingDefault,
 } from "../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
 import { getSkillsSnapshotVersion } from "../agents/skills/refresh.js";
-import { classifyTask } from "../agents/task-classifier.js";
+import { classifyComplexity, classifyTask } from "../agents/task-classifier.js";
 import { resolveAgentTimeoutMs } from "../agents/timeout.js";
 import { ensureAgentWorkspace } from "../agents/workspace.js";
 import {
@@ -238,47 +239,33 @@ export async function agentCommand(
     }
 
     const agentModelPrimary = resolveAgentModelPrimary(cfg, sessionAgentId);
-    const cfgForModelSelection = agentModelPrimary
-      ? {
-          ...cfg,
-          agents: {
-            ...cfg.agents,
-            defaults: {
-              ...cfg.agents?.defaults,
-              model: {
-                ...(typeof cfg.agents?.defaults?.model === "object"
-                  ? cfg.agents.defaults.model
-                  : undefined),
-                primary: agentModelPrimary,
-              },
-            },
-          },
-        }
-      : cfg;
+    const hasExplicitAgentModel = Boolean(agentModelPrimary?.trim());
 
-    // Classify the task to potentially use a specialized model
     const taskType = classifyTask(body);
-    const hasSpecializedModel =
-      (taskType === "coding" && cfg.agents?.defaults?.codingModel) ||
-      (taskType === "vision" && cfg.agents?.defaults?.imageModel);
+    const complexity = classifyComplexity(body);
 
-    // Use task-aware model selection if a specialized model is configured
-    const selectedModelRef = hasSpecializedModel
-      ? resolveModelForTaskType({ cfg: cfgForModelSelection, taskType, agentId: sessionAgentId })
-      : resolveConfiguredModelRef({
-          cfg: cfgForModelSelection,
-          defaultProvider: DEFAULT_PROVIDER,
-          defaultModel: DEFAULT_MODEL,
-        });
+    // Explicit per-agent primary model should not be overridden by task/complexity routing.
+    const selection = hasExplicitAgentModel
+      ? {
+          ref: resolveDefaultModelForAgent({ cfg, agentId: sessionAgentId }),
+          reason: "default" as const,
+        }
+      : resolveModelForTaskIntent({ cfg, agentId: sessionAgentId, taskType, complexity });
+
+    const selectedModelRef = selection.ref;
 
     const { provider: defaultProvider, model: defaultModel } = selectedModelRef;
     let provider = defaultProvider;
     let model = defaultModel;
 
-    // Log task classification when using specialized model
-    if (hasSpecializedModel) {
+    // Log only when routing triggered; keep default selection quiet.
+    if (!hasExplicitAgentModel && selection.reason === "taskType") {
       console.log(
         `\x1b[36m[agent]\x1b[0m Task classified as "${taskType}" → using ${provider}/${model}`,
+      );
+    } else if (!hasExplicitAgentModel && selection.reason === "complexity") {
+      console.log(
+        `\x1b[36m[agent]\x1b[0m Complexity classified as "${complexity}" → using ${provider}/${model}`,
       );
     }
     const hasAllowlist = agentCfg?.models && Object.keys(agentCfg.models).length > 0;

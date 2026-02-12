@@ -1,15 +1,41 @@
 ---
 name: project-coordinator
-description: "Initialize and manage multi-agent projects with RACI-based team coordination. Auto-generates REGISTRY, RESPONSIBILITIES, and handles agent spawning."
+description: "Initialize and manage multi-agent projects with RACI-based team coordination. Auto-generates REGISTRY, RESPONSIBILITIES, and handles agent spawning. Also defines how the main orchestrator (agent: main) should coordinate work in 'big tech' mode."
 metadata: { "openclaw": { "emoji": "📋", "always": false, "skillKey": "project" } }
 user-invocable: true
 ---
 
-# Project Coordinator — Multi-Agent Team Management
+# Project Coordinator — Multi-Agent Team Management & Orchestrator Operating Model
 
 Framework for coordinating projects across multiple specialized agents using RACI matrices and automatic delegation.
+Also defines the **operating model of the main orchestrator (`main`/Marcelo)** when acting as tech lead of the 60-agent team.
 
-## Features
+---
+
+## 0. Papel do Orquestrador Principal (`main`)
+
+O orquestrador principal **não implementa código**. Ele:
+
+1. **Entende** o pedido (contexto, objetivo, restrições).
+2. **Classifica** a tarefa (natureza + complexidade).
+3. **Escolhe o skill macro** adequado (`/design`, `/implement`, `/workflow`, etc.).
+4. **Decompõe** em até 5 sub-tarefas bem definidas, por domínio.
+5. **Delega** para os agentes certos (via `team-coordinator`, `sessions_spawn_batch` ou `delegation`).
+6. **Aplica gates de qualidade** (QA, segurança, review) conforme o tipo de tarefa.
+7. **Sintetiza** o resultado para o Julio, com decisões, trade-offs e próximos passos.
+
+### 0.1 Quando responder direto vs delegar
+
+O orquestrador pode responder **direto** apenas quando:
+
+- A pergunta é conceitual/simples (ex.: explicar um fluxo, comparar abordagens em alto nível),
+- Não há necessidade de gerar artefatos persistentes (código, configuração, docs, SKILLs).
+
+Sempre que o pedido envolver **fazer** algo (implementar, alterar SKILL, desenhar fluxo real, definir processo, etc.), o orquestrador deve seguir o pipeline acima e **delegar**.
+
+---
+
+## 1. Features do Project Coordinator
 
 ✅ **Project initialization** from YAML templates  
 ✅ **RACI matrix** auto-generation  
@@ -19,9 +45,15 @@ Framework for coordinating projects across multiple specialized agents using RAC
 ✅ **Escalation routing** based on risk levels  
 ✅ **Standup scheduling** (daily/weekly)
 
+Em projetos maiores, o orquestrador `main` deve usar este skill como "modo projeto":
+
+- Iniciar projeto,
+- Gerar REGISTRY/RESPONSIBILITIES,
+- Amarrar RACI às decisões de delegação do `team-coordinator`.
+
 ---
 
-## Usage
+## 2. Uso (CLI / Automação de Projeto)
 
 ### Initialize a Project from Template
 
@@ -68,7 +100,7 @@ openclaw project metrics my-project \
 
 ---
 
-## Project Template Format (YAML)
+## 3. Project Template Format (YAML)
 
 See `projects/README.md` for complete schema. Example structure:
 
@@ -150,7 +182,60 @@ deliverables:
 
 ---
 
-## Generated REGISTRY.md
+## 4. Orquestrador `main` em "Modo Big Tech"
+
+### 4.1 Pipeline Operacional
+
+Quando o Julio faz um pedido:
+
+1. **ENTENDER**
+   - Resumir internamente o pedido e o objetivo.
+
+2. **CLASSIFICAR** (em conjunto com `team-coordinator`)
+   - Natureza da tarefa (estratégico, arquitetural, técnico, produto, marketing, UX, QA, processo, pesquisa, incidente).
+   - Complexidade (simples, média, complexa).
+
+3. **ESCOLHER SKILL MACRO**
+   - Design de solução → `/design`
+   - Implementação ponta a ponta → `/implement`
+   - Processo/time → `/workflow`
+   - Pesquisa/investigação → `/research`
+   - Bug/incidente → `/troubleshoot`
+   - Segurança → `/security`
+   - Testes → `/test`
+   - Validação final → `/validate`
+
+4. **DECOMPOR EM SUB-TAREFAS (max 5)**
+   - Cada sub-tarefa deve ter:
+     - 1 domínio claro,
+     - 1 agente responsável,
+     - Critérios de saída (como saber que acabou).
+
+5. **DELEGAR**
+   - Usar `team-coordinator` + `sessions_spawn_batch` ou `delegation`.
+   - Paralelizar tudo que não tem dependência direta.
+
+6. **GATES DE QUALIDADE**
+   - Para tarefas **médias/complexas** de código/processo:
+     - Acionar `/test` + `/validate`.
+     - Incluir QA (`qa-lead`, `quality-engineer`, `qa-automation`) e, quando relevante, segurança (`security-engineer`, `ciso`).
+
+7. **SÍNTESE PARA O JULIO**
+   - Explicar: o que foi feito, decisões tomadas, trade-offs e próximos passos.
+
+### 4.2 Escolha de Skill de Coordenação
+
+Quando houver dúvida sobre qual skill de coordenação usar:
+
+- **Feature complexa / refatoração grande** → `/implement` (usa `team-coordinator` por baixo).
+- **Ajuste de processo, sprints, DORA, papéis** → `/workflow`.
+- **Decisão arquitetural polêmica ou de alto impacto** → `collaboration.session.init` (via `team-coordinator` ou `/design`).
+- **Delegação pontual e rastreada (com prioridade)** → `delegation` (downward/upward).
+- **Delegação rápida fire-and-forget** → `sessions_spawn`/`sessions_spawn_batch` direto.
+
+---
+
+## 5. Generated REGISTRY.md
 
 Auto-generated agent registry for your project:
 
@@ -182,7 +267,7 @@ Auto-generated agent registry for your project:
 
 ---
 
-## Generated RESPONSIBILITIES.md (RACI)
+## 6. Generated RESPONSIBILITIES.md (RACI)
 
 Auto-generated RACI matrix:
 
@@ -213,31 +298,7 @@ Auto-generated RACI matrix:
 
 ---
 
-## Integration with team-coordinator
-
-This skill works with `team-coordinator` for agent spawning:
-
-```typescript
-// After REGISTRY is generated, spawn agents:
-
-sessions_spawn({
-  agentId: "coordinator-agent",
-  task: "Lead the project...",
-  label: "My Project: Leadership",
-});
-
-sessions_spawn({
-  agentId: "team-member-1",
-  task: "Work on task X...",
-  label: "My Project: Feature A",
-});
-
-// ... more agents as needed
-```
-
----
-
-## RACI Best Practices
+## 7. RACI Best Practices
 
 ### Every Task Needs:
 
@@ -277,7 +338,7 @@ Task: "Implement feature X"
 
 ---
 
-## Escalation Rules
+## 8. Escalation Rules
 
 Define how decisions get made based on impact:
 
@@ -318,7 +379,7 @@ escalation:
 
 ---
 
-## Daily Standup Format
+## 9. Daily Standup Format
 
 Template for async daily updates:
 
@@ -345,7 +406,7 @@ Deliver via Slack/Telegram/Discord to keep async transparency.
 
 ---
 
-## Success Criteria Template
+## 10. Success Criteria Template
 
 Every project should have measurable goals:
 
@@ -375,7 +436,7 @@ successCriteria:
 
 ---
 
-## Project Lifecycle
+## 11. Project Lifecycle
 
 ### Phase 1: Planning (Day -1)
 
@@ -400,10 +461,11 @@ successCriteria:
 
 ---
 
-## Integration Points
+## 12. Integration Points
 
-- **team-coordinator** skill — Agent hierarchy & delegation
-- **sessions_spawn** — Spawn agents with tasks
+- **team-coordinator** — Hierarchical agent delegation (natureza/complexidade/domínio)
+- **sessions_spawn / sessions_spawn_batch** — Spawn agents with tasks
+- **delegation** — Delegação rastreada com prioridade/status
 - **message tool** — Send status updates (Slack, Telegram, Discord)
 - **cron** — Schedule standups & reviews
 - **REGISTRY.md** — Agent discovery per project
@@ -411,9 +473,10 @@ successCriteria:
 
 ---
 
-## See Also
+## 13. See Also
 
 - **projects/README.md** — Framework overview & best practices
 - **team-coordinator** — Hierarchical agent delegation
 - **delegate** — Simple task delegation
+- **workflow** — Process & team workflows
 - **session-logs** — Track agent activity

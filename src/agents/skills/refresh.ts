@@ -102,7 +102,10 @@ export function ensureSkillsWatcher(params: { workspaceDir: string; config?: Ope
   if (!workspaceDir) {
     return;
   }
-  const watchEnabled = params.config?.skills?.load?.watch !== false;
+  const allowWatchInTests = process.env.OPENCLAW_SKILLS_WATCH_IN_TESTS === "1";
+  const isTestEnv = Boolean(process.env.VITEST) || process.env.NODE_ENV === "test";
+  const watchEnabled =
+    params.config?.skills?.load?.watch !== false && (!isTestEnv || allowWatchInTests);
   const debounceMsRaw = params.config?.skills?.load?.watchDebounceMs;
   const debounceMs =
     typeof debounceMsRaw === "number" && Number.isFinite(debounceMsRaw)
@@ -169,6 +172,18 @@ export function ensureSkillsWatcher(params: { workspaceDir: string; config?: Ope
   watcher.on("unlink", (p) => schedule(p));
   watcher.on("error", (err) => {
     log.warn(`skills watcher error (${workspaceDir}): ${String(err)}`);
+    // If we ran out of file descriptors, keeping the watcher alive just spams logs and
+    // makes other parts of the process fail in odd ways. Drop the watcher and rely on
+    // manual snapshot refresh until the next restart.
+    const code = typeof err === "object" && err !== null ? (err as { code?: unknown }).code : null;
+    const isEmfile = code === "EMFILE" || String(err).includes("EMFILE");
+    if (isEmfile) {
+      watchers.delete(workspaceDir);
+      if (state.timer) {
+        clearTimeout(state.timer);
+      }
+      void watcher.close().catch(() => {});
+    }
   });
 
   watchers.set(workspaceDir, state);

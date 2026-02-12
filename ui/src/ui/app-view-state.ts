@@ -5,6 +5,9 @@ import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { HealthData } from "./controllers/health.ts";
+import type { ClosestUsageWindow } from "./controllers/models-availability.ts";
+import type { ModelCatalogRow } from "./controllers/models.ts";
+import type { ProjectEntry } from "./controllers/projects.ts";
 import type { ProviderHealthEntry } from "./controllers/providers-health.ts";
 import type {
   SecurityEvent,
@@ -176,6 +179,21 @@ export type AppViewState = {
   debugCallParams: string;
   debugCallResult: string | null;
   debugCallError: string | null;
+  modelsLoading: boolean;
+  modelsError: string | null;
+  modelsCatalog: ModelCatalogRow[];
+  modelsAvailabilityLoading: boolean;
+  modelsAvailabilityError: string | null;
+  detectedProviders: Set<string>;
+  unavailableProviders: Set<string>;
+  cooldownModels: Set<string>;
+  closestUsageByProvider: Record<string, ClosestUsageWindow | null>;
+  projectsLoading: boolean;
+  projectsError: string | null;
+  projectsRootDir: string | null;
+  projectsBrowseRootDir: string | null;
+  projectsIncludeHidden: boolean;
+  projects: ProjectEntry[];
   logsLoading: boolean;
   logsError: string | null;
   logsFile: string | null;
@@ -193,6 +211,8 @@ export type AppViewState = {
   providersModelAllowlist: Set<string>;
   providersPrimaryModel: string | null;
   providersModelFallbacks: string[];
+  providersCodingModelPrimary: string | null;
+  providersModelAutoPickFromPool: boolean;
   providersConfigHash: string | null;
   providersModelsSaving: boolean;
   providersModelsDirty: boolean;

@@ -12,6 +12,7 @@ import {
 } from "../../routing/session-key.js";
 import { normalizeDeliveryContext } from "../../utils/delivery-context.js";
 import {
+  AGENT_ROLE_RANK,
   canSpawnRole,
   listAgentIds,
   resolveAgentConfig,
@@ -27,8 +28,8 @@ import {
   getSubagentRunBySessionKey,
   listSubagentRunsForRequester,
   registerSubagentRun,
-  resolveRootSessionKey,
 } from "../subagent-registry.js";
+import { resolveTeamChatSessionKey } from "../team-chat.js";
 import { jsonResult, readStringParam } from "./common.js";
 import {
   resolveDisplaySessionKey,
@@ -137,6 +138,21 @@ export function createSessionsSpawnTool(opts?: {
       const cfg = loadConfig();
       const { mainKey, alias } = resolveMainSessionAlias(cfg);
       const requesterSessionKey = opts?.agentSessionKey;
+
+      // Enforce max 6 active sub-tasks per parent session
+      const MAX_SUBTASKS_PER_PARENT = 6;
+      if (requesterSessionKey) {
+        const activeChildren = listSubagentRunsForRequester(requesterSessionKey).filter(
+          (r) => !r.endedAt && !r.cleanupCompletedAt,
+        );
+        if (activeChildren.length >= MAX_SUBTASKS_PER_PARENT) {
+          return jsonResult({
+            status: "forbidden",
+            error: `Maximum ${MAX_SUBTASKS_PER_PARENT} active sub-tasks reached. Wait for existing tasks to complete or use a lead agent to decompose further.`,
+          });
+        }
+      }
+
       // Allow multi-level delegation with a depth limit (max 3 levels)
       const MAX_SPAWN_DEPTH = 3;
       if (typeof requesterSessionKey === "string" && isSubagentSessionKey(requesterSessionKey)) {
@@ -173,10 +189,29 @@ export function createSessionsSpawnTool(opts?: {
       const requesterAgentId = normalizeAgentId(
         opts?.requesterAgentIdOverride ?? parseAgentSessionKey(requesterInternalKey)?.agentId,
       );
-      // Use explicit agentId when provided, fall back to requester's agent.
-      const targetAgentId = requestedAgentId
-        ? normalizeAgentId(requestedAgentId)
-        : requesterAgentId;
+      // Use explicit agentId when provided; auto-select if requester is orchestrator/lead; fall back to requester's agent.
+      let targetAgentId: string;
+      if (requestedAgentId) {
+        targetAgentId = normalizeAgentId(requestedAgentId);
+      } else {
+        const requesterRole = resolveAgentRole(cfg, requesterAgentId);
+        if (AGENT_ROLE_RANK[requesterRole] >= 2) {
+          // Orchestrator/lead: try auto-selecting best agent for the task
+          try {
+            const { findBestAgentForTask } = await import("../capabilities-registry.js");
+            const bestMatch = findBestAgentForTask(task);
+            if (bestMatch && bestMatch.confidence > 0.5) {
+              targetAgentId = bestMatch.agentId;
+            } else {
+              targetAgentId = requesterAgentId;
+            }
+          } catch {
+            targetAgentId = requesterAgentId;
+          }
+        } else {
+          targetAgentId = requesterAgentId;
+        }
+      }
       // Validate that the target agent is a registered agent.
       const registeredAgentIds = listAgentIds(cfg).map((id) => id.toLowerCase());
       if (!registeredAgentIds.includes(targetAgentId.toLowerCase())) {
@@ -384,7 +419,7 @@ export function createSessionsSpawnTool(opts?: {
 
       // Announce delegation in the root webchat session (Slack-like visibility)
       try {
-        const rootSession = resolveRootSessionKey(requesterInternalKey);
+        const rootSession = resolveTeamChatSessionKey({ cfg });
         const requesterIdentity = resolveAgentIdentity(cfg, requesterAgentId);
         const targetIdentity = resolveAgentIdentity(cfg, targetAgentId);
         const fromName = requesterIdentity?.name ?? requesterAgentId;

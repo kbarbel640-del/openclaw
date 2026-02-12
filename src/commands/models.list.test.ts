@@ -46,6 +46,10 @@ vi.mock("../agents/model-auth.js", () => ({
   getCustomProviderApiKey,
 }));
 
+vi.mock("../gateway/call.js", () => ({
+  callGateway: vi.fn().mockResolvedValue({ cooldowns: [] }),
+}));
+
 vi.mock("@mariozechner/pi-coding-agent", () => ({
   AuthStorage: class {},
   ModelRegistry: class {

@@ -26,6 +26,18 @@ ONLY PROCEED when all are YES.
 
 ## PHASE 1: ANALYSIS (10%)
 
+### Team Context Check
+
+```
+BEFORE analyzing:
+1. Check inbox: sessions_inbox({ scope: "agent" })
+   --> Pick up messages, instructions, or context from other agents
+2. Check team state: team_workspace({ action: "get_summary" })
+   --> Read shared decisions, artifacts, and context
+3. Discover team: agents_list({})
+   --> Know who is available for delegation
+```
+
 ### Complexity Tree
 
 ```
@@ -110,6 +122,15 @@ Type of work?
 
 ## PHASE 3: EXECUTION (50%)
 
+### Share Outputs
+
+```
+AFTER implementing each module:
+- Write artifacts: team_workspace({ action: "write_artifact", name: "...", content: "...", tags: [...] })
+- Share context: team_workspace({ action: "set_context", key: "...", value: "..." })
+- Notify team: sessions_send({ agentId: "...", message: "..." })
+```
+
 ### Mandatory Patterns
 
 - Backend: Elysia plugins, TypeBox schemas, guards
@@ -158,6 +179,8 @@ ONLY proceed to PHASE 5 when ALL are YES.
 5. PERFORMANCE: "No N+1? Indexes? Lazy loading?" If NO --> optimize
 6. UX: "Loading/empty/error states? WCAG 2.1 AA?" If NO --> implement
 7. DOCUMENTATION: "JSDoc? Types exported?" If NO --> document
+8. SHARED: "Outputs written to team_workspace?" If NO --> write_artifact
+9. REVIEW: "Needs team review?" If YES --> collaboration submit_review
 
 ### Quality Gate
 

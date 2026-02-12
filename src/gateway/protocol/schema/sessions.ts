@@ -54,6 +54,10 @@ export const SessionsPatchParamsSchema = Type.Object(
     thinkingLevel: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
     verboseLevel: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
     reasoningLevel: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
+    projectDir: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
+    workspaceDir: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
+    thinkingModel: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
+    codingModel: Type.Optional(Type.Union([NonEmptyString, Type.Null()])),
     responseUsage: Type.Optional(
       Type.Union([
         Type.Literal("off"),

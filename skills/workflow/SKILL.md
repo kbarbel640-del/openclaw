@@ -14,13 +14,21 @@ Coordinate sprints, releases, and multi-agent collaboration.
 ```
 TASK RECEIVED
       ↓
+CHECK INBOX (sessions_inbox — pick up messages and context)
+      ↓
+CHECK TEAM CONTEXT (team_workspace get_summary — read shared state)
+      ↓
 UNDERSTAND (read existing code, 70% of time)
       ↓
 PLAN (create task breakdown)
       ↓
+DEBATE IF NEEDED (collaboration session.init — for complex decisions)
+      ↓
 DELEGATE (spawn appropriate agents)
       ↓
 EXECUTE (parallel implementation)
+      ↓
+SHARE RESULTS (team_workspace write_artifact — publish outputs)
       ↓
 VALIDATE (lint + typecheck + test + build)
       ↓
@@ -149,6 +157,35 @@ sessions_spawn({ task: "Implement feature", agentId: "backend-architect" });
 // After completion:
 sessions_spawn({ task: "Quality review", agentId: "quality-engineer" });
 sessions_spawn({ task: "Security review", agentId: "security-engineer" });
+```
+
+## Decision-Driven Workflow
+
+For complex decisions that affect multiple agents, use the debate-then-delegate pattern:
+
+```typescript
+// 1. Debate the approach
+collaboration({
+  action: "session.init",
+  topic: "Architecture for the new billing module",
+  agents: ["backend-architect", "database-engineer", "system-architect"],
+});
+
+// 2. After decision is finalized, share as artifact
+team_workspace({
+  action: "write_artifact",
+  name: "billing-architecture.md",
+  content: "# Billing Module Architecture\n...",
+  description: "Agreed architecture from debate session",
+  tags: ["architecture", "billing"],
+});
+
+// 3. Delegate implementation based on the decision
+sessions_spawn({
+  task: "Implement billing API per billing-architecture.md artifact",
+  agentId: "backend-architect",
+  label: "Billing API",
+});
 ```
 
 ## Delegation

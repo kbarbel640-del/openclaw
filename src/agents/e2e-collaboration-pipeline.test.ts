@@ -30,7 +30,10 @@
  *   - Role-based spawn permission
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 // Collaboration
 import {
   initializeCollaborativeSession,
@@ -88,6 +91,29 @@ import {
 // import type { SubagentProgress } from "./subagent-registry.js";
 
 describe("E2E Collaboration Pipeline: Real-Time Trading Dashboard", () => {
+  let tmpStateDir: string | null = null;
+  const prevStateDir = process.env.OPENCLAW_STATE_DIR;
+
+  // Ensure this E2E test is hermetic and does not write into ~/.openclaw.
+  // Some environments (CI / sandboxes) forbid writing to the user's home.
+  beforeEach(async () => {
+    if (!tmpStateDir) {
+      tmpStateDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-e2e-collab-"));
+      process.env.OPENCLAW_STATE_DIR = tmpStateDir;
+    }
+  });
+
+  afterAll(async () => {
+    if (prevStateDir === undefined) {
+      delete process.env.OPENCLAW_STATE_DIR;
+    } else {
+      process.env.OPENCLAW_STATE_DIR = prevStateDir;
+    }
+    if (tmpStateDir) {
+      await fs.rm(tmpStateDir, { recursive: true, force: true });
+    }
+  });
+
   // Agent roster for the test
   const AGENTS = {
     orchestrator: { id: "main", role: "orchestrator" as const, name: "Tech Lead" },
@@ -272,7 +298,7 @@ describe("E2E Collaboration Pipeline: Real-Time Trading Dashboard", () => {
 
   describe("Phase 2: Brainstorm & Architectural Debate", () => {
     it("should run a full debate cycle: propose → challenge → counter-propose → agree → finalize", () => {
-      // Orchestrator creates debate session
+      // Orchestrator creates debate session (minRounds: 0 for legacy test)
       const session = initializeCollaborativeSession({
         topic: "Real-Time Trading Dashboard Architecture",
         agents: [
@@ -283,6 +309,7 @@ describe("E2E Collaboration Pipeline: Real-Time Trading Dashboard", () => {
           AGENTS.tradingEngine.id,
         ],
         moderator: AGENTS.orchestrator.id,
+        minRounds: 0,
       });
 
       expect(session.status).toBe("planning");
@@ -788,11 +815,12 @@ paths:
 
   describe("Phase 5: Spawn Integration & Context Inheritance", () => {
     it("should build collaboration-aware task with debate decisions", async () => {
-      // Create a debate with decisions
+      // Create a debate with decisions (minRounds: 0 for legacy test)
       const session = initializeCollaborativeSession({
         topic: "Trading Dashboard Architecture",
         agents: [AGENTS.backendLead.id, AGENTS.frontendLead.id],
         moderator: AGENTS.orchestrator.id,
+        minRounds: 0,
       });
 
       const proposal = publishProposal({
@@ -902,6 +930,7 @@ paths:
         topic: "Real-Time Trading Dashboard",
         agents: [AGENTS.backendLead.id, AGENTS.frontendLead.id, AGENTS.securityEng.id],
         moderator: AGENTS.orchestrator.id,
+        minRounds: 0,
       });
 
       // Proposals
@@ -1121,6 +1150,275 @@ paths:
       expect(AGENT_ROLE_RANK.orchestrator).toBeGreaterThan(AGENT_ROLE_RANK.lead);
       expect(AGENT_ROLE_RANK.lead).toBeGreaterThan(AGENT_ROLE_RANK.specialist);
       expect(AGENT_ROLE_RANK.specialist).toBeGreaterThan(AGENT_ROLE_RANK.worker);
+    });
+  });
+
+  // ═══════════════════════════════════════════
+  // PHASE 8: DEBATE ROUND ENFORCEMENT
+  // ═══════════════════════════════════════════
+
+  describe("Phase 8: Debate Round Enforcement (3-7)", () => {
+    it("should reject finalization before minimum rounds", () => {
+      const session = initializeCollaborativeSession({
+        topic: "Auth Strategy",
+        agents: [AGENTS.backendLead.id, AGENTS.securityEng.id],
+        moderator: AGENTS.orchestrator.id,
+        minRounds: 3,
+      });
+      expect(session.status).toBe("planning");
+
+      // Only 1 round: publish a proposal
+      const proposal = publishProposal({
+        sessionKey: session.sessionKey,
+        agentId: AGENTS.backendLead.id,
+        decisionTopic: "Auth Approach",
+        proposal: "JWT with refresh tokens",
+        reasoning: "Simple and stateless",
+      });
+      expect(session.roundCount).toBe(1);
+      expect(session.status).toBe("debating");
+
+      // Try to finalize with only 1 round — should throw
+      expect(() =>
+        finalizeDecision({
+          sessionKey: session.sessionKey,
+          decisionId: proposal.decisionId,
+          finalDecision: "JWT",
+          moderatorId: AGENTS.orchestrator.id,
+        }),
+      ).toThrow("minimum 3 debate rounds required");
+    });
+
+    it("should allow finalization after minimum rounds", () => {
+      const session = initializeCollaborativeSession({
+        topic: "Database Choice",
+        agents: [AGENTS.backendLead.id, AGENTS.databaseEng.id],
+        moderator: AGENTS.orchestrator.id,
+        minRounds: 3,
+      });
+
+      // Round 1: proposal
+      const proposal = publishProposal({
+        sessionKey: session.sessionKey,
+        agentId: AGENTS.backendLead.id,
+        decisionTopic: "DB Engine",
+        proposal: "PostgreSQL",
+        reasoning: "Battle-tested",
+      });
+
+      // Round 2: challenge
+      challengeProposal({
+        sessionKey: session.sessionKey,
+        decisionId: proposal.decisionId,
+        agentId: AGENTS.databaseEng.id,
+        challenge: "Consider TimescaleDB extension for time-series",
+      });
+
+      // Round 3: counter-proposal
+      publishProposal({
+        sessionKey: session.sessionKey,
+        agentId: AGENTS.databaseEng.id,
+        decisionTopic: "DB Engine",
+        proposal: "PostgreSQL + TimescaleDB",
+        reasoning: "Best of both worlds",
+      });
+
+      expect(session.roundCount).toBe(3);
+
+      // Now finalization should succeed
+      expect(() =>
+        finalizeDecision({
+          sessionKey: session.sessionKey,
+          decisionId: proposal.decisionId,
+          finalDecision: "PostgreSQL with TimescaleDB extension",
+          moderatorId: AGENTS.orchestrator.id,
+        }),
+      ).not.toThrow();
+      expect(session.status).toBe("decided");
+    });
+
+    it("should track round count across proposals and challenges", () => {
+      const session = initializeCollaborativeSession({
+        topic: "API Design",
+        agents: [AGENTS.backendLead.id, AGENTS.frontendLead.id],
+        moderator: AGENTS.orchestrator.id,
+      });
+
+      expect(session.roundCount).toBe(0);
+
+      publishProposal({
+        sessionKey: session.sessionKey,
+        agentId: AGENTS.backendLead.id,
+        decisionTopic: "API Style",
+        proposal: "REST",
+        reasoning: "Standard",
+      });
+      expect(session.roundCount).toBe(1);
+
+      challengeProposal({
+        sessionKey: session.sessionKey,
+        decisionId: session.decisions[0].id,
+        agentId: AGENTS.frontendLead.id,
+        challenge: "GraphQL is better for dashboards",
+      });
+      expect(session.roundCount).toBe(2);
+
+      // Agreements do NOT increment round count
+      agreeToProposal({
+        sessionKey: session.sessionKey,
+        decisionId: session.decisions[0].id,
+        agentId: AGENTS.backendLead.id,
+      });
+      expect(session.roundCount).toBe(2);
+    });
+
+    it("should set auto-escalated flag at max rounds", () => {
+      const session = initializeCollaborativeSession({
+        topic: "Hotly Debated Topic",
+        agents: [AGENTS.backendLead.id, AGENTS.frontendLead.id],
+        moderator: AGENTS.orchestrator.id,
+        maxRounds: 3,
+        minRounds: 1,
+      });
+
+      const p = publishProposal({
+        sessionKey: session.sessionKey,
+        agentId: AGENTS.backendLead.id,
+        decisionTopic: "Framework",
+        proposal: "Express",
+        reasoning: "Mature",
+      });
+      expect(session.roundCount).toBe(1);
+      expect(session.autoEscalated).toBeFalsy();
+
+      challengeProposal({
+        sessionKey: session.sessionKey,
+        decisionId: p.decisionId,
+        agentId: AGENTS.frontendLead.id,
+        challenge: "Elysia is faster",
+      });
+      expect(session.roundCount).toBe(2);
+
+      publishProposal({
+        sessionKey: session.sessionKey,
+        agentId: AGENTS.frontendLead.id,
+        decisionTopic: "Framework",
+        proposal: "Elysia",
+        reasoning: "Performance",
+      });
+      expect(session.roundCount).toBe(3);
+      // autoEscalated is set by the RPC handler, not the pure function.
+      // The pure function just increments. But we can verify roundCount >= maxRounds.
+      expect(session.roundCount).toBeGreaterThanOrEqual(session.maxRounds);
+    });
+
+    it("should initialize with default round limits", () => {
+      const session = initializeCollaborativeSession({
+        topic: "Defaults Test",
+        agents: [AGENTS.backendLead.id, AGENTS.frontendLead.id],
+      });
+      expect(session.roundCount).toBe(0);
+      expect(session.minRounds).toBe(3);
+      expect(session.maxRounds).toBe(7);
+      expect(session.autoEscalated).toBeUndefined();
+    });
+  });
+
+  // ═══════════════════════════════════════════
+  // PHASE 9: FOCUSED SESSIONS & DYNAMIC INVITATION
+  // ═══════════════════════════════════════════
+
+  describe("Phase 9: Focused Sessions & Dynamic Invitation", () => {
+    it("should create focused (private) sessions with special key prefix", () => {
+      const session = initializeCollaborativeSession({
+        topic: "Secret Strategy",
+        agents: [AGENTS.backendLead.id, AGENTS.securityEng.id],
+        sessionKey: `focused:secret_strategy:${Date.now()}`,
+      });
+
+      expect(session.sessionKey).toContain("focused:");
+      expect(session.members).toEqual([AGENTS.backendLead.id, AGENTS.securityEng.id]);
+    });
+
+    it("should allow dynamic invitation to a session", () => {
+      const session = initializeCollaborativeSession({
+        topic: "Expanding Team",
+        agents: [AGENTS.backendLead.id, AGENTS.frontendLead.id],
+        minRounds: 0,
+      });
+
+      expect(session.members.length).toBe(2);
+      expect(session.members).not.toContain(AGENTS.securityEng.id);
+
+      // Simulate invitation (what the RPC handler does)
+      session.members.push(AGENTS.securityEng.id);
+      session.messages.push({
+        from: AGENTS.backendLead.id,
+        type: "clarification",
+        content: `Invited ${AGENTS.securityEng.id} to join the session`,
+        timestamp: Date.now(),
+      });
+
+      expect(session.members.length).toBe(3);
+      expect(session.members).toContain(AGENTS.securityEng.id);
+
+      // Invited agent can now participate
+      publishProposal({
+        sessionKey: session.sessionKey,
+        agentId: AGENTS.securityEng.id,
+        decisionTopic: "Security Review",
+        proposal: "Add rate limiting",
+        reasoning: "Prevent abuse",
+      });
+
+      const context = getCollaborationContext(session.sessionKey);
+      expect(context!.decisions.length).toBe(1);
+      expect(context!.decisions[0].proposals[0].from).toBe(AGENTS.securityEng.id);
+    });
+  });
+
+  // ═══════════════════════════════════════════
+  // PHASE 10: TEAM CHAT AUTO-JOIN
+  // ═══════════════════════════════════════════
+
+  describe("Phase 10: Team Chat Auto-Join", () => {
+    it("should register all agents as team chat members with correct listening modes", async () => {
+      const { ensureTeamChatAutoJoin, getTeamChatMembers, resetTeamChatMembersForTests } =
+        await import("./team-chat.js");
+      resetTeamChatMembersForTests();
+
+      // Create a minimal config with agents
+      const mockConfig = {
+        agents: {
+          list: [
+            { id: "main", role: "orchestrator" as const },
+            { id: "tech-lead", role: "lead" as const },
+            { id: "backend", role: "specialist" as const },
+            { id: "worker-1", role: "worker" as const },
+          ],
+        },
+      };
+
+      const entries = ensureTeamChatAutoJoin(mockConfig);
+      expect(entries.length).toBe(4);
+
+      const members = getTeamChatMembers();
+      expect(members.length).toBe(4);
+
+      // All agents should be active listeners in the main chat
+      const orchestrator = members.find((m) => m.agentId === "main");
+      expect(orchestrator!.listeningMode).toBe("active");
+
+      const lead = members.find((m) => m.agentId === "tech-lead");
+      expect(lead!.listeningMode).toBe("active");
+
+      const specialist = members.find((m) => m.agentId === "backend");
+      expect(specialist!.listeningMode).toBe("active");
+
+      const worker = members.find((m) => m.agentId === "worker-1");
+      expect(worker!.listeningMode).toBe("active");
+
+      resetTeamChatMembersForTests();
     });
   });
 });

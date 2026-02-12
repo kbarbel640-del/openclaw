@@ -11,14 +11,16 @@ async function withServer(
 ) {
   const server = createServer(handler);
   await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve());
+    // Avoid binding explicitly to 127.0.0.1 in restricted environments where loopback listen can be denied.
+    server.listen(0, () => resolve());
   });
   const address = server.address() as AddressInfo | null;
   if (!address) {
     throw new Error("missing server address");
   }
+  const host = address.family === "IPv6" ? "[::1]" : "127.0.0.1";
   try {
-    await fn(`http://127.0.0.1:${address.port}`);
+    await fn(`http://${host}:${address.port}`);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

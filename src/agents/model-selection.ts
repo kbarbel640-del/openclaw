@@ -42,6 +42,7 @@ import { normalizeGoogleModelId } from "./models-config.providers.js";
 export type ModelRef = {
   provider: string;
   model: string;
+  accountTag?: string;
 };
 
 export type ThinkLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
@@ -121,20 +122,26 @@ export function parseModelRef(raw: string, defaultProvider: string): ModelRef | 
   if (!trimmed) {
     return null;
   }
-  const slash = trimmed.indexOf("/");
+
+  // Extract accountTag if present (format: provider/model@tag)
+  const atIndex = trimmed.indexOf("@");
+  const accountTag = atIndex !== -1 ? trimmed.slice(atIndex + 1).trim() || undefined : undefined;
+  const providerModelPart = atIndex !== -1 ? trimmed.slice(0, atIndex).trim() : trimmed;
+
+  const slash = providerModelPart.indexOf("/");
   if (slash === -1) {
     const provider = normalizeProviderId(defaultProvider);
-    const model = normalizeProviderModelId(provider, trimmed);
-    return { provider, model };
+    const model = normalizeProviderModelId(provider, providerModelPart);
+    return { provider, model, accountTag };
   }
-  const providerRaw = trimmed.slice(0, slash).trim();
+  const providerRaw = providerModelPart.slice(0, slash).trim();
   const provider = normalizeProviderId(providerRaw);
-  const model = trimmed.slice(slash + 1).trim();
+  const model = providerModelPart.slice(slash + 1).trim();
   if (!provider || !model) {
     return null;
   }
   const normalizedModel = normalizeProviderModelId(provider, model);
-  return { provider, model: normalizedModel };
+  return { provider, model: normalizedModel, accountTag };
 }
 
 export function buildModelAliasIndex(params: {

@@ -118,6 +118,7 @@ describe("E2E: School Management System Multi-Agent Collaboration", () => {
         AGENTS.product.id,
       ],
       moderator: AGENTS.orchestrator.id,
+      minRounds: 0,
     });
 
     const architecture = publishProposal({
@@ -354,6 +355,7 @@ describe("E2E: School Management System Multi-Agent Collaboration", () => {
         AGENTS.product.id,
       ],
       moderator: AGENTS.orchestrator.id,
+      minRounds: 0,
     });
 
     // Conflict: frontend proposes SPA-only; backend challenges with SEO/access constraints for public pages

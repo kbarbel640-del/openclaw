@@ -18,14 +18,22 @@ const CLI_RESUME = isTruthyEnvValue(process.env.OPENCLAW_LIVE_CLI_BACKEND_RESUME
 const describeLive = LIVE && CLI_LIVE ? describe : describe.skip;
 
 const DEFAULT_MODEL = "claude-cli/claude-sonnet-4-5";
-const DEFAULT_CLAUDE_ARGS = ["-p", "--output-format", "json", "--dangerously-skip-permissions"];
+const DEFAULT_CLAUDE_ARGS = [
+  "-p",
+  "--output-format",
+  "json",
+  "--permission-mode",
+  "default",
+  "--tools",
+  "",
+];
 const DEFAULT_CODEX_ARGS = [
   "exec",
   "--json",
   "--color",
   "never",
   "--sandbox",
-  "read-only",
+  "workspace-write",
   "--skip-git-repo-check",
 ];
 const DEFAULT_CLEAR_ENV = ["ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY_OLD"];

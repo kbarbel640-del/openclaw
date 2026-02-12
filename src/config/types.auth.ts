@@ -10,9 +10,16 @@ export type AuthProfileConfig = {
   email?: string;
 };
 
+export type AccountTagsMap = {
+  [provider: string]: {
+    [tag: string]: string; // tag -> profileId
+  };
+};
+
 export type AuthConfig = {
   profiles?: Record<string, AuthProfileConfig>;
   order?: Record<string, string[]>;
+  accountTags?: AccountTagsMap;
   cooldowns?: {
     /** Default billing backoff (hours). Default: 5. */
     billingBackoffHours?: number;

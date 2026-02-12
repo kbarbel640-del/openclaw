@@ -432,10 +432,23 @@ export const AgentEntrySchema = z
         z.literal("worker"),
       ])
       .optional(),
+    persona: z.string().optional(),
     workspace: z.string().optional(),
     agentDir: z.string().optional(),
     model: AgentModelSchema.optional(),
+    modelByComplexity: z
+      .object({
+        enabled: z.boolean().optional(),
+        trivial: z.string().optional(),
+        moderate: z.string().optional(),
+        complex: z.string().optional(),
+      })
+      .strict()
+      .optional(),
     skills: z.array(z.string()).optional(),
+    capabilities: z.array(z.string()).optional(),
+    expertise: z.array(z.string()).optional(),
+    availability: z.union([z.literal("auto"), z.literal("manual")]).optional(),
     memorySearch: MemorySearchSchema,
     humanDelay: HumanDelaySchema.optional(),
     heartbeat: HeartbeatSchema,

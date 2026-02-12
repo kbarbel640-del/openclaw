@@ -65,6 +65,11 @@ export async function patchSession(
     thinkingLevel?: string | null;
     verboseLevel?: string | null;
     reasoningLevel?: string | null;
+    model?: string | null;
+    thinkingModel?: string | null;
+    codingModel?: string | null;
+    projectDir?: string | null;
+    workspaceDir?: string | null;
   },
 ) {
   if (!state.client || !state.connected) {
@@ -82,6 +87,21 @@ export async function patchSession(
   }
   if ("reasoningLevel" in patch) {
     params.reasoningLevel = patch.reasoningLevel;
+  }
+  if ("model" in patch) {
+    params.model = patch.model;
+  }
+  if ("thinkingModel" in patch) {
+    params.thinkingModel = patch.thinkingModel;
+  }
+  if ("codingModel" in patch) {
+    params.codingModel = patch.codingModel;
+  }
+  if ("projectDir" in patch) {
+    params.projectDir = patch.projectDir;
+  }
+  if ("workspaceDir" in patch) {
+    params.workspaceDir = patch.workspaceDir;
   }
   try {
     await state.client.request("sessions.patch", params);

@@ -254,6 +254,12 @@ export const OpenClawSchema = z
           )
           .optional(),
         order: z.record(z.string(), z.array(z.string())).optional(),
+        accountTags: z
+          .record(
+            z.string(), // provider
+            z.record(z.string(), z.string()), // tag -> profileId
+          )
+          .optional(),
         cooldowns: z
           .object({
             billingBackoffHours: z.number().positive().optional(),

@@ -11,6 +11,11 @@ import path from "node:path";
 import type { DelegationRecord } from "./delegation-types.js";
 import { resolveStateDir } from "../config/paths.js";
 
+function shouldSilenceStoreIoError(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException | undefined)?.code;
+  return code === "ENOENT" || code === "EACCES" || code === "EPERM" || code === "EROFS";
+}
+
 function getDelegationStorePath(): string {
   const root = resolveStateDir(process.env, os.homedir);
   return path.join(root, ".delegation-storage");
@@ -33,6 +38,10 @@ export async function saveDelegationRecord(record: DelegationRecord): Promise<vo
     await fs.writeFile(tmpPath, content, "utf-8");
     await fs.rename(tmpPath, filePath);
   } catch (err) {
+    // During tests/shutdown/sandboxed runs, persistence can be unavailable.
+    if (shouldSilenceStoreIoError(err)) {
+      return;
+    }
     console.error("Failed to save delegation record:", err);
   }
 }
@@ -48,7 +57,7 @@ export async function loadDelegationRecord(id: string): Promise<DelegationRecord
     }
     return JSON.parse(content) as DelegationRecord;
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+    if (!shouldSilenceStoreIoError(err)) {
       console.error("Failed to load delegation record:", err);
     }
     return null;
@@ -86,7 +95,7 @@ export async function deleteDelegationRecord(id: string): Promise<void> {
     const filePath = getDelegationPath(id);
     await fs.unlink(filePath);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+    if (!shouldSilenceStoreIoError(err)) {
       console.error("Failed to delete delegation record:", err);
     }
   }

@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import type { ModelCatalogEntry } from "../agents/model-catalog.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { SessionEntry } from "../config/sessions.js";
@@ -19,6 +21,7 @@ import { applyVerboseOverride, parseVerboseOverride } from "../sessions/level-ov
 import { applyModelOverrideToSessionEntry } from "../sessions/model-overrides.js";
 import { normalizeSendPolicy } from "../sessions/send-policy.js";
 import { parseSessionLabel } from "../sessions/session-label.js";
+import { resolveUserPath } from "../utils.js";
 import {
   ErrorCodes,
   type ErrorShape,
@@ -52,6 +55,25 @@ function normalizeExecAsk(raw: string): "off" | "on-miss" | "always" | undefined
     return normalized;
   }
   return undefined;
+}
+
+function resolveWorkspaceDirPatch(
+  raw: string,
+): { ok: true; dir: string } | { ok: false; error: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return { ok: false, error: "invalid workspaceDir: empty" };
+  }
+  const resolved = resolveUserPath(trimmed);
+  try {
+    const stat = fs.statSync(resolved);
+    if (!stat.isDirectory()) {
+      return { ok: false, error: "invalid workspaceDir: not a directory" };
+    }
+  } catch {
+    return { ok: false, error: "invalid workspaceDir: not found" };
+  }
+  return { ok: true, dir: path.resolve(resolved) };
 }
 
 export async function applySessionsPatchToStore(params: {
@@ -163,6 +185,103 @@ export async function applySessionsPatchToStore(params: {
       } else {
         next.reasoningLevel = normalized;
       }
+    }
+  }
+
+  if ("workspaceDir" in patch) {
+    const raw = patch.workspaceDir;
+    if (raw === null) {
+      delete next.workspaceDir;
+    } else if (raw !== undefined) {
+      const resolved = resolveWorkspaceDirPatch(String(raw));
+      if (!resolved.ok) {
+        return invalid(resolved.error);
+      }
+      next.workspaceDir = resolved.dir;
+    }
+  }
+
+  const applyTaskModelOverride = async (p: {
+    field: "thinkingModel" | "codingModel";
+    raw: unknown;
+    target: "thinkingModelOverride" | "codingModelOverride";
+  }) => {
+    if (p.raw === null) {
+      delete (next as Record<string, unknown>)[p.target];
+      return { ok: true as const };
+    }
+    if (p.raw === undefined) {
+      return { ok: true as const };
+    }
+    if (typeof p.raw !== "string") {
+      return invalid(`invalid ${p.field}: expected string`);
+    }
+    const trimmed = p.raw.trim();
+    if (!trimmed) {
+      return invalid(`invalid ${p.field}: empty`);
+    }
+    if (!params.loadGatewayModelCatalog) {
+      return {
+        ok: false as const,
+        error: errorShape(ErrorCodes.UNAVAILABLE, "model catalog unavailable"),
+      };
+    }
+    const catalog = await params.loadGatewayModelCatalog();
+    const resolvedDefault = resolveConfiguredModelRef({
+      cfg,
+      defaultProvider: DEFAULT_PROVIDER,
+      defaultModel: DEFAULT_MODEL,
+    });
+    const resolved = resolveAllowedModelRef({
+      cfg,
+      catalog,
+      raw: trimmed,
+      defaultProvider: resolvedDefault.provider,
+      defaultModel: resolvedDefault.model,
+    });
+    if ("error" in resolved) {
+      return invalid(resolved.error.replace(/^invalid model:/, `invalid ${p.field}:`));
+    }
+    (next as Record<string, unknown>)[p.target] = resolved.key;
+    return { ok: true as const };
+  };
+
+  if ("thinkingModel" in patch) {
+    const res = await applyTaskModelOverride({
+      field: "thinkingModel",
+      raw: patch.thinkingModel,
+      target: "thinkingModelOverride",
+    });
+    if (!res.ok) {
+      return res;
+    }
+  }
+
+  if ("codingModel" in patch) {
+    const res = await applyTaskModelOverride({
+      field: "codingModel",
+      raw: patch.codingModel,
+      target: "codingModelOverride",
+    });
+    if (!res.ok) {
+      return res;
+    }
+  }
+
+  // Back-compat: keep supporting "projectDir", but treat it as a workspaceDir override.
+  if ("projectDir" in patch) {
+    const raw = patch.projectDir;
+    if (raw === null) {
+      delete next.projectDir;
+    } else if (raw !== undefined) {
+      const resolved = resolveWorkspaceDirPatch(String(raw));
+      if (!resolved.ok) {
+        // Keep the older error key for clarity when legacy clients call this field.
+        return invalid(resolved.error.replace("workspaceDir", "projectDir"));
+      }
+      next.projectDir = resolved.dir;
+      // If the caller is still using projectDir, also set workspaceDir so the runtime picks it up.
+      next.workspaceDir = resolved.dir;
     }
   }
 

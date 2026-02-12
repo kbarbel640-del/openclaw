@@ -168,6 +168,44 @@ What other options were evaluated and why rejected?
 - [ ] Desktop (1024px)
 - [ ] Wide (1440px)
 
+## Design Debates
+
+Use `collaboration` for architecture decisions that need team input.
+
+```typescript
+// Start a design debate
+collaboration({
+  action: "session.init",
+  topic: "Event-driven vs request-response for order processing",
+  agents: ["backend-architect", "system-architect", "devops-engineer"],
+  moderator: "system-architect",
+});
+```
+
+## Record Design Decisions
+
+Write design artifacts and ADRs to the team workspace.
+
+```typescript
+// Write an ADR as a shared artifact
+team_workspace({
+  action: "write_artifact",
+  name: "adr-001-event-driven-orders.md",
+  content: "# ADR-001: Event-Driven Order Processing\n\n## Status\nAccepted\n\n## Decision\n...",
+  description: "ADR for event-driven order processing architecture",
+  tags: ["adr", "architecture", "orders"],
+});
+
+// Share design context for other agents
+team_workspace({
+  action: "set_context",
+  key: "orders-architecture",
+  value: "Event-driven with CQRS. See adr-001-event-driven-orders.md artifact.",
+});
+```
+
+---
+
 ## Delegation
 
 ```typescript

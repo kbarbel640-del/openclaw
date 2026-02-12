@@ -400,6 +400,22 @@ export function registerSkillsCli(program: Command) {
       }
     });
 
+  skills
+    .command("status")
+    .description("Alias for `skills check`")
+    .option("--json", "Output as JSON", false)
+    .action(async (opts) => {
+      try {
+        const config = loadConfig();
+        const workspaceDir = resolveAgentWorkspaceDir(config, resolveDefaultAgentId(config));
+        const report = buildWorkspaceSkillStatus(workspaceDir, { config });
+        defaultRuntime.log(formatSkillsCheck(report, opts));
+      } catch (err) {
+        defaultRuntime.error(String(err));
+        defaultRuntime.exit(1);
+      }
+    });
+
   // Default action (no subcommand) - show list
   skills.action(async () => {
     try {

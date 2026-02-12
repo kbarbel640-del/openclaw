@@ -13,6 +13,7 @@ import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import { handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
 import { loadConfig } from "../config/config.js";
 import { handleSlackHttpRequest } from "../slack/http/index.js";
+import { handleAccountTagsHttpRequest } from "./account-tags-http.js";
 import {
   handleControlUiAvatarRequest,
   handleControlUiHttpRequest,
@@ -32,6 +33,7 @@ import {
   resolveHookDeliver,
 } from "./hooks.js";
 import { getBearerToken, getHeader } from "./http-utils.js";
+import { handleModelsHttpRequest } from "./models-http.js";
 import { isLoopbackAddress, resolveGatewayClientIp } from "./net.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
@@ -283,6 +285,12 @@ export function createGatewayHttpServer(opts: {
       }
 
       if (await handleHooksRequest(req, res)) {
+        return;
+      }
+      if (await handleAccountTagsHttpRequest(req, res)) {
+        return;
+      }
+      if (await handleModelsHttpRequest(req, res)) {
         return;
       }
       if (

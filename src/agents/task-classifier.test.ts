@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyTask,
+  classifyComplexity,
   classifyTaskWithScores,
   isCodingTask,
   isReasoningTask,
@@ -67,6 +68,20 @@ describe("task-classifier", () => {
       it("detects UI/design prompts", () => {
         expect(classifyTask("Look at this UI mockup and suggest improvements")).toBe("vision");
         expect(classifyTask("Analyze the wireframe design")).toBe("vision");
+      });
+    });
+
+    describe("tools tasks", () => {
+      it("detects OpenClaw/gateway operations prompts", () => {
+        expect(classifyTask("Restart the openclaw gateway and check logs")).toBe("tools");
+        expect(classifyTask("Run openclaw status --deep and analyze the output")).toBe("tools");
+        expect(classifyTask("Check gateway system.info and validate Redis/Postgres")).toBe("tools");
+      });
+
+      it("detects shell/ops prompts", () => {
+        expect(classifyTask("Run brew services list and check redis/postgres")).toBe("tools");
+        expect(classifyTask("Use lsof to see what's listening on port 18789")).toBe("tools");
+        expect(classifyTask("Tail the logs and find 429 errors")).toBe("tools");
       });
     });
 
@@ -142,6 +157,7 @@ describe("task-classifier", () => {
       const result = classifyTaskWithScores("Write a Python function");
       expect(result.type).toBe("coding");
       expect(result.scores.coding).toBeGreaterThan(0);
+      expect(typeof result.scores.tools).toBe("number");
       expect(typeof result.scores.reasoning).toBe("number");
       expect(typeof result.scores.vision).toBe("number");
       expect(typeof result.scores.general).toBe("number");
@@ -156,6 +172,36 @@ describe("task-classifier", () => {
     it("shows higher reasoning score for analysis prompts", () => {
       const result = classifyTaskWithScores("Analyze the tradeoffs and evaluate options");
       expect(result.scores.reasoning).toBeGreaterThan(result.scores.vision);
+    });
+  });
+
+  describe("classifyComplexity", () => {
+    it("classifies empty prompts as trivial", () => {
+      expect(classifyComplexity("")).toBe("trivial");
+      expect(classifyComplexity("   ")).toBe("trivial");
+    });
+
+    it("classifies short single-intent prompts as trivial", () => {
+      expect(classifyComplexity("What time is it?")).toBe("trivial");
+      expect(classifyComplexity("Summarize this: hello world")).toBe("trivial");
+    });
+
+    it("classifies multi-step or constraint-heavy prompts as complex", () => {
+      expect(
+        classifyComplexity(
+          "Plan a migration from v1 to v2. Keep backward compatibility, add tests, and avoid breaking existing behavior.",
+        ),
+      ).toBe("complex");
+      expect(
+        classifyComplexity(
+          "Design an architecture for a scalable system. Compare options, list tradeoffs, and propose a rollout plan.",
+        ),
+      ).toBe("complex");
+    });
+
+    it("defaults ambiguous medium prompts to moderate", () => {
+      expect(classifyComplexity("Help me improve this email draft")).toBe("moderate");
+      expect(classifyComplexity("Explain how this works and provide an example")).toBe("moderate");
     });
   });
 

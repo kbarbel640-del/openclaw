@@ -292,6 +292,10 @@ const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.model.fallbacks": "Model Fallbacks",
   "agents.defaults.imageModel.primary": "Image Model",
   "agents.defaults.imageModel.fallbacks": "Image Model Fallbacks",
+  "agents.defaults.toolModel.primary": "Tool Model",
+  "agents.defaults.toolModel.fallbacks": "Tool Model Fallbacks",
+  "agents.defaults.codingModel.primary": "Coding Model",
+  "agents.defaults.codingModel.fallbacks": "Coding Model Fallbacks",
   "agents.defaults.humanDelay.mode": "Human Delay Mode",
   "agents.defaults.humanDelay.minMs": "Human Delay Min (ms)",
   "agents.defaults.humanDelay.maxMs": "Human Delay Max (ms)",
@@ -646,9 +650,17 @@ const FIELD_HELP: Record<string, string> = {
   "agents.defaults.model.primary": "Primary model (provider/model).",
   "agents.defaults.model.fallbacks":
     "Ordered fallback models (provider/model). Used when the primary model fails.",
+  "agents.defaults.modelByComplexity.autoPickFromPool":
+    "Auto-pick models from the allowlist based on detected complexity (trivial→fast, moderate→balanced, complex→powerful).",
   "agents.defaults.imageModel.primary":
     "Optional image model (provider/model) used when the primary model lacks image input.",
   "agents.defaults.imageModel.fallbacks": "Ordered fallback image models (provider/model).",
+  "agents.defaults.toolModel.primary":
+    "Optional tool-use model (provider/model) used for system operations (status/logs/restart/CLI).",
+  "agents.defaults.toolModel.fallbacks": "Ordered fallback tool models (provider/model).",
+  "agents.defaults.codingModel.primary":
+    "Optional coding model (provider/model) used for coding tasks when enabled by task routing.",
+  "agents.defaults.codingModel.fallbacks": "Ordered fallback coding models (provider/model).",
   "agents.defaults.cliBackends": "Optional CLI backends for text-only fallback (claude-cli, etc.).",
   "agents.defaults.humanDelay.mode": 'Delay style for block replies ("off", "natural", "custom").',
   "agents.defaults.humanDelay.minMs": "Minimum delay in ms for custom humanDelay (default: 800).",

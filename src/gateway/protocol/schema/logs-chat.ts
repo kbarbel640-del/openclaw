@@ -56,6 +56,9 @@ export const ChatInjectParamsSchema = Type.Object(
   {
     sessionKey: NonEmptyString,
     message: NonEmptyString,
+    role: Type.Optional(
+      Type.Union([Type.Literal("system"), Type.Literal("assistant"), Type.Literal("user")]),
+    ),
     label: Type.Optional(Type.String({ maxLength: 100 })),
     /** Sender agent ID for direct announce mode */
     senderAgentId: Type.Optional(Type.String({ maxLength: 100 })),

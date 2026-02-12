@@ -29,12 +29,17 @@ const CLAUDE_MODEL_ALIASES: Record<string, string> = {
 
 const DEFAULT_CLAUDE_BACKEND: CliBackendConfig = {
   command: "claude",
-  args: ["-p", "--output-format", "json", "--dangerously-skip-permissions"],
+  // Prefer the safe default permission mode. We also explicitly disable tools to ensure
+  // the CLI backend behaves as "text-only fallback" inside OpenClaw.
+  args: ["-p", "--output-format", "json", "--permission-mode", "default", "--tools", ""],
   resumeArgs: [
     "-p",
     "--output-format",
     "json",
-    "--dangerously-skip-permissions",
+    "--permission-mode",
+    "default",
+    "--tools",
+    "",
     "--resume",
     "{sessionId}",
   ],
@@ -54,7 +59,17 @@ const DEFAULT_CLAUDE_BACKEND: CliBackendConfig = {
 
 const DEFAULT_CODEX_BACKEND: CliBackendConfig = {
   command: "codex",
-  args: ["exec", "--json", "--color", "never", "--sandbox", "read-only", "--skip-git-repo-check"],
+  // Default to a writable workspace for local development tasks. Users can override this
+  // per-agent via config if they want stricter sandboxing.
+  args: [
+    "exec",
+    "--json",
+    "--color",
+    "never",
+    "--sandbox",
+    "workspace-write",
+    "--skip-git-repo-check",
+  ],
   resumeArgs: [
     "exec",
     "resume",
@@ -62,7 +77,7 @@ const DEFAULT_CODEX_BACKEND: CliBackendConfig = {
     "--color",
     "never",
     "--sandbox",
-    "read-only",
+    "workspace-write",
     "--skip-git-repo-check",
   ],
   output: "jsonl",

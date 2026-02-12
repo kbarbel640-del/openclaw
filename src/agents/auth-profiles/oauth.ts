@@ -24,6 +24,8 @@ const resolveOAuthProvider = (provider: string): OAuthProvider | null =>
   isOAuthProvider(provider) ? provider : null;
 
 function buildOAuthApiKey(provider: string, credentials: OAuthCredentials): string {
+  // Both google-gemini-cli and google-antigravity use the google-gemini-cli API type,
+  // which requires a JSON { token, projectId } payload for pi-ai's internal OAuth routing.
   const needsProjectId = provider === "google-gemini-cli" || provider === "google-antigravity";
   return needsProjectId
     ? JSON.stringify({

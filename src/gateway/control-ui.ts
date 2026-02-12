@@ -4,6 +4,7 @@ import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import { resolveControlUiRootSync } from "../infra/control-ui-assets.js";
 import { DEFAULT_ASSISTANT_IDENTITY, resolveAssistantIdentity } from "./assistant-identity.js";
+import { isLocalDirectRequest } from "./auth.js";
 import {
   buildControlUiAvatarUrl,
   CONTROL_UI_AVATAR_PREFIX,
@@ -228,6 +229,59 @@ function isSafeRelativePath(relPath: string) {
   return true;
 }
 
+function maybeRedirectToTokenizedUi(params: {
+  req: IncomingMessage;
+  res: ServerResponse;
+  url: URL;
+  basePath: string;
+  config?: OpenClawConfig;
+}): boolean {
+  const { req, res, url, basePath, config } = params;
+  const token = config?.gateway?.auth?.token?.trim();
+  if (!token) {
+    return false;
+  }
+  if (url.searchParams.get("token")?.trim()) {
+    return false;
+  }
+  const trustedProxies = config?.gateway?.trustedProxies ?? [];
+  if (!isLocalDirectRequest(req, trustedProxies)) {
+    return false;
+  }
+
+  // Only rewrite Control UI navigations, not static assets or avatar endpoints.
+  // This makes deep links like `/hierarchy` work out of the box on localhost.
+  const pathname = url.pathname;
+  if (basePath) {
+    if (pathname !== basePath && !pathname.startsWith(`${basePath}/`)) {
+      return false;
+    }
+  }
+  if (pathname.includes("/assets/")) {
+    return false;
+  }
+  if (pathname.startsWith(`${basePath}${CONTROL_UI_AVATAR_PREFIX}/`)) {
+    return false;
+  }
+  if (!basePath && pathname.startsWith(`${CONTROL_UI_AVATAR_PREFIX}/`)) {
+    return false;
+  }
+  if (path.extname(pathname)) {
+    return false;
+  }
+
+  const redirected = new URL(url.toString());
+  redirected.searchParams.set("token", token);
+  if (basePath && redirected.pathname === basePath) {
+    redirected.pathname = `${basePath}/`;
+  }
+
+  res.statusCode = 302;
+  res.setHeader("Location", `${redirected.pathname}${redirected.search}`);
+  res.end();
+  return true;
+}
+
 export function handleControlUiHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -247,6 +301,18 @@ export function handleControlUiHttpRequest(
   const url = new URL(urlRaw, "http://localhost");
   const basePath = normalizeControlUiBasePath(opts?.basePath);
   const pathname = url.pathname;
+
+  if (
+    maybeRedirectToTokenizedUi({
+      req,
+      res,
+      url,
+      basePath,
+      config: opts?.config,
+    })
+  ) {
+    return true;
+  }
 
   if (!basePath) {
     if (pathname === "/ui" || pathname.startsWith("/ui/")) {

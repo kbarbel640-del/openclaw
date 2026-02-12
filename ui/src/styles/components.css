@@ -1441,6 +1441,418 @@
   gap: 10px;
 }
 
+.chat-compose__bar {
+  border: 1px solid var(--input);
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 var(--card-highlight);
+  padding: 10px 12px 8px 12px;
+}
+
+.compose-framework {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--card) 86%, var(--secondary));
+}
+
+.compose-framework__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.compose-framework__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.compose-framework__title svg {
+  width: 14px;
+  height: 14px;
+}
+
+.compose-framework__progress {
+  font-size: 11px;
+}
+
+.compose-framework__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.compose-framework__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.compose-framework__item:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--secondary) 50%, transparent);
+}
+
+.compose-framework__item.is-done {
+  border-color: color-mix(in srgb, var(--ok) 36%, var(--border));
+  color: color-mix(in srgb, var(--ok) 70%, var(--text));
+}
+
+.compose-framework__item svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chat-compose__bar:focus-within {
+  /* Avoid the large red multi-ring highlight some themes end up producing. */
+  border-color: color-mix(in srgb, var(--text) 22%, var(--input));
+  box-shadow:
+    inset 0 1px 0 var(--card-highlight),
+    0 0 0 1px color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+/* Keep composer focus neutral even with global :focus-visible ring overrides. */
+.chat-compose :focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.chat-compose__input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  resize: none;
+  min-height: 92px;
+  max-height: 45vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: var(--font-body);
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.chat-compose__input:focus,
+.chat-compose__input:focus-visible {
+  /* The composer already highlights via .chat-compose__bar:focus-within.
+     Avoid the global :focus-visible ring (can appear as a red outline). */
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.chat-compose__input::placeholder {
+  color: var(--muted);
+}
+
+.chat-compose__input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chat-compose__controls {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chat-compose__controls-left,
+.chat-compose__controls-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.compose-quota {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  min-width: 0;
+}
+
+.compose-quota__label {
+  font-size: 10px;
+  color: var(--muted);
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compose-quota__bar {
+  width: 78px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.compose-quota__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--ok) 0%,
+    color-mix(in srgb, var(--ok) 20%, var(--warn)) 45%,
+    var(--warn) 70%,
+    var(--danger) 100%
+  );
+  transition: width 0.6s var(--ease-out);
+}
+
+.chat-compose__file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.compose-dd {
+  position: relative;
+}
+
+.compose-dd summary {
+  list-style: none;
+}
+
+.compose-dd summary::-webkit-details-marker {
+  display: none;
+}
+
+.compose-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.compose-pill:focus-visible,
+.compose-send:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-color: var(--ring);
+}
+
+.compose-pill svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.compose-pill--icon {
+  width: 34px;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+}
+
+.compose-pill--model {
+  /* Let the selector grow when there's space, but keep it bounded. */
+  max-width: min(560px, 60vw);
+  min-width: 220px;
+}
+
+.compose-pill__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compose-pill__tail {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compose-dd__panel {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: 260px;
+  max-height: min(420px, 55vh);
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.14);
+  padding: 8px;
+  z-index: 50;
+}
+
+.compose-dd__panel--wide {
+  width: 340px;
+}
+
+.compose-dd__panel--models {
+  width: 360px;
+}
+
+.compose-dd--right .compose-dd__panel {
+  left: auto;
+  right: 0;
+}
+
+.compose-dd__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  margin-bottom: 8px;
+}
+
+.compose-dd__search svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.compose-dd__search input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.compose-dd__search .compose-pill {
+  border-radius: 8px;
+}
+
+.compose-dd__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.compose-dd__item {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.compose-dd [hidden] {
+  display: none !important;
+}
+
+.compose-dd__item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+:root[data-theme="dark"] .compose-dd__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.compose-dd__item.is-selected {
+  background: rgba(59, 130, 246, 0.14);
+}
+
+.compose-dd__item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.compose-dd__item-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compose-dd__item-sub {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compose-dd__empty {
+  padding: 10px;
+}
+
+.compose-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.compose-send svg {
+  width: 18px;
+  height: 18px;
+}
+
+.compose-send__kbd {
+  font-size: 12px;
+  color: var(--muted);
+  border-left: 1px solid var(--border);
+  padding-left: 8px;
+}
+
+.compose-send:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .shell--chat .chat-compose {
   position: sticky;
   bottom: 0;
@@ -1497,8 +1909,20 @@
     min-width: 180px;
   }
 
-  .chat-compose {
-    grid-template-columns: 1fr;
+  .chat-compose__controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chat-compose__controls-left,
+  .chat-compose__controls-right {
+    justify-content: space-between;
+  }
+
+  .compose-dd__panel--models,
+  .compose-dd__panel--wide,
+  .compose-dd__panel {
+    width: min(92vw, 360px);
   }
 }
 

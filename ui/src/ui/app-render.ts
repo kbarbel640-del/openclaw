@@ -4,6 +4,7 @@ import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 import { ChatHost, refreshChatAvatar } from "./app-chat.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
 import { OpenClawApp } from "./app.ts";
+import { loadChatComposerState, saveChatComposerState } from "./chat-drafts.ts";
 import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
 import { loadAgentHierarchy, type AgentHierarchyState } from "./controllers/agent-hierarchy.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
@@ -55,7 +56,12 @@ import { loadHealth, loadHealthChannels, type HealthState } from "./controllers/
 import { loadLogs, LogsState } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
-import { loadProvidersHealth, saveModelSelection } from "./controllers/providers-health.ts";
+import { loadProjects } from "./controllers/projects.ts";
+import {
+  loadProvidersHealth,
+  saveComposerTaskModelPreferences,
+  saveModelSelection,
+} from "./controllers/providers-health.ts";
 import { loadSecurityData, runSecurityAudit, type SecurityState } from "./controllers/security.ts";
 import {
   compactSession,
@@ -127,6 +133,25 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   return identity?.avatarUrl;
 }
 
+function notifyComposerRestored(
+  state: AppViewState,
+  restored: { draft: string; attachments: import("./ui-types.ts").ChatAttachment[] },
+) {
+  const draftChars = restored.draft.trim().length;
+  const attachmentCount = restored.attachments.length;
+  if (draftChars === 0 && attachmentCount === 0) {
+    return;
+  }
+  const parts: string[] = [];
+  if (draftChars > 0) {
+    parts.push(`${draftChars} chars`);
+  }
+  if (attachmentCount > 0) {
+    parts.push(`${attachmentCount} image${attachmentCount === 1 ? "" : "s"}`);
+  }
+  (state as unknown as OpenClawApp).showToast("info", `Draft restored (${parts.join(", ")})`);
+}
+
 export function renderApp(state: AppViewState) {
   const presenceCount = state.presenceEntries.length;
   const sessionsCount = state.sessionsResult?.count ?? null;
@@ -144,6 +169,24 @@ export function renderApp(state: AppViewState) {
     state.agentsList?.defaultId ??
     state.agentsList?.agents?.[0]?.id ??
     null;
+  const activeSession =
+    state.sessionsResult?.sessions?.find((row) => row.key === state.sessionKey) ?? null;
+  const sessionThinkingModelKey =
+    typeof activeSession?.thinkingModelOverride === "string" &&
+    activeSession.thinkingModelOverride.trim()
+      ? activeSession.thinkingModelOverride.trim()
+      : null;
+  const sessionCodingModelKey =
+    typeof activeSession?.codingModelOverride === "string" &&
+    activeSession.codingModelOverride.trim()
+      ? activeSession.codingModelOverride.trim()
+      : null;
+  const effectiveThinkingModelKey =
+    sessionThinkingModelKey ??
+    (state.providersModelAutoPickFromPool ? null : state.providersPrimaryModel);
+  const effectiveCodingModelKey = sessionCodingModelKey ?? state.providersCodingModelPrimary;
+  const thinkingHeaderLabel = effectiveThinkingModelKey?.split("/").pop() ?? "Auto";
+  const codingHeaderLabel = effectiveCodingModelKey?.split("/").pop() ?? "Auto";
 
   return html`
     <div class="shell ${isChat ? "shell--chat" : ""} ${chatFocus ? "shell--chat-focus" : ""} ${state.settings.navCollapsed ? "shell--nav-collapsed" : ""} ${state.onboarding ? "shell--onboarding" : ""}">
@@ -179,17 +222,49 @@ export function renderApp(state: AppViewState) {
             <span class="mono">${state.connected ? "OK" : "Offline"}</span>
           </div>
           ${
-            state.providersPrimaryModel
+            state.providersModelAutoPickFromPool ||
+            state.providersPrimaryModel ||
+            sessionThinkingModelKey
               ? html`
-                  <div class="pill" title="Default model: ${state.providersPrimaryModel}">
-                    <span>Model</span>
-                    <span class="mono" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                      ${state.providersPrimaryModel.split("/").pop()}
+                  <div
+                    class="pill"
+                    title=${
+                      effectiveThinkingModelKey
+                        ? `Thinking model: ${effectiveThinkingModelKey}`
+                        : state.providersModelAutoPickFromPool
+                          ? "Thinking model: Auto (picked from pool by complexity)"
+                          : "Thinking model: Auto"
+                    }
+                  >
+                    <span>${icons.brain}</span>
+                    <span>Thinking</span>
+                    <span
+                      class="mono"
+                      style="max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                    >
+                      ${thinkingHeaderLabel}
                     </span>
                   </div>
                 `
               : nothing
           }
+          <div
+            class="pill"
+            title=${
+              effectiveCodingModelKey
+                ? `Coding model: ${effectiveCodingModelKey}`
+                : "Coding model: Auto (picked from pool for coding/tools tasks)"
+            }
+          >
+            <span>${icons.code}</span>
+            <span>Coding</span>
+            <span
+              class="mono"
+              style="max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >
+              ${codingHeaderLabel}
+            </span>
+          </div>
           ${state.clockDisplay ? html`<div class="pill"><span class="mono">${state.clockDisplay}</span></div>` : nothing}
           ${renderThemeToggle(state)}
         </div>
@@ -268,8 +343,15 @@ export function renderApp(state: AppViewState) {
                 onSettingsChange: (next) => state.applySettings(next),
                 onPasswordChange: (next) => (state.password = next),
                 onSessionKeyChange: (next) => {
+                  saveChatComposerState(state.sessionKey, {
+                    draft: state.chatMessage,
+                    attachments: state.chatAttachments,
+                  });
                   state.sessionKey = next;
-                  state.chatMessage = "";
+                  const nextComposer = loadChatComposerState(next);
+                  state.chatMessage = nextComposer.draft;
+                  state.chatAttachments = nextComposer.attachments;
+                  notifyComposerRestored(state, nextComposer);
                   (state as unknown as OpenClawApp).resetToolStream();
                   state.applySettings({
                     ...state.settings,
@@ -1093,9 +1175,15 @@ export function renderApp(state: AppViewState) {
             ? renderChat({
                 sessionKey: state.sessionKey,
                 onSessionKeyChange: (next) => {
+                  saveChatComposerState(state.sessionKey, {
+                    draft: state.chatMessage,
+                    attachments: state.chatAttachments,
+                  });
                   state.sessionKey = next;
-                  state.chatMessage = "";
-                  state.chatAttachments = [];
+                  const nextComposer = loadChatComposerState(next);
+                  state.chatMessage = nextComposer.draft;
+                  state.chatAttachments = nextComposer.attachments;
+                  notifyComposerRestored(state, nextComposer);
                   state.chatStream = null;
                   state.chatRunId = null;
                   (state as unknown as OpenClawApp).chatStreamStartedAt = null;
@@ -1115,6 +1203,17 @@ export function renderApp(state: AppViewState) {
                 showThinking,
                 loading: state.chatLoading,
                 sending: state.chatSending,
+                modelsCatalog: state.modelsCatalog,
+                detectedProviders: state.detectedProviders,
+                unavailableProviders: state.unavailableProviders,
+                cooldownModels: state.cooldownModels,
+                closestUsageByProvider: state.closestUsageByProvider,
+                defaultThinkingModelKey: state.providersPrimaryModel,
+                defaultThinkingAutoPickFromPool: state.providersModelAutoPickFromPool,
+                defaultCodingModelKey: state.providersCodingModelPrimary,
+                projects: state.projects,
+                projectsRootDir: state.projectsRootDir,
+                projectsIncludeHidden: state.projectsIncludeHidden,
                 assistantAvatarUrl: chatAvatarUrl,
                 messages: state.chatMessages,
                 toolMessages: state.chatToolMessages,
@@ -1144,10 +1243,175 @@ export function renderApp(state: AppViewState) {
                   });
                 },
                 onChatScroll: (event) => (state as unknown as OpenClawApp).handleChatScroll(event),
-                onDraftChange: (next) => (state.chatMessage = next),
+                onDraftChange: (next) => {
+                  state.chatMessage = next;
+                  saveChatComposerState(state.sessionKey, {
+                    draft: next,
+                    attachments: state.chatAttachments,
+                  });
+                },
                 attachments: state.chatAttachments,
-                onAttachmentsChange: (next) => (state.chatAttachments = next),
-                onSend: () => (state as unknown as OpenClawApp).handleSendChat(),
+                onAttachmentsChange: (next) => {
+                  state.chatAttachments = next;
+                  saveChatComposerState(state.sessionKey, {
+                    draft: state.chatMessage,
+                    attachments: next,
+                  });
+                },
+                onSend: () => {
+                  void (async () => {
+                    await (state as unknown as OpenClawApp).handleSendChat();
+                    saveChatComposerState(state.sessionKey, {
+                      draft: state.chatMessage,
+                      attachments: state.chatAttachments,
+                    });
+                  })();
+                },
+                onSessionModelChange: (modelKey) => {
+                  void (async () => {
+                    await patchSession(state, state.sessionKey, { model: modelKey });
+                    await loadChatHistory(state as unknown as ChatState);
+                  })();
+                },
+                onSessionThinkingModelChange: (modelKey) => {
+                  void (async () => {
+                    try {
+                      if (!state.connected) {
+                        return;
+                      }
+                      if (modelKey) {
+                        await saveComposerTaskModelPreferences(state, {
+                          thinkingModel: modelKey,
+                        });
+                      }
+                      // Keep selectors session-scoped for immediate current-chat behavior.
+                      // Clear explicit session model override so per-task overrides apply.
+                      await patchSession(state, state.sessionKey, {
+                        model: null,
+                        thinkingModel: modelKey ?? null,
+                      });
+                      const label = modelKey ? modelKey : "Auto";
+                      (state as unknown as OpenClawApp).showToast(
+                        "success",
+                        `Thinking model applied: ${label}`,
+                      );
+                    } catch (err) {
+                      (state as unknown as OpenClawApp).showToast(
+                        "error",
+                        `Failed to update thinking model: ${String(err)}`,
+                      );
+                    }
+                  })();
+                },
+                onSessionCodingModelChange: (modelKey) => {
+                  void (async () => {
+                    try {
+                      if (!state.connected) {
+                        return;
+                      }
+                      if (modelKey) {
+                        await saveComposerTaskModelPreferences(state, {
+                          codingModel: modelKey,
+                        });
+                      }
+                      // Keep selectors session-scoped for immediate current-chat behavior.
+                      // Clear explicit session model override so per-task overrides apply.
+                      await patchSession(state, state.sessionKey, {
+                        model: null,
+                        codingModel: modelKey ?? null,
+                      });
+                      const label = modelKey ? modelKey : "Auto";
+                      (state as unknown as OpenClawApp).showToast(
+                        "success",
+                        `Coding model applied: ${label}`,
+                      );
+                    } catch (err) {
+                      (state as unknown as OpenClawApp).showToast(
+                        "error",
+                        `Failed to update coding model: ${String(err)}`,
+                      );
+                    }
+                  })();
+                },
+                onSessionProjectChange: (projectDir) => {
+                  void (async () => {
+                    try {
+                      // Persist workspace directory selection on the current session.
+                      await patchSession(state, state.sessionKey, { workspaceDir: projectDir });
+                      if (state.client && state.connected) {
+                        await state.client.request("chat.inject", {
+                          sessionKey: state.sessionKey,
+                          role: "system",
+                          label: "Workspace",
+                          message: `Workspace set: ${projectDir ?? "Default"}.`,
+                        });
+                      }
+                      // Reset agent run state and reload chat to pick up new runtime context.
+                      state.chatStream = null;
+                      state.chatRunId = null;
+                      await loadChatHistory(state as unknown as ChatState);
+                      (state as unknown as OpenClawApp).showToast(
+                        "success",
+                        `Workspace set: ${projectDir ?? "Default"}`,
+                      );
+                    } catch (err) {
+                      (state as unknown as OpenClawApp).showToast(
+                        "error",
+                        `Failed to set workspace dir: ${String(err)}`,
+                      );
+                    }
+                  })();
+                },
+                onProjectsBrowseChange: (dir) => {
+                  state.projectsBrowseRootDir = dir;
+                  void loadProjects(state as unknown as Parameters<typeof loadProjects>[0]);
+                },
+                onToggleHiddenProjects: (next) => {
+                  state.projectsIncludeHidden = next;
+                  void loadProjects(state as unknown as Parameters<typeof loadProjects>[0]);
+                },
+                onPickWorkspaceDir: () => {
+                  void (async () => {
+                    try {
+                      if (!state.client || !state.connected) {
+                        return;
+                      }
+                      const res = await state.client.request<{ dir?: unknown }>(
+                        "fs.pickDirectory",
+                        {
+                          prompt: "Select a workspace folder",
+                          defaultDir: state.projectsRootDir ?? undefined,
+                        },
+                      );
+                      const dir = typeof res?.dir === "string" ? res.dir : null;
+                      if (!dir) {
+                        return;
+                      }
+                      state.projectsBrowseRootDir = dir;
+                      state.projectsIncludeHidden = true;
+                      await loadProjects(state as unknown as Parameters<typeof loadProjects>[0]);
+                      await patchSession(state, state.sessionKey, { workspaceDir: dir });
+                      await state.client.request("chat.inject", {
+                        sessionKey: state.sessionKey,
+                        role: "system",
+                        label: "Workspace",
+                        message: `Workspace set: ${dir}.`,
+                      });
+                      state.chatStream = null;
+                      state.chatRunId = null;
+                      await loadChatHistory(state as unknown as ChatState);
+                      (state as unknown as OpenClawApp).showToast(
+                        "success",
+                        `Workspace set: ${dir}`,
+                      );
+                    } catch (err) {
+                      (state as unknown as OpenClawApp).showToast(
+                        "error",
+                        `Failed to pick workspace dir: ${String(err)}`,
+                      );
+                    }
+                  })();
+                },
                 canAbort: Boolean(state.chatRunId),
                 onAbort: () => void (state as unknown as OpenClawApp).handleAbortChat(),
                 onQueueRemove: (id) => (state as unknown as OpenClawApp).removeQueuedMessage(id),

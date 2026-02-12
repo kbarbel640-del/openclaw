@@ -166,9 +166,10 @@ export async function loadAvailableModels(params?: {
   // Get detected provider IDs
   const detectedProviders = new Set(getDetectedProviderIds(cfg).map((id) => id.toLowerCase()));
 
-  // If no providers detected, return empty (or all if detection isn't working)
+  // If no providers are detected/configured, do not expose the full catalog.
+  // Showing all models here leaks unavailable options into selectors.
   if (detectedProviders.size === 0) {
-    return catalog;
+    return [];
   }
 
   // Filter to only include models from detected providers
@@ -206,6 +207,10 @@ const DATE_SUFFIX_RE = /-\d{8}$|-\d{4}-\d{2}-\d{2}$/;
  * `gpt-4o-2024-11-20`) are considered snapshots and excluded by this filter.
  */
 export function isLatestModel(entry: ModelCatalogEntry): boolean {
+  // Allow canonical Anthropic models that use date suffixes
+  if (entry.id === "claude-3-5-sonnet-20241022" || entry.id === "claude-3-5-haiku-20241022") {
+    return true;
+  }
   return !DATE_SUFFIX_RE.test(entry.id);
 }
 

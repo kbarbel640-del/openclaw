@@ -1,4 +1,5 @@
 import type { OpenClawApp } from "./app.ts";
+import type { ChatAttachment } from "./ui-types.ts";
 import { refreshChat } from "./app-chat.ts";
 import {
   startLogsPolling,
@@ -7,6 +8,7 @@ import {
   stopDebugPolling,
 } from "./app-polling.ts";
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
+import { loadChatComposerState } from "./chat-drafts.ts";
 import { loadAgentHierarchy, type AgentHierarchyState } from "./controllers/agent-hierarchy.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentResources, type AgentResourcesState } from "./controllers/agent-resources.ts";
@@ -63,7 +65,29 @@ type SettingsHost = {
   themeMedia: MediaQueryList | null;
   themeMediaHandler: ((event: MediaQueryListEvent) => void) | null;
   pendingGatewayUrl?: string | null;
+  chatMessage?: string;
+  chatAttachments?: ChatAttachment[];
+  showToast?: (type: "info" | "success" | "warn" | "danger", message: string) => void;
 };
+
+function notifyComposerRestored(
+  host: SettingsHost,
+  composer: { draft: string; attachments: ChatAttachment[] },
+) {
+  const draftChars = composer.draft.trim().length;
+  const attachmentCount = composer.attachments.length;
+  if (draftChars === 0 && attachmentCount === 0) {
+    return;
+  }
+  const parts: string[] = [];
+  if (draftChars > 0) {
+    parts.push(`${draftChars} chars`);
+  }
+  if (attachmentCount > 0) {
+    parts.push(`${attachmentCount} image${attachmentCount === 1 ? "" : "s"}`);
+  }
+  host.showToast?.("info", `Draft restored (${parts.join(", ")})`);
+}
 
 export function applySettings(host: SettingsHost, next: UiSettings) {
   const normalized = {
@@ -123,6 +147,14 @@ export function applySettingsFromUrl(host: SettingsHost) {
     const session = sessionRaw.trim();
     if (session) {
       host.sessionKey = session;
+      const composer = loadChatComposerState(session);
+      if (typeof host.chatMessage === "string") {
+        host.chatMessage = composer.draft;
+      }
+      if (Array.isArray(host.chatAttachments)) {
+        host.chatAttachments = composer.attachments;
+      }
+      notifyComposerRestored(host, composer);
       applySettings(host, {
         ...host.settings,
         sessionKey: session,
@@ -374,6 +406,14 @@ export function onPopState(host: SettingsHost) {
   const session = url.searchParams.get("session")?.trim();
   if (session) {
     host.sessionKey = session;
+    const composer = loadChatComposerState(session);
+    if (typeof host.chatMessage === "string") {
+      host.chatMessage = composer.draft;
+    }
+    if (Array.isArray(host.chatAttachments)) {
+      host.chatAttachments = composer.attachments;
+    }
+    notifyComposerRestored(host, composer);
     applySettings(host, {
       ...host.settings,
       sessionKey: session,

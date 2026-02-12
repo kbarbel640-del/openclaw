@@ -13,6 +13,7 @@ vi.mock("chokidar", () => {
 
 describe("ensureSkillsWatcher", () => {
   it("ignores node_modules, dist, and .git by default", async () => {
+    process.env.OPENCLAW_SKILLS_WATCH_IN_TESTS = "1";
     const mod = await import("./refresh.js");
     mod.ensureSkillsWatcher({ workspaceDir: "/tmp/workspace" });
 

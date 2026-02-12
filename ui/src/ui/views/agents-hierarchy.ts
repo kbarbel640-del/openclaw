@@ -34,6 +34,7 @@ type NodeMeta = {
   runId?: string;
   agentId?: string;
   agentRole?: string;
+  model?: string;
   task?: string;
   status: string;
   startedAt?: number;
@@ -388,6 +389,7 @@ function transformToGraphData(
         runId: node.runId,
         agentId: node.agentId,
         agentRole: node.agentRole,
+        model: node.model,
         task: node.task,
         status: node.status,
         startedAt: node.startedAt,
@@ -524,10 +526,15 @@ function tooltipFormatter(params: { data?: GraphNodeData; dataType?: string }): 
     ? `<div style="margin-top:4px;font-size:11px;color:#aaa;">Delegations: ${meta.delegations.sent} sent / ${meta.delegations.received} received${meta.delegations.pending > 0 ? ` | ${meta.delegations.pending} pending` : ""}</div>`
     : "";
 
+  const modelLine = meta.model
+    ? `<div style="margin-top:4px;font-size:11px;color:#93c5fd;">Model: ${meta.model}</div>`
+    : "";
+
   return `<div style="max-width:350px;">
     <strong>${params.data?.name ?? ""}</strong> ${roleLabel}<br/>
     <span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;background:${statusColors.bg};color:${statusColors.text};">${meta.status}</span>
     ${meta.task ? `<div style="margin-top:4px;font-size:12px;color:#ccc;">${meta.task.slice(0, 120)}</div>` : ""}
+    ${modelLine}
     ${usageLines}
     ${delegLines}
     <div style="margin-top:4px;font-size:10px;color:#666;">${meta.sessionKey}</div>
@@ -821,11 +828,14 @@ let currentGraphData: GraphData | null = null;
 /** Topology hash: node keys + parent-child structure. */
 function computeTopologyHash(roots: AgentHierarchyNode[]): string {
   const keys: string[] = [];
-  function collect(nodes: AgentHierarchyNode[]) {
+  function collect(nodes: AgentHierarchyNode[], parentKey?: string) {
     for (const node of nodes) {
       keys.push(node.sessionKey);
+      if (parentKey) {
+        keys.push(`${parentKey}→${node.sessionKey}`);
+      }
       if (node.children.length > 0) {
-        collect(node.children);
+        collect(node.children, node.sessionKey);
       }
     }
   }

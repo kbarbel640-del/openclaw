@@ -191,7 +191,7 @@ OPENCLAW_LIVE_SETUP_TOKEN=1 OPENCLAW_LIVE_SETUP_TOKEN_PROFILE=anthropic:setup-to
 - Defaults:
   - Model: `claude-cli/claude-sonnet-4-5`
   - Command: `claude`
-  - Args: `["-p","--output-format","json","--dangerously-skip-permissions"]`
+  - Args: `["-p","--output-format","json","--permission-mode","default","--tools",""]`
 - Overrides (optional):
   - `OPENCLAW_LIVE_CLI_BACKEND_MODEL="claude-cli/claude-opus-4-5"`
   - `OPENCLAW_LIVE_CLI_BACKEND_MODEL="codex-cli/gpt-5.2-codex"`

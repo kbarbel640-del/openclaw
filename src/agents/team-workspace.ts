@@ -1,15 +1,28 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { resolveStateDir } from "../config/paths.js";
 import { parseAgentSessionKey } from "../routing/session-key.js";
 import { resolveUserPath } from "../utils.js";
-import { DEFAULT_AGENT_WORKSPACE_DIR } from "./workspace.js";
 
 const TEAM_WORKSPACE_SUBDIR = ".team";
 const ARTIFACTS_SUBDIR = "artifacts";
 const DECISIONS_SUBDIR = "decisions";
 const CONTEXT_SUBDIR = "context";
 const CONTEXT_FILE = "context.json";
+
+let lastDecisionTimestamp = 0;
+
+function nextDecisionTimestamp(): number {
+  const now = Date.now();
+  // Ensure monotonic ordering even under fake timers or same-tick writes.
+  if (now <= lastDecisionTimestamp) {
+    lastDecisionTimestamp += 1;
+    return lastDecisionTimestamp;
+  }
+  lastDecisionTimestamp = now;
+  return now;
+}
 
 export type ArtifactMetadata = {
   createdAt: number;
@@ -48,12 +61,14 @@ export type TeamDecision = {
 export function resolveTeamWorkspace(requesterSessionKey: string): string {
   const _parsed = parseAgentSessionKey(requesterSessionKey);
 
-  // Use the agent's default workspace as the base
+  // Use the default workspace as the base, but respect OPENCLAW_STATE_DIR so tests and
+  // sandboxed environments can redirect writes away from the user's home directory.
   const profile = process.env.OPENCLAW_PROFILE?.trim();
+  const stateDir = resolveStateDir(process.env, os.homedir);
   const baseDir =
     profile && profile.toLowerCase() !== "default"
-      ? path.join(os.homedir(), ".openclaw", `workspace-${profile}`)
-      : DEFAULT_AGENT_WORKSPACE_DIR;
+      ? path.join(stateDir, `workspace-${profile}`)
+      : path.join(stateDir, "workspace");
 
   return path.join(resolveUserPath(baseDir), TEAM_WORKSPACE_SUBDIR);
 }
@@ -288,7 +303,7 @@ export async function recordTeamDecision(params: {
     topic: params.topic,
     decision: params.decision,
     participants: params.participants,
-    timestamp: Date.now(),
+    timestamp: nextDecisionTimestamp(),
     metadata: params.metadata,
   };
 
@@ -332,7 +347,12 @@ export async function listTeamDecisions(params: {
     return [];
   }
 
-  return decisions.toSorted((a, b) => b.timestamp - a.timestamp);
+  return decisions.toSorted((a, b) => {
+    if (a.timestamp !== b.timestamp) {
+      return b.timestamp - a.timestamp;
+    }
+    return b.id.localeCompare(a.id);
+  });
 }
 
 /**

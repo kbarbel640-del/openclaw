@@ -27,7 +27,8 @@ import {
   type ResolvedProviderAuth,
 } from "../model-auth.js";
 import { normalizeProviderId } from "../model-selection.js";
-import { ensureOpenClawModelsJson } from "../models-config.js";
+import { ensureOpenClawModelsJson, mergeProviders } from "../models-config.js";
+import { resolveImplicitProviders } from "../models-config.providers.js";
 import {
   classifyFailoverReason,
   formatAssistantErrorText,
@@ -100,14 +101,39 @@ export async function runEmbeddedPiAgent(
         (params.config?.agents?.defaults?.model?.fallbacks?.length ?? 0) > 0;
       await ensureOpenClawModelsJson(params.config, agentDir);
 
+      // Merge implicit providers (like Antigravity) into config so resolveModel can access them
+      const implicitProviders = await resolveImplicitProviders({ agentDir });
+      const explicitProviders = params.config?.models?.providers ?? {};
+      const mergedProviders = mergeProviders({
+        implicit: implicitProviders,
+        explicit: explicitProviders,
+      });
+
+      // Create a config with merged providers
+      const configWithProviders = {
+        ...params.config,
+        models: {
+          ...params.config?.models,
+          providers: mergedProviders,
+        },
+      };
+
       const { model, error, authStorage, modelRegistry } = resolveModel(
         provider,
         modelId,
         agentDir,
-        params.config,
+        configWithProviders,
       );
       if (!model) {
-        throw new Error(error ?? `Unknown model: ${provider}/${modelId}`);
+        const message = error ?? `Unknown model: ${provider}/${modelId}`;
+        // Treat unknown/unresolvable models as failover-eligible so agent fallback
+        // can continue to the next configured model instead of aborting the run.
+        throw new FailoverError(message, {
+          reason: "format",
+          provider,
+          model: modelId,
+          status: resolveFailoverStatus("format"),
+        });
       }
 
       const ctxInfo = resolveContextWindowInfo({
@@ -149,12 +175,24 @@ export async function runEmbeddedPiAgent(
           lockedProfileId = undefined;
         }
       }
+
+      // Extract accountTag from modelId if present (format: model@tag)
+      const accountTag = (() => {
+        const atIndex = modelId.indexOf("@");
+        return atIndex !== -1 ? modelId.slice(atIndex + 1).trim() || undefined : undefined;
+      })();
+
       const profileOrder = resolveAuthProfileOrder({
         cfg: params.config,
         store: authStore,
         provider,
         preferredProfile: preferredProfileId,
+        accountTag,
       });
+      // DEBUG: trace profile resolution in run.ts
+      console.error(
+        `[DEBUG run.ts] provider="${provider}" modelProvider="${model.provider}" profileOrder=${JSON.stringify(profileOrder)} storeProfiles=${JSON.stringify(Object.keys(authStore.profiles))} cfgAuthProfiles=${JSON.stringify(Object.keys(params.config?.auth?.profiles ?? {}))} cfgAuthOrder=${JSON.stringify(params.config?.auth?.order)}`,
+      );
       if (lockedProfileId && !profileOrder.includes(lockedProfileId)) {
         throw new Error(`Auth profile "${lockedProfileId}" is not configured for ${provider}.`);
       }

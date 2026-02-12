@@ -131,6 +131,70 @@ sessions_spawn({ task: "Security audit", agentId: "security-engineer", label: "S
 | Quick lookups        | haiku  | git-specialist, devops-engineer, charts-specialist        |
 | Simple tasks         | haiku  | release-manager, ui-components                            |
 
+## Formal Delegation (delegation tool)
+
+For tracked lifecycle delegation with status, priority, and review workflow, use the `delegation` tool instead of `sessions_spawn`.
+
+### Downward Delegation (to subordinates)
+
+```typescript
+delegation({
+  action: "delegate",
+  toAgentId: "backend-architect",
+  task: "Implement the orders REST API with full CRUD and pagination",
+  priority: "high",
+});
+// Returns: { delegationId: "del-abc123", status: "pending" }
+```
+
+### Upward Request (to superiors)
+
+```typescript
+delegation({
+  action: "request",
+  toAgentId: "system-architect",
+  task: "Need architectural guidance on caching strategy",
+  justification: "Multiple valid approaches; need alignment with system-wide patterns",
+});
+```
+
+### Track and Complete
+
+```typescript
+// Accept an assigned delegation
+delegation({ action: "accept", delegationId: "del-abc123" });
+
+// Complete with result
+delegation({
+  action: "complete",
+  delegationId: "del-abc123",
+  resultStatus: "success",
+  resultSummary: "Orders API implemented with 12 endpoints, 95% coverage",
+});
+
+// Check status
+delegation({ action: "status", delegationId: "del-abc123" });
+
+// List your delegations
+delegation({ action: "list", direction: "downward" });
+
+// Check pending reviews
+delegation({ action: "pending" });
+```
+
+### sessions_spawn vs delegation
+
+| Feature              | sessions_spawn | delegation                       |
+| -------------------- | -------------- | -------------------------------- |
+| Quick parallel tasks | Best choice    | Overkill                         |
+| Tracked lifecycle    | No             | Yes (pending/accepted/completed) |
+| Priority levels      | No             | Yes (critical/high/normal/low)   |
+| Upward requests      | No             | Yes (with justification)         |
+| Superior review      | No             | Yes (approve/reject/redirect)    |
+| Status tracking      | Via session    | Via delegationId                 |
+
+**Rule of thumb**: Use `sessions_spawn` for fire-and-forget parallel tasks. Use `delegation` when you need tracked lifecycle, upward requests, or priority management.
+
 ## Best Practices
 
 1. **Match domain to specialist** — Don't send frontend work to backend-architect
@@ -139,3 +203,5 @@ sessions_spawn({ task: "Security audit", agentId: "security-engineer", label: "S
 4. **Meaningful labels** — Short, descriptive labels for tracking
 5. **Parallel when independent** — Spawn multiple if tasks don't depend on each other
 6. **Sequential when dependent** — Wait for prerequisites before next step
+7. **Use agents_list first** — Discover available agents before delegating
+8. **Share via team_workspace** — Write artifacts for other agents to consume

@@ -3,15 +3,19 @@ import type { ThinkLevel } from "./directives.js";
 import { clearSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
 import { lookupContextTokens } from "../../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../agents/defaults.js";
+import { extractVersionScore } from "../../agents/model-auto-select.js";
+import { getModelCapabilitiesFromCatalog } from "../../agents/model-capabilities.js";
 import { loadModelCatalog } from "../../agents/model-catalog.js";
 import {
   buildAllowedModelSet,
+  buildModelAliasIndex,
   type ModelAliasIndex,
   modelKey,
   normalizeProviderId,
   resolveModelRefFromString,
   resolveThinkingDefault,
 } from "../../agents/model-selection.js";
+import { classifyComplexity, classifyTask } from "../../agents/task-classifier.js";
 import { type SessionEntry, updateSessionStore } from "../../config/sessions.js";
 import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
 import { resolveThreadParentSessionKey } from "../../sessions/session-key-utils.js";
@@ -271,6 +275,7 @@ export async function createModelSelectionState(params: {
   provider: string;
   model: string;
   hasModelDirective: boolean;
+  prompt?: string;
 }): Promise<ModelSelectionState> {
   const {
     cfg,
@@ -288,6 +293,11 @@ export async function createModelSelectionState(params: {
   let model = params.model;
 
   const hasAllowlist = agentCfg?.models && Object.keys(agentCfg.models).length > 0;
+  const hasTaskOverride = Boolean(
+    params.sessionEntry &&
+    (params.sessionEntry.thinkingModelOverride?.trim() ||
+      params.sessionEntry.codingModelOverride?.trim()),
+  );
   const initialStoredOverride = resolveStoredModelOverride({
     sessionEntry,
     sessionStore,
@@ -295,7 +305,8 @@ export async function createModelSelectionState(params: {
     parentSessionKey,
   });
   const hasStoredOverride = Boolean(initialStoredOverride);
-  const needsModelCatalog = params.hasModelDirective || hasAllowlist || hasStoredOverride;
+  const needsModelCatalog =
+    params.hasModelDirective || hasAllowlist || hasStoredOverride || hasTaskOverride;
 
   let allowedModelKeys = new Set<string>();
   let allowedModelCatalog: ModelCatalog = [];
@@ -349,6 +360,170 @@ export async function createModelSelectionState(params: {
     if (allowedModelKeys.size === 0 || allowedModelKeys.has(key)) {
       provider = candidateProvider;
       model = storedOverride.model;
+    }
+  }
+
+  // Task/complexity routing:
+  // - If an explicit session model override is set (storedOverride), keep it.
+  // - If a per-task session override is set (thinkingModelOverride/codingModelOverride), apply it.
+  // - Otherwise, apply configured specialized defaults (coding/tool) when present.
+  // - If no specialized default exists, auto-pick from the allowlist catalog based on
+  //   detected task type and complexity (when possible).
+  if (!storedOverride) {
+    const prompt = params.prompt?.trim() ?? "";
+    const taskType = prompt ? classifyTask(prompt) : "general";
+    const complexity = prompt ? classifyComplexity(prompt) : "trivial";
+
+    const aliasIndex = buildModelAliasIndex({ cfg, defaultProvider });
+    const resolveConfiguredKey = (
+      raw: string,
+    ): { provider: string; model: string; key: string } | null => {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        return null;
+      }
+      const resolved = resolveModelRefFromString({
+        raw: trimmed,
+        defaultProvider,
+        aliasIndex,
+      });
+      if (!resolved) {
+        return null;
+      }
+      const key = modelKey(resolved.ref.provider, resolved.ref.model);
+      return { provider: resolved.ref.provider, model: resolved.ref.model, key };
+    };
+
+    const applySessionTaskOverride = (raw: string): boolean => {
+      const parsed = resolveConfiguredKey(raw);
+      if (!parsed) {
+        return false;
+      }
+      if (allowedModelKeys.size === 0 || allowedModelKeys.has(parsed.key)) {
+        provider = normalizeProviderId(parsed.provider);
+        model = parsed.model;
+        return true;
+      }
+      return false;
+    };
+
+    // 0) Session-level per-task overrides (do NOT persist modelOverride).
+    const rawThinking = sessionEntry?.thinkingModelOverride?.trim() ?? "";
+    const rawCodingOverride = sessionEntry?.codingModelOverride?.trim() ?? "";
+    const usedTaskOverride =
+      (taskType === "reasoning" || taskType === "general") && rawThinking
+        ? applySessionTaskOverride(rawThinking)
+        : (taskType === "coding" || taskType === "tools") && rawCodingOverride
+          ? applySessionTaskOverride(rawCodingOverride)
+          : false;
+
+    if (!usedTaskOverride) {
+      const rawCoding = cfg.agents?.defaults?.codingModel?.primary?.trim() ?? "";
+      const rawTool = cfg.agents?.defaults?.toolModel?.primary?.trim() ?? "";
+      const autoPickReasoning = Boolean(
+        cfg.agents?.defaults?.modelByComplexity &&
+        typeof cfg.agents.defaults.modelByComplexity === "object" &&
+        cfg.agents.defaults.modelByComplexity.autoPickFromPool === true,
+      );
+
+      const tryApplyConfiguredOverride = (raw: string): boolean => {
+        const parsed = resolveConfiguredKey(raw);
+        if (!parsed) {
+          return false;
+        }
+        if (allowedModelKeys.size === 0 || allowedModelKeys.has(parsed.key)) {
+          provider = normalizeProviderId(parsed.provider);
+          model = parsed.model;
+          return true;
+        }
+        return false;
+      };
+
+      // 1) Configured specialized defaults
+      if (taskType === "coding" && rawCoding) {
+        tryApplyConfiguredOverride(rawCoding);
+      } else if (taskType === "tools" && rawTool) {
+        tryApplyConfiguredOverride(rawTool);
+      } else if (taskType === "tools" && !rawTool && rawCoding) {
+        // Fallback: tools without a dedicated toolModel use codingModel
+        tryApplyConfiguredOverride(rawCoding);
+      }
+
+      // 2) Auto-pick from pool (best-effort)
+      const canAutoPickFromPool =
+        allowedModelCatalog.length > 0 && (taskType !== "general" || prompt);
+
+      const shouldAutoPick =
+        // Vision auto-pick to ensure we get a model with image support.
+        taskType === "vision" ||
+        // Coding/tools auto-pick whenever there is no configured specialized default.
+        (taskType === "coding" && !rawCoding) ||
+        (taskType === "tools" && !rawTool && !rawCoding) ||
+        // Reasoning/general auto-pick only when explicitly enabled.
+        ((taskType === "reasoning" || taskType === "general") && autoPickReasoning);
+
+      if (canAutoPickFromPool && shouldAutoPick) {
+        const required =
+          taskType === "vision"
+            ? "vision"
+            : taskType === "coding" || taskType === "tools"
+              ? "coding"
+              : "reasoning";
+        const perfOrder: Record<string, number> = { fast: 0, balanced: 1, powerful: 2 };
+        const costOrder: Record<string, number> = { free: 0, cheap: 1, moderate: 2, expensive: 3 };
+
+        const preferredPerf = (
+          complexity === "trivial"
+            ? ["fast", "balanced", "powerful"]
+            : complexity === "complex"
+              ? ["powerful", "balanced", "fast"]
+              : ["balanced", "powerful", "fast"]
+        ) as Array<"fast" | "balanced" | "powerful">;
+
+        const ranked = allowedModelCatalog
+          .map((entry) => {
+            const caps = getModelCapabilitiesFromCatalog(entry);
+            const ok =
+              required === "vision"
+                ? caps.vision
+                : required === "coding"
+                  ? caps.coding
+                  : caps.reasoning;
+            if (!ok) {
+              return null;
+            }
+            const prefIdx = preferredPerf.indexOf(caps.performanceTier);
+            return {
+              entry,
+              pref: prefIdx === -1 ? 99 : prefIdx,
+              perf: perfOrder[caps.performanceTier] ?? 0,
+              cost: costOrder[caps.costTier] ?? 99,
+              version: extractVersionScore(entry.id),
+            };
+          })
+          .filter(Boolean)
+          .toSorted((a, b) => {
+            if (!a || !b) {
+              return 0;
+            }
+            if (a.pref !== b.pref) {
+              return a.pref - b.pref;
+            }
+            if (b.perf !== a.perf) {
+              return b.perf - a.perf;
+            }
+            if (a.cost !== b.cost) {
+              return a.cost - b.cost;
+            }
+            return b.version - a.version;
+          });
+
+        const best = ranked[0]?.entry;
+        if (best) {
+          provider = normalizeProviderId(best.provider);
+          model = best.id;
+        }
+      }
     }
   }
 

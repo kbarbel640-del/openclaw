@@ -50,9 +50,37 @@ export type SessionEntry = {
   responseUsage?: "on" | "off" | "tokens" | "full";
   providerOverride?: string;
   modelOverride?: string;
+  /**
+   * Optional per-session override used for "thinking" (reasoning-heavy) tasks when
+   * task-based auto model routing is enabled.
+   *
+   * Stored as "provider/model".
+   */
+  thinkingModelOverride?: string;
+  /**
+   * Optional per-session override used for "coding/tools" tasks when
+   * task-based auto model routing is enabled.
+   *
+   * Stored as "provider/model".
+   */
+  codingModelOverride?: string;
   authProfileOverride?: string;
   authProfileOverrideSource?: "auto" | "user";
   authProfileOverrideCompactionCount?: number;
+  /**
+   * Optional project directory override for this session.
+   * When set, agents run with this directory as their workspace root.
+   *
+   * Safety: only paths under agents.defaults.projects.rootDir can be persisted.
+   */
+  projectDir?: string;
+  /**
+   * Workspace directory override for this session (absolute path or "~/...").
+   * When set, agents work inside this folder and tools use it as their workspace root.
+   *
+   * Note: If set to "/", agents effectively have access to the entire disk.
+   */
+  workspaceDir?: string;
   groupActivation?: "mention" | "always";
   groupActivationNeedsSystemIntro?: boolean;
   sendPolicy?: "allow" | "deny";

@@ -59,6 +59,8 @@ export type ProvidersHealthHost = {
   providersModelAllowlist: Set<string>;
   providersPrimaryModel: string | null;
   providersModelFallbacks: string[];
+  providersCodingModelPrimary: string | null;
+  providersModelAutoPickFromPool: boolean;
   providersConfigHash: string | null;
   providersModelsSaving: boolean;
   providersModelsDirty: boolean;
@@ -203,7 +205,12 @@ function resolveModelCostTier(modelId: string): ModelCostTier {
 export async function loadPrimaryModel(
   host: Pick<
     ProvidersHealthHost,
-    "client" | "connected" | "providersPrimaryModel" | "providersModelFallbacks"
+    | "client"
+    | "connected"
+    | "providersPrimaryModel"
+    | "providersModelFallbacks"
+    | "providersCodingModelPrimary"
+    | "providersModelAutoPickFromPool"
   >,
 ): Promise<void> {
   if (!host.client || !host.connected) {
@@ -223,6 +230,15 @@ export async function loadPrimaryModel(
     host.providersModelFallbacks = Array.isArray(modelConfig?.fallbacks)
       ? modelConfig.fallbacks
       : [];
+
+    const codingRaw = agentsDefaults?.codingModel as { primary?: string } | string | undefined;
+    host.providersCodingModelPrimary =
+      typeof codingRaw === "string"
+        ? codingRaw
+        : ((codingRaw as { primary?: string } | undefined)?.primary ?? null);
+
+    const mbc = agentsDefaults?.modelByComplexity as { autoPickFromPool?: boolean } | undefined;
+    host.providersModelAutoPickFromPool = Boolean(mbc?.autoPickFromPool === true);
   } catch {
     // Ignore errors - header will just not show model
   }
@@ -392,6 +408,78 @@ export async function saveModelSelection(host: ProvidersHealthHost): Promise<voi
   } finally {
     host.providersModelsSaving = false;
   }
+}
+
+export async function saveComposerTaskModelPreferences(
+  host: ProvidersHealthHost,
+  params: { thinkingModel?: string | null; codingModel?: string | null },
+): Promise<void> {
+  if (!host.client || !host.connected) {
+    return;
+  }
+
+  const hasThinking = "thinkingModel" in params;
+  const hasCoding = "codingModel" in params;
+  if (!hasThinking && !hasCoding) {
+    return;
+  }
+
+  const configRes = await host.client.request("config.get", {});
+  const configSnapshot = configRes as { config?: Record<string, unknown>; hash?: string } | null;
+  const baseHash = configSnapshot?.hash ?? null;
+  if (!baseHash) {
+    throw new Error("Config hash missing; reload and retry.");
+  }
+
+  const config = configSnapshot?.config ?? {};
+  const agentsDefaults = (config.agents as { defaults?: Record<string, unknown> } | undefined)
+    ?.defaults;
+  const existingModels = (agentsDefaults?.models ?? {}) as Record<string, unknown>;
+  const allowlist = new Set<string>(Object.keys(existingModels));
+
+  const thinkingModel = params.thinkingModel?.trim();
+  const codingModel = params.codingModel?.trim();
+  if (thinkingModel) {
+    allowlist.add(thinkingModel);
+  }
+  if (codingModel) {
+    allowlist.add(codingModel);
+  }
+
+  const defaultsPatch: Record<string, unknown> = {};
+  if (hasThinking && thinkingModel) {
+    defaultsPatch.model = { primary: thinkingModel };
+    host.providersPrimaryModel = thinkingModel;
+  }
+  if (hasCoding && codingModel) {
+    defaultsPatch.codingModel = { primary: codingModel };
+    host.providersCodingModelPrimary = codingModel;
+  }
+
+  if (allowlist.size > 0) {
+    const models: Record<string, object> = {};
+    for (const key of allowlist) {
+      models[key] = {};
+    }
+    defaultsPatch.models = models;
+    host.providersModelAllowlist = allowlist;
+  }
+
+  if (Object.keys(defaultsPatch).length === 0) {
+    return;
+  }
+
+  await host.client.request("config.patch", {
+    raw: JSON.stringify({
+      agents: {
+        defaults: defaultsPatch,
+      },
+    }),
+    baseHash,
+    note: "Composer model selectors updated defaults",
+  });
+
+  await loadPrimaryModel(host);
 }
 
 // --- Polling (30s RPC refresh) ---

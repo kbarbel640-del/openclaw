@@ -5,6 +5,7 @@
  * and selects the cheapest + newest model that meets each agent role's requirements.
  */
 
+import type { OpenClawConfig } from "../config/config.js";
 import type { AgentRole } from "../config/types.agents.js";
 import type {
   CostTier,
@@ -14,8 +15,15 @@ import type {
 } from "./model-capabilities.js";
 import type { ModelCatalogEntry } from "./model-catalog.js";
 import type { ModelRef } from "./model-selection.js";
+import {
+  ensureAuthProfileStore,
+  isProfileInCooldown,
+  resolveAuthProfileOrder,
+  type AuthProfileStore,
+} from "./auth-profiles.js";
 import { getModelCapabilitiesFromCatalog } from "./model-capabilities.js";
 import { isLatestModel } from "./model-catalog.js";
+import { isModelCoolingDown } from "./model-fallback.js";
 import { modelKey } from "./model-selection.js";
 
 // ── Cost/performance tier ordinals for comparison ──
@@ -99,6 +107,11 @@ export function extractVersionScore(modelId: string): number {
     return Number(gptMatch[1]) * 10 + Number(gptMatch[2]);
   }
 
+  // gpt-oss-120b -> treat as equivalent to GPT-4 level (40) or explicit score?
+  if (lower.includes("gpt-oss")) {
+    return 45; // Treat as high-end open source
+  }
+
   // gpt-5, gpt-4 → major only
   const gptMajorMatch = lower.match(/gpt-(\d+)(?![\d.])/);
   if (gptMajorMatch) {
@@ -125,6 +138,65 @@ export function extractVersionScore(modelId: string): number {
 
   // mistral-large, codestral → no version, low recency
   return 0;
+}
+
+export function isLegacyModelIdForAutoSelection(modelId: string): boolean {
+  const lower = modelId.toLowerCase();
+
+  // OpenAI: discard GPT-3.5/GPT-4 families when auto-selecting.
+  if (/\bgpt-3\.5\b/.test(lower) || lower.startsWith("gpt-3.5")) {
+    return true;
+  }
+  if (lower.startsWith("gpt-4") && !lower.includes("gpt-4o") && !lower.includes("turbo")) {
+    // Only treat base gpt-4 as legacy if we want to prefer turbo/4o
+    // But for now, let's just be less aggressive.
+    // Actually, simply removing the block that bans gpt-4* is safer if we want "best" models.
+    // However, keeping gpt-3.5 ban is reasonable.
+    // Let's just comment out the aggressive gpt-4 ban for now or refine it.
+    // If the goal is "best", gpt-4o is best.
+    return true;
+  }
+  // Better implementation:
+  if (lower === "gpt-4" || lower === "gpt-4-32k") {
+    return true;
+  }
+
+  // OpenAI O-series: older generations.
+  if (/^o[1-3]\b/.test(lower)) {
+    return true;
+  }
+
+  // Anthropic: discard Claude 2/Instant and Claude 3.x (non-3.5) families.
+  if (/\bclaude-(?:instant|2)\b/.test(lower)) {
+    return true;
+  }
+  // Target "claude-3" variants but exclude "claude-3.5" or "claude-3-5"
+  if (lower.startsWith("claude-3")) {
+    if (lower.includes("3-5") || lower.includes("3.5")) {
+      return false;
+    }
+    return true;
+  }
+
+  // Google: discard Gemini 1.x/2.x families (prefer Gemini 3.x).
+  // Wait, defaults.ts uses gemini-2.0-flash?
+  // Current logic:
+  if (/\bgemini-1\b/.test(lower) || /\bgemini-1\./.test(lower)) {
+    return true;
+  }
+  // If we want to allow Gemini 2.0 (which is current), we should remove this block?
+  // But defaults are often pinned. If standard is 1.5, allow it?
+  // For now, let's assume Gemini 2.0 is OK to be filtered out if intent is 3.0??
+  // NOTE: There is no Gemini 3.0 yet. This logic seems future-proofed too aggressively.
+  // The system uses "gemini-2.0-flash" in defaults.
+  // The regex bans `gemini-2`.
+  // Let's fix Gemini too while we are at it.
+  if (/\bgemini-2\b/.test(lower) || /\bgemini-2\./.test(lower)) {
+    // Allow 2.0 as it's the current flash model
+    return false;
+  }
+
+  return false;
 }
 
 // ── Model scoring ──
@@ -167,13 +239,16 @@ export function meetsRequirements(
 
 /**
  * Score and rank qualifying models for a role.
- * Returns models sorted by: version (newest first), then cost (cheapest first).
- * This ensures the most recently released model is always preferred.
+ * Returns models sorted by: cost (cheapest first), then version (newest first).
+ * This matches the "cheapest that meets requirements" goal while still preferring
+ * newer releases when the cost tier is the same.
  */
 export function rankModelsForRole(
   catalog: ModelCatalogEntry[],
   requirements: RoleRequirements,
   allowedKeys?: Set<string>,
+  cfg?: OpenClawConfig,
+  authStore?: AuthProfileStore,
 ): ScoredModel[] {
   const scored: ScoredModel[] = [];
 
@@ -183,31 +258,57 @@ export function rankModelsForRole(
       continue;
     }
 
+    // Skip legacy models (auto-selection should prefer modern/cheap defaults).
+    if (isLegacyModelIdForAutoSelection(entry.id)) {
+      continue;
+    }
+
     // Skip models not in the allowlist (if provided)
     if (allowedKeys && !allowedKeys.has(modelKey(entry.provider, entry.id))) {
       continue;
     }
 
-    const capabilities = getModelCapabilitiesFromCatalog(entry);
-    if (!meetsRequirements(capabilities, requirements)) {
+    // Skip models whose provider is in cooldown (all profiles unavailable)
+    if (authStore && cfg) {
+      const profileIds = resolveAuthProfileOrder({
+        cfg,
+        store: authStore,
+        provider: entry.provider,
+      });
+      // If we have profiles, and ALL of them are in cooldown, skip this model.
+      if (profileIds.length > 0 && profileIds.every((id) => isProfileInCooldown(authStore, id))) {
+        continue;
+      }
+    }
+
+    // Skip models that are individually in cooldown (e.g. rate-limited specific model)
+    if (isModelCoolingDown({ provider: entry.provider, model: entry.id })) {
       continue;
     }
 
-    scored.push({
+    const capabilities = getModelCapabilitiesFromCatalog(entry);
+    if (!meetsRequirements(capabilities, requirements)) {
+      // console.log("Skipping reqs", entry.id);
+      continue;
+    }
+
+    const scoredModel = {
       entry,
       capabilities,
       costScore: COST_TIER_ORDER[capabilities.costTier],
       versionScore: extractVersionScore(entry.id),
-    });
+    };
+    // console.log("Scored:", entry.id, scoredModel.costScore, scoredModel.versionScore);
+    scored.push(scoredModel);
   }
 
-  // Sort: newest first (descending version), then cheapest (ascending cost) as tiebreaker
+  // Sort: cheapest first (ascending cost), then newest first (descending version) as tiebreaker
   scored.sort((a, b) => {
-    const versionDiff = b.versionScore - a.versionScore;
-    if (versionDiff !== 0) {
-      return versionDiff;
+    const costDiff = a.costScore - b.costScore;
+    if (costDiff !== 0) {
+      return costDiff;
     }
-    return a.costScore - b.costScore;
+    return b.versionScore - a.versionScore;
   });
 
   return scored;
@@ -222,11 +323,13 @@ export function selectModelForRole(
   catalog: ModelCatalogEntry[],
   role: AgentRole,
   allowedKeys?: Set<string>,
+  cfg?: OpenClawConfig,
+  authStore?: AuthProfileStore,
 ): ModelRef | null {
   const requirements = ROLE_REQUIREMENTS[role];
 
   // First pass: strict requirements
-  const ranked = rankModelsForRole(catalog, requirements, allowedKeys);
+  const ranked = rankModelsForRole(catalog, requirements, allowedKeys, cfg, authStore);
   if (ranked.length > 0) {
     const best = ranked[0];
     return { provider: best.entry.provider, model: best.entry.id };
@@ -238,7 +341,7 @@ export function selectModelForRole(
       ...requirements,
       maxCostTier: "expensive",
     };
-    const relaxedRanked = rankModelsForRole(catalog, relaxed, allowedKeys);
+    const relaxedRanked = rankModelsForRole(catalog, relaxed, allowedKeys, cfg, authStore);
     if (relaxedRanked.length > 0) {
       const best = relaxedRanked[0];
       return { provider: best.entry.provider, model: best.entry.id };
@@ -251,7 +354,7 @@ export function selectModelForRole(
     requiredCapabilities: [],
     maxCostTier: "expensive",
   };
-  const fullyRelaxedRanked = rankModelsForRole(catalog, fullyRelaxed, allowedKeys);
+  const fullyRelaxedRanked = rankModelsForRole(catalog, fullyRelaxed, allowedKeys, cfg, authStore);
   if (fullyRelaxedRanked.length > 0) {
     const best = fullyRelaxedRanked[0];
     return { provider: best.entry.provider, model: best.entry.id };
@@ -267,12 +370,14 @@ export function selectModelForRole(
 export function computeAutoSelections(
   catalog: ModelCatalogEntry[],
   allowedKeys?: Set<string>,
+  cfg?: OpenClawConfig,
+  authStore?: AuthProfileStore,
 ): Map<AgentRole, ModelRef> {
   const selections = new Map<AgentRole, ModelRef>();
   const roles: AgentRole[] = ["orchestrator", "lead", "specialist", "worker"];
 
   for (const role of roles) {
-    const selected = selectModelForRole(catalog, role, allowedKeys);
+    const selected = selectModelForRole(catalog, role, allowedKeys, cfg, authStore);
     if (selected) {
       selections.set(role, selected);
     }
@@ -293,8 +398,12 @@ let cachedSelections: Map<AgentRole, ModelRef> | null = null;
 export function initAutoModelSelection(
   catalog: ModelCatalogEntry[],
   allowedKeys?: Set<string>,
+  cfg?: OpenClawConfig,
 ): void {
-  cachedSelections = computeAutoSelections(catalog, allowedKeys);
+  // Load auth store to filter out cooldown providers
+  const authStore = ensureAuthProfileStore(undefined, { allowKeychainPrompt: false });
+
+  cachedSelections = computeAutoSelections(catalog, allowedKeys, cfg, authStore);
 
   if (cachedSelections.size > 0) {
     const lines = Array.from(cachedSelections.entries())

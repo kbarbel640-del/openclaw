@@ -1,203 +1,360 @@
 ---
 name: team-coordinator
-description: "Coordinate specialized sub-agents following a hierarchical team structure. Delegates tasks to the right specialist based on domain and complexity."
+description: "Coordinate specialized sub-agents following a hierarchical team structure. Delegates tasks to the right specialist based on domain, nature, and complexity."
 metadata: { "openclaw": { "emoji": "👥", "always": true, "skillKey": "team" } }
 user-invocable: true
 ---
 
-# Team Coordinator — Hierarchical Agent Delegation
+# Team Coordinator — Hierarchical Agent Delegation (Big Tech Mode)
 
-Use `sessions_spawn` to delegate tasks to specialized sub-agents. Each agent has a role, model assignment, and domain expertise.
-
-## Agent Hierarchy
-
-### C-Level (Strategic Decisions) — Model: opus
-
-| Agent  | Domain    | Use For                                                  |
-| ------ | --------- | -------------------------------------------------------- |
-| `ceo`  | Strategic | Product direction, ROI, stakeholder alignment            |
-| `cto`  | Technical | Architecture decisions, technology selection, ADRs       |
-| `cpo`  | Product   | Product strategy, roadmap, feature prioritization (RICE) |
-| `ciso` | Security  | Security strategy, threat modeling, compliance           |
-
-### VP Level — Model: opus
-
-| Agent            | Domain     | Use For                                          |
-| ---------------- | ---------- | ------------------------------------------------ |
-| `vp-engineering` | Management | Team scaling, DORA metrics, process optimization |
-
-### Directors (Architectural Decisions) — Model: opus/sonnet
-
-| Agent                 | Model  | Domain       | Use For                                                     |
-| --------------------- | ------ | ------------ | ----------------------------------------------------------- |
-| `backend-architect`   | opus   | Backend      | API design, server architecture, middleware, WebSocket      |
-| `frontend-architect`  | sonnet | Frontend     | Astro, React Islands, hydration strategy, responsive design |
-| `software-architect`  | opus   | Architecture | Design patterns, SOLID, clean architecture, DDD             |
-| `system-architect`    | opus   | Systems      | Distributed systems, scalability, component boundaries      |
-| `solutions-architect` | sonnet | Integration  | End-to-end solutions, technology selection                  |
-| `security-engineer`   | opus   | Security     | OWASP, STRIDE, vulnerability assessment, audits             |
-| `engineering-manager` | sonnet | Management   | Team health, 1:1s, career development                       |
-
-### Leads (Technical Leadership) — Model: sonnet
-
-| Agent               | Domain    | Use For                                               |
-| ------------------- | --------- | ----------------------------------------------------- |
-| `ai-engineer`       | AI/ML     | Agno, Ollama, RAG, signal generation                  |
-| `auth-specialist`   | Auth      | Better-Auth, OAuth 2.0, 2FA/MFA, sessions             |
-| `database-engineer` | Database  | PostgreSQL, TimescaleDB, Redis, Drizzle, migrations   |
-| `devops-engineer`   | DevOps    | Docker, CI/CD, monitoring, deployment                 |
-| `product-manager`   | Product   | Feature scoping, roadmap, sprint planning             |
-| `product-owner`     | Product   | Backlog management, user stories, acceptance criteria |
-| `qa-lead`           | Testing   | Test strategy, quality processes, release readiness   |
-| `tech-lead`         | Technical | Technical mentoring, code quality, tech debt          |
-| `trading-engine`    | Trading   | Order management, exchange APIs, P&L calculation      |
-
-### Senior Engineers (Implementation) — Model: sonnet/haiku
-
-| Agent                    | Model  | Domain      | Use For                                                  |
-| ------------------------ | ------ | ----------- | -------------------------------------------------------- |
-| `astro-specialist`       | sonnet | Frontend    | Astro 4+, islands, SSR/SSG, content collections          |
-| `better-auth-specialist` | sonnet | Auth        | 2FA, API keys, admin plugin, session management          |
-| `data-engineer`          | sonnet | Data        | ETL pipelines, data modeling, stream processing          |
-| `data-scientist`         | sonnet | Data        | Statistical modeling, ML models, feature engineering     |
-| `drizzle-specialist`     | sonnet | Database    | Type-safe queries, migrations, transactions              |
-| `elysia-specialist`      | sonnet | Backend     | Plugins, guards, TypeBox validation, Eden Treaty         |
-| `ml-engineer`            | sonnet | AI/ML       | Model deployment, training pipelines, MLOps              |
-| `performance-engineer`   | sonnet | Performance | Profiling, optimization, caching, query tuning           |
-| `python-specialist`      | sonnet | Python      | Backtesting, data analysis, pandas, NumPy                |
-| `qa-automation`          | sonnet | Testing     | Test automation, Playwright, CI integration              |
-| `quality-engineer`       | sonnet | Testing     | QA validation, coverage analysis, quality metrics        |
-| `sre`                    | sonnet | DevOps      | Uptime, SLOs, incident management, observability         |
-| `testing-specialist`     | sonnet | Testing     | Unit/integration/E2E tests, edge cases, 100% coverage    |
-| `agno-specialist`        | haiku  | AI          | Agno framework, tool creation, multi-agent orchestration |
-| `bun-specialist`         | haiku  | Backend     | Bun runtime, package management, bundling                |
-| `charts-specialist`      | haiku  | UI          | Lightweight Charts, ECharts, technical indicators        |
-| `ui-components`          | haiku  | UI          | shadcn/ui, Aceternity, Tailwind, WCAG 2.1 AA             |
-| `zod-specialist`         | haiku  | Validation  | Zod schemas, type inference, form integration            |
-
-### Specialists (Domain Experts) — Model: sonnet/haiku
-
-| Agent                  | Model  | Domain  | Use For                                           |
-| ---------------------- | ------ | ------- | ------------------------------------------------- |
-| `data-analyst`         | haiku  | Data    | Metrics, KPIs, SQL analytics, dashboards          |
-| `requirements-analyst` | sonnet | Product | User stories, acceptance criteria, prioritization |
-| `ui-designer`          | sonnet | Design  | Visual design, design systems, brand consistency  |
-| `ux-designer`          | sonnet | Design  | User flows, wireframes, interaction design        |
-| `ux-researcher`        | haiku  | Design  | Usability testing, analytics, user behavior       |
-
-### Support (Investigation & Process) — Model: varies
-
-| Agent                  | Model  | Domain    | Use For                                            |
-| ---------------------- | ------ | --------- | -------------------------------------------------- |
-| `deep-research`        | opus   | Research  | Technology evaluation, competitive research        |
-| `root-cause-analyst`   | opus   | Debugging | 5 Whys, timeline analysis, systemic issues         |
-| `refactoring-expert`   | sonnet | Code      | Code smells, pattern application, tech debt        |
-| `technical-writer`     | sonnet | Docs      | API docs, user guides, architecture docs           |
-| `git-specialist`       | haiku  | Git       | Branching, conflict resolution, history management |
-| `release-manager`      | haiku  | DevOps    | Release planning, changelog, version control       |
-| `scrum-master`         | haiku  | Process   | Sprint planning, impediment resolution, velocity   |
-| `backtrade-specialist` | opus   | Trading   | Strategy validation, Monte Carlo, risk metrics     |
+Use `sessions_spawn` / `sessions_spawn_batch` to delegar tarefas para sub-agentes especializados.
+Este skill é a **tabela verdade de roteamento**: quem cuida de quê, em que ordem e com quais gates de qualidade.
 
 ---
 
-## Delegation Decision Tree
+## 1. Classificação Obrigatória da Tarefa
 
-```
-Task received
-    |
-    v
-What type of work?
-    |
-    +-- Strategic decision (budget, direction, priorities)
-    |   --> C-Level (ceo, cto, cpo, ciso)
-    |
-    +-- Architectural decision (system design, tech selection)
-    |   --> Directors (backend-architect, software-architect, etc.)
-    |
-    +-- Technical implementation
-    |   --> Leads or Senior Engineers (based on domain)
-    |
-    +-- Investigation or research
-    |   --> Support (deep-research, root-cause-analyst)
-    |
-    +-- Process or coordination
-        --> Support (scrum-master, release-manager)
-```
+Antes de delegar, **sempre** classifique a tarefa em:
+
+### 1.1 Natureza da Tarefa
+
+- **Estratégica** — direção, prioridades, ROI, roadmap macro
+- **Arquitetural** — design de sistema, tech choice, padrões
+- **Técnica (implementação)** — backend, frontend, dados, infra, auth, etc.
+- **Produto** — escopo de feature, user stories, priorização
+- **Marketing / Comunicação** — campanhas, lançamentos, conteúdo público
+- **UX / UI** — experiência, fluxos, wireframes, design visual
+- **Qualidade / Segurança** — testes, QA, auditoria, segurança
+- **Processo / Time** — workflow, sprints, DORA, papéis
+- **Pesquisa / Investigação** — comparação de tecnologias, benchmarks, discovery
+- **Incidente / Bug Crítico** — outage, regressão grave, incidente de segurança
+
+### 1.2 Complexidade
+
+- **Simples** — até 1–2 arquivos/artefatos, impacto baixo, 1 domínio
+- **Média** — 3–5 arquivos/artefatos, pode envolver 2–3 domínios (ex: backend + frontend + QA)
+- **Complexa** — multi-domínio, 6+ artefatos, risco relevante, pode gerar ADR
+
+A combinação **natureza + complexidade** define quem entra e quais skills macro usar.
 
 ---
 
-## Using sessions_spawn
+## 2. Hierarquia de Agentes por Domínio
+
+### 2.1 C-Level (Decisões Estratégicas) — Model: opus
+
+| Agent  | Domínio    | Use Para                                                  |
+| ------ | ---------- | --------------------------------------------------------- |
+| `ceo`  | Estratégia | Direção de produto, ROI, alinhamento com stakeholders     |
+| `cto`  | Técnica    | Decisões arquiteturais major, seleção de tecnologia, ADRs |
+| `cpo`  | Produto    | Estratégia de produto, roadmap, priorização (RICE)        |
+| `ciso` | Segurança  | Estratégia de segurança, threat modeling, compliance      |
+| `cmo`  | Marketing  | Branding, posicionamento, campanhas, go-to-market         |
+
+### 2.2 VP / Diretores — Model: opus/sonnet
+
+| Agent                 | Model  | Domínio     | Use Para                                                       |
+| --------------------- | ------ | ----------- | -------------------------------------------------------------- |
+| `vp-engineering`      | opus   | Gestão Eng. | Escala de time, DORA, processo, qualidade sistêmica            |
+| `backend-architect`   | opus   | Backend     | Design de APIs, arquitetura server-side, middleware, WebSocket |
+| `frontend-architect`  | sonnet | Frontend    | Astro, React Islands, hidratação, responsividade               |
+| `software-architect`  | opus   | Arquitetura | Patterns, SOLID, clean architecture, DDD                       |
+| `system-architect`    | opus   | Sistemas    | Distribuídos, escalabilidade, boundaries                       |
+| `solutions-architect` | sonnet | Integração  | Soluções end-to-end, integrações externas                      |
+| `security-engineer`   | opus   | Segurança   | OWASP, STRIDE, vulnerabilidades, auditorias                    |
+| `engineering-manager` | sonnet | Gestão Eng. | Saúde do time, 1:1, alocação, bloqueios                        |
+
+### 2.3 Leads (Liderança Técnica) — Model: sonnet
+
+| Agent               | Domínio  | Use Para                                             |
+| ------------------- | -------- | ---------------------------------------------------- |
+| `ai-engineer`       | AI/ML    | Agno, Ollama, RAG, pipelines de LLM                  |
+| `auth-specialist`   | Auth     | Better-Auth, OAuth2, 2FA/MFA, sessões                |
+| `database-engineer` | Database | PostgreSQL, TimescaleDB, Redis, Drizzle, migrations  |
+| `devops-engineer`   | DevOps   | Docker, CI/CD, monitoring, deployment                |
+| `product-manager`   | Produto  | Escopo de feature, roadmap, sprint planning          |
+| `product-owner`     | Produto  | Backlog, user stories, critérios de aceitação        |
+| `qa-lead`           | Testes   | Estratégia de testes, processo de qualidade, release |
+| `tech-lead`         | Técnico  | Mentoria, padrões, tech debt                         |
+| `trading-engine`    | Trading  | Ordem, exchanges, P&L                                |
+| `release-manager`   | Releases | Planejamento, changelog, versões                     |
+
+### 2.4 Especialistas Sênior (Implementação) — Model: sonnet/haiku
+
+| Agent                    | Model  | Domínio     | Use Para                                              |
+| ------------------------ | ------ | ----------- | ----------------------------------------------------- |
+| `astro-specialist`       | sonnet | Frontend    | Astro 4+, islands, SSR/SSG, content collections       |
+| `better-auth-specialist` | sonnet | Auth        | 2FA, API keys, admin plugin, session management       |
+| `data-engineer`          | sonnet | Data        | Pipelines ETL, modelagem, stream processing           |
+| `data-scientist`         | sonnet | Data        | Modelagem estatística, ML, feature engineering        |
+| `drizzle-specialist`     | sonnet | Database    | Queries type-safe, migrations, transações             |
+| `elysia-specialist`      | sonnet | Backend     | Plugins, guards, validação, Eden Treaty               |
+| `ml-engineer`            | sonnet | AI/ML       | Deploy de modelo, treinamento, MLOps                  |
+| `performance-engineer`   | sonnet | Performance | Profiling, otimização, caching, tuning de queries     |
+| `python-specialist`      | sonnet | Python      | Backtesting, análise de dados, pandas/NumPy           |
+| `qa-automation`          | sonnet | Testes      | Automação, Playwright, integração CI                  |
+| `quality-engineer`       | sonnet | Testes      | Validação QA, coverage, métricas                      |
+| `sre`                    | sonnet | SRE/DevOps  | Uptime, SLOs, incidentes, observabilidade             |
+| `testing-specialist`     | sonnet | Testes      | Unit/integration/E2E, edge cases                      |
+| `agno-specialist`        | haiku  | AI          | Orquestração multi-agente, tools Agno                 |
+| `bun-specialist`         | haiku  | Backend     | Bun runtime, bundling, package management             |
+| `charts-specialist`      | haiku  | UI          | Gráficos (Lightweight, ECharts), indicadores técnicos |
+| `ui-components`          | haiku  | UI          | shadcn/ui, Aceternity, Tailwind, WCAG 2.1 AA          |
+| `zod-specialist`         | haiku  | Validação   | Zod schemas, type inference, forms                    |
+
+### 2.5 Especialistas de Domínio (Produto, UX, Marketing)
+
+| Agent                  | Model  | Domínio    | Use Para                                             |
+| ---------------------- | ------ | ---------- | ---------------------------------------------------- |
+| `data-analyst`         | haiku  | Data       | Métricas, KPIs, dashboards, análises                 |
+| `requirements-analyst` | sonnet | Produto    | User stories, critérios de aceitação, priorização    |
+| `ui-designer`          | sonnet | Design     | Design visual, design system, consistência de marca  |
+| `ux-designer`          | sonnet | UX         | User flows, wireframes, interação                    |
+| `ux-researcher`        | haiku  | UX         | Usability tests, analytics, comportamento de usuário |
+| `brand-strategist`     | sonnet | Branding   | Posicionamento, narrativa de marca                   |
+| `content-strategist`   | sonnet | Conteúdo   | Estratégia de conteúdo, pillars, calendário          |
+| `copywriter`           | sonnet | Texto      | Copy para site, produto, campanhas                   |
+| `social-media-manager` | sonnet | Social     | Estratégia e posts em redes sociais                  |
+| `community-manager`    | sonnet | Comunidade | Comunicação com comunidade, changelogs, devrel       |
+| `pr-manager`           | sonnet | PR         | Comunicação externa, notas à imprensa, incidentes    |
+
+### 2.6 Suporte (Investigação & Processo)
+
+| Agent                  | Model  | Domínio   | Use Para                                    |
+| ---------------------- | ------ | --------- | ------------------------------------------- |
+| `deep-research`        | opus   | Research  | Tech evaluation, competitive research       |
+| `root-cause-analyst`   | opus   | Debugging | 5 Whys, timeline, issues sistêmicos         |
+| `refactoring-expert`   | sonnet | Código    | Code smells, refactorings, tech debt        |
+| `technical-writer`     | sonnet | Docs      | API docs, guias de uso, ADRs, playbooks     |
+| `git-specialist`       | haiku  | Git       | Branching, conflitos, histórico             |
+| `scrum-master`         | haiku  | Processo  | Sprints, impedimentos, cadência             |
+| `backtrade-specialist` | opus   | Trading   | Validação de estratégia, Monte Carlo, risco |
+
+---
+
+## 3. Skills Macro (Design/Implement/Workflow/etc.)
+
+Use a natureza da tarefa para escolher o **skill macro** apropriado:
+
+- **Design de solução** → `/design`
+- **Implementação ponta a ponta** → `/implement`
+- **Ajuste de processo/time** → `/workflow`
+- **Pesquisa/estudo/prova de conceito** → `/research`
+- **Debug/bug/raiz do problema** → `/troubleshoot`
+- **Segurança/auditoria** → `/security`
+- **Criação/ajuste de testes** → `/test`
+- **Validação final/gates de saída** → `/validate`
+
+O `team-coordinator` deve encaminhar a tarefa para o skill macro correto **antes** de quebrar em sub-tarefas.
+
+---
+
+## 4. Árvores de Decisão por Natureza
+
+### 4.1 Estratégico
+
+- **Se** a decisão afeta roadmap, prioridades, investimento ou marca:
+  - Convidar: `ceo`, `cto`, `cpo`, `cmo`, `ciso` (conforme o tema)
+  - Usar `/design` + `collaboration.session.init` para debate
+  - Produzir decisão final (ADR/resumo) via `technical-writer`
+
+### 4.2 Arquitetural
+
+- **Se** a decisão afeta arquitetura de sistema, componentes principais ou tech stack:
+  - Convidar: `software-architect`, `system-architect`, `backend-architect`, `frontend-architect`, `security-engineer`, `devops-engineer`
+  - Usar `/design` + `collaboration.session.init` (mínimo 3 rodadas) com moderador (geralmente `system-architect` ou `cto`)
+  - Registrar decisão em ADR + `team_workspace`
+
+### 4.3 Técnica (Implementação)
+
+- Backend, APIs, jobs, integrações → `backend-architect`, `elysia-specialist`, `bun-specialist`, `drizzle-specialist`, etc.
+- Frontend/UI → `frontend-architect`, `astro-specialist`, `ui-components`, `charts-specialist`.
+- Data/ML → `data-engineer`, `data-scientist`, `ml-engineer`, `ai-engineer`.
+- Infra/DevOps → `devops-engineer`, `sre`.
+
+Sempre orquestrar via `/implement` para features/refactors, respeitando gates de qualidade (ver seção 6).
+
+### 4.4 Produto
+
+- Envolver: `product-manager`, `product-owner`, `requirements-analyst`.
+- Skills macro típicos: `/design` (escopo/valor) + `/workflow` (roadmap/sprints).
+
+### 4.5 Marketing / Comunicação
+
+- Estratégia: `cmo`, `brand-strategist`.
+- Conteúdo: `content-strategist`, `copywriter`, `technical-writer`.
+- Canais: `social-media-manager`, `community-manager`, `pr-manager`.
+- Skills macro: `/design` (narrativa/campanha) + `/workflow` (plano de execução).
+
+### 4.6 UX / UI
+
+- `ux-designer`, `ui-designer`, `ux-researcher`.
+- Usar `/design` para flows/wireframes, e depois `/implement` para UI final.
+
+### 4.7 Qualidade / Segurança
+
+- QA: `qa-lead`, `qa-automation`, `quality-engineer`, `testing-specialist`.
+- Segurança: `security-engineer`, `ciso`.
+- Skills macro: `/test`, `/validate`, `/security`.
+
+### 4.8 Processo / Time
+
+- `vp-engineering`, `engineering-manager`, `scrum-master`, `release-manager`.
+- Skill macro: `/workflow`.
+
+### 4.9 Pesquisa / Investigação
+
+- `deep-research`, `root-cause-analyst`.
+- Skills macro: `/research` (estudo) ou `/troubleshoot` (bug/incidente).
+
+### 4.10 Incidente / Bug Crítico
+
+- `sre`, `devops-engineer`, `root-cause-analyst`, `security-engineer` (se segurança).
+- Skills macro: `/troubleshoot` + `/implement` + `/test` + `/validate` (+ `/security` quando necessário).
+
+---
+
+## 5. Complexidade e Paralelismo
+
+- **Simples** (1–2 artefatos, 1 domínio):
+  - 1 especialista
+  - Pode usar `sessions_spawn` direto.
+
+- **Média** (3–5 artefatos, 2–3 domínios):
+  - 2–3 especialistas (ex: backend + frontend + QA)
+  - Usar `sessions_spawn_batch` com **até 3 subtarefas** paralelas.
+
+- **Complexa** (multi-domínio, risco alto):
+  - Orquestrar via `/implement` + `project-coordinator` se virar projeto.
+  - Quebrar em blocos de até 5 subtarefas por rodada (fan-out/fan-in).
+
+---
+
+## 6. Gates de Qualidade (Modelo QA)
+
+O `team-coordinator` deve garantir que tarefas médias/complexas respeitem os gates definidos pelo `qa-lead`:
+
+### 6.1 Feature Complexa de Produto
+
+- Skills obrigatórios:
+  - `/implement` → orquestra
+  - `/test` → define/gera testes (unit/integration/E2E conforme o caso)
+  - `/validate` → validação final
+- Agentes obrigatórios:
+  - Dev: especialistas de domínio
+  - QA: `qa-automation`, `testing-specialist`, `quality-engineer`, `qa-lead`
+  - Segurança: `security-engineer` se houver auth/dados sensíveis
+- Critérios de "pronto":
+  - Build passa
+  - Testes passam com cobertura mínima definida
+  - Sem erros/warnings críticos de lint
+  - Principais riscos de segurança mitigados
+
+### 6.2 Bug Crítico em Produção
+
+- Skills:
+  - `/troubleshoot` → root cause
+  - `/implement` → fix
+  - `/test` + `/validate` → evitar regressão
+- Agentes:
+  - `root-cause-analyst`, `sre`, `devops-engineer`, especialista de domínio, QA
+- Se envolver segurança: adicionar `/security` + `ciso`.
+
+### 6.3 Incidente de Segurança
+
+- Skills: `/security`, `/troubleshoot`, `/validate`.
+- Agentes: `security-engineer`, `ciso`, `sre`, `devops-engineer`, especialistas e QA.
+- Saídas: fix técnico, plano de mitigação/comunicação, ajustes de processo via `/workflow`.
+
+### 6.4 Refatoração de Componentes Centrais
+
+- Skills: `/design` (novo desenho), `/implement`, `/test`, `/validate`.
+- Agentes: `refactoring-expert`, leads de domínio, QA.
+
+### 6.5 Mudanças de Infra/Deploy
+
+- Skills: `/design` (plano), `/implement`, `/test` (smoke/E2E básicos), `/validate`.
+- Agentes: `devops-engineer`, `sre`, `release-manager`, QA.
+
+---
+
+## 7. Padrões de Delegação (sessions_spawn)
+
+### 7.1 Exemplos Técnicos
 
 ```typescript
-// Spawn a backend architect for API design
+// Design de API de auth
 sessions_spawn({
-  task: "Design the REST API for user authentication with JWT and refresh tokens",
+  task: "Desenhar a REST API para autenticação com JWT + refresh tokens",
   agentId: "backend-architect",
-  model: "anthropic/claude-opus-4-5",
-  label: "API Design",
+  label: "API Auth Design",
 });
 
-// Spawn a testing specialist for test coverage
+// Cobertura de testes para módulo de auth
 sessions_spawn({
-  task: "Create comprehensive tests for the auth module with 100% coverage",
+  task: "Criar testes abrangentes para o módulo de auth com foco em fluxos felizes + edge cases",
   agentId: "testing-specialist",
-  model: "anthropic/claude-sonnet-4-5",
   label: "Auth Tests",
 });
 
-// Spawn multiple agents in parallel for a feature
-sessions_spawn({
-  task: "Design database schema for orders",
-  agentId: "database-engineer",
-  label: "DB Schema",
+// Paralelizar backend + frontend + QA
+sessions_spawn_batch({
+  tasks: [
+    { task: "Design schema de pedidos", agentId: "database-engineer", label: "DB Orders" },
+    { task: "Criar endpoints de pedidos", agentId: "elysia-specialist", label: "API Orders" },
+    {
+      task: "Definir cenários de teste para pedidos",
+      agentId: "qa-automation",
+      label: "Tests Orders",
+    },
+  ],
+  waitMode: "none",
 });
+```
+
+### 7.2 Exemplos Produto / Marketing
+
+```typescript
+// Escopo de feature
 sessions_spawn({
-  task: "Create API endpoints for orders",
-  agentId: "backend-architect",
-  label: "Orders API",
+  task: "Definir user stories e critérios de aceitação para a feature X",
+  agentId: "product-manager",
+  label: "Feature X Scope",
 });
-sessions_spawn({
-  task: "Build order list component",
-  agentId: "frontend-architect",
-  label: "Orders UI",
+
+// Plano de lançamento / comunicação
+sessions_spawn_batch({
+  tasks: [
+    {
+      task: "Definir narrativa de branding para o lançamento da feature X",
+      agentId: "brand-strategist",
+      label: "Feature X Branding",
+    },
+    {
+      task: "Criar plano de posts em redes sociais para a feature X",
+      agentId: "social-media-manager",
+      label: "Feature X Social",
+    },
+    {
+      task: "Planejar anúncio para comunidade e changelog",
+      agentId: "community-manager",
+      label: "Feature X Community",
+    },
+  ],
+  waitMode: "none",
 });
 ```
 
 ---
 
-## Model Mapping
+## 8. Regras Gerais (Big Tech Mode)
 
-| Level  | Model             | Cost   | Use When                                            |
-| ------ | ----------------- | ------ | --------------------------------------------------- |
-| opus   | claude-opus-4-5   | High   | Strategic decisions, complex architecture, security |
-| sonnet | claude-sonnet-4-5 | Medium | Implementation, technical leadership, most dev work |
-| haiku  | claude-haiku-4-5  | Low    | Simple tasks, quick lookups, routine operations     |
-
----
-
-## Complexity-Based Delegation
-
-### Simple (1-2 files)
-
-- Single specialist, direct execution
-- Example: `sessions_spawn({ task: "Fix typo in README", agentId: "technical-writer" })`
-
-### Medium (3-5 files)
-
-- 2-3 specialists in parallel
-- Example: Backend + Frontend + Tests
-
-### Complex (6+ files)
-
-- Full team coordination
-- Use `/implement` skill with coordinator
-
----
-
-## Rules
-
-1. **Match domain to specialist** — Don't send frontend work to backend-architect
-2. **Use appropriate model level** — Don't use opus for simple tasks
-3. **Delegate, don't micromanage** — Give clear task, let specialist execute
-4. **Parallel when independent** — Spawn multiple agents if tasks don't depend on each other
-5. **Sequential when dependent** — Wait for DB schema before API implementation
+1. **Combine natureza + complexidade** antes de qualquer delegação.
+2. **Use skills macro** (`/design`, `/implement`, `/workflow`, etc.) como primeira parada; `team-coordinator` não implementa, só roteia.
+3. **Match domain to specialist** — nunca mande frontend para `backend-architect`, nem marketing para `software-architect`.
+4. **Use o nível de modelo adequado** — opus para decisões grandes, sonnet para engenharia, haiku para tarefas simples.
+5. **Paralelize o que é independente** usando `sessions_spawn_batch` (limite saudável de 3–5 subtarefas por rodada).
+6. **Respeite os gates de qualidade** — qualquer tarefa média/complexa deve passar por `/test` + `/validate` e, quando necessário, `/security`.
+7. **Use debates (`collaboration.session.init`) para decisões arquiteturais/estratégicas relevantes**, com mínimo de 3 rodadas e moderador claro.
+8. **Registre decisões importantes** em ADRs e/ou `team_workspace` para criar memória institucional.
+9. **Nunca implemente diretamente neste skill** — ele existe para coordenar o time, não para fazer o trabalho.

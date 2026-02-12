@@ -7,6 +7,8 @@
 import postgres from "postgres";
 
 export type DatabaseConfig = {
+  /** Full connection URL if provided (preferred). */
+  url?: string;
   host: string;
   port: number;
   database: string;
@@ -15,11 +17,52 @@ export type DatabaseConfig = {
   maxConnections?: number;
   idleTimeout?: number;
   connectTimeout?: number;
+  ssl?: boolean;
 };
 
 let sql: postgres.Sql | null = null;
 
+function parseDatabaseUrl(raw: string): DatabaseConfig | null {
+  try {
+    const url = new URL(raw);
+    // Accept: postgres:// and postgresql://
+    if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+      return null;
+    }
+    const host = url.hostname || "localhost";
+    const port = url.port ? Number(url.port) : 5432;
+    const database = url.pathname.replace(/^\//, "") || "openclaw";
+    const username = decodeURIComponent(url.username || "openclaw");
+    const password = decodeURIComponent(url.password || "openclaw");
+    const sslmode = (url.searchParams.get("sslmode") || "").toLowerCase();
+    const ssl = sslmode === "require" || sslmode === "verify-ca" || sslmode === "verify-full";
+    return {
+      url: raw,
+      host,
+      port,
+      database,
+      username,
+      password,
+      ssl,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function getDatabaseConfig(): DatabaseConfig {
+  const urlConfig = process.env.DATABASE_URL?.trim()
+    ? parseDatabaseUrl(process.env.DATABASE_URL.trim())
+    : null;
+  if (urlConfig) {
+    return {
+      ...urlConfig,
+      maxConnections: Number(process.env.POSTGRES_MAX_CONNECTIONS ?? 10),
+      idleTimeout: Number(process.env.POSTGRES_IDLE_TIMEOUT ?? 30),
+      connectTimeout: Number(process.env.POSTGRES_CONNECT_TIMEOUT ?? 10),
+    };
+  }
+
   return {
     host: process.env.POSTGRES_HOST ?? "localhost",
     port: Number(process.env.POSTGRES_PORT ?? 5432),
@@ -29,6 +72,7 @@ export function getDatabaseConfig(): DatabaseConfig {
     maxConnections: Number(process.env.POSTGRES_MAX_CONNECTIONS ?? 10),
     idleTimeout: Number(process.env.POSTGRES_IDLE_TIMEOUT ?? 30),
     connectTimeout: Number(process.env.POSTGRES_CONNECT_TIMEOUT ?? 10),
+    ssl: process.env.POSTGRES_SSL === "true",
   };
 }
 
@@ -39,7 +83,7 @@ export function getDatabase(): postgres.Sql {
 
   const config = getDatabaseConfig();
 
-  sql = postgres({
+  const options: postgres.Options<{}> = {
     host: config.host,
     port: config.port,
     database: config.database,
@@ -48,10 +92,14 @@ export function getDatabase(): postgres.Sql {
     max: config.maxConnections,
     idle_timeout: config.idleTimeout,
     connect_timeout: config.connectTimeout,
+    ssl: config.ssl,
     onnotice: () => {
       // Suppress notices
     },
-  });
+  };
+
+  // Prefer DATABASE_URL when present so users can use standard tooling/env.
+  sql = config.url ? postgres(config.url, options) : postgres(options);
 
   return sql;
 }

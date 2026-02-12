@@ -21,7 +21,10 @@ import type {
   AgentsListResultSchema,
   AgentsModelSetParamsSchema,
   AgentsModelSetResultSchema,
+  ModelCooldownSchema,
   ModelChoiceSchema,
+  ModelsCooldownsParamsSchema,
+  ModelsCooldownsResultSchema,
   ModelsListParamsSchema,
   ModelsListResultSchema,
   SkillsBinsParamsSchema,
@@ -85,6 +88,7 @@ import type {
   ShutdownEventSchema,
   TickEventSchema,
 } from "./frames.js";
+import type { FsPickDirectoryParamsSchema } from "./fs.js";
 import type {
   ChatAbortParamsSchema,
   ChatEventSchema,
@@ -105,6 +109,7 @@ import type {
   NodePairVerifyParamsSchema,
   NodeRenameParamsSchema,
 } from "./nodes.js";
+import type { ProjectsListParamsSchema } from "./projects.js";
 import type {
   SessionsCompactParamsSchema,
   SessionsDeleteParamsSchema,
@@ -160,6 +165,7 @@ export type SessionsPatchParams = Static<typeof SessionsPatchParamsSchema>;
 export type SessionsResetParams = Static<typeof SessionsResetParamsSchema>;
 export type SessionsDeleteParams = Static<typeof SessionsDeleteParamsSchema>;
 export type SessionsCompactParams = Static<typeof SessionsCompactParamsSchema>;
+export type ProjectsListParams = Static<typeof ProjectsListParamsSchema>;
 export type ConfigGetParams = Static<typeof ConfigGetParamsSchema>;
 export type ConfigSetParams = Static<typeof ConfigSetParamsSchema>;
 export type ConfigApplyParams = Static<typeof ConfigApplyParamsSchema>;
@@ -196,6 +202,9 @@ export type AgentsModelSetResult = Static<typeof AgentsModelSetResultSchema>;
 export type ModelChoice = Static<typeof ModelChoiceSchema>;
 export type ModelsListParams = Static<typeof ModelsListParamsSchema>;
 export type ModelsListResult = Static<typeof ModelsListResultSchema>;
+export type ModelCooldown = Static<typeof ModelCooldownSchema>;
+export type ModelsCooldownsParams = Static<typeof ModelsCooldownsParamsSchema>;
+export type ModelsCooldownsResult = Static<typeof ModelsCooldownsResultSchema>;
 export type SkillsStatusParams = Static<typeof SkillsStatusParamsSchema>;
 export type SkillsBinsParams = Static<typeof SkillsBinsParamsSchema>;
 export type SkillsBinsResult = Static<typeof SkillsBinsResultSchema>;
@@ -219,6 +228,7 @@ export type ExecApprovalsNodeSetParams = Static<typeof ExecApprovalsNodeSetParam
 export type ExecApprovalsSnapshot = Static<typeof ExecApprovalsSnapshotSchema>;
 export type ExecApprovalRequestParams = Static<typeof ExecApprovalRequestParamsSchema>;
 export type ExecApprovalResolveParams = Static<typeof ExecApprovalResolveParamsSchema>;
+export type FsPickDirectoryParams = Static<typeof FsPickDirectoryParamsSchema>;
 export type DevicePairListParams = Static<typeof DevicePairListParamsSchema>;
 export type DevicePairApproveParams = Static<typeof DevicePairApproveParamsSchema>;
 export type DevicePairRejectParams = Static<typeof DevicePairRejectParamsSchema>;

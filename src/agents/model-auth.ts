@@ -3,6 +3,7 @@ import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import type { ModelProviderAuthMode, ModelProviderConfig } from "../config/types.js";
 import { formatCliCommand } from "../cli/command-format.js";
+import { PROVIDER_REGISTRY } from "../commands/providers/registry.js";
 import { getShellEnvAppliedKeys } from "../infra/shell-env.js";
 import {
   type AuthProfileStore,
@@ -170,6 +171,10 @@ export async function resolveApiKeyForProvider(params: {
     provider,
     preferredProfile,
   });
+  // DEBUG: trace auth profile resolution
+  console.error(
+    `[DEBUG auth] provider="${provider}" order=${JSON.stringify(order)} profiles=${JSON.stringify(Object.keys(store.profiles))} profileProviders=${JSON.stringify(Object.values(store.profiles).map((p) => p.provider))}`,
+  );
   for (const candidate of order) {
     try {
       const resolved = await resolveApiKeyForProfile({
@@ -188,6 +193,41 @@ export async function resolveApiKeyForProvider(params: {
         };
       }
     } catch {}
+  }
+
+  // google-antigravity and google-gemini-cli share the same OAuth credentials.
+  // If the primary provider has no profiles, try the sibling provider.
+  const googleAliases: Record<string, string> = {
+    "google-gemini-cli": "google-antigravity",
+    "google-antigravity": "google-gemini-cli",
+  };
+  const siblingProvider = googleAliases[normalizeProviderId(provider)];
+  if (siblingProvider && order.length === 0) {
+    const siblingOrder = resolveAuthProfileOrder({
+      cfg,
+      store,
+      provider: siblingProvider,
+      preferredProfile,
+    });
+    for (const candidate of siblingOrder) {
+      try {
+        const resolved = await resolveApiKeyForProfile({
+          cfg,
+          store,
+          profileId: candidate,
+          agentDir: params.agentDir,
+        });
+        if (resolved) {
+          const mode = store.profiles[candidate]?.type;
+          return {
+            apiKey: resolved.apiKey,
+            profileId: candidate,
+            source: `profile:${candidate}`,
+            mode: mode === "oauth" ? "oauth" : mode === "token" ? "token" : "api-key",
+          };
+        }
+      } catch {}
+    }
   }
 
   const envResolved = resolveEnvApiKey(provider);
@@ -284,28 +324,24 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
     return pick("KIMI_API_KEY") ?? pick("KIMICODE_API_KEY");
   }
 
-  const envMap: Record<string, string> = {
-    openai: "OPENAI_API_KEY",
-    google: "GEMINI_API_KEY",
-    groq: "GROQ_API_KEY",
-    deepgram: "DEEPGRAM_API_KEY",
-    cerebras: "CEREBRAS_API_KEY",
-    xai: "XAI_API_KEY",
-    openrouter: "OPENROUTER_API_KEY",
-    "vercel-ai-gateway": "AI_GATEWAY_API_KEY",
-    moonshot: "MOONSHOT_API_KEY",
-    minimax: "MINIMAX_API_KEY",
-    xiaomi: "XIAOMI_API_KEY",
-    synthetic: "SYNTHETIC_API_KEY",
-    venice: "VENICE_API_KEY",
-    mistral: "MISTRAL_API_KEY",
-    opencode: "OPENCODE_API_KEY",
-  };
-  const envVar = envMap[normalized];
-  if (!envVar) {
-    return null;
+  // Iterate over registry to find provider and check its configured env vars
+  const definition = PROVIDER_REGISTRY.find((p) => p.id === normalized);
+  if (definition) {
+    for (const envVar of definition.envVars) {
+      const res = pick(envVar);
+      if (res) {
+        return res;
+      }
+    }
+    for (const envVar of definition.altEnvVars ?? []) {
+      const res = pick(envVar);
+      if (res) {
+        return res;
+      }
+    }
   }
-  return pick(envVar);
+
+  return null;
 }
 
 export function resolveModelAuthMode(
@@ -354,6 +390,9 @@ export function resolveModelAuthMode(
 
   const envKey = resolveEnvApiKey(resolved);
   if (envKey?.apiKey) {
+    if (normalizeProviderId(resolved) === "github-copilot") {
+      return "token";
+    }
     return envKey.source.includes("OAUTH_TOKEN") ? "oauth" : "api-key";
   }
 

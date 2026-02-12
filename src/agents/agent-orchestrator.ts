@@ -124,7 +124,7 @@ Debate session: ${sessionKey}
     async getDebateState(sessionKey) {
       const session = await callGateway({
         method: "collab.session.get",
-        params: { sessionKey },
+        params: { sessionKey, requesterId: "main" },
         clientName: "cli",
         mode: "cli",
       });
@@ -190,7 +190,7 @@ Debate session: ${sessionKey}
     async getDebateDecisions(sessionKey) {
       const session = await callGateway({
         method: "collab.session.get",
-        params: { sessionKey },
+        params: { sessionKey, requesterId: "main" },
         clientName: "cli",
         mode: "cli",
       });

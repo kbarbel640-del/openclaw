@@ -73,6 +73,46 @@ describe("subagent announce formatting", () => {
     };
   });
 
+  it("includes no-idle completion instructions in subagent system prompt", async () => {
+    const { buildSubagentSystemPrompt } = await import("./subagent-announce.js");
+    const prompt = buildSubagentSystemPrompt({
+      requesterSessionKey: "agent:main:main",
+      childSessionKey: "agent:worker:subagent:test",
+      task: "Implement endpoint",
+      cleanup: "idle",
+    });
+
+    expect(prompt).toContain("No idle finish");
+    expect(prompt).toContain("next task");
+    expect(prompt).toContain("dismiss me");
+  });
+
+  it("requires full specialty coverage in subagent prompt", async () => {
+    const { buildSubagentSystemPrompt } = await import("./subagent-announce.js");
+    const prompt = buildSubagentSystemPrompt({
+      requesterSessionKey: "agent:main:main",
+      childSessionKey: "agent:worker:subagent:test",
+      task: "Review architecture",
+      cleanup: "idle",
+    });
+
+    expect(prompt).toContain("## Specialty Coverage (MANDATORY)");
+    expect(prompt).toContain("cover all relevant angles inside your specialty");
+    expect(prompt).toContain("correctness, risks, trade-offs, dependencies, and validation impact");
+    expect(prompt).toContain("Default to market-proven solutions");
+    expect(prompt).toContain("Avoid reinventing core components");
+    expect(prompt).toContain("Keep delivery production-grade");
+    expect(prompt).toContain("## Official Docs First");
+    expect(prompt).toContain("consult the official documentation before coding");
+    expect(prompt).toContain("Prefer official docs/repo docs over blog posts");
+    expect(prompt).toContain("Prefer latest stable versions by default");
+    expect(prompt).toContain("Check release notes/changelog/migration guide");
+    expect(prompt).toContain("requires structural/API changes, refactor");
+    expect(prompt).toContain("## Continuity & Resume");
+    expect(prompt).toContain("recover where work stopped");
+    expect(prompt).toContain("Before finishing or handoff, write a resumable checkpoint");
+  });
+
   it("sends instructional message to main agent with status and findings", async () => {
     const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
     await runSubagentAnnounceFlow({
@@ -100,6 +140,7 @@ describe("subagent announce formatting", () => {
     expect(msg).toContain("Findings:");
     expect(msg).toContain("raw subagent reply");
     expect(msg).toContain("Stats:");
+    expect(msg).toContain("next-step action");
   });
 
   it("includes success status when outcome is ok", async () => {

@@ -153,6 +153,35 @@ grep -rn "INSERT.*\${" --include="*.ts" src/
 - [ ] Dependencies secure
 ```
 
+## Team Security Workflow
+
+### Submit Security Audit for Review
+
+```typescript
+// Submit audit findings for team review
+collaboration({
+  action: "submit_review",
+  artifact: "Security audit report for src/auth/ module",
+  reviewers: ["backend-architect", "tech-lead"],
+  context: "Found 2 high-severity issues in token handling. Review remediation plan.",
+});
+```
+
+### Record Security Decisions
+
+```typescript
+// Write security decision as artifact
+team_workspace({
+  action: "write_artifact",
+  name: "security-audit-auth-2024.md",
+  content: "# Security Audit: Auth Module\n\n## Findings\n...\n## Remediation\n...",
+  description: "Security audit findings and remediation plan for auth module",
+  tags: ["security", "audit", "auth"],
+});
+```
+
+---
+
 ## Delegation
 
 ```typescript

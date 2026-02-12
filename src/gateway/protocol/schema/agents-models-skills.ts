@@ -144,6 +144,28 @@ export const ModelsListResultSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const ModelCooldownSchema = Type.Object(
+  {
+    key: NonEmptyString,
+    provider: NonEmptyString,
+    model: NonEmptyString,
+    untilMs: Type.Integer({ minimum: 0 }),
+    remainingMs: Type.Integer({ minimum: 0 }),
+    failures: Type.Integer({ minimum: 0 }),
+    reason: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const ModelsCooldownsParamsSchema = Type.Object({}, { additionalProperties: false });
+
+export const ModelsCooldownsResultSchema = Type.Object(
+  {
+    cooldowns: Type.Array(ModelCooldownSchema),
+  },
+  { additionalProperties: false },
+);
+
 export const SkillsStatusParamsSchema = Type.Object(
   {
     agentId: Type.Optional(NonEmptyString),

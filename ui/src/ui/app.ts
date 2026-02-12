@@ -80,8 +80,10 @@ import {
   type ToolStreamEntry,
 } from "./app-tool-stream.ts";
 import { resolveInjectedAssistantIdentity } from "./assistant-identity.ts";
+import { loadChatComposerState } from "./chat-drafts.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
 import { loadProvidersHealth as loadProvidersHealthInternal } from "./controllers/providers-health.ts";
+import { loadSecurityData } from "./controllers/security.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
 
@@ -90,6 +92,9 @@ declare global {
     __OPENCLAW_CONTROL_UI_BASE_PATH__?: string;
   }
 }
+
+const bootSettings = loadSettings();
+const initialChatComposer = loadChatComposerState(bootSettings.sessionKey);
 
 const injectedAssistantIdentity = resolveInjectedAssistantIdentity();
 
@@ -108,7 +113,7 @@ function resolveOnboardingMode(): boolean {
 
 @customElement("openclaw-app")
 export class OpenClawApp extends LitElement {
-  @state() settings: UiSettings = loadSettings();
+  @state() settings: UiSettings = bootSettings;
   @state() password = "";
   @state() tab: Tab = "chat";
   @state() onboarding = resolveOnboardingMode();
@@ -129,7 +134,7 @@ export class OpenClawApp extends LitElement {
   @state() sessionKey = this.settings.sessionKey;
   @state() chatLoading = false;
   @state() chatSending = false;
-  @state() chatMessage = "";
+  @state() chatMessage = initialChatComposer.draft;
   @state() chatMessages: unknown[] = [];
   @state() chatToolMessages: unknown[] = [];
   @state() chatStream: string | null = null;
@@ -139,7 +144,7 @@ export class OpenClawApp extends LitElement {
   @state() chatAvatarUrl: string | null = null;
   @state() chatThinkingLevel: string | null = null;
   @state() chatQueue: ChatQueueItem[] = [];
-  @state() chatAttachments: ChatAttachment[] = [];
+  @state() chatAttachments: ChatAttachment[] = initialChatComposer.attachments;
   // Sidebar state for tool output viewing
   @state() sidebarOpen = false;
   @state() sidebarContent: string | null = null;
@@ -273,6 +278,8 @@ export class OpenClawApp extends LitElement {
   @state() providersModelAllowlist: Set<string> = new Set();
   @state() providersPrimaryModel: string | null = null;
   @state() providersModelFallbacks: string[] = [];
+  @state() providersCodingModelPrimary: string | null = null;
+  @state() providersModelAutoPickFromPool = false;
   @state() providersConfigHash: string | null = null;
   @state() providersModelsSaving = false;
   @state() providersModelsDirty = false;
@@ -356,6 +363,31 @@ export class OpenClawApp extends LitElement {
   @state() debugCallParams = "{}";
   @state() debugCallResult: string | null = null;
   @state() debugCallError: string | null = null;
+
+  // Model catalog (models.list)
+  @state() modelsLoading = false;
+  @state() modelsError: string | null = null;
+  @state() modelsCatalog: import("./controllers/models.ts").ModelCatalogRow[] = [];
+
+  // Model availability (providers.health + models.cooldowns)
+  @state() modelsAvailabilityLoading = false;
+  @state() modelsAvailabilityError: string | null = null;
+  @state() detectedProviders: Set<string> = new Set();
+  @state() unavailableProviders: Set<string> = new Set();
+  @state() cooldownModels: Set<string> = new Set();
+  @state() closestUsageByProvider: Record<
+    string,
+    import("./controllers/models-availability.ts").ClosestUsageWindow | null
+  > = {};
+
+  // Projects catalog (projects.list)
+  @state() projectsLoading = false;
+  @state() projectsError: string | null = null;
+  @state() projectsRootDir: string | null = null;
+  // Browse root for "projects" picker (can be any directory on disk).
+  @state() projectsBrowseRootDir: string | null = null;
+  @state() projectsIncludeHidden = false;
+  @state() projects: import("./controllers/projects.ts").ProjectEntry[] = [];
 
   @state() logsLoading = false;
   @state() logsError: string | null = null;
@@ -618,7 +650,6 @@ export class OpenClawApp extends LitElement {
   }
 
   async handleLoadSecurity() {
-    const { loadSecurityData } = await import("./controllers/security.ts");
     await loadSecurityData(this as unknown as import("./controllers/security.ts").SecurityState);
   }
 

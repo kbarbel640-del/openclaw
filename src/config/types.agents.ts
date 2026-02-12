@@ -1,4 +1,4 @@
-import type { AgentDefaultsConfig } from "./types.agent-defaults.js";
+import type { AgentDefaultsConfig, ModelByComplexityConfig } from "./types.agent-defaults.js";
 import type { HumanDelayConfig, IdentityConfig } from "./types.base.js";
 import type { GroupChatConfig } from "./types.messages.js";
 import type {
@@ -25,9 +25,20 @@ export type AgentConfig = {
   name?: string;
   /** Hierarchy role: orchestrator > lead > specialist > worker. Default: "specialist". */
   role?: AgentRole;
+  /**
+   * Optional persona override.
+   *
+   * When set, OpenClaw will try to load a persona markdown file from the agent workspace
+   * (default: `personas/<persona>.md`) and inject it in place of `SOUL.md` for prompt context.
+   *
+   * This does not change tool availability or skill eligibility.
+   */
+  persona?: string;
   workspace?: string;
   agentDir?: string;
   model?: AgentModelConfig;
+  /** Optional per-agent complexity-based model routing overrides. */
+  modelByComplexity?: ModelByComplexityConfig;
   /** Optional allowlist of skills for this agent (omit = all skills; empty = none). */
   skills?: string[];
   /** Capability tags for smart agent routing (e.g., "api-design", "security", "react", "database"). */

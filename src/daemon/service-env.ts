@@ -163,6 +163,8 @@ export function buildServiceEnvironment(params: {
     OPENCLAW_CONFIG_PATH: configPath,
     OPENCLAW_GATEWAY_PORT: String(port),
     OPENCLAW_GATEWAY_TOKEN: token,
+    // Allow service installs to opt out of role-based auto-selection.
+    OPENCLAW_DISABLE_MODEL_AUTO_SELECT: env.OPENCLAW_DISABLE_MODEL_AUTO_SELECT,
     OPENCLAW_LAUNCHD_LABEL: resolvedLaunchdLabel,
     OPENCLAW_SYSTEMD_UNIT: systemdUnit,
     OPENCLAW_SERVICE_MARKER: GATEWAY_SERVICE_MARKER,

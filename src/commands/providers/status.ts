@@ -5,6 +5,7 @@
 
 import type { RuntimeEnv } from "../../runtime.js";
 import type { ProviderStatus } from "./types.js";
+import { getModelCooldownSnapshot } from "../../agents/model-fallback.js";
 import { defaultRuntime } from "../../runtime.js";
 import { theme, isRich } from "../../terminal/theme.js";
 import { detectProvider, detectProviders } from "./detection.js";
@@ -142,6 +143,21 @@ export async function providersStatusCommand(
       }
       if (definition.isLocal) {
         runtime.log(`    Type:        Local provider`);
+      }
+    }
+
+    // Show model cooldowns for this provider
+    const snapshot = getModelCooldownSnapshot();
+    const providerCooldowns = snapshot.filter((s) => s.provider === provider.id);
+    if (providerCooldowns.length > 0) {
+      runtime.log("");
+      runtime.log(rich ? theme.warn("  Model Limits / Cooldowns:") : "  Model Limits / Cooldowns:");
+      for (const entry of providerCooldowns) {
+        const remaining = Math.ceil(entry.remainingMs / 1000);
+        const reason = entry.reason === "rate_limit" ? "Rate Limit" : entry.reason;
+        runtime.log(
+          `    - ${entry.model}: ${reason} (${remaining}s remaining, ${entry.failures} failures)`,
+        );
       }
     }
 

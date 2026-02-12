@@ -5,7 +5,10 @@ import {
   agentsAddCommand,
   agentsDeleteCommand,
   agentsListCommand,
+  agentsTeamClearCommand,
+  agentsTeamSetCommand,
   agentsSetIdentityCommand,
+  agentsSetPersonaCommand,
 } from "../../commands/agents.js";
 import { setVerbose } from "../../globals.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -188,6 +191,45 @@ ${formatHelpExamples([
     });
 
   agents
+    .command("set-persona")
+    .description("Set an agent persona override (injects personas/<key>.md as SOUL.md)")
+    .requiredOption("--agent <id>", "Agent id to update")
+    .option("--persona <key>", "Persona key (default file: personas/<key>.md)")
+    .option("--clear", "Clear the configured persona override", false)
+    .option("--json", "Output JSON summary", false)
+    .addHelpText(
+      "after",
+      () =>
+        `
+${theme.heading("Examples:")}
+${formatHelpExamples([
+  [
+    "openclaw agents set-persona --agent main --persona staff-engineer",
+    "Use personas/staff-engineer.md.",
+  ],
+  [
+    "openclaw agents set-persona --agent main --persona personas/my-persona.md",
+    "Use a workspace-relative persona path.",
+  ],
+  ["openclaw agents set-persona --agent main --clear", "Revert to the default SOUL.md injection."],
+])}
+`,
+    )
+    .action(async (opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await agentsSetPersonaCommand(
+          {
+            agent: opts.agent as string | undefined,
+            persona: opts.persona as string | undefined,
+            clear: Boolean(opts.clear),
+            json: Boolean(opts.json),
+          },
+          defaultRuntime,
+        );
+      });
+    });
+
+  agents
     .command("delete <id>")
     .description("Delete an agent and prune workspace/state")
     .option("--force", "Skip confirmation", false)
@@ -202,6 +244,37 @@ ${formatHelpExamples([
           },
           defaultRuntime,
         );
+      });
+    });
+
+  const team = agents
+    .command("team")
+    .description("Configure team members an agent can delegate to");
+
+  team
+    .command("set")
+    .description("Set the allowlist of team members for an agent")
+    .requiredOption("--agent <id>", "Agent id to configure")
+    .option(
+      "--member <id>",
+      "Team member id (repeatable; supports comma-separated lists)",
+      collectOption,
+      [],
+    )
+    .action(async (opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const members = Array.isArray(opts.member) ? (opts.member as string[]) : [];
+        await agentsTeamSetCommand({ agent: String(opts.agent), members }, defaultRuntime);
+      });
+    });
+
+  team
+    .command("clear")
+    .description("Clear the team member allowlist for an agent")
+    .requiredOption("--agent <id>", "Agent id to configure")
+    .action(async (opts) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        await agentsTeamClearCommand({ agent: String(opts.agent) }, defaultRuntime);
       });
     });
 

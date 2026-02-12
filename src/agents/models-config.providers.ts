@@ -65,6 +65,61 @@ const QWEN_PORTAL_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+const GROQ_DEFAULT_MODEL_ID = "llama-3.3-70b-versatile";
+const GROQ_DEFAULT_CONTEXT_WINDOW = 128000;
+const GROQ_DEFAULT_MAX_TOKENS = 8192;
+const GROQ_DEFAULT_COST = {
+  input: 0.59,
+  output: 0.79,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+const MISTRAL_BASE_URL = "https://api.mistral.ai/v1";
+const MISTRAL_DEFAULT_MODEL_ID = "mistral-large-latest";
+const MISTRAL_DEFAULT_CONTEXT_WINDOW = 128000;
+const MISTRAL_DEFAULT_MAX_TOKENS = 8192;
+const MISTRAL_DEFAULT_COST = {
+  input: 2,
+  output: 6,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+const XAI_BASE_URL = "https://api.x.ai/v1";
+const XAI_DEFAULT_MODEL_ID = "grok-2";
+const XAI_DEFAULT_CONTEXT_WINDOW = 128000;
+const XAI_DEFAULT_MAX_TOKENS = 8192;
+const XAI_DEFAULT_COST = {
+  input: 2,
+  output: 10,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+const CEREBRAS_BASE_URL = "https://api.cerebras.ai/v1";
+const CEREBRAS_DEFAULT_MODEL_ID = "llama3.1-70b";
+const CEREBRAS_DEFAULT_CONTEXT_WINDOW = 128000;
+const CEREBRAS_DEFAULT_MAX_TOKENS = 8192;
+const CEREBRAS_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_DEFAULT_MODEL_ID = "openai/gpt-4o-mini";
+const OPENROUTER_DEFAULT_CONTEXT_WINDOW = 128000;
+const OPENROUTER_DEFAULT_MAX_TOKENS = 8192;
+const OPENROUTER_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
 const OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1";
 const OLLAMA_API_BASE_URL = "http://127.0.0.1:11434";
 const OLLAMA_DEFAULT_CONTEXT_WINDOW = 128000;
@@ -166,9 +221,18 @@ function resolveApiKeyFromProfiles(params: {
     }
     if (cred.type === "oauth") {
       const access = (cred as { access?: string }).access?.trim();
-      if (access) {
-        return access;
+      if (!access) {
+        continue;
       }
+      const projectId = (cred as { projectId?: string }).projectId?.trim();
+      if (
+        projectId &&
+        (cred.provider === "google-antigravity" || cred.provider === "google-gemini-cli")
+      ) {
+        // pi-ai expects OAuth apiKey payload as JSON for Google OAuth providers.
+        return JSON.stringify({ token: access, projectId });
+      }
+      return access;
     }
   }
   return undefined;
@@ -400,6 +464,138 @@ async function buildOllamaProvider(): Promise<ProviderConfig> {
   };
 }
 
+function buildGroqProvider(): ProviderConfig {
+  return {
+    baseUrl: GROQ_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: GROQ_DEFAULT_MODEL_ID,
+        name: "Llama 3.3 70B Versatile",
+        reasoning: false,
+        input: ["text"],
+        cost: GROQ_DEFAULT_COST,
+        contextWindow: GROQ_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: GROQ_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "mixtral-8x7b-32768",
+        name: "Mixtral 8x7B 32k",
+        reasoning: false,
+        input: ["text"],
+        cost: {
+          input: 0.24,
+          output: 0.24,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+        contextWindow: 32768,
+        maxTokens: 32768,
+      },
+    ],
+  };
+}
+
+function buildMistralProvider(): ProviderConfig {
+  return {
+    baseUrl: MISTRAL_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: MISTRAL_DEFAULT_MODEL_ID,
+        name: "Mistral Large",
+        reasoning: false,
+        input: ["text"],
+        cost: MISTRAL_DEFAULT_COST,
+        contextWindow: MISTRAL_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: MISTRAL_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "mistral-small-latest",
+        name: "Mistral Small",
+        reasoning: false,
+        input: ["text"],
+        cost: {
+          input: 0.2,
+          output: 0.6,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+        contextWindow: 32000,
+        maxTokens: 8192,
+      },
+    ],
+  };
+}
+
+function buildXAIProvider(): ProviderConfig {
+  return {
+    baseUrl: XAI_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: XAI_DEFAULT_MODEL_ID,
+        name: "Grok 2",
+        reasoning: false,
+        input: ["text"],
+        cost: XAI_DEFAULT_COST,
+        contextWindow: XAI_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: XAI_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "grok-2-mini",
+        name: "Grok 2 Mini",
+        reasoning: false,
+        input: ["text"],
+        cost: {
+          input: 0.2,
+          output: 1.0,
+          cacheRead: 0,
+          cacheWrite: 0,
+        },
+        contextWindow: 128000,
+        maxTokens: 8192,
+      },
+    ],
+  };
+}
+
+function buildCerebrasProvider(): ProviderConfig {
+  return {
+    baseUrl: CEREBRAS_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: CEREBRAS_DEFAULT_MODEL_ID,
+        name: "Llama 3.1 70B",
+        reasoning: false,
+        input: ["text"],
+        cost: CEREBRAS_DEFAULT_COST,
+        contextWindow: CEREBRAS_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: CEREBRAS_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
+function buildOpenRouterProvider(): ProviderConfig {
+  return {
+    baseUrl: OPENROUTER_BASE_URL,
+    api: "openai-completions",
+    models: [
+      {
+        id: OPENROUTER_DEFAULT_MODEL_ID,
+        name: "GPT-4o Mini (OpenRouter)",
+        reasoning: false,
+        input: ["text"],
+        cost: OPENROUTER_DEFAULT_COST,
+        contextWindow: OPENROUTER_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: OPENROUTER_DEFAULT_MAX_TOKENS,
+      },
+    ],
+  };
+}
+
 export async function resolveImplicitProviders(params: {
   agentDir: string;
 }): Promise<ModelsConfig["providers"]> {
@@ -459,6 +655,41 @@ export async function resolveImplicitProviders(params: {
     providers.xiaomi = { ...buildXiaomiProvider(), apiKey: xiaomiKey };
   }
 
+  const groqKey =
+    resolveEnvApiKeyVarName("groq") ??
+    resolveApiKeyFromProfiles({ provider: "groq", store: authStore });
+  if (groqKey) {
+    providers.groq = { ...buildGroqProvider(), apiKey: groqKey };
+  }
+
+  const mistralKey =
+    resolveEnvApiKeyVarName("mistral") ??
+    resolveApiKeyFromProfiles({ provider: "mistral", store: authStore });
+  if (mistralKey) {
+    providers.mistral = { ...buildMistralProvider(), apiKey: mistralKey };
+  }
+
+  const xaiKey =
+    resolveEnvApiKeyVarName("xai") ??
+    resolveApiKeyFromProfiles({ provider: "xai", store: authStore });
+  if (xaiKey) {
+    providers.xai = { ...buildXAIProvider(), apiKey: xaiKey };
+  }
+
+  const cerebrasKey =
+    resolveEnvApiKeyVarName("cerebras") ??
+    resolveApiKeyFromProfiles({ provider: "cerebras", store: authStore });
+  if (cerebrasKey) {
+    providers.cerebras = { ...buildCerebrasProvider(), apiKey: cerebrasKey };
+  }
+
+  const openrouterKey =
+    resolveEnvApiKeyVarName("openrouter") ??
+    resolveApiKeyFromProfiles({ provider: "openrouter", store: authStore });
+  if (openrouterKey) {
+    providers.openrouter = { ...buildOpenRouterProvider(), apiKey: openrouterKey };
+  }
+
   // Ollama provider - only add if explicitly configured
   const ollamaKey =
     resolveEnvApiKeyVarName("ollama") ??
@@ -467,7 +698,228 @@ export async function resolveImplicitProviders(params: {
     providers.ollama = { ...(await buildOllamaProvider()), apiKey: ollamaKey };
   }
 
+  // Google Antigravity
+  const antigravityKey =
+    resolveEnvApiKeyVarName("google-antigravity") ??
+    resolveApiKeyFromProfiles({ provider: "google-antigravity", store: authStore }) ??
+    resolveApiKeyFromProfiles({ provider: "google-gemini-cli", store: authStore });
+
+  if (antigravityKey) {
+    const baseProvider = buildGoogleAntigravityProvider();
+    providers["google-antigravity"] = {
+      ...baseProvider,
+      // pi-ai expects a JSON oauth payload ({ token, projectId }) for this provider.
+      apiKey: antigravityKey,
+    } as ProviderConfig;
+  }
+
   return providers;
+}
+
+const ANTIGRAVITY_DEFAULT_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+};
+
+function buildGoogleAntigravityProvider(): ProviderConfig {
+  // pi-ai handles Google OAuth routing internally when api is 'google-gemini-cli'.
+  // Do NOT set baseUrl — pi-ai resolves the correct endpoint from the OAuth payload.
+  return {
+    api: "google-gemini-cli",
+    models: [
+      {
+        id: "gemini-3-pro",
+        name: "Gemini 3 Pro (High)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 2097152,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-3-pro-high",
+        name: "Gemini 3 Pro (High)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 2097152,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-3-pro-low",
+        name: "Gemini 3 Pro (Low)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 2097152,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-3-flash",
+        name: "Gemini 3 Flash",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 1048576,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-2.5-pro",
+        name: "Gemini 2.5 Pro",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 1048576,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-2.5-flash",
+        name: "Gemini 2.5 Flash",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 1048576,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-2.5-flash-lite",
+        name: "Gemini 2.5 Flash Lite",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 1048576,
+        maxTokens: 8192,
+      },
+      {
+        id: "claude-sonnet-4-5",
+        name: "Claude Sonnet 4.5",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 200000,
+        maxTokens: 8192,
+      },
+      {
+        id: "claude-sonnet-4-5-thinking",
+        name: "Claude Sonnet 4.5 (Thinking)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 200000,
+        maxTokens: 8192,
+      },
+      {
+        id: "claude-opus-4-5-thinking",
+        name: "Claude Opus 4.5 (Thinking)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 200000,
+        maxTokens: 8192,
+      },
+      {
+        id: "claude-opus-4-6-thinking",
+        name: "Claude Opus 4.6 (Thinking)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 200000,
+        maxTokens: 8192,
+      },
+      {
+        id: "gpt-oss-120b",
+        name: "GPT-OSS 120B",
+        reasoning: false,
+        input: ["text"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 128000,
+        maxTokens: 8192,
+      },
+      {
+        id: "gpt-oss-120b-medium",
+        name: "GPT-OSS 120B (Medium)",
+        reasoning: false,
+        input: ["text"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 128000,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-2.0-flash",
+        name: "Gemini 2.0 Flash",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 1048576,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-2.0-pro-exp-02-05",
+        name: "Gemini 2.0 Pro Experimental",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 2097152,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-2.0-flash-thinking-exp-01-21",
+        name: "Gemini 2.0 Flash Thinking",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 1048576,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-1.5-pro",
+        name: "Gemini 1.5 Pro",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 2097152,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-1.5-pro-high",
+        name: "Gemini 1.5 Pro (High)",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 2097152,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-1.5-pro-low",
+        name: "Gemini 1.5 Pro (Low)",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 2097152,
+        maxTokens: 8192,
+      },
+      {
+        id: "gemini-1.5-flash",
+        name: "Gemini 1.5 Flash",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 1048576,
+        maxTokens: 8192,
+      },
+      {
+        id: "MODEL_GOOGLE_GEMINI_2_5_FLASH",
+        name: "Gemini 2.5 Flash (Alias)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: ANTIGRAVITY_DEFAULT_COST,
+        contextWindow: 1048576,
+        maxTokens: 8192,
+      },
+    ],
+  };
 }
 
 export async function resolveImplicitCopilotProvider(params: {

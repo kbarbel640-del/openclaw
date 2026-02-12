@@ -23,7 +23,7 @@ const DelegationToolSchema = Type.Object({
   action: stringEnum(DELEGATION_ACTIONS, {
     description:
       "delegate: assign a task to a subordinate (downward). " +
-      "request: request help from a superior (upward, requires justification). " +
+      "request: request help from your immediate superior (upward, requires justification). " +
       "review: superior reviews an upward request (approve/reject/redirect). " +
       "accept: accept an assigned delegation and start work. " +
       "complete: mark delegation as completed with result. " +
@@ -33,7 +33,12 @@ const DelegationToolSchema = Type.Object({
       "pending: list pending reviews for current agent.",
   }),
   // delegate / request
-  toAgentId: Type.Optional(Type.String({ description: "Target agent ID (for delegate/request)" })),
+  toAgentId: Type.Optional(
+    Type.String({
+      description:
+        "Target agent ID (required for delegate; optional for request because system auto-routes to immediate superior)",
+    }),
+  ),
   task: Type.Optional(Type.String({ description: "Task description (for delegate/request)" })),
   priority: optionalStringEnum(DELEGATION_PRIORITIES, {
     description: "Priority level (for delegate/request, default: normal)",
@@ -85,7 +90,7 @@ export function createDelegationTool(opts?: { agentSessionKey?: string }): AnyAg
       const agentId = resolveSessionAgentId({ sessionKey: opts?.agentSessionKey });
 
       if (action === "delegate" || action === "request") {
-        const toAgentId = readStringParam(params, "toAgentId", { required: true });
+        const toAgentId = readStringParam(params, "toAgentId", { required: action === "delegate" });
         const task = readStringParam(params, "task", { required: true });
         const priority = readStringParam(params, "priority") ?? "normal";
         const justification = readStringParam(params, "justification");
@@ -100,6 +105,7 @@ export function createDelegationTool(opts?: { agentSessionKey?: string }): AnyAg
             task,
             priority,
             justification,
+            mode: action,
           },
         );
         return jsonResult(result);
@@ -150,6 +156,7 @@ export function createDelegationTool(opts?: { agentSessionKey?: string }): AnyAg
           {},
           {
             delegationId,
+            agentId,
             resultStatus,
             resultSummary,
           },

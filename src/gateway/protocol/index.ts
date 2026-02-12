@@ -103,6 +103,8 @@ import {
   ExecApprovalRequestParamsSchema,
   type ExecApprovalResolveParams,
   ExecApprovalResolveParamsSchema,
+  type FsPickDirectoryParams,
+  FsPickDirectoryParamsSchema,
   ErrorCodes,
   type ErrorShape,
   ErrorShapeSchema,
@@ -121,6 +123,8 @@ import {
   ModelsListParamsSchema,
   type NodeDescribeParams,
   NodeDescribeParamsSchema,
+  type ModelsCooldownsParams,
+  ModelsCooldownsParamsSchema,
   type NodeEventParams,
   NodeEventParamsSchema,
   type NodeInvokeParams,
@@ -144,6 +148,8 @@ import {
   type PollParams,
   PollParamsSchema,
   PROTOCOL_VERSION,
+  type ProjectsListParams,
+  ProjectsListParamsSchema,
   type PresenceEntry,
   PresenceEntrySchema,
   ProtocolSchemas,
@@ -293,6 +299,7 @@ export const validateSessionsResolveParams = ajv.compile<SessionsResolveParams>(
 );
 export const validateSessionsPatchParams =
   ajv.compile<SessionsPatchParams>(SessionsPatchParamsSchema);
+export const validateProjectsListParams = ajv.compile<ProjectsListParams>(ProjectsListParamsSchema);
 export const validateSessionsResetParams =
   ajv.compile<SessionsResetParams>(SessionsResetParamsSchema);
 export const validateSessionsDeleteParams = ajv.compile<SessionsDeleteParams>(
@@ -318,6 +325,9 @@ export const validateChannelsLogoutParams = ajv.compile<ChannelsLogoutParams>(
   ChannelsLogoutParamsSchema,
 );
 export const validateModelsListParams = ajv.compile<ModelsListParams>(ModelsListParamsSchema);
+export const validateModelsCooldownsParams = ajv.compile<ModelsCooldownsParams>(
+  ModelsCooldownsParamsSchema,
+);
 export const validateSkillsStatusParams = ajv.compile<SkillsStatusParams>(SkillsStatusParamsSchema);
 export const validateSkillsBinsParams = ajv.compile<SkillsBinsParams>(SkillsBinsParamsSchema);
 export const validateSkillsInstallParams =
@@ -356,6 +366,9 @@ export const validateExecApprovalRequestParams = ajv.compile<ExecApprovalRequest
 );
 export const validateExecApprovalResolveParams = ajv.compile<ExecApprovalResolveParams>(
   ExecApprovalResolveParamsSchema,
+);
+export const validateFsPickDirectoryParams = ajv.compile<FsPickDirectoryParams>(
+  FsPickDirectoryParamsSchema,
 );
 export const validateExecApprovalsNodeGetParams = ajv.compile<ExecApprovalsNodeGetParams>(
   ExecApprovalsNodeGetParamsSchema,

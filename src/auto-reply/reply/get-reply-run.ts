@@ -7,7 +7,10 @@ import type { buildCommandContext } from "./commands.js";
 import type { InlineDirectives } from "./directive-handling.js";
 import type { createModelSelectionState } from "./model-selection.js";
 import type { TypingController } from "./typing.js";
-import { resolveSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
+import {
+  clearSessionAuthProfileOverride,
+  resolveSessionAuthProfileOverride,
+} from "../../agents/auth-profiles/session-override.js";
 import {
   abortEmbeddedPiRun,
   isEmbeddedPiRunActive,
@@ -340,6 +343,21 @@ export async function runPreparedReply(
     resolvedQueue.mode === "followup" ||
     resolvedQueue.mode === "collect" ||
     resolvedQueue.mode === "steer-backlog";
+  if (
+    sessionEntry &&
+    sessionStore &&
+    sessionKey &&
+    sessionEntry.authProfileOverrideSource === "auto"
+  ) {
+    // Auto-selected profile overrides can become stale after model/provider changes.
+    // Clear before each run so profile selection follows the currently resolved provider.
+    await clearSessionAuthProfileOverride({
+      sessionEntry,
+      sessionStore,
+      sessionKey,
+      storePath,
+    });
+  }
   const authProfileId = await resolveSessionAuthProfileOverride({
     cfg,
     provider,

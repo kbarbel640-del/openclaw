@@ -183,8 +183,8 @@ Input modes:
 OpenClaw ships a default for `claude-cli`:
 
 - `command: "claude"`
-- `args: ["-p", "--output-format", "json", "--dangerously-skip-permissions"]`
-- `resumeArgs: ["-p", "--output-format", "json", "--dangerously-skip-permissions", "--resume", "{sessionId}"]`
+- `args: ["-p", "--output-format", "json", "--permission-mode", "default", "--tools", ""]`
+- `resumeArgs: ["-p", "--output-format", "json", "--permission-mode", "default", "--tools", "", "--resume", "{sessionId}"]`
 - `modelArg: "--model"`
 - `systemPromptArg: "--append-system-prompt"`
 - `sessionArg: "--session-id"`
@@ -194,8 +194,8 @@ OpenClaw ships a default for `claude-cli`:
 OpenClaw also ships a default for `codex-cli`:
 
 - `command: "codex"`
-- `args: ["exec","--json","--color","never","--sandbox","read-only","--skip-git-repo-check"]`
-- `resumeArgs: ["exec","resume","{sessionId}","--color","never","--sandbox","read-only","--skip-git-repo-check"]`
+- `args: ["exec","--json","--color","never","--sandbox","workspace-write","--skip-git-repo-check"]`
+- `resumeArgs: ["exec","resume","{sessionId}","--color","never","--sandbox","workspace-write","--skip-git-repo-check"]`
 - `output: "jsonl"`
 - `resumeOutput: "text"`
 - `modelArg: "--model"`

@@ -7,9 +7,29 @@ import type { SessionsListResult } from "./types.ts";
 import { refreshChat } from "./app-chat.ts";
 import { syncUrlWithSessionKey } from "./app-settings.ts";
 import { OpenClawApp } from "./app.ts";
+import { loadChatComposerState, saveChatComposerState } from "./chat-drafts.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
+
+function notifyComposerRestored(
+  state: AppViewState,
+  restored: { draft: string; attachments: import("./ui-types.ts").ChatAttachment[] },
+) {
+  const draftChars = restored.draft.trim().length;
+  const attachmentCount = restored.attachments.length;
+  if (draftChars === 0 && attachmentCount === 0) {
+    return;
+  }
+  const parts: string[] = [];
+  if (draftChars > 0) {
+    parts.push(`${draftChars} chars`);
+  }
+  if (attachmentCount > 0) {
+    parts.push(`${attachmentCount} image${attachmentCount === 1 ? "" : "s"}`);
+  }
+  (state as unknown as OpenClawApp).showToast("info", `Draft restored (${parts.join(", ")})`);
+}
 
 export function renderTab(state: AppViewState, tab: Tab) {
   const href = pathForTab(tab, state.basePath);
@@ -93,8 +113,15 @@ export function renderChatControls(state: AppViewState) {
           ?disabled=${!state.connected}
           @change=${(e: Event) => {
             const next = (e.target as HTMLSelectElement).value;
+            saveChatComposerState(state.sessionKey, {
+              draft: state.chatMessage,
+              attachments: state.chatAttachments,
+            });
             state.sessionKey = next;
-            state.chatMessage = "";
+            const nextComposer = loadChatComposerState(next);
+            state.chatMessage = nextComposer.draft;
+            state.chatAttachments = nextComposer.attachments;
+            notifyComposerRestored(state, nextComposer);
             state.chatStream = null;
             (state as unknown as OpenClawApp).chatStreamStartedAt = null;
             state.chatRunId = null;

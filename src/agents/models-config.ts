@@ -56,7 +56,7 @@ function mergeProviderModels(implicit: ProviderConfig, explicit: ProviderConfig)
   };
 }
 
-function mergeProviders(params: {
+export function mergeProviders(params: {
   implicit?: Record<string, ProviderConfig> | null;
   explicit?: Record<string, ProviderConfig> | null;
 }): Record<string, ProviderConfig> {

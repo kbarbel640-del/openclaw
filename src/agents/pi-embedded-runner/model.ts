@@ -107,5 +107,21 @@ export function resolveModel(
       modelRegistry,
     };
   }
+  const providers = cfg?.models?.providers ?? {};
+  const providerCfg = providers[provider];
+
+  // If model was found in registry but provider has a custom baseUrl, override it
+  if (model && providerCfg?.baseUrl) {
+    const modelWithBaseUrl = {
+      ...model,
+      baseUrl: providerCfg.baseUrl,
+    };
+    return {
+      model: normalizeModelCompat(modelWithBaseUrl as Model<Api>),
+      authStorage,
+      modelRegistry,
+    };
+  }
+
   return { model: normalizeModelCompat(model), authStorage, modelRegistry };
 }

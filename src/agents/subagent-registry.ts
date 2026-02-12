@@ -1,13 +1,18 @@
 import { loadConfig } from "../config/config.js";
+import { resolveAgentIdFromSessionKey } from "../config/sessions.js";
 import { callGateway } from "../gateway/call.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
+import { resolveAgentIdentity } from "./identity.js";
 import { runSubagentAnnounceFlow, type SubagentRunOutcome } from "./subagent-announce.js";
 import {
   loadSubagentRegistryFromDisk,
   saveSubagentRegistryToDisk,
 } from "./subagent-registry.store.js";
+import { resolveTeamChatSessionKey } from "./team-chat.js";
 import { resolveAgentTimeoutMs } from "./timeout.js";
+
+const MAX_SET_TIMEOUT_MS = 2 ** 31 - 1;
 
 export type SubagentUsage = {
   inputTokens: number;
@@ -46,6 +51,8 @@ export type SubagentRunRecord = {
   usage?: SubagentUsage;
   /** Real-time progress tracking. */
   progress?: SubagentProgress;
+  /** Last continuity nudge timestamp to avoid repeated reminders. */
+  continuityNudgeAt?: number;
 };
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
@@ -154,7 +161,7 @@ function restoreSubagentRunsOnce() {
     persistSubagentRuns();
 
     // Resume pending work.
-    if ([...subagentRuns.values()].some((entry) => entry.archiveAtMs)) {
+    if (subagentRuns.size > 0) {
       startSweeper();
     }
     for (const runId of subagentRuns.keys()) {
@@ -200,6 +207,8 @@ function stopSweeper() {
 }
 
 async function sweepSubagentRuns() {
+  await runContinuityWatchdog();
+
   const now = Date.now();
   let mutated = false;
   for (const [runId, entry] of subagentRuns.entries()) {
@@ -223,6 +232,62 @@ async function sweepSubagentRuns() {
   }
   if (subagentRuns.size === 0) {
     stopSweeper();
+  }
+}
+
+const CONTINUITY_STALL_MS = 5 * 60_000;
+const CONTINUITY_NUDGE_COOLDOWN_MS = 10 * 60_000;
+
+async function runContinuityWatchdog(nowMs: number = Date.now()) {
+  if (subagentRuns.size === 0) {
+    return;
+  }
+  const cfg = loadConfig();
+  const teamSessionKey = resolveTeamChatSessionKey({ cfg });
+  let mutated = false;
+
+  for (const entry of subagentRuns.values()) {
+    if (entry.cleanupCompletedAt || entry.outcome || entry.endedAt) {
+      continue;
+    }
+    const lastProgressAt = entry.progress?.lastUpdate ?? 0;
+    const lastActivityAt = Math.max(entry.startedAt ?? 0, entry.createdAt ?? 0, lastProgressAt);
+    if (lastActivityAt <= 0 || nowMs - lastActivityAt < CONTINUITY_STALL_MS) {
+      continue;
+    }
+    if (
+      typeof entry.continuityNudgeAt === "number" &&
+      nowMs - entry.continuityNudgeAt < CONTINUITY_NUDGE_COOLDOWN_MS
+    ) {
+      continue;
+    }
+
+    const agentId = resolveAgentIdFromSessionKey(entry.childSessionKey);
+    const identity = resolveAgentIdentity(cfg, agentId);
+    try {
+      await callGateway({
+        method: "chat.inject",
+        params: {
+          sessionKey: teamSessionKey,
+          message:
+            `Continuity check: ${identity?.name ?? agentId}, compartilhe status atual + bloqueios + proxima acao.\n` +
+            "Se concluiu a tarefa, solicite proxima tarefa ou dispensa.",
+          senderAgentId: agentId,
+          senderName: identity?.name ?? agentId,
+          senderEmoji: identity?.emoji,
+          senderAvatar: identity?.avatar,
+        },
+        timeoutMs: 10_000,
+      });
+      entry.continuityNudgeAt = nowMs;
+      mutated = true;
+    } catch {
+      // Non-critical: next sweep can retry.
+    }
+  }
+
+  if (mutated) {
+    persistSubagentRuns();
   }
 }
 
@@ -473,9 +538,7 @@ export function registerSubagentRun(params: {
       createdAt: now,
     },
   });
-  if (archiveAfterMs) {
-    startSweeper();
-  }
+  startSweeper();
   // Wait for subagent completion via gateway RPC (cross-process).
   // The in-process lifecycle listener is a fallback for embedded runs.
   void waitForSubagentCompletion(params.runId, waitTimeoutMs);
@@ -495,7 +558,7 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
         runId,
         timeoutMs,
       },
-      timeoutMs: timeoutMs + 10_000,
+      timeoutMs: Math.min(timeoutMs + 10_000, MAX_SET_TIMEOUT_MS),
     });
     if (wait?.status !== "ok" && wait?.status !== "error") {
       return;
@@ -592,6 +655,10 @@ export function listAllSubagentRuns(): SubagentRunRecord[] {
 
 export function initSubagentRegistry() {
   restoreSubagentRunsOnce();
+}
+
+export async function runContinuityWatchdogForTests(nowMs?: number): Promise<void> {
+  await runContinuityWatchdog(nowMs);
 }
 
 export function updateSubagentProgress(

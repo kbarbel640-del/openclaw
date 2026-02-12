@@ -11,6 +11,16 @@ process.title = "openclaw";
 installProcessWarningFilter();
 normalizeEnv();
 
+// When piping output (e.g. `openclaw ... | head`), the downstream process may close the pipe early.
+// Without this handler, Node can emit an unhandled EPIPE error event on stdout/stderr.
+for (const stream of [process.stdout, process.stderr]) {
+  stream.on("error", (err: NodeJS.ErrnoException) => {
+    if (err?.code === "EPIPE") {
+      process.exit(0);
+    }
+  });
+}
+
 if (process.argv.includes("--no-color")) {
   process.env.NO_COLOR = "1";
   process.env.FORCE_COLOR = "0";

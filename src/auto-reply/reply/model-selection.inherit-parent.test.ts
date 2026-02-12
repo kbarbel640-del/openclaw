@@ -38,6 +38,7 @@ async function resolveState(params: {
     provider: defaultProvider,
     model: defaultModel,
     hasModelDirective: false,
+    prompt: "hi",
   });
 }
 

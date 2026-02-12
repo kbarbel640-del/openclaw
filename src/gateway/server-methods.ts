@@ -65,6 +65,10 @@ const READ_METHODS = new Set([
   "tts.status",
   "tts.providers",
   "models.list",
+  "projects.list",
+  // Listing is read-only, but browsing the filesystem can be sensitive.
+  // Keep pickDirectory as a write/admin endpoint.
+  "models.cooldowns",
   "agents.list",
   "agent.identity.get",
   "skills.status",
@@ -86,6 +90,10 @@ const READ_METHODS = new Set([
   // Collaboration read endpoints
   "collab.session.get",
   "collab.thread.get",
+  "collab.standup",
+  "collab.poll.get",
+  "collab.review.get",
+  "collab.review.list",
   // Delegation read endpoints
   "delegation.get",
   "delegation.list",
@@ -116,12 +124,17 @@ const WRITE_METHODS = new Set([
   "chat.send",
   "chat.abort",
   "browser.request",
+  "fs.pickDirectory",
   // Collaboration write endpoints
   "collab.session.init",
   "collab.proposal.publish",
   "collab.proposal.challenge",
   "collab.proposal.agree",
   "collab.decision.finalize",
+  "collab.poll",
+  "collab.poll.vote",
+  "collab.submit_review",
+  "collab.review.submit",
   // Delegation write endpoints
   "delegation.create",
   "delegation.review",

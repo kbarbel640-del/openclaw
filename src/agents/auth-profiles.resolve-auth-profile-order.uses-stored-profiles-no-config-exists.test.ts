@@ -66,6 +66,33 @@ describe("resolveAuthProfileOrder", () => {
     });
     expect(order).toEqual(["minimax:prod"]);
   });
+  it("falls back to discovered store profiles when config profile ids differ", () => {
+    const order = resolveAuthProfileOrder({
+      cfg: {
+        auth: {
+          profiles: {
+            "google-antigravity:configured@example.com": {
+              provider: "google-antigravity",
+              mode: "oauth",
+            },
+          },
+        },
+      },
+      store: {
+        version: 1,
+        profiles: {
+          "google-antigravity:agent@example.com": {
+            type: "oauth",
+            provider: "google-antigravity",
+            access: "access-token",
+            refresh: "refresh-token",
+          },
+        },
+      },
+      provider: "google-antigravity",
+    });
+    expect(order).toEqual(["google-antigravity:agent@example.com"]);
+  });
   it("drops explicit order entries that belong to another provider", () => {
     const order = resolveAuthProfileOrder({
       cfg: {

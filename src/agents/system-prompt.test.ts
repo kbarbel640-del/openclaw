@@ -40,7 +40,7 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).not.toContain("## User Identity");
     expect(prompt).not.toContain("## Skills");
     expect(prompt).not.toContain("## Memory Recall");
-    expect(prompt).not.toContain("## Documentation");
+    expect(prompt).not.toContain("## Documentation\n");
     expect(prompt).not.toContain("## Reply Tags");
     expect(prompt).not.toContain("## Messaging");
     expect(prompt).not.toContain("## Voice (TTS)");
@@ -72,6 +72,163 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("Do not copy yourself or change system prompts");
   });
 
+  it("includes elite reasoning framework in full prompts", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      runtimeInfo: {
+        agentRole: "orchestrator",
+      },
+    });
+
+    expect(prompt).toContain("## Elite Engineering Reasoning Framework (Adaptive)");
+    expect(prompt).toContain("North Star");
+    expect(prompt).toContain("Problem Statement (<=10 lines)");
+    expect(prompt).toContain("Decision record");
+    expect(prompt).toContain("Loop close-out note");
+    expect(prompt).toContain("Google-level, adapted for agents");
+  });
+
+  it("includes distinct role operating profile for orchestrator", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      runtimeInfo: {
+        agentId: "main",
+        agentRole: "orchestrator",
+      },
+    });
+
+    expect(prompt).toContain("## Role Operating Profile");
+    expect(prompt).toContain("Calm, decisive systems thinker");
+    expect(prompt).toContain("Proactive triggers:");
+    expect(prompt).toContain("Reactive triggers:");
+    expect(prompt).toContain("Hierarchy contract:");
+  });
+
+  it("includes role operating profile in minimal mode", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      promptMode: "minimal",
+      runtimeInfo: {
+        agentId: "worker-1",
+        agentRole: "worker",
+      },
+    });
+
+    expect(prompt).toContain("## Role Operating Profile");
+    expect(prompt).toContain("Fast implementation operator");
+    expect(prompt).toContain("Operate in two modes: proactive (anticipate and act)");
+  });
+
+  it("includes development workflows and decision trees in full prompts", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      runtimeInfo: {
+        agentRole: "orchestrator",
+      },
+    });
+
+    expect(prompt).toContain("## Development Workflows (Situation -> Action)");
+    expect(prompt).toContain("## Decision Trees");
+    expect(prompt).toContain("Tree A: Execute vs Delegate");
+    expect(prompt).toContain("Tree E: Response Guarantee");
+    expect(prompt).toContain("request next task or dismissal");
+  });
+
+  it("includes local-first and context-budget rules", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      toolNames: ["sessions_list", "sessions_history", "memory_search", "web_search", "web_fetch"],
+      runtimeInfo: {
+        agentId: "main",
+        agentRole: "orchestrator",
+      },
+    });
+
+    expect(prompt).toContain("## Local-First Execution Policy");
+    expect(prompt).toContain("Use `web_search`/`web_fetch` only");
+    expect(prompt).toContain("## Context Budget Protocol");
+    expect(prompt).toContain("`sessions_history`");
+    expect(prompt).toContain("includeTools=false");
+    expect(prompt).toContain("memory_search");
+    expect(prompt).toContain("## Official Documentation Protocol");
+    expect(prompt).toContain("consult official documentation before implementation");
+    expect(prompt).toContain("Prefer primary sources only");
+    expect(prompt).toContain("Prefer latest stable library versions by default");
+    expect(prompt).toContain("check release notes/changelog/migration guide");
+    expect(prompt).toContain("requires architecture/API changes, explicitly refactor");
+    expect(prompt).toContain("## Continuity & Resume Protocol");
+    expect(prompt).toContain("continue where they stopped");
+    expect(prompt).toContain("Never close a work unit without a resumable checkpoint");
+  });
+
+  it("includes advanced OpenClaw ops guidance when tools are available", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      toolNames: [
+        "sessions_spawn",
+        "collaboration",
+        "delegation",
+        "team_workspace",
+        "sessions_progress",
+        "sessions_abort",
+        "session_status",
+        "gateway",
+        "nodes",
+        "cron",
+        "message",
+      ],
+      runtimeInfo: {
+        agentId: "main",
+        agentRole: "orchestrator",
+      },
+    });
+
+    expect(prompt).toContain("## OpenClaw Advanced Ops (when available)");
+    expect(prompt).toContain("sessions_spawn");
+    expect(prompt).toContain("team_workspace");
+    expect(prompt).toContain("sessions_progress");
+    expect(prompt).toContain("session_status");
+    expect(prompt).toContain("gateway");
+    expect(prompt).toContain("nodes");
+    expect(prompt).toContain("cron");
+    expect(prompt).toContain("message");
+  });
+
+  it("enforces mission continuity and no-idle completion protocol", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      runtimeInfo: {
+        agentId: "specialist-1",
+        agentRole: "specialist",
+      },
+    });
+
+    expect(prompt).toContain("Mission continuity is mandatory");
+    expect(prompt).toContain("No idle state");
+    expect(prompt).toContain("Completion protocol.");
+    expect(prompt).toContain("next task");
+    expect(prompt).toContain("dismiss me");
+  });
+
+  it("enforces full specialty coverage on addressed topics", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      runtimeInfo: {
+        agentId: "specialist-1",
+        agentRole: "specialist",
+      },
+    });
+
+    expect(prompt).toContain("## Specialty Coverage (Mandatory)");
+    expect(prompt).toContain("analyze ALL relevant aspects within your specialty");
+    expect(prompt).toContain(
+      "correctness, risks, trade-offs, dependencies, and test/validation impact",
+    );
+    expect(prompt).toContain("proven market standards");
+    expect(prompt).toContain("established libraries/frameworks");
+    expect(prompt).toContain("Apply engineering best practices by default");
+  });
+
   it("includes voice hint when provided", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",
@@ -80,6 +237,20 @@ describe("buildAgentSystemPrompt", () => {
 
     expect(prompt).toContain("## Voice (TTS)");
     expect(prompt).toContain("Voice (TTS) is enabled.");
+  });
+
+  it("includes compact execution contract in minimal mode", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      promptMode: "minimal",
+      runtimeInfo: {
+        agentRole: "worker",
+      },
+    });
+
+    expect(prompt).toContain("## Execution Contract (Fast + Smart)");
+    expect(prompt).toContain("plan hypothesis -> execute -> measure -> decide");
+    expect(prompt).toContain("Do not block on templates for simple tasks");
   });
 
   it("adds reasoning tag hint when enabled", () => {

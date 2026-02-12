@@ -101,6 +101,66 @@ git log --oneline -5 && git diff HEAD~1
 [ ] 🔴 Request changes
 ```
 
+## Collaboration Review Workflow
+
+Use `collaboration` for structured async code reviews with tracked status.
+
+### Submit Work for Review
+
+```typescript
+collaboration({
+  action: "submit_review",
+  artifact: "src/orders/order-service.ts",
+  reviewers: ["security-engineer", "quality-engineer"],
+  context: "New order creation flow. Focus on input validation and authorization.",
+});
+// Returns: { reviewId: "rev-abc123" }
+```
+
+### Submit Review Feedback
+
+```typescript
+// Approve with feedback
+collaboration({
+  action: "review.submit",
+  reviewId: "rev-abc123",
+  approved: true,
+  feedback: "Input validation looks solid. Minor: consider adding rate limiting on create.",
+});
+
+// Reject with feedback
+collaboration({
+  action: "review.submit",
+  reviewId: "rev-abc123",
+  approved: false,
+  feedback: "Missing authorization check on the delete endpoint. Must fix before merge.",
+});
+```
+
+### Check Review Status
+
+```typescript
+// Get specific review
+collaboration({ action: "review.get", reviewId: "rev-abc123" });
+
+// List all pending reviews
+collaboration({ action: "review.list" });
+
+// List completed reviews
+collaboration({ action: "review.list", completed: true });
+```
+
+### When to Use Collaboration Reviews
+
+| Scenario            | Approach                                                               |
+| ------------------- | ---------------------------------------------------------------------- |
+| Quick spot check    | Direct review (read code, provide feedback)                            |
+| Formal code review  | collaboration submit_review with tracked status                        |
+| Security audit      | collaboration submit_review with security-engineer reviewer            |
+| Architecture review | collaboration session.init for debate, then submit_review for sign-off |
+
+---
+
 ## Delegation
 
 For security-focused review:
