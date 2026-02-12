@@ -18,6 +18,7 @@ export type SubagentRunRecord = {
   task: string;
   cleanup: "delete" | "keep";
   label?: string;
+  silent?: boolean;
   createdAt: number;
   startedAt?: number;
   endedAt?: number;
@@ -58,6 +59,11 @@ function resumeSubagentRun(runId: string) {
 
   if (typeof entry.endedAt === "number" && entry.endedAt > 0) {
     if (!beginSubagentCleanup(runId)) {
+      return;
+    }
+    if (entry.silent) {
+      finalizeSubagentCleanup(runId, entry.cleanup, false);
+      resumedRuns.add(runId);
       return;
     }
     const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
@@ -221,6 +227,10 @@ function ensureListener() {
     if (!beginSubagentCleanup(evt.runId)) {
       return;
     }
+    if (entry.silent) {
+      finalizeSubagentCleanup(evt.runId, entry.cleanup, false);
+      return;
+    }
     const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);
     void runSubagentAnnounceFlow({
       childSessionKey: entry.childSessionKey,
@@ -288,6 +298,7 @@ export function registerSubagentRun(params: {
   cleanup: "delete" | "keep";
   label?: string;
   runTimeoutSeconds?: number;
+  silent?: boolean;
 }) {
   const now = Date.now();
   const cfg = loadConfig();
@@ -304,6 +315,7 @@ export function registerSubagentRun(params: {
     task: params.task,
     cleanup: params.cleanup,
     label: params.label,
+    silent: params.silent || undefined,
     createdAt: now,
     startedAt: now,
     archiveAtMs,
@@ -363,6 +375,10 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
       persistSubagentRuns();
     }
     if (!beginSubagentCleanup(runId)) {
+      return;
+    }
+    if (entry.silent) {
+      finalizeSubagentCleanup(runId, entry.cleanup, false);
       return;
     }
     const requesterOrigin = normalizeDeliveryContext(entry.requesterOrigin);

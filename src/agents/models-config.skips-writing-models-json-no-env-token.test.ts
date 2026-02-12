@@ -48,6 +48,8 @@ describe("models-config", () => {
       const previous = process.env.COPILOT_GITHUB_TOKEN;
       const previousGh = process.env.GH_TOKEN;
       const previousGithub = process.env.GITHUB_TOKEN;
+      const previousAnthropic = process.env.ANTHROPIC_API_KEY;
+      const previousAnthropicOauth = process.env.ANTHROPIC_OAUTH_TOKEN;
       const previousKimiCode = process.env.KIMI_API_KEY;
       const previousMinimax = process.env.MINIMAX_API_KEY;
       const previousMoonshot = process.env.MOONSHOT_API_KEY;
@@ -57,6 +59,8 @@ describe("models-config", () => {
       delete process.env.COPILOT_GITHUB_TOKEN;
       delete process.env.GH_TOKEN;
       delete process.env.GITHUB_TOKEN;
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.ANTHROPIC_OAUTH_TOKEN;
       delete process.env.KIMI_API_KEY;
       delete process.env.MINIMAX_API_KEY;
       delete process.env.MOONSHOT_API_KEY;
@@ -93,6 +97,16 @@ describe("models-config", () => {
           delete process.env.GITHUB_TOKEN;
         } else {
           process.env.GITHUB_TOKEN = previousGithub;
+        }
+        if (previousAnthropic === undefined) {
+          delete process.env.ANTHROPIC_API_KEY;
+        } else {
+          process.env.ANTHROPIC_API_KEY = previousAnthropic;
+        }
+        if (previousAnthropicOauth === undefined) {
+          delete process.env.ANTHROPIC_OAUTH_TOKEN;
+        } else {
+          process.env.ANTHROPIC_OAUTH_TOKEN = previousAnthropicOauth;
         }
         if (previousKimiCode === undefined) {
           delete process.env.KIMI_API_KEY;

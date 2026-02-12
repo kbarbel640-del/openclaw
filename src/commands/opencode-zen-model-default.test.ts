@@ -37,7 +37,7 @@ describe("applyOpencodeZenModelDefault", () => {
 
   it("no-ops when already legacy opencode-zen default", () => {
     const cfg = {
-      agents: { defaults: { model: "opencode-zen/claude-opus-4-5" } },
+      agents: { defaults: { model: "opencode-zen/claude-opus-4-6" } },
     } as OpenClawConfig;
     const applied = applyOpencodeZenModelDefault(cfg);
     expect(applied.changed).toBe(false);

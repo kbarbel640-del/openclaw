@@ -393,7 +393,7 @@ describe("applyOpencodeZenProviderConfig", () => {
   it("adds allowlist entry for the default model", () => {
     const cfg = applyOpencodeZenProviderConfig({});
     const models = cfg.agents?.defaults?.models ?? {};
-    expect(Object.keys(models)).toContain("opencode/claude-opus-4-5");
+    expect(Object.keys(models)).toContain("opencode/claude-opus-4-6");
   });
 
   it("preserves existing alias for the default model", () => {
@@ -413,7 +413,7 @@ describe("applyOpencodeZenProviderConfig", () => {
 describe("applyOpencodeZenConfig", () => {
   it("sets correct primary model", () => {
     const cfg = applyOpencodeZenConfig({});
-    expect(cfg.agents?.defaults?.model?.primary).toBe("opencode/claude-opus-4-5");
+    expect(cfg.agents?.defaults?.model?.primary).toBe("opencode/claude-opus-4-6");
   });
 
   it("preserves existing model fallbacks", () => {
