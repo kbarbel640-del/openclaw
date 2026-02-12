@@ -1,6 +1,7 @@
 import type { CliDeps } from "../cli/deps.js";
 import type { loadConfig } from "../config/config.js";
 import type { HeartbeatRunner } from "../infra/heartbeat-runner.js";
+import type { createSubsystemLogger } from "../logging/subsystem.js";
 import type { ChannelKind, GatewayReloadPlan } from "./config-reload.js";
 import { resolveAgentMaxConcurrent, resolveSubagentMaxConcurrent } from "../config/agent-limits.js";
 import { startGmailWatcher, stopGmailWatcher } from "../hooks/gmail-watcher.js";
@@ -12,6 +13,7 @@ import {
 } from "../infra/restart.js";
 import { setCommandLaneConcurrency } from "../process/command-queue.js";
 import { CommandLane } from "../process/lanes.js";
+import { applyHardenedConfigOverrides } from "./harden-config.js";
 import { resolveHooksConfig } from "./hooks.js";
 import { startBrowserControlServerIfEnabled } from "./server-browser.js";
 import { buildGatewayCronService, type GatewayCronState } from "./server-cron.js";
@@ -39,25 +41,37 @@ export function createGatewayReloadHandlers(params: {
   logChannels: { info: (msg: string) => void; error: (msg: string) => void };
   logCron: { error: (msg: string) => void };
   logReload: { info: (msg: string) => void; warn: (msg: string) => void };
+  /** When true, re-apply security hardening overrides on hot reload */
+  hardenMode?: boolean;
+  /** Logger for hardening messages (required if hardenMode is true) */
+  logHarden?: ReturnType<typeof createSubsystemLogger>;
 }) {
   const applyHotReload = async (
     plan: GatewayReloadPlan,
     nextConfig: ReturnType<typeof loadConfig>,
   ) => {
-    setGatewaySigusr1RestartPolicy({ allowExternal: nextConfig.commands?.restart === true });
+    // Re-apply security hardening overrides when hardenMode is active
+    // This prevents config file changes from bypassing hardened settings
+    let effectiveConfig = nextConfig;
+    if (params.hardenMode && params.logHarden) {
+      params.logReload.info("harden: re-applying security overrides to hot-reloaded config");
+      effectiveConfig = applyHardenedConfigOverrides(nextConfig, params.logHarden);
+    }
+
+    setGatewaySigusr1RestartPolicy({ allowExternal: effectiveConfig.commands?.restart === true });
     const state = params.getState();
     const nextState = { ...state };
 
     if (plan.reloadHooks) {
       try {
-        nextState.hooksConfig = resolveHooksConfig(nextConfig);
+        nextState.hooksConfig = resolveHooksConfig(effectiveConfig);
       } catch (err) {
         params.logHooks.warn(`hooks config reload failed: ${String(err)}`);
       }
     }
 
     if (plan.restartHeartbeat) {
-      nextState.heartbeatRunner.updateConfig(nextConfig);
+      nextState.heartbeatRunner.updateConfig(effectiveConfig);
     }
 
     resetDirectoryCache();
@@ -65,7 +79,7 @@ export function createGatewayReloadHandlers(params: {
     if (plan.restartCron) {
       state.cronState.cron.stop();
       nextState.cronState = buildGatewayCronService({
-        cfg: nextConfig,
+        cfg: effectiveConfig,
         deps: params.deps,
         broadcast: params.broadcast,
       });
@@ -89,7 +103,7 @@ export function createGatewayReloadHandlers(params: {
       await stopGmailWatcher().catch(() => {});
       if (!isTruthyEnvValue(process.env.OPENCLAW_SKIP_GMAIL_WATCHER)) {
         try {
-          const gmailResult = await startGmailWatcher(nextConfig);
+          const gmailResult = await startGmailWatcher(effectiveConfig);
           if (gmailResult.started) {
             params.logHooks.info("gmail watcher started");
           } else if (
@@ -127,9 +141,9 @@ export function createGatewayReloadHandlers(params: {
       }
     }
 
-    setCommandLaneConcurrency(CommandLane.Cron, nextConfig.cron?.maxConcurrentRuns ?? 1);
-    setCommandLaneConcurrency(CommandLane.Main, resolveAgentMaxConcurrent(nextConfig));
-    setCommandLaneConcurrency(CommandLane.Subagent, resolveSubagentMaxConcurrent(nextConfig));
+    setCommandLaneConcurrency(CommandLane.Cron, effectiveConfig.cron?.maxConcurrentRuns ?? 1);
+    setCommandLaneConcurrency(CommandLane.Main, resolveAgentMaxConcurrent(effectiveConfig));
+    setCommandLaneConcurrency(CommandLane.Subagent, resolveSubagentMaxConcurrent(effectiveConfig));
 
     if (plan.hotReasons.length > 0) {
       params.logReload.info(`config hot reload applied (${plan.hotReasons.join(", ")})`);

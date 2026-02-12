@@ -600,6 +600,8 @@ export async function startGatewayServer(
     logChannels,
     logCron,
     logReload,
+    hardenMode,
+    logHarden: hardenMode ? log : undefined,
   });
 
   const configReloader = startGatewayConfigReloader({
