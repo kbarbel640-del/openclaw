@@ -103,20 +103,23 @@ def _validate_place_id(place_id: str) -> None:
     
     # Normalize percent-encoded sequences (both lowercase and uppercase)
     # This catches attempts to bypass validation with URL encoding
+    # Use regular strings (not raw) so we get actual single characters
     normalized = place_id.lower()
-    normalized = normalized.replace('%2e', '.')
-    normalized = normalized.replace('%2f', '/')
-    normalized = normalized.replace('%5c', r'\\')
+    normalized = normalized.replace('%2e', '.')   # Becomes a single dot
+    normalized = normalized.replace('%2f', '/')   # Becomes a single forward slash
+    normalized = normalized.replace('%5c', '\\')  # Becomes a single backslash
     
     # Check for path traversal patterns in the normalized string
-    # Note: We already decoded %2e, %2f, %5c above, so we only need to check
-    # for the actual characters, not the encoded forms
+    # After normalization:
+    # - %2e%2e becomes .. (two dots)
+    # - %2f%2f becomes // (two forward slashes)
+    # - %5c%5c becomes \\ (two backslashes)
     traversal_patterns = [
         r'\.\.',           # Double dots (.. or %2e%2e after normalization)
         r'//',             # Double slashes (// or %2f%2f after normalization)
         r'\\\\',           # Double backslashes (\\ or %5c%5c after normalization)
-        r'\.\/',           # Dot-slash (./  )
-        r'\.\\',           # Dot-backslash (.\ )
+        r'\.\/',           # Dot-slash (./)
+        r'\.',             # Dot-backslash (.\)
     ]
     
     for pattern in traversal_patterns:
@@ -127,8 +130,8 @@ def _validate_place_id(place_id: str) -> None:
             )
     
     # Block dangerous special characters that could be used for injection
-    # Fixed: Escaped the single quote properly
-    if re.search(r"[\s?#<>|*%$&'`;]", place_id):
+    # Properly escaped single quote
+    if re.search(r"[\s?#<>|*%$&\'`;]", place_id):
         raise HTTPException(
             status_code=400,
             detail="Invalid place_id format: contains disallowed special characters.",
