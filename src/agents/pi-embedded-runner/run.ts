@@ -551,6 +551,11 @@ export async function runEmbeddedPiAgent(
                 extraSystemPrompt: params.extraSystemPrompt,
                 ownerNumbers: params.ownerNumbers,
               });
+              // Emit compaction end event to clear per-session dedupe and re-arm notifications.
+              params.onAgentEvent?.({
+                stream: "compaction",
+                data: { phase: "end", willRetry: !compactResult.compacted },
+              });
               if (compactResult.compacted) {
                 autoCompactionCount += 1;
                 log.info(`auto-compaction succeeded for ${provider}/${modelId}; retrying prompt`);
