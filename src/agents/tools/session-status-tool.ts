@@ -23,6 +23,7 @@ import {
   resolveAgentIdFromSessionKey,
 } from "../../routing/session-key.js";
 import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
+import { formatTokenCount, formatUsd } from "../../utils/usage-format.js";
 import { resolveAgentDir } from "../agent-scope.js";
 import {
   ensureAuthProfileStore,
@@ -40,6 +41,7 @@ import {
   resolveDefaultModelForAgent,
   resolveModelRefFromString,
 } from "../model-selection.js";
+import { listSubagentRunsForRequester } from "../subagent-registry.js";
 import { readStringParam } from "./common.js";
 import {
   shouldResolveSessionIdInput,
@@ -430,6 +432,43 @@ export function createSessionStatusTool(opts?: {
         typeof agentDefaults.model === "object" && agentDefaults.model
           ? { ...agentDefaults.model, primary: defaultLabel }
           : { primary: defaultLabel };
+      // Build subagents line with accumulated cost data
+      let subagentsLine: string | undefined;
+      if (resolved.key) {
+        const { mainKey: saMainKey, alias: saAlias } = resolveMainSessionAlias(cfg);
+        const requesterKey = resolveInternalSessionKey({
+          key: resolved.key,
+          alias: saAlias,
+          mainKey: saMainKey,
+        });
+        const runs = listSubagentRunsForRequester(requesterKey);
+        if (runs.length > 0) {
+          const active = runs.filter((r) => !r.endedAt);
+          const done = runs.length - active.length;
+          subagentsLine = `🤖 Subagents: ${active.length} active \u00b7 ${done} done`;
+        }
+        const subTokens = resolved.entry.subagentTotalTokens;
+        const subCost = resolved.entry.subagentCost;
+        const subRunCount = resolved.entry.subagentRunCount;
+        if (subRunCount && subRunCount > 0) {
+          const costParts: string[] = [];
+          costParts.push(`${subRunCount} run${subRunCount === 1 ? "" : "s"}`);
+          if (typeof subTokens === "number" && subTokens > 0) {
+            costParts.push(`${formatTokenCount(subTokens)} tokens`);
+          }
+          const costLabel = formatUsd(subCost);
+          if (costLabel) {
+            costParts.push(costLabel);
+          }
+          const costSuffix = ` \u00b7 total: ${costParts.join(" \u00b7 ")}`;
+          if (subagentsLine) {
+            subagentsLine += costSuffix;
+          } else {
+            subagentsLine = `🤖 Subagents:${costSuffix}`;
+          }
+        }
+      }
+
       const statusText = buildStatusMessage({
         config: cfg,
         agent: {
@@ -447,6 +486,7 @@ export function createSessionStatusTool(opts?: {
         }),
         usageLine,
         timeLine,
+        subagentsLine,
         queue: {
           mode: queueSettings.mode,
           depth: queueDepth,

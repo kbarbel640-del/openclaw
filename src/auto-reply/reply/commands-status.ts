@@ -27,8 +27,9 @@ import {
   loadProviderUsageSummary,
   resolveUsageProviderId,
 } from "../../infra/provider-usage.js";
+import { formatUsd } from "../../utils/usage-format.js";
 import { normalizeGroupActivation } from "../group-activation.js";
-import { buildStatusMessage } from "../status.js";
+import { buildStatusMessage, formatTokenCount } from "../status.js";
 import { getFollowupQueueDepth, resolveQueueSettings } from "./queue.js";
 import { resolveSubagentLabel } from "./subagents-utils.js";
 
@@ -202,6 +203,28 @@ export async function buildStatusReply(params: {
         subagentsLine = `🤖 Subagents: ${active.length} active${labelText} · ${done} done`;
       } else if (active.length > 0) {
         subagentsLine = `🤖 Subagents: ${active.length} active`;
+      }
+    }
+
+    // Append accumulated subagent cost data from session entry
+    const subTokens = sessionEntry?.subagentTotalTokens;
+    const subCost = sessionEntry?.subagentCost;
+    const subRunCount = sessionEntry?.subagentRunCount;
+    if (subRunCount && subRunCount > 0) {
+      const costParts: string[] = [];
+      costParts.push(`${subRunCount} run${subRunCount === 1 ? "" : "s"}`);
+      if (typeof subTokens === "number" && subTokens > 0) {
+        costParts.push(`${formatTokenCount(subTokens)} tokens`);
+      }
+      const costLabel = formatUsd(subCost);
+      if (costLabel) {
+        costParts.push(costLabel);
+      }
+      const costSuffix = ` \u00b7 total: ${costParts.join(" \u00b7 ")}`;
+      if (subagentsLine) {
+        subagentsLine += costSuffix;
+      } else {
+        subagentsLine = `🤖 Subagents:${costSuffix}`;
       }
     }
   }

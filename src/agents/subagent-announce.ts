@@ -24,6 +24,8 @@ import {
   waitForEmbeddedPiRunEnd,
 } from "./pi-embedded.js";
 import { type AnnounceQueueItem, enqueueAnnounce } from "./subagent-announce-queue.js";
+import { collectSubagentUsage, reportSubagentCostToParent } from "./subagent-cost-report.js";
+import { updateSubagentRunUsage } from "./subagent-registry.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
 
 function formatTokenCount(value?: number) {
@@ -472,6 +474,20 @@ export async function runSubagentAnnounceFlow(params: {
       startedAt: params.startedAt,
       endedAt: params.endedAt,
     });
+
+    // Collect and report subagent usage to parent session
+    try {
+      const usage = collectSubagentUsage({ childSessionKey: params.childSessionKey });
+      if (usage) {
+        updateSubagentRunUsage(params.childRunId, usage);
+        await reportSubagentCostToParent({
+          requesterSessionKey: params.requesterSessionKey,
+          usage,
+        });
+      }
+    } catch {
+      // Best-effort; don't block the announce flow
+    }
 
     // Build status label
     const statusLabel =

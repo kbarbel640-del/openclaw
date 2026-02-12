@@ -74,6 +74,11 @@ export type SessionEntry = {
   model?: string;
   contextTokens?: number;
   compactionCount?: number;
+  subagentInputTokens?: number;
+  subagentOutputTokens?: number;
+  subagentTotalTokens?: number;
+  subagentCost?: number;
+  subagentRunCount?: number;
   memoryFlushAt?: number;
   memoryFlushCompactionCount?: number;
   cliSessionIds?: Record<string, string>;

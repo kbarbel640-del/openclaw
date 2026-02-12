@@ -9,6 +9,15 @@ import {
 } from "./subagent-registry.store.js";
 import { resolveAgentTimeoutMs } from "./timeout.js";
 
+export type SubagentUsageMetrics = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  cost?: number;
+  model?: string;
+  provider?: string;
+};
+
 export type SubagentRunRecord = {
   runId: string;
   childSessionKey: string;
@@ -22,6 +31,7 @@ export type SubagentRunRecord = {
   startedAt?: number;
   endedAt?: number;
   outcome?: SubagentRunOutcome;
+  usage?: SubagentUsageMetrics;
   archiveAtMs?: number;
   cleanupCompletedAt?: number;
   cleanupHandled?: boolean;
@@ -393,6 +403,15 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
   } catch {
     // ignore
   }
+}
+
+export function updateSubagentRunUsage(runId: string, usage: SubagentUsageMetrics) {
+  const entry = subagentRuns.get(runId);
+  if (!entry) {
+    return;
+  }
+  entry.usage = usage;
+  persistSubagentRuns();
 }
 
 export function resetSubagentRegistryForTests() {
