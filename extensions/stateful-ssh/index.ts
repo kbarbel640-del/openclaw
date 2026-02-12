@@ -48,10 +48,10 @@ const statefulSSHPlugin = {
     api.registerService({
       id: "stateful-ssh-cleanup",
       start: async () => {
-        api.logger.debug("Stateful SSH service started");
+        api.logger.debug?.("Stateful SSH service started");
       },
       stop: async () => {
-        api.logger.debug("Cleaning up SSH sessions...");
+        api.logger.debug?.("Cleaning up SSH sessions...");
         try {
           await cleanupSSHSessions();
         } catch (err) {
