@@ -1,5 +1,6 @@
 {
   "gateway": {
+    "token": "supersecret123",
     "controlUi": {
       "dangerouslyDisableDeviceAuth": true
     }
