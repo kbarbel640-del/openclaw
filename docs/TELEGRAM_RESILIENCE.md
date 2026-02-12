@@ -2,12 +2,20 @@
 
 Utilities for handling Telegram API failures, retries, and recovery.
 
+## Overview
+
+This module provides three core mechanisms for building resilient Telegram bot interactions:
+
+- **BotHealthCheck**: Continuous monitoring of bot connectivity
+- **Circuit Breaker**: Prevents cascading failures by stopping requests to failing services
+- **Retry with Backoff**: Automatic retry logic with exponential backoff for transient failures
+
 ## Usage
 
 ```typescript
 import { BotHealthCheck } from "./health.js";
-import { retryWithBackoff } from "../infra/retry.js";
 import { Circuit } from "./circuit.js";
+import { retryWithBackoff } from "../infra/retry.js";
 
 const health = new BotHealthCheck(bot, logger, {
   interval: 30000,
@@ -22,11 +30,3 @@ const result = await retryWithBackoff(() => bot.api.sendMessage(chatId, text), {
 });
 
 const circuit = new Circuit(logger, { failures: 5 });
-await circuit.exec(() => bot.api.getMe());
-```
-
-## Components
-
-**BotHealthCheck**: Monitors connection health
-**Circuit**: Prevents cascading failures
-**retryWithBackoff**: Uses existing `infra/retry.js` utility for retry logic
