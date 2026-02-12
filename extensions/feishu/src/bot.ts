@@ -903,7 +903,23 @@ export async function handleFeishuMessage(params: {
       ReplyToBody: quotedContent ?? undefined,
       Timestamp: Date.now(),
       WasMentioned: ctx.mentionedBot,
-      CommandAuthorized: true,
+      CommandAuthorized: (() => {
+        const useAccessGroups = feishuCfg?.commands?.useAccessGroups !== false;
+        const commandAllowFrom = isGroup
+          ? (resolveFeishuGroupConfig({ cfg: feishuCfg, groupId: ctx.chatId })?.allowFrom ?? [])
+          : (feishuCfg?.allowFrom ?? []);
+        const senderAllowed =
+          commandAllowFrom.length > 0
+            ? commandAllowFrom.some(
+                (entry: string) =>
+                  entry === ctx.senderOpenId || (ctx.senderName && entry === ctx.senderName),
+              )
+            : false;
+        return core.channel.commands.resolveCommandAuthorizedFromAuthorizers({
+          useAccessGroups,
+          authorizers: [{ configured: commandAllowFrom.length > 0, allowed: senderAllowed }],
+        });
+      })(),
       OriginatingChannel: "feishu" as const,
       OriginatingTo: feishuTo,
       ...mediaPayload,
