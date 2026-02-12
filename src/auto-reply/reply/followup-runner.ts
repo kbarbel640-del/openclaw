@@ -24,6 +24,7 @@ import {
 import { resolveReplyToMode } from "./reply-threading.js";
 import { isRoutableChannel, routeReply } from "./route-reply.js";
 import { incrementRunCompactionCount, persistRunSessionUsage } from "./session-run-accounting.js";
+import { formatCompactionNotice, shouldEmitCompactionNotice } from "./session-updates.js";
 import { createTypingSignaler } from "./typing-mode.js";
 import type { TypingController } from "./typing.js";
 
@@ -277,11 +278,9 @@ export function createFollowupRunner(params: {
           lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,
           contextTokensUsed,
         });
-        if (queued.run.verboseLevel && queued.run.verboseLevel !== "off") {
-          const suffix = typeof count === "number" ? ` (count ${count})` : "";
-          finalPayloads.unshift({
-            text: `🧹 Auto-compaction complete${suffix}.`,
-          });
+        const verboseEnabled = queued.run.verboseLevel && queued.run.verboseLevel !== "off";
+        if (shouldEmitCompactionNotice({ cfg: queued.run.config, verboseEnabled })) {
+          finalPayloads.unshift({ text: formatCompactionNotice(count) });
         }
       }
 

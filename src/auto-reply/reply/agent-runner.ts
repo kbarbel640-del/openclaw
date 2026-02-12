@@ -46,6 +46,7 @@ import { readPostCompactionContext } from "./post-compaction-context.js";
 import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
 import { createReplyToModeFilterForChannel, resolveReplyToMode } from "./reply-threading.js";
 import { incrementRunCompactionCount, persistRunSessionUsage } from "./session-run-accounting.js";
+import { formatCompactionNotice, shouldEmitCompactionNotice } from "./session-updates.js";
 import { createTypingSignaler } from "./typing-mode.js";
 import type { TypingController } from "./typing.js";
 
@@ -558,8 +559,7 @@ export async function runReplyAgent(params: {
         lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,
         contextTokensUsed,
       });
-
-      // Inject post-compaction workspace context for the next agent turn
+// Inject post-compaction workspace context for the next agent turn
       if (sessionKey) {
         const workspaceDir = process.cwd();
         readPostCompactionContext(workspaceDir)
@@ -576,9 +576,8 @@ export async function runReplyAgent(params: {
         pendingPostCompactionAudits.set(sessionKey, true);
       }
 
-      if (verboseEnabled) {
-        const suffix = typeof count === "number" ? ` (count ${count})` : "";
-        finalPayloads = [{ text: `🧹 Auto-compaction complete${suffix}.` }, ...finalPayloads];
+      if (shouldEmitCompactionNotice({ cfg: followupRun.run.config, verboseEnabled })) {
+        finalPayloads = [{ text: formatCompactionNotice(count) }, ...finalPayloads];
       }
     }
     if (verboseEnabled && activeIsNewSession) {

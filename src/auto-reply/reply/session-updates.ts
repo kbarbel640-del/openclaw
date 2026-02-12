@@ -284,3 +284,32 @@ export async function incrementCompactionCount(params: {
   }
   return nextCount;
 }
+
+export type CompactionNotifyMode = "verbose" | "always" | "off";
+
+export function resolveCompactionNotifyMode(cfg?: OpenClawConfig): CompactionNotifyMode {
+  const mode = cfg?.agents?.defaults?.compaction?.notify;
+  if (mode === "always" || mode === "off" || mode === "verbose") {
+    return mode;
+  }
+  return "verbose";
+}
+
+export function shouldEmitCompactionNotice(params: {
+  cfg?: OpenClawConfig;
+  verboseEnabled: boolean;
+}): boolean {
+  const mode = resolveCompactionNotifyMode(params.cfg);
+  if (mode === "off") {
+    return false;
+  }
+  if (mode === "always") {
+    return true;
+  }
+  return params.verboseEnabled;
+}
+
+export function formatCompactionNotice(count?: number): string {
+  const suffix = typeof count === "number" ? ` (count ${count})` : "";
+  return `🧹 Context auto-compacted to keep this chat responsive${suffix}.`;
+}

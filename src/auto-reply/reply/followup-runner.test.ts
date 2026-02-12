@@ -129,7 +129,7 @@ describe("createFollowupRunner compaction", () => {
 
     expect(onBlockReply).toHaveBeenCalled();
     const firstCall = (onBlockReply.mock.calls as unknown as Array<Array<{ text?: string }>>)[0];
-    expect(firstCall?.[0]?.text).toContain("Auto-compaction complete");
+    expect(firstCall?.[0]?.text).toContain("Context auto-compacted");
     expect(sessionStore.main.compactionCount).toBe(1);
   });
 
@@ -193,6 +193,38 @@ describe("createFollowupRunner compaction", () => {
     // We only keep the total estimate after compaction.
     expect(store[sessionKey]?.inputTokens).toBeUndefined();
     expect(store[sessionKey]?.outputTokens).toBeUndefined();
+  });
+
+  it("shows compaction notice when notify=always even if verbose is off", async () => {
+    const onBlockReply = vi.fn(async () => {});
+
+    runEmbeddedPiAgentMock.mockImplementationOnce(
+      async (params: {
+        onAgentEvent?: (evt: { stream: string; data: Record<string, unknown> }) => void;
+      }) => {
+        params.onAgentEvent?.({
+          stream: "compaction",
+          data: { phase: "end", willRetry: false },
+        });
+        return { payloads: [{ text: "final" }], meta: {} };
+      },
+    );
+
+    const runner = createFollowupRunner({
+      opts: { onBlockReply },
+      typing: createMockTypingController(),
+      typingMode: "instant",
+      defaultModel: "anthropic/claude-opus-4-5",
+    });
+
+    const queued = baseQueuedRun();
+    queued.run.verboseLevel = "off";
+    queued.run.config = { agents: { defaults: { compaction: { notify: "always" } } } };
+
+    await runner(queued);
+
+    expect(onBlockReply).toHaveBeenCalled();
+    expect(onBlockReply.mock.calls[0][0].text).toContain("Context auto-compacted");
   });
 });
 
