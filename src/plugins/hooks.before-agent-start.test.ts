@@ -14,26 +14,26 @@ function createMockRegistry(hookResult: {
 }): PluginRegistry {
   return {
     plugins: [],
-    hooks: [
-      {
-        pluginId: "test-plugin",
-        hookName: "before_agent_start",
-        handler: async () => hookResult,
-      },
-    ],
+    hooks: [],
     typedHooks: [
       {
         pluginId: "test-plugin",
         hookName: "before_agent_start" as const,
         handler: async () => hookResult,
+        source: "test",
       },
     ],
     tools: [],
+    channels: [],
+    providers: [],
+    gatewayHandlers: {},
+    httpHandlers: [],
+    httpRoutes: [],
+    cliRegistrars: [],
+    services: [],
     commands: [],
-    channelPlugins: [],
-    skillPlugins: [],
-    memoryPlugins: [],
-  } as unknown as PluginRegistry;
+    diagnostics: [],
+  } satisfies PluginRegistry;
 }
 
 describe("Issue #14583: before_agent_start hook systemPrompt", () => {
@@ -64,36 +64,32 @@ describe("Issue #14583: before_agent_start hook systemPrompt", () => {
   it("last plugin systemPrompt wins (merge behavior)", async () => {
     const registry = {
       plugins: [],
-      hooks: [
-        {
-          pluginId: "plugin-a",
-          hookName: "before_agent_start",
-          handler: async () => ({ systemPrompt: "Prompt A" }),
-        },
-        {
-          pluginId: "plugin-b",
-          hookName: "before_agent_start",
-          handler: async () => ({ systemPrompt: "Prompt B" }),
-        },
-      ],
+      hooks: [],
       typedHooks: [
         {
           pluginId: "plugin-a",
           hookName: "before_agent_start" as const,
           handler: async () => ({ systemPrompt: "Prompt A" }),
+          source: "test-a",
         },
         {
           pluginId: "plugin-b",
           hookName: "before_agent_start" as const,
           handler: async () => ({ systemPrompt: "Prompt B" }),
+          source: "test-b",
         },
       ],
       tools: [],
+      channels: [],
+      providers: [],
+      gatewayHandlers: {},
+      httpHandlers: [],
+      httpRoutes: [],
+      cliRegistrars: [],
+      services: [],
       commands: [],
-      channelPlugins: [],
-      skillPlugins: [],
-      memoryPlugins: [],
-    } as unknown as PluginRegistry;
+      diagnostics: [],
+    } satisfies PluginRegistry;
 
     const runner = createHookRunner(registry, { catchErrors: true });
     const result = await runner.runBeforeAgentStart({ prompt: "Hello" }, { agentId: "main" });
