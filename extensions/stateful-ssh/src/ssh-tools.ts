@@ -1,5 +1,5 @@
-import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { Type } from "@sinclair/typebox";
 import { SSHSessionManager } from "./session-manager.js";
 
 let sessionManager: SSHSessionManager | null = null;
