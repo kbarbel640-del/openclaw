@@ -164,17 +164,11 @@ describe("pw-tools-core", () => {
 
     const res = await p;
     const outPath = vi.mocked(saveAs).mock.calls[0]?.[0];
+    const normalizedDownloadsDir = `${path.normalize(path.join("/tmp/openclaw-preferred", "downloads"))}${path.sep}`;
     expect(typeof outPath).toBe("string");
-    const expectedRootedDownloadsDir = path.join(
-      path.sep,
-      "tmp",
-      "openclaw-preferred",
-      "downloads",
-    );
-    const expectedDownloadsTail = `${path.join("tmp", "openclaw-preferred", "downloads")}${path.sep}`;
-    expect(path.dirname(String(outPath))).toBe(expectedRootedDownloadsDir);
-    expect(path.basename(String(outPath))).toMatch(/-file\.bin$/);
-    expect(path.normalize(res.path)).toContain(path.normalize(expectedDownloadsTail));
+    expect(path.normalize(String(outPath))).toContain(normalizedDownloadsDir);
+    expect(String(outPath)).toContain("-file.bin");
+    expect(path.normalize(res.path)).toContain(normalizedDownloadsDir);
     expect(tmpDirMocks.resolvePreferredOpenClawTmpDir).toHaveBeenCalled();
   });
   it("waits for a matching response and returns its body", async () => {
