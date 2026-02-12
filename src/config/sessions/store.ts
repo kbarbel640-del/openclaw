@@ -584,76 +584,22 @@ type SessionStoreLockOptions = {
   staleMs?: number;
 };
 
+const LOCK_QUEUES = new Map<string, Promise<unknown>>();
+
 async function withSessionStoreLock<T>(
   storePath: string,
   fn: () => Promise<T>,
-  opts: SessionStoreLockOptions = {},
+  _opts: SessionStoreLockOptions = {},
 ): Promise<T> {
-  const timeoutMs = opts.timeoutMs ?? 10_000;
-  const pollIntervalMs = opts.pollIntervalMs ?? 25;
-  const staleMs = opts.staleMs ?? 30_000;
-  const lockPath = `${storePath}.lock`;
-  const startedAt = Date.now();
-
-  await fs.promises.mkdir(path.dirname(storePath), { recursive: true });
-
-  while (true) {
-    try {
-      const handle = await fs.promises.open(lockPath, "wx");
-      try {
-        await handle.writeFile(
-          JSON.stringify({ pid: process.pid, startedAt: Date.now() }),
-          "utf-8",
-        );
-      } catch {
-        // best-effort
-      }
-      await handle.close();
-      break;
-    } catch (err) {
-      const code =
-        err && typeof err === "object" && "code" in err
-          ? String((err as { code?: unknown }).code)
-          : null;
-      if (code === "ENOENT") {
-        // Store directory may be deleted/recreated in tests while writes are in-flight.
-        // Best-effort: recreate the parent dir and retry until timeout.
-        await fs.promises
-          .mkdir(path.dirname(storePath), { recursive: true })
-          .catch(() => undefined);
-        await new Promise((r) => setTimeout(r, pollIntervalMs));
-        continue;
-      }
-      if (code !== "EEXIST") {
-        throw err;
-      }
-
-      const now = Date.now();
-      if (now - startedAt > timeoutMs) {
-        throw new Error(`timeout acquiring session store lock: ${lockPath}`, { cause: err });
-      }
-
-      // Best-effort stale lock eviction (e.g. crashed process).
-      try {
-        const st = await fs.promises.stat(lockPath);
-        const ageMs = now - st.mtimeMs;
-        if (ageMs > staleMs) {
-          await fs.promises.unlink(lockPath);
-          continue;
-        }
-      } catch {
-        // ignore
-      }
-
-      await new Promise((r) => setTimeout(r, pollIntervalMs));
+  const prev = LOCK_QUEUES.get(storePath) ?? Promise.resolve();
+  const next = prev.catch(() => {}).then(() => fn());
+  LOCK_QUEUES.set(storePath, next);
+  void next.finally(() => {
+    if (LOCK_QUEUES.get(storePath) === next) {
+      LOCK_QUEUES.delete(storePath);
     }
-  }
-
-  try {
-    return await fn();
-  } finally {
-    await fs.promises.unlink(lockPath).catch(() => undefined);
-  }
+  });
+  return next;
 }
 
 export async function updateSessionStoreEntry(params: {
