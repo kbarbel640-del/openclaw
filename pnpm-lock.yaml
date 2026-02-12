@@ -319,6 +319,8 @@ importers:
   extensions/imessage: {}
 
   extensions/irc: {}
+	
+  extensions/infoflow: {}
 
   extensions/line: {}
 
