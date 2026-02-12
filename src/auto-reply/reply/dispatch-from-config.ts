@@ -3,6 +3,7 @@ import type { FinalizedMsgContext } from "../templating.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import type { ReplyDispatcher, ReplyDispatchKind } from "./reply-dispatcher.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
+import { resolveHumanDelayConfig } from "../../agents/identity.js";
 import { loadSessionStore, resolveStorePath } from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
 import { isDiagnosticsEnabled } from "../../infra/diagnostic-events.js";
@@ -13,9 +14,11 @@ import {
 } from "../../logging/diagnostic.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { maybeApplyTtsToPayload, normalizeTtsAutoMode, resolveTtsConfig } from "../../tts/tts.js";
+import { sleep } from "../../utils.js";
 import { getReplyFromConfig } from "../reply.js";
 import { formatAbortReplyText, tryFastAbortFromMessage } from "./abort.js";
 import { shouldSkipDuplicateInbound } from "./inbound-dedupe.js";
+import { getHumanDelay } from "./reply-dispatcher.js";
 import { isRoutableChannel, routeReply } from "./route-reply.js";
 
 const AUDIO_PLACEHOLDER_RE = /^<media:audio>(\s*\([^)]*\))?$/i;
@@ -362,6 +365,16 @@ export async function dispatchReplyFromConfig(params: {
         ttsAuto: sessionTtsAuto,
       });
       if (shouldRouteToOriginating && originatingChannel && originatingTo) {
+        // Add pacing delay between messages routed to external channels (Slack/Telegram)
+        // to prevent burst delivery. Skip delay for the first message.
+        if (routedFinalCount > 0) {
+          const agentId = resolveSessionAgentId({ sessionKey, config: cfg });
+          const humanDelayConfig = agentId ? resolveHumanDelayConfig(cfg, agentId) : undefined;
+          const delayMs = getHumanDelay(humanDelayConfig);
+          if (delayMs > 0) {
+            await sleep(delayMs);
+          }
+        }
         // Route final reply to originating channel.
         const result = await routeReply({
           payload: ttsReply,
