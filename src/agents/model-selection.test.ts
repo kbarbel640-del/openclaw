@@ -7,6 +7,8 @@ import {
   buildModelAliasIndex,
   normalizeProviderId,
   modelKey,
+  isNativeProvider,
+  buildAllowedModelSet,
 } from "./model-selection.js";
 
 describe("model-selection", () => {
@@ -146,6 +148,106 @@ describe("model-selection", () => {
         defaultModel: "gpt-4",
       });
       expect(result).toEqual({ provider: "openai", model: "gpt-4" });
+    });
+  });
+
+  describe("isNativeProvider", () => {
+    it("should return true for built-in providers", () => {
+      expect(isNativeProvider("anthropic")).toBe(true);
+      expect(isNativeProvider("openai")).toBe(true);
+      expect(isNativeProvider("google")).toBe(true);
+      expect(isNativeProvider("groq")).toBe(true);
+      expect(isNativeProvider("xai")).toBe(true);
+    });
+
+    it("should return true for case-insensitive provider names", () => {
+      expect(isNativeProvider("Anthropic")).toBe(true);
+      expect(isNativeProvider("OPENAI")).toBe(true);
+    });
+
+    it("should return false for unknown providers", () => {
+      expect(isNativeProvider("custom-provider")).toBe(false);
+      expect(isNativeProvider("my-llm")).toBe(false);
+    });
+  });
+
+  describe("buildAllowedModelSet", () => {
+    it("should allow native provider models not in catalog", () => {
+      // This tests the fix for forward-compat models like claude-opus-4-6
+      // that aren't in the Pi SDK catalog yet but should still be allowlisted
+      const cfg: Partial<OpenClawConfig> = {
+        agents: {
+          defaults: {
+            models: {
+              "anthropic/claude-opus-4-6": {},
+              "openai/gpt-5.2": {},
+            },
+          },
+        },
+      };
+
+      // Empty catalog - models aren't in Pi SDK yet
+      const catalog: never[] = [];
+
+      const result = buildAllowedModelSet({
+        cfg: cfg as OpenClawConfig,
+        catalog,
+        defaultProvider: "anthropic",
+      });
+
+      expect(result.allowAny).toBe(false);
+      expect(result.allowedKeys.has("anthropic/claude-opus-4-6")).toBe(true);
+      expect(result.allowedKeys.has("openai/gpt-5.2")).toBe(true);
+    });
+
+    it("should not allow unknown provider models not in catalog", () => {
+      const cfg: Partial<OpenClawConfig> = {
+        agents: {
+          defaults: {
+            models: {
+              "unknown-provider/some-model": {},
+            },
+          },
+        },
+      };
+
+      const catalog: never[] = [];
+
+      const result = buildAllowedModelSet({
+        cfg: cfg as OpenClawConfig,
+        catalog,
+        defaultProvider: "anthropic",
+      });
+
+      // Unknown provider without explicit config should not be allowed
+      expect(result.allowedKeys.has("unknown-provider/some-model")).toBe(false);
+    });
+
+    it("should allow explicitly configured provider models", () => {
+      const cfg: Partial<OpenClawConfig> = {
+        agents: {
+          defaults: {
+            models: {
+              "custom-provider/custom-model": {},
+            },
+          },
+        },
+        models: {
+          providers: {
+            "custom-provider": { baseUrl: "http://localhost:8080" },
+          },
+        },
+      };
+
+      const catalog: never[] = [];
+
+      const result = buildAllowedModelSet({
+        cfg: cfg as OpenClawConfig,
+        catalog,
+        defaultProvider: "anthropic",
+      });
+
+      expect(result.allowedKeys.has("custom-provider/custom-model")).toBe(true);
     });
   });
 });

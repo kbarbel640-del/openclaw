@@ -4,6 +4,53 @@ import { resolveAgentModelPrimary } from "./agent-scope.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
 import { normalizeGoogleModelId } from "./models-config.providers.js";
 
+/**
+ * Providers that are natively supported via environment variables and don't
+ * require explicit configuration in models.providers. These should be allowed
+ * in the model allowlist even when not in the catalog (e.g., for forward-compat
+ * with newer model versions).
+ */
+const NATIVE_PROVIDERS = new Set([
+  "anthropic",
+  "openai",
+  "google",
+  "google-vertex",
+  "groq",
+  "xai",
+  "cerebras",
+  "mistral",
+  "openrouter",
+  "together",
+  "voyage",
+  "deepgram",
+  "litellm",
+  "vercel-ai-gateway",
+  "cloudflare-ai-gateway",
+  "moonshot",
+  "minimax",
+  "minimax-portal",
+  "xiaomi",
+  "synthetic",
+  "venice",
+  "opencode",
+  "qianfan",
+  "ollama",
+  "github-copilot",
+  "chutes",
+  "zai",
+  "qwen-portal",
+  "kimi-coding",
+  "amazon-bedrock",
+]);
+
+/**
+ * Check if a provider is natively supported (works via environment variables
+ * without explicit configuration in models.providers).
+ */
+export function isNativeProvider(provider: string): boolean {
+  return NATIVE_PROVIDERS.has(normalizeProviderId(provider));
+}
+
 export type ModelRef = {
   provider: string;
   model: string;
@@ -302,6 +349,11 @@ export function buildAllowedModelSet(params: {
     } else if (configuredProviders[providerKey] != null) {
       // Explicitly configured providers should be allowlist-able even when
       // they don't exist in the curated model catalog.
+      allowedKeys.add(key);
+    } else if (isNativeProvider(providerKey)) {
+      // Native providers (anthropic, openai, google, etc.) should be allowlist-able
+      // even when not in the catalog. This enables forward-compat fallback models
+      // like claude-opus-4-6 to work before they appear in the Pi SDK catalog.
       allowedKeys.add(key);
     }
   }
