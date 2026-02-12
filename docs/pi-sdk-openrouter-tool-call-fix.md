@@ -3,6 +3,7 @@
 ## Problem
 
 OpenRouter (and some other providers) don't stream `tool_calls` as proper deltas. Instead, they:
+
 1. Stream text content normally via `choice.delta.content`
 2. Return `finish_reason: "tool_calls"` in the final chunk
 3. **Do NOT include `choice.delta.tool_calls`** in any streaming chunk
@@ -20,12 +21,14 @@ Result: No tool execution, agent stops with toolUse reason but empty tool call l
 ## Fix Location
 
 `@mariozechner/pi-ai` package:
+
 - File: `src/providers/openai-completions.ts`
 - Function: `streamOpenAICompletions`
 
 ## Actual Event Types (Pi SDK)
 
 The SDK uses these event types (not OpenAI's):
+
 - `toolcall_start` - emitted when tool call begins
 - `toolcall_delta` - emitted for argument streaming
 - `toolcall_end` - emitted when tool call completes
@@ -45,6 +48,7 @@ if (choice?.delta?.tool_calls) {
 ```
 
 OpenRouter doesn't populate `choice.delta.tool_calls`. The tool calls may be:
+
 1. In a final non-streaming chunk (not available in current stream flow)
 2. Only available via non-streaming API call
 3. Embedded in the final `chunk.choices[0].message` (if OpenRouter includes it)
@@ -101,12 +105,14 @@ if (output.stopReason === "toolUse" && parsedToolCalls.length === 0) {
 ```
 
 **Pros:**
+
 - Works regardless of what OpenRouter includes in streaming chunks
 - Uses documented OpenAI API behavior
 - Single retry, predictable cost
 - Safe argument parsing handles both string and object formats
 
 **Cons:**
+
 - Extra API call when tool_calls aren't streamed
 - Slight latency increase for affected requests
 - Doubles token cost for affected requests (though this is rare)
@@ -167,6 +173,7 @@ describe("OpenRouter tool call recovery", () => {
 ## Migration
 
 This is a non-breaking change:
+
 - Providers that stream tool_calls correctly will never trigger the fallback
 - Only affects requests where `stopReason === "toolUse"` but no tool calls were parsed
 
@@ -189,6 +196,7 @@ This provides visibility but doesn't fix the issue.
 ### Scope Considerations
 
 The `params` object is created via `buildParams()` at line 68 and used for the streaming call at line 70. For the fallback to work:
+
 - `params` must remain in scope after the streaming loop
 - Alternatively, store `params` in a variable accessible in the fallback block
 
@@ -204,6 +212,7 @@ interface OpenAICompletionsCompat {
 ```
 
 This would allow:
+
 - Opt-in behavior for OpenRouter
 - Avoidance of unnecessary fallback attempts for providers that stream correctly
 - Fine-grained control per model/provider
