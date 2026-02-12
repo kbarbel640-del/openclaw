@@ -22,6 +22,13 @@ export function execDocker(args: string[], opts?: { allowFailure?: boolean }) {
     child.stderr?.on("data", (chunk) => {
       stderr += chunk.toString();
     });
+    child.on("error", (err) => {
+      if (opts?.allowFailure) {
+        resolve({ stdout, stderr: err.message, code: -1 });
+      } else {
+        reject(new Error(`docker spawn failed: ${err.message}`));
+      }
+    });
     child.on("close", (code) => {
       const exitCode = code ?? 0;
       if (exitCode !== 0 && !opts?.allowFailure) {

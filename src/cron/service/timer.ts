@@ -534,6 +534,11 @@ export async function executeJob(
     state.store.jobs = state.store.jobs.filter((j) => j.id !== job.id);
     emit(state, { jobId: job.id, action: "removed" });
   }
+
+  // Persist state after execution to prevent stale nextRunAtMs on crash-restart.
+  // Without this, runMissedJobs() updates in-memory state but if the process crashes
+  // before the caller's persist(), the old nextRunAtMs is restored from disk → infinite re-execution.
+  await persist(state);
 }
 
 export function wake(
