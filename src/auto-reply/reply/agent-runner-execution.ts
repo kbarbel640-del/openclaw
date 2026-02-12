@@ -356,6 +356,7 @@ export async function runAgentTurnWithFallback(params: {
                 const willRetry = Boolean(evt.data.willRetry);
                 if (phase === "start") {
                   // Best-effort notification — mirrors typing indicators as core UX.
+                  // Deduped inside deliverCompactionNotification (once per cycle).
                   const entry = params.getActiveSessionEntry();
                   if (entry && params.sessionKey) {
                     import("../../infra/compaction-notification.js")
@@ -371,6 +372,12 @@ export async function runAgentTurnWithFallback(params: {
                 }
                 if (phase === "end" && !willRetry) {
                   autoCompactionCompleted = true;
+                  // Re-arm the notification dedupe for the next compaction cycle.
+                  if (params.sessionKey) {
+                    import("../../infra/compaction-notification.js")
+                      .then((m) => m.clearCompactionNotification(params.sessionKey!))
+                      .catch(() => {});
+                  }
                 }
               }
             },
