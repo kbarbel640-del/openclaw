@@ -2,6 +2,7 @@ import type { IncomingMessage } from "node:http";
 import type { WebSocket } from "ws";
 import os from "node:os";
 import type { createSubsystemLogger } from "../../../logging/subsystem.js";
+import type { AuthRateLimiter } from "../../auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "../../auth.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "../../server-methods/types.js";
 import type { GatewayWsClient } from "../ws-types.js";
@@ -143,6 +144,8 @@ export function attachGatewayWsMessageHandler(params: {
   canvasHostUrl?: string;
   connectNonce: string;
   resolvedAuth: ResolvedGatewayAuth;
+  /** Optional rate limiter for auth brute-force protection. */
+  rateLimiter?: AuthRateLimiter;
   gatewayMethods: string[];
   events: string[];
   extraHandlers: GatewayRequestHandlers;
@@ -173,6 +176,7 @@ export function attachGatewayWsMessageHandler(params: {
     canvasHostUrl,
     connectNonce,
     resolvedAuth,
+    rateLimiter,
     gatewayMethods,
     events,
     extraHandlers,
@@ -410,6 +414,8 @@ export function attachGatewayWsMessageHandler(params: {
           connectAuth: connectParams.auth,
           req: upgradeReq,
           trustedProxies,
+          rateLimiter,
+          clientIp,
         });
         let authOk = authResult.ok;
         let authMethod =
@@ -420,6 +426,9 @@ export function attachGatewayWsMessageHandler(params: {
               connectAuth: connectParams.auth,
               req: upgradeReq,
               trustedProxies,
+              // Intentionally omit rateLimiter here — the primary authResult
+              // call above already tracked the attempt for this IP.  Passing
+              // the limiter again would double-count the same credentials.
             })
           : null;
         const sharedAuthOk =

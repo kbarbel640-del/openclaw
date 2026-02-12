@@ -9,6 +9,7 @@ import {
 import { createServer as createHttpsServer } from "node:https";
 import type { CanvasHostHandler } from "../canvas-host/server.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
+import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { GatewayWsClient } from "./server/ws-types.js";
 import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import {
@@ -43,7 +44,7 @@ import {
   resolveHookChannel,
   resolveHookDeliver,
 } from "./hooks.js";
-import { sendUnauthorized } from "./http-common.js";
+import { sendRateLimited, sendUnauthorized } from "./http-common.js";
 import { getBearerToken, getHeader } from "./http-utils.js";
 import { resolveGatewayClientIp } from "./net.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
@@ -105,8 +106,9 @@ async function authorizeCanvasRequest(params: {
   auth: ResolvedGatewayAuth;
   trustedProxies: string[];
   clients: Set<GatewayWsClient>;
+  rateLimiter?: AuthRateLimiter;
 }): Promise<boolean> {
-  const { req, auth, trustedProxies, clients } = params;
+  const { req, auth, trustedProxies, clients, rateLimiter } = params;
   if (isLocalDirectRequest(req, trustedProxies)) {
     return true;
   }
@@ -118,6 +120,7 @@ async function authorizeCanvasRequest(params: {
       connectAuth: { token, password: token },
       req,
       trustedProxies,
+      rateLimiter,
     });
     if (authResult.ok) {
       return true;
@@ -372,6 +375,8 @@ export function createGatewayHttpServer(opts: {
   handleHooksRequest: HooksRequestHandler;
   handlePluginRequest?: HooksRequestHandler;
   resolvedAuth: ResolvedGatewayAuth;
+  /** Optional rate limiter for auth brute-force protection. */
+  rateLimiter?: AuthRateLimiter;
   tlsOptions?: TlsOptions;
 }): HttpServer {
   const {
@@ -386,6 +391,7 @@ export function createGatewayHttpServer(opts: {
     handleHooksRequest,
     handlePluginRequest,
     resolvedAuth,
+    rateLimiter,
   } = opts;
   const httpServer: HttpServer = opts.tlsOptions
     ? createHttpsServer(opts.tlsOptions, (req, res) => {
@@ -412,6 +418,7 @@ export function createGatewayHttpServer(opts: {
         await handleToolsInvokeHttpRequest(req, res, {
           auth: resolvedAuth,
           trustedProxies,
+          rateLimiter,
         })
       ) {
         return;
@@ -430,9 +437,14 @@ export function createGatewayHttpServer(opts: {
             connectAuth: token ? { token, password: token } : null,
             req,
             trustedProxies,
+            rateLimiter,
           });
           if (!authResult.ok) {
-            sendUnauthorized(res);
+            if (authResult.rateLimited) {
+              sendRateLimited(res, authResult.retryAfterMs);
+            } else {
+              sendUnauthorized(res);
+            }
             return;
           }
         }
@@ -446,6 +458,7 @@ export function createGatewayHttpServer(opts: {
             auth: resolvedAuth,
             config: openResponsesConfig,
             trustedProxies,
+            rateLimiter,
           })
         ) {
           return;
@@ -456,6 +469,7 @@ export function createGatewayHttpServer(opts: {
           await handleOpenAiHttpRequest(req, res, {
             auth: resolvedAuth,
             trustedProxies,
+            rateLimiter,
           })
         ) {
           return;
@@ -468,6 +482,7 @@ export function createGatewayHttpServer(opts: {
             auth: resolvedAuth,
             trustedProxies,
             clients,
+            rateLimiter,
           });
           if (!ok) {
             sendUnauthorized(res);
@@ -520,8 +535,10 @@ export function attachGatewayUpgradeHandler(opts: {
   canvasHost: CanvasHostHandler | null;
   clients: Set<GatewayWsClient>;
   resolvedAuth: ResolvedGatewayAuth;
+  /** Optional rate limiter for auth brute-force protection. */
+  rateLimiter?: AuthRateLimiter;
 }) {
-  const { httpServer, wss, canvasHost, clients, resolvedAuth } = opts;
+  const { httpServer, wss, canvasHost, clients, resolvedAuth, rateLimiter } = opts;
   httpServer.on("upgrade", (req, socket, head) => {
     void (async () => {
       if (canvasHost) {
@@ -534,6 +551,7 @@ export function attachGatewayUpgradeHandler(opts: {
             auth: resolvedAuth,
             trustedProxies,
             clients,
+            rateLimiter,
           });
           if (!ok) {
             socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");

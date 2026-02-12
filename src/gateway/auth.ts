@@ -1,5 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import type { GatewayAuthConfig, GatewayTailscaleMode } from "../config/config.js";
+import type { AuthRateLimiter, RateLimitCheckResult } from "./auth-rate-limit.js";
 import { readTailscaleWhoisIdentity, type TailscaleWhoisIdentity } from "../infra/tailscale.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
 import {
@@ -8,6 +9,7 @@ import {
   parseForwardedForClientIp,
   resolveGatewayClientIp,
 } from "./net.js";
+
 export type ResolvedGatewayAuthMode = "token" | "password";
 
 export type ResolvedGatewayAuth = {
@@ -22,6 +24,10 @@ export type GatewayAuthResult = {
   method?: "token" | "password" | "tailscale" | "device-token";
   user?: string;
   reason?: string;
+  /** Present when the request was blocked by the rate limiter. */
+  rateLimited?: boolean;
+  /** Milliseconds the client should wait before retrying (when rate-limited). */
+  retryAfterMs?: number;
 };
 
 type ConnectAuth = {
@@ -220,10 +226,29 @@ export async function authorizeGatewayConnect(params: {
   req?: IncomingMessage;
   trustedProxies?: string[];
   tailscaleWhois?: TailscaleWhoisLookup;
+  /** Optional rate limiter instance; when provided, failed attempts are tracked per IP. */
+  rateLimiter?: AuthRateLimiter;
+  /** Client IP used for rate-limit tracking.  Falls back to req.socket.remoteAddress. */
+  clientIp?: string;
 }): Promise<GatewayAuthResult> {
   const { auth, connectAuth, req, trustedProxies } = params;
   const tailscaleWhois = params.tailscaleWhois ?? readTailscaleWhoisIdentity;
   const localDirect = isLocalDirectRequest(req, trustedProxies);
+
+  // --- Rate-limit gate ---
+  const limiter = params.rateLimiter;
+  const ip = params.clientIp ?? req?.socket?.remoteAddress;
+  if (limiter) {
+    const rlCheck: RateLimitCheckResult = limiter.check(ip);
+    if (!rlCheck.allowed) {
+      return {
+        ok: false,
+        reason: "rate_limited",
+        rateLimited: true,
+        retryAfterMs: rlCheck.retryAfterMs,
+      };
+    }
+  }
 
   if (auth.allowTailscale && !localDirect) {
     const tailscaleCheck = await resolveVerifiedTailscaleUser({
@@ -231,6 +256,8 @@ export async function authorizeGatewayConnect(params: {
       tailscaleWhois,
     });
     if (tailscaleCheck.ok) {
+      // Successful auth – reset rate-limit counter for this IP.
+      limiter?.reset(ip);
       return {
         ok: true,
         method: "tailscale",
@@ -244,11 +271,14 @@ export async function authorizeGatewayConnect(params: {
       return { ok: false, reason: "token_missing_config" };
     }
     if (!connectAuth?.token) {
+      limiter?.recordFailure(ip);
       return { ok: false, reason: "token_missing" };
     }
     if (!safeEqualSecret(connectAuth.token, auth.token)) {
+      limiter?.recordFailure(ip);
       return { ok: false, reason: "token_mismatch" };
     }
+    limiter?.reset(ip);
     return { ok: true, method: "token" };
   }
 
@@ -258,13 +288,17 @@ export async function authorizeGatewayConnect(params: {
       return { ok: false, reason: "password_missing_config" };
     }
     if (!password) {
+      limiter?.recordFailure(ip);
       return { ok: false, reason: "password_missing" };
     }
     if (!safeEqualSecret(password, auth.password)) {
+      limiter?.recordFailure(ip);
       return { ok: false, reason: "password_mismatch" };
     }
+    limiter?.reset(ip);
     return { ok: true, method: "password" };
   }
 
+  limiter?.recordFailure(ip);
   return { ok: false, reason: "unauthorized" };
 }
