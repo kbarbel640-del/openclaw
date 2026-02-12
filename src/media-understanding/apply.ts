@@ -373,12 +373,48 @@ async function extractFileBlocks(params: {
     if (!forcedTextMimeResolved && isBinaryMediaMime(normalizedRawMime)) {
       continue;
     }
+    // If the detected MIME is a specific non-text binary format (not generic
+    // "application/octet-stream"), don't try to force-decode it as text even if
+    // the byte content happens to look text-like.  This prevents binary files
+    // (e.g. .docx, .xlsx, .zip) from being decoded and dumped into the session.
+    const isDetectedBinaryFormat =
+      normalizedRawMime &&
+      !normalizedRawMime.startsWith("text/") &&
+      normalizedRawMime !== "application/octet-stream";
+    if (!forcedTextMimeResolved && isDetectedBinaryFormat) {
+      // The raw MIME is specific and non-text.  Only proceed if it is already
+      // in the allowed list (e.g. application/pdf, application/json).
+      const allowedMimesEarly = new Set(limits.allowedMimes);
+      if (!limits.allowedMimesConfigured) {
+        for (const extra of EXTRA_TEXT_MIMES) {
+          allowedMimesEarly.add(extra);
+        }
+      }
+      if (!allowedMimesEarly.has(normalizedRawMime)) {
+        if (shouldLogVerbose()) {
+          logVerbose(
+            `media: file attachment skipped (binary mime ${normalizedRawMime}) index=${attachment.index}`,
+          );
+        }
+        continue;
+      }
+    }
     const utf16Charset = resolveUtf16Charset(bufferResult?.buffer);
     const textSample = decodeTextSample(bufferResult?.buffer);
     const textLike = Boolean(utf16Charset) || looksLikeUtf8Text(bufferResult?.buffer);
     const guessedDelimited = textLike ? guessDelimitedMime(textSample) : undefined;
+    // Only guess "text/plain" from byte content when the raw MIME is missing or
+    // generic (application/octet-stream).  When the detected MIME is a specific
+    // non-text type, preserve it so the downstream allowedMimes check can reject
+    // formats that shouldn't be decoded as text.
+    const canGuessText =
+      !normalizedRawMime ||
+      normalizedRawMime === "application/octet-stream" ||
+      normalizedRawMime.startsWith("text/");
     const textHint =
-      forcedTextMimeResolved ?? guessedDelimited ?? (textLike ? "text/plain" : undefined);
+      forcedTextMimeResolved ??
+      guessedDelimited ??
+      (textLike && canGuessText ? "text/plain" : undefined);
     const mimeType = sanitizeMimeType(textHint ?? normalizeMimeType(rawMime));
     // Log when MIME type is overridden from non-text to text for auditability
     if (textHint && rawMime && !rawMime.startsWith("text/")) {

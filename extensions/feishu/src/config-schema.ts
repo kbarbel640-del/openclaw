@@ -139,7 +139,7 @@ export const FeishuAccountConfigSchema = z
     textChunkLimit: z.number().int().positive().optional(),
     chunkMode: z.enum(["length", "newline"]).optional(),
     blockStreamingCoalesce: BlockStreamingCoalesceSchema,
-    mediaMaxMb: z.number().positive().optional(),
+    mediaMaxMb: z.number().nonnegative().optional(),
     heartbeat: ChannelHeartbeatVisibilitySchema,
     renderMode: RenderModeSchema,
     tools: FeishuToolsConfigSchema,
@@ -174,7 +174,7 @@ export const FeishuConfigSchema = z
     textChunkLimit: z.number().int().positive().optional(),
     chunkMode: z.enum(["length", "newline"]).optional(),
     blockStreamingCoalesce: BlockStreamingCoalesceSchema,
-    mediaMaxMb: z.number().positive().optional(),
+    mediaMaxMb: z.number().nonnegative().optional(),
     heartbeat: ChannelHeartbeatVisibilitySchema,
     renderMode: RenderModeSchema, // raw = plain text (default), card = interactive card with markdown
     tools: FeishuToolsConfigSchema,

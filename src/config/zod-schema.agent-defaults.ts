@@ -125,7 +125,7 @@ export const AgentDefaultsSchema = z
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     humanDelay: HumanDelaySchema.optional(),
     timeoutSeconds: z.number().int().positive().optional(),
-    mediaMaxMb: z.number().positive().optional(),
+    mediaMaxMb: z.number().nonnegative().optional(),
     typingIntervalSeconds: z.number().int().positive().optional(),
     typingMode: z
       .union([

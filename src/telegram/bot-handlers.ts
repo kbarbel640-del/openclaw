@@ -885,11 +885,15 @@ export const registerTelegramHandlers = ({
         const errMsg = String(mediaErr);
         if (errMsg.includes("exceeds") && errMsg.includes("MB limit")) {
           const limitMb = Math.round(mediaMaxBytes / (1024 * 1024));
+          const userMessage =
+            limitMb === 0
+              ? "⚠️ Media uploads are disabled."
+              : `⚠️ File too large. Maximum size is ${limitMb}MB.`;
           await withTelegramApiErrorLogging({
             operation: "sendMessage",
             runtime,
             fn: () =>
-              bot.api.sendMessage(chatId, `⚠️ File too large. Maximum size is ${limitMb}MB.`, {
+              bot.api.sendMessage(chatId, userMessage, {
                 reply_to_message_id: msg.message_id,
               }),
           }).catch(() => {});

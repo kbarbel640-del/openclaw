@@ -303,6 +303,22 @@ export async function resolveMedia(
 } | null> {
   const msg = ctx.message;
 
+  // When media limit is 0, reject all media before downloading.
+  if (maxBytes <= 0) {
+    const hasMedia =
+      msg.sticker ||
+      msg.photo ||
+      msg.video ||
+      msg.video_note ||
+      msg.document ||
+      msg.audio ||
+      msg.voice;
+    if (hasMedia) {
+      throw new Error("Media exceeds 0MB limit");
+    }
+    return null;
+  }
+
   // Handle stickers separately - only static stickers (WEBP) are supported
   if (msg.sticker) {
     const sticker = msg.sticker;

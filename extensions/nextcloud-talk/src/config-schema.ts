@@ -48,7 +48,7 @@ export const NextcloudTalkAccountSchemaBase = z
     blockStreaming: z.boolean().optional(),
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     responsePrefix: z.string().optional(),
-    mediaMaxMb: z.number().positive().optional(),
+    mediaMaxMb: z.number().nonnegative().optional(),
   })
   .strict();
 
