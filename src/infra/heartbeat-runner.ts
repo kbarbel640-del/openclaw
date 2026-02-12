@@ -916,6 +916,8 @@ export function startHeartbeatRunner(opts: {
         continue;
       }
       if (res.status === "skipped" && res.reason === "requests-in-flight") {
+        agent.lastRunMs = now;
+        agent.nextDueMs = now + agent.intervalMs;
         scheduleNext();
         return res;
       }
