@@ -7,6 +7,7 @@ import Speech
 
 actor TalkModeRuntime {
     static let shared = TalkModeRuntime()
+    private static let redactedConfigSentinel = "__OPENCLAW_REDACTED__"
 
     private let logger = Logger(subsystem: "ai.openclaw", category: "talk.runtime")
     private let ttsLogger = Logger(subsystem: "ai.openclaw", category: "talk.tts")
@@ -792,6 +793,15 @@ extension TalkModeRuntime {
         let apiKey: String?
     }
 
+    private static func normalizedTalkApiKey(_ raw: String?) -> String? {
+        let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard trimmed != Self.redactedConfigSentinel else { return nil }
+        // Config files may use env placeholders; only use concrete keys for runtime calls.
+        if trimmed.hasPrefix("${"), trimmed.hasSuffix("}") { return nil }
+        return trimmed
+    }
+
     private func fetchTalkConfig() async -> TalkRuntimeConfig {
         let env = ProcessInfo.processInfo.environment
         let envVoice = env["ELEVENLABS_VOICE_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -823,13 +833,20 @@ extension TalkModeRuntime {
             let outputFormat = talk?["outputFormat"]?.stringValue
             let interrupt = talk?["interruptOnSpeech"]?.boolValue
             let apiKey = talk?["apiKey"]?.stringValue
+            let gatewayApiKey = Self.normalizedTalkApiKey(apiKey)
+            let localTalkApiKey = Self.normalizedTalkApiKey(
+                (OpenClawConfigFile.loadDict()["talk"] as? [String: Any])?["apiKey"] as? String)
             let resolvedVoice =
                 (voice?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? voice : nil) ??
                 (envVoice?.isEmpty == false ? envVoice : nil) ??
                 (sagVoice?.isEmpty == false ? sagVoice : nil)
             let resolvedApiKey =
                 (envApiKey?.isEmpty == false ? envApiKey : nil) ??
-                (apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? apiKey : nil)
+                gatewayApiKey ??
+                localTalkApiKey
+            if apiKey == Self.redactedConfigSentinel, resolvedApiKey != nil {
+                self.logger.info("talk config apiKey redacted; using local fallback")
+            }
             return TalkRuntimeConfig(
                 voiceId: resolvedVoice,
                 voiceAliases: resolvedAliases,
