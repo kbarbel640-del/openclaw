@@ -13,11 +13,5 @@
   },
   "scripts": {
     "test": "vitest run"
-  },
-  "peerDependencies": {
-    "@sinclair/typebox": ">=0.34.0"
-  },
-  "optionalDependencies": {
-    "hnswlib-node": "^3.0.0"
   }
 }

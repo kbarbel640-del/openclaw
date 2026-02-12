@@ -11,6 +11,7 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
  */
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { buildRecalledContextBlock } from "../../../extensions/memory-context/src/core/recall-format.js";
+import { maybeRedact } from "../../../extensions/memory-context/src/core/redaction.js";
 import {
   getMemoryContextRuntime,
   computeHardCap,
