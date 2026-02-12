@@ -92,7 +92,7 @@ describe("createGatewayReloadHandlers", () => {
       const { applyHotReload } = createGatewayReloadHandlers({
         deps: createMockDeps(),
         broadcast: vi.fn(),
-        getState: () => mockState as ReturnType<typeof createMockState>,
+        getState: () => mockState,
         setState: vi.fn(),
         startChannel: vi.fn().mockResolvedValue(undefined),
         stopChannel: vi.fn().mockResolvedValue(undefined),
@@ -141,7 +141,7 @@ describe("createGatewayReloadHandlers", () => {
       const { applyHotReload } = createGatewayReloadHandlers({
         deps: createMockDeps(),
         broadcast: vi.fn(),
-        getState: () => mockState as ReturnType<typeof createMockState>,
+        getState: () => mockState,
         setState: vi.fn(),
         startChannel: vi.fn().mockResolvedValue(undefined),
         stopChannel: vi.fn().mockResolvedValue(undefined),
@@ -174,7 +174,7 @@ describe("createGatewayReloadHandlers", () => {
       const { applyHotReload } = createGatewayReloadHandlers({
         deps: createMockDeps(),
         broadcast: vi.fn(),
-        getState: () => mockState as ReturnType<typeof createMockState>,
+        getState: () => mockState,
         setState: vi.fn(),
         startChannel: vi.fn().mockResolvedValue(undefined),
         stopChannel: vi.fn().mockResolvedValue(undefined),
@@ -224,7 +224,7 @@ describe("createGatewayReloadHandlers", () => {
       const { applyHotReload } = createGatewayReloadHandlers({
         deps: createMockDeps(),
         broadcast: vi.fn(),
-        getState: () => mockState as ReturnType<typeof createMockState>,
+        getState: () => mockState,
         setState: vi.fn(),
         startChannel: vi.fn().mockResolvedValue(undefined),
         stopChannel: vi.fn().mockResolvedValue(undefined),
@@ -257,7 +257,7 @@ describe("createGatewayReloadHandlers", () => {
       const { applyHotReload } = createGatewayReloadHandlers({
         deps: createMockDeps(),
         broadcast: vi.fn(),
-        getState: () => mockState as ReturnType<typeof createMockState>,
+        getState: () => mockState,
         setState: vi.fn(),
         startChannel: vi.fn().mockResolvedValue(undefined),
         stopChannel: vi.fn().mockResolvedValue(undefined),
@@ -297,7 +297,7 @@ describe("createGatewayReloadHandlers", () => {
       const { requestGatewayRestart } = createGatewayReloadHandlers({
         deps: createMockDeps(),
         broadcast: vi.fn(),
-        getState: () => mockState as ReturnType<typeof createMockState>,
+        getState: () => mockState,
         setState: vi.fn(),
         startChannel: vi.fn().mockResolvedValue(undefined),
         stopChannel: vi.fn().mockResolvedValue(undefined),
