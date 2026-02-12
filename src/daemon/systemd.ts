@@ -11,6 +11,7 @@ import {
 } from "./constants.js";
 import { resolveHomeDir } from "./paths.js";
 import { parseKeyValueOutput } from "./runtime-parse.js";
+import { safeWrite } from "./safe-write.js";
 import {
   enableSystemdUserLinger,
   readSystemdUserLingerStatus,
@@ -24,21 +25,6 @@ import {
 
 const execFileAsync = promisify(execFile);
 const toPosixPath = (value: string) => value.replace(/\\/g, "/");
-
-/**
- * Write to a stream, silently ignoring EPIPE/EIO errors that occur when the
- * receiving end of the pipe has already closed (e.g. during service restart).
- */
-function safeWrite(stream: NodeJS.WritableStream, data: string): void {
-  try {
-    stream.write(data);
-  } catch (err: unknown) {
-    const code = (err as NodeJS.ErrnoException | undefined)?.code;
-    if (code !== "EPIPE" && code !== "EIO") {
-      throw err;
-    }
-  }
-}
 
 const formatLine = (label: string, value: string) => {
   const rich = isRich();
@@ -449,7 +435,10 @@ export async function uninstallLegacySystemdUnits({
     if (systemctlAvailable) {
       await execSystemctl(["--user", "disable", "--now", `${unit.name}.service`]);
     } else {
-      safeWrite(stdout, `systemctl unavailable; removed legacy unit file only: ${unit.name}.service\n`);
+      safeWrite(
+        stdout,
+        `systemctl unavailable; removed legacy unit file only: ${unit.name}.service\n`,
+      );
     }
 
     try {

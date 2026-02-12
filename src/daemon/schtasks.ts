@@ -7,24 +7,9 @@ import { colorize, isRich, theme } from "../terminal/theme.js";
 import { formatGatewayServiceDescription, resolveGatewayWindowsTaskName } from "./constants.js";
 import { resolveGatewayStateDir } from "./paths.js";
 import { parseKeyValueOutput } from "./runtime-parse.js";
+import { safeWrite } from "./safe-write.js";
 
 const execFileAsync = promisify(execFile);
-
-
-/**
- * Write to a stream, silently ignoring EPIPE/EIO errors that occur when the
- * receiving end of the pipe has already closed (e.g. during task restart).
- */
-function safeWrite(stream: NodeJS.WritableStream, data: string): void {
-  try {
-    stream.write(data);
-  } catch (err: unknown) {
-    const code = (err as NodeJS.ErrnoException | undefined)?.code;
-    if (code !== "EPIPE" && code !== "EIO") {
-      throw err;
-    }
-  }
-}
 const formatLine = (label: string, value: string) => {
   const rich = isRich();
   return `${colorize(rich, theme.muted, `${label}:`)} ${colorize(rich, theme.command, value)}`;
