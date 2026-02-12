@@ -41,6 +41,29 @@ function errorBackoffMs(consecutiveErrors: number): number {
 }
 
 /**
+ * For `every`-type jobs, compute nextRunAtMs based on lastRunAtMs rather than
+ * wall-clock time after completion. This prevents intervals from drifting
+ * forward when job execution takes non-trivial time or when multiple jobs
+ * run sequentially (#14761). Returns `undefined` for non-every jobs so
+ * callers can fall back to the generic computeJobNextRunAtMs.
+ */
+function computeEveryNextRunFromLastRun(
+  job: CronJob,
+  lastRunAtMs: number,
+  nowMs: number,
+): number | undefined {
+  if (job.schedule.kind !== "every") {
+    return undefined;
+  }
+  const everyMs = Math.max(1, Math.floor(job.schedule.everyMs));
+  let next = lastRunAtMs + everyMs;
+  while (next < nowMs) {
+    next += everyMs;
+  }
+  return next;
+}
+
+/**
  * Apply the result of a job execution to the job's state.
  * Handles consecutive error tracking, exponential backoff, one-shot disable,
  * and nextRunAtMs computation. Returns `true` if the job should be deleted.
@@ -93,7 +116,9 @@ function applyJobResult(
     } else if (result.status === "error" && job.enabled) {
       // Apply exponential backoff for errored jobs to prevent retry storms.
       const backoff = errorBackoffMs(job.state.consecutiveErrors ?? 1);
-      const normalNext = computeJobNextRunAtMs(job, result.endedAt);
+      const normalNext =
+        computeEveryNextRunFromLastRun(job, result.startedAt, result.endedAt) ??
+        computeJobNextRunAtMs(job, result.endedAt);
       const backoffNext = result.endedAt + backoff;
       // Use whichever is later: the natural next run or the backoff delay.
       job.state.nextRunAtMs =
@@ -108,7 +133,9 @@ function applyJobResult(
         "cron: applying error backoff",
       );
     } else if (job.enabled) {
-      job.state.nextRunAtMs = computeJobNextRunAtMs(job, result.endedAt);
+      job.state.nextRunAtMs =
+        computeEveryNextRunFromLastRun(job, result.startedAt, result.endedAt) ??
+        computeJobNextRunAtMs(job, result.endedAt);
     } else {
       job.state.nextRunAtMs = undefined;
     }
