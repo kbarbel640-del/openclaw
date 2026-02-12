@@ -425,4 +425,67 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("## Reactions");
     expect(prompt).toContain("Reactions are enabled for Telegram in MINIMAL mode.");
   });
+
+  it("includes strict rules when strictRulesContent is provided", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      strictRulesContent: "Never share API keys.",
+    });
+
+    expect(prompt).toContain("## Strict Rules");
+    expect(prompt).toContain("Never share API keys.");
+  });
+
+  it("includes operator rules when globalRulesContent is provided", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      globalRulesContent: "Always respond in Spanish.",
+    });
+
+    expect(prompt).toContain("## Operator Rules");
+    expect(prompt).toContain("Always respond in Spanish.");
+  });
+
+  it("omits strict and operator rules sections when not provided", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+    });
+
+    expect(prompt).not.toContain("## Strict Rules");
+    expect(prompt).not.toContain("## Operator Rules");
+  });
+
+  it("places both rules sections before Project Context", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      strictRulesContent: "Strict rule here.",
+      globalRulesContent: "Operator rule here.",
+      contextFiles: [{ path: "AGENTS.md", content: "Agent instructions" }],
+    });
+
+    const strictIdx = prompt.indexOf("## Strict Rules");
+    const operatorIdx = prompt.indexOf("## Operator Rules");
+    const contextIdx = prompt.indexOf("# Project Context");
+
+    expect(strictIdx).toBeGreaterThan(-1);
+    expect(operatorIdx).toBeGreaterThan(-1);
+    expect(contextIdx).toBeGreaterThan(-1);
+    expect(strictIdx).toBeLessThan(contextIdx);
+    expect(operatorIdx).toBeLessThan(contextIdx);
+    expect(strictIdx).toBeLessThan(operatorIdx);
+  });
+
+  it("includes both rules sections in minimal mode (subagents)", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      promptMode: "minimal",
+      strictRulesContent: "Strict rule for subagents.",
+      globalRulesContent: "Operator rule for subagents.",
+    });
+
+    expect(prompt).toContain("## Strict Rules");
+    expect(prompt).toContain("Strict rule for subagents.");
+    expect(prompt).toContain("## Operator Rules");
+    expect(prompt).toContain("Operator rule for subagents.");
+  });
 });

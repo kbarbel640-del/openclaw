@@ -236,6 +236,12 @@ importers:
         specifier: workspace:*
         version: link:../..
 
+  extensions/config-preset:
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
   extensions/copilot-proxy:
     devDependencies:
       openclaw:
@@ -502,6 +508,12 @@ importers:
         version: link:../..
 
   extensions/whatsapp:
+    devDependencies:
+      openclaw:
+        specifier: workspace:*
+        version: link:../..
+
+  extensions/workspace-override:
     devDependencies:
       openclaw:
         specifier: workspace:*

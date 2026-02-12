@@ -1,0 +1,3 @@
+# Un-ignore workspace override files that are ignored at the repo root.
+!USER.md
+!IDENTITY.md

@@ -1,0 +1,15 @@
+{
+  "id": "workspace-override",
+  "name": "Workspace Override",
+  "description": "Override default agent workspace .md documents with custom versions",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "dir": {
+        "type": "string",
+        "description": "Directory containing override .md files (defaults to ~/.openclaw/workspace-overrides)"
+      }
+    }
+  }
+}

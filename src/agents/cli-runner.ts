@@ -28,6 +28,7 @@ import {
 } from "./cli-runner/helpers.js";
 import { resolveOpenClawDocsPath } from "./docs-path.js";
 import { FailoverError, resolveFailoverStatus } from "./failover-error.js";
+import { loadGlobalRules, loadStrictRules } from "./global-rules.js";
 import { classifyFailoverReason, isFailoverErrorMessage } from "./pi-embedded-helpers.js";
 
 const log = createSubsystemLogger("agent/claude-cli");
@@ -71,13 +72,17 @@ export async function runCliAgent(params: {
     .join("\n");
 
   const sessionLabel = params.sessionKey ?? params.sessionId;
-  const { contextFiles } = await resolveBootstrapContextForRun({
-    workspaceDir,
-    config: params.config,
-    sessionKey: params.sessionKey,
-    sessionId: params.sessionId,
-    warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
-  });
+  const [{ contextFiles }, strictRulesContent, globalRulesContent] = await Promise.all([
+    resolveBootstrapContextForRun({
+      workspaceDir,
+      config: params.config,
+      sessionKey: params.sessionKey,
+      sessionId: params.sessionId,
+      warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
+    }),
+    loadStrictRules(),
+    loadGlobalRules(),
+  ]);
   const { defaultAgentId, sessionAgentId } = resolveSessionAgentIds({
     sessionKey: params.sessionKey,
     config: params.config,
@@ -104,6 +109,8 @@ export async function runCliAgent(params: {
     contextFiles,
     modelDisplay,
     agentId: sessionAgentId,
+    strictRulesContent,
+    globalRulesContent,
   });
 
   const { sessionId: cliSessionIdToSend, isNew } = resolveSessionIdToSend({

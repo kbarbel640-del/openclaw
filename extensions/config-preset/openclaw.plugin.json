@@ -1,0 +1,15 @@
+{
+  "id": "config-preset",
+  "name": "Config Preset",
+  "description": "Apply default config presets to openclaw.json on gateway start",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "file": {
+        "type": "string",
+        "description": "Path to a custom JSON5 preset file (defaults to bundled preset.json5)"
+      }
+    }
+  }
+}

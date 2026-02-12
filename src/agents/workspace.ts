@@ -4,6 +4,7 @@ import path from "node:path";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { resolveUserPath } from "../utils.js";
+import { ensureGlobalRulesFile } from "./global-rules.js";
 import { resolveWorkspaceTemplateDir } from "./workspace-templates.js";
 
 export function resolveDefaultAgentWorkspaceDir(
@@ -183,6 +184,8 @@ export async function ensureAgentWorkspace(params?: {
   if (isBrandNewWorkspace) {
     await writeFileIfMissing(bootstrapPath, bootstrapTemplate);
   }
+  // Ensure ~/.openclaw/RULES.md exists (global, not per-workspace).
+  await ensureGlobalRulesFile();
   await ensureGitRepo(dir, isBrandNewWorkspace);
 
   return {

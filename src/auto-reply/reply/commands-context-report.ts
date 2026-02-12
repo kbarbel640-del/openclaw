@@ -3,6 +3,7 @@ import type { ReplyPayload } from "../types.js";
 import type { HandleCommandsParams } from "./commands-types.js";
 import { resolveSessionAgentIds } from "../../agents/agent-scope.js";
 import { resolveBootstrapContextForRun } from "../../agents/bootstrap-files.js";
+import { loadGlobalRules, loadStrictRules } from "../../agents/global-rules.js";
 import { resolveDefaultModelForAgent } from "../../agents/model-selection.js";
 import { resolveBootstrapMaxChars } from "../../agents/pi-embedded-helpers.js";
 import { createOpenClawCodingTools } from "../../agents/pi-tools.js";
@@ -59,12 +60,17 @@ async function resolveContextReport(
 
   const workspaceDir = params.workspaceDir;
   const bootstrapMaxChars = resolveBootstrapMaxChars(params.cfg);
-  const { bootstrapFiles, contextFiles: injectedFiles } = await resolveBootstrapContextForRun({
-    workspaceDir,
-    config: params.cfg,
-    sessionKey: params.sessionKey,
-    sessionId: params.sessionEntry?.sessionId,
-  });
+  const [{ bootstrapFiles, contextFiles: injectedFiles }, strictRulesContent, globalRulesContent] =
+    await Promise.all([
+      resolveBootstrapContextForRun({
+        workspaceDir,
+        config: params.cfg,
+        sessionKey: params.sessionKey,
+        sessionId: params.sessionEntry?.sessionId,
+      }),
+      loadStrictRules(),
+      loadGlobalRules(),
+    ]);
   const skillsSnapshot = (() => {
     try {
       return buildWorkspaceSkillSnapshot(workspaceDir, {
@@ -156,6 +162,8 @@ async function resolveContextReport(
     ttsHint,
     runtimeInfo,
     sandboxInfo,
+    strictRulesContent,
+    globalRulesContent,
   });
 
   return buildSystemPromptReport({

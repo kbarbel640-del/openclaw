@@ -30,6 +30,7 @@ import { listChannelSupportedActions, resolveChannelMessageToolHints } from "../
 import { formatUserTime, resolveUserTimeFormat, resolveUserTimezone } from "../date-time.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../defaults.js";
 import { resolveOpenClawDocsPath } from "../docs-path.js";
+import { loadGlobalRules, loadStrictRules } from "../global-rules.js";
 import { getApiKeyForModel, resolveModelAuthMode } from "../model-auth.js";
 import { ensureOpenClawModelsJson } from "../models-config.js";
 import {
@@ -202,13 +203,17 @@ export async function compactEmbeddedPiSessionDirect(
     });
 
     const sessionLabel = params.sessionKey ?? params.sessionId;
-    const { contextFiles } = await resolveBootstrapContextForRun({
-      workspaceDir: effectiveWorkspace,
-      config: params.config,
-      sessionKey: params.sessionKey,
-      sessionId: params.sessionId,
-      warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
-    });
+    const [{ contextFiles }, strictRulesContent, globalRulesContent] = await Promise.all([
+      resolveBootstrapContextForRun({
+        workspaceDir: effectiveWorkspace,
+        config: params.config,
+        sessionKey: params.sessionKey,
+        sessionId: params.sessionId,
+        warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
+      }),
+      loadStrictRules(),
+      loadGlobalRules(),
+    ]);
     const runAbortController = new AbortController();
     const toolsRaw = createOpenClawCodingTools({
       exec: {
@@ -347,6 +352,8 @@ export async function compactEmbeddedPiSessionDirect(
       userTime,
       userTimeFormat,
       contextFiles,
+      strictRulesContent,
+      globalRulesContent,
     });
     const systemPrompt = createSystemPromptOverride(appendPrompt);
 

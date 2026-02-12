@@ -1,0 +1,26 @@
+// Default config preset applied by the config-preset plugin.
+// Edit this file to change the defaults for new installs.
+// Keys here are merged (RFC 7396) into openclaw.json on first gateway start.
+// Existing user values are never overwritten.
+{
+  "agents": {
+    "defaults": {
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
+      },
+      "model": {
+        "primary": "anthropic/claude-haiku-4-5"
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "port": 18789
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto"
+  }
+}
