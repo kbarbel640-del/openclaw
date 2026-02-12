@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import type { OpenClawConfig } from "../config/config.js";
 import { listAgentIds, resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
-import { buildWorkspaceSkillCommandSpecs, type SkillCommandSpec } from "../agents/skills.js";
+import {
+  buildWorkspaceSkillCommandSpecs,
+  loadWorkspaceSkillEntries,
+  type SkillCommandSpec,
+} from "../agents/skills.js";
 import { getRemoteSkillEligibility } from "../infra/skills-remote.js";
 import { listChatCommands } from "./commands-registry.js";
 
@@ -45,6 +49,11 @@ export function listSkillCommandsForAgents(params: {
   // Track visited workspace dirs to avoid registering duplicate commands
   // when multiple agents share the same workspace directory (#5717).
   const visitedDirs = new Set<string>();
+  // Track seen skill file paths to avoid registering duplicate commands when
+  // multiple agents share the same bundled/managed/global skill directories.
+  // Without this, each agent independently loads bundled skills and the shared
+  // `used` name set causes _2 suffixes on the second agent's copy (#14721).
+  const seenSkillFiles = new Set<string>();
   for (const agentId of agentIds) {
     const workspaceDir = resolveAgentWorkspaceDir(params.cfg, agentId);
     if (!fs.existsSync(workspaceDir)) {
@@ -56,8 +65,19 @@ export function listSkillCommandsForAgents(params: {
       continue;
     }
     visitedDirs.add(canonicalDir);
+    // Load skill entries for this workspace, then filter out skills whose
+    // underlying file has already been registered by a previous agent.
+    // This prevents bundled skills from producing duplicate commands.
+    const allSkillEntries = loadWorkspaceSkillEntries(workspaceDir, { config: params.cfg });
+    const newSkillEntries = allSkillEntries.filter(
+      (entry) => !seenSkillFiles.has(entry.skill.filePath),
+    );
+    for (const entry of allSkillEntries) {
+      seenSkillFiles.add(entry.skill.filePath);
+    }
     const commands = buildWorkspaceSkillCommandSpecs(workspaceDir, {
       config: params.cfg,
+      entries: newSkillEntries,
       eligibility: { remote: getRemoteSkillEligibility() },
       reservedNames: used,
     });
