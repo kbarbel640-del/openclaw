@@ -289,6 +289,7 @@ export type PluginHookName =
   | "agent_end"
   | "before_compaction"
   | "after_compaction"
+  | "before_context_send"
   | "message_received"
   | "message_sending"
   | "message_sent"
@@ -402,6 +403,25 @@ export type PluginHookAfterToolCallEvent = {
   durationMs?: number;
 };
 
+// before_context_send hook
+export type PluginHookBeforeContextSendContext = {
+  agentId?: string;
+  sessionKey?: string;
+};
+
+export type PluginHookBeforeContextSendEvent = {
+  /**
+   * The messages array about to be sent to the LLM, after context pruning.
+   * Handlers may return a modified array (e.g. deduplicate tool results,
+   * supersede stale writes, purge old error inputs).
+   */
+  messages: AgentMessage[];
+};
+
+export type PluginHookBeforeContextSendResult = {
+  messages?: AgentMessage[];
+};
+
 // tool_result_persist hook
 export type PluginHookToolResultPersistContext = {
   agentId?: string;
@@ -495,6 +515,10 @@ export type PluginHookHandlerMap = {
     event: PluginHookAfterToolCallEvent,
     ctx: PluginHookToolContext,
   ) => Promise<void> | void;
+  before_context_send: (
+    event: PluginHookBeforeContextSendEvent,
+    ctx: PluginHookBeforeContextSendContext,
+  ) => PluginHookBeforeContextSendResult | void;
   tool_result_persist: (
     event: PluginHookToolResultPersistEvent,
     ctx: PluginHookToolResultPersistContext,

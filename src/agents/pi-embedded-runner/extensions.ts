@@ -3,6 +3,7 @@ import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { OpenClawConfig } from "../../config/config.js";
+import { hasGlobalHooks } from "../../plugins/hook-runner-global.js";
 import { resolveContextWindowInfo } from "../context-window-guard.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { setCompactionSafeguardRuntime } from "../pi-extensions/compaction-safeguard-runtime.js";
@@ -43,28 +44,33 @@ function buildContextPruningExtension(params: {
   model: Model<Api> | undefined;
 }): { additionalExtensionPaths?: string[] } {
   const raw = params.cfg?.agents?.defaults?.contextPruning;
-  if (raw?.mode !== "cache-ttl") {
-    return {};
-  }
-  if (!isCacheTtlEligibleProvider(params.provider, params.modelId)) {
-    return {};
+  const hasPruning =
+    raw?.mode === "cache-ttl" && isCacheTtlEligibleProvider(params.provider, params.modelId);
+
+  if (hasPruning) {
+    const settings = computeEffectiveSettings(raw);
+    if (settings) {
+      setContextPruningRuntime(params.sessionManager, {
+        settings,
+        contextWindowTokens: resolveContextWindowTokens(params),
+        isToolPrunable: makeToolPrunablePredicate(settings.tools),
+        lastCacheTouchAt: readLastCacheTtlTimestamp(params.sessionManager),
+      });
+      return {
+        additionalExtensionPaths: [resolvePiExtensionPath("context-pruning")],
+      };
+    }
   }
 
-  const settings = computeEffectiveSettings(raw);
-  if (!settings) {
-    return {};
+  // Even without pruning, load the extension when before_context_send hooks
+  // are registered so plugins can still intercept messages before the LLM call.
+  if (hasGlobalHooks("before_context_send")) {
+    return {
+      additionalExtensionPaths: [resolvePiExtensionPath("context-pruning")],
+    };
   }
 
-  setContextPruningRuntime(params.sessionManager, {
-    settings,
-    contextWindowTokens: resolveContextWindowTokens(params),
-    isToolPrunable: makeToolPrunablePredicate(settings.tools),
-    lastCacheTouchAt: readLastCacheTtlTimestamp(params.sessionManager),
-  });
-
-  return {
-    additionalExtensionPaths: [resolvePiExtensionPath("context-pruning")],
-  };
+  return {};
 }
 
 function resolveCompactionMode(cfg?: OpenClawConfig): "default" | "safeguard" {

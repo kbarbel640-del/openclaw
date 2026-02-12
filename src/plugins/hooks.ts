@@ -14,6 +14,9 @@ import type {
   PluginHookBeforeAgentStartEvent,
   PluginHookBeforeAgentStartResult,
   PluginHookBeforeCompactionEvent,
+  PluginHookBeforeContextSendContext,
+  PluginHookBeforeContextSendEvent,
+  PluginHookBeforeContextSendResult,
   PluginHookBeforeToolCallEvent,
   PluginHookBeforeToolCallResult,
   PluginHookGatewayContext,
@@ -43,6 +46,9 @@ export type {
   PluginHookAgentEndEvent,
   PluginHookBeforeCompactionEvent,
   PluginHookAfterCompactionEvent,
+  PluginHookBeforeContextSendContext,
+  PluginHookBeforeContextSendEvent,
+  PluginHookBeforeContextSendResult,
   PluginHookMessageContext,
   PluginHookMessageReceivedEvent,
   PluginHookMessageSendingEvent,
@@ -313,6 +319,68 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
   }
 
   /**
+   * Run before_context_send hook.
+   *
+   * Fired after context pruning but before messages are sent to the LLM.
+   * This hook is intentionally synchronous because it runs inside the
+   * pi-agent-core `context` event handler which is sync.
+   *
+   * Handlers are executed sequentially in priority order (higher first).
+   * Each handler may return `{ messages }` to replace the messages array
+   * passed to the next handler.
+   */
+  function runBeforeContextSend(
+    event: PluginHookBeforeContextSendEvent,
+    ctx: PluginHookBeforeContextSendContext,
+  ): PluginHookBeforeContextSendResult | undefined {
+    const hooks = getHooksForName(registry, "before_context_send");
+    if (hooks.length === 0) {
+      return undefined;
+    }
+
+    logger?.debug?.(`[hooks] running before_context_send (${hooks.length} handlers, sequential)`);
+
+    let current = event.messages;
+
+    for (const hook of hooks) {
+      try {
+        // oxlint-disable-next-line typescript/no-explicit-any
+        const out = (hook.handler as any)({ ...event, messages: current }, ctx) as
+          | PluginHookBeforeContextSendResult
+          | void
+          | Promise<unknown>;
+
+        // Guard against accidental async handlers (this hook is sync-only).
+        // oxlint-disable-next-line typescript/no-explicit-any
+        if (out && typeof (out as any).then === "function") {
+          const msg =
+            `[hooks] before_context_send handler from ${hook.pluginId} returned a Promise; ` +
+            `this hook is synchronous and the result was ignored.`;
+          if (catchErrors) {
+            logger?.warn?.(msg);
+            continue;
+          }
+          throw new Error(msg);
+        }
+
+        const next = (out as PluginHookBeforeContextSendResult | undefined)?.messages;
+        if (next) {
+          current = next;
+        }
+      } catch (err) {
+        const msg = `[hooks] before_context_send handler from ${hook.pluginId} failed: ${String(err)}`;
+        if (catchErrors) {
+          logger?.error(msg);
+        } else {
+          throw new Error(msg, { cause: err });
+        }
+      }
+    }
+
+    return { messages: current };
+  }
+
+  /**
    * Run tool_result_persist hook.
    *
    * This hook is intentionally synchronous: it runs in hot paths where session
@@ -455,6 +523,8 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     runBeforeToolCall,
     runAfterToolCall,
     runToolResultPersist,
+    // Context hooks
+    runBeforeContextSend,
     // Session hooks
     runSessionStart,
     runSessionEnd,

@@ -62,6 +62,9 @@ export type {
   OpenClawPluginApi,
   OpenClawPluginService,
   OpenClawPluginServiceContext,
+  PluginHookBeforeContextSendContext,
+  PluginHookBeforeContextSendEvent,
+  PluginHookBeforeContextSendResult,
 } from "../plugins/types.js";
 export type {
   GatewayRequestHandler,
