@@ -213,6 +213,10 @@ export async function runCronIsolatedAgentTurn(params: {
     agentId,
     nowMs: now,
   });
+  // Assign the resolved model (respecting payload.model override) to the
+  // session entry so it is persisted correctly before the agent run starts.
+  cronSession.sessionEntry.modelProvider = provider;
+  cronSession.sessionEntry.model = model;
   const runSessionId = cronSession.sessionEntry.sessionId;
   const runSessionKey = baseSessionKey.startsWith("cron:")
     ? `${agentSessionKey}:run:${runSessionId}`
