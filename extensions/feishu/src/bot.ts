@@ -25,32 +25,51 @@ import { getMessageFeishu } from "./send.js";
 
 // --- Message deduplication ---
 // Prevent duplicate processing when WebSocket reconnects or Feishu redelivers messages.
+// The cache is stored on `globalThis` so it survives SIGUSR1 in-process restarts.
+// When the gateway restarts, the Lark SDK WebSocket reconnects and replays recent events;
+// without a persistent cache those replayed events would be treated as new messages.
 const DEDUP_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const DEDUP_MAX_SIZE = 1_000;
 const DEDUP_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // cleanup every 5 minutes
-const processedMessageIds = new Map<string, number>(); // messageId -> timestamp
-let lastCleanupTime = Date.now();
+
+const FEISHU_DEDUP_GLOBAL_KEY = "__openclaw_feishu_dedup__";
+
+type FeishuDedupState = {
+  processedMessageIds: Map<string, number>;
+  lastCleanupTime: number;
+};
+
+function getFeishuDedupState(): FeishuDedupState {
+  const g = globalThis as Record<string, unknown>;
+  let state = g[FEISHU_DEDUP_GLOBAL_KEY] as FeishuDedupState | undefined;
+  if (!state) {
+    state = { processedMessageIds: new Map(), lastCleanupTime: Date.now() };
+    g[FEISHU_DEDUP_GLOBAL_KEY] = state;
+  }
+  return state;
+}
 
 function tryRecordMessage(messageId: string): boolean {
+  const state = getFeishuDedupState();
   const now = Date.now();
 
   // Throttled cleanup: evict expired entries at most once per interval
-  if (now - lastCleanupTime > DEDUP_CLEANUP_INTERVAL_MS) {
-    for (const [id, ts] of processedMessageIds) {
-      if (now - ts > DEDUP_TTL_MS) processedMessageIds.delete(id);
+  if (now - state.lastCleanupTime > DEDUP_CLEANUP_INTERVAL_MS) {
+    for (const [id, ts] of state.processedMessageIds) {
+      if (now - ts > DEDUP_TTL_MS) state.processedMessageIds.delete(id);
     }
-    lastCleanupTime = now;
+    state.lastCleanupTime = now;
   }
 
-  if (processedMessageIds.has(messageId)) return false;
+  if (state.processedMessageIds.has(messageId)) return false;
 
   // Evict oldest entries if cache is full
-  if (processedMessageIds.size >= DEDUP_MAX_SIZE) {
-    const first = processedMessageIds.keys().next().value!;
-    processedMessageIds.delete(first);
+  if (state.processedMessageIds.size >= DEDUP_MAX_SIZE) {
+    const first = state.processedMessageIds.keys().next().value!;
+    state.processedMessageIds.delete(first);
   }
 
-  processedMessageIds.set(messageId, now);
+  state.processedMessageIds.set(messageId, now);
   return true;
 }
 

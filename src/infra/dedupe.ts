@@ -9,6 +9,48 @@ type DedupeCacheOptions = {
   maxSize: number;
 };
 
+type GlobalDedupeCacheOptions = DedupeCacheOptions & {
+  /**
+   * Unique key used to store the cache on `globalThis`.
+   * When a cache already exists under this key (e.g. after a SIGUSR1
+   * in-process restart that re-evaluates the module), the existing
+   * instance is reused so previously-recorded entries survive the
+   * restart cycle.
+   */
+  globalKey: string;
+};
+
+const GLOBAL_DEDUPE_REGISTRY_KEY = "__openclaw_dedupe_caches__";
+
+function getGlobalRegistry(): Map<string, DedupeCache> {
+  const g = globalThis as Record<string, unknown>;
+  let registry = g[GLOBAL_DEDUPE_REGISTRY_KEY] as Map<string, DedupeCache> | undefined;
+  if (!registry) {
+    registry = new Map<string, DedupeCache>();
+    g[GLOBAL_DEDUPE_REGISTRY_KEY] = registry;
+  }
+  return registry;
+}
+
+/**
+ * Create a dedupe cache that survives in-process restarts (SIGUSR1).
+ *
+ * On first call the cache is created normally and stored in a
+ * `globalThis` registry keyed by `globalKey`.  Subsequent calls with
+ * the same key return the **existing** instance, preserving all
+ * previously-recorded entries.
+ */
+export function createGlobalDedupeCache(options: GlobalDedupeCacheOptions): DedupeCache {
+  const registry = getGlobalRegistry();
+  const existing = registry.get(options.globalKey);
+  if (existing) {
+    return existing;
+  }
+  const cache = createDedupeCache(options);
+  registry.set(options.globalKey, cache);
+  return cache;
+}
+
 export function createDedupeCache(options: DedupeCacheOptions): DedupeCache {
   const ttlMs = Math.max(0, options.ttlMs);
   const maxSize = Math.max(0, Math.floor(options.maxSize));

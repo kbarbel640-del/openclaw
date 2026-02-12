@@ -1,11 +1,12 @@
 import type { MsgContext } from "../templating.js";
 import { logVerbose, shouldLogVerbose } from "../../globals.js";
-import { createDedupeCache, type DedupeCache } from "../../infra/dedupe.js";
+import { createGlobalDedupeCache, type DedupeCache } from "../../infra/dedupe.js";
 
 const DEFAULT_INBOUND_DEDUPE_TTL_MS = 20 * 60_000;
 const DEFAULT_INBOUND_DEDUPE_MAX = 5000;
 
-const inboundDedupeCache = createDedupeCache({
+const inboundDedupeCache = createGlobalDedupeCache({
+  globalKey: "openclaw:inbound-dedupe",
   ttlMs: DEFAULT_INBOUND_DEDUPE_TTL_MS,
   maxSize: DEFAULT_INBOUND_DEDUPE_MAX,
 });
