@@ -363,8 +363,15 @@ export function handleMessageEnd(
   // no tool execution events were fired, log a warning for debugging.
   // Use stripped text (not rawText) to avoid false positives from JSON examples
   // or structured content in the assistant's message.
+  // Only warn if:
+  //  1. No toolMetas were populated (toolMetas.length === 0)
+  //  2. The assistant text contains tool call intent patterns
+  //  3. No tool_use events were emitted during this message
   const toolMetaCount = ctx.state.toolMetas.length;
-  if (toolMetaCount === 0) {
+  const hasToolUseInContent = assistantMessage.content?.some(
+    (c: { type: string }) => c.type === "tool_use",
+  );
+  if (toolMetaCount === 0 && !hasToolUseInContent) {
     const suspectedTool = detectUnparsedToolCallIntent(text);
     if (suspectedTool) {
       ctx.log.warn(
