@@ -14,9 +14,15 @@ import platform
 import os
 import subprocess
 import sys
+import json
+import re
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+
+# Import the core memory system (immutable dependency)
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from core.memory import recall, remember, recall_preferences, get_memory
 
 # Platform detection
 CURRENT_OS = platform.system()  # 'Darwin', 'Windows', 'Linux'
@@ -51,6 +57,14 @@ except ImportError:
     print("⚠️ Playwright not installed. Browser automation disabled.")
     print("   Install with: pip install playwright && playwright install")
 
+# Import requests for Ollama HTTP calls (used by both vision and goal proposal)
+try:
+    import requests as _requests
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+    _requests = None  # type: ignore[assignment]
+
 # Import Vision Loop dependencies (with fallback)
 try:
     import mss
@@ -58,7 +72,6 @@ try:
     from PIL import Image
     import io
     import base64
-    import requests as _requests  # used for Ollama HTTP calls
     VISION_AVAILABLE = True
 except ImportError as e:
     VISION_AVAILABLE = False
@@ -160,7 +173,6 @@ class OrionExecutive:
 
         try:
             with open(LOG_FILE, 'a') as f:
-                import json
                 f.write(json.dumps(log_entry) + '\n')
         except Exception as e:
             print(f"⚠️ Failed to write log: {e}")
@@ -617,9 +629,6 @@ Be precise with pixel coordinates. The top-left corner is (0, 0)."""
         Returns:
             List of coordinate dictionaries
         """
-        import re
-        import json
-
         coordinates = []
 
         # Try to find JSON array format first
@@ -734,8 +743,8 @@ Be precise with pixel coordinates. The top-left corner is (0, 0)."""
             # STEP 4: VERIFY - Take another screenshot to confirm
             if verify:
                 print(f"✓ Step 4: Verifying action...")
-                import time
-                time.sleep(1)  # Wait for UI to update
+                import time as _time
+                _time.sleep(1)  # Wait for UI to update
 
                 verify_screenshot = self.capture_screenshot()
                 if verify_screenshot["success"]:
@@ -759,9 +768,266 @@ Be precise with pixel coordinates. The top-left corner is (0, 0)."""
 
         return results
 
-    def get_stats(self) -> Dict[str, Any]:
-        """Get statistics about executive actions."""
+    # ── Proactive Goal Proposal (The Strategist) ──────────────
+
+    def _llm_generate(self, prompt: str, timeout: int = 90) -> Optional[str]:
+        """
+        Send a text-only prompt to the local Ollama/llama3 model.
+
+        Args:
+            prompt: The text prompt to send.
+            timeout: Request timeout in seconds.
+
+        Returns:
+            The model's text response, or None on failure.
+        """
+        try:
+            resp = _requests.post(
+                f"{self._ollama_host}/api/generate",
+                json={
+                    "model": "llama3",
+                    "prompt": prompt,
+                    "stream": False,
+                },
+                timeout=timeout,
+            )
+            if resp.status_code == 200:
+                return resp.json().get("response", "")
+            self._log("llm_generate_error", {"status": resp.status_code})
+            return None
+        except Exception as e:
+            self._log("llm_generate_error", {"error": str(e)})
+            return None
+
+    def _parse_goal_json(self, llm_response: str) -> List[Dict[str, Any]]:
+        """
+        Extract a JSON array of goals from an LLM response.
+
+        Tolerant of markdown fences, preamble text, and minor formatting issues.
+
+        Args:
+            llm_response: Raw text from the LLM.
+
+        Returns:
+            List of parsed goal dicts, or empty list on failure.
+        """
+        # Strip markdown code fences if present
+        cleaned = re.sub(r"```(?:json)?\s*", "", llm_response)
+        cleaned = cleaned.strip()
+
+        # Find the JSON array in the response
+        match = re.search(r"\[.*\]", cleaned, re.DOTALL)
+        if not match:
+            self._log("goal_parse_error", {"reason": "no JSON array found"})
+            return []
+
+        try:
+            goals = json.loads(match.group(0))
+        except json.JSONDecodeError as e:
+            self._log("goal_parse_error", {"reason": str(e)})
+            return []
+
+        # Validate required fields
+        valid_goals = []
+        for g in goals:
+            if isinstance(g, dict) and all(k in g for k in ("goal", "priority", "category")):
+                valid_goals.append(g)
+
+        return valid_goals
+
+    def propose_goals(
+        self, focus: Optional[str] = None, n_context: int = 10
+    ) -> Dict[str, Any]:
+        """
+        Mine ChromaDB project history and propose actionable goals via LLM.
+
+        Args:
+            focus: Optional focus area to narrow the memory query.
+            n_context: Number of memory items to retrieve per query.
+
+        Returns:
+            Dict with success status and proposed goals.
+        """
+        self._log("propose_goals_start", {"focus": focus})
+
+        # ── 1. Gather context from memory ────────────────────────
+        try:
+            if focus:
+                context_memories = recall(focus, n=n_context)
+            else:
+                context_memories = recall("recent project work and progress", n=n_context)
+
+            pain_memories = recall("problems, errors, and unfinished tasks", n=5)
+
+            try:
+                pref_memories = recall_preferences("workflow and priorities")
+            except Exception:
+                pref_memories = []
+        except Exception as e:
+            self._log("propose_goals_error", {"phase": "recall", "error": str(e)})
+            return {"success": False, "error": f"Memory recall failed: {e}"}
+
+        # ── 2. Format context for the prompt ─────────────────────
+        def _fmt(memories: List[Dict[str, Any]]) -> str:
+            if not memories:
+                return "(none)"
+            lines = []
+            for m in memories:
+                meta = m.get("metadata", {})
+                date = meta.get("timestamp", "unknown date")
+                mtype = meta.get("type", "general")
+                lines.append(f"- [{mtype} | {date}] {m['text']}")
+            return "\n".join(lines)
+
+        formatted_memories = _fmt(context_memories + pain_memories)
+        formatted_preferences = _fmt(pref_memories)
+
+        # ── 3. Ask the LLM ───────────────────────────────────────
+        prompt = (
+            "You are O.R.I.O.N., reviewing your project memory to propose next goals.\n\n"
+            f"Context from memory:\n{formatted_memories}\n\n"
+            f"User preferences:\n{formatted_preferences}\n\n"
+            "Propose 3-5 actionable goals. Output ONLY a JSON array:\n"
+            '[{"goal": "...", "priority": "high|medium|low", '
+            '"category": "development|learning|optimization|integration", '
+            '"reasoning": "..."}]'
+        )
+
+        llm_response = self._llm_generate(prompt)
+        if llm_response is None:
+            self._log("propose_goals_error", {"phase": "llm", "error": "no response"})
+            return {"success": False, "error": "LLM did not return a response"}
+
+        # ── 4. Parse goals ────────────────────────────────────────
+        parsed_goals = self._parse_goal_json(llm_response)
+        if not parsed_goals:
+            return {
+                "success": False,
+                "error": "Failed to parse goals from LLM response",
+                "raw_response": llm_response[:500],
+            }
+
+        # ── 5. Store each goal in ChromaDB ────────────────────────
+        stored_goals: List[Dict[str, Any]] = []
+        now_iso = datetime.now().isoformat()
+
+        for g in parsed_goals:
+            goal_id = remember(
+                text=g["goal"],
+                metadata={
+                    "type": "proposed_goal",
+                    "status": "active",
+                    "priority": g.get("priority", "medium"),
+                    "category": g.get("category", "general"),
+                    "reasoning": g.get("reasoning", ""),
+                    "proposed_date": now_iso,
+                },
+            )
+            stored_goals.append({
+                "id": goal_id,
+                "goal": g["goal"],
+                "priority": g.get("priority", "medium"),
+                "category": g.get("category", "general"),
+                "reasoning": g.get("reasoning", ""),
+            })
+
+        self._log("propose_goals_complete", {"count": len(stored_goals)})
+
         return {
+            "success": True,
+            "goals_proposed": len(stored_goals),
+            "goals": stored_goals,
+        }
+
+    def get_active_goals(self) -> Dict[str, Any]:
+        """
+        Retrieve all currently active proposed goals from ChromaDB.
+
+        Returns:
+            Dict with success status and list of active goals sorted by priority.
+        """
+        try:
+            mem = get_memory()
+            results = mem.collection.get(
+                where={"$and": [{"type": "proposed_goal"}, {"status": "active"}]},
+                include=["documents", "metadatas"],
+            )
+
+            goals: List[Dict[str, Any]] = []
+            if results["ids"]:
+                for i, gid in enumerate(results["ids"]):
+                    meta = results["metadatas"][i] if results["metadatas"] else {}
+                    goals.append({
+                        "id": gid,
+                        "text": results["documents"][i] if results["documents"] else "",
+                        "priority": meta.get("priority", "medium"),
+                        "category": meta.get("category", "general"),
+                        "proposed_date": meta.get("proposed_date", ""),
+                    })
+
+            # Sort: high → medium → low
+            priority_order = {"high": 0, "medium": 1, "low": 2}
+            goals.sort(key=lambda g: priority_order.get(g["priority"], 1))
+
+            self._log("get_active_goals", {"count": len(goals)})
+            return {"success": True, "goals": goals}
+
+        except Exception as e:
+            self._log("get_active_goals_error", {"error": str(e)})
+            return {"success": False, "error": str(e)}
+
+    def update_goal(self, goal_id: str, status: str) -> Dict[str, Any]:
+        """
+        Update the status of a proposed goal.
+
+        Args:
+            goal_id: The ChromaDB document ID of the goal.
+            status: New status — one of 'completed', 'dismissed', 'active'.
+
+        Returns:
+            Dict with success status and updated goal info.
+        """
+        valid_statuses = ("completed", "dismissed", "active")
+        if status not in valid_statuses:
+            return {
+                "success": False,
+                "error": f"Invalid status '{status}'. Must be one of {valid_statuses}",
+            }
+
+        try:
+            mem = get_memory()
+            # Fetch existing metadata
+            existing = mem.collection.get(ids=[goal_id], include=["metadatas"])
+            if not existing["ids"]:
+                return {"success": False, "error": f"Goal '{goal_id}' not found"}
+
+            old_meta = existing["metadatas"][0] if existing["metadatas"] else {}
+            old_status = old_meta.get("status", "unknown")
+            old_meta["status"] = status
+            old_meta[f"{status}_date"] = datetime.now().isoformat()
+
+            mem.collection.update(ids=[goal_id], metadatas=[old_meta])
+
+            self._log("update_goal", {
+                "goal_id": goal_id,
+                "old_status": old_status,
+                "new_status": status,
+            })
+
+            return {
+                "success": True,
+                "goal_id": goal_id,
+                "old_status": old_status,
+                "new_status": status,
+            }
+
+        except Exception as e:
+            self._log("update_goal_error", {"goal_id": goal_id, "error": str(e)})
+            return {"success": False, "error": str(e)}
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get statistics about executive actions, including goal counts."""
+        stats = {
             "session_id": self.session_id,
             "action_count": self.action_count,
             "os": self.os,
@@ -770,8 +1036,24 @@ Be precise with pixel coordinates. The top-left corner is (0, 0)."""
             "playwright_available": PLAYWRIGHT_AVAILABLE,
             "vision_available": self._vision_backend is not None,
             "vision_backend": self._vision_backend,
-            "log_file": str(LOG_FILE)
+            "log_file": str(LOG_FILE),
         }
+
+        # Add goal counts from ChromaDB (best-effort)
+        try:
+            mem = get_memory()
+            for goal_status in ("active", "completed", "dismissed"):
+                result = mem.collection.get(
+                    where={"$and": [{"type": "proposed_goal"}, {"status": goal_status}]},
+                    include=[],
+                )
+                stats[f"goals_{goal_status}"] = len(result["ids"]) if result["ids"] else 0
+        except Exception:
+            stats["goals_active"] = 0
+            stats["goals_completed"] = 0
+            stats["goals_dismissed"] = 0
+
+        return stats
 
 
 # Convenience functions
@@ -817,7 +1099,28 @@ if __name__ == "__main__":
         print("\n   Example task: 'Click the Terminal icon in the dock'")
         print("   Note: Requires manual confirmation for safety")
 
-    # Test 4: Show stats
+    # Test 4: Proactive Goal Proposal
+    print("\n🧪 Test 4: Proactive Goal Proposal")
+    print("   Testing propose_goals()...")
+    goal_result = exec_module.propose_goals()
+    if goal_result["success"]:
+        print(f"✅ Proposed {goal_result['goals_proposed']} goals:")
+        for g in goal_result["goals"]:
+            print(f"   [{g['priority']}] {g['goal']}")
+    else:
+        print(f"⚠️ Goal proposal: {goal_result.get('error', 'unavailable')}")
+
+    # Test 5: Retrieve active goals
+    print("\n🧪 Test 5: Get active goals")
+    active = exec_module.get_active_goals()
+    if active["success"]:
+        print(f"✅ Active goals: {len(active['goals'])}")
+        for g in active["goals"]:
+            print(f"   [{g['priority']}] {g['text'][:80]}")
+    else:
+        print(f"⚠️ Active goals: {active.get('error', 'unavailable')}")
+
+    # Test 6: Show stats
     print("\n" + "=" * 70)
     print("📊 Executive Stats:")
     stats = exec_module.get_stats()
@@ -829,3 +1132,4 @@ if __name__ == "__main__":
     if exec_module._vision_backend:
         backend_label = "Ollama/llava (local)" if exec_module._vision_backend == "ollama" else "Gemini (cloud)"
         print(f"🔮 VISION LOOP ENABLED via {backend_label} - Ready for visual desktop automation!")
+    print("🎯 GOAL PROPOSAL ENABLED - The Strategist is ready!")
