@@ -8,6 +8,7 @@ import {
   capEntryCount,
   clearSessionStoreCacheForTest,
   loadSessionStore,
+  pruneCronRunSessions,
   pruneStaleEntries,
   rotateSessionFile,
   saveSessionStore,
@@ -558,5 +559,257 @@ describe("Integration: saveSessionStore with pruning", () => {
       maxEntries: 500,
       rotateBytes: 10_485_760,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cron Run Session Garbage Collection
+// ---------------------------------------------------------------------------
+
+describe("pruneCronRunSessions", () => {
+  let mockLoadConfig: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    const configModule = await import("../config.js");
+    mockLoadConfig = configModule.loadConfig as ReturnType<typeof vi.fn>;
+    mockLoadConfig.mockReturnValue({});
+  });
+
+  it("removes cron run sessions older than the retention TTL", () => {
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {
+      "agent:main:cron:job1": makeEntry(now),
+      "agent:main:cron:job1:run:old-run": makeEntry(now - 25 * 60 * 60 * 1000),
+      "agent:main:cron:job1:run:recent-run": makeEntry(now - 1 * 60 * 60 * 1000),
+      "agent:main:telegram:dm:123": makeEntry(now - 100 * DAY_MS),
+    };
+
+    const pruned = pruneCronRunSessions(store, {
+      retentionMs: 24 * 60 * 60 * 1000,
+      maxCronRunSessions: 100,
+      nowMs: now,
+    });
+
+    expect(pruned).toBe(1);
+    expect(store["agent:main:cron:job1"]).toBeDefined();
+    expect(store["agent:main:cron:job1:run:old-run"]).toBeUndefined();
+    expect(store["agent:main:cron:job1:run:recent-run"]).toBeDefined();
+    expect(store["agent:main:telegram:dm:123"]).toBeDefined();
+  });
+
+  it("caps cron run sessions to maxCronRunSessions", () => {
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {};
+    for (let i = 0; i < 20; i++) {
+      store[`agent:main:cron:job1:run:run-${String(i).padStart(3, "0")}`] = makeEntry(
+        now - i * 60_000,
+      );
+    }
+    store["agent:main:telegram:dm:456"] = makeEntry(now - 50 * DAY_MS);
+
+    const pruned = pruneCronRunSessions(store, {
+      retentionMs: 30 * DAY_MS,
+      maxCronRunSessions: 5,
+      nowMs: now,
+    });
+
+    expect(pruned).toBe(15);
+    const cronKeys = Object.keys(store).filter((k) => k.includes(":run:"));
+    expect(cronKeys).toHaveLength(5);
+    expect(store["agent:main:cron:job1:run:run-000"]).toBeDefined();
+    expect(store["agent:main:cron:job1:run:run-004"]).toBeDefined();
+    expect(store["agent:main:cron:job1:run:run-005"]).toBeUndefined();
+    expect(store["agent:main:telegram:dm:456"]).toBeDefined();
+  });
+
+  it("applies both TTL and cap together", () => {
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {};
+    // 3 expired
+    for (let i = 0; i < 3; i++) {
+      store[`agent:main:cron:job1:run:expired-${i}`] = makeEntry(
+        now - 48 * 60 * 60 * 1000 - i * 60_000,
+      );
+    }
+    // 10 recent
+    for (let i = 0; i < 10; i++) {
+      store[`agent:main:cron:job1:run:recent-${i}`] = makeEntry(now - i * 60_000);
+    }
+
+    const pruned = pruneCronRunSessions(store, {
+      retentionMs: 24 * 60 * 60 * 1000,
+      maxCronRunSessions: 5,
+      nowMs: now,
+    });
+
+    // 3 expired by TTL + 5 excess by cap = 8
+    expect(pruned).toBe(8);
+    const cronKeys = Object.keys(store).filter((k) => k.includes(":run:"));
+    expect(cronKeys).toHaveLength(5);
+  });
+
+  it("does nothing when there are no cron run sessions", () => {
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {
+      "agent:main:telegram:dm:123": makeEntry(now),
+      "agent:main:cron:job1": makeEntry(now),
+    };
+
+    const pruned = pruneCronRunSessions(store, {
+      retentionMs: 24 * 60 * 60 * 1000,
+      maxCronRunSessions: 50,
+      nowMs: now,
+    });
+
+    expect(pruned).toBe(0);
+    expect(Object.keys(store)).toHaveLength(2);
+  });
+
+  it("skips TTL pruning when retentionMs is null", () => {
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {
+      "agent:main:cron:job1:run:old": makeEntry(now - 100 * DAY_MS),
+      "agent:main:cron:job1:run:recent": makeEntry(now),
+    };
+
+    const pruned = pruneCronRunSessions(store, {
+      retentionMs: null,
+      maxCronRunSessions: 100,
+      nowMs: now,
+    });
+
+    expect(pruned).toBe(0);
+    expect(Object.keys(store)).toHaveLength(2);
+  });
+
+  it("still enforces cap even when TTL is disabled", () => {
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {};
+    for (let i = 0; i < 10; i++) {
+      store[`agent:main:cron:job1:run:run-${i}`] = makeEntry(now - i * 60_000);
+    }
+
+    const pruned = pruneCronRunSessions(store, {
+      retentionMs: null,
+      maxCronRunSessions: 3,
+      nowMs: now,
+    });
+
+    expect(pruned).toBe(7);
+    const cronKeys = Object.keys(store).filter((k) => k.includes(":run:"));
+    expect(cronKeys).toHaveLength(3);
+  });
+
+  it("handles entries without updatedAt (treated as 0)", () => {
+    const now = Date.now();
+    const store: Record<string, SessionEntry> = {
+      "agent:main:cron:job1:run:no-date": {
+        sessionId: "no-date",
+      } as SessionEntry,
+      "agent:main:cron:job1:run:recent": makeEntry(now),
+    };
+
+    const pruned = pruneCronRunSessions(store, {
+      retentionMs: 24 * 60 * 60 * 1000,
+      maxCronRunSessions: 100,
+      nowMs: now,
+    });
+
+    // Entry with no updatedAt (treated as 0) should be pruned by TTL
+    expect(pruned).toBe(1);
+    expect(store["agent:main:cron:job1:run:no-date"]).toBeUndefined();
+    expect(store["agent:main:cron:job1:run:recent"]).toBeDefined();
+  });
+});
+
+describe("Integration: saveSessionStore prunes cron sessions in warn mode", () => {
+  let testDir: string;
+  let storePath: string;
+  let savedCacheTtl: string | undefined;
+  let mockLoadConfig: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    testDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-cron-gc-integ-"));
+    storePath = path.join(testDir, "sessions.json");
+    savedCacheTtl = process.env.OPENCLAW_SESSION_CACHE_TTL_MS;
+    process.env.OPENCLAW_SESSION_CACHE_TTL_MS = "0";
+    clearSessionStoreCacheForTest();
+
+    const configModule = await import("../config.js");
+    mockLoadConfig = configModule.loadConfig as ReturnType<typeof vi.fn>;
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await fs.rm(testDir, { recursive: true, force: true }).catch(() => undefined);
+    clearSessionStoreCacheForTest();
+    if (savedCacheTtl === undefined) {
+      delete process.env.OPENCLAW_SESSION_CACHE_TTL_MS;
+    } else {
+      process.env.OPENCLAW_SESSION_CACHE_TTL_MS = savedCacheTtl;
+    }
+  });
+
+  it("prunes expired cron run sessions even when general maintenance is warn-only", async () => {
+    const now = Date.now();
+    mockLoadConfig.mockReturnValue({
+      session: {
+        maintenance: {
+          mode: "warn",
+          pruneAfter: "7d",
+          maxEntries: 1000,
+        },
+      },
+      cron: {
+        sessionRetention: "24h",
+        maxCronRunSessions: 50,
+      },
+    });
+
+    const store: Record<string, SessionEntry> = {
+      "agent:main:telegram:dm:stale": makeEntry(now - 30 * DAY_MS),
+      "agent:main:cron:job1:run:expired": makeEntry(now - 48 * 60 * 60 * 1000),
+      "agent:main:cron:job1:run:recent": makeEntry(now - 1 * 60 * 60 * 1000),
+    };
+
+    await saveSessionStore(storePath, store);
+
+    const loaded = loadSessionStore(storePath);
+    // Stale regular session should be KEPT (warn mode doesn't enforce general pruning)
+    expect(loaded["agent:main:telegram:dm:stale"]).toBeDefined();
+    // Expired cron run session should be PRUNED (cron GC always runs)
+    expect(loaded["agent:main:cron:job1:run:expired"]).toBeUndefined();
+    // Recent cron run session should be KEPT
+    expect(loaded["agent:main:cron:job1:run:recent"]).toBeDefined();
+  });
+
+  it("caps cron run sessions during save even when general maintenance is warn-only", async () => {
+    const now = Date.now();
+    mockLoadConfig.mockReturnValue({
+      session: {
+        maintenance: {
+          mode: "warn",
+          maxEntries: 1000,
+        },
+      },
+      cron: {
+        maxCronRunSessions: 5,
+      },
+    });
+
+    const store: Record<string, SessionEntry> = {};
+    for (let i = 0; i < 20; i++) {
+      store[`agent:main:cron:job1:run:run-${String(i).padStart(3, "0")}`] = makeEntry(
+        now - i * 60_000,
+      );
+    }
+    store["agent:main:telegram:dm:regular"] = makeEntry(now);
+
+    await saveSessionStore(storePath, store);
+
+    const loaded = loadSessionStore(storePath);
+    const cronKeys = Object.keys(loaded).filter((k) => k.includes(":run:"));
+    expect(cronKeys).toHaveLength(5);
+    expect(loaded["agent:main:telegram:dm:regular"]).toBeDefined();
   });
 });

@@ -3,9 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import type { SessionMaintenanceConfig, SessionMaintenanceMode } from "../types.base.js";
+import type { CronConfig } from "../types.cron.js";
 import { parseByteSize } from "../../cli/parse-bytes.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
+import { isCronRunSessionKey } from "../../sessions/session-key-utils.js";
 import {
   deliveryContextFromSession,
   mergeDeliveryContext,
@@ -441,6 +443,127 @@ export async function rotateSessionFile(
   return true;
 }
 
+// ============================================================================
+// Cron Run Session Garbage Collection
+// ============================================================================
+
+const DEFAULT_CRON_SESSION_RETENTION_MS = 24 * 3_600_000; // 24 hours
+const DEFAULT_MAX_CRON_RUN_SESSIONS = 50;
+
+function resolveCronSessionRetentionMs(cronConfig?: CronConfig): number | null {
+  if (cronConfig?.sessionRetention === false) {
+    return null; // pruning disabled
+  }
+  const raw = cronConfig?.sessionRetention;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      return parseDurationMs(raw.trim(), { defaultUnit: "h" });
+    } catch {
+      return DEFAULT_CRON_SESSION_RETENTION_MS;
+    }
+  }
+  return DEFAULT_CRON_SESSION_RETENTION_MS;
+}
+
+function resolveMaxCronRunSessions(cronConfig?: CronConfig): number {
+  const raw = cronConfig?.maxCronRunSessions;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  return DEFAULT_MAX_CRON_RUN_SESSIONS;
+}
+
+/**
+ * Prune expired and excess cron run sessions from the store.
+ *
+ * This runs unconditionally during every session store save — regardless of
+ * the general session maintenance mode ("warn" vs "enforce") — because cron
+ * run sessions are inherently ephemeral and unbounded accumulation causes
+ * cascading failures (context overflow → cooldown → reaper can't fire → more
+ * accumulation).  See: https://github.com/openclaw/openclaw/issues/14773
+ *
+ * Two complementary strategies:
+ *   1. **TTL** — remove entries whose updatedAt is older than the retention
+ *      period (default 24 h, configurable via `cron.sessionRetention`).
+ *   2. **Cap** — keep at most N most-recent cron run sessions (default 50,
+ *      configurable via `cron.maxCronRunSessions`).
+ *
+ * Mutates `store` in-place and returns the total number of entries removed.
+ */
+export function pruneCronRunSessions(
+  store: Record<string, SessionEntry>,
+  overrides?: {
+    retentionMs?: number | null;
+    maxCronRunSessions?: number;
+    nowMs?: number;
+  },
+): number {
+  let cronConfig: CronConfig | undefined;
+  try {
+    cronConfig = loadConfig().cron;
+  } catch {
+    // Config may not be available (e.g. in tests). Use defaults.
+  }
+
+  const retentionMs =
+    overrides?.retentionMs !== undefined
+      ? overrides.retentionMs
+      : resolveCronSessionRetentionMs(cronConfig);
+  const maxSessions = overrides?.maxCronRunSessions ?? resolveMaxCronRunSessions(cronConfig);
+  const now = overrides?.nowMs ?? Date.now();
+
+  // Collect all cron run session keys.
+  const cronRunKeys: Array<{ key: string; updatedAt: number }> = [];
+  for (const [key, entry] of Object.entries(store)) {
+    if (isCronRunSessionKey(key)) {
+      cronRunKeys.push({ key, updatedAt: entry?.updatedAt ?? 0 });
+    }
+  }
+
+  if (cronRunKeys.length === 0) {
+    return 0;
+  }
+
+  const toRemove = new Set<string>();
+
+  // 1. TTL-based pruning
+  if (retentionMs !== null) {
+    const cutoff = now - retentionMs;
+    for (const { key, updatedAt } of cronRunKeys) {
+      if (updatedAt < cutoff) {
+        toRemove.add(key);
+      }
+    }
+  }
+
+  // 2. Cap-based pruning — keep only the N most recent
+  const remaining = cronRunKeys
+    .filter(({ key }) => !toRemove.has(key))
+    .toSorted((a, b) => b.updatedAt - a.updatedAt);
+
+  if (remaining.length > maxSessions) {
+    for (const { key } of remaining.slice(maxSessions)) {
+      toRemove.add(key);
+    }
+  }
+
+  // Apply removals
+  for (const key of toRemove) {
+    delete store[key];
+  }
+
+  if (toRemove.size > 0) {
+    log.info("pruned cron run sessions", {
+      pruned: toRemove.size,
+      retentionMs,
+      maxSessions,
+      remainingCronRuns: cronRunKeys.length - toRemove.size,
+    });
+  }
+
+  return toRemove.size;
+}
+
 type SaveSessionStoreOptions = {
   /** Skip pruning, capping, and rotation (e.g. during one-time migrations). */
   skipMaintenance?: boolean;
@@ -459,6 +582,13 @@ async function saveSessionStoreUnlocked(
   invalidateSessionStoreCache(storePath);
 
   normalizeSessionStore(store);
+
+  // Always prune cron run sessions regardless of maintenance mode.
+  // Cron sessions are ephemeral; unbounded growth causes cascading failures.
+  // See: https://github.com/openclaw/openclaw/issues/14773
+  if (!opts?.skipMaintenance) {
+    pruneCronRunSessions(store);
+  }
 
   if (!opts?.skipMaintenance) {
     // Resolve maintenance config once (avoids repeated loadConfig() calls).

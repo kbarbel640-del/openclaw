@@ -173,6 +173,81 @@ describe("sweepCronRunSessions", () => {
     expect(r2.swept).toBe(false);
   });
 
+  it("caps cron run sessions to maxCronRunSessions", async () => {
+    const now = Date.now();
+    const store: Record<string, { sessionId: string; updatedAt: number }> = {};
+    // Create 60 recent cron run sessions (all within retention)
+    for (let i = 0; i < 60; i++) {
+      store[`agent:main:cron:job1:run:run-${String(i).padStart(3, "0")}`] = {
+        sessionId: `run-${i}`,
+        updatedAt: now - i * 60_000, // each 1 minute apart
+      };
+    }
+    // Also add a regular session that should not be affected
+    store["agent:main:telegram:dm:123"] = {
+      sessionId: "regular",
+      updatedAt: now - 100 * 3_600_000,
+    };
+    fs.writeFileSync(storePath, JSON.stringify(store));
+
+    const result = await sweepCronRunSessions({
+      cronConfig: { maxCronRunSessions: 10 },
+      sessionStorePath: storePath,
+      nowMs: now,
+      log,
+      force: true,
+    });
+
+    expect(result.swept).toBe(true);
+    expect(result.pruned).toBe(50); // 60 - 10 = 50 pruned
+
+    const updated = JSON.parse(fs.readFileSync(storePath, "utf-8"));
+    const cronKeys = Object.keys(updated).filter((k) => k.includes(":run:"));
+    expect(cronKeys).toHaveLength(10);
+    // The 10 most recent should be retained
+    expect(updated["agent:main:cron:job1:run:run-000"]).toBeDefined();
+    expect(updated["agent:main:cron:job1:run:run-009"]).toBeDefined();
+    expect(updated["agent:main:cron:job1:run:run-010"]).toBeUndefined();
+    // Regular session should be untouched
+    expect(updated["agent:main:telegram:dm:123"]).toBeDefined();
+  });
+
+  it("applies both TTL and cap together", async () => {
+    const now = Date.now();
+    const store: Record<string, { sessionId: string; updatedAt: number }> = {};
+    // 5 expired sessions (older than 1h)
+    for (let i = 0; i < 5; i++) {
+      store[`agent:main:cron:job1:run:expired-${i}`] = {
+        sessionId: `expired-${i}`,
+        updatedAt: now - 2 * 3_600_000 - i * 60_000,
+      };
+    }
+    // 8 recent sessions (within 1h)
+    for (let i = 0; i < 8; i++) {
+      store[`agent:main:cron:job1:run:recent-${i}`] = {
+        sessionId: `recent-${i}`,
+        updatedAt: now - i * 60_000,
+      };
+    }
+    fs.writeFileSync(storePath, JSON.stringify(store));
+
+    const result = await sweepCronRunSessions({
+      cronConfig: { sessionRetention: "1h", maxCronRunSessions: 5 },
+      sessionStorePath: storePath,
+      nowMs: now,
+      log,
+      force: true,
+    });
+
+    expect(result.swept).toBe(true);
+    // 5 expired by TTL + 3 excess by cap = 8 pruned
+    expect(result.pruned).toBe(8);
+
+    const updated = JSON.parse(fs.readFileSync(storePath, "utf-8"));
+    const cronKeys = Object.keys(updated).filter((k) => k.includes(":run:"));
+    expect(cronKeys).toHaveLength(5);
+  });
+
   it("throttles per store path", async () => {
     const now = Date.now();
     const otherPath = path.join(tmpDir, "sessions-other.json");

@@ -13,6 +13,7 @@ import { updateSessionStore } from "../config/sessions.js";
 import { isCronRunSessionKey } from "../sessions/session-key-utils.js";
 
 const DEFAULT_RETENTION_MS = 24 * 3_600_000; // 24 hours
+const DEFAULT_MAX_CRON_RUN_SESSIONS = 50;
 
 /** Minimum interval between reaper sweeps (avoid running every timer tick). */
 const MIN_SWEEP_INTERVAL_MS = 5 * 60_000; // 5 minutes
@@ -32,6 +33,14 @@ export function resolveRetentionMs(cronConfig?: CronConfig): number | null {
     }
   }
   return DEFAULT_RETENTION_MS;
+}
+
+function resolveMaxCronRunSessions(cronConfig?: CronConfig): number {
+  const raw = cronConfig?.maxCronRunSessions;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  return DEFAULT_MAX_CRON_RUN_SESSIONS;
 }
 
 export type ReaperResult = {
@@ -73,10 +82,14 @@ export async function sweepCronRunSessions(params: {
     return { swept: false, pruned: 0 };
   }
 
+  const maxSessions = resolveMaxCronRunSessions(params.cronConfig);
+
   let pruned = 0;
   try {
     await updateSessionStore(storePath, (store) => {
       const cutoff = now - retentionMs;
+      const cronRunEntries: Array<{ key: string; updatedAt: number }> = [];
+
       for (const key of Object.keys(store)) {
         if (!isCronRunSessionKey(key)) {
           continue;
@@ -87,6 +100,17 @@ export async function sweepCronRunSessions(params: {
         }
         const updatedAt = entry.updatedAt ?? 0;
         if (updatedAt < cutoff) {
+          delete store[key];
+          pruned++;
+        } else {
+          cronRunEntries.push({ key, updatedAt });
+        }
+      }
+
+      // Cap remaining cron run sessions to maxSessions most recent.
+      if (cronRunEntries.length > maxSessions) {
+        cronRunEntries.sort((a, b) => b.updatedAt - a.updatedAt);
+        for (const { key } of cronRunEntries.slice(maxSessions)) {
           delete store[key];
           pruned++;
         }

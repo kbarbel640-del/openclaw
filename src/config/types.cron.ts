@@ -8,4 +8,9 @@ export type CronConfig = {
    * Default: "24h".
    */
   sessionRetention?: string | false;
+  /**
+   * Maximum number of completed cron run sessions to retain in the store.
+   * Older entries (by updatedAt) are pruned first. Default: 50.
+   */
+  maxCronRunSessions?: number;
 };
