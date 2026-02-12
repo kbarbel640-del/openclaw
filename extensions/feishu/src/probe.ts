@@ -5,7 +5,8 @@ const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const probeCache = new Map<string, { result: FeishuProbeResult; cachedAt: number }>();
 
 function cacheKey(creds: FeishuClientCredentials): string {
-  return `${creds.appId ?? ""}:${creds.domain ?? ""}`;
+  const secretTail = (creds.appSecret ?? "").slice(-6);
+  return `${creds.appId ?? ""}:${creds.domain ?? ""}:${secretTail}`;
 }
 
 export async function probeFeishu(creds?: FeishuClientCredentials): Promise<FeishuProbeResult> {
