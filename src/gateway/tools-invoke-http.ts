@@ -25,11 +25,10 @@ import { normalizeMessageChannel } from "../utils/message-channel.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
 import {
   readJsonBodyOrError,
+  sendGatewayAuthFailure,
   sendInvalidRequest,
   sendJson,
   sendMethodNotAllowed,
-  sendRateLimited,
-  sendUnauthorized,
 } from "./http-common.js";
 import { getBearerToken, getHeader } from "./http-utils.js";
 
@@ -131,11 +130,7 @@ export async function handleToolsInvokeHttpRequest(
     rateLimiter: opts.rateLimiter,
   });
   if (!authResult.ok) {
-    if (authResult.rateLimited) {
-      sendRateLimited(res, authResult.retryAfterMs);
-    } else {
-      sendUnauthorized(res);
-    }
+    sendGatewayAuthFailure(res, authResult);
     return true;
   }
 

@@ -1,9 +1,10 @@
 /**
  * In-memory sliding-window rate limiter for gateway authentication attempts.
  *
- * Tracks failed auth attempts per client IP and blocks further attempts once
- * the configured threshold is exceeded within a sliding time window.  An
- * optional lockout period forces the client to wait before retrying.
+ * Tracks failed auth attempts by {scope, clientIp}. A scope lets callers keep
+ * independent counters for different credential classes (for example, shared
+ * gateway token/password vs device-token auth) while still sharing one
+ * limiter instance.
  *
  * Design decisions:
  * - Pure in-memory Map – no external dependencies; suitable for a single
@@ -32,6 +33,10 @@ export interface RateLimitConfig {
   exemptLoopback?: boolean;
 }
 
+export const AUTH_RATE_LIMIT_SCOPE_DEFAULT = "default";
+export const AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET = "shared-secret";
+export const AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN = "device-token";
+
 export interface RateLimitEntry {
   /** Timestamps (epoch ms) of recent failed attempts inside the window. */
   attempts: number[];
@@ -50,11 +55,11 @@ export interface RateLimitCheckResult {
 
 export interface AuthRateLimiter {
   /** Check whether `ip` is currently allowed to attempt authentication. */
-  check(ip: string | undefined): RateLimitCheckResult;
+  check(ip: string | undefined, scope?: string): RateLimitCheckResult;
   /** Record a failed authentication attempt for `ip`. */
-  recordFailure(ip: string | undefined): void;
+  recordFailure(ip: string | undefined, scope?: string): void;
   /** Reset the rate-limit state for `ip` (e.g. after a successful login). */
-  reset(ip: string | undefined): void;
+  reset(ip: string | undefined, scope?: string): void;
   /** Return the current number of tracked IPs (useful for diagnostics). */
   size(): number;
   /** Remove expired entries and release memory. */
@@ -91,8 +96,24 @@ export function createAuthRateLimiter(config?: RateLimitConfig): AuthRateLimiter
     pruneTimer.unref();
   }
 
+  function normalizeScope(scope: string | undefined): string {
+    return (scope ?? AUTH_RATE_LIMIT_SCOPE_DEFAULT).trim() || AUTH_RATE_LIMIT_SCOPE_DEFAULT;
+  }
+
   function normalizeIp(ip: string | undefined): string {
     return (ip ?? "").trim() || "unknown";
+  }
+
+  function resolveKey(
+    rawIp: string | undefined,
+    rawScope: string | undefined,
+  ): {
+    key: string;
+    ip: string;
+  } {
+    const ip = normalizeIp(rawIp);
+    const scope = normalizeScope(rawScope);
+    return { key: `${scope}:${ip}`, ip };
   }
 
   function isExempt(ip: string): boolean {
@@ -105,14 +126,14 @@ export function createAuthRateLimiter(config?: RateLimitConfig): AuthRateLimiter
     entry.attempts = entry.attempts.filter((ts) => ts > cutoff);
   }
 
-  function check(rawIp: string | undefined): RateLimitCheckResult {
-    const ip = normalizeIp(rawIp);
+  function check(rawIp: string | undefined, rawScope?: string): RateLimitCheckResult {
+    const { key, ip } = resolveKey(rawIp, rawScope);
     if (isExempt(ip)) {
       return { allowed: true, remaining: maxAttempts, retryAfterMs: 0 };
     }
 
     const now = Date.now();
-    const entry = entries.get(ip);
+    const entry = entries.get(key);
 
     if (!entry) {
       return { allowed: true, remaining: maxAttempts, retryAfterMs: 0 };
@@ -138,18 +159,18 @@ export function createAuthRateLimiter(config?: RateLimitConfig): AuthRateLimiter
     return { allowed: remaining > 0, remaining, retryAfterMs: 0 };
   }
 
-  function recordFailure(rawIp: string | undefined): void {
-    const ip = normalizeIp(rawIp);
+  function recordFailure(rawIp: string | undefined, rawScope?: string): void {
+    const { key, ip } = resolveKey(rawIp, rawScope);
     if (isExempt(ip)) {
       return;
     }
 
     const now = Date.now();
-    let entry = entries.get(ip);
+    let entry = entries.get(key);
 
     if (!entry) {
       entry = { attempts: [] };
-      entries.set(ip, entry);
+      entries.set(key, entry);
     }
 
     // If currently locked, do nothing (already blocked).
@@ -165,21 +186,21 @@ export function createAuthRateLimiter(config?: RateLimitConfig): AuthRateLimiter
     }
   }
 
-  function reset(rawIp: string | undefined): void {
-    const ip = normalizeIp(rawIp);
-    entries.delete(ip);
+  function reset(rawIp: string | undefined, rawScope?: string): void {
+    const { key } = resolveKey(rawIp, rawScope);
+    entries.delete(key);
   }
 
   function prune(): void {
     const now = Date.now();
-    for (const [ip, entry] of entries) {
+    for (const [key, entry] of entries) {
       // If locked out, keep the entry until the lockout expires.
       if (entry.lockedUntil && now < entry.lockedUntil) {
         continue;
       }
       slideWindow(entry, now);
       if (entry.attempts.length === 0) {
-        entries.delete(ip);
+        entries.delete(key);
       }
     }
   }

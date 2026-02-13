@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createAuthRateLimiter, type AuthRateLimiter } from "./auth-rate-limit.js";
+import {
+  AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN,
+  AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET,
+  createAuthRateLimiter,
+  type AuthRateLimiter,
+} from "./auth-rate-limit.js";
 
 describe("auth rate limiter", () => {
   let limiter: AuthRateLimiter;
@@ -88,6 +93,13 @@ describe("auth rate limiter", () => {
     expect(limiter.check("10.0.0.11").remaining).toBe(2);
   });
 
+  it("tracks scopes independently for the same IP", () => {
+    limiter = createAuthRateLimiter({ maxAttempts: 1, windowMs: 60_000, lockoutMs: 60_000 });
+    limiter.recordFailure("10.0.0.12", AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET);
+    expect(limiter.check("10.0.0.12", AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET).allowed).toBe(false);
+    expect(limiter.check("10.0.0.12", AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN).allowed).toBe(true);
+  });
+
   // ---------- loopback exemption ----------
 
   it("exempts loopback addresses by default", () => {
@@ -125,6 +137,18 @@ describe("auth rate limiter", () => {
     limiter.reset("10.0.0.20");
     expect(limiter.check("10.0.0.20").allowed).toBe(true);
     expect(limiter.check("10.0.0.20").remaining).toBe(2);
+  });
+
+  it("reset only clears the requested scope for an IP", () => {
+    limiter = createAuthRateLimiter({ maxAttempts: 1, windowMs: 60_000, lockoutMs: 60_000 });
+    limiter.recordFailure("10.0.0.21", AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET);
+    limiter.recordFailure("10.0.0.21", AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN);
+    expect(limiter.check("10.0.0.21", AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET).allowed).toBe(false);
+    expect(limiter.check("10.0.0.21", AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN).allowed).toBe(false);
+
+    limiter.reset("10.0.0.21", AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET);
+    expect(limiter.check("10.0.0.21", AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET).allowed).toBe(true);
+    expect(limiter.check("10.0.0.21", AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN).allowed).toBe(false);
   });
 
   // ---------- prune ----------

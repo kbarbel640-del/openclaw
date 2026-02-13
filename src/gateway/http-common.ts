@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { GatewayAuthResult } from "./auth.js";
 import { readJsonBody } from "./hooks.js";
 
 export function sendJson(res: ServerResponse, status: number, body: unknown) {
@@ -34,6 +35,14 @@ export function sendRateLimited(res: ServerResponse, retryAfterMs?: number) {
       type: "rate_limited",
     },
   });
+}
+
+export function sendGatewayAuthFailure(res: ServerResponse, authResult: GatewayAuthResult) {
+  if (authResult.rateLimited) {
+    sendRateLimited(res, authResult.retryAfterMs);
+    return;
+  }
+  sendUnauthorized(res);
 }
 
 export function sendInvalidRequest(res: ServerResponse, message: string) {

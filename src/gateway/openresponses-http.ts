@@ -38,10 +38,9 @@ import { defaultRuntime } from "../runtime.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
 import {
   readJsonBodyOrError,
+  sendGatewayAuthFailure,
   sendJson,
   sendMethodNotAllowed,
-  sendRateLimited,
-  sendUnauthorized,
   setSseHeaders,
   writeDone,
 } from "./http-common.js";
@@ -370,11 +369,7 @@ export async function handleOpenResponsesHttpRequest(
     rateLimiter: opts.rateLimiter,
   });
   if (!authResult.ok) {
-    if (authResult.rateLimited) {
-      sendRateLimited(res, authResult.retryAfterMs);
-    } else {
-      sendUnauthorized(res);
-    }
+    sendGatewayAuthFailure(res, authResult);
     return true;
   }
 
