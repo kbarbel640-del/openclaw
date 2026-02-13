@@ -12,7 +12,7 @@ status: not_started
 | 3 | 日志 + 工具函数 | ✅ | 2026-02-13 | 2210cf5 |
 | 4 | 会话管理 + 持久化 | ✅ | 2026-02-13 | 3dfebb5 |
 | 5 | Gateway HTTP | ✅ | 2026-02-13 | 2d8d42d |
-| 6 | Gateway WebSocket | ✅ | 2026-02-13 | pending |
+| 6 | Gateway WebSocket | ✅ | 2026-02-13 | b5c5e27 |
 | 7 | Agent 模型调用 | ⬜ | - | - |
 | 8 | Agent 上下文 + 用量 | ⬜ | - | - |
 | 9 | Agent 工具 + Skills | ⬜ | - | - |
