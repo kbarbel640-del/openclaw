@@ -35,7 +35,8 @@ export type DiscordMessagePreflightContext = {
   client: Client;
   message: DiscordMessageEvent["message"];
   author: User;
-  sender: DiscordSenderIdentity;
+  // Stash intent: allow caller/test harness to omit sender.
+  sender?: DiscordSenderIdentity;
 
   channelInfo: DiscordChannelInfo | null;
   channelName?: string;
@@ -101,4 +102,6 @@ export type DiscordMessagePreflightParams = {
   groupPolicy: DiscordMessagePreflightContext["groupPolicy"];
   data: DiscordMessageEvent;
   client: Client;
+  // Optional; preflight computes sender, but tests/callers may provide it.
+  sender?: DiscordSenderIdentity;
 };

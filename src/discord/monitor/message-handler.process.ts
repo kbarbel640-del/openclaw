@@ -123,7 +123,7 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         channelName: channelName ?? message.channelId,
         channelId: message.channelId,
       });
-  const senderLabel = sender.label;
+  const senderLabel = sender?.label;
   const isForumParent =
     threadParentType === ChannelType.GuildForum || threadParentType === ChannelType.GuildMedia;
   const forumParentSlug =
