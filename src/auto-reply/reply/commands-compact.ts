@@ -1,9 +1,11 @@
 import { runWithModelFallback } from "../../agents/model-fallback.js";
+import { isTransientHttpError } from "../../agents/pi-embedded-helpers.js";
 import {
   abortEmbeddedPiRun,
   compactEmbeddedPiSession,
   isEmbeddedPiRunActive,
   waitForEmbeddedPiRunEnd,
+  type EmbeddedPiCompactResult,
 } from "../../agents/pi-embedded.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import {
@@ -107,23 +109,47 @@ export const handleCompactCommand: CommandHandler = async (params) => {
     ownerNumbers: params.command.ownerList.length > 0 ? params.command.ownerList : undefined,
   };
 
-  const fallbackResult = await runWithModelFallback({
-    cfg: params.cfg,
-    provider: params.provider,
-    model: params.model,
-    run: async (provider, model) => {
-      const result = await compactEmbeddedPiSession({
-        ...compactBaseParams,
-        provider,
-        model,
+  const TRANSIENT_HTTP_RETRY_DELAY_MS = 2_500;
+  let didRetryTransientHttpError = false;
+  let result: EmbeddedPiCompactResult;
+
+  while (true) {
+    try {
+      const fallbackResult = await runWithModelFallback({
+        cfg: params.cfg,
+        provider: params.provider,
+        model: params.model,
+        run: async (provider, model) => {
+          const runResult = await compactEmbeddedPiSession({
+            ...compactBaseParams,
+            provider,
+            model,
+          });
+          if (!runResult.ok) {
+            throw new Error(runResult.reason || "Compaction failed");
+          }
+          return runResult;
+        },
       });
-      if (!result.ok) {
-        throw new Error(result.reason || "Compaction failed");
+      result = fallbackResult.result;
+      break;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!didRetryTransientHttpError && isTransientHttpError(message)) {
+        didRetryTransientHttpError = true;
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, TRANSIENT_HTTP_RETRY_DELAY_MS);
+        });
+        continue;
       }
-      return result;
-    },
-  });
-  const result = fallbackResult.result;
+      result = {
+        ok: false,
+        compacted: false,
+        reason: message,
+      };
+      break;
+    }
+  }
 
   const compactLabel = result.ok
     ? result.compacted

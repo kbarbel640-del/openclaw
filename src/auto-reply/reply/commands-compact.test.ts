@@ -22,6 +22,10 @@ vi.mock("../../agents/model-fallback.js", () => ({
   }),
 }));
 
+vi.mock("../../agents/pi-embedded-helpers.js", () => ({
+  isTransientHttpError: vi.fn(() => false),
+}));
+
 vi.mock("../../config/sessions.js", () => ({
   resolveFreshSessionTotalTokens: vi.fn(() => 0),
   resolveSessionFilePath: vi.fn(() => "/tmp/session.jsonl"),
@@ -51,6 +55,7 @@ vi.mock("./session-updates.js", () => ({
 }));
 
 import { runWithModelFallback } from "../../agents/model-fallback.js";
+import { isTransientHttpError } from "../../agents/pi-embedded-helpers.js";
 import { compactEmbeddedPiSession } from "../../agents/pi-embedded.js";
 import { handleCompactCommand } from "./commands-compact.js";
 
@@ -163,5 +168,29 @@ describe("handleCompactCommand", () => {
       2,
       expect.objectContaining({ provider: "fallback-provider", model: "fallback-model" }),
     );
+  });
+
+  it("retries the full fallback cycle once for transient HTTP errors", async () => {
+    vi.useFakeTimers();
+    vi.mocked(runWithModelFallback)
+      .mockRejectedValueOnce(new Error("502 Bad Gateway"))
+      .mockResolvedValueOnce({
+        result: {
+          ok: true,
+          compacted: true,
+          result: { tokensBefore: 20, tokensAfter: 10 },
+        },
+        provider: "fallback-provider",
+        model: "fallback-model",
+        attempts: [],
+      });
+    vi.mocked(isTransientHttpError).mockImplementation((text: string) => text.includes("502"));
+
+    const pending = handleCompactCommand(makeParams(), true);
+    await vi.advanceTimersByTimeAsync(2_500);
+    await pending;
+
+    expect(runWithModelFallback).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 });
