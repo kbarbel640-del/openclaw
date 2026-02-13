@@ -5,7 +5,9 @@ OpenClaw 个人 AI 助手。后端从 TypeScript 转 Python，前端 UI 保留�
 只保留 Telegram 频道，其他频道删除。全功能保留。
 
 ## 当前进度
-**批次 14 / 15：CLI 命令行** ✅ 已完成
+**批次 15 / 15：集成测试 + 联调** ✅ 已完成 🎉
+
+🎯 **v1.0-python 里程碑达成！** TypeScript → Python 迁移完成！
 
 ## 已完成的 Python 文件
 - openclaw_py/types/base.py - 核心基础类型（14 个 Literal 类型 + normalize_chat_type 函数）
@@ -96,4 +98,4 @@ extensions/、Swabble/、apps/
 12. ✅ Auth Profiles（AI 认证管理）
 13. ✅ 消息路由（全链路） 🎯 v0.3-connected
 14. ✅ CLI 命令行
-15. ⬜ 集成测试 + 前后端联调 🎯 v1.0-python
+15. ✅ 集成测试 + 前后端联调 🎯 v1.0-python ✅

@@ -1,0 +1,76 @@
+# OpenClaw Configuration Example
+# This file shows all available configuration options
+
+# Gateway server configuration
+gateway:
+  enabled: true
+  host: "127.0.0.1"
+  http_port: 8080
+  ws_port: 8081
+  bearer_token: "your-secret-token-here"  # For API authentication
+  password: "your-password-here"  # Alternative authentication
+
+# Model providers configuration
+models:
+  providers:
+    # Anthropic (Claude)
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"  # Or set directly
+      # base_url: "https://api.anthropic.com"  # Optional override
+
+    # OpenAI
+    openai:
+      api_key: "${OPENAI_API_KEY}"
+      # base_url: "https://api.openai.com/v1"  # Optional override
+
+    # LiteLLM (for other providers)
+    litellm:
+      enabled: false
+      # providers:
+      #   - name: "ollama"
+      #     base_url: "http://localhost:11434"
+
+# Agent configurations
+agents:
+  - id: "default"
+    default: true
+    name: "Default Agent"
+    model: "claude-3-5-sonnet-20241022"
+    # workspace: "~/openclaw/workspace"
+    # skills: []
+    # dm_scope: "main"  # Options: main, per-peer, per-channel-peer, per-account-channel-peer
+
+  - id: "helper"
+    name: "Helper Agent"
+    model: "claude-3-5-sonnet-20241022"
+
+# Agent bindings (route messages to specific agents)
+bindings:
+  # Bind specific Telegram account to helper agent
+  - agent_id: "helper"
+    match:
+      channel: "telegram"
+      account_id: "bot123"
+
+  # Bind specific user to default agent
+  - agent_id: "default"
+    match:
+      channel: "telegram"
+      peer:
+        kind: "user"
+        id: "user456"
+
+# Telegram configuration (single account)
+telegram:
+  enabled: true
+  token: "${TELEGRAM_BOT_TOKEN}"
+  webhook_enabled: false
+  # webhook_url: "https://your-domain.com/telegram/webhook"
+  # webhook_secret: "your-webhook-secret"
+
+# Logging configuration
+logging:
+  console_level: "info"  # Options: debug, info, warn, error, silent
+  file_enabled: true
+  # file_path: "~/.openclaw/logs/openclaw.log"
+  # file_level: "debug"

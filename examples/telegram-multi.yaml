@@ -1,0 +1,72 @@
+# OpenClaw Configuration - Multiple Telegram Bots
+# Configuration for running multiple Telegram bots with different agents
+
+gateway:
+  enabled: true
+  host: "127.0.0.1"
+  http_port: 8080
+  ws_port: 8081
+  bearer_token: "my-secret-token"
+
+models:
+  providers:
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"
+
+# Define multiple agents
+agents:
+  - id: "main-agent"
+    default: true
+    name: "Main Assistant"
+    model: "claude-3-5-sonnet-20241022"
+    dm_scope: "per-peer"
+
+  - id: "support-agent"
+    name: "Support Bot"
+    model: "claude-3-5-sonnet-20241022"
+    dm_scope: "main"
+
+  - id: "specialist-agent"
+    name: "Specialist"
+    model: "claude-3-opus-4-20250514"
+    dm_scope: "per-channel-peer"
+
+# Bind bots to agents
+bindings:
+  # Main bot uses main-agent
+  - agent_id: "main-agent"
+    match:
+      channel: "telegram"
+      account_id: "main_bot"
+
+  # Support bot uses support-agent
+  - agent_id: "support-agent"
+    match:
+      channel: "telegram"
+      account_id: "support_bot"
+
+  # Specialist bot uses specialist-agent
+  - agent_id: "specialist-agent"
+    match:
+      channel: "telegram"
+      account_id: "specialist_bot"
+
+# Multiple Telegram accounts
+telegram:
+  enabled: true
+  accounts:
+    - id: "main_bot"
+      token: "${TELEGRAM_MAIN_BOT_TOKEN}"
+      webhook_enabled: false
+
+    - id: "support_bot"
+      token: "${TELEGRAM_SUPPORT_BOT_TOKEN}"
+      webhook_enabled: false
+
+    - id: "specialist_bot"
+      token: "${TELEGRAM_SPECIALIST_BOT_TOKEN}"
+      webhook_enabled: false
+
+logging:
+  console_level: "info"
+  file_enabled: true
