@@ -336,6 +336,30 @@ describe("statusCommand", () => {
     }
   });
 
+  it("prints unknown usage in formatted output when totalTokens is missing", async () => {
+    const originalLoadSessionStore = mocks.loadSessionStore.getMockImplementation();
+    mocks.loadSessionStore.mockReturnValue({
+      "+1000": {
+        updatedAt: Date.now() - 60_000,
+        inputTokens: 2_000,
+        outputTokens: 3_000,
+        contextTokens: 10_000,
+        model: "pi:opus",
+      },
+    });
+
+    try {
+      (runtime.log as vi.Mock).mockClear();
+      await statusCommand({}, runtime as never);
+      const logs = (runtime.log as vi.Mock).mock.calls.map((c) => String(c[0]));
+      expect(logs.some((line) => line.includes("unknown/") && line.includes("(?%)"))).toBe(true);
+    } finally {
+      if (originalLoadSessionStore) {
+        mocks.loadSessionStore.mockImplementation(originalLoadSessionStore);
+      }
+    }
+  });
+
   it("prints formatted lines otherwise", async () => {
     (runtime.log as vi.Mock).mockClear();
     await statusCommand({}, runtime as never);
