@@ -22,6 +22,12 @@ const X_ACTIONS = new Set([
   "x-repost",
   "x-unrepost",
   "x-post",
+  "x-timeline",
+  "x-user-info",
+  "x-me",
+  "x-search",
+  "x-quote",
+  "x-tweet-info",
 ]);
 
 /**
@@ -136,6 +142,187 @@ async function handlePost(
   return jsonResult({
     ok: true,
     action: "x-post",
+    tweetId: result.tweetId,
+  });
+}
+
+/**
+ * Handle x-timeline action (get a user's recent tweets).
+ */
+async function handleTimeline(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const target = readStringParam(params, "target", { required: true });
+  const maxResultsRaw = params.maxResults ?? params.max_results ?? params.count;
+  const maxResults =
+    typeof maxResultsRaw === "number"
+      ? maxResultsRaw
+      : typeof maxResultsRaw === "string"
+        ? Number.parseInt(maxResultsRaw, 10) || 10
+        : 10;
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const tweets = await xService.getUserTimeline(target, maxResults);
+
+  return jsonResult({
+    ok: true,
+    action: "x-timeline",
+    target,
+    count: tweets.length,
+    tweets: tweets.map((t) => ({
+      id: t.id,
+      text: t.text,
+      authorId: t.authorId,
+      createdAt: t.createdAt?.toISOString(),
+    })),
+  });
+}
+
+/**
+ * Handle x-user-info action (look up a user by username).
+ */
+async function handleUserInfo(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const target = readStringParam(params, "target", { required: true });
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const user = await xService.getUserInfo(target);
+  if (!user) {
+    throw new Error(`User not found: ${target}`);
+  }
+
+  return jsonResult({
+    ok: true,
+    action: "x-user-info",
+    user: {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+    },
+  });
+}
+
+/**
+ * Handle x-me action (get authenticated account info).
+ */
+async function handleMe(
+  _params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const me = await xService.getMe();
+
+  return jsonResult({
+    ok: true,
+    action: "x-me",
+    user: {
+      id: me.id,
+      username: me.username,
+      name: me.name,
+    },
+  });
+}
+
+/**
+ * Handle x-search action (search recent tweets by keyword).
+ */
+async function handleSearch(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const query = readStringParam(params, "query", { required: true });
+  const maxResultsRaw = params.maxResults ?? params.max_results ?? params.count;
+  const maxResults =
+    typeof maxResultsRaw === "number"
+      ? maxResultsRaw
+      : typeof maxResultsRaw === "string"
+        ? Number.parseInt(maxResultsRaw, 10) || 10
+        : 10;
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const result = await xService.searchTweets(query, maxResults);
+  if (!result.ok) {
+    throw new Error(result.error ?? "Search failed");
+  }
+
+  return jsonResult({
+    ok: true,
+    action: "x-search",
+    query,
+    count: result.tweets.length,
+    tweets: result.tweets.map((t) => ({
+      id: t.id,
+      text: t.text,
+      authorId: t.authorId,
+      authorUsername: t.authorUsername,
+      authorName: t.authorName,
+      createdAt: t.createdAt?.toISOString(),
+      metrics: t.metrics,
+    })),
+  });
+}
+
+/**
+ * Handle x-tweet-info action (get tweet details with metrics).
+ */
+async function handleTweetInfo(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const target = readStringParam(params, "target", { required: true });
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const details = await xService.getTweetDetails(target);
+  if (!details) {
+    throw new Error(`Tweet not found: ${target}`);
+  }
+
+  return jsonResult({
+    ok: true,
+    action: "x-tweet-info",
+    tweet: {
+      id: details.id,
+      text: details.text,
+      authorId: details.authorId,
+      authorUsername: details.authorUsername,
+      authorName: details.authorName,
+      createdAt: details.createdAt?.toISOString(),
+      metrics: details.metrics,
+      urls: details.urls,
+    },
+  });
+}
+
+/**
+ * Handle x-quote action (quote tweet / retweet with comment).
+ */
+async function handleQuote(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const target = readStringParam(params, "target", { required: true });
+  const message = readStringParam(params, "message", { required: true });
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const result = await xService.quoteTweet(target, message);
+  if (!result.ok) {
+    throw new Error(result.error ?? "Failed to quote tweet");
+  }
+
+  return jsonResult({
+    ok: true,
+    action: "x-quote",
+    quotedTweet: target,
     tweetId: result.tweetId,
   });
 }
@@ -403,6 +590,9 @@ async function handleReply(
  * Pass full ctx so x-reply can enforce "reply only to mentioner" when originating from X.
  * All proactive X actions (follow, like, reply, dm) require the sender to be in actionsAllowFrom (X).
  */
+/** Read-only actions that do not require actionsAllowFrom permission. */
+const X_READ_ACTIONS = new Set(["x-timeline", "x-user-info", "x-me", "x-search", "x-tweet-info"]);
+
 export async function handleXAction(
   params: Record<string, unknown>,
   cfg: OpenClawConfig,
@@ -411,8 +601,10 @@ export async function handleXAction(
 ): Promise<AgentToolResult<unknown>> {
   const action = readStringParam(params, "action", { required: true });
 
-  // Proactive X operations: require sender to be in actions allowlist (separate from mention allowlist)
-  checkXActionsAllowed({ cfg, accountId, actionCtx });
+  // Read-only actions skip the actionsAllowFrom check — they don't mutate state.
+  if (!X_READ_ACTIONS.has(action)) {
+    checkXActionsAllowed({ cfg, accountId, actionCtx });
+  }
 
   switch (action) {
     case "x-follow":
@@ -433,6 +625,18 @@ export async function handleXAction(
       return handleUnrepost(params, cfg, accountId);
     case "x-post":
       return handlePost(params, cfg, accountId);
+    case "x-quote":
+      return handleQuote(params, cfg, accountId);
+    case "x-timeline":
+      return handleTimeline(params, cfg, accountId);
+    case "x-user-info":
+      return handleUserInfo(params, cfg, accountId);
+    case "x-me":
+      return handleMe(params, cfg, accountId);
+    case "x-search":
+      return handleSearch(params, cfg, accountId);
+    case "x-tweet-info":
+      return handleTweetInfo(params, cfg, accountId);
     default:
       throw new Error(`Unknown X action: ${action}`);
   }

@@ -67,7 +67,7 @@ export const xPlugin: ChannelPlugin<XAccountConfig> = {
   agentPrompt: {
     messageToolHints: () => [
       "X/Twitter has a 280-character limit. Use plain text without markdown formatting (no **bold**, *italic*, `code`, or other markdown syntax). Keep responses concise.",
-      "For X/Twitter actions (follow/unfollow users, like/unlike tweets, repost/unrepost tweets, reply to tweets, post new tweets, send DMs), ALWAYS use the message tool with X-specific actions (x-follow, x-unfollow, x-like, x-unlike, x-repost, x-unrepost, x-reply, x-post, x-dm). Do NOT use the browser tool for these operations - the message tool's X actions are faster, more reliable, and use the configured API credentials.",
+      "For X/Twitter actions, ALWAYS use the message tool with X-specific actions: x-post (new tweet), x-reply, x-quote (quote tweet), x-like, x-unlike, x-repost, x-unrepost, x-follow, x-unfollow, x-dm, x-search (search tweets), x-timeline (user timeline), x-tweet-info (tweet details), x-user-info (user profile), x-me (current account). Do NOT use the browser tool or external tools for X operations.",
     ],
   },
 
@@ -82,6 +82,12 @@ export const xPlugin: ChannelPlugin<XAccountConfig> = {
       "x-unrepost",
       "x-reply",
       "x-post",
+      "x-quote",
+      "x-timeline",
+      "x-user-info",
+      "x-me",
+      "x-search",
+      "x-tweet-info",
     ],
     supportsAction: ({ action }) =>
       [
@@ -94,6 +100,12 @@ export const xPlugin: ChannelPlugin<XAccountConfig> = {
         "x-unrepost",
         "x-reply",
         "x-post",
+        "x-quote",
+        "x-timeline",
+        "x-user-info",
+        "x-me",
+        "x-search",
+        "x-tweet-info",
       ].includes(action),
     handleAction: async (ctx) => {
       return handleXAction(ctx.params, ctx.cfg, ctx.accountId ?? undefined, {

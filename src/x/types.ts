@@ -145,3 +145,45 @@ export interface XTweet {
   createdAt?: Date;
   conversationId?: string;
 }
+
+/**
+ * Extended tweet data with engagement metrics
+ */
+export interface XTweetDetails {
+  id: string;
+  text: string;
+  authorId?: string;
+  authorUsername?: string;
+  authorName?: string;
+  createdAt?: Date;
+  conversationId?: string;
+  /** Public engagement metrics */
+  metrics?: {
+    likeCount?: number;
+    retweetCount?: number;
+    replyCount?: number;
+    quoteCount?: number;
+    impressionCount?: number;
+    bookmarkCount?: number;
+  };
+  /** URL entities in the tweet */
+  urls?: string[];
+}
+
+/**
+ * Result from tweet search
+ */
+export interface XSearchResult {
+  ok: boolean;
+  error?: string;
+  tweets: XTweetDetails[];
+}
+
+/**
+ * Result from quote tweet
+ */
+export interface XQuoteResult {
+  ok: boolean;
+  error?: string;
+  tweetId?: string;
+}
