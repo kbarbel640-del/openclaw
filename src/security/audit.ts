@@ -18,6 +18,7 @@ import {
   collectHooksHardeningFindings,
   collectIncludeFilePermFindings,
   collectInstalledSkillsCodeSafetyFindings,
+  collectInstalledSkillsManifestSafetyFindings,
   collectModelHygieneFindings,
   collectSmallModelRiskFindings,
   collectPluginsTrustFindings,
@@ -999,6 +1000,7 @@ export async function runSecurityAudit(opts: SecurityAuditOptions): Promise<Secu
     if (opts.deep === true) {
       findings.push(...(await collectPluginsCodeSafetyFindings({ stateDir })));
       findings.push(...(await collectInstalledSkillsCodeSafetyFindings({ cfg, stateDir })));
+      findings.push(...(await collectInstalledSkillsManifestSafetyFindings({ cfg, stateDir })));
     }
   }
 
