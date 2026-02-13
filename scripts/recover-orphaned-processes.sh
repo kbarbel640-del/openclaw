@@ -11,12 +11,17 @@
 # Output: JSON object with `orphaned` array and `ts` timestamp.
 set -euo pipefail
 
+if ! command -v node &>/dev/null; then
+  echo '{"error":"node not found on PATH","orphaned":[],"ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+  exit 0
+fi
+
 usage() {
-  cat <<'EOF'
+  cat <<'USAGE'
 Usage: recover-orphaned-processes.sh
 
 Scans for likely orphaned coding agent processes and prints JSON.
-EOF
+USAGE
 }
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
@@ -30,21 +35,34 @@ if [ "$#" -gt 0 ]; then
 fi
 
 node <<'NODE'
-const { execSync } = require("node:child_process");
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 
-const username = process.env.USER || process.env.LOGNAME || "";
+let username = process.env.USER || process.env.LOGNAME || "";
 
-function run(cmd) {
+if (username && !/^[a-zA-Z0-9._-]+$/.test(username)) {
+  username = "";
+}
+
+function runFile(file, args) {
   try {
-    return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-  } catch {
+    return execFileSync(file, args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch (err) {
+    if (err && typeof err.stdout === "string") {
+      return err.stdout;
+    }
+    if (err && err.stdout && Buffer.isBuffer(err.stdout)) {
+      return err.stdout.toString("utf8");
+    }
     return "";
   }
 }
 
 function resolveStarted(pid) {
-  const started = run(`ps -o lstart= -p ${pid}`).trim();
+  const started = runFile("ps", ["-o", "lstart=", "-p", String(pid)]).trim();
   return started.length > 0 ? started : "unknown";
 }
 
@@ -56,17 +74,18 @@ function resolveCwd(pid) {
       return "unknown";
     }
   }
-  const lsof = run(`lsof -a -d cwd -p ${pid} -Fn`);
+  const lsof = runFile("lsof", ["-a", "-d", "cwd", "-p", String(pid), "-Fn"]);
   const match = lsof.match(/^n(.+)$/m);
   return match ? match[1] : "unknown";
 }
 
 // Pre-filter candidate PIDs using pgrep to avoid scanning all processes.
 // Falls back to a user-scoped ps scan if pgrep is unavailable.
-const candidatePids = run(
+const candidatePids = runFile(
+  "pgrep",
   username.length > 0
-    ? `pgrep -u ${username} -f 'codex|claude' 2>/dev/null || true`
-    : "pgrep -f 'codex|claude' 2>/dev/null || true",
+    ? ["-u", username, "-f", "codex|claude"]
+    : ["-f", "codex|claude"],
 )
   .split("\n")
   .map((s) => s.trim())
@@ -75,11 +94,13 @@ const candidatePids = run(
 let lines;
 if (candidatePids.length > 0) {
   // Fetch command info only for candidate PIDs.
-  lines = run(`ps -o pid=,command= -p ${candidatePids.join(",")}`).split("\n");
+  lines = runFile("ps", ["-o", "pid=,command=", "-p", candidatePids.join(",")]).split(
+    "\n",
+  );
+} else if (username.length > 0) {
+  lines = runFile("ps", ["-U", username, "-o", "pid=,command="]).split("\n");
 } else {
-  const scopedPs =
-    username.length > 0 ? `ps -U ${username} -o pid=,command=` : "ps -axo pid=,command=";
-  lines = run(scopedPs).split("\n");
+  lines = runFile("ps", ["-axo", "pid=,command="]).split("\n");
 }
 
 const includePattern = /codex|claude/i;
