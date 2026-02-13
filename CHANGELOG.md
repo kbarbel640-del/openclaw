@@ -142,3 +142,60 @@
 - 为后续 Gateway 和 Agent 层提供了坚实基础
 
 ---
+## 批次 5：Gateway HTTP Server（2026-02-13）
+
+**新增文件**：
+- openclaw_py/gateway/types.py - Gateway 数据模型（GatewayAuth, HealthCheckResponse, SessionListResponse, ConfigSnapshotResponse）
+- openclaw_py/gateway/http_common.py - HTTP 响应工具函数（send_json, send_text, send_unauthorized 等）
+- openclaw_py/gateway/auth.py - Gateway 认证逻辑（token/password/local-direct 三种认证方式）
+- openclaw_py/gateway/routes/health.py - 健康检查端点（/health, /api/health）
+- openclaw_py/gateway/routes/sessions.py - 会话管理 API（列出/获取/删除会话）
+- openclaw_py/gateway/routes/config.py - 配置访问 API（获取配置/快照，自动脱敏）
+- openclaw_py/gateway/app.py - FastAPI 应用工厂（CORS 配置，路由注册）
+- openclaw_py/gateway/server.py - 服务器生命周期管理（GatewayServer, start_server, stop_server）
+- openclaw_py/gateway/__init__.py - Gateway 模块导出
+- openclaw_py/gateway/routes/__init__.py - 路由模块导出
+- tests/gateway/test_types.py - Gateway 类型测试
+- tests/gateway/test_http_common.py - HTTP 工具函数测试（9 个测试）
+- tests/gateway/test_auth.py - 认证逻辑测试（13 个测试）
+- tests/gateway/test_routes_health.py - 健康检查路由测试（3 个测试）
+- tests/gateway/test_routes_sessions.py - 会话管理路由测试（11 个测试）
+- tests/gateway/test_routes_config.py - 配置访问路由测试（6 个测试）
+- tests/gateway/test_app.py - FastAPI 应用测试（7 个测试）
+- tests/gateway/test_server.py - 服务器生命周期测试（11 个测试）
+
+**核心变更**：
+- 使用 FastAPI + uvicorn 实现 HTTP API 服务器
+- 实现了 8 个 REST API 端点：
+  - GET / - 根端点
+  - GET /health - 简单健康检查
+  - GET /api/health - 详细健康检查（含 uptime）
+  - GET /api/sessions - 列出所有会话
+  - GET /api/sessions/{session_key} - 获取单个会话
+  - DELETE /api/sessions/{session_key} - 删除会话
+  - GET /api/config - 获取配置（已脱敏）
+  - GET /api/config/snapshot - 获取配置快照（含元数据）
+- 实现了三种认证机制：
+  - Local Direct: 127.0.0.1 直接访问（无需认证）
+  - Bearer Token: Authorization 头部认证
+  - Password: X-Password 头部认证
+  - 优先级：local > token > password
+- 实现了配置脱敏（移除 password, token, bot_token 等敏感字段）
+- 配置了 CORS 中间件（支持跨域访问）
+- 实现了优雅关闭（5 秒超时）
+- 集成了批次 4 的会话存储系统
+- 支持 Windows 路径和异步操作
+
+**依赖的已有模块**：
+- openclaw_py.config - OpenClawConfig, GatewayConfig 配置模型
+- openclaw_py.sessions - load_session_store, save_session_store 会话持久化
+- openclaw_py.logging - log_info, log_error 日志函数
+- openclaw_py.types - ChatType 等核心类型
+
+**已知问题**：
+- 无
+
+**测试结果**：302 passed（60 new + 242 from previous batches）
+
+---
+

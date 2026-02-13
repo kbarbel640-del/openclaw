@@ -682,3 +682,257 @@ default_acp_session_store: InMemorySessionStore
 ```
 
 ---
+
+## 批次 5：Gateway HTTP Server (2026-02-13)
+
+---
+
+## openclaw_py.gateway.types
+路径: openclaw_py/gateway/types.py
+
+```python
+from openclaw_py.gateway.types import (
+    GatewayAuth,
+    HealthCheckResponse,
+    SessionListResponse,
+    ConfigSnapshotResponse,
+)
+```
+
+### 数据模型
+
+**GatewayAuth** (Pydantic):
+```python
+class GatewayAuth(BaseModel):
+    """Gateway 认证结果"""
+    authenticated: bool
+    source: str  # "password" | "token" | "local-direct" | "none"
+    client_ip: str | None = None
+```
+
+**HealthCheckResponse** (Pydantic):
+```python
+class HealthCheckResponse(BaseModel):
+    """健康检查响应"""
+    status: str = "ok"
+    version: str | None = None
+    uptime_seconds: float | None = None
+    config_loaded: bool = True
+```
+
+**SessionListResponse** (Pydantic):
+```python
+class SessionListResponse(BaseModel):
+    """会话列表响应"""
+    sessions: dict[str, dict[str, Any]]
+    count: int
+```
+
+**ConfigSnapshotResponse** (Pydantic):
+```python
+class ConfigSnapshotResponse(BaseModel):
+    """配置快照响应"""
+    config: dict[str, Any]
+    path: str | None = None
+    loaded_at: int | None = None  # 毫秒时间戳
+```
+
+---
+
+## openclaw_py.gateway.http_common
+路径: openclaw_py/gateway/http_common.py
+
+```python
+from openclaw_py.gateway.http_common import (
+    send_json,
+    send_text,
+    send_unauthorized,
+    send_invalid_request,
+    send_not_found,
+    send_method_not_allowed,
+)
+```
+
+### HTTP 响应工具函数
+
+```python
+def send_json(status_code: int, body: Any) -> JSONResponse:
+    """发送 JSON 响应"""
+
+def send_text(body: str, status_code: int = 200) -> Response:
+    """发送纯文本响应"""
+
+def send_unauthorized(message: str = "Unauthorized") -> JSONResponse:
+    """发送 401 Unauthorized 响应"""
+
+def send_invalid_request(message: str) -> JSONResponse:
+    """发送 400 Bad Request 响应"""
+
+def send_not_found(message: str = "Not Found") -> JSONResponse:
+    """发送 404 Not Found 响应"""
+
+def send_method_not_allowed(method: str = "POST") -> JSONResponse:
+    """发送 405 Method Not Allowed 响应"""
+```
+
+---
+
+## openclaw_py.gateway.auth
+路径: openclaw_py/gateway/auth.py
+
+```python
+from openclaw_py.gateway.auth import (
+    get_client_ip,
+    is_local_request,
+    authorize_gateway_request,
+)
+```
+
+### 认证函数
+
+```python
+def get_client_ip(request: Request) -> str:
+    """从请求中获取客户端 IP 地址
+    
+    检查顺序：X-Forwarded-For -> X-Real-IP -> client.host
+    """
+
+def is_local_request(client_ip: str) -> bool:
+    """检查请求是否来自本地
+    
+    Returns:
+        True if IP is 127.0.0.1, ::1, or localhost
+    """
+
+def authorize_gateway_request(
+    request: Request,
+    config: GatewayConfig,
+) -> GatewayAuth:
+    """授权 Gateway HTTP 请求
+    
+    认证优先级：local-direct > token > password
+    
+    Returns:
+        GatewayAuth 对象，包含认证结果和来源
+    """
+```
+
+---
+
+## openclaw_py.gateway.app
+路径: openclaw_py/gateway/app.py
+
+```python
+from openclaw_py.gateway.app import create_app
+```
+
+### FastAPI 应用工厂
+
+```python
+def create_app(config: OpenClawConfig) -> FastAPI:
+    """创建并配置 FastAPI 应用
+    
+    功能：
+    - 配置 CORS 中间件
+    - 注册所有路由（health, sessions, config）
+    - 在 app.state 中存储配置
+    
+    Args:
+        config: OpenClaw 完整配置
+        
+    Returns:
+        配置好的 FastAPI 应用实例
+    """
+```
+
+---
+
+## openclaw_py.gateway.server
+路径: openclaw_py/gateway/server.py
+
+```python
+from openclaw_py.gateway.server import (
+    GatewayServer,
+    start_server,
+    stop_server,
+)
+```
+
+### 服务器类和函数
+
+**GatewayServer** (类):
+```python
+class GatewayServer:
+    """Gateway HTTP 服务器包装器
+    
+    管理 uvicorn 服务器的生命周期
+    """
+    
+    def __init__(self, config: OpenClawConfig):
+        """初始化 Gateway 服务器"""
+    
+    async def start(self) -> None:
+        """启动 HTTP 服务器
+        
+        Raises:
+            RuntimeError: 如果服务器已在运行
+        """
+    
+    async def stop(self) -> None:
+        """停止 HTTP 服务器（优雅关闭，5秒超时）"""
+    
+    async def __aenter__(self):
+        """异步上下文管理器入口"""
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """异步上下文管理器退出"""
+```
+
+**辅助函数**:
+```python
+async def start_server(config: OpenClawConfig | None = None) -> GatewayServer:
+    """启动 Gateway HTTP 服务器
+    
+    Args:
+        config: OpenClaw 配置（如未提供则从文件加载）
+        
+    Returns:
+        GatewayServer 实例
+    """
+
+async def stop_server(server: GatewayServer) -> None:
+    """停止 Gateway HTTP 服务器
+    
+    Args:
+        server: 要停止的 GatewayServer 实例
+    """
+```
+
+---
+
+## openclaw_py.gateway.routes (路由模块)
+
+### 可用的 HTTP 端点
+
+**健康检查** (`routes/health.py`):
+- `GET /health` - 简单健康检查
+- `GET /api/health` - 详细健康检查（含版本和运行时间）
+
+**会话管理** (`routes/sessions.py`):
+- `GET /api/sessions` - 列出所有会话（需要认证）
+- `GET /api/sessions/{session_key:path}` - 获取单个会话（需要认证）
+- `DELETE /api/sessions/{session_key:path}` - 删除会话（需要认证）
+
+**配置访问** (`routes/config.py`):
+- `GET /api/config` - 获取配置（脱敏，需要认证）
+- `GET /api/config/snapshot` - 获取配置快照（含元数据，需要认证）
+
+### 认证方式
+
+1. **Local Direct**: 来自 127.0.0.1 的请求无需认证
+2. **Bearer Token**: `Authorization: Bearer <token>` 头部
+3. **Password**: `X-Password: <password>` 头部
+
+优先级：local > token > password
+
+---
