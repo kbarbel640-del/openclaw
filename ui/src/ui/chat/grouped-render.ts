@@ -14,19 +14,21 @@ import { extractToolCards, renderToolCardSidebar } from "./tool-cards.ts";
 
 /**
  * Checks if the text represents a silent reply (NO_REPLY).
- * This is a UI-compatible implementation matching the server-side isSilentReplyText function.
+ * Matches server-side isSilentReplyText in src/auto-reply/tokens.ts using word boundaries.
  */
 function isSilentReplyText(text: string | null | undefined): boolean {
   if (!text) {
     return false;
   }
   const token = "NO_REPLY";
-  // Check if NO_REPLY appears at the start or end of the text
-  const trimmed = text.trim();
-  if (trimmed.startsWith(token)) {
+  // Prefix: NO_REPLY at start, followed by end-of-string or non-word char
+  const prefix = new RegExp(`^\\s*${token}(?=$|\\W)`);
+  if (prefix.test(text)) {
     return true;
   }
-  return trimmed.endsWith(token);
+  // Suffix: NO_REPLY at end with word boundaries, allowing trailing non-word chars
+  const suffix = new RegExp(`\\b${token}\\b\\W*$`);
+  return suffix.test(text);
 }
 
 type ImageBlock = {
