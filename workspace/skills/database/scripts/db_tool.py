@@ -689,7 +689,7 @@ def _validate_required_fields(op_index: int, op: dict[str, Any]) -> None:
     rows = data if isinstance(data, list) else [data]
     for row_idx, row in enumerate(rows):
         # Skip @ref values — they'll be resolved at execution time
-        provided = {k for k, v in row.items() if not (isinstance(v, str) and v.startswith("@"))}
+        provided = set(row.keys())
         missing = [c for c in required_no_default if c not in provided]
         if missing:
             loc = f"Operation {op_index}" + (f", row {row_idx}" if isinstance(data, list) else "")
