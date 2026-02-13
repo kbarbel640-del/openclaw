@@ -83,6 +83,20 @@ export function calculateAuthProfileCooldownMs(errorCount: number): number {
   );
 }
 
+/**
+ * Rate-limit-specific cooldown with gentler backoff.
+ * Rate limits are transient — aggressive backoff causes cascading failures
+ * when multiple models share the same provider quota (e.g., OAuth).
+ * Cooldown times: 30s, 60s, 120s, max 5 minutes.
+ */
+export function calculateRateLimitCooldownMs(rateLimitCount: number): number {
+  const normalized = Math.max(1, rateLimitCount);
+  return Math.min(
+    5 * 60 * 1000, // 5 minute max
+    30 * 1000 * 2 ** Math.min(normalized - 1, 3),
+  );
+}
+
 type ResolvedAuthCooldownConfig = {
   billingBackoffMs: number;
   billingMaxMs: number;
@@ -190,6 +204,12 @@ function computeNextProfileUsageStats(params: {
     });
     updatedStats.disabledUntil = params.now + backoffMs;
     updatedStats.disabledReason = "billing";
+  } else if (params.reason === "rate_limit") {
+    // Use per-reason count for rate limits to avoid cascading cooldowns
+    // when failover across multiple models inflates the total errorCount.
+    const rateLimitCount = failureCounts.rate_limit ?? 1;
+    const backoffMs = calculateRateLimitCooldownMs(rateLimitCount);
+    updatedStats.cooldownUntil = params.now + backoffMs;
   } else {
     const backoffMs = calculateAuthProfileCooldownMs(nextErrorCount);
     updatedStats.cooldownUntil = params.now + backoffMs;
@@ -319,4 +339,45 @@ export async function clearAuthProfileCooldown(params: {
     cooldownUntil: undefined,
   };
   saveAuthProfileStore(store, agentDir);
+}
+
+/**
+ * Clear all non-billing cooldowns from every profile in the store.
+ * Intended to be called on gateway startup so that stale rate-limit cooldowns
+ * persisted to disk don't block providers that have since recovered.
+ * Billing-disabled profiles are left untouched.
+ */
+export async function clearAllRateLimitCooldowns(params: {
+  store: AuthProfileStore;
+  agentDir?: string;
+}): Promise<void> {
+  const { store, agentDir } = params;
+  const updated = await updateAuthProfileStoreWithLock({
+    agentDir,
+    updater: (freshStore) => {
+      if (!freshStore.usageStats) {
+        return false;
+      }
+      let changed = false;
+      for (const [profileId, stats] of Object.entries(freshStore.usageStats)) {
+        // Skip billing-disabled profiles — those should stay disabled
+        if (stats.disabledReason === "billing" && stats.disabledUntil) {
+          continue;
+        }
+        if (stats.cooldownUntil || stats.errorCount) {
+          freshStore.usageStats[profileId] = {
+            ...stats,
+            errorCount: 0,
+            cooldownUntil: undefined,
+            failureCounts: undefined,
+          };
+          changed = true;
+        }
+      }
+      return changed;
+    },
+  });
+  if (updated) {
+    store.usageStats = updated.usageStats;
+  }
 }
