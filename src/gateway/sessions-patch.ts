@@ -259,6 +259,12 @@ export async function applySessionsPatchToStore(params: {
           isDefault: true,
         },
       });
+      // Update contextTokens to match the default model's context window
+      const { lookupContextTokens } = await import("../agents/context.js");
+      const { DEFAULT_CONTEXT_TOKENS } = await import("../agents/defaults.js");
+      const defaultContextTokens =
+        lookupContextTokens(resolvedDefault.model) ?? DEFAULT_CONTEXT_TOKENS;
+      next.contextTokens = defaultContextTokens;
     } else if (raw !== undefined) {
       const trimmed = String(raw).trim();
       if (!trimmed) {
@@ -292,6 +298,11 @@ export async function applySessionsPatchToStore(params: {
           isDefault,
         },
       });
+      // Update contextTokens to match the new model's context window
+      const { lookupContextTokens } = await import("../agents/context.js");
+      const { DEFAULT_CONTEXT_TOKENS } = await import("../agents/defaults.js");
+      const newContextTokens = lookupContextTokens(resolved.ref.model) ?? DEFAULT_CONTEXT_TOKENS;
+      next.contextTokens = newContextTokens;
     }
   }
 

@@ -636,6 +636,9 @@ export async function startGatewayServer(
   });
 
   const close = createGatewayCloseHandler({
+    cfg: cfgAtStart,
+    deps,
+    defaultWorkspaceDir,
     bonjourStop,
     tailscaleCleanup,
     canvasHost,
