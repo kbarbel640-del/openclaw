@@ -481,8 +481,15 @@ def cmd_write(args: argparse.Namespace) -> None:
 
     # Auto-detect dependencies from @references (model doesn't need to specify them)
     returns_set = {op.get("returns") for op in operations if op.get("returns")}
-    for op in operations:
+    for i, op in enumerate(operations):
         detected_deps = _detect_refs(op)
+        # Validate all @ref aliases point to a real 'returns' name
+        invalid_refs = detected_deps - returns_set
+        if invalid_refs:
+            error_exit(
+                f"Operation {i} ({op.get('action','')} on {op.get('table','')}): @ref aliases not found: {sorted(invalid_refs)}",
+                hint=f"Available 'returns' aliases: {sorted(returns_set) if returns_set else '(none)'}. Check spelling or add a 'returns' name to the referenced operation.",
+            )
         existing_deps = set(op.get("dependencies", []))
         op["dependencies"] = list(existing_deps | (detected_deps & returns_set))
 
