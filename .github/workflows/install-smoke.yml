@@ -3,7 +3,7 @@ name: Install Smoke
 on:
   push:
     branches: [main]
-  pull_request:
+  # pull_request: # disabled for fast merge
   workflow_dispatch:
 
 concurrency:

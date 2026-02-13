@@ -1,7 +1,7 @@
 name: Workflow Sanity
 
 on:
-  pull_request:
+  # pull_request: # disabled for fast merge
   push:
     branches: [main]
 

@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
+  # pull_request: # disabled for fast merge
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}

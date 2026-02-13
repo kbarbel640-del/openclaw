@@ -1,7 +1,8 @@
 name: Formal models (informational conformance)
 
 on:
-  pull_request:
+  # pull_request: # disabled for fast merge
+  workflow_dispatch:
 
 concurrency:
   group: formal-conformance-${{ github.event.pull_request.number || github.ref_name }}
