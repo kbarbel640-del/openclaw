@@ -42,6 +42,7 @@ import { resolveSlackThreadContext } from "../../threading.js";
 import { resolveSlackAllowListMatch, resolveSlackUserAllowed } from "../allow-list.js";
 import { resolveSlackEffectiveAllowFrom } from "../auth.js";
 import { resolveSlackChannelConfig } from "../channel-config.js";
+import { stripSlackMentionsForCommandDetection } from "../commands.js";
 import { normalizeSlackChannelType, type SlackMonitorContext } from "../context.js";
 import {
   resolveSlackMedia,
@@ -253,7 +254,9 @@ export async function prepareSlackMessage(params: {
     cfg,
     surface: "slack",
   });
-  const hasControlCommandInMessage = hasControlCommand(message.text ?? "", cfg);
+  // Strip Slack mentions (<@U123>) before command detection so "@Labrador /new" is recognized
+  const textForCommandDetection = stripSlackMentionsForCommandDetection(message.text ?? "");
+  const hasControlCommandInMessage = hasControlCommand(textForCommandDetection, cfg);
 
   const ownerAuthorized = resolveSlackAllowListMatch({
     allowList: allowFromLower,
@@ -400,7 +403,11 @@ export async function prepareSlackMessage(params: {
       GroupSubject: isRoomish ? roomLabel : undefined,
       From: slackFrom,
     }) ?? (isDirectMessage ? senderName : roomLabel);
-  const textWithId = `${rawBody}\n[slack message id: ${message.ts} channel: ${message.channel}]`;
+  const threadInfo =
+    isThreadReply && threadTs
+      ? ` thread_ts: ${threadTs}${message.parent_user_id ? ` parent_user_id: ${message.parent_user_id}` : ""}`
+      : "";
+  const textWithId = `${rawBody}\n[slack message id: ${message.ts} channel: ${message.channel}${threadInfo}]`;
   const storePath = resolveStorePath(ctx.cfg.session?.store, {
     agentId: route.agentId,
   });

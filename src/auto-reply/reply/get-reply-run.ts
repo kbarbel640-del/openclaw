@@ -331,7 +331,11 @@ export async function runPreparedReply(
     }
   }
   const sessionIdFinal = sessionId ?? crypto.randomUUID();
-  const sessionFile = resolveSessionFilePath(sessionIdFinal, sessionEntry);
+  const sessionFile = resolveSessionFilePath(
+    sessionIdFinal,
+    sessionEntry,
+    resolveSessionFilePathOptions({ agentId, storePath }),
+  );
   const queueBodyBase = [threadContextNote, baseBodyForPrompt].filter(Boolean).join("\n\n");
   const queuedBody = mediaNote
     ? [mediaNote, mediaReplyHint, queueBodyBase].filter(Boolean).join("\n").trim()
