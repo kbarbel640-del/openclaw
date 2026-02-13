@@ -3,9 +3,12 @@ import type { GatewayAuthConfig, GatewayTailscaleMode } from "../config/config.j
 import { readTailscaleWhoisIdentity, type TailscaleWhoisIdentity } from "../infra/tailscale.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
 import {
+  isDockerEnvironment,
   isLoopbackAddress,
   isTrustedProxyAddress,
+  normalizeIp,
   parseForwardedForClientIp,
+  readDockerGatewayIp,
   resolveGatewayClientIp,
 } from "./net.js";
 export type ResolvedGatewayAuthMode = "token" | "password";
@@ -88,9 +91,7 @@ export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: str
     return false;
   }
   const clientIp = resolveRequestClientIp(req, trustedProxies) ?? "";
-  if (!isLoopbackAddress(clientIp)) {
-    return false;
-  }
+  const clientIsLoopback = isLoopbackAddress(clientIp);
 
   const host = getHostName(req.headers?.host);
   const hostIsLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
@@ -101,6 +102,20 @@ export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: str
     req.headers?.["x-real-ip"] ||
     req.headers?.["x-forwarded-host"],
   );
+
+  if (!clientIsLoopback) {
+    // In Docker containers, host-mapped connections arrive from the Docker
+    // bridge gateway (e.g. 192.168.65.x on Docker Desktop) instead of
+    // 127.0.0.1.  Verify the client IP matches the container's default
+    // gateway to prevent spoofing by other containers on the same network.
+    if (isDockerEnvironment() && hostIsLocal && !hasForwarded) {
+      const gatewayIp = readDockerGatewayIp();
+      if (gatewayIp && normalizeIp(clientIp) === normalizeIp(gatewayIp)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   const remoteIsTrustedProxy = isTrustedProxyAddress(req.socket?.remoteAddress, trustedProxies);
   return (hostIsLocal || hostIsTailscaleServe) && (!hasForwarded || remoteIsTrustedProxy);

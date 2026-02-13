@@ -56,16 +56,17 @@ export function pickProbeHostForBind(
   tailnetIPv4: string | undefined,
   customBindHost?: string,
 ) {
+  const fallback = process.env.OPENCLAW_GATEWAY_HOST || "127.0.0.1";
   if (bindMode === "custom" && customBindHost?.trim()) {
     return customBindHost.trim();
   }
   if (bindMode === "tailnet") {
-    return tailnetIPv4 ?? "127.0.0.1";
+    return tailnetIPv4 ?? fallback;
   }
   if (bindMode === "lan") {
-    return pickPrimaryLanIPv4() ?? "127.0.0.1";
+    return pickPrimaryLanIPv4() ?? fallback;
   }
-  return "127.0.0.1";
+  return fallback;
 }
 
 const SAFE_DAEMON_ENV_KEYS = [
