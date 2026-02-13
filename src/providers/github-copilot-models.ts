@@ -19,8 +19,8 @@ const DEFAULT_MODEL_IDS = [
   "o1-mini",
   "o3-mini",
   // Claude models (requires GitHub Copilot Pro+ subscription)
-  "claude-opus-4.5",
-  "claude-sonnet-4.5",
+  "claude-opus-4-5",
+  "claude-sonnet-4-5",
   "claude-sonnet-4",
 ] as const;
 

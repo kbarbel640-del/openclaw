@@ -79,14 +79,14 @@ The following models are available through GitHub Copilot:
 
 ### Claude models (Pro+ subscription required)
 
-- `claude-opus-4.5`
-- `claude-sonnet-4.5`
+- `claude-opus-4-5`
+- `claude-sonnet-4-5`
 - `claude-sonnet-4`
 
 To use Claude Opus 4.5:
 
 ```bash
-openclaw models set github-copilot/claude-opus-4.5
+openclaw models set github-copilot/claude-opus-4-5
 ```
 
 ## Notes
