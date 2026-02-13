@@ -364,6 +364,9 @@ function buildPresenceSchema() {
 function buildChannelManagementSchema() {
   return {
     name: Type.Optional(Type.String()),
+    private: Type.Optional(
+      Type.Boolean({ description: "Create a private channel when supported by the provider." }),
+    ),
     type: Type.Optional(Type.Number()),
     parentId: Type.Optional(Type.String()),
     topic: Type.Optional(Type.String()),

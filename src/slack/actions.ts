@@ -245,6 +245,26 @@ export async function listSlackEmojis(opts: SlackActionClientOpts = {}) {
   return await client.emoji.list();
 }
 
+export async function createSlackChannel(
+  name: string,
+  opts: SlackActionClientOpts & { isPrivate?: boolean; topic?: string } = {},
+) {
+  const client = await getClient(opts);
+  const createParams: { name: string; is_private?: boolean } = { name };
+  if (typeof opts.isPrivate === "boolean") {
+    createParams.is_private = opts.isPrivate;
+  }
+  const result = await client.conversations.create(createParams);
+  const channel = result.channel as { id?: string } | undefined;
+  if (opts.topic && channel?.id) {
+    await client.conversations.setTopic({
+      channel: channel.id,
+      topic: opts.topic,
+    });
+  }
+  return channel ?? result;
+}
+
 export async function pinSlackMessage(
   channelId: string,
   messageId: string,

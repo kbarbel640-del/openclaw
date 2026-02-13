@@ -44,6 +44,9 @@ export function listSlackMessageActions(cfg: OpenClawConfig): ChannelMessageActi
   if (isActionEnabled("emojiList")) {
     actions.add("emoji-list");
   }
+  if (isActionEnabled("channels")) {
+    actions.add("channel-create");
+  }
   return Array.from(actions);
 }
 

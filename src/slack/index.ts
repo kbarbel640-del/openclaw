@@ -5,6 +5,7 @@ export {
   resolveSlackAccount,
 } from "./accounts.js";
 export {
+  createSlackChannel,
   deleteSlackMessage,
   editSlackMessage,
   getSlackMemberInfo,
