@@ -124,17 +124,16 @@ const AUTH_CHOICE_GROUP_DEFS: {
     choices: ["together-api-key"],
   },
   {
-<<<<<<< HEAD
     value: "huggingface",
     label: "Hugging Face",
     hint: "Inference API (HF token)",
     choices: ["huggingface-api-key"],
-=======
+  },
+  {
     value: "novita",
     label: "Novita AI",
     hint: "API key",
     choices: ["novita-api-key"],
->>>>>>> 39aac13fe (feat: add Novita AI provider support with dynamic model discovery)
   },
   {
     value: "venice",
@@ -230,15 +229,14 @@ export function buildAuthChoiceOptions(params: {
     hint: "Access to Llama, DeepSeek, Qwen, and more open models",
   });
   options.push({
-<<<<<<< HEAD
     value: "huggingface-api-key",
     label: "Hugging Face API key (HF token)",
     hint: "Inference Providers — OpenAI-compatible chat",
-=======
+  });
+  options.push({
     value: "novita-api-key",
     label: "Novita API key",
     hint: "OpenAI-compatible access to 200+ latest frontier models",
->>>>>>> 39aac13fe (feat: add Novita AI provider support with dynamic model discovery)
   });
   options.push({
     value: "github-copilot",
