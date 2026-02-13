@@ -23,6 +23,7 @@ import {
   enqueueCommandInLane,
   getActiveTaskCount,
   getQueueSize,
+  resetAllLanes,
   setCommandLaneConcurrency,
   waitForActiveTasks,
 } from "./command-queue.js";
@@ -34,6 +35,12 @@ describe("command queue", () => {
     diagnosticMocks.diag.debug.mockClear();
     diagnosticMocks.diag.warn.mockClear();
     diagnosticMocks.diag.error.mockClear();
+  });
+
+  it("resetAllLanes is safe when no lanes have been created", () => {
+    expect(getActiveTaskCount()).toBe(0);
+    expect(() => resetAllLanes()).not.toThrow();
+    expect(getActiveTaskCount()).toBe(0);
   });
 
   it("runs tasks one at a time in order", async () => {
@@ -160,6 +167,60 @@ describe("command queue", () => {
 
     resolve1();
     await task;
+  });
+
+  it("resetAllLanes requires a fresh enqueue to trigger draining", async () => {
+    const lane = `reset-test-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setCommandLaneConcurrency(lane, 1);
+
+    let resolve1!: () => void;
+    const blocker = new Promise<void>((r) => {
+      resolve1 = r;
+    });
+
+    // Start a task that blocks the lane
+    const task1 = enqueueCommandInLane(lane, async () => {
+      await blocker;
+    });
+
+    // Give it a tick to start
+    await new Promise((r) => setTimeout(r, 5));
+    expect(getActiveTaskCount()).toBeGreaterThanOrEqual(1);
+
+    // Enqueue another task — it should be stuck behind the blocker
+    let task2Ran = false;
+    const task2 = enqueueCommandInLane(lane, async () => {
+      task2Ran = true;
+    });
+
+    await new Promise((r) => setTimeout(r, 5));
+    expect(task2Ran).toBe(false);
+
+    // Simulate SIGUSR1: reset all lanes (as if interrupted tasks' finally blocks never ran).
+    resetAllLanes();
+
+    // Complete the stale in-flight task; generation mismatch should make
+    // its completion path a no-op for queue bookkeeping/draining.
+    resolve1();
+    await task1;
+    await new Promise((r) => setTimeout(r, 5));
+
+    const task2BeforeTrigger = await Promise.race([
+      task2.then(() => "ran"),
+      new Promise<"timed-out">((resolve) => setTimeout(() => resolve("timed-out"), 50)),
+    ]);
+    expect(task2BeforeTrigger).toBe("timed-out");
+    expect(task2Ran).toBe(false);
+
+    // A fresh enqueue triggers drain and allows queued work to resume.
+    let task3Ran = false;
+    const task3 = enqueueCommandInLane(lane, async () => {
+      task3Ran = true;
+    });
+
+    await Promise.all([task2, task3]);
+    expect(task2Ran).toBe(true);
+    expect(task3Ran).toBe(true);
   });
 
   it("waitForActiveTasks ignores tasks that start after the call", async () => {

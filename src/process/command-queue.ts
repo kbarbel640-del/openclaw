@@ -33,6 +33,7 @@ type LaneState = {
   activeTaskIds: Set<number>;
   maxConcurrent: number;
   draining: boolean;
+  generation: number;
 };
 
 const lanes = new Map<string, LaneState>();
@@ -50,9 +51,19 @@ function getLaneState(lane: string): LaneState {
     activeTaskIds: new Set(),
     maxConcurrent: 1,
     draining: false,
+    generation: 0,
   };
   lanes.set(lane, created);
   return created;
+}
+
+function completeTask(state: LaneState, taskId: number, taskGeneration: number): boolean {
+  if (taskGeneration !== state.generation) {
+    return false;
+  }
+  state.active -= 1;
+  state.activeTaskIds.delete(taskId);
+  return true;
 }
 
 function drainLane(lane: string) {
@@ -74,29 +85,32 @@ function drainLane(lane: string) {
       }
       logLaneDequeue(lane, waitedMs, state.queue.length);
       const taskId = nextTaskId++;
+      const taskGeneration = state.generation;
       state.active += 1;
       state.activeTaskIds.add(taskId);
       void (async () => {
         const startTime = Date.now();
         try {
           const result = await entry.task();
-          state.active -= 1;
-          state.activeTaskIds.delete(taskId);
-          diag.debug(
-            `lane task done: lane=${lane} durationMs=${Date.now() - startTime} active=${state.active} queued=${state.queue.length}`,
-          );
-          pump();
+          const completedCurrentGeneration = completeTask(state, taskId, taskGeneration);
+          if (completedCurrentGeneration) {
+            diag.debug(
+              `lane task done: lane=${lane} durationMs=${Date.now() - startTime} active=${state.active} queued=${state.queue.length}`,
+            );
+            pump();
+          }
           entry.resolve(result);
         } catch (err) {
-          state.active -= 1;
-          state.activeTaskIds.delete(taskId);
+          const completedCurrentGeneration = completeTask(state, taskId, taskGeneration);
           const isProbeLane = lane.startsWith("auth-probe:") || lane.startsWith("session:probe-");
           if (!isProbeLane) {
             diag.error(
               `lane task error: lane=${lane} durationMs=${Date.now() - startTime} error="${String(err)}"`,
             );
           }
-          pump();
+          if (completedCurrentGeneration) {
+            pump();
+          }
           entry.reject(err);
         }
       })();
@@ -178,6 +192,28 @@ export function clearCommandLane(lane: string = CommandLane.Main) {
     entry.reject(new CommandLaneClearedError(cleaned));
   }
   return removed;
+}
+
+/**
+ * Reset all lane runtime state to idle. Used after SIGUSR1 in-process
+ * restarts where interrupted tasks' finally blocks may not run, leaving
+ * stale `active` counts that permanently block new work from draining.
+ *
+ * Bumps lane generation and clears execution counters so stale completions
+ * from old in-flight tasks are ignored. Queued entries are intentionally
+ * preserved — they represent pending user work that should still execute
+ * after restart.
+ *
+ * Does not call `drainLane()` directly. New work naturally resumes when the
+ * next `enqueueCommandInLane()` call triggers a fresh drain pass.
+ */
+export function resetAllLanes(): void {
+  for (const state of lanes.values()) {
+    state.generation += 1;
+    state.active = 0;
+    state.activeTaskIds.clear();
+    state.draining = false;
+  }
 }
 
 /**
