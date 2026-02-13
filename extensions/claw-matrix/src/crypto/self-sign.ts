@@ -122,9 +122,6 @@ export async function selfSignDevice(opts: SelfSignOpts): Promise<void> {
   const signature = crypto.sign(null, Buffer.from(canonicalJsonStr), privateKey);
   const base64Signature = unpaddedBase64(Buffer.from(signature));
 
-  // Zero seed now — no longer needed after signing
-  sskSeed.fill(0);
-
   slog.info("Signed device key with self-signing key", {
     deviceId,
     sskKeyId: sskPublicKeyId,

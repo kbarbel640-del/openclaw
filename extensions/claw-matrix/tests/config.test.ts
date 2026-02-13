@@ -209,19 +209,29 @@ describe("resolveMatrixAccount", () => {
   });
 
   describe("fallback path", () => {
-    it("should throw on missing homeserver (HTTPS enforcement)", () => {
-      expect(() => resolveMatrixAccount({})).toThrow(/must use HTTPS/);
+    it("should fall back gracefully on missing channels.matrix", () => {
+      const resolved = resolveMatrixAccount({});
+      expect(resolved.accountId).toBe("default");
+      expect(resolved.homeserver).toBe("");
+      expect(resolved.accessToken).toBe("");
+      expect(resolved.deviceName).toBe("OpenClaw");
     });
 
-    it("should throw on null input (HTTPS enforcement)", () => {
-      expect(() => resolveMatrixAccount(null)).toThrow(/must use HTTPS/);
+    it("should fall back on null input", () => {
+      const resolved = resolveMatrixAccount(null);
+      expect(resolved.accountId).toBe("default");
+      expect(resolved.homeserver).toBe("");
     });
 
-    it("should throw on empty matrix config (HTTPS enforcement)", () => {
-      expect(() => resolveMatrixAccount({ channels: { matrix: {} } })).toThrow(/must use HTTPS/);
+    it("should fall back on completely empty matrix config", () => {
+      const resolved = resolveMatrixAccount({ channels: { matrix: {} } });
+      expect(resolved.accountId).toBe("default");
+      expect(resolved.enabled).toBe(true);
+      expect(resolved.encryption).toBe(true);
     });
 
-    it("should reject HTTP homeserver in fallback path", () => {
+    it("should preserve values even when Zod validation fails", () => {
+      // HTTP homeserver fails Zod's HTTPS requirement, but fallback preserves it
       const cfg = {
         channels: {
           matrix: {
@@ -231,23 +241,10 @@ describe("resolveMatrixAccount", () => {
           },
         },
       };
-      expect(() => resolveMatrixAccount(cfg)).toThrow(/must use HTTPS/);
-    });
-
-    it("should accept HTTPS homeserver in fallback path", () => {
-      // Self-signed HTTPS URL that fails Zod's URL validator but passes fallback
-      const cfg = {
-        channels: {
-          matrix: {
-            homeserver: "https://localhost:8448",
-            userId: "invalid-no-at-sign",
-            accessToken: "token123",
-          },
-        },
-      };
       const resolved = resolveMatrixAccount(cfg);
-      expect(resolved.homeserver).toBe("https://localhost:8448");
       expect(resolved.accessToken).toBe("token123");
+      // Homeserver should be preserved via fallback
+      expect(resolved.homeserver.includes("localhost")).toBeTruthy();
     });
   });
 });

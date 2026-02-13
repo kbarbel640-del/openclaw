@@ -38,7 +38,6 @@ const INITIAL_BACKOFF_MS = 1_000;
 const MAX_CONSECUTIVE_FAILURES = 10;
 const UTD_QUEUE_MAX = 200;
 const UTD_MAX_AGE_MS = 5 * 60 * 1000; // 5 min
-const MAX_UTD_PER_CYCLE = 10; // Cap UTD retries per sync cycle to bound worst-case latency
 const UTD_EXPIRE_MS = 60 * 60 * 1000; // 1 hour — stop retrying
 const MAX_EVENT_AGE_MS = 120_000; // Ignore messages older than 2 min (initial sync)
 
@@ -245,10 +244,11 @@ export async function runSyncLoop(opts: SyncLoopOpts): Promise<void> {
         "receiveSyncChanges",
       );
 
-      // OTK low-count warning (key upload handled by Step 6 unconditionally)
+      // OTK low-count warning — force key upload if dangerously low
       const signedKeyCount = otkCounts["signed_curve25519"] ?? 0;
       if (signedKeyCount < 50) {
-        log?.warn?.(`[sync] Low OTK count: ${signedKeyCount}`);
+        log?.warn?.(`[sync] Low OTK count: ${signedKeyCount} — forcing key upload`);
+        await processOutgoingRequests(log);
       }
 
       // ── Step 2: Retry UTD queue ──
@@ -328,10 +328,17 @@ export async function runSyncLoop(opts: SyncLoopOpts): Promise<void> {
       }
 
       // ── Step 6: Process outgoing requests ──
-      const outgoingCount = await processOutgoingRequests(log);
-      if (outgoingCount > 0) {
-        log?.info?.(`[sync] Processed ${outgoingCount} outgoing request(s)`);
+      const preReqs = await withCryptoTimeout(
+        getMachine().outgoingRequests(),
+        CRYPTO_TIMEOUT_MS,
+        "outgoingRequests(sync)",
+      );
+      if (preReqs.length > 0) {
+        log?.info?.(
+          `[sync] Processing ${preReqs.length} outgoing request(s): ${preReqs.map((r: any) => r.type?.toString?.() ?? r.constructor?.name ?? "?").join(", ")}`,
+        );
       }
+      await processOutgoingRequests(log);
 
       // Update health metrics
       updateSyncMetrics(0, true);
@@ -474,7 +481,6 @@ async function retryUTDQueue(
 ): Promise<void> {
   const now = Date.now();
   const toRetry = [...utdQueue];
-  let processed = 0;
 
   for (const entry of toRetry) {
     // Expire old entries
@@ -487,10 +493,6 @@ async function retryUTDQueue(
 
     // Skip too-fresh entries (let keys propagate)
     if (now - entry.queuedAt < 500) continue;
-
-    // Cap retries per cycle to bound worst-case latency
-    if (processed >= MAX_UTD_PER_CYCLE) break;
-    processed++;
 
     try {
       incrementCounter("decryptOps");
@@ -518,11 +520,10 @@ async function retryUTDQueue(
     } catch {
       entry.retries++;
 
-      // After 2+ failed retries, attempt backup restore once per entry
-      if (entry.retries >= 2 && !entry.backupAttempted && backupDecryptionKey && backupVersion) {
+      // After 2+ failed retries, attempt backup restore if available
+      if (entry.retries >= 2 && backupDecryptionKey && backupVersion) {
         const sessionId = (entry.event.content as any)?.session_id as string | undefined;
         if (sessionId) {
-          entry.backupAttempted = true;
           try {
             const { decryptSessionFromBackup } = await import("../crypto/recovery.js");
             const restored = await decryptSessionFromBackup(

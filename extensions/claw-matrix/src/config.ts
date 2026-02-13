@@ -130,25 +130,17 @@ export function resolveMatrixAccount(
   }
 
   // Fallback: manual extraction (for configs that fail strict validation)
-  const homeserver = (() => {
-    const raw = matrixCfg.homeserver ?? "";
-    if (!raw.startsWith("https://")) {
-      throw new Error(
-        `[claw-matrix] homeserver must use HTTPS (got: ${raw.slice(0, 40)}). ` +
-          `Plaintext HTTP is not allowed.`,
-      );
-    }
-    try {
-      return new URL(raw).origin;
-    } catch {
-      return raw.replace(/\/+$/, "");
-    }
-  })();
-
   return {
     accountId: accountId ?? "default",
     enabled: matrixCfg.enabled !== false,
-    homeserver,
+    homeserver: (() => {
+      const raw = matrixCfg.homeserver ?? "";
+      try {
+        return new URL(raw).origin;
+      } catch {
+        return raw.replace(/\/+$/, "");
+      }
+    })(),
     userId: matrixCfg.userId ?? "",
     accessToken: matrixCfg.accessToken ?? "",
     password: matrixCfg.password,

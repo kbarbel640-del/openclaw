@@ -88,15 +88,7 @@ export function decryptSecret(
   // AES-256-CTR decrypt
   const iv = Buffer.from(encrypted.iv, "base64");
   const decipher = crypto.createDecipheriv("aes-256-ctr", aesKey, iv);
-  const plaintext = Buffer.concat([decipher.update(ciphertextBuf), decipher.final()]).toString(
-    "utf8",
-  );
-
-  // Zero derived key material — rawKey is zeroed by the caller after all secrets are decrypted
-  aesKey.fill(0);
-  hmacKey.fill(0);
-
-  return plaintext;
+  return Buffer.concat([decipher.update(ciphertextBuf), decipher.final()]).toString("utf8");
 }
 
 /**
@@ -221,29 +213,18 @@ export function readLocalSskSeed(storePath: string): string | undefined {
 // ── Server queries ──────────────────────────────────────────────────────
 
 async function serverCrossSigningKeysExist(userId: string): Promise<boolean> {
-  // Retry up to 3 times — a transient failure here must NOT be treated as
-  // "no keys on server", because that would let bootstrapCrossSigning(true)
-  // run and destroy the existing server-side cross-signing identity.
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const resp = await matrixFetch<{
-        master_keys?: Record<string, unknown>;
-      }>("POST", "/_matrix/client/v3/keys/query", {
-        device_keys: { [userId]: [] },
-      });
-      const has = !!(resp.master_keys && resp.master_keys[userId]);
-      _serverHasCrossSigningKeys = has;
-      return has;
-    } catch (err) {
-      lastError = err;
-      if (attempt < 2) await new Promise((r) => setTimeout(r, 1000));
-    }
+  try {
+    const resp = await matrixFetch<{
+      master_keys?: Record<string, unknown>;
+    }>("POST", "/_matrix/client/v3/keys/query", {
+      device_keys: { [userId]: [] },
+    });
+    const has = !!(resp.master_keys && resp.master_keys[userId]);
+    _serverHasCrossSigningKeys = has;
+    return has;
+  } catch {
+    return false;
   }
-  // Fail-safe: assume keys exist on server when we can't verify.
-  // This prevents destructive bootstrap on transient network failures.
-  _serverHasCrossSigningKeys = true;
-  return true;
 }
 
 async function fetchAccountData<T>(userId: string, type: string): Promise<T | undefined> {
@@ -283,11 +264,6 @@ export async function restoreCrossSigningFromSSSSIfNeeded(
   const slog = createLogger("matrix", log);
   const fail: SsssRestoreResult = { restored: false };
 
-  // 1. Check server — ALWAYS query so the guard flag is set for monitor.ts,
-  // even when we skip SSSS restore. Without this, monitor.ts may incorrectly
-  // bootstrap new cross-signing keys (destroying the existing server identity).
-  const serverHas = await serverCrossSigningKeysExist(userId);
-
   // Guard: on fresh installs (no DB file), skip SSSS restore entirely.
   // The Rust SDK must create the DB schema first via initCryptoMachine().
   // SSSS restore will succeed on the next restart when the DB exists.
@@ -296,6 +272,9 @@ export async function restoreCrossSigningFromSSSSIfNeeded(
     slog.info("Crypto DB does not exist yet — skipping SSSS restore (will retry next startup)");
     return fail;
   }
+
+  // 1. Check server — always query so the guard flag is set for monitor.ts
+  const serverHas = await serverCrossSigningKeysExist(userId);
 
   // 2. Check local store
   if (localSecretsExist(storePath)) {
@@ -331,7 +310,6 @@ export async function restoreCrossSigningFromSSSSIfNeeded(
   );
   if (!defaultKey?.key) {
     slog.warn("No SSSS default key found — cannot restore cross-signing");
-    rawKey.fill(0);
     return fail;
   }
   const keyId = defaultKey.key;
@@ -343,7 +321,6 @@ export async function restoreCrossSigningFromSSSSIfNeeded(
       slog.error("Recovery key does not match SSSS key — wrong key or corrupted metadata", {
         keyId,
       });
-      rawKey.fill(0);
       return fail;
     }
     slog.info("Recovery key verified against SSSS key metadata", { keyId });
@@ -362,7 +339,6 @@ export async function restoreCrossSigningFromSSSSIfNeeded(
     const encBlock = accountData?.encrypted?.[keyId];
     if (!encBlock) {
       slog.warn("SSSS: missing encrypted block for " + secretName, { keyId });
-      rawKey.fill(0);
       return fail; // All three are required
     }
 
@@ -371,13 +347,9 @@ export async function restoreCrossSigningFromSSSSIfNeeded(
       restored.push({ name: secretName, value });
     } catch (err: any) {
       slog.error("SSSS decryption failed for " + secretName, { error: err.message });
-      rawKey.fill(0);
       return fail;
     }
   }
-
-  // Zero recovery key — no longer needed after decryption
-  rawKey.fill(0);
 
   // 7. Insert into SQLite
   try {

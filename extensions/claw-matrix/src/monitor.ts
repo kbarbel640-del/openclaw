@@ -23,7 +23,7 @@ import {
   getMachine,
 } from "./crypto/machine.js";
 import { processOutgoingRequests } from "./crypto/outgoing.js";
-import { selfSignDevice, deriveEd25519PublicKey } from "./crypto/self-sign.js";
+import { selfSignDevice } from "./crypto/self-sign.js";
 import {
   restoreCrossSigningFromSSSSIfNeeded,
   serverHasCrossSigningKeys,
@@ -33,7 +33,6 @@ import {
 import { incrementCounter } from "./health.js";
 import { getMatrixRuntime } from "./runtime.js";
 import { createLogger } from "./util/logger.js";
-import { stripReplyFallback, stripHtmlReplyFallback } from "./util/reply-fallback.js";
 
 // SINGLETON: Only one account can run at a time. Multi-account requires
 // refactoring all module-level singletons to per-account state.
@@ -162,7 +161,6 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts): Promise<vo
     {
       const sskSeedB64 = preCachedSskSeed;
       if (sskSeedB64) {
-        const sskSeedBuf = Buffer.from(sskSeedB64, "base64");
         try {
           const keysResp = await matrixFetch<{
             self_signing_keys?: Record<string, { keys?: Record<string, string> }>;
@@ -184,21 +182,19 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts): Promise<vo
             keysResp.device_keys?.[account.userId]?.[account.deviceName]?.signatures?.[
               account.userId
             ] ?? {};
-
-          // Derive the current SSK's key ID from the seed to check for
-          // an existing signature from THIS specific SSK (not any stale one).
-          const currentSskKeyId = deriveEd25519PublicKey(sskSeedBuf);
-          const alreadySigned = `ed25519:${currentSskKeyId}` in deviceSigs;
+          const alreadySigned = Object.keys(deviceSigs).some(
+            (k) => k.startsWith("ed25519:") && k !== `ed25519:${account.deviceName}`,
+          );
 
           if (alreadySigned) {
-            slog.info("Device already signed by current SSK — skipping self-sign");
+            slog.info("Device already cross-signed — skipping self-sign");
           } else if (sskPublicKeyId) {
             const machine = getMachine();
             const identity = machine.identityKeys;
             await selfSignDevice({
               userId: account.userId,
               deviceId: account.deviceName,
-              sskSeed: sskSeedBuf,
+              sskSeed: Buffer.from(sskSeedB64, "base64"),
               sskPublicKeyId,
               deviceEd25519Key: String(identity.ed25519),
               deviceCurve25519Key: String(identity.curve25519),
@@ -210,8 +206,6 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts): Promise<vo
           }
         } catch (selfSignErr: any) {
           slog.warn("Device self-signing failed", { error: selfSignErr.message });
-        } finally {
-          sskSeedBuf.fill(0);
         }
       }
     }
@@ -308,12 +302,6 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts): Promise<vo
     const body = typeof effectiveContent.body === "string" ? (effectiveContent.body as string) : "";
     const msgtype = (effectiveContent.msgtype ?? event.content?.msgtype) as string | undefined;
 
-    // Filter m.notice — bot/automated messages should not trigger agent responses
-    if (msgtype === "m.notice") {
-      slog.info("Skipping m.notice (bot/automated message)", { sender: event.sender });
-      return;
-    }
-
     // Detect media messages
     const isMedia = msgtype && !["m.text", "m.notice"].includes(msgtype);
     let mediaPath: string | undefined;
@@ -394,16 +382,6 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts): Promise<vo
         ? relates.event_id
         : undefined;
 
-    // Strip reply fallback so the agent only sees the actual reply text
-    let cleanBody = body;
-    if (replyToId) {
-      cleanBody = stripReplyFallback(body);
-      const formattedBody = effectiveContent.formatted_body;
-      if (typeof formattedBody === "string") {
-        effectiveContent.formatted_body = stripHtmlReplyFallback(formattedBody);
-      }
-    }
-
     // Adjust session key for threads
     const sessionKey = threadId ? `${route.sessionKey}:thread:${threadId}` : route.sessionKey;
 
@@ -411,9 +389,9 @@ export async function monitorMatrixProvider(opts: MonitorMatrixOpts): Promise<vo
     let ctxPayload: Record<string, unknown>;
     try {
       ctxPayload = core.channel.reply.finalizeInboundContext({
-        Body: cleanBody,
+        Body: body,
         RawBody: body,
-        CommandBody: cleanBody,
+        CommandBody: body,
         From: chatType === "dm" ? `matrix:${event.sender}` : `matrix:room:${roomId}`,
         To: `matrix:${roomId}`,
         SessionKey: sessionKey,

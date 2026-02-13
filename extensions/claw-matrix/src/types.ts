@@ -64,8 +64,6 @@ export interface UTDQueueEntry {
   roomId: string;
   queuedAt: number;
   retries: number;
-  /** Set after backup restore has been attempted for this entry's session */
-  backupAttempted?: boolean;
 }
 
 export interface SendResult {
