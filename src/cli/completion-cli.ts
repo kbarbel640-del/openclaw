@@ -238,43 +238,48 @@ export function registerCompletionCli(program: Command) {
     .action(async (options) => {
       const shell = options.shell ?? "zsh";
       // Force all logs to stderr so completion script goes to stdout only
+      const prevForceStderr = loggingState.forceConsoleToStderr;
       loggingState.forceConsoleToStderr = true;
 
-      // Eagerly register all subcommands to build the full tree
-      const entries = getSubCliEntries();
-      for (const entry of entries) {
-        // Skip completion command itself to avoid cycle if we were to add it to the list
-        if (entry.name === "completion") {
-          continue;
+      try {
+        // Eagerly register all subcommands to build the full tree
+        const entries = getSubCliEntries();
+        for (const entry of entries) {
+          // Skip completion command itself to avoid cycle if we were to add it to the list
+          if (entry.name === "completion") {
+            continue;
+          }
+          await registerSubCliByName(program, entry.name);
         }
-        await registerSubCliByName(program, entry.name);
-      }
 
-      if (options.writeState) {
-        const writeShells = options.shell ? [shell] : [...COMPLETION_SHELLS];
-        await writeCompletionCache({
-          program,
-          shells: writeShells,
-          binName: program.name(),
-        });
-      }
+        if (options.writeState) {
+          const writeShells = options.shell ? [shell] : [...COMPLETION_SHELLS];
+          await writeCompletionCache({
+            program,
+            shells: writeShells,
+            binName: program.name(),
+          });
+        }
 
-      if (options.install) {
-        const targetShell = options.shell ?? resolveShellFromEnv();
-        await installCompletion(targetShell, Boolean(options.yes), program.name());
-        return;
-      }
+        if (options.install) {
+          const targetShell = options.shell ?? resolveShellFromEnv();
+          await installCompletion(targetShell, Boolean(options.yes), program.name());
+          return;
+        }
 
-      if (options.writeState) {
-        return;
-      }
+        if (options.writeState) {
+          return;
+        }
 
-      if (!isCompletionShell(shell)) {
-        throw new Error(`Unsupported shell: ${shell}`);
+        if (!isCompletionShell(shell)) {
+          throw new Error(`Unsupported shell: ${shell}`);
+        }
+        const script = getCompletionScript(shell, program);
+        // Use process.stdout directly to bypass forceConsoleToStderr
+        process.stdout.write(script + "\n");
+      } finally {
+        loggingState.forceConsoleToStderr = prevForceStderr;
       }
-      const script = getCompletionScript(shell, program);
-      // Use process.stdout directly to bypass forceConsoleToStderr
-      process.stdout.write(script + "\n");
     });
 }
 
