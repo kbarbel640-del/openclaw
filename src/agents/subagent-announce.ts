@@ -503,7 +503,7 @@ export async function runSubagentAnnounceFlow(params: {
     // Build a clean, user-visible message (no internal details)
     const announceType = params.announceType ?? "subagent task";
     const taskLabel = params.label || params.task || "task";
-    const triggerMessage = `The background task "${taskLabel}" has ${statusLabel}.`;
+    const triggerMessage = `A ${announceType} "${taskLabel}" just ${statusLabel}.`;
 
     // Internal context for the agent (not visible to the user)
     const announceSystemPrompt = [

@@ -100,7 +100,8 @@ describe("subagent announce formatting", () => {
     const msg = call?.params?.message as string;
     const systemPrompt = call?.params?.extraSystemPrompt as string;
     expect(call?.params?.sessionKey).toBe("agent:main:main");
-    // User-visible message is clean – no internal details
+    // User-visible message keeps the original format but no internal details
+    expect(msg).toContain("subagent task");
     expect(msg).toContain("do thing");
     expect(msg).toContain("failed");
     expect(msg).not.toContain("Findings:");
