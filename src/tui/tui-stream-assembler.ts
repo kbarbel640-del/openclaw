@@ -23,8 +23,17 @@ function mergeTextPreferRicher(currentText: string, nextText: string): string {
   if (next.includes(current)) {
     return next;
   }
-  if (current.includes(next)) {
-    return current;
+  // Keep streamed text only when the newer payload looks like a dropped
+  // leading/trailing block (the known regression shape), not any substring.
+  const currentLines = current.split("\n");
+  const nextLines = next.split("\n");
+  if (currentLines.length > nextLines.length) {
+    const isDroppedLeadingBlock =
+      currentLines.slice(currentLines.length - nextLines.length).join("\n") === next;
+    const isDroppedTrailingBlock = currentLines.slice(0, nextLines.length).join("\n") === next;
+    if (isDroppedLeadingBlock || isDroppedTrailingBlock) {
+      return current;
+    }
   }
   return next;
 }

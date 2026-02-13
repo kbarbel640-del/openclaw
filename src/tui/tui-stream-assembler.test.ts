@@ -141,4 +141,27 @@ describe("TuiStreamAssembler", () => {
 
     expect(finalText).toBe("Before tool call\nAfter tool call");
   });
+
+  it("prefers non-empty final payload when it is not a dropped block regression", () => {
+    const assembler = new TuiStreamAssembler();
+    assembler.ingestDelta(
+      "run-7",
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "NOT OK" }],
+      },
+      false,
+    );
+
+    const finalText = assembler.finalize(
+      "run-7",
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "OK" }],
+      },
+      false,
+    );
+
+    expect(finalText).toBe("OK");
+  });
 });
