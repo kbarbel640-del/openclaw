@@ -98,6 +98,7 @@ describe("TuiStreamAssembler", () => {
         role: "assistant",
         content: [
           { type: "text", text: "Before tool call" },
+          { type: "tool_use", name: "search" },
           { type: "text", text: "After tool call" },
         ],
       },
@@ -108,12 +109,41 @@ describe("TuiStreamAssembler", () => {
       "run-5",
       {
         role: "assistant",
-        content: [{ type: "text", text: "After tool call" }],
+        content: [
+          { type: "tool_use", name: "search" },
+          { type: "text", text: "After tool call" },
+        ],
       },
       false,
     );
 
     expect(finalText).toBe("Before tool call\nAfter tool call");
+  });
+
+  it("keeps non-empty final text for plain text prefix/suffix updates", () => {
+    const assembler = new TuiStreamAssembler();
+    assembler.ingestDelta(
+      "run-5b",
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "Draft line 1" },
+          { type: "text", text: "Draft line 2" },
+        ],
+      },
+      false,
+    );
+
+    const finalText = assembler.finalize(
+      "run-5b",
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Draft line 1" }],
+      },
+      false,
+    );
+
+    expect(finalText).toBe("Draft line 1");
   });
 
   it("accepts richer final payload when it extends streamed text", () => {
