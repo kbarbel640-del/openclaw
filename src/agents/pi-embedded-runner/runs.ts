@@ -9,6 +9,8 @@ type EmbeddedPiQueueHandle = {
   isStreaming: () => boolean;
   isCompacting: () => boolean;
   abort: () => void;
+  /** Optional callback when compaction completes - used to flush pending messages */
+  onCompactionComplete?: () => void;
 };
 
 const ACTIVE_EMBEDDED_RUNS = new Map<string, EmbeddedPiQueueHandle>();
@@ -17,6 +19,10 @@ type EmbeddedRunWaiter = {
   timer: NodeJS.Timeout;
 };
 const EMBEDDED_RUN_WAITERS = new Map<string, Set<EmbeddedRunWaiter>>();
+
+/** Messages queued while session is compacting - will be processed after compaction completes */
+const PENDING_COMPACTION_MESSAGES = new Map<string, string[]>();
+const MAX_PENDING_MESSAGES = 10; // Limit to prevent unbounded growth
 
 export function queueEmbeddedPiMessage(sessionId: string, text: string): boolean {
   const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId);
@@ -29,12 +35,66 @@ export function queueEmbeddedPiMessage(sessionId: string, text: string): boolean
     return false;
   }
   if (handle.isCompacting()) {
-    diag.debug(`queue message failed: sessionId=${sessionId} reason=compacting`);
-    return false;
+    // Queue message for processing after compaction instead of dropping it
+    const pending = PENDING_COMPACTION_MESSAGES.get(sessionId) ?? [];
+    if (pending.length < MAX_PENDING_MESSAGES) {
+      pending.push(text);
+      PENDING_COMPACTION_MESSAGES.set(sessionId, pending);
+      diag.debug(
+        `message queued for post-compaction: sessionId=${sessionId} pendingCount=${pending.length}`,
+      );
+      logMessageQueued({ sessionId, source: "pi-embedded-runner-pending" });
+      return true; // Message accepted, will be processed later
+    } else {
+      diag.warn(`pending compaction queue full: sessionId=${sessionId} dropped message`);
+      return false;
+    }
   }
   logMessageQueued({ sessionId, source: "pi-embedded-runner" });
   void handle.queueMessage(text);
   return true;
+}
+
+/** Process any messages that were queued during compaction */
+export function flushPendingCompactionMessages(sessionId: string): void {
+  const pending = PENDING_COMPACTION_MESSAGES.get(sessionId);
+  if (!pending || pending.length === 0) {
+    return;
+  }
+  PENDING_COMPACTION_MESSAGES.delete(sessionId);
+
+  const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId);
+  if (!handle) {
+    diag.debug(
+      `flush pending failed: sessionId=${sessionId} reason=no_active_run pendingCount=${pending.length}`,
+    );
+    return;
+  }
+  if (!handle.isStreaming()) {
+    diag.debug(
+      `flush pending failed: sessionId=${sessionId} reason=not_streaming pendingCount=${pending.length}`,
+    );
+    return;
+  }
+  if (handle.isCompacting()) {
+    // Still compacting, keep them queued
+    PENDING_COMPACTION_MESSAGES.set(sessionId, pending);
+    diag.debug(
+      `flush pending deferred: sessionId=${sessionId} reason=still_compacting pendingCount=${pending.length}`,
+    );
+    return;
+  }
+
+  diag.debug(`flushing pending messages: sessionId=${sessionId} count=${pending.length}`);
+
+  // Combine all pending messages into one to avoid multiple agent turns
+  const combinedText =
+    pending.length === 1
+      ? pending[0]
+      : `[Queued messages while agent was compacting]\n\n${pending.map((msg, i) => `---\nQueued #${i + 1}\n${msg}`).join("\n\n")}`;
+
+  logMessageQueued({ sessionId, source: "pi-embedded-runner-flush" });
+  void handle.queueMessage(combinedText);
 }
 
 export function abortEmbeddedPiRun(sessionId: string): boolean {
@@ -127,6 +187,8 @@ export function setActiveEmbeddedRun(sessionId: string, handle: EmbeddedPiQueueH
 export function clearActiveEmbeddedRun(sessionId: string, handle: EmbeddedPiQueueHandle) {
   if (ACTIVE_EMBEDDED_RUNS.get(sessionId) === handle) {
     ACTIVE_EMBEDDED_RUNS.delete(sessionId);
+    // Clear any pending messages for this session
+    PENDING_COMPACTION_MESSAGES.delete(sessionId);
     logSessionStateChange({ sessionId, state: "idle", reason: "run_completed" });
     if (!sessionId.startsWith("probe-")) {
       diag.debug(`run cleared: sessionId=${sessionId} totalActive=${ACTIVE_EMBEDDED_RUNS.size}`);

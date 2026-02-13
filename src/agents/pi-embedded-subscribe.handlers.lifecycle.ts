@@ -3,6 +3,7 @@ import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handler
 import { emitAgentEvent } from "../infra/agent-events.js";
 import { createInlineCodeState } from "../markdown/code-spans.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
+import { flushPendingCompactionMessages } from "./pi-embedded-runner/runs.js";
 
 export function handleAgentStart(ctx: EmbeddedPiSubscribeContext) {
   ctx.log.debug(`embedded run agent start: runId=${ctx.params.runId}`);
@@ -89,6 +90,12 @@ export function handleAutoCompactionEnd(
         .catch((err) => {
           ctx.log.warn(`after_compaction hook failed: ${String(err)}`);
         });
+    }
+
+    // Flush any messages that were queued during compaction
+    const sessionId = (ctx.params.session as { id?: string }).id;
+    if (sessionId) {
+      flushPendingCompactionMessages(sessionId);
     }
   }
 }
