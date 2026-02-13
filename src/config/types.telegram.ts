@@ -90,7 +90,7 @@ export type TelegramAccountConfig = {
    * - "open": groups bypass allowFrom, only mention-gating applies
    * - "disabled": block all group messages entirely
    * - "allowlist": only allow group messages from senders in groupAllowFrom/allowFrom
-   * - "members": like "allowlist" sender check, plus verifies ALL group members are trusted
+   * - "members": verifies ALL group members are in the trusted allowFrom list
    *   (calls Telegram API to confirm no untrusted members; cached 5 min, invalidated on join/leave)
    */
   groupPolicy?: GroupPolicy;
