@@ -27,15 +27,13 @@ describe("generateSlugViaLLM", () => {
       payloads: [{ text: "Roadmap Plan" }],
     });
 
-    const cfg: OpenClawConfig = {
+    const cfg = {
       agents: {
         defaults: {
-          model: {
-            primary: "minimax/MiniMax-M2.5",
-          },
+          model: "minimax/MiniMax-M2.5",
         },
       },
-    };
+    } satisfies OpenClawConfig;
 
     const slug = await generateSlugViaLLM({
       sessionContent: "User asked for a roadmap plan",
