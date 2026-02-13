@@ -161,11 +161,11 @@ export function loadSessionStore(
     }
   }
 
-  // Rebuild thread binding registry from freshly loaded sessions.
+  // Merge thread bindings from this store into the registry (store-scoped).
   // Use lazy import to avoid bundling thread-registry into browser context
   try {
     const { getThreadRegistry: getRegistry } = require("../thread-registry.js");
-    getRegistry().rebuildFromSessions(store);
+    getRegistry().mergeFromSessions(storePath, store);
   } catch {
     // Ignore if running in browser context where thread-registry isn't available
   }
@@ -202,11 +202,11 @@ async function saveSessionStoreUnlocked(
   // Invalidate cache on write to ensure consistency
   invalidateSessionStoreCache(storePath);
 
-  // Keep thread binding registry in sync with the written store.
+  // Keep thread binding registry in sync with the written store (store-scoped).
   // Use lazy import to avoid bundling thread-registry into browser context
   try {
     const { getThreadRegistry: getRegistry } = require("../thread-registry.js");
-    getRegistry().rebuildFromSessions(store);
+    getRegistry().mergeFromSessions(storePath, store);
   } catch {
     // Ignore if running in browser context where thread-registry isn't available
   }

@@ -440,7 +440,9 @@ export function createSessionsSpawnTool(opts?: {
       // the threadBinding field (writing before callGateway would be overwritten).
       if (resolvedThreadBinding) {
         try {
-          const storePath = resolveStorePath(undefined, { agentId: targetAgentId });
+          const storePath = resolveStorePath(loadConfig().session?.store, {
+            agentId: targetAgentId,
+          });
           await bindSessionToThread({
             storePath,
             sessionKey: childSessionKey,

@@ -77,12 +77,13 @@ export function createSessionsBroadcastTool(): AnyAgentTool {
 
       const sent: Array<{ sessionKey: string; runId?: string }> = [];
       const failed: Array<{ sessionKey: string; error: string }> = [];
-      for (const r of results) {
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
         if (r.status === "fulfilled") {
           sent.push(r.value);
         } else {
           failed.push({
-            sessionKey: "unknown",
+            sessionKey: boundSessions[i],
             error: r.reason instanceof Error ? r.reason.message : String(r.reason),
           });
         }

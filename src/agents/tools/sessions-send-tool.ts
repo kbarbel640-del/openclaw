@@ -57,6 +57,26 @@ export function createSessionsSendTool(opts?: {
       const message = readStringParam(params, "message", { required: true });
       const threadKeyParam = readStringParam(params, "threadKey");
 
+      // --- Auth setup (must run before any send path, including threadKey fanout) ---
+      const cfg = loadConfig();
+      const { mainKey, alias } = resolveMainSessionAlias(cfg);
+      const visibility = cfg.agents?.defaults?.sandbox?.sessionToolsVisibility ?? "spawned";
+      const requesterInternalKey =
+        typeof opts?.agentSessionKey === "string" && opts.agentSessionKey.trim()
+          ? resolveInternalSessionKey({
+              key: opts.agentSessionKey,
+              alias,
+              mainKey,
+            })
+          : undefined;
+      const restrictToSpawned =
+        opts?.sandboxed === true &&
+        visibility === "spawned" &&
+        !!requesterInternalKey &&
+        !isSubagentSessionKey(requesterInternalKey);
+
+      const a2aPolicy = createAgentToAgentPolicy(cfg);
+
       // --- Thread key fanout: send to all sessions bound to a thread ---
       if (threadKeyParam) {
         const parsed = parseThreadKey(threadKeyParam);
@@ -67,12 +87,56 @@ export function createSessionsSendTool(opts?: {
             error: `Invalid threadKey format: ${threadKeyParam}. Expected channel:accountId:threadId`,
           });
         }
-        const boundSessions = findSessionsByThread(parsed);
+        let boundSessions = findSessionsByThread(parsed);
         if (boundSessions.length === 0) {
           return jsonResult({
             runId: crypto.randomUUID(),
             status: "error",
             error: `No sessions bound to thread: ${threadKeyParam}`,
+          });
+        }
+
+        // Filter bound sessions through the same auth policies as single-send.
+        const requesterAgentId = requesterInternalKey
+          ? resolveAgentIdFromSessionKey(requesterInternalKey)
+          : undefined;
+
+        if (restrictToSpawned && requesterInternalKey) {
+          const listResult = await callGateway<{ sessions: Array<{ key: string }> }>({
+            method: "sessions.list",
+            params: {
+              includeGlobal: false,
+              includeUnknown: false,
+              limit: 500,
+              spawnedBy: requesterInternalKey,
+            },
+            timeoutMs: 10_000,
+          });
+          const spawnedKeys = new Set(
+            (Array.isArray(listResult?.sessions) ? listResult.sessions : []).map((s) => s?.key),
+          );
+          boundSessions = boundSessions.filter((key) => spawnedKeys.has(key));
+        }
+
+        if (a2aPolicy.enabled && requesterAgentId) {
+          boundSessions = boundSessions.filter((targetKey) => {
+            const targetAgentId = resolveAgentIdFromSessionKey(targetKey);
+            if (targetAgentId === requesterAgentId) return true;
+            return a2aPolicy.isAllowed(requesterAgentId, targetAgentId);
+          });
+        } else if (!a2aPolicy.enabled && requesterAgentId) {
+          // When a2a is disabled, only allow same-agent sessions.
+          boundSessions = boundSessions.filter((targetKey) => {
+            const targetAgentId = resolveAgentIdFromSessionKey(targetKey);
+            return targetAgentId === requesterAgentId;
+          });
+        }
+
+        if (boundSessions.length === 0) {
+          return jsonResult({
+            runId: crypto.randomUUID(),
+            status: "forbidden",
+            error: `No authorized sessions bound to thread: ${threadKeyParam}`,
           });
         }
 
@@ -100,12 +164,13 @@ export function createSessionsSendTool(opts?: {
 
         const sent: Array<{ sessionKey: string; runId?: string }> = [];
         const failed: Array<{ sessionKey: string; error: string }> = [];
-        for (const r of results) {
+        for (let i = 0; i < results.length; i++) {
+          const r = results[i];
           if (r.status === "fulfilled") {
             sent.push(r.value);
           } else {
             failed.push({
-              sessionKey: "unknown",
+              sessionKey: boundSessions[i],
               error: r.reason instanceof Error ? r.reason.message : String(r.reason),
             });
           }
@@ -119,25 +184,6 @@ export function createSessionsSendTool(opts?: {
           failed: failed.length > 0 ? failed : undefined,
         });
       }
-
-      const cfg = loadConfig();
-      const { mainKey, alias } = resolveMainSessionAlias(cfg);
-      const visibility = cfg.agents?.defaults?.sandbox?.sessionToolsVisibility ?? "spawned";
-      const requesterInternalKey =
-        typeof opts?.agentSessionKey === "string" && opts.agentSessionKey.trim()
-          ? resolveInternalSessionKey({
-              key: opts.agentSessionKey,
-              alias,
-              mainKey,
-            })
-          : undefined;
-      const restrictToSpawned =
-        opts?.sandboxed === true &&
-        visibility === "spawned" &&
-        !!requesterInternalKey &&
-        !isSubagentSessionKey(requesterInternalKey);
-
-      const a2aPolicy = createAgentToAgentPolicy(cfg);
 
       const sessionKeyParam = readStringParam(params, "sessionKey");
       const labelParam = readStringParam(params, "label")?.trim() || undefined;

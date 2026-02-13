@@ -97,6 +97,10 @@ export class ThreadBindingRegistry {
   private threadToSessions = new Map<string, Set<string>>();
   /** sessionKey → threadKey */
   private sessionToThread = new Map<string, string>();
+  /** sessionKey → ThreadBinding — stores the full binding metadata for revival */
+  private sessionBindings = new Map<string, ThreadBinding>();
+  /** storePath → Set<sessionKey> — tracks which session keys were indexed from each store */
+  private storeSessionKeys = new Map<string, Set<string>>();
 
   // -- mutations ------------------------------------------------------------
 
@@ -104,7 +108,7 @@ export class ThreadBindingRegistry {
    * Bind a session to a thread.  If the session was previously bound to a
    * different thread it is unbound first.
    */
-  bind(sessionKey: string, threadKey: string): void {
+  bind(sessionKey: string, threadKey: string, binding?: ThreadBinding): void {
     // If already bound to a *different* thread, unbind first.
     const prev = this.sessionToThread.get(sessionKey);
     if (prev !== undefined && prev !== threadKey) {
@@ -118,6 +122,11 @@ export class ThreadBindingRegistry {
     }
     sessions.add(sessionKey);
     this.sessionToThread.set(sessionKey, threadKey);
+
+    // Store the full binding metadata if provided
+    if (binding) {
+      this.sessionBindings.set(sessionKey, binding);
+    }
   }
 
   /**
@@ -136,6 +145,7 @@ export class ThreadBindingRegistry {
       }
     }
     this.sessionToThread.delete(sessionKey);
+    // Note: Keep sessionBindings entry — we need it for revival lookup of dead sessions
     return true;
   }
 
@@ -152,6 +162,11 @@ export class ThreadBindingRegistry {
     return this.sessionToThread.get(sessionKey);
   }
 
+  /** Return the full ThreadBinding metadata for a session, or `undefined`. */
+  getBindingData(sessionKey: string): ThreadBinding | undefined {
+    return this.sessionBindings.get(sessionKey);
+  }
+
   /** Check whether a session is bound to any thread. */
   isBound(sessionKey: string): boolean {
     return this.sessionToThread.has(sessionKey);
@@ -160,14 +175,15 @@ export class ThreadBindingRegistry {
   // -- bulk operations ------------------------------------------------------
 
   /**
-   * Rebuild the registry from a session store snapshot.
-   *
-   * Clears all existing mappings and re-indexes every entry that carries a
-   * `threadBinding`.
+   * @deprecated Use {@link mergeFromSessions} instead. This method clears ALL
+   * bindings before re-indexing, which evicts other agents' bindings when
+   * per-agent session stores are used.
    */
   rebuildFromSessions(sessions: Record<string, { threadBinding?: ThreadBinding }>): void {
     this.threadToSessions.clear();
     this.sessionToThread.clear();
+    this.sessionBindings.clear();
+    this.storeSessionKeys.clear();
 
     for (const [sessionKey, entry] of Object.entries(sessions)) {
       if (entry?.threadBinding) {
@@ -176,8 +192,49 @@ export class ThreadBindingRegistry {
           accountId: entry.threadBinding.accountId,
           threadId: entry.threadBinding.threadId,
         });
-        this.bind(sessionKey, threadKey);
+        this.bind(sessionKey, threadKey, entry.threadBinding);
       }
+    }
+  }
+
+  /**
+   * Merge bindings from a single session store into the registry.
+   *
+   * Only clears bindings previously owned by the given `storePath`, then
+   * re-indexes that store's sessions.  Bindings from other stores are left
+   * intact.
+   */
+  mergeFromSessions(
+    storePath: string,
+    sessions: Record<string, { threadBinding?: ThreadBinding }>,
+  ): void {
+    // 1. Remove bindings previously owned by this store path.
+    const previousKeys = this.storeSessionKeys.get(storePath);
+    if (previousKeys) {
+      for (const sessionKey of previousKeys) {
+        this.unbind(sessionKey);
+      }
+    }
+
+    // 2. Re-index sessions from this store and track ownership.
+    const newKeys = new Set<string>();
+    for (const [sessionKey, entry] of Object.entries(sessions)) {
+      if (entry?.threadBinding) {
+        const threadKey = buildThreadKey({
+          channel: entry.threadBinding.channel,
+          accountId: entry.threadBinding.accountId,
+          threadId: entry.threadBinding.threadId,
+        });
+        this.bind(sessionKey, threadKey, entry.threadBinding);
+        newKeys.add(sessionKey);
+      }
+    }
+
+    // 3. Update ownership tracking.
+    if (newKeys.size > 0) {
+      this.storeSessionKeys.set(storePath, newKeys);
+    } else {
+      this.storeSessionKeys.delete(storePath);
     }
   }
 }
