@@ -6,7 +6,11 @@ import {
   isGatewaySigusr1RestartExternallyAllowed,
 } from "../../infra/restart.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
-import { getActiveTaskCount, waitForActiveTasks } from "../../process/command-queue.js";
+import {
+  getActiveTaskCount,
+  resetAllLanes,
+  waitForActiveTasks,
+} from "../../process/command-queue.js";
 
 const gatewayLog = createSubsystemLogger("gateway");
 
@@ -114,7 +118,18 @@ export async function runGatewayLoop(params: {
     // Keep process alive; SIGUSR1 triggers an in-process restart (no supervisor required).
     // SIGTERM/SIGINT still exit after a graceful shutdown.
     // eslint-disable-next-line no-constant-condition
+    let isFirstIteration = true;
     while (true) {
+      if (!isFirstIteration) {
+        // After an in-process restart (SIGUSR1), reset command-queue lane state.
+        // Interrupted tasks from the previous lifecycle may have left `active`
+        // counts elevated (their finally blocks never ran), permanently blocking
+        // new work from draining. This must happen here — at the restart
+        // coordinator level — rather than inside individual subsystem init
+        // functions, to avoid surprising cross-cutting side effects.
+        resetAllLanes();
+      }
+      isFirstIteration = false;
       server = await params.start();
       await new Promise<void>((resolve) => {
         restartResolver = resolve;

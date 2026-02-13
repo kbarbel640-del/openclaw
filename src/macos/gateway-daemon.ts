@@ -52,6 +52,7 @@ async function main() {
     { consumeGatewaySigusr1RestartAuthorization, isGatewaySigusr1RestartExternallyAllowed },
     { defaultRuntime },
     { enableConsoleCapture, setConsoleTimestampPrefix },
+    commandQueueMod,
   ] = await Promise.all([
     import("../config/config.js"),
     import("../gateway/server.js"),
@@ -61,6 +62,7 @@ async function main() {
     import("../infra/restart.js"),
     import("../runtime.js"),
     import("../logging.js"),
+    import("../process/command-queue.js"),
   ] as const);
 
   enableConsoleCapture();
@@ -197,7 +199,16 @@ async function main() {
       throw err;
     }
     // eslint-disable-next-line no-constant-condition
+    let isFirstIteration = true;
     while (true) {
+      if (!isFirstIteration) {
+        // After an in-process restart (SIGUSR1), reset command-queue lane state.
+        // Interrupted tasks from the previous lifecycle may have left `active`
+        // counts elevated (their finally blocks never ran), permanently blocking
+        // new work from draining.
+        commandQueueMod.resetAllLanes();
+      }
+      isFirstIteration = false;
       try {
         server = await startGatewayServer(port, { bind });
       } catch (err) {
@@ -210,7 +221,7 @@ async function main() {
       });
     }
   } finally {
-    await (lock as GatewayLockHandle | null)?.release();
+    await lock?.release();
     cleanupSignals();
   }
 }

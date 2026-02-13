@@ -1,5 +1,3 @@
-import { resetAllLanes } from "../process/command-queue.js";
-
 export type HeartbeatRunResult =
   | { status: "ran"; durationMs: number }
   | { status: "skipped"; reason: string }
@@ -164,11 +162,6 @@ export function setHeartbeatWakeHandler(next: HeartbeatWakeHandler | null): () =
     // `scheduled === true` can cause spurious immediate re-runs.
     running = false;
     scheduled = false;
-    // Reset command queue lane counters. Interrupted tasks from the previous
-    // lifecycle may have left `active` counts elevated, permanently blocking
-    // message processing. The drain timeout (waitForActiveTasks) may not have
-    // been sufficient to clear all in-flight work.
-    resetAllLanes();
   }
   if (handler && pendingWake) {
     schedule(DEFAULT_COALESCE_MS, "normal");
