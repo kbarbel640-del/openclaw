@@ -30,6 +30,7 @@ import {
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
+import { modelSupportsTools } from "../../model-compat.js";
 import { resolveDefaultModelForAgent } from "../../model-selection.js";
 import {
   isCloudCodeAssistFormatError,
@@ -208,7 +209,11 @@ export async function runEmbeddedAttempt(
 
     // Check if the model supports native image input
     const modelHasVision = params.model.input?.includes("image") ?? false;
-    const toolsRaw = params.disableTools
+    const modelHasToolSupport = modelSupportsTools(params.model);
+    if (!modelHasToolSupport) {
+      log.debug(`Tools disabled for model ${params.modelId}: compat.supportedParameters does not include "tools"`);
+    }
+    const toolsRaw = params.disableTools || !modelHasToolSupport
       ? []
       : createOpenClawCodingTools({
           exec: {
