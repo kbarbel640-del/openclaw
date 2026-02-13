@@ -5,7 +5,7 @@ OpenClaw Database Tool — Single CLI for all database operations.
 Ported from AutifyME's 3600+ line Supabase client + 4 LangChain tools
 into a compact, model-agnostic CLI. JSON in, JSON out.
 
-Subcommands: inspect, read, aggregate, write
+Subcommands: inspect, read, aggregate, write, sync-schema
 Connection: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_KEY)
 
 Usage:
@@ -13,6 +13,7 @@ Usage:
     python db_tool.py read <table> [--filters '{}'] [--search '{}'] ...
     python db_tool.py aggregate <table> --aggregates '{}' ...
     python db_tool.py write --intent '{WriteIntent JSON}'
+    python db_tool.py sync-schema [--compare-only]
 """
 
 import argparse
@@ -187,6 +188,13 @@ def coerce_filters(table: str, filters: dict[str, Any]) -> dict[str, Any]:
         else:
             result[key] = value
     return result
+
+
+# NOTE: This function was an attempt to add operator support to aggregates
+# but the dynamic_aggregate RPC doesn't support it. Keeping for future reference.
+# def expand_aggregate_filters(table: str, filters: dict[str, Any]) -> dict[str, Any]:
+#     """Expand operator syntax in filters for aggregate RPC function."""
+#     # Implementation removed - RPC doesn't support operator syntax
 
 
 # ---------------------------------------------------------------------------
@@ -369,6 +377,17 @@ def cmd_aggregate(args: argparse.Namespace) -> None:
 
     # Type-coerce filters
     filters = coerce_filters(table, filters)
+
+    # NOTE: Aggregate filters only support exact equality matching and search patterns
+    # For operator-based filtering (gt, lt, etc.), use read command to pre-filter data
+    # then aggregate the results, or modify the dynamic_aggregate RPC function
+    for key, value in filters.items():
+        if isinstance(value, dict):
+            error_exit(
+                f"Aggregate filters don't support operator syntax in '{key}': {value}",
+                hint="Use exact values, lists (for IN), or --search patterns. For complex filtering, use 'read' command first.",
+                limitation="AGGREGATE_FILTER_OPERATORS"
+            )
 
     # Merge search patterns into filters with __ilike__ prefix for RPC
     combined_filters = dict(filters)
@@ -634,6 +653,25 @@ def _categorize_error(error_msg: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# SYNC-SCHEMA
+# ---------------------------------------------------------------------------
+
+
+def cmd_sync_schema(args: argparse.Namespace) -> None:
+    """Synchronize schema.json with live database."""
+    import subprocess
+    
+    script_path = Path(__file__).parent / "sync_schema_v2.py"
+    
+    cmd_args = [sys.executable, str(script_path)]
+    if args.compare_only:
+        cmd_args.append("--compare-only")
+    
+    result = subprocess.run(cmd_args, env=os.environ)
+    sys.exit(result.returncode)
+
+
+# ---------------------------------------------------------------------------
 # CLI setup
 # ---------------------------------------------------------------------------
 
@@ -674,13 +712,24 @@ def main() -> None:
     p_write = sub.add_parser("write", help="Write data (WriteIntent)")
     p_write.add_argument("--intent", required=True)
     p_write.add_argument("--dry-run", action="store_true")
+    
+    # sync-schema
+    p_sync = sub.add_parser("sync-schema", help="Synchronize schema.json with live database")
+    p_sync.add_argument("--compare-only", action="store_true", help="Only compare, don't update files")
 
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
         sys.exit(1)
 
-    {"inspect": cmd_inspect, "read": cmd_read, "aggregate": cmd_aggregate, "write": cmd_write}[args.command](args)
+    commands = {
+        "inspect": cmd_inspect, 
+        "read": cmd_read, 
+        "aggregate": cmd_aggregate, 
+        "write": cmd_write,
+        "sync-schema": cmd_sync_schema
+    }
+    commands[args.command](args)
 
 
 if __name__ == "__main__":

@@ -43,6 +43,16 @@ python scripts/db_tool.py inspect <table_name> --detailed
 ```
 **Output:** Complete schema including business rules, valid enum values, relationships
 
+### Synchronize schema cache with live database
+```bash
+# Compare current schema.json with live database 
+python scripts/db_tool.py sync-schema --compare-only
+
+# Update schema.json from live database (creates backup)
+python scripts/db_tool.py sync-schema
+```
+**Use this when:** Schema.json gets out of sync with database changes, or `inspect` shows wrong column info
+
 **Generic example output:**
 ```json
 {
@@ -116,6 +126,20 @@ python scripts/db_tool.py read <table_name> \
 python scripts/db_tool.py read <main_table> \
   --columns '<col1>,<col2>,<col3>' \
   --relations '<related_table>(<col1>,<col2>)' \
+  --limit 3
+```
+
+### Multiple foreign keys to same table (disambiguation)
+```bash
+# When a table has multiple FKs pointing to same target table
+# Use table!foreign_key_column(fields) syntax to disambiguate
+python scripts/db_tool.py read <table_with_multiple_fks> \
+  --relations '<target_table>!<fk1_column>(<col1>,<col2>),<target_table>!<fk2_column>(<col1>,<col2>)' \
+  --limit 3
+
+# Real example: bom_lines has component_id AND substitute_component_id both pointing to products
+python scripts/db_tool.py read bom_lines \
+  --relations 'products!component_id(name),products!substitute_component_id(name)' \
   --limit 3
 ```
 
@@ -253,6 +277,34 @@ python scripts/db_tool.py write --intent '{
     }
   ],
   "impact": {"updates": {"<table_name>": "1-5 records"}}
+}'
+```
+
+### Expression-based updates (LIMITATION)
+
+**❌ NOT SUPPORTED:** Mathematical expressions in updates
+```bash  
+# This DOESN'T WORK - expressions not supported
+"updates": {"price": "price * 1.1", "quantity": "quantity - 1"}
+```
+
+**✅ WORKAROUND:** Read first, calculate, then write
+```bash
+# Step 1: Read current values
+python scripts/db_tool.py read <table> --filters '{"id": "<record_id>"}' --columns '<numeric_column>'
+
+# Step 2: Calculate new values in your script/tool
+# new_price = current_price * 1.1
+
+# Step 3: Update with literal values  
+python scripts/db_tool.py write --intent '{
+  "goal": "Update calculated values",
+  "operations": [{
+    "action": "update",
+    "table": "<table>", 
+    "filters": {"id": "<record_id>"},
+    "updates": {"<numeric_column>": <calculated_value>}
+  }]
 }'
 ```
 
