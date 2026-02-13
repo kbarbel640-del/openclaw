@@ -23,6 +23,13 @@ export type AgentModelEntryConfig = {
 export type AgentModelListConfig = {
   primary?: string;
   fallbacks?: string[];
+  /**
+   * Model selection strategy for this list.
+   * - "primary": always start with primary (default behavior)
+   * - "round_robin": rotate across primary+fallbacks per request
+   * - "sticky_session": pick a stable model per sessionKey
+   */
+  strategy?: "primary" | "round_robin" | "sticky_session";
 };
 
 export type AgentContextPruningConfig = {
@@ -254,6 +261,21 @@ export type AgentCompactionConfig = {
   maxHistoryShare?: number;
   /** Pre-compaction memory flush (agentic turn). Default: enabled. */
   memoryFlush?: AgentCompactionMemoryFlushConfig;
+  /** Background memory optimization settings. Keeps context healthy proactively. */
+  backgroundOptimization?: AgentBackgroundOptimizationConfig;
+};
+
+export type AgentBackgroundOptimizationConfig = {
+  /** Number of recent user turns kept verbatim (not summarized). Default: 30. */
+  verbatimTurns?: number;
+  /** Target context usage ratio after optimization (0.1–0.9). Default: 0.5 (50%). */
+  targetWaterLevel?: number;
+  /** Max share of context window for summaries (0.05–0.5). Default: 0.25 (25%). */
+  summaryBudgetRatio?: number;
+  /** Trigger optimization after this many new turns since last run. Default: 15. */
+  optimizeAfterTurns?: number;
+  /** Minimum minutes between optimization cycles. Default: 20. */
+  optimizeIntervalMin?: number;
 };
 
 export type AgentCompactionMemoryFlushConfig = {
