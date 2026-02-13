@@ -1006,7 +1006,9 @@ export function startHeartbeatRunner(opts: {
   updateConfig(state.cfg);
 
   const cleanup = () => {
-    if (state.stopped) return;
+    if (state.stopped) {
+      return;
+    }
     state.stopped = true;
     disposeWakeHandler();
     if (state.timer) {
