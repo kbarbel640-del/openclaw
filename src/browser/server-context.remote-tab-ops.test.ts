@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BrowserServerState } from "./server-context.js";
 import * as cdpModule from "./cdp.js";
+import * as chromeModule from "./chrome.js";
 import * as pwAiModule from "./pw-ai-module.js";
 import { createBrowserRouteContext } from "./server-context.js";
 
@@ -55,6 +56,25 @@ function makeState(
 }
 
 describe("browser server-context remote profile tab operations", () => {
+  it("reports remote websocket errors instead of local port ownership conflicts", async () => {
+    vi.mocked(chromeModule.isChromeReachable).mockResolvedValueOnce(true);
+    vi.mocked(chromeModule.isChromeCdpReady).mockResolvedValueOnce(false);
+
+    const state = makeState("remote");
+    const ctx = createBrowserRouteContext({ getState: () => state });
+    const remote = ctx.forProfile("remote");
+
+    let message = "";
+    try {
+      await remote.ensureBrowserAvailable();
+    } catch (error) {
+      message = String(error);
+    }
+
+    expect(message).toContain('Remote CDP websocket for profile "remote" is not reachable.');
+    expect(message).not.toContain("Port 443 is in use");
+  });
+
   it("uses Playwright tab operations when available", async () => {
     const listPagesViaPlaywright = vi.fn(async () => [
       { targetId: "T1", title: "Tab 1", url: "https://a.example", type: "page" },
