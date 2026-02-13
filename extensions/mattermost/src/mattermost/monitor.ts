@@ -972,6 +972,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
           opts.statusSink?.({
             lastError: String(err),
           });
+          ws.close();
         });
       });
     } finally {
