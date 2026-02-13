@@ -120,13 +120,9 @@ describe("loadShellEnvFallback sources RC files", () => {
     });
 
     expect(exec).toHaveBeenCalledTimes(1);
-    const args = exec.mock.calls[0]!;
+    const args = exec.mock.calls[0];
     expect(args[0]).toBe("/bin/zsh");
-    expect(args[1]).toEqual([
-      "-l",
-      "-c",
-      '{ . "$HOME/.zshrc"; } >/dev/null 2>&1 || true; env -0',
-    ]);
+    expect(args[1]).toEqual(["-l", "-c", '{ . "$HOME/.zshrc"; } >/dev/null 2>&1 || true; env -0']);
   });
 
   it("passes bashrc-sourcing command to exec for bash shell", () => {
@@ -141,12 +137,8 @@ describe("loadShellEnvFallback sources RC files", () => {
     });
 
     expect(exec).toHaveBeenCalledTimes(1);
-    const args = exec.mock.calls[0]!;
+    const args = exec.mock.calls[0];
     expect(args[0]).toBe("/bin/bash");
-    expect(args[1]).toEqual([
-      "-l",
-      "-c",
-      '{ . "$HOME/.bashrc"; } >/dev/null 2>&1 || true; env -0',
-    ]);
+    expect(args[1]).toEqual(["-l", "-c", '{ . "$HOME/.bashrc"; } >/dev/null 2>&1 || true; env -0']);
   });
 });
