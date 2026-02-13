@@ -19,6 +19,11 @@ export type ChatState = {
   lastError: string | null;
 };
 
+// Tracks the optimistic user message added to chatMessages on send.
+// Survives WebSocket reconnects and server-driven history refreshes so
+// the sent message stays visible while the agent is still processing.
+let _pendingOptimisticMsg: { sessionKey: string; msg: unknown; ts: number } | null = null;
+
 export type ChatEventPayload = {
   runId: string;
   sessionKey: string;
@@ -41,7 +46,31 @@ export async function loadChatHistory(state: ChatState) {
         limit: 200,
       },
     );
-    state.chatMessages = Array.isArray(res.messages) ? res.messages : [];
+    const serverMessages: unknown[] = Array.isArray(res.messages) ? res.messages : [];
+
+    // If we have a pending optimistic message for this session, check whether
+    // the server history already includes it (by scanning for a user message
+    // with matching or newer timestamp).  If not, re-append it so the user's
+    // sent message stays visible while the agent is still processing.
+    if (
+      _pendingOptimisticMsg &&
+      _pendingOptimisticMsg.sessionKey === state.sessionKey
+    ) {
+      const ts = _pendingOptimisticMsg.ts;
+      const found = serverMessages.some((m: unknown) => {
+        const msg = m as Record<string, unknown> | null;
+        if (msg?.role !== "user") return false;
+        const mt = typeof msg.timestamp === "number" ? msg.timestamp : Date.parse(String(msg.timestamp));
+        return mt >= ts;
+      });
+      if (found) {
+        _pendingOptimisticMsg = null;
+      } else {
+        serverMessages.push(_pendingOptimisticMsg.msg);
+      }
+    }
+
+    state.chatMessages = serverMessages;
     state.chatThinkingLevel = res.thinkingLevel ?? null;
   } catch (err) {
     state.lastError = String(err);
@@ -89,14 +118,13 @@ export async function sendChatMessage(
     }
   }
 
-  state.chatMessages = [
-    ...state.chatMessages,
-    {
-      role: "user",
-      content: contentBlocks,
-      timestamp: now,
-    },
-  ];
+  const optimisticMsg = {
+    role: "user",
+    content: contentBlocks,
+    timestamp: now,
+  };
+  state.chatMessages = [...state.chatMessages, optimisticMsg];
+  _pendingOptimisticMsg = { sessionKey: state.sessionKey, msg: optimisticMsg, ts: now };
 
   state.chatSending = true;
   state.lastError = null;
@@ -197,15 +225,18 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
+    _pendingOptimisticMsg = null;
   } else if (payload.state === "aborted") {
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
+    _pendingOptimisticMsg = null;
   } else if (payload.state === "error") {
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
     state.lastError = payload.errorMessage ?? "chat error";
+    _pendingOptimisticMsg = null;
   }
   return payload.state;
 }
