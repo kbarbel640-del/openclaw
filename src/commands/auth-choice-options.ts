@@ -58,7 +58,7 @@ const AUTH_CHOICE_GROUP_DEFS: {
   {
     value: "minimax",
     label: "MiniMax",
-    hint: "M2.1 (recommended)",
+    hint: "M2.5 (recommended)",
     choices: ["minimax-portal", "minimax-api", "minimax-api-lightning"],
   },
   {
@@ -99,9 +99,9 @@ const AUTH_CHOICE_GROUP_DEFS: {
   },
   {
     value: "zai",
-    label: "Z.AI (GLM 4.7)",
-    hint: "API key",
-    choices: ["zai-api-key"],
+    label: "Z.AI",
+    hint: "GLM Coding Plan / Global / CN",
+    choices: ["zai-coding-global", "zai-coding-cn", "zai-global", "zai-cn"],
   },
   {
     value: "qianfan",
@@ -249,7 +249,27 @@ export function buildAuthChoiceOptions(params: {
     label: "Google Gemini CLI OAuth",
     hint: "Uses the bundled Gemini CLI auth plugin",
   });
-  options.push({ value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" });
+  options.push({ value: "zai-api-key", label: "Z.AI API key" });
+  options.push({
+    value: "zai-coding-global",
+    label: "Coding-Plan-Global",
+    hint: "GLM Coding Plan Global (api.z.ai)",
+  });
+  options.push({
+    value: "zai-coding-cn",
+    label: "Coding-Plan-CN",
+    hint: "GLM Coding Plan CN (open.bigmodel.cn)",
+  });
+  options.push({
+    value: "zai-global",
+    label: "Global",
+    hint: "Z.AI Global (api.z.ai)",
+  });
+  options.push({
+    value: "zai-cn",
+    label: "CN",
+    hint: "Z.AI CN (open.bigmodel.cn)",
+  });
   options.push({
     value: "xiaomi-api-key",
     label: "Xiaomi API key",
@@ -277,10 +297,10 @@ export function buildAuthChoiceOptions(params: {
     label: "OpenCode Zen (multi-model proxy)",
     hint: "Claude, GPT, Gemini via opencode.ai/zen",
   });
-  options.push({ value: "minimax-api", label: "MiniMax M2.1" });
+  options.push({ value: "minimax-api", label: "MiniMax M2.5" });
   options.push({
     value: "minimax-api-lightning",
-    label: "MiniMax M2.1 Lightning",
+    label: "MiniMax M2.5 Lightning",
     hint: "Faster, higher output cost",
   });
   options.push({ value: "custom-api-key", label: "Custom Provider" });
