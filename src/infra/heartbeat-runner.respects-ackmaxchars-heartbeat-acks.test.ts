@@ -346,6 +346,74 @@ describe("resolveHeartbeatIntervalMs", () => {
     }
   });
 
+  it("normalizes responsePrefix once when config has extra whitespace", async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-hb-"));
+    const storePath = path.join(tmpDir, "sessions.json");
+    const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
+    try {
+      const cfg: OpenClawConfig = {
+        agents: {
+          defaults: {
+            workspace: tmpDir,
+            heartbeat: {
+              every: "5m",
+              target: "whatsapp",
+            },
+          },
+        },
+        messages: {
+          responsePrefix: "  [helper]   ",
+        },
+        channels: { whatsapp: { allowFrom: ["*"] } },
+        session: { store: storePath },
+      };
+      const sessionKey = resolveMainSessionKey(cfg);
+
+      await fs.writeFile(
+        storePath,
+        JSON.stringify(
+          {
+            [sessionKey]: {
+              sessionId: "sid",
+              updatedAt: Date.now(),
+              lastChannel: "whatsapp",
+              lastProvider: "whatsapp",
+              lastTo: "+1555",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      replySpy.mockResolvedValue({ text: "[helper] needs action" });
+      const sendWhatsApp = vi.fn().mockResolvedValue({
+        messageId: "m1",
+        toJid: "jid",
+      });
+
+      await runHeartbeatOnce({
+        cfg,
+        deps: {
+          sendWhatsApp,
+          getQueueSize: () => 0,
+          nowMs: () => 0,
+          webAuthExists: async () => true,
+          hasActiveWebListener: () => true,
+        },
+      });
+
+      expect(sendWhatsApp).toHaveBeenCalledWith(
+        "+1555",
+        "[helper] needs action",
+        expect.any(Object),
+      );
+    } finally {
+      replySpy.mockRestore();
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it("does not regress updatedAt when restoring heartbeat sessions", async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-hb-"));
     const storePath = path.join(tmpDir, "sessions.json");

@@ -435,7 +435,7 @@ function normalizeHeartbeatReply(
   const textForTokenCheck =
     normalizedPrefix && rawText.startsWith(normalizedPrefix)
       ? rawText.slice(normalizedPrefix.length).trimStart()
-      : payload.text;
+      : rawText;
   const stripped = stripHeartbeatToken(textForTokenCheck, {
     mode: "heartbeat",
     maxAckChars: ackMaxChars,
@@ -449,8 +449,8 @@ function normalizeHeartbeatReply(
     };
   }
   let finalText = stripped.text;
-  if (responsePrefix && finalText && !finalText.startsWith(responsePrefix)) {
-    finalText = `${responsePrefix} ${finalText}`;
+  if (normalizedPrefix && finalText && !finalText.startsWith(normalizedPrefix)) {
+    finalText = `${normalizedPrefix} ${finalText}`;
   }
   return { shouldSkip: false, text: finalText, hasMedia };
 }
