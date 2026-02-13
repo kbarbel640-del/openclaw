@@ -1,8 +1,10 @@
 import type { OpenClawConfig } from "../config/config.js";
 import type { GatewayMessageChannel } from "../utils/message-channel.js";
+import type { SandboxToolPolicy } from "./sandbox.js";
 import type { AnyAgentTool } from "./tools/common.js";
 import { resolvePluginTools } from "../plugins/tools.js";
 import { resolveSessionAgentId } from "./agent-scope.js";
+import { filterToolsByPolicy } from "./pi-tools.policy.js";
 import { createAgentsListTool } from "./tools/agents-list-tool.js";
 import { createBrowserTool } from "./tools/browser-tool.js";
 import { createCanvasTool } from "./tools/canvas-tool.js";
@@ -57,6 +59,8 @@ export function createOpenClawTools(options?: {
   requireExplicitMessageTarget?: boolean;
   /** If true, omit the message tool from the tool list. */
   disableMessageTool?: boolean;
+  /** Agent tool policy to filter tools (defense-in-depth for tool-dispatch paths). */
+  toolPolicy?: SandboxToolPolicy;
 }): AnyAgentTool[] {
   const imageTool = options?.agentDir?.trim()
     ? createImageTool({
@@ -166,5 +170,9 @@ export function createOpenClawTools(options?: {
     toolAllowlist: options?.pluginToolAllowlist,
   });
 
-  return [...tools, ...pluginTools];
+  const allTools = [...tools, ...pluginTools];
+  if (options?.toolPolicy) {
+    return filterToolsByPolicy(allTools, options.toolPolicy);
+  }
+  return allTools;
 }

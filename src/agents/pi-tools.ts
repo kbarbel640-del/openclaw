@@ -9,6 +9,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { ModelAuthMode } from "./model-auth.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
+import { logVerbose } from "../globals.js";
 import { logWarn } from "../logger.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
@@ -183,6 +184,11 @@ export function createOpenClawCodingTools(options?: {
     modelProvider: options?.modelProvider,
     modelId: options?.modelId,
   });
+  if (agentPolicy?.deny?.length) {
+    logVerbose(
+      `tools: agent=${agentId} sessionKey=${options?.sessionKey} deny=[${agentPolicy.deny.join(",")}]`,
+    );
+  }
   const groupPolicy = resolveGroupToolPolicy({
     config: options?.config,
     sessionKey: options?.sessionKey,

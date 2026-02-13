@@ -496,6 +496,102 @@ describe("Agent-specific tool filtering", () => {
     expect(toolNames).not.toContain("write");
   });
 
+  it("should apply tools.deny when sessionKey is 'unknown' (non-agent format)", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "main",
+            workspace: "~/openclaw",
+            tools: {
+              deny: [
+                "browser",
+                "web_search",
+                "web_fetch",
+                "exec",
+                "process",
+                "write",
+                "edit",
+                "apply_patch",
+                "canvas",
+              ],
+            },
+          },
+        ],
+      },
+    };
+
+    const tools = createOpenClawCodingTools({
+      config: cfg,
+      sessionKey: "unknown",
+      workspaceDir: "/tmp/test-unknown-sk",
+      agentDir: "/tmp/agent-unknown-sk",
+    });
+
+    const toolNames = tools.map((t) => t.name);
+    // Allowed tools should be present
+    expect(toolNames).toContain("read");
+    expect(toolNames).toContain("sessions_spawn");
+    expect(toolNames).toContain("sessions_send");
+    // Denied tools must NOT be present
+    expect(toolNames).not.toContain("browser");
+    expect(toolNames).not.toContain("exec");
+    expect(toolNames).not.toContain("write");
+    expect(toolNames).not.toContain("edit");
+    expect(toolNames).not.toContain("canvas");
+    expect(toolNames).not.toContain("web_search");
+    expect(toolNames).not.toContain("process");
+    expect(toolNames).not.toContain("apply_patch");
+  });
+
+  it("should apply tools.deny when sessionKey is a UUID (sessionId fallback)", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        list: [
+          {
+            id: "main",
+            workspace: "~/openclaw",
+            tools: {
+              deny: [
+                "browser",
+                "web_search",
+                "web_fetch",
+                "exec",
+                "process",
+                "write",
+                "edit",
+                "apply_patch",
+                "canvas",
+              ],
+            },
+          },
+        ],
+      },
+    };
+
+    const tools = createOpenClawCodingTools({
+      config: cfg,
+      sessionKey: "9cd05ea0-1234-5678-9012-abcdef123456",
+      workspaceDir: "/tmp/test-uuid-sk",
+      agentDir: "/tmp/agent-uuid-sk",
+    });
+
+    const toolNames = tools.map((t) => t.name);
+    // Allowed tools should be present
+    expect(toolNames).toContain("read");
+    expect(toolNames).toContain("sessions_spawn");
+    expect(toolNames).toContain("sessions_send");
+    // Denied tools must NOT be present
+    expect(toolNames).not.toContain("browser");
+    expect(toolNames).not.toContain("exec");
+    expect(toolNames).not.toContain("write");
+    expect(toolNames).not.toContain("edit");
+    expect(toolNames).not.toContain("canvas");
+    expect(toolNames).not.toContain("web_search");
+    expect(toolNames).not.toContain("process");
+    expect(toolNames).not.toContain("apply_patch");
+  });
+
   it("should run exec synchronously when process is denied", async () => {
     const cfg: OpenClawConfig = {
       tools: {
