@@ -61,3 +61,37 @@
 **测试结果**：80 passed（批次 2）+ 22 passed（批次 1）= 102 passed
 
 ---
+
+## 批次 3：日志 + 工具函数（2026-02-13）
+
+**新增文件**：
+- openclaw_py/logging/logger.py - 基于 loguru 的日志系统（支持文件/控制台输出，自动轮转和压缩）
+- openclaw_py/logging/__init__.py - 日志模块导出
+- openclaw_py/utils/common.py - 通用工具函数（文件系统、数字、字符串、JSON、类型守卫）
+- openclaw_py/utils/__init__.py - 工具模块导出
+- tests/logging/test_logger.py - 日志系统测试（17 个测试）
+- tests/utils/test_common.py - 工具函数测试（34 个测试）
+
+**核心变更**：
+- 使用 loguru 替代 TypeScript 的 tslog，实现日志系统
+- 支持 7 种日志级别：silent, fatal, error, warn, info, debug, trace
+- 支持 3 种控制台样式：pretty（彩色输出）, compact（紧凑格式）, json（JSON 格式）
+- 自动日志轮转（10 MB）和压缩（保留 7 天，zip 格式）
+- 默认日志路径：~/.openclaw/logs/openclaw.log
+- 实现了 10 个通用工具函数：
+  - 文件系统：ensure_dir, path_exists
+  - 数字：clamp, clamp_int, clamp_number
+  - 字符串：escape_regexp, normalize_path
+  - JSON：safe_parse_json
+  - 类型守卫：is_plain_object, is_record
+- 简化了 TypeScript 版本的复杂功能（移除子系统日志、控制台捕获等）
+
+**依赖的已有模块**：
+- openclaw_py.config.types - LoggingConfig 配置模型
+
+**已知问题**：
+- 无
+
+**测试结果**：153 passed（51 new + 102 from previous batches）
+
+---

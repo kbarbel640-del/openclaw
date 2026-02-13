@@ -1,7 +1,7 @@
 # 迁移状态
 
 ## 当前批次
-batch: 3
+batch: 4
 status: not_started
 
 ## 批次进度
@@ -9,7 +9,7 @@ status: not_started
 |---|------|------|---------|--------|
 | 1 | 项目骨架 + 核心类型 | ✅ | 2026-02-13 | 7eb08cc |
 | 2 | 配置系统 | ✅ | 2026-02-13 | c13c165 |
-| 3 | 日志 + 工具函数 | ⬜ | - | - |
+| 3 | 日志 + 工具函数 | ✅ | 2026-02-13 | pending |
 | 4 | 会话管理 + 持久化 | ⬜ | - | - |
 | 5 | Gateway HTTP | ⬜ | - | - |
 | 6 | Gateway WebSocket | ⬜ | - | - |
@@ -24,12 +24,14 @@ status: not_started
 | 15 | 集成测试 + 联调 | ⬜ | - | - |
 
 ## 已生成的 Python 文件
-- openclaw_py/types/base.py
-- openclaw_py/config/types.py
-- openclaw_py/config/env_substitution.py
-- openclaw_py/config/paths.py
 - openclaw_py/config/defaults.py
+- openclaw_py/config/env_substitution.py
 - openclaw_py/config/loader.py
+- openclaw_py/config/paths.py
+- openclaw_py/config/types.py
+- openclaw_py/logging/logger.py
+- openclaw_py/types/base.py
+- openclaw_py/utils/common.py
 
 ## 已知问题
 （暂无）

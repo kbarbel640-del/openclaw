@@ -2,7 +2,7 @@
 
 > 每个批次完成后由 /done 命令自动更新。
 > 新批次开始时由 /start 命令自动读取。
-> 最后更新：批次 2（2026-02-13）
+> 最后更新：批次 3（2026-02-13）
 
 ---
 
@@ -226,6 +226,154 @@ from openclaw_py.config import apply_defaults
 
 def apply_defaults(config: OpenClawConfig) -> OpenClawConfig:
     """应用默认配置值"""
+```
+
+---
+
+## openclaw_py.logging
+
+### openclaw_py.logging.logger
+路径: openclaw_py/logging/logger.py
+
+```python
+from openclaw_py.logging import (
+    setup_logger,
+    get_logger,
+    reset_logger,
+    is_logger_initialized,
+    get_current_config,
+    log_info,
+    log_warn,
+    log_error,
+    log_debug,
+    log_success,
+    log_trace,
+    DEFAULT_LOG_DIR,
+    DEFAULT_LOG_FILE,
+)
+```
+
+**常量**：
+
+```python
+DEFAULT_LOG_DIR: Path = Path.home() / ".openclaw" / "logs"
+DEFAULT_LOG_FILE: Path = DEFAULT_LOG_DIR / "openclaw.log"
+```
+
+**函数**：
+
+```python
+def setup_logger(config: LoggingConfig | None = None) -> None:
+    """初始化日志系统。
+
+    - 使用 loguru 作为底层实现
+    - 支持文件和控制台输出
+    - 支持日志级别：silent, fatal, error, warn, info, debug, trace
+    - 支持控制台样式：pretty, compact, json
+    - 自动日志轮转（10 MB）和压缩（保留 7 天）
+    """
+
+def get_logger():
+    """获取全局 logger 实例（如果未初始化会自动初始化）"""
+
+def reset_logger() -> None:
+    """重置日志系统（清除所有 handler）"""
+
+def is_logger_initialized() -> bool:
+    """检查 logger 是否已初始化"""
+
+def get_current_config() -> LoggingConfig | None:
+    """获取当前日志配置"""
+
+def log_info(message: str, **kwargs: Any) -> None:
+    """记录 INFO 级别日志"""
+
+def log_warn(message: str, **kwargs: Any) -> None:
+    """记录 WARNING 级别日志"""
+
+def log_error(message: str, **kwargs: Any) -> None:
+    """记录 ERROR 级别日志"""
+
+def log_debug(message: str, **kwargs: Any) -> None:
+    """记录 DEBUG 级别日志"""
+
+def log_success(message: str, **kwargs: Any) -> None:
+    """记录 SUCCESS 级别日志（显示为绿色）"""
+
+def log_trace(message: str, **kwargs: Any) -> None:
+    """记录 TRACE 级别日志"""
+```
+
+---
+
+## openclaw_py.utils
+
+### openclaw_py.utils.common
+路径: openclaw_py/utils/common.py
+
+```python
+from openclaw_py.utils import (
+    ensure_dir,
+    path_exists,
+    clamp,
+    clamp_int,
+    clamp_number,
+    escape_regexp,
+    safe_parse_json,
+    is_plain_object,
+    is_record,
+    normalize_path,
+)
+```
+
+**文件系统工具**：
+
+```python
+async def ensure_dir(dir_path: str | Path) -> None:
+    """确保目录存在（不存在则创建）"""
+
+async def path_exists(path: str | Path) -> bool:
+    """检查路径是否存在"""
+```
+
+**数字工具**：
+
+```python
+def clamp(value: float, min_val: float, max_val: float) -> float:
+    """将数字限制在 [min_val, max_val] 范围内"""
+
+def clamp_int(value: int | float, min_val: int, max_val: int) -> int:
+    """将整数限制在范围内（float 会向下取整）"""
+
+def clamp_number(value: float, min_val: float, max_val: float) -> float:
+    """clamp() 的别名"""
+```
+
+**字符串工具**：
+
+```python
+def escape_regexp(text: str) -> str:
+    """转义字符串中的正则表达式特殊字符"""
+
+def normalize_path(path: str) -> str:
+    """规范化路径（确保以 / 开头）"""
+```
+
+**JSON 工具**：
+
+```python
+def safe_parse_json(text: str) -> dict | list | Any | None:
+    """安全解析 JSON（失败返回 None）"""
+```
+
+**类型守卫**：
+
+```python
+def is_plain_object(value: Any) -> bool:
+    """检查是否为普通 dict 对象（不包括 list、None、class 等）"""
+
+def is_record(value: Any) -> bool:
+    """检查是否为 dict-like 对象（比 is_plain_object 宽松）"""
 ```
 
 ---
