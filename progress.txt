@@ -110,3 +110,19 @@ Started: Thursday, February 12th, 2026 — 5:32 PM
 - Avoid assigning `process.env.FOO = undefined` in tests; it becomes the string "undefined" and can break other tests.
 
 ---
+
+## 2026-02-13 - US-008: Add verbose and JSON output modes
+- Added `--verbose` flag to `openclaw check all` to show per-check `details` lines in terminal output
+- Improved `--json` output shape to include `status` (pass/fail), `message`, and `details` for each check
+- Plumbed detailed `details` objects into all check results (node/pnpm/env/config/gateway/db/skills)
+- Extended gateway status check to expose lock file location metadata for verbose/JSON output
+- Added unit tests for verbose detail formatting and JSON output fields
+
+**Files changed:**
+- `src/commands/check.ts`
+- `src/cli/check-cli.ts`
+- `src/commands/check.test.ts`
+
+**Learnings:**
+- `pnpm check` in this repo runs broad linting that includes vendored docs build artifacts; for typecheck use `pnpm exec tsc -p tsconfig.json --noEmit`.
+---

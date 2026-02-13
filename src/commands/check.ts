@@ -580,6 +580,8 @@ export function checkGatewayStatus(): {
   port: number;
   portResponding: boolean;
   lockFileExists: boolean;
+  lockDir: string;
+  lockFile: string;
   error?: string;
 } {
   const cfg = loadConfig();
@@ -600,6 +602,8 @@ export function checkGatewayStatus(): {
       port,
       portResponding: false,
       lockFileExists: false,
+      lockDir,
+      lockFile: lockPath,
       error: "Gateway is not running",
     };
   }
@@ -613,6 +617,8 @@ export function checkGatewayStatus(): {
       port,
       portResponding: false,
       lockFileExists: true,
+      lockDir,
+      lockFile: lockPath,
       error: "Lock file exists but could not be read",
     };
   }
@@ -630,6 +636,8 @@ export function checkGatewayStatus(): {
     port,
     portResponding: false, // Port check skipped in sync context
     lockFileExists: true,
+    lockDir,
+    lockFile: lockPath,
     error: running ? undefined : "Gateway is not running",
   };
 }
@@ -693,6 +701,8 @@ export interface CheckOptions {
   nonInteractive?: boolean;
   /** Output results as JSON */
   json?: boolean;
+  /** Show detailed output for each check */
+  verbose?: boolean;
 }
 
 export interface CheckResult {
@@ -711,6 +721,8 @@ export interface CheckItemResult {
   ok: boolean;
   /** Optional message */
   message?: string;
+  /** Optional details (shown when --verbose or in JSON output) */
+  details?: Record<string, unknown>;
   /** Optional fix instructions (shown when ok=false) */
   fix?: string;
 }
@@ -730,6 +742,10 @@ async function runInstallationChecks(): Promise<CheckResult> {
     message: nodeVersionCheck.ok
       ? undefined
       : `Node.js ${nodeVersionCheck.current} installed, but ${nodeVersionCheck.required} or higher is required`,
+    details: {
+      current: nodeVersionCheck.current,
+      required: nodeVersionCheck.required,
+    },
     fix: nodeVersionCheck.ok
       ? undefined
       : `Install Node.js ${nodeVersionCheck.required}+ and re-run ${formatCliCommand("openclaw check")}`,
@@ -746,6 +762,11 @@ async function runInstallationChecks(): Promise<CheckResult> {
       : pnpmVersionCheck.error
         ? `Could not check pnpm version: ${pnpmVersionCheck.error}`
         : `pnpm ${pnpmVersionCheck.current} installed, but ${pnpmVersionCheck.required} or higher is required`,
+    details: {
+      current: pnpmVersionCheck.current,
+      required: pnpmVersionCheck.required,
+      error: pnpmVersionCheck.error,
+    },
     fix: pnpmVersionCheck.ok
       ? undefined
       : pnpmVersionCheck.error
@@ -762,6 +783,9 @@ async function runInstallationChecks(): Promise<CheckResult> {
     message: envExistsCheck.ok
       ? undefined
       : `No .env file found. Copy .env.example to .env and configure your settings`,
+    details: {
+      path: envExistsCheck.path,
+    },
     fix: envExistsCheck.ok
       ? undefined
       : "Copy .env.example to .env, then fill in the required values",
@@ -788,6 +812,13 @@ async function runInstallationChecks(): Promise<CheckResult> {
       }
       return "Failed to validate environment file";
     })(),
+    details: {
+      envPath: envValidCheck.envPath,
+      examplePath: envValidCheck.examplePath,
+      envExists: envValidCheck.envExists,
+      exampleExists: envValidCheck.exampleExists,
+      missing: envValidCheck.missing,
+    },
     fix: envValidCheck.ok
       ? undefined
       : !envValidCheck.envExists
@@ -806,6 +837,9 @@ async function runInstallationChecks(): Promise<CheckResult> {
     message: configExists
       ? undefined
       : `Run ${formatCliCommand("openclaw setup")} to create a config file`,
+    details: {
+      path: CONFIG_PATH,
+    },
     fix: configExists ? undefined : `Run ${formatCliCommand("openclaw setup")}`,
   });
 
@@ -824,6 +858,9 @@ async function runInstallationChecks(): Promise<CheckResult> {
     name: "Configuration is valid",
     ok: configValid,
     message: configValid ? undefined : "Configuration file has errors",
+    details: {
+      path: CONFIG_PATH,
+    },
     fix: configValid
       ? undefined
       : `Edit ${CONFIG_PATH} to fix errors, or re-run ${formatCliCommand("openclaw setup")}`,
@@ -831,12 +868,15 @@ async function runInstallationChecks(): Promise<CheckResult> {
 
   // Check 7: Gateway mode is configured
   let gatewayModeConfigured = false;
+  let gatewayMode: string | null = null;
   if (configValid) {
     try {
       const cfg = loadConfig();
-      gatewayModeConfigured = cfg.gateway?.mode === "local" || cfg.gateway?.mode === "remote";
+      gatewayMode = typeof cfg.gateway?.mode === "string" ? cfg.gateway.mode : null;
+      gatewayModeConfigured = gatewayMode === "local" || gatewayMode === "remote";
     } catch {
       gatewayModeConfigured = false;
+      gatewayMode = null;
     }
   }
   checks.push({
@@ -846,6 +886,9 @@ async function runInstallationChecks(): Promise<CheckResult> {
     message: gatewayModeConfigured
       ? undefined
       : `Run ${formatCliCommand("openclaw config set gateway.mode local")} or configure via ${formatCliCommand("openclaw configure")}`,
+    details: {
+      mode: gatewayMode,
+    },
     fix: gatewayModeConfigured
       ? undefined
       : `Run ${formatCliCommand("openclaw config set gateway.mode local")}`,
@@ -853,21 +896,27 @@ async function runInstallationChecks(): Promise<CheckResult> {
 
   // Check 8: Package root is accessible
   let packageRootAccessible = false;
+  let packageRoot: string | null = null;
   try {
     const root = await resolveOpenClawPackageRoot({
       moduleUrl: import.meta.url,
       argv1: process.argv[1],
       cwd: process.cwd(),
     });
+    packageRoot = root;
     packageRootAccessible = root !== null && fs.existsSync(root);
   } catch {
     packageRootAccessible = false;
+    packageRoot = null;
   }
   checks.push({
     id: "package-root",
     name: "OpenClaw installation is accessible",
     ok: packageRootAccessible,
     message: packageRootAccessible ? undefined : "Installation may be corrupted",
+    details: {
+      root: packageRoot,
+    },
     fix: packageRootAccessible
       ? undefined
       : "Reinstall OpenClaw (or ensure your global install location is readable)",
@@ -880,6 +929,13 @@ async function runInstallationChecks(): Promise<CheckResult> {
     name: "Database is accessible",
     ok: dbCheck.ok,
     message: dbCheck.ok ? undefined : dbCheck.error || "Database is not accessible",
+    details: {
+      path: dbCheck.path,
+      exists: dbCheck.exists,
+      readable: dbCheck.readable,
+      writable: dbCheck.writable,
+      queryable: dbCheck.queryable,
+    },
     fix: dbCheck.ok
       ? undefined
       : "Ensure the state directory is writable and the SQLite database file is intact",
@@ -903,6 +959,12 @@ async function runInstallationChecks(): Promise<CheckResult> {
       }
       return undefined;
     })(),
+    details: {
+      skillsDir: skillsCheck.skillsDir ?? null,
+      totalSkills: skillsCheck.totalSkills,
+      validSkills: skillsCheck.validSkills,
+      invalidSkills: skillsCheck.invalidSkills,
+    },
     fix:
       skillsCheck.ok && skillsCheck.skillsDir !== undefined
         ? undefined
@@ -929,6 +991,14 @@ async function runInstallationChecks(): Promise<CheckResult> {
       }
       return gatewayCheck.error || "Gateway check failed";
     })(),
+    details: {
+      lockDir: gatewayCheck.lockDir,
+      lockFile: gatewayCheck.lockFile,
+      pid: gatewayCheck.pid,
+      port: gatewayCheck.port,
+      running: gatewayCheck.running,
+      portResponding: gatewayCheck.portResponding,
+    },
     fix: gatewayCheck.ok
       ? undefined
       : !gatewayCheck.running
@@ -963,9 +1033,10 @@ export type FormattedCheckLine =
  */
 export function formatInstallationCheckSummary(
   result: CheckResult,
-  options: { rich?: boolean } = {},
+  options: { rich?: boolean; verbose?: boolean } = {},
 ): FormattedCheckLine[] {
   const rich = options.rich ?? isRich();
+  const verbose = options.verbose ?? false;
 
   const lines: FormattedCheckLine[] = [];
 
@@ -976,6 +1047,21 @@ export function formatInstallationCheckSummary(
 
     if (!check.ok && check.message) {
       lines.push({ kind: "info", text: `  → ${check.message}` });
+    }
+
+    if (verbose && check.details && Object.keys(check.details).length > 0) {
+      for (const [key, value] of Object.entries(check.details)) {
+        if (value === undefined) {
+          continue;
+        }
+        const rendered =
+          typeof value === "string"
+            ? value
+            : typeof value === "number" || typeof value === "boolean"
+              ? String(value)
+              : JSON.stringify(value);
+        lines.push({ kind: "info", text: `  • ${key}: ${rendered}` });
+      }
     }
 
     if (!check.ok && check.fix) {
@@ -1003,9 +1089,26 @@ export async function checkCommand(
   const result = await runInstallationChecks();
 
   if (options.json) {
-    runtime.log(JSON.stringify(result, null, 2));
+    runtime.log(
+      JSON.stringify(
+        {
+          ok: result.ok,
+          checks: result.checks.map((c) => ({
+            id: c.id,
+            name: c.name,
+            status: c.ok ? "pass" : "fail",
+            message: c.message,
+            details: c.details,
+          })),
+        },
+        null,
+        2,
+      ),
+    );
   } else {
-    for (const line of formatInstallationCheckSummary(result)) {
+    for (const line of formatInstallationCheckSummary(result, {
+      verbose: Boolean(options.verbose),
+    })) {
       if (line.kind === "blank") {
         runtime.log("");
         continue;

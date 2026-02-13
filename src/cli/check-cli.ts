@@ -19,11 +19,13 @@ export function registerCheckCli(program: Command) {
     .command("all")
     .description("Run all installation checks")
     .option("--json", "Output results as JSON", false)
+    .option("--verbose", "Show detailed output for each check", false)
     .option("--non-interactive", "Run without prompts", false)
     .action(async (opts) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         await checkCommand(defaultRuntime, {
           json: Boolean(opts.json),
+          verbose: Boolean(opts.verbose),
           nonInteractive: Boolean(opts.nonInteractive),
         });
       });

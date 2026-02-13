@@ -52,6 +52,19 @@ describe("check command", () => {
     expect(Array.isArray(result.checks)).toBe(true);
     expect(result.checks.length).toBeGreaterThan(0);
 
+    // JSON checks should include required fields
+    for (const check of result.checks as Array<{
+      id: string;
+      name: string;
+      status: string;
+      message?: string;
+      details?: unknown;
+    }>) {
+      expect(typeof check.id).toBe("string");
+      expect(typeof check.name).toBe("string");
+      expect(["pass", "fail"]).toContain(check.status);
+    }
+
     // Should have expected check IDs
     const checkIds = result.checks.map((c: { id: string }) => c.id);
     expect(checkIds).toContain("node-version");
@@ -85,6 +98,10 @@ describe("check command", () => {
     const result = JSON.parse(logs[0]);
     expect(typeof result.ok).toBe("boolean");
     expect(Array.isArray(result.checks)).toBe(true);
+
+    const first = result.checks[0];
+    expect(typeof first.name).toBe("string");
+    expect(["pass", "fail"]).toContain(first.status);
   });
 
   it("should handle non-interactive mode", async () => {
@@ -766,5 +783,27 @@ describe("formatInstallationCheckSummary", () => {
 
     // In CI/test environments color may be disabled; the important part is the indicator.
     expect(text).toContain("✓ Check A");
+  });
+
+  it("should include details when verbose=true", () => {
+    const result = {
+      ok: true,
+      checks: [
+        {
+          id: "a",
+          name: "Check A",
+          ok: true,
+          details: { current: "1.2.3", required: "1.0.0", nested: { a: 1 } },
+        },
+      ],
+    };
+
+    const text = formatInstallationCheckSummary(result, { rich: false, verbose: true })
+      .map((l) => l.text)
+      .join("\n");
+
+    expect(text).toContain("• current: 1.2.3");
+    expect(text).toContain("• required: 1.0.0");
+    expect(text).toContain('• nested: {"a":1}');
   });
 });
