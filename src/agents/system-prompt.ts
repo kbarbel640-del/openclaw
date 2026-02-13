@@ -31,6 +31,7 @@ function buildSkillsSection(params: {
     `- If exactly one skill clearly applies: read its SKILL.md at <location> with \`${params.readToolName}\`, then follow it.`,
     "- If multiple could apply: choose the most specific one, then read/follow it.",
     "- If none clearly apply: do not read any SKILL.md.",
+    "- Even if a native tool exists for the task, always check available_skills first. Skills define patterns and procedures, not just which tool to use.",
     "Constraints: never read more than one skill up front; only read after selecting.",
     trimmed,
     "",
