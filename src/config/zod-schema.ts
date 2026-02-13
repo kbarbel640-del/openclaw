@@ -94,6 +94,7 @@ const MemorySchema = z
 
 export const OpenClawSchema = z
   .object({
+    $schema: z.string().optional(),
     meta: z
       .object({
         lastTouchedVersion: z.string().optional(),
