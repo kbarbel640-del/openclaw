@@ -465,6 +465,15 @@ export function formatAssistantErrorText(
     return "The AI service is temporarily overloaded. Please try again in a moment.";
   }
 
+  // Check transient errors before billing to avoid false positives
+  if (isRateLimitErrorMessage(raw)) {
+    return "Rate limit exceeded. Please try again in a moment.";
+  }
+
+  if (isTimeoutErrorMessage(raw)) {
+    return "LLM request timed out. Please try again.";
+  }
+
   if (isBillingErrorMessage(raw)) {
     return formatBillingErrorMessage(opts?.provider);
   }

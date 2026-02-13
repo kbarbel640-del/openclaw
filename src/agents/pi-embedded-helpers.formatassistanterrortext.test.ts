@@ -104,4 +104,30 @@ describe("formatAssistantErrorText", () => {
     expect(result).toContain("API provider");
     expect(result).toBe(BILLING_ERROR_USER_MESSAGE);
   });
+  it("returns rate limit message for rate limit errors, not billing", () => {
+    const msg = makeAssistantError("rate limit exceeded");
+    const result = formatAssistantErrorText(msg);
+    expect(result).toContain("Rate limit exceeded");
+    expect(result).not.toContain("billing");
+    expect(result).not.toContain("credits");
+  });
+  it("returns rate limit message for 429 errors", () => {
+    const msg = makeAssistantError("HTTP 429 Too Many Requests");
+    const result = formatAssistantErrorText(msg);
+    expect(result).toContain("Rate limit exceeded");
+    expect(result).not.toContain("billing");
+  });
+  it("returns timeout message for timeout errors, not billing", () => {
+    const msg = makeAssistantError("request timed out");
+    const result = formatAssistantErrorText(msg);
+    expect(result).toContain("timed out");
+    expect(result).not.toContain("billing");
+    expect(result).not.toContain("credits");
+  });
+  it("returns timeout message for deadline exceeded errors", () => {
+    const msg = makeAssistantError("context deadline exceeded");
+    const result = formatAssistantErrorText(msg);
+    expect(result).toContain("timed out");
+    expect(result).not.toContain("billing");
+  });
 });
