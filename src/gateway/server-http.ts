@@ -39,6 +39,7 @@ import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
 import { buildAllowedOrigins, checkRequestOrigin, isOriginAllowed } from "./origin-guard.js";
 import { handleToolsInvokeHttpRequest } from "./tools-invoke-http.js";
+import { handleTwitterHttpRequest } from "./twitter-http.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
@@ -291,6 +292,9 @@ export function createGatewayHttpServer(opts: {
         return;
       }
       if (await handleModelsHttpRequest(req, res)) {
+        return;
+      }
+      if (await handleTwitterHttpRequest(req, res)) {
         return;
       }
       if (

@@ -177,8 +177,33 @@ function collectAgentIds(node: HierarchyNode, out: Set<string>, visitedSessionKe
   }
 }
 
+function hasPendingDelegations(metrics: DelegationMetrics | undefined): boolean {
+  return (
+    metrics != null &&
+    "pending" in metrics &&
+    typeof metrics.pending === "number" &&
+    metrics.pending > 0
+  );
+}
+
 function isAgentMainSessionKey(sessionKey: string, agentId: string): boolean {
   return sessionKey === `agent:${agentId}:main`;
+}
+
+function indexSubtreeByAgentId(
+  root: HierarchyNode,
+  map: Map<string, HierarchyNode>,
+  visited?: Set<string>,
+) {
+  const seen = visited ?? new Set<string>();
+  if (seen.has(root.sessionKey)) {
+    return;
+  }
+  seen.add(root.sessionKey);
+  indexNodeByAgentId(root, map);
+  for (const child of root.children) {
+    indexSubtreeByAgentId(child, map, seen);
+  }
 }
 
 function indexNodeByAgentId(node: HierarchyNode, map: Map<string, HierarchyNode>) {
@@ -356,17 +381,13 @@ function buildHierarchySnapshot(): HierarchySnapshot {
   if (!rootSessionKeysUsed.has(defaultSessionKey)) {
     const defaultRole = resolveAgentRole(cfg, defaultAgentId);
     const delegMetrics = getAgentDelegationMetrics(defaultAgentId);
-    const pendingDelegations =
-      (delegMetrics && "pending" in delegMetrics && typeof delegMetrics.pending === "number"
-        ? delegMetrics.pending
-        : 0) > 0;
     roots.unshift({
       sessionKey: defaultSessionKey,
       agentId: defaultAgentId,
       agentRole: defaultRole,
       label: computeAgentDisplayLabel(cfg, defaultAgentId),
       model: resolveAgentModelLabel(cfg, defaultAgentId),
-      status: pendingDelegations ? "running" : "idle",
+      status: hasPendingDelegations(delegMetrics) ? "running" : "idle",
       children: [],
       delegations: delegMetrics,
     });
@@ -387,17 +408,13 @@ function buildHierarchySnapshot(): HierarchySnapshot {
       continue; // already exists (from active runs/delegations)
     }
     const delegMetrics = getAgentDelegationMetrics(agentId);
-    const pendingDelegations =
-      (delegMetrics && "pending" in delegMetrics && typeof delegMetrics.pending === "number"
-        ? delegMetrics.pending
-        : 0) > 0;
     roots.push({
       sessionKey,
       agentId,
       agentRole,
       label: computeAgentDisplayLabel(cfg, agentId),
       model: resolveAgentModelLabel(cfg, agentId),
-      status: pendingDelegations ? "running" : "idle",
+      status: hasPendingDelegations(delegMetrics) ? "running" : "idle",
       children: [],
       delegations: delegMetrics,
     });
@@ -477,9 +494,10 @@ function buildHierarchySnapshot(): HierarchySnapshot {
     // Collaboration data is optional — don't break hierarchy if it fails
   }
 
-  // Extract delegation edges from active delegations.
-  // Skip terminal delegations that have exceeded the completed-node TTL —
+  // Extract delegation edges from active delegations and build the active-agents set
+  // in a single pass. Skip terminal delegations that exceeded the completed-node TTL —
   // otherwise their edges keep re-injecting expired agents into the graph.
+  const agentsWithActiveDelegations = new Set<string>();
   try {
     const allDelegations = getAllDelegations();
     for (const deleg of allDelegations) {
@@ -488,6 +506,12 @@ function buildHierarchySnapshot(): HierarchySnapshot {
         deleg.state === "failed" ||
         deleg.state === "rejected" ||
         deleg.state === "redirected";
+
+      // Track agents with non-terminal delegations (used later for derived status)
+      if (!isTerminal) {
+        agentsWithActiveDelegations.add(deleg.fromAgentId);
+        agentsWithActiveDelegations.add(deleg.toAgentId);
+      }
 
       if (isTerminal) {
         const anchor = deleg.completedAt ?? deleg.createdAt;
@@ -551,24 +575,6 @@ function buildHierarchySnapshot(): HierarchySnapshot {
     referencedAgentIds.add(edge.source);
     referencedAgentIds.add(edge.target);
   }
-  // Build a set of agents that have active (non-terminal) delegations
-  const agentsWithActiveDelegations = new Set<string>();
-  try {
-    const allDelegations = getAllDelegations();
-    for (const deleg of allDelegations) {
-      if (
-        deleg.state !== "completed" &&
-        deleg.state !== "failed" &&
-        deleg.state !== "rejected" &&
-        deleg.state !== "redirected"
-      ) {
-        agentsWithActiveDelegations.add(deleg.fromAgentId);
-        agentsWithActiveDelegations.add(deleg.toAgentId);
-      }
-    }
-  } catch {
-    // ignore
-  }
 
   for (const referencedAgentId of referencedAgentIds) {
     const agentId = resolveKnownAgentId(cfg, referencedAgentId);
@@ -613,20 +619,7 @@ function buildHierarchySnapshot(): HierarchySnapshot {
     if (root.agentId) {
       rootAgentIds.add(root.agentId);
     }
-    indexNodeByAgentId(root, nodeByAgentId);
-    // Also index children recursively
-    const indexChildren = (node: HierarchyNode, visited?: Set<string>) => {
-      const seen = visited ?? new Set<string>();
-      if (seen.has(node.sessionKey)) {
-        return;
-      }
-      seen.add(node.sessionKey);
-      for (const child of node.children) {
-        indexNodeByAgentId(child, nodeByAgentId);
-        indexChildren(child, seen);
-      }
-    };
-    indexChildren(root);
+    indexSubtreeByAgentId(root, nodeByAgentId);
   }
 
   // Remove completed/error agents that have been idle longer than the TTL.
@@ -663,19 +656,7 @@ function buildHierarchySnapshot(): HierarchySnapshot {
   // Rebuild the agentId index after TTL filtering removed expired nodes.
   nodeByAgentId.clear();
   for (const root of roots) {
-    indexNodeByAgentId(root, nodeByAgentId);
-    const reindexChildren = (node: HierarchyNode, visited?: Set<string>) => {
-      const seen = visited ?? new Set<string>();
-      if (seen.has(node.sessionKey)) {
-        return;
-      }
-      seen.add(node.sessionKey);
-      for (const child of node.children) {
-        indexNodeByAgentId(child, nodeByAgentId);
-        reindexChildren(child, seen);
-      }
-    };
-    reindexChildren(root);
+    indexSubtreeByAgentId(root, nodeByAgentId);
   }
 
   // Link active agents based on allowAgents config (parent-child hierarchy)

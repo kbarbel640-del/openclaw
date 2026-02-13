@@ -4,9 +4,13 @@ vi.mock("../agents/subagent-registry.js", () => ({
   listAllSubagentRuns: vi.fn(),
 }));
 
-vi.mock("../config/config.js", () => ({
-  loadConfig: vi.fn(),
-}));
+vi.mock("../config/config.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    loadConfig: vi.fn(),
+  };
+});
 
 vi.mock("../agents/delegation-registry.js", () => ({
   getAllDelegations: vi.fn(() => []),
