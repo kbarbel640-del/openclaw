@@ -37,6 +37,13 @@ function decodeFrames(buffer) {
 async function main() {
   const socketPath = process.env.CLIPORT_SOCKET || "/var/run/cliport.sock";
   const token = process.env.CLIPORT_TOKEN || "";
+  const sessionKey = process.env.CLIPORT_SESSION_KEY || "";
+  const containerName = process.env.CLIPORT_CONTAINER_NAME || "";
+  const timeoutMsRaw = process.env.CLIPORT_PROXY_TIMEOUT_MS;
+  const timeoutMs =
+    typeof timeoutMsRaw === "string" && timeoutMsRaw.trim()
+      ? Number.parseInt(timeoutMsRaw.trim(), 10)
+      : undefined;
   if (!token) {
     process.stderr.write("cliport: missing CLIPORT_TOKEN\n");
     process.exitCode = 1;
@@ -59,6 +66,9 @@ async function main() {
     cli,
     args,
     cwd: process.cwd(),
+    sessionKey: sessionKey || undefined,
+    containerName: containerName || undefined,
+    timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : undefined,
   };
 
   await new Promise((resolve) => {

@@ -1,8 +1,5 @@
 import type { AgentEvent } from "@mariozechner/pi-agent-core";
-import type {
-  PluginHookAfterToolCallEvent,
-  PluginHookBeforeToolCallEvent,
-} from "../plugins/types.js";
+import type { PluginHookBeforeToolCallEvent } from "../plugins/types.js";
 import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
 import { emitAgentEvent } from "../infra/agent-events.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
@@ -18,8 +15,6 @@ import {
 import { inferToolMetaFromArgs } from "./pi-embedded-utils.js";
 import { normalizeToolName } from "./tool-policy.js";
 
-/** Track tool execution start times and args for after_tool_call hook */
-const toolStartData = new Map<string, { startTime: number; args: unknown }>();
 function extendExecMeta(toolName: string, args: unknown, meta?: string): string | undefined {
   const normalized = toolName.trim().toLowerCase();
   if (normalized !== "exec" && normalized !== "bash") {
@@ -61,9 +56,6 @@ export async function handleToolExecutionStart(
     args && typeof args === "object" ? { ...(args as Record<string, unknown>) } : {};
   ctx.state.toolStartTimes.set(toolCallId, Date.now());
   ctx.state.toolParamsById.set(toolCallId, normalizedArgs);
-
-  // Track start time and args for after_tool_call hook
-  toolStartData.set(toolCallId, { startTime: Date.now(), args });
 
   // Call before_tool_call hook
   const hookRunner = ctx.hookRunner ?? getGlobalHookRunner();
@@ -287,30 +279,4 @@ export async function handleToolExecutionEnd(
     }
   }
 
-  // Run after_tool_call plugin hook (fire-and-forget)
-  const hookRunnerAfter = ctx.hookRunner ?? getGlobalHookRunner();
-  if (hookRunnerAfter?.hasHooks("after_tool_call")) {
-    const startData = toolStartData.get(toolCallId);
-    toolStartData.delete(toolCallId);
-    const durationMs = startData?.startTime != null ? Date.now() - startData.startTime : undefined;
-    const toolArgs = startData?.args;
-    const hookEvent: PluginHookAfterToolCallEvent = {
-      toolName,
-      params: (toolArgs && typeof toolArgs === "object" ? toolArgs : {}) as Record<string, unknown>,
-      result: sanitizedResult,
-      error: isToolError ? extractToolErrorMessage(sanitizedResult) : undefined,
-      durationMs,
-    };
-    void hookRunnerAfter
-      .runAfterToolCall(hookEvent, {
-        toolName,
-        agentId: undefined,
-        sessionKey: undefined,
-      })
-      .catch((err) => {
-        ctx.log.warn(`after_tool_call hook failed: tool=${toolName} error=${String(err)}`);
-      });
-  } else {
-    toolStartData.delete(toolCallId);
-  }
 }

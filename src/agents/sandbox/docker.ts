@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import fs from "node:fs/promises";
+import fs, { type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import type { SandboxConfig, SandboxDockerConfig, SandboxWorkspaceAccess } from "./types.js";
 import { formatCliCommand } from "../../cli/command-format.js";
@@ -16,6 +16,9 @@ const CLIPORT_TOKEN_ENV_KEY = "CLIPORT_TOKEN";
 const CLIPORT_SESSION_KEY_ENV_KEY = "CLIPORT_SESSION_KEY";
 const CLIPORT_CONTAINER_NAME_ENV_KEY = "CLIPORT_CONTAINER_NAME";
 const CLIPORT_TOKENS_PATH = path.join(STATE_DIR, "cliport", "tokens.json");
+const CLIPORT_TOKENS_LOCK_TIMEOUT_MS = 5000;
+const CLIPORT_TOKENS_LOCK_RETRY_MS = 25;
+const CLIPORT_TOKENS_LOCK_STALE_MS = 30_000;
 
 function isCliportEnabled(cfg: SandboxDockerConfig): boolean {
   return (cfg.binds ?? []).some((bind) => bind.includes("cliport.sock"));
@@ -29,6 +32,20 @@ type CliportTokenEntry = {
   token: string;
   sessionKey?: string;
   containerName?: string;
+};
+
+type CliportTokenWriteOptions = {
+  tokensPath?: string;
+  lockTimeoutMs?: number;
+  lockRetryMs?: number;
+  lockStaleMs?: number;
+  /** Test-only: increase race window between read and write. */
+  delayAfterReadMs?: number;
+};
+
+type CliportTokenLockMetadata = {
+  pid?: number;
+  createdAtMs?: number;
 };
 
 function parseCliportTokenEntry(value: unknown): CliportTokenEntry | null {
@@ -56,42 +73,215 @@ function parseCliportTokenEntry(value: unknown): CliportTokenEntry | null {
 async function ensureCliportTokenAllowed(
   token: string,
   binding?: { sessionKey?: string; containerName?: string },
+  options?: CliportTokenWriteOptions,
 ): Promise<void> {
   const trimmed = token.trim();
   if (!trimmed) {
     return;
   }
-  const raw = await fs.readFile(CLIPORT_TOKENS_PATH, "utf-8").catch(() => "");
-  let parsed: { tokens?: unknown } | null = null;
-  if (raw) {
+  const tokensPath = options?.tokensPath?.trim() || CLIPORT_TOKENS_PATH;
+  const lockTimeoutMs = Math.max(
+    100,
+    Math.floor(options?.lockTimeoutMs ?? CLIPORT_TOKENS_LOCK_TIMEOUT_MS),
+  );
+  const lockRetryMs = Math.max(
+    5,
+    Math.floor(options?.lockRetryMs ?? CLIPORT_TOKENS_LOCK_RETRY_MS),
+  );
+  const lockStaleMs = Math.max(
+    1_000,
+    Math.floor(options?.lockStaleMs ?? CLIPORT_TOKENS_LOCK_STALE_MS),
+  );
+
+  await fs.mkdir(path.dirname(tokensPath), { recursive: true });
+  await withFileLock(
+    {
+      lockPath: `${tokensPath}.lock`,
+      timeoutMs: lockTimeoutMs,
+      retryMs: lockRetryMs,
+      staleMs: lockStaleMs,
+    },
+    async () => {
+      const raw = await fs.readFile(tokensPath, "utf-8").catch(() => "");
+      let parsed: { tokens?: unknown } | null = null;
+      if (raw) {
+        try {
+          parsed = JSON.parse(raw) as { tokens?: unknown };
+        } catch {
+          parsed = null;
+        }
+      }
+
+      if (typeof options?.delayAfterReadMs === "number" && options.delayAfterReadMs > 0) {
+        await sleep(options.delayAfterReadMs);
+      }
+
+      const existing = Array.isArray(parsed?.tokens)
+        ? parsed.tokens
+            .map((entry) => parseCliportTokenEntry(entry))
+            .filter((entry): entry is CliportTokenEntry => Boolean(entry))
+        : [];
+      const nextByToken = new Map<string, CliportTokenEntry>();
+      for (const entry of existing) {
+        nextByToken.set(entry.token, entry);
+      }
+      const current = nextByToken.get(trimmed);
+      const nextEntry: CliportTokenEntry = {
+        token: trimmed,
+        sessionKey: binding?.sessionKey?.trim() || current?.sessionKey,
+        containerName: binding?.containerName?.trim() || current?.containerName,
+      };
+      const unchanged =
+        current !== undefined &&
+        current.token === nextEntry.token &&
+        (current.sessionKey ?? undefined) === (nextEntry.sessionKey ?? undefined) &&
+        (current.containerName ?? undefined) === (nextEntry.containerName ?? undefined);
+      if (unchanged) {
+        return;
+      }
+      nextByToken.set(trimmed, nextEntry);
+
+      const next = Array.from(nextByToken.values());
+      await writeFileAtomic(tokensPath, `${JSON.stringify({ tokens: next }, null, 2)}\n`);
+    },
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function acquireLockFile(params: {
+  lockPath: string;
+  timeoutMs: number;
+  retryMs: number;
+  staleMs: number;
+}): Promise<FileHandle> {
+  const startedAt = Date.now();
+  while (true) {
     try {
-      parsed = JSON.parse(raw) as { tokens?: unknown };
-    } catch {
-      parsed = null;
+      const handle = await fs.open(params.lockPath, "wx");
+      await writeLockMetadata(handle);
+      return handle;
+    } catch (err) {
+      const code = err && typeof err === "object" ? (err as { code?: unknown }).code : undefined;
+      if (code !== "EEXIST") {
+        throw err;
+      }
+      const released = await releaseStaleLockIfNeeded({
+        lockPath: params.lockPath,
+        staleMs: params.staleMs,
+      });
+      if (released) {
+        continue;
+      }
+      if (Date.now() - startedAt >= params.timeoutMs) {
+        throw new Error(`timed out acquiring cliport token lock: ${params.lockPath}`);
+      }
+      await sleep(params.retryMs);
     }
   }
-  const existing = Array.isArray(parsed?.tokens)
-    ? parsed.tokens
-        .map((entry) => parseCliportTokenEntry(entry))
-        .filter((entry): entry is CliportTokenEntry => Boolean(entry))
-    : [];
-  const nextByToken = new Map<string, CliportTokenEntry>();
-  for (const entry of existing) {
-    nextByToken.set(entry.token, entry);
+}
+
+async function withFileLock<T>(
+  params: { lockPath: string; timeoutMs: number; retryMs: number; staleMs: number },
+  task: () => Promise<T>,
+): Promise<T> {
+  const handle = await acquireLockFile(params);
+  try {
+    return await task();
+  } finally {
+    await handle.close().catch(() => {});
+    await fs.unlink(params.lockPath).catch(() => {});
   }
-  const current = nextByToken.get(trimmed);
-  nextByToken.set(trimmed, {
-    token: trimmed,
-    sessionKey: binding?.sessionKey?.trim() || current?.sessionKey,
-    containerName: binding?.containerName?.trim() || current?.containerName,
-  });
-  const next = Array.from(nextByToken.values());
-  await fs.mkdir(path.dirname(CLIPORT_TOKENS_PATH), { recursive: true });
-  await fs.writeFile(
-    CLIPORT_TOKENS_PATH,
-    `${JSON.stringify({ tokens: next }, null, 2)}\n`,
-    "utf-8",
-  );
+}
+
+async function writeLockMetadata(handle: FileHandle): Promise<void> {
+  const payload: CliportTokenLockMetadata = {
+    pid: process.pid,
+    createdAtMs: Date.now(),
+  };
+  await handle.writeFile(`${JSON.stringify(payload)}\n`, "utf-8").catch(() => {});
+}
+
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    const code = err && typeof err === "object" ? (err as { code?: unknown }).code : undefined;
+    return code === "EPERM";
+  }
+}
+
+async function readLockMetadata(lockPath: string): Promise<{
+  createdAtMs?: number;
+  pid?: number;
+  mtimeMs?: number;
+}> {
+  const stat = await fs.stat(lockPath).catch(() => null);
+  if (!stat) {
+    return {};
+  }
+  const raw = await fs.readFile(lockPath, "utf-8").catch(() => "");
+  if (!raw.trim()) {
+    return { mtimeMs: stat.mtimeMs };
+  }
+  try {
+    const parsed = JSON.parse(raw) as CliportTokenLockMetadata;
+    const createdAtMs =
+      typeof parsed.createdAtMs === "number" && Number.isFinite(parsed.createdAtMs)
+        ? parsed.createdAtMs
+        : undefined;
+    const pid =
+      typeof parsed.pid === "number" && Number.isFinite(parsed.pid) ? Math.floor(parsed.pid) : undefined;
+    return { createdAtMs, pid, mtimeMs: stat.mtimeMs };
+  } catch {
+    return { mtimeMs: stat.mtimeMs };
+  }
+}
+
+async function releaseStaleLockIfNeeded(params: {
+  lockPath: string;
+  staleMs: number;
+}): Promise<boolean> {
+  const lock = await readLockMetadata(params.lockPath);
+  const createdAtMs = lock.createdAtMs ?? lock.mtimeMs;
+  if (typeof createdAtMs !== "number" || !Number.isFinite(createdAtMs)) {
+    return false;
+  }
+  if (Date.now() - createdAtMs < params.staleMs) {
+    return false;
+  }
+  if (typeof lock.pid === "number" && isProcessAlive(lock.pid)) {
+    return false;
+  }
+  try {
+    await fs.unlink(params.lockPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function writeFileAtomic(filePath: string, content: string): Promise<void> {
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  let hasTemp = false;
+  try {
+    await fs.writeFile(tmpPath, content, "utf-8");
+    hasTemp = true;
+    await fs.rename(tmpPath, filePath);
+    hasTemp = false;
+  } finally {
+    if (hasTemp) {
+      await fs.unlink(tmpPath).catch(() => {});
+    }
+  }
 }
 
 export function execDocker(args: string[], opts?: { allowFailure?: boolean }) {
@@ -492,3 +682,8 @@ export async function ensureSandboxContainer(params: {
   });
   return { containerName, cliportToken };
 }
+
+export const __testing = {
+  ensureCliportTokenAllowed,
+  parseCliportTokenEntry,
+};
