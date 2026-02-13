@@ -184,8 +184,10 @@ vi.mock("../pi-embedded-helpers.js", async () => {
 });
 
 import type { EmbeddedRunAttemptResult } from "./run/types.js";
+import { resolveContextWindowInfo } from "../context-window-guard.js";
 import { compactEmbeddedPiSessionDirect } from "./compact.js";
 import { log } from "./logger.js";
+import { resolveModel } from "./model.js";
 import { runEmbeddedPiAgent } from "./run.js";
 import { runEmbeddedAttempt } from "./run/attempt.js";
 import {
@@ -195,6 +197,8 @@ import {
 
 const mockedRunEmbeddedAttempt = vi.mocked(runEmbeddedAttempt);
 const mockedCompactDirect = vi.mocked(compactEmbeddedPiSessionDirect);
+const mockedResolveContextWindowInfo = vi.mocked(resolveContextWindowInfo);
+const mockedResolveModel = vi.mocked(resolveModel);
 const mockedSessionLikelyHasOversizedToolResults = vi.mocked(sessionLikelyHasOversizedToolResults);
 const mockedTruncateOversizedToolResultsInSession = vi.mocked(
   truncateOversizedToolResultsInSession,
@@ -233,6 +237,23 @@ const baseParams = {
 describe("overflow compaction in run loop", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedResolveModel.mockReturnValue({
+      model: {
+        id: "test-model",
+        provider: "anthropic",
+        contextWindow: 200000,
+        api: "messages",
+      },
+      error: null,
+      authStorage: {
+        setRuntimeApiKey: vi.fn(),
+      },
+      modelRegistry: {},
+    } as ReturnType<typeof resolveModel>);
+    mockedResolveContextWindowInfo.mockReturnValue({
+      tokens: 200000,
+      source: "model",
+    });
     mockedSessionLikelyHasOversizedToolResults.mockReturnValue(false);
     mockedTruncateOversizedToolResultsInSession.mockResolvedValue({
       truncated: false,
@@ -510,5 +531,71 @@ describe("overflow compaction in run loop", () => {
 
     expect(result.meta.agentMeta?.usage?.input).toBe(4_000);
     expect(result.meta.agentMeta?.promptTokens).toBe(2_000);
+  });
+
+  it("treats Cloud Code Assist invalid-argument 400 as overflow when context is large", async () => {
+    mockedResolveModel.mockReturnValue({
+      model: {
+        id: "gemini-3-flash-preview",
+        provider: "google-gemini-cli",
+        contextWindow: 1_048_576,
+        api: "google-gemini-cli",
+      },
+      error: null,
+      authStorage: {
+        setRuntimeApiKey: vi.fn(),
+      },
+      modelRegistry: {},
+    } as ReturnType<typeof resolveModel>);
+    const invalidArgument = new Error(
+      "Cloud Code Assist API error (400): Request contains an invalid argument.",
+    );
+    mockedRunEmbeddedAttempt
+      .mockResolvedValueOnce(makeAttemptResult({ promptError: invalidArgument }))
+      .mockResolvedValueOnce(makeAttemptResult({ promptError: null }));
+    mockedCompactDirect.mockResolvedValueOnce({
+      ok: true,
+      compacted: true,
+      result: {
+        summary: "Compacted session",
+        firstKeptEntryId: "entry-10",
+        tokensBefore: 410000,
+      },
+    });
+
+    const result = await runEmbeddedPiAgent(baseParams);
+
+    expect(mockedCompactDirect).toHaveBeenCalledTimes(1);
+    expect(mockedRunEmbeddedAttempt).toHaveBeenCalledTimes(2);
+    expect(result.meta.error).toBeUndefined();
+  });
+
+  it("does not treat Cloud Code Assist invalid-argument 400 as overflow when context is small", async () => {
+    mockedResolveModel.mockReturnValue({
+      model: {
+        id: "gemini-3-flash-preview",
+        provider: "google-gemini-cli",
+        contextWindow: 32768,
+        api: "google-gemini-cli",
+      },
+      error: null,
+      authStorage: {
+        setRuntimeApiKey: vi.fn(),
+      },
+      modelRegistry: {},
+    } as ReturnType<typeof resolveModel>);
+    const invalidArgument = new Error(
+      "Cloud Code Assist API error (400): Request contains an invalid argument.",
+    );
+    mockedResolveContextWindowInfo.mockReturnValue({
+      tokens: 50_000,
+      source: "model",
+    });
+    mockedRunEmbeddedAttempt.mockResolvedValue(makeAttemptResult({ promptError: invalidArgument }));
+
+    await expect(runEmbeddedPiAgent(baseParams)).rejects.toThrow(
+      "Cloud Code Assist API error (400): Request contains an invalid argument.",
+    );
+    expect(mockedCompactDirect).not.toHaveBeenCalled();
   });
 });

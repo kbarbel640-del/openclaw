@@ -132,5 +132,13 @@ export const appendUsageLine = (payloads: ReplyPayload[], line: string): ReplyPa
   return updated;
 };
 
-export const resolveEnforceFinalTag = (run: FollowupRun["run"], provider: string) =>
-  Boolean(run.enforceFinalTag || isReasoningTagProvider(provider));
+export const resolveEnforceFinalTag = (run: FollowupRun["run"], provider: string) => {
+  if (run.enforceFinalTag) {
+    return true;
+  }
+  const normalized = provider.trim().toLowerCase();
+  if (normalized === "google-gemini-cli" || normalized === "google-generative-ai") {
+    return false;
+  }
+  return isReasoningTagProvider(provider);
+};

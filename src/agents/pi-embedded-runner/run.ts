@@ -63,6 +63,9 @@ type ApiKeyInfo = ResolvedProviderAuth;
 // Avoid Anthropic's refusal test token poisoning session transcripts.
 const ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL = "ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL";
 const ANTHROPIC_MAGIC_STRING_REPLACEMENT = "ANTHROPIC MAGIC STRING TRIGGER REFUSAL (redacted)";
+const CLOUD_CODE_ASSIST_INVALID_ARGUMENT_RE =
+  /cloud code assist api error \(400\): request contains an invalid argument\.?/i;
+const CLOUD_CODE_ASSIST_OVERFLOW_MIN_TOKENS = 200_000;
 
 function scrubAnthropicRefusalMagic(prompt: string): string {
   if (!prompt.includes(ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL)) {
@@ -72,6 +75,22 @@ function scrubAnthropicRefusalMagic(prompt: string): string {
     ANTHROPIC_MAGIC_STRING_TRIGGER_REFUSAL,
     ANTHROPIC_MAGIC_STRING_REPLACEMENT,
   );
+}
+
+function isLikelyCloudCodeInvalidArgumentOverflow(params: {
+  provider: string;
+  modelApi?: string;
+  errorText: string;
+  contextTokens: number;
+}): boolean {
+  if (params.contextTokens < CLOUD_CODE_ASSIST_OVERFLOW_MIN_TOKENS) {
+    return false;
+  }
+  if (!CLOUD_CODE_ASSIST_INVALID_ARGUMENT_RE.test(params.errorText)) {
+    return false;
+  }
+  const provider = normalizeProviderId(params.provider);
+  return provider === "google-gemini-cli" || params.modelApi === "google-gemini-cli";
 }
 
 type UsageAccumulator = {
@@ -503,11 +522,35 @@ export async function runEmbeddedPiAgent(
                   if (isLikelyContextOverflowError(errorText)) {
                     return { text: errorText, source: "promptError" as const };
                   }
+                  // Cloud Code Assist occasionally returns a generic 400 "invalid argument"
+                  // when prompt/transcript payloads are too large. Treat this as overflow
+                  // only when the current context is already very large.
+                  if (
+                    isLikelyCloudCodeInvalidArgumentOverflow({
+                      provider,
+                      modelApi: model.api,
+                      errorText,
+                      contextTokens: ctxInfo.tokens,
+                    })
+                  ) {
+                    return { text: errorText, source: "promptError" as const };
+                  }
                   // Prompt submission failed with a non-overflow error. Do not
                   // inspect prior assistant errors from history for this attempt.
                   return null;
                 }
                 if (assistantErrorText && isLikelyContextOverflowError(assistantErrorText)) {
+                  return { text: assistantErrorText, source: "assistantError" as const };
+                }
+                if (
+                  assistantErrorText &&
+                  isLikelyCloudCodeInvalidArgumentOverflow({
+                    provider,
+                    modelApi: model.api,
+                    errorText: assistantErrorText,
+                    contextTokens: ctxInfo.tokens,
+                  })
+                ) {
                   return { text: assistantErrorText, source: "assistantError" as const };
                 }
                 return null;
