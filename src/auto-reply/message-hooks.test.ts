@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { FinalizedMsgContext } from "./templating.js";
 import {
   runPreMessageHooks,
   runPostMessageHooks,
   validateMessageHooksConfig,
+  _resetRateLimitState,
   type MessageHooksConfig,
 } from "./message-hooks.js";
 
@@ -23,6 +24,11 @@ const mockCtx: FinalizedMsgContext = {
 };
 
 describe("message-hooks", () => {
+  // Reset rate limiting state before each test
+  beforeEach(() => {
+    _resetRateLimitState();
+  });
+
   describe("validateMessageHooksConfig", () => {
     it("accepts undefined config", () => {
       expect(validateMessageHooksConfig(undefined)).toBe(true);

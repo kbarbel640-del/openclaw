@@ -59,6 +59,60 @@ const MAX_HOOKS = 10;
 /** Default max hooks if not specified */
 const DEFAULT_MAX_HOOKS = 10;
 
+/** Minimum cooldown between hook runs per session (ms) - prevents flooding */
+const HOOK_COOLDOWN_MS = 100;
+
+/** Maximum characters for injected content (prompt injection protection) */
+const MAX_INJECTED_CHARS = 16000;
+
+/**
+ * Environment variables that MUST NOT be overridden by hook config.
+ * These can be exploited for privilege escalation or code injection.
+ */
+const FORBIDDEN_ENV_VARS = new Set([
+  // Path hijacking
+  "PATH",
+  "HOME",
+  "SHELL",
+  "USER",
+  "LOGNAME",
+  // Library injection (Linux)
+  "LD_PRELOAD",
+  "LD_LIBRARY_PATH",
+  "LD_AUDIT",
+  "LD_DEBUG",
+  // Library injection (macOS)
+  "DYLD_INSERT_LIBRARIES",
+  "DYLD_LIBRARY_PATH",
+  "DYLD_FRAMEWORK_PATH",
+  // Runtime hijacking
+  "NODE_OPTIONS",
+  "NODE_PATH",
+  "PYTHONPATH",
+  "PYTHONSTARTUP",
+  "PYTHONHOME",
+  "RUBYOPT",
+  "RUBYLIB",
+  "PERL5OPT",
+  "PERL5LIB",
+  // Other dangerous vars
+  "IFS",
+  "CDPATH",
+  "ENV",
+  "BASH_ENV",
+]);
+
+/** Rate limiting: track last hook run per session */
+const lastHookRunBySession = new Map<string, number>();
+
+/**
+ * Reset rate limiting state (for tests).
+ * @internal
+ */
+export function _resetRateLimitState(): void {
+  lastHookRunBySession.clear();
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -98,6 +152,7 @@ export type MessageHooksConfig = {
 export type PreMessageHookResult = {
   injectedContent?: string;
   hookResults: HookExecutionResult[];
+  rateLimited?: boolean;
   truncated?: boolean;
   aggregateTimeoutHit?: boolean;
 };
@@ -144,12 +199,28 @@ export type PostHookContext = HookContext & {
 /**
  * Check if command is allowed by prefix allowlist.
  * Returns true if no allowlist configured (permissive mode).
+ *
+ * SECURITY: Also checks for path traversal and shell injection attempts.
  */
 function isCommandAllowed(command: string, allowedPrefixes: string[] | undefined): boolean {
   if (!allowedPrefixes || allowedPrefixes.length === 0) {
     return true; // No allowlist = all allowed
   }
+
   const trimmed = command.trim();
+
+  // Check for path traversal attempts (../ or ..\ sequences)
+  if (/\.\.[\\/]/.test(trimmed)) {
+    return false;
+  }
+
+  // Check for shell metacharacters in the command binary (first token)
+  // These could be used to bypass prefix checks
+  const firstToken = trimmed.split(/\s/)[0] ?? "";
+  if (/[;&|`$(){}]/.test(firstToken)) {
+    return false;
+  }
+
   return allowedPrefixes.some((prefix) => trimmed.startsWith(prefix.trim()));
 }
 
@@ -211,12 +282,25 @@ async function executeHook(
   }
 
   return new Promise((resolve) => {
-    // Build environment - SECURITY: User content in env vars
-    // Document that hook scripts should not log/expose these
+    // Build environment - SECURITY: Filter out dangerous env vars
+    // Filter process.env to remove undefined values (type safety)
+    const parentEnv = Object.fromEntries(
+      Object.entries(process.env).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined,
+      ),
+    );
+
+    // Filter config.env to remove forbidden variables (security)
+    const safeConfigEnv = config.env
+      ? Object.fromEntries(
+          Object.entries(config.env).filter(([key]) => !FORBIDDEN_ENV_VARS.has(key.toUpperCase())),
+        )
+      : {};
+
     const env: Record<string, string> = {
-      ...(process.env as Record<string, string>),
-      ...config.env,
-      // Namespaced env vars for hook scripts
+      ...parentEnv,
+      ...safeConfigEnv,
+      // Namespaced env vars for hook scripts (safe, prefixed)
       OPENCLAW_SESSION_KEY: context.sessionKey,
       OPENCLAW_CHANNEL: context.channel,
       OPENCLAW_SENDER_ID: context.senderId,
@@ -266,6 +350,20 @@ async function executeHook(
       }
     };
     options.abortSignal?.addEventListener("abort", abortHandler);
+
+    // Check AFTER adding listener to avoid race condition
+    // (abort could fire between pre-check and addEventListener)
+    if (options.abortSignal?.aborted) {
+      proc.kill("SIGKILL");
+      cleanup();
+      resolve({
+        command: config.command,
+        success: false,
+        error: "Aborted (aggregate timeout)",
+        durationMs: Date.now() - startTime,
+      });
+      return;
+    }
 
     // Capture stdout with limit
     proc.stdout?.on("data", (data: Buffer) => {
@@ -406,6 +504,25 @@ export async function runPreMessageHooks(params: {
     return { hookResults: [] };
   }
 
+  // Rate limiting: prevent flooding with rapid messages
+  const sessionKey = ctx.SessionKey ?? "unknown";
+  const lastRun = lastHookRunBySession.get(sessionKey) ?? 0;
+  const now = Date.now();
+  if (now - lastRun < HOOK_COOLDOWN_MS) {
+    return { hookResults: [], rateLimited: true };
+  }
+  lastHookRunBySession.set(sessionKey, now);
+
+  // Cleanup old entries periodically (prevent memory leak)
+  if (lastHookRunBySession.size > 1000) {
+    const cutoff = now - 60000; // Remove entries older than 1 minute
+    for (const [key, time] of lastHookRunBySession) {
+      if (time < cutoff) {
+        lastHookRunBySession.delete(key);
+      }
+    }
+  }
+
   const hookContext: HookContext = {
     sessionKey: ctx.SessionKey ?? "unknown",
     channel: ctx.Surface ?? ctx.Provider ?? "unknown",
@@ -473,8 +590,18 @@ export async function runPreMessageHooks(params: {
     clearTimeout(aggregateTimer);
   }
 
+  // Build injected content with length limit (prompt injection protection)
+  let injectedContent: string | undefined;
+  if (injectedParts.length > 0) {
+    const combined = injectedParts.join("\n\n");
+    injectedContent =
+      combined.length > MAX_INJECTED_CHARS
+        ? combined.slice(0, MAX_INJECTED_CHARS) + "\n[truncated]"
+        : combined;
+  }
+
   return {
-    injectedContent: injectedParts.length > 0 ? injectedParts.join("\n\n") : undefined,
+    injectedContent,
     hookResults,
     truncated,
     aggregateTimeoutHit: abortController.signal.aborted,
