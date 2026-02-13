@@ -56,16 +56,18 @@ export async function applyAuthChoiceHuggingface(
     );
   }
 
-  const envKey = resolveEnvApiKey("huggingface");
-  if (envKey) {
-    const useExisting = await params.prompter.confirm({
-      message: `Use existing Hugging Face token (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
-      initialValue: true,
-    });
-    if (useExisting) {
-      hfKey = envKey.apiKey;
-      await setHuggingfaceApiKey(hfKey, params.agentDir);
-      hasCredential = true;
+  if (!hasCredential) {
+    const envKey = resolveEnvApiKey("huggingface");
+    if (envKey) {
+      const useExisting = await params.prompter.confirm({
+        message: `Use existing Hugging Face token (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+        initialValue: true,
+      });
+      if (useExisting) {
+        hfKey = envKey.apiKey;
+        await setHuggingfaceApiKey(hfKey, params.agentDir);
+        hasCredential = true;
+      }
     }
   }
   if (!hasCredential) {
@@ -73,7 +75,7 @@ export async function applyAuthChoiceHuggingface(
       message: "Enter Hugging Face API key (HF token)",
       validate: validateApiKeyInput,
     });
-    hfKey = normalizeApiKeyInput(String(key));
+    hfKey = normalizeApiKeyInput(String(key ?? ""));
     await setHuggingfaceApiKey(hfKey, params.agentDir);
   }
   nextConfig = applyAuthProfileConfig(nextConfig, {

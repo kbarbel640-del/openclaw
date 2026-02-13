@@ -920,7 +920,7 @@ export async function applyAuthChoiceApiProviders(
   }
 
   if (authChoice === "huggingface-api-key") {
-    return applyAuthChoiceHuggingface(params);
+    return applyAuthChoiceHuggingface({ ...params, authChoice });
   }
 
   if (authChoice === "qianfan-api-key") {
