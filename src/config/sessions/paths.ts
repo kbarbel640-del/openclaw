@@ -65,16 +65,22 @@ function resolvePathWithinSessionsDir(sessionsDir: string, candidate: string): s
     return resolvedCandidate;
   }
 
-  // For absolute paths stored by bound-agent sessions, accept if within
-  // the parent agents directory. This handles cross-agent session files
-  // in multi-agent setups where channel bindings route messages to a
-  // specific agent but the handler resolves a different agent's dir.
+  // For absolute paths stored by bound-agent sessions, accept only if within
+  // <state>/agents/<id>/sessions/**. This keeps cross-agent session files working
+  // while preventing reads from arbitrary files under <state>/agents/**.
   // Structure: <state>/agents/<id>/sessions — go up two levels to agents/.
   if (path.isAbsolute(trimmed)) {
+    // Only enable this cross-agent escape hatch when the base dir looks like
+    // ".../agents/<id>/sessions".
     const agentsRoot = path.resolve(resolvedBase, "..", "..");
-    const relToAgents = path.relative(agentsRoot, resolvedCandidate);
-    if (!relToAgents.startsWith("..") && !path.isAbsolute(relToAgents)) {
-      return resolvedCandidate;
+    if (path.basename(resolvedBase) === "sessions" && path.basename(agentsRoot) === "agents") {
+      const relToAgents = path.relative(agentsRoot, resolvedCandidate);
+      if (!relToAgents.startsWith("..") && !path.isAbsolute(relToAgents)) {
+        const parts = path.normalize(relToAgents).split(path.sep).filter(Boolean);
+        if (parts.length >= 2 && parts[1] === "sessions") {
+          return resolvedCandidate;
+        }
+      }
     }
   }
 
