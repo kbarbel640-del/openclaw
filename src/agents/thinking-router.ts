@@ -102,9 +102,10 @@ export const DEFAULT_MEDIUM_THINKING_KEYWORDS = [
 
 /**
  * Default thinking router configuration.
+ * Note: disabled by default for backward compatibility.
  */
 export const DEFAULT_THINKING_ROUTER_CONFIG: ThinkingRouterConfig = {
-  enabled: true,
+  enabled: false,
   default: "low",
   rules: [
     {
@@ -180,10 +181,14 @@ function matchesRule(
     return false;
   }
 
-  // Regex pattern
+  // Regex pattern (invalid patterns cause rule to not match)
   if (match.pattern) {
     const regex = getOrCreateRegex(match.pattern);
-    if (regex && !regex.test(message)) {
+    if (!regex) {
+      // Invalid regex pattern - rule cannot match
+      return false;
+    }
+    if (!regex.test(message)) {
       return false;
     }
   }
