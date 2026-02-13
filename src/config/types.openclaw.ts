@@ -102,6 +102,7 @@ export type OpenClawConfig = {
 export type ConfigValidationIssue = {
   path: string;
   message: string;
+  /** Issue severity. Defaults to "error" when omitted. */
   level?: "error" | "warning";
 };
 
