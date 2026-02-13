@@ -253,7 +253,7 @@ export async function incrementCompactionCount(params: {
     updatedAt: now,
   };
   // If tokensAfter is provided, update the cached token counts to reflect post-compaction state
-  if (tokensAfter != null) {
+  if (typeof tokensAfter === "number") {
     if (tokensAfter > 0) {
       updates.totalTokens = tokensAfter;
       // Clear input/output breakdown since we only have the total estimate after compaction
