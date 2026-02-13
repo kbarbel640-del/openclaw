@@ -6,7 +6,7 @@ import { createOpenClawCodingTools } from "./pi-tools.js";
 
 vi.mock("../plugins/tools.js", () => ({
   getPluginToolMeta: () => undefined,
-  resolvePluginTools: () => [],
+  resolvePluginTools: () => ({ tools: [], overriddenNames: new Set<string>() }),
 }));
 
 vi.mock("../infra/shell-env.js", async (importOriginal) => {

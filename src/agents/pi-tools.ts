@@ -122,6 +122,8 @@ export function createOpenClawCodingTools(options?: {
   sessionKey?: string;
   agentDir?: string;
   workspaceDir?: string;
+  /** Real agent workspace path on host (may differ from workspaceDir in sandbox RO mode). */
+  agentWorkspaceDir?: string;
   config?: OpenClawConfig;
   abortSignal?: AbortSignal;
   /**
@@ -248,7 +250,11 @@ export function createOpenClawCodingTools(options?: {
   const base = (codingTools as unknown as AnyAgentTool[]).flatMap((tool) => {
     if (tool.name === readTool.name) {
       if (sandboxRoot) {
-        return [createSandboxedReadTool(sandboxRoot)];
+        const readRoot =
+          allowWorkspaceWrites || !options?.agentWorkspaceDir
+            ? sandboxRoot
+            : options.agentWorkspaceDir;
+        return [createSandboxedReadTool(readRoot)];
       }
       const freshReadTool = createReadTool(workspaceRoot);
       return [createOpenClawReadTool(freshReadTool)];
@@ -314,7 +320,7 @@ export function createOpenClawCodingTools(options?: {
           cwd: sandboxRoot ?? workspaceRoot,
           sandboxRoot: sandboxRoot && allowWorkspaceWrites ? sandboxRoot : undefined,
         });
-  const tools: AnyAgentTool[] = [
+  const codingToolList: AnyAgentTool[] = [
     ...base,
     ...(sandboxRoot
       ? allowWorkspaceWrites
@@ -326,43 +332,53 @@ export function createOpenClawCodingTools(options?: {
     processTool as unknown as AnyAgentTool,
     // Channel docking: include channel-defined agent tools (login, etc.).
     ...listChannelAgentTools({ cfg: options?.config }),
-    ...createOpenClawTools({
-      sandboxBrowserBridgeUrl: sandbox?.browser?.bridgeUrl,
-      allowHostBrowserControl: sandbox ? sandbox.browserAllowHostControl : true,
-      agentSessionKey: options?.sessionKey,
-      agentChannel: resolveGatewayMessageChannel(options?.messageProvider),
-      agentAccountId: options?.agentAccountId,
-      agentTo: options?.messageTo,
-      agentThreadId: options?.messageThreadId,
-      agentGroupId: options?.groupId ?? null,
-      agentGroupChannel: options?.groupChannel ?? null,
-      agentGroupSpace: options?.groupSpace ?? null,
-      agentDir: options?.agentDir,
-      sandboxRoot,
-      workspaceDir: options?.workspaceDir,
-      sandboxed: !!sandbox,
-      config: options?.config,
-      pluginToolAllowlist: collectExplicitAllowlist([
-        profilePolicy,
-        providerProfilePolicy,
-        globalPolicy,
-        globalProviderPolicy,
-        agentPolicy,
-        agentProviderPolicy,
-        groupPolicy,
-        sandbox?.tools,
-        subagentPolicy,
-      ]),
-      currentChannelId: options?.currentChannelId,
-      currentThreadTs: options?.currentThreadTs,
-      replyToMode: options?.replyToMode,
-      hasRepliedRef: options?.hasRepliedRef,
-      modelHasVision: options?.modelHasVision,
-      requireExplicitMessageTarget: options?.requireExplicitMessageTarget,
-      disableMessageTool: options?.disableMessageTool,
-      requesterAgentIdOverride: agentId,
-    }),
   ];
+  const overrideOutput: { overriddenNames?: ReadonlySet<string> } = {};
+  const openClawTools = createOpenClawTools({
+    sandboxBrowserBridgeUrl: sandbox?.browser?.bridgeUrl,
+    allowHostBrowserControl: sandbox ? sandbox.browserAllowHostControl : true,
+    agentSessionKey: options?.sessionKey,
+    agentChannel: resolveGatewayMessageChannel(options?.messageProvider),
+    agentAccountId: options?.agentAccountId,
+    agentTo: options?.messageTo,
+    agentThreadId: options?.messageThreadId,
+    agentGroupId: options?.groupId ?? null,
+    agentGroupChannel: options?.groupChannel ?? null,
+    agentGroupSpace: options?.groupSpace ?? null,
+    agentDir: options?.agentDir,
+    sandboxRoot,
+    workspaceDir: options?.workspaceDir,
+    agentWorkspaceDir: options?.agentWorkspaceDir ?? options?.workspaceDir,
+    preExistingTools: codingToolList,
+    sandboxed: !!sandbox,
+    config: options?.config,
+    pluginToolAllowlist: collectExplicitAllowlist([
+      profilePolicy,
+      providerProfilePolicy,
+      globalPolicy,
+      globalProviderPolicy,
+      agentPolicy,
+      agentProviderPolicy,
+      groupPolicy,
+      sandbox?.tools,
+      subagentPolicy,
+    ]),
+    currentChannelId: options?.currentChannelId,
+    currentThreadTs: options?.currentThreadTs,
+    replyToMode: options?.replyToMode,
+    hasRepliedRef: options?.hasRepliedRef,
+    modelHasVision: options?.modelHasVision,
+    requireExplicitMessageTarget: options?.requireExplicitMessageTarget,
+    disableMessageTool: options?.disableMessageTool,
+    requesterAgentIdOverride: agentId,
+    _overrideOutput: overrideOutput,
+  });
+  const overriddenNames = overrideOutput.overriddenNames ?? new Set<string>();
+  const filteredCodingTools =
+    overriddenNames.size > 0
+      ? codingToolList.filter((tool) => !overriddenNames.has(tool.name))
+      : codingToolList;
+  const tools: AnyAgentTool[] = [...filteredCodingTools, ...openClawTools];
   // Security: treat unknown/undefined as unauthorized (opt-in, not opt-out)
   const senderIsOwner = options?.senderIsOwner === true;
   const toolsByAuthorization = applyOwnerOnlyToolPolicy(tools, senderIsOwner);
@@ -443,6 +459,11 @@ export function createOpenClawCodingTools(options?: {
     wrapToolWithBeforeToolCallHook(tool, {
       agentId,
       sessionKey: options?.sessionKey,
+      workspaceDir: options?.workspaceDir,
+      agentWorkspaceDir: options?.agentWorkspaceDir,
+      messageProvider: options?.messageProvider,
+      peerId: options?.senderId ?? undefined,
+      senderE164: options?.senderE164 ?? undefined,
     }),
   );
   const withAbort = options?.abortSignal

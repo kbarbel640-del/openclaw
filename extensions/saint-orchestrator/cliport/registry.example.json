@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "workspaceRoot": "/workspace",
+  "sandboxAgentRoot": "/workspace",
+  "globalRateLimitPerMinute": 120,
+  "maskedPaths": ["memory/private", "memory/users", "config"],
+  "clis": {
+    "gog": {
+      "command": "/usr/local/bin/gog-real",
+      "env": {
+        "GOG_KEYRING_PASSWORD": "<secret>",
+        "GOG_ACCOUNT": "bot@example.com"
+      },
+      "timeoutMs": 120000,
+      "rateLimitPerMinute": 60
+    },
+    "gh": {
+      "command": "/usr/local/bin/gh-real",
+      "env": {
+        "GITHUB_TOKEN": "<secret>"
+      },
+      "timeoutMs": 120000,
+      "rateLimitPerMinute": 60
+    }
+  }
+}

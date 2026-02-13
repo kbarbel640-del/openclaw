@@ -90,6 +90,11 @@ describe("before_tool_call hook integration", () => {
     const tool = wrapToolWithBeforeToolCallHook({ name: "ReAd", execute } as any, {
       agentId: "main",
       sessionKey: "main",
+      workspaceDir: "/tmp/workspace",
+      agentWorkspaceDir: "/tmp/workspace-real",
+      messageProvider: "whatsapp",
+      peerId: "ana",
+      senderE164: "+15550001111",
     });
 
     await tool.execute("call-5", "not-an-object", undefined, undefined);
@@ -103,6 +108,11 @@ describe("before_tool_call hook integration", () => {
         toolName: "read",
         agentId: "main",
         sessionKey: "main",
+        workspaceDir: "/tmp/workspace",
+        agentWorkspaceDir: "/tmp/workspace-real",
+        messageProvider: "whatsapp",
+        peerId: "ana",
+        senderE164: "+15550001111",
       },
     );
   });

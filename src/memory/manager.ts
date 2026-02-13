@@ -269,6 +269,7 @@ export class MemoryIndexManager implements MemorySearchManager {
       maxResults?: number;
       minScore?: number;
       sessionKey?: string;
+      pathFilter?: string[];
     },
   ): Promise<MemorySearchResult[]> {
     void this.warmSession(opts?.sessionKey);
@@ -290,13 +291,13 @@ export class MemoryIndexManager implements MemorySearchManager {
     );
 
     const keywordResults = hybrid.enabled
-      ? await this.searchKeyword(cleaned, candidates).catch(() => [])
+      ? await this.searchKeyword(cleaned, candidates, opts?.pathFilter).catch(() => [])
       : [];
 
     const queryVec = await this.embedQueryWithTimeout(cleaned);
     const hasVector = queryVec.some((v) => v !== 0);
     const vectorResults = hasVector
-      ? await this.searchVector(queryVec, candidates).catch(() => [])
+      ? await this.searchVector(queryVec, candidates, opts?.pathFilter).catch(() => [])
       : [];
 
     if (!hybrid.enabled) {
@@ -316,7 +317,10 @@ export class MemoryIndexManager implements MemorySearchManager {
   private async searchVector(
     queryVec: number[],
     limit: number,
+    pathFilter?: string[],
   ): Promise<Array<MemorySearchResult & { id: string }>> {
+    const pathFilterVec = this.buildPathFilter(pathFilter, "c");
+    const pathFilterChunks = this.buildPathFilter(pathFilter);
     const results = await searchVector({
       db: this.db,
       vectorTable: VECTOR_TABLE,
@@ -327,6 +331,8 @@ export class MemoryIndexManager implements MemorySearchManager {
       ensureVectorReady: async (dimensions) => await this.ensureVectorReady(dimensions),
       sourceFilterVec: this.buildSourceFilter("c"),
       sourceFilterChunks: this.buildSourceFilter(),
+      pathFilterVec,
+      pathFilterChunks,
     });
     return results.map((entry) => entry as MemorySearchResult & { id: string });
   }
@@ -338,11 +344,13 @@ export class MemoryIndexManager implements MemorySearchManager {
   private async searchKeyword(
     query: string,
     limit: number,
+    pathFilter?: string[],
   ): Promise<Array<MemorySearchResult & { id: string; textScore: number }>> {
     if (!this.fts.enabled || !this.fts.available) {
       return [];
     }
     const sourceFilter = this.buildSourceFilter();
+    const pathFilterQuery = this.buildPathFilter(pathFilter);
     const results = await searchKeyword({
       db: this.db,
       ftsTable: FTS_TABLE,
@@ -351,6 +359,7 @@ export class MemoryIndexManager implements MemorySearchManager {
       limit,
       snippetMaxChars: SNIPPET_MAX_CHARS,
       sourceFilter,
+      pathFilter: pathFilterQuery,
       buildFtsQuery: (raw) => this.buildFtsQuery(raw),
       bm25RankToScore,
     });
@@ -699,6 +708,19 @@ export class MemoryIndexManager implements MemorySearchManager {
     const column = alias ? `${alias}.source` : "source";
     const placeholders = sources.map(() => "?").join(", ");
     return { sql: ` AND ${column} IN (${placeholders})`, params: sources };
+  }
+
+  private buildPathFilter(
+    pathFilter?: string[],
+    alias?: string,
+  ): { sql: string; params: string[] } {
+    const normalized = (pathFilter ?? []).map((entry) => entry.trim()).filter(Boolean);
+    if (normalized.length === 0) {
+      return { sql: "", params: [] };
+    }
+    const column = alias ? `${alias}.path` : "path";
+    const clauses = normalized.map(() => `${column} GLOB ?`).join(" OR ");
+    return { sql: ` AND (${clauses})`, params: normalized };
   }
 
   private openDatabase(): DatabaseSync {

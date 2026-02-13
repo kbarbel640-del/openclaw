@@ -31,6 +31,38 @@ const log = createSubsystemLogger("memory");
 const SNIPPET_HEADER_RE = /@@\s*-([0-9]+),([0-9]+)/;
 const SEARCH_PENDING_UPDATE_WAIT_MS = 500;
 
+function matchesGlob(filePath: string, pattern: string): boolean {
+  if (!pattern) return false;
+  if (pattern === "*") return true;
+  if (pattern === filePath) return true;
+  const escaped = pattern
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, "§§")
+    .replace(/\*/g, "[^/]*")
+    .replace(/§§/g, ".*");
+  try {
+    return new RegExp(`^${escaped}$`).test(filePath);
+  } catch {
+    return false;
+  }
+}
+
+function matchesPathFilter(filePath: string, pathFilter?: string[]): boolean {
+  if (!pathFilter || pathFilter.length === 0) {
+    return true;
+  }
+  return pathFilter.some((pattern) => matchesGlob(filePath, pattern));
+}
+
+type QmdQueryResult = {
+  docid?: string;
+  score?: number;
+  file?: string;
+  snippet?: string;
+  body?: string;
+};
+
+
 type CollectionRoot = {
   path: string;
   kind: MemorySource;
@@ -240,7 +272,12 @@ export class QmdMemoryManager implements MemorySearchManager {
 
   async search(
     query: string,
-    opts?: { maxResults?: number; minScore?: number; sessionKey?: string },
+    opts?: {
+      maxResults?: number;
+      minScore?: number;
+      sessionKey?: string;
+      pathFilter?: string[];
+    },
   ): Promise<MemorySearchResult[]> {
     if (!this.isScopeAllowed(opts?.sessionKey)) {
       this.logScopeDenied(opts?.sessionKey);
@@ -255,6 +292,7 @@ export class QmdMemoryManager implements MemorySearchManager {
       this.qmd.limits.maxResults,
       opts?.maxResults ?? this.qmd.limits.maxResults,
     );
+    const pathFilter = opts?.pathFilter?.map((pattern) => pattern.trim()).filter(Boolean);
     const collectionFilterArgs = this.buildCollectionFilterArgs();
     if (collectionFilterArgs.length === 0) {
       log.warn("qmd query skipped: no managed collections configured");
@@ -298,6 +336,9 @@ export class QmdMemoryManager implements MemorySearchManager {
     for (const entry of parsed) {
       const doc = await this.resolveDocLocation(entry.docid);
       if (!doc) {
+        continue;
+      }
+      if (!matchesPathFilter(doc.rel, pathFilter)) {
         continue;
       }
       const snippet = entry.snippet?.slice(0, this.qmd.limits.maxSnippetChars) ?? "";

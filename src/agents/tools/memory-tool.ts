@@ -8,12 +8,13 @@ import { getMemorySearchManager } from "../../memory/index.js";
 import { parseAgentSessionKey } from "../../routing/session-key.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { resolveMemorySearchConfig } from "../memory-search.js";
-import { jsonResult, readNumberParam, readStringParam } from "./common.js";
+import { jsonResult, readNumberParam, readStringArrayParam, readStringParam } from "./common.js";
 
 const MemorySearchSchema = Type.Object({
   query: Type.String(),
   maxResults: Type.Optional(Type.Number()),
   minScore: Type.Optional(Type.Number()),
+  pathFilter: Type.Optional(Type.Array(Type.String())),
 });
 
 const MemoryGetSchema = Type.Object({
@@ -47,6 +48,7 @@ export function createMemorySearchTool(options: {
       const query = readStringParam(params, "query", { required: true });
       const maxResults = readNumberParam(params, "maxResults");
       const minScore = readNumberParam(params, "minScore");
+      const pathFilter = readStringArrayParam(params, "pathFilter");
       const { manager, error } = await getMemorySearchManager({
         cfg,
         agentId,
@@ -64,6 +66,7 @@ export function createMemorySearchTool(options: {
           maxResults,
           minScore,
           sessionKey: options.agentSessionKey,
+          pathFilter,
         });
         const status = manager.status();
         const decorated = decorateCitations(rawResults, includeCitations);

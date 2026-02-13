@@ -235,11 +235,16 @@ function resolveBrowserBaseUrl(params: {
     throw new Error("Host browser control is disabled by sandbox policy.");
   }
   if (!resolved.enabled) {
-    throw new Error(
-      "Browser control is disabled. Set browser.enabled=true in ~/.openclaw/openclaw.json.",
-    );
+    throw new Error("Browser control is disabled. Set browser.enabled=true in your Saint config.");
   }
   return undefined;
+}
+
+function normalizeProfileAlias(profile: string | undefined): string | undefined {
+  if (!profile) {
+    return undefined;
+  }
+  return profile.trim().toLowerCase() === "saint" ? "openclaw" : profile;
 }
 
 export function createBrowserTool(opts?: {
@@ -253,11 +258,11 @@ export function createBrowserTool(opts?: {
     label: "Browser",
     name: "browser",
     description: [
-      "Control the browser via OpenClaw's browser control server (status/start/stop/profiles/tabs/open/snapshot/screenshot/actions).",
-      'Profiles: use profile="chrome" for Chrome extension relay takeover (your existing Chrome tabs). Use profile="openclaw" for the isolated openclaw-managed browser.',
+      "Control the browser via Saint's browser control server (status/start/stop/profiles/tabs/open/snapshot/screenshot/actions).",
+      'Profiles: use profile="chrome" for Chrome extension relay takeover (your existing Chrome tabs). Use profile="saint" for the isolated Saint-managed browser.',
       'If the user mentions the Chrome extension / Browser Relay / toolbar button / “attach tab”, ALWAYS use profile="chrome" (do not ask which profile).',
       'When a node-hosted browser proxy is available, the tool may auto-route to it. Pin a node with node=<id|name> or target="node".',
-      "Chrome extension relay needs an attached tab: user must click the OpenClaw Browser Relay toolbar icon on the tab (badge ON). If no tab is connected, ask them to attach it.",
+      "Chrome extension relay needs an attached tab: user must click the Saint Browser Relay toolbar icon on the tab (badge ON). If no tab is connected, ask them to attach it.",
       "When using refs from snapshot (e.g. e12), keep the same tab: prefer passing targetId from the snapshot response into subsequent actions (act/click/type/etc).",
       'For stable, self-resolving refs across calls, use snapshot with refs="aria" (Playwright aria-ref ids). Default refs="role" are role+name-based.',
       "Use snapshot+act for UI automation. Avoid act:wait by default; use only in exceptional cases when no reliable UI state exists.",
@@ -268,7 +273,7 @@ export function createBrowserTool(opts?: {
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const action = readStringParam(params, "action", { required: true });
-      const profile = readStringParam(params, "profile");
+      const profile = normalizeProfileAlias(readStringParam(params, "profile"));
       const requestedNode = readStringParam(params, "node");
       let target = readStringParam(params, "target") as "sandbox" | "host" | "node" | undefined;
 
@@ -823,7 +828,7 @@ export function createBrowserTool(opts?: {
                 : await browserTabs(baseUrl, { profile }).catch(() => []);
               if (!tabs.length) {
                 throw new Error(
-                  "No Chrome tabs are attached via the OpenClaw Browser Relay extension. Click the toolbar icon on the tab you want to control (badge ON), then retry.",
+                  "No Chrome tabs are attached via the Saint Browser Relay extension. Click the toolbar icon on the tab you want to control (badge ON), then retry.",
                   { cause: err },
                 );
               }

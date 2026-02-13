@@ -80,7 +80,12 @@ class FallbackMemoryManager implements MemorySearchManager {
 
   async search(
     query: string,
-    opts?: { maxResults?: number; minScore?: number; sessionKey?: string },
+    opts?: {
+      maxResults?: number;
+      minScore?: number;
+      sessionKey?: string;
+      pathFilter?: string[];
+    },
   ) {
     if (!this.primaryFailed) {
       try {

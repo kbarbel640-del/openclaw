@@ -91,6 +91,7 @@ export function resolveSandboxBrowserConfig(params: {
   return {
     enabled: agentBrowser?.enabled ?? globalBrowser?.enabled ?? false,
     image: agentBrowser?.image ?? globalBrowser?.image ?? DEFAULT_SANDBOX_BROWSER_IMAGE,
+    network: agentBrowser?.network ?? globalBrowser?.network,
     containerPrefix:
       agentBrowser?.containerPrefix ??
       globalBrowser?.containerPrefix ??

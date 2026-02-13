@@ -30,6 +30,7 @@ export type SandboxWorkspaceAccess = "none" | "ro" | "rw";
 export type SandboxBrowserConfig = {
   enabled: boolean;
   image: string;
+  network?: string;
   containerPrefix: string;
   cdpPort: number;
   vncPort: number;

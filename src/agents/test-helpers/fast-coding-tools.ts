@@ -17,6 +17,6 @@ vi.mock("../tools/web-tools.js", () => ({
 }));
 
 vi.mock("../../plugins/tools.js", () => ({
-  resolvePluginTools: () => [],
+  resolvePluginTools: () => ({ tools: [], overriddenNames: new Set<string>() }),
   getPluginToolMeta: () => undefined,
 }));

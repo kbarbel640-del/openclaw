@@ -66,12 +66,20 @@ export async function resolveSandboxContext(params: {
     await fs.mkdir(workspaceDir, { recursive: true });
   }
 
-  const containerName = await ensureSandboxContainer({
+  const containerInfo = await ensureSandboxContainer({
     sessionKey: rawSessionKey,
     workspaceDir,
     agentWorkspaceDir,
     cfg,
   });
+  const dockerEnv = containerInfo.cliportToken
+    ? {
+        ...(cfg.docker.env ?? {}),
+        CLIPORT_TOKEN: containerInfo.cliportToken,
+        CLIPORT_SESSION_KEY: scopeKey,
+        CLIPORT_CONTAINER_NAME: containerInfo.containerName,
+      }
+    : cfg.docker.env;
 
   const evaluateEnabled =
     params.config?.browser?.evaluateEnabled ?? DEFAULT_BROWSER_EVALUATE_ENABLED;
@@ -89,9 +97,12 @@ export async function resolveSandboxContext(params: {
     workspaceDir,
     agentWorkspaceDir,
     workspaceAccess: cfg.workspaceAccess,
-    containerName,
+    containerName: containerInfo.containerName,
     containerWorkdir: cfg.docker.workdir,
-    docker: cfg.docker,
+    docker: {
+      ...cfg.docker,
+      env: dockerEnv,
+    },
     tools: cfg.tools,
     browserAllowHostControl: cfg.browser.allowHostControl,
     browser: browser ?? undefined,

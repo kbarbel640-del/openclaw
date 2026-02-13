@@ -57,6 +57,10 @@ export async function handleToolExecutionStart(
   const toolName = normalizeToolName(rawToolName);
   const toolCallId = String(evt.toolCallId);
   const args = evt.args;
+  const normalizedArgs =
+    args && typeof args === "object" ? { ...(args as Record<string, unknown>) } : {};
+  ctx.state.toolStartTimes.set(toolCallId, Date.now());
+  ctx.state.toolParamsById.set(toolCallId, normalizedArgs);
 
   // Track start time and args for after_tool_call hook
   toolStartData.set(toolCallId, { startTime: Date.now(), args });
@@ -76,8 +80,7 @@ export async function handleToolExecutionStart(
   }
 
   if (toolName === "read") {
-    const record = args && typeof args === "object" ? (args as Record<string, unknown>) : {};
-    const filePath = typeof record.path === "string" ? record.path.trim() : "";
+    const filePath = typeof normalizedArgs.path === "string" ? normalizedArgs.path.trim() : "";
     if (!filePath) {
       const argsPreview = typeof args === "string" ? args.slice(0, 200) : undefined;
       ctx.log.warn(
@@ -100,7 +103,7 @@ export async function handleToolExecutionStart(
       phase: "start",
       name: toolName,
       toolCallId,
-      args: args as Record<string, unknown>,
+      args: normalizedArgs,
     },
   });
   // Best-effort typing signal; do not block tool summaries on slow emitters.
@@ -120,15 +123,14 @@ export async function handleToolExecutionStart(
 
   // Track messaging tool sends (pending until confirmed in tool_execution_end).
   if (isMessagingTool(toolName)) {
-    const argsRecord = args && typeof args === "object" ? (args as Record<string, unknown>) : {};
-    const isMessagingSend = isMessagingToolSendAction(toolName, argsRecord);
+    const isMessagingSend = isMessagingToolSendAction(toolName, normalizedArgs);
     if (isMessagingSend) {
-      const sendTarget = extractMessagingToolSend(toolName, argsRecord);
+      const sendTarget = extractMessagingToolSend(toolName, normalizedArgs);
       if (sendTarget) {
         ctx.state.pendingMessagingTargets.set(toolCallId, sendTarget);
       }
       // Field names vary by tool: Discord/Slack use "content", sessions_send uses "message"
-      const text = (argsRecord.content as string) ?? (argsRecord.message as string);
+      const text = (normalizedArgs.content as string) ?? (normalizedArgs.message as string);
       if (text && typeof text === "string") {
         ctx.state.pendingMessagingTexts.set(toolCallId, text);
         ctx.log.debug(`Tracking pending messaging text: tool=${toolName} len=${text.length}`);
@@ -184,6 +186,12 @@ export async function handleToolExecutionEnd(
   const result = evt.result;
   const isToolError = isError || isToolResultError(result);
   const sanitizedResult = sanitizeToolResult(result);
+  const startedAt = ctx.state.toolStartTimes.get(toolCallId);
+  const durationMs =
+    typeof startedAt === "number" ? Math.max(0, Date.now() - startedAt) : undefined;
+  const toolParams = ctx.state.toolParamsById.get(toolCallId) ?? {};
+  ctx.state.toolStartTimes.delete(toolCallId);
+  ctx.state.toolParamsById.delete(toolCallId);
   const meta = ctx.state.toolMetaById.get(toolCallId);
   ctx.state.toolMetas.push({ toolName, meta });
   ctx.state.toolMetaById.delete(toolCallId);
@@ -239,6 +247,34 @@ export async function handleToolExecutionEnd(
       isError: isToolError,
     },
   });
+
+  const hookRunner = getGlobalHookRunner();
+  if (hookRunner?.hasHooks("after_tool_call")) {
+    const errorString = isToolError ? extractToolErrorMessage(sanitizedResult) : undefined;
+    void hookRunner
+      .runAfterToolCall(
+        {
+          toolName,
+          params: toolParams,
+          result: sanitizedResult,
+          error: errorString,
+          durationMs,
+        },
+        {
+          toolName,
+          agentId: ctx.params.agentId,
+          sessionKey: ctx.params.sessionKey,
+          workspaceDir: ctx.params.workspaceDir,
+          agentWorkspaceDir: ctx.params.agentWorkspaceDir,
+          messageProvider: ctx.params.messageProvider,
+          peerId: ctx.params.peerId,
+          senderE164: ctx.params.senderE164,
+        },
+      )
+      .catch((err) => {
+        ctx.log.warn(`after_tool_call hook failed: tool=${toolName} error=${String(err)}`);
+      });
+  }
 
   ctx.log.debug(
     `embedded run tool end: runId=${ctx.params.runId} tool=${toolName} toolCallId=${toolCallId}`,

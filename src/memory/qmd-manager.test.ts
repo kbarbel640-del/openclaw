@@ -597,6 +597,59 @@ describe("QmdMemoryManager", () => {
     await manager.close();
   });
 
+  it("filters qmd search results by pathFilter when provided", async () => {
+    spawnMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args[0] === "query") {
+        const child = createMockChild({ autoClose: false });
+        setTimeout(() => {
+          child.stdout.emit(
+            "data",
+            JSON.stringify([
+              { docid: "keep", score: 0.9, snippet: "@@ -1,1\nshared note" },
+              { docid: "drop", score: 0.8, snippet: "@@ -2,1\nprivate note" },
+            ]),
+          );
+          child.closeWith(0);
+        }, 0);
+        return child;
+      }
+      return createMockChild();
+    });
+
+    const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+    const manager = await QmdMemoryManager.create({ cfg, agentId, resolved });
+    expect(manager).toBeTruthy();
+    if (!manager) {
+      throw new Error("manager missing");
+    }
+
+    const inner = manager as unknown as {
+      resolveDocLocation: (docid?: string) => Promise<{
+        rel: string;
+        abs: string;
+        source: "memory" | "sessions";
+      } | null>;
+    };
+    inner.resolveDocLocation = async (docid?: string) => {
+      if (docid === "keep") {
+        return { rel: "memory/shared/notes.md", abs: "/tmp/notes.md", source: "memory" };
+      }
+      if (docid === "drop") {
+        return { rel: "memory/private/secret.md", abs: "/tmp/secret.md", source: "memory" };
+      }
+      return null;
+    };
+
+    const results = await manager.search("notes", {
+      sessionKey: "agent:main:slack:dm:u123",
+      pathFilter: ["memory/shared/*"],
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.path).toBe("memory/shared/notes.md");
+    await manager.close();
+  });
+
   it("logs and continues when qmd embed times out", async () => {
     vi.useFakeTimers();
     cfg = {

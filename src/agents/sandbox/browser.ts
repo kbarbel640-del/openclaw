@@ -104,12 +104,25 @@ export async function ensureSandboxBrowser(params: {
   const state = await dockerContainerState(containerName);
   if (!state.exists) {
     await ensureSandboxBrowserImage(params.cfg.browser.image ?? DEFAULT_SANDBOX_BROWSER_IMAGE);
+    // Apply workspace mounts first, then user-configured binds (consistent with
+    // buildSandboxContainerCreateArgs) so nested binds can mask workspace subpaths.
+    const cfgWithoutBinds = params.cfg.docker.binds?.length
+      ? { ...params.cfg.docker, binds: undefined }
+      : params.cfg.docker;
     const args = buildSandboxCreateArgs({
       name: containerName,
-      cfg: { ...params.cfg.docker, network: "bridge" },
+      cfg: { ...cfgWithoutBinds, network: "bridge" },
       scopeKey: params.scopeKey,
       labels: { "openclaw.sandboxBrowser": "1" },
     });
+    if (params.cfg.browser.network) {
+      const networkIndex = args.indexOf("--network");
+      if (networkIndex !== -1 && networkIndex + 1 < args.length) {
+        args[networkIndex + 1] = params.cfg.browser.network;
+      } else {
+        args.push("--network", params.cfg.browser.network);
+      }
+    }
     const mainMountSuffix =
       params.cfg.workspaceAccess === "ro" && params.workspaceDir === params.agentWorkspaceDir
         ? ":ro"
@@ -121,6 +134,12 @@ export async function ensureSandboxBrowser(params: {
         "-v",
         `${params.agentWorkspaceDir}:${SANDBOX_AGENT_WORKSPACE_MOUNT}${agentMountSuffix}`,
       );
+    }
+    // Add user-configured binds AFTER workspace mounts
+    if (params.cfg.docker.binds?.length) {
+      for (const bind of params.cfg.docker.binds) {
+        args.push("-v", bind);
+      }
     }
     args.push("-p", `127.0.0.1::${params.cfg.browser.cdpPort}`);
     if (params.cfg.browser.enableNoVnc && !params.cfg.browser.headless) {

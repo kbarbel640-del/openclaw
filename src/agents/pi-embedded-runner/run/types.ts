@@ -9,6 +9,7 @@ import type { ExecElevatedDefaults, ExecToolDefaults } from "../../bash-tools.js
 import type { MessagingToolSend } from "../../pi-embedded-messaging.js";
 import type { BlockReplyChunking, ToolResultFormat } from "../../pi-embedded-subscribe.js";
 import type { AuthStorage, ModelRegistry } from "../../pi-model-discovery.js";
+import type { SandboxToolPolicy } from "../../sandbox.js";
 import type { SkillSnapshot } from "../../skills.js";
 import type { NormalizedUsage } from "../../usage.js";
 import type { ClientToolDefinition } from "./params.js";
@@ -36,6 +37,8 @@ export type EmbeddedRunAttemptParams = {
   senderE164?: string | null;
   /** Whether the sender is an owner (required for owner-only tools). */
   senderIsOwner?: boolean;
+  toolPolicyOverride?: SandboxToolPolicy;
+  allowedSkills?: string[];
   currentChannelId?: string;
   currentThreadTs?: string;
   replyToMode?: "off" | "first" | "all";

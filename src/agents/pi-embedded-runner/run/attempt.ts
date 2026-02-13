@@ -44,6 +44,7 @@ import {
 } from "../../pi-settings.js";
 import { toClientToolDefinitions } from "../../pi-tool-definition-adapter.js";
 import { createOpenClawCodingTools } from "../../pi-tools.js";
+import { filterToolsByPolicy } from "../../pi-tools.policy.js";
 import { resolveSandboxContext } from "../../sandbox.js";
 import { resolveSandboxRuntimeStatus } from "../../sandbox/runtime-status.js";
 import { repairSessionFileIfNeeded } from "../../session-file-repair.js";
@@ -168,25 +169,30 @@ export async function runEmbeddedAttempt(
   let restoreSkillEnv: (() => void) | undefined;
   process.chdir(effectiveWorkspace);
   try {
-    const shouldLoadSkillEntries = !params.skillsSnapshot || !params.skillsSnapshot.resolvedSkills;
+    const shouldLoadSkillEntries =
+      !params.skillsSnapshot ||
+      !params.skillsSnapshot.resolvedSkills ||
+      params.allowedSkills !== undefined;
     const skillEntries = shouldLoadSkillEntries
       ? loadWorkspaceSkillEntries(effectiveWorkspace)
       : [];
-    restoreSkillEnv = params.skillsSnapshot
-      ? applySkillEnvOverridesFromSnapshot({
-          snapshot: params.skillsSnapshot,
-          config: params.config,
-        })
-      : applySkillEnvOverrides({
-          skills: skillEntries ?? [],
-          config: params.config,
-        });
+    restoreSkillEnv =
+      params.skillsSnapshot && params.allowedSkills === undefined
+        ? applySkillEnvOverridesFromSnapshot({
+            snapshot: params.skillsSnapshot,
+            config: params.config,
+          })
+        : applySkillEnvOverrides({
+            skills: skillEntries ?? [],
+            config: params.config,
+          });
 
     const skillsPrompt = resolveSkillsPromptForRun({
       skillsSnapshot: params.skillsSnapshot,
       entries: shouldLoadSkillEntries ? skillEntries : undefined,
       config: params.config,
       workspaceDir: effectiveWorkspace,
+      allowedSkills: params.allowedSkills,
     });
 
     const sessionLabel = params.sessionKey ?? params.sessionId;
@@ -232,6 +238,7 @@ export async function runEmbeddedAttempt(
           sessionKey: params.sessionKey ?? params.sessionId,
           agentDir,
           workspaceDir: effectiveWorkspace,
+          agentWorkspaceDir: resolvedWorkspace,
           config: params.config,
           abortSignal: runAbortController.signal,
           modelProvider: params.model.provider,
@@ -246,7 +253,8 @@ export async function runEmbeddedAttempt(
             params.requireExplicitMessageTarget ?? isSubagentSessionKey(params.sessionKey),
           disableMessageTool: params.disableMessageTool,
         });
-    const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
+    const toolsWithPolicy = filterToolsByPolicy(toolsRaw, params.toolPolicyOverride);
+    const tools = sanitizeToolsForGoogle({ tools: toolsWithPolicy, provider: params.provider });
     logToolSchemasForGoogle({ tools, provider: params.provider });
 
     const machineName = await getMachineDisplayName();
@@ -637,6 +645,13 @@ export async function runEmbeddedAttempt(
         session: activeSession,
         runId: params.runId,
         hookRunner: getGlobalHookRunner() ?? undefined,
+        agentId: params.agentId,
+        sessionKey: params.sessionKey,
+        workspaceDir: effectiveWorkspace,
+        agentWorkspaceDir: resolvedWorkspace,
+        messageProvider: params.messageChannel ?? params.messageProvider ?? undefined,
+        peerId: params.senderId ?? undefined,
+        senderE164: params.senderE164 ?? undefined,
         verboseLevel: params.verboseLevel,
         reasoningMode: params.reasoningLevel ?? "off",
         toolResultFormat: params.toolResultFormat,
@@ -747,6 +762,8 @@ export async function runEmbeddedAttempt(
                 sessionKey: params.sessionKey,
                 workspaceDir: params.workspaceDir,
                 messageProvider: params.messageProvider ?? undefined,
+                peerId: params.senderId ?? undefined,
+                senderE164: params.senderE164 ?? undefined,
               },
             );
             if (hookResult?.prependContext) {

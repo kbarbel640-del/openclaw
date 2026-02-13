@@ -6,6 +6,7 @@ import type { enqueueCommand } from "../../../process/command-queue.js";
 import type { InputProvenance } from "../../../sessions/input-provenance.js";
 import type { ExecElevatedDefaults, ExecToolDefaults } from "../../bash-tools.js";
 import type { BlockReplyChunking, ToolResultFormat } from "../../pi-embedded-subscribe.js";
+import type { SandboxToolPolicy } from "../../sandbox.js";
 import type { SkillSnapshot } from "../../skills.js";
 
 // Simplified tool definition for client-provided tools (OpenResponses hosted tools)
@@ -43,6 +44,10 @@ export type RunEmbeddedPiAgentParams = {
   senderE164?: string | null;
   /** Whether the sender is an owner (required for owner-only tools). */
   senderIsOwner?: boolean;
+  /** Per-run tool policy override returned by before_agent_prepare hook. */
+  toolPolicyOverride?: SandboxToolPolicy;
+  /** Optional allowlist of skill directory names for this run. */
+  allowedSkills?: string[];
   /** Current channel ID for auto-threading (Slack). */
   currentChannelId?: string;
   /** Current thread timestamp for auto-threading (Slack). */

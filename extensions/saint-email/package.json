@@ -1,0 +1,36 @@
+{
+  "name": "@openclaw/saint-email",
+  "version": "2026.2.9",
+  "description": "OpenClaw Saint email channel plugin",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "email",
+      "label": "Email",
+      "selectionLabel": "Email (Gmail API)",
+      "docsPath": "/channels/email",
+      "docsLabel": "email",
+      "blurb": "Inbound/outbound Gmail with threading.",
+      "aliases": [
+        "saint-email",
+        "gmail"
+      ],
+      "order": 66,
+      "quickstartAllowFrom": true
+    },
+    "install": {
+      "npmSpec": "@openclaw/saint-email",
+      "localPath": "extensions/saint-email",
+      "defaultChoice": "npm"
+    }
+  }
+}

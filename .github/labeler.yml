@@ -9,6 +9,11 @@
           - "src/discord/**"
           - "extensions/discord/**"
           - "docs/channels/discord.md"
+"channel: email":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/saint-email/**"
+          - "docs/channels/email.md"
 "channel: irc":
   - changed-files:
       - any-glob-to-any-file:
@@ -228,6 +233,14 @@
   - changed-files:
       - any-glob-to-any-file:
           - "extensions/memory-lancedb/**"
+"extensions: saint-email":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/saint-email/**"
+"extensions: saint-orchestrator":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "extensions/saint-orchestrator/**"
 "extensions: open-prose":
   - changed-files:
       - any-glob-to-any-file:

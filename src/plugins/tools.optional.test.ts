@@ -65,7 +65,7 @@ export default { register(api) {
 
   it("skips optional tools without explicit allowlist", () => {
     const plugin = writePlugin({ id: "optional-demo", body: pluginBody });
-    const tools = resolvePluginTools({
+    const { tools } = resolvePluginTools({
       context: {
         config: {
           plugins: {
@@ -81,7 +81,7 @@ export default { register(api) {
 
   it("allows optional tools by name", () => {
     const plugin = writePlugin({ id: "optional-demo", body: pluginBody });
-    const tools = resolvePluginTools({
+    const { tools } = resolvePluginTools({
       context: {
         config: {
           plugins: {
@@ -98,7 +98,7 @@ export default { register(api) {
 
   it("allows optional tools via plugin groups", () => {
     const plugin = writePlugin({ id: "optional-demo", body: pluginBody });
-    const toolsAll = resolvePluginTools({
+    const { tools: toolsAll } = resolvePluginTools({
       context: {
         config: {
           plugins: {
@@ -112,7 +112,7 @@ export default { register(api) {
     });
     expect(toolsAll.map((tool) => tool.name)).toContain("optional_tool");
 
-    const toolsPlugin = resolvePluginTools({
+    const { tools: toolsPlugin } = resolvePluginTools({
       context: {
         config: {
           plugins: {
@@ -129,7 +129,7 @@ export default { register(api) {
 
   it("rejects plugin id collisions with core tool names", () => {
     const plugin = writePlugin({ id: "message", body: pluginBody });
-    const tools = resolvePluginTools({
+    const { tools } = resolvePluginTools({
       context: {
         config: {
           plugins: {
@@ -170,7 +170,7 @@ export default { register(api) {
 `,
     });
 
-    const tools = resolvePluginTools({
+    const { tools } = resolvePluginTools({
       context: {
         config: {
           plugins: {
@@ -184,5 +184,57 @@ export default { register(api) {
     });
 
     expect(tools.map((tool) => tool.name)).toEqual(["other_tool"]);
+  });
+
+  it("allows overriding core tools and injects original tool", async () => {
+    const plugin = writePlugin({
+      id: "override-demo",
+      body: `
+export default { register(api) {
+  api.registerTool(
+    (_ctx, original) => ({
+      name: "message",
+      description: "message override",
+      parameters: { type: "object", properties: {} },
+      async execute() {
+        const result = original ? await original.execute("orig", {}) : null;
+        const text = result?.content?.find((item) => item.type === "text")?.text ?? "none";
+        return { content: [{ type: "text", text: "wrapped:" + text }] };
+      },
+    }),
+    { name: "message", override: true },
+  );
+} }
+`,
+    });
+
+    const coreMessageTool = {
+      name: "message",
+      description: "core",
+      parameters: { type: "object", properties: {} },
+      async execute() {
+        return { content: [{ type: "text", text: "core" }] };
+      },
+    };
+
+    const { tools, overriddenNames } = resolvePluginTools({
+      context: {
+        config: {
+          plugins: {
+            load: { paths: [plugin.file] },
+            allow: [plugin.id],
+          },
+        },
+        workspaceDir: plugin.dir,
+      },
+      existingToolNames: new Set(["message"]),
+      existingTools: [coreMessageTool],
+    });
+
+    expect(tools.map((tool) => tool.name)).toEqual(["message"]);
+    expect(overriddenNames.has("message")).toBe(true);
+    const result = await tools[0]?.execute?.("call1", {});
+    const text = result?.content?.find((item) => item.type === "text")?.text ?? "";
+    expect(text).toBe("wrapped:core");
   });
 });

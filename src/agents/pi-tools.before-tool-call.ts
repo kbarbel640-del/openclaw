@@ -7,6 +7,11 @@ import { normalizeToolName } from "./tool-policy.js";
 type HookContext = {
   agentId?: string;
   sessionKey?: string;
+  workspaceDir?: string;
+  agentWorkspaceDir?: string;
+  messageProvider?: string;
+  peerId?: string;
+  senderE164?: string;
 };
 
 type HookOutcome = { blocked: true; reason: string } | { blocked: false; params: unknown };
@@ -38,6 +43,11 @@ export async function runBeforeToolCallHook(args: {
         toolName,
         agentId: args.ctx?.agentId,
         sessionKey: args.ctx?.sessionKey,
+        workspaceDir: args.ctx?.workspaceDir,
+        agentWorkspaceDir: args.ctx?.agentWorkspaceDir,
+        messageProvider: args.ctx?.messageProvider,
+        peerId: args.ctx?.peerId,
+        senderE164: args.ctx?.senderE164,
       },
     );
 

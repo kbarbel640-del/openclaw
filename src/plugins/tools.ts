@@ -44,15 +44,17 @@ function isOptionalToolAllowed(params: {
 export function resolvePluginTools(params: {
   context: OpenClawPluginToolContext;
   existingToolNames?: Set<string>;
+  existingTools?: AnyAgentTool[];
   toolAllowlist?: string[];
-}): AnyAgentTool[] {
+}): { tools: AnyAgentTool[]; overriddenNames: ReadonlySet<string> } {
   // Fast path: when plugins are effectively disabled, avoid discovery/jiti entirely.
   // This matters a lot for unit tests and for tool construction hot paths.
   const effectiveConfig = applyTestPluginDefaults(params.context.config ?? {}, process.env);
   const normalized = normalizePluginsConfig(effectiveConfig.plugins);
   if (!normalized.enabled) {
-    return [];
+    return { tools: [], overriddenNames: new Set() };
   }
+  const overriddenToolNames = new Set<string>();
 
   const registry = loadOpenClawPlugins({
     config: effectiveConfig,
@@ -67,6 +69,12 @@ export function resolvePluginTools(params: {
 
   const tools: AnyAgentTool[] = [];
   const existing = params.existingToolNames ?? new Set<string>();
+  const existingToolsByName = new Map<string, AnyAgentTool>();
+  for (const tool of params.existingTools ?? []) {
+    if (tool?.name && !existingToolsByName.has(tool.name)) {
+      existingToolsByName.set(tool.name, tool);
+    }
+  }
   const existingNormalized = new Set(Array.from(existing, (tool) => normalizeToolName(tool)));
   const allowlist = normalizeAllowlist(params.toolAllowlist);
   const blockedPlugins = new Set<string>();
@@ -90,7 +98,11 @@ export function resolvePluginTools(params: {
     }
     let resolved: AnyAgentTool | AnyAgentTool[] | null | undefined = null;
     try {
-      resolved = entry.factory(params.context);
+      const hintedOriginal =
+        entry.override && entry.names.length === 1
+          ? (existingToolsByName.get(entry.names[0] ?? "") ?? null)
+          : undefined;
+      resolved = entry.factory(params.context, hintedOriginal);
     } catch (err) {
       log.error(`plugin tool failed (${entry.pluginId}): ${String(err)}`);
       continue;
@@ -113,7 +125,7 @@ export function resolvePluginTools(params: {
     }
     const nameSet = new Set<string>();
     for (const tool of list) {
-      if (nameSet.has(tool.name) || existing.has(tool.name)) {
+      if (nameSet.has(tool.name)) {
         const message = `plugin tool name conflict (${entry.pluginId}): ${tool.name}`;
         log.error(message);
         registry.diagnostics.push({
@@ -124,8 +136,26 @@ export function resolvePluginTools(params: {
         });
         continue;
       }
+      if (existing.has(tool.name)) {
+        if (entry.override) {
+          overriddenToolNames.add(tool.name);
+          existing.delete(tool.name);
+          existingNormalized.delete(normalizeToolName(tool.name));
+        } else {
+          const message = `plugin tool name conflict (${entry.pluginId}): ${tool.name}`;
+          log.error(message);
+          registry.diagnostics.push({
+            level: "error",
+            pluginId: entry.pluginId,
+            source: entry.source,
+            message,
+          });
+          continue;
+        }
+      }
       nameSet.add(tool.name);
       existing.add(tool.name);
+      existingToolsByName.set(tool.name, tool);
       pluginToolMeta.set(tool, {
         pluginId: entry.pluginId,
         optional: entry.optional,
@@ -134,5 +164,5 @@ export function resolvePluginTools(params: {
     }
   }
 
-  return tools;
+  return { tools, overriddenNames: overriddenToolNames };
 }

@@ -47,6 +47,8 @@ export type SandboxDockerSettings = {
 export type SandboxBrowserSettings = {
   enabled?: boolean;
   image?: string;
+  /** Browser container network mode (defaults to sandbox docker.network). */
+  network?: string;
   containerPrefix?: string;
   cdpPort?: number;
   vncPort?: number;

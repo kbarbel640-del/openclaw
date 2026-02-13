@@ -133,6 +133,49 @@ describe("createOpenClawCodingTools", () => {
     expect(tools.some((tool) => tool.name === "write")).toBe(false);
     expect(tools.some((tool) => tool.name === "edit")).toBe(false);
   });
+  it("reads from agent workspace when sandbox workspaceAccess is ro", async () => {
+    const sandboxWorkspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sbx-ro-"));
+    const agentWorkspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-agent-ro-"));
+    const filePath = path.join(agentWorkspaceDir, "real.txt");
+    await fs.writeFile(filePath, "from-agent-workspace", "utf-8");
+    const sandbox = {
+      enabled: true,
+      sessionKey: "sandbox:test",
+      workspaceDir: sandboxWorkspaceDir,
+      agentWorkspaceDir,
+      workspaceAccess: "ro",
+      containerName: "openclaw-sbx-test",
+      containerWorkdir: "/workspace",
+      docker: {
+        image: "openclaw-sandbox:bookworm-slim",
+        containerPrefix: "openclaw-sbx-",
+        workdir: "/workspace",
+        readOnlyRoot: true,
+        tmpfs: [],
+        network: "none",
+        user: "1000:1000",
+        capDrop: ["ALL"],
+        env: { LANG: "C.UTF-8" },
+      },
+      tools: {
+        allow: ["read"],
+        deny: [],
+      },
+      browserAllowHostControl: false,
+    };
+    const tools = createOpenClawCodingTools({
+      sandbox,
+      workspaceDir: sandboxWorkspaceDir,
+      agentWorkspaceDir,
+    });
+    const readTool = tools.find((tool) => tool.name === "read");
+    expect(readTool).toBeDefined();
+    const result = await readTool!.execute("tool-read", { path: filePath });
+    const text = result?.content?.find((block) => block.type === "text") as
+      | { text?: string }
+      | undefined;
+    expect(text?.text ?? "").toContain("from-agent-workspace");
+  });
   it("filters tools by agent tool policy even without sandbox", () => {
     const tools = createOpenClawCodingTools({
       config: { tools: { deny: ["browser"] } },

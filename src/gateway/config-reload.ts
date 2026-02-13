@@ -76,6 +76,7 @@ const BASE_RELOAD_RULES_TAIL: ReloadRule[] = [
   { prefix: "agent", kind: "none" },
   { prefix: "routing", kind: "none" },
   { prefix: "messages", kind: "none" },
+  { prefix: "session.identityLinks", kind: "restart" },
   { prefix: "session", kind: "none" },
   { prefix: "talk", kind: "none" },
   { prefix: "skills", kind: "none" },

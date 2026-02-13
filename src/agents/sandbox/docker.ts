@@ -1,6 +1,10 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { SandboxConfig, SandboxDockerConfig, SandboxWorkspaceAccess } from "./types.js";
 import { formatCliCommand } from "../../cli/command-format.js";
+import { STATE_DIR } from "../../config/config.js";
 import { defaultRuntime } from "../../runtime.js";
 import { computeSandboxConfigHash } from "./config-hash.js";
 import { DEFAULT_SANDBOX_IMAGE, SANDBOX_AGENT_WORKSPACE_MOUNT } from "./constants.js";
@@ -8,6 +12,87 @@ import { readRegistry, updateRegistry } from "./registry.js";
 import { resolveSandboxAgentId, resolveSandboxScopeKey, slugifySessionKey } from "./shared.js";
 
 const HOT_CONTAINER_WINDOW_MS = 5 * 60 * 1000;
+const CLIPORT_TOKEN_ENV_KEY = "CLIPORT_TOKEN";
+const CLIPORT_SESSION_KEY_ENV_KEY = "CLIPORT_SESSION_KEY";
+const CLIPORT_CONTAINER_NAME_ENV_KEY = "CLIPORT_CONTAINER_NAME";
+const CLIPORT_TOKENS_PATH = path.join(STATE_DIR, "cliport", "tokens.json");
+
+function isCliportEnabled(cfg: SandboxDockerConfig): boolean {
+  return (cfg.binds ?? []).some((bind) => bind.includes("cliport.sock"));
+}
+
+function generateCliportToken(): string {
+  return randomBytes(24).toString("hex");
+}
+
+type CliportTokenEntry = {
+  token: string;
+  sessionKey?: string;
+  containerName?: string;
+};
+
+function parseCliportTokenEntry(value: unknown): CliportTokenEntry | null {
+  if (typeof value === "string") {
+    const token = value.trim();
+    return token ? { token } : null;
+  }
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const token = typeof record.token === "string" ? record.token.trim() : "";
+  if (!token) {
+    return null;
+  }
+  const sessionKey = typeof record.sessionKey === "string" ? record.sessionKey.trim() : "";
+  const containerName = typeof record.containerName === "string" ? record.containerName.trim() : "";
+  return {
+    token,
+    sessionKey: sessionKey || undefined,
+    containerName: containerName || undefined,
+  };
+}
+
+async function ensureCliportTokenAllowed(
+  token: string,
+  binding?: { sessionKey?: string; containerName?: string },
+): Promise<void> {
+  const trimmed = token.trim();
+  if (!trimmed) {
+    return;
+  }
+  const raw = await fs.readFile(CLIPORT_TOKENS_PATH, "utf-8").catch(() => "");
+  let parsed: { tokens?: unknown } | null = null;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw) as { tokens?: unknown };
+    } catch {
+      parsed = null;
+    }
+  }
+  const existing = Array.isArray(parsed?.tokens)
+    ? parsed.tokens
+        .map((entry) => parseCliportTokenEntry(entry))
+        .filter((entry): entry is CliportTokenEntry => Boolean(entry))
+    : [];
+  const nextByToken = new Map<string, CliportTokenEntry>();
+  for (const entry of existing) {
+    nextByToken.set(entry.token, entry);
+  }
+  const current = nextByToken.get(trimmed);
+  nextByToken.set(trimmed, {
+    token: trimmed,
+    sessionKey: binding?.sessionKey?.trim() || current?.sessionKey,
+    containerName: binding?.containerName?.trim() || current?.containerName,
+  });
+  const next = Array.from(nextByToken.values());
+  await fs.mkdir(path.dirname(CLIPORT_TOKENS_PATH), { recursive: true });
+  await fs.writeFile(
+    CLIPORT_TOKENS_PATH,
+    `${JSON.stringify({ tokens: next }, null, 2)}\n`,
+    "utf-8",
+  );
+}
 
 export function execDocker(args: string[], opts?: { allowFailure?: boolean }) {
   return new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
@@ -129,6 +214,7 @@ export function buildSandboxCreateArgs(params: {
   createdAtMs?: number;
   labels?: Record<string, string>;
   configHash?: string;
+  extraEnv?: Record<string, string>;
 }) {
   const createdAtMs = params.createdAtMs ?? Date.now();
   const args = ["create", "--name", params.name];
@@ -155,11 +241,14 @@ export function buildSandboxCreateArgs(params: {
   if (params.cfg.user) {
     args.push("--user", params.cfg.user);
   }
-  for (const [key, value] of Object.entries(params.cfg.env ?? {})) {
-    if (!key.trim()) {
+  const containerEnv = { ...(params.cfg.env ?? {}), ...(params.extraEnv ?? {}) };
+  for (const [name, value] of Object.entries(containerEnv).toSorted(([a], [b]) =>
+    a.localeCompare(b),
+  )) {
+    if (!name.trim()) {
       continue;
     }
-    args.push("--env", key + "=" + value);
+    args.push("-e", `${name}=${value}`);
   }
   for (const cap of params.cfg.capDrop) {
     args.push("--cap-drop", cap);
@@ -219,15 +308,40 @@ async function createSandboxContainer(params: {
   agentWorkspaceDir: string;
   scopeKey: string;
   configHash?: string;
+  extraEnv?: Record<string, string>;
 }) {
-  const { name, cfg, workspaceDir, scopeKey } = params;
+  const { cfg } = params;
   await ensureDockerImage(cfg.image);
 
+  const args = buildSandboxContainerCreateArgs(params);
+  await execDocker(args);
+  await execDocker(["start", params.name]);
+
+  if (cfg.setupCommand?.trim()) {
+    await execDocker(["exec", "-i", params.name, "sh", "-lc", cfg.setupCommand]);
+  }
+}
+
+export function buildSandboxContainerCreateArgs(params: {
+  name: string;
+  cfg: SandboxDockerConfig;
+  workspaceDir: string;
+  workspaceAccess: SandboxWorkspaceAccess;
+  agentWorkspaceDir: string;
+  scopeKey: string;
+  configHash?: string;
+  extraEnv?: Record<string, string>;
+}) {
+  const { name, cfg, workspaceDir, scopeKey } = params;
+  // Apply workspace mounts first, then user-configured binds so nested binds can
+  // intentionally mask workspace subpaths (e.g., /agent/config).
+  const cfgWithoutBinds = cfg.binds?.length ? { ...cfg, binds: undefined } : cfg;
   const args = buildSandboxCreateArgs({
     name,
-    cfg,
+    cfg: cfgWithoutBinds,
     scopeKey,
     configHash: params.configHash,
+    extraEnv: params.extraEnv,
   });
   args.push("--workdir", cfg.workdir);
   const mainMountSuffix =
@@ -240,14 +354,13 @@ async function createSandboxContainer(params: {
       `${params.agentWorkspaceDir}:${SANDBOX_AGENT_WORKSPACE_MOUNT}${agentMountSuffix}`,
     );
   }
-  args.push(cfg.image, "sleep", "infinity");
-
-  await execDocker(args);
-  await execDocker(["start", name]);
-
-  if (cfg.setupCommand?.trim()) {
-    await execDocker(["exec", "-i", name, "sh", "-lc", cfg.setupCommand]);
+  if (cfg.binds?.length) {
+    for (const bind of cfg.binds) {
+      args.push("-v", bind);
+    }
   }
+  args.push(cfg.image, "sleep", "infinity");
+  return args;
 }
 
 async function readContainerConfigHash(containerName: string): Promise<string | null> {
@@ -284,7 +397,7 @@ export async function ensureSandboxContainer(params: {
   workspaceDir: string;
   agentWorkspaceDir: string;
   cfg: SandboxConfig;
-}) {
+}): Promise<{ containerName: string; cliportToken?: string }> {
   const scopeKey = resolveSandboxScopeKey(params.cfg.scope, params.sessionKey);
   const slug = params.cfg.scope === "shared" ? "shared" : slugifySessionKey(scopeKey);
   const name = `${params.cfg.docker.containerPrefix}${slug}`;
@@ -301,15 +414,22 @@ export async function ensureSandboxContainer(params: {
   let running = state.running;
   let currentHash: string | null = null;
   let hashMismatch = false;
+  const cliportEnabled = isCliportEnabled(params.cfg.docker);
+  let cliportToken: string | undefined;
   let registryEntry:
     | {
         lastUsedAtMs: number;
         configHash?: string;
+        cliportToken?: string;
       }
     | undefined;
   if (hasContainer) {
     const registry = await readRegistry();
     registryEntry = registry.entries.find((entry) => entry.containerName === containerName);
+    const existingCliportToken = registryEntry?.cliportToken?.trim();
+    if (cliportEnabled && existingCliportToken) {
+      cliportToken = existingCliportToken;
+    }
     currentHash = await readContainerConfigHash(containerName);
     if (!currentHash) {
       currentHash = registryEntry?.configHash ?? null;
@@ -332,6 +452,15 @@ export async function ensureSandboxContainer(params: {
       }
     }
   }
+  if (cliportEnabled && !cliportToken) {
+    cliportToken = generateCliportToken();
+  }
+  if (cliportToken) {
+    await ensureCliportTokenAllowed(cliportToken, {
+      sessionKey: scopeKey,
+      containerName,
+    });
+  }
   if (!hasContainer) {
     await createSandboxContainer({
       name: containerName,
@@ -341,6 +470,13 @@ export async function ensureSandboxContainer(params: {
       agentWorkspaceDir: params.agentWorkspaceDir,
       scopeKey,
       configHash: expectedHash,
+      extraEnv: cliportToken
+        ? {
+            [CLIPORT_TOKEN_ENV_KEY]: cliportToken,
+            [CLIPORT_SESSION_KEY_ENV_KEY]: scopeKey,
+            [CLIPORT_CONTAINER_NAME_ENV_KEY]: containerName,
+          }
+        : undefined,
     });
   } else if (!running) {
     await execDocker(["start", containerName]);
@@ -352,6 +488,7 @@ export async function ensureSandboxContainer(params: {
     lastUsedAtMs: now,
     image: params.cfg.docker.image,
     configHash: hashMismatch && running ? (currentHash ?? undefined) : expectedHash,
+    cliportToken,
   });
-  return containerName;
+  return { containerName, cliportToken };
 }

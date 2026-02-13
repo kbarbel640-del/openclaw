@@ -54,12 +54,12 @@ function filterSkillEntries(
   if (skillFilter !== undefined) {
     const normalized = skillFilter.map((entry) => String(entry).trim()).filter(Boolean);
     const label = normalized.length > 0 ? normalized.join(", ") : "(none)";
-    console.log(`[skills] Applying skill filter: ${label}`);
+    skillsLogger.debug(`Applying skill filter: ${label}`);
     filtered =
       normalized.length > 0
         ? filtered.filter((entry) => normalized.includes(entry.skill.name))
         : [];
-    console.log(`[skills] After filter: ${filtered.map((entry) => entry.skill.name).join(", ")}`);
+    skillsLogger.debug(`After filter: ${filtered.map((entry) => entry.skill.name).join(", ")}`);
   }
   return filtered;
 }
@@ -276,8 +276,22 @@ export function resolveSkillsPromptForRun(params: {
   entries?: SkillEntry[];
   config?: OpenClawConfig;
   workspaceDir: string;
+  allowedSkills?: string[];
 }): string {
   const snapshotPrompt = params.skillsSnapshot?.prompt?.trim();
+  // When allowedSkills is defined (including empty []), always filter rather than
+  // falling back to the snapshot prompt, to prevent leaking skills past hook restrictions.
+  if (params.allowedSkills !== undefined) {
+    if (params.entries && params.entries.length > 0) {
+      const prompt = buildWorkspaceSkillsPrompt(params.workspaceDir, {
+        entries: params.entries,
+        config: params.config,
+        skillFilter: params.allowedSkills,
+      });
+      return prompt.trim() ? prompt : "";
+    }
+    return ""; // No entries to filter — return empty, not snapshot
+  }
   if (snapshotPrompt) {
     return snapshotPrompt;
   }
@@ -288,7 +302,7 @@ export function resolveSkillsPromptForRun(params: {
     });
     return prompt.trim() ? prompt : "";
   }
-  return "";
+  return snapshotPrompt ?? "";
 }
 
 export function loadWorkspaceSkillEntries(

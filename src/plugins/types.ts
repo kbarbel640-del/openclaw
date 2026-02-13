@@ -57,6 +57,11 @@ export type OpenClawPluginConfigSchema = {
 export type OpenClawPluginToolContext = {
   config?: OpenClawConfig;
   workspaceDir?: string;
+  /**
+   * Real workspace path on host. In sandboxed runs, workspaceDir can point at
+   * the sandbox copy while agentWorkspaceDir points at the real agent workspace.
+   */
+  agentWorkspaceDir?: string;
   agentDir?: string;
   agentId?: string;
   sessionKey?: string;
@@ -67,12 +72,18 @@ export type OpenClawPluginToolContext = {
 
 export type OpenClawPluginToolFactory = (
   ctx: OpenClawPluginToolContext,
+  original?: AnyAgentTool | null,
 ) => AnyAgentTool | AnyAgentTool[] | null | undefined;
 
 export type OpenClawPluginToolOptions = {
   name?: string;
   names?: string[];
   optional?: boolean;
+  /**
+   * Allow overriding an existing core tool with the same name.
+   * When true, the factory receives the original tool implementation.
+   */
+  override?: boolean;
 };
 
 export type OpenClawPluginHookOptions = {
@@ -296,6 +307,7 @@ export type PluginDiagnostic = {
 // ============================================================================
 
 export type PluginHookName =
+  | "before_agent_prepare"
   | "before_agent_start"
   | "agent_end"
   | "before_compaction"
@@ -317,6 +329,41 @@ export type PluginHookAgentContext = {
   sessionKey?: string;
   workspaceDir?: string;
   messageProvider?: string;
+  /**
+   * Canonical peer identifier for the current sender when available.
+   */
+  peerId?: string;
+  /**
+   * E164-formatted sender phone number when available.
+   */
+  senderE164?: string;
+};
+
+// before_agent_prepare hook
+export type PluginHookBeforeAgentPrepareEvent = {
+  prompt: string;
+};
+
+export type PluginHookBeforeAgentPrepareResult = {
+  /**
+   * Optional model override for this run.
+   */
+  model?: string;
+  /**
+   * Optional provider override for this run.
+   */
+  provider?: string;
+  /**
+   * Optional per-run tool policy override.
+   */
+  tools?: {
+    allow?: string[];
+    deny?: string[];
+  };
+  /**
+   * Optional list of allowed skill directory names.
+   */
+  skills?: string[];
 };
 
 // before_agent_start hook
@@ -389,7 +436,16 @@ export type PluginHookMessageSentEvent = {
 export type PluginHookToolContext = {
   agentId?: string;
   sessionKey?: string;
+  workspaceDir?: string;
+  /**
+   * Real workspace path on host. In sandboxed runs, workspaceDir can point at
+   * the sandbox copy while agentWorkspaceDir points at the real agent workspace.
+   */
+  agentWorkspaceDir?: string;
   toolName: string;
+  messageProvider?: string;
+  peerId?: string;
+  senderE164?: string;
 };
 
 // before_tool_call hook
@@ -473,6 +529,13 @@ export type PluginHookGatewayStopEvent = {
 
 // Hook handler types mapped by hook name
 export type PluginHookHandlerMap = {
+  before_agent_prepare: (
+    event: PluginHookBeforeAgentPrepareEvent,
+    ctx: PluginHookAgentContext,
+  ) =>
+    | Promise<PluginHookBeforeAgentPrepareResult | void>
+    | PluginHookBeforeAgentPrepareResult
+    | void;
   before_agent_start: (
     event: PluginHookBeforeAgentStartEvent,
     ctx: PluginHookAgentContext,

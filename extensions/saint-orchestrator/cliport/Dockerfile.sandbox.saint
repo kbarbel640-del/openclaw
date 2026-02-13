@@ -1,0 +1,26 @@
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    bash \
+    ca-certificates \
+    curl \
+    git \
+    jq \
+    nodejs \
+    python3 \
+    ripgrep \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY cliport-proxy.js /usr/local/bin/cliport-proxy
+RUN chmod +x /usr/local/bin/cliport-proxy \
+  && ln -sf /usr/local/bin/cliport-proxy /usr/local/bin/gog \
+  && ln -sf /usr/local/bin/cliport-proxy /usr/local/bin/gh
+
+RUN useradd --create-home --shell /bin/bash sandbox
+USER sandbox
+WORKDIR /home/sandbox
+
+CMD ["sleep", "infinity"]

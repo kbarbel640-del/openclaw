@@ -38,6 +38,8 @@ export function createOpenClawTools(options?: {
   agentDir?: string;
   sandboxRoot?: string;
   workspaceDir?: string;
+  agentWorkspaceDir?: string;
+  preExistingTools?: AnyAgentTool[];
   sandboxed?: boolean;
   config?: OpenClawConfig;
   pluginToolAllowlist?: string[];
@@ -57,6 +59,8 @@ export function createOpenClawTools(options?: {
   requireExplicitMessageTarget?: boolean;
   /** If true, omit the message tool from the tool list. */
   disableMessageTool?: boolean;
+  /** Internal: populated with the set of overridden tool names when provided. */
+  _overrideOutput?: { overriddenNames?: ReadonlySet<string> };
 }): AnyAgentTool[] {
   const imageTool = options?.agentDir?.trim()
     ? createImageTool({
@@ -148,10 +152,12 @@ export function createOpenClawTools(options?: {
     ...(imageTool ? [imageTool] : []),
   ];
 
-  const pluginTools = resolvePluginTools({
+  const existingTools = [...tools, ...(options?.preExistingTools ?? [])];
+  const { tools: pluginTools, overriddenNames } = resolvePluginTools({
     context: {
       config: options?.config,
       workspaceDir: options?.workspaceDir,
+      agentWorkspaceDir: options?.agentWorkspaceDir,
       agentDir: options?.agentDir,
       agentId: resolveSessionAgentId({
         sessionKey: options?.agentSessionKey,
@@ -162,9 +168,15 @@ export function createOpenClawTools(options?: {
       agentAccountId: options?.agentAccountId,
       sandboxed: options?.sandboxed,
     },
-    existingToolNames: new Set(tools.map((tool) => tool.name)),
+    existingToolNames: new Set(existingTools.map((tool) => tool.name)),
+    existingTools,
     toolAllowlist: options?.pluginToolAllowlist,
   });
 
-  return [...tools, ...pluginTools];
+  if (options?._overrideOutput) {
+    options._overrideOutput.overriddenNames = overriddenNames;
+  }
+  const filteredBuiltins =
+    overriddenNames.size > 0 ? tools.filter((tool) => !overriddenNames.has(tool.name)) : tools;
+  return [...filteredBuiltins, ...pluginTools];
 }

@@ -22,29 +22,15 @@ afterAll(() => {
   }
 });
 
-vi.mock("../infra/shell-env.js", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("../infra/shell-env.js")>();
-  return {
-    ...mod,
-    getShellPathFromLoginShell: vi.fn(() => "/usr/bin:/bin"),
-    resolveShellEnvFallbackTimeoutMs: vi.fn(() => 500),
-  };
-});
-
 vi.mock("../plugins/tools.js", () => ({
   getPluginToolMeta: () => undefined,
-  resolvePluginTools: () => [],
+  resolvePluginTools: () => ({ tools: [], overriddenNames: new Set<string>() }),
 }));
 
 vi.mock("../infra/shell-env.js", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../infra/shell-env.js")>();
   return { ...mod, getShellPathFromLoginShell: () => null };
 });
-
-vi.mock("../plugins/tools.js", () => ({
-  resolvePluginTools: () => [],
-  getPluginToolMeta: () => undefined,
-}));
 
 vi.mock("../infra/exec-approvals.js", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../infra/exec-approvals.js")>();

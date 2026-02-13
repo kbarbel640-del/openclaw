@@ -58,13 +58,19 @@ function matchesAny(name: string, patterns: CompiledPattern[]): boolean {
 function makeToolPolicyMatcher(policy: SandboxToolPolicy) {
   const deny = compilePatterns(policy.deny);
   const allow = compilePatterns(policy.allow);
+  const hasAllowlist = Array.isArray(policy.allow);
   return (name: string) => {
     const normalized = normalizeToolName(name);
     if (matchesAny(normalized, deny)) {
       return false;
     }
-    if (allow.length === 0) {
+    // Omitted allowlist means allow-all (subject to deny). An explicit empty
+    // allowlist means allow-none.
+    if (!hasAllowlist) {
       return true;
+    }
+    if (allow.length === 0) {
+      return false;
     }
     if (matchesAny(normalized, allow)) {
       return true;

@@ -112,6 +112,12 @@ describe("buildGatewayReloadPlan", () => {
     const plan = buildGatewayReloadPlan(["unknownField"]);
     expect(plan.restartGateway).toBe(true);
   });
+
+  it("restarts gateway when session.identityLinks changes", () => {
+    const plan = buildGatewayReloadPlan(["session.identityLinks.ana"]);
+    expect(plan.restartGateway).toBe(true);
+    expect(plan.restartReasons).toContain("session.identityLinks.ana");
+  });
 });
 
 describe("resolveGatewayReloadSettings", () => {

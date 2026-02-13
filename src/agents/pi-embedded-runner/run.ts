@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
+import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
 import { resolveOpenClawAgentDir } from "../agent-paths.js";
@@ -194,8 +195,39 @@ export async function runEmbeddedPiAgent(
       }
       const prevCwd = process.cwd();
 
-      const provider = (params.provider ?? DEFAULT_PROVIDER).trim() || DEFAULT_PROVIDER;
-      const modelId = (params.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+      const requestedProvider = (params.provider ?? DEFAULT_PROVIDER).trim() || DEFAULT_PROVIDER;
+      const requestedModelId = (params.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+      const hookRunner = getGlobalHookRunner();
+      let prepareHookResult:
+        | {
+            model?: string;
+            provider?: string;
+            tools?: { allow?: string[]; deny?: string[] };
+            skills?: string[];
+          }
+        | undefined;
+      if (hookRunner?.hasHooks("before_agent_prepare")) {
+        try {
+          prepareHookResult = await hookRunner.runBeforeAgentPrepare(
+            {
+              prompt: params.prompt,
+            },
+            {
+              agentId: workspaceResolution.agentId,
+              sessionKey: params.sessionKey,
+              workspaceDir: resolvedWorkspace,
+              messageProvider: params.messageProvider ?? params.messageChannel,
+              peerId: params.senderId ?? undefined,
+              senderE164: params.senderE164 ?? undefined,
+            },
+          );
+        } catch (hookErr) {
+          log.error(`before_agent_prepare hook failed, aborting run: ${String(hookErr)}`);
+          throw hookErr;
+        }
+      }
+      const provider = prepareHookResult?.provider?.trim() || requestedProvider || DEFAULT_PROVIDER;
+      const modelId = prepareHookResult?.model?.trim() || requestedModelId || DEFAULT_MODEL;
       const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
       const fallbackConfigured =
         (params.config?.agents?.defaults?.model?.fallbacks?.length ?? 0) > 0;
@@ -430,7 +462,13 @@ export async function runEmbeddedPiAgent(
             groupChannel: params.groupChannel,
             groupSpace: params.groupSpace,
             spawnedBy: params.spawnedBy,
+            senderId: params.senderId,
+            senderName: params.senderName,
+            senderUsername: params.senderUsername,
+            senderE164: params.senderE164,
             senderIsOwner: params.senderIsOwner,
+            toolPolicyOverride: prepareHookResult?.tools,
+            allowedSkills: prepareHookResult?.skills,
             currentChannelId: params.currentChannelId,
             currentThreadTs: params.currentThreadTs,
             replyToMode: params.replyToMode,

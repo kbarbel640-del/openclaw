@@ -11,6 +11,8 @@ import type {
   PluginHookAfterToolCallEvent,
   PluginHookAgentContext,
   PluginHookAgentEndEvent,
+  PluginHookBeforeAgentPrepareEvent,
+  PluginHookBeforeAgentPrepareResult,
   PluginHookBeforeAgentStartEvent,
   PluginHookBeforeAgentStartResult,
   PluginHookBeforeCompactionEvent,
@@ -38,6 +40,8 @@ import type {
 // Re-export types for consumers
 export type {
   PluginHookAgentContext,
+  PluginHookBeforeAgentPrepareEvent,
+  PluginHookBeforeAgentPrepareResult,
   PluginHookBeforeAgentStartEvent,
   PluginHookBeforeAgentStartResult,
   PluginHookAgentEndEvent,
@@ -171,9 +175,47 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
     return result;
   }
 
+  function mergeUniqueStrings(existing?: string[], incoming?: string[]): string[] | undefined {
+    const hasExisting = Array.isArray(existing);
+    const hasIncoming = Array.isArray(incoming);
+    if (!hasExisting && !hasIncoming) {
+      return undefined;
+    }
+    const merged = [...(existing ?? []), ...(incoming ?? [])].filter(
+      (value, index, all) => all.indexOf(value) === index,
+    );
+    return merged;
+  }
+
   // =========================================================================
   // Agent Hooks
   // =========================================================================
+
+  /**
+   * Run before_agent_prepare hook.
+   * Allows plugins to override model/provider and apply per-run tool/skills policies.
+   * Runs sequentially.
+   */
+  async function runBeforeAgentPrepare(
+    event: PluginHookBeforeAgentPrepareEvent,
+    ctx: PluginHookAgentContext,
+  ): Promise<PluginHookBeforeAgentPrepareResult | undefined> {
+    return runModifyingHook<"before_agent_prepare", PluginHookBeforeAgentPrepareResult>(
+      "before_agent_prepare",
+      event,
+      ctx,
+      (acc, next) => ({
+        model: next.model ?? acc?.model,
+        provider: next.provider ?? acc?.provider,
+        tools: (() => {
+          const allow = mergeUniqueStrings(acc?.tools?.allow, next.tools?.allow);
+          const deny = mergeUniqueStrings(acc?.tools?.deny, next.tools?.deny);
+          return allow !== undefined || deny !== undefined ? { allow, deny } : undefined;
+        })(),
+        skills: mergeUniqueStrings(acc?.skills, next.skills),
+      }),
+    );
+  }
 
   /**
    * Run before_agent_start hook.
@@ -443,6 +485,7 @@ export function createHookRunner(registry: PluginRegistry, options: HookRunnerOp
 
   return {
     // Agent hooks
+    runBeforeAgentPrepare,
     runBeforeAgentStart,
     runAgentEnd,
     runBeforeCompaction,

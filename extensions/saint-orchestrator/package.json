@@ -1,0 +1,21 @@
+{
+  "name": "@openclaw/saint-orchestrator",
+  "version": "2026.2.9",
+  "private": true,
+  "description": "OpenClaw Saint orchestration plugin",
+  "type": "module",
+  "dependencies": {
+    "yaml": "2.8.2"
+  },
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.26"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

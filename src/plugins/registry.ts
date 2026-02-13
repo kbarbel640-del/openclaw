@@ -39,6 +39,7 @@ export type PluginToolRegistration = {
   factory: OpenClawPluginToolFactory;
   names: string[];
   optional: boolean;
+  override: boolean;
   source: string;
 };
 
@@ -168,10 +169,11 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
   const registerTool = (
     record: PluginRecord,
     tool: AnyAgentTool | OpenClawPluginToolFactory,
-    opts?: { name?: string; names?: string[]; optional?: boolean },
+    opts?: { name?: string; names?: string[]; optional?: boolean; override?: boolean },
   ) => {
     const names = opts?.names ?? (opts?.name ? [opts.name] : []);
     const optional = opts?.optional === true;
+    const override = opts?.override === true;
     const factory: OpenClawPluginToolFactory =
       typeof tool === "function" ? tool : (_ctx: OpenClawPluginToolContext) => tool;
 
@@ -188,6 +190,7 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       factory,
       names: normalized,
       optional,
+      override,
       source: record.source,
     });
   };

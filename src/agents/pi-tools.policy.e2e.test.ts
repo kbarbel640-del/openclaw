@@ -25,6 +25,12 @@ describe("pi-tools.policy", () => {
     expect(filtered).toEqual([]);
   });
 
+  it("treats explicit empty allowlist as deny-all", () => {
+    const tools = [createStubTool("read"), createStubTool("exec")];
+    const filtered = filterToolsByPolicy(tools, { allow: [] });
+    expect(filtered).toEqual([]);
+  });
+
   it("supports wildcard allow/deny patterns", () => {
     expect(isToolAllowedByPolicyName("web_fetch", { allow: ["web_*"] })).toBe(true);
     expect(isToolAllowedByPolicyName("web_search", { deny: ["web_*"] })).toBe(false);
