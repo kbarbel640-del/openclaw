@@ -64,6 +64,26 @@
 - Format check: `pnpm format` (oxfmt --check)
 - Format fix: `pnpm format:fix` (oxfmt --write)
 - Tests: `pnpm test` (vitest); coverage: `pnpm test:coverage`
+- Single test file: `vitest run src/path/to/file.test.ts`
+- Single test watch: `vitest src/path/to/file.test.ts --watch`
+- Test configs: unit (`vitest.unit.config.ts`), e2e (`vitest.e2e.config.ts`), extensions (`vitest.extensions.config.ts`), gateway (`vitest.gateway.config.ts`), live (`vitest.live.config.ts`)
+
+## Architecture Overview
+
+OpenClaw is a plugin-first, multi-channel AI agent gateway. The core loop:
+
+1. **Channels** (`src/channels/`, `src/telegram/`, `src/discord/`, etc.) receive messages from messaging platforms via adapters.
+2. **Routing** (`src/routing/`) dispatches messages to the appropriate agent session.
+3. **Agents** (`src/agents/`) run Claude Pi models with tool-streaming; tools live in `src/agents/tools/`.
+4. **Gateway** (`src/gateway/`) is the WebSocket RPC control plane — manages sessions, channels, config, and agent invocations. RPC handlers in `src/gateway/server-methods/`.
+5. **Plugins** (`src/plugins/`) extend everything: tools, hooks, channels, commands, providers, HTTP routes. Plugin API defined in `src/plugins/types.ts`.
+6. **CLI** (`src/cli/program/`) builds the Commander program; commands registered via `src/cli/program/command-registry.ts`, each module exports `registerXxxCommands(program, ctx)`.
+7. **Bridge** (`src/bridge/`) connects CLI commands to gateway operations for cross-process communication.
+8. **Hooks** (`src/hooks/`) provide lifecycle interception (14 hook types: agent start/end, message received/sent, tool calls, sessions, compaction, gateway).
+9. **Skills** (`skills/`) are prompt-based agent capabilities loaded at runtime via `src/agents/skills.ts`.
+10. **Extensions** (`extensions/`) are workspace packages that register as plugins (channels, memory backends, etc.).
+
+Key entry points: `src/index.ts` (main export), `src/entry.ts` (CLI entry), `src/gateway/server.impl.ts` (gateway server), `src/plugins/types.ts` (plugin API, ~700 LOC).
 
 ## Coding Style & Naming Conventions
 
