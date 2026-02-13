@@ -306,4 +306,18 @@ describe("normalizeCronJobPatch", () => {
     expect(payload.kind).toBe("agentTurn");
     expect(payload.model).toBe("anthropic/claude-sonnet-4-5");
   });
+
+  it("does not infer agentTurn kind for delivery-only legacy hints", () => {
+    const normalized = normalizeCronJobPatch({
+      payload: {
+        channel: "telegram",
+        to: "+15550001111",
+      },
+    }) as unknown as Record<string, unknown>;
+
+    const payload = normalized.payload as Record<string, unknown>;
+    expect(payload.kind).toBeUndefined();
+    expect(payload.channel).toBe("telegram");
+    expect(payload.to).toBe("+15550001111");
+  });
 });

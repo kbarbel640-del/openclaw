@@ -78,17 +78,13 @@ function coercePayload(payload: UnknownRecord) {
       typeof next.model === "string" ||
       typeof next.thinking === "string" ||
       typeof next.timeoutSeconds === "number" ||
-      typeof next.allowUnsafeExternalContent === "boolean" ||
-      typeof next.deliver === "boolean" ||
-      typeof next.channel === "string" ||
-      typeof next.to === "string" ||
-      typeof next.bestEffortDeliver === "boolean";
+      typeof next.allowUnsafeExternalContent === "boolean";
     if (hasMessage) {
       next.kind = "agentTurn";
     } else if (hasText) {
       next.kind = "systemEvent";
     } else if (hasAgentTurnHint) {
-      // Accept legacy/partial agentTurn payload patches that only tweak model/delivery fields.
+      // Accept partial agentTurn payload patches that only tweak agent-turn-only fields.
       next.kind = "agentTurn";
     }
   }
