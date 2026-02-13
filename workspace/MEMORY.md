@@ -15,10 +15,12 @@
   - Backend: Supabase or local Postgres (NOT Tally — deferred)
 
 ## Priorities
-1. Build Supabase/Postgres DB tooling
-2. Create database skill + extract catalog protocols
-3. Claim Google Business profile
-4. Grow online presence
+1. Merge Supabase projects — AutifyME v2 schema as single source of truth
+2. Migrate Pavisha website to use AutifyME schema directly
+3. Build user role system (owner/employee/customer) for WhatsApp
+4. Connect Pavisha WhatsApp Business number to OpenClaw
+5. Claim Google Business profile
+6. Grow online presence
 
 ## System
 - **PC:** ASRock B450 Steel Legend, Windows
