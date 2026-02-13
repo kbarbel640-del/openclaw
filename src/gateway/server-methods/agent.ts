@@ -132,7 +132,16 @@ export const agentHandlers: GatewayRequestHandlers = {
           log: context.logGateway,
         });
         message = parsed.message.trim();
-        images = parsed.images;
+        // Combine images and documents (PDFs for OCR) into the images array
+        // The image tool / vision model will handle both types
+        images = [
+          ...parsed.images,
+          ...parsed.documents.map((doc) => ({
+            type: "image" as const,
+            data: doc.data,
+            mimeType: doc.mimeType,
+          })),
+        ];
       } catch (err) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, String(err)));
         return;

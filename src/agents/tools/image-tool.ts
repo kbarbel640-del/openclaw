@@ -25,6 +25,23 @@ import {
 
 const DEFAULT_PROMPT = "Describe the image.";
 
+/**
+ * Specialized prompt for GLM-OCR complex document processing.
+ * GLM-OCR is optimized for document understanding with tables, formulas, and structure preservation.
+ */
+const GLM_OCR_PROMPT =
+  "Extract all text, tables, formulas, code blocks, and document structure from this document. Preserve formatting, layout, and hierarchical relationships. Include table content with rows and columns clearly identified.";
+
+/**
+ * Detect if the model is GLM-OCR for specialized document handling.
+ */
+function isGlmOcrModel(provider: string, model: string): boolean {
+  return (
+    (provider === "zai" || provider === "z-ai") &&
+    (model.includes("glm") || model.toLowerCase().includes("ocr"))
+  );
+}
+
 export const __testing = {
   decodeDataUrl,
   coerceImageAssistantText,
@@ -369,12 +386,18 @@ export function createImageTool(options?: {
           },
         };
       }
+      const modelOverride =
+        typeof record.model === "string" && record.model.trim() ? record.model.trim() : undefined;
+      // Use GLM-OCR specific prompt for complex documents if no custom prompt provided
+      const isGlmOcr = modelOverride
+        ? isGlmOcrModel(modelOverride.split("/")[0] ?? "", modelOverride.split("/")[1] ?? "")
+        : false;
       const promptRaw =
         typeof record.prompt === "string" && record.prompt.trim()
           ? record.prompt.trim()
-          : DEFAULT_PROMPT;
-      const modelOverride =
-        typeof record.model === "string" && record.model.trim() ? record.model.trim() : undefined;
+          : isGlmOcr
+            ? GLM_OCR_PROMPT
+            : DEFAULT_PROMPT;
       const maxBytesMb = typeof record.maxBytesMb === "number" ? record.maxBytesMb : undefined;
       const maxBytes = pickMaxBytes(options?.config, maxBytesMb);
 

@@ -104,7 +104,7 @@ export const DEFAULT_INPUT_FILE_MAX_CHARS = 200_000;
 export const DEFAULT_INPUT_MAX_REDIRECTS = 3;
 export const DEFAULT_INPUT_TIMEOUT_MS = 10_000;
 export const DEFAULT_INPUT_PDF_MAX_PAGES = 4;
-export const DEFAULT_INPUT_PDF_MAX_PIXELS = 4_000_000;
+export const DEFAULT_INPUT_PDF_MAX_PIXELS = 16_000_000; // Increased from 4M to 16M for GLM-OCR complex document quality
 export const DEFAULT_INPUT_PDF_MIN_TEXT_CHARS = 200;
 
 export function normalizeMimeType(value: string | undefined): string | undefined {
@@ -239,8 +239,11 @@ async function extractPdfContent(params: {
     const maxPixels = limits.pdf.maxPixels;
     const pixelBudget = Math.max(1, maxPixels);
     const pagePixels = viewport.width * viewport.height;
-    const scale = Math.min(1, Math.sqrt(pixelBudget / pagePixels));
-    const scaled = page.getViewport({ scale: Math.max(0.1, scale) });
+    // For OCR, render at minimum 2x scale (144 DPI) for readability
+    // Scale 2 = ~144 DPI, Scale 3 = ~216 DPI, Scale 4 = ~288 DPI
+    const MIN_OCR_SCALE = 2; // Target ~144 DPI minimum for GLM OCR
+    const scale = Math.max(MIN_OCR_SCALE, Math.min(4, Math.sqrt(pixelBudget / pagePixels)));
+    const scaled = page.getViewport({ scale });
     const canvas = createCanvas(Math.ceil(scaled.width), Math.ceil(scaled.height));
     await page.render({
       canvas: canvas as unknown as HTMLCanvasElement,

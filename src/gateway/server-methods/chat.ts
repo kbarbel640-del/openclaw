@@ -18,7 +18,11 @@ import {
   isChatStopCommandText,
   resolveChatRunExpiresAtMs,
 } from "../chat-abort.js";
-import { type ChatImageContent, parseMessageWithAttachments } from "../chat-attachments.js";
+import {
+  type ChatImageContent,
+  type ChatDocumentContent,
+  parseMessageWithAttachments,
+} from "../chat-attachments.js";
 import { stripEnvelopeFromMessages } from "../chat-sanitize.js";
 import { GATEWAY_CLIENT_CAPS, hasGatewayClientCap } from "../protocol/client-info.js";
 import {
@@ -362,7 +366,15 @@ export const chatHandlers: GatewayRequestHandlers = {
           log: context.logGateway,
         });
         parsedMessage = parsed.message;
-        parsedImages = parsed.images;
+        // Combine images and documents (PDFs for OCR) into the images array
+        parsedImages = [
+          ...parsed.images,
+          ...parsed.documents.map((doc) => ({
+            type: "image" as const,
+            data: doc.data,
+            mimeType: doc.mimeType,
+          })),
+        ];
       } catch (err) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, String(err)));
         return;

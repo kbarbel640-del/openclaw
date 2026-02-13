@@ -72,6 +72,68 @@ describe("resolveAnnounceTarget", () => {
     expect(callGatewayMock).not.toHaveBeenCalled();
   });
 
+  it("returns null when session key is unparseable and sessions.list returns webchat as channel", async () => {
+    const { resolveAnnounceTarget } = await loadResolveAnnounceTarget();
+    callGatewayMock.mockResolvedValueOnce({
+      sessions: [
+        {
+          key: "agent:main:main",
+          deliveryContext: {
+            channel: "webchat",
+            to: "telegram:6292567735",
+          },
+        },
+      ],
+    });
+
+    const target = await resolveAnnounceTarget({
+      sessionKey: "agent:main:main",
+      displayKey: "agent:main:main",
+    });
+    // webchat is not an outbound-deliverable channel — announce should be skipped
+    expect(target).toBeNull();
+  });
+
+  it("returns null when sessions.list lastChannel is webchat", async () => {
+    const { resolveAnnounceTarget } = await loadResolveAnnounceTarget();
+    callGatewayMock.mockResolvedValueOnce({
+      sessions: [
+        {
+          key: "agent:main:main",
+          lastChannel: "webchat",
+          lastTo: "6292567735",
+        },
+      ],
+    });
+
+    const target = await resolveAnnounceTarget({
+      sessionKey: "agent:main:main",
+      displayKey: "agent:main:main",
+    });
+    expect(target).toBeNull();
+  });
+
+  it("returns valid channel from sessions.list even when webchat was tried first from key parsing", async () => {
+    const { resolveAnnounceTarget } = await loadResolveAnnounceTarget();
+    callGatewayMock.mockResolvedValueOnce({
+      sessions: [
+        {
+          key: "agent:main:main",
+          deliveryContext: {
+            channel: "discord",
+            to: "channel:dev",
+          },
+        },
+      ],
+    });
+
+    const target = await resolveAnnounceTarget({
+      sessionKey: "agent:main:main",
+      displayKey: "agent:main:main",
+    });
+    expect(target).toEqual({ channel: "discord", to: "channel:dev" });
+  });
+
   it("hydrates WhatsApp accountId from sessions.list when available", async () => {
     const { resolveAnnounceTarget } = await loadResolveAnnounceTarget();
     callGatewayMock.mockResolvedValueOnce({

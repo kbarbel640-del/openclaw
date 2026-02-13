@@ -4,6 +4,12 @@ import { callGateway } from "../../gateway/call.js";
 import { SessionListRow } from "./sessions-helpers.js";
 import { resolveAnnounceTargetFromKey } from "./sessions-send-helpers.js";
 
+/** Check whether a channel string resolves to an outbound-deliverable plugin. */
+function isDeliverableChannel(channel: string): boolean {
+  const normalized = normalizeChannelId(channel);
+  return normalized != null && getChannelPlugin(normalized) != null;
+}
+
 export async function resolveAnnounceTarget(params: {
   sessionKey: string;
   displayKey: string;
@@ -13,10 +19,15 @@ export async function resolveAnnounceTarget(params: {
   const fallback = parsed ?? parsedDisplay ?? null;
 
   if (fallback) {
-    const normalized = normalizeChannelId(fallback.channel);
-    const plugin = normalized ? getChannelPlugin(normalized) : null;
-    if (!plugin?.meta?.preferSessionLookupForAnnounceTarget) {
-      return fallback;
+    if (!isDeliverableChannel(fallback.channel)) {
+      // Channel is not outbound-deliverable (e.g. "webchat") — skip the
+      // fast-path and fall through to the sessions.list lookup which may
+      // have a valid outbound channel in deliveryContext.
+    } else {
+      const plugin = getChannelPlugin(normalizeChannelId(fallback.channel)!);
+      if (!plugin?.meta?.preferSessionLookupForAnnounceTarget) {
+        return fallback;
+      }
     }
   }
 
@@ -47,12 +58,16 @@ export async function resolveAnnounceTarget(params: {
     const accountId =
       (typeof deliveryContext?.accountId === "string" ? deliveryContext.accountId : undefined) ??
       (typeof match?.lastAccountId === "string" ? match.lastAccountId : undefined);
-    if (channel && to) {
+    if (channel && to && isDeliverableChannel(channel)) {
       return { channel, to, accountId };
     }
   } catch {
     // ignore
   }
 
-  return fallback;
+  // Only return the fallback if its channel is actually deliverable.
+  if (fallback && isDeliverableChannel(fallback.channel)) {
+    return fallback;
+  }
+  return null;
 }
