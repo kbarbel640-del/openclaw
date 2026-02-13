@@ -52,15 +52,13 @@ export async function loadChatHistory(state: ChatState) {
     // the server history already includes it (by scanning for a user message
     // with matching or newer timestamp).  If not, re-append it so the user's
     // sent message stays visible while the agent is still processing.
-    if (
-      _pendingOptimisticMsg &&
-      _pendingOptimisticMsg.sessionKey === state.sessionKey
-    ) {
+    if (_pendingOptimisticMsg && _pendingOptimisticMsg.sessionKey === state.sessionKey) {
       const ts = _pendingOptimisticMsg.ts;
       const found = serverMessages.some((m: unknown) => {
         const msg = m as Record<string, unknown> | null;
         if (msg?.role !== "user") return false;
-        const mt = typeof msg.timestamp === "number" ? msg.timestamp : Date.parse(String(msg.timestamp));
+        const mt =
+          typeof msg.timestamp === "number" ? msg.timestamp : Date.parse(String(msg.timestamp));
         return mt >= ts;
       });
       if (found) {
