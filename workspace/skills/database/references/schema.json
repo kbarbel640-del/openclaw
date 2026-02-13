@@ -222,8 +222,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "table_name": {
           "type": "text",
@@ -537,14 +536,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "campaign_id": {
           "type": "uuid",
           "required": true,
-          "fk": "campaigns.id",
-          "description": "Note:"
+          "fk": "campaigns.id"
         },
         "asset_type": {
           "type": "text",
@@ -651,14 +648,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "campaign_id": {
           "type": "uuid",
           "required": true,
-          "fk": "campaigns.id",
-          "description": "Note:"
+          "fk": "campaigns.id"
         },
         "platform": {
           "type": "text",
@@ -734,26 +729,22 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "campaign_id": {
           "type": "uuid",
           "required": true,
-          "fk": "campaigns.id",
-          "description": "Note:"
+          "fk": "campaigns.id"
         },
         "product_family_id": {
           "type": "uuid",
           "required": false,
-          "fk": "product_families.id",
-          "description": "Note:"
+          "fk": "product_families.id"
         },
         "product_id": {
           "type": "uuid",
           "required": false,
-          "fk": "products.id",
-          "description": "Note:"
+          "fk": "products.id"
         },
         "is_primary_product": {
           "type": "boolean",
@@ -814,8 +805,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "campaign_id": {
           "type": "text",
@@ -963,14 +953,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "parent_id": {
           "type": "uuid",
           "required": false,
-          "fk": "categories.id",
-          "description": "Note:"
+          "fk": "categories.id"
         },
         "name": {
           "type": "text",
@@ -1016,27 +1004,23 @@
         "thread_id": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "checkpoint_ns": {
           "type": "text",
           "required": true,
           "pk": true,
-          "default": "",
-          "description": "Note:"
+          "default": ""
         },
         "channel": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "version": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "type": {
           "type": "text",
@@ -1054,8 +1038,7 @@
         "v": {
           "type": "integer",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         }
       },
       "description": ""
@@ -1065,33 +1048,28 @@
         "thread_id": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "checkpoint_ns": {
           "type": "text",
           "required": true,
           "pk": true,
-          "default": "",
-          "description": "Note:"
+          "default": ""
         },
         "checkpoint_id": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "task_id": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "idx": {
           "type": "integer",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "channel": {
           "type": "text",
@@ -1118,21 +1096,18 @@
         "thread_id": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "checkpoint_ns": {
           "type": "text",
           "required": true,
           "pk": true,
-          "default": "",
-          "description": "Note:"
+          "default": ""
         },
         "checkpoint_id": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "parent_checkpoint_id": {
           "type": "text",
@@ -1159,8 +1134,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "name": {
           "type": "text",
@@ -1271,8 +1245,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "business_models": {
           "type": "array",
@@ -1404,14 +1377,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "product_family_id": {
           "type": "uuid",
           "required": false,
-          "fk": "product_families.id",
-          "description": "Note:"
+          "fk": "product_families.id"
         },
         "segment_type": {
           "type": "text",
@@ -1472,14 +1443,12 @@
         "naics_code": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "parent_code": {
           "type": "text",
           "required": false,
-          "fk": "industries.naics_code",
-          "description": "Note:"
+          "fk": "industries.naics_code"
         },
         "label": {
           "type": "text",
@@ -1612,8 +1581,7 @@
         "product_id": {
           "type": "uuid",
           "required": true,
-          "fk": "products.id",
-          "description": "Note:"
+          "fk": "products.id"
         },
         "from_location_id": {
           "type": "uuid",
@@ -1630,8 +1598,7 @@
         "batch_id": {
           "type": "uuid",
           "required": false,
-          "fk": "batches.id",
-          "description": "Note:"
+          "fk": "batches.id"
         },
         "quantity": {
           "type": "numeric",
@@ -1641,8 +1608,7 @@
         "uom_id": {
           "type": "uuid",
           "required": true,
-          "fk": "uom.id",
-          "description": "Note:"
+          "fk": "uom.id"
         },
         "unit_cost": {
           "type": "numeric",
@@ -1778,32 +1744,27 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "product_family_id": {
           "type": "uuid",
           "required": false,
-          "fk": "product_families.id",
-          "description": "Note:"
+          "fk": "product_families.id"
         },
         "product_id": {
           "type": "uuid",
           "required": false,
-          "fk": "products.id",
-          "description": "Note:"
+          "fk": "products.id"
         },
         "customer_segment_id": {
           "type": "uuid",
           "required": false,
-          "fk": "customer_segments.id",
-          "description": "Note:"
+          "fk": "customer_segments.id"
         },
         "industry_naics_code": {
           "type": "text",
           "required": false,
-          "fk": "industries.naics_code",
-          "description": "Note:"
+          "fk": "industries.naics_code"
         },
         "platform": {
           "type": "text",
@@ -1911,8 +1872,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "thread_id": {
           "type": "text",
@@ -1980,8 +1940,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "message_id": {
           "type": "text",
@@ -2188,8 +2147,7 @@
         "asset_id": {
           "type": "uuid",
           "required": true,
-          "fk": "assets.id",
-          "description": "Note:"
+          "fk": "assets.id"
         },
         "asset_role": {
           "type": "varchar",
@@ -2234,14 +2192,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "category_id": {
           "type": "uuid",
           "required": false,
-          "fk": "categories.id",
-          "description": "Note:"
+          "fk": "categories.id"
         },
         "product_group_id": {
           "type": "text",
@@ -2338,20 +2294,17 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "product_family_id": {
           "type": "uuid",
           "required": true,
-          "fk": "product_families.id",
-          "description": "Note:"
+          "fk": "product_families.id"
         },
         "industry_naics_code": {
           "type": "text",
           "required": true,
-          "fk": "industries.naics_code",
-          "description": "Note:"
+          "fk": "industries.naics_code"
         },
         "industry_use_case": {
           "type": "text",
@@ -2393,8 +2346,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "product_family_id": {
           "type": "uuid",
@@ -2468,14 +2420,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "product_id": {
           "type": "uuid",
           "required": true,
-          "fk": "products.id",
-          "description": "Note:"
+          "fk": "products.id"
         },
         "stock_quantity": {
           "type": "integer",
@@ -2516,14 +2466,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "product_id": {
           "type": "uuid",
           "required": true,
-          "fk": "products.id",
-          "description": "Note:"
+          "fk": "products.id"
         },
         "price": {
           "type": "numeric",
@@ -2659,14 +2607,12 @@
         "from_uom_id": {
           "type": "uuid",
           "required": true,
-          "fk": "uom.id",
-          "description": "Note:"
+          "fk": "uom.id"
         },
         "to_uom_id": {
           "type": "uuid",
           "required": true,
-          "fk": "uom.id",
-          "description": "Note:"
+          "fk": "uom.id"
         },
         "conversion_factor": {
           "type": "numeric",
@@ -2694,20 +2640,17 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "product_id": {
           "type": "uuid",
           "required": true,
-          "fk": "products.id",
-          "description": "Note:"
+          "fk": "products.id"
         },
         "variant_value_id": {
           "type": "uuid",
           "required": true,
-          "fk": "variant_values.id",
-          "description": "Note:"
+          "fk": "variant_values.id"
         },
         "created_at": {
           "type": "timestamptz",
@@ -2728,8 +2671,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "name": {
           "type": "text",
@@ -2959,14 +2901,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "workflow_id": {
           "type": "uuid",
           "required": false,
-          "fk": "workflow_outcomes.id",
-          "description": "Note:"
+          "fk": "workflow_outcomes.id"
         },
         "intent": {
           "type": "text",
@@ -3001,14 +2941,12 @@
         "prefix": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "key": {
           "type": "text",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         },
         "value": {
           "type": "jsonb",
@@ -3040,8 +2978,7 @@
         "v": {
           "type": "integer",
           "required": true,
-          "pk": true,
-          "description": "Note:"
+          "pk": true
         }
       },
       "description": ""
@@ -3302,8 +3239,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "run_id": {
           "type": "uuid",
@@ -3317,8 +3253,7 @@
         "scenario_id": {
           "type": "text",
           "required": true,
-          "fk": "test_scenarios.scenario_id",
-          "description": "Note:"
+          "fk": "test_scenarios.scenario_id"
         },
         "status": {
           "type": "text",
@@ -3365,8 +3300,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "scenario_id": {
           "type": "text",
@@ -3504,14 +3438,12 @@
         "from_uom_id": {
           "type": "uuid",
           "required": true,
-          "fk": "uom.id",
-          "description": "Note:"
+          "fk": "uom.id"
         },
         "to_uom_id": {
           "type": "uuid",
           "required": true,
-          "fk": "uom.id",
-          "description": "Note:"
+          "fk": "uom.id"
         },
         "conversion_factor": {
           "type": "numeric",
@@ -3664,14 +3596,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "product_family_id": {
           "type": "uuid",
           "required": true,
-          "fk": "product_families.id",
-          "description": "Note:"
+          "fk": "product_families.id"
         },
         "name": {
           "type": "text",
@@ -3710,14 +3640,12 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "variant_axis_id": {
           "type": "uuid",
           "required": true,
-          "fk": "variant_axes.id",
-          "description": "Note:"
+          "fk": "variant_axes.id"
         },
         "value": {
           "type": "text",
@@ -3775,8 +3703,7 @@
           "type": "uuid",
           "required": true,
           "pk": true,
-          "default": "gen_random_uuid()",
-          "description": "Note:"
+          "default": "gen_random_uuid()"
         },
         "tracking_id": {
           "type": "text",

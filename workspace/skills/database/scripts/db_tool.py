@@ -219,14 +219,16 @@ def cmd_inspect(args: argparse.Namespace) -> None:
                 "name": name,
                 "type": info.get("type", "unknown"),
             }
-            if not info.get("nullable", True):
+            # Support both old schema format (nullable/primary_key/references)
+            # and new OpenAPI-derived format (required/pk/fk)
+            if info.get("required") or not info.get("nullable", True):
                 entry["required"] = True
             if info.get("default"):
                 entry["default"] = info["default"]
-            if info.get("primary_key"):
+            if info.get("pk") or info.get("primary_key"):
                 entry["pk"] = True
-            if info.get("references"):
-                entry["fk"] = info["references"]
+            if info.get("fk") or info.get("references"):
+                entry["fk"] = info.get("fk") or info.get("references")
             compact.append(entry)
         output({"success": True, "table": table, "columns": compact})
     else:
@@ -661,7 +663,7 @@ def cmd_sync_schema(args: argparse.Namespace) -> None:
     """Synchronize schema.json with live database."""
     import subprocess
     
-    script_path = Path(__file__).parent / "sync_schema_v2.py"
+    script_path = Path(__file__).parent / "sync_schema.py"
     
     cmd_args = [sys.executable, str(script_path)]
     if args.compare_only:

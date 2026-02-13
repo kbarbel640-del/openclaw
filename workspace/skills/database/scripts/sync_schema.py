@@ -81,9 +81,9 @@ def openapi_to_schema(spec):
             if "enum" in col_spec:
                 col["enum"] = col_spec["enum"]
             
-            # Clean description
+            # Clean description — skip PostgREST boilerplate
             clean_desc = desc.split("\n")[0].strip() if desc else ""
-            if clean_desc and "Primary Key" not in clean_desc and "Foreign Key" not in clean_desc:
+            if clean_desc and clean_desc != "Note:" and "Primary Key" not in clean_desc and "Foreign Key" not in clean_desc:
                 col["description"] = clean_desc
             
             columns[col_name] = col
