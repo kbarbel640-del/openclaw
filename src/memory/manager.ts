@@ -255,7 +255,7 @@ export class MemoryIndexManager implements MemorySearchManager {
     if (key && this.sessionWarm.has(key)) {
       return;
     }
-    void this.sync({ reason: "session-start" }).catch((err) => {
+    await this.sync({ reason: "session-start" }).catch((err) => {
       log.warn(`memory sync failed (session-start): ${String(err)}`);
     });
     if (key) {
@@ -271,7 +271,11 @@ export class MemoryIndexManager implements MemorySearchManager {
       sessionKey?: string;
     },
   ): Promise<MemorySearchResult[]> {
-    // Wait for warmSession to complete to ensure database isn't closed during search
+    // If a sync is already in flight (interval/watch/session-delta), wait for it
+    // to finish before reading. This prevents hitting a closed DB during reindex.
+    if (this.syncing) {
+      await this.syncing.catch(() => {});
+    }
     await this.warmSession(opts?.sessionKey);
     if (this.settings.sync.onSearch && (this.dirty || this.sessionsDirty)) {
       // Also wait for search-triggered sync to prevent database being closed mid-search
@@ -1491,7 +1495,8 @@ export class MemoryIndexManager implements MemorySearchManager {
       // Close temp database and original database
       // IMPORTANT: We must close both databases before swapping files to avoid
       // file locking issues, but this creates a window where this.db points to
-      // a closed database. The sync lock prevents concurrent access during this window.
+      // a closed database. Callers (e.g. search) await `this.syncing` to avoid
+      // reading the database during this window.
       const tempDbToClose = this.db;
       tempDbToClose.close();
       originalDb.close();
