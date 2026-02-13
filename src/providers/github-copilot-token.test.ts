@@ -91,6 +91,8 @@ describe("github-copilot token", () => {
     await resolveCopilotApiToken({
       githubToken: "ghp_test",
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      loadJsonFileImpl: loadJsonFile,
+      saveJsonFileImpl: saveJsonFile,
     });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -130,6 +132,7 @@ describe("github-copilot token", () => {
         authStorage,
         "github-copilot",
         "ghp_mytoken",
+        { loadJsonFileImpl: loadJsonFile, saveJsonFileImpl: saveJsonFile },
       );
 
       expect(authStorage.setRuntimeApiKey).toHaveBeenCalledWith("github-copilot", "exchanged-jwt");

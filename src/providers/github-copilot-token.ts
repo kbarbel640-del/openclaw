@@ -165,9 +165,10 @@ export async function setRuntimeApiKeyWithCopilotExchange(
   authStorage: { setRuntimeApiKey(provider: string, key: string): void },
   provider: string,
   apiKey: string,
+  resolveOpts?: Partial<Omit<Parameters<typeof resolveCopilotApiToken>[0], "githubToken">>,
 ): Promise<string> {
   if (provider === "github-copilot") {
-    const copilotToken = await resolveCopilotApiToken({ githubToken: apiKey });
+    const copilotToken = await resolveCopilotApiToken({ githubToken: apiKey, ...resolveOpts });
     authStorage.setRuntimeApiKey(provider, copilotToken.token);
     return copilotToken.token;
   }
