@@ -453,6 +453,30 @@ describe("sessions", () => {
     }
   });
 
+  it("falls back to fresh path when sessionFile points to a different agent directory", () => {
+    const prev = process.env.OPENCLAW_STATE_DIR;
+    process.env.OPENCLAW_STATE_DIR = "/state";
+    try {
+      const staleEntry = {
+        sessionId: "sess-1",
+        sessionFile: "/state/agents/old-agent/sessions/sess-1.jsonl",
+        updatedAt: Date.now(),
+      };
+      const result = resolveSessionFilePath("sess-1", staleEntry, {
+        agentId: "new-agent",
+      });
+      // Should NOT return the stale path — should generate a new one for new-agent
+      expect(result).toContain("/agents/new-agent/sessions/");
+      expect(result).not.toContain("old-agent");
+    } finally {
+      if (prev === undefined) {
+        delete process.env.OPENCLAW_STATE_DIR;
+      } else {
+        process.env.OPENCLAW_STATE_DIR = prev;
+      }
+    }
+  });
+
   it("updateSessionStoreEntry merges concurrent patches", async () => {
     const mainSessionKey = "agent:main:main";
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-"));

@@ -122,7 +122,17 @@ export function resolveSessionFilePath(
   const sessionsDir = resolveSessionsDir(opts);
   const candidate = entry?.sessionFile?.trim();
   if (candidate) {
-    return resolvePathWithinSessionsDir(sessionsDir, candidate);
+    // Validate that the stored path is within the current agent's sessions directory.
+    // If the user was re-routed to a different agent, the old sessionFile will point
+    // to the previous agent's directory — fall back to a fresh path in that case.
+    const resolvedBase = path.resolve(sessionsDir);
+    const normalized = path.isAbsolute(candidate)
+      ? path.relative(resolvedBase, candidate)
+      : candidate;
+    if (normalized && !normalized.startsWith("..") && !path.isAbsolute(normalized)) {
+      return path.resolve(resolvedBase, normalized);
+    }
+    // Stale cross-agent path — regenerate for current agent.
   }
   return resolveSessionTranscriptPathInDir(sessionId, sessionsDir);
 }
