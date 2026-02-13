@@ -78,6 +78,7 @@ import {
   updateSkillEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
+import { loadTwitterData } from "./controllers/twitter.ts";
 import { loadUsage, type UsageState } from "./controllers/usage.ts";
 import {
   loadVoiceStatus,
@@ -111,6 +112,7 @@ import { renderSecurity } from "./views/security.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
 import { renderToastContainer } from "./views/toast.ts";
+import { renderTwitterView } from "./views/twitter.ts";
 import { renderUsage } from "./views/usage.ts";
 import { renderVoice } from "./views/voice.ts";
 
@@ -1621,6 +1623,15 @@ export function renderApp(state: AppViewState) {
                 onWakeWordChange: (word) => void setWakeWord(state as unknown as VoiceState, word),
                 onTalkModeToggle: () => void toggleTalkMode(state as unknown as VoiceState),
               })
+            : nothing
+        }
+
+        ${
+          state.tab === "twitter"
+            ? html`<div class="view-content">${unsafeHTML(
+                (window as any).__twitter_view_html__ ||
+                  '<div class="loading">Loading Twitter...</div>',
+              )}</div>`
             : nothing
         }
       </main>

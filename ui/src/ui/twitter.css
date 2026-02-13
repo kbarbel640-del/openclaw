@@ -1,0 +1,148 @@
+/* Twitter dashboard styles */
+
+.twitter-view {
+  padding: 1rem;
+}
+
+.twitter-view .loading,
+.twitter-view .error {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.twitter-view .error {
+  color: var(--error);
+}
+
+.alerts-section {
+  margin-bottom: 1.5rem;
+}
+
+.alert {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 0.25rem;
+  border-left: 4px solid;
+}
+
+.alert-low {
+  background: var(--bg-info);
+  border-color: var(--color-info);
+}
+
+.alert-medium {
+  background: var(--bg-warn);
+  border-color: var(--color-warn);
+}
+
+.alert-high,
+.alert-critical {
+  background: var(--bg-error);
+  border-color: var(--error);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: var(--bg-surface);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-light);
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+.stat-change {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.stat-change.positive {
+  color: var(--success);
+}
+
+.stat-change.negative {
+  color: var(--error);
+}
+
+.stat-meta {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.tweets-section {
+  margin-bottom: 2rem;
+}
+
+.tweets-section h3 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.tweets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tweet-card {
+  background: var(--bg-surface);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-light);
+}
+
+.tweet-text {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+  color: var(--text);
+}
+
+.tweet-metrics {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.engagement-rate {
+  margin-left: auto;
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.tweet-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.view-footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.last-updated {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  text-align: center;
+}

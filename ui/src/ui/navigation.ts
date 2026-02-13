@@ -14,6 +14,7 @@ export const TAB_GROUPS = [
       "usage",
       "health",
       "voice",
+      "twitter",
     ],
   },
   { label: "Agent", tabs: ["agents", "hierarchy", "skills", "nodes", "resources"] },
@@ -39,7 +40,8 @@ export type Tab =
   | "usage"
   | "health"
   | "voice"
-  | "security";
+  | "security"
+  | "twitter";
 
 const TAB_PATHS: Record<Tab, string> = {
   agents: "/agents",
@@ -61,6 +63,7 @@ const TAB_PATHS: Record<Tab, string> = {
   usage: "/usage",
   health: "/health",
   voice: "/voice",
+  twitter: "/twitter",
 };
 
 const PATH_TO_TAB = new Map(Object.entries(TAB_PATHS).map(([tab, path]) => [path, tab as Tab]));
@@ -184,6 +187,8 @@ export function iconForTab(tab: Tab): IconName {
       return "radio";
     case "voice":
       return "radio";
+    case "twitter":
+      return "twitter";
     default:
       return "folder";
   }
@@ -229,6 +234,8 @@ export function titleForTab(tab: Tab) {
       return "Health";
     case "voice":
       return "Voice";
+    case "twitter":
+      return "Twitter";
     default:
       return "Control";
   }
@@ -274,6 +281,8 @@ export function subtitleForTab(tab: Tab) {
       return "System uptime, error rates, and channel health matrix.";
     case "voice":
       return "TTS, voice wake, and talk mode configuration.";
+    case "twitter":
+      return "X/Twitter dashboard - followers, engagement, and recent tweets.";
     default:
       return "";
   }
