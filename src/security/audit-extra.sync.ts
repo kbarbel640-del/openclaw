@@ -6,7 +6,7 @@
 import type { SandboxToolPolicy } from "../agents/sandbox/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AgentToolsConfig } from "../config/types.tools.js";
-import { isToolAllowedByPolicies } from "../agents/pi-tools.policy.js";
+import { isToolAllowedByPolicies, isToolAllowedByPolicyName } from "../agents/pi-tools.policy.js";
 import {
   resolveSandboxConfigForAgent,
   resolveSandboxToolPolicyForAgent,
@@ -887,89 +887,36 @@ export function collectExposureMatrixFindings(cfg: OpenClawConfig): SecurityAudi
 // Hardening gap audit checks (EarlyCore findings)
 // --------------------------------------------------------------------------
 
-// Tool groups from src/agents/tool-policy.ts
-const TOOL_GROUPS: Record<string, string[]> = {
-  "group:fs": ["read", "write", "edit", "apply_patch"],
-  "group:runtime": ["exec", "process"],
-  "group:ui": ["browser", "canvas"],
-  "group:automation": ["cron", "gateway"],
-  "group:nodes": ["nodes"],
-};
-
-// Profile allow lists from src/agents/tool-policy.ts
-const PROFILE_ALLOW_LISTS: Record<string, string[]> = {
-  minimal: ["session_status"],
-  coding: ["group:fs", "group:runtime", "group:sessions", "group:memory", "image"],
-  messaging: [
-    "group:messaging",
-    "sessions_list",
-    "sessions_history",
-    "sessions_send",
-    "session_status",
-  ],
-  full: [], // Empty means all tools allowed
-};
-
 /**
- * Expand tool groups to individual tool names.
+ * Build a combined tool policy from profile + config allow/deny.
+ * Uses the existing tool-policy resolution to get profile defaults.
  */
-function expandGroups(list: string[]): string[] {
-  const expanded: string[] = [];
-  for (const entry of list) {
-    const group = TOOL_GROUPS[entry];
-    if (group) {
-      expanded.push(...group);
-    } else {
-      expanded.push(entry);
-    }
+function buildAuditToolPolicy(cfg: OpenClawConfig): SandboxToolPolicy | undefined {
+  const profilePolicy = resolveToolProfilePolicy(cfg.tools?.profile);
+  const configAllow = cfg.tools?.allow;
+  const configDeny = cfg.tools?.deny;
+
+  // Merge profile policy with config overrides
+  // Config allow extends profile allow; config deny extends profile deny
+  const allow = configAllow?.length
+    ? [...(profilePolicy?.allow ?? []), ...configAllow]
+    : profilePolicy?.allow;
+  const deny = configDeny?.length
+    ? [...(profilePolicy?.deny ?? []), ...configDeny]
+    : profilePolicy?.deny;
+
+  if (!allow && !deny) {
+    return undefined;
   }
-  return expanded;
+  return { allow, deny };
 }
 
 /**
- * Check if a specific tool is available based on profile + allow/deny lists.
- * Tool availability is: (profile allows OR explicit allow) AND NOT denied.
+ * Check if a tool is available using the proper tool-policy resolution.
  */
 function isToolAvailable(cfg: OpenClawConfig, toolName: string): boolean {
-  const profile = cfg.tools?.profile;
-  const allowList = cfg.tools?.allow ?? [];
-  const denyList = cfg.tools?.deny ?? [];
-
-  // Expand groups in deny/allow lists
-  const expandedDeny = expandGroups(denyList);
-  const expandedAllow = expandGroups(allowList);
-
-  // Explicitly denied always wins
-  if (expandedDeny.includes(toolName)) {
-    return false;
-  }
-
-  // Explicitly allowed overrides profile restrictions
-  if (expandedAllow.includes(toolName)) {
-    return true;
-  }
-
-  // Check profile
-  // If no profile set, defaults to full (all tools available)
-  if (!profile || profile === "full") {
-    return true;
-  }
-
-  // Get the profile's allow list and expand it
-  const profileAllowList = PROFILE_ALLOW_LISTS[profile];
-  if (!profileAllowList) {
-    return true; // Unknown profile, assume full
-  }
-
-  const expandedProfileAllow = expandGroups(profileAllowList);
-  return expandedProfileAllow.includes(toolName);
-}
-
-/**
- * Check if exec tool is available (convenience wrapper).
- */
-function isExecAvailable(cfg: OpenClawConfig): boolean {
-  return isToolAvailable(cfg, "exec");
+  const policy = buildAuditToolPolicy(cfg);
+  return isToolAllowedByPolicyName(toolName, policy);
 }
 
 /**
@@ -992,7 +939,7 @@ export function collectSandboxModeFindings(params: {
     isWebSearchEnabled(params.cfg, params.env) ||
     isWebFetchEnabled(params.cfg) ||
     isBrowserEnabled(params.cfg);
-  const hasExecTools = isExecAvailable(params.cfg);
+  const hasExecTools = isToolAvailable(params.cfg, "exec");
 
   findings.push({
     checkId: "sandbox.mode_not_all",
