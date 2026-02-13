@@ -468,12 +468,13 @@ describe("cli program (nodes media)", () => {
 
     beforeAll(() => {
       originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn(async () => ({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        arrayBuffer: async () => new TextEncoder().encode("url-content").buffer,
-      })) as unknown as typeof globalThis.fetch;
+      globalThis.fetch = vi.fn(
+        async () =>
+          new Response("url-content", {
+            status: 200,
+            headers: { "content-length": String("11") },
+          }),
+      ) as unknown as typeof globalThis.fetch;
     });
 
     afterAll(() => {

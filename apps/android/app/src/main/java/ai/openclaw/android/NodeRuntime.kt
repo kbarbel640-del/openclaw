@@ -91,6 +91,7 @@ class NodeRuntime(context: Context) {
   val discoveryStatusText: StateFlow<String> = discovery.statusText
 
   private val identityStore = DeviceIdentityStore(appContext)
+  private var connectedEndpoint: GatewayEndpoint? = null
 
   private val cameraHandler: CameraHandler = CameraHandler(
     appContext = appContext,
@@ -110,6 +111,7 @@ class NodeRuntime(context: Context) {
 
   private val appUpdateHandler: AppUpdateHandler = AppUpdateHandler(
     appContext = appContext,
+    connectedEndpoint = { connectedEndpoint },
   )
 
   private val locationHandler: LocationHandler = LocationHandler(
@@ -200,7 +202,6 @@ class NodeRuntime(context: Context) {
   private var nodeConnected = false
   private var operatorStatusText: String = "Offline"
   private var nodeStatusText: String = "Offline"
-  private var connectedEndpoint: GatewayEndpoint? = null
 
   private val operatorSession =
     GatewaySession(
