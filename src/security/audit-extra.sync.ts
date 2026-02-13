@@ -6,7 +6,7 @@
 import type { SandboxToolPolicy } from "../agents/sandbox/types.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { AgentToolsConfig } from "../config/types.tools.js";
-import { isToolAllowedByPolicies, isToolAllowedByPolicyName } from "../agents/pi-tools.policy.js";
+import { isToolAllowedByPolicies } from "../agents/pi-tools.policy.js";
 import {
   resolveSandboxConfigForAgent,
   resolveSandboxToolPolicyForAgent,
