@@ -43,7 +43,9 @@ def _run_verify(verify_script: Path, envelope: Path, trusted_issuers: Path, skil
     ]
 
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        return False, "verifier execution timed out"
     except OSError as e:
         return False, f"verifier execution failed: {e}"
 

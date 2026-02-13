@@ -29,7 +29,7 @@ def parse_sie_runtime_config(config: Dict[str, Any], *, base_dir: Path = Path(".
 
     enabled = bool(sie.get("enabled", False))
     strict = bool(sie.get("strict", False))
-    mode = "strict" if strict else "warn"
+    mode = "strict" if (enabled and strict) else "warn"
     
     envelope_suffix = str(sie.get("envelopeSuffix", ".sie.json"))
     
