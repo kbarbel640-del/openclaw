@@ -1588,6 +1588,48 @@ description: test skill
     expect(finding?.severity).toBe("warn");
   });
 
+  it("flags sandbox mode not all as warning when profile is minimal (exec not available)", async () => {
+    const cfg: OpenClawConfig = {
+      agents: { defaults: { sandbox: { mode: "off" } } },
+      tools: {
+        profile: "minimal", // minimal profile only allows session_status, not exec
+        web: { search: { enabled: false }, fetch: { enabled: false } },
+      },
+      browser: { enabled: false },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      env: {},
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    const finding = res.findings.find((f) => f.checkId === "sandbox.mode_not_all");
+    expect(finding?.severity).toBe("warn");
+  });
+
+  it("flags sandbox mode not all as critical when profile is coding (exec available)", async () => {
+    const cfg: OpenClawConfig = {
+      agents: { defaults: { sandbox: { mode: "off" } } },
+      tools: {
+        profile: "coding", // coding profile includes group:runtime which has exec
+        web: { search: { enabled: false }, fetch: { enabled: false } },
+      },
+      browser: { enabled: false },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      env: {},
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    const finding = res.findings.find((f) => f.checkId === "sandbox.mode_not_all");
+    expect(finding?.severity).toBe("critical");
+  });
+
   it("does not flag sandbox mode when set to all", async () => {
     const cfg: OpenClawConfig = {
       agents: { defaults: { sandbox: { mode: "all" } } },

@@ -887,6 +887,37 @@ export function collectExposureMatrixFindings(cfg: OpenClawConfig): SecurityAudi
 // Hardening gap audit checks (EarlyCore findings)
 // --------------------------------------------------------------------------
 
+// Profiles that allow exec (group:runtime includes exec)
+const PROFILES_ALLOWING_EXEC = new Set(["coding", "full"]);
+
+/**
+ * Check if exec tool is available based on profile + allow/deny lists.
+ * Tool availability is: (profile allows OR explicit allow) AND NOT denied.
+ */
+function isExecAvailable(cfg: OpenClawConfig): boolean {
+  const profile = cfg.tools?.profile;
+  const allowList = cfg.tools?.allow ?? [];
+  const denyList = cfg.tools?.deny ?? [];
+
+  // Explicitly denied always wins
+  if (denyList.includes("exec") || denyList.includes("group:runtime")) {
+    return false;
+  }
+
+  // Explicitly allowed
+  if (allowList.includes("exec") || allowList.includes("group:runtime")) {
+    return true;
+  }
+
+  // Check profile: minimal/messaging don't allow exec, coding/full do
+  // If no profile set, defaults to full (all tools available)
+  if (!profile) {
+    return true; // Default: full profile, exec available
+  }
+
+  return PROFILES_ALLOWING_EXEC.has(profile);
+}
+
 /**
  * Check if sandbox mode is not set to "all".
  * EarlyCore tests ran with sandbox OFF - this was a major factor in attack success.
@@ -902,13 +933,12 @@ export function collectSandboxModeFindings(params: {
     return findings; // OK
   }
 
-  // Check if dangerous tools are available
+  // Check if dangerous tools are available using proper tool policy resolution
   const hasWebTools =
     isWebSearchEnabled(params.cfg, params.env) ||
     isWebFetchEnabled(params.cfg) ||
     isBrowserEnabled(params.cfg);
-  const denyList = params.cfg.tools?.deny ?? [];
-  const hasExecTools = !denyList.includes("exec");
+  const hasExecTools = isExecAvailable(params.cfg);
 
   findings.push({
     checkId: "sandbox.mode_not_all",
