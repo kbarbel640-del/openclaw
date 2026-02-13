@@ -820,6 +820,7 @@ async function handleSendAction(ctx: ResolvedActionContext): Promise<MessageActi
   params.message = message;
   const gifPlayback = readBooleanParam(params, "gifPlayback") ?? false;
   const bestEffort = readBooleanParam(params, "bestEffort");
+  const silent = readBooleanParam(params, "silent");
 
   const replyToId = readStringParam(params, "replyTo");
   const threadId = readStringParam(params, "threadId");
@@ -884,6 +885,7 @@ async function handleSendAction(ctx: ResolvedActionContext): Promise<MessageActi
             }
           : undefined,
       abortSignal,
+      silent: silent ?? undefined,
     },
     to,
     message,
@@ -891,6 +893,8 @@ async function handleSendAction(ctx: ResolvedActionContext): Promise<MessageActi
     mediaUrls: mergedMediaUrls.length ? mergedMediaUrls : undefined,
     gifPlayback,
     bestEffort: bestEffort ?? undefined,
+    replyToId: replyToId ?? undefined,
+    threadId: resolvedThreadId ?? undefined,
   });
 
   return {

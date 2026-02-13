@@ -74,7 +74,7 @@ function applyJobResult(
 
   const maxRunsReached = typeof job.maxRuns === "number" && job.state.totalRuns >= job.maxRuns;
   const shouldDelete =
-    (job.schedule.kind === "at" && result.status === "ok" && job.deleteAfterRun === true) ||
+    (job.schedule.kind === "at" && job.deleteAfterRun === true && result.status === "ok") ||
     (maxRunsReached && job.deleteAfterRun !== false);
   const shouldDisable = maxRunsReached && job.deleteAfterRun === false;
 
