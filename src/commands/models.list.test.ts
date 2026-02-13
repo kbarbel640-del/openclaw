@@ -363,6 +363,46 @@ describe("models list/status", () => {
     expect(payload.models[0]?.tags).toContain("configured");
   });
 
+  it("models list resolves antigravity opus 4.6 (non-thinking) from 4.5 template", async () => {
+    loadConfig.mockReturnValue({
+      agents: {
+        defaults: {
+          model: "google-antigravity/claude-opus-4-6",
+          models: {
+            "google-antigravity/claude-opus-4-6": {},
+          },
+        },
+      },
+    });
+    const runtime = makeRuntime();
+
+    modelRegistryState.models = [
+      {
+        provider: "google-antigravity",
+        id: "claude-opus-4-5",
+        name: "Claude Opus 4.5",
+        api: "google-gemini-cli",
+        input: ["text", "image"],
+        baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+        contextWindow: 200000,
+        maxTokens: 64000,
+        reasoning: true,
+        cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+      },
+    ];
+    modelRegistryState.available = [];
+
+    const { modelsListCommand } = await import("./models/list.js");
+    await modelsListCommand({ json: true }, runtime);
+
+    expect(runtime.log).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(runtime.log.mock.calls[0]?.[0]));
+    expect(payload.models[0]?.key).toBe("google-antigravity/claude-opus-4-6");
+    expect(payload.models[0]?.missing).toBe(false);
+    expect(payload.models[0]?.tags).toContain("default");
+    expect(payload.models[0]?.tags).toContain("configured");
+  });
+
   it("models list marks synthesized antigravity opus 4.6 thinking as available when template is available", async () => {
     loadConfig.mockReturnValue({
       agents: {
@@ -397,6 +437,44 @@ describe("models list/status", () => {
     expect(runtime.log).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(runtime.log.mock.calls[0]?.[0]));
     expect(payload.models[0]?.key).toBe("google-antigravity/claude-opus-4-6-thinking");
+    expect(payload.models[0]?.missing).toBe(false);
+    expect(payload.models[0]?.available).toBe(true);
+  });
+
+  it("models list marks synthesized antigravity opus 4.6 (non-thinking) as available when template is available", async () => {
+    loadConfig.mockReturnValue({
+      agents: {
+        defaults: {
+          model: "google-antigravity/claude-opus-4-6",
+          models: {
+            "google-antigravity/claude-opus-4-6": {},
+          },
+        },
+      },
+    });
+    const runtime = makeRuntime();
+
+    const template = {
+      provider: "google-antigravity",
+      id: "claude-opus-4-5",
+      name: "Claude Opus 4.5",
+      api: "google-gemini-cli",
+      input: ["text", "image"],
+      baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+      contextWindow: 200000,
+      maxTokens: 64000,
+      reasoning: true,
+      cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+    };
+    modelRegistryState.models = [template];
+    modelRegistryState.available = [template];
+
+    const { modelsListCommand } = await import("./models/list.js");
+    await modelsListCommand({ json: true }, runtime);
+
+    expect(runtime.log).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(runtime.log.mock.calls[0]?.[0]));
+    expect(payload.models[0]?.key).toBe("google-antigravity/claude-opus-4-6");
     expect(payload.models[0]?.missing).toBe(false);
     expect(payload.models[0]?.available).toBe(true);
   });

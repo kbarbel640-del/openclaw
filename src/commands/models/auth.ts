@@ -258,6 +258,28 @@ function resolveProviderMatch(
   );
 }
 
+export function resolveRequestedLoginProviderOrThrow(
+  providers: ProviderPlugin[],
+  rawProvider?: string,
+): ProviderPlugin | null {
+  const requested = rawProvider?.trim();
+  if (!requested) {
+    return null;
+  }
+  const matched = resolveProviderMatch(providers, requested);
+  if (matched) {
+    return matched;
+  }
+  const available = providers
+    .map((provider) => provider.id)
+    .filter(Boolean)
+    .toSorted((a, b) => a.localeCompare(b));
+  const availableText = available.length > 0 ? available.join(", ") : "(none)";
+  throw new Error(
+    `Unknown provider "${requested}". Loaded providers: ${availableText}. Verify plugins via \`${formatCliCommand("openclaw plugins list --json")}\`.`,
+  );
+}
+
 function pickAuthMethod(provider: ProviderPlugin, rawMethod?: string): ProviderAuthMethod | null {
   const raw = rawMethod?.trim();
   if (!raw) {
@@ -350,8 +372,9 @@ export async function modelsAuthLoginCommand(opts: LoginOptions, runtime: Runtim
   }
 
   const prompter = createClackPrompter();
+  const requestedProvider = resolveRequestedLoginProviderOrThrow(providers, opts.provider);
   const selectedProvider =
-    resolveProviderMatch(providers, opts.provider) ??
+    requestedProvider ??
     (await prompter
       .select({
         message: "Select a provider",

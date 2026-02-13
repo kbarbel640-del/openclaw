@@ -116,20 +116,19 @@ export async function loadModelRegistry(cfg: OpenClawConfig) {
   const agentDir = resolveOpenClawAgentDir();
   const authStorage = discoverAuthStorage(agentDir);
   const registry = discoverModels(authStorage, agentDir);
-  const appended = appendAntigravityForwardCompatModel(registry.getAll(), registry);
+  const appended = appendAntigravityForwardCompatModels(registry.getAll(), registry);
   const models = appended.models;
-  const synthesizedForwardCompatKey = appended.synthesizedForwardCompatKey;
+  const synthesizedForwardCompat = appended.synthesizedForwardCompat;
   let availableKeys: Set<string> | undefined;
   let availabilityErrorMessage: string | undefined;
 
   try {
     const availableModels = loadAvailableModels(registry);
     availableKeys = new Set(availableModels.map((model) => modelKey(model.provider, model.id)));
-    if (
-      synthesizedForwardCompatKey &&
-      hasAvailableAntigravityOpus45ThinkingTemplate(availableKeys)
-    ) {
-      availableKeys.add(synthesizedForwardCompatKey);
+    for (const synthesized of synthesizedForwardCompat) {
+      if (hasAvailableTemplate(availableKeys, synthesized.templatePrefixes)) {
+        availableKeys.add(synthesized.key);
+      }
     }
   } catch (err) {
     if (!shouldFallbackToAuthHeuristics(err)) {
@@ -146,39 +145,60 @@ export async function loadModelRegistry(cfg: OpenClawConfig) {
   return { registry, models, availableKeys, availabilityErrorMessage };
 }
 
-function appendAntigravityForwardCompatModel(
+type SynthesizedForwardCompat = {
+  key: string;
+  templatePrefixes: string[];
+};
+
+function appendAntigravityForwardCompatModels(
   models: Model<Api>[],
   modelRegistry: ModelRegistry,
-): { models: Model<Api>[]; synthesizedForwardCompatKey?: string } {
-  const forwardCompatKey = modelKey("google-antigravity", "claude-opus-4-6-thinking");
-  const hasForwardCompat = models.some(
-    (model) => modelKey(model.provider, model.id) === forwardCompatKey,
-  );
-  if (hasForwardCompat) {
-    return { models };
+): { models: Model<Api>[]; synthesizedForwardCompat: SynthesizedForwardCompat[] } {
+  const candidates = [
+    {
+      id: "claude-opus-4-6-thinking",
+      templatePrefixes: [
+        "google-antigravity/claude-opus-4-5-thinking",
+        "google-antigravity/claude-opus-4.5-thinking",
+      ],
+    },
+    {
+      id: "claude-opus-4-6",
+      templatePrefixes: [
+        "google-antigravity/claude-opus-4-5",
+        "google-antigravity/claude-opus-4.5",
+      ],
+    },
+  ];
+
+  const nextModels = [...models];
+  const synthesizedForwardCompat: SynthesizedForwardCompat[] = [];
+
+  for (const candidate of candidates) {
+    const key = modelKey("google-antigravity", candidate.id);
+    const hasForwardCompat = nextModels.some((model) => modelKey(model.provider, model.id) === key);
+    if (hasForwardCompat) {
+      continue;
+    }
+
+    const fallback = resolveForwardCompatModel("google-antigravity", candidate.id, modelRegistry);
+    if (!fallback) {
+      continue;
+    }
+
+    nextModels.push(fallback);
+    synthesizedForwardCompat.push({
+      key,
+      templatePrefixes: candidate.templatePrefixes,
+    });
   }
 
-  const fallback = resolveForwardCompatModel(
-    "google-antigravity",
-    "claude-opus-4-6-thinking",
-    modelRegistry,
-  );
-  if (!fallback) {
-    return { models };
-  }
-
-  return {
-    models: [...models, fallback],
-    synthesizedForwardCompatKey: forwardCompatKey,
-  };
+  return { models: nextModels, synthesizedForwardCompat };
 }
 
-function hasAvailableAntigravityOpus45ThinkingTemplate(availableKeys: Set<string>): boolean {
+function hasAvailableTemplate(availableKeys: Set<string>, templatePrefixes: string[]): boolean {
   for (const key of availableKeys) {
-    if (
-      key.startsWith("google-antigravity/claude-opus-4-5-thinking") ||
-      key.startsWith("google-antigravity/claude-opus-4.5-thinking")
-    ) {
+    if (templatePrefixes.some((prefix) => key.startsWith(prefix))) {
       return true;
     }
   }

@@ -244,6 +244,43 @@ describe("resolveModel", () => {
     });
   });
 
+  it("builds an antigravity forward-compat fallback for claude-opus-4-6", () => {
+    const templateModel = {
+      id: "claude-opus-4-5",
+      name: "Claude Opus 4.5",
+      provider: "google-antigravity",
+      api: "google-gemini-cli",
+      baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+      reasoning: true,
+      input: ["text", "image"] as const,
+      cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+      contextWindow: 200000,
+      maxTokens: 64000,
+    };
+
+    vi.mocked(discoverModels).mockReturnValue({
+      find: vi.fn((provider: string, modelId: string) => {
+        if (provider === "google-antigravity" && modelId === "claude-opus-4-5") {
+          return templateModel;
+        }
+        return null;
+      }),
+    } as unknown as ReturnType<typeof discoverModels>);
+
+    const result = resolveModel("google-antigravity", "claude-opus-4-6", "/tmp/agent");
+
+    expect(result.error).toBeUndefined();
+    expect(result.model).toMatchObject({
+      provider: "google-antigravity",
+      id: "claude-opus-4-6",
+      api: "google-gemini-cli",
+      baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
+      reasoning: true,
+      contextWindow: 200000,
+      maxTokens: 64000,
+    });
+  });
+
   it("builds a zai forward-compat fallback for glm-5", () => {
     const templateModel = {
       id: "glm-4.7",
@@ -288,6 +325,17 @@ describe("resolveModel", () => {
 
     expect(result.model).toBeUndefined();
     expect(result.error).toBe("Unknown model: google-antigravity/claude-opus-4-6-thinking");
+  });
+
+  it("keeps unknown-model errors when no antigravity non-thinking template exists", () => {
+    vi.mocked(discoverModels).mockReturnValue({
+      find: vi.fn(() => null),
+    } as unknown as ReturnType<typeof discoverModels>);
+
+    const result = resolveModel("google-antigravity", "claude-opus-4-6", "/tmp/agent");
+
+    expect(result.model).toBeUndefined();
+    expect(result.error).toBe("Unknown model: google-antigravity/claude-opus-4-6");
   });
 
   it("keeps unknown-model errors for non-gpt-5 openai-codex ids", () => {
