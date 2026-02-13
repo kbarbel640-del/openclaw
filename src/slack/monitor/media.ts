@@ -44,6 +44,38 @@ function assertSlackFileUrl(rawUrl: string): URL {
   return parsed;
 }
 
+function resolveRequestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.toString();
+  }
+  if ("url" in input && typeof input.url === "string") {
+    return input.url;
+  }
+  throw new Error("Unsupported fetch input: expected string, URL, or Request");
+}
+
+function createSlackMediaFetch(token: string): FetchLike {
+  let includeAuth = true;
+  return async (input, init) => {
+    const url = resolveRequestUrl(input);
+    const { headers: initHeaders, redirect: _redirect, ...rest } = init ?? {};
+    const headers = new Headers(initHeaders);
+
+    if (includeAuth) {
+      includeAuth = false;
+      const parsed = assertSlackFileUrl(url);
+      headers.set("Authorization", `Bearer ${token}`);
+      return fetch(parsed.href, { ...rest, headers, redirect: "manual" });
+    }
+
+    headers.delete("Authorization");
+    return fetch(url, { ...rest, headers, redirect: "manual" });
+  };
+}
+
 /**
  * Fetches a URL with Authorization header, handling cross-origin redirects.
  * Node.js fetch strips Authorization headers on cross-origin redirects for security.
@@ -100,13 +132,9 @@ export async function resolveSlackMedia(params: {
     }
     try {
       // Note: fetchRemoteMedia calls fetchImpl(url) with the URL string today and
-      // handles size limits internally. We ignore init options because
-      // fetchWithSlackAuth handles redirect/auth behavior specially.
-      const fetchImpl: FetchLike = (input) => {
-        const inputUrl =
-          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-        return fetchWithSlackAuth(inputUrl, params.token);
-      };
+      // handles size limits internally. Provide a fetcher that uses auth once, then lets
+      // the redirect chain continue without credentials.
+      const fetchImpl = createSlackMediaFetch(params.token);
       const fetched = await fetchRemoteMedia({
         url,
         fetchImpl,
@@ -176,5 +204,93 @@ export async function resolveSlackThreadStarter(params: {
     return starter;
   } catch {
     return null;
+  }
+}
+
+export type SlackThreadMessage = {
+  text: string;
+  userId?: string;
+  ts?: string;
+  botId?: string;
+  files?: SlackFile[];
+};
+
+type SlackRepliesPageMessage = {
+  text?: string;
+  user?: string;
+  bot_id?: string;
+  ts?: string;
+  files?: SlackFile[];
+};
+
+type SlackRepliesPage = {
+  messages?: SlackRepliesPageMessage[];
+  response_metadata?: { next_cursor?: string };
+};
+
+/**
+ * Fetches the most recent messages in a Slack thread (excluding the current message).
+ * Used to populate thread context when a new thread session starts.
+ *
+ * Uses cursor pagination and keeps only the latest N retained messages so long threads
+ * still produce up-to-date context without unbounded memory growth.
+ */
+export async function resolveSlackThreadHistory(params: {
+  channelId: string;
+  threadTs: string;
+  client: SlackWebClient;
+  currentMessageTs?: string;
+  limit?: number;
+}): Promise<SlackThreadMessage[]> {
+  const maxMessages = params.limit ?? 20;
+  if (!Number.isFinite(maxMessages) || maxMessages <= 0) {
+    return [];
+  }
+
+  // Slack recommends no more than 200 per page.
+  const fetchLimit = 200;
+  const retained: SlackRepliesPageMessage[] = [];
+  let cursor: string | undefined;
+
+  try {
+    do {
+      const response = (await params.client.conversations.replies({
+        channel: params.channelId,
+        ts: params.threadTs,
+        limit: fetchLimit,
+        inclusive: true,
+        ...(cursor ? { cursor } : {}),
+      })) as SlackRepliesPage;
+
+      for (const msg of response.messages ?? []) {
+        // Keep messages with text OR file attachments
+        if (!msg.text?.trim() && !msg.files?.length) {
+          continue;
+        }
+        if (params.currentMessageTs && msg.ts === params.currentMessageTs) {
+          continue;
+        }
+        retained.push(msg);
+        if (retained.length > maxMessages) {
+          retained.shift();
+        }
+      }
+
+      const next = response.response_metadata?.next_cursor;
+      cursor = typeof next === "string" && next.trim().length > 0 ? next.trim() : undefined;
+    } while (cursor);
+
+    return retained.map((msg) => ({
+      // For file-only messages, create a placeholder showing attached filenames
+      text: msg.text?.trim()
+        ? msg.text
+        : `[attached: ${msg.files?.map((f) => f.name ?? "file").join(", ")}]`,
+      userId: msg.user,
+      botId: msg.bot_id,
+      ts: msg.ts,
+      files: msg.files,
+    }));
+  } catch {
+    return [];
   }
 }
