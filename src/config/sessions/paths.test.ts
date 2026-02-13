@@ -127,4 +127,21 @@ describe("session path safety", () => {
     const opts = resolveSessionFilePathOptions({ agentId: "ops" });
     expect(opts).toEqual({ agentId: "ops" });
   });
+
+  it("accepts absolute sessionFile paths within a different agent's sessions dir", () => {
+    const mainSessionsDir = path.join(
+      resolveSessionTranscriptPath("dummy", "main").replace(/dummy\.jsonl$/, ""),
+    ).replace(/\/$/, "");
+    const smolSessionFile = resolveSessionTranscriptPath("sess-2", "smol");
+
+    // This should NOT throw — smol's session path is valid even when
+    // validated against main's sessions dir
+    const resolved = resolveSessionFilePath(
+      "sess-2",
+      { sessionFile: smolSessionFile },
+      { sessionsDir: mainSessionsDir },
+    );
+
+    expect(resolved).toBe(smolSessionFile);
+  });
 });
