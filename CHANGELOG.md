@@ -8,6 +8,7 @@ Docs: https://docs.openclaw.ai
 
 - Version alignment: bump manifests and package versions to `2026.2.10`; keep `appcast.xml` unchanged until the next macOS release cut.
 - CLI: add `openclaw logs --local-time` (plus `--localTime` compatibility alias) to display log timestamps in local timezone. (#13818) Thanks @xialonglee.
+- Agents/Image tool: cap image-analysis completion `maxTokens` by model capability (`min(4096, model.maxTokens)`) to avoid over-limit provider failures while still preventing truncation. (#11770) Thanks @detecti1.
 - Config: avoid redacting `maxTokens`-like fields during config snapshot redaction, preventing round-trip validation failures in `/config`. (#14006) Thanks @constansino.
 
 ## 2026.2.9
