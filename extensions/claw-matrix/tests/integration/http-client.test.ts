@@ -1,23 +1,22 @@
-import assert from "node:assert/strict";
 /**
  * Integration test scaffolding: HTTP client against mock homeserver.
  *
  * Demonstrates how to wire up the mock homeserver with the real
  * matrixFetch/initHttpClient for end-to-end request testing.
  */
-import { describe, it, before, after } from "node:test";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { initHttpClient, matrixFetch, MatrixApiError } from "../../src/client/http.js";
 import { MockHomeserver } from "./mock-homeserver.js";
 
 describe("integration: HTTP client with mock homeserver", () => {
   const server = new MockHomeserver({ accessToken: "test-token-123" });
 
-  before(async () => {
+  beforeAll(async () => {
     await server.start();
     initHttpClient(server.url, "test-token-123");
   });
 
-  after(async () => {
+  afterAll(async () => {
     await server.stop();
   });
 
@@ -33,7 +32,7 @@ describe("integration: HTTP client with mock homeserver", () => {
       undefined,
       { skipRateLimit: true },
     );
-    assert.equal(result.next_batch, "s42");
+    expect(result.next_batch).toBe("s42");
   });
 
   it("should send events via PUT", async () => {
@@ -48,10 +47,10 @@ describe("integration: HTTP client with mock homeserver", () => {
       { skipRateLimit: true },
     );
 
-    assert.equal(server.sentEvents.length, 1);
-    assert.equal(server.sentEvents[0].roomId, roomId);
-    assert.equal(server.sentEvents[0].eventType, "m.room.message");
-    assert.deepEqual(server.sentEvents[0].body, { msgtype: "m.text", body: "Hello from test" });
+    expect(server.sentEvents.length).toBe(1);
+    expect(server.sentEvents[0].roomId).toBe(roomId);
+    expect(server.sentEvents[0].eventType).toBe("m.room.message");
+    expect(server.sentEvents[0].body).toEqual({ msgtype: "m.text", body: "Hello from test" });
   });
 
   it("should resolve room aliases via directory API", async () => {
@@ -63,35 +62,43 @@ describe("integration: HTTP client with mock homeserver", () => {
       undefined,
       { skipRateLimit: true },
     );
-    assert.equal(result.room_id, "!resolved:mock.server");
+    expect(result.room_id).toBe("!resolved:mock.server");
   });
 
   it("should handle 404 as MatrixApiError", async () => {
-    await assert.rejects(
-      () =>
-        matrixFetch("GET", "/_matrix/client/v3/directory/room/%23nonexistent:x", undefined, {
-          skipRateLimit: true,
-        }),
-      (err: unknown) => {
-        assert.ok(err instanceof MatrixApiError);
-        assert.equal(err.statusCode, 404);
-        assert.equal(err.errcode, "M_NOT_FOUND");
-        return true;
-      },
-    );
+    await expect(() =>
+      matrixFetch("GET", "/_matrix/client/v3/directory/room/%23nonexistent:x", undefined, {
+        skipRateLimit: true,
+      }),
+    ).rejects.toThrow(MatrixApiError);
+
+    // Also verify the error details
+    try {
+      await matrixFetch("GET", "/_matrix/client/v3/directory/room/%23nonexistent:x", undefined, {
+        skipRateLimit: true,
+      });
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(MatrixApiError);
+      expect((err as MatrixApiError).statusCode).toBe(404);
+      expect((err as MatrixApiError).errcode).toBe("M_NOT_FOUND");
+    }
   });
 
   it("should handle auth failure", async () => {
     // Temporarily use wrong token
     initHttpClient(server.url, "wrong-token");
-    await assert.rejects(
-      () => matrixFetch("GET", "/_matrix/client/v3/sync", undefined, { skipRateLimit: true }),
-      (err: unknown) => {
-        assert.ok(err instanceof MatrixApiError);
-        assert.equal(err.statusCode, 401);
-        return true;
-      },
-    );
+
+    await expect(() =>
+      matrixFetch("GET", "/_matrix/client/v3/sync", undefined, { skipRateLimit: true }),
+    ).rejects.toThrow(MatrixApiError);
+
+    try {
+      await matrixFetch("GET", "/_matrix/client/v3/sync", undefined, { skipRateLimit: true });
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(MatrixApiError);
+      expect((err as MatrixApiError).statusCode).toBe(401);
+    }
+
     // Restore correct token
     initHttpClient(server.url, "test-token-123");
   });
@@ -107,7 +114,7 @@ describe("integration: HTTP client with mock homeserver", () => {
       undefined,
       { skipRateLimit: true },
     );
-    assert.deepEqual(result["@friend:mock.server"], ["!dm-room:mock.server"]);
+    expect(result["@friend:mock.server"]).toEqual(["!dm-room:mock.server"]);
   });
 
   it("should upload media", async () => {
@@ -117,7 +124,7 @@ describe("integration: HTTP client with mock homeserver", () => {
       undefined, // body would be binary in real usage
       { skipRateLimit: true },
     );
-    assert.ok(result.content_uri.startsWith("mxc://"));
+    expect(result.content_uri.startsWith("mxc://")).toBeTruthy();
   });
 
   it("should handle key upload", async () => {
@@ -127,6 +134,6 @@ describe("integration: HTTP client with mock homeserver", () => {
       { device_keys: {}, one_time_keys: {} },
       { skipRateLimit: true },
     );
-    assert.ok(result.one_time_key_counts);
+    expect(result.one_time_key_counts).toBeTruthy();
   });
 });

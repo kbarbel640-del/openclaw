@@ -1,8 +1,7 @@
-import assert from "node:assert/strict";
 /**
  * Tests for config.ts — Zod schema parsing and resolveMatrixAccount.
  */
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import { MatrixConfigSchema, resolveMatrixAccount } from "../src/config.js";
 
 // ── Test Fixtures ────────────────────────────────────────────────────
@@ -54,39 +53,39 @@ describe("MatrixConfigSchema", () => {
   describe("valid full config", () => {
     it("should parse a complete valid config", () => {
       const result = MatrixConfigSchema.safeParse(VALID_FULL_CONFIG.channels.matrix);
-      assert.ok(result.success, `Parse failed: ${JSON.stringify(result.error?.issues)}`);
-      assert.equal(result.data.homeserver, "https://matrix.example.com");
-      assert.equal(result.data.userId, "@bot:example.com");
-      assert.equal(result.data.encryption, true);
-      assert.equal(result.data.deviceName, "TestDevice");
-      assert.equal(result.data.trustMode, "strict");
-      assert.equal(result.data.autoJoin, "always");
-      assert.equal(result.data.replyToMode, "all");
-      assert.equal(result.data.textChunkLimit, 2048);
+      expect(result.success).toBeTruthy();
+      expect(result.data.homeserver).toBe("https://matrix.example.com");
+      expect(result.data.userId).toBe("@bot:example.com");
+      expect(result.data.encryption).toBe(true);
+      expect(result.data.deviceName).toBe("TestDevice");
+      expect(result.data.trustMode).toBe("strict");
+      expect(result.data.autoJoin).toBe("always");
+      expect(result.data.replyToMode).toBe("all");
+      expect(result.data.textChunkLimit).toBe(2048);
     });
   });
 
   describe("minimal config with defaults", () => {
     it("should apply defaults for omitted fields", () => {
       const result = MatrixConfigSchema.safeParse(VALID_MINIMAL_CONFIG.channels.matrix);
-      assert.ok(result.success, `Parse failed: ${JSON.stringify(result.error?.issues)}`);
+      expect(result.success).toBeTruthy();
       const data = result.data;
-      assert.equal(data.enabled, true);
-      assert.equal(data.encryption, true);
-      assert.equal(data.deviceName, "OpenClaw");
-      assert.equal(data.trustMode, "tofu");
-      assert.equal(data.autoJoin, "off");
-      assert.equal(data.replyToMode, "first");
-      assert.equal(data.chunkMode, "length");
-      assert.equal(data.textChunkLimit, 4096);
-      assert.equal(data.maxMediaSize, 52_428_800);
-      assert.equal(data.rateLimitTokens, 10);
-      assert.equal(data.rateLimitRefillPerSec, 2);
-      assert.equal(data.groupPolicy, "allowlist");
-      assert.deepEqual(data.dm, { policy: "allowlist", allowFrom: [] });
-      assert.deepEqual(data.groups, {});
-      assert.deepEqual(data.groupAllowFrom, []);
-      assert.deepEqual(data.autoJoinAllowFrom, []);
+      expect(data.enabled).toBe(true);
+      expect(data.encryption).toBe(true);
+      expect(data.deviceName).toBe("OpenClaw");
+      expect(data.trustMode).toBe("tofu");
+      expect(data.autoJoin).toBe("off");
+      expect(data.replyToMode).toBe("first");
+      expect(data.chunkMode).toBe("length");
+      expect(data.textChunkLimit).toBe(4096);
+      expect(data.maxMediaSize).toBe(52_428_800);
+      expect(data.rateLimitTokens).toBe(10);
+      expect(data.rateLimitRefillPerSec).toBe(2);
+      expect(data.groupPolicy).toBe("allowlist");
+      expect(data.dm).toEqual({ policy: "allowlist", allowFrom: [] });
+      expect(data.groups).toEqual({});
+      expect(data.groupAllowFrom).toEqual([]);
+      expect(data.autoJoinAllowFrom).toEqual([]);
     });
   });
 
@@ -96,8 +95,8 @@ describe("MatrixConfigSchema", () => {
         ...VALID_MINIMAL_CONFIG.channels.matrix,
         homeserver: "https://matrix.example.com///",
       });
-      assert.ok(result.success);
-      assert.equal(result.data.homeserver, "https://matrix.example.com");
+      expect(result.success).toBeTruthy();
+      expect(result.data.homeserver).toBe("https://matrix.example.com");
     });
 
     it("should strip path from homeserver URL", () => {
@@ -105,8 +104,8 @@ describe("MatrixConfigSchema", () => {
         ...VALID_MINIMAL_CONFIG.channels.matrix,
         homeserver: "https://matrix.example.com/some/path",
       });
-      assert.ok(result.success);
-      assert.equal(result.data.homeserver, "https://matrix.example.com");
+      expect(result.success).toBeTruthy();
+      expect(result.data.homeserver).toBe("https://matrix.example.com");
     });
 
     it("should reject non-HTTPS homeserver", () => {
@@ -114,7 +113,7 @@ describe("MatrixConfigSchema", () => {
         ...VALID_MINIMAL_CONFIG.channels.matrix,
         homeserver: "http://matrix.example.com",
       });
-      assert.ok(!result.success);
+      expect(!result.success).toBeTruthy();
     });
   });
 
@@ -124,7 +123,7 @@ describe("MatrixConfigSchema", () => {
         ...VALID_MINIMAL_CONFIG.channels.matrix,
         userId: "@bot:matrix.org",
       });
-      assert.ok(result.success);
+      expect(result.success).toBeTruthy();
     });
 
     it("should reject user IDs without @", () => {
@@ -132,7 +131,7 @@ describe("MatrixConfigSchema", () => {
         ...VALID_MINIMAL_CONFIG.channels.matrix,
         userId: "bot:matrix.org",
       });
-      assert.ok(!result.success);
+      expect(!result.success).toBeTruthy();
     });
 
     it("should reject user IDs without domain", () => {
@@ -140,7 +139,7 @@ describe("MatrixConfigSchema", () => {
         ...VALID_MINIMAL_CONFIG.channels.matrix,
         userId: "@bot",
       });
-      assert.ok(!result.success);
+      expect(!result.success).toBeTruthy();
     });
   });
 
@@ -150,7 +149,7 @@ describe("MatrixConfigSchema", () => {
         ...VALID_MINIMAL_CONFIG.channels.matrix,
         accessToken: "",
       });
-      assert.ok(!result.success);
+      expect(!result.success).toBeTruthy();
     });
 
     it("should reject invalid enum values", () => {
@@ -158,7 +157,7 @@ describe("MatrixConfigSchema", () => {
         ...VALID_MINIMAL_CONFIG.channels.matrix,
         trustMode: "yolo",
       });
-      assert.ok(!result.success);
+      expect(!result.success).toBeTruthy();
     });
 
     it("should reject invalid DM policy", () => {
@@ -166,7 +165,7 @@ describe("MatrixConfigSchema", () => {
         ...VALID_MINIMAL_CONFIG.channels.matrix,
         dm: { policy: "invalid" },
       });
-      assert.ok(!result.success);
+      expect(!result.success).toBeTruthy();
     });
   });
 });
@@ -175,36 +174,35 @@ describe("resolveMatrixAccount", () => {
   describe("valid Zod path", () => {
     it("should resolve from full config", () => {
       const resolved = resolveMatrixAccount(VALID_FULL_CONFIG);
-      assert.equal(resolved.accountId, "default");
-      assert.equal(resolved.homeserver, "https://matrix.example.com");
-      assert.equal(resolved.userId, "@bot:example.com");
-      assert.equal(resolved.accessToken, "syt_abc123_xyz");
-      assert.equal(resolved.deviceName, "TestDevice");
+      expect(resolved.accountId).toBe("default");
+      expect(resolved.homeserver).toBe("https://matrix.example.com");
+      expect(resolved.userId).toBe("@bot:example.com");
+      expect(resolved.accessToken).toBe("syt_abc123_xyz");
+      expect(resolved.deviceName).toBe("TestDevice");
     });
 
     it("should resolve from minimal config with defaults", () => {
       const resolved = resolveMatrixAccount(VALID_MINIMAL_CONFIG);
-      assert.equal(resolved.accountId, "default");
-      assert.equal(resolved.encryption, true);
-      assert.equal(resolved.deviceName, "OpenClaw");
-      assert.equal(resolved.trustMode, "tofu");
+      expect(resolved.accountId).toBe("default");
+      expect(resolved.encryption).toBe(true);
+      expect(resolved.deviceName).toBe("OpenClaw");
+      expect(resolved.trustMode).toBe("tofu");
     });
 
     it("should accept null accountId as default", () => {
       const resolved = resolveMatrixAccount(VALID_MINIMAL_CONFIG, null);
-      assert.equal(resolved.accountId, "default");
+      expect(resolved.accountId).toBe("default");
     });
 
     it("should accept 'default' accountId", () => {
       const resolved = resolveMatrixAccount(VALID_MINIMAL_CONFIG, "default");
-      assert.equal(resolved.accountId, "default");
+      expect(resolved.accountId).toBe("default");
     });
   });
 
   describe("multi-account rejection", () => {
     it("should reject non-default accountId", () => {
-      assert.throws(
-        () => resolveMatrixAccount(VALID_MINIMAL_CONFIG, "secondary"),
+      expect(() => resolveMatrixAccount(VALID_MINIMAL_CONFIG, "secondary")).toThrow(
         /not supported.*only a single account/,
       );
     });
@@ -213,23 +211,23 @@ describe("resolveMatrixAccount", () => {
   describe("fallback path", () => {
     it("should fall back gracefully on missing channels.matrix", () => {
       const resolved = resolveMatrixAccount({});
-      assert.equal(resolved.accountId, "default");
-      assert.equal(resolved.homeserver, "");
-      assert.equal(resolved.accessToken, "");
-      assert.equal(resolved.deviceName, "OpenClaw");
+      expect(resolved.accountId).toBe("default");
+      expect(resolved.homeserver).toBe("");
+      expect(resolved.accessToken).toBe("");
+      expect(resolved.deviceName).toBe("OpenClaw");
     });
 
     it("should fall back on null input", () => {
       const resolved = resolveMatrixAccount(null);
-      assert.equal(resolved.accountId, "default");
-      assert.equal(resolved.homeserver, "");
+      expect(resolved.accountId).toBe("default");
+      expect(resolved.homeserver).toBe("");
     });
 
     it("should fall back on completely empty matrix config", () => {
       const resolved = resolveMatrixAccount({ channels: { matrix: {} } });
-      assert.equal(resolved.accountId, "default");
-      assert.equal(resolved.enabled, true);
-      assert.equal(resolved.encryption, true);
+      expect(resolved.accountId).toBe("default");
+      expect(resolved.enabled).toBe(true);
+      expect(resolved.encryption).toBe(true);
     });
 
     it("should preserve values even when Zod validation fails", () => {
@@ -244,9 +242,9 @@ describe("resolveMatrixAccount", () => {
         },
       };
       const resolved = resolveMatrixAccount(cfg);
-      assert.equal(resolved.accessToken, "token123");
+      expect(resolved.accessToken).toBe("token123");
       // Homeserver should be preserved via fallback
-      assert.ok(resolved.homeserver.includes("localhost"));
+      expect(resolved.homeserver.includes("localhost")).toBeTruthy();
     });
   });
 });

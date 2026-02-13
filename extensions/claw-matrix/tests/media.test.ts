@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 /**
  * Tests for media encryption/decryption round-trip.
@@ -10,7 +9,7 @@ import * as crypto from "node:crypto";
  *
  * We also test the exported utility functions: mimeToMsgtype, isValidMxcUrl.
  */
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 import {
   decryptAttachment,
   mimeToMsgtype,
@@ -67,21 +66,21 @@ describe("media encryption", () => {
       const plaintext = Buffer.from("Hello, Matrix!");
       const { ciphertext, file } = testEncryptAttachment(plaintext);
       const decrypted = decryptAttachment(ciphertext, file);
-      assert.deepEqual(decrypted, plaintext);
+      expect(decrypted).toEqual(plaintext);
     });
 
     it("should round-trip empty buffer", () => {
       const plaintext = Buffer.alloc(0);
       const { ciphertext, file } = testEncryptAttachment(plaintext);
       const decrypted = decryptAttachment(ciphertext, file);
-      assert.deepEqual(decrypted, plaintext);
+      expect(decrypted).toEqual(plaintext);
     });
 
     it("should round-trip large data (1MB)", () => {
       const plaintext = crypto.randomBytes(1024 * 1024);
       const { ciphertext, file } = testEncryptAttachment(plaintext);
       const decrypted = decryptAttachment(ciphertext, file);
-      assert.deepEqual(decrypted, plaintext);
+      expect(decrypted).toEqual(plaintext);
     });
 
     it("should round-trip binary data with all byte values", () => {
@@ -89,7 +88,7 @@ describe("media encryption", () => {
       for (let i = 0; i < 256; i++) plaintext[i] = i;
       const { ciphertext, file } = testEncryptAttachment(plaintext);
       const decrypted = decryptAttachment(ciphertext, file);
-      assert.deepEqual(decrypted, plaintext);
+      expect(decrypted).toEqual(plaintext);
     });
 
     it("should produce different ciphertext for same plaintext (random key/IV)", () => {
@@ -97,7 +96,7 @@ describe("media encryption", () => {
       const { ciphertext: ct1 } = testEncryptAttachment(plaintext);
       const { ciphertext: ct2 } = testEncryptAttachment(plaintext);
       // Extremely unlikely to be equal with random key+IV
-      assert.notDeepEqual(ct1, ct2);
+      expect(ct1).not.toEqual(ct2);
     });
   });
 
@@ -108,7 +107,7 @@ describe("media encryption", () => {
       // Tamper with ciphertext
       const tampered = Buffer.from(ciphertext);
       tampered[0] ^= 0xff;
-      assert.throws(() => decryptAttachment(tampered, file), /hash mismatch/);
+      expect(() => decryptAttachment(tampered, file)).toThrow(/hash mismatch/);
     });
 
     it("should reject wrong hash in metadata", () => {
@@ -119,7 +118,7 @@ describe("media encryption", () => {
         ...file,
         hashes: { sha256: toUnpaddedBase64(crypto.randomBytes(32)) },
       };
-      assert.throws(() => decryptAttachment(ciphertext, badFile), /hash mismatch/);
+      expect(() => decryptAttachment(ciphertext, badFile)).toThrow(/hash mismatch/);
     });
   });
 
@@ -131,8 +130,7 @@ describe("media encryption", () => {
         ...file,
         key: { ...file.key, alg: "A128CTR" as any },
       };
-      assert.throws(
-        () => decryptAttachment(ciphertext, badFile),
+      expect(() => decryptAttachment(ciphertext, badFile)).toThrow(
         /Unsupported encryption algorithm/,
       );
     });
@@ -144,60 +142,60 @@ describe("media encryption", () => {
       const plaintext = Buffer.from("base64url test");
       const { ciphertext, file } = testEncryptAttachment(plaintext);
       // The key should be base64url (no padding, no + or /)
-      assert.ok(!file.key.k.includes("="), "key should be base64url without padding");
-      assert.ok(!file.key.k.includes("+"), "key should not contain +");
-      assert.ok(!file.key.k.includes("/"), "key should not contain /");
+      expect(file.key.k.includes("=")).toBe(false);
+      expect(file.key.k.includes("+")).toBe(false);
+      expect(file.key.k.includes("/")).toBe(false);
       const decrypted = decryptAttachment(ciphertext, file);
-      assert.deepEqual(decrypted, plaintext);
+      expect(decrypted).toEqual(plaintext);
     });
 
     it("should handle IV with unpadded base64", () => {
       const plaintext = Buffer.from("iv test");
       const { ciphertext, file } = testEncryptAttachment(plaintext);
       // IV should be unpadded base64
-      assert.ok(!file.iv.includes("="), "IV should be unpadded base64");
+      expect(file.iv.includes("=")).toBe(false);
       const decrypted = decryptAttachment(ciphertext, file);
-      assert.deepEqual(decrypted, plaintext);
+      expect(decrypted).toEqual(plaintext);
     });
   });
 });
 
 describe("mimeToMsgtype", () => {
   it("should map image MIME types", () => {
-    assert.equal(mimeToMsgtype("image/png"), "m.image");
-    assert.equal(mimeToMsgtype("image/jpeg"), "m.image");
-    assert.equal(mimeToMsgtype("image/gif"), "m.image");
+    expect(mimeToMsgtype("image/png")).toBe("m.image");
+    expect(mimeToMsgtype("image/jpeg")).toBe("m.image");
+    expect(mimeToMsgtype("image/gif")).toBe("m.image");
   });
 
   it("should map audio MIME types", () => {
-    assert.equal(mimeToMsgtype("audio/ogg"), "m.audio");
-    assert.equal(mimeToMsgtype("audio/mp3"), "m.audio");
+    expect(mimeToMsgtype("audio/ogg")).toBe("m.audio");
+    expect(mimeToMsgtype("audio/mp3")).toBe("m.audio");
   });
 
   it("should map video MIME types", () => {
-    assert.equal(mimeToMsgtype("video/mp4"), "m.video");
-    assert.equal(mimeToMsgtype("video/webm"), "m.video");
+    expect(mimeToMsgtype("video/mp4")).toBe("m.video");
+    expect(mimeToMsgtype("video/webm")).toBe("m.video");
   });
 
   it("should default to m.file for unknown types", () => {
-    assert.equal(mimeToMsgtype("application/pdf"), "m.file");
-    assert.equal(mimeToMsgtype("text/plain"), "m.file");
-    assert.equal(mimeToMsgtype(""), "m.file");
+    expect(mimeToMsgtype("application/pdf")).toBe("m.file");
+    expect(mimeToMsgtype("text/plain")).toBe("m.file");
+    expect(mimeToMsgtype("")).toBe("m.file");
   });
 });
 
 describe("isValidMxcUrl", () => {
   it("should accept valid mxc URLs", () => {
-    assert.ok(isValidMxcUrl("mxc://matrix.org/abcdef123"));
-    assert.ok(isValidMxcUrl("mxc://example.com/media_id"));
-    assert.ok(isValidMxcUrl("mxc://localhost/1234"));
+    expect(isValidMxcUrl("mxc://matrix.org/abcdef123")).toBeTruthy();
+    expect(isValidMxcUrl("mxc://example.com/media_id")).toBeTruthy();
+    expect(isValidMxcUrl("mxc://localhost/1234")).toBeTruthy();
   });
 
   it("should reject invalid URLs", () => {
-    assert.ok(!isValidMxcUrl("https://matrix.org/media"));
-    assert.ok(!isValidMxcUrl("mxc://"));
-    assert.ok(!isValidMxcUrl("mxc://server/"));
-    assert.ok(!isValidMxcUrl(""));
-    assert.ok(!isValidMxcUrl("mxc:///mediaId"));
+    expect(isValidMxcUrl("https://matrix.org/media")).toBe(false);
+    expect(isValidMxcUrl("mxc://")).toBe(false);
+    expect(isValidMxcUrl("mxc://server/")).toBe(false);
+    expect(isValidMxcUrl("")).toBe(false);
+    expect(isValidMxcUrl("mxc:///mediaId")).toBe(false);
   });
 });

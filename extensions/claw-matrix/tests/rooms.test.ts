@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 /**
  * Tests for rooms.ts — processStateEvents state machine.
  *
@@ -8,7 +7,7 @@ import assert from "node:assert/strict";
  * Does NOT test async functions that depend on matrixFetch (getMemberDisplayName,
  * isDmRoomAsync) — those require integration test mocking.
  */
-import { describe, it, beforeEach } from "node:test";
+import { describe, it, expect } from "vitest";
 import type { MatrixEvent } from "../src/types.js";
 import {
   processStateEvents,
@@ -33,23 +32,23 @@ describe("processStateEvents", () => {
   describe("encryption state tracking", () => {
     it("should mark a room as encrypted on m.room.encryption event", () => {
       const roomId = "!enc-test-1:example.com";
-      assert.equal(isRoomEncrypted(roomId), false);
+      expect(isRoomEncrypted(roomId)).toBe(false);
 
       processStateEvents(roomId, [
         makeEvent("m.room.encryption", { algorithm: "m.megolm.v1.aes-sha2" }),
       ]);
 
-      assert.equal(isRoomEncrypted(roomId), true);
+      expect(isRoomEncrypted(roomId)).toBe(true);
     });
 
     it("should be write-once: encryption cannot be unset", () => {
       const roomId = "!enc-test-2:example.com";
       setRoomEncrypted(roomId);
-      assert.equal(isRoomEncrypted(roomId), true);
+      expect(isRoomEncrypted(roomId)).toBe(true);
 
       // Even after cleanup, encryption state should persist
       cleanupRoom(roomId);
-      assert.equal(isRoomEncrypted(roomId), true);
+      expect(isRoomEncrypted(roomId)).toBe(true);
     });
   });
 
@@ -57,24 +56,24 @@ describe("processStateEvents", () => {
     it("should track m.room.name events", () => {
       const roomId = "!name-test-1:example.com";
       processStateEvents(roomId, [makeEvent("m.room.name", { name: "Test Room" })]);
-      assert.equal(getRoomName(roomId), "Test Room");
+      expect(getRoomName(roomId)).toBe("Test Room");
     });
 
     it("should update room name on newer events", () => {
       const roomId = "!name-test-2:example.com";
       processStateEvents(roomId, [makeEvent("m.room.name", { name: "Old Name" })]);
       processStateEvents(roomId, [makeEvent("m.room.name", { name: "New Name" })]);
-      assert.equal(getRoomName(roomId), "New Name");
+      expect(getRoomName(roomId)).toBe("New Name");
     });
 
     it("should ignore m.room.name with non-string name", () => {
       const roomId = "!name-test-3:example.com";
       processStateEvents(roomId, [makeEvent("m.room.name", { name: 42 })]);
-      assert.equal(getRoomName(roomId), undefined);
+      expect(getRoomName(roomId)).toBe(undefined);
     });
 
     it("should return undefined for unknown rooms", () => {
-      assert.equal(getRoomName("!unknown:example.com"), undefined);
+      expect(getRoomName("!unknown:example.com")).toBe(undefined);
     });
   });
 
@@ -86,9 +85,9 @@ describe("processStateEvents", () => {
         makeEvent("m.room.member", { membership: "join" }, "@bob:example.com"),
       ]);
       const members = getRoomMembers(roomId);
-      assert.equal(members.size, 2);
-      assert.ok(members.has("@alice:example.com"));
-      assert.ok(members.has("@bob:example.com"));
+      expect(members.size).toBe(2);
+      expect(members.has("@alice:example.com")).toBeTruthy();
+      expect(members.has("@bob:example.com")).toBeTruthy();
     });
 
     it("should remove members on leave", () => {
@@ -101,9 +100,9 @@ describe("processStateEvents", () => {
         makeEvent("m.room.member", { membership: "leave" }, "@bob:example.com"),
       ]);
       const members = getRoomMembers(roomId);
-      assert.equal(members.size, 1);
-      assert.ok(members.has("@alice:example.com"));
-      assert.ok(!members.has("@bob:example.com"));
+      expect(members.size).toBe(1);
+      expect(members.has("@alice:example.com")).toBeTruthy();
+      expect(members.has("@bob:example.com")).toBe(false);
     });
 
     it("should remove members on ban", () => {
@@ -116,8 +115,8 @@ describe("processStateEvents", () => {
         makeEvent("m.room.member", { membership: "ban" }, "@troll:example.com"),
       ]);
       const members = getRoomMembers(roomId);
-      assert.equal(members.size, 1);
-      assert.ok(!members.has("@troll:example.com"));
+      expect(members.size).toBe(1);
+      expect(members.has("@troll:example.com")).toBe(false);
     });
 
     it("should skip member events without state_key", () => {
@@ -126,12 +125,12 @@ describe("processStateEvents", () => {
         makeEvent("m.room.member", { membership: "join" }), // no state_key
       ]);
       const members = getRoomMembers(roomId);
-      assert.equal(members.size, 0);
+      expect(members.size).toBe(0);
     });
 
     it("should return empty set for unknown rooms", () => {
       const members = getRoomMembers("!nonexistent:example.com");
-      assert.equal(members.size, 0);
+      expect(members.size).toBe(0);
     });
   });
 
@@ -144,7 +143,7 @@ describe("processStateEvents", () => {
       ]);
       // isDmRoom uses m.direct cache first; when null, falls back to heuristic
       // Since we haven't initialized m.direct, it should use the heuristic
-      assert.equal(isDmRoom(roomId), true);
+      expect(isDmRoom(roomId)).toBe(true);
     });
 
     it("should detect group rooms (3+ members)", () => {
@@ -154,7 +153,7 @@ describe("processStateEvents", () => {
         makeEvent("m.room.member", { membership: "join" }, "@bob:example.com"),
         makeEvent("m.room.member", { membership: "join" }, "@charlie:example.com"),
       ]);
-      assert.equal(isDmRoom(roomId), false);
+      expect(isDmRoom(roomId)).toBe(false);
     });
 
     it("should update DM status when members change", () => {
@@ -163,19 +162,19 @@ describe("processStateEvents", () => {
         makeEvent("m.room.member", { membership: "join" }, "@a:example.com"),
         makeEvent("m.room.member", { membership: "join" }, "@b:example.com"),
       ]);
-      assert.equal(isDmRoom(roomId), true);
+      expect(isDmRoom(roomId)).toBe(true);
 
       // Third member joins -> becomes group
       processStateEvents(roomId, [
         makeEvent("m.room.member", { membership: "join" }, "@c:example.com"),
       ]);
-      assert.equal(isDmRoom(roomId), false);
+      expect(isDmRoom(roomId)).toBe(false);
 
       // Third member leaves -> back to DM
       processStateEvents(roomId, [
         makeEvent("m.room.member", { membership: "leave" }, "@c:example.com"),
       ]);
-      assert.equal(isDmRoom(roomId), true);
+      expect(isDmRoom(roomId)).toBe(true);
     });
 
     it("should treat single-member rooms as DM (self-chat)", () => {
@@ -184,7 +183,7 @@ describe("processStateEvents", () => {
         makeEvent("m.room.member", { membership: "join" }, "@alone:example.com"),
       ]);
       // <= 2 members is DM per the code
-      assert.equal(isDmRoom(roomId), true);
+      expect(isDmRoom(roomId)).toBe(true);
     });
   });
 
@@ -198,9 +197,9 @@ describe("processStateEvents", () => {
         makeEvent("m.room.member", { membership: "join" }, "@bob:example.com"),
       ]);
 
-      assert.equal(isRoomEncrypted(roomId), true);
-      assert.equal(getRoomName(roomId), "Secret Room");
-      assert.equal(getRoomMembers(roomId).size, 2);
+      expect(isRoomEncrypted(roomId)).toBe(true);
+      expect(getRoomName(roomId)).toBe("Secret Room");
+      expect(getRoomMembers(roomId).size).toBe(2);
     });
 
     it("should ignore unknown event types", () => {
@@ -210,7 +209,7 @@ describe("processStateEvents", () => {
         makeEvent("m.room.avatar", { url: "mxc://example.com/avatar" }),
       ]);
       // Should not throw, and state should not be affected
-      assert.equal(getRoomName(roomId), undefined);
+      expect(getRoomName(roomId)).toBe(undefined);
     });
   });
 
@@ -225,9 +224,9 @@ describe("processStateEvents", () => {
 
       cleanupRoom(roomId);
 
-      assert.equal(isRoomEncrypted(roomId), true, "encryption should persist");
-      assert.equal(getRoomName(roomId), undefined, "name should be cleared");
-      assert.equal(getRoomMembers(roomId).size, 0, "members should be cleared");
+      expect(isRoomEncrypted(roomId)).toBe(true);
+      expect(getRoomName(roomId)).toBe(undefined);
+      expect(getRoomMembers(roomId).size).toBe(0);
     });
   });
 
@@ -238,7 +237,7 @@ describe("processStateEvents", () => {
         makeEvent("m.room.member", { membership: "join" }, "@user:example.com"),
       ]);
       const tracked = getTrackedRoomIds();
-      assert.ok(tracked.includes(roomId));
+      expect(tracked.includes(roomId)).toBeTruthy();
     });
   });
 });

@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 /**
  * Tests for SSSS decryption and key verification (src/crypto/ssss.ts).
@@ -7,7 +6,7 @@ import * as crypto from "node:crypto";
  * HMAC-SHA-256 verification, and recovery key self-verification against
  * SSSS key metadata.
  */
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 
 // ── Helpers: replicate SSSS crypto for test fixture generation ──────────
 
@@ -108,7 +107,7 @@ describe("SSSS decryption", () => {
   it("round-trip: encrypt then decrypt", () => {
     const encrypted = encryptSecret(rawKey, secretName, plaintext);
     const decrypted = decryptSecret(rawKey, secretName, encrypted);
-    assert.equal(decrypted, plaintext);
+    expect(decrypted).toBe(plaintext);
   });
 
   it("rejects tampered ciphertext (HMAC mismatch)", () => {
@@ -118,21 +117,20 @@ describe("SSSS decryption", () => {
     tampered[0] ^= 0xff;
     encrypted.ciphertext = unpaddedBase64(tampered);
 
-    assert.throws(() => decryptSecret(rawKey, secretName, encrypted), /HMAC mismatch/);
+    expect(() => decryptSecret(rawKey, secretName, encrypted)).toThrow(/HMAC mismatch/);
   });
 
   it("rejects wrong key (HMAC mismatch)", () => {
     const encrypted = encryptSecret(rawKey, secretName, plaintext);
     const wrongKey = crypto.randomBytes(32);
 
-    assert.throws(() => decryptSecret(wrongKey, secretName, encrypted), /HMAC mismatch/);
+    expect(() => decryptSecret(wrongKey, secretName, encrypted)).toThrow(/HMAC mismatch/);
   });
 
   it("rejects wrong secret name (HMAC mismatch)", () => {
     const encrypted = encryptSecret(rawKey, secretName, plaintext);
 
-    assert.throws(
-      () => decryptSecret(rawKey, "m.cross_signing.self_signing", encrypted),
+    expect(() => decryptSecret(rawKey, "m.cross_signing.self_signing", encrypted)).toThrow(
       /HMAC mismatch/,
     );
   });
@@ -143,10 +141,10 @@ describe("SSSS decryption", () => {
 
     // Decrypt with secretName info — should work
     const decrypted = decryptSecret(rawKey, secretName, encrypted);
-    assert.equal(decrypted, plaintext);
+    expect(decrypted).toBe(plaintext);
 
     // Decrypt with empty info — should fail
-    assert.throws(() => decryptSecret(rawKey, "", encrypted), /HMAC mismatch/);
+    expect(() => decryptSecret(rawKey, "", encrypted)).toThrow(/HMAC mismatch/);
   });
 });
 
@@ -155,13 +153,13 @@ describe("SSSS key verification", () => {
 
   it("correct key passes verification", () => {
     const meta = generateKeyMetadata(rawKey);
-    assert.ok(verifyRecoveryKey(rawKey, meta));
+    expect(verifyRecoveryKey(rawKey, meta)).toBeTruthy();
   });
 
   it("wrong key fails verification", () => {
     const meta = generateKeyMetadata(rawKey);
     const wrongKey = crypto.randomBytes(32);
-    assert.ok(!verifyRecoveryKey(wrongKey, meta));
+    expect(verifyRecoveryKey(wrongKey, meta)).toBe(false);
   });
 
   it("key verification uses HKDF info=empty (not secretName)", () => {
@@ -169,7 +167,7 @@ describe("SSSS key verification", () => {
     const meta = generateKeyMetadata(rawKey);
 
     // Verify with info="" — should pass
-    assert.ok(verifyRecoveryKey(rawKey, meta));
+    expect(verifyRecoveryKey(rawKey, meta)).toBeTruthy();
 
     // If we generated metadata with info=secretName instead, the MAC would differ
     const { aesKey: wrongAes, hmacKey: wrongHmac } = deriveKeys(rawKey, "m.cross_signing.master");
@@ -179,7 +177,7 @@ describe("SSSS key verification", () => {
     const wrongMac = crypto.createHmac("sha256", wrongHmac).update(encrypted).digest();
     const expectedMac = Buffer.from(meta.mac, "base64");
     // These should NOT match — proves the info parameter matters
-    assert.ok(!wrongMac.equals(expectedMac));
+    expect(wrongMac.equals(expectedMac)).toBe(false);
   });
 
   it("tampered metadata MAC fails", () => {
@@ -187,6 +185,6 @@ describe("SSSS key verification", () => {
     const tamperedMac = Buffer.from(meta.mac, "base64");
     tamperedMac[0] ^= 0xff;
     meta.mac = unpaddedBase64(tamperedMac);
-    assert.ok(!verifyRecoveryKey(rawKey, meta));
+    expect(verifyRecoveryKey(rawKey, meta)).toBe(false);
   });
 });

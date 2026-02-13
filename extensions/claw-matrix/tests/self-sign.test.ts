@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 /**
  * Tests for device self-signing module (src/crypto/self-sign.ts).
@@ -8,7 +7,7 @@ import * as crypto from "node:crypto";
  * The crypto functions are reimplemented here to avoid import resolution issues
  * with .js extensions in ESM+TypeScript. The logic matches self-sign.ts exactly.
  */
-import { describe, it } from "node:test";
+import { describe, it, expect } from "vitest";
 
 // ── Reimplemented from self-sign.ts ─────────────────────────────────────
 
@@ -56,23 +55,23 @@ function deriveEd25519PublicKey(seed: Buffer): string {
 
 describe("canonicalJson", () => {
   it("sorts keys alphabetically", () => {
-    assert.equal(canonicalJson({ b: 1, a: 2 }), '{"a":2,"b":1}');
+    expect(canonicalJson({ b: 1, a: 2 })).toBe('{"a":2,"b":1}');
   });
 
   it("sorts nested objects recursively", () => {
-    assert.equal(canonicalJson({ z: { b: 1, a: 2 }, a: 1 }), '{"a":1,"z":{"a":2,"b":1}}');
+    expect(canonicalJson({ z: { b: 1, a: 2 }, a: 1 })).toBe('{"a":1,"z":{"a":2,"b":1}}');
   });
 
   it("preserves array order", () => {
-    assert.equal(canonicalJson({ a: [3, 1, 2] }), '{"a":[3,1,2]}');
+    expect(canonicalJson({ a: [3, 1, 2] })).toBe('{"a":[3,1,2]}');
   });
 
   it("handles null, numbers, strings, booleans", () => {
-    assert.equal(canonicalJson(null), "null");
-    assert.equal(canonicalJson(42), "42");
-    assert.equal(canonicalJson("hello"), '"hello"');
-    assert.equal(canonicalJson(true), "true");
-    assert.equal(canonicalJson(false), "false");
+    expect(canonicalJson(null)).toBe("null");
+    expect(canonicalJson(42)).toBe("42");
+    expect(canonicalJson("hello")).toBe('"hello"');
+    expect(canonicalJson(true)).toBe("true");
+    expect(canonicalJson(false)).toBe("false");
   });
 
   it("strips signatures and unsigned keys", () => {
@@ -84,17 +83,17 @@ describe("canonicalJson", () => {
       keys: { "ed25519:ABC": "key..." },
     };
     const result = canonicalJson(obj);
-    assert.ok(!result.includes("signatures"));
-    assert.ok(!result.includes("unsigned"));
-    assert.ok(result.includes("user_id"));
-    assert.ok(result.includes("keys"));
+    expect(result.includes("signatures")).toBe(false);
+    expect(result.includes("unsigned")).toBe(false);
+    expect(result.includes("user_id")).toBeTruthy();
+    expect(result.includes("keys")).toBeTruthy();
   });
 
   it("produces no whitespace", () => {
     const result = canonicalJson({ foo: { bar: [1, 2, 3] } });
-    assert.ok(!result.includes(" "));
-    assert.ok(!result.includes("\n"));
-    assert.ok(!result.includes("\t"));
+    expect(result.includes(" ")).toBe(false);
+    expect(result.includes("\n")).toBe(false);
+    expect(result.includes("\t")).toBe(false);
   });
 
   it("matches Matrix spec example", () => {
@@ -114,9 +113,9 @@ describe("canonicalJson", () => {
     };
     const result = canonicalJson(input);
     // Verify keys are sorted at all levels
-    assert.ok(result.indexOf('"address"') < result.indexOf('"medium"'));
-    assert.ok(result.indexOf('"auth"') === 1); // first key
-    assert.ok(result.indexOf('"display_name"') < result.indexOf('"three_pids"'));
+    expect(result.indexOf('"address"') < result.indexOf('"medium"')).toBeTruthy();
+    expect(result.indexOf('"auth"')).toBe(1); // first key
+    expect(result.indexOf('"display_name"') < result.indexOf('"three_pids"')).toBeTruthy();
   });
 });
 
@@ -125,28 +124,28 @@ describe("deriveEd25519PublicKey", () => {
     const seed = crypto.randomBytes(32);
     const pubKey1 = deriveEd25519PublicKey(Buffer.from(seed));
     const pubKey2 = deriveEd25519PublicKey(Buffer.from(seed));
-    assert.equal(pubKey1, pubKey2);
+    expect(pubKey1).toBe(pubKey2);
   });
 
   it("returns 32 bytes when decoded from base64", () => {
     const seed = crypto.randomBytes(32);
     const pubKey = deriveEd25519PublicKey(Buffer.from(seed));
     const decoded = Buffer.from(pubKey, "base64");
-    assert.equal(decoded.length, 32);
+    expect(decoded.length).toBe(32);
   });
 
   it("uses unpadded base64 (no = padding)", () => {
     for (let i = 0; i < 10; i++) {
       const seed = crypto.randomBytes(32);
       const pubKey = deriveEd25519PublicKey(Buffer.from(seed));
-      assert.ok(!pubKey.includes("="), `Public key should not contain padding: ${pubKey}`);
+      expect(pubKey.includes("=")).toBe(false);
     }
   });
 
   it("different seeds produce different public keys", () => {
     const pubKey1 = deriveEd25519PublicKey(crypto.randomBytes(32));
     const pubKey2 = deriveEd25519PublicKey(crypto.randomBytes(32));
-    assert.notEqual(pubKey1, pubKey2);
+    expect(pubKey1).not.toBe(pubKey2);
   });
 });
 
@@ -166,7 +165,7 @@ describe("ed25519 sign/verify round-trip", () => {
     );
     const signature = crypto.sign(null, message, privateKey);
 
-    assert.ok(crypto.verify(null, message, publicKey, signature));
+    expect(crypto.verify(null, message, publicKey, signature)).toBeTruthy();
   });
 
   it("signature is 64 bytes", () => {
@@ -174,7 +173,7 @@ describe("ed25519 sign/verify round-trip", () => {
     const privateKey = ed25519PrivateKeyFromSeed(seed);
     const message = Buffer.from("test message");
     const signature = crypto.sign(null, message, privateKey);
-    assert.equal(signature.length, 64);
+    expect(signature.length).toBe(64);
   });
 
   it("unpadded base64 signature has no = chars", () => {
@@ -183,7 +182,7 @@ describe("ed25519 sign/verify round-trip", () => {
     const message = Buffer.from("test message for padding check");
     const signature = crypto.sign(null, message, privateKey);
     const b64 = Buffer.from(signature).toString("base64").replace(/=+$/, "");
-    assert.ok(!b64.includes("="));
+    expect(b64.includes("=")).toBe(false);
   });
 
   it("tampered message fails verification", () => {
@@ -195,7 +194,7 @@ describe("ed25519 sign/verify round-trip", () => {
     const signature = crypto.sign(null, message, privateKey);
 
     const tampered = Buffer.from("tampered message");
-    assert.ok(!crypto.verify(null, tampered, publicKey, signature));
+    expect(crypto.verify(null, tampered, publicKey, signature)).toBe(false);
   });
 
   it("wrong key fails verification", () => {
@@ -207,6 +206,6 @@ describe("ed25519 sign/verify round-trip", () => {
     const message = Buffer.from("test message");
     const signature = crypto.sign(null, message, privateKey1);
 
-    assert.ok(!crypto.verify(null, message, publicKey2, signature));
+    expect(crypto.verify(null, message, publicKey2, signature)).toBe(false);
   });
 });
