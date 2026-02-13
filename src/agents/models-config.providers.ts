@@ -318,8 +318,8 @@ function buildMinimaxProvider(): ProviderConfig {
         maxTokens: MINIMAX_DEFAULT_MAX_TOKENS,
       },
       {
-        id: "MiniMax-M2.1-lightning",
-        name: "MiniMax M2.1 Lightning",
+        id: "MiniMax-M2.1-highspeed",
+        name: "MiniMax M2.1 Highspeed",
         reasoning: false,
         input: ["text"],
         cost: MINIMAX_API_COST,
@@ -345,8 +345,8 @@ function buildMinimaxProvider(): ProviderConfig {
         maxTokens: MINIMAX_DEFAULT_MAX_TOKENS,
       },
       {
-        id: "MiniMax-M2.5-Lightning",
-        name: "MiniMax M2.5 Lightning",
+        id: "MiniMax-M2.5-highspeed",
+        name: "MiniMax M2.5 Highspeed",
         reasoning: true,
         input: ["text"],
         cost: MINIMAX_API_COST,
@@ -374,6 +374,15 @@ function buildMinimaxPortalProvider(): ProviderConfig {
       {
         id: "MiniMax-M2.5",
         name: "MiniMax M2.5",
+        reasoning: true,
+        input: ["text"],
+        cost: MINIMAX_API_COST,
+        contextWindow: MINIMAX_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: MINIMAX_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "MiniMax-M2.5-highspeed",
+        name: "MiniMax M2.5 Highspeed",
         reasoning: true,
         input: ["text"],
         cost: MINIMAX_API_COST,
