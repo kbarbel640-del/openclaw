@@ -477,4 +477,31 @@ describe("overflow compaction in run loop", () => {
     expect(mockedMarkAuthProfileFailure).not.toHaveBeenCalled();
     expect(mockedRunEmbeddedAttempt).toHaveBeenCalledTimes(1);
   });
+
+  it("sets promptTokens from the latest model call usage, not accumulated attempt usage", async () => {
+    mockedRunEmbeddedAttempt.mockResolvedValue(
+      makeAttemptResult({
+        attemptUsage: {
+          input: 4_000,
+          cacheRead: 120_000,
+          cacheWrite: 0,
+          total: 124_000,
+        },
+        lastAssistant: {
+          stopReason: "end_turn",
+          usage: {
+            input: 900,
+            cacheRead: 1_100,
+            cacheWrite: 0,
+            total: 2_000,
+          },
+        } as EmbeddedRunAttemptResult["lastAssistant"],
+      }),
+    );
+
+    const result = await runEmbeddedPiAgent(baseParams);
+
+    expect(result.meta.agentMeta?.usage?.input).toBe(4_000);
+    expect(result.meta.agentMeta?.promptTokens).toBe(2_000);
+  });
 });
