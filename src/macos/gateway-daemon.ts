@@ -53,6 +53,7 @@ async function main() {
     { defaultRuntime },
     { enableConsoleCapture, setConsoleTimestampPrefix },
     commandQueueMod,
+    { createRestartIterationHook },
   ] = await Promise.all([
     import("../config/config.js"),
     import("../gateway/server.js"),
@@ -63,6 +64,7 @@ async function main() {
     import("../runtime.js"),
     import("../logging.js"),
     import("../process/command-queue.js"),
+    import("../process/restart-recovery.js"),
   ] as const);
 
   enableConsoleCapture();
@@ -134,14 +136,32 @@ async function main() {
       `gateway: received ${signal}; ${isRestart ? "restarting" : "shutting down"}`,
     );
 
+    const DRAIN_TIMEOUT_MS = 30_000;
+    const SHUTDOWN_TIMEOUT_MS = 5_000;
+    const forceExitMs = isRestart ? DRAIN_TIMEOUT_MS + SHUTDOWN_TIMEOUT_MS : SHUTDOWN_TIMEOUT_MS;
     forceExitTimer = setTimeout(() => {
       defaultRuntime.error("gateway: shutdown timed out; exiting without full cleanup");
       cleanupSignals();
       process.exit(0);
-    }, 5000);
+    }, forceExitMs);
 
     void (async () => {
       try {
+        if (isRestart) {
+          const activeTasks = commandQueueMod.getActiveTaskCount();
+          if (activeTasks > 0) {
+            defaultRuntime.log(
+              `gateway: draining ${activeTasks} active task(s) before restart (timeout ${DRAIN_TIMEOUT_MS}ms)`,
+            );
+            const { drained } = await commandQueueMod.waitForActiveTasks(DRAIN_TIMEOUT_MS);
+            if (drained) {
+              defaultRuntime.log("gateway: all active tasks drained");
+            } else {
+              defaultRuntime.log("gateway: drain timeout reached; proceeding with restart");
+            }
+          }
+        }
+
         await server?.close({
           reason: isRestart ? "gateway restarting" : "gateway stopping",
           restartExpectedMs: isRestart ? 1500 : null,
@@ -198,17 +218,17 @@ async function main() {
       }
       throw err;
     }
+    const onIteration = createRestartIterationHook(() => {
+      // After an in-process restart (SIGUSR1), reset command-queue lane state.
+      // Interrupted tasks from the previous lifecycle may have left `active`
+      // counts elevated (their finally blocks never ran), permanently blocking
+      // new work from draining.
+      commandQueueMod.resetAllLanes();
+    });
+
     // eslint-disable-next-line no-constant-condition
-    let isFirstIteration = true;
     while (true) {
-      if (!isFirstIteration) {
-        // After an in-process restart (SIGUSR1), reset command-queue lane state.
-        // Interrupted tasks from the previous lifecycle may have left `active`
-        // counts elevated (their finally blocks never ran), permanently blocking
-        // new work from draining.
-        commandQueueMod.resetAllLanes();
-      }
-      isFirstIteration = false;
+      onIteration();
       try {
         server = await startGatewayServer(port, { bind });
       } catch (err) {
