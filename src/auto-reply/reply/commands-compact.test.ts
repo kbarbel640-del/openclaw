@@ -55,12 +55,8 @@ import { compactEmbeddedPiSession } from "../../agents/pi-embedded.js";
 import { handleCompactCommand } from "./commands-compact.js";
 
 describe("handleCompactCommand", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("runs compaction through model fallback execution path", async () => {
-    const params: HandleCommandsParams = {
+  const makeParams = (): HandleCommandsParams =>
+    ({
       ctx: { CommandBody: "/compact" } as HandleCommandsParams["ctx"],
       commandSource: "/compact",
       cfg: {} as OpenClawConfig,
@@ -110,9 +106,14 @@ describe("handleCompactCommand", () => {
       contextTokens: 0,
       isGroup: false,
       skillCommands: [],
-    } as const;
+    }) as const;
 
-    await handleCompactCommand(params, true);
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("runs compaction through model fallback execution path", async () => {
+    await handleCompactCommand(makeParams(), true);
 
     expect(runWithModelFallback).toHaveBeenCalled();
     expect(compactEmbeddedPiSession).toHaveBeenCalledWith(
@@ -120,6 +121,47 @@ describe("handleCompactCommand", () => {
         provider: "fallback-provider",
         model: "fallback-model",
       }),
+    );
+  });
+
+  it("retries with fallback model when primary compaction fails", async () => {
+    vi.mocked(runWithModelFallback).mockImplementationOnce(async ({ run }) => {
+      try {
+        await run("primary-provider", "primary-model");
+      } catch {
+        // expected: first attempt fails
+      }
+      const result = await run("fallback-provider", "fallback-model");
+      return {
+        result,
+        provider: "fallback-provider",
+        model: "fallback-model",
+        attempts: [],
+      };
+    });
+
+    vi.mocked(compactEmbeddedPiSession)
+      .mockResolvedValueOnce({
+        ok: false,
+        compacted: false,
+        reason: "500 overloaded",
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        compacted: true,
+        result: { tokensBefore: 20, tokensAfter: 10 },
+      });
+
+    await handleCompactCommand(makeParams(), true);
+
+    expect(compactEmbeddedPiSession).toHaveBeenCalledTimes(2);
+    expect(compactEmbeddedPiSession).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ provider: "primary-provider", model: "primary-model" }),
+    );
+    expect(compactEmbeddedPiSession).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ provider: "fallback-provider", model: "fallback-model" }),
     );
   });
 });
