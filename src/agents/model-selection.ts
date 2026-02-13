@@ -3,6 +3,14 @@
  *
  * PRECEDENCE ORDER (highest to lowest priority):
  *
+ * 0. **Model Pools System** (NEW - if configured)
+ *    - Unified pool-based selection with capability validation
+ *    - Configuration: agents.defaults.modelPools.{default|coding|thinking|vision|tools}
+ *    - Complexity mapping: agents.defaults.complexityMapping.{trivial|moderate|complex}
+ *    - Selection modes: ordered (sequential fallback), best-fit (capability scoring), agent-choice
+ *    - Automatically validates capabilities (vision, tools, reasoning, contextWindow)
+ *    - Falls back to legacy system if pools not configured
+ *
  * 1. **Complexity Routing** (modelByComplexity.{trivial|moderate|complex})
  *    - Triggered when: modelByComplexity.enabled=true OR any complexity slot is configured
  *    - Applies to: ALL task types (coding, reasoning, tools, vision, conversation)
@@ -637,33 +645,38 @@ export function resolveModelForTaskType(params: {
 
 export type ModelSelectionReason = "complexity" | "taskType" | "default";
 
-export function resolveModelForTaskIntent(params: {
+export async function resolveModelForTaskIntent(params: {
   cfg: OpenClawConfig;
   agentId?: string;
   taskType: TaskType;
   complexity: TaskComplexity;
-}): { ref: ModelRef; reason: ModelSelectionReason } {
+}): Promise<{ ref: ModelRef; reason: ModelSelectionReason }> {
   const { cfg, agentId, taskType, complexity } = params;
 
-  // Helper to validate model supports required capabilities
-  const validateTaskRequirements = async (ref: ModelRef): Promise<boolean> => {
-    // For vision tasks, validate the model supports vision
-    if (taskType === "vision") {
-      try {
-        const { loadModelCatalog, modelSupportsVision, findModelInCatalog } =
-          await import("./model-catalog.js");
-        const catalog = await loadModelCatalog({ config: cfg, useCache: true });
-        const entry = findModelInCatalog(catalog, ref.provider, ref.model);
-        if (entry && !modelSupportsVision(entry)) {
-          return false; // Model doesn't support vision
-        }
-      } catch {
-        // If validation fails, allow the model (assume capable)
-        return true;
+  // PRIORITY 0: Model Pools System (if configured)
+  // Try to resolve from pools first - this provides unified selection with capability validation
+  const pools = getModelPools(cfg, agentId);
+  if (pools) {
+    try {
+      // Load catalog for pool resolution
+      const catalog = await loadModelCatalog({ config: cfg, useCache: true });
+
+      const poolResult = resolveModelForTask({
+        cfg,
+        catalog,
+        taskType,
+        complexity,
+        agentId,
+      });
+
+      if (poolResult) {
+        return { ref: poolResult, reason: "complexity" }; // Pools use complexity mapping
       }
+    } catch (error) {
+      // If pools fail, fall through to legacy system
+      console.warn("[model-selection] Pool resolution failed, falling back to legacy:", error);
     }
-    return true;
-  };
+  }
 
   // Special case: For vision tasks, check imageModel BEFORE complexity routing
   // to ensure we don't route to text-only models
@@ -718,18 +731,9 @@ export function resolveModelForTaskIntent(params: {
         aliasIndex,
       });
       if (resolved) {
-        // CRITICAL FIX: Validate complexity-routed model supports task requirements
-        // For vision tasks, ensure the model actually supports vision
+        // Note: Vision validation for legacy complexity routing is basic (text-only provider check)
+        // For full capability validation, use model pools system
         if (taskType === "vision") {
-          void validateTaskRequirements(resolved.ref).then((valid) => {
-            if (!valid) {
-              console.warn(
-                `[model-selection] Complexity-routed model ${modelKey(resolved.ref.provider, resolved.ref.model)} does not support vision. Falling back to imageModel or default.`,
-              );
-            }
-          });
-          // Note: This is async validation for logging only. Synchronous fallback happens below.
-          // For immediate safety, check if model is known to lack vision (text-only providers)
           const textOnlyProviders = new Set(["cerebras", "zai", "openrouter"]);
           if (textOnlyProviders.has(normalizeProviderId(resolved.ref.provider))) {
             // Known text-only provider - fall through to task-specific model

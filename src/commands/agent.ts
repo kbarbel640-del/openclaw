@@ -238,19 +238,16 @@ export async function agentCommand(
       });
     }
 
-    const agentModelPrimary = resolveAgentModelPrimary(cfg, sessionAgentId);
-    const hasExplicitAgentModel = Boolean(agentModelPrimary?.trim());
-
     const taskType = classifyTask(body);
     const complexity = classifyComplexity(body);
 
-    // Explicit per-agent primary model should not be overridden by task/complexity routing.
-    const selection = hasExplicitAgentModel
-      ? {
-          ref: resolveDefaultModelForAgent({ cfg, agentId: sessionAgentId }),
-          reason: "default" as const,
-        }
-      : resolveModelForTaskIntent({ cfg, agentId: sessionAgentId, taskType, complexity });
+    // Use unified model selection (pools → complexity → task-type → per-agent → default)
+    const selection = await resolveModelForTaskIntent({
+      cfg,
+      agentId: sessionAgentId,
+      taskType,
+      complexity,
+    });
 
     const selectedModelRef = selection.ref;
 
@@ -258,12 +255,12 @@ export async function agentCommand(
     let provider = defaultProvider;
     let model = defaultModel;
 
-    // Log only when routing triggered; keep default selection quiet.
-    if (!hasExplicitAgentModel && selection.reason === "taskType") {
+    // Log when routing triggered
+    if (selection.reason === "taskType") {
       console.log(
         `\x1b[36m[agent]\x1b[0m Task classified as "${taskType}" → using ${provider}/${model}`,
       );
-    } else if (!hasExplicitAgentModel && selection.reason === "complexity") {
+    } else if (selection.reason === "complexity") {
       console.log(
         `\x1b[36m[agent]\x1b[0m Complexity classified as "${complexity}" → using ${provider}/${model}`,
       );

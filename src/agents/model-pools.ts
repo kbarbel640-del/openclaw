@@ -226,8 +226,9 @@ export function resolveModelFromPool(params: {
   poolName: string;
   catalog: ModelCatalogEntry[];
   context?: ModelSelectionContext;
+  preferIndex?: number;
 }): ModelRef | null {
-  const { cfg, poolName, catalog, context } = params;
+  const { cfg, poolName, catalog, context, preferIndex } = params;
   const pools = getModelPools(cfg, context?.agentId);
   const pool = pools[poolName];
 
@@ -239,7 +240,7 @@ export function resolveModelFromPool(params: {
 
   switch (mode) {
     case "ordered":
-      return selectOrderedFromPool({ pool, catalog });
+      return selectOrderedFromPool({ pool, catalog, preferIndex });
 
     case "best-fit":
       return selectBestFitFromPool({ pool, catalog, context });
@@ -250,7 +251,7 @@ export function resolveModelFromPool(params: {
       return selectBestFitFromPool({ pool, catalog, context });
 
     default:
-      return selectOrderedFromPool({ pool, catalog });
+      return selectOrderedFromPool({ pool, catalog, preferIndex });
   }
 }
 
@@ -260,18 +261,15 @@ export function resolveModelFromPool(params: {
 function selectOrderedFromPool(params: {
   pool: ModelPoolConfig;
   catalog: ModelCatalogEntry[];
+  preferIndex?: number;
 }): ModelRef | null {
-  const { pool, catalog } = params;
+  const { pool, catalog, preferIndex } = params;
 
-  for (const modelStr of pool.models) {
-    const parsed = parseModelRef(modelStr, DEFAULT_PROVIDER);
-    if (!parsed) {
-      continue;
-    }
-
+  // Helper to validate a model
+  const validateModel = (parsed: ModelRef): boolean => {
     // Check if provider is healthy
     if (!isProviderHealthy(parsed.provider as any)) {
-      continue;
+      return false;
     }
 
     // Validate capabilities if specified
@@ -289,12 +287,33 @@ function selectOrderedFromPool(params: {
 
         const validation = validateCapabilities(caps, required);
         if (!validation.valid) {
-          continue; // Skip model that doesn't meet requirements
+          return false;
         }
       }
     }
 
-    return parsed;
+    return true;
+  };
+
+  // If preferIndex specified, try that model first
+  if (preferIndex !== undefined && preferIndex >= 0 && preferIndex < pool.models.length) {
+    const modelStr = pool.models[preferIndex];
+    const parsed = parseModelRef(modelStr, DEFAULT_PROVIDER);
+    if (parsed && validateModel(parsed)) {
+      return parsed;
+    }
+  }
+
+  // Fallback: try all models in order
+  for (const modelStr of pool.models) {
+    const parsed = parseModelRef(modelStr, DEFAULT_PROVIDER);
+    if (!parsed) {
+      continue;
+    }
+
+    if (validateModel(parsed)) {
+      return parsed;
+    }
   }
 
   return null;
@@ -441,17 +460,32 @@ export function resolveModelForTask(params: {
 }): ModelRef | null {
   const { cfg, catalog, taskType, complexity, agentId } = params;
 
-  // Determine pool based on task type
-  let poolName = "default";
+  // Get complexity mapping and preferIndex
+  const mapping = getComplexityMapping(cfg, agentId);
+  const complexityConfig = complexity ? mapping[complexity] : undefined;
 
+  // Determine pool and preferIndex based on complexity first
+  let poolName = "default";
+  let preferIndex: number | undefined;
+
+  if (complexityConfig) {
+    poolName = complexityConfig.pool;
+    preferIndex = complexityConfig.preferIndex;
+  }
+
+  // Override pool based on task type (task type takes precedence)
   if (taskType === "coding") {
     poolName = "coding";
+    preferIndex = undefined; // Reset preferIndex for task-type pools
   } else if (taskType === "vision") {
     poolName = "vision";
+    preferIndex = undefined;
   } else if (taskType === "tools") {
     poolName = "tools";
-  } else if (taskType === "reasoning" || complexity === "complex") {
+    preferIndex = undefined;
+  } else if (taskType === "reasoning") {
     poolName = "thinking";
+    preferIndex = undefined;
   }
 
   // Try primary pool
@@ -462,7 +496,7 @@ export function resolveModelForTask(params: {
     requiredCapabilities: taskType === "vision" ? { vision: true } : undefined,
   };
 
-  let model = resolveModelFromPool({ cfg, poolName, catalog, context });
+  let model = resolveModelFromPool({ cfg, poolName, catalog, context, preferIndex });
 
   // Fallback to default pool if primary pool fails
   if (!model && poolName !== "default") {
