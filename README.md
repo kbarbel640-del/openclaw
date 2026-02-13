@@ -105,22 +105,6 @@ pnpm openclaw agent --message "Hello QVerisBot" --thinking high
 | **Crypto Price Monitor**    | Binance + AlphaVantage + Finnhub              | Query real-time BTC/ETH prices, analyze market sentiment                  |
 | **Image Search Assistant**  | Brave Search + SerpApi + Shutterstock         | Find images, reverse image search, access stock photos                    |
 
-### How to use QVeris (2 steps)
-
-```python
-# Step 1: Search for tools
-qveris_search(query="bitcoin price")
-# Returns: tool_id, name, description, params, stats
-
-# Step 2: Execute the tool
-qveris_execute(
-    tool_id="binance.ticker.price.list.v3.8675eca0",
-    search_id="...",
-    params_to_tool='{"symbol": "BTCUSDT"}'
-)
-# Returns: {"symbol": "BTCUSDT", "price": "102345.67"}
-```
-
 ### Get your QVeris API key
 
 1. **Create account:** [qveris.ai](https://qveris.ai) → Sign Up
