@@ -232,6 +232,25 @@ describe("redactConfigSnapshot", () => {
     expect(result.parsed).toBeNull();
   });
 
+  it("withholds resolved config for invalid snapshots", () => {
+    const snapshot: ConfigFileSnapshot = {
+      path: "/test",
+      exists: true,
+      raw: '{ "gateway": { "auth": { "token": "leaky-secret" } } }',
+      parsed: { gateway: { auth: { token: "leaky-secret" } } },
+      resolved: { gateway: { auth: { token: "leaky-secret" } } } as ConfigFileSnapshot["resolved"],
+      valid: false,
+      config: {} as ConfigFileSnapshot["config"],
+      issues: [{ path: "", message: "invalid config" }],
+      warnings: [],
+      legacyIssues: [],
+    };
+    const result = redactConfigSnapshot(snapshot);
+    expect(result.raw).toBeNull();
+    expect(result.parsed).toBeNull();
+    expect(result.resolved).toEqual({});
+  });
+
   it("handles deeply nested tokens in accounts", () => {
     const snapshot = makeSnapshot({
       channels: {
@@ -325,6 +344,65 @@ describe("redactConfigSnapshot", () => {
     const result = redactConfigSnapshot(snapshot, hints);
     const custom = result.config.custom as Record<string, string>;
     expect(custom.mySecret).toBe(REDACTED_SENTINEL);
+  });
+
+  it("keeps regex fallback for extension keys not covered by uiHints", () => {
+    const hints: ConfigUiHints = {
+      "plugins.entries.voice-call.config": { label: "Voice Call Config" },
+      "channels.my-channel": { label: "My Channel" },
+    };
+    const snapshot = makeSnapshot({
+      plugins: {
+        entries: {
+          "voice-call": {
+            config: {
+              apiToken: "voice-call-secret-token",
+              displayName: "Voice call extension",
+            },
+          },
+        },
+      },
+      channels: {
+        "my-channel": {
+          accessToken: "my-channel-secret-token",
+          room: "general",
+        },
+      },
+    });
+
+    const redacted = redactConfigSnapshot(snapshot, hints);
+    expect(redacted.config.plugins.entries["voice-call"].config.apiToken).toBe(REDACTED_SENTINEL);
+    expect(redacted.config.plugins.entries["voice-call"].config.displayName).toBe(
+      "Voice call extension",
+    );
+    expect(redacted.config.channels["my-channel"].accessToken).toBe(REDACTED_SENTINEL);
+    expect(redacted.config.channels["my-channel"].room).toBe("general");
+
+    const restored = restoreRedactedValues(redacted.config, snapshot.config, hints);
+    expect(restored).toEqual(snapshot.config);
+  });
+
+  it("honors sensitive:false for extension keys even with regex fallback", () => {
+    const hints: ConfigUiHints = {
+      "plugins.entries.voice-call.config": { label: "Voice Call Config" },
+      "plugins.entries.voice-call.config.apiToken": { sensitive: false },
+    };
+    const snapshot = makeSnapshot({
+      plugins: {
+        entries: {
+          "voice-call": {
+            config: {
+              apiToken: "not-secret-on-purpose",
+            },
+          },
+        },
+      },
+    });
+
+    const redacted = redactConfigSnapshot(snapshot, hints);
+    expect(redacted.config.plugins.entries["voice-call"].config.apiToken).toBe(
+      "not-secret-on-purpose",
+    );
   });
 
   it("handles nested values properly (roundtrip)", () => {
