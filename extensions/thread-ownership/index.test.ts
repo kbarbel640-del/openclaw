@@ -5,7 +5,11 @@ describe("thread-ownership plugin", () => {
   const hooks: Record<string, Function> = {};
   const api = {
     pluginConfig: {},
-    config: { agent: { id: "test-agent", name: "TestBot" } },
+    config: {
+      agents: {
+        list: [{ id: "test-agent", default: true, identity: { name: "TestBot" } }],
+      },
+    },
     id: "thread-ownership",
     name: "Thread Ownership",
     logger: { info: vi.fn(), warn: vi.fn(), debug: vi.fn() },

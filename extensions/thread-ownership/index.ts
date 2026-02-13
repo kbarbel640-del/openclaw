@@ -1,15 +1,11 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import type { OpenClawConfig, OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 type ThreadOwnershipConfig = {
   forwarderUrl?: string;
   abTestChannels?: string[];
 };
-type LegacyAgentConfig = {
-  agent?: {
-    id?: string;
-    name?: string;
-  };
-};
+
+type AgentEntry = NonNullable<NonNullable<OpenClawConfig["agents"]>["list"]>[number];
 
 // In-memory set of {channel}:{thread} keys where this agent was @-mentioned.
 // Entries expire after 5 minutes.
@@ -23,6 +19,24 @@ function cleanExpiredMentions(): void {
       mentionedThreads.delete(key);
     }
   }
+}
+
+function resolveOwnershipAgent(config: OpenClawConfig): { id: string; name: string } {
+  const list = Array.isArray(config.agents?.list)
+    ? config.agents.list.filter((entry): entry is AgentEntry =>
+        Boolean(entry && typeof entry === "object"),
+      )
+    : [];
+  const selected = list.find((entry) => entry.default === true) ?? list[0];
+
+  const id =
+    typeof selected?.id === "string" && selected.id.trim() ? selected.id.trim() : "unknown";
+  const identityName =
+    typeof selected?.identity?.name === "string" ? selected.identity.name.trim() : "";
+  const fallbackName = typeof selected?.name === "string" ? selected.name.trim() : "";
+  const name = identityName || fallbackName;
+
+  return { id, name };
 }
 
 export default function register(api: OpenClawPluginApi) {
@@ -39,9 +53,7 @@ export default function register(api: OpenClawPluginApi) {
       [],
   );
 
-  const legacyAgent = (api.config as LegacyAgentConfig).agent;
-  const agentId = legacyAgent?.id ?? api.id ?? "unknown";
-  const agentName = legacyAgent?.name ?? api.name ?? "";
+  const { id: agentId, name: agentName } = resolveOwnershipAgent(api.config);
   const botUserId = process.env.SLACK_BOT_USER_ID ?? "";
 
   // ---------------------------------------------------------------------------
