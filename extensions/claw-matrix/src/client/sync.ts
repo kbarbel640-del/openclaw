@@ -176,7 +176,14 @@ export async function runSyncLoop(opts: SyncLoopOpts): Promise<void> {
         room: { timeline: { limit: 10 }, state: { lazy_load_members: true } },
       });
 
-  log?.info(`[sync] Starting sync loop (resuming: ${!!nextBatch})`);
+  // Track whether we resumed from a saved token. When resuming, do NOT
+  // apply the event age filter — messages from just before a restart are
+  // legitimate and must be processed. The age filter only protects against
+  // truly initial syncs (no stored token) where the server sends the full
+  // room history.
+  const isResuming = !!nextBatch;
+
+  log?.info(`[sync] Starting sync loop (resuming: ${isResuming})`);
 
   while (!abortSignal.aborted) {
     try {
@@ -288,7 +295,7 @@ export async function runSyncLoop(opts: SyncLoopOpts): Promise<void> {
           for (const event of room.timeline.events) {
             if (event.event_id && isEventProcessed(event.event_id)) continue;
             try {
-              await processTimelineEvent(event, roomId, onMessage, log);
+              await processTimelineEvent(event, roomId, onMessage, log, isResuming);
             } catch (eventErr: any) {
               log?.error?.(
                 `[sync] Error processing event ${event.event_id ?? "unknown"} in ${roomId}: ${eventErr.message}`,
@@ -409,10 +416,13 @@ async function processTimelineEvent(
     warn?: (msg: string) => void;
     error?: (msg: string) => void;
   },
+  isResuming?: boolean,
 ): Promise<void> {
-  // Skip old events (avoid replaying history on initial sync)
+  // Skip old events on truly initial sync (no stored token) to avoid
+  // replaying full room history. When resuming from a saved token, process
+  // ALL events — they are legitimate messages from just before a restart.
   const age = event.unsigned?.age ?? 0;
-  if (age > MAX_EVENT_AGE_MS) return;
+  if (!isResuming && age > MAX_EVENT_AGE_MS) return;
 
   // Skip redacted events
   if (event.unsigned?.redacted_because) {
