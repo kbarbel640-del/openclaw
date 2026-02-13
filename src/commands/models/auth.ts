@@ -22,7 +22,6 @@ import { resolvePluginProviders } from "../../plugins/providers.js";
 import { stylePromptHint, stylePromptMessage } from "../../terminal/prompt-style.js";
 import { createClackPrompter } from "../../wizard/clack-prompter.js";
 import { validateAnthropicSetupToken } from "../auth-token.js";
-import { isRemoteEnvironment } from "../oauth-env.js";
 import { createVpsAwareOAuthHandlers } from "../oauth-flow.js";
 import { applyAuthProfileConfig } from "../onboard-auth.js";
 import { openUrl } from "../onboard-helpers.js";
@@ -386,7 +385,7 @@ export async function modelsAuthLoginCommand(opts: LoginOptions, runtime: Runtim
     throw new Error("Unknown auth method. Use --method <id> to select one.");
   }
 
-  const isRemote = isRemoteEnvironment();
+  const isRemote = config.gateway?.mode === "remote";
   const result: ProviderAuthResult = await chosenMethod.run({
     config,
     agentDir,

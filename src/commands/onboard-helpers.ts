@@ -14,7 +14,6 @@ import { normalizeControlUiBasePath } from "../gateway/control-ui-shared.js";
 import { pickPrimaryLanIPv4, isValidIPv4 } from "../gateway/net.js";
 import { isSafeExecutableValue } from "../infra/exec-safety.js";
 import { pickPrimaryTailnetIPv4 } from "../infra/tailnet.js";
-import { isWSL } from "../infra/wsl.js";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { stylePromptTitle } from "../terminal/prompt-style.js";
 import {
@@ -150,7 +149,6 @@ export async function resolveBrowserOpenCommand(): Promise<BrowserOpenCommand> {
   }
 
   if (platform === "linux") {
-    const wsl = await isWSL();
     if (!hasDisplay && !wsl) {
       return { argv: null, reason: "no-display" };
     }

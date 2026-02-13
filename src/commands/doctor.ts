@@ -50,10 +50,9 @@ import {
 } from "./doctor-state-migrations.js";
 import { maybeRepairUiProtocolFreshness } from "./doctor-ui.js";
 import { maybeOfferUpdateBeforeDoctor } from "./doctor-update.js";
-import { noteWorkspaceStatus } from "./doctor-workspace-status.js";
-import { MEMORY_SYSTEM_PROMPT, shouldSuggestMemorySystem } from "./doctor-workspace.js";
 import { applyWizardMetadata, printWizardHeader, randomToken } from "./onboard-helpers.js";
-import { ensureSystemdUserLingerInteractive } from "./systemd-linger.js";
+import { noteWorkspaceStatus } from "./doctor-workspace-status.js";
+import { shouldSuggestMemorySystem, MEMORY_SYSTEM_PROMPT } from "./doctor-workspace.js";
 
 const intro = (message: string) => clackIntro(stylePromptTitle(message) ?? message);
 const outro = (message: string) => clackOutro(stylePromptTitle(message) ?? message);
@@ -245,16 +244,7 @@ export async function doctorCommand(
       loaded = false;
     }
     if (loaded) {
-      await ensureSystemdUserLingerInteractive({
-        runtime,
-        prompter: {
-          confirm: async (p) => prompter.confirm(p),
-          note,
-        },
-        reason:
-          "Gateway runs as a systemd user service. Without lingering, systemd stops the user session on logout/idle and kills the Gateway.",
-        requireConfirm: true,
-      });
+      note("Gateway service is installed and running as Windows Task Scheduler.");
     }
   }
 

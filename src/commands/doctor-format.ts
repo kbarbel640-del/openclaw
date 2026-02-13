@@ -5,12 +5,9 @@ import {
   resolveGatewaySystemdServiceName,
   resolveGatewayWindowsTaskName,
 } from "../daemon/constants.js";
-import { resolveGatewayLogPaths } from "../daemon/launchd.js";
 import {
   isSystemdUnavailableDetail,
-  renderSystemdUnavailableHints,
 } from "../daemon/systemd-hints.js";
-import { isWSLEnv } from "../infra/wsl.js";
 import { getResolvedLoggerSettings } from "../logging.js";
 
 type RuntimeHintOptions = {
@@ -71,7 +68,6 @@ export function buildGatewayRuntimeHints(
     }
   })();
   if (platform === "linux" && isSystemdUnavailableDetail(runtime.detail)) {
-    hints.push(...renderSystemdUnavailableHints({ wsl: isWSLEnv() }));
     if (fileLog) {
       hints.push(`File logs: ${fileLog}`);
     }

@@ -26,7 +26,6 @@ import {
   resolveControlUiLinks,
 } from "../commands/onboard-helpers.js";
 import { resolveGatewayService } from "../daemon/service.js";
-import { isSystemdUserServiceAvailable } from "../daemon/systemd.js";
 import { ensureControlUiAssetsBuilt } from "../infra/control-ui-assets.js";
 import { restoreTerminalState } from "../terminal/restore.js";
 import { runTui } from "../tui/tui.js";
@@ -62,25 +61,18 @@ export async function finalizeOnboardingWizard(
     }
   };
 
-  const systemdAvailable =
-    process.platform === "linux" ? await isSystemdUserServiceAvailable() : true;
-  if (process.platform === "linux" && !systemdAvailable) {
     await prompter.note(
       "Systemd user services are unavailable. Skipping lingering checks and service install.",
       "Systemd",
     );
   }
 
-  if (process.platform === "linux" && systemdAvailable) {
-    const { ensureSystemdUserLingerInteractive } = await import("../commands/systemd-linger.js");
-    await ensureSystemdUserLingerInteractive({
       runtime,
       prompter: {
         confirm: prompter.confirm,
         note: prompter.note,
       },
       reason:
-        "Linux installs use a systemd user service by default. Without lingering, systemd stops the user session on logout/idle and kills the Gateway.",
       requireConfirm: false,
     });
   }
@@ -90,7 +82,6 @@ export async function finalizeOnboardingWizard(
   let installDaemon: boolean;
   if (explicitInstallDaemon !== undefined) {
     installDaemon = explicitInstallDaemon;
-  } else if (process.platform === "linux" && !systemdAvailable) {
     installDaemon = false;
   } else if (flow === "quickstart") {
     installDaemon = true;
@@ -101,7 +92,6 @@ export async function finalizeOnboardingWizard(
     });
   }
 
-  if (process.platform === "linux" && !systemdAvailable && installDaemon) {
     await prompter.note(
       "Systemd user services are unavailable; skipping service install. Use your container supervisor or `docker compose up -d`.",
       "Gateway service",

@@ -1,9 +1,4 @@
-import {
-  resolveGatewayLaunchAgentLabel,
-  resolveGatewaySystemdServiceName,
-  resolveGatewayWindowsTaskName,
-} from "../../daemon/constants.js";
-import { resolveGatewayLogPaths } from "../../daemon/launchd.js";
+import { resolveGatewayWindowsTaskName } from "../../daemon/constants.js";
 import { pickPrimaryLanIPv4 } from "../../gateway/net.js";
 import { getResolvedLoggerSettings } from "../../logging.js";
 import { formatCliCommand } from "../command-format.js";
@@ -113,10 +108,6 @@ export function formatRuntimeStatus(
         state?: string;
         subState?: string;
         pid?: number;
-        lastExitStatus?: number;
-        lastExitReason?: string;
-        lastRunResult?: string;
-        lastRunTime?: string;
         detail?: string;
       }
     | undefined,
@@ -135,18 +126,6 @@ export function formatRuntimeStatus(
   if (runtime.subState) {
     details.push(`sub ${runtime.subState}`);
   }
-  if (runtime.lastExitStatus !== undefined) {
-    details.push(`last exit ${runtime.lastExitStatus}`);
-  }
-  if (runtime.lastExitReason) {
-    details.push(`reason ${runtime.lastExitReason}`);
-  }
-  if (runtime.lastRunResult) {
-    details.push(`last run ${runtime.lastRunResult}`);
-  }
-  if (runtime.lastRunTime) {
-    details.push(`last run time ${runtime.lastRunTime}`);
-  }
   if (runtime.detail) {
     details.push(runtime.detail);
   }
@@ -155,7 +134,6 @@ export function formatRuntimeStatus(
 
 export function renderRuntimeHints(
   runtime: { missingUnit?: boolean; status?: string } | undefined,
-  env: NodeJS.ProcessEnv = process.env,
 ): string[] {
   if (!runtime) {
     return [];
@@ -168,52 +146,22 @@ export function renderRuntimeHints(
       return null;
     }
   })();
+  
   if (runtime.missingUnit) {
-    hints.push(`Service not installed. Run: ${formatCliCommand("openclaw gateway install", env)}`);
-    if (fileLog) {
-      hints.push(`File logs: ${fileLog}`);
-    }
-    return hints;
+    hints.push(`Service not installed. Run: ${formatCliCommand("openclaw gateway install")}`);
   }
+  
+  if (fileLog) {
+    hints.push(`File logs: ${fileLog}`);
+  }
+  
   if (runtime.status === "stopped") {
-    if (fileLog) {
-      hints.push(`File logs: ${fileLog}`);
-    }
-    if (process.platform === "darwin") {
-      const logs = resolveGatewayLogPaths(env);
-      hints.push(`Launchd stdout (if installed): ${logs.stdoutPath}`);
-      hints.push(`Launchd stderr (if installed): ${logs.stderrPath}`);
-    } else if (process.platform === "linux") {
-      const unit = resolveGatewaySystemdServiceName(env.OPENCLAW_PROFILE);
-      hints.push(`Logs: journalctl --user -u ${unit}.service -n 200 --no-pager`);
-    } else if (process.platform === "win32") {
-      const task = resolveGatewayWindowsTaskName(env.OPENCLAW_PROFILE);
-      hints.push(`Logs: schtasks /Query /TN "${task}" /V /FO LIST`);
-    }
+    const task = resolveGatewayWindowsTaskName(process.env.OPENCLAW_PROFILE);
+    hints.push(`Task status: schtasks /Query /TN "${task}" /V /FO LIST`);
   }
   return hints;
 }
 
-export function renderGatewayServiceStartHints(env: NodeJS.ProcessEnv = process.env): string[] {
-  const base = [
-    formatCliCommand("openclaw gateway install", env),
-    formatCliCommand("openclaw gateway", env),
-  ];
-  const profile = env.OPENCLAW_PROFILE;
-  switch (process.platform) {
-    case "darwin": {
-      const label = resolveGatewayLaunchAgentLabel(profile);
-      return [...base, `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/${label}.plist`];
-    }
-    case "linux": {
-      const unit = resolveGatewaySystemdServiceName(profile);
-      return [...base, `systemctl --user start ${unit}.service`];
-    }
-    case "win32": {
-      const task = resolveGatewayWindowsTaskName(profile);
-      return [...base, `schtasks /Run /TN "${task}"`];
-    }
-    default:
-      return base;
-  }
+export function renderGatewayServiceStartHints(): string {
+  return formatCliCommand("openclaw gateway");
 }
