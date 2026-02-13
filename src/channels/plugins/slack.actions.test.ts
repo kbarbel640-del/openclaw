@@ -30,4 +30,30 @@ describe("slack actions adapter", () => {
       threadId: "171234.567",
     });
   });
+
+  it("forwards channel create params", async () => {
+    const cfg = {
+      channels: { slack: { botToken: "tok", actions: { channels: true } } },
+    } as OpenClawConfig;
+    const actions = createSlackActions("slack");
+
+    await actions.handleAction?.({
+      channel: "slack",
+      action: "channel-create",
+      cfg,
+      params: {
+        name: "leads",
+        topic: "Lead Discovery Hub",
+        private: "false",
+      },
+    });
+
+    const [params] = handleSlackAction.mock.calls.at(-1) ?? [];
+    expect(params).toMatchObject({
+      action: "channelCreate",
+      name: "leads",
+      topic: "Lead Discovery Hub",
+      isPrivate: false,
+    });
+  });
 });

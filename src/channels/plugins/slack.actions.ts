@@ -4,7 +4,12 @@ import type {
   ChannelMessageActionName,
   ChannelToolSend,
 } from "./types.js";
-import { createActionGate, readNumberParam, readStringParam } from "../../agents/tools/common.js";
+import {
+  createActionGate,
+  readBooleanParam,
+  readNumberParam,
+  readStringParam,
+} from "../../agents/tools/common.js";
 import { handleSlackAction, type SlackActionContext } from "../../agents/tools/slack-actions.js";
 import { listEnabledSlackAccounts } from "../../slack/accounts.js";
 import { resolveSlackChannelId } from "../../slack/targets.js";
@@ -53,6 +58,9 @@ export function createSlackActions(providerId: string): ChannelMessageActionAdap
       }
       if (isActionEnabled("emojiList")) {
         actions.add("emoji-list");
+      }
+      if (isActionEnabled("channels")) {
+        actions.add("channel-create");
       }
       return Array.from(actions);
     },
@@ -195,6 +203,23 @@ export function createSlackActions(providerId: string): ChannelMessageActionAdap
               action === "pin" ? "pinMessage" : action === "unpin" ? "unpinMessage" : "listPins",
             channelId: resolveChannelId(),
             messageId,
+            accountId: accountId ?? undefined,
+          },
+          cfg,
+        );
+      }
+
+      if (action === "channel-create") {
+        const name = readStringParam(params, "name", { required: true });
+        const topic = readStringParam(params, "topic");
+        const isPrivate =
+          readBooleanParam(params, "private") ?? readBooleanParam(params, "isPrivate");
+        return await handleSlackAction(
+          {
+            action: "channelCreate",
+            name,
+            topic: topic ?? undefined,
+            isPrivate: isPrivate ?? undefined,
             accountId: accountId ?? undefined,
           },
           cfg,

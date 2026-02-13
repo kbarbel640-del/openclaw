@@ -57,6 +57,24 @@ export function registerMessageDiscordAdminCommands(message: Command, helpers: M
       await helpers.runMessageAction("channel-list", opts);
     });
 
+  helpers
+    .withMessageBase(
+      channel
+        .command("create")
+        .description("Create a channel")
+        .requiredOption("--name <name>", "Channel name")
+        .option("--guild-id <id>", "Guild id (Discord)"),
+    )
+    .option("--topic <text>", "Channel topic")
+    .option("--type <n>", "Channel type (Discord)")
+    .option("--parent-id <id>", "Parent/category id (Discord)")
+    .option("--position <n>", "Channel position (Discord)")
+    .option("--nsfw", "Mark channel as NSFW (Discord)")
+    .option("--private <bool>", "Create a private channel (Slack)")
+    .action(async (opts) => {
+      await helpers.runMessageAction("channel-create", opts);
+    });
+
   const member = message.command("member").description("Member actions");
   helpers
     .withMessageBase(
