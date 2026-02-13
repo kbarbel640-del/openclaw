@@ -7,6 +7,7 @@ import {
 } from "../../agents/agent-scope.js";
 import { upsertAuthProfile } from "../../agents/auth-profiles.js";
 import { normalizeProviderId } from "../../agents/model-selection.js";
+import { resolveDefaultAgentWorkspaceDir } from "../../agents/workspace.js";
 import { readConfigFileSnapshot, type OpenClawConfig } from "../../config/config.js";
 import { resolvePluginProviders } from "../../plugins/providers.js";
 import { applyAuthProfileConfig } from "../onboard-auth.js";

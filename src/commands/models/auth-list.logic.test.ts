@@ -17,9 +17,7 @@ vi.mock("../../agents/auth-profiles.js", () => ({
     },
   }),
   resolveAuthStorePathForDisplay: () => "/mock/agent/dir/auth-profiles.json",
-  resolveProfileDisplayInfos: ({ provider }: { provider: string }) => [
-    { id: `${provider}/default`, name: "Default", isDefault: true, isActive: true },
-  ],
+  listProfilesForProvider: (_store: unknown, provider: string) => [`${provider}/default`],
 }));
 vi.mock("../../config/config.js", () => ({
   loadConfig: () => ({}) as OpenClawConfig,
@@ -29,6 +27,18 @@ vi.mock("../../utils.js", () => ({
 }));
 vi.mock("./shared.js", () => ({
   resolveKnownAgentId: () => undefined,
+}));
+vi.mock("./list.auth-overview.js", () => ({
+  resolveProfileDisplayInfos: ({ provider }: { provider: string }) => [
+    {
+      id: `${provider}/default`,
+      profileId: `${provider}/default`,
+      provider,
+      type: "token",
+      status: "ok",
+      active: true,
+    },
+  ],
 }));
 
 describe("modelsAuthListLogic", () => {

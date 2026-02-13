@@ -8,7 +8,7 @@ describe("CommandBridgeRegistry", () => {
     const cmd: BridgeCommand<{ foo: string }> = {
       name: "test.cmd",
       description: "A test command",
-      handler: async () => ({ status: "success", data: "ok" }),
+      handler: async () => ({ success: true, data: "ok" }),
     };
 
     registry.register(cmd);
@@ -21,7 +21,7 @@ describe("CommandBridgeRegistry", () => {
     const cmd: BridgeCommand = {
       name: "test.dup",
       description: "Duplicate",
-      handler: async () => ({ status: "success" }),
+      handler: async () => ({ success: true }),
     };
 
     registry.register(cmd);
@@ -33,7 +33,7 @@ describe("CommandBridgeRegistry", () => {
     const cmd: BridgeCommand = {
       name: "test.rm",
       description: "Remove me",
-      handler: async () => ({ status: "success" }),
+      handler: async () => ({ success: true }),
     };
 
     registry.register(cmd);
@@ -50,12 +50,12 @@ describe("CommandBridgeRegistry", () => {
     registry.register({
       name: "a",
       description: "a",
-      handler: async () => ({ status: "success" }),
+      handler: async () => ({ success: true }),
     });
     registry.register({
       name: "b",
       description: "b",
-      handler: async () => ({ status: "success" }),
+      handler: async () => ({ success: true }),
     });
 
     const all = registry.getAll();
@@ -68,7 +68,7 @@ describe("CommandBridgeRegistry", () => {
     registry.register({
       name: "a",
       description: "a",
-      handler: async () => ({ status: "success" }),
+      handler: async () => ({ success: true }),
     });
     registry.clear();
     expect(registry.getAll()).toHaveLength(0);
