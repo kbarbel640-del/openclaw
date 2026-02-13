@@ -560,8 +560,8 @@ export async function runReplyAgent(params: {
         sessionStore: activeSessionStore,
         sessionKey,
         storePath,
-        lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,
-        contextTokensUsed,
+        tokensAfter: compactionStats?.tokensAfter,
+        lastCallUsage: runResult.meta?.agentMeta?.lastCallUsage,        contextTokensUsed,
       });
 // Inject post-compaction workspace context for the next agent turn
       if (sessionKey) {
