@@ -5,6 +5,10 @@ import { inspect } from "node:util";
 import type { HistoryEntry } from "../../auto-reply/reply/history.js";
 import type { OpenClawConfig, ReplyToMode } from "../../config/config.js";
 import type { RuntimeEnv } from "../../runtime.js";
+import {
+  getDiscordVoiceStateListener,
+  getDiscordVoiceProvider,
+} from "../../../extensions/discord/src/runtime.js";
 import { resolveTextChunkLimit } from "../../auto-reply/chunk.js";
 import { listNativeCommandSpecsForConfig } from "../../auto-reply/commands-registry.js";
 import { listSkillCommandsForAgents } from "../../auto-reply/skill-commands.js";
@@ -137,6 +141,10 @@ function resolveDiscordGatewayIntents(
   }
   if (intentsConfig?.guildMembers) {
     intents |= GatewayIntents.GuildMembers;
+  }
+  if (intentsConfig?.voiceStates) {
+    // GuildVoiceStates (1 << 7 = 128) — non-privileged intent
+    intents |= 128;
   }
   return intents;
 }
@@ -607,6 +615,63 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
       new DiscordPresenceListener({ logger, accountId: account.accountId }),
     );
     runtime.log?.("discord: GuildPresences intent enabled — presence listener registered");
+  }
+
+  if (discordCfg.intents?.voiceStates) {
+    const voiceStateListener = getDiscordVoiceStateListener();
+    if (voiceStateListener) {
+      if (botUserId) {
+        voiceStateListener.setBotUserId(botUserId);
+      }
+      registerDiscordListener(client.listeners, voiceStateListener);
+      runtime.log?.("GuildVoiceStates intent enabled — voice state listener registered");
+    }
+  }
+
+  // DEBUG: log all gateway dispatch events
+  {
+    const gw = client.getPlugin<GatewayPlugin>("gateway");
+    if (gw) {
+      const origWs = gw as unknown as { setupWebSocket?: () => void };
+      // Listen on the raw emitter for debug messages that include event types
+      (gw as unknown as { emitter: import("node:events").EventEmitter }).emitter.on(
+        "debug",
+        (msg: unknown) => {
+          const s = String(msg);
+          if (s.includes("VOICE") || s.includes("voice")) {
+            runtime.log?.(`[debug-gateway] ${s}`);
+          }
+        },
+      );
+    }
+    // Intercept VOICE_STATE_UPDATE and VOICE_SERVER_UPDATE events and forward
+    // them to the @discordjs/voice adapter so the voice handshake can complete.
+    // Also log selected event types for debugging.
+    const origHandleEvent = client.eventHandler.handleEvent.bind(client.eventHandler);
+    client.eventHandler.handleEvent = (payload: unknown, type: string) => {
+      if (
+        type.includes("VOICE") ||
+        type === "GUILD_CREATE" ||
+        type === "READY" ||
+        type === "RESUMED"
+      ) {
+        runtime.log?.(`[debug-event] type=${type}`);
+      }
+
+      // Forward voice gateway events to the @discordjs/voice adapter
+      if (type === "VOICE_STATE_UPDATE" || type === "VOICE_SERVER_UPDATE") {
+        const voiceProvider = getDiscordVoiceProvider();
+        if (voiceProvider && payload && typeof payload === "object") {
+          const data = payload as Record<string, unknown>;
+          const guildId = data.guild_id as string | undefined;
+          if (guildId) {
+            voiceProvider.onGatewayVoicePayload(guildId, data);
+          }
+        }
+      }
+
+      return origHandleEvent(payload, type);
+    };
   }
 
   runtime.log?.(`logged in to discord${botUserId ? ` as ${botUserId}` : ""}`);
