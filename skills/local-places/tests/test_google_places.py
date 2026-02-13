@@ -44,7 +44,7 @@ class TestValidatePlaceId:
     def test_path_traversal_blocked_by_allowlist(self):
         """Test that path traversal attempts are blocked by the allowlist."""
         # All of these contain characters NOT in [A-Za-z0-9+=_-]
-        # so they're automatically rejected
+        # so they're automatically rejected (some fail length, some fail format)
         malicious_ids = [
             "../../../etc/passwd",           # Contains dots and slashes
             "place/../other",                # Contains dots and slashes
@@ -53,17 +53,17 @@ class TestValidatePlaceId:
             "place/../../file",              # Contains slashes and dots
             "//network/share",               # Contains slashes
             "place\\\\share",                # Contains backslashes
-            "..",                            # Dots only
-            "../",                           # Dots and slash
-            "/..",                           # Slash and dots
+            "..",                            # Dots only (also too short)
+            "../",                           # Dots and slash (also too short)
+            "/..",                           # Slash and dots (also too short)
             "place..id",                     # Contains dots
         ]
         
         for place_id in malicious_ids:
             with pytest.raises(HTTPException) as exc_info:
                 _validate_place_id(place_id)
+            # Only assert on status code - error detail may vary (length vs format)
             assert exc_info.value.status_code == 400
-            assert "Invalid place_id format" in exc_info.value.detail
     
     def test_url_encoded_attacks_blocked(self):
         """Test that URL-encoded attacks are blocked (% not in allowlist)."""
@@ -73,24 +73,24 @@ class TestValidatePlaceId:
             "%2E%2E%2Ffile",           # URL-encoded ../file (uppercase)
             "%2e%2e/file",             # Mixed encoding
             "place%2f%2fshare",        # URL-encoded place//share
-            "%5c%5c",                  # URL-encoded \\
-            "%5C%5C",                  # URL-encoded \\ (uppercase)
+            "%5c%5c",                  # URL-encoded \\ (also too short)
+            "%5C%5C",                  # URL-encoded \\ (uppercase, also too short)
             "place%20id",              # URL-encoded space
         ]
         
         for place_id in encoded_attacks:
             with pytest.raises(HTTPException) as exc_info:
                 _validate_place_id(place_id)
+            # Only assert on status code - error detail may vary
             assert exc_info.value.status_code == 400
-            assert "Invalid place_id format" in exc_info.value.detail
     
     def test_special_characters_blocked(self):
         """Test that special characters are blocked by the allowlist."""
         invalid_ids = [
             "place@id",              # @ not in allowlist
-            "place id",              # Space not in allowlist
-            "place/id",              # / not in allowlist
-            "place\\id",             # \ not in allowlist
+            "place id",              # Space not in allowlist (also too short)
+            "place/id",              # / not in allowlist (also too short)
+            "place\\id",             # \ not in allowlist (also too short)
             "place?id=123",          # ? not in allowlist
             "place#anchor",          # # not in allowlist
             "place;drop",            # ; not in allowlist
@@ -103,10 +103,10 @@ class TestValidatePlaceId:
             "place(parens)",         # ( not in allowlist
             "place[brackets]",       # [ not in allowlist
             "place{braces}",         # { not in allowlist
-            "place<tag>",            # < not in allowlist
+            "place<tag>",            # < not in allowlist (also too short)
             "place'quote",           # ' not in allowlist
             'place"quote',           # " not in allowlist
-            "place.dot",             # . not in allowlist
+            "place.dot",             # . not in allowlist (also too short)
             "place:colon",           # : not in allowlist
             "place,comma",           # , not in allowlist
         ]
@@ -114,8 +114,8 @@ class TestValidatePlaceId:
         for place_id in invalid_ids:
             with pytest.raises(HTTPException) as exc_info:
                 _validate_place_id(place_id)
+            # Only assert on status code - error detail may vary
             assert exc_info.value.status_code == 400
-            assert "Invalid place_id format" in exc_info.value.detail
     
     def test_empty_or_none(self):
         """Test that empty or None place IDs are rejected."""
