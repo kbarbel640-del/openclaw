@@ -35,6 +35,9 @@ const {
   resolveGrokModel,
   resolveGrokInlineCitations,
   extractGrokContent,
+  resolveKimiApiKey,
+  resolveKimiModel,
+  resolveKimiBaseUrl,
 } = __testing;
 
 describe("web_search perplexity baseUrl defaults", () => {
@@ -222,5 +225,50 @@ describe("web_search grok response parsing", () => {
     const result = extractGrokContent({});
     expect(result.text).toBeUndefined();
     expect(result.annotationCitations).toEqual([]);
+  });
+});
+
+describe("web_search kimi config resolution", () => {
+  it("uses config apiKey when provided", () => {
+    expect(resolveKimiApiKey({ apiKey: "kimi-test-key" })).toBe("kimi-test-key");
+  });
+
+  it("falls back to KIMI_API_KEY env var", () => {
+    withEnv({ KIMI_API_KEY: "env-kimi-key", MOONSHOT_API_KEY: undefined }, () => {
+      expect(resolveKimiApiKey({})).toBe("env-kimi-key");
+    });
+  });
+
+  it("falls back to MOONSHOT_API_KEY env var", () => {
+    withEnv({ KIMI_API_KEY: undefined, MOONSHOT_API_KEY: "env-moonshot-key" }, () => {
+      expect(resolveKimiApiKey({})).toBe("env-moonshot-key");
+    });
+  });
+
+  it("returns undefined when no apiKey is available", () => {
+    withEnv({ KIMI_API_KEY: undefined, MOONSHOT_API_KEY: undefined }, () => {
+      expect(resolveKimiApiKey({})).toBeUndefined();
+      expect(resolveKimiApiKey(undefined)).toBeUndefined();
+    });
+  });
+
+  it("uses default model when not specified", () => {
+    expect(resolveKimiModel({})).toBe("moonshot-v1-128k");
+    expect(resolveKimiModel(undefined)).toBe("moonshot-v1-128k");
+  });
+
+  it("uses config model when provided", () => {
+    expect(resolveKimiModel({ model: "kimi-k2" })).toBe("kimi-k2");
+  });
+
+  it("uses default baseUrl when not specified", () => {
+    expect(resolveKimiBaseUrl({})).toBe("https://api.moonshot.cn/v1");
+    expect(resolveKimiBaseUrl(undefined)).toBe("https://api.moonshot.cn/v1");
+  });
+
+  it("uses config baseUrl when provided", () => {
+    expect(resolveKimiBaseUrl({ baseUrl: "https://custom.api.com/v1" })).toBe(
+      "https://custom.api.com/v1",
+    );
   });
 });
