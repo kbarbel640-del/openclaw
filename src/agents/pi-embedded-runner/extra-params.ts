@@ -10,6 +10,12 @@ const OPENROUTER_APP_HEADERS: Record<string, string> = {
 };
 
 /**
+ * Anthropic beta header required for fast mode.
+ * @see https://docs.anthropic.com/en/docs/about-claude/models#fast-mode
+ */
+const ANTHROPIC_FAST_MODE_BETA = "fast-mode-2026-02-01";
+
+/**
  * Resolve provider-specific extra params from model config.
  * Used to pass through stream params like temperature/maxTokens.
  *
@@ -64,6 +70,42 @@ function resolveCacheRetention(
   return undefined;
 }
 
+/**
+ * Resolve Anthropic speed mode from extraParams.
+ * Only applies to the Anthropic provider.
+ *
+ * @see https://docs.anthropic.com/en/docs/about-claude/models#fast-mode
+ */
+function resolveAnthropicSpeed(
+  extraParams: Record<string, unknown> | undefined,
+  provider: string,
+): "fast" | undefined {
+  if (provider !== "anthropic") {
+    return undefined;
+  }
+  if (extraParams?.speed === "fast") {
+    return "fast";
+  }
+  return undefined;
+}
+
+/**
+ * Append a beta feature to an existing anthropic-beta header value.
+ * Avoids duplicates and preserves existing betas.
+ *
+ * @internal Exported for testing
+ */
+export function appendAnthropicBeta(existingHeader: string | undefined, newBeta: string): string {
+  if (!existingHeader?.trim()) {
+    return newBeta;
+  }
+  const existing = existingHeader.split(",").map((s) => s.trim());
+  if (existing.includes(newBeta)) {
+    return existingHeader;
+  }
+  return `${existingHeader},${newBeta}`;
+}
+
 function createStreamFnWithExtraParams(
   baseStreamFn: StreamFn | undefined,
   extraParams: Record<string, unknown> | undefined,
@@ -85,13 +127,52 @@ function createStreamFnWithExtraParams(
     streamParams.cacheRetention = cacheRetention;
   }
 
-  if (Object.keys(streamParams).length === 0) {
+  const speed = resolveAnthropicSpeed(extraParams, provider);
+
+  if (Object.keys(streamParams).length === 0 && !speed) {
     return undefined;
   }
 
-  log.debug(`creating streamFn wrapper with params: ${JSON.stringify(streamParams)}`);
+  log.debug(
+    `creating streamFn wrapper with params: ${JSON.stringify(streamParams)}${speed ? `, speed: ${speed}` : ""}`,
+  );
 
   const underlying = baseStreamFn ?? streamSimple;
+
+  if (speed) {
+    // For Anthropic speed mode, we need to:
+    // 1. Inject `speed` into the API request body via the onPayload callback
+    //    (pi-ai's buildParams doesn't handle `speed` yet)
+    // 2. Append the fast-mode beta header to the existing anthropic-beta header
+    //    without overwriting pi-ai's default betas (interleaved-thinking, etc.)
+    const wrappedStreamFn: StreamFn = (model, context, options) => {
+      // Append fast-mode beta to existing header on the model (non-destructive copy)
+      const existingBeta =
+        options?.headers?.["anthropic-beta"] ?? model.headers?.["anthropic-beta"];
+      const betaHeader = appendAnthropicBeta(existingBeta, ANTHROPIC_FAST_MODE_BETA);
+
+      // Chain onPayload to inject `speed` into the request body
+      const originalOnPayload = options?.onPayload;
+      const onPayload = (payload: unknown) => {
+        if (payload && typeof payload === "object") {
+          (payload as Record<string, unknown>).speed = speed;
+        }
+        originalOnPayload?.(payload);
+      };
+
+      return underlying(model, context, {
+        ...streamParams,
+        ...options,
+        headers: {
+          ...options?.headers,
+          "anthropic-beta": betaHeader,
+        },
+        onPayload,
+      });
+    };
+    return wrappedStreamFn;
+  }
+
   const wrappedStreamFn: StreamFn = (model, context, options) =>
     underlying(model, context, {
       ...streamParams,
