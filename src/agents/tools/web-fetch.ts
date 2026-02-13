@@ -3,6 +3,7 @@ import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { fetchWithSsrFGuard } from "../../infra/net/fetch-guard.js";
 import { SsrFBlockedError } from "../../infra/net/ssrf.js";
+import { logDebug } from "../../logger.js";
 import { wrapExternalContent, wrapWebContent } from "../../security/external-content.js";
 import { normalizeSecretInput } from "../../utils/normalize-secret-input.js";
 import { stringEnum } from "../schema/typebox.js";
@@ -422,7 +423,7 @@ async function runWebFetch(params: {
     // Cloudflare Markdown for Agents — log token budget hint when present
     const markdownTokens = res.headers.get("x-markdown-tokens");
     if (markdownTokens) {
-      console.log(`[web-fetch] x-markdown-tokens: ${markdownTokens} (${finalUrl})`);
+      logDebug(`[web-fetch] x-markdown-tokens: ${markdownTokens} (${finalUrl})`);
     }
   } catch (error) {
     if (error instanceof SsrFBlockedError) {
