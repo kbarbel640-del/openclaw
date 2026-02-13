@@ -833,18 +833,26 @@ export async function runEmbeddedAttempt(
               `[proactive-compaction] compacting session before prompt: ` +
                 `runId=${params.runId} sessionId=${params.sessionId}`
             );
-            try {
-              const summary = await activeSession.agent.compact();
-              log.info(
-                `[proactive-compaction] compaction complete: ` +
-                  `summary length=${summary.summary.length}`
-              );
-            } catch (compactError) {
+
+            // Use runtime check to avoid TypeScript errors if API doesn't exist
+            const agent: any = activeSession.agent;
+            if (typeof agent?.compact === 'function') {
+              try {
+                const compactResult = await agent.compact();
+                log.info(
+                  `[proactive-compaction] compaction complete, ` +
+                    `summary length=${compactResult.summary?.length ?? 0}`
+                );
+              } catch (compactError) {
+                log.warn(
+                  `[proactive-compaction] compaction failed, continuing with prompt: ` +
+                    `${String(compactError)}`
+                );
+              }
+            } else {
               log.warn(
-                `[proactive-compaction] compaction failed, continuing with prompt: ` +
-                  `${String(compactError)}`
+                `[proactive-compaction] agent.compact() not available, skipping compaction`
               );
-              // Continue with prompt even if compaction fails
             }
           }
 
