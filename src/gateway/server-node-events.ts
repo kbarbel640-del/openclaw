@@ -219,26 +219,34 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
       const output = typeof obj.output === "string" ? obj.output.trim() : "";
       const reason = typeof obj.reason === "string" ? obj.reason.trim() : "";
 
-      let text = "";
-      if (evt.event === "exec.started") {
-        text = `Exec started (node=${nodeId}${runId ? ` id=${runId}` : ""})`;
-        if (command) {
-          text += `: ${command}`;
-        }
-      } else if (evt.event === "exec.finished") {
-        const exitLabel = timedOut ? "timeout" : `code ${exitCode ?? "?"}`;
-        text = `Exec finished (node=${nodeId}${runId ? ` id=${runId}` : ""}, ${exitLabel})`;
-        if (output) {
-          text += `\n${output}`;
-        }
-      } else {
-        text = `Exec denied (node=${nodeId}${runId ? ` id=${runId}` : ""}${reason ? `, ${reason}` : ""})`;
-        if (command) {
-          text += `: ${command}`;
-        }
-      }
+      // Respect gateway.nodes.execEvents config:
+      //   "inject"  (default) — full output as system message
+      //   "notify"  — brief one-liner without output body
+      //   "silent"  — suppressed entirely (heartbeat still fires)
+      const execEvents = loadConfig().gateway?.nodes?.execEvents ?? "inject";
 
-      enqueueSystemEvent(text, { sessionKey, contextKey: runId ? `exec:${runId}` : "exec" });
+      if (execEvents !== "silent") {
+        let text = "";
+        if (evt.event === "exec.started") {
+          text = `Exec started (node=${nodeId}${runId ? ` id=${runId}` : ""})`;
+          if (command) {
+            text += `: ${command}`;
+          }
+        } else if (evt.event === "exec.finished") {
+          const exitLabel = timedOut ? "timeout" : `code ${exitCode ?? "?"}`;
+          text = `Exec finished (node=${nodeId}${runId ? ` id=${runId}` : ""}, ${exitLabel})`;
+          if (execEvents === "inject" && output) {
+            text += `\n${output}`;
+          }
+        } else {
+          text = `Exec denied (node=${nodeId}${runId ? ` id=${runId}` : ""}${reason ? `, ${reason}` : ""})`;
+          if (command) {
+            text += `: ${command}`;
+          }
+        }
+
+        enqueueSystemEvent(text, { sessionKey, contextKey: runId ? `exec:${runId}` : "exec" });
+      }
       requestHeartbeatNow({ reason: "exec-event" });
       return;
     }

@@ -514,6 +514,9 @@ export const OpenClawSchema = z
               .optional(),
             allowCommands: z.array(z.string()).optional(),
             denyCommands: z.array(z.string()).optional(),
+            execEvents: z
+              .union([z.literal("inject"), z.literal("notify"), z.literal("silent")])
+              .optional(),
           })
           .strict()
           .optional(),

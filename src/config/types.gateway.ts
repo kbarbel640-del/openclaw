@@ -224,6 +224,13 @@ export type GatewayNodesConfig = {
   allowCommands?: string[];
   /** Commands to deny even if they appear in the defaults or node claims. */
   denyCommands?: string[];
+  /**
+   * Controls how async exec completion events are surfaced in the chat session.
+   * - "inject" (default): Full output injected as system messages.
+   * - "notify": Brief one-line notification (no output body).
+   * - "silent": Suppressed entirely (logged only).
+   */
+  execEvents?: "inject" | "notify" | "silent";
 };
 
 export type GatewayConfig = {
