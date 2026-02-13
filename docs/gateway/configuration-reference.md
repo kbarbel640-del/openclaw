@@ -148,6 +148,7 @@ WhatsApp runs through the gateway's web channel (Baileys Web). It starts automat
       webhookUrl: "https://example.com/telegram-webhook",
       webhookSecret: "secret",
       webhookPath: "/telegram-webhook",
+      approvalChatId: "6759594496", // optional: chat ID for exec approval notifications with inline buttons
     },
   },
 }
@@ -155,6 +156,7 @@ WhatsApp runs through the gateway's web channel (Baileys Web). It starts automat
 
 - Bot token: `channels.telegram.botToken` or `channels.telegram.tokenFile`, with `TELEGRAM_BOT_TOKEN` as fallback for the default account.
 - `configWrites: false` blocks Telegram-initiated config writes (supergroup ID migrations, `/config set|unset`).
+- `approvalChatId` enables mobile approval for elevated commands via Telegram inline buttons.
 - Draft streaming uses Telegram `sendMessageDraft` (requires private chat topics).
 - Retry policy: see [Retry policy](/concepts/retry).
 

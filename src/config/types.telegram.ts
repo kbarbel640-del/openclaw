@@ -138,6 +138,12 @@ export type TelegramAccountConfig = {
    * Use `"auto"` to derive `[{identity.name}]` from the routed agent.
    */
   responsePrefix?: string;
+  /**
+   * Chat ID to send exec approval notifications to.
+   * If omitted, defaults to the accountId (which for single-account setups is the owner's chat ID).
+   * Enable to approve elevated commands from mobile via Telegram inline buttons.
+   */
+  approvalChatId?: string | number;
 };
 
 export type TelegramTopicConfig = {

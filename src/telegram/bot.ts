@@ -62,6 +62,7 @@ export type TelegramBotOptions = {
     lastUpdateId?: number | null;
     onUpdateId?: (updateId: number) => void | Promise<void>;
   };
+  execApprovalManager?: unknown;
 };
 
 export function getTelegramSequentialKey(ctx: {
@@ -489,6 +490,27 @@ export function createTelegramBot(opts: TelegramBotOptions) {
     processMessage,
     logger,
   });
+
+  // Attach execApprovalManager: prefer opts, fallback to global map by token
+  if (opts.execApprovalManager) {
+    (bot as unknown as Record<string, unknown>).execApprovalManager = opts.execApprovalManager;
+  } else {
+    // Find botToken from first account
+    let token: string | undefined;
+    if ('accounts' in telegramCfg && telegramCfg.accounts) {
+      const firstAccount = Object.values(telegramCfg.accounts).find((acc): acc is { botToken: string } => Boolean(acc?.botToken));
+      token = firstAccount?.botToken;
+    } else if (telegramCfg && 'botToken' in telegramCfg) {
+      token = (telegramCfg as { botToken: string }).botToken;
+    }
+    if (token) {
+      const globalMap = (globalThis as unknown as Record<string, unknown>).__execApprovalManagerByToken as Map<string, unknown> | undefined;
+      const manager = globalMap?.get?.(token);
+      if (manager) {
+        (bot as unknown as Record<string, unknown>).execApprovalManager = manager;
+      }
+    }
+  }
 
   return bot;
 }

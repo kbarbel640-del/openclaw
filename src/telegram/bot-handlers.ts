@@ -604,6 +604,45 @@ export const registerTelegramHandlers = ({
         return;
       }
 
+      // Exec approval callback handling
+      const [approvalAction, approvalId] = data.split(":");
+      if (approvalAction === "approve_once" || approvalAction === "approve_always" || approvalAction === "reject") {
+        const decision = approvalAction === "approve_once" ? "allow-once" : approvalAction === "approve_always" ? "allow-always" : "deny";
+        try {
+          const manager = (ctx.bot as any).execApprovalManager as { resolve: (id: string, decision: string, resolvedBy?: string | null) => boolean } | undefined;
+          if (manager && approvalId) {
+            const resolvedBy = `${callback.from?.first_name ?? "User"} (TG:${callback.from?.id})`;
+            const ok = manager.resolve(approvalId, decision, resolvedBy);
+            if (ok) {
+              await bot.api.editMessageText(
+                callbackMessage.chat.id,
+                callbackMessage.message_id,
+                `✅ Decision recorded: ${decision}`,
+              );
+            } else {
+              await bot.api.editMessageText(
+                callbackMessage.chat.id,
+                callbackMessage.message_id,
+                `❌ Failed: approval ID not found or expired`,
+              );
+            }
+          } else {
+            await bot.api.editMessageText(
+              callbackMessage.chat.id,
+              callbackMessage.message_id,
+              `❌ Cannot resolve: approval manager not available`,
+            );
+          }
+        } catch (err) {
+          await bot.api.editMessageText(
+            callbackMessage.chat.id,
+            callbackMessage.message_id,
+            `❌ Error: ${String(err)}`,
+          );
+        }
+        return;
+      }
+
       const syntheticMessage: Message = {
         ...callbackMessage,
         from: callback.from,

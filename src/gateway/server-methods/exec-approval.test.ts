@@ -59,6 +59,7 @@ describe("exec approval handlers", () => {
       broadcast: (event: string, payload: unknown) => {
         broadcasts.push({ event, payload });
       },
+      logGateway: { info: vi.fn(), error: vi.fn() },
     };
 
     const requestPromise = handlers["exec.approval.request"]({
@@ -113,7 +114,7 @@ describe("exec approval handlers", () => {
 
     const resolveContext = {
       broadcast: () => {},
-    };
+};
 
     const context = {
       broadcast: (event: string, payload: unknown) => {
@@ -168,6 +169,7 @@ describe("exec approval handlers", () => {
       broadcast: (event: string, payload: unknown) => {
         broadcasts.push({ event, payload });
       },
+      logGateway: { error: vi.fn() },
     };
 
     const requestPromise = handlers["exec.approval.request"]({
@@ -221,9 +223,10 @@ describe("exec approval handlers", () => {
       broadcast: (event: string, payload: unknown) => {
         broadcasts.push({ event, payload });
       },
+      logGateway: { error: vi.fn() },
     };
 
-    const requestPromise = handlers["exec.approval.request"]({
+    const requestA = handlers["exec.approval.request"]({
       params: {
         id: "dup-1",
         command: "echo ok",
@@ -237,7 +240,7 @@ describe("exec approval handlers", () => {
       isWebchatConnect: noop,
     });
 
-    await handlers["exec.approval.request"]({
+    const requestB = handlers["exec.approval.request"]({
       params: {
         id: "dup-1",
         command: "echo again",
@@ -271,6 +274,39 @@ describe("exec approval handlers", () => {
       isWebchatConnect: noop,
     });
 
-    await requestPromise;
+    await requestA;
+  });
+
+  it("sends telegram notification with buttons", async () => {
+    const manager = new ExecApprovalManager();
+    const mockNotifier = {
+      sendApprovalRequest: vi.fn().mockResolvedValue(undefined),
+    };
+
+    createExecApprovalHandlers(manager, { telegramNotifier: mockNotifier });
+
+    const respond = vi.fn();
+    const context = {
+      broadcast: vi.fn(),
+      logGateway: { error: vi.fn() },
+    };
+
+    await (handlers: any)["exec.approval.request"]({
+      params: {
+        command: "rm -rf model/",
+        cwd: "C:\\",
+        resolvedPath: "C:\\model",
+      },
+      respond,
+      context,
+      client: null,
+      req: { id: "req-1", type: "req", method: "exec.approval.request" },
+      isWebchatConnect: noop,
+    });
+
+    expect(mockNotifier.sendApprovalRequest).toHaveBeenCalledTimes(1);
+    const record = mockNotifier.sendApprovalRequest.mock.calls[0][0];
+    expect(record.request.command).toBe("rm -rf model/");
+    expect(record.request.resolvedPath).toBe("C:\\model");
   });
 });

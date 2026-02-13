@@ -56,6 +56,7 @@ import { startGatewayMaintenanceTimers } from "./server-maintenance.js";
 import { GATEWAY_EVENTS, listGatewayMethods } from "./server-methods-list.js";
 import { coreGatewayHandlers } from "./server-methods.js";
 import { createExecApprovalHandlers } from "./server-methods/exec-approval.js";
+import { createTelegramApprovalNotifier } from "../telegram/approval-notifier.js";
 import { safeParseJson } from "./server-methods/nodes.helpers.js";
 import { hasConnectedMobileNode } from "./server-mobile-nodes.js";
 import { loadGatewayModelCatalog } from "./server-model-catalog.js";
@@ -464,9 +465,27 @@ export async function startGatewayServer(
 
   const execApprovalManager = new ExecApprovalManager();
   const execApprovalForwarder = createExecApprovalForwarder();
+  const telegramNotifier = createTelegramApprovalNotifier(cfgAtStart);
   const execApprovalHandlers = createExecApprovalHandlers(execApprovalManager, {
     forwarder: execApprovalForwarder,
+    telegramNotifier: telegramNotifier as { sendApprovalRequest: (record: unknown) => Promise<void> } | undefined,
   });
+
+  // Register execApprovalManager globally for Telegram bot to consume
+  const globalTelegramCfg = cfgAtStart.channels?.telegram;
+  // Find first account with botToken
+  const firstTelegramAccount = globalTelegramCfg?.accounts
+    ? Object.values(globalTelegramCfg.accounts).find((acc): acc is { botToken: string } => Boolean(acc?.botToken))
+    : (globalTelegramCfg as { botToken?: string } | undefined)?.botToken ? globalTelegramCfg as { botToken: string } : undefined;
+    
+  if (firstTelegramAccount?.botToken) {
+    let map = (globalThis as unknown as Record<string, unknown>).__execApprovalManagerByToken as Map<string, ExecApprovalManager> | undefined;
+    if (!map) {
+      map = new Map<string, ExecApprovalManager>();
+      (globalThis as unknown as Record<string, unknown>).__execApprovalManagerByToken = map;
+    }
+    map.set(firstTelegramAccount.botToken, execApprovalManager);
+  }
 
   const canvasHostServerPort = (canvasHostServer as CanvasHostServer | null)?.port;
 

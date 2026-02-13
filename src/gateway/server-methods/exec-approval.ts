@@ -12,7 +12,10 @@ import {
 
 export function createExecApprovalHandlers(
   manager: ExecApprovalManager,
-  opts?: { forwarder?: ExecApprovalForwarder },
+  opts?: {
+    forwarder?: ExecApprovalForwarder;
+    telegramNotifier?: { sendApprovalRequest: (record: unknown) => Promise<void> };
+  },
 ): GatewayRequestHandlers {
   return {
     "exec.approval.request": async ({ params, respond, context }) => {
@@ -83,6 +86,12 @@ export function createExecApprovalHandlers(
         .catch((err) => {
           context.logGateway?.error?.(`exec approvals: forward request failed: ${String(err)}`);
         });
+      // Send Telegram notification inline
+      try {
+        await opts?.telegramNotifier?.sendApprovalRequest(record);
+      } catch (err) {
+        context.logGateway?.error?.(`exec approvals: telegram notify failed: ${String(err)}`);
+      }
       const decision = await decisionPromise;
       respond(
         true,

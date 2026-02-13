@@ -694,3 +694,30 @@ Telegram-specific high-signal fields:
 - [Pairing](/channels/pairing)
 - [Channel routing](/channels/channel-routing)
 - [Troubleshooting](/channels/troubleshooting)
+
+## Exec approval notifications
+
+When elevated commands require approval, OpenClaw can send a Telegram message with inline buttons to allow quick approval from mobile.
+
+Configuration:
+
+- `channels.telegram.approvalChatId` – Chat ID to receive approval requests. If omitted, defaults to the first configured account ID (for single-account setups this is the owner's chat ID).
+
+Example:
+
+```json5
+{
+  channels: {
+    telegram: {
+      approvalChatId: "6759594496",
+    },
+  },
+}
+```
+
+With this set, whenever an `exec.approval.request` is created (e.g., by elevated operations that are not auto-approved), the bot sends a message to that chat with three buttons:
+- ✅ Approve Once
+- ✅ Approve Always
+- ❌ Reject
+
+Tapping a button immediately resolves the approval via the gateway. The original requester is unblocked promptly.
