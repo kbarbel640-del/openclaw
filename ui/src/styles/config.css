@@ -711,6 +711,65 @@
   cursor: not-allowed;
 }
 
+.cfg-input__toggle {
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cfg-input__toggle:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.cfg-input__toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cfg-input__toggle svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+}
+
+:root[data-theme="light"] .cfg-input__toggle {
+  background: var(--bg-hover);
+}
+
+:root[data-theme="light"] .cfg-input__toggle:hover:not(:disabled) {
+  background: var(--border);
+}
+
+/* Input wrapper with absolute positioned toggle */
+.cfg-input-wrap--toggle {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.cfg-input-wrap--toggle .cfg-input {
+  flex: 1;
+  padding-right: 40px;
+}
+
+.cfg-input__toggle--absolute {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 /* Textarea */
 .cfg-textarea {
   width: 100%;

@@ -2,6 +2,7 @@ import { html, nothing } from "lit";
 import type { SkillMessageMap } from "../controllers/skills.ts";
 import type { SkillStatusEntry, SkillStatusReport } from "../types.ts";
 import { clampText } from "../format.ts";
+import { icons } from "../icons.ts";
 
 type SkillGroup = {
   id: string;
@@ -231,12 +232,30 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
             ? html`
               <div class="field" style="margin-top: 10px;">
                 <span>API key</span>
-                <input
-                  type="password"
-                  .value=${apiKey}
-                  @input=${(e: Event) =>
-                    props.onEdit(skill.skillKey, (e.target as HTMLInputElement).value)}
-                />
+                <div class="cfg-input-wrap--toggle">
+                  <input
+                    type="password"
+                    class="cfg-input"
+                    .value=${apiKey}
+                    @input=${(e: Event) =>
+                      props.onEdit(skill.skillKey, (e.target as HTMLInputElement).value)}
+                  />
+                  <button
+                    type="button"
+                    class="cfg-input__toggle cfg-input__toggle--absolute"
+                    title="Toggle visibility"
+                    @click=${(e: Event) => {
+                      const button = e.currentTarget as HTMLElement;
+                      const wrapper = button.parentElement;
+                      const input = wrapper?.querySelector("input") as HTMLInputElement;
+                      if (input) {
+                        input.type = input.type === "password" ? "text" : "password";
+                      }
+                    }}
+                  >
+                    ${icons.eye}
+                  </button>
+                </div>
               </div>
               <button
                 class="btn primary"

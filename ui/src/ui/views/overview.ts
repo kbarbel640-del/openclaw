@@ -2,6 +2,7 @@ import { html } from "lit";
 import type { GatewayHelloOk } from "../gateway.ts";
 import type { UiSettings } from "../storage.ts";
 import { formatRelativeTimestamp, formatDurationHuman } from "../format.ts";
+import { icons } from "../icons.ts";
 import { formatNextRun } from "../presenter.ts";
 
 export type OverviewProps = {
@@ -149,15 +150,33 @@ export function renderOverview(props: OverviewProps) {
           </label>
           <label class="field">
             <span>Password (not stored)</span>
-            <input
-              type="password"
-              .value=${props.password}
-              @input=${(e: Event) => {
-                const v = (e.target as HTMLInputElement).value;
-                props.onPasswordChange(v);
-              }}
-              placeholder="system or shared password"
-            />
+            <div class="cfg-input-wrap--toggle">
+              <input
+                type="password"
+                class="cfg-input"
+                .value=${props.password}
+                @input=${(e: Event) => {
+                  const v = (e.target as HTMLInputElement).value;
+                  props.onPasswordChange(v);
+                }}
+                placeholder="system or shared password"
+              />
+              <button
+                type="button"
+                class="cfg-input__toggle cfg-input__toggle--absolute"
+                title="Toggle visibility"
+                @click=${(e: Event) => {
+                  const button = e.currentTarget as HTMLElement;
+                  const wrapper = button.parentElement;
+                  const input = wrapper?.querySelector("input") as HTMLInputElement;
+                  if (input) {
+                    input.type = input.type === "password" ? "text" : "password";
+                  }
+                }}
+              >
+                ${icons.eye}
+              </button>
+            </div>
           </label>
           <label class="field">
             <span>Default Session Key</span>

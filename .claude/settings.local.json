@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(pnpm build:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(pnpm openclaw --help:*)",
+      "Bash(lsof:*)",
+      "Bash(pnpm openclaw:*)",
+      "mcp__chrome-devtools__new_page",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__evaluate_script",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(openclaw config get:*)",
+      "Bash(gh repo view:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(scripts/committer:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(pnpm check:*)",
+      "Bash(pnpm format:*)",
+      "Bash(git remote get-url:*)",
+      "Bash(git pull:*)",
+      "Bash(git reset:*)",
+      "Bash(git merge:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(pnpm oxfmt:*)",
+      "Bash(pnpm format:fix:*)",
+      "Bash(pnpm run)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

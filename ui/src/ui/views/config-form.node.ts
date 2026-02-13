@@ -1,5 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import type { ConfigUiHints } from "../types.ts";
+import { icons } from "../icons.ts";
 import {
   defaultValue,
   hintForPath,
@@ -29,7 +30,7 @@ function jsonValue(value: unknown): string {
 }
 
 // SVG Icons as template literals
-const icons = {
+const localIcons = {
   chevronDown: html`
     <svg
       viewBox="0 0 24 24"
@@ -307,6 +308,7 @@ function renderTextInput(params: {
   const hint = hintForPath(path, hints);
   const label = hint?.label ?? schema.title ?? humanize(String(path.at(-1)));
   const help = hint?.help ?? schema.description;
+  // Allow explicit hint override, but default to sensitive path detection
   const isSensitive = hint?.sensitive ?? isSensitivePath(path);
   const placeholder =
     hint?.placeholder ??
@@ -350,6 +352,28 @@ function renderTextInput(params: {
             onPatch(path, raw.trim());
           }}
         />
+        ${
+          isSensitive
+            ? html`
+              <button
+                type="button"
+                class="cfg-input__toggle"
+                title="Toggle visibility"
+                ?disabled=${disabled}
+                @click=${(e: Event) => {
+                  const button = e.currentTarget as HTMLElement;
+                  const wrapper = button.parentElement;
+                  const input = wrapper?.querySelector("input") as HTMLInputElement;
+                  if (input) {
+                    input.type = input.type === "password" ? "text" : "password";
+                  }
+                }}
+              >
+                ${icons.eye}
+              </button>
+            `
+            : nothing
+        }
         ${
           schema.default !== undefined
             ? html`
@@ -538,7 +562,7 @@ function renderObject(params: {
     <details class="cfg-object" open>
       <summary class="cfg-object__header">
         <span class="cfg-object__title">${label}</span>
-        <span class="cfg-object__chevron">${icons.chevronDown}</span>
+        <span class="cfg-object__chevron">${localIcons.chevronDown}</span>
       </summary>
       ${help ? html`<div class="cfg-object__help">${help}</div>` : nothing}
       <div class="cfg-object__content">
@@ -614,7 +638,7 @@ function renderArray(params: {
             onPatch(path, next);
           }}
         >
-          <span class="cfg-array__add-icon">${icons.plus}</span>
+          <span class="cfg-array__add-icon">${localIcons.plus}</span>
           Add
         </button>
       </div>
@@ -643,7 +667,7 @@ function renderArray(params: {
                     onPatch(path, next);
                   }}
                 >
-                  ${icons.trash}
+                  ${localIcons.trash}
                 </button>
               </div>
               <div class="cfg-array__item-content">
@@ -702,7 +726,7 @@ function renderMapField(params: {
             onPatch(path, next);
           }}
         >
-          <span class="cfg-map__add-icon">${icons.plus}</span>
+          <span class="cfg-map__add-icon">${localIcons.plus}</span>
           Add Entry
         </button>
       </div>
@@ -789,7 +813,7 @@ function renderMapField(params: {
                     onPatch(path, next);
                   }}
                 >
-                  ${icons.trash}
+                  ${localIcons.trash}
                 </button>
               </div>
             `;
