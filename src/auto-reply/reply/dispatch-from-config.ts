@@ -112,7 +112,7 @@ export function toCanonicalAddress(
   raw: unknown,
   context: { source?: string; chatType?: string },
 ): string | undefined {
-  if (raw == null) {
+  if (raw == null || (typeof raw !== "string" && typeof raw !== "number")) {
     return undefined;
   }
   const trimmed = String(raw).trim();
