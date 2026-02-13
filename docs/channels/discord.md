@@ -371,6 +371,65 @@ See [Slash commands](/tools/slash-commands) for command catalog and behavior.
   </Accordion>
 </AccordionGroup>
 
+## Voice transcription
+
+OpenClaw can auto-join Discord voice channels, transcribe speech via Groq Whisper, and produce a session summary when everyone leaves.
+
+### How it works
+
+1. A user joins a voice channel in a monitored guild
+2. The bot auto-joins and starts listening
+3. Audio is decoded, buffered, and transcribed periodically
+4. Transcriptions are posted to a thread in the configured text channel
+5. When all humans leave, the bot generates a summary, posts it to the channel, and disconnects
+
+### Configuration
+
+```json5
+{
+  plugins: {
+    entries: {
+      discord: {
+        config: {
+          voice: {
+            enabled: true,
+            autoJoin: true,
+            autoJoinGuilds: ["123456789012345678"],
+            transcriptionChannelId: "987654321098765432",
+            groqApiKey: "gsk_...", // or use GROQ_API_KEY env var
+            whisperModel: "whisper-large-v3-turbo",
+            summarizationModel: "llama-3.3-70b-versatile",
+          },
+        },
+      },
+    },
+  },
+  channels: {
+    discord: {
+      intents: {
+        voiceStates: true,
+      },
+    },
+  },
+}
+```
+
+### Requirements
+
+- **Groq API key**: Set via `voice.groqApiKey` config or `GROQ_API_KEY` environment variable. Required for both transcription (Whisper) and summarization (LLM).
+- **Transcription channel**: A text channel ID where threads and summaries will be posted.
+- **Voice States intent**: Must be enabled so the gateway receives `VOICE_STATE_UPDATE` events.
+- **Bot permissions**: Connect and Speak in voice channels; Send Messages and Create Public Threads in the transcription channel.
+
+### Behavior
+
+| Event                         | Action                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| User joins voice channel      | Bot auto-joins (if `autoJoin` enabled and guild matches)                  |
+| User speaks                   | Audio buffered, transcribed via Groq Whisper, posted to thread            |
+| Silence detected (2s default) | Buffered audio flushed and transcribed                                    |
+| All humans leave              | Remaining audio flushed, summary generated, posted to channel, bot leaves |
+
 ## Tools and action gates
 
 Discord message actions include messaging, channel admin, moderation, presence, and metadata actions.

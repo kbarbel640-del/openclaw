@@ -42,9 +42,6 @@ export class DiscordVoiceStateListener extends VoiceStateUpdateListener {
    */
   async handle(data: VoiceStateUpdateEvent, _client: Client): Promise<void> {
     try {
-      console.log(
-        `[voice-listener] handle called, type=${this.type}, data.guild_id=${(data as Record<string, unknown>).guild_id}, data.user_id=${(data as Record<string, unknown>).user_id}, data.channel_id=${(data as Record<string, unknown>).channel_id}`,
-      );
       this.processVoiceStateUpdate(data as GatewayVoiceStateUpdateDispatchData);
     } catch (err) {
       console.error(`[voice-listener] error:`, err);

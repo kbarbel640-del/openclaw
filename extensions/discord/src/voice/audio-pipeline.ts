@@ -38,44 +38,37 @@ export interface AudioBuffer {
   userId?: string;
 }
 
+/** Bytes per second for 48kHz stereo 16-bit PCM. */
+const PCM_BYTES_PER_SECOND = 48000 * 2 * 2;
+
 export class IncomingAudioHandler extends EventEmitter {
   private buffers: Map<string, Buffer[]> = new Map();
+  private bufferBytes: Map<string, number> = new Map();
   private config: AudioConfig;
   private silenceThreshold: number = 0.01;
   private silenceTimeoutMs: number = 2000;
+  /** Max accumulated audio per user before auto-flush (default 10s). */
+  private maxBufferDurationMs: number = 10_000;
   private silenceTimers: Map<string, NodeJS.Timeout> = new Map();
 
-  constructor(config: Partial<AudioConfig> = {}) {
+  constructor(config: Partial<AudioConfig> = {}, opts?: { maxBufferDurationMs?: number }) {
     super();
     this.config = { ...DEFAULT_AUDIO_CONFIG, ...config };
+    if (opts?.maxBufferDurationMs) {
+      this.maxBufferDurationMs = opts.maxBufferDurationMs;
+    }
   }
 
   private _decoders?: Map<string, opus.Decoder>;
-  private _chunkCounts: Map<string, number> = new Map();
-  private _pcmCounts: Map<string, number> = new Map();
 
   handleAudioChunk(userId: string, opusChunk: Buffer): void {
-    const count = (this._chunkCounts.get(userId) ?? 0) + 1;
-    this._chunkCounts.set(userId, count);
-    if (count === 1) {
-      console.log(
-        `[audio-pipeline] first opus chunk for user ${userId} (${opusChunk.length} bytes)`,
-      );
-    }
-
     // Get or create a persistent decoder for this user (reuse across packets)
     if (!this._decoders) this._decoders = new Map();
     let decoder = this._decoders.get(userId);
     if (!decoder) {
-      console.log(`[audio-pipeline] creating opus decoder for user ${userId}`);
       decoder = createOpusDecoder();
       this._decoders.set(userId, decoder);
       decoder.on("data", (pcm: Buffer) => {
-        const pcmCount = (this._pcmCounts.get(userId) ?? 0) + 1;
-        this._pcmCounts.set(userId, pcmCount);
-        if (pcmCount === 1) {
-          console.log(`[audio-pipeline] first PCM frame for user ${userId} (${pcm.length} bytes)`);
-        }
         this.processDecodedAudio(userId, pcm);
       });
       decoder.on("error", (err: Error) => {
@@ -88,12 +81,25 @@ export class IncomingAudioHandler extends EventEmitter {
   private processDecodedAudio(userId: string, pcmData: Buffer): void {
     if (!this.buffers.has(userId)) {
       this.buffers.set(userId, []);
+      this.bufferBytes.set(userId, 0);
     }
 
     const userBuffers = this.buffers.get(userId)!;
     userBuffers.push(pcmData);
+    const totalBytes = (this.bufferBytes.get(userId) ?? 0) + pcmData.length;
+    this.bufferBytes.set(userId, totalBytes);
 
     this.resetSilenceTimer(userId);
+
+    // Auto-flush when accumulated audio exceeds maxBufferDurationMs
+    const maxBytes = (this.maxBufferDurationMs / 1000) * PCM_BYTES_PER_SECOND;
+    if (totalBytes >= maxBytes) {
+      console.log(
+        `[audio-pipeline] periodic flush for user ${userId}: ${(totalBytes / PCM_BYTES_PER_SECOND).toFixed(1)}s accumulated`,
+      );
+      this.flushUserAudio(userId);
+      return;
+    }
 
     if (this.isSilent(pcmData)) {
       this.emit("silence", { userId, partial: true });
@@ -132,16 +138,12 @@ export class IncomingAudioHandler extends EventEmitter {
   flushUserAudio(userId: string): Buffer | null {
     const userBuffers = this.buffers.get(userId);
     if (!userBuffers || userBuffers.length === 0) {
-      console.log(`[audio-pipeline] flushUserAudio(${userId}): no buffers to flush`);
       return null;
     }
 
     const combined = Buffer.concat(userBuffers);
-    const durationS = combined.length / (48000 * 2 * 2);
-    console.log(
-      `[audio-pipeline] flushUserAudio(${userId}): ${userBuffers.length} buffers, ${combined.length} bytes (${durationS.toFixed(1)}s), emitting audioComplete`,
-    );
     userBuffers.length = 0;
+    this.bufferBytes.set(userId, 0);
 
     this.emit("audioComplete", { userId, data: combined });
     this.emit("silence", { userId, durationMs: this.silenceTimeoutMs });
@@ -151,6 +153,7 @@ export class IncomingAudioHandler extends EventEmitter {
 
   clearUser(userId: string): void {
     this.buffers.delete(userId);
+    this.bufferBytes.delete(userId);
     const timer = this.silenceTimers.get(userId);
     if (timer) {
       clearTimeout(timer);
@@ -169,6 +172,7 @@ export class IncomingAudioHandler extends EventEmitter {
     }
     this.silenceTimers.clear();
     this.buffers.clear();
+    this.bufferBytes.clear();
     if (this._decoders) {
       for (const d of this._decoders.values()) d.destroy();
       this._decoders.clear();

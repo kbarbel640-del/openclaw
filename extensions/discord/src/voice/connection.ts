@@ -211,14 +211,12 @@ export class DiscordVoiceConnectionManager extends EventEmitter<VoiceConnectionE
     };
 
     speakingMap.on("start", (userId: string) => {
-      console.log(`[voice-conn] user ${userId} started speaking`);
       const user = ensureUser(userId);
       user.speaking = true;
       this.emit("userSpeaking", session, userId, true);
     });
 
     speakingMap.on("end", (userId: string) => {
-      console.log(`[voice-conn] user ${userId} stopped speaking`);
       const user = ensureUser(userId);
       user.speaking = false;
       this.emit("userSpeaking", session, userId, false);
@@ -266,13 +264,9 @@ export class DiscordVoiceConnectionManager extends EventEmitter<VoiceConnectionE
 
     if ("token" in payload && "endpoint" in payload) {
       // VOICE_SERVER_UPDATE — cast through unknown to bridge discord-api-types versions
-      console.log(`[voice-conn] forwarding VOICE_SERVER_UPDATE to adapter for guild ${guildId}`);
       methods.onVoiceServerUpdate(payload as never);
     } else if ("session_id" in payload) {
       // VOICE_STATE_UPDATE
-      console.log(
-        `[voice-conn] forwarding VOICE_STATE_UPDATE to adapter for guild ${guildId} (session_id=${payload.session_id})`,
-      );
       methods.onVoiceStateUpdate(payload as never);
     }
   }
@@ -289,7 +283,6 @@ export class DiscordVoiceConnectionManager extends EventEmitter<VoiceConnectionE
             return false;
           }
           try {
-            console.log(`[voice-conn] sendPayload: sending opcode ${payload.op} to gateway`);
             gateway.send(payload);
             return true;
           } catch (err) {

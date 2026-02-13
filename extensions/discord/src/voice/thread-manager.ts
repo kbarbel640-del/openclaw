@@ -97,26 +97,19 @@ export class VoiceThreadManager {
       });
 
       const message = `**${params.userName}** (${time}): ${params.text}`;
-      console.log(
-        `[thread-manager] posting transcription to thread ${threadId}: ${message.substring(0, 80)}...`,
-      );
       await sendMessageDiscord(`channel:${threadId}`, message, this.restOpts);
-      console.log(`[thread-manager] transcription posted successfully`);
     } catch (err) {
       console.error(`[thread-manager] failed to post transcription:`, err);
     }
   }
 
   /**
-   * Post the final session summary to the thread.
+   * Post the final session summary to the parent channel (not the thread).
    */
   async postSummary(markdownText: string): Promise<void> {
     try {
-      const threadId = await this.ensureThread();
-      if (!threadId) return;
-
       await sendMessageDiscord(
-        `channel:${threadId}`,
+        `channel:${this.channelId}`,
         `---\n# Voice Session Summary\n\n${markdownText}`,
         this.restOpts,
       );
@@ -126,19 +119,16 @@ export class VoiceThreadManager {
   }
 
   /**
-   * Post a session-end message with duration info.
+   * Post a session-end message with duration info to the parent channel.
    */
   async postSessionEnd(durationMs: number): Promise<void> {
     try {
-      const threadId = await this.ensureThread();
-      if (!threadId) return;
-
       const minutes = Math.floor(durationMs / 60000);
       const seconds = Math.floor((durationMs % 60000) / 1000);
       const durationStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
       await sendMessageDiscord(
-        `channel:${threadId}`,
+        `channel:${this.channelId}`,
         `---\n*Voice session ended. Duration: ${durationStr}*`,
         this.restOpts,
       );

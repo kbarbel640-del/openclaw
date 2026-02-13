@@ -64,12 +64,8 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
     this.emit("event", createInitiatedEvent(session));
     this.emit("event", createActiveEvent(session));
 
-    console.log(
-      `[voice-provider] joinChannel: transcriptionEnabled=${this.config.transcriptionEnabled}`,
-    );
     if (this.config.transcriptionEnabled) {
       this.setupIncomingAudio(session, pipeline);
-      console.log(`[voice-provider] setupIncomingAudio complete for guild ${session.guildId}`);
     }
 
     return session;
@@ -160,9 +156,6 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
     // emitted during the flush are still processed.
     const pipeline = this.pipelines.get(guildId);
     if (pipeline) {
-      console.log(
-        `[voice-provider] stopListening: flushing audio for ${session.users.size} tracked user(s)`,
-      );
       for (const userId of session.users.keys()) {
         pipeline.getIncoming().flushUserAudio(userId);
       }
@@ -231,18 +224,10 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
 
     this.connectionManager.on("userSpeaking", (session, userId, speaking) => {
       if (!speaking) return;
-      if (!this.listeningGuilds.has(session.guildId)) {
-        console.log(
-          `[voice-provider] userSpeaking: guild ${session.guildId} not in listeningGuilds (set: ${[...this.listeningGuilds].join(",")})`,
-        );
-        return;
-      }
+      if (!this.listeningGuilds.has(session.guildId)) return;
 
       const pipeline = this.pipelines.get(session.guildId);
-      if (!pipeline) {
-        console.log(`[voice-provider] userSpeaking: no pipeline for guild ${session.guildId}`);
-        return;
-      }
+      if (!pipeline) return;
 
       // When a user starts speaking, subscribe to their audio stream
       this.subscribeToUserAudio(session, userId, pipeline);
@@ -258,13 +243,7 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
     const incoming = pipeline.getIncoming();
 
     incoming.on("audioComplete", ({ userId, data }: { userId: string; data: Buffer }) => {
-      console.log(
-        `[voice-provider] audioComplete from user ${userId}: ${data.length} bytes (${(data.length / (48000 * 2 * 2)).toFixed(1)}s of audio)`,
-      );
       if (!this.listeningGuilds.has(session.guildId)) {
-        console.log(
-          `[voice-provider] audioComplete: guild ${session.guildId} not in listeningGuilds, skipping`,
-        );
         return;
       }
 
@@ -325,21 +304,11 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
       end: { behavior: EndBehaviorType.Manual },
     });
 
-    let chunkCount = 0;
     opusStream.on("data", (chunk: Buffer) => {
-      chunkCount++;
-      if (chunkCount === 1 || chunkCount % 100 === 0) {
-        console.log(
-          `[voice-provider] opus chunk #${chunkCount} for user ${userId} (${chunk.length} bytes)`,
-        );
-      }
       pipeline.getIncoming().handleAudioChunk(userId, chunk);
     });
 
     opusStream.on("end", () => {
-      console.log(
-        `[voice-provider] opus stream ended for user ${userId} after ${chunkCount} chunks`,
-      );
       pipeline.getIncoming().flushUserAudio(userId);
       // Allow re-subscription if the user speaks again
       guildSubs!.delete(userId);

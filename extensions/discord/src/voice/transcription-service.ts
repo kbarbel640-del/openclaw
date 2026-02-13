@@ -37,19 +37,12 @@ export async function transcribeVoiceAudio(
 ): Promise<TranscribeVoiceAudioResult | null> {
   try {
     const durationS = params.pcmData.length / PCM_BYTES_PER_SECOND;
-    console.log(
-      `[transcription] pcmLen=${params.pcmData.length} duration=${durationS.toFixed(2)}s minDuration=${MIN_AUDIO_DURATION_S}s`,
-    );
     if (durationS < MIN_AUDIO_DURATION_S) {
-      console.log(
-        `[transcription] audio too short (${durationS.toFixed(2)}s < ${MIN_AUDIO_DURATION_S}s), skipping`,
-      );
       return null;
     }
 
     const wavBuffer = wrapPcmInWav(params.pcmData);
     const model = params.model ?? DEFAULT_WHISPER_MODEL;
-    console.log(`[transcription] sending ${wavBuffer.length} bytes WAV to Groq (model=${model})`);
 
     const result = await transcribeOpenAiCompatibleAudio({
       buffer: wavBuffer,
@@ -62,10 +55,7 @@ export async function transcribeVoiceAudio(
       timeoutMs: 30_000,
     });
 
-    console.log(`[transcription] Groq response: text="${result.text}" model=${result.model}`);
-
     if (!result.text?.trim()) {
-      console.log(`[transcription] empty text response, returning null`);
       return null;
     }
 
