@@ -1,0 +1,370 @@
+{
+  "agent": {
+    "id": "health-monitor",
+    "name": "System Health Monitor",
+    "role": "lead",
+    "emoji": "🏥",
+    "description": "Monitors system health, security, quality, and performance. Detects issues and coordinates fixes.",
+    "expertise": [
+      "System monitoring",
+      "Security auditing",
+      "Quality assurance",
+      "Performance analysis",
+      "Dependency management",
+      "Risk assessment"
+    ],
+    "responsibilities": [
+      "Monitor system health continuously",
+      "Detect security vulnerabilities",
+      "Ensure code quality standards",
+      "Track test coverage",
+      "Coordinate issue resolution",
+      "Escalate critical problems"
+    ],
+    "reports_to": "cto",
+    "manages": ["security-engineer", "quality-engineer", "qa-lead", "performance-engineer"]
+  },
+  "monitoring": {
+    "thresholds": {
+      "coverage": {
+        "critical": 50,
+        "high": 60,
+        "medium": 70,
+        "target": 75
+      },
+      "security": {
+        "critical": ["critical"],
+        "high": ["high"],
+        "medium": ["medium"],
+        "low": ["low"]
+      },
+      "responseTime": {
+        "critical": 5000,
+        "high": 2000,
+        "medium": 1000,
+        "target": 500
+      },
+      "errorRate": {
+        "critical": 10,
+        "high": 5,
+        "medium": 2,
+        "target": 0.5
+      },
+      "dependencies": {
+        "criticalVulnerabilities": 0,
+        "highVulnerabilities": 0,
+        "outdatedMajor": 5,
+        "outdatedMinor": 20
+      }
+    },
+    "schedule": {
+      "quickScan": {
+        "enabled": true,
+        "interval": "30m",
+        "description": "Quick health check (security stats, gateway status)"
+      },
+      "normalScan": {
+        "enabled": true,
+        "interval": "2h",
+        "description": "Standard health check (includes quality and tests)"
+      },
+      "deepScan": {
+        "enabled": true,
+        "interval": "6h",
+        "description": "Comprehensive scan (full audit, deep probes)"
+      },
+      "dailyReport": {
+        "enabled": true,
+        "time": "09:00",
+        "timezone": "UTC",
+        "description": "Daily health summary report"
+      },
+      "weeklyReport": {
+        "enabled": true,
+        "day": "monday",
+        "time": "09:00",
+        "timezone": "UTC",
+        "description": "Weekly trends and analysis"
+      }
+    },
+    "categories": {
+      "security": {
+        "enabled": true,
+        "priority": "critical",
+        "tools": ["security_audit", "security_stats", "security_alerts", "security_blocked"],
+        "scans": ["npm-audit", "dependency-check", "secret-scan"]
+      },
+      "quality": {
+        "enabled": true,
+        "priority": "high",
+        "tools": ["exec"],
+        "scans": ["lint", "format", "type-check", "complexity"]
+      },
+      "testing": {
+        "enabled": true,
+        "priority": "high",
+        "tools": ["exec"],
+        "scans": ["unit-tests", "coverage", "e2e-tests"]
+      },
+      "dependencies": {
+        "enabled": true,
+        "priority": "medium",
+        "tools": ["exec"],
+        "scans": ["npm-audit", "outdated", "license-check"]
+      },
+      "infrastructure": {
+        "enabled": true,
+        "priority": "critical",
+        "tools": ["gateway", "exec"],
+        "scans": ["gateway-health", "process-health", "resource-usage"]
+      },
+      "performance": {
+        "enabled": true,
+        "priority": "medium",
+        "tools": ["exec", "gateway"],
+        "scans": ["response-time", "throughput", "error-rate"]
+      }
+    }
+  },
+  "escalation": {
+    "security": {
+      "critical": {
+        "action": "debate",
+        "agents": ["ciso", "security-engineer", "backend-architect"],
+        "moderator": "cto",
+        "timeout": "4h"
+      },
+      "high": {
+        "action": "delegate",
+        "agents": ["security-engineer"],
+        "timeout": "24h"
+      },
+      "medium": {
+        "action": "log",
+        "review": "weekly"
+      }
+    },
+    "quality": {
+      "critical": {
+        "action": "debate",
+        "agents": ["qa-lead", "quality-engineer", "tech-lead"],
+        "moderator": "vp-engineering",
+        "timeout": "8h"
+      },
+      "high": {
+        "action": "delegate",
+        "agents": ["quality-engineer"],
+        "timeout": "24h"
+      },
+      "medium": {
+        "action": "log",
+        "review": "weekly"
+      }
+    },
+    "testing": {
+      "critical": {
+        "action": "debate",
+        "agents": ["qa-lead", "qa-automation", "backend-architect"],
+        "moderator": "vp-engineering",
+        "timeout": "8h"
+      },
+      "high": {
+        "action": "delegate",
+        "agents": ["qa-lead"],
+        "timeout": "24h"
+      },
+      "medium": {
+        "action": "delegate",
+        "agents": ["qa-automation"],
+        "timeout": "48h"
+      }
+    },
+    "dependencies": {
+      "critical": {
+        "action": "debate",
+        "agents": ["backend-architect", "security-engineer", "devops-engineer"],
+        "moderator": "cto",
+        "timeout": "4h"
+      },
+      "high": {
+        "action": "delegate",
+        "agents": ["backend-architect"],
+        "timeout": "24h"
+      },
+      "medium": {
+        "action": "log",
+        "review": "monthly"
+      }
+    },
+    "infrastructure": {
+      "critical": {
+        "action": "debate",
+        "agents": ["sre", "devops-engineer", "cto"],
+        "moderator": "vp-engineering",
+        "timeout": "1h"
+      },
+      "high": {
+        "action": "delegate",
+        "agents": ["sre"],
+        "timeout": "4h"
+      },
+      "medium": {
+        "action": "delegate",
+        "agents": ["devops-engineer"],
+        "timeout": "24h"
+      }
+    },
+    "performance": {
+      "critical": {
+        "action": "debate",
+        "agents": ["performance-engineer", "sre", "backend-architect"],
+        "moderator": "cto",
+        "timeout": "4h"
+      },
+      "high": {
+        "action": "delegate",
+        "agents": ["performance-engineer"],
+        "timeout": "12h"
+      },
+      "medium": {
+        "action": "log",
+        "review": "weekly"
+      }
+    }
+  },
+  "reporting": {
+    "formats": {
+      "slack": {
+        "enabled": false,
+        "channel": "#health-alerts",
+        "minimumSeverity": "high"
+      },
+      "discord": {
+        "enabled": false,
+        "channel": "health-alerts",
+        "minimumSeverity": "critical"
+      },
+      "workspace": {
+        "enabled": true,
+        "path": "health-reports",
+        "retention": "30d"
+      },
+      "email": {
+        "enabled": false,
+        "recipients": ["cto@example.com"],
+        "minimumSeverity": "critical"
+      }
+    },
+    "templates": {
+      "critical": {
+        "title": "🚨 CRITICAL SYSTEM ALERT",
+        "format": "detailed",
+        "includeContext": true,
+        "includeSuggestions": true
+      },
+      "high": {
+        "title": "⚠️ HIGH PRIORITY ISSUE",
+        "format": "standard",
+        "includeContext": true,
+        "includeSuggestions": true
+      },
+      "daily": {
+        "title": "📊 Daily Health Report",
+        "format": "summary",
+        "includeStats": true,
+        "includeTrends": true
+      },
+      "weekly": {
+        "title": "📈 Weekly Health Analysis",
+        "format": "detailed",
+        "includeStats": true,
+        "includeTrends": true,
+        "includeRecommendations": true
+      }
+    }
+  },
+  "notifications": {
+    "channels": {
+      "critical": ["collaboration-debate", "workspace-log"],
+      "high": ["delegation", "workspace-log"],
+      "medium": ["workspace-log"],
+      "low": ["workspace-log"]
+    },
+    "quiet_hours": {
+      "enabled": false,
+      "start": "22:00",
+      "end": "08:00",
+      "timezone": "UTC",
+      "exceptions": ["critical"]
+    }
+  },
+  "integration": {
+    "tools": {
+      "security_audit": {
+        "enabled": true,
+        "deep_mode": "scheduled"
+      },
+      "security_stats": {
+        "enabled": true,
+        "cache_ttl": "5m"
+      },
+      "security_alerts": {
+        "enabled": true,
+        "limit": 50
+      },
+      "exec": {
+        "enabled": true,
+        "timeout": "300s"
+      },
+      "gateway": {
+        "enabled": true,
+        "probe_interval": "30m"
+      },
+      "collaboration": {
+        "enabled": true,
+        "auto_invite": true
+      },
+      "sessions_spawn": {
+        "enabled": true,
+        "max_concurrent": 4
+      },
+      "team_workspace": {
+        "enabled": true,
+        "artifact_prefix": "health-"
+      }
+    },
+    "external": {
+      "github": {
+        "enabled": false,
+        "create_issues": false,
+        "minimum_severity": "high"
+      },
+      "pagerduty": {
+        "enabled": false,
+        "minimum_severity": "critical"
+      }
+    }
+  },
+  "advanced": {
+    "ml_detection": {
+      "enabled": false,
+      "model": "anomaly-detection-v1",
+      "confidence_threshold": 0.8
+    },
+    "predictive_alerts": {
+      "enabled": false,
+      "lookback_days": 30,
+      "alert_threshold": 0.7
+    },
+    "auto_remediation": {
+      "enabled": false,
+      "safe_actions": ["format", "lint-fix"],
+      "require_approval": true
+    },
+    "historical_analysis": {
+      "enabled": true,
+      "retention": "90d",
+      "trending_window": "7d"
+    }
+  }
+}
