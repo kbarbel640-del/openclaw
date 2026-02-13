@@ -30,7 +30,10 @@ if [ "$#" -gt 0 ]; then
 fi
 
 if ! command -v node &>/dev/null; then
-  echo '{"error":"node not found on PATH","orphaned":[],"ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+  _ts="unknown"
+  command -v date &>/dev/null && _ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || true
+  [ -z "$_ts" ] && _ts="unknown"
+  printf '{"error":"node not found on PATH","orphaned":[],"ts":"%s"}\n' "$_ts"
   exit 0
 fi
 
