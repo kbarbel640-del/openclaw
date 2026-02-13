@@ -32,6 +32,7 @@ type SessionRow = {
   totalTokens?: number;
   totalTokensFresh?: boolean;
   model?: string;
+  modelProvider?: string;
   contextTokens?: number;
 };
 
@@ -168,6 +169,7 @@ function toRows(store: Record<string, SessionEntry>): SessionRow[] {
         totalTokens: entry?.totalTokens,
         totalTokensFresh: entry?.totalTokensFresh,
         model: entry?.model,
+        modelProvider: entry?.modelProvider,
         contextTokens: entry?.contextTokens,
       } satisfies SessionRow;
     })
