@@ -205,8 +205,10 @@ export async function agentCommand(
       );
     }
   }
-  if (agentIdOverride && opts.sessionKey) {
-    const sessionAgentId = resolveAgentIdFromSessionKey(opts.sessionKey);
+  // Extract agent ID from session key or session ID
+  const sessionKeyOrId = opts.sessionKey?.trim() || opts.sessionId?.trim();
+  if (agentIdOverride && sessionKeyOrId) {
+    const sessionAgentId = resolveAgentIdFromSessionKey(sessionKeyOrId);
     if (sessionAgentId !== agentIdOverride) {
       throw new Error(
         `Agent id "${agentIdOverrideRaw}" does not match session key agent "${sessionAgentId}".`,
@@ -214,7 +216,7 @@ export async function agentCommand(
     }
   }
   const agentCfg = cfg.agents?.defaults;
-  const sessionAgentId = agentIdOverride ?? resolveAgentIdFromSessionKey(opts.sessionKey?.trim());
+  const sessionAgentId = agentIdOverride ?? resolveAgentIdFromSessionKey(sessionKeyOrId);
   const workspaceDirRaw = resolveAgentWorkspaceDir(cfg, sessionAgentId);
   const agentDir = resolveAgentDir(cfg, sessionAgentId);
   const workspace = await ensureAgentWorkspace({
