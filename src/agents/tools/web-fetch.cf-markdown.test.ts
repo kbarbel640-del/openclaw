@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ssrf from "../../infra/net/ssrf.js";
+import * as logger from "../../logger.js";
 
 const lookupMock = vi.fn();
 const resolvePinnedHostname = ssrf.resolvePinnedHostname;
@@ -108,7 +109,7 @@ describe("web_fetch Cloudflare Markdown for Agents", () => {
   });
 
   it("logs x-markdown-tokens when header is present", async () => {
-    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logSpy = vi.spyOn(logger, "logDebug").mockImplementation(() => {});
     const fetchSpy = vi
       .fn()
       .mockResolvedValue(markdownResponse("# Tokens Test", { "x-markdown-tokens": "1500" }));
@@ -124,7 +125,7 @@ describe("web_fetch Cloudflare Markdown for Agents", () => {
 
     await tool?.execute?.("call", { url: "https://example.com/tokens" });
 
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("x-markdown-tokens: 1500"));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("x-markdown-tokens: 1500"));
   });
 
   it("converts markdown to text when extractMode is text", async () => {
@@ -155,7 +156,7 @@ describe("web_fetch Cloudflare Markdown for Agents", () => {
   });
 
   it("does not log x-markdown-tokens when header is absent", async () => {
-    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logSpy = vi.spyOn(logger, "logDebug").mockImplementation(() => {});
     const fetchSpy = vi.fn().mockResolvedValue(markdownResponse("# No tokens"));
     // @ts-expect-error mock fetch
     global.fetch = fetchSpy;
@@ -169,7 +170,7 @@ describe("web_fetch Cloudflare Markdown for Agents", () => {
 
     await tool?.execute?.("call", { url: "https://example.com/no-tokens" });
 
-    const tokenLogs = consoleSpy.mock.calls.filter(
+    const tokenLogs = logSpy.mock.calls.filter(
       (args) => typeof args[0] === "string" && args[0].includes("x-markdown-tokens"),
     );
     expect(tokenLogs).toHaveLength(0);
