@@ -234,8 +234,8 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             `[${account.accountId}] DM from ${senderPubkey}: ${text.slice(0, 50)}...`,
           );
 
-          const cfg = core.config.loadConfig() as OpenClawConfig;
-          const route = core.channel.routing.resolveAgentRoute({
+          const cfg = runtime.config.loadConfig() as OpenClawConfig;
+          const route = runtime.channel.routing.resolveAgentRoute({
             cfg,
             channel: "nostr",
             accountId: account.accountId,
@@ -250,11 +250,11 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             channel: "Nostr",
             from: fromLabel,
             timestamp: Date.now(),
-            envelope: core.channel.reply.resolveEnvelopeFormatOptions(cfg),
+            envelope: runtime.channel.reply.resolveEnvelopeFormatOptions(cfg),
             body: text,
           });
 
-          const ctxPayload = core.channel.reply.finalizeInboundContext({
+          const ctxPayload = runtime.channel.reply.finalizeInboundContext({
             Body: body,
             BodyForAgent: text,
             RawBody: text,
@@ -274,14 +274,14 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             OriginatingTo: `nostr:${senderPubkey}`,
           });
 
-          const storePath = core.channel.session.resolveStorePath(cfg.session?.store, {
+          const storePath = runtime.channel.session.resolveStorePath(cfg.session?.store, {
             agentId: route.agentId,
           });
-          await core.channel.session.recordInboundSession({
+          await runtime.channel.session.recordInboundSession({
             storePath,
             sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
             ctx: ctxPayload,
-            onRecordError: (err) => {
+            onRecordError: (err: unknown) => {
               ctx.log?.error?.(
                 `[${account.accountId}] failed updating session meta: ${String(err)}`,
               );
@@ -295,18 +295,18 @@ export const nostrPlugin: ChannelPlugin<ResolvedNostrAccount> = {
             accountId: account.accountId,
           });
 
-          await core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+          await runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
             ctx: ctxPayload,
             cfg,
             dispatcherOptions: {
               ...prefixOptions,
-              deliver: async (payload) => {
+              deliver: async (payload: { text?: string }) => {
                 if (!payload.text) {
                   return;
                 }
                 await reply(payload.text);
               },
-              onError: (err, info) => {
+              onError: (err: unknown, info: { kind: string }) => {
                 ctx.log?.error?.(
                   `[${account.accountId}] ${info.kind} reply failed: ${String(err)}`,
                 );
