@@ -15,9 +15,16 @@ import { isCacheTtlEligibleProvider, readLastCacheTtlTimestamp } from "./cache-t
 function resolvePiExtensionPath(id: string): string {
   const self = fileURLToPath(import.meta.url);
   const dir = path.dirname(self);
-  // In dev this file is `.ts` (tsx), in production it's `.js`.
-  const ext = path.extname(self) === ".ts" ? "ts" : "js";
-  return path.join(dir, "..", "pi-extensions", `${id}.${ext}`);
+  const ext = path.extname(self);
+  if (ext === ".ts") {
+    // Dev mode (tsx): resolve relative to source layout
+    return path.join(dir, "..", "pi-extensions", `${id}.ts`);
+  }
+  // Production (bundled dist): the source .ts files still exist in the repo
+  // and jiti can load them. Resolve to src/agents/pi-extensions/ relative to
+  // the repo root (dist is one level deep).
+  const repoRoot = path.join(dir, "..");
+  return path.join(repoRoot, "src", "agents", "pi-extensions", `${id}.ts`);
 }
 
 function resolveContextWindowTokens(params: {
