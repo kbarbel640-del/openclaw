@@ -6,7 +6,7 @@ let testPort = 0;
 let cdpBaseUrl = "";
 let reachable = false;
 let cfgAttachOnly = false;
-let cfgEvaluateEnabled = true;
+let cfgEvaluateEnabled: boolean | undefined = true;
 let createTargetId: string | null = null;
 let prevGatewayPort: string | undefined;
 
@@ -388,6 +388,29 @@ describe("browser control server", () => {
         fn: "() => 1",
       });
 
+      expect(res.error).toContain("browser.evaluateEnabled=false");
+      expect(pwMocks.evaluateViaPlaywright).not.toHaveBeenCalled();
+    },
+    slowTimeoutMs,
+  );
+
+  it(
+    "blocks act:evaluate by default when browser.evaluateEnabled is unset",
+    async () => {
+      cfgEvaluateEnabled = undefined;
+      const base = await startServerAndBase();
+
+      const waitRes = await postJson(`${base}/act`, {
+        kind: "wait",
+        fn: "() => window.ready === true",
+      });
+      expect(waitRes.error).toContain("browser.evaluateEnabled=false");
+      expect(pwMocks.waitForViaPlaywright).not.toHaveBeenCalled();
+
+      const res = await postJson(`${base}/act`, {
+        kind: "evaluate",
+        fn: "() => 1",
+      });
       expect(res.error).toContain("browser.evaluateEnabled=false");
       expect(pwMocks.evaluateViaPlaywright).not.toHaveBeenCalled();
     },

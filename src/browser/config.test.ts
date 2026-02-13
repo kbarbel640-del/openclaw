@@ -5,6 +5,7 @@ describe("browser config", () => {
   it("defaults to enabled with loopback defaults and lobster-orange color", () => {
     const resolved = resolveBrowserConfig(undefined);
     expect(resolved.enabled).toBe(true);
+    expect(resolved.evaluateEnabled).toBe(false);
     expect(resolved.controlPort).toBe(18791);
     expect(resolved.color).toBe("#FF4500");
     expect(shouldStartLocalBrowserServer(resolved)).toBe(true);

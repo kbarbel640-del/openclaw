@@ -6,7 +6,7 @@ import { resolveSkillKey } from "./frontmatter.js";
 
 const DEFAULT_CONFIG_VALUES: Record<string, boolean> = {
   "browser.enabled": true,
-  "browser.evaluateEnabled": true,
+  "browser.evaluateEnabled": false,
 };
 
 function isTruthy(value: unknown): boolean {
