@@ -409,7 +409,7 @@ describe("buildStatusMessage", () => {
 });
 
 describe("buildCommandsMessage", () => {
-  it("lists commands with aliases and text-only hints", () => {
+  it("lists commands with aliases and hints", () => {
     const text = buildCommandsMessage({
       commands: { config: false, debug: false },
     } as OpenClawConfig);

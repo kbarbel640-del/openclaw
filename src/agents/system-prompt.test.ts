@@ -302,6 +302,23 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("Bravo");
   });
 
+  it("ignores context files with missing or blank paths", async () => {
+    const prompt = await buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      contextFiles: [
+        { path: undefined as unknown as string, content: "Missing path" },
+        { path: "   ", content: "Blank path" },
+        { path: "AGENTS.md", content: "Alpha" },
+      ],
+    });
+
+    expect(prompt).toContain("# Project Context");
+    expect(prompt).toContain("## AGENTS.md");
+    expect(prompt).toContain("Alpha");
+    expect(prompt).not.toContain("Missing path");
+    expect(prompt).not.toContain("Blank path");
+  });
+
   it("adds SOUL guidance when a soul file is present", async () => {
     const prompt = await buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",
