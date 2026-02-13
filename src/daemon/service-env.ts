@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { VERSION } from "../version.js";
 import {
@@ -119,7 +120,15 @@ export function getMinimalServicePathParts(options: MinimalServicePathOptions = 
     add(dir);
   }
 
-  return parts;
+  // Filter out nonexistent directories so the generated PATH only contains
+  // dirs that actually exist on this machine (fixes #15316).
+  return parts.filter((dir) => {
+    try {
+      return fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory() ?? false;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function getMinimalServicePathPartsFromEnv(options: BuildServicePathOptions = {}): string[] {
