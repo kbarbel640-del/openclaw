@@ -28,6 +28,10 @@
       "groupPolicy": "open"
     }
   },
+  "cron": {
+    "enabled": true,
+    "maxConcurrentRuns": 2
+  },
   "skills": {
     "entries": {
       "e-conomic": {
