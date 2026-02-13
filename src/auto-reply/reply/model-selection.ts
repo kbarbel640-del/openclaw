@@ -586,11 +586,12 @@ export function resolveContextTokens(params: {
   model: string;
   provider?: string;
 }): number {
+  const qualified = params.provider
+    ? lookupContextTokens(`${params.provider}/${params.model}`)
+    : undefined;
   return (
     params.agentCfg?.contextTokens ??
-    (params.provider
-      ? lookupContextTokens(`${params.provider}/${params.model}`)
-      : undefined) ??
+    qualified ??
     lookupContextTokens(params.model) ??
     DEFAULT_CONTEXT_TOKENS
   );
