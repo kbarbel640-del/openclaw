@@ -1,3 +1,4 @@
+import type { SandboxWorkspaceInfo } from "../../agents/sandbox/types.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { GroupToolPolicyConfig } from "../../config/types.tools.js";
@@ -80,6 +81,12 @@ export type ChannelOutboundContext = {
   threadId?: string | number | null;
   accountId?: string | null;
   deps?: OutboundSendDeps;
+  /**
+   * Sandbox workspace info for automatic path resolution.
+   * When present, file paths in container format (/workspace/file.txt)
+   * will be automatically converted to host paths.
+   */
+  sandboxWorkspace?: SandboxWorkspaceInfo | null;
 };
 
 export type ChannelOutboundPayloadContext = ChannelOutboundContext & {

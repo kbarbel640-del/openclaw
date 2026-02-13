@@ -1,6 +1,7 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { SandboxWorkspaceInfo } from "../../agents/sandbox/types.js";
 import type {
   ChannelId,
   ChannelMessageActionName,
@@ -44,6 +45,7 @@ import {
 } from "./outbound-policy.js";
 import { executePollAction, executeSendAction } from "./outbound-send-service.js";
 import { ensureOutboundSessionEntry, resolveOutboundSessionRoute } from "./outbound-session.js";
+import { getSandboxContextForSession, resolveFilePathsInParams } from "./sandbox-path-resolver.js";
 import { resolveChannelTarget, type ResolvedMessagingTarget } from "./target-resolver.js";
 
 export type MessageActionRunnerGateway = {
@@ -627,6 +629,7 @@ type ResolvedActionContext = {
   agentId?: string;
   resolvedTarget?: ResolvedMessagingTarget;
   abortSignal?: AbortSignal;
+  sandboxWorkspace?: SandboxWorkspaceInfo | null;
 };
 function resolveGateway(input: RunMessageActionParams): MessageActionRunnerGateway | undefined {
   if (!input.gateway) {
@@ -1075,6 +1078,22 @@ export async function runMessageAction(
     params.accountId = accountId;
   }
   const dryRun = Boolean(input.dryRun ?? readBooleanParam(params, "dryRun"));
+
+  // ✅ Get sandbox context for path resolution
+  const sandboxWorkspace = await getSandboxContextForSession({
+    cfg,
+    sessionKey: input.sessionKey,
+  });
+
+  // ✅ Resolve sandbox file paths in all relevant parameters
+  // This handles filePath, path, media parameters across all actions
+  const resolvedParams = resolveFilePathsInParams(params, sandboxWorkspace, [
+    "filePath",
+    "path",
+    "media",
+  ]);
+  // Update params with resolved paths
+  Object.assign(params, resolvedParams);
 
   await normalizeSandboxMediaParams({
     args: params,

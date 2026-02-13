@@ -4,6 +4,14 @@ export {
   BLUEBUBBLES_ACTION_NAMES,
   BLUEBUBBLES_GROUP_ACTIONS,
 } from "../channels/plugins/bluebubbles-actions.js";
+export { resolveAgentDir, resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
+export { ensureSandboxWorkspaceForSession } from "../agents/sandbox/context.js";
+export type { SandboxWorkspaceInfo } from "../agents/sandbox/types.js";
+export {
+  resolveSandboxFilePath,
+  getSandboxContextForSession,
+  resolveFilePathsInParams,
+} from "../infra/outbound/sandbox-path-resolver.js";
 export type {
   ChannelAccountSnapshot,
   ChannelAccountState,
