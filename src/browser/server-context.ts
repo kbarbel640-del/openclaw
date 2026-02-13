@@ -314,6 +314,21 @@ function createProfileContext(
         }
       }
       if (current.resolved.attachOnly || remoteCdp) {
+        // Remote CDP providers (e.g., Browserbase) may not serve /json/version
+        // but are still reachable via direct Playwright connectOverCDP.
+        // Try a direct connection as a fallback before giving up.
+        if (remoteCdp) {
+          try {
+            const mod = await getPwAiModule({ mode: "strict" });
+            const fn = (mod as Partial<PwAiModule> | null)?.listPagesViaPlaywright;
+            if (typeof fn === "function") {
+              await fn({ cdpUrl: profile.cdpUrl });
+              return;
+            }
+          } catch {
+            // Direct CDP connection also failed — fall through to throw
+          }
+        }
         throw new Error(
           remoteCdp
             ? `Remote CDP for profile "${profile.name}" is not reachable at ${profile.cdpUrl}.`
