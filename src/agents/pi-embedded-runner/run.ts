@@ -218,6 +218,17 @@ export async function runEmbeddedPiAgent(
         modelContextWindow: model.contextWindow,
         defaultTokens: DEFAULT_CONTEXT_TOKENS,
       });
+      // Propagate the resolved context-token cap to the model object so that
+      // Pi's auto-compaction threshold (`contextWindow - reserveTokens`) uses
+      // the effective limit rather than the raw model context window.
+      // Without this, sessions capped at e.g. 100k never reach the 160k
+      // compaction threshold of a 200k model → compaction never fires.
+      // See: #14143
+      const effectiveModel =
+        ctxInfo.tokens < (model.contextWindow ?? Infinity)
+          ? { ...model, contextWindow: ctxInfo.tokens }
+          : model;
+
       const ctxGuard = evaluateContextWindowGuard({
         info: ctxInfo,
         warnBelowTokens: CONTEXT_WINDOW_WARN_BELOW_TOKENS,
@@ -445,7 +456,7 @@ export async function runEmbeddedPiAgent(
             disableTools: params.disableTools,
             provider,
             modelId,
-            model,
+            model: effectiveModel,
             authStorage,
             modelRegistry,
             agentId: workspaceResolution.agentId,

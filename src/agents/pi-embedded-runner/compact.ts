@@ -26,7 +26,9 @@ import { resolveOpenClawAgentDir } from "../agent-paths.js";
 import { resolveSessionAgentIds } from "../agent-scope.js";
 import { makeBootstrapWarn, resolveBootstrapContextForRun } from "../bootstrap-files.js";
 import { listChannelSupportedActions, resolveChannelMessageToolHints } from "../channel-tools.js";
+import { resolveContextWindowInfo } from "../context-window-guard.js";
 import { formatUserTime, resolveUserTimeFormat, resolveUserTimezone } from "../date-time.js";
+import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../defaults.js";
 import { resolveOpenClawDocsPath } from "../docs-path.js";
 import { getApiKeyForModel, resolveModelAuthMode } from "../model-auth.js";
@@ -136,9 +138,24 @@ export async function compactEmbeddedPiSessionDirect(
       reason: error ?? `Unknown model: ${provider}/${modelId}`,
     };
   }
+
+  // Propagate resolved context-token cap to model object so Pi's
+  // auto-compaction threshold uses the effective limit. See run.ts.
+  const ctxInfo = resolveContextWindowInfo({
+    cfg: params.config,
+    provider,
+    modelId,
+    modelContextWindow: model.contextWindow,
+    defaultTokens: DEFAULT_CONTEXT_TOKENS,
+  });
+  const effectiveModel =
+    ctxInfo.tokens < (model.contextWindow ?? Infinity)
+      ? { ...model, contextWindow: ctxInfo.tokens }
+      : model;
+
   try {
     const apiKeyInfo = await getApiKeyForModel({
-      model,
+      model: effectiveModel,
       cfg: params.config,
       profileId: params.authProfileId,
       agentDir,
@@ -405,7 +422,7 @@ export async function compactEmbeddedPiSessionDirect(
         agentDir,
         authStorage,
         modelRegistry,
-        model,
+        model: effectiveModel,
         thinkingLevel: mapThinkingLevel(params.thinkLevel),
         tools: builtInTools,
         customTools,
