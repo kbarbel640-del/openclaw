@@ -25,7 +25,8 @@ import {
 
 type TelegramButton = {
   text: string;
-  callback_data: string;
+  callback_data?: string;
+  url?: string;
 };
 
 export function readTelegramButtons(
@@ -54,13 +55,26 @@ export function readTelegramButtons(
         typeof (button as { callback_data?: unknown }).callback_data === "string"
           ? (button as { callback_data: string }).callback_data.trim()
           : "";
-      if (!text || !callbackData) {
-        throw new Error(`buttons[${rowIndex}][${buttonIndex}] requires text and callback_data`);
+      const url =
+        typeof (button as { url?: unknown }).url === "string"
+          ? (button as { url: string }).url.trim()
+          : "";
+      if (!text) {
+        throw new Error(`buttons[${rowIndex}][${buttonIndex}] requires text`);
       }
-      if (callbackData.length > 64) {
+      if (!callbackData && !url) {
+        throw new Error(`buttons[${rowIndex}][${buttonIndex}] requires callback_data or url`);
+      }
+      if (callbackData && url) {
+        throw new Error(`buttons[${rowIndex}][${buttonIndex}] cannot have both callback_data and url`);
+      }
+      if (callbackData && callbackData.length > 64) {
         throw new Error(
           `buttons[${rowIndex}][${buttonIndex}] callback_data too long (max 64 chars)`,
         );
+      }
+      if (url) {
+        return { text, url };
       }
       return { text, callback_data: callbackData };
     });
