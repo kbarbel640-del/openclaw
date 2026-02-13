@@ -5,10 +5,14 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetInboundDedupe } from "../auto-reply/reply/inbound-dedupe.js";
 import { createTelegramBot } from "./bot.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 const { sessionStorePath } = vi.hoisted(() => ({
-  sessionStorePath: `/tmp/openclaw-telegram-reply-threading-${Math.random()
+  sessionStorePath: tmp(`openclaw-telegram-reply-threading-${Math.random()
     .toString(16)
-    .slice(2)}.json`,
+    .slice(2)}.json`),
 }));
 
 const { loadWebMedia } = vi.hoisted(() => ({

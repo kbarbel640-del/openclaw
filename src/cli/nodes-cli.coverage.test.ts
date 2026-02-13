@@ -1,5 +1,11 @@
 import { Command } from "commander";
 import { describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const callGateway = vi.fn(async (opts: { method?: string }) => {
   if (opts.method === "node.list") {
@@ -29,7 +35,7 @@ const callGateway = vi.fn(async (opts: { method?: string }) => {
   }
   if (opts.method === "exec.approvals.node.get") {
     return {
-      path: "/tmp/exec-approvals.json",
+      path: tmp("exec-approvals.json"),
       exists: true,
       hash: "hash",
       file: {

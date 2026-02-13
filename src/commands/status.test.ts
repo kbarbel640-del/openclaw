@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => ({
     },
   }),
   resolveMainSessionKey: vi.fn().mockReturnValue("agent:main:main"),
-  resolveStorePath: vi.fn().mockReturnValue("/tmp/sessions.json"),
+  resolveStorePath: vi.fn().mockReturnValue(tmp("sessions.json")),
   webAuthExists: vi.fn().mockResolvedValue(true),
   getWebAuthAgeMs: vi.fn().mockReturnValue(5000),
   readWebSelfId: vi.fn().mockReturnValue({ e164: "+1999" }),
@@ -94,8 +94,8 @@ vi.mock("../memory/manager.js", () => ({
         files: 2,
         chunks: 3,
         dirty: false,
-        workspaceDir: "/tmp/openclaw",
-        dbPath: "/tmp/memory.sqlite",
+        workspaceDir: tmp("openclaw"),
+        dbPath: tmp("memory.sqlite"),
         provider: "openai",
         model: "text-embedding-3-small",
         requestedProvider: "openai",
@@ -210,7 +210,7 @@ vi.mock("../gateway/session-utils.js", () => ({
   listAgentsForGateway: mocks.listAgentsForGateway,
 }));
 vi.mock("../infra/openclaw-root.js", () => ({
-  resolveOpenClawPackageRoot: vi.fn().mockResolvedValue("/tmp/openclaw"),
+  resolveOpenClawPackageRoot: vi.fn().mockResolvedValue(tmp("openclaw")),
 }));
 vi.mock("../infra/os-summary.js", () => ({
   resolveOsSummary: () => ({
@@ -222,11 +222,11 @@ vi.mock("../infra/os-summary.js", () => ({
 }));
 vi.mock("../infra/update-check.js", () => ({
   checkUpdateStatus: vi.fn().mockResolvedValue({
-    root: "/tmp/openclaw",
+    root: tmp("openclaw"),
     installKind: "git",
     packageManager: "pnpm",
     git: {
-      root: "/tmp/openclaw",
+      root: tmp("openclaw"),
       branch: "main",
       upstream: "origin/main",
       dirty: false,
@@ -237,8 +237,8 @@ vi.mock("../infra/update-check.js", () => ({
     deps: {
       manager: "pnpm",
       status: "ok",
-      lockfilePath: "/tmp/openclaw/pnpm-lock.yaml",
-      markerPath: "/tmp/openclaw/node_modules/.modules.yaml",
+      lockfilePath: tmp("openclaw/pnpm-lock.yaml"),
+      markerPath: tmp("openclaw/node_modules/.modules.yaml"),
     },
     registry: { latestVersion: "0.0.0" },
   }),
@@ -260,7 +260,7 @@ vi.mock("../daemon/service.js", () => ({
     readRuntime: async () => ({ status: "running", pid: 1234 }),
     readCommand: async () => ({
       programArguments: ["node", "dist/entry.js", "gateway"],
-      sourcePath: "/tmp/Library/LaunchAgents/bot.molt.gateway.plist",
+      sourcePath: tmp("Library/LaunchAgents/bot.molt.gateway.plist"),
     }),
   }),
 }));
@@ -273,7 +273,7 @@ vi.mock("../daemon/node-service.js", () => ({
     readRuntime: async () => ({ status: "running", pid: 4321 }),
     readCommand: async () => ({
       programArguments: ["node", "dist/entry.js", "node-host"],
-      sourcePath: "/tmp/Library/LaunchAgents/bot.molt.node.plist",
+      sourcePath: tmp("Library/LaunchAgents/bot.molt.node.plist"),
     }),
   }),
 }));
@@ -282,6 +282,12 @@ vi.mock("../security/audit.js", () => ({
 }));
 
 import { statusCommand } from "./status.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const runtime = {
   log: vi.fn(),
@@ -299,7 +305,7 @@ describe("statusCommand", () => {
     expect(payload.memoryPlugin.slot).toBe("memory-core");
     expect(payload.memory.vector.available).toBe(true);
     expect(payload.sessions.count).toBe(1);
-    expect(payload.sessions.paths).toContain("/tmp/sessions.json");
+    expect(payload.sessions.paths).toContain(tmp("sessions.json"));
     expect(payload.sessions.defaults.model).toBeTruthy();
     expect(payload.sessions.defaults.contextTokens).toBeGreaterThan(0);
     expect(payload.sessions.recent[0].percentUsed).toBe(50);
@@ -430,10 +436,10 @@ describe("statusCommand", () => {
       ],
     });
     mocks.resolveStorePath.mockImplementation((_store, opts) =>
-      opts?.agentId === "ops" ? "/tmp/ops.json" : "/tmp/main.json",
+      opts?.agentId === "ops" ? tmp("ops.json") : tmp("main.json"),
     );
     mocks.loadSessionStore.mockImplementation((storePath) => {
-      if (storePath === "/tmp/ops.json") {
+      if (storePath === tmp("ops.json")) {
         return {
           "agent:ops:main": {
             updatedAt: Date.now() - 120_000,

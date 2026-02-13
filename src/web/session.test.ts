@@ -4,6 +4,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetLogger, setLoggerOverride } from "../logging.js";
 import { baileys, getLastSocket, resetBaileysMocks, resetLoadConfigMock } from "./test-helpers.js";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const { createWaSocket, formatError, logWebSelfId, waitForWaConnection } =
   await import("./session.js");
@@ -79,7 +84,7 @@ describe("web session", () => {
       exit: vi.fn(),
     };
 
-    logWebSelfId("/tmp/wa-creds", runtime as never, true);
+    logWebSelfId(tmp("wa-creds"), runtime as never, true);
 
     expect(runtime.log).toHaveBeenCalledWith(
       expect.stringContaining("Web Channel: +12345 (jid 12345@s.whatsapp.net)"),

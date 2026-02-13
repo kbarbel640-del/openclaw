@@ -1,3 +1,5 @@
+import os from "node:os";
+import path from "node:path";
 import type { Command } from "commander";
 import { danger } from "../../globals.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -57,7 +59,7 @@ export function registerBrowserFilesAndDownloadsCommands(
   browser
     .command("waitfordownload")
     .description("Wait for the next download (and save it)")
-    .argument("[path]", "Save path (default: /tmp/openclaw/downloads/...)")
+    .argument("[path]", `Save path (default: ${path.join(os.tmpdir(), "openclaw", "downloads", "...")})`)
     .option("--target-id <id>", "CDP target id (or unique prefix)")
     .option(
       "--timeout-ms <ms>",

@@ -3,6 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 let originalIsTTY: boolean | undefined;
 let originalStateDir: string | undefined;
 let originalUpdateInProgress: string | undefined;
@@ -34,7 +38,7 @@ beforeEach(() => {
     durationMs: 0,
   });
   legacyReadConfigFileSnapshot.mockReset().mockResolvedValue({
-    path: "/tmp/openclaw.json",
+    path: tmp("openclaw.json"),
     exists: false,
     raw: null,
     parsed: {},
@@ -133,7 +137,7 @@ const runCommandWithTimeout = vi.fn().mockResolvedValue({
 const ensureAuthProfileStore = vi.fn().mockReturnValue({ version: 1, profiles: {} });
 
 const legacyReadConfigFileSnapshot = vi.fn().mockResolvedValue({
-  path: "/tmp/openclaw.json",
+  path: tmp("openclaw.json"),
   exists: false,
   raw: null,
   parsed: {},
@@ -180,7 +184,7 @@ vi.mock("../config/config.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    CONFIG_PATH: "/tmp/openclaw.json",
+    CONFIG_PATH: tmp("openclaw.json"),
     createConfigIO,
     readConfigFileSnapshot,
     writeConfigFile,
@@ -297,24 +301,24 @@ vi.mock("./doctor-state-migrations.js", () => ({
     targetAgentId: "main",
     targetMainKey: "main",
     targetScope: undefined,
-    stateDir: "/tmp/state",
-    oauthDir: "/tmp/oauth",
+    stateDir: tmp("state"),
+    oauthDir: tmp("oauth"),
     sessions: {
-      legacyDir: "/tmp/state/sessions",
-      legacyStorePath: "/tmp/state/sessions/sessions.json",
-      targetDir: "/tmp/state/agents/main/sessions",
-      targetStorePath: "/tmp/state/agents/main/sessions/sessions.json",
+      legacyDir: tmp("state/sessions"),
+      legacyStorePath: tmp("state/sessions/sessions.json"),
+      targetDir: tmp("state/agents/main/sessions"),
+      targetStorePath: tmp("state/agents/main/sessions/sessions.json"),
       hasLegacy: false,
       legacyKeys: [],
     },
     agentDir: {
-      legacyDir: "/tmp/state/agent",
-      targetDir: "/tmp/state/agents/main/agent",
+      legacyDir: tmp("state/agent"),
+      targetDir: tmp("state/agents/main/agent"),
       hasLegacy: false,
     },
     whatsappAuth: {
-      legacyDir: "/tmp/oauth",
-      targetDir: "/tmp/oauth/whatsapp/default",
+      legacyDir: tmp("oauth"),
+      targetDir: tmp("oauth/whatsapp/default"),
       hasLegacy: false,
     },
     preview: [],
@@ -328,7 +332,7 @@ vi.mock("./doctor-state-migrations.js", () => ({
 describe("doctor command", () => {
   it("migrates routing.allowFrom to channels.whatsapp.allowFrom", { timeout: 60_000 }, async () => {
     readConfigFileSnapshot.mockResolvedValue({
-      path: "/tmp/openclaw.json",
+      path: tmp("openclaw.json"),
       exists: true,
       raw: "{}",
       parsed: { routing: { allowFrom: ["+15555550123"] } },
@@ -372,7 +376,7 @@ describe("doctor command", () => {
 
   it("skips legacy gateway services migration", { timeout: 60_000 }, async () => {
     readConfigFileSnapshot.mockResolvedValue({
-      path: "/tmp/openclaw.json",
+      path: tmp("openclaw.json"),
       exists: true,
       raw: "{}",
       parsed: {},
@@ -408,7 +412,7 @@ describe("doctor command", () => {
   it("offers to update first for git checkouts", async () => {
     delete process.env.OPENCLAW_UPDATE_IN_PROGRESS;
 
-    const root = "/tmp/openclaw";
+    const root = tmp("openclaw");
     resolveOpenClawPackageRoot.mockResolvedValueOnce(root);
     runCommandWithTimeout.mockResolvedValueOnce({
       stdout: `${root}\n`,
@@ -426,7 +430,7 @@ describe("doctor command", () => {
     });
 
     readConfigFileSnapshot.mockResolvedValue({
-      path: "/tmp/openclaw.json",
+      path: tmp("openclaw.json"),
       exists: true,
       raw: "{}",
       parsed: {},

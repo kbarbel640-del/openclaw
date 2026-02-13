@@ -1,25 +1,18 @@
 ---
 name: openhue
-description: Control Philips Hue lights/scenes via the OpenHue CLI.
+description: Use when you need to control Philips Hue lights/scenes via the OpenHue CLI, e.g., to turn lights on/off, adjust brightness, change colors, or activate scenes.
 homepage: https://www.openhue.io/cli
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "💡",
-        "requires": { "bins": ["openhue"] },
-        "install":
-          [
-            {
-              "id": "brew",
-              "kind": "brew",
-              "formula": "openhue/cli/openhue-cli",
-              "bins": ["openhue"],
-              "label": "Install OpenHue CLI (brew)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 💡
+    requires:
+      bins: ["openhue"]
+    install:
+      - id: brew
+        kind: brew
+        formula: openhue/cli/openhue-cli
+        bins: ["openhue"]
+        label: "Install OpenHue CLI (brew)"
 ---
 
 # OpenHue CLI

@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
   connectOk,
   getFreePort,
   installGatewayTestHooks,
@@ -204,7 +210,7 @@ describe("gateway hot reload", () => {
         token: "secret",
         gmail: { account: "me@example.com" },
       },
-      cron: { enabled: true, store: "/tmp/cron.json" },
+      cron: { enabled: true, store: tmp("cron.json") },
       agents: { defaults: { heartbeat: { every: "1m" }, maxConcurrent: 2 } },
       browser: { enabled: true },
       web: { enabled: true },

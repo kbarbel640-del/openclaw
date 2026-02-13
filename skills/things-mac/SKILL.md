@@ -1,26 +1,19 @@
 ---
 name: things-mac
-description: Manage Things 3 via the `things` CLI on macOS (add/update projects+todos via URL scheme; read/search/list from the local Things database). Use when a user asks OpenClaw to add a task to Things, list inbox/today/upcoming, search tasks, or inspect projects/areas/tags.
+description: Use when you need to manage Things 3 on macOS: add todos, read inbox/today/upcoming, search tasks, and inspect projects/areas/tags via the `things` CLI.
 homepage: https://github.com/ossianhempel/things3-cli
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "✅",
-        "os": ["darwin"],
-        "requires": { "bins": ["things"] },
-        "install":
-          [
-            {
-              "id": "go",
-              "kind": "go",
-              "module": "github.com/ossianhempel/things3-cli/cmd/things@latest",
-              "bins": ["things"],
-              "label": "Install things3-cli (go)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: ✅
+    os: ["darwin"]
+    requires:
+      bins: ["things"]
+    install:
+      - id: go
+        kind: go
+        module: github.com/ossianhempel/things3-cli/cmd/things@latest
+        bins: ["things"]
+        label: "Install things3-cli (go)"
 ---
 
 # Things 3 CLI
@@ -77,7 +70,7 @@ Examples: modify a todo (needs auth token)
 
 Delete a todo?
 
-- Not supported by `things3-cli` right now (no “delete/move-to-trash” write command; `things trash` is read-only listing).
+- Not supported by `things3-cli` right now (no "delete/move-to-trash" write command; `things trash` is read-only listing).
 - Options: use Things UI to delete/trash, or mark as `--completed` / `--canceled` via `things update`.
 
 Notes

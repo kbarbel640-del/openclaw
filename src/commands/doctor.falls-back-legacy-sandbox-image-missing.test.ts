@@ -3,6 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 let originalIsTTY: boolean | undefined;
 let originalStateDir: string | undefined;
 let originalUpdateInProgress: string | undefined;
@@ -34,7 +38,7 @@ beforeEach(() => {
     durationMs: 0,
   });
   legacyReadConfigFileSnapshot.mockReset().mockResolvedValue({
-    path: "/tmp/openclaw.json",
+    path: tmp("openclaw.json"),
     exists: false,
     raw: null,
     parsed: {},
@@ -135,7 +139,7 @@ const ensureAuthProfileStore = vi.fn().mockReturnValue({ version: 1, profiles: {
 const loadOpenClawPlugins = vi.fn().mockReturnValue({ plugins: [], diagnostics: [] });
 
 const legacyReadConfigFileSnapshot = vi.fn().mockResolvedValue({
-  path: "/tmp/openclaw.json",
+  path: tmp("openclaw.json"),
   exists: false,
   raw: null,
   parsed: {},
@@ -181,7 +185,7 @@ vi.mock("../config/config.js", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    CONFIG_PATH: "/tmp/openclaw.json",
+    CONFIG_PATH: tmp("openclaw.json"),
     createConfigIO,
     readConfigFileSnapshot,
     writeConfigFile,
@@ -298,24 +302,24 @@ vi.mock("./doctor-state-migrations.js", () => ({
     targetAgentId: "main",
     targetMainKey: "main",
     targetScope: undefined,
-    stateDir: "/tmp/state",
-    oauthDir: "/tmp/oauth",
+    stateDir: tmp("state"),
+    oauthDir: tmp("oauth"),
     sessions: {
-      legacyDir: "/tmp/state/sessions",
-      legacyStorePath: "/tmp/state/sessions/sessions.json",
-      targetDir: "/tmp/state/agents/main/sessions",
-      targetStorePath: "/tmp/state/agents/main/sessions/sessions.json",
+      legacyDir: tmp("state/sessions"),
+      legacyStorePath: tmp("state/sessions/sessions.json"),
+      targetDir: tmp("state/agents/main/sessions"),
+      targetStorePath: tmp("state/agents/main/sessions/sessions.json"),
       hasLegacy: false,
       legacyKeys: [],
     },
     agentDir: {
-      legacyDir: "/tmp/state/agent",
-      targetDir: "/tmp/state/agents/main/agent",
+      legacyDir: tmp("state/agent"),
+      targetDir: tmp("state/agents/main/agent"),
       hasLegacy: false,
     },
     whatsappAuth: {
-      legacyDir: "/tmp/oauth",
-      targetDir: "/tmp/oauth/whatsapp/default",
+      legacyDir: tmp("oauth"),
+      targetDir: tmp("oauth/whatsapp/default"),
       hasLegacy: false,
     },
     preview: [],
@@ -329,7 +333,7 @@ vi.mock("./doctor-state-migrations.js", () => ({
 describe("doctor command", () => {
   it("runs legacy state migrations in non-interactive mode without prompting", async () => {
     readConfigFileSnapshot.mockResolvedValue({
-      path: "/tmp/openclaw.json",
+      path: tmp("openclaw.json"),
       exists: true,
       raw: "{}",
       parsed: {},
@@ -351,23 +355,23 @@ describe("doctor command", () => {
     detectLegacyStateMigrations.mockResolvedValueOnce({
       targetAgentId: "main",
       targetMainKey: "main",
-      stateDir: "/tmp/state",
-      oauthDir: "/tmp/oauth",
+      stateDir: tmp("state"),
+      oauthDir: tmp("oauth"),
       sessions: {
-        legacyDir: "/tmp/state/sessions",
-        legacyStorePath: "/tmp/state/sessions/sessions.json",
-        targetDir: "/tmp/state/agents/main/sessions",
-        targetStorePath: "/tmp/state/agents/main/sessions/sessions.json",
+        legacyDir: tmp("state/sessions"),
+        legacyStorePath: tmp("state/sessions/sessions.json"),
+        targetDir: tmp("state/agents/main/sessions"),
+        targetStorePath: tmp("state/agents/main/sessions/sessions.json"),
         hasLegacy: true,
       },
       agentDir: {
-        legacyDir: "/tmp/state/agent",
-        targetDir: "/tmp/state/agents/main/agent",
+        legacyDir: tmp("state/agent"),
+        targetDir: tmp("state/agents/main/agent"),
         hasLegacy: false,
       },
       whatsappAuth: {
-        legacyDir: "/tmp/oauth",
-        targetDir: "/tmp/oauth/whatsapp/default",
+        legacyDir: tmp("oauth"),
+        targetDir: tmp("oauth/whatsapp/default"),
         hasLegacy: false,
       },
       preview: ["- Legacy sessions detected"],

@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+# Qwen-TTS specific dependencies
+qwen-tts
+flash-attn>=2.0.0; platform_system!="Windows" # Flash Attention 2 (Linux only usually, or requires compilation) 

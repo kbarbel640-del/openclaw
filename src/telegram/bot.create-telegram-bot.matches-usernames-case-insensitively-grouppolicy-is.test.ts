@@ -1,9 +1,15 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetInboundDedupe } from "../auto-reply/reply/inbound-dedupe.js";
 import { createTelegramBot } from "./bot.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const { sessionStorePath } = vi.hoisted(() => ({
-  sessionStorePath: `/tmp/openclaw-telegram-${Math.random().toString(16).slice(2)}.json`,
+  sessionStorePath: tmp(`openclaw-telegram-${Math.random().toString(16).slice(2)}.json`),
 }));
 
 const { loadWebMedia } = vi.hoisted(() => ({

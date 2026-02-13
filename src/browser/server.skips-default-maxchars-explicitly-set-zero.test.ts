@@ -1,6 +1,12 @@
 import { type AddressInfo, createServer } from "node:net";
 import { fetch as realFetch } from "undici";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 let testPort = 0;
 let cdpBaseUrl = "";
@@ -27,7 +33,7 @@ const pwMocks = vi.hoisted(() => ({
   downloadViaPlaywright: vi.fn(async () => ({
     url: "https://example.com/report.pdf",
     suggestedFilename: "report.pdf",
-    path: "/tmp/report.pdf",
+    path: tmp("report.pdf"),
   })),
   dragViaPlaywright: vi.fn(async () => {}),
   evaluateViaPlaywright: vi.fn(async () => "ok"),
@@ -55,7 +61,7 @@ const pwMocks = vi.hoisted(() => ({
   waitForDownloadViaPlaywright: vi.fn(async () => ({
     url: "https://example.com/report.pdf",
     suggestedFilename: "report.pdf",
-    path: "/tmp/report.pdf",
+    path: tmp("report.pdf"),
   })),
   waitForViaPlaywright: vi.fn(async () => {}),
 }));
@@ -113,13 +119,13 @@ vi.mock("./chrome.js", () => ({
     return {
       pid: 123,
       exe: { kind: "chrome", path: "/fake/chrome" },
-      userDataDir: "/tmp/openclaw",
+      userDataDir: tmp("openclaw"),
       cdpPort: profile.cdpPort,
       startedAt: Date.now(),
       proc,
     };
   }),
-  resolveOpenClawUserDataDir: vi.fn(() => "/tmp/openclaw"),
+  resolveOpenClawUserDataDir: vi.fn(() => tmp("openclaw")),
   stopOpenClawChrome: vi.fn(async () => {
     reachable = false;
   }),
@@ -141,7 +147,7 @@ vi.mock("./pw-ai.js", () => pwMocks);
 
 vi.mock("../media/store.js", () => ({
   ensureMediaDir: vi.fn(async () => {}),
-  saveMediaBuffer: vi.fn(async () => ({ path: "/tmp/fake.png" })),
+  saveMediaBuffer: vi.fn(async () => ({ path: tmp("fake.png") })),
 }));
 
 vi.mock("./screenshot.js", () => ({

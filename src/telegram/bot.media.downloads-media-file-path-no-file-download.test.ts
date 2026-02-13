@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetInboundDedupe } from "../auto-reply/reply/inbound-dedupe.js";
 import * as ssrf from "../infra/net/ssrf.js";
 import { MEDIA_GROUP_TIMEOUT_MS } from "./bot-updates.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const useSpy = vi.fn();
 const middlewareUseSpy = vi.fn();
@@ -71,7 +77,7 @@ vi.mock("../media/store.js", async (importOriginal) => {
     ...actual,
     saveMediaBuffer: vi.fn(async (buffer: Buffer, contentType?: string) => ({
       id: "media",
-      path: "/tmp/telegram-media",
+      path: tmp("telegram-media"),
       size: buffer.byteLength,
       contentType: contentType ?? "application/octet-stream",
     })),

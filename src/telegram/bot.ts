@@ -135,11 +135,11 @@ export function createTelegramBot(opts: TelegramBotOptions) {
   const client: ApiClientOptions | undefined =
     shouldProvideFetch || timeoutSeconds
       ? {
-          ...(shouldProvideFetch && fetchImpl
-            ? { fetch: fetchImpl as unknown as ApiClientOptions["fetch"] }
-            : {}),
-          ...(timeoutSeconds ? { timeoutSeconds } : {}),
-        }
+        ...(shouldProvideFetch && fetchImpl
+          ? { fetch: fetchImpl as unknown as ApiClientOptions["fetch"] }
+          : {}),
+        ...(timeoutSeconds ? { timeoutSeconds } : {}),
+      }
       : undefined;
 
   const bot = new Bot(opts.token, client ? { client } : undefined);
@@ -231,8 +231,8 @@ export function createTelegramBot(opts: TelegramBotOptions) {
   const historyLimit = Math.max(
     0,
     telegramCfg.historyLimit ??
-      cfg.messages?.groupChat?.historyLimit ??
-      DEFAULT_GROUP_HISTORY_LIMIT,
+    cfg.messages?.groupChat?.historyLimit ??
+    DEFAULT_GROUP_HISTORY_LIMIT,
   );
   const groupHistories = new Map<string, HistoryEntry[]>();
   const textLimit = resolveTextChunkLimit(cfg, "telegram", account.accountId);
@@ -262,7 +262,7 @@ export function createTelegramBot(opts: TelegramBotOptions) {
   });
   const useAccessGroups = cfg.commands?.useAccessGroups !== false;
   const ackReactionScope = cfg.messages?.ackReactionScope ?? "group-mentions";
-  const mediaMaxBytes = (opts.mediaMaxMb ?? telegramCfg.mediaMaxMb ?? 5) * 1024 * 1024;
+  const mediaMaxBytes = (opts.mediaMaxMb ?? telegramCfg.mediaMaxMb ?? 50) * 1024 * 1024;
   const logger = getChildLogger({ module: "telegram-auto-reply" });
   const streamMode = resolveTelegramStreamMode(telegramCfg);
   let botHasTopicsEnabled: boolean | undefined;

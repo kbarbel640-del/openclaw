@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as ssrf from "../../infra/net/ssrf.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 // Store original fetch
 const originalFetch = globalThis.fetch;
@@ -193,7 +199,7 @@ describe("resolveSlackMedia", () => {
     // Mock the store module
     vi.doMock("../../media/store.js", () => ({
       saveMediaBuffer: vi.fn().mockResolvedValue({
-        path: "/tmp/test.jpg",
+        path: tmp("test.jpg"),
         contentType: "image/jpeg",
       }),
     }));
@@ -268,7 +274,7 @@ describe("resolveSlackMedia", () => {
     // Mock the store module
     vi.doMock("../../media/store.js", () => ({
       saveMediaBuffer: vi.fn().mockResolvedValue({
-        path: "/tmp/test.jpg",
+        path: tmp("test.jpg"),
         contentType: "image/jpeg",
       }),
     }));

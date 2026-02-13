@@ -1,13 +1,23 @@
 ---
 name: food-order
-description: Reorder Foodora orders + track ETA/status with ordercli. Never confirm without explicit user approval. Triggers: order food, reorder, track ETA.
+description: Use when you need to reorder previous Foodora orders or track order ETA/status via ordercli, with explicit user confirmation before placing.
 homepage: https://ordercli.sh
-metadata: {"openclaw":{"emoji":"🥡","requires":{"bins":["ordercli"]},"install":[{"id":"go","kind":"go","module":"github.com/steipete/ordercli/cmd/ordercli@latest","bins":["ordercli"],"label":"Install ordercli (go)"}]}}
+metadata:
+  openclaw:
+    emoji: 🥡
+    requires:
+      bins: ["ordercli"]
+    install:
+      - id: "go"
+        kind: "go"
+        module: "github.com/steipete/ordercli/cmd/ordercli@latest"
+        bins: ["ordercli"]
+        label: "Install ordercli (go)"
 ---
 
 # Food order (Foodora via ordercli)
 
-Goal: reorder a previous Foodora order safely (preview first; confirm only on explicit user “yes/confirm/place the order”).
+Goal: reorder a previous Foodora order safely (preview first; confirm only on explicit user "yes/confirm/place the order").
 
 Hard safety rules
 

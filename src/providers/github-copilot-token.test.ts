@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const loadJsonFile = vi.fn();
 const saveJsonFile = vi.fn();
-const resolveStateDir = vi.fn().mockReturnValue("/tmp/openclaw-state");
+const resolveStateDir = vi.fn().mockReturnValue(tmp("openclaw-state"));
 
 vi.mock("../infra/json-file.js", () => ({
   loadJsonFile,
@@ -19,7 +25,7 @@ describe("github-copilot token", () => {
     loadJsonFile.mockReset();
     saveJsonFile.mockReset();
     resolveStateDir.mockReset();
-    resolveStateDir.mockReturnValue("/tmp/openclaw-state");
+    resolveStateDir.mockReturnValue(tmp("openclaw-state"));
   });
 
   it("derives baseUrl from token", async () => {

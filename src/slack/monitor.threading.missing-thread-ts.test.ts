@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetInboundDedupe } from "../auto-reply/reply/inbound-dedupe.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const { monitorSlackProvider } = await import("./monitor.js");
 
@@ -51,7 +57,7 @@ vi.mock("../pairing/pairing-store.js", () => ({
 }));
 
 vi.mock("../config/sessions.js", () => ({
-  resolveStorePath: vi.fn(() => "/tmp/openclaw-sessions.json"),
+  resolveStorePath: vi.fn(() => tmp("openclaw-sessions.json")),
   updateLastRoute: (...args: unknown[]) => updateLastRouteMock(...args),
   resolveSessionKey: vi.fn(),
   readSessionUpdatedAt: vi.fn(() => undefined),

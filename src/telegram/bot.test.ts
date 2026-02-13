@@ -12,6 +12,10 @@ import { resetInboundDedupe } from "../auto-reply/reply/inbound-dedupe.js";
 import { createTelegramBot, getTelegramSequentialKey } from "./bot.js";
 import { resolveTelegramFetch } from "./fetch.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 let replyModule: typeof import("../auto-reply/reply.js");
 const { listSkillCommandsForAgents } = vi.hoisted(() => ({
   listSkillCommandsForAgents: vi.fn(() => []),
@@ -21,7 +25,7 @@ vi.mock("../auto-reply/skill-commands.js", () => ({
 }));
 
 const { sessionStorePath } = vi.hoisted(() => ({
-  sessionStorePath: `/tmp/openclaw-telegram-bot-${Math.random().toString(16).slice(2)}.json`,
+  sessionStorePath: tmp(`openclaw-telegram-bot-${Math.random().toString(16).slice(2)}.json`),
 }));
 
 function resolveSkillCommands(config: Parameters<typeof listNativeCommandSpecsForConfig>[0]) {

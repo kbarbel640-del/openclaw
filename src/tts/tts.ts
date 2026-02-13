@@ -10,6 +10,8 @@ import {
   renameSync,
   unlinkSync,
 } from "node:fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ReplyPayload } from "../auto-reply/types.js";
@@ -108,6 +110,15 @@ export type ResolvedTtsConfig = {
     apiKey?: string;
     model: string;
     voice: string;
+  };
+  local: {
+    baseUrl?: string;
+    apiKey?: string;
+    model?: string;
+    voice?: string;
+    command?: string;
+    args?: string[];
+    timeoutSeconds?: number;
   };
   edge: {
     enabled: boolean;
@@ -245,6 +256,9 @@ function resolveModelOverridePolicy(
   };
 }
 
+const execFilePromise = promisify(execFile);
+
+
 export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
   const raw: TtsConfig = cfg.messages?.tts ?? {};
   const providerSource = raw.provider ? "config" : "default";
@@ -295,6 +309,15 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
       saveSubtitles: raw.edge?.saveSubtitles ?? false,
       proxy: raw.edge?.proxy?.trim() || undefined,
       timeoutMs: raw.edge?.timeoutMs,
+    },
+    local: {
+      baseUrl: raw.local?.baseUrl?.trim() || process.env.OPENAI_TTS_BASE_URL || "http://localhost:5050/v1",
+      apiKey: raw.local?.apiKey,
+      model: raw.local?.model || "local-model",
+      voice: raw.local?.voice || "default",
+      command: raw.local?.command,
+      args: raw.local?.args,
+      timeoutSeconds: raw.local?.timeoutSeconds ?? 600,
     },
     prefsPath: raw.prefsPath,
     maxTextLength: raw.maxTextLength ?? DEFAULT_MAX_TEXT_LENGTH,
@@ -498,10 +521,13 @@ export function resolveTtsApiKey(
   if (provider === "openai") {
     return config.openai.apiKey || process.env.OPENAI_API_KEY;
   }
+  if (provider === "local") {
+    return config.local?.apiKey || "sk-local-dummy";
+  }
   return undefined;
 }
 
-export const TTS_PROVIDERS = ["openai", "elevenlabs", "edge"] as const;
+export const TTS_PROVIDERS = ["openai", "elevenlabs", "edge", "local"] as const;
 
 export function resolveTtsProviderOrder(primary: TtsProvider): TtsProvider[] {
   return [primary, ...TTS_PROVIDERS.filter((provider) => provider !== primary)];
@@ -510,6 +536,9 @@ export function resolveTtsProviderOrder(primary: TtsProvider): TtsProvider[] {
 export function isTtsProviderConfigured(config: ResolvedTtsConfig, provider: TtsProvider): boolean {
   if (provider === "edge") {
     return config.edge.enabled;
+  }
+  if (provider === "local") {
+    return Boolean(config.local?.command || config.local?.baseUrl);
   }
   return Boolean(resolveTtsApiKey(config, provider));
 }
@@ -1262,7 +1291,72 @@ export async function textToSpeech(params: {
       }
 
       let audioBuffer: Buffer;
-      if (provider === "elevenlabs") {
+      if (provider === "local") {
+        if (config.local?.command) {
+            // CLI Mode
+            const tempDir = mkdtempSync(path.join(tmpdir(), "tts-local-"));
+            const outputPath = path.join(tempDir, `output-${Date.now()}.wav`); // Assume CLI outputs wav by default or inferred
+            
+            try {
+                const command = config.local.command;
+                const args = (config.local.args || []).map(arg => {
+                    return arg.replace("{{text}}", params.text).replace("{{output}}", outputPath);
+                });
+
+                // If args didn't contain placeholders, append them as default expectation: [text, output]
+                // This logic depends on user config, but let's be flexible
+                // For now, assume user configured args correctly with {{text}} and {{output}}
+
+                logVerbose(`Local TTS CLI: ${command} ${args.join(" ")}`);
+                
+                await execFilePromise(command, args, {
+                    timeout: (config.local.timeoutSeconds || 600) * 1000,
+                    killSignal: "SIGKILL" 
+                });
+
+                if (existsSync(outputPath)) {
+                     audioBuffer = readFileSync(outputPath);
+                } else {
+                    throw new Error("Local TTS CLI did not produce output file");
+                }
+            } finally {
+                try {
+                    rmSync(tempDir, { recursive: true, force: true });
+                } catch {}
+            }
+        } else {
+            // Server Mode (HTTP)
+            const localBaseUrl = config.local?.baseUrl || "http://localhost:5050/v1";
+            const localApiKey = config.local?.apiKey || "sk-local-dummy";
+            const localModel = config.local?.model || "default";
+            
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+            try {
+            const response = await fetch(`${localBaseUrl.replace(/\/+$/, "")}/audio/speech`, {
+                method: "POST",
+                headers: {
+                Authorization: `Bearer ${localApiKey}`,
+                "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                model: localModel,
+                input: params.text,
+                voice: config.local?.voice || "default",
+                response_format: "mp3", 
+                }),
+                signal: controller.signal,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Local TTS API error (${response.status})`);
+            }
+            audioBuffer = Buffer.from(await response.arrayBuffer());
+            } finally {
+            clearTimeout(timeout);
+            }
+        }
+      } else if (provider === "elevenlabs") {
         const voiceIdOverride = params.overrides?.elevenlabs?.voiceId;
         const modelIdOverride = params.overrides?.elevenlabs?.modelId;
         const voiceSettings = {
@@ -1305,14 +1399,14 @@ export async function textToSpeech(params: {
       writeFileSync(audioPath, audioBuffer);
       scheduleCleanup(tempDir);
 
-      return {
-        success: true,
-        audioPath,
-        latencyMs,
-        provider,
-        outputFormat: provider === "openai" ? output.openai : output.elevenlabs,
-        voiceCompatible: output.voiceCompatible,
-      };
+        return {
+          success: true,
+          audioPath,
+          latencyMs,
+          provider,
+          outputFormat: (provider === "openai" || provider === "local") ? output.openai : output.elevenlabs,
+          voiceCompatible: output.voiceCompatible,
+        };
     } catch (err) {
       const error = err as Error;
       if (error.name === "AbortError") {

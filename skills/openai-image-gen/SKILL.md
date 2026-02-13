@@ -1,31 +1,25 @@
 ---
 name: openai-image-gen
-description: Batch-generate images via OpenAI Images API. Random prompt sampler + `index.html` gallery.
+description: Use when you need to generate images via OpenAI's Images API (DALL-E or GPT image models), e.g., for illustrations, concept art, or批量生成图片.
 homepage: https://platform.openai.com/docs/api-reference/images
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🖼️",
-        "requires": { "bins": ["python3"], "env": ["OPENAI_API_KEY"] },
-        "primaryEnv": "OPENAI_API_KEY",
-        "install":
-          [
-            {
-              "id": "python-brew",
-              "kind": "brew",
-              "formula": "python",
-              "bins": ["python3"],
-              "label": "Install Python (brew)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 🖼️
+    requires:
+      bins: ["python3"]
+      env: ["OPENAI_API_KEY"]
+    primaryEnv: "OPENAI_API_KEY"
+    install:
+      - id: python-brew
+        kind: brew
+        formula: python
+        bins: ["python3"]
+        label: "Install Python (brew)"
 ---
 
 # OpenAI Image Gen
 
-Generate a handful of “random but structured” prompts and render them via the OpenAI Images API.
+Generate a handful of "random but structured" prompts and render them via the OpenAI Images API.
 
 ## Run
 

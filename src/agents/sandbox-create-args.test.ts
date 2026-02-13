@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildSandboxCreateArgs, type SandboxDockerConfig } from "./sandbox.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("buildSandboxCreateArgs", () => {
   it("includes hardening and resource flags", () => {
@@ -22,7 +28,7 @@ describe("buildSandboxCreateArgs", () => {
         nproc: 128,
         core: "0",
       },
-      seccompProfile: "/tmp/seccomp.json",
+      seccompProfile: tmp("seccomp.json"),
       apparmorProfile: "openclaw-sandbox",
       dns: ["1.1.1.1"],
       extraHosts: ["internal.service:10.0.0.5"],

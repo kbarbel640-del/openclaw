@@ -1,25 +1,18 @@
 ---
 name: gemini
-description: Gemini CLI for one-shot Q&A, summaries, and generation.
+description: Use when you need to perform one-shot Q&A, summarization, or text generation via the Gemini API from the command line (avoid interactive mode).
 homepage: https://ai.google.dev/
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "♊️",
-        "requires": { "bins": ["gemini"] },
-        "install":
-          [
-            {
-              "id": "brew",
-              "kind": "brew",
-              "formula": "gemini-cli",
-              "bins": ["gemini"],
-              "label": "Install Gemini CLI (brew)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: ♊️
+    requires:
+      bins: ["gemini"]
+    install:
+      - id: brew
+        kind: brew
+        formula: gemini-cli
+        bins: ["gemini"]
+        label: "Install Gemini CLI (brew)"
 ---
 
 # Gemini CLI

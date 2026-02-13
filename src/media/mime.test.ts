@@ -1,6 +1,12 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { detectMime, extensionForMime, imageMimeFromFormat } from "./mime.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 async function makeOoxmlZip(opts: { mainMime: string; partPath: string }): Promise<Buffer> {
   const zip = new JSZip();
@@ -27,7 +33,7 @@ describe("mime detection", () => {
       mainMime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       partPath: "/word/document.xml",
     });
-    const mime = await detectMime({ buffer: buf, filePath: "/tmp/file.bin" });
+    const mime = await detectMime({ buffer: buf, filePath: tmp("file.bin") });
     expect(mime).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
   });
 
@@ -36,7 +42,7 @@ describe("mime detection", () => {
       mainMime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       partPath: "/ppt/presentation.xml",
     });
-    const mime = await detectMime({ buffer: buf, filePath: "/tmp/file.bin" });
+    const mime = await detectMime({ buffer: buf, filePath: tmp("file.bin") });
     expect(mime).toBe("application/vnd.openxmlformats-officedocument.presentationml.presentation");
   });
 
@@ -47,7 +53,7 @@ describe("mime detection", () => {
 
     const mime = await detectMime({
       buffer: buf,
-      filePath: "/tmp/file.xlsx",
+      filePath: tmp("file.xlsx"),
     });
     expect(mime).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   });

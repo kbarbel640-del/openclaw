@@ -36,6 +36,12 @@ vi.mock("./queue.js", async () => {
 });
 
 import { runReplyAgent } from "./agent-runner.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("runReplyAgent block streaming", () => {
   it("coalesces duplicate text_end block replies", async () => {
@@ -66,7 +72,7 @@ describe("runReplyAgent block streaming", () => {
         sessionId: "session",
         sessionKey: "main",
         messageProvider: "discord",
-        sessionFile: "/tmp/session.jsonl",
+        sessionFile: tmp("session.jsonl"),
         workspaceDir: "/tmp",
         config: {
           agents: {

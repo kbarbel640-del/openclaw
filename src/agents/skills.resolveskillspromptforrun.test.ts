@@ -2,6 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveSkillsPromptForRun } from "./skills.js";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 async function _writeSkill(params: {
   dir: string;
@@ -29,7 +34,7 @@ describe("resolveSkillsPromptForRun", () => {
   it("prefers snapshot prompt when available", () => {
     const prompt = resolveSkillsPromptForRun({
       skillsSnapshot: { prompt: "SNAPSHOT", skills: [] },
-      workspaceDir: "/tmp/openclaw",
+      workspaceDir: tmp("openclaw"),
     });
     expect(prompt).toBe("SNAPSHOT");
   });
@@ -46,7 +51,7 @@ describe("resolveSkillsPromptForRun", () => {
     };
     const prompt = resolveSkillsPromptForRun({
       entries: [entry],
-      workspaceDir: "/tmp/openclaw",
+      workspaceDir: tmp("openclaw"),
     });
     expect(prompt).toContain("<available_skills>");
     expect(prompt).toContain("/app/skills/demo-skill/SKILL.md");

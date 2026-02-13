@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { onAgentEvent } from "../infra/agent-events.js";
 import { subscribeEmbeddedPiSession } from "./pi-embedded-subscribe.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 type StubSession = {
   subscribe: (fn: (evt: unknown) => void) => () => void;
@@ -119,7 +125,7 @@ describe("subscribeEmbeddedPiSession", () => {
       type: "tool_execution_start",
       toolName: "read",
       toolCallId: "tool-1",
-      args: { path: "/tmp/a.txt" },
+      args: { path: tmp("a.txt") },
     });
 
     // Wait for async handler to complete
@@ -127,7 +133,7 @@ describe("subscribeEmbeddedPiSession", () => {
 
     expect(onToolResult).toHaveBeenCalledTimes(1);
     const payload = onToolResult.mock.calls[0][0];
-    expect(payload.text).toContain("/tmp/a.txt");
+    expect(payload.text).toContain(tmp("a.txt"));
 
     handler?.({
       type: "tool_execution_end",

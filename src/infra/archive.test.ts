@@ -6,6 +6,10 @@ import * as tar from "tar";
 import { afterEach, describe, expect, it } from "vitest";
 import { extractArchive, resolveArchiveKind, resolvePackedRootDir } from "./archive.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 const tempDirs: string[] = [];
 
 async function makeTempDir() {
@@ -26,11 +30,11 @@ afterEach(async () => {
 
 describe("archive utils", () => {
   it("detects archive kinds", () => {
-    expect(resolveArchiveKind("/tmp/file.zip")).toBe("zip");
-    expect(resolveArchiveKind("/tmp/file.tgz")).toBe("tar");
-    expect(resolveArchiveKind("/tmp/file.tar.gz")).toBe("tar");
-    expect(resolveArchiveKind("/tmp/file.tar")).toBe("tar");
-    expect(resolveArchiveKind("/tmp/file.txt")).toBeNull();
+    expect(resolveArchiveKind(tmp("file.zip"))).toBe("zip");
+    expect(resolveArchiveKind(tmp("file.tgz"))).toBe("tar");
+    expect(resolveArchiveKind(tmp("file.tar.gz"))).toBe("tar");
+    expect(resolveArchiveKind(tmp("file.tar"))).toBe("tar");
+    expect(resolveArchiveKind(tmp("file.txt"))).toBeNull();
   });
 
   it("extracts zip archives", async () => {

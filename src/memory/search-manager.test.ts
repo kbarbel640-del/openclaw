@@ -12,7 +12,7 @@ const mockPrimary = {
     chunks: 0,
     dirty: false,
     workspaceDir: "/tmp",
-    dbPath: "/tmp/index.sqlite",
+    dbPath: tmp("index.sqlite"),
     sources: ["memory" as const],
     sourceCounts: [{ source: "memory" as const, files: 0, chunks: 0 }],
   })),
@@ -36,6 +36,12 @@ vi.mock("./manager.js", () => ({
 
 import { QmdMemoryManager } from "./qmd-manager.js";
 import { getMemorySearchManager } from "./search-manager.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 beforeEach(() => {
   mockPrimary.search.mockClear();
@@ -52,7 +58,7 @@ describe("getMemorySearchManager caching", () => {
   it("reuses the same QMD manager instance for repeated calls", async () => {
     const cfg = {
       memory: { backend: "qmd", qmd: {} },
-      agents: { list: [{ id: "main", default: true, workspace: "/tmp/workspace" }] },
+      agents: { list: [{ id: "main", default: true, workspace: tmp("workspace") }] },
     } as const;
 
     const first = await getMemorySearchManager({ cfg, agentId: "main" });

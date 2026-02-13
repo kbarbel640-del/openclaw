@@ -9,6 +9,12 @@ import {
   browserScreenshotAction,
 } from "./client-actions.js";
 import { browserOpenTab, browserSnapshot, browserStatus, browserTabs } from "./client.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("browser client", () => {
   afterEach(() => {
@@ -186,7 +192,7 @@ describe("browser client", () => {
             ok: true,
             json: async () => ({
               ok: true,
-              path: "/tmp/a.pdf",
+              path: tmp("a.pdf"),
               targetId: "t1",
               url: "https://x",
             }),
@@ -197,7 +203,7 @@ describe("browser client", () => {
             ok: true,
             json: async () => ({
               ok: true,
-              path: "/tmp/a.png",
+              path: tmp("a.png"),
               targetId: "t1",
               url: "https://x",
             }),
@@ -257,7 +263,7 @@ describe("browser client", () => {
     ).resolves.toMatchObject({ ok: true, targetId: "t1" });
     await expect(
       browserArmFileChooser("http://127.0.0.1:18791", {
-        paths: ["/tmp/a.txt"],
+        paths: [tmp("a.txt")],
       }),
     ).resolves.toMatchObject({ ok: true });
     await expect(
@@ -268,11 +274,11 @@ describe("browser client", () => {
     ).resolves.toMatchObject({ ok: true, targetId: "t1" });
     await expect(browserPdfSave("http://127.0.0.1:18791")).resolves.toMatchObject({
       ok: true,
-      path: "/tmp/a.pdf",
+      path: tmp("a.pdf"),
     });
     await expect(
       browserScreenshotAction("http://127.0.0.1:18791", { fullPage: true }),
-    ).resolves.toMatchObject({ ok: true, path: "/tmp/a.png" });
+    ).resolves.toMatchObject({ ok: true, path: tmp("a.png") });
 
     expect(calls.some((c) => c.url.endsWith("/tabs"))).toBe(true);
     const open = calls.find((c) => c.url.endsWith("/tabs/open"));

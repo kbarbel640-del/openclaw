@@ -18,7 +18,7 @@ vi.mock("../config/sessions.js", async (importOriginal) => {
       return store;
     },
     resolveStorePath: (_store: string | undefined, opts?: { agentId?: string }) =>
-      opts?.agentId === "support" ? "/tmp/support/sessions.json" : "/tmp/main/sessions.json",
+      opts?.agentId === "support" ? tmp("support/sessions.json") : tmp("main/sessions.json"),
   };
 });
 
@@ -78,6 +78,12 @@ vi.mock("../infra/provider-usage.js", () => ({
 
 import "./test-helpers/fast-core-tools.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("session_status tool", () => {
   it("returns a status card for the current session", async () => {
@@ -204,13 +210,13 @@ describe("session_status tool", () => {
     updateSessionStoreMock.mockReset();
     const stores = new Map<string, Record<string, unknown>>([
       [
-        "/tmp/main/sessions.json",
+        tmp("main/sessions.json"),
         {
           "agent:main:main": { sessionId: "s-main", updatedAt: 10 },
         },
       ],
       [
-        "/tmp/support/sessions.json",
+        tmp("support/sessions.json"),
         {
           main: { sessionId: "s-support", updatedAt: 20 },
         },

@@ -22,6 +22,11 @@ import type { OpenClawConfig } from "../../config/config.js";
 import type { WizardPrompter } from "../../wizard/prompts.js";
 import { makePrompter, makeRuntime } from "./__tests__/test-utils.js";
 import { ensureOnboardingPluginInstalled } from "./plugin-install.js";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const baseEntry: ChannelPluginCatalogEntry = {
   id: "zalo",
@@ -54,7 +59,7 @@ describe("ensureOnboardingPluginInstalled", () => {
     installPluginFromNpmSpec.mockResolvedValue({
       ok: true,
       pluginId: "zalo",
-      targetDir: "/tmp/zalo",
+      targetDir: tmp("zalo"),
       extensions: [],
     });
 
@@ -70,7 +75,7 @@ describe("ensureOnboardingPluginInstalled", () => {
     expect(result.cfg.plugins?.allow).toContain("zalo");
     expect(result.cfg.plugins?.installs?.zalo?.source).toBe("npm");
     expect(result.cfg.plugins?.installs?.zalo?.spec).toBe("@openclaw/zalo");
-    expect(result.cfg.plugins?.installs?.zalo?.installPath).toBe("/tmp/zalo");
+    expect(result.cfg.plugins?.installs?.zalo?.installPath).toBe(tmp("zalo"));
     expect(installPluginFromNpmSpec).toHaveBeenCalledWith(
       expect.objectContaining({ spec: "@openclaw/zalo" }),
     );

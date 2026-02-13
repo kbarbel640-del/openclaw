@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BrowserServerState } from "./server-context.js";
 import { createBrowserRouteContext } from "./server-context.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 vi.mock("./chrome.js", () => ({
   isChromeCdpReady: vi.fn(async () => true),
@@ -8,7 +14,7 @@ vi.mock("./chrome.js", () => ({
   launchOpenClawChrome: vi.fn(async () => {
     throw new Error("unexpected launch");
   }),
-  resolveOpenClawUserDataDir: vi.fn(() => "/tmp/openclaw"),
+  resolveOpenClawUserDataDir: vi.fn(() => tmp("openclaw")),
   stopOpenClawChrome: vi.fn(async () => {}),
 }));
 

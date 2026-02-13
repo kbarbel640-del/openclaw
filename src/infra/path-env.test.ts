@@ -47,7 +47,7 @@ describe("ensureOpenClawCliOnPath", () => {
     process.env.OPENCLAW_PATH_BOOTSTRAPPED = "1";
     try {
       ensureOpenClawCliOnPath({
-        execPath: "/tmp/does-not-matter",
+        execPath: tmp("does-not-matter"),
         cwd: "/tmp",
         homeDir: "/tmp",
         platform: "darwin",

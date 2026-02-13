@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("resolveSandboxContext", () => {
   it("does not sandbox the agent main session in non-main mode", async () => {
@@ -27,7 +33,7 @@ describe("resolveSandboxContext", () => {
     const result = await resolveSandboxContext({
       config: cfg,
       sessionKey: "agent:main:main",
-      workspaceDir: "/tmp/openclaw-test",
+      workspaceDir: tmp("openclaw-test"),
     });
 
     expect(result).toBeNull();
@@ -61,7 +67,7 @@ describe("resolveSandboxContext", () => {
     const result = await ensureSandboxWorkspaceForSession({
       config: cfg,
       sessionKey: "agent:main:main",
-      workspaceDir: "/tmp/openclaw-test",
+      workspaceDir: tmp("openclaw-test"),
     });
 
     expect(result).toBeNull();
@@ -98,7 +104,7 @@ describe("resolveSandboxContext", () => {
       await resolveSandboxContext({
         config: cfg,
         sessionKey: "main",
-        workspaceDir: "/tmp/openclaw-test",
+        workspaceDir: tmp("openclaw-test"),
       }),
     ).toBeNull();
 
@@ -106,7 +112,7 @@ describe("resolveSandboxContext", () => {
       await resolveSandboxContext({
         config: cfg,
         sessionKey: "agent:main:main",
-        workspaceDir: "/tmp/openclaw-test",
+        workspaceDir: tmp("openclaw-test"),
       }),
     ).toBeNull();
 
@@ -114,7 +120,7 @@ describe("resolveSandboxContext", () => {
       await ensureSandboxWorkspaceForSession({
         config: cfg,
         sessionKey: "work",
-        workspaceDir: "/tmp/openclaw-test",
+        workspaceDir: tmp("openclaw-test"),
       }),
     ).toBeNull();
 
@@ -122,7 +128,7 @@ describe("resolveSandboxContext", () => {
       await ensureSandboxWorkspaceForSession({
         config: cfg,
         sessionKey: "agent:main:main",
-        workspaceDir: "/tmp/openclaw-test",
+        workspaceDir: tmp("openclaw-test"),
       }),
     ).toBeNull();
 

@@ -8,6 +8,10 @@ import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { createTestRegistry } from "../test-utils/channel-plugins.js";
 import { getHealthSnapshot } from "./health.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 let testConfig: Record<string, unknown> = {};
 let testStore: Record<string, { updatedAt?: number }> = {};
 
@@ -20,7 +24,7 @@ vi.mock("../config/config.js", async (importOriginal) => {
 });
 
 vi.mock("../config/sessions.js", () => ({
-  resolveStorePath: () => "/tmp/sessions.json",
+  resolveStorePath: () => tmp("sessions.json"),
   loadSessionStore: () => testStore,
   readSessionUpdatedAt: vi.fn(() => undefined),
   recordSessionMetaFromInbound: vi.fn().mockResolvedValue(undefined),
@@ -51,7 +55,7 @@ describe("getHealthSnapshot", () => {
   });
 
   it("skips telegram probe when not configured", async () => {
-    testConfig = { session: { store: "/tmp/x" } };
+    testConfig = { session: { store: tmp("x") } };
     testStore = {
       global: { updatedAt: Date.now() },
       unknown: { updatedAt: Date.now() },

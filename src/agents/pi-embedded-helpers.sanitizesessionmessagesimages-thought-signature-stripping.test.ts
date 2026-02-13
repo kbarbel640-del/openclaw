@@ -2,10 +2,16 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { describe, expect, it } from "vitest";
 import { sanitizeSessionMessagesImages } from "./pi-embedded-helpers.js";
 import { DEFAULT_AGENTS_FILENAME } from "./workspace.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const _makeFile = (overrides: Partial<WorkspaceBootstrapFile>): WorkspaceBootstrapFile => ({
   name: DEFAULT_AGENTS_FILENAME,
-  path: "/tmp/AGENTS.md",
+  path: tmp("AGENTS.md"),
   content: "",
   missing: false,
   ...overrides,

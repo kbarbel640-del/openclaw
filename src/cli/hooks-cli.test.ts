@@ -1,19 +1,25 @@
 import { describe, expect, it } from "vitest";
 import type { HookStatusReport } from "../hooks/hooks-status.js";
 import { formatHooksCheck, formatHooksList } from "./hooks-cli.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const report: HookStatusReport = {
-  workspaceDir: "/tmp/workspace",
-  managedHooksDir: "/tmp/hooks",
+  workspaceDir: tmp("workspace"),
+  managedHooksDir: tmp("hooks"),
   hooks: [
     {
       name: "session-memory",
       description: "Save session context to memory",
       source: "openclaw-bundled",
       pluginId: undefined,
-      filePath: "/tmp/hooks/session-memory/HOOK.md",
-      baseDir: "/tmp/hooks/session-memory",
-      handlerPath: "/tmp/hooks/session-memory/handler.js",
+      filePath: tmp("hooks/session-memory/HOOK.md"),
+      baseDir: tmp("hooks/session-memory"),
+      handlerPath: tmp("hooks/session-memory/handler.js"),
       hookKey: "session-memory",
       emoji: "💾",
       homepage: "https://docs.openclaw.ai/hooks#session-memory",
@@ -56,17 +62,17 @@ describe("hooks cli formatting", () => {
 
   it("labels plugin-managed hooks with plugin id", () => {
     const pluginReport: HookStatusReport = {
-      workspaceDir: "/tmp/workspace",
-      managedHooksDir: "/tmp/hooks",
+      workspaceDir: tmp("workspace"),
+      managedHooksDir: tmp("hooks"),
       hooks: [
         {
           name: "plugin-hook",
           description: "Hook from plugin",
           source: "openclaw-plugin",
           pluginId: "voice-call",
-          filePath: "/tmp/hooks/plugin-hook/HOOK.md",
-          baseDir: "/tmp/hooks/plugin-hook",
-          handlerPath: "/tmp/hooks/plugin-hook/handler.js",
+          filePath: tmp("hooks/plugin-hook/HOOK.md"),
+          baseDir: tmp("hooks/plugin-hook"),
+          handlerPath: tmp("hooks/plugin-hook/handler.js"),
           hookKey: "plugin-hook",
           emoji: "🔗",
           homepage: undefined,

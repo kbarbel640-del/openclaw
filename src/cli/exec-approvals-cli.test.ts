@@ -1,10 +1,16 @@
 import { Command } from "commander";
 import { describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const callGatewayFromCli = vi.fn(async (method: string, _opts: unknown, params?: unknown) => {
   if (method.endsWith(".get")) {
     return {
-      path: "/tmp/exec-approvals.json",
+      path: tmp("exec-approvals.json"),
       exists: true,
       hash: "hash-1",
       file: { version: 1, agents: {} },
@@ -24,7 +30,7 @@ const defaultRuntime = {
 };
 
 const localSnapshot = {
-  path: "/tmp/local-exec-approvals.json",
+  path: tmp("local-exec-approvals.json"),
   exists: true,
   raw: "{}",
   hash: "hash-local",

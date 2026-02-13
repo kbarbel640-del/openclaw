@@ -100,13 +100,13 @@ export const ttsHandlers: GatewayRequestHandlers = {
   },
   "tts.setProvider": async ({ params, respond }) => {
     const provider = typeof params.provider === "string" ? params.provider.trim() : "";
-    if (provider !== "openai" && provider !== "elevenlabs" && provider !== "edge") {
+    if (provider !== "openai" && provider !== "elevenlabs" && provider !== "edge" && provider !== "local") {
       respond(
         false,
         undefined,
         errorShape(
           ErrorCodes.INVALID_REQUEST,
-          "Invalid provider. Use openai, elevenlabs, or edge.",
+          "Invalid provider. Use openai, elevenlabs, edge, or local.",
         ),
       );
       return;
@@ -146,6 +146,12 @@ export const ttsHandlers: GatewayRequestHandlers = {
             name: "Edge TTS",
             configured: isTtsProviderConfigured(config, "edge"),
             models: [],
+          },
+          {
+            id: "local",
+            name: "Local TTS",
+            configured: Boolean(config.local?.command || config.local?.baseUrl),
+            models: config.local?.model ? [config.local.model] : [],
           },
         ],
         active: getTtsProvider(config, prefsPath),

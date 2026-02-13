@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { GatewayRequestContext } from "./types.js";
 import { agentHandlers } from "./agent.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const mocks = vi.hoisted(() => ({
   loadSessionEntry: vi.fn(),
@@ -72,7 +78,7 @@ describe("gateway agent handler", () => {
 
     mocks.loadSessionEntry.mockReturnValue({
       cfg: {},
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       entry: {
         sessionId: "existing-session-id",
         updatedAt: Date.now(),
@@ -130,7 +136,7 @@ describe("gateway agent handler", () => {
 
     mocks.loadSessionEntry.mockReturnValue({
       cfg: mocks.loadConfigReturn,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       entry: {
         sessionId: "existing-session-id",
         updatedAt: Date.now(),
@@ -171,7 +177,7 @@ describe("gateway agent handler", () => {
   it("handles missing cliSessionIds gracefully", async () => {
     mocks.loadSessionEntry.mockReturnValue({
       cfg: {},
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       entry: {
         sessionId: "existing-session-id",
         updatedAt: Date.now(),

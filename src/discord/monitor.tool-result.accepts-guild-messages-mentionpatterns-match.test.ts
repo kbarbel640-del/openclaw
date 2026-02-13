@@ -3,6 +3,12 @@ import { ChannelType, MessageType } from "@buape/carbon";
 import { Routes } from "discord-api-types/v10";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetDiscordChannelInfoCacheForTest } from "./monitor/message-utils.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const sendMock = vi.fn();
 const reactMock = vi.fn();
@@ -34,7 +40,7 @@ vi.mock("../config/sessions.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../config/sessions.js")>();
   return {
     ...actual,
-    resolveStorePath: vi.fn(() => "/tmp/openclaw-sessions.json"),
+    resolveStorePath: vi.fn(() => tmp("openclaw-sessions.json")),
     updateLastRoute: (...args: unknown[]) => updateLastRouteMock(...args),
     resolveSessionKey: vi.fn(),
   };
@@ -60,10 +66,10 @@ describe("discord tool result dispatch", () => {
       agents: {
         defaults: {
           model: "anthropic/claude-opus-4-5",
-          workspace: "/tmp/openclaw",
+          workspace: tmp("openclaw"),
         },
       },
-      session: { store: "/tmp/openclaw-sessions.json" },
+      session: { store: tmp("openclaw-sessions.json") },
       channels: {
         discord: {
           dm: { enabled: true, policy: "open" },
@@ -140,10 +146,10 @@ describe("discord tool result dispatch", () => {
       agents: {
         defaults: {
           model: "anthropic/claude-opus-4-5",
-          workspace: "/tmp/openclaw",
+          workspace: tmp("openclaw"),
         },
       },
-      session: { store: "/tmp/openclaw-sessions.json" },
+      session: { store: tmp("openclaw-sessions.json") },
       channels: {
         discord: {
           dm: { enabled: true, policy: "open" },
@@ -220,10 +226,10 @@ describe("discord tool result dispatch", () => {
       agents: {
         defaults: {
           model: "anthropic/claude-opus-4-5",
-          workspace: "/tmp/openclaw",
+          workspace: tmp("openclaw"),
         },
       },
-      session: { store: "/tmp/openclaw-sessions.json" },
+      session: { store: tmp("openclaw-sessions.json") },
       channels: {
         discord: {
           dm: { enabled: true, policy: "open" },
@@ -334,10 +340,10 @@ describe("discord tool result dispatch", () => {
       agents: {
         defaults: {
           model: "anthropic/claude-opus-4-5",
-          workspace: "/tmp/openclaw",
+          workspace: tmp("openclaw"),
         },
       },
-      session: { store: "/tmp/openclaw-sessions.json" },
+      session: { store: tmp("openclaw-sessions.json") },
       messages: { responsePrefix: "PFX" },
       channels: {
         discord: {
@@ -445,8 +451,8 @@ describe("discord tool result dispatch", () => {
     });
 
     const cfg = {
-      agent: { model: "anthropic/claude-opus-4-5", workspace: "/tmp/openclaw" },
-      session: { store: "/tmp/openclaw-sessions.json" },
+      agent: { model: "anthropic/claude-opus-4-5", workspace: tmp("openclaw") },
+      session: { store: tmp("openclaw-sessions.json") },
       channels: {
         discord: {
           dm: { enabled: true, policy: "open" },
@@ -552,10 +558,10 @@ describe("discord tool result dispatch", () => {
       agents: {
         defaults: {
           model: "anthropic/claude-opus-4-5",
-          workspace: "/tmp/openclaw",
+          workspace: tmp("openclaw"),
         },
       },
-      session: { store: "/tmp/openclaw-sessions.json" },
+      session: { store: tmp("openclaw-sessions.json") },
       messages: { responsePrefix: "PFX" },
       channels: {
         discord: {

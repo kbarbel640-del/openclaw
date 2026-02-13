@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 let currentPage: Record<string, unknown> | null = null;
 let currentRefLocator: Record<string, unknown> | null = null;
@@ -78,11 +84,11 @@ describe("pw-tools-core", () => {
     const mod = await importModule();
     await mod.armFileUploadViaPlaywright({
       cdpUrl: "http://127.0.0.1:18792",
-      paths: ["/tmp/1"],
+      paths: [tmp("1")],
     });
     await mod.armFileUploadViaPlaywright({
       cdpUrl: "http://127.0.0.1:18792",
-      paths: ["/tmp/2"],
+      paths: [tmp("2")],
     });
 
     resolve1?.(fc1);
@@ -90,7 +96,7 @@ describe("pw-tools-core", () => {
     await Promise.resolve();
 
     expect(fc1.setFiles).not.toHaveBeenCalled();
-    expect(fc2.setFiles).toHaveBeenCalledWith(["/tmp/2"]);
+    expect(fc2.setFiles).toHaveBeenCalledWith([tmp("2")]);
   });
   it("arms the next dialog and accepts/dismisses (default timeout)", async () => {
     const accept = vi.fn(async () => {});

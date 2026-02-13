@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const readConfigFileSnapshot = vi.fn();
 const writeConfigFile = vi.fn().mockResolvedValue(undefined);
 const loadConfig = vi.fn().mockReturnValue({});
 
 vi.mock("../config/config.js", () => ({
-  CONFIG_PATH: "/tmp/openclaw.json",
+  CONFIG_PATH: tmp("openclaw.json"),
   readConfigFileSnapshot,
   writeConfigFile,
   loadConfig,
@@ -19,7 +25,7 @@ describe("models set + fallbacks", () => {
 
   it("normalizes z.ai provider in models set", async () => {
     readConfigFileSnapshot.mockResolvedValue({
-      path: "/tmp/openclaw.json",
+      path: tmp("openclaw.json"),
       exists: true,
       raw: "{}",
       parsed: {},
@@ -46,7 +52,7 @@ describe("models set + fallbacks", () => {
 
   it("normalizes z-ai provider in models fallbacks add", async () => {
     readConfigFileSnapshot.mockResolvedValue({
-      path: "/tmp/openclaw.json",
+      path: tmp("openclaw.json"),
       exists: true,
       raw: "{}",
       parsed: {},
@@ -73,7 +79,7 @@ describe("models set + fallbacks", () => {
 
   it("normalizes provider casing in models set", async () => {
     readConfigFileSnapshot.mockResolvedValue({
-      path: "/tmp/openclaw.json",
+      path: tmp("openclaw.json"),
       exists: true,
       raw: "{}",
       parsed: {},

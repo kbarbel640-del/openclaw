@@ -6,6 +6,10 @@ import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 // We need to test the internal defaultSandboxConfig function, but it's not exported.
 // Instead, we test the behavior through resolveSandboxContext which uses it.
 
@@ -98,7 +102,7 @@ describe("Agent-specific sandbox config", () => {
       const context = await resolveSandboxContext({
         config: cfg,
         sessionKey: "agent:main:main",
-        workspaceDir: "/tmp/test",
+        workspaceDir: tmp("test"),
       });
 
       expect(context).toBeDefined();
@@ -138,7 +142,7 @@ describe("Agent-specific sandbox config", () => {
     const context = await resolveSandboxContext({
       config: cfg,
       sessionKey: "agent:work:main",
-      workspaceDir: "/tmp/test-work",
+      workspaceDir: tmp("test-work"),
     });
 
     expect(context).toBeDefined();
@@ -186,7 +190,7 @@ describe("Agent-specific sandbox config", () => {
     const context = await resolveSandboxContext({
       config: cfg,
       sessionKey: "agent:work:main",
-      workspaceDir: "/tmp/test-work",
+      workspaceDir: tmp("test-work"),
     });
 
     expect(context).toBeDefined();

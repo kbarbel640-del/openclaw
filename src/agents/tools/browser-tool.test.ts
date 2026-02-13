@@ -70,6 +70,12 @@ vi.mock("./common.js", async () => {
 
 import { DEFAULT_AI_SNAPSHOT_MAX_CHARS } from "../../browser/constants.js";
 import { createBrowserTool } from "./browser-tool.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("browser tool snapshot maxChars", () => {
   afterEach(() => {
@@ -258,7 +264,7 @@ describe("browser tool snapshot labels", () => {
         { type: "text", text: "label text" },
         { type: "image", data: "base64", mimeType: "image/png" },
       ],
-      details: { path: "/tmp/snap.png" },
+      details: { path: tmp("snap.png") },
     };
 
     toolCommonMocks.imageResultFromFile.mockResolvedValueOnce(imageResult);
@@ -268,7 +274,7 @@ describe("browser tool snapshot labels", () => {
       targetId: "t1",
       url: "https://example.com",
       snapshot: "label text",
-      imagePath: "/tmp/snap.png",
+      imagePath: tmp("snap.png"),
     });
 
     const result = await tool.execute?.(null, {
@@ -279,7 +285,7 @@ describe("browser tool snapshot labels", () => {
 
     expect(toolCommonMocks.imageResultFromFile).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: "/tmp/snap.png",
+        path: tmp("snap.png"),
         extraText: "label text",
       }),
     );

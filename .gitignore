@@ -62,12 +62,45 @@ apps/ios/*.dSYM.zip
 apps/ios/*.mobileprovision
 .env
 
-# Local untracked files
-.local/
-.vscode/
-IDENTITY.md
-USER.md
-.tgz
+# Python artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+env/
+venv/
+.venv/
+venv*/
+**/.venv/
 
-# local tooling
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+nul
+
+# Logs
+*.log
+logs/
+log/
+
+# Test files (keep only if needed)
+test_audio.wav
+test_*.bat
+test_*.py
+
+# Skill output/data (runtime generated)
+**/output/
+**/scan_memory/
+**/latest_feed.json
+**/scan_records.json
+
+# Local tooling
 .serena/
+.local/

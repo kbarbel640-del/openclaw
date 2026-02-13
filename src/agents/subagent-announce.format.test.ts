@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const agentSpy = vi.fn(async () => ({ runId: "run-main", status: "ok" }));
 const embeddedRunMock = {
@@ -41,7 +47,7 @@ vi.mock("./tools/agent-step.js", () => ({
 vi.mock("../config/sessions.js", () => ({
   loadSessionStore: vi.fn(() => sessionStore),
   resolveAgentIdFromSessionKey: () => "main",
-  resolveStorePath: () => "/tmp/sessions.json",
+  resolveStorePath: () => tmp("sessions.json"),
   resolveMainSessionKey: () => "agent:main:main",
   readSessionUpdatedAt: vi.fn(() => undefined),
   recordSessionMetaFromInbound: vi.fn().mockResolvedValue(undefined),

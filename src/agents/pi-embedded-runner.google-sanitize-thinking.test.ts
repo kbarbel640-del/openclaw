@@ -2,6 +2,12 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { SessionManager } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import { sanitizeSessionHistory } from "./pi-embedded-runner/google.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("sanitizeSessionHistory (google thinking)", () => {
   it("keeps thinking blocks without signatures for Google models", async () => {
@@ -187,14 +193,14 @@ describe("sanitizeSessionHistory (google thinking)", () => {
             type: "toolCall",
             id: "call_1",
             name: "read",
-            arguments: { path: "/tmp/foo" },
+            arguments: { path: tmp("foo") },
             thoughtSignature: '{"id":1}',
           },
           {
             type: "toolCall",
             id: "call_2",
             name: "read",
-            arguments: { path: "/tmp/bar" },
+            arguments: { path: tmp("bar") },
             thoughtSignature: "c2ln",
           },
         ],
@@ -225,13 +231,13 @@ describe("sanitizeSessionHistory (google thinking)", () => {
         type: "toolCall",
         id: "call_1",
         name: "read",
-        arguments: { path: "/tmp/foo" },
+        arguments: { path: tmp("foo") },
       },
       {
         type: "toolCall",
         id: "call_2",
         name: "read",
-        arguments: { path: "/tmp/bar" },
+        arguments: { path: tmp("bar") },
         thoughtSignature: "c2ln",
       },
     ]);

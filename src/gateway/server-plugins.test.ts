@@ -2,6 +2,12 @@ import { describe, expect, test, vi } from "vitest";
 import type { PluginRegistry } from "../plugins/registry.js";
 import type { PluginDiagnostic } from "../plugins/types.js";
 import { loadGatewayPlugins } from "./server-plugins.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const loadOpenClawPlugins = vi.hoisted(() => vi.fn());
 
@@ -30,7 +36,7 @@ describe("loadGatewayPlugins", () => {
       {
         level: "error",
         pluginId: "telegram",
-        source: "/tmp/telegram/index.ts",
+        source: tmp("telegram/index.ts"),
         message: "failed to load plugin: boom",
       },
     ];

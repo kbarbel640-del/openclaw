@@ -1,5 +1,11 @@
 import { Command } from "commander";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const callGatewayFromCli = vi.fn();
 
@@ -18,7 +24,7 @@ describe("logs cli", () => {
 
   it("writes output directly to stdout/stderr", async () => {
     callGatewayFromCli.mockResolvedValueOnce({
-      file: "/tmp/openclaw.log",
+      file: tmp("openclaw.log"),
       cursor: 1,
       size: 123,
       lines: ["raw line"],
@@ -55,7 +61,7 @@ describe("logs cli", () => {
 
   it("warns when the output pipe closes", async () => {
     callGatewayFromCli.mockResolvedValueOnce({
-      file: "/tmp/openclaw.log",
+      file: tmp("openclaw.log"),
       lines: ["line one"],
     });
 

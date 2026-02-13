@@ -3,6 +3,11 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 // We need to test the internal defaultSandboxConfig function, but it's not exported.
 // Instead, we test the behavior through resolveSandboxContext which uses it.
@@ -78,7 +83,7 @@ describe("Agent-specific sandbox config", () => {
             sandbox: {
               mode: "all",
               scope: "agent",
-              workspaceRoot: "/tmp/isolated-sandboxes", // Agent override
+              workspaceRoot: tmp("isolated-sandboxes"), // Agent override
             },
           },
         ],
@@ -88,11 +93,11 @@ describe("Agent-specific sandbox config", () => {
     const context = await resolveSandboxContext({
       config: cfg,
       sessionKey: "agent:isolated:main",
-      workspaceDir: "/tmp/test-isolated",
+      workspaceDir: tmp("test-isolated"),
     });
 
     expect(context).toBeDefined();
-    expect(context?.workspaceDir).toContain(path.resolve("/tmp/isolated-sandboxes"));
+    expect(context?.workspaceDir).toContain(path.resolve(tmp("isolated-sandboxes")));
   });
   it("should prefer agent config over global for multiple agents", async () => {
     const { resolveSandboxContext } = await import("./sandbox.js");
@@ -129,7 +134,7 @@ describe("Agent-specific sandbox config", () => {
     const mainContext = await resolveSandboxContext({
       config: cfg,
       sessionKey: "agent:main:telegram:group:789",
-      workspaceDir: "/tmp/test-main",
+      workspaceDir: tmp("test-main"),
     });
     expect(mainContext).toBeNull();
 
@@ -137,7 +142,7 @@ describe("Agent-specific sandbox config", () => {
     const familyContext = await resolveSandboxContext({
       config: cfg,
       sessionKey: "agent:family:whatsapp:group:123",
-      workspaceDir: "/tmp/test-family",
+      workspaceDir: tmp("test-family"),
     });
     expect(familyContext).toBeDefined();
     expect(familyContext?.enabled).toBe(true);
@@ -185,7 +190,7 @@ describe("Agent-specific sandbox config", () => {
     const context = await resolveSandboxContext({
       config: cfg,
       sessionKey: "agent:restricted:main",
-      workspaceDir: "/tmp/test-restricted",
+      workspaceDir: tmp("test-restricted"),
     });
 
     expect(context).toBeDefined();

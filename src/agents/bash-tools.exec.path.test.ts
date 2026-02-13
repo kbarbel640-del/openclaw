@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExecApprovalsResolved } from "../infra/exec-approvals.js";
 import { sanitizeBinaryOutput } from "./shell-utils.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const isWin = process.platform === "win32";
 
@@ -16,8 +22,8 @@ vi.mock("../infra/shell-env.js", async (importOriginal) => {
 vi.mock("../infra/exec-approvals.js", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../infra/exec-approvals.js")>();
   const approvals: ExecApprovalsResolved = {
-    path: "/tmp/exec-approvals.json",
-    socketPath: "/tmp/exec-approvals.sock",
+    path: tmp("exec-approvals.json"),
+    socketPath: tmp("exec-approvals.sock"),
     token: "token",
     defaults: {
       security: "full",
@@ -34,7 +40,7 @@ vi.mock("../infra/exec-approvals.js", async (importOriginal) => {
     allowlist: [],
     file: {
       version: 1,
-      socket: { path: "/tmp/exec-approvals.sock", token: "token" },
+      socket: { path: tmp("exec-approvals.sock"), token: "token" },
       defaults: {
         security: "full",
         ask: "off",

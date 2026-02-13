@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 let currentPage: Record<string, unknown> | null = null;
 let currentRefLocator: Record<string, unknown> | null = null;
@@ -131,7 +137,7 @@ describe("pw-tools-core", () => {
     await mod.armFileUploadViaPlaywright({
       cdpUrl: "http://127.0.0.1:18792",
       targetId: "T1",
-      paths: ["/tmp/a.txt"],
+      paths: [tmp("a.txt")],
     });
 
     // waitForEvent is awaited immediately; handler continues async.
@@ -140,7 +146,7 @@ describe("pw-tools-core", () => {
     expect(waitForEvent).toHaveBeenCalledWith("filechooser", {
       timeout: 120_000,
     });
-    expect(fileChooser.setFiles).toHaveBeenCalledWith(["/tmp/a.txt"]);
+    expect(fileChooser.setFiles).toHaveBeenCalledWith([tmp("a.txt")]);
   });
   it("arms the next file chooser and escapes if no paths provided", async () => {
     const fileChooser = { setFiles: vi.fn(async () => {}) };

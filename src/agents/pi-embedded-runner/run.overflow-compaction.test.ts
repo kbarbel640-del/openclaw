@@ -66,7 +66,7 @@ vi.mock("../../utils/message-channel.js", () => ({
 }));
 
 vi.mock("../agent-paths.js", () => ({
-  resolveOpenClawAgentDir: vi.fn(() => "/tmp/agent-dir"),
+  resolveOpenClawAgentDir: vi.fn(() => tmp("agent-dir")),
 }));
 
 vi.mock("../auth-profiles.js", () => ({
@@ -150,6 +150,12 @@ import { compactEmbeddedPiSessionDirect } from "./compact.js";
 import { log } from "./logger.js";
 import { runEmbeddedPiAgent } from "./run.js";
 import { runEmbeddedAttempt } from "./run/attempt.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const mockedRunEmbeddedAttempt = vi.mocked(runEmbeddedAttempt);
 const mockedCompactDirect = vi.mocked(compactEmbeddedPiSessionDirect);
@@ -177,8 +183,8 @@ function makeAttemptResult(
 const baseParams = {
   sessionId: "test-session",
   sessionKey: "test-key",
-  sessionFile: "/tmp/session.json",
-  workspaceDir: "/tmp/workspace",
+  sessionFile: tmp("session.json"),
+  workspaceDir: tmp("workspace"),
   prompt: "hello",
   timeoutMs: 30000,
   runId: "run-1",

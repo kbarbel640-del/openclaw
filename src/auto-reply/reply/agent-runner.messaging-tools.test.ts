@@ -41,6 +41,10 @@ vi.mock("./queue.js", async () => {
 
 import { runReplyAgent } from "./agent-runner.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 function createRun(
   messageProvider = "slack",
   opts: { storePath?: string; sessionKey?: string } = {},
@@ -62,7 +66,7 @@ function createRun(
       sessionId: "session",
       sessionKey,
       messageProvider,
-      sessionFile: "/tmp/session.jsonl",
+      sessionFile: tmp("session.jsonl"),
       workspaceDir: "/tmp",
       config: {},
       skillsSnapshot: {},

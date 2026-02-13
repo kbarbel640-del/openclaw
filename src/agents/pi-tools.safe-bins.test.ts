@@ -6,11 +6,15 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { ExecApprovalsResolved } from "../infra/exec-approvals.js";
 import { createOpenClawCodingTools } from "./pi-tools.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 vi.mock("../infra/exec-approvals.js", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../infra/exec-approvals.js")>();
   const approvals: ExecApprovalsResolved = {
-    path: "/tmp/exec-approvals.json",
-    socketPath: "/tmp/exec-approvals.sock",
+    path: tmp("exec-approvals.json"),
+    socketPath: tmp("exec-approvals.sock"),
     token: "token",
     defaults: {
       security: "allowlist",
@@ -27,7 +31,7 @@ vi.mock("../infra/exec-approvals.js", async (importOriginal) => {
     allowlist: [],
     file: {
       version: 1,
-      socket: { path: "/tmp/exec-approvals.sock", token: "token" },
+      socket: { path: tmp("exec-approvals.sock"), token: "token" },
       defaults: {
         security: "allowlist",
         ask: "off",

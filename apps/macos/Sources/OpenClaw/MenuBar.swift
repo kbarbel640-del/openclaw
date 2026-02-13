@@ -312,6 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         WebChatManager.shared.close()
         WebChatManager.shared.resetTunnels()
         Task { await RemoteTunnelManager.shared.stopAll() }
+        Task { await GatewayProcessManager.shared.setActive(false) }
         Task { await GatewayConnection.shared.shutdown() }
         Task { await PeekabooBridgeHostCoordinator.shared.stop() }
     }

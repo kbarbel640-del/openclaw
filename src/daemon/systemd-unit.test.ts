@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parseSystemdExecStart } from "./systemd-unit.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("parseSystemdExecStart", () => {
   it("splits on whitespace outside quotes", () => {
@@ -31,7 +37,7 @@ describe("parseSystemdExecStart", () => {
       "gateway",
       "start",
       "--path",
-      "/tmp/openclaw",
+      tmp("openclaw"),
     ]);
   });
 });

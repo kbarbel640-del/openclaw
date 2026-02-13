@@ -3,6 +3,12 @@ import "./test-helpers/fast-coding-tools.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { SandboxDockerConfig } from "./sandbox.js";
 import { createOpenClawCodingTools } from "./pi-tools.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("Agent-specific tool filtering", () => {
   it("should apply global tool policy when no agent-specific policy exists", () => {
@@ -24,8 +30,8 @@ describe("Agent-specific tool filtering", () => {
     const tools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:main:main",
-      workspaceDir: "/tmp/test",
-      agentDir: "/tmp/agent",
+      workspaceDir: tmp("test"),
+      agentDir: tmp("agent"),
     });
 
     const toolNames = tools.map((t) => t.name);
@@ -59,8 +65,8 @@ describe("Agent-specific tool filtering", () => {
     const tools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:main:main",
-      workspaceDir: "/tmp/test",
-      agentDir: "/tmp/agent",
+      workspaceDir: tmp("test"),
+      agentDir: tmp("agent"),
     });
 
     const toolNames = tools.map((t) => t.name);
@@ -83,8 +89,8 @@ describe("Agent-specific tool filtering", () => {
     const tools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:main:main",
-      workspaceDir: "/tmp/test",
-      agentDir: "/tmp/agent",
+      workspaceDir: tmp("test"),
+      agentDir: tmp("agent"),
       modelProvider: "openai",
       modelId: "gpt-5.2",
     });
@@ -118,8 +124,8 @@ describe("Agent-specific tool filtering", () => {
     const tools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:restricted:main",
-      workspaceDir: "/tmp/test-restricted",
-      agentDir: "/tmp/agent-restricted",
+      workspaceDir: tmp("test-restricted"),
+      agentDir: tmp("agent-restricted"),
     });
 
     const toolNames = tools.map((t) => t.name);
@@ -145,8 +151,8 @@ describe("Agent-specific tool filtering", () => {
     const tools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:main:main",
-      workspaceDir: "/tmp/test-provider",
-      agentDir: "/tmp/agent-provider",
+      workspaceDir: tmp("test-provider"),
+      agentDir: tmp("agent-provider"),
       modelProvider: "google-antigravity",
       modelId: "claude-opus-4-5-thinking",
     });
@@ -173,8 +179,8 @@ describe("Agent-specific tool filtering", () => {
     const tools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:main:main",
-      workspaceDir: "/tmp/test-provider-profile",
-      agentDir: "/tmp/agent-provider-profile",
+      workspaceDir: tmp("test-provider-profile"),
+      agentDir: tmp("agent-provider-profile"),
       modelProvider: "google-antigravity",
       modelId: "claude-opus-4-5-thinking",
     });
@@ -208,8 +214,8 @@ describe("Agent-specific tool filtering", () => {
     const mainTools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:main:main",
-      workspaceDir: "/tmp/test-main",
-      agentDir: "/tmp/agent-main",
+      workspaceDir: tmp("test-main"),
+      agentDir: tmp("agent-main"),
     });
     const mainToolNames = mainTools.map((t) => t.name);
     expect(mainToolNames).toContain("exec");
@@ -221,8 +227,8 @@ describe("Agent-specific tool filtering", () => {
     const familyTools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:family:whatsapp:group:123",
-      workspaceDir: "/tmp/test-family",
-      agentDir: "/tmp/agent-family",
+      workspaceDir: tmp("test-family"),
+      agentDir: tmp("agent-family"),
     });
     const familyToolNames = familyTools.map((t) => t.name);
     expect(familyToolNames).toContain("read");
@@ -252,8 +258,8 @@ describe("Agent-specific tool filtering", () => {
       config: cfg,
       sessionKey: "agent:main:whatsapp:group:trusted",
       messageProvider: "whatsapp",
-      workspaceDir: "/tmp/test-group-trusted",
-      agentDir: "/tmp/agent-group",
+      workspaceDir: tmp("test-group-trusted"),
+      agentDir: tmp("agent-group"),
     });
     const trustedNames = trustedTools.map((t) => t.name);
     expect(trustedNames).toContain("read");
@@ -263,8 +269,8 @@ describe("Agent-specific tool filtering", () => {
       config: cfg,
       sessionKey: "agent:main:whatsapp:group:unknown",
       messageProvider: "whatsapp",
-      workspaceDir: "/tmp/test-group-default",
-      agentDir: "/tmp/agent-group",
+      workspaceDir: tmp("test-group-default"),
+      agentDir: tmp("agent-group"),
     });
     const defaultNames = defaultTools.map((t) => t.name);
     expect(defaultNames).toContain("read");
@@ -291,8 +297,8 @@ describe("Agent-specific tool filtering", () => {
       config: cfg,
       sessionKey: "agent:main:whatsapp:group:family",
       senderId: "alice",
-      workspaceDir: "/tmp/test-group-sender",
-      agentDir: "/tmp/agent-group-sender",
+      workspaceDir: tmp("test-group-sender"),
+      agentDir: tmp("agent-group-sender"),
     });
     const aliceNames = aliceTools.map((t) => t.name);
     expect(aliceNames).toContain("read");
@@ -302,8 +308,8 @@ describe("Agent-specific tool filtering", () => {
       config: cfg,
       sessionKey: "agent:main:whatsapp:group:family",
       senderId: "bob",
-      workspaceDir: "/tmp/test-group-sender-bob",
-      agentDir: "/tmp/agent-group-sender",
+      workspaceDir: tmp("test-group-sender-bob"),
+      agentDir: tmp("agent-group-sender"),
     });
     const bobNames = bobTools.map((t) => t.name);
     expect(bobNames).toContain("read");
@@ -332,8 +338,8 @@ describe("Agent-specific tool filtering", () => {
       config: cfg,
       sessionKey: "agent:main:whatsapp:group:locked",
       senderId: "admin",
-      workspaceDir: "/tmp/test-group-default-override",
-      agentDir: "/tmp/agent-group-default-override",
+      workspaceDir: tmp("test-group-default-override"),
+      agentDir: tmp("agent-group-default-override"),
     });
     const adminNames = adminTools.map((t) => t.name);
     expect(adminNames).toContain("read");
@@ -357,8 +363,8 @@ describe("Agent-specific tool filtering", () => {
       config: cfg,
       sessionKey: "agent:main:telegram:group:123:topic:456",
       messageProvider: "telegram",
-      workspaceDir: "/tmp/test-telegram-topic",
-      agentDir: "/tmp/agent-telegram",
+      workspaceDir: tmp("test-telegram-topic"),
+      agentDir: tmp("agent-telegram"),
     });
     const names = tools.map((t) => t.name);
     expect(names).toContain("read");
@@ -382,8 +388,8 @@ describe("Agent-specific tool filtering", () => {
       config: cfg,
       sessionKey: "agent:main:subagent:test",
       spawnedBy: "agent:main:whatsapp:group:trusted",
-      workspaceDir: "/tmp/test-subagent-group",
-      agentDir: "/tmp/agent-subagent",
+      workspaceDir: tmp("test-subagent-group"),
+      agentDir: tmp("agent-subagent"),
     });
     const names = tools.map((t) => t.name);
     expect(names).toContain("read");
@@ -411,8 +417,8 @@ describe("Agent-specific tool filtering", () => {
     const tools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:work:slack:dm:user123",
-      workspaceDir: "/tmp/test-work",
-      agentDir: "/tmp/agent-work",
+      workspaceDir: tmp("test-work"),
+      agentDir: tmp("agent-work"),
     });
 
     const toolNames = tools.map((t) => t.name);
@@ -460,13 +466,13 @@ describe("Agent-specific tool filtering", () => {
     const tools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:restricted:main",
-      workspaceDir: "/tmp/test-restricted",
-      agentDir: "/tmp/agent-restricted",
+      workspaceDir: tmp("test-restricted"),
+      agentDir: tmp("agent-restricted"),
       sandbox: {
         enabled: true,
         sessionKey: "agent:restricted:main",
-        workspaceDir: "/tmp/sandbox",
-        agentWorkspaceDir: "/tmp/test-restricted",
+        workspaceDir: tmp("sandbox"),
+        agentWorkspaceDir: tmp("test-restricted"),
         workspaceAccess: "none",
         containerName: "test-container",
         containerWorkdir: "/workspace",
@@ -506,8 +512,8 @@ describe("Agent-specific tool filtering", () => {
     const tools = createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:main:main",
-      workspaceDir: "/tmp/test-main",
-      agentDir: "/tmp/agent-main",
+      workspaceDir: tmp("test-main"),
+      agentDir: tmp("agent-main"),
     });
     const execTool = tools.find((tool) => tool.name === "exec");
     expect(execTool).toBeDefined();

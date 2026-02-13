@@ -1,12 +1,13 @@
 ---
 name: notion
-description: Notion API for creating and managing pages, databases, and blocks.
+description: Use when you need to create, read, or update Notion pages, databases (data sources), and blocks via the Notion API, e.g., to manage notes or project trackers.
 homepage: https://developers.notion.com
 metadata:
-  {
-    "openclaw":
-      { "emoji": "📝", "requires": { "env": ["NOTION_API_KEY"] }, "primaryEnv": "NOTION_API_KEY" },
-  }
+  openclaw:
+    emoji: 📝
+    requires:
+      env: ["NOTION_API_KEY"]
+    primaryEnv: "NOTION_API_KEY"
 ---
 
 # notion

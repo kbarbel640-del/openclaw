@@ -23,6 +23,12 @@ vi.mock("../config/config.js", async (importOriginal) => {
 import "./test-helpers/fast-core-tools.js";
 import { sleep } from "../utils.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const waitForCalls = async (getCount: () => number, count: number, timeoutMs = 2000) => {
   const start = Date.now();
@@ -81,7 +87,7 @@ describe("sessions tools", () => {
       const request = opts as { method?: string };
       if (request.method === "sessions.list") {
         return {
-          path: "/tmp/sessions.json",
+          path: tmp("sessions.json"),
           sessions: [
             {
               key: "main",

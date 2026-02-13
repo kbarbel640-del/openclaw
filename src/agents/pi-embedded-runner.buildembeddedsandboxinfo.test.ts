@@ -4,6 +4,12 @@ import type { OpenClawConfig } from "../config/config.js";
 import type { SandboxContext } from "./sandbox.js";
 import { ensureOpenClawModelsJson } from "./models-config.js";
 import { buildEmbeddedSandboxInfo } from "./pi-embedded-runner.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 vi.mock("@mariozechner/pi-ai", async () => {
   const actual = await vi.importActual<typeof import("@mariozechner/pi-ai")>("@mariozechner/pi-ai");
@@ -107,8 +113,8 @@ describe("buildEmbeddedSandboxInfo", () => {
     const sandbox = {
       enabled: true,
       sessionKey: "session:test",
-      workspaceDir: "/tmp/openclaw-sandbox",
-      agentWorkspaceDir: "/tmp/openclaw-workspace",
+      workspaceDir: tmp("openclaw-sandbox"),
+      agentWorkspaceDir: tmp("openclaw-workspace"),
       workspaceAccess: "none",
       containerName: "openclaw-sbx-test",
       containerWorkdir: "/workspace",
@@ -137,7 +143,7 @@ describe("buildEmbeddedSandboxInfo", () => {
 
     expect(buildEmbeddedSandboxInfo(sandbox)).toEqual({
       enabled: true,
-      workspaceDir: "/tmp/openclaw-sandbox",
+      workspaceDir: tmp("openclaw-sandbox"),
       workspaceAccess: "none",
       agentWorkspaceMount: undefined,
       browserBridgeUrl: "http://localhost:9222",
@@ -149,8 +155,8 @@ describe("buildEmbeddedSandboxInfo", () => {
     const sandbox = {
       enabled: true,
       sessionKey: "session:test",
-      workspaceDir: "/tmp/openclaw-sandbox",
-      agentWorkspaceDir: "/tmp/openclaw-workspace",
+      workspaceDir: tmp("openclaw-sandbox"),
+      agentWorkspaceDir: tmp("openclaw-workspace"),
       workspaceAccess: "none",
       containerName: "openclaw-sbx-test",
       containerWorkdir: "/workspace",
@@ -180,7 +186,7 @@ describe("buildEmbeddedSandboxInfo", () => {
       }),
     ).toEqual({
       enabled: true,
-      workspaceDir: "/tmp/openclaw-sandbox",
+      workspaceDir: tmp("openclaw-sandbox"),
       workspaceAccess: "none",
       agentWorkspaceMount: undefined,
       hostBrowserAllowed: false,

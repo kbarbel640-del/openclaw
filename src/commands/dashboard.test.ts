@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dashboardCommand } from "./dashboard.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const mocks = vi.hoisted(() => ({
   readConfigFileSnapshot: vi.fn(),
@@ -41,7 +47,7 @@ function resetRuntime() {
 
 function mockSnapshot(token = "abc") {
   mocks.readConfigFileSnapshot.mockResolvedValue({
-    path: "/tmp/openclaw.json",
+    path: tmp("openclaw.json"),
     exists: true,
     raw: "{}",
     parsed: {},

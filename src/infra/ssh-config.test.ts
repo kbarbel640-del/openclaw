@@ -1,6 +1,12 @@
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 vi.mock("node:child_process", () => {
   const spawn = vi.fn(() => {
@@ -44,7 +50,7 @@ describe("ssh-config", () => {
     expect(parsed.user).toBe("bob");
     expect(parsed.host).toBe("example.com");
     expect(parsed.port).toBe(2222);
-    expect(parsed.identityFiles).toEqual(["/tmp/id"]);
+    expect(parsed.identityFiles).toEqual([tmp("id")]);
   });
 
   it("resolves ssh config via ssh -G", async () => {
@@ -53,7 +59,7 @@ describe("ssh-config", () => {
     expect(config?.user).toBe("steipete");
     expect(config?.host).toBe("peters-mac-studio-1.sheep-coho.ts.net");
     expect(config?.port).toBe(2222);
-    expect(config?.identityFiles).toEqual(["/tmp/id_ed25519"]);
+    expect(config?.identityFiles).toEqual([tmp("id_ed25519")]);
     const args = spawnMock.mock.calls[0]?.[1] as string[] | undefined;
     expect(args?.slice(-2)).toEqual(["--", "me@alias"]);
   });

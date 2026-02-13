@@ -1,5 +1,11 @@
 import { Command } from "commander";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const getMemorySearchManager = vi.fn();
 const loadConfig = vi.fn(() => ({}));
@@ -37,8 +43,8 @@ describe("memory cli", () => {
           files: 2,
           chunks: 5,
           dirty: false,
-          workspaceDir: "/tmp/openclaw",
-          dbPath: "/tmp/memory.sqlite",
+          workspaceDir: tmp("openclaw"),
+          dbPath: tmp("memory.sqlite"),
           provider: "openai",
           model: "text-embedding-3-small",
           requestedProvider: "openai",
@@ -82,8 +88,8 @@ describe("memory cli", () => {
           files: 0,
           chunks: 0,
           dirty: true,
-          workspaceDir: "/tmp/openclaw",
-          dbPath: "/tmp/memory.sqlite",
+          workspaceDir: tmp("openclaw"),
+          dbPath: tmp("memory.sqlite"),
           provider: "openai",
           model: "text-embedding-3-small",
           requestedProvider: "openai",
@@ -121,8 +127,8 @@ describe("memory cli", () => {
           files: 1,
           chunks: 1,
           dirty: false,
-          workspaceDir: "/tmp/openclaw",
-          dbPath: "/tmp/memory.sqlite",
+          workspaceDir: tmp("openclaw"),
+          dbPath: tmp("memory.sqlite"),
           provider: "openai",
           model: "text-embedding-3-small",
           requestedProvider: "openai",
@@ -154,8 +160,8 @@ describe("memory cli", () => {
           files: 0,
           chunks: 0,
           dirty: false,
-          workspaceDir: "/tmp/openclaw",
-          dbPath: "/tmp/memory.sqlite",
+          workspaceDir: tmp("openclaw"),
+          dbPath: tmp("memory.sqlite"),
           provider: "openai",
           model: "text-embedding-3-small",
           requestedProvider: "openai",
@@ -186,8 +192,8 @@ describe("memory cli", () => {
           files: 1,
           chunks: 1,
           dirty: false,
-          workspaceDir: "/tmp/openclaw",
-          dbPath: "/tmp/memory.sqlite",
+          workspaceDir: tmp("openclaw"),
+          dbPath: tmp("memory.sqlite"),
           provider: "openai",
           model: "text-embedding-3-small",
           requestedProvider: "openai",
@@ -224,8 +230,8 @@ describe("memory cli", () => {
           files: 1,
           chunks: 1,
           dirty: false,
-          workspaceDir: "/tmp/openclaw",
-          dbPath: "/tmp/memory.sqlite",
+          workspaceDir: tmp("openclaw"),
+          dbPath: tmp("memory.sqlite"),
           provider: "openai",
           model: "text-embedding-3-small",
           requestedProvider: "openai",

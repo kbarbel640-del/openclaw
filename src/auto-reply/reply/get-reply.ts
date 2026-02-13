@@ -1,5 +1,7 @@
+import path from "node:path";
 import type { MsgContext } from "../templating.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
+import { loadWebMedia } from "../../web/media.js";
 import {
   resolveAgentDir,
   resolveAgentWorkspaceDir,
@@ -285,6 +287,47 @@ export async function getReplyFromConfig(
     sessionKey,
     workspaceDir,
   });
+
+  // Fallback: If media understanding didn't process the images (e.g. for multimodal models)
+  // and we have staged media paths, explicitly load them into the options to ensure the agent receives them.
+  // This safeguards against prompt-based detection failures (e.g. path resolution issues).
+  if (
+    (!ctx.MediaUnderstanding || ctx.MediaUnderstanding.length === 0) &&
+    (Array.isArray(ctx.MediaPaths) ? ctx.MediaPaths.length > 0 : Boolean(ctx.MediaPath))
+  ) {
+    const paths =
+      Array.isArray(ctx.MediaPaths) && ctx.MediaPaths.length > 0
+        ? ctx.MediaPaths
+        : ctx.MediaPath
+          ? [ctx.MediaPath]
+          : [];
+
+    const extraImages = [];
+    for (const raw of paths) {
+      if (!raw || typeof raw !== "string") {
+        continue;
+      }
+      // Staged paths might be relative (media/inbound/...) or absolute.
+      // Resolve against workspaceDir if relative.
+      const absPath = path.isAbsolute(raw) ? raw : path.resolve(workspaceDir, raw);
+      try {
+        const media = await loadWebMedia(absPath);
+        if (media.kind === "image") {
+          extraImages.push({
+            type: "image" as const,
+            data: media.buffer.toString("base64"),
+            mimeType: media.contentType ?? "image/jpeg",
+          });
+        }
+      } catch {
+        // Ignore load errors (file might be audio/video or missing)
+      }
+    }
+
+    if (extraImages.length > 0 && resolvedOpts) {
+      resolvedOpts.images = [...(resolvedOpts.images ?? []), ...extraImages];
+    }
+  }
 
   return runPreparedReply({
     ctx,

@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sleep } from "../utils.js";
 import { runClaudeCliAgent } from "./claude-cli-runner.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const runCommandWithTimeoutMock = vi.fn();
 
@@ -48,7 +54,7 @@ describe("runClaudeCliAgent", () => {
 
     await runClaudeCliAgent({
       sessionId: "openclaw-session",
-      sessionFile: "/tmp/session.jsonl",
+      sessionFile: tmp("session.jsonl"),
       workspaceDir: "/tmp",
       prompt: "hi",
       model: "opus",
@@ -74,7 +80,7 @@ describe("runClaudeCliAgent", () => {
 
     await runClaudeCliAgent({
       sessionId: "openclaw-session",
-      sessionFile: "/tmp/session.jsonl",
+      sessionFile: tmp("session.jsonl"),
       workspaceDir: "/tmp",
       prompt: "hi",
       model: "opus",
@@ -112,7 +118,7 @@ describe("runClaudeCliAgent", () => {
 
     const firstRun = runClaudeCliAgent({
       sessionId: "s1",
-      sessionFile: "/tmp/session.jsonl",
+      sessionFile: tmp("session.jsonl"),
       workspaceDir: "/tmp",
       prompt: "first",
       model: "opus",
@@ -122,7 +128,7 @@ describe("runClaudeCliAgent", () => {
 
     const secondRun = runClaudeCliAgent({
       sessionId: "s2",
-      sessionFile: "/tmp/session.jsonl",
+      sessionFile: tmp("session.jsonl"),
       workspaceDir: "/tmp",
       prompt: "second",
       model: "opus",

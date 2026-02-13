@@ -36,6 +36,12 @@ vi.mock("../agents/auth-profiles.js", async (importOriginal) => {
 });
 
 import {
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
   channelsAddCommand,
   channelsListCommand,
   channelsRemoveCommand,
@@ -49,7 +55,7 @@ const runtime: RuntimeEnv = {
 };
 
 const baseSnapshot = {
-  path: "/tmp/openclaw.json",
+  path: tmp("openclaw.json"),
   exists: true,
   raw: "{}",
   parsed: {},

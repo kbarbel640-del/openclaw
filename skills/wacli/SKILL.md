@@ -1,32 +1,23 @@
 ---
 name: wacli
-description: Send WhatsApp messages to other people or search/sync WhatsApp history via the wacli CLI (not for normal user chats).
+description: Use when you need to send WhatsApp messages to third parties or search/sync WhatsApp history via wacli (not for normal user chats).
 homepage: https://wacli.sh
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "📱",
-        "requires": { "bins": ["wacli"] },
-        "install":
-          [
-            {
-              "id": "brew",
-              "kind": "brew",
-              "formula": "steipete/tap/wacli",
-              "bins": ["wacli"],
-              "label": "Install wacli (brew)",
-            },
-            {
-              "id": "go",
-              "kind": "go",
-              "module": "github.com/steipete/wacli/cmd/wacli@latest",
-              "bins": ["wacli"],
-              "label": "Install wacli (go)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 📱
+    requires:
+      bins: ["wacli"]
+    install:
+      - id: brew
+        kind: brew
+        formula: steipete/tap/wacli
+        bins: ["wacli"]
+        label: "Install wacli (brew)"
+      - id: go
+        kind: go
+        module: "github.com/steipete/wacli/cmd/wacli@latest"
+        bins: ["wacli"]
+        label: "Install wacli (go)"
 ---
 
 # wacli
@@ -59,7 +50,7 @@ History backfill
 
 Send
 
-- Text: `wacli send text --to "+14155551212" --message "Hello! Are you free at 3pm?"`
+- Text: `wacli send text --to "+15555550123" --message "Hello! Are you free at 3pm?"`
 - Group: `wacli send text --to "1234567890-123456789@g.us" --message "Running 5 min late."`
 - File: `wacli send file --to "+14155551212" --file /path/agenda.pdf --caption "Agenda"`
 
@@ -68,5 +59,5 @@ Notes
 - Store dir: `~/.wacli` (override with `--store`).
 - Use `--json` for machine-readable output when parsing.
 - Backfill requires your phone online; results are best-effort.
-- WhatsApp CLI is not needed for routine user chats; it’s for messaging other people.
+- WhatsApp CLI is not needed for routine user chats; it's for messaging other people.
 - JIDs: direct chats look like `<number>@s.whatsapp.net`; groups look like `<id>@g.us` (use `wacli chats list` to find).

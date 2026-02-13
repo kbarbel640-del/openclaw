@@ -1,25 +1,18 @@
 ---
 name: blucli
-description: BluOS CLI (blu) for discovery, playback, grouping, and volume.
+description: Use when you need to discover and control Bluesound/NAD players via the `blu` CLI, including playback, volume, grouping, and TuneIn search.
 homepage: https://blucli.sh
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🫐",
-        "requires": { "bins": ["blu"] },
-        "install":
-          [
-            {
-              "id": "go",
-              "kind": "go",
-              "module": "github.com/steipete/blucli/cmd/blu@latest",
-              "bins": ["blu"],
-              "label": "Install blucli (go)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 🫐
+    requires:
+      bins: ["blu"]
+    install:
+      - id: go
+        kind: go
+        module: github.com/steipete/blucli/cmd/blu@latest
+        bins: ["blu"]
+        label: "Install blucli (go)"
 ---
 
 # blucli (blu)

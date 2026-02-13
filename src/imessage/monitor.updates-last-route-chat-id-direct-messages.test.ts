@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { monitorIMessageProvider } from "./monitor.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const requestMock = vi.fn();
 const stopMock = vi.fn();
@@ -35,7 +41,7 @@ vi.mock("../pairing/pairing-store.js", () => ({
 }));
 
 vi.mock("../config/sessions.js", () => ({
-  resolveStorePath: vi.fn(() => "/tmp/openclaw-sessions.json"),
+  resolveStorePath: vi.fn(() => tmp("openclaw-sessions.json")),
   updateLastRoute: (...args: unknown[]) => updateLastRouteMock(...args),
   readSessionUpdatedAt: vi.fn(() => undefined),
   recordSessionMetaFromInbound: vi.fn().mockResolvedValue(undefined),

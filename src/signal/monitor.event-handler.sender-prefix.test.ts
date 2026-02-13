@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const dispatchMock = vi.fn();
 const readAllowFromMock = vi.fn();
@@ -39,7 +45,7 @@ describe("signal event handler sender prefix", () => {
         },
       },
       cfg: {
-        agents: { defaults: { model: "anthropic/claude-opus-4-5", workspace: "/tmp/openclaw" } },
+        agents: { defaults: { model: "anthropic/claude-opus-4-5", workspace: tmp("openclaw") } },
         channels: { signal: {} },
       } as never,
       baseUrl: "http://localhost",

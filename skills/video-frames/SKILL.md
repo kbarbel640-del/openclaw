@@ -1,25 +1,18 @@
 ---
 name: video-frames
-description: Extract frames or short clips from videos using ffmpeg.
+description: Use when you need to extract frames or short clips from videos using ffmpeg, e.g., to create thumbnails or inspect specific timestamps.
 homepage: https://ffmpeg.org
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🎞️",
-        "requires": { "bins": ["ffmpeg"] },
-        "install":
-          [
-            {
-              "id": "brew",
-              "kind": "brew",
-              "formula": "ffmpeg",
-              "bins": ["ffmpeg"],
-              "label": "Install ffmpeg (brew)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 🎞️
+    requires:
+      bins: ["ffmpeg"]
+    install:
+      - id: brew
+        kind: brew
+        formula: ffmpeg
+        bins: ["ffmpeg"]
+        label: "Install ffmpeg (brew)"
 ---
 
 # Video Frames (ffmpeg)
@@ -42,5 +35,5 @@ At a timestamp:
 
 ## Notes
 
-- Prefer `--time` for “what is happening around here?”.
+- Prefer `--time` for "what is happening around here?".
 - Use a `.jpg` for quick share; use `.png` for crisp UI frames.

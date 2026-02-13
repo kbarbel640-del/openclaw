@@ -33,6 +33,12 @@ vi.mock("./queue.js", async () => {
 });
 
 import { runReplyAgent } from "./agent-runner.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 function createBaseRun(params: { runOverrides?: Partial<FollowupRun["run"]> }) {
   const typing = createMockTypingController();
@@ -52,11 +58,11 @@ function createBaseRun(params: { runOverrides?: Partial<FollowupRun["run"]> }) {
     enqueuedAt: Date.now(),
     run: {
       agentId: "main",
-      agentDir: "/tmp/agent",
+      agentDir: tmp("agent"),
       sessionId: "session",
       sessionKey: "main",
       messageProvider: "telegram",
-      sessionFile: "/tmp/session.jsonl",
+      sessionFile: tmp("session.jsonl"),
       workspaceDir: "/tmp",
       config: {},
       skillsSnapshot: {},

@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { FollowupRun, QueueSettings } from "./queue.js";
 import { enqueueFollowupRun, scheduleFollowupDrain } from "./queue.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 function createRun(params: {
   prompt: string;
@@ -23,7 +29,7 @@ function createRun(params: {
       agentId: "agent",
       agentDir: "/tmp",
       sessionId: "sess",
-      sessionFile: "/tmp/session.json",
+      sessionFile: tmp("session.json"),
       workspaceDir: "/tmp",
       config: {} as OpenClawConfig,
       provider: "openai",

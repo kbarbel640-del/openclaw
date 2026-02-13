@@ -1,26 +1,19 @@
 ---
 name: imsg
-description: iMessage/SMS CLI for listing chats, history, watch, and sending.
+description: Use when you need to read and send iMessage/SMS on macOS via the imsg CLI (list chats, history, watch, or send messages/attachments).
 homepage: https://imsg.to
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "📨",
-        "os": ["darwin"],
-        "requires": { "bins": ["imsg"] },
-        "install":
-          [
-            {
-              "id": "brew",
-              "kind": "brew",
-              "formula": "steipete/tap/imsg",
-              "bins": ["imsg"],
-              "label": "Install imsg (brew)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 📨
+    os: ["darwin"]
+    requires:
+      bins: ["imsg"]
+    install:
+      - id: brew
+        kind: brew
+        formula: steipete/tap/imsg
+        bins: ["imsg"]
+        label: "Install imsg (brew)"
 ---
 
 # imsg

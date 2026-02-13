@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CliBackendConfig } from "../config/types.js";
 import { runCliAgent } from "./cli-runner.js";
 import { cleanupSuspendedCliProcesses } from "./cli-runner/helpers.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const runCommandWithTimeoutMock = vi.fn();
 const runExecMock = vi.fn();
@@ -34,7 +40,7 @@ describe("runCliAgent resume cleanup", () => {
 
     await runCliAgent({
       sessionId: "s1",
-      sessionFile: "/tmp/session.jsonl",
+      sessionFile: tmp("session.jsonl"),
       workspaceDir: "/tmp",
       prompt: "hi",
       provider: "codex-cli",

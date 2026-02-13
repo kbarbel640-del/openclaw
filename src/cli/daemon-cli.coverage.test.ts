@@ -1,5 +1,11 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const callGateway = vi.fn(async () => ({ ok: true }));
 const resolveGatewayProgramArguments = vi.fn(async () => ({
@@ -88,8 +94,8 @@ describe("daemon-cli coverage", () => {
   };
 
   beforeEach(() => {
-    process.env.OPENCLAW_STATE_DIR = "/tmp/openclaw-cli-state";
-    process.env.OPENCLAW_CONFIG_PATH = "/tmp/openclaw-cli-state/openclaw.json";
+    process.env.OPENCLAW_STATE_DIR = tmp("openclaw-cli-state");
+    process.env.OPENCLAW_CONFIG_PATH = tmp("openclaw-cli-state/openclaw.json");
     delete process.env.OPENCLAW_GATEWAY_PORT;
     delete process.env.OPENCLAW_PROFILE;
     serviceReadCommand.mockResolvedValue(null);
@@ -149,11 +155,11 @@ describe("daemon-cli coverage", () => {
       programArguments: ["/bin/node", "cli", "gateway", "--port", "19001"],
       environment: {
         OPENCLAW_PROFILE: "dev",
-        OPENCLAW_STATE_DIR: "/tmp/openclaw-daemon-state",
-        OPENCLAW_CONFIG_PATH: "/tmp/openclaw-daemon-state/openclaw.json",
+        OPENCLAW_STATE_DIR: tmp("openclaw-daemon-state"),
+        OPENCLAW_CONFIG_PATH: tmp("openclaw-daemon-state/openclaw.json"),
         OPENCLAW_GATEWAY_PORT: "19001",
       },
-      sourcePath: "/tmp/bot.molt.gateway.plist",
+      sourcePath: tmp("bot.molt.gateway.plist"),
     });
 
     const { registerDaemonCli } = await import("./daemon-cli.js");

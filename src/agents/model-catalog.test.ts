@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import {
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
   __setModelCatalogImportForTest,
   loadModelCatalog,
   resetModelCatalogCacheForTest,
@@ -13,7 +19,7 @@ vi.mock("./models-config.js", () => ({
 }));
 
 vi.mock("./agent-paths.js", () => ({
-  resolveOpenClawAgentDir: () => "/tmp/openclaw",
+  resolveOpenClawAgentDir: () => tmp("openclaw"),
 }));
 
 describe("loadModelCatalog", () => {

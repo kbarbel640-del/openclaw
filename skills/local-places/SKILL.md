@@ -1,16 +1,14 @@
 ---
 name: local-places
-description: Search for places (restaurants, cafes, etc.) via Google Places API proxy on localhost.
+description: Use when you need to search for places (restaurants, cafes, etc.) via a local Google Places API proxy (run a FastAPI server locally) for privacy and speed.
 homepage: https://github.com/Hyaxia/local_places
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "📍",
-        "requires": { "bins": ["uv"], "env": ["GOOGLE_PLACES_API_KEY"] },
-        "primaryEnv": "GOOGLE_PLACES_API_KEY",
-      },
-  }
+  openclaw:
+    emoji: 📍
+    requires:
+      bins: ["uv"]
+      env: ["GOOGLE_PLACES_API_KEY"]
+    primaryEnv: GOOGLE_PLACES_API_KEY
 ---
 
 # 📍 Local Places

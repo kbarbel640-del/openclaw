@@ -31,6 +31,12 @@ vi.mock("../agents/auth-profiles.js", async (importOriginal) => {
 });
 
 import { formatGatewayChannelsStatusLines } from "./channels.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const runtime: RuntimeEnv = {
   log: vi.fn(),
@@ -39,7 +45,7 @@ const runtime: RuntimeEnv = {
 };
 
 const _baseSnapshot = {
-  path: "/tmp/openclaw.json",
+  path: tmp("openclaw.json"),
   exists: true,
   raw: "{}",
   parsed: {},

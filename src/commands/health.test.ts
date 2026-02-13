@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HealthSummary } from "./health.js";
 import { formatHealthChannelLines, healthCommand } from "./health.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const runtime = {
   log: vi.fn(),
@@ -20,7 +26,7 @@ describe("healthCommand", () => {
 
   it("outputs JSON from gateway", async () => {
     const agentSessions = {
-      path: "/tmp/sessions.json",
+      path: tmp("sessions.json"),
       count: 1,
       recent: [{ key: "+1555", updatedAt: Date.now(), age: 0 }],
     };
@@ -104,10 +110,10 @@ describe("healthCommand", () => {
             target: "last",
             ackMaxChars: 160,
           },
-          sessions: { path: "/tmp/sessions.json", count: 0, recent: [] },
+          sessions: { path: tmp("sessions.json"), count: 0, recent: [] },
         },
       ],
-      sessions: { path: "/tmp/sessions.json", count: 0, recent: [] },
+      sessions: { path: tmp("sessions.json"), count: 0, recent: [] },
     } satisfies HealthSummary);
 
     await healthCommand({ json: false }, runtime as never);
@@ -161,10 +167,10 @@ describe("healthCommand", () => {
             target: "last",
             ackMaxChars: 160,
           },
-          sessions: { path: "/tmp/sessions.json", count: 0, recent: [] },
+          sessions: { path: tmp("sessions.json"), count: 0, recent: [] },
         },
       ],
-      sessions: { path: "/tmp/sessions.json", count: 0, recent: [] },
+      sessions: { path: tmp("sessions.json"), count: 0, recent: [] },
     };
 
     const lines = formatHealthChannelLines(summary, { accountMode: "all" });

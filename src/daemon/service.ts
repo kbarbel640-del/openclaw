@@ -9,14 +9,13 @@ import {
   uninstallLaunchAgent,
 } from "./launchd.js";
 import {
-  installScheduledTask,
-  isScheduledTaskInstalled,
-  readScheduledTaskCommand,
-  readScheduledTaskRuntime,
-  restartScheduledTask,
-  stopScheduledTask,
-  uninstallScheduledTask,
-} from "./schtasks.js";
+  installWindowsService,
+  uninstallWindowsService,
+  startWindowsService,
+  stopWindowsService,
+  isWindowsServiceRunning,
+  getWindowsServiceStatus,
+} from "./service-windows.js";
 import {
   installSystemdService,
   isSystemdServiceEnabled,
@@ -63,8 +62,12 @@ export type GatewayService = {
   readRuntime: (env: Record<string, string | undefined>) => Promise<GatewayServiceRuntime>;
 };
 
+
+// ... imports above ...
+
 export function resolveGatewayService(): GatewayService {
   if (process.platform === "darwin") {
+    // ... darwin impl ...
     return {
       label: "LaunchAgent",
       loadedText: "loaded",
@@ -94,6 +97,7 @@ export function resolveGatewayService(): GatewayService {
   }
 
   if (process.platform === "linux") {
+    // ... linux impl ...
     return {
       label: "systemd",
       loadedText: "enabled",
@@ -124,32 +128,44 @@ export function resolveGatewayService(): GatewayService {
 
   if (process.platform === "win32") {
     return {
-      label: "Scheduled Task",
-      loadedText: "registered",
-      notLoadedText: "missing",
-      install: async (args) => {
-        await installScheduledTask(args);
-      },
-      uninstall: async (args) => {
-        await uninstallScheduledTask(args);
-      },
-      stop: async (args) => {
-        await stopScheduledTask({
-          stdout: args.stdout,
-          env: args.env,
+      label: "Scheduled Task (Windows)",
+      loadedText: "installed",
+      notLoadedText: "not installed",
+      install: async (_args) => {
+        await installWindowsService({
+            cwd: process.cwd(),
         });
       },
-      restart: async (args) => {
-        await restartScheduledTask({
-          stdout: args.stdout,
-          env: args.env,
-        });
+      uninstall: async (_args) => {
+        await uninstallWindowsService();
       },
-      isLoaded: async (args) => isScheduledTaskInstalled(args),
-      readCommand: readScheduledTaskCommand,
-      readRuntime: async (env) => await readScheduledTaskRuntime(env),
+      stop: async (_args) => {
+        await stopWindowsService();
+      },
+      restart: async (_args) => {
+        await stopWindowsService();
+        await startWindowsService();
+      },
+      isLoaded: async (_args) => {
+          try {
+             const status = await getWindowsServiceStatus();
+             return status !== "Not Installed";
+          } catch {
+              return false;
+          }
+      },
+      readCommand: async (_env) => null,
+      readRuntime: async (_env) => ({
+          pid: undefined, 
+          uptimeSeconds: undefined,
+          memoryBytes: undefined,
+          status: (await isWindowsServiceRunning()) ? "running" : "stopped",
+          detail: await getWindowsServiceStatus()
+      }),
     };
   }
 
+
   throw new Error(`Gateway service install not supported on ${process.platform}`);
 }
+

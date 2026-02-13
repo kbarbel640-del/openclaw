@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 let mockCfg: unknown = {};
 
@@ -22,7 +28,7 @@ describe("sandbox explain command", () => {
         sandbox: { tools: { deny: ["browser"] } },
         elevated: { enabled: true, allowFrom: { whatsapp: ["*"] } },
       },
-      session: { store: "/tmp/openclaw-test-sessions-{agentId}.json" },
+      session: { store: tmp("openclaw-test-sessions-{agentId}.json") },
     };
 
     const { sandboxExplainCommand } = await import("./sandbox-explain.js");

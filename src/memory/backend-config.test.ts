@@ -3,10 +3,15 @@ import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import { resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
 import { resolveMemoryBackendConfig } from "./backend-config.js";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("resolveMemoryBackendConfig", () => {
   it("defaults to builtin backend when config missing", () => {
-    const cfg = { agents: { defaults: { workspace: "/tmp/memory-test" } } } as OpenClawConfig;
+    const cfg = { agents: { defaults: { workspace: tmp("memory-test") } } } as OpenClawConfig;
     const resolved = resolveMemoryBackendConfig({ cfg, agentId: "main" });
     expect(resolved.backend).toBe("builtin");
     expect(resolved.citations).toBe("auto");
@@ -15,7 +20,7 @@ describe("resolveMemoryBackendConfig", () => {
 
   it("resolves qmd backend with default collections", () => {
     const cfg = {
-      agents: { defaults: { workspace: "/tmp/memory-test" } },
+      agents: { defaults: { workspace: tmp("memory-test") } },
       memory: {
         backend: "qmd",
         qmd: {},
@@ -30,7 +35,7 @@ describe("resolveMemoryBackendConfig", () => {
 
   it("parses quoted qmd command paths", () => {
     const cfg = {
-      agents: { defaults: { workspace: "/tmp/memory-test" } },
+      agents: { defaults: { workspace: tmp("memory-test") } },
       memory: {
         backend: "qmd",
         qmd: {

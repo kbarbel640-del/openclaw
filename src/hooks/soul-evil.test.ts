@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_SOUL_FILENAME, type WorkspaceBootstrapFile } from "../agents/workspace.js";
 import { makeTempWorkspace, writeWorkspaceFile } from "../test-helpers/workspace.js";
 import {
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
   applySoulEvilOverride,
   decideSoulEvil,
   DEFAULT_SOUL_EVIL_FILENAME,
@@ -12,7 +17,7 @@ import {
 const makeFiles = (overrides?: Partial<WorkspaceBootstrapFile>) => [
   {
     name: DEFAULT_SOUL_FILENAME,
-    path: "/tmp/SOUL.md",
+    path: tmp("SOUL.md"),
     content: "friendly",
     missing: false,
     ...overrides,

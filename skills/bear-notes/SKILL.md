@@ -1,26 +1,19 @@
 ---
 name: bear-notes
-description: Create, search, and manage Bear notes via grizzly CLI.
+description: Use when you need to create, search, and manage Bear notes via the `grizzly` CLI on macOS, e.g., to append text, add tags, or open notes by ID.
 homepage: https://bear.app
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🐻",
-        "os": ["darwin"],
-        "requires": { "bins": ["grizzly"] },
-        "install":
-          [
-            {
-              "id": "go",
-              "kind": "go",
-              "module": "github.com/tylerwince/grizzly/cmd/grizzly@latest",
-              "bins": ["grizzly"],
-              "label": "Install grizzly (go)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 🐻
+    os: ["darwin"]
+    requires:
+      bins: ["grizzly"]
+    install:
+      - id: go
+        kind: go
+        module: github.com/tylerwince/grizzly/cmd/grizzly@latest
+        bins: ["grizzly"]
+        label: "Install grizzly (go)"
 ---
 
 # Bear Notes

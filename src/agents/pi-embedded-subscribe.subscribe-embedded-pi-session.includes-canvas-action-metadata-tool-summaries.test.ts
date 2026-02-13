@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { subscribeEmbeddedPiSession } from "./pi-embedded-subscribe.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 type StubSession = {
   subscribe: (fn: (evt: unknown) => void) => () => void;
@@ -35,7 +41,7 @@ describe("subscribeEmbeddedPiSession", () => {
       type: "tool_execution_start",
       toolName: "canvas",
       toolCallId: "tool-canvas-1",
-      args: { action: "a2ui_push", jsonlPath: "/tmp/a2ui.jsonl" },
+      args: { action: "a2ui_push", jsonlPath: tmp("a2ui.jsonl") },
     });
 
     // Wait for async handler to complete
@@ -46,7 +52,7 @@ describe("subscribeEmbeddedPiSession", () => {
     expect(payload.text).toContain("🖼️");
     expect(payload.text).toContain("Canvas");
     expect(payload.text).toContain("A2UI push");
-    expect(payload.text).toContain("/tmp/a2ui.jsonl");
+    expect(payload.text).toContain(tmp("a2ui.jsonl"));
   });
   it("skips tool summaries when shouldEmitToolResult is false", () => {
     let handler: ((evt: unknown) => void) | undefined;
@@ -70,7 +76,7 @@ describe("subscribeEmbeddedPiSession", () => {
       type: "tool_execution_start",
       toolName: "read",
       toolCallId: "tool-2",
-      args: { path: "/tmp/b.txt" },
+      args: { path: tmp("b.txt") },
     });
 
     expect(onToolResult).not.toHaveBeenCalled();
@@ -98,7 +104,7 @@ describe("subscribeEmbeddedPiSession", () => {
       type: "tool_execution_start",
       toolName: "read",
       toolCallId: "tool-3",
-      args: { path: "/tmp/c.txt" },
+      args: { path: tmp("c.txt") },
     });
 
     // Wait for async handler to complete

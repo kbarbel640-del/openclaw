@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { subscribeEmbeddedPiSession } from "./pi-embedded-subscribe.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 type StubSession = {
   subscribe: (fn: (evt: unknown) => void) => () => void;
@@ -67,7 +73,7 @@ describe("subscribeEmbeddedPiSession", () => {
       type: "tool_execution_start",
       toolName: "read",
       toolCallId: "tool-flush-2",
-      args: { path: "/tmp/test.txt" },
+      args: { path: tmp("test.txt") },
     });
 
     expect(onBlockReplyFlush).toHaveBeenCalledTimes(2);

@@ -1,20 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { buildInboundMediaNote } from "./media-note.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("buildInboundMediaNote", () => {
   it("formats single MediaPath as a media note", () => {
     const note = buildInboundMediaNote({
-      MediaPath: "/tmp/a.png",
+      MediaPath: tmp("a.png"),
       MediaType: "image/png",
-      MediaUrl: "/tmp/a.png",
+      MediaUrl: tmp("a.png"),
     });
     expect(note).toBe("[media attached: /tmp/a.png (image/png) | /tmp/a.png]");
   });
 
   it("formats multiple MediaPaths as numbered media notes", () => {
     const note = buildInboundMediaNote({
-      MediaPaths: ["/tmp/a.png", "/tmp/b.png", "/tmp/c.png"],
-      MediaUrls: ["/tmp/a.png", "/tmp/b.png", "/tmp/c.png"],
+      MediaPaths: [tmp("a.png"), tmp("b.png"), tmp("c.png")],
+      MediaUrls: [tmp("a.png"), tmp("b.png"), tmp("c.png")],
     });
     expect(note).toBe(
       [
@@ -28,7 +34,7 @@ describe("buildInboundMediaNote", () => {
 
   it("skips media notes for attachments with understanding output", () => {
     const note = buildInboundMediaNote({
-      MediaPaths: ["/tmp/a.png", "/tmp/b.png"],
+      MediaPaths: [tmp("a.png"), tmp("b.png")],
       MediaUrls: ["https://example.com/a.png", "https://example.com/b.png"],
       MediaUnderstanding: [
         {
@@ -44,7 +50,7 @@ describe("buildInboundMediaNote", () => {
 
   it("only suppresses attachments when media understanding succeeded", () => {
     const note = buildInboundMediaNote({
-      MediaPaths: ["/tmp/a.png", "/tmp/b.png"],
+      MediaPaths: [tmp("a.png"), tmp("b.png")],
       MediaUrls: ["https://example.com/a.png", "https://example.com/b.png"],
       MediaUnderstandingDecisions: [
         {
@@ -76,7 +82,7 @@ describe("buildInboundMediaNote", () => {
 
   it("suppresses attachments when media understanding succeeds via decisions", () => {
     const note = buildInboundMediaNote({
-      MediaPaths: ["/tmp/a.png", "/tmp/b.png"],
+      MediaPaths: [tmp("a.png"), tmp("b.png")],
       MediaUrls: ["https://example.com/a.png", "https://example.com/b.png"],
       MediaUnderstandingDecisions: [
         {

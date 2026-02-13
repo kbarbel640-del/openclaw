@@ -18,12 +18,18 @@ vi.mock("../../config/config.js", async (importOriginal) => {
 });
 
 import { createSessionsListTool } from "./sessions-list-tool.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("sessions_list gating", () => {
   beforeEach(() => {
     callGatewayMock.mockReset();
     callGatewayMock.mockResolvedValue({
-      path: "/tmp/sessions.json",
+      path: tmp("sessions.json"),
       sessions: [
         { key: "agent:main:main", kind: "direct" },
         { key: "agent:other:main", kind: "direct" },

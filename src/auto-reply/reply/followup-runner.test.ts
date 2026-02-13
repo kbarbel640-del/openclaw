@@ -30,6 +30,10 @@ vi.mock("../../agents/pi-embedded.js", () => ({
 
 import { createFollowupRunner } from "./followup-runner.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 const baseQueuedRun = (messageProvider = "whatsapp"): FollowupRun =>
   ({
     prompt: "hello",
@@ -41,7 +45,7 @@ const baseQueuedRun = (messageProvider = "whatsapp"): FollowupRun =>
       sessionKey: "main",
       messageProvider,
       agentAccountId: "primary",
-      sessionFile: "/tmp/session.jsonl",
+      sessionFile: tmp("session.jsonl"),
       workspaceDir: "/tmp",
       config: {},
       skillsSnapshot: {},
@@ -106,7 +110,7 @@ describe("createFollowupRunner compaction", () => {
         sessionId: "session",
         sessionKey: "main",
         messageProvider: "whatsapp",
-        sessionFile: "/tmp/session.jsonl",
+        sessionFile: tmp("session.jsonl"),
         workspaceDir: "/tmp",
         config: {},
         skillsSnapshot: {},

@@ -3,9 +3,15 @@ import { escapeRegExp, formatEnvelopeTimestamp } from "../../test/helpers/envelo
 import { resetInboundDedupe } from "../auto-reply/reply/inbound-dedupe.js";
 import { createTelegramBot, getTelegramSequentialKey } from "./bot.js";
 import { resolveTelegramFetch } from "./fetch.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const { sessionStorePath } = vi.hoisted(() => ({
-  sessionStorePath: `/tmp/openclaw-telegram-throttler-${Math.random().toString(16).slice(2)}.json`,
+  sessionStorePath: tmp(`openclaw-telegram-throttler-${Math.random().toString(16).slice(2)}.json`),
 }));
 const { loadWebMedia } = vi.hoisted(() => ({
   loadWebMedia: vi.fn(),

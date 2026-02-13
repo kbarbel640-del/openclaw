@@ -7,6 +7,12 @@ vi.mock("../pi-model-discovery.js", () => ({
 
 import type { OpenClawConfig } from "../../config/config.js";
 import { buildInlineProviderModels, resolveModel } from "./model.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const makeModel = (id: string) => ({
   id,
@@ -121,7 +127,7 @@ describe("resolveModel", () => {
       },
     } as OpenClawConfig;
 
-    const result = resolveModel("custom", "missing-model", "/tmp/agent", cfg);
+    const result = resolveModel("custom", "missing-model", tmp("agent"), cfg);
 
     expect(result.model?.baseUrl).toBe("http://localhost:9000");
     expect(result.model?.provider).toBe("custom");

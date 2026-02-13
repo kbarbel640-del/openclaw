@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { buildInboundLine } from "./message-line.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("buildInboundLine", () => {
   it("prefixes group messages with sender", () => {
     const line = buildInboundLine({
       cfg: {
-        agents: { defaults: { workspace: "/tmp/openclaw" } },
+        agents: { defaults: { workspace: tmp("openclaw") } },
         channels: { whatsapp: { messagePrefix: "" } },
       } as never,
       agentId: "main",

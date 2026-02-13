@@ -3,7 +3,7 @@ import { vi } from "vitest";
 vi.mock("../media/store.js", () => ({
   saveMediaBuffer: vi.fn().mockResolvedValue({
     id: "mid",
-    path: "/tmp/mid",
+    path: tmp("mid"),
     size: 1,
     contentType: "image/jpeg",
   }),
@@ -72,6 +72,10 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetLogger, setLoggerOverride } from "../logging.js";
 import { monitorWebInbox, resetWebInboundDedupe } from "./inbound.js";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const _ACCOUNT_ID = "default";
 const nowSeconds = (offsetMs = 0) => Math.floor((Date.now() + offsetMs) / 1000);

@@ -4,6 +4,10 @@ import { describe, expect, test } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
 import type { SessionEntry } from "../config/sessions.js";
 import {
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
   capArrayByJsonBytes,
   classifySessionKey,
   deriveSessionTitle,
@@ -220,7 +224,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: { search: "" },
     });
@@ -231,7 +235,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: {},
     });
@@ -242,7 +246,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: { search: "WORK PROJECT" },
     });
@@ -254,7 +258,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: { search: "reunion" },
     });
@@ -266,7 +270,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: { search: "discord" },
     });
@@ -278,7 +282,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: { search: "sess-personal" },
     });
@@ -290,7 +294,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: { search: "dev-team" },
     });
@@ -302,7 +306,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: { search: "nonexistent-term" },
     });
@@ -313,7 +317,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: { search: "alpha" },
     });
@@ -325,7 +329,7 @@ describe("listSessionsFromStore search", () => {
     const store = makeStore();
     const result = listSessionsFromStore({
       cfg: baseCfg,
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       store,
       opts: { search: "  personal  " },
     });

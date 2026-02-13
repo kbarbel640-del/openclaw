@@ -117,7 +117,7 @@ async function discoverOllamaModels(): Promise<ModelDefinitionConfig[]> {
         id: modelId,
         name: modelId,
         reasoning: isReasoning,
-        input: ["text"],
+        input: ["text", "image"],
         cost: OLLAMA_DEFAULT_COST,
         contextWindow: OLLAMA_DEFAULT_CONTEXT_WINDOW,
         maxTokens: OLLAMA_DEFAULT_MAX_TOKENS,

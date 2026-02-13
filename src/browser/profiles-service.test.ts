@@ -19,12 +19,17 @@ vi.mock("./trash.js", () => ({
 }));
 
 vi.mock("./chrome.js", () => ({
-  resolveOpenClawUserDataDir: vi.fn(() => "/tmp/openclaw-test/openclaw/user-data"),
+  resolveOpenClawUserDataDir: vi.fn(() => tmp("openclaw-test/openclaw/user-data")),
 }));
 
 import { loadConfig, writeConfigFile } from "../config/config.js";
 import { resolveOpenClawUserDataDir } from "./chrome.js";
 import { movePathToTrash } from "./trash.js";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 function createCtx(resolved: BrowserServerState["resolved"]) {
   const state: BrowserServerState = {

@@ -20,6 +20,10 @@ vi.mock("../config/config.js", async (importOriginal) => {
 
 import { agentsSetIdentityCommand } from "./agents.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 const runtime: RuntimeEnv = {
   log: vi.fn(),
   error: vi.fn(),
@@ -27,7 +31,7 @@ const runtime: RuntimeEnv = {
 };
 
 const baseSnapshot = {
-  path: "/tmp/openclaw.json",
+  path: tmp("openclaw.json"),
   exists: true,
   raw: "{}",
   parsed: {},

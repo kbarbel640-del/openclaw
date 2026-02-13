@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const loadSendMessageIMessage = async () => await import("./send.js");
 
@@ -29,7 +35,7 @@ vi.mock("../web/media.js", () => ({
 
 vi.mock("../media/store.js", () => ({
   saveMediaBuffer: vi.fn().mockResolvedValue({
-    path: "/tmp/imessage-media.jpg",
+    path: tmp("imessage-media.jpg"),
     contentType: "image/jpeg",
   }),
 }));
@@ -62,7 +68,7 @@ describe("sendMessageIMessage", () => {
     const { sendMessageIMessage } = await loadSendMessageIMessage();
     await sendMessageIMessage("chat_id:7", "", { mediaUrl: "http://x/y.jpg" });
     const params = requestMock.mock.calls[0]?.[1] as Record<string, unknown>;
-    expect(params.file).toBe("/tmp/imessage-media.jpg");
+    expect(params.file).toBe(tmp("imessage-media.jpg"));
     expect(params.text).toBe("<media:image>");
   });
 

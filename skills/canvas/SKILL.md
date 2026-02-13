@@ -1,3 +1,23 @@
+---
+name: canvas
+description: Use when you need to display HTML content (games, visualizations, dashboards) on connected OpenClaw nodes (Mac/iOS/Android) via the canvas view.
+metadata:
+  openclaw:
+    emoji: 🖼️
+    requires:
+      node: true  # requires a connected node with canvas capability
+    install: []
+    run:
+      - label: "Present canvas"
+        command: "canvas action:present node:<node-id> target:<url>"
+      - label: "Hide canvas"
+        command: "canvas action:hide node:<node-id>"
+      - label: "Navigate canvas"
+        command: "canvas action:navigate node:<node-id> url:<new-url>"
+      - label: "Snapshot canvas"
+        command: "canvas action:snapshot node:<node-id>"
+---
+
 # Canvas Skill
 
 Display HTML content on connected OpenClaw nodes (Mac app, iOS, Android).
@@ -17,8 +37,8 @@ The canvas tool lets you present web content on any connected node's canvas view
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────┐
 │  Canvas Host    │────▶│   Node Bridge    │────▶│  Node App   │
-│  (HTTP Server)  │     │  (TCP Server)    │     │ (Mac/iOS/   │
-│  Port 18793     │     │  Port 18790      │     │  Android)   │
+│  (HTTP Server)  │     │   (TCP Server)   │     │ (Mac/iOS/   │
+│  Port 18793     │     │   Port 18790     │     │  Android)   │
 └─────────────────┘     └──────────────────┘     └─────────────┘
 ```
 

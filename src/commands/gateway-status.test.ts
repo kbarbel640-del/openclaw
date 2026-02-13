@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const loadConfig = vi.fn(() => ({
   gateway: {
@@ -40,7 +46,7 @@ const probeGateway = vi.fn(async ({ url }: { url: string }) => {
       },
       presence: [{ mode: "gateway", reason: "self", host: "local", ip: "127.0.0.1" }],
       configSnapshot: {
-        path: "/tmp/cfg.json",
+        path: tmp("cfg.json"),
         exists: true,
         valid: true,
         config: {
@@ -69,7 +75,7 @@ const probeGateway = vi.fn(async ({ url }: { url: string }) => {
     },
     presence: [{ mode: "gateway", reason: "self", host: "remote", ip: "100.64.0.2" }],
     configSnapshot: {
-      path: "/tmp/remote.json",
+      path: tmp("remote.json"),
       exists: true,
       valid: true,
       config: { gateway: { mode: "remote" } },
@@ -254,7 +260,7 @@ describe("gateway-status command", () => {
         user: "steipete",
         host: "peters-mac-studio-1.sheep-coho.ts.net",
         port: 2222,
-        identityFiles: ["/tmp/id_ed25519"],
+        identityFiles: [tmp("id_ed25519")],
       });
 
       startSshPortForward.mockClear();
@@ -270,7 +276,7 @@ describe("gateway-status command", () => {
         identity?: string;
       };
       expect(call.target).toBe("steipete@peters-mac-studio-1.sheep-coho.ts.net:2222");
-      expect(call.identity).toBe("/tmp/id_ed25519");
+      expect(call.identity).toBe(tmp("id_ed25519"));
     } finally {
       process.env.USER = originalUser;
     }
@@ -333,19 +339,19 @@ describe("gateway-status command", () => {
       user: "me",
       host: "studio.example",
       port: 22,
-      identityFiles: ["/tmp/id_from_config"],
+      identityFiles: [tmp("id_from_config")],
     });
 
     startSshPortForward.mockClear();
     const { gatewayStatusCommand } = await import("./gateway-status.js");
     await gatewayStatusCommand(
-      { timeout: "1000", json: true, sshIdentity: "/tmp/explicit_id" },
+      { timeout: "1000", json: true, sshIdentity: tmp("explicit_id") },
       runtime as unknown as import("../runtime.js").RuntimeEnv,
     );
 
     const call = startSshPortForward.mock.calls[0]?.[0] as {
       identity?: string;
     };
-    expect(call.identity).toBe("/tmp/explicit_id");
+    expect(call.identity).toBe(tmp("explicit_id"));
   });
 });

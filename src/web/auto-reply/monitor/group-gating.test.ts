@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { applyGroupGating } from "./group-gating.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const baseConfig = {
   channels: {
@@ -8,7 +14,7 @@ const baseConfig = {
       groups: { "*": { requireMention: true } },
     },
   },
-  session: { store: "/tmp/openclaw-sessions.json" },
+  session: { store: tmp("openclaw-sessions.json") },
 } as const;
 
 describe("applyGroupGating", () => {

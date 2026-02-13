@@ -1,8 +1,12 @@
 ---
 name: weather
-description: Get current weather and forecasts (no API key required).
+description: Use when you need to get current weather and forecasts for a location without requiring an API key.
 homepage: https://wttr.in/:help
-metadata: { "openclaw": { "emoji": "🌤️", "requires": { "bins": ["curl"] } } }
+metadata:
+  openclaw:
+    emoji: 🌤️
+    requires:
+      bins: ["curl"]
 ---
 
 # Weather

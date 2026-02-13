@@ -7,6 +7,10 @@ import type { WizardPrompter } from "./prompts.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../agents/workspace.js";
 import { runOnboardingWizard } from "./onboarding.js";
 
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
+
 const setupChannels = vi.hoisted(() => vi.fn(async (cfg) => cfg));
 const setupSkills = vi.hoisted(() => vi.fn(async (cfg) => cfg));
 const healthCommand = vi.hoisted(() => vi.fn(async () => {}));
@@ -76,7 +80,7 @@ vi.mock("../tui/tui.js", () => ({
 describe("runOnboardingWizard", () => {
   it("exits when config is invalid", async () => {
     readConfigFileSnapshot.mockResolvedValueOnce({
-      path: "/tmp/.openclaw/openclaw.json",
+      path: tmp(".openclaw/openclaw.json"),
       exists: true,
       raw: "{}",
       parsed: {},

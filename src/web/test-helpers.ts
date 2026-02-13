@@ -44,10 +44,13 @@ vi.mock("../config/config.js", async (importOriginal) => {
   };
 });
 
+import path from "node:path";
+import os from "node:os";
+
 vi.mock("../media/store.js", () => ({
   saveMediaBuffer: vi.fn().mockImplementation(async (_buf: Buffer, contentType?: string) => ({
     id: "mid",
-    path: "/tmp/mid",
+    path: path.join(os.tmpdir(), "mid"),
     size: _buf.length,
     contentType,
   })),

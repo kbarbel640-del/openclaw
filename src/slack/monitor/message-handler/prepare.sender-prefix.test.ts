@@ -1,12 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SlackMonitorContext } from "../context.js";
 import { prepareSlackMessage } from "./prepare.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("prepareSlackMessage sender prefix", () => {
   it("prefixes channel bodies with sender label", async () => {
     const ctx = {
       cfg: {
-        agents: { defaults: { model: "anthropic/claude-opus-4-5", workspace: "/tmp/openclaw" } },
+        agents: { defaults: { model: "anthropic/claude-opus-4-5", workspace: tmp("openclaw") } },
         channels: { slack: {} },
       },
       accountId: "default",

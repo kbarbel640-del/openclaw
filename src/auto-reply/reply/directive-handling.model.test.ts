@@ -5,6 +5,12 @@ import type { SessionEntry } from "../../config/sessions.js";
 import { handleDirectiveOnly } from "./directive-handling.impl.js";
 import { parseInlineDirectives } from "./directive-handling.js";
 import {
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
   maybeHandleModelDirectiveInfo,
   resolveModelSelectionFromDirective,
 } from "./directive-handling.model.js";
@@ -12,7 +18,7 @@ import {
 // Mock dependencies for directive handling persistence.
 vi.mock("../../agents/agent-scope.js", () => ({
   resolveAgentConfig: vi.fn(() => ({})),
-  resolveAgentDir: vi.fn(() => "/tmp/agent"),
+  resolveAgentDir: vi.fn(() => tmp("agent")),
   resolveSessionAgentId: vi.fn(() => "main"),
 }));
 
@@ -47,7 +53,7 @@ describe("/model chat UX", () => {
     const reply = await maybeHandleModelDirectiveInfo({
       directives,
       cfg,
-      agentDir: "/tmp/agent",
+      agentDir: tmp("agent"),
       activeAgentId: "main",
       provider: "anthropic",
       model: "claude-opus-4-5",
@@ -70,7 +76,7 @@ describe("/model chat UX", () => {
     const resolved = resolveModelSelectionFromDirective({
       directives,
       cfg,
-      agentDir: "/tmp/agent",
+      agentDir: tmp("agent"),
       defaultProvider: "anthropic",
       defaultModel: "claude-opus-4-5",
       aliasIndex: baseAliasIndex(),
@@ -109,7 +115,7 @@ describe("handleDirectiveOnly model persist behavior (fixes #1435)", () => {
       sessionEntry,
       sessionStore,
       sessionKey: "agent:main:dm:1",
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       elevatedEnabled: false,
       elevatedAllowed: false,
       defaultProvider: "anthropic",
@@ -143,7 +149,7 @@ describe("handleDirectiveOnly model persist behavior (fixes #1435)", () => {
       sessionEntry,
       sessionStore,
       sessionKey: "agent:main:dm:1",
-      storePath: "/tmp/sessions.json",
+      storePath: tmp("sessions.json"),
       elevatedEnabled: false,
       elevatedAllowed: false,
       defaultProvider: "anthropic",

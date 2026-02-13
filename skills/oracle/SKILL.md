@@ -1,34 +1,27 @@
 ---
 name: oracle
-description: Best practices for using the oracle CLI (prompt + file bundling, engines, sessions, and file attachment patterns).
+description: Use when you need to perform one-shot code analysis, debugging, or planning with full repository context via the oracle CLI, bundling prompts and files together for an AI model (browser or API).
 homepage: https://askoracle.dev
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🧿",
-        "requires": { "bins": ["oracle"] },
-        "install":
-          [
-            {
-              "id": "node",
-              "kind": "node",
-              "package": "@steipete/oracle",
-              "bins": ["oracle"],
-              "label": "Install oracle (node)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 🧿
+    requires:
+      bins: ["oracle"]
+    install:
+      - id: node
+        kind: node
+        package: "@steipete/oracle"
+        bins: ["oracle"]
+        label: "Install oracle (node)"
 ---
 
 # oracle — best use
 
-Oracle bundles your prompt + selected files into one “one-shot” request so another model can answer with real repo context (API or browser automation). Treat output as advisory: verify against code + tests.
+Oracle bundles your prompt + selected files into one "one-shot" request so another model can answer with real repo context (API or browser automation). Treat output as advisory: verify against code + tests.
 
 ## Main use case (browser, GPT‑5.2 Pro)
 
-Default workflow here: `--engine browser` with GPT‑5.2 Pro in ChatGPT. This is the common “long think” path: ~10 minutes to ~1 hour is normal; expect a stored session you can reattach to.
+Default workflow here: `--engine browser` with GPT‑5.2 Pro in ChatGPT. This is the common "long think" path: ~10 minutes to ~1 hour is normal; expect a stored session you can reattach to.
 
 Recommended defaults:
 
@@ -40,13 +33,13 @@ Recommended defaults:
 1. Pick a tight file set (fewest files that still contain the truth).
 2. Preview payload + token spend (`--dry-run` + `--files-report`).
 3. Use browser mode for the usual GPT‑5.2 Pro workflow; use API only when you explicitly want it.
-4. If the run detaches/timeouts: reattach to the stored session (don’t re-run).
+4. If the run detaches/timeouts: reattach to the stored session (don't re-run).
 
 ## Commands (preferred)
 
 - Help:
   - `oracle --help`
-  - If the binary isn’t installed: `npx -y @steipete/oracle --help` (avoid `pnpx` here; sqlite bindings).
+  - If the binary isn't installed: `npx -y @steipete/oracle --help` (avoid `pnpx` here; sqlite bindings).
 
 - Preview (no tokens):
   - `oracle --dry-run summary -p "<task>" --file "src/**" --file "!**/*.test.*"`
@@ -94,7 +87,7 @@ Recommended defaults:
 ## Sessions + slugs
 
 - Stored under `~/.oracle/sessions` (override with `ORACLE_HOME_DIR`).
-- Runs may detach or take a long time (browser + GPT‑5.2 Pro often does). If the CLI times out: don’t re-run; reattach.
+- Runs may detach or take a long time (browser + GPT‑5.2 Pro often does). If the CLI times out: don't re-run; reattach.
   - List: `oracle status --hours 72`
   - Attach: `oracle session <id> --render`
 - Use `--slug "<3-5 words>"` to keep session IDs readable.
@@ -102,19 +95,19 @@ Recommended defaults:
 
 ## Prompt template (high signal)
 
-Oracle starts with **zero** project knowledge. Assume the model cannot infer your stack, build tooling, conventions, or “obvious” paths. Include:
+Oracle starts with **zero** project knowledge. Assume the model cannot infer your stack, build tooling, conventions, or "obvious" paths. Include:
 
 - Project briefing (stack + build/test commands + platform constraints).
-- “Where things live” (key directories, entrypoints, config files, boundaries).
+- "Where things live" (key directories, entrypoints, config files, boundaries).
 - Exact question + what you tried + the error text (verbatim).
-- Constraints (“don’t change X”, “must keep public API”, etc).
-- Desired output (“return patch plan + tests”, “give 3 options with tradeoffs”).
+- Constraints ("don't change X", "must keep public API", etc).
+- Desired output ("return patch plan + tests", "give 3 options with tradeoffs").
 
 ## Safety
 
-- Don’t attach secrets by default (`.env`, key files, auth tokens). Redact aggressively; share only what’s required.
+- Don't attach secrets by default (`.env`, key files, auth tokens). Redact aggressively; share only what's required.
 
-## “Exhaustive prompt” restoration pattern
+## "Exhaustive prompt" restoration pattern
 
 For long investigations, write a standalone prompt + file set so you can rerun days later:
 
@@ -122,4 +115,4 @@ For long investigations, write a standalone prompt + file set so you can rerun d
 - Repro steps + exact errors + what you tried.
 - Attach all context files needed (entrypoints, configs, key modules, docs).
 
-Oracle runs are one-shot; the model doesn’t remember prior runs. “Restoring context” means re-running with the same prompt + `--file …` set (or reattaching a still-running stored session).
+Oracle runs are one-shot; the model doesn't remember prior runs. "Restoring context" means re-running with the same prompt + `--file …` set (or reattaching a still-running stored session).

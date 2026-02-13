@@ -1,6 +1,12 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 import { describe, expect, it } from "vitest";
 import { extractAssistantText, formatReasoningMessage } from "./pi-embedded-utils.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("extractAssistantText", () => {
   it("strips Minimax tool invocation XML from text", () => {
@@ -338,7 +344,7 @@ Arguments: { "action": "act", "request": "click button" }`,
           text: `Intro text.
 [Tool Call: read (ID: toolu_1)]
 Arguments: {
-  "path": "/tmp/file.txt"
+  "path": tmp("file.txt")
 }
 Back to the user.`,
         },

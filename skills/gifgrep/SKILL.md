@@ -1,32 +1,23 @@
 ---
 name: gifgrep
-description: Search GIF providers with CLI/TUI, download results, and extract stills/sheets.
+description: Use when you need to search GIFs across providers (Tenor/Giphy), browse in TUI, download, or extract stills/sheets from animated GIFs.
 homepage: https://gifgrep.com
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🧲",
-        "requires": { "bins": ["gifgrep"] },
-        "install":
-          [
-            {
-              "id": "brew",
-              "kind": "brew",
-              "formula": "steipete/tap/gifgrep",
-              "bins": ["gifgrep"],
-              "label": "Install gifgrep (brew)",
-            },
-            {
-              "id": "go",
-              "kind": "go",
-              "module": "github.com/steipete/gifgrep/cmd/gifgrep@latest",
-              "bins": ["gifgrep"],
-              "label": "Install gifgrep (go)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 🧲
+    requires:
+      bins: ["gifgrep"]
+    install:
+      - id: brew
+        kind: brew
+        formula: steipete/tap/gifgrep
+        bins: ["gifgrep"]
+        label: "Install gifgrep (brew)"
+      - id: go
+        kind: go
+        module: github.com/steipete/gifgrep/cmd/gifgrep@latest
+        bins: ["gifgrep"]
+        label: "Install gifgrep (go)"
 ---
 
 # gifgrep

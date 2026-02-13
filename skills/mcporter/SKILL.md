@@ -1,25 +1,18 @@
 ---
 name: mcporter
-description: Use the mcporter CLI to list, configure, auth, and call MCP servers/tools directly (HTTP or stdio), including ad-hoc servers, config edits, and CLI/type generation.
+description: Use when you need to work with MCP servers directly: list tools, call servers via HTTP/stdio, manage auth/config, or generate CLI wrappers.
 homepage: http://mcporter.dev
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "📦",
-        "requires": { "bins": ["mcporter"] },
-        "install":
-          [
-            {
-              "id": "node",
-              "kind": "node",
-              "package": "mcporter",
-              "bins": ["mcporter"],
-              "label": "Install mcporter (node)",
-            },
-          ],
-      },
-  }
+  openclaw:
+    emoji: 📦
+    requires:
+      bins: ["mcporter"]
+    install:
+      - id: node
+        kind: node
+        package: mcporter
+        bins: ["mcporter"]
+        label: "Install mcporter (node)"
 ---
 
 # mcporter
@@ -36,7 +29,7 @@ Call tools
 
 - Selector: `mcporter call linear.list_issues team=ENG limit:5`
 - Function syntax: `mcporter call "linear.create_issue(title: \"Bug\")"`
-- Full URL: `mcporter call https://api.example.com/mcp.fetch url:https://example.com`
+- Full URL: `mcporter call https://api.example.com/mcp.fetch url=https://example.com`
 - Stdio: `mcporter call --stdio "bun run ./server.ts" scrape url=https://example.com`
 - JSON payload: `mcporter call <server.tool> --args '{"limit":5}'`
 

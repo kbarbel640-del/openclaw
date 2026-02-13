@@ -16,7 +16,7 @@ vi.mock("../../memory/index.js", () => {
             chunks: 0,
             dirty: true,
             workspaceDir: "/tmp",
-            dbPath: "/tmp/index.sqlite",
+            dbPath: tmp("index.sqlite"),
             provider: "openai",
             model: "text-embedding-3-small",
             requestedProvider: "openai",
@@ -28,6 +28,12 @@ vi.mock("../../memory/index.js", () => {
 });
 
 import { createMemoryGetTool, createMemorySearchTool } from "./memory-tool.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 describe("memory tools", () => {
   it("does not throw when memory_search fails (e.g. embeddings 429)", async () => {

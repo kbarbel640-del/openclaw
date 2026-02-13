@@ -9,11 +9,17 @@ vi.mock("./media.js", () => ({
 
 import { sendMessageWhatsApp, sendPollWhatsApp, sendReactionWhatsApp } from "./outbound.js";
 
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 describe("web outbound", () => {
-  const sendComposingTo = vi.fn(async () => {});
+  const sendComposingTo = vi.fn(async () => { });
   const sendMessage = vi.fn(async () => ({ messageId: "msg123" }));
   const sendPoll = vi.fn(async () => ({ messageId: "poll123" }));
-  const sendReaction = vi.fn(async () => {});
+  const sendReaction = vi.fn(async () => { });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -63,7 +69,7 @@ describe("web outbound", () => {
     });
     await sendMessageWhatsApp("+1555", "voice note", {
       verbose: false,
-      mediaUrl: "/tmp/voice.ogg",
+      mediaUrl: tmp("voice.ogg"),
     });
     expect(sendMessage).toHaveBeenLastCalledWith(
       "+1555",
@@ -82,7 +88,7 @@ describe("web outbound", () => {
     });
     await sendMessageWhatsApp("+1555", "clip", {
       verbose: false,
-      mediaUrl: "/tmp/video.mp4",
+      mediaUrl: tmp("video.mp4"),
     });
     expect(sendMessage).toHaveBeenLastCalledWith("+1555", "clip", buf, "video/mp4");
   });
@@ -96,7 +102,7 @@ describe("web outbound", () => {
     });
     await sendMessageWhatsApp("+1555", "gif", {
       verbose: false,
-      mediaUrl: "/tmp/anim.mp4",
+      mediaUrl: tmp("anim.mp4"),
       gifPlayback: true,
     });
     expect(sendMessage).toHaveBeenLastCalledWith("+1555", "gif", buf, "video/mp4", {
@@ -113,7 +119,7 @@ describe("web outbound", () => {
     });
     await sendMessageWhatsApp("+1555", "pic", {
       verbose: false,
-      mediaUrl: "/tmp/pic.jpg",
+      mediaUrl: tmp("pic.jpg"),
     });
     expect(sendMessage).toHaveBeenLastCalledWith("+1555", "pic", buf, "image/jpeg");
   });
@@ -128,7 +134,7 @@ describe("web outbound", () => {
     });
     await sendMessageWhatsApp("+1555", "doc", {
       verbose: false,
-      mediaUrl: "/tmp/file.pdf",
+      mediaUrl: tmp("file.pdf"),
     });
     expect(sendMessage).toHaveBeenLastCalledWith("+1555", "doc", buf, "application/pdf");
   });

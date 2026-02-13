@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import { getReplyFromConfig } from "./reply.js";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 vi.mock("../agents/pi-embedded.js", () => ({
   abortEmbeddedPiRun: vi.fn().mockReturnValue(false),
@@ -66,8 +71,8 @@ describe("getReplyFromConfig media note plumbing", () => {
           Body: "hello",
           From: "+1001",
           To: "+2000",
-          MediaPaths: ["/tmp/a.png", "/tmp/b.png"],
-          MediaUrls: ["/tmp/a.png", "/tmp/b.png"],
+          MediaPaths: [tmp("a.png"), tmp("b.png")],
+          MediaUrls: [tmp("a.png"), tmp("b.png")],
         },
         {},
         cfg,

@@ -1,5 +1,10 @@
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 let currentPage: Record<string, unknown> | null = null;
 let currentRefLocator: Record<string, unknown> | null = null;
@@ -68,7 +73,7 @@ describe("pw-tools-core", () => {
     currentPage = { on, off };
 
     const mod = await importModule();
-    const targetPath = path.resolve("/tmp/file.bin");
+    const targetPath = path.resolve(tmp("file.bin"));
     const p = mod.waitForDownloadViaPlaywright({
       cdpUrl: "http://127.0.0.1:18792",
       targetId: "T1",
@@ -106,7 +111,7 @@ describe("pw-tools-core", () => {
     currentPage = { on, off };
 
     const mod = await importModule();
-    const targetPath = path.resolve("/tmp/report.pdf");
+    const targetPath = path.resolve(tmp("report.pdf"));
     const p = mod.downloadViaPlaywright({
       cdpUrl: "http://127.0.0.1:18792",
       targetId: "T1",

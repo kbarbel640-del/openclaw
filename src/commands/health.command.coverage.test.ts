@@ -4,6 +4,12 @@ import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { stripAnsi } from "../terminal/ansi.js";
 import { createTestRegistry } from "../test-utils/channel-plugins.js";
 import { healthCommand } from "./health.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const callGatewayMock = vi.fn();
 const logWebSelfIdMock = vi.fn();
@@ -102,7 +108,7 @@ describe("healthCommand (coverage)", () => {
             ackMaxChars: 160,
           },
           sessions: {
-            path: "/tmp/sessions.json",
+            path: tmp("sessions.json"),
             count: 2,
             recent: [
               { key: "main", updatedAt: Date.now() - 60_000, age: 60_000 },
@@ -112,7 +118,7 @@ describe("healthCommand (coverage)", () => {
         },
       ],
       sessions: {
-        path: "/tmp/sessions.json",
+        path: tmp("sessions.json"),
         count: 2,
         recent: [
           { key: "main", updatedAt: Date.now() - 60_000, age: 60_000 },

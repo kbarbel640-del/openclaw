@@ -6,11 +6,17 @@ import {
 } from "../hooks/internal-hooks.js";
 import { applyBootstrapHookOverrides } from "./bootstrap-hooks.js";
 import { DEFAULT_SOUL_FILENAME, type WorkspaceBootstrapFile } from "./workspace.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 function makeFile(name = DEFAULT_SOUL_FILENAME): WorkspaceBootstrapFile {
   return {
     name,
-    path: `/tmp/${name}`,
+    path: tmp(`${name}`),
     content: "base",
     missing: false,
   };
@@ -25,7 +31,7 @@ describe("applyBootstrapHookOverrides", () => {
       const context = event.context as AgentBootstrapHookContext;
       context.bootstrapFiles = [
         ...context.bootstrapFiles,
-        { name: "EXTRA.md", path: "/tmp/EXTRA.md", content: "extra", missing: false },
+        { name: "EXTRA.md", path: tmp("EXTRA.md"), content: "extra", missing: false },
       ];
     });
 

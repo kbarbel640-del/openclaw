@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { toClientToolDefinitions } from "./pi-tool-definition-adapter.js";
 import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 vi.mock("../plugins/hook-runner-global.js");
 
@@ -31,10 +37,10 @@ describe("before_tool_call hook integration", () => {
       sessionKey: "main",
     });
 
-    await tool.execute("call-1", { path: "/tmp/file" }, undefined, undefined);
+    await tool.execute("call-1", { path: tmp("file") }, undefined, undefined);
 
     expect(hookRunner.runBeforeToolCall).not.toHaveBeenCalled();
-    expect(execute).toHaveBeenCalledWith("call-1", { path: "/tmp/file" }, undefined, undefined);
+    expect(execute).toHaveBeenCalledWith("call-1", { path: tmp("file") }, undefined, undefined);
   });
 
   it("allows hook to modify parameters", async () => {
@@ -77,9 +83,9 @@ describe("before_tool_call hook integration", () => {
     // oxlint-disable-next-line typescript/no-explicit-any
     const tool = wrapToolWithBeforeToolCallHook({ name: "read", execute } as any);
 
-    await tool.execute("call-4", { path: "/tmp/file" }, undefined, undefined);
+    await tool.execute("call-4", { path: tmp("file") }, undefined, undefined);
 
-    expect(execute).toHaveBeenCalledWith("call-4", { path: "/tmp/file" }, undefined, undefined);
+    expect(execute).toHaveBeenCalledWith("call-4", { path: tmp("file") }, undefined, undefined);
   });
 
   it("normalizes non-object params for hook contract", async () => {

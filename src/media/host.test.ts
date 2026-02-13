@@ -1,6 +1,12 @@
 import type { Server } from "node:http";
 import fs from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import os from "node:os";
+
+// Helper for temp paths
+const tmp = (p: string) => path.join(os.tmpdir(), p);
+
 
 const mocks = vi.hoisted(() => ({
   saveMediaSource: vi.fn(),
@@ -35,24 +41,24 @@ describe("ensureMediaHosted", () => {
   it("throws and cleans up when server not allowed to start", async () => {
     saveMediaSource.mockResolvedValue({
       id: "id1",
-      path: "/tmp/file1",
+      path: tmp("file1"),
       size: 5,
     });
     getTailnetHostname.mockResolvedValue("tailnet-host");
     ensurePortAvailable.mockResolvedValue(undefined);
     const rmSpy = vi.spyOn(fs, "rm").mockResolvedValue(undefined);
 
-    await expect(ensureMediaHosted("/tmp/file1", { startServer: false })).rejects.toThrow(
+    await expect(ensureMediaHosted(tmp("file1"), { startServer: false })).rejects.toThrow(
       "requires the webhook/Funnel server",
     );
-    expect(rmSpy).toHaveBeenCalledWith("/tmp/file1");
+    expect(rmSpy).toHaveBeenCalledWith(tmp("file1"));
     rmSpy.mockRestore();
   });
 
   it("starts media server when allowed", async () => {
     saveMediaSource.mockResolvedValue({
       id: "id2",
-      path: "/tmp/file2",
+      path: tmp("file2"),
       size: 9,
     });
     getTailnetHostname.mockResolvedValue("tail.net");
@@ -60,7 +66,7 @@ describe("ensureMediaHosted", () => {
     const fakeServer = { unref: vi.fn() } as unknown as Server;
     startMediaServer.mockResolvedValue(fakeServer);
 
-    const result = await ensureMediaHosted("/tmp/file2", {
+    const result = await ensureMediaHosted(tmp("file2"), {
       startServer: true,
       port: 1234,
     });
@@ -76,13 +82,13 @@ describe("ensureMediaHosted", () => {
   it("skips server start when port already in use", async () => {
     saveMediaSource.mockResolvedValue({
       id: "id3",
-      path: "/tmp/file3",
+      path: tmp("file3"),
       size: 7,
     });
     getTailnetHostname.mockResolvedValue("tail.net");
     ensurePortAvailable.mockRejectedValue(new PortInUseError(3000, "proc"));
 
-    const result = await ensureMediaHosted("/tmp/file3", {
+    const result = await ensureMediaHosted(tmp("file3"), {
       startServer: false,
       port: 3000,
     });

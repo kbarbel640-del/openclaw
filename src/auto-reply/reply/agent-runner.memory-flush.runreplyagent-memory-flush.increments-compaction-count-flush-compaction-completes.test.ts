@@ -85,11 +85,11 @@ function createBaseRun(params: {
     enqueuedAt: Date.now(),
     run: {
       agentId: "main",
-      agentDir: "/tmp/agent",
+      agentDir: tmp("agent"),
       sessionId: "session",
       sessionKey: "main",
       messageProvider: "whatsapp",
-      sessionFile: "/tmp/session.jsonl",
+      sessionFile: tmp("session.jsonl"),
       workspaceDir: "/tmp",
       config: params.config ?? {},
       skillsSnapshot: {},
