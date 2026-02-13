@@ -253,16 +253,18 @@ export async function incrementCompactionCount(params: {
     updatedAt: now,
   };
   // If tokensAfter is provided, update the cached token counts to reflect post-compaction state
-  if (tokensAfter != null && tokensAfter > 0) {
-    updates.totalTokens = tokensAfter;
-    // Clear input/output breakdown since we only have the total estimate after compaction
-    updates.inputTokens = undefined;
-    updates.outputTokens = undefined;
-  } else if (tokensAfter == null || tokensAfter <= 0) {
-    // Clear stale totals when we don't have a reliable post-compaction estimate
-    updates.totalTokens = undefined;
-    updates.inputTokens = undefined;
-    updates.outputTokens = undefined;
+  if (tokensAfter != null) {
+    if (tokensAfter > 0) {
+      updates.totalTokens = tokensAfter;
+      // Clear input/output breakdown since we only have the total estimate after compaction
+      updates.inputTokens = undefined;
+      updates.outputTokens = undefined;
+    } else {
+      // Clear stale totals when we have an explicit invalid post-compaction estimate
+      updates.totalTokens = undefined;
+      updates.inputTokens = undefined;
+      updates.outputTokens = undefined;
+    }
   }
   sessionStore[sessionKey] = {
     ...entry,
