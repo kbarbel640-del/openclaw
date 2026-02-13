@@ -241,7 +241,7 @@ export const SlackChannelSchema = z
 
 export const SlackThreadSchema = z
   .object({
-    historyScope: z.enum(["thread", "channel", "first-only"]).optional(),
+    historyScope: z.enum(["thread", "channel"]).optional(),
     inheritParent: z.boolean().optional(),
   })
   .strict();

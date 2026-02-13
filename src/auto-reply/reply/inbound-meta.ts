@@ -28,7 +28,6 @@ export function buildInboundMetaSystemPrompt(ctx: TemplateContext): string {
       has_reply_context: Boolean(ctx.ReplyToBody),
       has_forwarded_context: Boolean(ctx.ForwardedFrom),
       has_thread_starter: Boolean(safeTrim(ctx.ThreadStarterBody)),
-      history_count: Array.isArray(ctx.InboundHistory) ? ctx.InboundHistory.length : 0,
     },
   };
 
@@ -138,25 +137,6 @@ export function buildInboundUserContextPrefix(ctx: TemplateContext): string {
             chat_type: safeTrim(ctx.ForwardedFromChatType),
             date_ms: typeof ctx.ForwardedDate === "number" ? ctx.ForwardedDate : undefined,
           },
-          null,
-          2,
-        ),
-        "```",
-      ].join("\n"),
-    );
-  }
-
-  if (Array.isArray(ctx.InboundHistory) && ctx.InboundHistory.length > 0) {
-    blocks.push(
-      [
-        "Chat history since last reply (untrusted, for context):",
-        "```json",
-        JSON.stringify(
-          ctx.InboundHistory.map((entry) => ({
-            sender: entry.sender,
-            timestamp_ms: entry.timestamp,
-            body: entry.body,
-          })),
           null,
           2,
         ),

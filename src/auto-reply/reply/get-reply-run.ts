@@ -182,15 +182,8 @@ export async function runPreparedReply(
       })
     : "";
   const groupSystemPrompt = sessionCtx.GroupSystemPrompt?.trim() ?? "";
-  const suppressHistory = sessionEntry?.historyFirstOnlySent === true;
   const inboundMetaPrompt = buildInboundMetaSystemPrompt(
-    isNewSession
-      ? { ...sessionCtx, ...(suppressHistory ? { InboundHistory: undefined } : {}) }
-      : {
-          ...sessionCtx,
-          ThreadStarterBody: undefined,
-          ...(suppressHistory ? { InboundHistory: undefined } : {}),
-        },
+    isNewSession ? sessionCtx : { ...sessionCtx, ThreadStarterBody: undefined },
   );
   const extraSystemPrompt = [inboundMetaPrompt, groupIntro, groupSystemPrompt]
     .filter(Boolean)
@@ -214,32 +207,8 @@ export async function runPreparedReply(
     ((baseBodyTrimmedRaw.length === 0 && rawBodyTrimmed.length > 0) || isBareNewOrReset);
   const baseBodyFinal = isBareSessionReset ? BARE_SESSION_RESET_PROMPT : baseBody;
   const inboundUserContext = buildInboundUserContextPrefix(
-    isNewSession
-      ? { ...sessionCtx, ...(suppressHistory ? { InboundHistory: undefined } : {}) }
-      : {
-          ...sessionCtx,
-          ThreadStarterBody: undefined,
-          ...(suppressHistory ? { InboundHistory: undefined } : {}),
-        },
+    isNewSession ? sessionCtx : { ...sessionCtx, ThreadStarterBody: undefined },
   );
-  if (
-    !suppressHistory &&
-    Array.isArray(sessionCtx.InboundHistory) &&
-    sessionCtx.InboundHistory.length > 0 &&
-    sessionEntry &&
-    sessionStore &&
-    sessionKey
-  ) {
-    sessionEntry.historyFirstOnlySent = true;
-    sessionEntry.updatedAt = Date.now();
-    sessionStore[sessionKey] = sessionEntry;
-    if (storePath) {
-      const entry = sessionEntry;
-      await updateSessionStore(storePath, (store) => {
-        store[sessionKey] = entry;
-      });
-    }
-  }
   const baseBodyForPrompt = isBareSessionReset
     ? baseBodyFinal
     : [inboundUserContext, baseBodyFinal].filter(Boolean).join("\n\n");

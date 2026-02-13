@@ -202,7 +202,6 @@ describe("RawBody directive parsing", () => {
         Body: "/think:high status please",
         BodyForAgent: "/think:high status please",
         RawBody: "/think:high status please",
-        InboundHistory: [{ sender: "Peter", body: "hello", timestamp: 1700000000000 }],
         From: "+1222",
         To: "+1222",
         ChatType: "group",
@@ -231,9 +230,6 @@ describe("RawBody directive parsing", () => {
       expect(text).toBe("ok");
       expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
       const prompt = vi.mocked(runEmbeddedPiAgent).mock.calls[0]?.[0]?.prompt ?? "";
-      expect(prompt).toContain("Chat history since last reply (untrusted, for context):");
-      expect(prompt).toContain('"sender": "Peter"');
-      expect(prompt).toContain('"body": "hello"');
       expect(prompt).toContain("status please");
       expect(prompt).not.toContain("/think:high");
     });

@@ -28,10 +28,7 @@ export function parseRelaySmokeTest(args: string[], env: NodeJS.ProcessEnv): Rel
 
 export async function runRelaySmokeTest(test: RelaySmokeTest): Promise<void> {
   switch (test) {
-    case "qr": {
-      const { renderQrPngBase64 } = await import("../web/qr-image.js");
-      await renderQrPngBase64("smoke-test");
-      return;
-    }
+    case "qr":
+      throw new Error("QR smoke test is no longer available (web channel removed)");
   }
 }
