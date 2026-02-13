@@ -1,4 +1,5 @@
 # 🦞 Clawdbot — Personal AI Assistant
+<!-- dummy change for verification -->
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/clawdbot/clawdbot/main/docs/whatsapp-clawd.jpg" alt="Clawdbot" width="400">
