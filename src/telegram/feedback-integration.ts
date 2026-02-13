@@ -134,7 +134,7 @@ export async function handleFeedbackCallback(
       bot.api.deleteMessage(message.chat.id, confirmMsg.message_id).catch(() => {});
     }, 3000);
   } catch (err) {
-    runtime?.log?.(`[feedback] UI update failed: ${err}`);
+    runtime?.log?.(`[feedback] UI update failed: ${String(err)}`);
   }
 }
 

@@ -21,8 +21,6 @@ import { finalizeInboundContext } from "../auto-reply/reply/inbound-context.js";
 import { buildMentionRegexes, matchesMentionWithExplicit } from "../auto-reply/reply/mentions.js";
 import { shouldAckReaction as shouldAckReactionGate } from "../channels/ack-reactions.js";
 import { resolveControlCommandGate } from "../channels/command-gating.js";
-import { checkConversationContext } from "../channels/conversation-context.js";
-import { buildCrossChannelContext } from "../channels/cross-channel-context.js";
 import { formatLocationText, toLocationContext } from "../channels/location.js";
 import { logInboundDrop } from "../channels/logging.js";
 import { resolveMentionGatingWithBypass } from "../channels/mention-gating.js";
@@ -56,7 +54,7 @@ import {
   resolveTelegramThreadSpec,
 } from "./bot/helpers.js";
 
-type TelegramMediaRef = {
+export type TelegramMediaRef = {
   path: string;
   contentType?: string;
   stickerMetadata?: {
@@ -91,7 +89,7 @@ type ResolveGroupActivation = (params: {
 
 type ResolveGroupRequireMention = (chatId: string | number) => boolean;
 
-type BuildTelegramMessageContextParams = {
+export type BuildTelegramMessageContextParams = {
   primaryCtx: TelegramContext;
   allMedia: TelegramMediaRef[];
   storeAllowFrom: string[];
@@ -174,7 +172,7 @@ export const buildTelegramMessageContext = async ({
     channel: "telegram",
     accountId: account.accountId,
     peer: {
-      kind: isGroup ? "group" : "dm",
+      kind: isGroup ? "group" : "direct",
       id: peerId,
     },
   });
@@ -232,7 +230,7 @@ export const buildTelegramMessageContext = async ({
     }
 
     if (dmPolicy !== "open") {
-      const candidate = String(chatId);
+      const candidate = msg.from?.id ? String(msg.from.id) : String(chatId);
       const senderUsername = msg.from?.username ?? "";
       const allowMatch = resolveSenderAllowMatch({
         allow: effectiveDmAllow,
@@ -441,50 +439,22 @@ export const buildTelegramMessageContext = async ({
     commandAuthorized,
   });
   const effectiveWasMentioned = mentionGate.effectiveWasMentioned;
-  if (isGroup && requireMention && canDetectMention) {
-    if (mentionGate.shouldSkip) {
-      // Level 102: 對話脈絡救濟檢查
-      // 在決定跳過消息之前，檢查是否在活躍對話中
-      const conversationCheck = await checkConversationContext(
-        chatId,
-        rawBody,
-        senderId,
-        buildSenderName(msg),
-        "telegram",
-        false, // 使用快速規則判斷，不調用 LLM（避免延遲）
-      );
-
-      if (conversationCheck.shouldRespond) {
-        // 對話脈絡判斷應該回應，覆蓋跳過決定
-        logger.info(
-          {
-            chatId,
-            reason: "conversation-context-override",
-            confidence: conversationCheck.confidence,
-            contextReason: conversationCheck.reason,
-          },
-          "overriding skip due to active conversation context",
-        );
-        // 不返回 null，繼續處理消息
-      } else {
-        // 原有邏輯：跳過消息
-        logger.info({ chatId, reason: "no-mention" }, "skipping group message");
-        recordPendingHistoryEntryIfEnabled({
-          historyMap: groupHistories,
-          historyKey: historyKey ?? "",
-          limit: historyLimit,
-          entry: historyKey
-            ? {
-                sender: buildSenderLabel(msg, senderId || chatId),
-                body: rawBody,
-                timestamp: msg.date ? msg.date * 1000 : undefined,
-                messageId: typeof msg.message_id === "number" ? String(msg.message_id) : undefined,
-              }
-            : null,
-        });
-        return null;
-      }
-    }
+  if (isGroup && requireMention && canDetectMention && mentionGate.shouldSkip) {
+    logger.info({ chatId, reason: "no-mention" }, "skipping group message");
+    recordPendingHistoryEntryIfEnabled({
+      historyMap: groupHistories,
+      historyKey: historyKey ?? "",
+      limit: historyLimit,
+      entry: historyKey
+        ? {
+            sender: buildSenderLabel(msg, senderId || chatId),
+            body: rawBody,
+            timestamp: msg.date ? msg.date * 1000 : undefined,
+            messageId: typeof msg.message_id === "number" ? String(msg.message_id) : undefined,
+          }
+        : null,
+    });
+    return null;
   }
 
   // ACK reactions
@@ -590,15 +560,6 @@ export const buildTelegramMessageContext = async ({
     });
   }
 
-  // Level 105: inject cross-channel context (other channels handled by the same agent)
-  const crossChannelCtx = await buildCrossChannelContext({
-    currentChannel: "telegram",
-    agentId: route.agentId,
-  });
-  if (crossChannelCtx) {
-    combinedBody = `${crossChannelCtx}\n\n${combinedBody}`;
-  }
-
   // Session State: inject task context for diagnostic continuity
   const sessionStateCtx = await injectSessionStateContext(sessionKey, storePath);
   if (sessionStateCtx) {
@@ -686,6 +647,8 @@ export const buildTelegramMessageContext = async ({
           channel: "telegram",
           to: String(chatId),
           accountId: route.accountId,
+          // Preserve DM topic threadId for replies (fixes #8891)
+          threadId: dmThreadId != null ? String(dmThreadId) : undefined,
         }
       : undefined,
     onRecordError: (err) => {
@@ -901,3 +864,8 @@ async function injectSessionStateContext(
     return null;
   }
 }
+
+// Export type for external usage
+export type TelegramMessageContext = NonNullable<
+  Awaited<ReturnType<typeof buildTelegramMessageContext>>
+>;
