@@ -674,6 +674,7 @@ More help: [Channel troubleshooting](/channels/troubleshooting).
 ## Telegram config reference pointers
 
 Primary reference:
+
 - `channels.telegram.enabled`: enable/disable channel startup.
 - `channels.telegram.botToken`: bot token (BotFather).
 - `channels.telegram.tokenFile`: read token from file path.
