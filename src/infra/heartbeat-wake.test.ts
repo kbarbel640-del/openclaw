@@ -180,10 +180,12 @@ describe("heartbeat-wake", () => {
     // Simulate a handler that's mid-execution when SIGUSR1 fires.
     // We do this by having the handler hang forever (never resolve).
     let resolveHang: () => void;
-    const hangPromise = new Promise<void>((r) => { resolveHang = r; });
-    const handlerA = vi.fn().mockReturnValue(
-      hangPromise.then(() => ({ status: "ran" as const, durationMs: 1 })),
-    );
+    const hangPromise = new Promise<void>((r) => {
+      resolveHang = r;
+    });
+    const handlerA = vi
+      .fn()
+      .mockReturnValue(hangPromise.then(() => ({ status: "ran" as const, durationMs: 1 })));
     wake.setHeartbeatWakeHandler(handlerA);
 
     // Trigger the handler — it starts running but never finishes
@@ -209,9 +211,7 @@ describe("heartbeat-wake", () => {
   it("clears stale retry cooldown when a new handler is registered", async () => {
     vi.useFakeTimers();
     const wake = await loadWakeModule();
-    const handlerA = vi
-      .fn()
-      .mockResolvedValue({ status: "skipped", reason: "requests-in-flight" });
+    const handlerA = vi.fn().mockResolvedValue({ status: "skipped", reason: "requests-in-flight" });
     wake.setHeartbeatWakeHandler(handlerA);
 
     wake.requestHeartbeatNow({ reason: "interval", coalesceMs: 0 });
