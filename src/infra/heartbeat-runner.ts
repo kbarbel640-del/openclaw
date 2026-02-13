@@ -430,7 +430,13 @@ function normalizeHeartbeatReply(
   responsePrefix: string | undefined,
   ackMaxChars: number,
 ) {
-  const stripped = stripHeartbeatToken(payload.text, {
+  const normalizedPrefix = responsePrefix?.trim();
+  const rawText = payload.text?.trim() ?? "";
+  const textForTokenCheck =
+    normalizedPrefix && rawText.startsWith(normalizedPrefix)
+      ? rawText.slice(normalizedPrefix.length).trimStart()
+      : payload.text;
+  const stripped = stripHeartbeatToken(textForTokenCheck, {
     mode: "heartbeat",
     maxAckChars: ackMaxChars,
   });
