@@ -61,13 +61,16 @@ function parseCommandLine(value: string): string[] {
   let inQuotes = false;
   let escapeNext = false;
 
-  for (const char of value) {
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i];
     if (escapeNext) {
       current += char;
       escapeNext = false;
       continue;
     }
-    if (char === "\\") {
+    // Only treat backslash as escape when followed by quote or another backslash
+    // This preserves Windows path separators like C:\Users\...
+    if (char === "\\" && i + 1 < value.length && (value[i + 1] === '"' || value[i + 1] === "\\")) {
       escapeNext = true;
       continue;
     }
