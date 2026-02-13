@@ -38,7 +38,19 @@ jobs:
           git fetch upstream main
           git fetch origin main
 
+      - name: Check if sync is needed
+        id: check
+        run: |
+          set -euo pipefail
+          if git merge-base --is-ancestor upstream/main origin/main; then
+            echo "needs_sync=false" >> "$GITHUB_OUTPUT"
+            echo "origin/main already contains upstream/main; skipping."
+          else
+            echo "needs_sync=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create sync branch and merge upstream/main
+        if: steps.check.outputs.needs_sync == 'true'
         run: |
           set -euo pipefail
           BRANCH="sync/upstream-main-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}"
@@ -48,6 +60,7 @@ jobs:
           echo "SYNC_BRANCH=${BRANCH}" >> "$GITHUB_ENV"
 
       - name: Open PR
+        if: steps.check.outputs.needs_sync == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
