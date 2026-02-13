@@ -345,7 +345,7 @@ describe("runEmbeddedAttempt", () => {
     } as never);
 
     let finished = false;
-    runPromise.finally(() => {
+    void runPromise.finally(() => {
       finished = true;
     });
 
