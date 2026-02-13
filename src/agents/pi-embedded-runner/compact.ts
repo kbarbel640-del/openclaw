@@ -374,6 +374,7 @@ export async function compactEmbeddedPiSessionDirect(
         modelApi: model.api,
         provider,
         modelId,
+        toolContextMode: params.config?.agents?.defaults?.contextPruning?.toolContext,
       });
       const sessionManager = guardSessionManager(SessionManager.open(params.sessionFile), {
         agentId: sessionAgentId,

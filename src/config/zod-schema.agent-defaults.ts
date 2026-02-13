@@ -58,6 +58,7 @@ export const AgentDefaultsSchema = z
     contextPruning: z
       .object({
         mode: z.union([z.literal("off"), z.literal("cache-ttl")]).optional(),
+        toolContext: z.union([z.literal("persistent"), z.literal("ephemeral")]).optional(),
         ttl: z.string().optional(),
         keepLastAssistants: z.number().int().nonnegative().optional(),
         softTrimRatio: z.number().min(0).max(1).optional(),

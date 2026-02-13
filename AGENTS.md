@@ -28,6 +28,12 @@
   - `corepack enable && corepack prepare pnpm@latest --activate`
   - optional Bun: `curl -fsSL https://bun.sh/install | bash`
 
+## Environment Config Paths
+
+- Test environment OpenClaw config (default):
+  - Debian VM: `/home/ronnie/.openclaw/openclaw.json`
+  - macOS mapped path: `/Users/ronnie/OrbStack/debian/home/ronnie/.openclaw/openclaw.json`
+
 ## Code Layout
 
 - Source: `src/`

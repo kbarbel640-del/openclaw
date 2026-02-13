@@ -39,4 +39,23 @@ describe("resolveTranscriptPolicy", () => {
     expect(policy.sanitizeToolCallIds).toBe(true);
     expect(policy.toolCallIdMode).toBe("strict");
   });
+
+  it("keeps tool context persistent by default", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "anthropic",
+      modelId: "claude-opus-4-5",
+      modelApi: "anthropic-messages",
+    });
+    expect(policy.ephemeralToolContext).toBe(false);
+  });
+
+  it("enables ephemeral tool context when configured", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "anthropic",
+      modelId: "claude-opus-4-5",
+      modelApi: "anthropic-messages",
+      toolContextMode: "ephemeral",
+    });
+    expect(policy.ephemeralToolContext).toBe(true);
+  });
 });

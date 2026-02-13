@@ -425,6 +425,56 @@ function stripToolResultDetails(messages: AgentMessage[]): AgentMessage[] {
   return touched ? out : messages;
 }
 
+function isToolExecutionBlock(block: unknown): boolean {
+  if (!block || typeof block !== "object") {
+    return false;
+  }
+  const type = (block as { type?: unknown }).type;
+  return type === "toolCall" || type === "toolUse" || type === "toolResult";
+}
+
+function pruneHistoricalToolExecutionContext(messages: AgentMessage[]): AgentMessage[] {
+  let touched = false;
+  const out: AgentMessage[] = [];
+
+  for (const msg of messages) {
+    if (!msg || typeof msg !== "object") {
+      out.push(msg);
+      continue;
+    }
+    if ((msg as { role?: unknown }).role === "toolResult") {
+      touched = true;
+      continue;
+    }
+    if ((msg as { role?: unknown }).role !== "assistant") {
+      out.push(msg);
+      continue;
+    }
+    const assistant = msg as Extract<AgentMessage, { role: "assistant" }>;
+    if (!Array.isArray(assistant.content)) {
+      out.push(msg);
+      continue;
+    }
+
+    const filtered = assistant.content.filter((block) => !isToolExecutionBlock(block));
+    if (filtered.length === assistant.content.length) {
+      out.push(msg);
+      continue;
+    }
+
+    touched = true;
+    if (filtered.length === 0) {
+      continue;
+    }
+    out.push({
+      ...(assistant as unknown as Record<string, unknown>),
+      content: filtered,
+    } as AgentMessage);
+  }
+
+  return touched ? out : messages;
+}
+
 export async function sanitizeSessionHistory(params: {
   messages: AgentMessage[];
   modelApi?: string | null;
@@ -461,7 +511,10 @@ export async function sanitizeSessionHistory(params: {
   const repairedTools = policy.repairToolUseResultPairing
     ? sanitizeToolUseResultPairing(sanitizedToolCalls)
     : sanitizedToolCalls;
-  const sanitizedToolResults = stripToolResultDetails(repairedTools);
+  const toolContextPruned = policy.ephemeralToolContext
+    ? pruneHistoricalToolExecutionContext(repairedTools)
+    : repairedTools;
+  const sanitizedToolResults = stripToolResultDetails(toolContextPruned);
 
   const isOpenAIResponsesApi =
     params.modelApi === "openai-responses" || params.modelApi === "openai-codex-responses";

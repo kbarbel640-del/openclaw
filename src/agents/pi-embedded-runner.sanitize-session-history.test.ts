@@ -2,6 +2,7 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as helpers from "./pi-embedded-helpers.js";
+import { resolveTranscriptPolicy } from "./transcript-policy.js";
 
 type SanitizeSessionHistory =
   typeof import("./pi-embedded-runner/google.js").sanitizeSessionHistory;
@@ -302,5 +303,59 @@ describe("sanitizeSessionHistory", () => {
     });
 
     expect(result).toEqual([]);
+  });
+
+  it("drops historical tool execution blocks when ephemeral tool context is enabled", async () => {
+    vi.mocked(helpers.isGoogleModelApi).mockReturnValue(false);
+    const policy = resolveTranscriptPolicy({
+      provider: "anthropic",
+      modelApi: "anthropic-messages",
+      modelId: "claude-opus-4-5",
+      toolContextMode: "ephemeral",
+    });
+
+    const messages: AgentMessage[] = [
+      { role: "user", content: "check it" },
+      {
+        role: "assistant",
+        stopReason: "toolUse",
+        content: [
+          { type: "text", text: "looking it up" },
+          { type: "toolCall", id: "call_1", name: "read", arguments: { path: "README.md" } },
+        ],
+      } as unknown as AgentMessage,
+      {
+        role: "toolResult",
+        toolCallId: "call_1",
+        toolName: "read",
+        isError: false,
+        content: [{ type: "text", text: "file content" }],
+      } as unknown as AgentMessage,
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "done" }],
+      } as unknown as AgentMessage,
+    ];
+
+    const result = await sanitizeSessionHistory({
+      messages,
+      modelApi: "anthropic-messages",
+      provider: "anthropic",
+      sessionManager: mockSessionManager,
+      sessionId: "test-session",
+      policy,
+    });
+
+    expect(result.some((msg) => msg.role === "toolResult")).toBe(false);
+    expect(result).toHaveLength(3);
+    const middle = result[1] as Extract<AgentMessage, { role: "assistant" }>;
+    expect(middle.role).toBe("assistant");
+    expect(Array.isArray(middle.content)).toBe(true);
+    expect(
+      (middle.content as Array<{ type?: string }>).some(
+        (block) =>
+          block?.type === "toolCall" || block?.type === "toolUse" || block?.type === "toolResult",
+      ),
+    ).toBe(false);
   });
 });

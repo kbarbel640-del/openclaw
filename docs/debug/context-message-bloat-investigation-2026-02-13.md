@@ -12,6 +12,24 @@
 - 驗證方式：閱讀實作 + 跑最小測試集（工具事件、session transcript、dispatch 分流）
 - 日期：2026-02-13
 
+## 本環境 Config 路徑
+
+- 本機環境 config 路徑（依使用者提供）：
+  - `AGENTS.md`: `/Users/ronnie/OrbStack/debian/home/ronnie/clawd/AGENTS.md`
+- 啟用臨時工具上下文（ephemeral tool context）時，請在此環境對應的 OpenClaw config 檔加入：
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "contextPruning": {
+        "toolContext": "ephemeral"
+      }
+    }
+  }
+}
+```
+
 ## 核心結論
 
 結論：**成立**。目前預設行為下，tool 執行與結果會進入同一主對話 transcript，並透過多條事件通道輸出；在 DM + tool-events 客戶端 + queue collect 條件下，膨脹體感最明顯。

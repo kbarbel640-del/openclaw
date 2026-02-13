@@ -122,4 +122,36 @@ describe("config pruning defaults", () => {
       expect(cfg.agents?.defaults?.contextPruning?.mode).toBe("off");
     });
   });
+
+  it("accepts explicit contextPruning.toolContext", async () => {
+    await withTempHome(async (home) => {
+      const configDir = path.join(home, ".openclaw");
+      await fs.mkdir(configDir, { recursive: true });
+      await fs.writeFile(
+        path.join(configDir, "openclaw.json"),
+        JSON.stringify(
+          {
+            agents: {
+              defaults: {
+                contextPruning: {
+                  mode: "cache-ttl",
+                  toolContext: "ephemeral",
+                },
+              },
+            },
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
+
+      vi.resetModules();
+      const { loadConfig } = await import("./config.js");
+      const cfg = loadConfig();
+
+      expect(cfg.agents?.defaults?.contextPruning?.mode).toBe("cache-ttl");
+      expect(cfg.agents?.defaults?.contextPruning?.toolContext).toBe("ephemeral");
+    });
+  });
 });

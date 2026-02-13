@@ -27,6 +27,12 @@ export type AgentModelListConfig = {
 
 export type AgentContextPruningConfig = {
   mode?: "off" | "cache-ttl";
+  /**
+   * Tool context persistence strategy for subsequent turns.
+   * - "persistent": keep toolCall/toolUse/toolResult blocks in history (default)
+   * - "ephemeral": drop historical tool execution blocks from model-facing history
+   */
+  toolContext?: "persistent" | "ephemeral";
   /** TTL to consider cache expired (duration string, default unit: minutes). */
   ttl?: string;
   keepLastAssistants?: number;

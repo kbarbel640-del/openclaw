@@ -427,6 +427,7 @@ export async function runEmbeddedAttempt(
         modelApi: params.model?.api,
         provider: params.provider,
         modelId: params.modelId,
+        toolContextMode: params.config?.agents?.defaults?.contextPruning?.toolContext,
       });
 
       await prewarmSessionFile(params.sessionFile);
