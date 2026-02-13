@@ -1,6 +1,7 @@
 import type { ThinkingLevel } from "@mariozechner/pi-agent-core";
 import type { ReasoningLevel, ThinkLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import { logVerbose, danger } from "../../globals.js";
 import { resolveAgentConfig, resolveSessionAgentIds } from "../agent-scope.js";
 import type { ExecToolDefaults } from "../bash-tools.js";
 
@@ -35,20 +36,20 @@ export function resolveAgentExecToolDefaults(
   sessionKey?: string,
 ): ExecToolDefaults {
   if (!config) {
-    return {} as ExecToolDefaults;
+    return {};
   }
 
   const globalExec = config.tools?.exec;
 
   if (!sessionKey || typeof sessionKey !== "string" || sessionKey.trim().length === 0) {
-    return globalExec ?? ({} as ExecToolDefaults);
+    return globalExec ?? {};
   }
 
   try {
     const resolved = resolveSessionAgentIds({ sessionKey, config });
     
     if (!resolved || !resolved.sessionAgentId) {
-      return globalExec ?? ({} as ExecToolDefaults);
+      return globalExec ?? {};
     }
 
     const { sessionAgentId } = resolved;
@@ -79,11 +80,11 @@ export function resolveAgentExecToolDefaults(
     const isExpectedError = err instanceof TypeError;
     
     if (isExpectedError) {
-      console.debug(`Agent config resolution failed, using global defaults`);
-      return globalExec ?? ({} as ExecToolDefaults);
+      logVerbose(`Agent config resolution failed, using global defaults`);
+      return globalExec ?? {};
     }
     
-    console.error(`UNEXPECTED ERROR in resolveAgentExecToolDefaults:`, err);
+    danger(`UNEXPECTED ERROR in resolveAgentExecToolDefaults:`, err);
     throw err;
   }
 }
