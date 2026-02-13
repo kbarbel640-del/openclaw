@@ -5,6 +5,8 @@ export { scheduleFollowupDrain } from "./queue/drain.js";
 export { enqueueFollowupRun, getFollowupQueueDepth } from "./queue/enqueue.js";
 export { resolveQueueSettings } from "./queue/settings.js";
 export { clearFollowupQueue } from "./queue/state.js";
+export { globalQueuePositionTracker, QueuePositionTracker } from "./queue/position-tracker.js";
+export type { QueuePositionConfig } from "./queue/position-tracker.js";
 export type {
   FollowupRun,
   QueueDedupeMode,

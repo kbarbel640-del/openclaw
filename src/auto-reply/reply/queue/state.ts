@@ -1,4 +1,5 @@
 import type { FollowupRun, QueueDropPolicy, QueueMode, QueueSettings } from "./types.js";
+import { globalQueuePositionTracker } from "./position-tracker.js";
 
 export type FollowupQueueState = {
   items: FollowupRun[];
@@ -66,6 +67,10 @@ export function clearFollowupQueue(key: string): number {
     return 0;
   }
   const cleared = queue.items.length + queue.droppedCount;
+
+  // Clear position reactions for all items before clearing queue
+  void globalQueuePositionTracker.updateQueuePositions([]);
+
   queue.items.length = 0;
   queue.droppedCount = 0;
   queue.summaryLines = [];

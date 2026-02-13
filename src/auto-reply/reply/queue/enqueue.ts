@@ -1,6 +1,7 @@
 import type { FollowupRun, QueueDedupeMode, QueueSettings } from "./types.js";
 import { applyQueueDropPolicy, shouldSkipQueueItem } from "../../../utils/queue-helpers.js";
 import { FOLLOWUP_QUEUES, getFollowupQueue } from "./state.js";
+import { globalQueuePositionTracker } from "./position-tracker.js";
 
 function isRunAlreadyQueued(
   run: FollowupRun,
@@ -53,6 +54,10 @@ export function enqueueFollowupRun(
   }
 
   queue.items.push(run);
+
+  // Update queue position reactions after enqueuing
+  void globalQueuePositionTracker.updateQueuePositions(queue.items);
+
   return true;
 }
 

@@ -8,6 +8,7 @@ import {
 } from "../../../utils/queue-helpers.js";
 import { isRoutableChannel } from "../route-reply.js";
 import { FOLLOWUP_QUEUES } from "./state.js";
+import { globalQueuePositionTracker } from "./position-tracker.js";
 
 export function scheduleFollowupDrain(
   key: string,
@@ -25,7 +26,7 @@ export function scheduleFollowupDrain(
         await waitForQueueDebounce(queue);
         if (queue.mode === "collect") {
           // Once the batch is mixed, never collect again within this drain.
-          // Prevents “collect after shift” collapsing different targets.
+          // Prevents "collect after shift" collapsing different targets.
           //
           // Debug: `pnpm test src/auto-reply/reply/queue.collect-routing.test.ts`
           if (forceIndividualCollect) {
@@ -33,7 +34,10 @@ export function scheduleFollowupDrain(
             if (!next) {
               break;
             }
+            await globalQueuePositionTracker.markAsProcessing(next);
+            await globalQueuePositionTracker.updateQueuePositions(queue.items);
             await runFollowup(next);
+            await globalQueuePositionTracker.removeProcessingIndicator(next);
             continue;
           }
 
@@ -62,7 +66,10 @@ export function scheduleFollowupDrain(
             if (!next) {
               break;
             }
+            await globalQueuePositionTracker.markAsProcessing(next);
+            await globalQueuePositionTracker.updateQueuePositions(queue.items);
             await runFollowup(next);
+            await globalQueuePositionTracker.removeProcessingIndicator(next);
             continue;
           }
 
@@ -72,6 +79,12 @@ export function scheduleFollowupDrain(
           if (!run) {
             break;
           }
+
+          // Mark all items as processing (they're being collected into one)
+          for (const item of items) {
+            await globalQueuePositionTracker.markAsProcessing(item);
+          }
+          await globalQueuePositionTracker.updateQueuePositions(queue.items);
 
           // Preserve originating channel from items when collecting same-channel.
           const originatingChannel = items.find((i) => i.originatingChannel)?.originatingChannel;
@@ -98,6 +111,11 @@ export function scheduleFollowupDrain(
             originatingAccountId,
             originatingThreadId,
           });
+
+          // Remove processing indicators for all collected items
+          for (const item of items) {
+            await globalQueuePositionTracker.removeProcessingIndicator(item);
+          }
           continue;
         }
 
@@ -119,7 +137,10 @@ export function scheduleFollowupDrain(
         if (!next) {
           break;
         }
+        await globalQueuePositionTracker.markAsProcessing(next);
+        await globalQueuePositionTracker.updateQueuePositions(queue.items);
         await runFollowup(next);
+        await globalQueuePositionTracker.removeProcessingIndicator(next);
       }
     } catch (err) {
       defaultRuntime.error?.(`followup queue drain failed for ${key}: ${String(err)}`);
