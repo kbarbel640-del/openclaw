@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatToolDetail,
   formatToolFeedbackDiscord,
+  formatToolResultBlockDiscord,
   formatToolSummary,
   resolveToolDisplay,
 } from "./tool-display.js";
@@ -223,5 +224,162 @@ describe("formatToolFeedbackDiscord", () => {
     });
     const result = formatToolFeedbackDiscord(display);
     expect(result).toBe("*Custom Tool `/some/path`...*");
+  });
+});
+
+describe("formatToolResultBlockDiscord", () => {
+  it("formats Read with ts code fence for .ts files", () => {
+    const display = resolveToolDisplay({
+      name: "Read",
+      args: { file_path: "/src/config.ts" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      outputPreview: 'export const port = 3000;\nexport const host = "localhost";',
+      lineCount: 2,
+      isError: false,
+    });
+    expect(result).toContain("*Read* (`/src/config.ts`)");
+    expect(result).toContain("```ts\n");
+    expect(result).toContain("export const port = 3000;");
+    expect(result).toContain("*(2 lines)*");
+  });
+
+  it("formats Read with json code fence for .json files", () => {
+    const display = resolveToolDisplay({
+      name: "Read",
+      args: { file_path: "/app/package.json" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      outputPreview: '{ "name": "test" }',
+      lineCount: 1,
+      isError: false,
+    });
+    expect(result).toContain("```json\n");
+    expect(result).toContain("*(1 line)*");
+  });
+
+  it("formats Bash with command header and bash code fence", () => {
+    const display = resolveToolDisplay({
+      name: "Bash",
+      args: { command: "git status" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      outputPreview: "On branch main\nnothing to commit",
+      lineCount: 2,
+      isError: false,
+    });
+    expect(result).toContain("*Bash* (`git status`)");
+    expect(result).toContain("```bash\n");
+    expect(result).toContain("On branch main");
+  });
+
+  it("formats Edit with diff code fence", () => {
+    const display = resolveToolDisplay({
+      name: "Edit",
+      args: { path: "/src/types.ts" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      outputPreview: "- old line\n+ new line",
+      lineCount: 2,
+      isError: false,
+    });
+    expect(result).toContain("*Edit* (`/src/types.ts`)");
+    expect(result).toContain("```diff\n");
+  });
+
+  it("formats Grep with detail", () => {
+    const display = resolveToolDisplay({
+      name: "Grep",
+      args: { pattern: "sessionId", path: "src/**/*.ts" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      outputPreview: "src/store.ts\nsrc/routing.ts",
+      lineCount: 2,
+      isError: false,
+    });
+    expect(result).toContain("*Grep*");
+    expect(result).toContain("src/store.ts");
+  });
+
+  it("truncates output to 10 lines and shows footer", () => {
+    const lines = Array.from({ length: 25 }, (_, i) => `line ${i + 1}`);
+    const display = resolveToolDisplay({
+      name: "Bash",
+      args: { command: "cat bigfile.txt" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      outputPreview: lines.slice(0, 10).join("\n"),
+      lineCount: 25,
+      isError: false,
+    });
+    expect(result).toContain("line 1");
+    expect(result).toContain("line 10");
+    expect(result).not.toContain("line 11");
+    expect(result).toContain("*(25 lines, showing first 10)*");
+  });
+
+  it("returns header only when no output preview", () => {
+    const display = resolveToolDisplay({
+      name: "Write",
+      args: { path: "/tmp/out.txt" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      isError: false,
+    });
+    expect(result).toBe("*Write* (`/tmp/out.txt`)");
+    expect(result).not.toContain("```");
+  });
+
+  it("shows error marker when no output and isError", () => {
+    const display = resolveToolDisplay({
+      name: "Bash",
+      args: { command: "false" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      isError: true,
+    });
+    expect(result).toContain("*(error)*");
+  });
+
+  it("formats MCP tools with title and detail", () => {
+    const display = resolveToolDisplay({
+      name: "mcp__todoist__get_tasks",
+      args: { project: "OpenClaw" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      outputPreview: "3 tasks found",
+      lineCount: 1,
+      isError: false,
+    });
+    expect(result).toContain("*Get Tasks*");
+    expect(result).toContain("3 tasks found");
+  });
+
+  it("formats Web Search results", () => {
+    const display = resolveToolDisplay({
+      name: "web_search",
+      args: { query: "vitest docs" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      outputPreview: "1. Vitest - https://vitest.dev\n2. Getting Started",
+      lineCount: 2,
+      isError: false,
+    });
+    expect(result).toContain("*Web Search* (`vitest docs`)");
+    expect(result).toContain("vitest.dev");
+  });
+
+  it("handles single-line output with correct noun", () => {
+    const display = resolveToolDisplay({
+      name: "Read",
+      args: { file_path: "/tmp/one.txt" },
+    });
+    const result = formatToolResultBlockDiscord(display, {
+      outputPreview: "single line",
+      lineCount: 1,
+      isError: false,
+    });
+    expect(result).toContain("*(1 line)*");
+    expect(result).not.toContain("lines");
   });
 });

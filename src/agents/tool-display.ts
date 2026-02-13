@@ -388,3 +388,184 @@ export function formatToolFeedbackDiscord(display: ToolDisplay): string {
   }
   return `*${display.label}...*`;
 }
+
+const MAX_PREVIEW_LINES = 10;
+
+export type ToolResultInfo = {
+  outputPreview?: string;
+  lineCount?: number;
+  isError: boolean;
+};
+
+/**
+ * Infer a code fence language hint from the tool name and detail.
+ * Returns empty string when no hint is appropriate.
+ */
+function inferCodeLang(key: string, detail?: string): string {
+  if (key === "bash" || key === "exec") {
+    return "bash";
+  }
+  if (key === "edit") {
+    return "diff";
+  }
+  if (key === "read" && detail) {
+    if (detail.endsWith(".ts") || detail.endsWith(".tsx")) {
+      return "ts";
+    }
+    if (detail.endsWith(".json")) {
+      return "json";
+    }
+    if (detail.endsWith(".py")) {
+      return "py";
+    }
+    if (detail.endsWith(".lua") || detail.endsWith(".luau")) {
+      return "lua";
+    }
+    if (detail.endsWith(".sh") || detail.endsWith(".bash")) {
+      return "bash";
+    }
+    if (detail.endsWith(".css") || detail.endsWith(".scss")) {
+      return "css";
+    }
+    if (detail.endsWith(".js") || detail.endsWith(".jsx") || detail.endsWith(".mjs")) {
+      return "js";
+    }
+    if (detail.endsWith(".md") || detail.endsWith(".mdx")) {
+      return "md";
+    }
+  }
+  return "";
+}
+
+/**
+ * Build the header line for a tool result block.
+ * Format: `*ToolTitle* (\`detail\`)`
+ */
+function buildToolHeader(display: ToolDisplay): string {
+  const key = display.name.toLowerCase();
+
+  if (key === "bash" || key === "exec") {
+    if (display.detail) {
+      let cmd = display.detail.split(/\r?\n/)[0]?.trim() ?? display.detail;
+      cmd = cmd.replace(/^(?:export\s+\S+=\S+\s*&&\s*)+/g, "").trim();
+      cmd = cmd.replace(/^echo\s+"[^"]*"\s*&&\s*/g, "").trim();
+      cmd = cmd.replace(/\s*[12]?>\s*\/dev\/null/g, "").trim();
+      cmd = cmd.replace(/\s*\|\s*(?:head|tail)\s+.*$/g, "").trim();
+      const truncated =
+        cmd.length > MAX_DISCORD_CMD_LENGTH
+          ? `${cmd.slice(0, MAX_DISCORD_CMD_LENGTH - 3)}...`
+          : cmd;
+      return `*Bash* (\`${truncated}\`)`;
+    }
+    return "*Bash*";
+  }
+
+  if (key === "read") {
+    if (display.detail) {
+      return `*Read* (\`${display.detail}\`)`;
+    }
+    return "*Read*";
+  }
+
+  if (key === "write") {
+    if (display.detail) {
+      return `*Write* (\`${display.detail}\`)`;
+    }
+    return "*Write*";
+  }
+
+  if (key === "edit") {
+    if (display.detail) {
+      return `*Edit* (\`${display.detail}\`)`;
+    }
+    return "*Edit*";
+  }
+
+  if (key === "grep") {
+    if (display.detail) {
+      return `*Grep* (\`${display.detail}\`)`;
+    }
+    return "*Grep*";
+  }
+
+  if (key === "glob") {
+    if (display.detail) {
+      return `*Glob* (\`${display.detail}\`)`;
+    }
+    return "*Glob*";
+  }
+
+  if (key === "web_search") {
+    if (display.detail) {
+      return `*Web Search* (\`${display.detail}\`)`;
+    }
+    return "*Web Search*";
+  }
+
+  if (key === "web_fetch") {
+    if (display.detail) {
+      return `*Web Fetch* (\`${display.detail}\`)`;
+    }
+    return "*Web Fetch*";
+  }
+
+  // Sub-agent / Task
+  if (key === "task" || key === "sessions_spawn") {
+    if (display.detail) {
+      return `*Sub-agent* (${display.detail})`;
+    }
+    return "*Sub-agent*";
+  }
+
+  // MCP/other tools: use the display title
+  if (display.detail) {
+    return `*${display.title}* (\`${display.detail}\`)`;
+  }
+  return `*${display.title}*`;
+}
+
+/**
+ * Format a completed tool call for Discord with a rich output preview.
+ * Shows tool name, args, and a truncated code block of the output.
+ *
+ * Example output:
+ *   *Read* (`~/src/config.ts`)
+ *   ```ts
+ *   export const config = {
+ *     port: 3000,
+ *   ...
+ *   ```
+ *   *(50 lines)*
+ */
+export function formatToolResultBlockDiscord(display: ToolDisplay, result: ToolResultInfo): string {
+  const key = display.name.toLowerCase();
+  const header = buildToolHeader(display);
+
+  // No output: just the header
+  if (!result.outputPreview) {
+    if (result.isError) {
+      return `${header} *(error)*`;
+    }
+    return header;
+  }
+
+  const lines = result.outputPreview.split("\n");
+  const previewLines = lines.slice(0, MAX_PREVIEW_LINES);
+  const totalLines = result.lineCount ?? lines.length;
+  const wasTruncated = totalLines > MAX_PREVIEW_LINES;
+
+  const lang = inferCodeLang(key, display.detail);
+  const codeBlock = `\`\`\`${lang}\n${previewLines.join("\n")}\n\`\`\``;
+
+  const parts = [header, codeBlock];
+
+  if (wasTruncated) {
+    const shown = previewLines.length;
+    parts.push(`*(${totalLines} lines, showing first ${shown})*`);
+  } else if (totalLines > 0) {
+    const noun = totalLines === 1 ? "line" : "lines";
+    parts.push(`*(${totalLines} ${noun})*`);
+  }
+
+  return parts.join("\n");
+}
