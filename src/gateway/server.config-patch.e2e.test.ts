@@ -288,6 +288,7 @@ describe("gateway config.patch", () => {
         params: {
           raw: JSON.stringify({
             gateway: { mode: "local" },
+            channels: { telegram: { botToken: "token-1" } },
           }),
         },
       }),
@@ -356,6 +357,58 @@ describe("gateway config.patch", () => {
     );
     expect(set2Res.ok).toBe(false);
     expect(set2Res.error?.message).toContain("base hash");
+  });
+
+  it("rejects invalid config via patch and returns error", async () => {
+    // 1. Get base hash
+    const getId = "req-get-validation";
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: getId,
+        method: "config.get",
+        params: {},
+      }),
+    );
+    const getRes = await onceMessage<{ ok: boolean; payload?: { hash?: string; raw?: string } }>(
+      ws,
+      (o) => o.type === "res" && o.id === getId,
+    );
+    expect(getRes.ok).toBe(true);
+    const baseHash = resolveConfigSnapshotHash({
+      hash: getRes.payload?.hash,
+      raw: getRes.payload?.raw,
+    });
+
+    // 2. Send invalid patch (maxPingPongTurns: 6 is invalid, max is 5)
+    const patchId = "req-patch-invalid";
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: patchId,
+        method: "config.patch",
+        params: {
+          raw: JSON.stringify({
+            session: {
+              agentToAgent: {
+                maxPingPongTurns: 6
+              }
+            }
+          }),
+          baseHash,
+        },
+      }),
+    );
+    const patchRes = await onceMessage<{ ok: boolean; error?: { message?: string } }>(
+      ws,
+      (o) => o.type === "res" && o.id === patchId,
+    );
+
+    // 3. Verify rejection
+    expect(patchRes.ok).toBe(false);
+    expect(patchRes.error).toBeDefined();
+    // We expect "invalid config" or similar validation error
+    expect(patchRes.error?.message).toMatch(/invalid config/);
   });
 });
 
