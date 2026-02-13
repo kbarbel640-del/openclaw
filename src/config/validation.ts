@@ -396,6 +396,61 @@ function validateConfigObjectWithPluginsBase(
     }
   }
 
+  // Validate known provider API types to catch common misconfigurations.
+  const providers = config.models?.providers;
+  if (providers && isRecord(providers)) {
+    for (const [providerName, providerConfig] of Object.entries(providers)) {
+      if (!providerConfig || typeof providerConfig !== "object") {
+        continue;
+      }
+      const normalizedName = providerName.toLowerCase().trim();
+      const api = (providerConfig as Record<string, unknown>).api;
+      const baseUrl = (providerConfig as Record<string, unknown>).baseUrl;
+      if (typeof api !== "string") {
+        continue;
+      }
+
+      // MiniMax: warn when using openai-completions (legacy) — M2.5 requires anthropic-messages
+      if (normalizedName === "minimax" || normalizedName === "minimax-portal") {
+        if (api === "openai-completions") {
+          const models = (providerConfig as Record<string, unknown>).models;
+          const hasM25 =
+            Array.isArray(models) &&
+            models.some(
+              (m) =>
+                typeof m === "object" &&
+                m !== null &&
+                typeof (m as Record<string, unknown>).id === "string" &&
+                ((m as Record<string, unknown>).id as string).toLowerCase().includes("m2.5"),
+            );
+          if (hasM25) {
+            warnings.push({
+              path: `models.providers.${providerName}.api`,
+              message:
+                `MiniMax M2.5 requires api "anthropic-messages" but found "openai-completions". ` +
+                `This causes "invalid role: developer (2013)" errors. ` +
+                `Run "openclaw auth" to reconfigure or set api: "anthropic-messages" and ` +
+                `baseUrl: "https://api.minimax.io/anthropic".`,
+            });
+          }
+        }
+        // Warn on baseUrl/api mismatch
+        if (
+          api === "anthropic-messages" &&
+          typeof baseUrl === "string" &&
+          (baseUrl.includes("minimax.chat/v1") || baseUrl.includes("minimax.io/v1"))
+        ) {
+          warnings.push({
+            path: `models.providers.${providerName}.baseUrl`,
+            message:
+              `MiniMax with "anthropic-messages" should use baseUrl "https://api.minimax.io/anthropic". ` +
+              `Current baseUrl "${baseUrl}" appears to be a legacy OpenAI-compatible endpoint.`,
+          });
+        }
+      }
+    }
+  }
+
   if (issues.length > 0) {
     return { ok: false, issues, warnings };
   }

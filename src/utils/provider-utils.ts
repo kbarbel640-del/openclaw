@@ -27,10 +27,8 @@ export function isReasoningTagProvider(provider: string | undefined | null): boo
     return true;
   }
 
-  // Handle Minimax (M2.1 is chatty/reasoning-like)
-  if (normalized.includes("minimax")) {
-    return true;
-  }
+  // Note: MiniMax M2.5 uses structured thinking blocks via Anthropic API,
+  // not text-level <think>/<final> tags. Do not add minimax here.
 
   return false;
 }
