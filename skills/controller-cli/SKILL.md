@@ -25,7 +25,9 @@ Use this skill when you need to run the Cartridge Controller CLI (`controller-cl
 ## Quick Start (Install)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cartridge-gg/controller-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/cartridge-gg/controller-cli/main/install.sh -o /tmp/controller-cli-install.sh
+# Review the script before running it (it installs the `controller` binary).
+bash /tmp/controller-cli-install.sh
 export PATH="$PATH:$HOME/.local/bin"
 controller --version
 ```
@@ -44,6 +46,7 @@ Behavior:
 
 - Adds `--json` if missing.
 - Refuses to run `call|execute|register|transaction` without `--chain-id` or `--rpc-url`.
+- Times out after 900 seconds by default (override with `CONTROLLER_SAFE_TIMEOUT_SECONDS`; set to `0` to disable).
 - Parses stdout as JSON.
 - If `.status == "error"`, prints `error_code`, `message`, `recovery_hint` and exits non-zero.
 
@@ -197,8 +200,8 @@ Common recoveries:
 
 ## Input Validation
 
-Addresses must be `0x`-prefixed hex.
+Addresses must be `0x`-prefixed hex (up to 64 hex chars after `0x`; leading zeros may be omitted).
 
 ```bash
-python3 scripts/validate_hex_address.py 0xabc...
+python3 {baseDir}/scripts/validate_hex_address.py 0xabc...
 ```

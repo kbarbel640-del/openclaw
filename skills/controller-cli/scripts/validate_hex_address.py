@@ -6,7 +6,7 @@ import sys
 
 
 HEX_ADDRESS = re.compile(r"^0x[0-9a-fA-F]+$")
-MAX_ADDRESS_LEN = 66  # 0x + up to 64 hex chars (allow leading-zero padding)
+MAX_ADDRESS_LEN = 66  # Accept 0x + 1..64 hex chars (leading zeros may be omitted)
 
 
 def main(argv: list[str]) -> int:
