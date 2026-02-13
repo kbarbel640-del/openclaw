@@ -348,6 +348,59 @@ describe("runWithModelFallback", () => {
     expect(result.attempts[0]?.reason).toBe("rate_limit");
   });
 
+  it("groups provider-cooldown skips in final error summaries", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-auth-"));
+    const provider = `cooldown-summary-${crypto.randomUUID()}`;
+    const profileId = `${provider}:default`;
+
+    const store: AuthProfileStore = {
+      version: AUTH_STORE_VERSION,
+      profiles: {
+        [profileId]: {
+          type: "api_key",
+          provider,
+          key: "test-key",
+        },
+      },
+      usageStats: {
+        [profileId]: {
+          cooldownUntil: Date.now() + 60_000,
+        },
+      },
+    };
+
+    saveAuthProfileStore(store, tempDir);
+
+    const cfg = makeCfg({
+      agents: {
+        defaults: {
+          model: {
+            primary: `${provider}/m1`,
+            fallbacks: [`${provider}/m2`, `${provider}/m3`],
+          },
+        },
+      },
+    });
+    const run = vi.fn().mockRejectedValue(new Error("should not execute run()"));
+
+    try {
+      await expect(
+        runWithModelFallback({
+          cfg,
+          provider,
+          model: "m1",
+          agentDir: tempDir,
+          run,
+        }),
+      ).rejects.toThrow(
+        `${provider}: skipped 3 models (m1, m2, m3) because all auth profiles are in cooldown (rate_limit)`,
+      );
+      expect(run).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("does not skip when any profile is available", async () => {
     const provider = `cooldown-mixed-${crypto.randomUUID()}`;
     const profileA = `${provider}:a`;
