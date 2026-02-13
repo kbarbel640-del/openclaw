@@ -1116,6 +1116,10 @@ describe("resolvePreferredProviderForAuthChoice", () => {
     expect(resolvePreferredProviderForAuthChoice("qwen-portal")).toBe("qwen-portal");
   });
 
+  it("maps openrouter-free to openrouter", () => {
+    expect(resolvePreferredProviderForAuthChoice("openrouter-free")).toBe("openrouter");
+  });
+
   it("returns undefined for unknown choices", () => {
     expect(resolvePreferredProviderForAuthChoice("unknown" as AuthChoice)).toBeUndefined();
   });

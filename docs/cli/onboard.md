@@ -26,6 +26,19 @@ openclaw onboard --flow manual
 openclaw onboard --mode remote --remote-url ws://gateway-host:18789
 ```
 
+OpenRouter free models preset (API key + auto scan):
+
+```bash
+openclaw onboard --auth-choice openrouter-free \
+  --openrouter-api-key "$OPENROUTER_API_KEY"
+```
+
+This preset will:
+
+- Set your OpenRouter API key (same as `openrouter-api-key`).
+- Automatically run `openclaw models scan --yes --set-default --set-image` under the hood to
+  configure free OpenRouter models (primary + image) in your config.
+
 Non-interactive custom provider:
 
 ```bash

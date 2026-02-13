@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../../../config/config.js";
 import type { RuntimeEnv } from "../../../runtime.js";
 import type { AuthChoice, OnboardOptions } from "../../onboard-types.js";
+import { readConfigFileSnapshot } from "../../../config/config.js";
 import { upsertAuthProfile } from "../../../agents/auth-profiles.js";
 import { normalizeProviderId } from "../../../agents/model-selection.js";
 import { parseDurationMs } from "../../../cli/parse-duration.js";
@@ -54,6 +55,7 @@ import {
 } from "../../onboard-custom.js";
 import { applyOpenAIConfig } from "../../openai-model-default.js";
 import { detectZaiEndpoint } from "../../zai-endpoint-detect.js";
+import { modelsScanCommand } from "../../models.js";
 import { resolveNonInteractiveApiKey } from "../api-keys.js";
 
 export async function applyNonInteractiveAuthChoice(params: {
@@ -332,7 +334,8 @@ export async function applyNonInteractiveAuthChoice(params: {
     return applyOpenAIConfig(nextConfig);
   }
 
-  if (authChoice === "openrouter-api-key") {
+  if (authChoice === "openrouter-api-key" || authChoice === "openrouter-free") {
+    const openrouterFree = authChoice === "openrouter-free";
     const resolved = await resolveNonInteractiveApiKey({
       provider: "openrouter",
       cfg: baseConfig,
@@ -352,7 +355,50 @@ export async function applyNonInteractiveAuthChoice(params: {
       provider: "openrouter",
       mode: "api_key",
     });
-    return applyOpenrouterConfig(nextConfig);
+    nextConfig = applyOpenrouterConfig(nextConfig);
+
+    if (!openrouterFree) {
+      return nextConfig;
+    }
+
+    try {
+      await modelsScanCommand(
+        {
+          maxCandidates: "6",
+          yes: true,
+          setDefault: true,
+          setImage: true,
+          json: false,
+        },
+        runtime,
+      );
+    } catch (err) {
+      runtime.error(
+        `OpenRouter free model scan failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return nextConfig;
+    }
+
+    const snapshot = await readConfigFileSnapshot();
+    if (snapshot.valid) {
+      const snapDefaults = snapshot.config.agents?.defaults;
+      if (snapDefaults) {
+        nextConfig = {
+          ...nextConfig,
+          agents: {
+            ...nextConfig.agents,
+            defaults: {
+              ...nextConfig.agents?.defaults,
+              ...(snapDefaults.model ? { model: snapDefaults.model } : {}),
+              ...(snapDefaults.imageModel ? { imageModel: snapDefaults.imageModel } : {}),
+              ...(snapDefaults.models ? { models: snapDefaults.models } : {}),
+            },
+          },
+        };
+      }
+    }
+
+    return nextConfig;
   }
 
   if (authChoice === "litellm-api-key") {

@@ -1,6 +1,8 @@
 import type { ApplyAuthChoiceParams, ApplyAuthChoiceResult } from "./auth-choice.apply.js";
 import { ensureAuthProfileStore, resolveAuthProfileOrder } from "../agents/auth-profiles.js";
 import { resolveEnvApiKey } from "../agents/model-auth.js";
+import { readConfigFileSnapshot } from "../config/config.js";
+import { modelsScanCommand } from "./models.js";
 import {
   formatApiKeyPreview,
   normalizeApiKeyInput,
@@ -127,7 +129,8 @@ export async function applyAuthChoiceApiProviders(
     }
   }
 
-  if (authChoice === "openrouter-api-key") {
+  if (authChoice === "openrouter-api-key" || authChoice === "openrouter-free") {
+    const openrouterFree = authChoice === "openrouter-free";
     const store = ensureAuthProfileStore(params.agentDir, {
       allowKeychainPrompt: false,
     });
@@ -202,6 +205,51 @@ export async function applyAuthChoiceApiProviders(
       nextConfig = applied.config;
       agentModelOverride = applied.agentModelOverride ?? agentModelOverride;
     }
+
+    if (openrouterFree) {
+      try {
+        await modelsScanCommand(
+          {
+            maxCandidates: "6",
+            yes: true,
+            setDefault: true,
+            setImage: true,
+            json: false,
+          },
+          params.runtime,
+        );
+
+        const snapshot = await readConfigFileSnapshot();
+        if (snapshot.valid) {
+          const snapDefaults = snapshot.config.agents?.defaults;
+          if (snapDefaults) {
+            nextConfig = {
+              ...nextConfig,
+              agents: {
+                ...nextConfig.agents,
+                defaults: {
+                  ...nextConfig.agents?.defaults,
+                  ...(snapDefaults.model ? { model: snapDefaults.model } : {}),
+                  ...(snapDefaults.imageModel ? { imageModel: snapDefaults.imageModel } : {}),
+                  ...(snapDefaults.models ? { models: snapDefaults.models } : {}),
+                },
+              },
+            };
+          }
+        }
+      } catch (err) {
+        params.runtime.error(
+          `OpenRouter free model scan failed: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        await params.prompter.note(
+          "OpenRouter free model scan failed; keeping the basic OpenRouter config. You can retry later via `openclaw models scan`.",
+          "OpenRouter free models",
+        );
+      }
+    }
+
     return { config: nextConfig, agentModelOverride };
   }
 

@@ -30,6 +30,14 @@ export OPENROUTER_API_KEY="sk-or-..."
 openclaw models scan --yes --set-default --set-image
 ```
 
+Alternatively, you can wire this into onboarding directly with the `openrouter-free`
+preset, which sets your API key and runs the same scan under the hood:
+
+```bash
+openclaw onboard --auth-choice openrouter-free \
+  --openrouter-api-key "$OPENROUTER_API_KEY"
+```
+
 This will:
 
 - Call OpenRouter's `/models` endpoint and filter to free models (by `:free` suffix or zero pricing).

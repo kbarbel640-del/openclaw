@@ -82,7 +82,7 @@ const AUTH_CHOICE_GROUP_DEFS: {
     value: "openrouter",
     label: "OpenRouter",
     hint: "API key",
-    choices: ["openrouter-api-key"],
+    choices: ["openrouter-api-key", "openrouter-free"],
   },
   {
     value: "qwen",
@@ -189,6 +189,11 @@ export function buildAuthChoiceOptions(params: {
     label: "Qianfan API key",
   });
   options.push({ value: "openrouter-api-key", label: "OpenRouter API key" });
+  options.push({
+    value: "openrouter-free",
+    label: "OpenRouter (free models)",
+    hint: "API key + auto-select free models via scan",
+  });
   options.push({
     value: "litellm-api-key",
     label: "LiteLLM API key",

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OPENAI_DEFAULT_MODEL } from "./openai-model-default.js";
 
 type RuntimeMock = {
@@ -136,6 +136,36 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
   return JSON.parse(await fs.readFile(filePath, "utf8")) as T;
 }
 
+const modelsScanCommand = vi.fn();
+
+vi.mock("./models.js", async () => {
+  const actual = await vi.importActual<typeof import("./models.js")>("./models.js");
+  const config = await vi.importActual<typeof import("../config/config.js")>(
+    "../config/config.js",
+  );
+
+  modelsScanCommand.mockImplementation(async () => {
+    const snapshot = await config.readConfigFileSnapshot();
+    const base = snapshot.valid ? snapshot.config : {};
+    const next = {
+      ...base,
+      agents: {
+        ...base.agents,
+        defaults: {
+          ...base.agents?.defaults,
+          model: { primary: "openrouter/free-default" },
+        },
+      },
+    };
+    await config.writeConfigFile(next);
+  });
+
+  return {
+    ...actual,
+    modelsScanCommand,
+  };
+});
+
 async function expectApiKeyProfile(params: {
   profileId: string;
   provider: string;
@@ -156,6 +186,10 @@ async function expectApiKeyProfile(params: {
 }
 
 describe("onboard (non-interactive): provider auth", () => {
+  beforeEach(() => {
+    modelsScanCommand.mockClear();
+  });
+
   it("stores Z.AI API key and uses global baseUrl by default", async () => {
     await withOnboardEnv("openclaw-onboard-zai-", async ({ configPath, runtime }) => {
       await runNonInteractive(
@@ -636,5 +670,48 @@ describe("onboard (non-interactive): provider auth", () => {
         ).rejects.toThrow('Auth choice "custom-api-key" requires a base URL and model ID.');
       },
     );
+  }, 60_000);
+
+  it("configures OpenRouter free models preset", async () => {
+    await withOnboardEnv("openclaw-onboard-openrouter-free-", async ({ configPath, runtime }) => {
+      await runNonInteractive(
+        {
+          nonInteractive: true,
+          authChoice: "openrouter-free",
+          openrouterApiKey: "sk-openrouter-test",
+          skipHealth: true,
+          skipChannels: true,
+          skipSkills: true,
+          json: true,
+        },
+        runtime,
+      );
+
+      const cfg = await readJsonFile<{
+        auth?: { profiles?: Record<string, { provider?: string; mode?: string }> };
+        agents?: { defaults?: { model?: { primary?: string } } };
+      }>(configPath);
+
+      expect(cfg.auth?.profiles?.["openrouter:default"]?.provider).toBe("openrouter");
+      expect(cfg.auth?.profiles?.["openrouter:default"]?.mode).toBe("api_key");
+      await expectApiKeyProfile({
+        profileId: "openrouter:default",
+        provider: "openrouter",
+        key: "sk-openrouter-test",
+      });
+
+      expect(modelsScanCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxCandidates: "6",
+          yes: true,
+          setDefault: true,
+          setImage: true,
+          json: false,
+        }),
+        expect.any(Object),
+      );
+
+      expect(cfg.agents?.defaults?.model?.primary).toBe("openrouter/free-default");
+    });
   }, 60_000);
 });
