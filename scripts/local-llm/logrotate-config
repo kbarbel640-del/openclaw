@@ -1,0 +1,25 @@
+# Logrotate Configuration for Local LLM Logs
+# 
+# Installation:
+# sudo cp this-file /etc/logrotate.d/local-llm
+# sudo chmod 644 /etc/logrotate.d/local-llm
+#
+
+/var/log/llm-health.log /var/log/llm-metrics.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 root root
+    sharedscripts
+    postrotate
+        # Optional: send signal to reload if needed
+    endscript
+}
+
+# systemd journal logs are handled automatically by journald
+# Configure retention in /etc/systemd/journald.conf if needed:
+# SystemMaxUse=500M
+# MaxRetentionSec=1week

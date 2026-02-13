@@ -1,0 +1,71 @@
+[Unit]
+Description=Local LLM Server (llama.cpp) for OpenClaw
+Documentation=https://github.com/ggerganov/llama.cpp
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=nobody
+Group=nogroup
+Restart=always
+RestartSec=10
+
+# Security Hardening
+PrivateTmp=yes
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+PrivateMounts=yes
+
+# Allow write access to /tmp for model loading
+ReadWritePaths=/tmp
+
+# Resource Limits
+MemoryMax=3G
+MemoryHigh=2.5G
+CPUQuota=200%
+TasksMax=256
+
+# Environment
+Environment="LLAMA_LOG_LEVEL=warn"
+Environment="LLAMA_ARG_THREADS=2"
+
+# Start Command
+ExecStart=/opt/llama.cpp/build/bin/llama-server \
+  --model /opt/llm-models/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+  --host 127.0.0.1 \
+  --port 8765 \
+  --ctx-size 2048 \
+  --threads 2 \
+  --n-gpu-layers 0 \
+  --batch-size 512 \
+  --ubatch-size 128 \
+  --parallel 1 \
+  --cont-batching \
+  --metrics \
+  --log-format text \
+  --mlock \
+  --no-mmap
+
+# Graceful Shutdown
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=local-llm
+
+[Install]
+WantedBy=multi-user.target

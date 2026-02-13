@@ -1,0 +1,168 @@
+{
+  "meta": {
+    "description": "Local LLM Provider Configuration for OpenClaw",
+    "version": "1.0.0",
+    "created": "2026-02-13"
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "local-llm": {
+        "baseUrl": "http://127.0.0.1:8765/v1",
+        "apiKey": "not-required",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "qwen2.5-1.5b-instruct",
+            "name": "Qwen 2.5 1.5B (Local)",
+            "reasoning": false,
+            "input": ["text"],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 2048,
+            "maxTokens": 1024,
+            "tags": ["local", "utility", "fallback", "fast", "free"],
+            "description": "Local mini-LLM for utility tasks and fallback"
+          }
+        ],
+        "headers": {
+          "User-Agent": "OpenClaw/1.0"
+        },
+        "timeout": 30000,
+        "retries": 1,
+        "enabled": true
+      }
+    }
+  },
+  "routing": {
+    "description": "Intelligent routing between local and cloud providers",
+    "rules": [
+      {
+        "name": "utility-tasks-local",
+        "priority": 10,
+        "description": "Route utility tasks to local LLM",
+        "conditions": {
+          "taskTypes": [
+            "code-review",
+            "simple-qa",
+            "log-parsing",
+            "regex-generation",
+            "data-transform",
+            "quick-check"
+          ]
+        },
+        "provider": "local-llm/qwen2.5-1.5b-instruct"
+      },
+      {
+        "name": "short-queries-local",
+        "priority": 9,
+        "description": "Route short queries to local LLM",
+        "conditions": {
+          "maxInputTokens": 500
+        },
+        "provider": "local-llm/qwen2.5-1.5b-instruct"
+      },
+      {
+        "name": "high-priority-cloud",
+        "priority": 20,
+        "description": "High priority tasks always use cloud",
+        "conditions": {
+          "priority": "high"
+        },
+        "provider": "github-copilot/gpt-4o-2024-11-20"
+      },
+      {
+        "name": "complex-tasks-cloud",
+        "priority": 15,
+        "description": "Complex reasoning tasks use cloud",
+        "conditions": {
+          "taskTypes": [
+            "complex-reasoning",
+            "code-generation",
+            "multi-step-planning",
+            "architecture-design"
+          ]
+        },
+        "provider": "github-copilot/gpt-4o-2024-11-20"
+      },
+      {
+        "name": "long-context-cloud",
+        "priority": 12,
+        "description": "Long context requires cloud models",
+        "conditions": {
+          "minInputTokens": 2000
+        },
+        "provider": "github-copilot/gpt-4o-2024-11-20"
+      }
+    ],
+    "fallback": {
+      "description": "Fallback chain when primary provider fails",
+      "chains": {
+        "cloud-to-local": [
+          "github-copilot/gpt-4o-2024-11-20",
+          "anthropic/claude-sonnet-4-5",
+          "openai/gpt-4o-mini",
+          "local-llm/qwen2.5-1.5b-instruct"
+        ],
+        "local-to-cloud": [
+          "local-llm/qwen2.5-1.5b-instruct",
+          "github-copilot/gpt-4o-mini",
+          "anthropic/claude-sonnet-4-5"
+        ]
+      },
+      "defaultChain": "cloud-to-local",
+      "maxRetries": 3,
+      "retryDelay": 1000
+    }
+  },
+  "health": {
+    "description": "Health monitoring configuration",
+    "checks": {
+      "local-llm": {
+        "enabled": true,
+        "endpoint": "http://127.0.0.1:8765/health",
+        "interval": 60000,
+        "timeout": 5000,
+        "failureThreshold": 3,
+        "successThreshold": 1
+      }
+    },
+    "notifications": {
+      "onFailure": true,
+      "onRecovery": true,
+      "channels": ["log"]
+    }
+  },
+  "performance": {
+    "description": "Performance thresholds and limits",
+    "local-llm": {
+      "maxConcurrentRequests": 1,
+      "queueTimeout": 30000,
+      "responseTimeWarning": 10000,
+      "responseTimeCritical": 30000,
+      "memoryWarningMb": 2800,
+      "memoryCriticalMb": 3000
+    }
+  },
+  "examples": {
+    "description": "Example use cases for local LLM",
+    "utility-tasks": [
+      "Generate a regex for email validation",
+      "Parse this log entry and extract the error",
+      "Convert this JSON to YAML",
+      "Review this code for basic syntax errors",
+      "Summarize this short text (< 500 tokens)"
+    ],
+    "cloud-tasks": [
+      "Design the architecture for a microservices system",
+      "Refactor this large codebase",
+      "Generate a complete React component with tests",
+      "Analyze this 10,000 line log file",
+      "Explain complex algorithms in detail"
+    ]
+  }
+}
