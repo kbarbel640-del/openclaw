@@ -1,4 +1,3 @@
-import type { Command } from "commander";
 import type { NodeListNode, NodesRpcOpts } from "./types.js";
 import { callGateway } from "../../gateway/call.js";
 import { resolveNodeIdFromCandidates } from "../../shared/node-match.js";
@@ -6,12 +5,7 @@ import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../../utils/message-
 import { withProgress } from "../progress.js";
 import { parseNodeList, parsePairingList } from "./format.js";
 
-export const nodesCallOpts = (cmd: Command, defaults?: { timeoutMs?: number }) =>
-  cmd
-    .option("--url <url>", "Gateway WebSocket URL (defaults to gateway.remote.url when configured)")
-    .option("--token <token>", "Gateway token (if required)")
-    .option("--timeout <ms>", "Timeout in ms", String(defaults?.timeoutMs ?? 10_000))
-    .option("--json", "Output JSON", false);
+export { nodesCallOpts } from "./call-opts.js";
 
 export const callGatewayCli = async (
   method: string,

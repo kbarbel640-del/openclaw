@@ -1,17 +1,18 @@
 import type { Command } from "commander";
 import type { GmailRunOptions, GmailSetupOptions } from "../hooks/gmail-ops.js";
-import {
-  DEFAULT_GMAIL_LABEL,
-  DEFAULT_GMAIL_MAX_BYTES,
-  DEFAULT_GMAIL_RENEW_MINUTES,
-  DEFAULT_GMAIL_SERVE_BIND,
-  DEFAULT_GMAIL_SERVE_PATH,
-  DEFAULT_GMAIL_SERVE_PORT,
-  DEFAULT_GMAIL_SUBSCRIPTION,
-  DEFAULT_GMAIL_TOPIC,
-} from "../hooks/gmail.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { theme } from "../terminal/theme.js";
+
+// Inlined from hooks/gmail.ts to avoid pulling in config/zod (1.3 MB) at registration time.
+// The canonical values live in hooks/gmail.ts; these are only used for Commander option defaults.
+const DEFAULT_GMAIL_LABEL = "INBOX";
+const DEFAULT_GMAIL_TOPIC = "gog-gmail-watch";
+const DEFAULT_GMAIL_SUBSCRIPTION = "gog-gmail-watch-push";
+const DEFAULT_GMAIL_SERVE_BIND = "127.0.0.1";
+const DEFAULT_GMAIL_SERVE_PORT = 8788;
+const DEFAULT_GMAIL_SERVE_PATH = "/gmail-pubsub";
+const DEFAULT_GMAIL_MAX_BYTES = 20_000;
+const DEFAULT_GMAIL_RENEW_MINUTES = 12 * 60;
 
 export function registerWebhooksCli(program: Command) {
   const webhooks = program

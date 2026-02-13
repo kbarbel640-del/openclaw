@@ -4,7 +4,7 @@ import type { ExecApprovalsAgent, ExecApprovalsFile } from "../infra/exec-approv
 import type { NodesRpcOpts } from "./nodes-cli/types.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { isRich, theme } from "../terminal/theme.js";
-import { nodesCallOpts } from "./nodes-cli/rpc.js";
+import { nodesCallOpts } from "./nodes-cli/call-opts.js";
 
 type ExecApprovalsSnapshot = {
   path: string;
