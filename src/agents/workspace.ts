@@ -84,7 +84,8 @@ export type WorkspaceBootstrapFileName =
   | typeof DEFAULT_HEARTBEAT_FILENAME
   | typeof DEFAULT_BOOTSTRAP_FILENAME
   | typeof DEFAULT_MEMORY_FILENAME
-  | typeof DEFAULT_MEMORY_ALT_FILENAME;
+  | typeof DEFAULT_MEMORY_ALT_FILENAME
+  | (string & {});
 
 export type WorkspaceBootstrapFile = {
   name: WorkspaceBootstrapFileName;
@@ -262,7 +263,7 @@ async function resolveMemoryBootstrapEntries(
   return deduped;
 }
 
-export async function loadWorkspaceBootstrapFiles(dir: string): Promise<WorkspaceBootstrapFile[]> {
+export async function loadWorkspaceBootstrapFiles(dir: string, config?: import("../config/config.js").OpenClawConfig): Promise<WorkspaceBootstrapFile[]> {
   const resolvedDir = resolveUserPath(dir);
 
   const entries: Array<{
@@ -300,6 +301,23 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
   ];
 
   entries.push(...(await resolveMemoryBootstrapEntries(resolvedDir)));
+
+  // Load user-configured extra context files
+  const extraFiles = config?.agents?.defaults?.contextFiles;
+  if (Array.isArray(extraFiles)) {
+    for (const fileName of extraFiles) {
+      if (typeof fileName === "string" && fileName.trim()) {
+        const trimmed = fileName.trim();
+        // Skip if already in the default set
+        if (!entries.some((e) => e.name === trimmed)) {
+          entries.push({
+            name: trimmed as WorkspaceBootstrapFileName,
+            filePath: path.join(resolvedDir, trimmed),
+          });
+        }
+      }
+    }
+  }
 
   const result: WorkspaceBootstrapFile[] = [];
   for (const entry of entries) {
