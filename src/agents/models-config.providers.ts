@@ -380,8 +380,8 @@ export function normalizeProviders(params: {
 
 function buildMinimaxProvider(): ProviderConfig {
   return {
-    baseUrl: MINIMAX_API_BASE_URL,
-    api: "openai-completions",
+    baseUrl: MINIMAX_PORTAL_BASE_URL,
+    api: "anthropic-messages",
     models: [
       {
         id: MINIMAX_DEFAULT_MODEL_ID,
