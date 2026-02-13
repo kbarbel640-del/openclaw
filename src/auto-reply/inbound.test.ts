@@ -101,6 +101,7 @@ describe("finalizeInboundContext", () => {
     const out = finalizeInboundContext(ctx);
     expect(out.Body).toBe("C:\\Work\\nxxx\\README.md");
     expect(out.BodyForAgent).toBe("C:\\Work\\nxxx\\README.md");
+    expect(out.BodyForCommands).toBe("C:\\Work\\nxxx\\README.md");
   });
 
   it("can force BodyForCommands to follow updated CommandBody", () => {
