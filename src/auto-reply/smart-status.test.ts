@@ -87,7 +87,7 @@ describe("createSmartStatus", () => {
     });
 
     status.push({ type: "text", text: "Here is my response" });
-    status.push({ type: "tool_result", toolCallId: "c1", isError: false });
+    status.push({ type: "tool_result", toolCallId: "c1", toolName: "Bash", isError: false });
     status.dispose();
 
     expect(updates.length).toBe(0);

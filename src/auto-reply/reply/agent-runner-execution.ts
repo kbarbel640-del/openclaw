@@ -384,9 +384,23 @@ export async function runAgentTurnWithFallback(params: {
                         ? (evt.data.args as Record<string, unknown>)
                         : undefined;
                     params.opts.onStreamEvent({ type: "tool_start", toolName, toolCallId, input });
-                  } else if (phase === "end") {
+                  } else if (phase === "result") {
                     const isError = Boolean(evt.data.isError);
-                    params.opts.onStreamEvent({ type: "tool_result", toolCallId, isError });
+                    const resultToolName = typeof evt.data.name === "string" ? evt.data.name : "";
+                    const outputPreview =
+                      typeof evt.data.outputPreview === "string"
+                        ? evt.data.outputPreview
+                        : undefined;
+                    const lineCount =
+                      typeof evt.data.lineCount === "number" ? evt.data.lineCount : undefined;
+                    params.opts.onStreamEvent({
+                      type: "tool_result",
+                      toolCallId,
+                      toolName: resultToolName,
+                      isError,
+                      outputPreview,
+                      lineCount,
+                    });
                   }
                 }
               }
