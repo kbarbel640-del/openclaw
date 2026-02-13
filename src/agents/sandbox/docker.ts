@@ -6,6 +6,7 @@ import { computeSandboxConfigHash } from "./config-hash.js";
 import { DEFAULT_SANDBOX_IMAGE, SANDBOX_AGENT_WORKSPACE_MOUNT } from "./constants.js";
 import { readRegistry, updateRegistry } from "./registry.js";
 import { resolveSandboxAgentId, resolveSandboxScopeKey, slugifySessionKey } from "./shared.js";
+import { validateSetupCommand } from "./validate-setup-command.js";
 
 const HOT_CONTAINER_WINDOW_MS = 5 * 60 * 1000;
 
@@ -240,7 +241,14 @@ async function createSandboxContainer(params: {
   await execDocker(["start", name]);
 
   if (cfg.setupCommand?.trim()) {
-    await execDocker(["exec", "-i", name, "sh", "-lc", cfg.setupCommand]);
+    const result = validateSetupCommand(cfg.setupCommand);
+    if (!result.valid) {
+      defaultRuntime.log(
+        `Blocked unsafe setupCommand: ${result.reason}. Command: ${cfg.setupCommand}`,
+      );
+    } else {
+      await execDocker(["exec", "-i", name, "sh", "-lc", cfg.setupCommand]);
+    }
   }
 }
 

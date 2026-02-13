@@ -7,6 +7,7 @@ import {
   ToolsLinksSchema,
   ToolsMediaSchema,
 } from "./zod-schema.core.js";
+import { validateSetupCommand } from "../agents/sandbox/validate-setup-command.js";
 
 export const HeartbeatSchema = z
   .object({
@@ -96,7 +97,18 @@ export const SandboxDockerSchema = z
     user: z.string().optional(),
     capDrop: z.array(z.string()).optional(),
     env: z.record(z.string(), z.string()).optional(),
-    setupCommand: z.string().optional(),
+    setupCommand: z
+      .string()
+      .superRefine((val, ctx) => {
+        const result = validateSetupCommand(val);
+        if (!result.valid) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Invalid setupCommand: ${result.reason}`,
+          });
+        }
+      })
+      .optional(),
     pidsLimit: z.number().int().positive().optional(),
     memory: z.union([z.string(), z.number()]).optional(),
     memorySwap: z.union([z.string(), z.number()]).optional(),
