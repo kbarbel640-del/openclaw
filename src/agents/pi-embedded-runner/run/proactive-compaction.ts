@@ -26,7 +26,7 @@ export function needsProactiveCompaction(params: {
 }): boolean {
   const { messages, contextTokens, maxHistoryShare, modelId } = params;
 
-  // Get effective contextTokens from config, model lookup, or default
+  // Get effective contextTokens from config (highest priority), then model lookup, then default
   const effectiveContextTokens = contextTokens ?? lookupContextTokens(modelId) ?? DEFAULT_CONTEXT_TOKENS;
   const effectiveMaxHistoryShare = maxHistoryShare ?? 0.5;
 
