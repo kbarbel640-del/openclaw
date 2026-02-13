@@ -588,8 +588,13 @@ export async function runEmbeddedAttempt(
       // Ollama native API: bypass SDK's streamSimple and use direct /api/chat calls
       // for reliable streaming + tool calling support (#11828).
       if (params.model.api === "ollama") {
-        const providerConfig = params.config?.models?.providers?.ollama;
-        const ollamaBaseUrl = providerConfig?.baseUrl ?? OLLAMA_NATIVE_BASE_URL;
+        // Use the resolved model baseUrl first so custom provider aliases work.
+        const providerConfig = params.config?.models?.providers?.[params.model.provider];
+        const modelBaseUrl =
+          typeof params.model.baseUrl === "string" ? params.model.baseUrl.trim() : "";
+        const providerBaseUrl =
+          typeof providerConfig?.baseUrl === "string" ? providerConfig.baseUrl.trim() : "";
+        const ollamaBaseUrl = modelBaseUrl || providerBaseUrl || OLLAMA_NATIVE_BASE_URL;
         activeSession.agent.streamFn = createOllamaStreamFn(ollamaBaseUrl);
       } else {
         // Force a stable streamFn reference so vitest can reliably mock @mariozechner/pi-ai.

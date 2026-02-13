@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  createOllamaStreamFn,
   convertToOllamaMessages,
   buildAssistantMessage,
   parseNdjsonStream,
@@ -226,5 +227,61 @@ describe("parseNdjsonStream", () => {
     expect(accumulatedToolCalls[1].function.name).toBe("bash");
     // Final done:true chunk has no tool_calls
     expect(chunks[2].message.tool_calls).toBeUndefined();
+  });
+});
+
+describe("createOllamaStreamFn", () => {
+  it("normalizes /v1 baseUrl and maps maxTokens + signal", async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi.fn(async () => {
+      const payload = [
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":"ok"},"done":false}',
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":""},"done":true,"prompt_eval_count":1,"eval_count":1}',
+      ].join("\n");
+      return new Response(`${payload}\n`, {
+        status: 200,
+        headers: { "Content-Type": "application/x-ndjson" },
+      });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const streamFn = createOllamaStreamFn("http://ollama-host:11434/v1/");
+      const signal = new AbortController().signal;
+      const stream = streamFn(
+        {
+          id: "qwen3:32b",
+          api: "ollama",
+          provider: "custom-ollama",
+          contextWindow: 131072,
+        } as unknown as Parameters<typeof streamFn>[0],
+        {
+          messages: [{ role: "user", content: "hello" }],
+        } as unknown as Parameters<typeof streamFn>[1],
+        {
+          maxTokens: 123,
+          signal,
+        } as unknown as Parameters<typeof streamFn>[2],
+      );
+
+      const events = [];
+      for await (const event of stream) {
+        events.push(event);
+      }
+      expect(events.at(-1)?.type).toBe("done");
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("http://ollama-host:11434/api/chat");
+      expect(requestInit.signal).toBe(signal);
+
+      const requestBody = JSON.parse(String(requestInit.body)) as {
+        options: { num_ctx?: number; num_predict?: number };
+      };
+      expect(requestBody.options.num_ctx).toBe(131072);
+      expect(requestBody.options.num_predict).toBe(123);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

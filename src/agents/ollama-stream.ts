@@ -10,6 +10,8 @@ import type {
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
 import { randomUUID } from "node:crypto";
 
+export const OLLAMA_NATIVE_BASE_URL = "http://127.0.0.1:11434";
+
 // ── Ollama /api/chat request types ──────────────────────────────────────────
 
 interface OllamaChatRequest {
@@ -273,8 +275,15 @@ export async function* parseNdjsonStream(
 
 // ── Main StreamFn factory ───────────────────────────────────────────────────
 
+function resolveOllamaChatUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  const normalizedBase = trimmed.replace(/\/v1$/i, "");
+  const apiBase = normalizedBase || OLLAMA_NATIVE_BASE_URL;
+  return `${apiBase}/api/chat`;
+}
+
 export function createOllamaStreamFn(baseUrl: string): StreamFn {
-  const chatUrl = `${baseUrl.replace(/\/+$/, "")}/api/chat`;
+  const chatUrl = resolveOllamaChatUrl(baseUrl);
 
   return (model, context, options) => {
     const stream = createAssistantMessageEventStream();
@@ -293,6 +302,9 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
         const ollamaOptions: Record<string, unknown> = { num_ctx: model.contextWindow ?? 65536 };
         if (typeof options?.temperature === "number") {
           ollamaOptions.temperature = options.temperature;
+        }
+        if (typeof options?.maxTokens === "number") {
+          ollamaOptions.num_predict = options.maxTokens;
         }
 
         const body: OllamaChatRequest = {
@@ -315,6 +327,7 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
           method: "POST",
           headers,
           body: JSON.stringify(body),
+          signal: options?.signal,
         });
 
         if (!response.ok) {
@@ -404,5 +417,3 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
     return stream;
   };
 }
-
-export const OLLAMA_NATIVE_BASE_URL = "http://127.0.0.1:11434";
