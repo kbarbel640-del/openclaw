@@ -1,3 +1,4 @@
+import { runWithModelFallback } from "../../agents/model-fallback.js";
 import {
   abortEmbeddedPiRun,
   compactEmbeddedPiSession,
@@ -75,7 +76,7 @@ export const handleCompactCommand: CommandHandler = async (params) => {
     agentId: params.agentId,
     isGroup: params.isGroup,
   });
-  const result = await compactEmbeddedPiSession({
+  const compactBaseParams = {
     sessionId,
     sessionKey: params.sessionKey,
     messageChannel: params.command.channel,
@@ -94,19 +95,35 @@ export const handleCompactCommand: CommandHandler = async (params) => {
     workspaceDir: params.workspaceDir,
     config: params.cfg,
     skillsSnapshot: params.sessionEntry.skillsSnapshot,
-    provider: params.provider,
-    model: params.model,
     thinkLevel: params.resolvedThinkLevel ?? (await params.resolveDefaultThinkingLevel()),
     bashElevated: {
       enabled: false,
       allowed: false,
-      defaultLevel: "off",
+      defaultLevel: "off" as const,
     },
     customInstructions,
     trigger: "manual",
     senderIsOwner: params.command.senderIsOwner,
     ownerNumbers: params.command.ownerList.length > 0 ? params.command.ownerList : undefined,
+  };
+
+  const fallbackResult = await runWithModelFallback({
+    cfg: params.cfg,
+    provider: params.provider,
+    model: params.model,
+    run: async (provider, model) => {
+      const result = await compactEmbeddedPiSession({
+        ...compactBaseParams,
+        provider,
+        model,
+      });
+      if (!result.ok) {
+        throw new Error(result.reason || "Compaction failed");
+      }
+      return result;
+    },
   });
+  const result = fallbackResult.result;
 
   const compactLabel = result.ok
     ? result.compacted

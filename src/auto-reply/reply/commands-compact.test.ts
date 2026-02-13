@@ -1,0 +1,125 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { OpenClawConfig } from "../../config/config.js";
+import type { HandleCommandsParams } from "./commands-types.js";
+
+vi.mock("../../agents/pi-embedded.js", () => ({
+  abortEmbeddedPiRun: vi.fn(),
+  compactEmbeddedPiSession: vi.fn(async () => ({
+    ok: true,
+    compacted: true,
+    result: { tokensBefore: 20, tokensAfter: 10 },
+  })),
+  isEmbeddedPiRunActive: vi.fn(() => false),
+  waitForEmbeddedPiRunEnd: vi.fn(async () => undefined),
+}));
+
+vi.mock("../../agents/model-fallback.js", () => ({
+  runWithModelFallback: vi.fn(async ({ run }) => {
+    const provider = "fallback-provider";
+    const model = "fallback-model";
+    const result = await run(provider, model);
+    return { result, provider, model, attempts: [] };
+  }),
+}));
+
+vi.mock("../../config/sessions.js", () => ({
+  resolveFreshSessionTotalTokens: vi.fn(() => 0),
+  resolveSessionFilePath: vi.fn(() => "/tmp/session.jsonl"),
+  resolveSessionFilePathOptions: vi.fn(() => ({})),
+}));
+
+vi.mock("../../globals.js", () => ({
+  logVerbose: vi.fn(),
+}));
+
+vi.mock("../../infra/system-events.js", () => ({
+  enqueueSystemEvent: vi.fn(),
+}));
+
+vi.mock("../status.js", () => ({
+  formatContextUsageShort: vi.fn(() => "context"),
+  formatTokenCount: vi.fn(() => "count"),
+}));
+
+vi.mock("./mentions.js", () => ({
+  stripMentions: vi.fn((text) => text),
+  stripStructuralPrefixes: vi.fn((text) => text),
+}));
+
+vi.mock("./session-updates.js", () => ({
+  incrementCompactionCount: vi.fn(async () => undefined),
+}));
+
+import { runWithModelFallback } from "../../agents/model-fallback.js";
+import { compactEmbeddedPiSession } from "../../agents/pi-embedded.js";
+import { handleCompactCommand } from "./commands-compact.js";
+
+describe("handleCompactCommand", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("runs compaction through model fallback execution path", async () => {
+    const params: HandleCommandsParams = {
+      ctx: { CommandBody: "/compact" } as HandleCommandsParams["ctx"],
+      commandSource: "/compact",
+      cfg: {} as OpenClawConfig,
+      command: {
+        commandBodyNormalized: "/compact",
+        channel: "test-channel",
+        from: "user",
+        to: "bot",
+        isAuthorizedSender: true,
+        senderId: "user",
+        channelId: "chan",
+        ownerList: [],
+        senderIsOwner: true,
+        rawBodyNormalized: "/compact",
+        surface: "direct",
+      },
+      agentId: "agent",
+      directives: { hasStatusDirective: false },
+      elevated: { enabled: false, allowed: false, failures: [] },
+      sessionEntry: {
+        sessionId: "sess",
+        sessionFile: "/tmp/sess",
+        groupId: null,
+        groupChannel: null,
+        groupSpace: null,
+        spawnedBy: null,
+        totalTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        contextTokens: 0,
+        skillsSnapshot: undefined,
+        groupActivationNeedsSystemIntro: false,
+      },
+      sessionStore: {},
+      sessionKey: "sessKey",
+      sessionScope: "session",
+      workspaceDir: "/tmp/ws",
+      storePath: "/tmp/store",
+      defaultGroupActivation: () => "always",
+      resolvedThinkLevel: "high",
+      resolvedVerboseLevel: "off",
+      resolvedReasoningLevel: "off",
+      resolvedElevatedLevel: "off",
+      resolveDefaultThinkingLevel: async () => undefined,
+      provider: "primary-provider",
+      model: "primary-model",
+      contextTokens: 0,
+      isGroup: false,
+      skillCommands: [],
+    } as const;
+
+    await handleCompactCommand(params, true);
+
+    expect(runWithModelFallback).toHaveBeenCalled();
+    expect(compactEmbeddedPiSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "fallback-provider",
+        model: "fallback-model",
+      }),
+    );
+  });
+});
