@@ -1,12 +1,6 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { detectMime, extensionForMime, imageMimeFromFormat } from "./mime.js";
-import path from "node:path";
-import os from "node:os";
-
-// Helper for temp paths
-const tmp = (p: string) => path.join(os.tmpdir(), p);
-
+import { detectMime, extensionForMime, imageMimeFromFormat, isAudioFileName } from "./mime.js";
 
 async function makeOoxmlZip(opts: { mainMime: string; partPath: string }): Promise<Buffer> {
   const zip = new JSZip();
@@ -33,7 +27,7 @@ describe("mime detection", () => {
       mainMime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       partPath: "/word/document.xml",
     });
-    const mime = await detectMime({ buffer: buf, filePath: tmp("file.bin") });
+    const mime = await detectMime({ buffer: buf, filePath: "/tmp/file.bin" });
     expect(mime).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
   });
 
@@ -42,7 +36,7 @@ describe("mime detection", () => {
       mainMime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       partPath: "/ppt/presentation.xml",
     });
-    const mime = await detectMime({ buffer: buf, filePath: tmp("file.bin") });
+    const mime = await detectMime({ buffer: buf, filePath: "/tmp/file.bin" });
     expect(mime).toBe("application/vnd.openxmlformats-officedocument.presentationml.presentation");
   });
 
@@ -53,7 +47,7 @@ describe("mime detection", () => {
 
     const mime = await detectMime({
       buffer: buf,
-      filePath: tmp("file.xlsx"),
+      filePath: "/tmp/file.xlsx",
     });
     expect(mime).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   });
@@ -100,5 +94,19 @@ describe("extensionForMime", () => {
   it("returns undefined for null or undefined input", () => {
     expect(extensionForMime(null)).toBeUndefined();
     expect(extensionForMime(undefined)).toBeUndefined();
+  });
+});
+
+describe("isAudioFileName", () => {
+  it("matches known audio extensions", () => {
+    const cases = [
+      { fileName: "voice.mp3", expected: true },
+      { fileName: "voice.caf", expected: true },
+      { fileName: "voice.bin", expected: false },
+    ] as const;
+
+    for (const testCase of cases) {
+      expect(isAudioFileName(testCase.fileName)).toBe(testCase.expected);
+    }
   });
 });

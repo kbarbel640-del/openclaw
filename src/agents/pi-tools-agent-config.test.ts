@@ -154,7 +154,7 @@ describe("Agent-specific tool filtering", () => {
       workspaceDir: tmp("test-provider"),
       agentDir: tmp("agent-provider"),
       modelProvider: "google-antigravity",
-      modelId: "claude-opus-4-5-thinking",
+      modelId: "claude-opus-4-6-thinking",
     });
 
     const toolNames = tools.map((t) => t.name);
@@ -182,7 +182,7 @@ describe("Agent-specific tool filtering", () => {
       workspaceDir: tmp("test-provider-profile"),
       agentDir: tmp("agent-provider-profile"),
       modelProvider: "google-antigravity",
-      modelId: "claude-opus-4-5-thinking",
+      modelId: "claude-opus-4-6-thinking",
     });
 
     const toolNames = tools.map((t) => t.name);
