@@ -5,6 +5,7 @@ Official plugin maintained by MemTensor.
 A minimal OpenClaw lifecycle plugin that **recalls** memories from MemOS Cloud before each run and **adds** new messages to MemOS Cloud after each run.
 
 ## Features
+
 - **Recall**: `before_agent_start` → `/search/memory`
 - **Add**: `agent_end` → `/add/message`
 - Uses **Token** auth (`Authorization: Token <MEMOS_API_KEY>`)
@@ -12,11 +13,14 @@ A minimal OpenClaw lifecycle plugin that **recalls** memories from MemOS Cloud b
 ## Install
 
 ### Option A — GitHub
+
 ```bash
 openclaw plugins install github:MemTensor/MemOS-Cloud-OpenClaw-Plugin
 openclaw gateway restart
 ```
+
 Make sure it’s enabled in `~/.openclaw/openclaw.json`:
+
 ```json
 {
   "plugins": {
@@ -28,9 +32,11 @@ Make sure it’s enabled in `~/.openclaw/openclaw.json`:
 ```
 
 ### Option B — Local path
+
 Copy this folder into an OpenClaw plugin path (e.g. `~/.openclaw/extensions/`) or use `plugins.load.paths` to point at it.
 
 Example `~/.openclaw/openclaw.json`:
+
 ```json
 {
   "plugins": {
@@ -41,13 +47,16 @@ Example `~/.openclaw/openclaw.json`:
   }
 }
 ```
+
 Restart the gateway after config changes.
 
 ## Environment Variables
+
 The plugin tries env files in order (**openclaw → moltbot → clawdbot**). For each key, the first file with a value wins.
 If none of these files exist (or the key is missing), it falls back to the process environment.
 
 **Where to configure**
+
 - Files (priority order):
   - `~/.openclaw/.env`
   - `~/.moltbot/.env`
@@ -55,6 +64,7 @@ If none of these files exist (or the key is missing), it falls back to the proce
 - Each line is `KEY=value`
 
 **Quick setup (shell)**
+
 ```bash
 echo 'export MEMOS_API_KEY="mpg-..."' >> ~/.zshrc
 source ~/.zshrc
@@ -65,6 +75,7 @@ source ~/.bashrc
 ```
 
 **Quick setup (Windows PowerShell)**
+
 ```powershell
 [System.Environment]::SetEnvironmentVariable("MEMOS_API_KEY", "mpg-...", "User")
 ```
@@ -72,11 +83,13 @@ source ~/.bashrc
 If `MEMOS_API_KEY` is missing, the plugin will warn with setup instructions and the API key URL.
 
 **Minimal config**
+
 ```env
 MEMOS_API_KEY=YOUR_TOKEN
 ```
 
 **Optional config**
+
 - `MEMOS_BASE_URL` (default: `https://memos.memtensor.cn/api/openmem/v1`)
 - `MEMOS_API_KEY` (required; Token auth) — get it at https://memos-dashboard.openmem.net/cn/apikeys/
 - `MEMOS_USER_ID` (optional; default: `openclaw-user`)
@@ -87,7 +100,9 @@ MEMOS_API_KEY=YOUR_TOKEN
 - `MEMOS_CONVERSATION_RESET_ON_NEW` (default: `true`, requires hooks.internal.enabled)
 
 ## Optional Plugin Config
+
 In `plugins.entries.memos-cloud-openclaw-plugin.config`:
+
 ```json
 {
   "baseUrl": "https://memos.memtensor.cn/api/openmem/v1",
@@ -115,6 +130,7 @@ In `plugins.entries.memos-cloud-openclaw-plugin.config`:
 ```
 
 ## How it Works
+
 - **Recall** (`before_agent_start`)
   - Builds a `/search/memory` request using `user_id`, `query` (= prompt + optional prefix), and optional filters.
   - Default **global recall**: when `recallGlobal=true`, it does **not** pass `conversation_id`.
@@ -125,8 +141,10 @@ In `plugins.entries.memos-cloud-openclaw-plugin.config`:
   - Sends `messages` with `user_id`, `conversation_id`, and optional `tags/info/agent_id/app_id`.
 
 ## Notes
+
 - `conversation_id` defaults to OpenClaw `sessionKey` (unless `conversationId` is provided). **TODO**: consider binding to OpenClaw `sessionId` directly.
 - Optional **prefix/suffix** via env or config; `conversationSuffixMode=counter` increments on `/new` (requires `hooks.internal.enabled`).
 
 ## Acknowledgements
+
 - Thanks to @anatolykoptev (Contributor) — LinkedIn: https://www.linkedin.com/in/koptev?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app

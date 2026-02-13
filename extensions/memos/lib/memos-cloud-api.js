@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 const DEFAULT_BASE_URL = "https://memos.memtensor.cn/api/openmem/v1";
@@ -19,7 +19,7 @@ function stripQuotes(value) {
   if (!value) return value;
   const trimmed = value.trim();
   if (
-    (trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'"))
   ) {
     return trimmed.slice(1, -1);
@@ -133,8 +133,10 @@ export function buildConfig(pluginConfig = {}) {
     parseBool(loadEnvVar("MEMOS_RECALL_GLOBAL"), true),
   );
 
-  const conversationIdPrefix = cfg.conversationIdPrefix ?? loadEnvVar("MEMOS_CONVERSATION_PREFIX") ?? "";
-  const conversationIdSuffix = cfg.conversationIdSuffix ?? loadEnvVar("MEMOS_CONVERSATION_SUFFIX") ?? "";
+  const conversationIdPrefix =
+    cfg.conversationIdPrefix ?? loadEnvVar("MEMOS_CONVERSATION_PREFIX") ?? "";
+  const conversationIdSuffix =
+    cfg.conversationIdSuffix ?? loadEnvVar("MEMOS_CONVERSATION_SUFFIX") ?? "";
   const conversationSuffixMode =
     cfg.conversationSuffixMode ?? loadEnvVar("MEMOS_CONVERSATION_SUFFIX_MODE") ?? "none";
   const resetOnNew = parseBool(
@@ -254,7 +256,9 @@ function normalizePreferenceType(value) {
 
 function sanitizeInlineText(text) {
   if (text === undefined || text === null) return "";
-  return String(text).replace(/\r?\n+/g, " ").trim();
+  return String(text)
+    .replace(/\r?\n+/g, " ")
+    .trim();
 }
 
 function formatMemoryLine(item, text, options = {}) {
@@ -364,7 +368,7 @@ function buildPromptFromData(data, options = {}) {
     "2. **Execute**:",
     "   - Use only memories that pass filtering as context.",
     "   - Strictly follow style requirements from '<preferences>'.",
-    "3. **Output**: Answer directly. Never mention internal terms such as \"memory store\", \"retrieval\", or \"AI opinions\".",
+    '3. **Output**: Answer directly. Never mention internal terms such as "memory store", "retrieval", or "AI opinions".',
     "4. **Attention**: Additional memory context is already provided. Do not read from or write to local `MEMORY.md` or `memory/*` files for reference, as they may be outdated or irrelevant to the current query.",
     USER_QUERY_MARKER,
   ];

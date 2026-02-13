@@ -25,7 +25,7 @@ function warnMissingApiKey(log, context) {
       "echo 'export MEMOS_API_KEY=\"mpg-...\"' >> ~/.bashrc",
       "source ~/.bashrc",
       "or",
-      "[System.Environment]::SetEnvironmentVariable(\"MEMOS_API_KEY\", \"mpg-...\", \"User\")",
+      '[System.Environment]::SetEnvironmentVariable("MEMOS_API_KEY", "mpg-...", "User")',
       `Get API key: ${API_KEY_HELP_URL}`,
     ].join("\n"),
   );
@@ -54,7 +54,8 @@ function resolveConversationId(cfg, ctx) {
   if (cfg.conversationId) return cfg.conversationId;
   // TODO: consider binding conversation_id directly to OpenClaw sessionId (prefer ctx.sessionId).
   const base = ctx?.sessionKey || ctx?.sessionId || (ctx?.agentId ? `openclaw:${ctx.agentId}` : "");
-  const dynamicSuffix = cfg.conversationSuffixMode === "counter" ? getCounterSuffix(ctx?.sessionKey) : "";
+  const dynamicSuffix =
+    cfg.conversationSuffixMode === "counter" ? getCounterSuffix(ctx?.sessionKey) : "";
   const prefix = cfg.conversationIdPrefix || "";
   const suffix = cfg.conversationIdSuffix || "";
   if (base) return `${prefix}${base}${dynamicSuffix}${suffix}`;
@@ -112,7 +113,8 @@ function buildAddMessagePayload(cfg, messages, ctx) {
   if (Object.keys(info).length > 0) payload.info = info;
 
   payload.allow_public = cfg.allowPublic;
-  if (cfg.allowKnowledgebaseIds?.length) payload.allow_knowledgebase_ids = cfg.allowKnowledgebaseIds;
+  if (cfg.allowKnowledgebaseIds?.length)
+    payload.allow_knowledgebase_ids = cfg.allowKnowledgebaseIds;
   payload.async_mode = cfg.asyncMode;
 
   return payload;
@@ -139,7 +141,8 @@ function pickLastTurnMessages(messages, cfg) {
     }
     if (msg.role === "assistant" && cfg.includeAssistant) {
       const content = extractText(msg.content);
-      if (content) results.push({ role: "assistant", content: truncate(content, cfg.maxMessageChars) });
+      if (content)
+        results.push({ role: "assistant", content: truncate(content, cfg.maxMessageChars) });
     }
   }
 
@@ -156,7 +159,8 @@ function pickFullSessionMessages(messages, cfg) {
     }
     if (msg.role === "assistant" && cfg.includeAssistant) {
       const content = extractText(msg.content);
-      if (content) results.push({ role: "assistant", content: truncate(content, cfg.maxMessageChars) });
+      if (content)
+        results.push({ role: "assistant", content: truncate(content, cfg.maxMessageChars) });
     }
   }
   return results;
@@ -179,8 +183,11 @@ export default {
     const log = api.logger ?? console;
 
     if (!cfg.envFileStatus?.found) {
-      const searchPaths = cfg.envFileStatus?.searchPaths?.join(", ") ?? ENV_FILE_SEARCH_HINTS.join(", ");
-      log.warn?.(`[memos-cloud] No .env found in ${searchPaths}; falling back to process env or plugin config.`);
+      const searchPaths =
+        cfg.envFileStatus?.searchPaths?.join(", ") ?? ENV_FILE_SEARCH_HINTS.join(", ");
+      log.warn?.(
+        `[memos-cloud] No .env found in ${searchPaths}; falling back to process env or plugin config.`,
+      );
     }
 
     if (cfg.conversationSuffixMode === "counter" && cfg.resetOnNew) {
