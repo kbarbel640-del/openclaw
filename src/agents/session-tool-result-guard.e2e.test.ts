@@ -299,4 +299,52 @@ describe("installSessionToolResultGuard", () => {
       sourceTool: "sessions_send",
     });
   });
+
+  it("sanitizes invalid tool call IDs in assistant messages before persistence (#15621)", () => {
+    const sm = SessionManager.inMemory();
+    installSessionToolResultGuard(sm);
+
+    // Simulate a compaction-generated assistant message with invalid IDs
+    sm.appendMessage(
+      asAppendMessage({
+        role: "assistant",
+        content: [
+          { type: "toolUse", id: " functions.message:0", name: "message", input: {} },
+          { type: "toolCall", id: "functions.web_search:1", name: "web_search", arguments: {} },
+        ],
+      }),
+    );
+
+    const entries = sm.getEntries().filter((e) => e.type === "message");
+    const assistantEntry = entries.find(
+      (e) => (e as { message?: { role?: string } }).message?.role === "assistant",
+    ) as { message?: { content?: Array<{ id?: string }> } } | undefined;
+    const content = assistantEntry?.message?.content;
+    expect(content).toBeDefined();
+    // IDs should be sanitized to alphanumeric only (no spaces, dots, colons)
+    for (const block of content ?? []) {
+      if (block.id) {
+        expect(block.id).toMatch(/^[a-zA-Z0-9]+$/);
+      }
+    }
+  });
+
+  it("preserves valid tool call IDs unchanged", () => {
+    const sm = SessionManager.inMemory();
+    installSessionToolResultGuard(sm);
+
+    sm.appendMessage(
+      asAppendMessage({
+        role: "assistant",
+        content: [{ type: "toolUse", id: "toolu_abc123", name: "read", input: {} }],
+      }),
+    );
+
+    const entries = sm.getEntries().filter((e) => e.type === "message");
+    const assistantEntry = entries.find(
+      (e) => (e as { message?: { role?: string } }).message?.role === "assistant",
+    ) as { message?: { content?: Array<{ id?: string }> } } | undefined;
+    const content = assistantEntry?.message?.content;
+    expect(content?.[0]?.id).toBe("toolu_abc123");
+  });
 });
