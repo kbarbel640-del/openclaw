@@ -19,6 +19,7 @@ import { normalizeAccountId } from "../../routing/session-key.js";
 import { stripReasoningTagsFromText } from "../../shared/text/reasoning-tags.js";
 import { normalizeMessageChannel } from "../../utils/message-channel.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
+import { listCrossChannelActions } from "../channel-tools.js";
 import { listChannelSupportedActions } from "../channel-tools.js";
 import { channelTargetSchema, channelTargetsSchema, stringEnum } from "../schema/typebox.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
@@ -360,7 +361,7 @@ function buildMessageToolDescription(options?: {
 }): string {
   const baseDescription = "Send, delete, and manage messages via channel plugins.";
 
-  // If we have a current channel, show only its supported actions
+  // If we have a current channel, show its supported actions + cross-channel actions
   if (options?.currentChannel) {
     const channelActions = filterActionsForContext({
       actions: listChannelSupportedActions({
@@ -370,11 +371,28 @@ function buildMessageToolDescription(options?: {
       channel: options.currentChannel,
       currentChannelId: options.currentChannelId,
     });
-    if (channelActions.length > 0) {
-      // Always include "send" as a base action
-      const allActions = new Set(["send", ...channelActions]);
-      const actionList = Array.from(allActions).toSorted().join(", ");
-      return `${baseDescription} Current channel (${options.currentChannel}) supports: ${actionList}.`;
+
+    // Also gather cross-channel actions from other loaded plugins (e.g., x-* actions).
+    // Only includes actions from plugins OTHER than the current channel.
+    const crossChannelActions = listCrossChannelActions({
+      cfg: options.config,
+      excludeChannel: options.currentChannel,
+    });
+
+    if (channelActions.length > 0 || crossChannelActions.length > 0) {
+      const parts: string[] = [];
+      if (channelActions.length > 0) {
+        const currentActions = new Set(["send", ...channelActions]);
+        parts.push(
+          `Current channel (${options.currentChannel}) supports: ${Array.from(currentActions).toSorted().join(", ")}`,
+        );
+      }
+      if (crossChannelActions.length > 0) {
+        parts.push(
+          `Cross-channel actions also available: ${crossChannelActions.toSorted().join(", ")}`,
+        );
+      }
+      return `${baseDescription} ${parts.join(". ")}.`;
     }
   }
 

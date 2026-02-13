@@ -34,45 +34,42 @@ const XAccountSchema = z.object({
 });
 
 /**
- * Base configuration properties shared by both single and multi-account modes
+ * X plugin configuration schema.
+ *
+ * Supports two patterns (determined at runtime by which fields are present):
+ * 1. Single-account: credential fields at the top level (implicit "default" account)
+ * 2. Multi-account: credentials nested under `accounts.<id>`
+ *
+ * Flattened into a single z.object so the web UI form renderer can handle it
+ * (z.union / z.intersection produce "Unsupported schema node" in the form view).
  */
-const XConfigBaseSchema = z.object({
+export const XConfigSchema = z.object({
+  /** Account display name */
   name: z.string().optional(),
+  /** Enable the X channel */
   enabled: z.boolean().optional(),
+
+  // ── Single-account fields (top-level credentials) ──
+  /** Twitter/X Consumer Key (API Key) */
+  consumerKey: z.string().optional(),
+  /** Twitter/X Consumer Secret (API Secret) */
+  consumerSecret: z.string().optional(),
+  /** Twitter/X Access Token */
+  accessToken: z.string().optional(),
+  /** Twitter/X Access Token Secret */
+  accessTokenSecret: z.string().optional(),
+  /** Polling interval in seconds (default: 60, min: 15) */
+  pollIntervalSeconds: z.number().min(15).optional(),
+  /** Allowlist of X user IDs who can mention the bot (mention → reply). */
+  allowFrom: z.array(z.string()).optional(),
+  /** Allowlist of X user IDs who can trigger proactive X actions. */
+  actionsAllowFrom: z.array(z.string()).optional(),
+  /** HTTP proxy URL for API requests (e.g., http://127.0.0.1:7890) */
+  proxy: z.string().optional(),
+
+  // ── Multi-account field ──
+  /** Per-account configuration (for multi-account setups) */
+  accounts: z.record(z.string(), XAccountSchema).optional(),
 });
-
-/**
- * Simplified single-account configuration schema
- *
- * Use this for single-account setups. Properties are at the top level,
- * creating an implicit "default" account.
- */
-const SimplifiedSchema = z.intersection(XConfigBaseSchema, XAccountSchema);
-
-/**
- * Multi-account configuration schema
- *
- * Use this for multi-account setups. Each key is an account ID.
- */
-const MultiAccountSchema = z.intersection(
-  XConfigBaseSchema,
-  z
-    .object({
-      /** Per-account configuration (for multi-account setups) */
-      accounts: z.record(z.string(), XAccountSchema),
-    })
-    .refine((val) => Object.keys(val.accounts || {}).length > 0, {
-      message: "accounts must contain at least one entry",
-    }),
-);
-
-/**
- * X plugin configuration schema
- *
- * Supports two mutually exclusive patterns:
- * 1. Simplified single-account: credentials at top level
- * 2. Multi-account: accounts object with named account configs
- */
-export const XConfigSchema = z.union([SimplifiedSchema, MultiAccountSchema]);
 
 export type XConfig = z.infer<typeof XConfigSchema>;

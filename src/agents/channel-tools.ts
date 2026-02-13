@@ -48,6 +48,31 @@ export function listAllChannelSupportedActions(params: {
   return Array.from(actions);
 }
 
+/**
+ * Get actions from plugins OTHER than the specified channel.
+ * Used to build the "cross-channel actions" section in the message tool description.
+ */
+export function listCrossChannelActions(params: {
+  cfg?: OpenClawConfig;
+  excludeChannel: string;
+}): ChannelMessageActionName[] {
+  const actions = new Set<ChannelMessageActionName>();
+  const cfg = params.cfg ?? ({} as OpenClawConfig);
+  for (const plugin of listChannelPlugins()) {
+    if (plugin.id === params.excludeChannel) {
+      continue;
+    }
+    if (!plugin.actions?.listActions) {
+      continue;
+    }
+    const channelActions = runPluginListActions(plugin, cfg);
+    for (const action of channelActions) {
+      actions.add(action);
+    }
+  }
+  return Array.from(actions);
+}
+
 export function listChannelAgentTools(params: { cfg?: OpenClawConfig }): ChannelAgentTool[] {
   // Channel docking: aggregate channel-owned tools (login, etc.).
   const tools: ChannelAgentTool[] = [];
@@ -69,19 +94,44 @@ export function resolveChannelMessageToolHints(params: {
   channel?: string | null;
   accountId?: string | null;
 }): string[] {
-  const channelId = normalizeAnyChannelId(params.channel);
-  if (!channelId) {
-    return [];
-  }
-  const dock = getChannelDock(channelId);
-  const resolve = dock?.agentPrompt?.messageToolHints;
-  if (!resolve) {
-    return [];
-  }
   const cfg = params.cfg ?? ({} as OpenClawConfig);
-  return (resolve({ cfg, accountId: params.accountId }) ?? [])
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  const hints: string[] = [];
+  const channelId = normalizeAnyChannelId(params.channel);
+
+  // Current channel hints
+  if (channelId) {
+    const dock = getChannelDock(channelId);
+    const resolve = dock?.agentPrompt?.messageToolHints;
+    if (resolve) {
+      const resolved = (resolve({ cfg, accountId: params.accountId }) ?? [])
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+      hints.push(...resolved);
+    }
+  }
+
+  // Cross-channel hints: include messageToolHints from other loaded plugins
+  // that have registered actions (e.g. X plugin providing x-* action hints).
+  // This ensures the model knows about cross-channel capabilities.
+  for (const plugin of listChannelPlugins()) {
+    if (!plugin.agentPrompt?.messageToolHints) {
+      continue;
+    }
+    // Skip the current channel (already resolved above)
+    if (channelId && plugin.id === channelId) {
+      continue;
+    }
+    // Only include if the plugin has actions (i.e. it provides cross-channel operations)
+    if (!plugin.actions?.listActions) {
+      continue;
+    }
+    const pluginHints = (plugin.agentPrompt.messageToolHints({ cfg, accountId: null }) ?? [])
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    hints.push(...pluginHints);
+  }
+
+  return hints;
 }
 
 const loggedListActionErrors = new Set<string>();
