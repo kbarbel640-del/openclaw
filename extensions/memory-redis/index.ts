@@ -113,30 +113,29 @@ class RedisMemoryDB {
     } catch {
       // Index doesn't exist, create it
       try {
-        await this.client!.ft.create(
-          this.indexName,
-          {
-            "$.id": { type: "TAG", AS: "id" },
-            "$.text": { type: "TEXT", AS: "text" },
-            "$.category": { type: "TAG", AS: "category" },
-            "$.importance": { type: "NUMERIC", AS: "importance" },
-            "$.createdAt": { type: "NUMERIC", AS: "createdAt" },
-            "$.role": { type: "TAG", AS: "role" },
-            "$.embeddingModel": { type: "TAG", AS: "embeddingModel" },
-            "$.vector": {
-              type: "VECTOR",
-              AS: "vector",
-              ALGORITHM: "HNSW",
-              TYPE: "FLOAT32",
-              DIM: this.vectorDim,
-              DISTANCE_METRIC: "COSINE",
-            },
+        const schema = {
+          "$.id": { type: "TAG" as const, AS: "id" },
+          "$.text": { type: "TEXT" as const, AS: "text" },
+          "$.category": { type: "TAG" as const, AS: "category" },
+          "$.importance": { type: "NUMERIC" as const, AS: "importance" },
+          "$.createdAt": { type: "NUMERIC" as const, AS: "createdAt" },
+          "$.role": { type: "TAG" as const, AS: "role" },
+          "$.embeddingModel": { type: "TAG" as const, AS: "embeddingModel" },
+          "$.vector": {
+            type: "VECTOR" as const,
+            AS: "vector",
+            ALGORITHM: "HNSW" as const,
+            TYPE: "FLOAT32" as const,
+            DIM: this.vectorDim,
+            DISTANCE_METRIC: "COSINE" as const,
           },
-          {
-            ON: "JSON",
-            PREFIX: [this.keyPrefix],
-          },
-        );
+        };
+        const options = {
+          ON: "JSON" as const,
+          PREFIX: this.keyPrefix,
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (this.client!.ft.create as any)(this.indexName, schema, options);
         this.indexCreated = true;
         this.logger?.info?.(
           `memory-redis: created index ${this.indexName} (dim: ${this.vectorDim})`,
@@ -163,7 +162,8 @@ class RedisMemoryDB {
     await this.client!.json.set(
       key,
       "$",
-      fullEntry as unknown as Parameters<typeof this.client.json.set>[2],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fullEntry as any,
     );
 
     return fullEntry;

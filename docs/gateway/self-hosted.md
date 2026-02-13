@@ -42,6 +42,7 @@ Deploy OpenClaw on your own server and access the web UI from other machines on 
   ```
 
 - (Optional) Ollama for local embeddings:
+
   ```bash
   brew install ollama
   ollama pull nomic-embed-text
@@ -126,6 +127,7 @@ The gateway token can be set in two places. **Both must match** when using Docke
    ```
 
 2. **Docker environment** (`~/openclaw/.env`):
+
    ```
    OPENCLAW_GATEWAY_TOKEN=my-token
    ```
@@ -188,6 +190,7 @@ To enable persistent memory with Redis:
    ```
 
 3. Configure the plugin in `~/.openclaw/openclaw.json`:
+
    ```json
    {
      "plugins": {
@@ -230,6 +233,7 @@ Ensure the token in `~/.openclaw/openclaw.json` matches the `OPENCLAW_GATEWAY_TO
    ```
 
 2. Restart the gateway:
+
    ```bash
    docker compose restart openclaw-gateway
    ```
