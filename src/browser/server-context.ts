@@ -330,6 +330,16 @@ function createProfileContext(
       return;
     }
 
+    if (remoteCdp) {
+      if (opts.onEnsureAttachTarget) {
+        await opts.onEnsureAttachTarget(profile);
+        if (await isReachable(1200)) {
+          return;
+        }
+      }
+      throw new Error(`Remote CDP websocket for profile "${profile.name}" is not reachable.`);
+    }
+
     // HTTP responds but WebSocket fails - port in use by something else
     if (!profileState.running) {
       throw new Error(
@@ -339,7 +349,7 @@ function createProfileContext(
     }
 
     // We own it but WebSocket failed - restart
-    if (current.resolved.attachOnly || remoteCdp) {
+    if (current.resolved.attachOnly) {
       if (opts.onEnsureAttachTarget) {
         await opts.onEnsureAttachTarget(profile);
         if (await isReachable(1200)) {
@@ -347,9 +357,7 @@ function createProfileContext(
         }
       }
       throw new Error(
-        remoteCdp
-          ? `Remote CDP websocket for profile "${profile.name}" is not reachable.`
-          : `Browser attachOnly is enabled and CDP websocket for profile "${profile.name}" is not reachable.`,
+        `Browser attachOnly is enabled and CDP websocket for profile "${profile.name}" is not reachable.`,
       );
     }
 
