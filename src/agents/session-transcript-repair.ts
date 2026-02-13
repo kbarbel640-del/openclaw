@@ -116,8 +116,7 @@ export function repairToolCallInputs(messages: AgentMessage[]): ToolCallInputRep
       continue;
     }
 
-    const nextContent: any[] = [];
-    let droppedInMessage = 0;
+    const nextContent: unknown[] = [];
     let messageChanged = false;
 
     for (const block of msg.content) {
@@ -130,7 +129,6 @@ export function repairToolCallInputs(messages: AgentMessage[]): ToolCallInputRep
         // This minimizes the "orphan results" issue highlighted in PR review.
         if (!id || !hasToolCallInput(b)) {
           droppedToolCalls += 1;
-          droppedInMessage += 1;
           messageChanged = true;
           continue;
         }
@@ -159,7 +157,7 @@ export function repairToolCallInputs(messages: AgentMessage[]): ToolCallInputRep
         droppedAssistantMessages += 1;
         continue;
       }
-      out.push({ ...msg, content: nextContent });
+      out.push({ ...msg, content: nextContent as any });
       continue;
     }
 
