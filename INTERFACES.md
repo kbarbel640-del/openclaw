@@ -1963,3 +1963,330 @@ async def create_agent_message(
 ```
 
 ---
+
+## 批次 8：Agent 上下文 + 用量 (2026-02-13)
+
+---
+
+## openclaw_py.agents.context_window
+路径: openclaw_py/agents/context_window.py
+
+```python
+from openclaw_py.agents.context_window import (
+    CONTEXT_WINDOW_HARD_MIN_TOKENS,
+    CONTEXT_WINDOW_WARN_BELOW_TOKENS,
+    ContextWindowInfo,
+    ContextWindowGuardResult,
+    resolve_context_window_info,
+    evaluate_context_window_guard,
+)
+```
+
+### 常量
+
+```python
+CONTEXT_WINDOW_HARD_MIN_TOKENS = 16_000  # 硬性最小上下文窗口
+CONTEXT_WINDOW_WARN_BELOW_TOKENS = 32_000  # 警告阈值
+```
+
+### 数据模型
+
+**ContextWindowInfo** (NamedTuple):
+```python
+class ContextWindowInfo(NamedTuple):
+    """上下文窗口大小信息
+
+    Attributes:
+        tokens: 上下文窗口大小（token 数）
+        source: 来源（"model" | "modelsConfig" | "agentContextTokens" | "default"）
+    """
+    tokens: int
+    source: ContextWindowSource
+```
+
+**ContextWindowGuardResult** (NamedTuple):
+```python
+class ContextWindowGuardResult(NamedTuple):
+    """上下文窗口守卫评估结果
+
+    Attributes:
+        tokens: 上下文窗口大小
+        source: 来源
+        should_warn: 是否应该警告（< 32K）
+        should_block: 是否应该阻止（< 16K）
+    """
+    tokens: int
+    source: ContextWindowSource
+    should_warn: bool
+    should_block: bool
+```
+
+### 函数
+
+```python
+def resolve_context_window_info(
+    cfg: OpenClawConfig | None,
+    provider: str,
+    model_id: str,
+    model_context_window: int | None = None,
+    default_tokens: int = DEFAULT_CONTEXT_TOKENS,
+) -> ContextWindowInfo:
+    """从多个来源解析上下文窗口大小
+
+    优先级：modelsConfig > model_context_window > default_tokens
+    如果配置了 agentContextTokens 上限，会应用该上限。
+    """
+
+def evaluate_context_window_guard(
+    info: ContextWindowInfo,
+    warn_below_tokens: int | None = None,
+    hard_min_tokens: int | None = None,
+) -> ContextWindowGuardResult:
+    """评估上下文窗口是否应触发警告或阻止"""
+```
+
+---
+
+## openclaw_py.agents.token_estimation
+路径: openclaw_py/agents/token_estimation.py
+
+```python
+from openclaw_py.agents.token_estimation import (
+    estimate_tokens,
+    estimate_messages_tokens,
+)
+```
+
+### 函数
+
+```python
+def estimate_tokens(message: AgentMessage) -> int:
+    """估算单条消息的 token 数
+    
+    使用简单启发式：字符数 / 4 + 角色开销
+    支持字符串和结构化内容（list）
+    """
+
+def estimate_messages_tokens(messages: list[AgentMessage]) -> int:
+    """估算消息列表的总 token 数"""
+```
+
+---
+
+## openclaw_py.agents.message_chunking
+路径: openclaw_py/agents/message_chunking.py
+
+```python
+from openclaw_py.agents.message_chunking import (
+    BASE_CHUNK_RATIO,
+    MIN_CHUNK_RATIO,
+    SAFETY_MARGIN,
+    split_messages_by_token_share,
+    chunk_messages_by_max_tokens,
+    compute_adaptive_chunk_ratio,
+    is_oversized_for_summary,
+)
+```
+
+### 常量
+
+```python
+BASE_CHUNK_RATIO = 0.4  # 基础分块比例（上下文的 40%）
+MIN_CHUNK_RATIO = 0.15  # 最小分块比例（上下文的 15%）
+SAFETY_MARGIN = 1.2  # 安全边际（20% 缓冲）
+```
+
+### 函数
+
+```python
+def split_messages_by_token_share(
+    messages: list[AgentMessage],
+    parts: int = 2,
+) -> list[list[AgentMessage]]:
+    """按 token 份额分割消息（用于并行总结）"""
+
+def chunk_messages_by_max_tokens(
+    messages: list[AgentMessage],
+    max_tokens: int,
+) -> list[list[AgentMessage]]:
+    """按最大 token 数分割消息"""
+
+def compute_adaptive_chunk_ratio(
+    messages: list[AgentMessage],
+    context_window: int,
+) -> float:
+    """计算自适应分块比例（基于平均消息大小）"""
+
+def is_oversized_for_summary(
+    message: AgentMessage,
+    context_window: int,
+) -> bool:
+    """检查单条消息是否过大无法总结（> 50% 上下文窗口）"""
+```
+
+---
+
+## openclaw_py.agents.compaction
+路径: openclaw_py/agents/compaction.py
+
+```python
+from openclaw_py.agents.compaction import (
+    PruneHistoryResult,
+    prune_history_for_context_share,
+)
+```
+
+### 数据模型
+
+**PruneHistoryResult** (NamedTuple):
+```python
+class PruneHistoryResult(NamedTuple):
+    """历史修剪结果
+
+    Attributes:
+        messages: 修剪后保留的消息
+        dropped_messages_list: 被删除的消息列表
+        dropped_chunks: 删除的块数
+        dropped_messages: 删除的消息总数
+        dropped_tokens: 删除的 token 总数
+        kept_tokens: 保留的 token 总数
+        budget_tokens: 强制执行的 token 预算
+    """
+    messages: list[AgentMessage]
+    dropped_messages_list: list[AgentMessage]
+    dropped_chunks: int
+    dropped_messages: int
+    dropped_tokens: int
+    kept_tokens: int
+    budget_tokens: int
+```
+
+### 函数
+
+```python
+def prune_history_for_context_share(
+    messages: list[AgentMessage],
+    max_context_tokens: int,
+    max_history_share: float = 0.5,
+    parts: int = 2,
+) -> PruneHistoryResult:
+    """修剪消息历史以适应上下文窗口预算
+    
+    删除最旧的消息块，直到历史适应预算。
+    每次删除后修复 tool_use/tool_result 配对。
+    """
+```
+
+---
+
+## openclaw_py.agents.transcript_repair
+路径: openclaw_py/agents/transcript_repair.py
+
+```python
+from openclaw_py.agents.transcript_repair import (
+    ToolUseRepairReport,
+    ToolCallInputRepairReport,
+    repair_tool_use_result_pairing,
+    repair_tool_call_inputs,
+    make_missing_tool_result,
+)
+```
+
+### 数据模型
+
+**ToolUseRepairReport** (NamedTuple):
+```python
+class ToolUseRepairReport(NamedTuple):
+    """tool_use/tool_result 修复报告"""
+    messages: list[AgentMessage]
+    added: list[AgentMessage]  # 添加的合成 tool_result
+    dropped_duplicate_count: int  # 删除的重复数
+    dropped_orphan_count: int  # 删除的孤立数
+    moved: bool  # 是否移动了 tool_result
+```
+
+**ToolCallInputRepairReport** (NamedTuple):
+```python
+class ToolCallInputRepairReport(NamedTuple):
+    """tool_call 输入修复报告"""
+    messages: list[AgentMessage]
+    dropped_tool_calls: int  # 删除的无效 tool_call
+    dropped_assistant_messages: int  # 删除的空消息
+```
+
+### 函数
+
+```python
+def repair_tool_use_result_pairing(
+    messages: list[AgentMessage],
+) -> ToolUseRepairReport:
+    """修复 tool_use/tool_result 配对问题
+    
+    - 移动匹配的 tool_result 到 assistant 后
+    - 为缺失 ID 插入合成错误 tool_result
+    - 删除重复和孤立的 tool_result
+    """
+
+def repair_tool_call_inputs(
+    messages: list[AgentMessage],
+) -> ToolCallInputRepairReport:
+    """修复缺少 input/arguments 的 tool_call
+    
+    删除无效的 tool_call 块。
+    """
+
+def make_missing_tool_result(
+    tool_call_id: str,
+    tool_name: str | None = None,
+) -> AgentMessage:
+    """创建缺失 tool_result 的合成错误消息"""
+```
+
+---
+
+## openclaw_py.agents.usage (批次 8 增强)
+路径: openclaw_py/agents/usage.py
+
+### 批次 8 新增函数
+
+```python
+from openclaw_py.agents.usage import (
+    # 批次 7 已有：normalize_usage, derive_prompt_tokens, merge_usage
+    # 批次 8 新增：
+    has_nonzero_usage,
+    derive_session_total_tokens,
+)
+
+def has_nonzero_usage(usage: UsageInfo | None) -> bool:
+    """检查用量是否有任何非零 token 计数"""
+
+def derive_session_total_tokens(
+    usage: UsageInfo | None,
+    context_tokens: int | None = None,
+) -> int | None:
+    """计算会话总 token 数（input + cache，限制在上下文窗口内）"""
+```
+
+---
+
+## openclaw_py.agents.types (批次 8 增强)
+路径: openclaw_py/agents/types.py
+
+### 批次 8 变更
+
+**AgentMessage** 类型增强：
+```python
+class AgentMessage(BaseModel):
+    """对话消息（批次 8 增强：支持结构化内容）"""
+    
+    # 批次 8：新增 "toolResult" 角色
+    role: Literal["system", "user", "assistant", "toolResult"]
+    
+    # 批次 8：content 支持 list（用于 tool_use blocks）
+    content: str | list[Any]
+    
+    name: str | None = None
+    metadata: dict[str, Any] | None = None
+```
+
+---

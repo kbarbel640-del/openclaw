@@ -323,3 +323,46 @@
 
 ---
 
+
+---
+
+## 批次 8：Agent 上下文 + 用量（2026-02-13）
+
+**新增文件**：
+- openclaw_py/agents/context_window.py - 上下文窗口管理（解析、守卫、警告）
+- openclaw_py/agents/token_estimation.py - Token 估算（简单启发式）
+- openclaw_py/agents/message_chunking.py - 消息分块（按份额、按最大 token）
+- openclaw_py/agents/compaction.py - 上下文压缩（历史修剪）
+- openclaw_py/agents/transcript_repair.py - 消息对修复（tool_use/tool_result 配对）
+- openclaw_py/agents/usage.py - 增强版用量追踪（新增 2 个函数）
+- tests/agents/test_context_window.py - 上下文窗口测试（10 个测试）
+- tests/agents/test_token_estimation.py - Token 估算测试（8 个测试）
+- tests/agents/test_message_chunking.py - 消息分块测试（14 个测试）
+- tests/agents/test_compaction.py - 上下文压缩测试（8 个测试）
+- tests/agents/test_transcript_repair.py - 消息对修复测试（17 个测试）
+- tests/agents/test_usage.py - 用量追踪测试（增强，新增 10 个测试）
+
+**核心变更**：
+- 实现完整的 Agent 上下文管理系统
+- 上下文窗口解析和守卫（从多个来源：model、modelsConfig、default，支持硬性最小值 16K 和警告阈值 32K）
+- Token 估算（使用字符数 / 4 启发式，支持字符串和结构化内容）
+- 消息分块（按 token 份额、按最大 token 数、自适应分块比例）
+- 上下文压缩（修剪历史消息以适应预算，删除最旧的块）
+- 消息对修复（修复 tool_use/tool_result 配对问题，处理重复、孤立、缺失的 tool_result）
+- 用量追踪增强（has_nonzero_usage, derive_session_total_tokens）
+- AgentMessage 类型增强：
+  - role 新增 "toolResult" 支持
+  - content 支持 str | list[Any]（结构化内容，用于 tool_use blocks）
+- 75 个新测试，全部通过
+
+**依赖的已有模块**：
+- openclaw_py.config - OpenClawConfig, ModelsConfig 配置模型
+- openclaw_py.agents.types - AgentMessage, UsageInfo 数据模型
+- openclaw_py.agents.defaults - DEFAULT_CONTEXT_TOKENS 等常量
+- openclaw_py.agents.model_catalog - get_model_info 模型查询
+- openclaw_py.logging - log_debug, log_info 日志函数
+
+**已知问题**：
+- 无
+
+**测试结果**：108 passed（75 new + 33 from batch 7）

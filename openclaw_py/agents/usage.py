@@ -160,3 +160,77 @@ def merge_usage(usage1: UsageInfo | None, usage2: UsageInfo | None) -> UsageInfo
         or None,
         total_tokens=(usage1.total_tokens or 0) + (usage2.total_tokens or 0) or None,
     )
+
+
+def has_nonzero_usage(usage: UsageInfo | None) -> bool:
+    """Check if usage has any non-zero token counts.
+
+    Args:
+        usage: Usage info to check
+
+    Returns:
+        True if any token count is positive
+
+    Examples:
+        >>> usage = UsageInfo(input_tokens=100, output_tokens=50)
+        >>> has_nonzero_usage(usage)
+        True
+
+        >>> empty_usage = UsageInfo()
+        >>> has_nonzero_usage(empty_usage)
+        False
+    """
+    if not usage:
+        return False
+
+    return any(
+        isinstance(v, int) and v > 0
+        for v in [
+            usage.input_tokens,
+            usage.output_tokens,
+            usage.cache_read_tokens,
+            usage.cache_creation_tokens,
+            usage.total_tokens,
+        ]
+    )
+
+
+def derive_session_total_tokens(usage: UsageInfo | None, context_tokens: int | None = None) -> int | None:
+    """Calculate session total tokens (input + cache, capped at context window).
+
+    This is used to track how much of the context window is being used.
+
+    Args:
+        usage: Usage info
+        context_tokens: Context window size (optional cap)
+
+    Returns:
+        Total session tokens or None
+
+    Examples:
+        >>> usage = UsageInfo(input_tokens=100, cache_read_tokens=20)
+        >>> derive_session_total_tokens(usage)
+        120
+
+        >>> # With context cap
+        >>> large_usage = UsageInfo(input_tokens=300000)
+        >>> derive_session_total_tokens(large_usage, context_tokens=200000)
+        200000
+    """
+    if not usage:
+        return None
+
+    input_tokens = usage.input_tokens or 0
+    prompt_tokens = derive_prompt_tokens(usage)
+
+    # Use prompt_tokens if available, otherwise fall back to input or total
+    total = prompt_tokens or usage.total_tokens or input_tokens
+
+    if not total or total <= 0:
+        return None
+
+    # Cap at context window if provided
+    if context_tokens is not None and isinstance(context_tokens, int) and context_tokens > 0:
+        total = min(total, context_tokens)
+
+    return total

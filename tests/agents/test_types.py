@@ -62,11 +62,16 @@ def test_agent_message_creation():
 
 def test_agent_message_validation():
     """Test AgentMessage validation."""
+    # Invalid role should raise error
     with pytest.raises(ValidationError):
-        AgentMessage(role="invalid", content="test")
+        AgentMessage(role="invalid", content="test")  # type: ignore
 
-    with pytest.raises(ValidationError):
-        AgentMessage(role="user", content="")
+    # Content can be string or list (batch 8 enhancement for tool calls)
+    msg1 = AgentMessage(role="user", content="test")
+    assert msg1.content == "test"
+
+    msg2 = AgentMessage(role="assistant", content=[{"type": "text", "text": "hello"}])
+    assert isinstance(msg2.content, list)
 
 
 def test_agent_response_creation():

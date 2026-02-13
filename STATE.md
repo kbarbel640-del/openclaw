@@ -1,7 +1,7 @@
 # 迁移状态
 
 ## 当前批次
-batch: 8
+batch: 9
 status: not_started
 
 ## 批次进度
@@ -14,7 +14,7 @@ status: not_started
 | 5 | Gateway HTTP | ✅ | 2026-02-13 | 2d8d42d |
 | 6 | Gateway WebSocket | ✅ | 2026-02-13 | b5c5e27 |
 | 7 | Agent 模型调用 | ✅ | 2026-02-13 | 5c247af |
-| 8 | Agent 上下文 + 用量 | ⬜ | - | - |
+| 8 | Agent 上下文 + 用量 | ✅ | 2026-02-13 | pending |
 | 9 | Agent 工具 + Skills | ⬜ | - | - |
 | 10 | Telegram 核心 Bot | ⬜ | - | - |
 | 11 | Telegram 媒体/Webhook/群组 | ⬜ | - | - |
@@ -24,7 +24,10 @@ status: not_started
 | 15 | 集成测试 + 联调 | ⬜ | - | - |
 
 ## 已生成的 Python 文件
+- openclaw_py/agents/compaction.py
+- openclaw_py/agents/context_window.py
 - openclaw_py/agents/defaults.py
+- openclaw_py/agents/message_chunking.py
 - openclaw_py/agents/model_catalog.py
 - openclaw_py/agents/model_selection.py
 - openclaw_py/agents/providers/anthropic_provider.py
@@ -32,6 +35,8 @@ status: not_started
 - openclaw_py/agents/providers/litellm_provider.py
 - openclaw_py/agents/providers/openai_provider.py
 - openclaw_py/agents/runtime.py
+- openclaw_py/agents/token_estimation.py
+- openclaw_py/agents/transcript_repair.py
 - openclaw_py/agents/types.py
 - openclaw_py/agents/usage.py
 - openclaw_py/config/defaults.py

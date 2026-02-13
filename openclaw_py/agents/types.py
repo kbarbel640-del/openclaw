@@ -53,11 +53,11 @@ class UsageInfo(BaseModel):
 class AgentMessage(BaseModel):
     """Message in agent conversation.
 
-    Simplified format for batch 7. Full context management in batch 8.
+    Supports both simple string content and structured content (tool calls, etc.).
     """
 
-    role: Literal["system", "user", "assistant"] = Field(...)
-    content: str = Field(..., min_length=1)
+    role: Literal["system", "user", "assistant", "toolResult"] = Field(...)
+    content: str | list[Any] = Field(...)
 
     # Optional metadata
     name: str | None = None

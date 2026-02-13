@@ -5,7 +5,7 @@ OpenClaw 个人 AI 助手。后端从 TypeScript 转 Python，前端 UI 保留�
 只保留 Telegram 频道，其他频道删除。全功能保留。
 
 ## 当前进度
-**批次 7 / 15：Agent 运行时 - 模型调用** ✅ 已完成
+**批次 8 / 15：Agent 上下文 + 用量** ✅ 已完成
 
 ## 已完成的 Python 文件
 - openclaw_py/types/base.py - 核心基础类型（14 个 Literal 类型 + normalize_chat_type 函数）
@@ -14,7 +14,7 @@ OpenClaw 个人 AI 助手。后端从 TypeScript 转 Python，前端 UI 保留�
 - openclaw_py/utils/common.py - 通用工具函数（文件系统、数字、字符串、JSON、类型守卫）
 - openclaw_py/sessions/*.py - 会话管理（types, key_utils, label, store, memory_store）
 - openclaw_py/gateway/*.py - Gateway HTTP + WebSocket 服务器（types, http_common, auth, app, server, routes/*, ws_types, ws_protocol, ws_broadcast, ws_connection, ws_server）
-- openclaw_py/agents/*.py - Agent 运行时基础（types, defaults, usage, model_selection, model_catalog, runtime）
+- openclaw_py/agents/*.py - Agent 运行时（types, defaults, usage, model_selection, model_catalog, runtime, context_window, token_estimation, message_chunking, compaction, transcript_repair）
 - openclaw_py/agents/providers/*.py - AI 提供商（base, anthropic_provider, openai_provider, litellm_provider）
 
 ## 环境
@@ -83,7 +83,7 @@ extensions/、Swabble/、apps/
 5.  ✅ Gateway 服务器 - HTTP
 6.  ✅ Gateway 服务器 - WebSocket
 7.  ✅ Agent 运行时 - 模型调用
-8.  ⬜ Agent 上下文 + 用量
+8.  ✅ Agent 上下文 + 用量
 9.  ⬜ Agent 工具 + Skills 🎯 v0.2-engine
 10. ⬜ Telegram - 核心 Bot
 11. ⬜ Telegram - 媒体/Webhook/群组
