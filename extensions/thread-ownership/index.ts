@@ -4,6 +4,12 @@ type ThreadOwnershipConfig = {
   forwarderUrl?: string;
   abTestChannels?: string[];
 };
+type LegacyAgentConfig = {
+  agent?: {
+    id?: string;
+    name?: string;
+  };
+};
 
 // In-memory set of {channel}:{thread} keys where this agent was @-mentioned.
 // Entries expire after 5 minutes.
@@ -33,8 +39,9 @@ export default function register(api: OpenClawPluginApi) {
       [],
   );
 
-  const agentId = api.id ?? "unknown";
-  const agentName = api.name ?? "";
+  const legacyAgent = (api.config as LegacyAgentConfig).agent;
+  const agentId = legacyAgent?.id ?? api.id ?? "unknown";
+  const agentName = legacyAgent?.name ?? api.name ?? "";
   const botUserId = process.env.SLACK_BOT_USER_ID ?? "";
 
   // ---------------------------------------------------------------------------
