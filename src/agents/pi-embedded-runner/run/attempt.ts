@@ -91,6 +91,7 @@ import {
 import { splitSdkTools } from "../tool-split.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
 import { detectAndLoadPromptImages } from "./images.js";
+import { createEphemeralToolContextWrapper } from "./tool-context-ephemeral.js";
 
 export function injectHistoryImagesIntoMessages(
   messages: AgentMessage[],
@@ -211,46 +212,49 @@ export async function runEmbeddedAttempt(
     const modelHasVision = params.model.input?.includes("image") ?? false;
     const modelHasToolSupport = modelSupportsTools(params.model);
     if (!modelHasToolSupport) {
-      log.debug(`Tools disabled for model ${params.modelId}: compat.supportedParameters does not include "tools"`);
+      log.debug(
+        `Tools disabled for model ${params.modelId}: compat.supportedParameters does not include "tools"`,
+      );
     }
-    const toolsRaw = params.disableTools || !modelHasToolSupport
-      ? []
-      : createOpenClawCodingTools({
-          exec: {
-            ...params.execOverrides,
-            elevated: params.bashElevated,
-          },
-          sandbox,
-          messageProvider: params.messageChannel ?? params.messageProvider,
-          agentAccountId: params.agentAccountId,
-          messageTo: params.messageTo,
-          messageThreadId: params.messageThreadId,
-          groupId: params.groupId,
-          groupChannel: params.groupChannel,
-          groupSpace: params.groupSpace,
-          spawnedBy: params.spawnedBy,
-          senderId: params.senderId,
-          senderName: params.senderName,
-          senderUsername: params.senderUsername,
-          senderE164: params.senderE164,
-          senderIsOwner: params.senderIsOwner,
-          sessionKey: params.sessionKey ?? params.sessionId,
-          agentDir,
-          workspaceDir: effectiveWorkspace,
-          config: params.config,
-          abortSignal: runAbortController.signal,
-          modelProvider: params.model.provider,
-          modelId: params.modelId,
-          modelAuthMode: resolveModelAuthMode(params.model.provider, params.config),
-          currentChannelId: params.currentChannelId,
-          currentThreadTs: params.currentThreadTs,
-          replyToMode: params.replyToMode,
-          hasRepliedRef: params.hasRepliedRef,
-          modelHasVision,
-          requireExplicitMessageTarget:
-            params.requireExplicitMessageTarget ?? isSubagentSessionKey(params.sessionKey),
-          disableMessageTool: params.disableMessageTool,
-        });
+    const toolsRaw =
+      params.disableTools || !modelHasToolSupport
+        ? []
+        : createOpenClawCodingTools({
+            exec: {
+              ...params.execOverrides,
+              elevated: params.bashElevated,
+            },
+            sandbox,
+            messageProvider: params.messageChannel ?? params.messageProvider,
+            agentAccountId: params.agentAccountId,
+            messageTo: params.messageTo,
+            messageThreadId: params.messageThreadId,
+            groupId: params.groupId,
+            groupChannel: params.groupChannel,
+            groupSpace: params.groupSpace,
+            spawnedBy: params.spawnedBy,
+            senderId: params.senderId,
+            senderName: params.senderName,
+            senderUsername: params.senderUsername,
+            senderE164: params.senderE164,
+            senderIsOwner: params.senderIsOwner,
+            sessionKey: params.sessionKey ?? params.sessionId,
+            agentDir,
+            workspaceDir: effectiveWorkspace,
+            config: params.config,
+            abortSignal: runAbortController.signal,
+            modelProvider: params.model.provider,
+            modelId: params.modelId,
+            modelAuthMode: resolveModelAuthMode(params.model.provider, params.config),
+            currentChannelId: params.currentChannelId,
+            currentThreadTs: params.currentThreadTs,
+            replyToMode: params.replyToMode,
+            hasRepliedRef: params.hasRepliedRef,
+            modelHasVision,
+            requireExplicitMessageTarget:
+              params.requireExplicitMessageTarget ?? isSubagentSessionKey(params.sessionKey),
+            disableMessageTool: params.disableMessageTool,
+          });
     const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
     logToolSchemasForGoogle({ tools, provider: params.provider });
 
@@ -548,6 +552,17 @@ export async function runEmbeddedAttempt(
       if (anthropicPayloadLogger) {
         activeSession.agent.streamFn = anthropicPayloadLogger.wrapStreamFn(
           activeSession.agent.streamFn,
+        );
+      }
+      if (transcriptPolicy.ephemeralToolContext) {
+        activeSession.agent.streamFn = createEphemeralToolContextWrapper(
+          activeSession.agent.streamFn,
+          {
+            runId: params.runId,
+            sessionId: params.sessionId,
+            provider: params.provider,
+            modelId: params.modelId,
+          },
         );
       }
 
