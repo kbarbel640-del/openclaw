@@ -43,8 +43,6 @@ describe("ZAI provider", () => {
 	it("discovers zai models from /models and filters non-glm ids", async () => {
 		const agentDir = mkdtempSync(join(tmpdir(), "openclaw-test-zai-"));
 		process.env.ZAI_API_KEY = "test-key";
-		delete process.env.VITEST;
-		delete process.env.NODE_ENV;
 
 		const fetchMock = vi.fn(async () => {
 			return {
@@ -56,7 +54,10 @@ describe("ZAI provider", () => {
 		});
 		vi.stubGlobal("fetch", fetchMock);
 
-		const providers = await resolveImplicitProviders({ agentDir });
+		const providers = await resolveImplicitProviders({
+			agentDir,
+			allowTestProviderDiscovery: true,
+		});
 		const ids = providers?.zai?.models?.map((model) => model.id);
 		expect(ids).toEqual(["glm-5", "glm-4.6"]);
 		expect(fetchMock).toHaveBeenCalledWith(
