@@ -200,14 +200,23 @@ export function clearCommandLane(lane: string = CommandLane.Main) {
  * preserved — they represent pending user work that should still execute
  * after restart.
  *
- * Does not call `drainLane()` directly. New work naturally resumes when the
- * next `enqueueCommandInLane()` call triggers a fresh drain pass.
+ * After resetting, drains any lanes that still have queued entries so
+ * preserved work is pumped immediately rather than waiting for a future
+ * `enqueueCommandInLane()` call (which may never come).
  */
 export function resetAllLanes(): void {
+  const lanesToDrain: string[] = [];
   for (const state of lanes.values()) {
     state.generation += 1;
     state.activeTaskIds.clear();
     state.draining = false;
+    if (state.queue.length > 0) {
+      lanesToDrain.push(state.lane);
+    }
+  }
+  // Drain after the full reset pass so all lanes are in a clean state first.
+  for (const lane of lanesToDrain) {
+    drainLane(lane);
   }
 }
 

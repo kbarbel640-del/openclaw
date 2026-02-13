@@ -169,7 +169,7 @@ describe("command queue", () => {
     await task;
   });
 
-  it("resetAllLanes requires a fresh enqueue to trigger draining", async () => {
+  it("resetAllLanes drains queued work immediately after reset", async () => {
     const lane = `reset-test-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     setCommandLaneConcurrency(lane, 1);
 
@@ -196,31 +196,18 @@ describe("command queue", () => {
     await new Promise((r) => setTimeout(r, 5));
     expect(task2Ran).toBe(false);
 
-    // Simulate SIGUSR1: reset all lanes (as if interrupted tasks' finally blocks never ran).
+    // Simulate SIGUSR1: reset all lanes. Queued work (task2) should be
+    // drained immediately — no fresh enqueue needed.
     resetAllLanes();
 
-    // Complete the stale in-flight task; generation mismatch should make
-    // its completion path a no-op for queue bookkeeping/draining.
+    // Complete the stale in-flight task; generation mismatch makes its
+    // completion path a no-op for queue bookkeeping.
     resolve1();
     await task1;
-    await new Promise((r) => setTimeout(r, 5));
 
-    const task2BeforeTrigger = await Promise.race([
-      task2.then(() => "ran"),
-      new Promise<"timed-out">((resolve) => setTimeout(() => resolve("timed-out"), 50)),
-    ]);
-    expect(task2BeforeTrigger).toBe("timed-out");
-    expect(task2Ran).toBe(false);
-
-    // A fresh enqueue triggers drain and allows queued work to resume.
-    let task3Ran = false;
-    const task3 = enqueueCommandInLane(lane, async () => {
-      task3Ran = true;
-    });
-
-    await Promise.all([task2, task3]);
+    // task2 should have been pumped by resetAllLanes's drain pass.
+    await task2;
     expect(task2Ran).toBe(true);
-    expect(task3Ran).toBe(true);
   });
 
   it("waitForActiveTasks ignores tasks that start after the call", async () => {
