@@ -12,6 +12,7 @@ import {
   resolveOutboundTarget,
   resolveSessionDeliveryTarget,
 } from "../../infra/outbound/targets.js";
+import { logDebug } from "../../logger.js";
 
 export async function resolveDeliveryTarget(
   cfg: OpenClawConfig,
@@ -84,6 +85,9 @@ export async function resolveDeliveryTarget(
     : resolved.threadId && resolved.to && resolved.to === resolved.lastTo
       ? resolved.threadId
       : undefined;
+  logDebug(
+    `[cron:delivery-target] explicitThreadId=${String(explicitThreadId)} resolved.threadId=${String(resolved.threadId)} resolved.to=${String(resolved.to)} resolved.lastTo=${String(resolved.lastTo)} → threadId=${String(threadId)}`,
+  );
 
   if (!toCandidate) {
     return {

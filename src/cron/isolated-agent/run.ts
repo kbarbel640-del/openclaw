@@ -49,7 +49,7 @@ import {
 import { registerAgentRunContext } from "../../infra/agent-events.js";
 import { deliverOutboundPayloads } from "../../infra/outbound/deliver.js";
 import { getRemoteSkillEligibility } from "../../infra/skills-remote.js";
-import { logWarn } from "../../logger.js";
+import { logDebug, logWarn } from "../../logger.js";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../../routing/session-key.js";
 import {
   buildSafeExternalPrompt,
@@ -288,6 +288,9 @@ export async function runCronIsolatedAgentTurn(params: {
     to: deliveryPlan.to,
     threadId: deliveryPlan.threadId,
   });
+  logDebug(
+    `[cron:${params.job.id}] deliveryPlan: channel=${deliveryPlan.channel ?? "last"} to=${String(deliveryPlan.to)} threadId=${String(deliveryPlan.threadId)} → resolved: channel=${resolvedDelivery.channel} to=${String(resolvedDelivery.to)} threadId=${String(resolvedDelivery.threadId)} mode=${resolvedDelivery.mode}`,
+  );
 
   const userTimezone = resolveUserTimezone(params.cfg.agents?.defaults?.userTimezone);
   const userTimeFormat = resolveUserTimeFormat(params.cfg.agents?.defaults?.timeFormat);

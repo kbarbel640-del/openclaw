@@ -110,6 +110,9 @@ export async function deliverAgentCommandResult(params: {
   const resolvedReplyToId =
     deliveryChannel === "slack" && resolvedThreadId != null ? String(resolvedThreadId) : undefined;
   const resolvedThreadTarget = deliveryChannel === "slack" ? undefined : resolvedThreadId;
+  runtime.log(
+    `[agent:delivery] channel=${deliveryChannel} to=${String(deliveryTarget)} threadId=${String(resolvedThreadId)} replyToId=${String(resolvedReplyToId)} threadTarget=${String(resolvedThreadTarget)} opts.threadId=${String(opts.threadId)} plan.resolvedThreadId=${String(deliveryPlan.resolvedThreadId)}`,
+  );
 
   const logDeliveryError = (err: unknown) => {
     const message = `Delivery failed (${deliveryChannel}${deliveryTarget ? ` to ${deliveryTarget}` : ""}): ${String(err)}`;

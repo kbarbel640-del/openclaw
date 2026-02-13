@@ -520,6 +520,9 @@ export async function runSubagentAnnounceFlow(params: {
       const { entry } = loadRequesterSessionEntry(params.requesterSessionKey);
       directOrigin = deliveryContextFromSession(entry);
     }
+    defaultRuntime.log(
+      `[subagent-announce] gateway call: sessionKey=${params.requesterSessionKey} channel=${directOrigin?.channel} to=${directOrigin?.to} threadId=${String(directOrigin?.threadId ?? "undefined")}`,
+    );
     await callGateway({
       method: "agent",
       params: {
