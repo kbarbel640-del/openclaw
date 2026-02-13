@@ -6,7 +6,7 @@
 **search** = ILIKE with `%` wildcards. For text/name fuzzy matching.
 
 ```bash
-# Filters: exact match (strings auto-ilike unless UUID)
+# Filters: exact match (strings use .eq(), not ILIKE — use --search for fuzzy)
 --filters '{"is_active": true, "category_id": "<uuid>"}'
 
 # Filters: operators
@@ -87,6 +87,19 @@ python scripts/db_tool.py aggregate <table_name> \
   --aggregates '{"count": "count(*)", "total_value": "sum(<numeric_col>)"}' \
   --search '{"name": "%<search_term>%"}' \
   --group-by '<category_column>'
+```
+
+## Ordering
+
+```bash
+# Order by single column descending
+python scripts/db_tool.py read <table_name> --order '<column>.desc' --limit 10
+
+# Order by column ascending (default)
+python scripts/db_tool.py read <table_name> --order '<column>.asc' --limit 10
+
+# Multiple columns
+python scripts/db_tool.py read <table_name> --order '<col1>.desc,<col2>.asc' --limit 10
 ```
 
 ## Supported Aggregate Functions

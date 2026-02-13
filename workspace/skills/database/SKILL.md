@@ -14,16 +14,6 @@ description: >
 
 This is your database superpower. JSON in, JSON out. No SQL. The tool is smart, you just describe what you want.
 
-## Setup
-
-```bash
-pip install supabase
-# Env vars auto-loaded from workspace root .env file
-# Or set manually: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-```
-
----
-
 ## 1. INSPECT — Discover What's Available
 
 ### List all tables
@@ -140,11 +130,6 @@ python scripts/db_tool.py read <main_table> \
 python scripts/db_tool.py read <table_with_multiple_fks> \
   --relations '<target_table>!<fk1_column>(<col1>,<col2>),<target_table>!<fk2_column>(<col1>,<col2>)' \
   --limit 3
-
-# Real example: bom_lines has component_id AND substitute_component_id both pointing to products
-python scripts/db_tool.py read bom_lines \
-  --relations 'products!component_id(name),products!substitute_component_id(name)' \
-  --limit 3
 ```
 
 **Generic output example:**
@@ -158,6 +143,15 @@ python scripts/db_tool.py read bom_lines \
     }
   ]
 }
+```
+
+### Order results
+```bash
+# Order by column descending
+python scripts/db_tool.py read <table_name> --columns '<col1>,<col2>' --order '<col1>.desc' --limit 10
+
+# Multiple sort columns
+python scripts/db_tool.py read <table_name> --order '<col1>.desc,<col2>.asc' --limit 10
 ```
 
 ### Pagination & counting
@@ -368,15 +362,6 @@ python scripts/db_tool.py write --intent '...'
 
 ---
 
-## Environment Variables
-
-Auto-loaded from `workspace/.env`. Or set manually:
-
-```powershell
-$env:SUPABASE_URL='<your-supabase-url>'
-$env:SUPABASE_SERVICE_ROLE_KEY='<your-service-role-key>'
-```
-
 ## ⚠️ PowerShell JSON Escaping
 
 PowerShell handles quotes differently than bash. Escape inner double quotes:
@@ -444,33 +429,11 @@ All examples in this doc use bash-style for readability. **In PowerShell, escape
 
 ---
 
-## Schema Sync
-
-Keep `schema.json` in sync with the live database:
-
-```bash
-# Compare only (show drift)
-python scripts/sync_schema.py --compare-only
-
-# Sync (updates schema.json, backs up old one)
-python scripts/sync_schema.py
-```
-
-Run this whenever tables/columns change in Supabase. Uses the PostgREST OpenAPI spec — no manual work.
-
----
-
 ## Known Limitations
 
 1. **Aggregate filters** — only exact match and lists (IN), not operators like `{"gt": 100}`. Workaround: use `read` with operators, then aggregate client-side.
 2. **Expression updates** — can't do `price * 1.1`. Read → calculate → write with literal values.
 
 ---
-
-## References
-
-- `references/schema.json` — Complete database schema (sync with `sync_schema.py`)
-- `references/query_patterns.md` — More read/aggregate examples  
-- `references/write_patterns.md` — More WriteIntent examples
 
 **Remember: Replace placeholders like `<table_name>`, `<column>`, `<value>` with actual values from your schema. Use 'inspect' to discover what's available!**
