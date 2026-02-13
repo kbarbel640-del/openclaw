@@ -786,6 +786,10 @@
     {
       "source": "/platforms/northflank",
       "destination": "/install/northflank"
+    },
+    {
+      "source": "/ccloud",
+      "destination": "/install/ccloud"
     }
   ],
   "navigation": {
@@ -848,7 +852,8 @@
                   "install/exe-dev",
                   "install/railway",
                   "install/render",
-                  "install/northflank"
+                  "install/northflank",
+                  "install/ccloud"
                 ]
               },
               {

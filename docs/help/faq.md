@@ -604,7 +604,7 @@ Short answer: follow the Linux guide, then run the onboarding wizard.
 
 Any Linux VPS works. Install on the server, then use SSH/Tailscale to reach the Gateway.
 
-Guides: [exe.dev](/install/exe-dev), [Hetzner](/install/hetzner), [Fly.io](/install/fly).
+Guides: [exe.dev](/install/exe-dev), [Hetzner](/install/hetzner), [Fly.io](/install/fly), [Carolina Cloud](/install/ccloud).
 Remote access: [Gateway remote](/gateway/remote).
 
 ### Where are the cloudVPS install guides
@@ -615,6 +615,7 @@ We keep a **hosting hub** with the common providers. Pick one and follow the gui
 - [Fly.io](/install/fly)
 - [Hetzner](/install/hetzner)
 - [exe.dev](/install/exe-dev)
+- [Carolina Cloud](/install/ccloud)
 
 How it works in the cloud: the **Gateway runs on the server**, and you access it
 from your laptop/phone via the Control UI (or Tailscale/SSH). Your state + workspace
