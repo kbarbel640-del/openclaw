@@ -94,6 +94,9 @@ export function subscribeSubagentProgress(config: SubagentProgressConfig): () =>
 
   async function relayToChannel(message: string) {
     if (!config.requesterOrigin?.channel || !config.requesterOrigin?.to) {
+      defaultRuntime.log(
+        `[subagent-progress] channel relay skipped: channel=${config.requesterOrigin?.channel ?? "none"} to=${config.requesterOrigin?.to ?? "none"} runId=${config.runId}`,
+      );
       return;
     }
     const now = Date.now();

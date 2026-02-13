@@ -258,6 +258,26 @@ describe("subscribeSubagentProgress", () => {
     expect(maybeQueueMock).not.toHaveBeenCalled();
   });
 
+  it("processes tool events with parentTool field from claude_code", async () => {
+    subscribeSubagentProgress({
+      runId: "run-1",
+      childSessionKey: "agent:main:subagent:test",
+      requesterSessionKey: "agent:main:main",
+      requesterOrigin: { channel: "slack", to: "C123" },
+    });
+
+    // Simulate a claude_code internal tool event with parentTool field
+    emitToolEvent("run-1", "start", "Read", {
+      args: { path: "src/foo.ts" },
+      parentTool: "claude_code",
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(routeReplyMock).toHaveBeenCalledTimes(1);
+    const callArgs = routeReplyMock.mock.calls[0][0] as { payload: { text: string } };
+    expect(callArgs.payload.text).toContain("Read");
+  });
+
   it("tracks tool counts correctly across multiple starts", async () => {
     subscribeSubagentProgress({
       runId: "run-1",
