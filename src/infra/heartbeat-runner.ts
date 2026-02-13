@@ -823,6 +823,13 @@ export async function runHeartbeatOnce(opts: {
       }
     }
 
+    log.info("heartbeat: delivering", {
+      channel: delivery.channel,
+      to: delivery.to,
+      threadId: delivery.threadId ?? null,
+      sessionKey,
+      fallbackUsed: keyThreadId != null,
+    });
     await deliverOutboundPayloads({
       cfg,
       channel: delivery.channel,

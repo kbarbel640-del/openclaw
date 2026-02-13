@@ -1,4 +1,5 @@
 import type { ChannelOutboundAdapter } from "../types.js";
+import { logDebug } from "../../../logger.js";
 import { sendMessageSlack } from "../../../slack/send.js";
 
 export const slackOutbound: ChannelOutboundAdapter = {
@@ -9,6 +10,9 @@ export const slackOutbound: ChannelOutboundAdapter = {
     const send = deps?.sendSlack ?? sendMessageSlack;
     // Use threadId fallback so routed tool notifications stay in the Slack thread.
     const threadTs = replyToId ?? (threadId != null ? String(threadId) : undefined);
+    logDebug(
+      `[slack:outbound] sendText to=${to} replyToId=${String(replyToId ?? "undefined")} threadId=${String(threadId ?? "undefined")} → threadTs=${String(threadTs ?? "undefined")}`,
+    );
     const result = await send(to, text, {
       threadTs,
       accountId: accountId ?? undefined,
