@@ -143,57 +143,30 @@ export function extractVersionScore(modelId: string): number {
 export function isLegacyModelIdForAutoSelection(modelId: string): boolean {
   const lower = modelId.toLowerCase();
 
-  // OpenAI: discard GPT-3.5/GPT-4 families when auto-selecting.
+  // OpenAI: discard entire GPT-3.5 and GPT-4 families (GPT-5+ is current).
   if (/\bgpt-3\.5\b/.test(lower) || lower.startsWith("gpt-3.5")) {
     return true;
   }
-  if (lower.startsWith("gpt-4") && !lower.includes("gpt-4o") && !lower.includes("turbo")) {
-    // Only treat base gpt-4 as legacy if we want to prefer turbo/4o
-    // But for now, let's just be less aggressive.
-    // Actually, simply removing the block that bans gpt-4* is safer if we want "best" models.
-    // However, keeping gpt-3.5 ban is reasonable.
-    // Let's just comment out the aggressive gpt-4 ban for now or refine it.
-    // If the goal is "best", gpt-4o is best.
-    return true;
-  }
-  // Better implementation:
-  if (lower === "gpt-4" || lower === "gpt-4-32k") {
+  if (/\bgpt-4/.test(lower)) {
     return true;
   }
 
-  // OpenAI O-series: older generations.
+  // OpenAI O-series: older generations (o1, o2, o3).
   if (/^o[1-3]\b/.test(lower)) {
     return true;
   }
 
-  // Anthropic: discard Claude 2/Instant and Claude 3.x (non-3.5) families.
+  // Anthropic: discard Claude 2/Instant and all Claude 3.x including 3.5 (Claude 4.x+ is current).
   if (/\bclaude-(?:instant|2)\b/.test(lower)) {
     return true;
   }
-  // Target "claude-3" variants but exclude "claude-3.5" or "claude-3-5"
   if (lower.startsWith("claude-3")) {
-    if (lower.includes("3-5") || lower.includes("3.5")) {
-      return false;
-    }
     return true;
   }
 
-  // Google: discard Gemini 1.x/2.x families (prefer Gemini 3.x).
-  // Wait, defaults.ts uses gemini-2.0-flash?
-  // Current logic:
+  // Google: discard Gemini 1.x (keep 2.0+ as current).
   if (/\bgemini-1\b/.test(lower) || /\bgemini-1\./.test(lower)) {
     return true;
-  }
-  // If we want to allow Gemini 2.0 (which is current), we should remove this block?
-  // But defaults are often pinned. If standard is 1.5, allow it?
-  // For now, let's assume Gemini 2.0 is OK to be filtered out if intent is 3.0??
-  // NOTE: There is no Gemini 3.0 yet. This logic seems future-proofed too aggressively.
-  // The system uses "gemini-2.0-flash" in defaults.
-  // The regex bans `gemini-2`.
-  // Let's fix Gemini too while we are at it.
-  if (/\bgemini-2\b/.test(lower) || /\bgemini-2\./.test(lower)) {
-    // Allow 2.0 as it's the current flash model
-    return false;
   }
 
   return false;

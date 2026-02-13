@@ -22,7 +22,7 @@ export function loadModelPatternsFromConfig(config: OpenClawConfig): void {
   let registeredCount = 0;
 
   for (const [pattern, capabilities] of Object.entries(patterns)) {
-    if (!pattern || typeof capabilities !== "object") {
+    if (!pattern || !capabilities || typeof capabilities !== "object") {
       console.warn(`[capability-patterns-loader] Invalid pattern entry: ${pattern}`);
       continue;
     }

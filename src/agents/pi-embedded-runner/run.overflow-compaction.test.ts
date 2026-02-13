@@ -34,9 +34,13 @@ vi.mock("../model-auth.js", () => ({
   resolveAuthProfileOrder: vi.fn(() => []),
 }));
 
-vi.mock("../models-config.js", () => ({
-  ensureOpenClawModelsJson: vi.fn(async () => {}),
-}));
+vi.mock("../models-config.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    ensureOpenClawModelsJson: vi.fn(async () => {}),
+  };
+});
 
 vi.mock("../context-window-guard.js", () => ({
   CONTEXT_WINDOW_HARD_MIN_TOKENS: 1000,

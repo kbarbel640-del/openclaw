@@ -3,14 +3,6 @@
  *
  * PRECEDENCE ORDER (highest to lowest priority):
  *
- * 0. **Model Pools System** (NEW - if configured)
- *    - Unified pool-based selection with capability validation
- *    - Configuration: agents.defaults.modelPools.{default|coding|thinking|vision|tools}
- *    - Complexity mapping: agents.defaults.complexityMapping.{trivial|moderate|complex}
- *    - Selection modes: ordered (sequential fallback), best-fit (capability scoring), agent-choice
- *    - Automatically validates capabilities (vision, tools, reasoning, contextWindow)
- *    - Falls back to legacy system if pools not configured
- *
  * 1. **Complexity Routing** (modelByComplexity.{trivial|moderate|complex})
  *    - Triggered when: modelByComplexity.enabled=true OR any complexity slot is configured
  *    - Applies to: ALL task types (coding, reasoning, tools, vision, conversation)
@@ -21,7 +13,7 @@
  *
  * 2. **Task-Type Specific Models**
  *    - codingModel: agents.defaults.codingModel (for coding tasks)
- *    - imageModel: agents.defaults.imageModel (for vision tasks, checked AFTER complexity)
+ *    - imageModel: agents.defaults.imageModel (for vision tasks, checked BEFORE complexity)
  *    - toolModel: agents.defaults.toolModel (for tool/system operation tasks)
  *    - reasoningModel: falls back to default (reasoning models are typically primary)
  *    - Vision tasks check imageModel first (before complexity) to avoid text-only models
@@ -645,43 +637,24 @@ export function resolveModelForTaskType(params: {
 
 export type ModelSelectionReason = "complexity" | "taskType" | "default";
 
-export async function resolveModelForTaskIntent(params: {
+export function resolveModelForTaskIntent(params: {
   cfg: OpenClawConfig;
   agentId?: string;
   taskType: TaskType;
   complexity: TaskComplexity;
-}): Promise<{ ref: ModelRef; reason: ModelSelectionReason }> {
+}): { ref: ModelRef; reason: ModelSelectionReason } {
   const { cfg, agentId, taskType, complexity } = params;
-
-  // PRIORITY 0: Model Pools System (if configured)
-  // Try to resolve from pools first - this provides unified selection with capability validation
-  const pools = getModelPools(cfg, agentId);
-  if (pools) {
-    try {
-      // Load catalog for pool resolution
-      const catalog = await loadModelCatalog({ config: cfg, useCache: true });
-
-      const poolResult = resolveModelForTask({
-        cfg,
-        catalog,
-        taskType,
-        complexity,
-        agentId,
-      });
-
-      if (poolResult) {
-        return { ref: poolResult, reason: "complexity" }; // Pools use complexity mapping
-      }
-    } catch (error) {
-      // If pools fail, fall through to legacy system
-      console.warn("[model-selection] Pool resolution failed, falling back to legacy:", error);
-    }
-  }
 
   // Special case: For vision tasks, check imageModel BEFORE complexity routing
   // to ensure we don't route to text-only models
   if (taskType === "vision") {
-    const hasImageModel = Boolean(cfg.agents?.defaults?.imageModel?.primary?.trim());
+    const imageModelRaw = cfg.agents?.defaults?.imageModel as
+      | { primary?: string }
+      | string
+      | undefined;
+    const hasImageModel = Boolean(
+      typeof imageModelRaw === "string" ? imageModelRaw.trim() : imageModelRaw?.primary?.trim(),
+    );
     if (hasImageModel) {
       return { ref: resolveModelForTaskType({ cfg, taskType, agentId }), reason: "taskType" };
     }
@@ -714,7 +687,7 @@ export async function resolveModelForTaskIntent(params: {
     return Boolean(merged.trivial?.trim() || merged.moderate?.trim() || merged.complex?.trim());
   })();
 
-  if (enabled && merged) {
+  if (enabled && merged && merged.autoPickFromPool !== false) {
     const rawOverride =
       (complexity === "trivial"
         ? merged.trivial
@@ -748,13 +721,22 @@ export async function resolveModelForTaskIntent(params: {
 
   // PRIORITY 2: Check task-type specific models (codingModel, toolModel, etc)
   const hasTaskSpecificModel = (() => {
+    const hasPrimary = (raw: unknown): boolean => {
+      if (typeof raw === "string") {
+        return Boolean(raw.trim());
+      }
+      if (raw && typeof raw === "object" && "primary" in raw) {
+        return Boolean((raw as { primary?: string }).primary?.trim());
+      }
+      return false;
+    };
     switch (taskType) {
       case "coding":
-        return Boolean(cfg.agents?.defaults?.codingModel?.primary?.trim());
+        return hasPrimary(cfg.agents?.defaults?.codingModel);
       case "tools":
-        return Boolean(cfg.agents?.defaults?.toolModel?.primary?.trim());
+        return hasPrimary(cfg.agents?.defaults?.toolModel);
       case "vision":
-        return Boolean(cfg.agents?.defaults?.imageModel?.primary?.trim());
+        return hasPrimary(cfg.agents?.defaults?.imageModel);
       default:
         return false;
     }

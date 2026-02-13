@@ -205,7 +205,17 @@ export const DEFAULT_AGENT_ROLE: AgentRole = "specialist";
 
 export function resolveAgentRole(cfg: OpenClawConfig, agentId: string): AgentRole {
   const agentConfig = resolveAgentConfig(cfg, agentId);
-  return agentConfig?.role ?? cfg.agents?.defaults?.role ?? DEFAULT_AGENT_ROLE;
+  if (agentConfig?.role) {
+    return agentConfig.role;
+  }
+  if (cfg.agents?.defaults?.role) {
+    return cfg.agents.defaults.role;
+  }
+  // The main/default agent acts as the orchestrator by default.
+  if (agentId === DEFAULT_AGENT_ID) {
+    return "orchestrator";
+  }
+  return DEFAULT_AGENT_ROLE;
 }
 
 export function canSpawnRole(requesterRole: AgentRole, targetRole: AgentRole): boolean {
