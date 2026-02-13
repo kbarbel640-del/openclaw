@@ -5,10 +5,15 @@ OpenClaw 个人 AI 助手。后端从 TypeScript 转 Python，前端 UI 保留�
 只保留 Telegram 频道，其他频道删除。全功能保留。
 
 ## 当前进度
-**批次 1 / 15：项目骨架 + 核心类型** ✅ 已完成
+**批次 2 / 15：配置系统** ✅ 已完成
 
 ## 已完成的 Python 文件
 - openclaw_py/types/base.py - 核心基础类型（14 个 Literal 类型 + normalize_chat_type 函数）
+- openclaw_py/config/types.py - 配置 Pydantic 模型（40+ 配置类）
+- openclaw_py/config/env_substitution.py - 环境变量替换（${VAR} 语法）
+- openclaw_py/config/paths.py - 配置路径解析
+- openclaw_py/config/defaults.py - 默认值应用
+- openclaw_py/config/loader.py - 配置加载器（YAML/JSON）
 
 ## 环境
 - Python 3.13（Conda 环境：marui）
@@ -70,7 +75,7 @@ extensions/、Swabble/、apps/
 
 ## 批次列表
 1.  ✅ 项目骨架 + 核心类型
-2.  ⬜ 配置系统
+2.  ✅ 配置系统
 3.  ⬜ 日志 + 工具函数
 4.  ⬜ 会话管理 + 持久化
 5.  ⬜ Gateway 服务器 - HTTP
