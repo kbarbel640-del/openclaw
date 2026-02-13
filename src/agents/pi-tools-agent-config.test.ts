@@ -95,6 +95,42 @@ describe("Agent-specific tool filtering", () => {
     expect(toolNames).toContain("apply_patch");
   });
 
+  it("should allow apply_patch when agent-level applyPatch overrides global", () => {
+    const cfg: OpenClawConfig = {
+      tools: {
+        allow: ["read", "exec"],
+        exec: {
+          // Global: applyPatch NOT enabled
+        },
+      },
+      agents: {
+        list: [
+          {
+            id: "patcher",
+            workspace: "~/openclaw-patcher",
+            tools: {
+              exec: {
+                applyPatch: { enabled: true },
+              },
+            },
+          },
+        ],
+      },
+    };
+
+    const tools = createOpenClawCodingTools({
+      config: cfg,
+      sessionKey: "agent:patcher:main",
+      workspaceDir: "/tmp/test-patcher",
+      agentDir: "/tmp/agent-patcher",
+      modelProvider: "openai",
+      modelId: "gpt-5.2",
+    });
+
+    const toolNames = tools.map((t) => t.name);
+    expect(toolNames).toContain("apply_patch");
+  });
+
   it("should apply agent-specific tool policy", () => {
     const cfg: OpenClawConfig = {
       tools: {

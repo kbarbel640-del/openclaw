@@ -36,16 +36,6 @@ vi.mock("../plugins/tools.js", () => ({
   resolvePluginTools: () => [],
 }));
 
-vi.mock("../infra/shell-env.js", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("../infra/shell-env.js")>();
-  return { ...mod, getShellPathFromLoginShell: () => null };
-});
-
-vi.mock("../plugins/tools.js", () => ({
-  resolvePluginTools: () => [],
-  getPluginToolMeta: () => undefined,
-}));
-
 vi.mock("../infra/exec-approvals.js", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../infra/exec-approvals.js")>();
   const approvals: ExecApprovalsResolved = {
