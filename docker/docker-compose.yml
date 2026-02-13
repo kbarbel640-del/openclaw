@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  openclaw-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: openclaw-gateway
+    ports:
+      - "18789:18789"
+    environment:
+      # Pomerium cluster domain for CORS configuration
+      - POMERIUM_CLUSTER_DOMAIN=your-cluster.pomerium.app
+    volumes:
+      # Persist OpenClaw configuration
+      - openclaw-config:/claw/.openclaw
+      # Persist workspace
+      - openclaw-workspace:/claw/workspace
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+volumes:
+  openclaw-config:
+  openclaw-workspace:
+
+networks:
+  openclaw-network:
+    driver: bridge
