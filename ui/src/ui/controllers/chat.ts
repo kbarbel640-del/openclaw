@@ -168,6 +168,30 @@ export async function abortChatRun(state: ChatState): Promise<boolean> {
   }
 }
 
+// Throttle stream delta updates to avoid excessive re-renders.
+const CHAT_STREAM_THROTTLE_MS = 60;
+let _chatStreamPending: string | null = null;
+let _chatStreamTimer: number | null = null;
+
+function flushChatStream(state: ChatState) {
+  if (_chatStreamTimer != null) {
+    clearTimeout(_chatStreamTimer);
+    _chatStreamTimer = null;
+  }
+  if (_chatStreamPending !== null) {
+    state.chatStream = _chatStreamPending;
+    _chatStreamPending = null;
+  }
+}
+
+function scheduleChatStreamUpdate(state: ChatState, text: string) {
+  _chatStreamPending = text;
+  if (_chatStreamTimer != null) {
+    return;
+  }
+  _chatStreamTimer = window.setTimeout(() => flushChatStream(state), CHAT_STREAM_THROTTLE_MS);
+}
+
 export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   if (!payload) {
     return null;
@@ -188,20 +212,41 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   if (payload.state === "delta") {
     const next = extractText(payload.message);
     if (typeof next === "string") {
-      const current = state.chatStream ?? "";
+      const current = _chatStreamPending ?? state.chatStream ?? "";
       if (!current || next.length >= current.length) {
-        state.chatStream = next;
+        scheduleChatStreamUpdate(state, next);
       }
     }
   } else if (payload.state === "final") {
+    // Cancel any pending stream throttle before clearing.
+    _chatStreamPending = null;
+    if (_chatStreamTimer != null) {
+      clearTimeout(_chatStreamTimer);
+      _chatStreamTimer = null;
+    }
+    // Append the final assistant message immediately for instant display.
+    // The subsequent loadChatHistory() call will reconcile with the server's authoritative state.
+    if (payload.message) {
+      state.chatMessages = [...state.chatMessages, payload.message];
+    }
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
   } else if (payload.state === "aborted") {
+    _chatStreamPending = null;
+    if (_chatStreamTimer != null) {
+      clearTimeout(_chatStreamTimer);
+      _chatStreamTimer = null;
+    }
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
   } else if (payload.state === "error") {
+    _chatStreamPending = null;
+    if (_chatStreamTimer != null) {
+      clearTimeout(_chatStreamTimer);
+      _chatStreamTimer = null;
+    }
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;

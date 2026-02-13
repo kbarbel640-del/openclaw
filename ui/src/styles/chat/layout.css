@@ -100,6 +100,56 @@
   stroke-linejoin: round;
 }
 
+/* "New messages" floating indicator - overlays on top of chat thread */
+.chat-new-messages {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--panel-strong, var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition:
+    background 150ms ease-out,
+    box-shadow 150ms ease-out;
+  white-space: nowrap;
+}
+
+.chat-new-messages:hover {
+  background: var(--accent, var(--panel-strong));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.chat-new-messages svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2px;
+}
+
+:root[data-theme="light"] .chat-new-messages {
+  background: #fff;
+  border-color: rgba(16, 24, 40, 0.12);
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.1);
+  color: var(--text);
+}
+
+:root[data-theme="light"] .chat-new-messages:hover {
+  background: #f8fafc;
+  box-shadow: 0 4px 12px rgba(16, 24, 40, 0.15);
+}
+
 /* Chat compose - sticky at bottom */
 .chat-compose {
   position: sticky;

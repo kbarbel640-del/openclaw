@@ -1456,7 +1456,7 @@ function groupMessages(items: ChatItem[]): Array<ChatItem | MessageGroup> {
       }
       currentGroup = {
         kind: "group",
-        key: `group:${role}:${senderKey}:${item.key}`,
+        key: `group:${role}:${senderKey}:${timestamp}`,
         role,
         messages: [{ message: item.message, key: item.key }],
         timestamp,
@@ -1515,7 +1515,8 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
   }
 
   if (props.stream !== null) {
-    const key = `stream:${props.sessionKey}:${props.streamStartedAt ?? "live"}`;
+    // Use a stable key per session — avoid changing key when streamStartedAt transitions from null to a timestamp.
+    const key = `stream:${props.sessionKey}:active`;
     if (props.stream.trim().length > 0) {
       items.push({
         kind: "stream",
@@ -1545,10 +1546,11 @@ function messageKey(message: unknown, index: number): string {
   if (messageId) {
     return `msg:${messageId}`;
   }
-  const timestamp = typeof m.timestamp === "number" ? m.timestamp : null;
+  // Use content hash for stability instead of index (index shifts when history reloads).
+  const timestamp = typeof m.timestamp === "number" ? m.timestamp : 0;
   const role = typeof m.role === "string" ? m.role : "unknown";
-  if (timestamp != null) {
-    return `msg:${role}:${timestamp}:${index}`;
-  }
-  return `msg:${role}:${index}`;
+  const content = typeof m.content === "string" ? m.content : "";
+  const contentHash =
+    content.length > 0 ? content.length.toString(36) + content.charCodeAt(0).toString(36) : "e";
+  return `msg:${role}:${timestamp}:${contentHash}`;
 }
