@@ -92,9 +92,7 @@ export function createGatewayCloseHandler(params: {
         workspaceDir: params.defaultWorkspaceDir,
         reason,
       });
-      triggerInternalHook(hookEvent).catch((err) => {
-        params.logHooks.warn(`gateway:shutdown internal hook failed: ${String(err)}`);
-      });
+      void triggerInternalHook(hookEvent);
     }
 
     params.cron.stop();
