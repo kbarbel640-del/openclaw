@@ -218,18 +218,23 @@ upsert_env "$ENV_FILE" \
   OPENCLAW_DOCKER_APT_PACKAGES
 
 echo "==> Building Docker image: $IMAGE_NAME"
-BUILD_CMD=(docker build)
+BUILD_ARGS=(
+  --build-arg "OPENCLAW_DOCKER_APT_PACKAGES=${OPENCLAW_DOCKER_APT_PACKAGES}"
+  -t "$IMAGE_NAME"
+  -f "$ROOT_DIR/Dockerfile"
+  "$ROOT_DIR"
+)
+
 if docker buildx version >/dev/null 2>&1; then
   # Buildx with the docker-container driver keeps the image in cache unless
   # --load is used; compose run then tries to pull from a registry.
-  BUILD_CMD=(docker buildx build --load)
+  if ! docker buildx build --load "${BUILD_ARGS[@]}"; then
+    echo "WARN: docker buildx build --load failed; falling back to docker build." >&2
+    docker build "${BUILD_ARGS[@]}"
+  fi
+else
+  docker build "${BUILD_ARGS[@]}"
 fi
-
-"${BUILD_CMD[@]}" \
-  --build-arg "OPENCLAW_DOCKER_APT_PACKAGES=${OPENCLAW_DOCKER_APT_PACKAGES}" \
-  -t "$IMAGE_NAME" \
-  -f "$ROOT_DIR/Dockerfile" \
-  "$ROOT_DIR"
 
 echo ""
 echo "==> Onboarding (interactive)"
