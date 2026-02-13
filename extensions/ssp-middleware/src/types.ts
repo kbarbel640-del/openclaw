@@ -49,4 +49,6 @@ export type SspConfig = {
   bidCacheTtlMs: number;
   /** Whether the SSP middleware is enabled */
   enabled: boolean;
+  /** Use mock SSP responder instead of live Epom (for demos/VC presentations) */
+  mockMode: boolean;
 };

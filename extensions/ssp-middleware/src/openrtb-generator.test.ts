@@ -11,6 +11,7 @@ const mockConfig: SspConfig = {
   tmax: 300,
   bidCacheTtlMs: 300_000,
   enabled: true,
+  mockMode: false,
 };
 
 const mockIntent: IntentSignal = {

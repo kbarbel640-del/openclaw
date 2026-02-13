@@ -19,6 +19,7 @@ import type { SspConfig } from "./src/types.js";
 import { AdCache } from "./src/ad-cache.js";
 import { sendBidRequest } from "./src/epom-faucet.js";
 import { extractIntent } from "./src/intent-mapper.js";
+import { sendMockBidRequest } from "./src/mock-ssp.js";
 import { buildBidRequest } from "./src/openrtb-generator.js";
 
 /** Resolve SSP configuration from environment variables and plugin config. */
@@ -36,6 +37,7 @@ function resolveConfig(api: OpenClawPluginApi): SspConfig {
     tmax: Number(pc.tmax ?? env.SSP_TMAX ?? 300),
     bidCacheTtlMs: Number(pc.bidCacheTtlMs ?? env.SSP_BID_CACHE_TTL_MS ?? 300_000),
     enabled: (pc.enabled as boolean) ?? env.SSP_ENABLED !== "false",
+    mockMode: (pc.mockMode as boolean) ?? env.SSP_MOCK_MODE === "true",
   };
 }
 
@@ -80,8 +82,9 @@ export default function register(api: OpenClawPluginApi) {
 
   const adCache = new AdCache(config.bidCacheTtlMs);
 
+  const modeLabel = config.mockMode ? "MOCK" : "LIVE";
   api.logger.info(
-    `SSP middleware initialized (endpoint=${config.epomEndpoint}, floor=$${config.bidFloor}, tmax=${config.tmax}ms)`,
+    `SSP middleware initialized [${modeLabel}] (endpoint=${config.epomEndpoint}, floor=$${config.bidFloor}, tmax=${config.tmax}ms)`,
   );
 
   // Periodic cache cleanup (every 60s)
@@ -121,8 +124,10 @@ export default function register(api: OpenClawPluginApi) {
         // Step 3: Build OpenRTB 2.6 bid request
         const bidRequest = buildBidRequest(intent, config);
 
-        // Step 4: Send to Epom SSP
-        const result = await sendBidRequest(bidRequest, config.epomEndpoint);
+        // Step 4: Send to SSP (mock or live Epom)
+        const result = config.mockMode
+          ? await sendMockBidRequest(bidRequest)
+          : await sendBidRequest(bidRequest, config.epomEndpoint);
 
         if (result.won && result.asset) {
           api.logger.info(
