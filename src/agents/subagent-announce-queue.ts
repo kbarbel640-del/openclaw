@@ -131,7 +131,16 @@ function scheduleAnnounceDrain(key: string) {
           if (!last) {
             break;
           }
-          await queue.send({ ...last, prompt });
+          // Merge extraSystemPrompt from all collected items so findings are not lost
+          const mergedSystemPrompt = items
+            .map((item) => item.extraSystemPrompt)
+            .filter(Boolean)
+            .join("\n\n---\n\n");
+          await queue.send({
+            ...last,
+            prompt,
+            extraSystemPrompt: mergedSystemPrompt || undefined,
+          });
           continue;
         }
 
@@ -141,7 +150,8 @@ function scheduleAnnounceDrain(key: string) {
           if (!next) {
             break;
           }
-          await queue.send({ ...next, prompt: summaryPrompt });
+          // Keep the original extraSystemPrompt when overriding the prompt with a summary
+          await queue.send({ ...next, prompt: summaryPrompt, extraSystemPrompt: next.extraSystemPrompt });
           continue;
         }
 

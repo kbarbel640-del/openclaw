@@ -575,4 +575,96 @@ describe("subagent announce formatting", () => {
     expect(accountIds).toContain("acct-b");
     expect(agentSpy).toHaveBeenCalledTimes(2);
   });
+
+  it("merges extraSystemPrompt from all collected items in collect mode", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(true);
+    embeddedRunMock.isEmbeddedPiRunStreaming.mockReturnValue(false);
+    readLatestAssistantReplyMock
+      .mockResolvedValueOnce("reply from task A")
+      .mockResolvedValueOnce("reply from task B");
+    sessionStore = {
+      "agent:main:main": {
+        sessionId: "session-merge",
+        lastChannel: "whatsapp",
+        lastTo: "+1555",
+        queueMode: "collect",
+        queueDebounceMs: 0,
+      },
+    };
+
+    await Promise.all([
+      runSubagentAnnounceFlow({
+        childSessionKey: "agent:main:subagent:merge-a",
+        childRunId: "run-merge-a",
+        requesterSessionKey: "main",
+        requesterDisplayKey: "main",
+        task: "task A",
+        timeoutMs: 1000,
+        cleanup: "keep",
+        waitForCompletion: false,
+        startedAt: 10,
+        endedAt: 20,
+        outcome: { status: "ok" },
+      }),
+      runSubagentAnnounceFlow({
+        childSessionKey: "agent:main:subagent:merge-b",
+        childRunId: "run-merge-b",
+        requesterSessionKey: "main",
+        requesterDisplayKey: "main",
+        task: "task B",
+        timeoutMs: 1000,
+        cleanup: "keep",
+        waitForCompletion: false,
+        startedAt: 10,
+        endedAt: 20,
+        outcome: { status: "ok" },
+      }),
+    ]);
+
+    await expect.poll(() => agentSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+    const call = agentSpy.mock.calls[0]?.[0] as {
+      params?: { extraSystemPrompt?: string };
+    };
+    const systemPrompt = call?.params?.extraSystemPrompt ?? "";
+    // Both tasks' findings should be present in the merged extraSystemPrompt
+    expect(systemPrompt).toContain("reply from task A");
+    expect(systemPrompt).toContain("reply from task B");
+  });
+
+  it("includes findings in steer path message since it only supports plain text", async () => {
+    const { runSubagentAnnounceFlow } = await import("./subagent-announce.js");
+    embeddedRunMock.isEmbeddedPiRunActive.mockReturnValue(true);
+    embeddedRunMock.isEmbeddedPiRunStreaming.mockReturnValue(true);
+    embeddedRunMock.queueEmbeddedPiMessage.mockReturnValue(true);
+    readLatestAssistantReplyMock.mockResolvedValue("steer findings here");
+    sessionStore = {
+      "agent:main:main": {
+        sessionId: "session-steer-findings",
+        lastChannel: "whatsapp",
+        lastTo: "+1555",
+        queueMode: "steer",
+      },
+    };
+
+    await runSubagentAnnounceFlow({
+      childSessionKey: "agent:main:subagent:steer-test",
+      childRunId: "run-steer-findings",
+      requesterSessionKey: "main",
+      requesterDisplayKey: "main",
+      task: "lookup weather",
+      timeoutMs: 1000,
+      cleanup: "keep",
+      waitForCompletion: false,
+      startedAt: 10,
+      endedAt: 20,
+      outcome: { status: "ok" },
+    });
+
+    expect(embeddedRunMock.queueEmbeddedPiMessage).toHaveBeenCalled();
+    const steeredText = embeddedRunMock.queueEmbeddedPiMessage.mock.calls[0]?.[1] as string;
+    expect(steeredText).toContain("lookup weather");
+    expect(steeredText).toContain("steer findings here");
+    expect(steeredText).not.toContain("Stats:");
+  });
 });

@@ -190,8 +190,11 @@ async function maybeQueueSubagentAnnounce(params: {
 
   const shouldSteer = queueSettings.mode === "steer" || queueSettings.mode === "steer-backlog";
   if (shouldSteer) {
-    // steer path only supports plain text; send the clean trigger message
-    const steered = queueEmbeddedPiMessage(sessionId, params.triggerMessage);
+    // steer path only supports plain text; include findings inline so they are not lost
+    const steerMessage = params.extraSystemPrompt
+      ? `${params.triggerMessage}\n\n${params.extraSystemPrompt}`
+      : params.triggerMessage;
+    const steered = queueEmbeddedPiMessage(sessionId, steerMessage);
     if (steered) {
       return "steered";
     }
@@ -485,7 +488,7 @@ export async function runSubagentAnnounceFlow(params: {
       startedAt: params.startedAt,
       endedAt: params.endedAt,
     });
-    defaultRuntime.info?.(`subagent announce stats [${params.childSessionKey}]: ${statsLine}`);
+    defaultRuntime.log(`subagent announce stats [${params.childSessionKey}]: ${statsLine}`);
 
     // Build status label
     const statusLabel =
@@ -504,7 +507,7 @@ export async function runSubagentAnnounceFlow(params: {
 
     // Internal context for the agent (not visible to the user)
     const announceSystemPrompt = [
-      "The user will see the message above. Use the findings below to craft a natural response.",
+      "The user will see the trigger message. Use the findings below to craft a natural response.",
       "Keep it brief (1-2 sentences). Flow it into the conversation naturally.",
       `Do not mention technical details like tokens, stats, or that this was a ${announceType}.`,
       "You can respond with NO_REPLY if no announcement is needed (e.g., internal task with no user-facing result).",
