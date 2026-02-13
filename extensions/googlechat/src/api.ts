@@ -13,11 +13,44 @@ const CHAT_API_BASE = "https://chat.googleapis.com/v1";
  * - `~strikethrough~` (single tilde) instead of `~~strikethrough~~`
  * - `_italic_` (same as Markdown)
  *
- * This function converts Markdown formatting to Google Chat format.
+ * This function converts Markdown formatting to Google Chat format,
+ * preserving code blocks (fenced and inline) without modification.
  */
 export function convertMarkdownToGoogleChat(text: string): string {
+  // Split by fenced code blocks (```...```) and inline code (`...`)
+  // Process only the non-code segments
+  const segments: string[] = [];
+  let remaining = text;
+  let inCode = false;
+
+  // Pattern matches fenced blocks (```...```) or inline code (`...`)
+  // We process the string segment by segment
+  const codePattern = /(```[\s\S]*?```|`[^`\n]+`)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = codePattern.exec(text)) !== null) {
+    // Text before this code block
+    if (match.index > lastIndex) {
+      const prose = text.slice(lastIndex, match.index);
+      segments.push(convertProseToGoogleChat(prose));
+    }
+    // The code block itself (unchanged)
+    segments.push(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Remaining text after last code block
+  if (lastIndex < text.length) {
+    segments.push(convertProseToGoogleChat(text.slice(lastIndex)));
+  }
+
+  return segments.join("");
+}
+
+/** Convert markdown formatting in prose (non-code) text to Google Chat format */
+function convertProseToGoogleChat(text: string): string {
   // Convert **bold** to *bold*
-  // Match **text** but not within code blocks
   let result = text.replace(/\*\*([^*]+)\*\*/g, "*$1*");
 
   // Convert ~~strikethrough~~ to ~strikethrough~

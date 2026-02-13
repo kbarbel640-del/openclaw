@@ -55,6 +55,27 @@ describe("convertMarkdownToGoogleChat", () => {
       "*one* and *two* and *three*",
     );
   });
+
+  it("preserves inline code with ** inside", () => {
+    expect(convertMarkdownToGoogleChat("Use `**glob**` pattern")).toBe("Use `**glob**` pattern");
+  });
+
+  it("preserves fenced code blocks with ** inside", () => {
+    const input = "Before\n```\n**not bold**\n~~not strike~~\n```\nAfter **bold**";
+    const expected = "Before\n```\n**not bold**\n~~not strike~~\n```\nAfter *bold*";
+    expect(convertMarkdownToGoogleChat(input)).toBe(expected);
+  });
+
+  it("preserves code blocks with language tag", () => {
+    const input = "```js\nconst x = '**test**';\n```";
+    expect(convertMarkdownToGoogleChat(input)).toBe(input);
+  });
+
+  it("handles mixed prose and code", () => {
+    const input = "**bold** then `**code**` then **more bold**";
+    const expected = "*bold* then `**code**` then *more bold*";
+    expect(convertMarkdownToGoogleChat(input)).toBe(expected);
+  });
 });
 
 describe("downloadGoogleChatMedia", () => {
