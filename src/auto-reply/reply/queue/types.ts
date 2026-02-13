@@ -77,6 +77,8 @@ export type FollowupRun = {
     blockReplyBreak: "text_end" | "message_end";
     ownerNumbers?: string[];
     extraSystemPrompt?: string;
+    /** Context injected by pre-message hooks (e.g., memory recall from NIMA). */
+    injectedContext?: string;
     enforceFinalTag?: boolean;
   };
 };

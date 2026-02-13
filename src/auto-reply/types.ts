@@ -43,6 +43,8 @@ export type GetReplyOptions = {
   skillFilter?: string[];
   /** Mutable ref to track if a reply was sent (for Slack "first" threading mode). */
   hasRepliedRef?: { value: boolean };
+  /** Context injected by pre-message hooks (e.g., memory recall from NIMA). */
+  injectedContext?: string;
 };
 
 export type ReplyPayload = {

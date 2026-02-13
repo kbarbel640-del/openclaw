@@ -13,6 +13,7 @@ import {
 } from "../../logging/diagnostic.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { maybeApplyTtsToPayload, normalizeTtsAutoMode, resolveTtsConfig } from "../../tts/tts.js";
+import { runPreMessageHooks, runPostMessageHooks } from "../message-hooks.js";
 import { getReplyFromConfig } from "../reply.js";
 import { formatAbortReplyText, tryFastAbortFromMessage } from "./abort.js";
 import { shouldSkipDuplicateInbound } from "./inbound-dedupe.js";
@@ -294,10 +295,18 @@ export async function dispatchReplyFromConfig(params: {
 
     const shouldSendToolSummaries = ctx.ChatType !== "group" && ctx.CommandSource !== "native";
 
+    // Run pre-message hooks (e.g., NIMA memory recall)
+    const preHookResult = await runPreMessageHooks({
+      config: cfg.hooks?.messageHooks,
+      ctx,
+    });
+    const injectedContext = preHookResult.injectedContent;
+
     const replyResult = await (params.replyResolver ?? getReplyFromConfig)(
       ctx,
       {
         ...params.replyOptions,
+        injectedContext,
         onToolResult: shouldSendToolSummaries
           ? (payload: ReplyPayload) => {
               const run = async () => {
@@ -444,6 +453,17 @@ export async function dispatchReplyFromConfig(params: {
     }
 
     await dispatcher.waitForIdle();
+
+    // Run post-message hooks (e.g., NIMA memory capture)
+    // Fire-and-forget - don't block the response
+    const responseText = replies.map((r) => r.text ?? "").join("\n");
+    void runPostMessageHooks({
+      config: cfg.hooks?.messageHooks,
+      ctx,
+      responseText: responseText || undefined,
+    }).catch((err) => {
+      logVerbose(`dispatch-from-config: post-message hooks failed: ${String(err)}`);
+    });
 
     const counts = dispatcher.getQueuedCounts();
     counts.final += routedFinalCount;

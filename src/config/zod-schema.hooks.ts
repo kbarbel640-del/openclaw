@@ -133,3 +133,51 @@ export const HooksGmailSchema = z
   })
   .strict()
   .optional();
+
+// ============================================================================
+// Message Hooks (pre/post message processing)
+// ============================================================================
+
+/**
+ * Schema for a single message hook command.
+ * SECURITY: Commands execute with OpenClaw's privileges.
+ */
+export const MessageHookSchema = z
+  .object({
+    /** Shell command to execute. SECURITY: Only use trusted commands. */
+    command: z.string().min(1),
+    /** Timeout in milliseconds (default: 5000, max: 30000) */
+    timeout: z.number().int().positive().max(30000).optional(),
+    /** For preMessage: inject stdout into system prompt */
+    inject: z.boolean().optional(),
+    /** Pass message context as JSON via stdin */
+    passContext: z.boolean().optional(),
+    /** Additional environment variables */
+    env: z.record(z.string(), z.string()).optional(),
+    /** Only run for specific session key prefixes (case-insensitive) */
+    sessionKeyPrefixes: z.array(z.string()).optional(),
+    /** Only run for specific channels (case-insensitive) */
+    channels: z.array(z.string()).optional(),
+  })
+  .strict();
+
+/**
+ * Schema for message hooks configuration (top-level messageHooks key).
+ */
+export const MessageHooksSchema = z
+  .object({
+    /** Enable message hooks */
+    enabled: z.boolean().optional(),
+    /** Maximum number of hooks to run (default: 10) */
+    maxHooks: z.number().int().positive().max(10).optional(),
+    /** Aggregate timeout for all hooks in ms (default: 15000) */
+    aggregateTimeoutMs: z.number().int().min(100).max(60000).optional(),
+    /** Optional allowlist of command prefixes (security hardening) */
+    allowedCommandPrefixes: z.array(z.string()).optional(),
+    /** Hooks to run before agent processing */
+    preMessage: z.array(MessageHookSchema).optional(),
+    /** Hooks to run after agent processing */
+    postMessage: z.array(MessageHookSchema).optional(),
+  })
+  .strict()
+  .optional();

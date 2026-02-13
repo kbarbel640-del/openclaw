@@ -88,6 +88,8 @@ export type EmbeddedRunAttemptParams = {
   /** If true, omit the message tool from the tool list. */
   disableMessageTool?: boolean;
   extraSystemPrompt?: string;
+  /** Context injected by pre-message hooks (e.g., memory recall from NIMA). */
+  injectedContext?: string;
   inputProvenance?: InputProvenance;
   streamParams?: AgentStreamParams;
   ownerNumbers?: string[];

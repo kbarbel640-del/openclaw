@@ -166,6 +166,8 @@ export function buildAgentSystemPrompt(params: {
   defaultThinkLevel?: ThinkLevel;
   reasoningLevel?: ReasoningLevel;
   extraSystemPrompt?: string;
+  /** Context injected by pre-message hooks (e.g., memory recall from NIMA). */
+  injectedContext?: string;
   ownerNumbers?: string[];
   reasoningTagHint?: boolean;
   toolNames?: string[];
@@ -521,6 +523,11 @@ export function buildAgentSystemPrompt(params: {
     const contextHeader =
       promptMode === "minimal" ? "## Subagent Context" : "## Group Chat Context";
     lines.push(contextHeader, extraSystemPrompt, "");
+  }
+  // Add injected context from pre-message hooks (e.g., NIMA memory recall)
+  const injectedContext = params.injectedContext?.trim();
+  if (injectedContext) {
+    lines.push("## Hook Context", injectedContext, "");
   }
   if (params.reactionGuidance) {
     const { level, channel } = params.reactionGuidance;

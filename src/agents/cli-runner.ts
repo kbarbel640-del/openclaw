@@ -46,6 +46,8 @@ export async function runCliAgent(params: {
   timeoutMs: number;
   runId: string;
   extraSystemPrompt?: string;
+  /** Context injected by pre-message hooks (e.g., memory recall from NIMA). */
+  injectedContext?: string;
   streamParams?: import("../commands/agent/types.js").AgentStreamParams;
   ownerNumbers?: string[];
   cliSessionId?: string;
@@ -112,6 +114,7 @@ export async function runCliAgent(params: {
     config: params.config,
     defaultThinkLevel: params.thinkLevel,
     extraSystemPrompt,
+    injectedContext: params.injectedContext,
     ownerNumbers: params.ownerNumbers,
     heartbeatPrompt,
     docsPath: docsPath ?? undefined,

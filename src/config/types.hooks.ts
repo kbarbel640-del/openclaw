@@ -144,4 +144,49 @@ export type HooksConfig = {
   gmail?: HooksGmailConfig;
   /** Internal agent event hooks */
   internal?: InternalHooksConfig;
+  /** Pre/post message processing hooks */
+  messageHooks?: MessageHooksConfig;
+};
+
+// ============================================================================
+// Message Hooks (pre/post message processing)
+// ============================================================================
+
+/**
+ * Configuration for a single message hook command.
+ * SECURITY: Commands execute with OpenClaw's privileges.
+ */
+export type MessageHookConfig = {
+  /** Shell command to execute. SECURITY: Only use trusted commands. */
+  command: string;
+  /** Timeout in milliseconds (default: 5000, max: 30000) */
+  timeout?: number;
+  /** For preMessage: inject stdout into system prompt */
+  inject?: boolean;
+  /** Pass message context as JSON via stdin */
+  passContext?: boolean;
+  /** Additional environment variables */
+  env?: Record<string, string>;
+  /** Only run for specific session key prefixes (case-insensitive) */
+  sessionKeyPrefixes?: string[];
+  /** Only run for specific channels (case-insensitive) */
+  channels?: string[];
+};
+
+/**
+ * Configuration for message hooks (pre/post message processing).
+ */
+export type MessageHooksConfig = {
+  /** Enable message hooks */
+  enabled?: boolean;
+  /** Maximum number of hooks to run (default: 10) */
+  maxHooks?: number;
+  /** Aggregate timeout for all hooks in ms (default: 15000) */
+  aggregateTimeoutMs?: number;
+  /** Optional allowlist of command prefixes (security hardening) */
+  allowedCommandPrefixes?: string[];
+  /** Hooks to run before agent processing */
+  preMessage?: MessageHookConfig[];
+  /** Hooks to run after agent processing */
+  postMessage?: MessageHookConfig[];
 };

@@ -470,6 +470,7 @@ export async function runEmbeddedPiAgent(
             onToolResult: params.onToolResult,
             onAgentEvent: params.onAgentEvent,
             extraSystemPrompt: params.extraSystemPrompt,
+            injectedContext: params.injectedContext,
             inputProvenance: params.inputProvenance,
             streamParams: params.streamParams,
             ownerNumbers: params.ownerNumbers,
@@ -552,6 +553,7 @@ export async function runEmbeddedPiAgent(
                 reasoningLevel: params.reasoningLevel,
                 bashElevated: params.bashElevated,
                 extraSystemPrompt: params.extraSystemPrompt,
+                injectedContext: params.injectedContext,
                 ownerNumbers: params.ownerNumbers,
               });
               if (compactResult.compacted) {
