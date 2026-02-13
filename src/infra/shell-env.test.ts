@@ -85,9 +85,51 @@ describe("buildEnvDumpCommand", () => {
     expect(cmd).toBe('{ . "$HOME/.bashrc"; } >/dev/null 2>&1 || true; env -0');
   });
 
-  it("returns plain env -0 for fish (auto-sources config)", () => {
+  it("returns config.fish-sourcing command for fish", () => {
     const cmd = buildEnvDumpCommand("/usr/bin/fish");
-    expect(cmd).toBe("env -0");
+    expect(cmd).toBe(
+      'set -q XDG_CONFIG_HOME; or set -l XDG_CONFIG_HOME "$HOME/.config"; source "$XDG_CONFIG_HOME/fish/config.fish" 2>/dev/null; env -0',
+    );
+  });
+
+  it("returns kshrc-sourcing command for ksh variants", () => {
+    const expected = '{ . "$HOME/.kshrc"; } >/dev/null 2>&1 || true; env -0';
+    expect(buildEnvDumpCommand("/bin/ksh")).toBe(expected);
+    expect(buildEnvDumpCommand("/usr/bin/ksh93")).toBe(expected);
+    expect(buildEnvDumpCommand("/usr/local/bin/mksh")).toBe(expected);
+  });
+
+  it("returns csh-family sourcing commands for tcsh and csh", () => {
+    expect(buildEnvDumpCommand("/bin/tcsh")).toBe(
+      "source ~/.tcshrc >& /dev/null; source ~/.cshrc >& /dev/null; env -0",
+    );
+    expect(buildEnvDumpCommand("/bin/csh")).toBe("source ~/.cshrc >& /dev/null; env -0");
+  });
+
+  it("returns ENV-sourcing command for dash and ash", () => {
+    const expected = '{ [ -n "$ENV" ] && . "$ENV"; } >/dev/null 2>&1 || true; env -0';
+    expect(buildEnvDumpCommand("/bin/dash")).toBe(expected);
+    expect(buildEnvDumpCommand("/bin/ash")).toBe(expected);
+  });
+
+  it("returns external env call for nushell", () => {
+    expect(buildEnvDumpCommand("/usr/bin/nu")).toBe("^env -0");
+  });
+
+  it("returns rc.elv-sourcing command for elvish", () => {
+    expect(buildEnvDumpCommand("/usr/local/bin/elvish")).toBe(
+      "try { eval (slurp < ~/.config/elvish/rc.elv) } catch e { nop }; env -0",
+    );
+  });
+
+  it("returns plain env -0 for xonsh (login sources xonshrc)", () => {
+    expect(buildEnvDumpCommand("/usr/bin/xonsh")).toBe("env -0");
+  });
+
+  it("returns profile-sourcing command for pwsh/powershell", () => {
+    const expected = "try { . $PROFILE } catch {}; & env -0";
+    expect(buildEnvDumpCommand("/usr/local/bin/pwsh")).toBe(expected);
+    expect(buildEnvDumpCommand("/usr/bin/powershell")).toBe(expected);
   });
 
   it("returns both RC files for unknown shells", () => {
