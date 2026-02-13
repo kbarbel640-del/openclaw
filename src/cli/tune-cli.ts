@@ -11,13 +11,7 @@ import {
   formatReloadMessage,
   triggerGatewayRestart,
 } from "./tune/reload-plan.js";
-import {
-  getChildren,
-  isBranch,
-  resolveSchemaPath,
-  describeType,
-  unwrapSchema,
-} from "./tune/schema-walker.js";
+import { getChildren, isBranch, resolveSchemaPath } from "./tune/schema-walker.js";
 import { formatSetError, setConfigValue } from "./tune/set-value.js";
 
 function getAtPath(root: unknown, path: string[]): unknown {
@@ -112,9 +106,6 @@ function printLeaf(
     return;
   }
 
-  if (desc) {
-    presentation.path; // we just use the standard printer + description
-  }
   printLeafPresentation(presentation);
   if (desc) {
     console.log(`  ${theme.muted("Info:")}     ${desc}`);

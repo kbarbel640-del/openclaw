@@ -77,7 +77,7 @@ export async function isGatewayRunning(): Promise<boolean> {
 export async function checkReloadStatus(
   oldConfig: OpenClawConfig,
   newConfig: OpenClawConfig,
-  changedPath: string,
+  _changedPath: string,
 ): Promise<ReloadResult> {
   // Use diffConfigPaths to get all changed paths between configs
   const changedPaths = diffConfigPaths(oldConfig, newConfig);
