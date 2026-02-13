@@ -161,8 +161,8 @@ function resolveZaiGlm5ForwardCompatModel(
 
 // google-antigravity's model catalog in pi-ai can lag behind the actual platform.
 // When a google-antigravity model ID contains "opus-4-6" (or "opus-4.6") but isn't
-// in the registry yet, clone the opus-4-5 template so the correct api
-// ("google-gemini-cli") and baseUrl are preserved.
+// in the registry yet, clone the opus-4-5 template. We override api to "google-antigravity"
+// since pi-ai incorrectly assigns "google-gemini-cli" to Antigravity models.
 const ANTIGRAVITY_OPUS_46_STEMS = ["claude-opus-4-6", "claude-opus-4.6"] as const;
 const ANTIGRAVITY_OPUS_45_TEMPLATES = ["claude-opus-4-5-thinking", "claude-opus-4-5"] as const;
 
@@ -186,6 +186,7 @@ function resolveAntigravityOpus46ForwardCompatModel(
     if (template) {
       return normalizeModelCompat({
         ...template,
+        api: "google-antigravity", // Override: pi-ai incorrectly sets "google-gemini-cli"
         id: modelId.trim(),
         name: modelId.trim(),
       } as Model<Api>);

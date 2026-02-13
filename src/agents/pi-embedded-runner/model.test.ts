@@ -208,11 +208,12 @@ describe("resolveModel", () => {
   });
 
   it("builds a google-antigravity forward-compat fallback for claude-opus-4-6-thinking", () => {
+    // Template has wrong api from pi-ai; resolveModel should correct it
     const templateModel = {
       id: "claude-opus-4-5-thinking",
       name: "Claude Opus 4.5 Thinking",
       provider: "google-antigravity",
-      api: "google-gemini-cli",
+      api: "google-gemini-cli", // pi-ai incorrectly sets this
       baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
       reasoning: true,
       input: ["text", "image"] as const,
@@ -236,7 +237,7 @@ describe("resolveModel", () => {
     expect(result.model).toMatchObject({
       provider: "google-antigravity",
       id: "claude-opus-4-6-thinking",
-      api: "google-gemini-cli",
+      api: "google-antigravity", // Corrected from "google-gemini-cli"
       baseUrl: "https://daily-cloudcode-pa.sandbox.googleapis.com",
       reasoning: true,
     });
