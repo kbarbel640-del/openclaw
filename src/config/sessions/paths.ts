@@ -100,6 +100,21 @@ export function resolveSessionFilePath(
   const sessionsDir = resolveSessionsDir(opts);
   const candidate = entry?.sessionFile?.trim();
   if (candidate) {
+    // initSessionState stores absolute paths in sessionEntry.sessionFile.
+    // When the candidate is already absolute, try the sessionsDir containment
+    // check first; if it fails (read-time sessionsDir differs from write-time),
+    // fall back to extracting the relative tail from the path so the file is
+    // resolved inside the current sessionsDir.
+    if (path.isAbsolute(candidate)) {
+      try {
+        return resolvePathWithinSessionsDir(sessionsDir, candidate);
+      } catch {
+        // Absolute path is outside the current sessionsDir — extract the
+        // filename (or relative tail under a "sessions/" ancestor) and
+        // resolve it within the current sessionsDir.
+        return resolvePathWithinSessionsDir(sessionsDir, path.basename(candidate));
+      }
+    }
     return resolvePathWithinSessionsDir(sessionsDir, candidate);
   }
   return resolveSessionTranscriptPathInDir(sessionId, sessionsDir);
