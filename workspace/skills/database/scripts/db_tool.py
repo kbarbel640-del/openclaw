@@ -806,52 +806,123 @@ def cmd_sync_schema(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
+_VALID_COMMANDS = ("inspect", "read", "aggregate", "write", "sync-schema")
+
+
+def _args_from_file(filepath: str) -> argparse.Namespace:
+    """Build an argparse.Namespace from a JSON file.
+
+    JSON format:
+        {"command": "read", "table": "products", "filters": {"price": {"gt": 50}}, "limit": 5}
+
+    JSON values that are dicts/lists are auto-serialized to JSON strings
+    so the existing cmd_* functions receive the same string args as CLI mode.
+    """
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        error_exit(f"File not found: '{filepath}'")
+    except json.JSONDecodeError as e:
+        error_exit(f"Invalid JSON in '{filepath}': {e}")
+
+    if not isinstance(data, dict):
+        error_exit("JSON file must contain an object, not a list or scalar")
+
+    command = data.pop("command", None)
+    if not command:
+        error_exit("JSON file must include a 'command' field",
+                   hint=f"Valid commands: {', '.join(_VALID_COMMANDS)}")
+    if command not in _VALID_COMMANDS:
+        error_exit(f"Unknown command: '{command}'",
+                   hint=f"Valid commands: {', '.join(_VALID_COMMANDS)}")
+
+    # Normalize: convert dict/list values to JSON strings (matching CLI behavior)
+    for key, val in data.items():
+        if isinstance(val, (dict, list)):
+            data[key] = json.dumps(val)
+
+    # Map JSON keys to argparse-style attribute names
+    mapped: dict[str, Any] = {"command": command}
+    key_map = {
+        "group_by": "group_by", "group-by": "group_by",
+        "dry_run": "dry_run", "dry-run": "dry_run",
+        "count_only": "count_only", "count-only": "count_only",
+        "compare_only": "compare_only", "compare-only": "compare_only",
+    }
+    for key, val in data.items():
+        attr = key_map.get(key, key.replace("-", "_"))
+        mapped[attr] = val
+
+    # Set defaults for missing optional fields
+    defaults = {
+        "inspect": {"table": None, "detailed": False},
+        "read": {"table": None, "filters": None, "search": None, "columns": None,
+                 "relations": None, "limit": None, "offset": None, "order": None,
+                 "count_only": False},
+        "aggregate": {"table": None, "aggregates": None, "filters": None,
+                      "search": None, "group_by": None, "having": None},
+        "write": {"intent": None, "dry_run": False},
+        "sync-schema": {"compare_only": False},
+    }
+    for key, default in defaults.get(command, {}).items():
+        mapped.setdefault(key, default)
+
+    return argparse.Namespace(**mapped)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="OpenClaw Database Tool",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    sub = parser.add_subparsers(dest="command")
+    # --file mode: read all args from a JSON file, skip argparse entirely
+    if len(sys.argv) >= 2 and sys.argv[1] == "--file":
+        if len(sys.argv) < 3:
+            error_exit("--file requires a path", hint="Usage: python db_tool.py --file query.json")
+        args = _args_from_file(sys.argv[2])
+    else:
+        parser = argparse.ArgumentParser(
+            description="OpenClaw Database Tool",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+        sub = parser.add_subparsers(dest="command")
 
-    # inspect
-    p_inspect = sub.add_parser("inspect", help="Inspect schema")
-    p_inspect.add_argument("table", nargs="?", default=None)
-    p_inspect.add_argument("--detailed", action="store_true")
+        # inspect
+        p_inspect = sub.add_parser("inspect", help="Inspect schema")
+        p_inspect.add_argument("table", nargs="?", default=None)
+        p_inspect.add_argument("--detailed", action="store_true")
 
-    # read
-    p_read = sub.add_parser("read", help="Read data")
-    p_read.add_argument("table")
-    p_read.add_argument("--filters", default=None)
-    p_read.add_argument("--search", default=None)
-    p_read.add_argument("--columns", default=None)
-    p_read.add_argument("--relations", default=None)
-    p_read.add_argument("--limit", type=int, default=None)
-    p_read.add_argument("--offset", type=int, default=None)
-    p_read.add_argument("--order", default=None, help="Order by: 'col.desc' or 'col.asc' (comma-separated)")
-    p_read.add_argument("--count-only", action="store_true")
+        # read
+        p_read = sub.add_parser("read", help="Read data")
+        p_read.add_argument("table")
+        p_read.add_argument("--filters", default=None)
+        p_read.add_argument("--search", default=None)
+        p_read.add_argument("--columns", default=None)
+        p_read.add_argument("--relations", default=None)
+        p_read.add_argument("--limit", type=int, default=None)
+        p_read.add_argument("--offset", type=int, default=None)
+        p_read.add_argument("--order", default=None, help="Order by: 'col.desc' or 'col.asc' (comma-separated)")
+        p_read.add_argument("--count-only", action="store_true")
 
-    # aggregate
-    p_agg = sub.add_parser("aggregate", help="Aggregate data")
-    p_agg.add_argument("table")
-    p_agg.add_argument("--aggregates", default=None)
-    p_agg.add_argument("--filters", default=None)
-    p_agg.add_argument("--search", default=None)
-    p_agg.add_argument("--group-by", default=None)
-    p_agg.add_argument("--having", default=None)
+        # aggregate
+        p_agg = sub.add_parser("aggregate", help="Aggregate data")
+        p_agg.add_argument("table")
+        p_agg.add_argument("--aggregates", default=None)
+        p_agg.add_argument("--filters", default=None)
+        p_agg.add_argument("--search", default=None)
+        p_agg.add_argument("--group-by", default=None)
+        p_agg.add_argument("--having", default=None)
 
-    # write
-    p_write = sub.add_parser("write", help="Write data (WriteIntent)")
-    p_write.add_argument("--intent", required=True)
-    p_write.add_argument("--dry-run", action="store_true")
-    
-    # sync-schema
-    p_sync = sub.add_parser("sync-schema", help="Synchronize schema.json with live database")
-    p_sync.add_argument("--compare-only", action="store_true", help="Only compare, don't update files")
+        # write
+        p_write = sub.add_parser("write", help="Write data (WriteIntent)")
+        p_write.add_argument("--intent", required=True)
+        p_write.add_argument("--dry-run", action="store_true")
 
-    args = parser.parse_args()
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
+        # sync-schema
+        p_sync = sub.add_parser("sync-schema", help="Synchronize schema.json with live database")
+        p_sync.add_argument("--compare-only", action="store_true", help="Only compare, don't update files")
+
+        args = parser.parse_args()
+        if not args.command:
+            parser.print_help()
+            sys.exit(1)
 
     commands = {
         "inspect": cmd_inspect, 

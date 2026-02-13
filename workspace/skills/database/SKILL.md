@@ -10,430 +10,310 @@ description: >
 
 # Database Skill
 
-**THE RULE: Always inspect first, then read, then write (with --dry-run)**
+**THE RULE: Always inspect first, then read, then write (with dry_run)**
 
-This is your database superpower. JSON in, JSON out. No SQL. The tool is smart, you just describe what you want.
+JSON in, JSON out. No SQL. The tool is smart, you just describe what you want.
+
+## How It Works
+
+1. **Write** a JSON file with your query using the `Write` tool
+2. **Run** `python scripts/db_tool.py --file <path>` using `exec`
+
+That's it. No shell escaping, no quoting headaches. Native JSON.
+
+**File location:** Write query files to a temp path (e.g. `q.json` in the working directory). Delete after use.
+
+---
 
 ## 1. INSPECT — Discover What's Available
 
-### List all tables
+Inspect commands are simple enough to run directly (no JSON needed):
+
 ```bash
+# List all tables
 python scripts/db_tool.py inspect
-```
-**Output:** Complete table list with count
 
-### Get table structure
-```bash
+# Get table structure
 python scripts/db_tool.py inspect <table_name>
-```
-**Output:** All columns with types, required fields, PKs, FKs - everything you need to build queries
 
-### Get full details (with descriptions & enum values)
-```bash  
+# Full details with descriptions & enum values
 python scripts/db_tool.py inspect <table_name> --detailed
 ```
-**Output:** Complete schema including business rules, valid enum values, relationships
 
-### Synchronize schema cache with live database
-```bash
-# Compare current schema.json with live database 
-python scripts/db_tool.py sync-schema --compare-only
-
-# Update schema.json from live database (creates backup)
-python scripts/db_tool.py sync-schema
-```
-**Use this when:** Schema.json gets out of sync with database changes, or `inspect` shows wrong column info
-
-**Generic example output:**
+Or via JSON file:
 ```json
-{
-  "success": true,
-  "table": "T1",
-  "columns": [
-    {"name": "id", "type": "uuid", "required": true, "pk": true},
-    {"name": "code", "type": "varchar", "required": true},
-    {"name": "name", "type": "varchar", "required": true}, 
-    {"name": "category", "type": "varchar", "required": true},
-    {"name": "is_active", "type": "boolean", "required": true},
-    {"name": "value", "type": "integer", "required": true}
-  ]
-}
+{"command": "inspect"}
+{"command": "inspect", "table": "<table_name>"}
+{"command": "inspect", "table": "<table_name>", "detailed": true}
+```
+
+### Synchronize schema cache
+```json
+{"command": "sync-schema"}
+{"command": "sync-schema", "compare_only": true}
 ```
 
 ---
 
-## 2. READ — Query Data (The Smart Way)
+## 2. READ — Query Data
 
 ### Simple read
-```bash
-python scripts/db_tool.py read <table_name> --limit 5
+```json
+{"command": "read", "table": "<table>", "limit": 5}
 ```
 
 ### Filter by exact values
-```bash
-# Get records matching specific category
-python scripts/db_tool.py read <table_name> --filters '{"category": "<value>"}'
+```json
+{"command": "read", "table": "<table>", "filters": {"<column>": "<value>"}}
+```
 
-# Multiple conditions (AND logic)
-python scripts/db_tool.py read <table_name> --filters '{"category": "<value>", "is_active": true}'
+### Multiple conditions (AND)
+```json
+{"command": "read", "table": "<table>", "filters": {"<col1>": "<val1>", "<col2>": true}}
+```
 
-# List matching (IN operator)
-python scripts/db_tool.py read <table_name> --filters '{"category": ["<value1>", "<value2>"]}'
+### List matching (IN)
+```json
+{"command": "read", "table": "<table>", "filters": {"<column>": ["<val1>", "<val2>"]}}
 ```
 
 ### Filter with operators
-```bash
-# Greater than
-python scripts/db_tool.py read <table_name> --filters '{"value": {"gt": 100}}'
-
-# Multiple operators
-python scripts/db_tool.py read <table_name> --filters '{"price": {"gt": 100, "lte": 500}}'
+```json
+{"command": "read", "table": "<table>", "filters": {"<numeric_col>": {"gt": 100, "lte": 500}}}
 ```
 
 **All filter operators:** `gt`, `gte`, `lt`, `lte`, `eq`, `neq`, `in`
 
-### Search with fuzzy matching (ILIKE)
-```bash
-# Find records containing specific text  
-python scripts/db_tool.py read <table_name> --search '{"name": "%<search_term>%"}'
-
-# Multiple search patterns (OR — matches any)
-python scripts/db_tool.py read <table_name> --search '{"name": ["%<term1>%", "%<term2>%"]}'
-
-# Multiple search patterns (AND — matches all)
-python scripts/db_tool.py read <table_name> --search '{"name": {"all": ["%<term1>%", "%<term2>%"]}}'
+### Fuzzy search (ILIKE)
+```json
+{"command": "read", "table": "<table>", "search": {"<column>": "%<term>%"}}
 ```
 
-### Combine filters + search + columns
-```bash
-# Complex real-world query
-python scripts/db_tool.py read <table_name> \
-  --filters '{"status": "<active>", "is_active": true}' \
-  --search '{"name": "%<search>%"}' \
-  --columns '<col1>,<col2>,<col3>' \
-  --limit 10
+### OR search (matches any)
+```json
+{"command": "read", "table": "<table>", "search": {"<column>": ["%<term1>%", "%<term2>%"]}}
 ```
 
-### Get related data (joins)
-```bash
-# Records with their related data
-python scripts/db_tool.py read <main_table> \
-  --columns '<col1>,<col2>,<col3>' \
-  --relations '<related_table>(<col1>,<col2>)' \
-  --limit 3
+### AND search (matches all)
+```json
+{"command": "read", "table": "<table>", "search": {"<column>": {"all": ["%<term1>%", "%<term2>%"]}}}
 ```
 
-### Multiple foreign keys to same table (disambiguation)
-```bash
-# When a table has multiple FKs pointing to same target table
-# Use table!foreign_key_column(fields) syntax to disambiguate
-python scripts/db_tool.py read <table_with_multiple_fks> \
-  --relations '<target_table>!<fk1_column>(<col1>,<col2>),<target_table>!<fk2_column>(<col1>,<col2>)' \
-  --limit 3
-```
-
-**Generic output example:**
+### Combine filters + search + columns + order
 ```json
 {
-  "data": [
-    {
-      "code": "C1",
-      "name": "Item Name",
-      "related_table": {"name": "Related Item", "code": "RC1"}
-    }
-  ]
+  "command": "read",
+  "table": "<table>",
+  "filters": {"<col>": "<value>", "<col2>": true},
+  "search": {"<col>": "%<term>%"},
+  "columns": "<col1>,<col2>,<col3>",
+  "order": "<col1>.desc,<col2>.asc",
+  "limit": 10
 }
 ```
 
-### Order results
-```bash
-# Order by column descending
-python scripts/db_tool.py read <table_name> --columns '<col1>,<col2>' --order '<col1>.desc' --limit 10
-
-# Multiple sort columns
-python scripts/db_tool.py read <table_name> --order '<col1>.desc,<col2>.asc' --limit 10
+### Related data (joins)
+```json
+{"command": "read", "table": "<table>", "relations": "<related>(<col1>,<col2>)", "columns": "<col1>,<col2>", "limit": 3}
 ```
 
-### Pagination & counting
-```bash
-# Just get the count
-python scripts/db_tool.py read <table_name> --filters '{"status": "<active>"}' --count-only
+### FK disambiguation (multiple FKs to same table)
+```json
+{"command": "read", "table": "<table>", "relations": "<target>!<fk1>(<cols>),<target>!<fk2>(<cols>)", "limit": 3}
+```
 
-# Paginate through results  
-python scripts/db_tool.py read <table_name> --limit 20 --offset 40
+### Count only
+```json
+{"command": "read", "table": "<table>", "filters": {"<col>": "<value>"}, "count_only": true}
+```
+
+### Pagination
+```json
+{"command": "read", "table": "<table>", "limit": 20, "offset": 40}
 ```
 
 ---
 
 ## 3. AGGREGATE — Analytics
 
-Works on most tables (some may have access restrictions).
-
-### Simple counts
-```bash
-python scripts/db_tool.py aggregate <table_name> --aggregates '{"total": "count(*)"}'
+### Simple count
+```json
+{"command": "aggregate", "table": "<table>", "aggregates": {"total": "count(*)"}}
 ```
 
-### Group by with multiple metrics
-```bash
-# Count and average by category
-python scripts/db_tool.py aggregate <table_name> \
-  --aggregates '{"count": "count(*)", "avg_value": "avg(<numeric_column>)"}' \
-  --group-by '<category_column>'
+### Group by with metrics
+```json
+{
+  "command": "aggregate",
+  "table": "<table>",
+  "aggregates": {"count": "count(*)", "avg_val": "avg(<numeric_col>)"},
+  "group_by": "<column>"
+}
 ```
 
-### With filters and having
-```bash
-# Categories with more than N records
-python scripts/db_tool.py aggregate <table_name> \
-  --aggregates '{"record_count": "count(*)"}' \
-  --filters '{"is_active": true}' \
-  --group-by '<category_column>' \
-  --having '{"record_count": {"gt": 5}}'
+### With filters and HAVING
+```json
+{
+  "command": "aggregate",
+  "table": "<table>",
+  "aggregates": {"record_count": "count(*)"},
+  "filters": {"<col>": true},
+  "group_by": "<column>",
+  "having": {"record_count": {"gt": 5}}
+}
 ```
 
-**Available functions:** `count(*)`, `count(column)`, `sum()`, `avg()`, `min()`, `max()`
+**Available functions:** `count(*)`, `count(<col>)`, `sum()`, `avg()`, `min()`, `max()`
 
 ---
 
 ## 4. WRITE — Atomic Operations
 
-**ALWAYS use --dry-run first!**
+**ALWAYS set `dry_run: true` first!**
 
 ### Single record create
-```bash
-python scripts/db_tool.py write --dry-run --intent '{
-  "goal": "Create new <entity_type>", 
-  "reasoning": "Business justification for this operation",
-  "operations": [
-    {
-      "action": "create",
-      "table": "<table_name>", 
-      "data": {
-        "code": "<CODE>",
-        "name": "<Name>", 
-        "category": "<CATEGORY>",
-        "is_active": true,
-        "value": 100
+```json
+{
+  "command": "write",
+  "dry_run": true,
+  "intent": {
+    "goal": "Create new <entity>",
+    "reasoning": "Business justification",
+    "operations": [
+      {
+        "action": "create",
+        "table": "<table>",
+        "data": {
+          "<col1>": "<value>",
+          "<col2>": "<value>",
+          "<col3>": true
+        }
       }
-    }
-  ],
-  "impact": {"creates": {"<table_name>": 1}}
-}'
+    ],
+    "impact": {"creates": {"<table>": 1}}
+  }
+}
 ```
 
-### Multi-table with dependencies  
-```bash  
-python scripts/db_tool.py write --dry-run --intent '{
-  "goal": "Create <parent> with <child> records",
-  "reasoning": "Business need description",
-  "operations": [
-    {
-      "action": "create",
-      "table": "<parent_table>",
-      "data": {
-        "name": "<Parent Name>", 
-        "code": "<PRT>",
-        "base_value": 100.00
+### Multi-table with dependencies
+```json
+{
+  "command": "write",
+  "dry_run": true,
+  "intent": {
+    "goal": "Create <parent> with <children>",
+    "reasoning": "Business need",
+    "operations": [
+      {
+        "action": "create",
+        "table": "<parent_table>",
+        "data": {"name": "<Name>", "<col>": "<value>"},
+        "returns": "parent"
       },
-      "returns": "parent"
-    },
-    {
-      "action": "create", 
-      "table": "<child_table>",
-      "data": [
-        {
-          "parent_id": "@parent.id", 
-          "code": "<CHILD1>",
-          "name": "<Child 1>",
-          "value": 150.00
-        },
-        {
-          "parent_id": "@parent.id",
-          "code": "<CHILD2>", 
-          "name": "<Child 2>",
-          "value": 200.00
-        }
-      ]
-    }
-  ],
-  "impact": {"creates": {"<parent_table>": 1, "<child_table>": 2}}
-}'
+      {
+        "action": "create",
+        "table": "<child_table>",
+        "data": [
+          {"parent_id": "@parent.id", "name": "<Child 1>", "<col>": 100},
+          {"parent_id": "@parent.id", "name": "<Child 2>", "<col>": 200}
+        ]
+      }
+    ],
+    "impact": {"creates": {"<parent_table>": 1, "<child_table>": 2}}
+  }
+}
 ```
 
 ### Update records
-```bash
-python scripts/db_tool.py write --intent '{
-  "goal": "Update <entity> status",
-  "reasoning": "Business reason for update", 
-  "operations": [
-    {
-      "action": "update",
-      "table": "<table_name>",
-      "filters": {"code": "<specific_code>"},
-      "updates": {"is_active": false, "status": "<INACTIVE>"}
-    }
-  ],
-  "impact": {"updates": {"<table_name>": "1-5 records"}}
-}'
+```json
+{
+  "command": "write",
+  "intent": {
+    "goal": "Update <entity>",
+    "reasoning": "Business reason",
+    "operations": [
+      {
+        "action": "update",
+        "table": "<table>",
+        "filters": {"<col>": "<value>"},
+        "updates": {"<col>": false, "<col2>": "<new_value>"}
+      }
+    ],
+    "impact": {"updates": {"<table>": "1-5 records"}}
+  }
+}
 ```
 
-### Expression-based updates (LIMITATION)
-
-**❌ NOT SUPPORTED:** Mathematical expressions in updates
-```bash  
-# This DOESN'T WORK - expressions not supported
-"updates": {"price": "price * 1.1", "quantity": "quantity - 1"}
-```
-
-**✅ WORKAROUND:** Read first, calculate, then write
-```bash
-# Step 1: Read current values
-python scripts/db_tool.py read <table> --filters '{"id": "<record_id>"}' --columns '<numeric_column>'
-
-# Step 2: Calculate new values in your script/tool
-# new_price = current_price * 1.1
-
-# Step 3: Update with literal values  
-python scripts/db_tool.py write --intent '{
-  "goal": "Update calculated values",
-  "operations": [{
-    "action": "update",
-    "table": "<table>", 
-    "filters": {"id": "<record_id>"},
-    "updates": {"<numeric_column>": <calculated_value>}
-  }]
-}'
+### Upsert
+```json
+{
+  "command": "write",
+  "dry_run": true,
+  "intent": {
+    "goal": "Upsert <entity>",
+    "reasoning": "Create or update",
+    "operations": [
+      {
+        "action": "upsert",
+        "table": "<table>",
+        "data": {"<unique_col>": "<value>", "<col>": "<value>"},
+        "conflict": ["<unique_col>"]
+      }
+    ],
+    "impact": {"creates": {"<table>": 1}}
+  }
+}
 ```
 
 **Actions:** `create`, `update`, `delete`, `upsert`
 
+### Expression updates — NOT SUPPORTED
+```
+❌ "updates": {"price": "price * 1.1"} — doesn't work
+✅ Read first → calculate → write literal values
+```
+
 ---
 
-## Key Features That Make This Tool Amazing
+## Key Features
 
 1. **Auto-enrichment**: `id` UUIDs generated, `created_at`/`updated_at` set automatically
-2. **Dependency detection**: `@parent.id` references automatically resolved
-3. **Type coercion**: "true" → true, "100" → 100 based on column types  
-4. **Schema validation**: Invalid table/column names caught with helpful suggestions
+2. **Dependency detection**: `@parent.id` references resolved across operations
+3. **Type coercion**: `"true"` → `true`, `"100"` → `100` based on column types
+4. **Schema validation**: Invalid table/column names caught with suggestions
 5. **Atomic transactions**: All operations succeed or fail together
 6. **Excellent errors**: Every error tells you exactly how to fix it
 
 ---
 
+## Workflow
+
+```
+1. inspect              → discover tables and columns
+2. read                 → check existing data
+3. write (dry_run)      → preview changes
+4. write                → execute (remove dry_run)
+```
+
+---
+
 ## Error Recovery
 
-### Table not found
-```
-Error: "Unknown table: '<typo_table>'"
-Fix: Use 'inspect' to see available tables
-```
-
-### Column not found  
-```
-Error: "Unknown columns in '<table>': ['<typo_column>']"
-Fix: Use 'inspect <table>' to see valid columns
-```
-
-### Access denied on aggregates
-```
-Error: "Access denied to table: <table>"  
-Fix: Some tables have restricted aggregate access - try different tables
-```
-
----
-
-## Workflow: The Right Way to Use This
-
-```bash
-# 1. Discover what exists
-python scripts/db_tool.py inspect                    # List tables
-python scripts/db_tool.py inspect <table>           # Table structure
-
-# 2. Check existing data (avoid duplicates)
-python scripts/db_tool.py read <table> --search '{"code": "<pattern>%"}' --count-only
-
-# 3. Preview your changes
-python scripts/db_tool.py write --dry-run --intent '...'
-
-# 4. Execute (remove --dry-run)
-python scripts/db_tool.py write --intent '...'
-```
-
----
-
-## ⚠️ PowerShell JSON Escaping
-
-PowerShell handles quotes differently than bash. Escape inner double quotes:
-
-```powershell
-# ✅ Correct (PowerShell)
---filters '{\"status\": \"ACTIVE\"}'
-
-# ❌ Wrong (bash-style — fails in PowerShell)
---filters '{"status": "ACTIVE"}'
-```
-
-All examples in this doc use bash-style for readability. **In PowerShell, escape all inner `"` as `\"`.**
-
----
-
-## Template Patterns
-
-### Common Filter Patterns
-```bash
-# Exact match
---filters '{"<column>": "<value>"}'
-
-# Multiple conditions  
---filters '{"<col1>": "<val1>", "<col2>": true}'
-
-# Operators
---filters '{"<numeric_col>": {"gt": 100, "lte": 500}}'
-
-# Lists (IN operator)
---filters '{"<column>": ["<val1>", "<val2>", "<val3>"]}'
-```
-
-### Common Search Patterns
-```bash
-# Starts with
---search '{"<column>": "<prefix>%"}'
-
-# Contains
---search '{"<column>": "%<term>%"}'
-
-# Multiple terms (OR)
---search '{"<column>": ["%<term1>%", "%<term2>%"]}'
-
-# Multiple terms (AND — all must match)
---search '{"<column>": {"all": ["%<term1>%", "%<term2>%"]}}'
-```
-
-### Common WriteIntent Structure
-```json
-{
-  "goal": "<what you want to accomplish>",
-  "reasoning": "<why this is needed>", 
-  "operations": [
-    {
-      "action": "<create|update|delete|upsert>",
-      "table": "<table_name>",
-      "data": {"<column>": "<value>"},
-      "returns": "<alias>"
-    }
-  ],
-  "impact": {"<creates|updates|deletes>": {"<table>": "<count>"}}
-}
-```
+| Error | Fix |
+|---|---|
+| `Unknown table: '<name>'` | Use `inspect` to list tables |
+| `Unknown columns in '<table>': [...]` | Use `inspect <table>` for valid columns |
+| `missing required fields: [...]` | Add listed fields to your data |
+| `Unsupported operator: '<op>'` | Use: eq, gt, gte, lt, lte, neq, in |
+| `'@alias' not found` | Check `returns` names in previous operations |
 
 ---
 
 ## Known Limitations
 
-1. **Aggregate filters** — only exact match and lists (IN), not operators like `{"gt": 100}`. Workaround: use `read` with operators, then aggregate client-side.
+1. **Aggregate filters** — only exact match and IN, not operators. Workaround: `read` with operators, then aggregate client-side.
 2. **Expression updates** — can't do `price * 1.1`. Read → calculate → write with literal values.
 
 ---
 
-**Remember: Replace placeholders like `<table_name>`, `<column>`, `<value>` with actual values from your schema. Use 'inspect' to discover what's available!**
+**Remember: Replace `<table>`, `<column>`, `<value>` with real values from `inspect`. All examples are JSON files — write with `Write` tool, run with `exec python scripts/db_tool.py --file <path>`.**
