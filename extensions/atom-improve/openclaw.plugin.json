@@ -1,0 +1,44 @@
+{
+  "id": "atom-improve",
+  "name": "Atom Self-Improvement Loop",
+  "version": "1.0.0",
+  "description": "Actor-Evaluator-Reflector loop — wires skill retrieval, generation, evaluation, reflection, and memory storage into an autonomous improvement cycle",
+  "main": "index.js",
+  "kind": "tool",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "qdrantUrl": {
+        "type": "string",
+        "default": "http://localhost:6333"
+      },
+      "ollamaUrl": {
+        "type": "string",
+        "default": "http://localhost:11434"
+      },
+      "openrouterUrl": {
+        "type": "string",
+        "default": "https://openrouter.ai/api/v1"
+      },
+      "openrouterKey": {
+        "type": "string"
+      },
+      "actorModel": {
+        "type": "string",
+        "default": "moonshotai/kimi-k2.5"
+      },
+      "judgeModel": {
+        "type": "string",
+        "default": "moonshotai/kimi-k2.5"
+      },
+      "reflectorModel": {
+        "type": "string",
+        "default": "anthropic/claude-sonnet-4-5-20250929"
+      },
+      "maxRetries": {
+        "type": "number",
+        "default": 3
+      }
+    }
+  }
+}

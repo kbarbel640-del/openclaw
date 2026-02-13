@@ -1,0 +1,23 @@
+{
+  "id": "atom-skills",
+  "name": "Atom Skill Library",
+  "version": "1.0.0",
+  "description": "Voyager-pattern skill library — store, retrieve, and compose verified skills via Qdrant",
+  "main": "index.js",
+  "kind": "tool",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "qdrantUrl": {
+        "type": "string",
+        "description": "Qdrant URL",
+        "default": "http://localhost:6333"
+      },
+      "ollamaUrl": {
+        "type": "string",
+        "description": "Ollama URL for embeddings",
+        "default": "http://localhost:11434"
+      }
+    }
+  }
+}

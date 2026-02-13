@@ -1,0 +1,21 @@
+{
+  "id": "atom-feedback",
+  "name": "Atom Feedback Loop",
+  "version": "1.0.0",
+  "description": "Captures user feedback (explicit and implicit), converts to preferences and lessons, updates skill ratings",
+  "main": "index.js",
+  "kind": "tool",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "qdrantUrl": {
+        "type": "string",
+        "default": "http://localhost:6333"
+      },
+      "ollamaUrl": {
+        "type": "string",
+        "default": "http://localhost:11434"
+      }
+    }
+  }
+}

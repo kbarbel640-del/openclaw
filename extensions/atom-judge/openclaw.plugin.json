@@ -1,0 +1,42 @@
+{
+  "id": "atom-judge",
+  "name": "Atom Judge / Evaluator",
+  "version": "1.0.0",
+  "description": "Binary rubric evaluation system — LLM-as-judge with per-task-type rubrics, retry logic, and lesson extraction",
+  "main": "index.js",
+  "kind": "tool",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "qdrantUrl": {
+        "type": "string",
+        "description": "Qdrant URL",
+        "default": "http://localhost:6333"
+      },
+      "ollamaUrl": {
+        "type": "string",
+        "description": "Ollama URL for embeddings",
+        "default": "http://localhost:11434"
+      },
+      "judgeBaseUrl": {
+        "type": "string",
+        "description": "OpenRouter-compatible API base URL for judge model",
+        "default": "https://openrouter.ai/api/v1"
+      },
+      "judgeApiKey": {
+        "type": "string",
+        "description": "API key for judge model"
+      },
+      "judgeModel": {
+        "type": "string",
+        "description": "Model ID for cheap binary evaluation",
+        "default": "moonshotai/kimi-k2.5"
+      },
+      "reflectorModel": {
+        "type": "string",
+        "description": "Model ID for reflection on failures",
+        "default": "anthropic/claude-sonnet-4-5-20250929"
+      }
+    }
+  }
+}

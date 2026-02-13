@@ -1,0 +1,36 @@
+{
+  "id": "atom-canvas-eval",
+  "name": "Atom Canvas Visual Evaluation",
+  "version": "1.0.0",
+  "description": "Visual evaluation pipeline for canvas face/display — screenshot comparison, version history, rollback on regression",
+  "main": "index.js",
+  "kind": "tool",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "qdrantUrl": {
+        "type": "string",
+        "default": "http://localhost:6333"
+      },
+      "ollamaUrl": {
+        "type": "string",
+        "default": "http://localhost:11434"
+      },
+      "canvasRoot": {
+        "type": "string",
+        "default": "/Users/atom/.openclaw/canvas"
+      },
+      "versionsDir": {
+        "type": "string",
+        "default": "/Users/atom/.openclaw/workspace/canvas-versions"
+      },
+      "openrouterUrl": {
+        "type": "string",
+        "default": "https://openrouter.ai/api/v1"
+      },
+      "openrouterKey": {
+        "type": "string"
+      }
+    }
+  }
+}

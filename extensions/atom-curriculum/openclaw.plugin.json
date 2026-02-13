@@ -1,0 +1,28 @@
+{
+  "id": "atom-curriculum",
+  "name": "Atom Curriculum / Self-Directed Learning",
+  "version": "1.0.0",
+  "description": "Auto-generates improvement tasks based on skill gaps, failure patterns, and goals. Drives autonomous learning cycles.",
+  "main": "index.js",
+  "kind": "tool",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "qdrantUrl": {
+        "type": "string",
+        "default": "http://localhost:6333"
+      },
+      "ollamaUrl": {
+        "type": "string",
+        "default": "http://localhost:11434"
+      },
+      "openrouterUrl": {
+        "type": "string",
+        "default": "https://openrouter.ai/api/v1"
+      },
+      "openrouterKey": {
+        "type": "string"
+      }
+    }
+  }
+}
