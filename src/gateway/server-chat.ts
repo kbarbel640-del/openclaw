@@ -227,7 +227,13 @@ export function createAgentEventHandler({
   clearAgentRunContext,
   toolEventRecipients,
 }: AgentEventHandlerOptions) {
-  const emitChatDelta = (sessionKey: string, clientRunId: string, seq: number, text: string) => {
+  const emitChatDelta = (
+    sessionKey: string,
+    clientRunId: string,
+    seq: number,
+    text: string,
+    runId?: string,
+  ) => {
     chatRunState.buffers.set(clientRunId, text);
     const now = Date.now();
     const last = chatRunState.deltaSentAt.get(clientRunId) ?? 0;
@@ -246,9 +252,13 @@ export function createAgentEventHandler({
         timestamp: now,
       },
     };
-    // Suppress webchat broadcast for heartbeat runs when showOk is false
     if (!shouldSuppressHeartbeatBroadcast(clientRunId)) {
-      broadcast("chat", payload, { dropIfSlow: true });
+      const recipients = runId ? toolEventRecipients.get(runId) : undefined;
+      if (recipients && recipients.size > 0) {
+        broadcastToConnIds("chat", payload, recipients, { dropIfSlow: true });
+      } else {
+        broadcast("chat", payload, { dropIfSlow: true });
+      }
     }
     nodeSendToSession(sessionKey, "chat", payload);
   };
@@ -259,10 +269,12 @@ export function createAgentEventHandler({
     seq: number,
     jobState: "done" | "error",
     error?: unknown,
+    runId?: string,
   ) => {
     const text = chatRunState.buffers.get(clientRunId)?.trim() ?? "";
     chatRunState.buffers.delete(clientRunId);
     chatRunState.deltaSentAt.delete(clientRunId);
+    const recipients = runId ? toolEventRecipients.get(runId) : undefined;
     if (jobState === "done") {
       const payload = {
         runId: clientRunId,
@@ -277,9 +289,12 @@ export function createAgentEventHandler({
             }
           : undefined,
       };
-      // Suppress webchat broadcast for heartbeat runs when showOk is false
       if (!shouldSuppressHeartbeatBroadcast(clientRunId)) {
-        broadcast("chat", payload);
+        if (recipients && recipients.size > 0) {
+          broadcastToConnIds("chat", payload, recipients);
+        } else {
+          broadcast("chat", payload);
+        }
       }
       nodeSendToSession(sessionKey, "chat", payload);
       return;
@@ -291,7 +306,11 @@ export function createAgentEventHandler({
       state: "error" as const,
       errorMessage: error ? formatForLog(error) : undefined,
     };
-    broadcast("chat", payload);
+    if (recipients && recipients.size > 0) {
+      broadcastToConnIds("chat", payload, recipients);
+    } else {
+      broadcast("chat", payload);
+    }
     nodeSendToSession(sessionKey, "chat", payload);
   };
 
@@ -338,8 +357,9 @@ export function createAgentEventHandler({
             return sessionKey ? { ...evt, sessionKey, data } : { ...evt, data };
           })()
         : agentPayload;
+    const runRecipients = toolEventRecipients.get(evt.runId);
     if (evt.seq !== last + 1) {
-      broadcast("agent", {
+      const seqGapPayload = {
         runId: evt.runId,
         stream: "error",
         ts: Date.now(),
@@ -349,7 +369,12 @@ export function createAgentEventHandler({
           expected: last + 1,
           received: evt.seq,
         },
-      });
+      };
+      if (runRecipients && runRecipients.size > 0) {
+        broadcastToConnIds("agent", seqGapPayload, runRecipients);
+      } else {
+        broadcast("agent", seqGapPayload);
+      }
     }
     agentRunSeq.set(evt.runId, evt.seq);
     if (isToolEvent) {
@@ -357,12 +382,15 @@ export function createAgentEventHandler({
       // tool-events capability, regardless of verboseLevel. The verbose
       // setting only controls whether tool details are sent as channel
       // messages to messaging surfaces (Telegram, Discord, etc.).
-      const recipients = toolEventRecipients.get(evt.runId);
-      if (recipients && recipients.size > 0) {
-        broadcastToConnIds("agent", toolPayload, recipients);
+      if (runRecipients && runRecipients.size > 0) {
+        broadcastToConnIds("agent", toolPayload, runRecipients);
       }
     } else {
-      broadcast("agent", agentPayload);
+      if (runRecipients && runRecipients.size > 0) {
+        broadcastToConnIds("agent", agentPayload, runRecipients);
+      } else {
+        broadcast("agent", agentPayload);
+      }
     }
 
     const lifecyclePhase =
@@ -375,7 +403,7 @@ export function createAgentEventHandler({
         nodeSendToSession(sessionKey, "agent", isToolEvent ? toolPayload : agentPayload);
       }
       if (!isAborted && evt.stream === "assistant" && typeof evt.data?.text === "string") {
-        emitChatDelta(sessionKey, clientRunId, evt.seq, evt.data.text);
+        emitChatDelta(sessionKey, clientRunId, evt.seq, evt.data.text, evt.runId);
       } else if (!isAborted && (lifecyclePhase === "end" || lifecyclePhase === "error")) {
         if (chatLink) {
           const finished = chatRunState.registry.shift(evt.runId);
@@ -389,6 +417,7 @@ export function createAgentEventHandler({
             evt.seq,
             lifecyclePhase === "error" ? "error" : "done",
             evt.data?.error,
+            evt.runId,
           );
         } else {
           emitChatFinal(
@@ -397,6 +426,7 @@ export function createAgentEventHandler({
             evt.seq,
             lifecyclePhase === "error" ? "error" : "done",
             evt.data?.error,
+            evt.runId,
           );
         }
       } else if (isAborted && (lifecyclePhase === "end" || lifecyclePhase === "error")) {

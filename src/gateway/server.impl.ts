@@ -434,6 +434,7 @@ export async function startGatewayServer(
 
   const { tickInterval, healthInterval, dedupeCleanup } = startGatewayMaintenanceTimers({
     broadcast,
+    broadcastToConnIds,
     nodeSendToAllSubscribed,
     getPresenceVersion,
     getHealthVersion,
@@ -447,6 +448,7 @@ export async function startGatewayServer(
     removeChatRun,
     agentRunSeq,
     nodeSendToSession,
+    getRunRecipients: toolEventRecipients.get,
   });
 
   const agentUnsub = onAgentEvent(
@@ -525,6 +527,7 @@ export async function startGatewayServer(
       addChatRun,
       removeChatRun,
       registerToolEventRecipient: toolEventRecipients.add,
+      getRunRecipients: toolEventRecipients.get,
       dedupe,
       wizardSessions,
       findRunningWizard,

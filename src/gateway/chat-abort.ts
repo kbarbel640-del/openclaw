@@ -44,6 +44,13 @@ export type ChatAbortOps = {
   agentRunSeq: Map<string, number>;
   broadcast: (event: string, payload: unknown, opts?: { dropIfSlow?: boolean }) => void;
   nodeSendToSession: (sessionKey: string, event: string, payload: unknown) => void;
+  broadcastToConnIds?: (
+    event: string,
+    payload: unknown,
+    connIds: ReadonlySet<string>,
+    opts?: { dropIfSlow?: boolean },
+  ) => void;
+  getRunRecipients?: (runId: string) => ReadonlySet<string> | undefined;
 };
 
 function broadcastChatAborted(
@@ -62,7 +69,12 @@ function broadcastChatAborted(
     state: "aborted" as const,
     stopReason,
   };
-  ops.broadcast("chat", payload);
+  const recipients = ops.getRunRecipients?.(runId);
+  if (recipients && recipients.size > 0 && ops.broadcastToConnIds) {
+    ops.broadcastToConnIds("chat", payload, recipients);
+  } else {
+    ops.broadcast("chat", payload);
+  }
   ops.nodeSendToSession(sessionKey, "chat", payload);
 }
 

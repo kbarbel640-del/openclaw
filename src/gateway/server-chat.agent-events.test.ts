@@ -49,6 +49,177 @@ describe("agent event handler", () => {
     nowSpy.mockRestore();
   });
 
+  it("routes chat delta to registered connId via broadcastToConnIds", () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(2_000);
+    const broadcast = vi.fn();
+    const broadcastToConnIds = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const agentRunSeq = new Map<string, number>();
+    const chatRunState = createChatRunState();
+    const toolEventRecipients = createToolEventRecipientRegistry();
+
+    chatRunState.registry.add("run-routed", { sessionKey: "session-1", clientRunId: "client-routed" });
+    toolEventRecipients.add("run-routed", "conn-abc");
+
+    const handler = createAgentEventHandler({
+      broadcast,
+      broadcastToConnIds,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => undefined,
+      clearAgentRunContext: vi.fn(),
+      toolEventRecipients,
+    });
+
+    handler({
+      runId: "run-routed",
+      seq: 1,
+      stream: "assistant",
+      ts: Date.now(),
+      data: { text: "Targeted delta" },
+    });
+
+    const chatBroadcasts = broadcast.mock.calls.filter(([event]) => event === "chat");
+    expect(chatBroadcasts).toHaveLength(0);
+
+    const chatTargeted = broadcastToConnIds.mock.calls.filter(([event]) => event === "chat");
+    expect(chatTargeted).toHaveLength(1);
+    const payload = chatTargeted[0]?.[1] as {
+      state?: string;
+      message?: { content?: Array<{ text?: string }> };
+    };
+    expect(payload.state).toBe("delta");
+    expect(payload.message?.content?.[0]?.text).toBe("Targeted delta");
+
+    const sessionChatCalls = nodeSendToSession.mock.calls.filter(([, event]) => event === "chat");
+    expect(sessionChatCalls).toHaveLength(1);
+    nowSpy.mockRestore();
+  });
+
+  it("routes chat final to registered connId via broadcastToConnIds", () => {
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(3_000);
+    const broadcast = vi.fn();
+    const broadcastToConnIds = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const agentRunSeq = new Map<string, number>();
+    const chatRunState = createChatRunState();
+    const toolEventRecipients = createToolEventRecipientRegistry();
+
+    chatRunState.registry.add("run-final", { sessionKey: "session-1", clientRunId: "client-final" });
+    toolEventRecipients.add("run-final", "conn-xyz");
+
+    const handler = createAgentEventHandler({
+      broadcast,
+      broadcastToConnIds,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => undefined,
+      clearAgentRunContext: vi.fn(),
+      toolEventRecipients,
+    });
+
+    handler({
+      runId: "run-final",
+      seq: 1,
+      stream: "assistant",
+      ts: Date.now(),
+      data: { text: "Final text" },
+    });
+
+    broadcast.mockClear();
+    broadcastToConnIds.mockClear();
+    nodeSendToSession.mockClear();
+
+    handler({
+      runId: "run-final",
+      seq: 2,
+      stream: "lifecycle",
+      ts: Date.now(),
+      data: { phase: "end" },
+    });
+
+    const chatBroadcasts = broadcast.mock.calls.filter(([event]) => event === "chat");
+    expect(chatBroadcasts).toHaveLength(0);
+
+    const chatTargeted = broadcastToConnIds.mock.calls.filter(([event]) => event === "chat");
+    expect(chatTargeted).toHaveLength(1);
+    const payload = chatTargeted[0]?.[1] as { state?: string };
+    expect(payload.state).toBe("final");
+    nowSpy.mockRestore();
+  });
+
+  it("routes non-tool agent events to registered connId via broadcastToConnIds", () => {
+    const broadcast = vi.fn();
+    const broadcastToConnIds = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const agentRunSeq = new Map<string, number>();
+    const chatRunState = createChatRunState();
+    const toolEventRecipients = createToolEventRecipientRegistry();
+
+    toolEventRecipients.add("run-agent", "conn-agent");
+
+    const handler = createAgentEventHandler({
+      broadcast,
+      broadcastToConnIds,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => "session-1",
+      clearAgentRunContext: vi.fn(),
+      toolEventRecipients,
+    });
+
+    handler({
+      runId: "run-agent",
+      seq: 1,
+      stream: "assistant",
+      ts: Date.now(),
+      data: { text: "Agent event" },
+    });
+
+    const agentBroadcasts = broadcast.mock.calls.filter(([event]) => event === "agent");
+    expect(agentBroadcasts).toHaveLength(0);
+
+    const agentTargeted = broadcastToConnIds.mock.calls.filter(([event]) => event === "agent");
+    expect(agentTargeted).toHaveLength(1);
+  });
+
+  it("falls back to broadcast for agent events when no connId registered", () => {
+    const broadcast = vi.fn();
+    const broadcastToConnIds = vi.fn();
+    const nodeSendToSession = vi.fn();
+    const agentRunSeq = new Map<string, number>();
+    const chatRunState = createChatRunState();
+    const toolEventRecipients = createToolEventRecipientRegistry();
+
+    const handler = createAgentEventHandler({
+      broadcast,
+      broadcastToConnIds,
+      nodeSendToSession,
+      agentRunSeq,
+      chatRunState,
+      resolveSessionKeyForRun: () => "session-1",
+      clearAgentRunContext: vi.fn(),
+      toolEventRecipients,
+    });
+
+    handler({
+      runId: "run-no-reg",
+      seq: 1,
+      stream: "assistant",
+      ts: Date.now(),
+      data: { text: "Fallback event" },
+    });
+
+    const agentBroadcasts = broadcast.mock.calls.filter(([event]) => event === "agent");
+    expect(agentBroadcasts).toHaveLength(1);
+
+    const agentTargeted = broadcastToConnIds.mock.calls.filter(([event]) => event === "agent");
+    expect(agentTargeted).toHaveLength(0);
+  });
+
   it("routes tool events only to registered recipients when verbose is enabled", () => {
     const broadcast = vi.fn();
     const broadcastToConnIds = vi.fn();
