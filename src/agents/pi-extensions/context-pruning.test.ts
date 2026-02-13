@@ -403,7 +403,6 @@ describe("context-pruning", () => {
       },
       contextWindowTokens: 1000,
       isToolPrunable: () => true,
-      lastCacheTouchAt: Date.now(),
     });
 
     const messages: AgentMessage[] = [
