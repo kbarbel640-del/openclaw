@@ -1,17 +1,37 @@
-import { initHttpClient, matrixFetch } from "./client/http.js";
-import { initCryptoMachine, getCryptoStorePath, closeMachine, getMachine } from "./crypto/machine.js";
-import { processOutgoingRequests } from "./crypto/outgoing.js";
-import { restoreCrossSigningFromSSSSIfNeeded, serverHasCrossSigningKeys, readLocalSskSeed, type SsssRestoreResult } from "./crypto/ssss.js";
-import { selfSignDevice } from "./crypto/self-sign.js";
-import { runSyncLoop } from "./client/sync.js";
-import { sendMatrixMessage, sendTyping } from "./client/send.js";
-import { downloadAndDecryptMedia, type EncryptedFile } from "./client/media.js";
-import { isDmRoomAsync, getRoomName, getMemberDisplayName, initMDirectCache } from "./client/rooms.js";
-import { getMatrixRuntime } from "./runtime.js";
-import type { MatrixEvent } from "./types.js";
 import type { ResolvedMatrixAccount } from "./config.js";
-import type { OpenClawConfig, PluginLogger, GatewayStatus, PluginRuntime } from "./openclaw-types.js";
+import type {
+  OpenClawConfig,
+  PluginLogger,
+  GatewayStatus,
+  PluginRuntime,
+} from "./openclaw-types.js";
+import type { MatrixEvent } from "./types.js";
+import { initHttpClient, matrixFetch } from "./client/http.js";
+import { downloadAndDecryptMedia, type EncryptedFile } from "./client/media.js";
+import {
+  isDmRoomAsync,
+  getRoomName,
+  getMemberDisplayName,
+  initMDirectCache,
+} from "./client/rooms.js";
+import { sendMatrixMessage, sendTyping } from "./client/send.js";
+import { runSyncLoop } from "./client/sync.js";
+import {
+  initCryptoMachine,
+  getCryptoStorePath,
+  closeMachine,
+  getMachine,
+} from "./crypto/machine.js";
+import { processOutgoingRequests } from "./crypto/outgoing.js";
+import { selfSignDevice } from "./crypto/self-sign.js";
+import {
+  restoreCrossSigningFromSSSSIfNeeded,
+  serverHasCrossSigningKeys,
+  readLocalSskSeed,
+  type SsssRestoreResult,
+} from "./crypto/ssss.js";
 import { incrementCounter } from "./health.js";
+import { getMatrixRuntime } from "./runtime.js";
 import { createLogger } from "./util/logger.js";
 
 // SINGLETON: Only one account can run at a time. Multi-account requires
@@ -38,9 +58,7 @@ export interface MonitorMatrixOpts {
  * It initializes crypto, starts the sync loop, and dispatches
  * inbound messages to OpenClaw's auto-reply pipeline via MsgContext.
  */
-export async function monitorMatrixProvider(
-  opts: MonitorMatrixOpts
-): Promise<void> {
+export async function monitorMatrixProvider(opts: MonitorMatrixOpts): Promise<void> {
   const { account, accountId, abortSignal, log, setStatus } = opts;
   const slog = createLogger("matrix", log);
 
@@ -48,7 +66,7 @@ export async function monitorMatrixProvider(
   if (_activeAccountId !== null) {
     throw new Error(
       `[claw-matrix] Cannot start account "${accountId}": account "${_activeAccountId}" is already running. ` +
-      `Multi-account requires refactoring module-level singletons (OlmMachine, HTTP client, sync state, room caches).`
+        `Multi-account requires refactoring module-level singletons (OlmMachine, HTTP client, sync state, room caches).`,
     );
   }
   _activeAccountId = accountId;
@@ -70,10 +88,13 @@ export async function monitorMatrixProvider(
   const cryptoStorePath = getCryptoStorePath(
     account.homeserver,
     account.userId,
-    account.accessToken
+    account.accessToken,
   );
 
-  // 2a. Restore cross-signing keys from SSSS before OlmMachine opens the store
+  // 2a. Restore cross-signing keys from SSSS before OlmMachine opens the store.
+  // CRITICAL: All node:sqlite access MUST happen here, BEFORE initCryptoMachine().
+  // The Rust SDK bundles its own SQLite — two different SQLite implementations
+  // accessing the same DB concurrently causes WAL corruption.
   let ssssResult: SsssRestoreResult = { restored: false };
   try {
     ssssResult = await restoreCrossSigningFromSSSSIfNeeded({
@@ -89,12 +110,12 @@ export async function monitorMatrixProvider(
     slog.warn("SSSS cross-signing restore failed", { error: err.message });
   }
 
+  // 2a-pre. Read SSK seed BEFORE OlmMachine takes ownership of the DB.
+  // readLocalSskSeed() uses node:sqlite — must not be called after initCryptoMachine().
+  const preCachedSskSeed = ssssResult.secrets?.selfSigning ?? readLocalSskSeed(cryptoStorePath);
+
   try {
-    await initCryptoMachine(
-      account.userId,
-      account.deviceName,
-      cryptoStorePath
-    );
+    await initCryptoMachine(account.userId, account.deviceName, cryptoStorePath);
     slog.info("Crypto initialized", { store: cryptoStorePath });
 
     // Crypto startup diagnostics
@@ -116,8 +137,10 @@ export async function monitorMatrixProvider(
           // Keys exist on server but not locally — SSSS restore either wasn't
           // possible (no recovery key) or didn't succeed. DO NOT bootstrap:
           // that would destroy the existing server-side identity.
-          slog.warn("Cross-signing keys on server but not available locally — " +
-            "configure recoveryKey to restore. Device will remain unverified.");
+          slog.warn(
+            "Cross-signing keys on server but not available locally — " +
+              "configure recoveryKey to restore. Device will remain unverified.",
+          );
         } else {
           // Truly no keys anywhere — initial bootstrap is correct
           slog.info("No cross-signing keys found anywhere — bootstrapping");
@@ -135,26 +158,32 @@ export async function monitorMatrixProvider(
     }
 
     // 2a-ii. Self-sign device with cross-signing key (every startup)
-    // SSK seed comes from SSSS restore (if it just ran) or local SQLite store
     {
-      const sskSeedB64 = ssssResult.secrets?.selfSigning
-        ?? readLocalSskSeed(cryptoStorePath);
+      const sskSeedB64 = preCachedSskSeed;
       if (sskSeedB64) {
         try {
           const keysResp = await matrixFetch<{
             self_signing_keys?: Record<string, { keys?: Record<string, string> }>;
-            device_keys?: Record<string, Record<string, { signatures?: Record<string, Record<string, string>> }>>;
+            device_keys?: Record<
+              string,
+              Record<string, { signatures?: Record<string, Record<string, string>> }>
+            >;
           }>("POST", "/_matrix/client/v3/keys/query", {
             device_keys: { [account.userId]: [account.deviceName] },
           });
 
           const sskKeyData = keysResp.self_signing_keys?.[account.userId];
-          const sskEntry = Object.entries(sskKeyData?.keys ?? {}).find(([k]) => k.startsWith("ed25519:"));
+          const sskEntry = Object.entries(sskKeyData?.keys ?? {}).find(([k]) =>
+            k.startsWith("ed25519:"),
+          );
           const sskPublicKeyId = sskEntry?.[1];
 
-          const deviceSigs = keysResp.device_keys?.[account.userId]?.[account.deviceName]?.signatures?.[account.userId] ?? {};
+          const deviceSigs =
+            keysResp.device_keys?.[account.userId]?.[account.deviceName]?.signatures?.[
+              account.userId
+            ] ?? {};
           const alreadySigned = Object.keys(deviceSigs).some(
-            (k) => k.startsWith("ed25519:") && k !== `ed25519:${account.deviceName}`
+            (k) => k.startsWith("ed25519:") && k !== `ed25519:${account.deviceName}`,
           );
 
           if (alreadySigned) {
@@ -238,9 +267,7 @@ export async function monitorMatrixProvider(
       if (account.dm.policy === "disabled") return;
       if (account.dm.policy === "allowlist") {
         const sender = (event.sender ?? "").replace(/^matrix:/, "");
-        const allowed = account.dm.allowFrom.some(
-          (a) => a.replace(/^matrix:/, "") === sender
-        );
+        const allowed = account.dm.allowFrom.some((a) => a.replace(/^matrix:/, "") === sender);
         if (!allowed) {
           slog.info("Dropping DM (not in allowlist)", { sender: event.sender });
           return;
@@ -252,9 +279,7 @@ export async function monitorMatrixProvider(
         const groupConfig = account.groups[roomId];
         if (!groupConfig?.allow) {
           const sender = (event.sender ?? "").replace(/^matrix:/, "");
-          const allowed = account.groupAllowFrom.some(
-            (a) => a.replace(/^matrix:/, "") === sender
-          );
+          const allowed = account.groupAllowFrom.some((a) => a.replace(/^matrix:/, "") === sender);
           if (!allowed) return;
         }
       }
@@ -263,15 +288,18 @@ export async function monitorMatrixProvider(
     // Handle reactions — log but don't dispatch as message
     if (event.type === "m.reaction") {
       const relates = event.content?.["m.relates_to"] as Record<string, unknown> | undefined;
-      slog.info("Reaction received", { sender: event.sender, key: relates?.key, target: relates?.event_id });
+      slog.info("Reaction received", {
+        sender: event.sender,
+        key: relates?.key,
+        target: relates?.event_id,
+      });
       return;
     }
 
     // For edited messages, use the new content
     const newContent = event.content?.["m.new_content"] as Record<string, unknown> | undefined;
     const effectiveContent = newContent ?? event.content ?? {};
-    const body =
-      typeof effectiveContent.body === "string" ? effectiveContent.body as string : "";
+    const body = typeof effectiveContent.body === "string" ? (effectiveContent.body as string) : "";
     const msgtype = (effectiveContent.msgtype ?? event.content?.msgtype) as string | undefined;
 
     // Detect media messages
@@ -280,17 +308,15 @@ export async function monitorMatrixProvider(
     let mediaType: string | undefined;
 
     if (isMedia) {
-      const mxcUrl = (effectiveContent.url ?? (effectiveContent.file as any)?.url) as string | undefined;
+      const mxcUrl = (effectiveContent.url ?? (effectiveContent.file as any)?.url) as
+        | string
+        | undefined;
       const encFile = effectiveContent.file as EncryptedFile | undefined;
       const mimeType = (effectiveContent.info as any)?.mimetype as string | undefined;
 
       if (mxcUrl) {
         try {
-          const buffer = await downloadAndDecryptMedia(
-            mxcUrl,
-            encFile,
-            account.maxMediaSize
-          );
+          const buffer = await downloadAndDecryptMedia(mxcUrl, encFile, account.maxMediaSize);
           // Save via runtime media API if available
           if (core.channel.media?.saveMediaBuffer) {
             const saved = await core.channel.media.saveMediaBuffer(
@@ -339,7 +365,11 @@ export async function monitorMatrixProvider(
     }
 
     if (!route || !route.sessionKey) {
-      slog.error("No route found", { channel: "matrix", accountId, peer: chatType === "dm" ? event.sender : roomId });
+      slog.error("No route found", {
+        channel: "matrix",
+        accountId,
+        peer: chatType === "dm" ? event.sender : roomId,
+      });
       return;
     }
 
@@ -347,45 +377,41 @@ export async function monitorMatrixProvider(
     const relates = event.content?.["m.relates_to"] as Record<string, unknown> | undefined;
     const inReplyTo = relates?.["m.in_reply_to"] as Record<string, unknown> | undefined;
     const replyToId = typeof inReplyTo?.event_id === "string" ? inReplyTo.event_id : undefined;
-    const threadId = relates?.rel_type === "m.thread" && typeof relates.event_id === "string"
-      ? relates.event_id
-      : undefined;
+    const threadId =
+      relates?.rel_type === "m.thread" && typeof relates.event_id === "string"
+        ? relates.event_id
+        : undefined;
 
     // Adjust session key for threads
-    const sessionKey = threadId
-      ? `${route.sessionKey}:thread:${threadId}`
-      : route.sessionKey;
+    const sessionKey = threadId ? `${route.sessionKey}:thread:${threadId}` : route.sessionKey;
 
     // Build and finalize MsgContext for OpenClaw dispatch
     let ctxPayload: Record<string, unknown>;
     try {
       ctxPayload = core.channel.reply.finalizeInboundContext({
-      Body: body,
-      RawBody: body,
-      CommandBody: body,
-      From:
-        chatType === "dm"
-          ? `matrix:${event.sender}`
-          : `matrix:room:${roomId}`,
-      To: `matrix:${roomId}`,
-      SessionKey: sessionKey,
-      AccountId: accountId,
-      ChatType: chatType === "dm" ? "direct" : "group",
-      GroupSubject: chatType === "group" ? getRoomName(roomId) : undefined,
-      SenderName: await getMemberDisplayName(roomId, event.sender ?? ""),
-      SenderId: event.sender,
-      ReplyToId: replyToId,
-      MessageThreadId: threadId,
-      Provider: "matrix",
-      Surface: "matrix",
-      MessageSid: event.event_id,
-      OriginatingChannel: "matrix",
-      OriginatingTo: roomId,
-      Timestamp: event.origin_server_ts,
-      MediaPath: mediaPath,
-      MediaType: mediaType,
-      CommandAuthorized: true,
-    });
+        Body: body,
+        RawBody: body,
+        CommandBody: body,
+        From: chatType === "dm" ? `matrix:${event.sender}` : `matrix:room:${roomId}`,
+        To: `matrix:${roomId}`,
+        SessionKey: sessionKey,
+        AccountId: accountId,
+        ChatType: chatType === "dm" ? "direct" : "group",
+        GroupSubject: chatType === "group" ? getRoomName(roomId) : undefined,
+        SenderName: await getMemberDisplayName(roomId, event.sender ?? ""),
+        SenderId: event.sender,
+        ReplyToId: replyToId,
+        MessageThreadId: threadId,
+        Provider: "matrix",
+        Surface: "matrix",
+        MessageSid: event.event_id,
+        OriginatingChannel: "matrix",
+        OriginatingTo: roomId,
+        Timestamp: event.origin_server_ts,
+        MediaPath: mediaPath,
+        MediaType: mediaType,
+        CommandAuthorized: true,
+      });
 
       slog.info("Context finalized, dispatching to agent");
     } catch (ctxErr: any) {
@@ -396,19 +422,22 @@ export async function monitorMatrixProvider(
     // Record inbound session for OpenClaw session management
     const storePath = core.channel.session?.resolveStorePath?.(
       (opts.config as Record<string, any>).session?.store,
-      { agentId: route.agentId }
+      { agentId: route.agentId },
     );
     if (storePath) {
       core.channel.session?.recordInboundSession?.({
         storePath,
         sessionKey: (ctxPayload.SessionKey as string) ?? route.sessionKey,
         ctx: ctxPayload,
-        updateLastRoute: chatType === "dm" ? {
-          sessionKey: route.mainSessionKey ?? `agent:${route.agentId}:main`,
-          channel: "matrix",
-          to: `user:${event.sender}`,
-          accountId,
-        } : undefined,
+        updateLastRoute:
+          chatType === "dm"
+            ? {
+                sessionKey: route.mainSessionKey ?? `agent:${route.agentId}:main`,
+                channel: "matrix",
+                to: `user:${event.sender}`,
+                accountId,
+              }
+            : undefined,
         onRecordError: (err: unknown) => {
           slog.error("recordInboundSession failed", { error: String(err) });
         },
@@ -421,25 +450,24 @@ export async function monitorMatrixProvider(
       sendTyping(roomId, account.userId, true);
 
       try {
-        await core.channel.reply
-          .dispatchReplyWithBufferedBlockDispatcher({
-            ctx: ctxPayload,
-            cfg: opts.config,
-            dispatcherOptions: {
-              deliver: async (payload: { text?: string; [key: string]: unknown }) => {
-                const text = payload.text ?? "";
-                if (!text.trim()) return;
-                await sendMatrixMessage({
-                  roomId,
-                  text,
-                  replyToId: undefined,
-                });
-              },
-              onError: (err: unknown, info: { kind: string }) => {
-                slog.error("Reply dispatch failed", { kind: info.kind, error: String(err) });
-              },
+        await core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+          ctx: ctxPayload,
+          cfg: opts.config,
+          dispatcherOptions: {
+            deliver: async (payload: { text?: string; [key: string]: unknown }) => {
+              const text = payload.text ?? "";
+              if (!text.trim()) return;
+              await sendMatrixMessage({
+                roomId,
+                text,
+                replyToId: undefined,
+              });
             },
-          });
+            onError: (err: unknown, info: { kind: string }) => {
+              slog.error("Reply dispatch failed", { kind: info.kind, error: String(err) });
+            },
+          },
+        });
       } catch (err: any) {
         slog.error("Dispatch failed", { error: err.message });
       } finally {

@@ -14,10 +14,10 @@
 
 import * as crypto from "node:crypto";
 import * as path from "node:path";
-import { matrixFetch } from "../client/http.js";
-import { decodeRecoveryKey } from "./recovery.js";
 import type { PluginLogger } from "../openclaw-types.js";
+import { matrixFetch } from "../client/http.js";
 import { createLogger } from "../util/logger.js";
+import { decodeRecoveryKey } from "./recovery.js";
 
 // Module-level flag: did the server have cross-signing keys during this startup?
 let _serverHasCrossSigningKeys = false;
@@ -64,11 +64,7 @@ interface KeyMetadata {
  * @param encrypted  {ciphertext, iv, mac} from the encrypted block
  * @returns Decrypted plaintext (base64-encoded ed25519 seed for cross-signing)
  */
-function decryptSecret(
-  rawKey: Uint8Array,
-  secretName: string,
-  encrypted: EncryptedData
-): string {
+function decryptSecret(rawKey: Uint8Array, secretName: string, encrypted: EncryptedData): string {
   // HKDF-SHA-256: derive AES key (32B) + HMAC key (32B)
   const salt = Buffer.alloc(32, 0);
   const derived = crypto.hkdfSync("sha256", rawKey, salt, secretName, 64);
@@ -96,10 +92,7 @@ function decryptSecret(
  * Uses HKDF-SHA-256 with info="" (empty string) — distinct from per-secret
  * decryption which uses secretName as info.
  */
-function verifyRecoveryKey(
-  rawKey: Uint8Array,
-  keyMeta: KeyMetadata
-): boolean {
+function verifyRecoveryKey(rawKey: Uint8Array, keyMeta: KeyMetadata): boolean {
   if (!keyMeta.iv || !keyMeta.mac) return false;
 
   const salt = Buffer.alloc(32, 0);
@@ -121,14 +114,38 @@ function verifyRecoveryKey(
 }
 
 // ── SQLite helpers ──────────────────────────────────────────────────────
+//
+// CRITICAL: These functions use Node's node:sqlite (DatabaseSync) to access
+// the crypto store. The Rust SDK (@matrix-org/matrix-sdk-crypto-nodejs)
+// bundles its OWN SQLite — two different SQLite implementations accessing
+// the same DB concurrently causes WAL corruption.
+//
+// ALL node:sqlite access MUST happen BEFORE initCryptoMachine() opens the
+// DB via the Rust FFI. The monitor.ts startup sequence enforces this:
+//   1. restoreCrossSigningFromSSSSIfNeeded() — node:sqlite (safe)
+//   2. readLocalSskSeed() — node:sqlite (safe)
+//   3. initCryptoMachine() — Rust SQLite (takes ownership)
+//   After step 3, node:sqlite MUST NOT touch the DB.
 
 function openCryptoDb(storePath: string) {
-  // storePath points to the crypto/ directory; the DB file is inside it
   const dbPath = path.join(storePath, "matrix-sdk-crypto.sqlite3");
   // node:sqlite is available in Node.js >=22
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
   return new DatabaseSync(dbPath);
+}
+
+/**
+ * Checkpoint WAL and close the database, ensuring all data is flushed
+ * to the main .sqlite3 file before the Rust SDK opens it.
+ */
+function safeCloseDb(db: ReturnType<typeof openCryptoDb>): void {
+  try {
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  } catch {
+    // WAL may not exist yet (first run) or DB opened read-only
+  }
+  db.close();
 }
 
 function localSecretsExist(storePath: string): boolean {
@@ -140,7 +157,7 @@ function localSecretsExist(storePath: string): boolean {
         .get(Buffer.from("m.cross_signing.master", "utf8")) as { n: number } | undefined;
       return (row?.n ?? 0) > 0;
     } finally {
-      db.close();
+      safeCloseDb(db);
     }
   } catch {
     // DB doesn't exist yet or table missing — no secrets
@@ -148,18 +165,11 @@ function localSecretsExist(storePath: string): boolean {
   }
 }
 
-function insertSecrets(
-  storePath: string,
-  secrets: Array<{ name: string; value: string }>
-): void {
+function insertSecrets(storePath: string, secrets: Array<{ name: string; value: string }>): void {
   const db = openCryptoDb(storePath);
   try {
-    const del = db.prepare(
-      "DELETE FROM secrets WHERE secret_name = ?"
-    );
-    const ins = db.prepare(
-      "INSERT INTO secrets (secret_name, data) VALUES (?, ?)"
-    );
+    const del = db.prepare("DELETE FROM secrets WHERE secret_name = ?");
+    const ins = db.prepare("INSERT INTO secrets (secret_name, data) VALUES (?, ?)");
     for (const { name, value } of secrets) {
       const nameBuf = Buffer.from(name, "utf8");
       const dataBuf = Buffer.from(value, "utf8");
@@ -167,13 +177,15 @@ function insertSecrets(
       ins.run(nameBuf, dataBuf);
     }
   } finally {
-    db.close();
+    safeCloseDb(db);
   }
 }
 
 /**
  * Read the self-signing key seed from the local crypto store.
  * Returns the base64-encoded seed, or undefined if not found.
+ *
+ * MUST be called BEFORE initCryptoMachine() — see comment block above.
  */
 export function readLocalSskSeed(storePath: string): string | undefined {
   try {
@@ -184,7 +196,7 @@ export function readLocalSskSeed(storePath: string): string | undefined {
         .get(Buffer.from("m.cross_signing.self_signing", "utf8")) as { data: Buffer } | undefined;
       return row?.data ? row.data.toString("utf8") : undefined;
     } finally {
-      db.close();
+      safeCloseDb(db);
     }
   } catch {
     return undefined;
@@ -212,7 +224,7 @@ async function fetchAccountData<T>(userId: string, type: string): Promise<T | un
   try {
     return await matrixFetch<T>(
       "GET",
-      `/_matrix/client/v3/user/${encodeURIComponent(userId)}/account_data/${encodeURIComponent(type)}`
+      `/_matrix/client/v3/user/${encodeURIComponent(userId)}/account_data/${encodeURIComponent(type)}`,
     );
   } catch {
     return undefined;
@@ -239,7 +251,7 @@ export interface RestoreOpts {
  *    - YES + recoveryKey → verify key, decrypt SSSS, insert, return restored=true + secrets
  */
 export async function restoreCrossSigningFromSSSSIfNeeded(
-  opts: RestoreOpts
+  opts: RestoreOpts,
 ): Promise<SsssRestoreResult> {
   const { storePath, recoveryKey, userId, log } = opts;
   const slog = createLogger("matrix", log);
@@ -261,7 +273,7 @@ export async function restoreCrossSigningFromSSSSIfNeeded(
   if (!recoveryKey) {
     slog.warn(
       "Cross-signing keys exist on server but no recoveryKey configured — " +
-        "cannot restore locally. Device will remain unverified."
+        "cannot restore locally. Device will remain unverified.",
     );
     return fail;
   }
@@ -278,7 +290,7 @@ export async function restoreCrossSigningFromSSSSIfNeeded(
   // 5. Find SSSS key ID
   const defaultKey = await fetchAccountData<{ key: string }>(
     userId,
-    "m.secret_storage.default_key"
+    "m.secret_storage.default_key",
   );
   if (!defaultKey?.key) {
     slog.warn("No SSSS default key found — cannot restore cross-signing");
@@ -287,13 +299,12 @@ export async function restoreCrossSigningFromSSSSIfNeeded(
   const keyId = defaultKey.key;
 
   // 5b. Verify recovery key against SSSS key metadata
-  const keyMeta = await fetchAccountData<KeyMetadata>(
-    userId,
-    `m.secret_storage.key.${keyId}`
-  );
+  const keyMeta = await fetchAccountData<KeyMetadata>(userId, `m.secret_storage.key.${keyId}`);
   if (keyMeta?.iv && keyMeta?.mac) {
     if (!verifyRecoveryKey(rawKey, keyMeta)) {
-      slog.error("Recovery key does not match SSSS key — wrong key or corrupted metadata", { keyId });
+      slog.error("Recovery key does not match SSSS key — wrong key or corrupted metadata", {
+        keyId,
+      });
       return fail;
     }
     slog.info("Recovery key verified against SSSS key metadata", { keyId });
