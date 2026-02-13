@@ -216,7 +216,7 @@ function parseMessageContent(content: string, messageType: string): string {
 function checkBotMentioned(event: FeishuMessageEvent, botOpenId?: string): boolean {
   const mentions = event.message.mentions ?? [];
   if (mentions.length === 0) return false;
-  if (!botOpenId) return mentions.length > 0;
+  if (!botOpenId) return false;
   return mentions.some((m) => m.id.open_id === botOpenId);
 }
 
@@ -799,6 +799,7 @@ export async function handleFeishuMessage(params: {
 
       const permissionCtx = core.channel.reply.finalizeInboundContext({
         Body: permissionBody,
+        BodyForAgent: permissionNotifyBody,
         RawBody: permissionNotifyBody,
         CommandBody: permissionNotifyBody,
         From: feishuFrom,
@@ -873,8 +874,19 @@ export async function handleFeishuMessage(params: {
       });
     }
 
+    const inboundHistory =
+      isGroup && historyKey && historyLimit > 0 && chatHistories
+        ? (chatHistories.get(historyKey) ?? []).map((entry) => ({
+            sender: entry.sender,
+            body: entry.body,
+            timestamp: entry.timestamp,
+          }))
+        : undefined;
+
     const ctxPayload = core.channel.reply.finalizeInboundContext({
       Body: combinedBody,
+      BodyForAgent: ctx.content,
+      InboundHistory: inboundHistory,
       RawBody: ctx.content,
       CommandBody: ctx.content,
       From: feishuFrom,
@@ -888,6 +900,7 @@ export async function handleFeishuMessage(params: {
       Provider: "feishu" as const,
       Surface: "feishu" as const,
       MessageSid: ctx.messageId,
+      ReplyToBody: quotedContent ?? undefined,
       Timestamp: Date.now(),
       WasMentioned: ctx.mentionedBot,
       CommandAuthorized: true,

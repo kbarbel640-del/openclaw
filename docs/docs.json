@@ -24,6 +24,14 @@
     "dark": "#FF5A36",
     "light": "#FF8A6B"
   },
+  "styling": {
+    "codeblocks": {
+      "theme": {
+        "dark": "min-dark",
+        "light": "min-light"
+      }
+    }
+  },
   "navbar": {
     "links": [
       {
@@ -733,7 +741,41 @@
                 "pages": ["index", "concepts/features", "start/showcase", "start/lore"]
               },
               {
-                "group": "Installation",
+                "group": "Core concepts",
+                "pages": ["concepts/features"]
+              },
+              {
+                "group": "First steps",
+                "pages": [
+                  "start/getting-started",
+                  "start/onboarding-overview",
+                  "start/wizard",
+                  "start/onboarding"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": ["start/openclaw"]
+              }
+            ]
+          },
+          {
+            "tab": "Install",
+            "groups": [
+              {
+                "group": "Install overview",
+                "pages": ["install/index", "install/installer"]
+              },
+              {
+                "group": "Other install methods",
+                "pages": ["install/docker", "install/nix", "install/ansible", "install/bun"]
+              },
+              {
+                "group": "Maintenance",
+                "pages": ["install/updating", "install/migrating", "install/uninstall"]
+              },
+              {
+                "group": "Hosting and deployment",
                 "pages": [
                   "install/index",
                   "install/installer",
@@ -785,8 +827,8 @@
                 "pages": [
                   "channels/whatsapp",
                   "channels/telegram",
-                  "channels/grammy",
                   "channels/discord",
+                  "channels/irc",
                   "channels/slack",
                   "channels/googlechat",
                   "channels/mattermost",
@@ -942,7 +984,8 @@
                   "providers/anthropic",
                   "providers/openai",
                   "providers/openrouter",
-                  "bedrock",
+                  "providers/litellm",
+                  "providers/bedrock",
                   "providers/vercel-ai-gateway",
                   "providers/moonshot",
                   "providers/minimax",
@@ -965,6 +1008,7 @@
                     "group": "Configuration and operations",
                     "pages": [
                       "gateway/configuration",
+                      "gateway/configuration-reference",
                       "gateway/configuration-examples",
                       "gateway/authentication",
                       "gateway/health",
@@ -1120,6 +1164,10 @@
               },
               {
                 "group": "Technical reference",
+                "pages": ["reference/wizard", "reference/token-use", "channels/grammy"]
+              },
+              {
+                "group": "Concept internals",
                 "pages": [
                   "concepts/typebox",
                   "concepts/markdown-formatting",
@@ -1255,7 +1303,6 @@
                 "pages": [
                   "zh-CN/channels/whatsapp",
                   "zh-CN/channels/telegram",
-                  "zh-CN/channels/grammy",
                   "zh-CN/channels/discord",
                   "zh-CN/channels/slack",
                   "zh-CN/channels/googlechat",
@@ -1386,7 +1433,7 @@
                 ]
               },
               {
-                "group": "Media and devices",
+                "group": "媒体与设备",
                 "pages": [
                   "zh-CN/nodes/index",
                   "zh-CN/nodes/images",
