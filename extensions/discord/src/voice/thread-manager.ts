@@ -56,6 +56,7 @@ export class VoiceThreadManager {
         day: "numeric",
       });
 
+      console.log(`[thread-manager] creating thread in channel ${this.channelId}`);
       const thread = (await createThreadDiscord(
         this.channelId,
         {
@@ -67,8 +68,10 @@ export class VoiceThreadManager {
       )) as { id: string };
 
       this.threadId = thread.id;
+      console.log(`[thread-manager] thread created: ${this.threadId}`);
       return this.threadId;
-    } catch {
+    } catch (err) {
+      console.error(`[thread-manager] failed to create thread:`, err);
       return undefined;
     }
   }
@@ -94,9 +97,13 @@ export class VoiceThreadManager {
       });
 
       const message = `**${params.userName}** (${time}): ${params.text}`;
-      await sendMessageDiscord(threadId, message, this.restOpts);
-    } catch {
-      // Errors are caught internally, never thrown
+      console.log(
+        `[thread-manager] posting transcription to thread ${threadId}: ${message.substring(0, 80)}...`,
+      );
+      await sendMessageDiscord(`channel:${threadId}`, message, this.restOpts);
+      console.log(`[thread-manager] transcription posted successfully`);
+    } catch (err) {
+      console.error(`[thread-manager] failed to post transcription:`, err);
     }
   }
 
@@ -109,7 +116,7 @@ export class VoiceThreadManager {
       if (!threadId) return;
 
       await sendMessageDiscord(
-        threadId,
+        `channel:${threadId}`,
         `---\n# Voice Session Summary\n\n${markdownText}`,
         this.restOpts,
       );
@@ -131,7 +138,7 @@ export class VoiceThreadManager {
       const durationStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
       await sendMessageDiscord(
-        threadId,
+        `channel:${threadId}`,
         `---\n*Voice session ended. Duration: ${durationStr}*`,
         this.restOpts,
       );

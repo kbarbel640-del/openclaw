@@ -41,6 +41,8 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
   private pipelines: Map<string, AudioPipeline> = new Map();
   private config: DiscordVoiceConfig;
   private listeningGuilds: Set<string> = new Set();
+  /** Track which users already have an active opus subscription to avoid duplicates. */
+  private subscribedUsers: Map<string, Set<string>> = new Map();
 
   constructor(config: DiscordVoiceConfig) {
     super();
@@ -62,8 +64,12 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
     this.emit("event", createInitiatedEvent(session));
     this.emit("event", createActiveEvent(session));
 
+    console.log(
+      `[voice-provider] joinChannel: transcriptionEnabled=${this.config.transcriptionEnabled}`,
+    );
     if (this.config.transcriptionEnabled) {
       this.setupIncomingAudio(session, pipeline);
+      console.log(`[voice-provider] setupIncomingAudio complete for guild ${session.guildId}`);
     }
 
     return session;
@@ -143,23 +149,28 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
   }
 
   /**
-   * Stop listening for user speech.
+   * Stop listening for user speech. Flushes any buffered audio first,
+   * which triggers audioComplete events BEFORE listeningGuilds is cleared.
    */
   async stopListening(guildId: string): Promise<void> {
     const session = this.connectionManager.getSession(guildId);
     if (!session) return;
 
-    this.listeningGuilds.delete(guildId);
-    if (session.state === "listening") {
-      session.state = "idle";
-    }
-
+    // Flush BEFORE clearing listeningGuilds, so audioComplete events
+    // emitted during the flush are still processed.
     const pipeline = this.pipelines.get(guildId);
     if (pipeline) {
-      // Flush any remaining audio for all tracked users
+      console.log(
+        `[voice-provider] stopListening: flushing audio for ${session.users.size} tracked user(s)`,
+      );
       for (const userId of session.users.keys()) {
         pipeline.getIncoming().flushUserAudio(userId);
       }
+    }
+
+    this.listeningGuilds.delete(guildId);
+    if (session.state === "listening") {
+      session.state = "idle";
     }
   }
 
@@ -219,10 +230,19 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
     });
 
     this.connectionManager.on("userSpeaking", (session, userId, speaking) => {
-      if (!speaking || !this.listeningGuilds.has(session.guildId)) return;
+      if (!speaking) return;
+      if (!this.listeningGuilds.has(session.guildId)) {
+        console.log(
+          `[voice-provider] userSpeaking: guild ${session.guildId} not in listeningGuilds (set: ${[...this.listeningGuilds].join(",")})`,
+        );
+        return;
+      }
 
       const pipeline = this.pipelines.get(session.guildId);
-      if (!pipeline) return;
+      if (!pipeline) {
+        console.log(`[voice-provider] userSpeaking: no pipeline for guild ${session.guildId}`);
+        return;
+      }
 
       // When a user starts speaking, subscribe to their audio stream
       this.subscribeToUserAudio(session, userId, pipeline);
@@ -238,7 +258,15 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
     const incoming = pipeline.getIncoming();
 
     incoming.on("audioComplete", ({ userId, data }: { userId: string; data: Buffer }) => {
-      if (!this.listeningGuilds.has(session.guildId)) return;
+      console.log(
+        `[voice-provider] audioComplete from user ${userId}: ${data.length} bytes (${(data.length / (48000 * 2 * 2)).toFixed(1)}s of audio)`,
+      );
+      if (!this.listeningGuilds.has(session.guildId)) {
+        console.log(
+          `[voice-provider] audioComplete: guild ${session.guildId} not in listeningGuilds, skipping`,
+        );
+        return;
+      }
 
       const user = session.users.get(userId);
       const entry: TranscriptEntry = {
@@ -265,6 +293,9 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
   /**
    * Subscribe to a specific user's audio stream from the voice connection
    * receiver. Feeds Opus chunks into the incoming audio handler.
+   *
+   * Guards against duplicate subscriptions — each user is subscribed at most
+   * once per guild session.
    */
   private subscribeToUserAudio(
     session: VoiceChannelSession,
@@ -273,17 +304,50 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
   ): void {
     if (!session.connection) return;
 
+    // Prevent duplicate subscriptions (speaking events fire rapidly)
+    let guildSubs = this.subscribedUsers.get(session.guildId);
+    if (!guildSubs) {
+      guildSubs = new Set();
+      this.subscribedUsers.set(session.guildId, guildSubs);
+    }
+    if (guildSubs.has(userId)) return;
+    guildSubs.add(userId);
+
+    console.log(
+      `[voice-provider] subscribing to audio for user ${userId} in guild ${session.guildId}`,
+    );
+
     const receiver = session.connection.receiver;
+    // Use Manual end behavior — the stream stays alive for the lifetime of
+    // the voice connection. The audio pipeline's own 2-second silence timer
+    // handles flushing completed utterances.
     const opusStream = receiver.subscribe(userId, {
-      end: { behavior: EndBehaviorType.AfterSilence, duration: 1000 },
+      end: { behavior: EndBehaviorType.Manual },
     });
 
+    let chunkCount = 0;
     opusStream.on("data", (chunk: Buffer) => {
+      chunkCount++;
+      if (chunkCount === 1 || chunkCount % 100 === 0) {
+        console.log(
+          `[voice-provider] opus chunk #${chunkCount} for user ${userId} (${chunk.length} bytes)`,
+        );
+      }
       pipeline.getIncoming().handleAudioChunk(userId, chunk);
     });
 
     opusStream.on("end", () => {
+      console.log(
+        `[voice-provider] opus stream ended for user ${userId} after ${chunkCount} chunks`,
+      );
       pipeline.getIncoming().flushUserAudio(userId);
+      // Allow re-subscription if the user speaks again
+      guildSubs!.delete(userId);
+    });
+
+    opusStream.on("error", (err) => {
+      console.error(`[voice-provider] opus stream error for user ${userId}:`, err);
+      guildSubs!.delete(userId);
     });
   }
 
@@ -293,6 +357,7 @@ export class DiscordVoiceProvider extends EventEmitter<DiscordVoiceProviderEvent
       pipeline.destroy();
       this.pipelines.delete(guildId);
     }
+    this.subscribedUsers.delete(guildId);
   }
 
   private buildStatus(guildId: string): VoiceStatusResult {

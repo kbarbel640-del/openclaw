@@ -159,13 +159,25 @@ export class VoiceSessionOrchestrator {
     userId: string,
     pcmData: Buffer,
   ): Promise<void> {
-    if (!this.groqApiKey) return;
+    const durationS = pcmData.length / (48000 * 2 * 2);
+    console.log(
+      `[orchestrator] handleAudioComplete userId=${userId} pcmLen=${pcmData.length} (${durationS.toFixed(1)}s) groqApiKey=${this.groqApiKey ? "set" : "NOT SET"}`,
+    );
+
+    if (!this.groqApiKey) {
+      console.log(`[orchestrator] handleAudioComplete: no groqApiKey, skipping transcription`);
+      return;
+    }
 
     const key = sessionKey(guildId, channelId);
     const session = this.sessions.get(key);
-    if (!session) return;
+    if (!session) {
+      console.log(`[orchestrator] handleAudioComplete: no session for key=${key}`);
+      return;
+    }
 
     const userName = session.userNames.get(userId) ?? userId;
+    console.log(`[orchestrator] calling transcribeVoiceAudio for ${userName} (${userId})`);
 
     const result = await transcribeVoiceAudio({
       userId,
@@ -174,6 +186,11 @@ export class VoiceSessionOrchestrator {
       apiKey: this.groqApiKey,
       model: this.config.whisperModel,
     });
+
+    console.log(
+      `[orchestrator] transcription result:`,
+      result ? `"${result.text}"` : "null (filtered/failed)",
+    );
 
     if (!result) return;
 
@@ -187,9 +204,9 @@ export class VoiceSessionOrchestrator {
 
     // Post to thread
     const threadManager = this.threadManagers.get(key);
+    console.log(`[orchestrator] threadManager=${threadManager ? "exists" : "null"} for key=${key}`);
     if (threadManager) {
       await threadManager.postTranscription(transcription);
-      // Store the thread ID in the session once created
       const threadId = threadManager.getThreadId();
       if (threadId && !session.threadId) {
         session.threadId = threadId;
@@ -198,17 +215,74 @@ export class VoiceSessionOrchestrator {
   }
 
   /**
-   * End a session: summarize, post to thread, leave channel.
+   * End a session: flush remaining audio, transcribe, summarize, post to thread, leave channel.
    */
   private async endSession(key: string): Promise<void> {
     const session = this.sessions.get(key);
     if (!session) return;
 
+    console.log(
+      `[orchestrator] endSession key=${key} transcriptions=${session.transcriptions.length}`,
+    );
+
+    // Stop listening which flushes all buffered audio into audioComplete events.
+    // Those events are handled async via the provider event handler, so we need
+    // to collect any pending transcription promises.
+    const pendingTranscriptions: Promise<void>[] = [];
+    const originalHandler = this.handleAudioComplete.bind(this);
+
+    // Temporarily intercept audioComplete to track in-flight transcriptions
+    const wrappedHandler = (
+      guildId: string,
+      channelId: string,
+      userId: string,
+      pcmData: Buffer,
+    ) => {
+      const p = originalHandler(guildId, channelId, userId, pcmData);
+      pendingTranscriptions.push(p);
+      return p;
+    };
+
+    // Replace provider listener temporarily
+    this.provider.removeAllListeners("audioComplete");
+    this.provider.on("audioComplete", (s, userId, pcmData) => {
+      void wrappedHandler(s.guildId, s.channelId, userId, pcmData);
+    });
+
+    // Flush audio — this synchronously emits audioComplete for any buffered data
+    console.log(`[orchestrator] stopping listening for guild ${session.guildId}`);
+    try {
+      await this.provider.stopListening(session.guildId);
+    } catch (err) {
+      console.error(`[orchestrator] stopListening error:`, err);
+    }
+
+    // Wait for all in-flight transcriptions to complete
+    if (pendingTranscriptions.length > 0) {
+      console.log(
+        `[orchestrator] waiting for ${pendingTranscriptions.length} pending transcription(s)`,
+      );
+      await Promise.allSettled(pendingTranscriptions);
+    }
+
+    // Restore the normal handler
+    this.provider.removeAllListeners("audioComplete");
+    this.provider.on("audioComplete", (s, userId, pcmData) => {
+      void this.handleAudioComplete(s.guildId, s.channelId, userId, pcmData);
+    });
+
     const threadManager = this.threadManagers.get(key);
     const durationMs = Date.now() - session.startedAt;
 
+    console.log(
+      `[orchestrator] session ended: ${session.transcriptions.length} transcription(s), duration=${durationMs}ms`,
+    );
+
     // Summarize if we have transcriptions
     if (this.groqApiKey && session.transcriptions.length > 0 && threadManager) {
+      console.log(
+        `[orchestrator] generating summary for ${session.transcriptions.length} transcription(s)`,
+      );
       const summaryResult = await summarizeVoiceSession({
         transcriptions: session.transcriptions,
         apiKey: this.groqApiKey,
