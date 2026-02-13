@@ -37,4 +37,35 @@ describe("applyBootstrapHookOverrides", () => {
     expect(updated).toHaveLength(2);
     expect(updated[1]?.name).toBe("EXTRA.md");
   });
+
+  it("passes currentMessage to hook context", async () => {
+    let receivedMessage: string | undefined;
+    registerInternalHook("agent:bootstrap", (event) => {
+      const context = event.context as AgentBootstrapHookContext;
+      receivedMessage = context.currentMessage;
+    });
+
+    await applyBootstrapHookOverrides({
+      files: [makeFile()],
+      workspaceDir: "/tmp",
+      currentMessage: "hello world",
+    });
+
+    expect(receivedMessage).toBe("hello world");
+  });
+
+  it("currentMessage is undefined when not provided", async () => {
+    let receivedMessage: string | undefined = "sentinel";
+    registerInternalHook("agent:bootstrap", (event) => {
+      const context = event.context as AgentBootstrapHookContext;
+      receivedMessage = context.currentMessage;
+    });
+
+    await applyBootstrapHookOverrides({
+      files: [makeFile()],
+      workspaceDir: "/tmp",
+    });
+
+    expect(receivedMessage).toBeUndefined();
+  });
 });
