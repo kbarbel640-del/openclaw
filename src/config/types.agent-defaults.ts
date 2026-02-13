@@ -198,6 +198,13 @@ export type AgentDefaultsConfig = {
      */
     includeReasoning?: boolean;
   };
+  /** Circuit breaker config for model provider API calls. */
+  circuitBreaker?: {
+    /** Consecutive failures before opening the circuit. Default: 5. */
+    failureThreshold?: number;
+    /** How long the circuit stays open before testing (ms). Default: 60000. */
+    resetTimeoutMs?: number;
+  };
   /** Max concurrent agent runs across all conversations. Default: 1 (sequential). */
   maxConcurrent?: number;
   /** Sub-agent defaults (spawned via sessions_spawn). */

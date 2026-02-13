@@ -9,6 +9,7 @@ import { resolveCanvasHostUrl } from "../../infra/canvas-host-url.js";
 import { listSystemPresence, upsertPresence } from "../../infra/system-presence.js";
 import { isWebchatClient } from "../../utils/message-channel.js";
 import { isLoopbackAddress } from "../net.js";
+import { clearRateLimit } from "../rate-limit.js";
 import { getHandshakeTimeoutMs } from "../server-constants.js";
 import { formatError } from "../server-utils.js";
 import { logWs } from "../ws-log.js";
@@ -137,6 +138,8 @@ export function attachGatewayWsConnectionHandler(params: {
       if (client) {
         clients.delete(client);
       }
+      // Clean up rate limit tracking for this connection.
+      clearRateLimit(connId);
       try {
         socket.close(code, reason);
       } catch {

@@ -87,6 +87,12 @@ export const SessionSchema = z
       .optional(),
     mainKey: z.string().optional(),
     sendPolicy: SessionSendPolicySchema.optional(),
+    sizeGuard: z
+      .object({
+        maxFileSizeBytes: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional(),
     agentToAgent: z
       .object({
         maxPingPongTurns: z.number().int().min(0).max(5).optional(),

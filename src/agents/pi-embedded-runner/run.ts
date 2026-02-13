@@ -194,6 +194,24 @@ export async function runEmbeddedPiAgent(
       }
       const prevCwd = process.cwd();
 
+      // Session size guard: auto-reset if transcript exceeds limits.
+      const sessionSizeGuard = params.config?.session?.sizeGuard;
+      if (sessionSizeGuard && params.sessionFile && !isProbeSession) {
+        try {
+          const stat = await fs.stat(params.sessionFile);
+          const maxBytes = sessionSizeGuard.maxFileSizeBytes ?? 6_000_000; // 6 MB default
+          if (stat.size > maxBytes) {
+            log.warn(
+              `session size guard: transcript ${params.sessionFile} exceeds ${maxBytes} bytes (${stat.size}), triggering auto-reset`,
+            );
+            // Truncate the session file to force a fresh session on next load.
+            await fs.writeFile(params.sessionFile, "");
+          }
+        } catch {
+          // File may not exist yet; ignore.
+        }
+      }
+
       const provider = (params.provider ?? DEFAULT_PROVIDER).trim() || DEFAULT_PROVIDER;
       const modelId = (params.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
       const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
@@ -474,6 +492,8 @@ export async function runEmbeddedPiAgent(
             streamParams: params.streamParams,
             ownerNumbers: params.ownerNumbers,
             enforceFinalTag: params.enforceFinalTag,
+            requireExplicitMessageTarget: params.requireExplicitMessageTarget,
+            disableMessageTool: params.disableMessageTool,
           });
 
           const { aborted, promptError, timedOut, sessionIdUsed, lastAssistant } = attempt;

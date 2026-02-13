@@ -246,6 +246,13 @@ export type GatewayToolsConfig = {
   allow?: string[];
 };
 
+export type GatewayRateLimitConfig = {
+  /** Max requests per minute per connection. Default: 60. */
+  requestsPerMinute?: number;
+  /** Burst allowance above the per-minute rate. Default: 10. */
+  burstSize?: number;
+};
+
 export type GatewayConfig = {
   /** Single multiplexed port for Gateway WS + HTTP (default: 18789). */
   port?: number;
@@ -282,4 +289,6 @@ export type GatewayConfig = {
   trustedProxies?: string[];
   /** Tool access restrictions for HTTP /tools/invoke endpoint. */
   tools?: GatewayToolsConfig;
+  /** Per-connection rate limiting for WebSocket requests. */
+  rateLimit?: GatewayRateLimitConfig;
 };

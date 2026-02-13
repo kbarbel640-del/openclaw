@@ -46,6 +46,7 @@ import {
   validateConnectParams,
   validateRequestFrame,
 } from "../../protocol/index.js";
+import { checkRateLimit, clearRateLimit } from "../../rate-limit.js";
 import { MAX_BUFFERED_BYTES, MAX_PAYLOAD_BYTES, TICK_INTERVAL_MS } from "../../server-constants.js";
 import { handleGatewayRequest } from "../../server-methods.js";
 import { formatError } from "../../server-utils.js";
@@ -1017,6 +1018,25 @@ export function attachGatewayWsMessageHandler(params: {
       }
       const req = parsed;
       logWs("in", "req", { connId, id: req.id, method: req.method });
+
+      // Rate limit check (per-connection sliding window).
+      const rateLimitCfg = loadConfig();
+      const rateLimitResult = checkRateLimit(connId, rateLimitCfg?.gateway?.rateLimit);
+      if (!rateLimitResult.allowed) {
+        logWs("out", "rate-limited", { connId, id: req.id, method: req.method });
+        send({
+          type: "res",
+          id: req.id,
+          ok: false,
+          error: errorShape(
+            ErrorCodes.RATE_LIMITED,
+            `Rate limit exceeded. Retry after ${Math.ceil(rateLimitResult.retryAfterMs / 1000)}s.`,
+            { retryable: true, retryAfterMs: rateLimitResult.retryAfterMs },
+          ),
+        });
+        return;
+      }
+
       const respond = (
         ok: boolean,
         payload?: unknown,

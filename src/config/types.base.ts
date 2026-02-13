@@ -78,6 +78,11 @@ export type SessionResetByTypeConfig = {
   thread?: SessionResetConfig;
 };
 
+export type SessionSizeGuardConfig = {
+  /** Max transcript file size in bytes before auto-reset. Default: 6MB. */
+  maxFileSizeBytes?: number;
+};
+
 export type SessionConfig = {
   scope?: SessionScope;
   /** DM session scoping (default: "main"). */
@@ -95,6 +100,8 @@ export type SessionConfig = {
   typingMode?: TypingMode;
   mainKey?: string;
   sendPolicy?: SessionSendPolicyConfig;
+  /** Auto-reset sessions that exceed size limits to prevent bloat. */
+  sizeGuard?: SessionSizeGuardConfig;
   agentToAgent?: {
     /** Max ping-pong turns between requester/target (0–5). Default: 5. */
     maxPingPongTurns?: number;

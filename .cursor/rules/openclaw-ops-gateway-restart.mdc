@@ -1,0 +1,31 @@
+---
+description: Prevent dev-rebuild paths when restarting the OpenClaw gateway/channels
+alwaysApply: true
+---
+
+# OpenClaw ops: restarting gateway + WhatsApp
+
+When the user says “the gateway is dead / restart it” (or “restart WhatsApp”), treat it as **ops** on the user’s real instance — not a dev rebuild.
+
+- Prefer the **installed** CLI `openclaw ...` for diagnosis + restart.
+- Do **not** use `pnpm openclaw ...` for ops (it may target a dev checkout / show version `0.0.0`).
+- Do **not** run `scripts/restart-mac.sh` unless the user explicitly asks to rebuild/repackage the macOS app.
+
+## Required first step (discovery)
+
+- Read `~/.openclaw/openclaw.json` and note:
+  - `gateway.port`, `gateway.bind`, and `gateway.tailscale.mode`
+  - whether the instance is exposed via Tailscale (e.g. `serve`)
+- Run `openclaw status --deep` (or `openclaw gateway probe`) to confirm reachability and the active gateway URLs.
+
+## Restart approach (fast + safe)
+
+- If gateway is unreachable:
+  - Start it in the foreground with config-aligned exposure, e.g. `openclaw gateway run --force --tailscale serve`
+- Then verify:
+  - `openclaw channels status --probe`
+
+## WhatsApp reconnect (preferred)
+
+- WhatsApp “restart” usually means: **restart the gateway first**, then verify it becomes `connected` in `openclaw channels status --probe`.
+- Only move on to deeper WhatsApp actions (login/logout/credential reset) if the user explicitly asks for that.

@@ -136,6 +136,13 @@ export const AgentDefaultsSchema = z
       ])
       .optional(),
     heartbeat: HeartbeatSchema,
+    circuitBreaker: z
+      .object({
+        failureThreshold: z.number().int().positive().optional(),
+        resetTimeoutMs: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional(),
     maxConcurrent: z.number().int().positive().optional(),
     subagents: z
       .object({

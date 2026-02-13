@@ -5,6 +5,7 @@ import {
   isProfileInCooldown,
   resolveAuthProfileOrder,
 } from "./auth-profiles.js";
+import { isCircuitOpen, recordFailure, recordSuccess } from "./circuit-breaker.js";
 import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
 import {
   coerceToFailoverError,
@@ -239,8 +240,22 @@ export async function runWithModelFallback<T>(params: {
   const attempts: FallbackAttempt[] = [];
   let lastError: unknown;
 
+  const cbConfig = params.cfg?.agents?.defaults?.circuitBreaker;
+
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
+
+    // Circuit breaker: skip providers whose circuit is open.
+    if (isCircuitOpen(candidate.provider, cbConfig)) {
+      attempts.push({
+        provider: candidate.provider,
+        model: candidate.model,
+        error: `Provider ${candidate.provider} circuit is open (too many recent failures)`,
+        reason: "rate_limit",
+      });
+      continue;
+    }
+
     if (authStore) {
       const profileIds = resolveAuthProfileOrder({
         cfg: params.cfg,
@@ -262,6 +277,7 @@ export async function runWithModelFallback<T>(params: {
     }
     try {
       const result = await params.run(candidate.provider, candidate.model);
+      recordSuccess(candidate.provider);
       return {
         result,
         provider: candidate.provider,
@@ -282,6 +298,7 @@ export async function runWithModelFallback<T>(params: {
       }
 
       lastError = normalized;
+      recordFailure(candidate.provider, cbConfig);
       const described = describeFailoverError(normalized);
       attempts.push({
         provider: candidate.provider,

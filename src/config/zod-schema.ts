@@ -412,6 +412,13 @@ export const OpenClawSchema = z
           })
           .strict()
           .optional(),
+        rateLimit: z
+          .object({
+            requestsPerMinute: z.number().int().positive().optional(),
+            burstSize: z.number().int().nonnegative().optional(),
+          })
+          .strict()
+          .optional(),
         tailscale: z
           .object({
             mode: z.union([z.literal("off"), z.literal("serve"), z.literal("funnel")]).optional(),
