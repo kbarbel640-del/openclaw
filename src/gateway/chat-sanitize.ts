@@ -1,19 +1,5 @@
 const ENVELOPE_PREFIX = /^\[([^\]]+)\]\s*/;
-const ENVELOPE_CHANNELS = [
-  "WebChat",
-  "WhatsApp",
-  "Telegram",
-  "Signal",
-  "Slack",
-  "Discord",
-  "Google Chat",
-  "iMessage",
-  "Teams",
-  "Matrix",
-  "Zalo",
-  "Zalo Personal",
-  "BlueBubbles",
-];
+const ENVELOPE_CHANNELS = ["WebChat", "WhatsApp", "Telegram", "Slack"];
 
 const MESSAGE_ID_LINE = /^\s*\[message_id:\s*[^\]]+\]\s*$/i;
 

@@ -36,11 +36,11 @@ ${formatHelpExamples([
     "Send a message with media.",
   ],
   [
-    'openclaw message poll --channel discord --target channel:123 --poll-question "Snack?" --poll-option Pizza --poll-option Sushi',
-    "Create a Discord poll.",
+    'openclaw message poll --channel telegram --target -100123 --poll-question "Snack?" --poll-option Pizza --poll-option Sushi',
+    "Create a Telegram poll.",
   ],
   [
-    'openclaw message react --channel discord --target 123 --message-id 456 --emoji "✅"',
+    'openclaw message react --channel slack --target channel:C123 --message-id 1234567890.123456 --emoji "white_check_mark"',
     "React to a message.",
   ],
 ])}
