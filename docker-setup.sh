@@ -23,9 +23,11 @@ fi
 
 OPENCLAW_CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-$HOME/.openclaw}"
 OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
+OPENCLAW_DOCKER_HOME="${OPENCLAW_DOCKER_HOME:-$HOME/.openclaw/docker-home}"
 
 mkdir -p "$OPENCLAW_CONFIG_DIR"
 mkdir -p "$OPENCLAW_WORKSPACE_DIR"
+mkdir -p "$OPENCLAW_DOCKER_HOME"
 
 export OPENCLAW_CONFIG_DIR
 export OPENCLAW_WORKSPACE_DIR
@@ -193,6 +195,30 @@ echo "  - Tailscale exposure: Off"
 echo "  - Install Gateway daemon: No"
 echo ""
 docker compose "${COMPOSE_ARGS[@]}" run --rm openclaw-cli onboard --no-install-daemon
+
+echo ""
+echo "==> Configuring gateway for Docker"
+# Sync the token from .env to config (onboard may generate a different one)
+CONFIG_FILE="$OPENCLAW_CONFIG_DIR/openclaw.json"
+if [[ -f "$CONFIG_FILE" ]] && command -v jq >/dev/null 2>&1; then
+  if [[ "${OPENCLAW_DOCKER_DISABLE_DEVICE_AUTH:-}" == "true" ]]; then
+    echo "WARNING: Disabling device auth as requested (OPENCLAW_DOCKER_DISABLE_DEVICE_AUTH=true)"
+    jq --arg token "$OPENCLAW_GATEWAY_TOKEN" \
+      '.gateway.auth.token = $token | .gateway.controlUi = {"dangerouslyDisableDeviceAuth": true}' \
+      "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+    echo "Token synced and controlUi device auth disabled."
+  else
+    jq --arg token "$OPENCLAW_GATEWAY_TOKEN" \
+      '.gateway.auth.token = $token' \
+      "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+    echo "Token synced."
+    echo ""
+    echo "NOTE: Device auth is enabled. If accessing from Docker bridge network,"
+    echo "you may need to set OPENCLAW_DOCKER_DISABLE_DEVICE_AUTH=true and re-run setup."
+  fi
+else
+  echo "Warning: Could not update config. Ensure gateway token matches: $OPENCLAW_GATEWAY_TOKEN"
+fi
 
 echo ""
 echo "==> Provider setup (optional)"

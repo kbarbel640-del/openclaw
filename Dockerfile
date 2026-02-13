@@ -8,6 +8,15 @@ RUN corepack enable
 
 WORKDIR /app
 
+# Install common packages baked into the image
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      git curl jq gh python3 python3-pip ripgrep && \
+    ln -sf /usr/bin/python3 /usr/bin/python && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+# Optional additional packages via build arg
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
@@ -31,13 +40,12 @@ RUN pnpm ui:build
 
 ENV NODE_ENV=production
 
-# Allow non-root user to write temp files during runtime/tests.
-RUN chown -R node:node /app
+# Install global npm packages baked into the image
+RUN npm install -g @openai/codex clawhub
 
-# Security hardening: Run as non-root user
-# The node:22-bookworm image includes a 'node' user (uid 1000)
-# This reduces the attack surface by preventing container escape via root privileges
-USER node
+# Self-restart script (requires docker-socket-proxy in docker-compose)
+COPY scripts/restart-container.sh /usr/local/bin/restart-container
+RUN chmod +x /usr/local/bin/restart-container
 
 # Start gateway server with default config.
 # Binds to loopback (127.0.0.1) by default for security.
