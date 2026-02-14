@@ -1,10 +1,10 @@
 # Security Policy
 
-If you believe you've found a security issue in openclaw-local, please report it privately.
+If you believe you've found a security issue in gclaw, please report it privately.
 
 ## Reporting
 
-For issues specific to the openclaw-local fork (local-first defaults, Ollama integration, setup scripts), email **hello@gthumb.ai**.
+For issues specific to the gclaw fork (local-first defaults, Ollama integration, setup scripts), email **hello@gthumb.ai**.
 
 For issues in the upstream OpenClaw codebase, report to the upstream repository:
 

@@ -1,12 +1,12 @@
-# 🌱 Contributing to openclaw-local
+# 🌱 Contributing to gclaw
 
 Hey! Thanks for wanting to contribute. This is a hacker's project — we keep things simple. 🌿
 
 ## Setup
 
 ```bash
-git clone https://github.com/gthumb-ai/openclaw-local.git
-cd openclaw-local
+git clone https://github.com/GreenThumbMarket/gclaw.git
+cd gclaw
 pnpm install
 pnpm build
 ```

@@ -2,6 +2,17 @@
 
 Docs: https://docs.openclaw.ai
 
+## gclaw rebrand (2026-02-13)
+
+### Changes
+
+- Rebrand from `openclaw-local` to `gclaw` — the CLI command is now `gclaw` instead of `openclaw`
+- Rename `openclaw-local.example.json` → `gclaw.example.json`
+- Update all documentation, URLs, and config references to use gclaw branding
+- Repository URL updated to `https://github.com/GreenThumbMarket/gclaw`
+- Package `bin` field now registers the `gclaw` command
+- Keep full upstream OpenClaw credit and compatibility
+
 ## 2026.2.13
 
 ### Changes

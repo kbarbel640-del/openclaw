@@ -3,7 +3,7 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "ollama/llama3.3"
+        "primary": "ollama/gemma3:4b"
       },
       "workspace": "~/.openclaw/workspace"
     }
@@ -15,7 +15,7 @@
         "apiKey": "ollama",
         "models": [
           {
-            "id": "llama3.3",
+            "id": "gemma3:4b",
             "name": "Llama 3.3 70B",
             "contextWindow": 131072,
             "maxTokens": 8192,

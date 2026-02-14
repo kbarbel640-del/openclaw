@@ -1,5 +1,5 @@
 {
-  "name": "openclaw-local",
+  "name": "gclaw",
   "version": "2026.2.13",
   "description": "Local-first AI gateway — defaults to Ollama, no API keys required",
   "keywords": [
@@ -9,18 +9,18 @@
     "ollama",
     "typescript"
   ],
-  "homepage": "https://github.com/gthumb-ai/openclaw-local",
+  "homepage": "https://github.com/GreenThumbMarket/gclaw",
   "bugs": {
-    "url": "https://github.com/gthumb-ai/openclaw-local/issues"
+    "url": "https://github.com/GreenThumbMarket/gclaw/issues"
   },
   "license": "MIT",
   "author": "",
   "repository": {
     "type": "git",
-    "url": "https://github.com/gthumb-ai/openclaw-local.git"
+    "url": "https://github.com/GreenThumbMarket/gclaw.git"
   },
   "bin": {
-    "openclaw": "openclaw.mjs"
+    "gclaw": "openclaw.mjs"
   },
   "files": [
     "CHANGELOG.md",

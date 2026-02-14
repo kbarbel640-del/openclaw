@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# openclaw-local setup script
+# gclaw setup script
 # Checks for Ollama, pulls a recommended model, and generates initial config.
 
-RECOMMENDED_MODEL="${OPENCLAW_LOCAL_MODEL:-llama3.3}"
+RECOMMENDED_MODEL="${GCLAW_MODEL:-llama3.3}"
 CONFIG_DIR="${HOME}/.openclaw"
 CONFIG_FILE="${CONFIG_DIR}/config.json"
-EXAMPLE_CONFIG="$(dirname "$0")/../openclaw-local.example.json"
+EXAMPLE_CONFIG="$(dirname "$0")/../gclaw.example.json"
 
-echo "🦀 openclaw-local setup"
-echo "========================"
+echo "🌿 gclaw setup"
+echo "==============="
 echo
 
 # Check for Ollama
@@ -62,6 +62,6 @@ fi
 echo
 echo "🎉 Setup complete! Next steps:"
 echo
-echo "  openclaw onboard    # Interactive setup (channels, skills, etc.)"
-echo "  openclaw gateway start  # Start the gateway"
+echo "  gclaw onboard         # Interactive setup (channels, skills, etc.)"
+echo "  gclaw gateway start   # Start the gateway"
 echo

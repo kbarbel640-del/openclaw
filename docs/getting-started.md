@@ -1,4 +1,4 @@
-# 🌱 Getting Started with openclaw-local
+# 🌱 Getting Started with gclaw
 
 A step-by-step guide to running your own local AI agent.
 
@@ -31,8 +31,8 @@ This downloads ~4GB. On 8GB RAM machines, llama3.3 (8B Q4) runs well. See [ollam
 ## 3. Clone and build
 
 ```bash
-git clone https://github.com/gthumb-ai/openclaw-local.git
-cd openclaw-local
+git clone https://github.com/GreenThumbMarket/gclaw.git
+cd gclaw
 pnpm install
 pnpm build
 ```
@@ -48,13 +48,13 @@ This checks for Ollama, pulls the default model if needed, and generates a confi
 ## 5. Start the gateway
 
 ```bash
-openclaw gateway start
+gclaw gateway start
 ```
 
 Or use the interactive wizard:
 
 ```bash
-openclaw onboard
+gclaw onboard
 ```
 
 ## 6. Chat

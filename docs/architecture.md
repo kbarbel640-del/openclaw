@@ -1,10 +1,10 @@
-# 🍃 Architecture — How openclaw-local differs from upstream
+# 🍃 Architecture — How gclaw differs from upstream
 
-openclaw-local is a **thin fork** of [OpenClaw](https://github.com/openclaw-ai/openclaw). The architecture is identical — we only change defaults and onboarding flow.
+gclaw is a **thin fork** of [OpenClaw](https://github.com/openclaw-ai/openclaw). The architecture is identical — we only change defaults and onboarding flow.
 
 ## What's the same
 
-Everything. The gateway, agent system, channel adapters, skill framework, web UI, CLI — all unchanged. Any OpenClaw documentation applies to openclaw-local.
+Everything. The gateway, agent system, channel adapters, skill framework, web UI, CLI — all unchanged. Any OpenClaw documentation applies to gclaw.
 
 ## What's different
 
@@ -15,11 +15,11 @@ upstream:  DEFAULT_PROVIDER = "anthropic"
 local:     DEFAULT_PROVIDER = "ollama"
 ```
 
-When you start openclaw-local without configuring a provider, it talks to Ollama at `http://localhost:11434` instead of requiring an Anthropic API key.
+When you start gclaw without configuring a provider, it talks to Ollama at `http://localhost:11434` instead of requiring an Anthropic API key.
 
 ### 2. Onboarding wizard order
 
-The `openclaw onboard` wizard presents Ollama/local as the first choice instead of cloud providers. Cloud options are still available under "Advanced."
+The `gclaw onboard` wizard presents Ollama/local as the first choice instead of cloud providers. Cloud options are still available under "Advanced."
 
 ### 3. Model aliases
 
@@ -27,7 +27,7 @@ Added convenience aliases so `local` and `llama` resolve to `ollama/llama3.3`.
 
 ### 4. Example config and setup script
 
-- `openclaw-local.example.json` — ready-to-use config with Ollama defaults
+- `gclaw.example.json` — ready-to-use config with Ollama defaults
 - `scripts/setup-local.sh` — checks prerequisites, pulls models, generates config
 
 ## Cloud providers still work

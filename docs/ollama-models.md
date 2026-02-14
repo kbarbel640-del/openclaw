@@ -6,7 +6,7 @@ Which models work well locally, and what hardware you need.
 
 | RAM   | Recommended model       | Size   | Notes                            |
 | ----- | ----------------------- | ------ | -------------------------------- |
-| 8GB   | `llama3.3` (8B Q4)      | ~4GB   | Default. Good all-around         |
+| 8GB   | `gemma3:4b` (4B Q4)     | ~3GB   | Default. Fast and capable        |
 | 8GB   | `phi4-mini`             | ~2.5GB | Faster, lighter, good for coding |
 | 8GB   | `qwen2.5:7b`            | ~4GB   | Strong multilingual              |
 | 16GB  | `llama3.3:latest`       | ~4GB   | Headroom for longer contexts     |
@@ -36,7 +36,7 @@ Which models work well locally, and what hardware you need.
 
 ```bash
 # Default
-ollama pull llama3.3
+ollama pull gemma3:4b
 
 # Smaller/faster
 ollama pull phi4-mini
@@ -48,22 +48,22 @@ ollama pull deepseek-coder-v2
 ollama list
 ```
 
-## Configuring in openclaw-local
+## Configuring in gclaw
 
 Set your model in `~/.openclaw/config.json`:
 
 ```json
 {
   "model": {
-    "primary": "ollama/llama3.3"
+    "primary": "ollama/gemma3:4b"
   }
 }
 ```
 
 Or use model aliases defined in the fork:
 
-- `local` → `ollama/llama3.3`
-- `llama` → `ollama/llama3.3`
+- `local` → `ollama/gemma3:4b`
+- `gemma` → `ollama/gemma3:4b`
 
 ## Performance tips
 

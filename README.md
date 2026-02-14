@@ -1,23 +1,18 @@
-# 🌿 openclaw-local
+# 🌿 gclaw
 
-<!-- badges -->
-
-[![CI](https://github.com/gthumb-ai/openclaw-local/actions/workflows/ci.yml/badge.svg)](https://github.com/gthumb-ai/openclaw-local/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
-<!-- /badges -->
+**🌱 A local-first AI agent gateway — defaults to Ollama, no API keys required.**
 
-**🌱 A local-first fork of [OpenClaw](https://github.com/openclaw-ai/openclaw) that defaults to Ollama — no API keys required.**
+gclaw is a local-first fork of [OpenClaw](https://github.com/openclaw-ai/openclaw) that runs your own AI models on your own hardware with zero cloud dependencies. Built by [gthumb.ai](https://gthumb.ai) 🪴
 
-openclaw-local is the same powerful multi-channel AI gateway, but configured out-of-the-box for local model inference. Run your own models on your own hardware with zero cloud dependencies. Built for [gthumb.ai](https://gthumb.ai) 🪴
+## 🌿 Why gclaw?
 
-## 🌿 Why This Fork?
-
-OpenClaw is great, but it defaults to cloud providers. If you want to run everything locally — for privacy, cost, or just because you can — you have to reconfigure a bunch of stuff. This fork flips the defaults:
+OpenClaw is great, but it defaults to cloud providers. gclaw flips the defaults so everything runs locally out of the box:
 
 - 🌱 **Ollama is the default provider** — not Anthropic
 - 🌿 **Onboarding wizard leads with local** — cloud is still there under "Advanced"
-- 🍃 **Ships with local-first configs** — works out of the box with `ollama pull llama3.3`
+- 🍃 **Ships with local-first configs** — works out of the box with `ollama pull gemma3:4b`
 - 🌲 **Zero cloud dependencies** — no API keys, no accounts, no billing
 - 🪴 **All cloud providers still work** — just not the default
 
@@ -38,34 +33,45 @@ See [FORK.md](./FORK.md) for the exact diff from upstream.
 curl -fsSL https://ollama.com/install.sh | sh
 
 # 2. Pull the default model
-ollama pull llama3.3
+ollama pull gemma3:4b
 
 # 3. Run the setup script
 ./scripts/setup-local.sh
 
-# 4. Start openclaw-local
-openclaw gateway start
+# 4. Start gclaw
+gclaw gateway start
 ```
 
 Or use the interactive onboarding wizard:
 
 ```bash
-openclaw onboard
+gclaw onboard
 ```
 
 The wizard defaults to Ollama/local models. Cloud providers are available under "Advanced" options.
+
+## 🌿 CLI Commands
+
+| Command               | Description                             |
+| --------------------- | --------------------------------------- |
+| `gclaw gateway start` | Start the local agent gateway           |
+| `gclaw onboard`       | Interactive setup wizard (Ollama-first) |
+| `gclaw status`        | Check gateway and Ollama status         |
+| `gclaw tui`           | TUI chat interface                      |
+
+gclaw works fully offline once your Ollama models are pulled — no internet required.
 
 ## ⚙️ Configuration
 
 Copy the example config and customize:
 
 ```bash
-cp openclaw-local.example.json ~/.openclaw/config.json
+cp gclaw.example.json ~/.openclaw/config.json
 ```
 
-See [openclaw-local.example.json](./openclaw-local.example.json) for all defaults.
+See [gclaw.example.json](./gclaw.example.json) for all defaults.
 
-### Default model: `ollama/llama3.3`
+### Default model: `ollama/gemma3:4b`
 
 You can switch models anytime:
 
@@ -78,13 +84,25 @@ ollama pull deepseek-coder-v2
 # Set model.primary to "anthropic/claude-sonnet-4-5" and add your API key
 ```
 
+### Supported Ollama Models
+
+| RAM   | Model                   | Notes                            |
+| ----- | ----------------------- | -------------------------------- |
+| 8GB   | `llama3.3` (8B Q4)      | Default — good all-around        |
+| 8GB   | `phi4-mini`             | Faster, lighter, good for coding |
+| 8GB   | `qwen2.5:7b`            | Strong multilingual              |
+| 16GB  | `deepseek-coder-v2:16b` | Best for code tasks              |
+| 32GB+ | `llama3.1:70b-q4`       | Near cloud quality               |
+
+See [docs/ollama-models.md](./docs/ollama-models.md) for the full guide.
+
 ## 🌿 What's different from upstream OpenClaw?
 
 See [FORK.md](./FORK.md) for a detailed changelog. In short:
 
 - Default provider changed from Anthropic → Ollama
 - Onboarding wizard presents local/Ollama as the first option
-- Model aliases include `local` and `llama` → `ollama/llama3.3`
+- Model aliases include `local` and `llama` → `ollama/gemma3:4b`
 - Ships with local-first example config and setup script
 - All cloud provider functionality is preserved — just not the default
 
@@ -98,8 +116,8 @@ See [FORK.md](./FORK.md) for a detailed changelog. In short:
 ## 🛠️ Development
 
 ```bash
-git clone https://github.com/gthumb-ai/openclaw-local.git
-cd openclaw-local
+git clone https://github.com/GreenThumbMarket/gclaw.git
+cd gclaw
 pnpm install
 pnpm build
 pnpm test
