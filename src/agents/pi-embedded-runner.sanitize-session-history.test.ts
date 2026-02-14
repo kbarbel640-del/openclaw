@@ -52,7 +52,7 @@ describe("sanitizeSessionHistory", () => {
     );
   });
 
-  it("sanitizes tool call ids with strict9 for Mistral models", async () => {
+  it("sanitizes tool call ids with strict9 for Mistral models via OpenAI-compat API", async () => {
     vi.mocked(helpers.isGoogleModelApi).mockReturnValue(false);
 
     await sanitizeSessionHistory({
@@ -60,6 +60,30 @@ describe("sanitizeSessionHistory", () => {
       modelApi: "openai-responses",
       provider: "openrouter",
       modelId: "mistralai/devstral-2512:free",
+      sessionManager: mockSessionManager,
+      sessionId: "test-session",
+    });
+
+    // OpenRouter uses an OpenAI-compatible API, so sanitizeMode is "images-only"
+    // rather than "full", but Mistral-specific strict9 tool call IDs still apply.
+    expect(helpers.sanitizeSessionMessagesImages).toHaveBeenCalledWith(
+      mockMessages,
+      "session:history",
+      expect.objectContaining({
+        sanitizeMode: "images-only",
+        sanitizeToolCallIds: true,
+        toolCallIdMode: "strict9",
+      }),
+    );
+  });
+
+  it("sanitizes with full mode for native Mistral provider", async () => {
+    vi.mocked(helpers.isGoogleModelApi).mockReturnValue(false);
+
+    await sanitizeSessionHistory({
+      messages: mockMessages,
+      provider: "mistral",
+      modelId: "mistral-large-latest",
       sessionManager: mockSessionManager,
       sessionId: "test-session",
     });

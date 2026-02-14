@@ -39,4 +39,29 @@ describe("resolveTranscriptPolicy", () => {
     expect(policy.sanitizeToolCallIds).toBe(true);
     expect(policy.toolCallIdMode).toBe("strict");
   });
+
+  it("applies OpenAI-compatible policy for custom providers using openai-completions API", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "zai",
+      modelId: "glm-5",
+      modelApi: "openai-completions",
+    });
+    expect(policy.sanitizeToolCallIds).toBe(true);
+    expect(policy.toolCallIdMode).toBe("strict");
+    expect(policy.sanitizeMode).toBe("images-only");
+    expect(policy.validateAnthropicTurns).toBe(false);
+    expect(policy.validateGeminiTurns).toBe(false);
+    expect(policy.sanitizeThoughtSignatures).toBeUndefined();
+  });
+
+  it("applies OpenAI-compatible policy for custom providers using openai-responses API", () => {
+    const policy = resolveTranscriptPolicy({
+      provider: "custom-provider",
+      modelId: "custom-model",
+      modelApi: "openai-responses",
+    });
+    expect(policy.sanitizeToolCallIds).toBe(true);
+    expect(policy.toolCallIdMode).toBe("strict");
+    expect(policy.sanitizeMode).toBe("images-only");
+  });
 });
