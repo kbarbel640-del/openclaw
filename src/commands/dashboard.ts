@@ -25,9 +25,12 @@ export async function dashboardCommand(
   const customBindHost = cfg.gateway?.customBindHost;
   const token = cfg.gateway?.auth?.token ?? process.env.OPENCLAW_GATEWAY_TOKEN ?? "";
 
+  // The dashboard command is always accessed locally, so use loopback to
+  // satisfy the browser's secure-context requirement (no HTTPS needed).
+  // The gateway with bind=lan (0.0.0.0) still accepts localhost connections.
   const links = resolveControlUiLinks({
     port,
-    bind,
+    bind: bind === "lan" ? "loopback" : bind,
     customBindHost,
     basePath,
   });
