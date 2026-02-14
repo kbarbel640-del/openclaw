@@ -65,7 +65,8 @@ ensure_node() {
     fi
   fi
 
-  echo "Node.js 22+ not found. Installing with fnm..."
+  echo "Node.js 22+ not found. Installing it via fnm (Fast Node Manager)."
+  echo "fnm may modify your shell profile (e.g., ~/.bashrc, ~/.zshrc) to be available in new terminal sessions."
   if ! command_exists curl; then
     echo "curl is required to install Node.js." >&2
     exit 1
