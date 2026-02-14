@@ -1,10 +1,12 @@
 # Security Policy
 
-If you believe you've found a security issue in OpenClaw, please report it privately.
+If you believe you've found a security issue in openclaw-local, please report it privately.
 
 ## Reporting
 
-Report vulnerabilities directly to the repository where the issue lives:
+For issues specific to the openclaw-local fork (local-first defaults, Ollama integration, setup scripts), email **hello@gthumb.ai**.
+
+For issues in the upstream OpenClaw codebase, report to the upstream repository:
 
 - **Core CLI and gateway** — [openclaw/openclaw](https://github.com/openclaw/openclaw)
 - **macOS desktop app** — [openclaw/openclaw](https://github.com/openclaw/openclaw) (apps/macos)
