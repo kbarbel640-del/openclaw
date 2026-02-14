@@ -14,6 +14,7 @@ import { note } from "../terminal/note.js";
 import { resolveUserPath } from "../utils.js";
 import { createClackPrompter } from "../wizard/clack-prompter.js";
 import { WizardCancelledError } from "../wizard/prompts.js";
+import { configureMemorySection } from "./configure-memory.js";
 import { removeChannelConfigWizard } from "./configure.channels.js";
 import { maybeInstallDaemon } from "./configure.daemon.js";
 import { promptAuthConfig } from "./configure.gateway-auth.js";
@@ -318,6 +319,10 @@ export async function runConfigureWizard(
         nextConfig = await promptAuthConfig(nextConfig, runtime, prompter);
       }
 
+      if (selected.includes("memory")) {
+        nextConfig = await configureMemorySection(nextConfig, runtime);
+      }
+
       if (selected.includes("web")) {
         nextConfig = await promptWebToolsConfig(nextConfig, runtime);
       }
@@ -436,6 +441,11 @@ export async function runConfigureWizard(
 
         if (choice === "model") {
           nextConfig = await promptAuthConfig(nextConfig, runtime, prompter);
+          await persistConfig();
+        }
+
+        if (choice === "memory") {
+          nextConfig = await configureMemorySection(nextConfig, runtime);
           await persistConfig();
         }
 

@@ -40,6 +40,7 @@ import {
 import { logConfigUpdated } from "../config/logging.js";
 import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
+import { setupMemoryBackend } from "./onboarding-memory.js";
 import { finalizeOnboardingWizard } from "./onboarding.finalize.js";
 import { configureGatewayForOnboarding } from "./onboarding.gateway-config.js";
 import { WizardCancelledError, type WizardPrompter } from "./prompts.js";
@@ -464,6 +465,11 @@ export async function runOnboardingWizard(
 
   // Setup hooks (session memory on /new)
   nextConfig = await setupInternalHooks(nextConfig, runtime, prompter);
+
+  // Memory backend selection (advanced mode only)
+  if (flow === "advanced") {
+    nextConfig = await setupMemoryBackend(nextConfig, prompter);
+  }
 
   nextConfig = applyWizardMetadata(nextConfig, { command: "onboard", mode });
   await writeConfigFile(nextConfig);
