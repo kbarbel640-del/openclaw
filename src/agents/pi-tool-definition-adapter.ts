@@ -4,6 +4,7 @@ import type {
   AgentToolUpdateCallback,
 } from "@mariozechner/pi-agent-core";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
+import type { TSchema } from "@sinclair/typebox";
 import type { ClientToolDefinition } from "./pi-embedded-runner/run/params.js";
 import { logDebug, logError } from "../logger.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
@@ -12,8 +13,7 @@ import { runBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
 import { normalizeToolName } from "./tool-policy.js";
 import { jsonResult } from "./tools/common.js";
 
-// oxlint-disable-next-line typescript/no-explicit-any
-type AnyAgentTool = AgentTool<any, unknown>;
+type AnyAgentTool = AgentTool<TSchema, unknown>;
 
 type ToolExecuteArgsCurrent = [
   string,
@@ -79,43 +79,51 @@ function splitToolExecuteArgs(args: ToolExecuteArgsAny): {
   };
 }
 
-function withToolDurationMetadata(result: any, durationMs: number): any {
-  if (!result || typeof result !== "object" || Array.isArray(result)) {
+function asObjectRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function withToolDurationMetadata(
+  result: AgentToolResult<unknown>,
+  durationMs: number,
+): AgentToolResult<unknown> {
+  const base = asObjectRecord(result);
+  if (!base) {
     return result;
   }
-  const base = result;
-  const metadata =
-    base.metadata && typeof base.metadata === "object" && !Array.isArray(base.metadata)
-      ? base.metadata
-      : {};
 
-  const rootDuration =
-    typeof base.durationMs === "number" && Number.isFinite(base.durationMs)
-      ? base.durationMs
-      : undefined;
-  const metadataDuration =
-    typeof metadata.durationMs === "number" && Number.isFinite(metadata.durationMs)
-      ? metadata.durationMs
-      : undefined;
+  const metadata = asObjectRecord(base.metadata) ?? {};
+  const rootDuration = asFiniteNumber(base.durationMs);
+  const metadataDuration = asFiniteNumber(metadata.durationMs);
   const resolvedDurationMs = rootDuration ?? metadataDuration ?? durationMs;
 
   // Inject into details if present (AgentToolResult structure)
-  if (base.details && typeof base.details === "object" && !Array.isArray(base.details)) {
-    base.details.durationMs = resolvedDurationMs;
-    base.details.metadata = {
-      ...base.details.metadata,
+  const details = asObjectRecord(base.details);
+  if (details) {
+    details.durationMs = resolvedDurationMs;
+    const detailsMetadata = asObjectRecord(details.metadata) ?? {};
+    details.metadata = {
+      ...detailsMetadata,
       durationMs: resolvedDurationMs,
     };
+    base.details = details;
   }
 
   return {
-    ...base,
+    ...result,
     durationMs: resolvedDurationMs,
     metadata: {
       ...metadata,
       durationMs: resolvedDurationMs,
     },
-  };
+  } as unknown as AgentToolResult<unknown>;
 }
 
 export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
@@ -227,8 +235,7 @@ export function toClientToolDefinitions(
       name: func.name,
       label: func.name,
       description: func.description ?? "",
-      // oxlint-disable-next-line typescript/no-explicit-any
-      parameters: func.parameters as any,
+      parameters: func.parameters as ToolDefinition["parameters"],
       execute: async (...args: ToolExecuteArgs): Promise<AgentToolResult<unknown>> => {
         const startedAt = performance.now();
         const { toolCallId, params } = splitToolExecuteArgs(args);

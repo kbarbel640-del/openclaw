@@ -270,6 +270,60 @@ describe("installSessionToolResultGuard", () => {
     expect(textBlock.text).toBe(originalText);
   });
 
+  it("copies root durationMs into metadata before persistence", () => {
+    const sm = SessionManager.inMemory();
+    installSessionToolResultGuard(sm);
+
+    sm.appendMessage(toolCallMessage);
+    sm.appendMessage(
+      asAppendMessage({
+        role: "toolResult",
+        toolCallId: "call_1",
+        toolName: "read",
+        content: [{ type: "text", text: "ok" }],
+        isError: false,
+        durationMs: 42,
+      }),
+    );
+
+    const persisted = sm
+      .getEntries()
+      .filter((e) => e.type === "message")
+      .map((e) => (e as { message: AgentMessage }).message)
+      .find((m) => m.role === "toolResult") as { metadata?: { durationMs?: number } };
+
+    expect(persisted.metadata?.durationMs).toBe(42);
+  });
+
+  it("keeps existing metadata.durationMs when already present", () => {
+    const sm = SessionManager.inMemory();
+    installSessionToolResultGuard(sm);
+
+    sm.appendMessage(toolCallMessage);
+    sm.appendMessage(
+      asAppendMessage({
+        role: "toolResult",
+        toolCallId: "call_1",
+        toolName: "read",
+        content: [{ type: "text", text: "ok" }],
+        isError: false,
+        durationMs: 42,
+        metadata: { durationMs: 7, source: "tool" },
+      }),
+    );
+
+    const persisted = sm
+      .getEntries()
+      .filter((e) => e.type === "message")
+      .map((e) => (e as { message: AgentMessage }).message)
+      .find((m) => m.role === "toolResult") as {
+      metadata?: { durationMs?: number; source?: string };
+    };
+
+    expect(persisted.metadata?.durationMs).toBe(7);
+    expect(persisted.metadata?.source).toBe("tool");
+  });
+
   it("applies message persistence transform to user messages", () => {
     const sm = SessionManager.inMemory();
     installSessionToolResultGuard(sm, {

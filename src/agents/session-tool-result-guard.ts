@@ -110,6 +110,47 @@ function extractToolResultId(msg: Extract<AgentMessage, { role: "toolResult" }>)
   return null;
 }
 
+function asObjectRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function asFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+type ToolResultMessageWithDurationMeta = Extract<AgentMessage, { role: "toolResult" }> & {
+  durationMs?: unknown;
+  metadata?: unknown;
+};
+
+function ensureToolResultDurationForTranscript(message: AgentMessage): AgentMessage {
+  if (!message || typeof message !== "object" || message.role !== "toolResult") {
+    return message;
+  }
+  const toolResultMessage = message as ToolResultMessageWithDurationMeta;
+  const existingMeta = asObjectRecord(toolResultMessage.metadata) ?? {};
+  const existingDuration = asFiniteNumber(existingMeta.durationMs);
+  if (existingDuration !== undefined) {
+    return message;
+  }
+
+  const fallbackDuration = asFiniteNumber(toolResultMessage.durationMs);
+  if (fallbackDuration === undefined) {
+    return message;
+  }
+
+  return {
+    ...message,
+    metadata: {
+      ...existingMeta,
+      durationMs: fallbackDuration,
+    },
+  } as AgentMessage;
+}
+
 export function installSessionToolResultGuard(
   sessionManager: SessionManager,
   opts?: {
@@ -146,8 +187,9 @@ export function installSessionToolResultGuard(
     message: AgentMessage,
     meta: { toolCallId?: string; toolName?: string; isSynthetic?: boolean },
   ) => {
+    const withDuration = ensureToolResultDurationForTranscript(message);
     const transformer = opts?.transformToolResultForPersistence;
-    return transformer ? transformer(message, meta) : message;
+    return transformer ? transformer(withDuration, meta) : withDuration;
   };
 
   const allowSyntheticToolResults = opts?.allowSyntheticToolResults ?? true;
