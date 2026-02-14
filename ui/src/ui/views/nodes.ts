@@ -9,6 +9,7 @@ import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/ex
 import type { AppMode } from "../navigation.ts";
 import { formatRelativeTimestamp, formatList } from "../format.ts";
 import { renderExecApprovals, resolveExecApprovalsState } from "./nodes-exec-approvals.ts";
+import { icons } from "../icons.ts";
 export type NodesProps = {
   mode: AppMode;
   loading: boolean;
@@ -64,8 +65,14 @@ export function renderNodes(props: NodesProps) {
         : nothing
     }
     ${renderDevices(props)}
-    <section class="card">
-      <div class="row" style="justify-content: space-between;">
+    ${renderNodesSection(props, isBasic)}
+  `;
+}
+
+function renderNodesSection(props: NodesProps, isBasic: boolean) {
+  return html`
+    <section class="card" style="padding: 0;">
+      <div style="padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
         <div>
           <div class="card-title">Nodes</div>
           <div class="card-sub">Paired devices and live links.</div>
@@ -74,15 +81,21 @@ export function renderNodes(props: NodesProps) {
           ${props.loading ? "Loading…" : "Refresh"}
         </button>
       </div>
-      <div class="list" style="margin-top: 16px;">
-        ${
-          props.nodes.length === 0
-            ? html`
-                <div class="muted">No nodes found.</div>
-              `
-            : props.nodes.map((n) => renderNode(n, isBasic))
-        }
-      </div>
+      ${
+        props.nodes.length === 0
+          ? html`
+              <div style="padding: 12px 14px;" class="muted">No nodes found.</div>
+            `
+          : html`
+              <div class="log-header" style="grid-template-columns: 2fr 1fr 1fr 1fr;">
+                <div>Name</div>
+                <div>Status</div>
+                <div>Type</div>
+                <div>Last Seen</div>
+              </div>
+              ${props.nodes.map((n) => renderNode(n, isBasic))}
+            `
+      }
     </section>
   `;
 }
@@ -92,8 +105,8 @@ function renderDevices(props: NodesProps) {
   const pending = Array.isArray(list.pending) ? list.pending : [];
   const paired = Array.isArray(list.paired) ? list.paired : [];
   return html`
-    <section class="card">
-      <div class="row" style="justify-content: space-between;">
+    <section class="card" style="padding: 0;">
+      <div style="padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
         <div>
           <div class="card-title">Devices</div>
           <div class="card-sub">Pairing requests + role tokens.</div>
@@ -104,15 +117,17 @@ function renderDevices(props: NodesProps) {
       </div>
       ${
         props.devicesError
-          ? html`<div class="callout danger" style="margin-top: 12px;">${props.devicesError}</div>`
+          ? html`<div class="callout danger" style="margin: 12px 14px;">${props.devicesError}</div>`
           : nothing
       }
-      <div class="list" style="margin-top: 16px;">
+      <div style="padding: 12px 14px;">
         ${
           pending.length > 0
             ? html`
               <div class="muted" style="margin-bottom: 8px;">Pending</div>
-              ${pending.map((req) => renderPendingDevice(req, props))}
+              <div class="list">
+                ${pending.map((req) => renderPendingDevice(req, props))}
+              </div>
             `
             : nothing
         }
@@ -120,7 +135,9 @@ function renderDevices(props: NodesProps) {
           paired.length > 0
             ? html`
               <div class="muted" style="margin-top: 12px; margin-bottom: 8px;">Paired</div>
-              ${paired.map((device) => renderPairedDevice(device, props))}
+              <div class="list">
+                ${paired.map((device) => renderPairedDevice(device, props))}
+              </div>
             `
             : nothing
         }
@@ -145,7 +162,10 @@ function renderPendingDevice(req: PendingDevice, props: NodesProps) {
   return html`
     <div class="list-item">
       <div class="list-main">
-        <div class="list-title">${name}</div>
+        <div class="list-title">
+          <span class="icon" style="width:16px;height:16px;margin-right:6px;">${icons.smartphone}</span>
+          ${name}
+        </div>
         <div class="list-sub">${req.deviceId}${ip}</div>
         <div class="muted" style="margin-top: 6px;">
           ${role} · requested ${age}${repair}
@@ -174,7 +194,10 @@ function renderPairedDevice(device: PairedDevice, props: NodesProps) {
   return html`
     <div class="list-item">
       <div class="list-main">
-        <div class="list-title">${name}</div>
+        <div class="list-title">
+          <span class="icon" style="width:16px;height:16px;margin-right:6px;">${icons.smartphone}</span>
+          ${name}
+        </div>
         <div class="list-sub">${device.deviceId}${ip}</div>
         <div class="muted" style="margin-top: 6px;">${roles} · ${scopes}</div>
         ${
@@ -507,39 +530,22 @@ function renderNode(node: Record<string, unknown>, isBasic: boolean) {
   const title =
     (typeof node.displayName === "string" && node.displayName.trim()) ||
     (typeof node.nodeId === "string" ? node.nodeId : "unknown");
-  const caps = Array.isArray(node.caps) ? (node.caps as unknown[]) : [];
-  const commands = Array.isArray(node.commands) ? (node.commands as unknown[]) : [];
+  const nodeType = typeof node.version === "string" ? node.version : "unknown";
+  const lastSeen = typeof node.remoteIp === "string" ? node.remoteIp : "n/a";
+  const statusClass = connected ? "info" : "warn";
+  const statusText = connected ? "connected" : "offline";
+  
   return html`
-    <div class="list-item">
-      <div class="list-main">
-        <div class="list-title">${title}</div>
-        <div class="list-sub">
-          ${typeof node.nodeId === "string" ? node.nodeId : ""}
-          ${typeof node.remoteIp === "string" ? ` · ${node.remoteIp}` : ""}
-          ${typeof node.version === "string" ? ` · ${node.version}` : ""}
-        </div>
-        ${
-          isBasic
-            ? html`
-                <div class="chip-row" style="margin-top: 6px;">
-                  <span class="chip">${paired ? "paired" : "unpaired"}</span>
-                  <span class="chip ${connected ? "chip-ok" : "chip-warn"}">
-                    ${connected ? "connected" : "offline"}
-                  </span>
-                </div>
-              `
-            : html`
-                <div class="chip-row" style="margin-top: 6px;">
-                  <span class="chip">${paired ? "paired" : "unpaired"}</span>
-                  <span class="chip ${connected ? "chip-ok" : "chip-warn"}">
-                    ${connected ? "connected" : "offline"}
-                  </span>
-                  ${caps.slice(0, 12).map((c) => html`<span class="chip">${String(c)}</span>`)}
-                  ${commands.slice(0, 8).map((c) => html`<span class="chip">${String(c)}</span>`)}
-                </div>
-              `
-        }
+    <div class="log-row" style="grid-template-columns: 2fr 1fr 1fr 1fr; height: 36px; padding: 0 14px; align-items: center;">
+      <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <span class="icon" style="width:14px;height:14px;margin-right:6px;">${icons.smartphone}</span>
+        ${title}
       </div>
+      <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <span class="log-level ${statusClass}">${statusText}</span>
+      </div>
+      <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${nodeType}</div>
+      <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${lastSeen}</div>
     </div>
   `;
 }
