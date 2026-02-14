@@ -234,7 +234,20 @@ export type MemorySearchConfig = {
     sessionMemory?: boolean;
   };
   /** Embedding provider mode. */
-  provider?: "openai" | "gemini" | "local" | "voyage";
+  provider?: "openai" | "gemini" | "local" | "voyage" | "obsidian";
+  /** Obsidian vault memory provider configuration. */
+  obsidian?: {
+    /** Absolute path to the Obsidian vault. */
+    vaultPath: string;
+    /** Also write memory to standard memory/*.md files (default: true). */
+    preserveLocal?: boolean;
+    /** Target folder for agent memory notes within the vault. */
+    targetFolder?: string;
+    /** Folders to exclude from indexing (default: [".obsidian", ".trash"]). */
+    excludeFolders?: string[];
+    /** Tags to add to agent-created notes. */
+    flushTags?: string[];
+  };
   remote?: {
     baseUrl?: string;
     apiKey?: string;

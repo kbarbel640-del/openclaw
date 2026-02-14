@@ -9,7 +9,7 @@ export type ResolvedMemorySearchConfig = {
   enabled: boolean;
   sources: Array<"memory" | "sessions">;
   extraPaths: string[];
-  provider: "openai" | "local" | "gemini" | "voyage" | "auto";
+  provider: "openai" | "local" | "gemini" | "voyage" | "auto" | "obsidian";
   remote?: {
     baseUrl?: string;
     apiKey?: string;
@@ -67,6 +67,13 @@ export type ResolvedMemorySearchConfig = {
   cache: {
     enabled: boolean;
     maxEntries?: number;
+  };
+  obsidian?: {
+    vaultPath: string;
+    preserveLocal: boolean;
+    targetFolder: string;
+    excludeFolders: string[];
+    flushTags: string[];
   };
 };
 
@@ -290,6 +297,27 @@ function mergeConfig(
           ? Math.max(1, Math.floor(cache.maxEntries))
           : undefined,
     },
+    ...(provider === "obsidian" && (overrides?.obsidian || defaults?.obsidian)
+      ? {
+          obsidian: {
+            vaultPath: overrides?.obsidian?.vaultPath ?? defaults?.obsidian?.vaultPath ?? "",
+            preserveLocal:
+              overrides?.obsidian?.preserveLocal ?? defaults?.obsidian?.preserveLocal ?? true,
+            targetFolder:
+              overrides?.obsidian?.targetFolder ??
+              defaults?.obsidian?.targetFolder ??
+              "2-Areas/Agent",
+            excludeFolders: [
+              ...(defaults?.obsidian?.excludeFolders ?? []),
+              ...(overrides?.obsidian?.excludeFolders ?? []),
+            ],
+            flushTags: [
+              ...(defaults?.obsidian?.flushTags ?? []),
+              ...(overrides?.obsidian?.flushTags ?? []),
+            ],
+          },
+        }
+      : {}),
   };
 }
 
