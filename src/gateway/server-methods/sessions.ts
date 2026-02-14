@@ -14,6 +14,7 @@ import {
   updateSessionStore,
 } from "../../config/sessions.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../../routing/session-key.js";
+import { runPreResetHook } from "../../sessions/pre-reset-hook.js";
 import {
   ErrorCodes,
   errorShape,
@@ -281,6 +282,18 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     const storePath = target.storePath;
     let oldSessionId: string | undefined;
     let oldSessionFile: string | undefined;
+
+    // Pre-reset hook: trigger an agent turn before resetting (best-effort, non-blocking)
+    const store = loadSessionStore(storePath);
+    const hookEntry = store[target.canonicalKey];
+    await runPreResetHook({
+      cfg,
+      sessionKey: key,
+      sessionEntry: hookEntry,
+      storePath,
+      agentId: target.agentId,
+    });
+
     const next = await updateSessionStore(storePath, (store) => {
       const { primaryKey } = migrateAndPruneSessionStoreKey({ cfg, key, store });
       const entry = store[primaryKey];
