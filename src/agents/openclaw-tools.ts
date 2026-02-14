@@ -134,7 +134,7 @@ export function createOpenClawTools(options?: {
     }),
     createSessionsSpawnTool({
       agentSessionKey: options?.agentSessionKey,
-      agentChannel: options?.agentChannel,
+      agentChannel: options?.agentChannel ?? options?.messageProvider,
       agentAccountId: options?.agentAccountId,
       agentTo: options?.agentTo,
       agentThreadId: options?.agentThreadId,

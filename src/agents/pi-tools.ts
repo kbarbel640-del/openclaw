@@ -115,6 +115,7 @@ export const __testing = {
 export function createOpenClawCodingTools(options?: {
   exec?: ExecToolDefaults & ProcessToolDefaults;
   messageProvider?: string;
+  agentChannel?: string;
   agentAccountId?: string;
   messageTo?: string;
   messageThreadId?: string | number;
