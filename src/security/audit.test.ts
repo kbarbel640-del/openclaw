@@ -489,6 +489,35 @@ describe("security audit", () => {
     expect(finding?.detail).toContain("system.runx");
   });
 
+  it("does not flag dangerous commands as unknown in denyCommands", async () => {
+    const cfg: OpenClawConfig = {
+      gateway: {
+        nodes: {
+          denyCommands: [
+            "camera.snap",
+            "camera.clip",
+            "screen.record",
+            "calendar.add",
+            "contacts.add",
+            "reminders.add",
+            "sms.send",
+          ],
+        },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    const finding = res.findings.find(
+      (f) => f.checkId === "gateway.nodes.deny_commands_ineffective",
+    );
+    expect(finding).toBeUndefined();
+  });
+
   it("flags agent profile overrides when global tools.profile is minimal", async () => {
     const cfg: OpenClawConfig = {
       tools: {
