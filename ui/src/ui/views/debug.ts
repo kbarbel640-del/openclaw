@@ -20,6 +20,30 @@ export type DebugProps = {
   onCall: () => void;
 };
 
+type SnapshotEntry = {
+  name: string;
+  icon: string;
+  keyCount: number;
+  data: unknown;
+};
+
+let selectedSnapshot: string | null = null;
+
+function countKeys(data: unknown): number {
+  if (!data || typeof data !== "object") return 0;
+  if (Array.isArray(data)) return data.length;
+  return Object.keys(data).length;
+}
+
+function buildSnapshots(props: DebugProps): SnapshotEntry[] {
+  return [
+    { name: "Status", icon: "📊", keyCount: countKeys(props.status), data: props.status ?? {} },
+    { name: "Health", icon: "💚", keyCount: countKeys(props.health), data: props.health ?? {} },
+    { name: "Heartbeat", icon: "💓", keyCount: countKeys(props.heartbeat), data: props.heartbeat ?? {} },
+    { name: "Models", icon: "🤖", keyCount: Array.isArray(props.models) ? props.models.length : 0, data: props.models ?? [] },
+  ];
+}
+
 export function renderDebug(props: DebugProps) {
   const securityAudit =
     props.status && typeof props.status === "object"
@@ -33,39 +57,62 @@ export function renderDebug(props: DebugProps) {
   const securityLabel =
     critical > 0 ? `${critical} critical` : warn > 0 ? `${warn} warnings` : "No critical issues";
 
+  const snapshots = buildSnapshots(props);
+  const activeSnapshot = snapshots.find((s) => s.name === selectedSnapshot) ?? null;
+
+  // Trigger re-render hack via callback
+  const requestUpdate = () => props.onCallMethodChange(props.callMethod);
+
   return html`
+    ${
+      securitySummary
+        ? html`<div class="callout ${securityTone}" style="margin-bottom: 12px;">
+          Security audit: ${securityLabel}${info > 0 ? ` · ${info} info` : ""}. Run
+          <span class="mono">openclaw security audit --deep</span> for details.
+        </div>`
+        : nothing
+    }
+
     <section class="grid grid-cols-2">
-      <div class="card">
-        <div class="row" style="justify-content: space-between;">
+      <div class="card" style="padding: 0;">
+        <div class="row" style="justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border);">
           <div>
             <div class="card-title">Snapshots</div>
-            <div class="card-sub">Status, health, and heartbeat data.</div>
+            <div class="card-sub">Status, health, heartbeat, and models.</div>
           </div>
-          <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
-            ${props.loading ? "Refreshing…" : "Refresh"}
+          <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
+            ${props.loading ? "Loading…" : "Refresh"}
           </button>
         </div>
-        <div class="stack" style="margin-top: 12px;">
-          <div>
-            <div class="muted">Status</div>
-            ${
-              securitySummary
-                ? html`<div class="callout ${securityTone}" style="margin-top: 8px;">
-                  Security audit: ${securityLabel}${info > 0 ? ` · ${info} info` : ""}. Run
-                  <span class="mono">openclaw security audit --deep</span> for details.
-                </div>`
-                : nothing
-            }
-            ${renderJsonBlock(props.status ?? {})}
+        <div class="logs-split ${activeSnapshot ? "logs-split--open" : ""}">
+          <div style="flex: 1; min-width: 0;">
+            <div class="debug-snapshot-header">
+              <div class="debug-snapshot-cell" style="flex: 0 0 36px;"></div>
+              <div class="debug-snapshot-cell" style="flex: 1;">Name</div>
+              <div class="debug-snapshot-cell" style="flex: 0 0 80px; text-align: right;">Keys</div>
+            </div>
+            ${snapshots.map(
+              (snap) => html`
+                <div class="debug-snapshot-row ${selectedSnapshot === snap.name ? "selected" : ""}"
+                  @click=${() => { selectedSnapshot = selectedSnapshot === snap.name ? null : snap.name; requestUpdate(); }}>
+                  <div style="flex: 0 0 36px; text-align: center;">${snap.icon}</div>
+                  <div style="flex: 1; font-weight: 500;">${snap.name}</div>
+                  <div class="mono" style="flex: 0 0 80px; text-align: right; color: var(--muted);">${snap.keyCount}</div>
+                </div>
+              `,
+            )}
           </div>
-          <div>
-            <div class="muted">Health</div>
-            ${renderJsonBlock(props.health ?? {})}
-          </div>
-          <div>
-            <div class="muted">Last heartbeat</div>
-            ${renderJsonBlock(props.heartbeat ?? {})}
-          </div>
+          ${activeSnapshot ? html`
+            <div class="log-detail" style="max-height: none;">
+              <div class="log-detail-header">
+                <div class="card-title" style="font-size: 13px;">${activeSnapshot.icon} ${activeSnapshot.name}</div>
+                <button class="btn btn--sm" @click=${() => { selectedSnapshot = null; requestUpdate(); }}>✕</button>
+              </div>
+              <div style="padding: 10px 14px;">
+                ${renderJsonBlock(activeSnapshot.data)}
+              </div>
+            </div>
+          ` : nothing}
         </div>
       </div>
 
@@ -109,36 +156,30 @@ export function renderDebug(props: DebugProps) {
       </div>
     </section>
 
-    <section class="card" style="margin-top: 18px;">
-      <div class="card-title">Models</div>
-      <div class="card-sub">Catalog from models.list.</div>
-      <div style="margin-top: 12px;">${renderJsonBlock(props.models ?? [])}</div>
-    </section>
-
-    <section class="card" style="margin-top: 18px;">
-      <div class="card-title">Event Log</div>
-      <div class="card-sub">Latest gateway events.</div>
+    <section class="card" style="margin-top: 18px; padding: 0;">
+      <div style="padding: 12px 14px; border-bottom: 1px solid var(--border);">
+        <div class="card-title">Event Log</div>
+        <div class="card-sub">Latest gateway events.</div>
+      </div>
       ${
         props.eventLog.length === 0
-          ? html`
-              <div class="muted" style="margin-top: 12px">No events yet.</div>
-            `
+          ? html`<div class="muted" style="padding: 12px 14px;">No events yet.</div>`
           : html`
-            <div class="list" style="margin-top: 12px;">
-              ${props.eventLog.map(
-                (evt) => html`
-                  <div class="list-item">
-                    <div class="list-main">
-                      <div class="list-title">${evt.event}</div>
-                      <div class="list-sub">${new Date(evt.ts).toLocaleTimeString()}</div>
-                    </div>
-                    <div class="list-meta">
-                      ${renderJsonBlock(evt.payload)}
-                    </div>
-                  </div>
-                `,
-              )}
+            <div class="debug-snapshot-header">
+              <div class="debug-snapshot-cell" style="flex: 0 0 90px;">Time</div>
+              <div class="debug-snapshot-cell" style="flex: 1;">Event</div>
             </div>
+            ${props.eventLog.map(
+              (evt) => html`
+                <div class="debug-snapshot-row" style="cursor: default;">
+                  <div class="mono" style="flex: 0 0 90px; color: var(--muted); font-size: 11px;">${new Date(evt.ts).toLocaleTimeString()}</div>
+                  <div style="flex: 1;">
+                    <div style="font-weight: 500; font-size: 12px;">${evt.event}</div>
+                    <div style="margin-top: 4px;">${renderJsonBlock(evt.payload)}</div>
+                  </div>
+                </div>
+              `,
+            )}
           `
       }
     </section>
