@@ -14,9 +14,11 @@ import { createMessageTool } from "./tools/message-tool.js";
 import { createNodesTool } from "./tools/nodes-tool.js";
 import { createSessionStatusTool } from "./tools/session-status-tool.js";
 import { createSessionsHistoryTool } from "./tools/sessions-history-tool.js";
+import { createSessionsKillTool } from "./tools/sessions-kill-tool.js";
 import { createSessionsListTool } from "./tools/sessions-list-tool.js";
 import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
+import { createSessionsTreeTool } from "./tools/sessions-tree-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 
@@ -123,9 +125,15 @@ export function createOpenClawTools(options?: {
       agentSessionKey: options?.agentSessionKey,
       sandboxed: options?.sandboxed,
     }),
+    createSessionsTreeTool({
+      agentSessionKey: options?.agentSessionKey,
+    }),
     createSessionsHistoryTool({
       agentSessionKey: options?.agentSessionKey,
       sandboxed: options?.sandboxed,
+    }),
+    createSessionsKillTool({
+      agentSessionKey: options?.agentSessionKey,
     }),
     createSessionsSendTool({
       agentSessionKey: options?.agentSessionKey,

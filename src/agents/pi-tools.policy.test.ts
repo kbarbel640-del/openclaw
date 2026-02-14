@@ -15,7 +15,14 @@ describe("resolveSubagentToolPolicy", () => {
     } as OpenClawConfig);
 
     expect(policy.deny).toEqual(
-      expect.arrayContaining(["sessions_list", "sessions_history", "sessions_send", "sessions_spawn"]),
+      expect.arrayContaining([
+        "sessions_list",
+        "sessions_tree",
+        "sessions_history",
+        "sessions_kill",
+        "sessions_send",
+        "sessions_spawn",
+      ]),
     );
   });
 
@@ -31,7 +38,9 @@ describe("resolveSubagentToolPolicy", () => {
     } as OpenClawConfig);
 
     expect(policy.deny).not.toContain("sessions_list");
+    expect(policy.deny).not.toContain("sessions_tree");
     expect(policy.deny).not.toContain("sessions_history");
+    expect(policy.deny).not.toContain("sessions_kill");
     expect(policy.deny).not.toContain("sessions_send");
     expect(policy.deny).not.toContain("sessions_spawn");
     expect(policy.deny).toContain("gateway");

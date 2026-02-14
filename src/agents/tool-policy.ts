@@ -23,7 +23,9 @@ export const TOOL_GROUPS: Record<string, string[]> = {
   // Session management tools
   "group:sessions": [
     "sessions_list",
+    "sessions_tree",
     "sessions_history",
+    "sessions_kill",
     "sessions_send",
     "sessions_spawn",
     "session_status",
@@ -46,7 +48,9 @@ export const TOOL_GROUPS: Record<string, string[]> = {
     "gateway",
     "agents_list",
     "sessions_list",
+    "sessions_tree",
     "sessions_history",
+    "sessions_kill",
     "sessions_send",
     "sessions_spawn",
     "session_status",

@@ -52,7 +52,9 @@ const SUBAGENT_TOOL_DENY_ALWAYS = [
 
 const SUBAGENT_TOOL_DENY_UNLESS_RECURSIVE = [
   "sessions_list",
+  "sessions_tree",
   "sessions_history",
+  "sessions_kill",
   "sessions_send",
   "sessions_spawn",
 ];

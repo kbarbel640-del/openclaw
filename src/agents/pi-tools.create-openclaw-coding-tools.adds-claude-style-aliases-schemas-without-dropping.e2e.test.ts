@@ -261,7 +261,9 @@ describe("createOpenClawCodingTools", () => {
       "gateway",
       "agents_list",
       "sessions_list",
+      "sessions_tree",
       "sessions_history",
+      "sessions_kill",
       "sessions_send",
       "sessions_spawn",
       "session_status",
@@ -320,7 +322,9 @@ describe("createOpenClawCodingTools", () => {
     });
     const names = new Set(tools.map((tool) => tool.name));
     expect(names.has("sessions_list")).toBe(false);
+    expect(names.has("sessions_tree")).toBe(false);
     expect(names.has("sessions_history")).toBe(false);
+    expect(names.has("sessions_kill")).toBe(false);
     expect(names.has("sessions_send")).toBe(false);
     expect(names.has("sessions_spawn")).toBe(false);
 
