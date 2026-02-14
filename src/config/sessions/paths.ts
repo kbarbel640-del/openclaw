@@ -77,10 +77,31 @@ function resolvePathWithinSessionsDir(sessionsDir: string, candidate: string): s
     throw new Error("Session file path must not be empty");
   }
   const resolvedBase = path.resolve(sessionsDir);
+  
   // Normalize absolute paths that are within the sessions directory.
   // Older versions stored absolute sessionFile paths in sessions.json;
   // convert them to relative so the containment check passes.
   const normalized = path.isAbsolute(trimmed) ? path.relative(resolvedBase, trimmed) : trimmed;
+  
+  // If the relative path starts with "..", the sessionFile belongs to a different agent.
+  // Try to resolve the correct agent's sessions directory from the absolute path.
+  if (normalized.startsWith("..") && path.isAbsolute(trimmed)) {
+    // Extract potential agent ID from the absolute path
+    // e.g., /Users/user/.openclaw/agents/host-cron/sessions/abc.jsonl
+    const pathParts = trimmed.split(path.sep);
+    const agentsIndex = pathParts.indexOf("agents");
+    if (agentsIndex !== -1 && pathParts.length > agentsIndex + 2) {
+      const potentialAgentId = pathParts[agentsIndex + 1];
+      // Try resolving with the detected agent ID
+      const altSessionsDir = resolveAgentSessionsDir(potentialAgentId);
+      const altResolvedBase = path.resolve(altSessionsDir);
+      const altNormalized = path.relative(altResolvedBase, trimmed);
+      if (!altNormalized.startsWith("..") && !path.isAbsolute(altNormalized)) {
+        return path.resolve(altResolvedBase, altNormalized);
+      }
+    }
+  }
+  
   if (!normalized || normalized.startsWith("..") || path.isAbsolute(normalized)) {
     throw new Error("Session file path must be within sessions directory");
   }
