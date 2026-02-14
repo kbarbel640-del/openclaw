@@ -48,6 +48,7 @@ This script:
 
 Optional env vars:
 
+- `OPENCLAW_GATEWAY_HOST` — host interface for the published gateway port (default: `127.0.0.1`)
 - `OPENCLAW_DOCKER_APT_PACKAGES` — install extra apt packages during build
 - `OPENCLAW_EXTRA_MOUNTS` — add extra host bind mounts
 - `OPENCLAW_HOME_VOLUME` — persist `/home/node` in a named volume
@@ -97,6 +98,34 @@ Note: run `docker compose ...` from the repo root. If you enabled
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.extra.yml <command>
+```
+
+### Local hardened compose profile (personal gateway)
+
+If you want a reproducible local-only setup for personal use, use
+`docker-compose.local.yml` from repo root. It publishes the dashboard on loopback
+only and reads runtime secrets from `~/.openclaw-docker/.env`.
+
+1. Create `~/.openclaw-docker/.env`:
+
+```bash
+mkdir -p ~/.openclaw-docker
+cat > ~/.openclaw-docker/.env <<'EOF'
+ANTHROPIC_API_KEY=sk-ant-...
+OPENCLAW_GATEWAY_TOKEN=replace-with-random-token
+EOF
+chmod 600 ~/.openclaw-docker/.env
+```
+
+2. Ensure pairing is enabled (do not set
+   `gateway.controlUi.dangerouslyDisableDeviceAuth: true` in
+   `~/.openclaw-docker/openclaw.json`).
+3. Start/stop/log:
+
+```bash
+docker compose -f docker-compose.local.yml up -d
+docker compose -f docker-compose.local.yml down
+docker compose -f docker-compose.local.yml logs -f
 ```
 
 ### Control UI token + pairing (Docker)
