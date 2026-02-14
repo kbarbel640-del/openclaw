@@ -185,6 +185,13 @@ async function scanLaunchdDir(params: {
     if (isIgnoredLaunchdLabel(label)) {
       continue;
     }
+    // Only report services that are actually gateway-related
+    // A service referencing .openclaw/ paths but not running gateway should not be flagged
+    // See: https://github.com/openclaw/openclaw/issues/15849
+    if (marker === "openclaw" && !isOpenClawGatewayLaunchdService(label, contents)) {
+      // Skip non-gateway services that merely reference openclaw paths
+      continue;
+    }
     if (marker === "openclaw" && isOpenClawGatewayLaunchdService(label, contents)) {
       continue;
     }
