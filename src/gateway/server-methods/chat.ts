@@ -8,6 +8,7 @@ import { resolveThinkingDefault } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
+import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
@@ -48,6 +49,55 @@ type TranscriptAppendResult = {
 };
 
 type AppendMessageArg = Parameters<SessionManager["appendMessage"]>[0];
+
+function extractChatTextContent(
+  content: unknown,
+): { text: string | null; hasNonText: boolean } {
+  if (typeof content === "string") {
+    return { text: content.trim() || null, hasNonText: false };
+  }
+  if (!Array.isArray(content)) {
+    return { text: null, hasNonText: false };
+  }
+  let text: string | null = null;
+  let hasNonText = false;
+  for (const part of content) {
+    if (!part || typeof part !== "object") {
+      continue;
+    }
+    const entry = part as Record<string, unknown>;
+    const type = typeof entry.type === "string" ? entry.type : "";
+    if (type && type !== "text" && type !== "output_text" && type !== "input_text") {
+      hasNonText = true;
+    }
+    const textValue = typeof entry.text === "string" ? entry.text.trim() : "";
+    if (textValue && !text) {
+      text = textValue;
+    }
+  }
+  return { text, hasNonText };
+}
+
+function isSilentChatMessage(message: unknown): boolean {
+  if (!message || typeof message !== "object") {
+    return false;
+  }
+  const record = message as Record<string, unknown>;
+  const role = typeof record.role === "string" ? record.role.toLowerCase() : "";
+  if (role !== "assistant") {
+    return false;
+  }
+  const { text, hasNonText } = extractChatTextContent(record.content);
+  if (hasNonText) {
+    return false;
+  }
+  const fallbackText = typeof record.text === "string" ? record.text.trim() : "";
+  const finalText = text ?? (fallbackText || null);
+  if (!finalText) {
+    return false;
+  }
+  return isSilentReplyText(finalText, SILENT_REPLY_TOKEN);
+}
 
 function resolveTranscriptPath(params: {
   sessionId: string;
@@ -233,7 +283,8 @@ export const chatHandlers: GatewayRequestHandlers = {
     const max = Math.min(hardMax, requested);
     const sliced = rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
     const sanitized = stripEnvelopeFromMessages(sliced);
-    const capped = capArrayByJsonBytes(sanitized, getMaxChatHistoryMessagesBytes()).items;
+    const filtered = sanitized.filter((message) => !isSilentChatMessage(message));
+    const capped = capArrayByJsonBytes(filtered, getMaxChatHistoryMessagesBytes()).items;
     let thinkingLevel = entry?.thinkingLevel;
     if (!thinkingLevel) {
       const configured = cfg.agents?.defaults?.thinkingDefault;
