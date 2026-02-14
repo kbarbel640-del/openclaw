@@ -11,6 +11,25 @@ import {
 } from "./device-pairing.js";
 
 describe("device pairing tokens", () => {
+  test("generates base64url device tokens with 256-bit entropy output length", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const request = await requestDevicePairing(
+      {
+        deviceId: "device-1",
+        publicKey: "public-key-1",
+        role: "operator",
+        scopes: ["operator.admin"],
+      },
+      baseDir,
+    );
+    await approveDevicePairing(request.request.requestId, baseDir);
+
+    const paired = await getPairedDevice("device-1", baseDir);
+    const token = paired?.tokens?.operator?.token;
+    expect(token).toBeTruthy();
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+
   test("preserves existing token scopes when rotating without scopes", async () => {
     const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
     const request = await requestDevicePairing(
@@ -75,6 +94,33 @@ describe("device pairing tokens", () => {
       scopes: ["operator.read"],
       baseDir,
     });
+    expect(mismatch.ok).toBe(false);
+    expect(mismatch.reason).toBe("token-mismatch");
+  });
+
+  test("treats multibyte same-length token input as mismatch without throwing", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const request = await requestDevicePairing(
+      {
+        deviceId: "device-1",
+        publicKey: "public-key-1",
+        role: "operator",
+        scopes: ["operator.read"],
+      },
+      baseDir,
+    );
+    await approveDevicePairing(request.request.requestId, baseDir);
+    const paired = await getPairedDevice("device-1", baseDir);
+    const token = paired?.tokens?.operator?.token ?? "";
+
+    const mismatch = await verifyDeviceToken({
+      deviceId: "device-1",
+      token: "é".repeat(token.length),
+      role: "operator",
+      scopes: ["operator.read"],
+      baseDir,
+    });
+
     expect(mismatch.ok).toBe(false);
     expect(mismatch.reason).toBe("token-mismatch");
   });
