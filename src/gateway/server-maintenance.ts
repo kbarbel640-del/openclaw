@@ -147,6 +147,22 @@ export function startGatewayMaintenanceTimers(params: {
               );
             }
 
+            if (action === "notify") {
+              params.broadcast("stuck-run", {
+                sessionId,
+                sessionKey: entry.sessionKey,
+                clientRunId: entry.clientRunId,
+                elapsedMinutes: elapsedMin,
+                thresholdMinutes: stuckConfig?.thresholdMinutes ?? DEFAULT_STUCK_THRESHOLD_MINUTES,
+              });
+              if (entry.sessionKey) {
+                params.nodeSendToSession(entry.sessionKey, "stuck-run", {
+                  clientRunId: entry.clientRunId,
+                  elapsedMinutes: elapsedMin,
+                });
+              }
+            }
+
             if (action === "abort") {
               params.logStuck?.warn(
                 `Aborting stuck run: ${entry.clientRunId} (${elapsedMin}m)`,

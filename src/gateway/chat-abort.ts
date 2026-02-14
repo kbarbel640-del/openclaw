@@ -88,7 +88,7 @@ export function abortChatRunById(
   ops.chatAbortControllers.delete(runId);
   ops.chatRunBuffers.delete(runId);
   ops.chatDeltaSentAt.delete(runId);
-  ops.removeChatRun(runId, runId, sessionKey);
+  ops.removeChatRun(active.sessionId, runId, sessionKey);
   broadcastChatAborted(ops, { runId, sessionKey, stopReason });
   return { aborted: true };
 }
