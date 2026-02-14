@@ -23,10 +23,10 @@ export type GuardedFetchOptions = {
   lookupFn?: LookupFn;
   pinDns?: boolean;
   auditContext?: string;
-  /** HTTP/HTTPS proxy URL. If not provided, reads from HTTP_PROXY/HTTPS_PROXY env vars. */
+  /** HTTP/HTTPS proxy URL. Overrides env-var detection; NO_PROXY is not consulted. */
   proxyUrl?: string;
-  /** Set to true to disable automatic proxy detection from environment. */
-  noProxy?: boolean;
+  /** Set to true to disable all proxy detection (explicit and env-var). */
+  skipProxy?: boolean;
 };
 
 export type GuardedFetchResult = {
@@ -72,19 +72,18 @@ function shouldBypassProxy(hostname: string): boolean {
  * Resolve proxy URL from options or environment variables.
  *
  * Precedence:
- * - If noProxy option is true, returns undefined
- * - If explicit proxyUrl option is provided, uses that
- * - Checks NO_PROXY/no_proxy to see if hostname should bypass proxy
- * - For HTTPS: HTTPS_PROXY → https_proxy → HTTP_PROXY → http_proxy
- * - For HTTP: HTTP_PROXY → http_proxy → HTTPS_PROXY → https_proxy
+ * 1. skipProxy=true → no proxy
+ * 2. Explicit proxyUrl → use it directly (NO_PROXY is not consulted)
+ * 3. NO_PROXY/no_proxy match → no proxy
+ * 4. HTTPS_PROXY/HTTP_PROXY env vars by protocol
  */
 function resolveProxyUrl(params: {
   proxyUrl?: string;
-  noProxy?: boolean;
+  skipProxy?: boolean;
   protocol?: string;
   hostname?: string;
 }): string | undefined {
-  if (params.noProxy) {
+  if (params.skipProxy) {
     return undefined;
   }
   if (params.proxyUrl) {
@@ -202,7 +201,7 @@ export async function fetchWithSsrFGuard(params: GuardedFetchOptions): Promise<G
       if (params.pinDns !== false) {
         const proxyUrl = resolveProxyUrl({
           proxyUrl: params.proxyUrl,
-          noProxy: params.noProxy,
+          skipProxy: params.skipProxy,
           protocol: parsedUrl.protocol,
           hostname: parsedUrl.hostname,
         });

@@ -402,14 +402,13 @@ export type PinnedDispatcherOptions = {
 
 /**
  * Create a dispatcher with DNS pinning for SSRF protection.
- * Optionally routes through a proxy while maintaining DNS pinning.
+ * Optionally routes through a proxy.
  *
- * Note: When using a proxy, DNS pinning is applied via both `connect` (for HTTP)
- * and `requestTls` (for HTTPS) to ensure SSRF protection regardless of protocol.
- *
- * ProxyAgent options used here require Undici 5.x+. The `requestTls` option
- * is used for TLS connection options when connecting to the target through proxy.
- * See: https://undici.nodejs.org/#/docs/api/ProxyAgent
+ * Limitation: when a proxy is configured, connect.lookup pins the proxy
+ * hostname resolution, not the target's. The target hostname is resolved
+ * by the proxy server itself, so DNS-rebinding (TOCTOU) protection is
+ * reduced to the pre-fetch resolvePinnedHostnameWithPolicy check only.
+ * The proxy itself must be trusted.
  */
 export function createPinnedDispatcher(
   pinned: PinnedHostname,
@@ -420,16 +419,9 @@ export function createPinnedDispatcher(
   };
 
   if (options?.proxyUrl) {
-    // ProxyAgent with custom lookup for DNS pinning through proxy.
-    // Apply pinning to both connect (HTTP) and requestTls (HTTPS) to
-    // ensure SSRF protection regardless of target protocol.
-    // Note: requestTls is documented in Undici 5.x+ for TLS options.
     return new ProxyAgent({
       uri: options.proxyUrl,
       connect: connectOptions,
-      requestTls: {
-        lookup: pinned.lookup,
-      },
     });
   }
 
