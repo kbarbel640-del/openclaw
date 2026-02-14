@@ -34,7 +34,7 @@ describe("resolveOutboundSessionRoute", () => {
     expect(route?.threadId).toBe(42);
   });
 
-  it("treats Telegram usernames as DMs when unresolved", async () => {
+  it("treats Telegram usernames as group-like when chat type is unknown", async () => {
     const cfg = { session: { dmScope: "per-channel-peer" } } as OpenClawConfig;
     const route = await resolveOutboundSessionRoute({
       cfg,
@@ -43,8 +43,8 @@ describe("resolveOutboundSessionRoute", () => {
       target: "@alice",
     });
 
-    expect(route?.sessionKey).toBe("agent:main:telegram:direct:@alice");
-    expect(route?.chatType).toBe("direct");
+    expect(route?.sessionKey).toBe("agent:main:telegram:group:@alice");
+    expect(route?.chatType).toBe("group");
   });
 
   it("honors dmScope identity links", async () => {

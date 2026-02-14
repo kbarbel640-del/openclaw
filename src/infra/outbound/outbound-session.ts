@@ -301,12 +301,9 @@ function resolveTelegramSession(
     parsedThreadId ?? (fallbackThreadId ? Number.parseInt(fallbackThreadId, 10) : undefined);
   // Telegram topics are encoded in the peer id (chatId:topic:<id>).
   const chatType = resolveTelegramTargetChatType(params.target);
-  // If the target is a username and we lack a resolvedTarget, default to DM to avoid group keys.
-  const isGroup =
-    chatType === "group" ||
-    (chatType === "unknown" &&
-      params.resolvedTarget?.kind &&
-      params.resolvedTarget.kind !== "user");
+  // Only treat as direct when we are certain it is a DM (positive numeric id).
+  // Unknown identifiers (e.g. @usernames/links) default to group-like routing.
+  const isGroup = chatType !== "direct";
   const peerId = isGroup ? buildTelegramGroupPeerId(chatId, resolvedThreadId) : chatId;
   const peer: RoutePeer = {
     kind: isGroup ? "group" : "direct",
