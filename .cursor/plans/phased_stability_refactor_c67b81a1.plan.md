@@ -444,19 +444,19 @@ Currently fork-specific code is spread across core files (`src/agents/system-pro
 
 Create a CI workflow (`.github/workflows/upstream-sync-test.yml`) that:
 
-- Weekly, fetches upstream `main`
+- **Daily**, fetches upstream `main`
 - Attempts a merge into a test branch
 - Runs `pnpm build && pnpm test`
-- Opens an issue if conflicts or failures are detected
+- Opens an issue if conflicts or failures are detected (see FORK-CHANGES.md “Phase 5” for what “opens an issue” means)
 
-### 5c. Contribute generic improvements upstream
+### 5c. Contribute generic improvements upstream (deferred)
 
-Changes that are not fork-specific (Discord reconnect hardening, SearXNG provider, ntfy service, Ollama `/api/show` discovery) can be submitted as PRs to upstream OpenClaw. This reduces your merge surface over time.
+Not implemented in this phase. Changes that are not fork-specific (Discord reconnect hardening, SearXNG provider, ntfy service, Ollama `/api/show` discovery) could later be submitted as PRs to upstream OpenClaw to reduce merge surface over time.
 
-**Key files to create:**
+**Key files to create/modify:**
 
 - New: `.github/workflows/upstream-sync-test.yml`
-- Modify: `[FORK-CHANGES.md](FORK-CHANGES.md)` (update with Phase 1-4 changes)
+- Modify: `[FORK-CHANGES.md](FORK-CHANGES.md)` (Phase 5 and Phase 1–4 when applicable)
 
 ---
 
@@ -557,9 +557,9 @@ Implementation order for this fork: **2 → 3 → 4 → 5** on the current direc
 
 **What the plan adds:**
 
-- **Phase 5b (CI)** — A workflow (e.g. weekly) that fetches `upstream/main`, attempts the merge on a throwaway branch, runs `pnpm build && pnpm test`, and **opens an issue** if there are conflicts or failures. It does **not** merge for you; it alerts you so you can integrate upstream when you choose and fix problems in a controlled way.
+- **Phase 5b (CI)** — A **daily** workflow that fetches `upstream/main`, attempts the merge on a throwaway branch, runs `pnpm build && pnpm test`, and **opens an issue** if there are conflicts or failures. It does **not** merge for you; it alerts you so you can integrate upstream when you choose and fix problems in a controlled way.
 - **Phase 5a (isolation)** — Moving fork-only logic into separate files or config-gated paths means fewer of "your" lines sit in the same files as upstream edits, so future merges tend to have fewer conflicts.
-- **Phase 5c (contributing back)** — Submitting generic improvements (Discord reconnect, SearXNG, ntfy, Ollama discovery) as PRs to openclaw/openclaw means those features eventually live upstream. You then drop them from the fork and get them via normal merges, reducing your long-term conflict surface.
+- **Phase 5c (contributing back)** — Deferred; not part of the current Phase 5 implementation.
 
 **Summary:** Integrate upstream the same way you do now; the plan adds early warning (CI), fewer conflicts (isolation), and less fork-only code over time (contributing back). Deployment after a merge switches from systemd restart to Docker deploy.
 

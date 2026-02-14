@@ -127,6 +127,12 @@ Operational checklist when running this fork with [OpenClaw-Foundry](https://git
 
 - _(Add further customizations, fixes, or config here as you make them.)_
 
+## Phase 5: Upstream merge strategy and fork hygiene
+
+- **5a. Fork isolation** — Fork-specific logic is kept in dedicated modules where possible: `src/agents/prompt-engine/` (skills loader, triangulator, injector, system directives) and config-gated paths (e.g. prompt-engine integration in `src/agents/system-prompt.ts`). See "ClawdBot-Next / prompt-engine integration" and conflict patterns in [.agent/workflows/update_clawdbot.md](.agent/workflows/update_clawdbot.md).
+- **5b. Automated upstream sync testing** — A CI workflow runs **daily** (`.github/workflows/upstream-sync-test.yml`): fetches `openclaw/openclaw` `main`, attempts a merge into a temporary branch, runs `pnpm build && pnpm test`. **“Opens an issue if conflicts or failures are detected”** means: when the merge hits conflicts or when build/test fails, the workflow creates a new GitHub issue in this repo (title e.g. “Upstream sync test failed — YYYY-MM-DD”, body with the reason, **list of conflicted files** when applicable, and a link to the workflow run). You get notified without watching the Actions tab; bring the issue URL into Cursor (or your IDE) to analyze and fix, using the workflow run link for full logs; the workflow does not merge or push for you. **Preview:** each daily run writes an **upstream preview** (incoming commit list + CHANGELOG diff) to the workflow run’s **Job summary**. When the merge **fails**, the workflow also identifies **clean vs conflicted commits** (binary search): it reports how many upstream commits merge cleanly and how many at the tip introduce the conflict(s), and lists those commits in the issue body and in the “Identify clean vs conflicted commit range” step summary. **Conflict resolution:** run `git fetch upstream && git merge upstream/main` locally so conflicts appear in your workspace; the issue lists the conflicted files. See [.agent/workflows/update_clawdbot.md](.agent/workflows/update_clawdbot.md).
+- **5c. Contributing generic improvements upstream** — Deferred; not part of the current Phase 5 implementation.
+
 ## Workflow / tooling
 
 - **Sync workflow** — [.agent/workflows/update_clawdbot.md](.agent/workflows/update_clawdbot.md): steps for rebasing/merging from upstream (ClawdBot-Next and OpenClaw), conflict patterns, prompt-engine merge notes, rebuild and verify steps.
