@@ -407,6 +407,9 @@ export interface RollingEvictParams {
   targetUtilization?: number;
   /** Minimum recent messages to always keep. Default 10 */
   minKeepMessages?: number;
+  /** Actual API-reported total tokens. When provided, used instead of
+   *  the chars/4 heuristic for the threshold check (much more accurate). */
+  actualTotalTokens?: number;
 }
 
 export interface RollingEvictResult {
@@ -432,16 +435,17 @@ export function rollingEvict(params: RollingEvictParams): RollingEvictResult {
     minKeepMessages = DEFAULT_MIN_KEEP_MESSAGES,
   } = params;
 
+  const { actualTotalTokens } = params;
   const targetTokens = Math.floor(maxContextTokens * targetUtilization);
-  // The SDK's estimateTokens uses chars/4 which underestimates by ~40-50% for
-  // mixed content with tool calls, system prompts, and structured data.
-  // Apply a 1.75x correction factor to align with actual API token counts.
+  // Use actual API-reported tokens when available; fall back to corrected estimate.
+  // The SDK's estimateTokens (chars/4) underestimates by ~40-50% for mixed content.
   const ESTIMATION_CORRECTION = 1.75;
   const rawEstimate = estimateMessagesTokens(messages);
-  const totalTokens = Math.ceil(rawEstimate * ESTIMATION_CORRECTION);
+  const totalTokens = actualTotalTokens ?? Math.ceil(rawEstimate * ESTIMATION_CORRECTION);
 
   console.warn(
-    `[rolling-evict] rawEstimate=${rawEstimate} corrected=${totalTokens} targetTokens=${targetTokens} ` +
+    `[rolling-evict] actual=${actualTotalTokens ?? "N/A"} rawEstimate=${rawEstimate} ` +
+      `effective=${totalTokens} targetTokens=${targetTokens} ` +
       `(${maxContextTokens}*${targetUtilization}) messages=${messages.length} minKeep=${minKeepMessages}`,
   );
 

@@ -105,6 +105,9 @@ export type CompactEmbeddedPiSessionParams = {
   customInstructions?: string;
   lane?: string;
   enqueue?: typeof enqueueCommand;
+  /** Actual API-reported token count (when available). Used by rolling eviction
+   *  instead of the chars/4 heuristic which underestimates by ~40-50%. */
+  actualTotalTokens?: number;
   extraSystemPrompt?: string;
   ownerNumbers?: string[];
 };
@@ -451,13 +454,14 @@ export async function compactEmbeddedPiSessionDirect(
             await import("../compaction.js");
           const rollingCfg = params.config?.agents?.defaults?.compaction?.rolling;
           const contextWindow = model.contextWindow ?? 200000;
-          const tokensBefore = estimateMessagesTokens(session.messages);
+          const tokensBefore = params.actualTotalTokens ?? estimateMessagesTokens(session.messages);
 
           const evictResult = rollingEvict({
             messages: [...session.messages],
             maxContextTokens: contextWindow,
             targetUtilization: rollingCfg?.targetUtilization,
             minKeepMessages: rollingCfg?.minKeepMessages,
+            actualTotalTokens: params.actualTotalTokens,
           });
 
           if (evictResult.evictedCount > 0) {
