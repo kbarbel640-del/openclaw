@@ -2,6 +2,13 @@
 
 Docs: https://docs.openclaw.ai
 
+## 2026.2.14 (Unreleased)
+
+### Fixes
+
+- Security/Skills: harden archive extraction for download-installed skills to prevent path traversal outside the target directory. Thanks @markmusson.
+- Security/Signal: harden signal-cli archive extraction during install to prevent path traversal outside the install root.
+
 ## 2026.2.13
 
 ### Changes
