@@ -1060,7 +1060,12 @@ export async function runEmbeddedAttempt(
         try {
           unsubscribe();
         } catch (err) {
-          log.warn(`unsubscribe failed: runId=${params.runId} ${String(err)}`);
+          // unsubscribe() should never throw; if it does, it indicates a serious bug.
+          // Log at error level to ensure visibility, but don't rethrow in finally block
+          // as it would mask any exception from the try block above.
+          log.error(
+            `CRITICAL: unsubscribe failed, possible resource leak: runId=${params.runId} ${String(err)}`,
+          );
         }
         clearActiveEmbeddedRun(params.sessionId, queueHandle);
         params.abortSignal?.removeEventListener?.("abort", onAbort);
