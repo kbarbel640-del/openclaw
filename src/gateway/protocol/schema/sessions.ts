@@ -34,6 +34,18 @@ export const SessionsPreviewParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const SessionsFilesListParamsSchema = Type.Object(
+  {
+    key: NonEmptyString,
+    scope: Type.Optional(
+      Type.Union([Type.Literal("created"), Type.Literal("changed"), Type.Literal("all")]),
+    ),
+    includeMissing: Type.Optional(Type.Boolean()),
+    limit: Type.Optional(Type.Integer({ minimum: 1 })),
+  },
+  { additionalProperties: false },
+);
+
 export const SessionsResolveParamsSchema = Type.Object(
   {
     key: Type.Optional(NonEmptyString),

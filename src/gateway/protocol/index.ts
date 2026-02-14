@@ -167,6 +167,8 @@ import {
   SessionsCompactParamsSchema,
   type SessionsDeleteParams,
   SessionsDeleteParamsSchema,
+  type SessionsFilesListParams,
+  SessionsFilesListParamsSchema,
   type SessionsListParams,
   SessionsListParamsSchema,
   type SessionsPatchParams,
@@ -184,10 +186,14 @@ import {
   type SkillsBinsParams,
   SkillsBinsParamsSchema,
   type SkillsBinsResult,
+  type SkillsImportParams,
+  SkillsImportParamsSchema,
   type SkillsInstallParams,
   SkillsInstallParamsSchema,
   type SkillsStatusParams,
   SkillsStatusParamsSchema,
+  type SkillsUninstallParams,
+  SkillsUninstallParamsSchema,
   type SkillsUpdateParams,
   SkillsUpdateParamsSchema,
   type Snapshot,
@@ -279,6 +285,9 @@ export const validateSessionsListParams = ajv.compile<SessionsListParams>(Sessio
 export const validateSessionsPreviewParams = ajv.compile<SessionsPreviewParams>(
   SessionsPreviewParamsSchema,
 );
+export const validateSessionsFilesListParams = ajv.compile<SessionsFilesListParams>(
+  SessionsFilesListParamsSchema,
+);
 export const validateSessionsResolveParams = ajv.compile<SessionsResolveParams>(
   SessionsResolveParamsSchema,
 );
@@ -314,8 +323,12 @@ export const validateChannelsLogoutParams = ajv.compile<ChannelsLogoutParams>(
 export const validateModelsListParams = ajv.compile<ModelsListParams>(ModelsListParamsSchema);
 export const validateSkillsStatusParams = ajv.compile<SkillsStatusParams>(SkillsStatusParamsSchema);
 export const validateSkillsBinsParams = ajv.compile<SkillsBinsParams>(SkillsBinsParamsSchema);
+export const validateSkillsImportParams = ajv.compile<SkillsImportParams>(SkillsImportParamsSchema);
 export const validateSkillsInstallParams =
   ajv.compile<SkillsInstallParams>(SkillsInstallParamsSchema);
+export const validateSkillsUninstallParams = ajv.compile<SkillsUninstallParams>(
+  SkillsUninstallParamsSchema,
+);
 export const validateSkillsUpdateParams = ajv.compile<SkillsUpdateParams>(SkillsUpdateParamsSchema);
 export const validateCronListParams = ajv.compile<CronListParams>(CronListParamsSchema);
 export const validateCronStatusParams = ajv.compile<CronStatusParams>(CronStatusParamsSchema);
@@ -432,6 +445,7 @@ export {
   NodeInvokeParamsSchema,
   SessionsListParamsSchema,
   SessionsPreviewParamsSchema,
+  SessionsFilesListParamsSchema,
   SessionsPatchParamsSchema,
   SessionsResetParamsSchema,
   SessionsDeleteParamsSchema,
@@ -476,7 +490,9 @@ export {
   AgentsListResultSchema,
   ModelsListParamsSchema,
   SkillsStatusParamsSchema,
+  SkillsImportParamsSchema,
   SkillsInstallParamsSchema,
+  SkillsUninstallParamsSchema,
   SkillsUpdateParamsSchema,
   CronJobSchema,
   CronListParamsSchema,
@@ -566,7 +582,9 @@ export type {
   SkillsStatusParams,
   SkillsBinsParams,
   SkillsBinsResult,
+  SkillsImportParams,
   SkillsInstallParams,
+  SkillsUninstallParams,
   SkillsUpdateParams,
   NodePairRejectParams,
   NodePairVerifyParams,
@@ -576,6 +594,7 @@ export type {
   NodeEventParams,
   SessionsListParams,
   SessionsPreviewParams,
+  SessionsFilesListParams,
   SessionsResolveParams,
   SessionsPatchParams,
   SessionsPatchResult,

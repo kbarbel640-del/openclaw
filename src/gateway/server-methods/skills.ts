@@ -5,6 +5,7 @@ import {
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
 } from "../../agents/agent-scope.js";
+import { importSkill, uninstallSkill } from "../../agents/skills-import.js";
 import { installSkill } from "../../agents/skills-install.js";
 import { buildWorkspaceSkillStatus } from "../../agents/skills-status.js";
 import { loadWorkspaceSkillEntries, type SkillEntry } from "../../agents/skills.js";
@@ -17,8 +18,10 @@ import {
   errorShape,
   formatValidationErrors,
   validateSkillsBinsParams,
+  validateSkillsImportParams,
   validateSkillsInstallParams,
   validateSkillsStatusParams,
+  validateSkillsUninstallParams,
   validateSkillsUpdateParams,
 } from "../protocol/index.js";
 
@@ -150,6 +153,62 @@ export const skillsHandlers: GatewayRequestHandlers = {
       timeoutMs: p.timeoutMs,
       config: cfg,
     });
+    respond(
+      result.ok,
+      result,
+      result.ok ? undefined : errorShape(ErrorCodes.UNAVAILABLE, result.message),
+    );
+  },
+  "skills.import": async ({ params, respond }) => {
+    if (!validateSkillsImportParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid skills.import params: ${formatValidationErrors(validateSkillsImportParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const p = params as {
+      source: "file" | "remote";
+      filePath?: string;
+      package?: string;
+      registry?: string;
+      force?: boolean;
+      skipScan?: boolean;
+      timeoutMs?: number;
+    };
+    const result = await importSkill({
+      source: p.source,
+      filePath: p.filePath,
+      package: p.package,
+      registry: p.registry,
+      force: p.force,
+      skipScan: p.skipScan,
+      timeoutMs: p.timeoutMs,
+    });
+    respond(
+      result.ok,
+      result,
+      result.ok ? undefined : errorShape(ErrorCodes.UNAVAILABLE, result.message),
+    );
+  },
+  "skills.uninstall": async ({ params, respond }) => {
+    if (!validateSkillsUninstallParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid skills.uninstall params: ${formatValidationErrors(validateSkillsUninstallParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const p = params as { skillName: string };
+    const result = await uninstallSkill({ skillName: p.skillName });
     respond(
       result.ok,
       result,

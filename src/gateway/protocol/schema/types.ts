@@ -29,8 +29,10 @@ import type {
   ModelsListResultSchema,
   SkillsBinsParamsSchema,
   SkillsBinsResultSchema,
+  SkillsImportParamsSchema,
   SkillsInstallParamsSchema,
   SkillsStatusParamsSchema,
+  SkillsUninstallParamsSchema,
   SkillsUpdateParamsSchema,
 } from "./agents-models-skills.js";
 import type {
@@ -113,6 +115,7 @@ import type {
 import type {
   SessionsCompactParamsSchema,
   SessionsDeleteParamsSchema,
+  SessionsFilesListParamsSchema,
   SessionsListParamsSchema,
   SessionsPatchParamsSchema,
   SessionsPreviewParamsSchema,
@@ -161,6 +164,7 @@ export type NodeInvokeResultParams = Static<typeof NodeInvokeResultParamsSchema>
 export type NodeEventParams = Static<typeof NodeEventParamsSchema>;
 export type SessionsListParams = Static<typeof SessionsListParamsSchema>;
 export type SessionsPreviewParams = Static<typeof SessionsPreviewParamsSchema>;
+export type SessionsFilesListParams = Static<typeof SessionsFilesListParamsSchema>;
 export type SessionsResolveParams = Static<typeof SessionsResolveParamsSchema>;
 export type SessionsPatchParams = Static<typeof SessionsPatchParamsSchema>;
 export type SessionsResetParams = Static<typeof SessionsResetParamsSchema>;
@@ -211,7 +215,9 @@ export type ModelsListResult = Static<typeof ModelsListResultSchema>;
 export type SkillsStatusParams = Static<typeof SkillsStatusParamsSchema>;
 export type SkillsBinsParams = Static<typeof SkillsBinsParamsSchema>;
 export type SkillsBinsResult = Static<typeof SkillsBinsResultSchema>;
+export type SkillsImportParams = Static<typeof SkillsImportParamsSchema>;
 export type SkillsInstallParams = Static<typeof SkillsInstallParamsSchema>;
+export type SkillsUninstallParams = Static<typeof SkillsUninstallParamsSchema>;
 export type SkillsUpdateParams = Static<typeof SkillsUpdateParamsSchema>;
 export type CronJob = Static<typeof CronJobSchema>;
 export type CronListParams = Static<typeof CronListParamsSchema>;

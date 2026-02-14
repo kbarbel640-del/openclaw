@@ -132,6 +132,7 @@ describe("gateway server sessions", () => {
       expect.arrayContaining([
         "sessions.list",
         "sessions.preview",
+        "sessions.files.list",
         "sessions.patch",
         "sessions.reset",
         "sessions.delete",
@@ -417,6 +418,77 @@ describe("gateway server sessions", () => {
     expect(entry?.status).toBe("ok");
     expect(entry?.items.map((item) => item.role)).toEqual(["assistant", "tool", "assistant"]);
     expect(entry?.items[1]?.text).toContain("call weather");
+
+    ws.close();
+  });
+
+  test("sessions.files.list returns created files from tool calls", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sessions-files-"));
+    const storePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = storePath;
+    const workspaceDir = path.join(dir, "workspace");
+    await fs.mkdir(workspaceDir, { recursive: true });
+    const sessionId = "sess-files";
+    const transcriptPath = path.join(dir, `${sessionId}.jsonl`);
+    const docPath = path.join(workspaceDir, "测试文档.docx");
+    await fs.writeFile(docPath, "docx", "utf-8");
+    const lines = [
+      JSON.stringify({ type: "session", version: 1, id: sessionId }),
+      JSON.stringify({
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "toolCall",
+              id: "call-docx",
+              name: "exec",
+              arguments: {
+                command: 'textutil -convert docx test.rtf -output "测试文档.docx"',
+                workdir: workspaceDir,
+              },
+            },
+          ],
+        },
+      }),
+    ];
+    await fs.writeFile(transcriptPath, `${lines.join("\n")}\n`, "utf-8");
+
+    await writeSessionStore({
+      entries: {
+        main: {
+          sessionId,
+          updatedAt: Date.now(),
+        },
+      },
+    });
+
+    const { ws } = await openClient();
+    const files = await rpcReq<{
+      key: string;
+      status: string;
+      count: number;
+      files: Array<{ path: string; action: string; kind: string; exists: boolean }>;
+    }>(ws, "sessions.files.list", {
+      key: "main",
+      scope: "created",
+      includeMissing: true,
+    });
+
+    expect(files.ok).toBe(true);
+    expect(files.payload?.key).toBe("agent:main:main");
+    expect(files.payload?.status).toBe("ok");
+    expect(files.payload?.count).toBeGreaterThanOrEqual(1);
+    expect(files.payload?.files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: docPath,
+          action: "created",
+          kind: "file",
+          exists: true,
+        }),
+      ]),
+    );
 
     ws.close();
   });

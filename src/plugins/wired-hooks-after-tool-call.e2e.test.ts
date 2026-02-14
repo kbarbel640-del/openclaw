@@ -95,6 +95,8 @@ describe("after_tool_call hook wiring", () => {
     expect(event.error).toBeUndefined();
     expect(typeof event.durationMs).toBe("number");
     expect(context.toolName).toBe("read");
+    expect(context.agentId).toBe("main");
+    expect(context.sessionKey).toBe("test-session");
   });
 
   it("includes error in after_tool_call event on tool failure", async () => {

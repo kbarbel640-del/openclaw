@@ -7,6 +7,7 @@ import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { resolveThinkingDefault } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
+import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
@@ -272,9 +273,10 @@ export const chatHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const { sessionKey, runId } = params as {
+    const { sessionKey, runId, cascadeSubagents } = params as {
       sessionKey: string;
       runId?: string;
+      cascadeSubagents?: boolean;
     };
 
     const ops = {
@@ -293,7 +295,24 @@ export const chatHandlers: GatewayRequestHandlers = {
         sessionKey,
         stopReason: "rpc",
       });
-      respond(true, { ok: true, aborted: res.aborted, runIds: res.runIds });
+      let stoppedSubagents = 0;
+      let stoppedSubagentSessionKeys: string[] = [];
+      if (cascadeSubagents === true) {
+        const resolved = loadSessionEntry(sessionKey);
+        const stopped = stopSubagentsForRequester({
+          cfg: resolved.cfg,
+          requesterSessionKey: resolved.canonicalKey || sessionKey,
+        });
+        stoppedSubagents = stopped.stopped;
+        stoppedSubagentSessionKeys = stopped.stoppedSubagentSessionKeys;
+      }
+      respond(true, {
+        ok: true,
+        aborted: res.aborted || stoppedSubagents > 0,
+        runIds: res.runIds,
+        stoppedSubagents,
+        stoppedSubagentSessionKeys,
+      });
       return;
     }
 

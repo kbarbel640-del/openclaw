@@ -48,6 +48,7 @@ export const ChatAbortParamsSchema = Type.Object(
   {
     sessionKey: NonEmptyString,
     runId: Type.Optional(NonEmptyString),
+    cascadeSubagents: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

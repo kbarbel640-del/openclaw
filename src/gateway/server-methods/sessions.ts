@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import type { GatewayRequestHandlers } from "./types.js";
-import { resolveDefaultAgentId } from "../../agents/agent-scope.js";
+import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { abortEmbeddedPiRun, waitForEmbeddedPiRunEnd } from "../../agents/pi-embedded.js";
 import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
 import { clearSessionQueues } from "../../auto-reply/reply/queue.js";
@@ -20,12 +20,14 @@ import {
   formatValidationErrors,
   validateSessionsCompactParams,
   validateSessionsDeleteParams,
+  validateSessionsFilesListParams,
   validateSessionsListParams,
   validateSessionsPatchParams,
   validateSessionsPreviewParams,
   validateSessionsResetParams,
   validateSessionsResolveParams,
 } from "../protocol/index.js";
+import { listSessionFilesFromTranscript } from "../session-files.js";
 import {
   archiveFileOnDisk,
   archiveSessionTranscripts,
@@ -183,6 +185,82 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     }
 
     respond(true, { ts: Date.now(), previews } satisfies SessionsPreviewResult, undefined);
+  },
+  "sessions.files.list": ({ params, respond }) => {
+    if (!validateSessionsFilesListParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid sessions.files.list params: ${formatValidationErrors(validateSessionsFilesListParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const p = params;
+    const key = String(p.key ?? "").trim();
+    if (!key) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "key required"));
+      return;
+    }
+
+    const loaded = loadSessionEntry(key);
+    const canonicalKey = loaded.canonicalKey ?? key;
+    const entry = loaded.entry;
+    if (!entry?.sessionId) {
+      respond(
+        true,
+        {
+          ts: Date.now(),
+          key: canonicalKey,
+          status: "missing",
+          files: [],
+        },
+        undefined,
+      );
+      return;
+    }
+
+    const parsed = parseAgentSessionKey(canonicalKey);
+    const agentId = normalizeAgentId(parsed?.agentId ?? resolveDefaultAgentId(loaded.cfg));
+    const workspaceDirFromReport = entry.systemPromptReport?.workspaceDir?.trim();
+    const workspaceDir =
+      workspaceDirFromReport && workspaceDirFromReport.length > 0
+        ? workspaceDirFromReport
+        : resolveAgentWorkspaceDir(loaded.cfg, agentId);
+    const scope =
+      p.scope === "all" || p.scope === "changed" || p.scope === "created" ? p.scope : "created";
+    const includeMissing = p.includeMissing === true;
+    const limit =
+      typeof p.limit === "number" && Number.isFinite(p.limit)
+        ? Math.max(1, Math.floor(p.limit))
+        : 500;
+
+    const indexed = listSessionFilesFromTranscript({
+      sessionId: entry.sessionId,
+      storePath: loaded.storePath,
+      sessionFile: entry.sessionFile,
+      agentId,
+      workspaceDir,
+      scope,
+      includeMissing,
+      limit,
+    });
+    respond(
+      true,
+      {
+        ts: Date.now(),
+        key: canonicalKey,
+        sessionId: entry.sessionId,
+        status: indexed.entries.length > 0 ? "ok" : "empty",
+        workspaceDir,
+        transcriptPath: indexed.transcriptPath,
+        count: indexed.entries.length,
+        files: indexed.entries,
+      },
+      undefined,
+    );
   },
   "sessions.resolve": async ({ params, respond }) => {
     if (!validateSessionsResolveParams(params)) {

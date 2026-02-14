@@ -207,3 +207,23 @@ export const SkillsUpdateParamsSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+export const SkillsImportParamsSchema = Type.Object(
+  {
+    source: Type.Union([Type.Literal("file"), Type.Literal("remote")]),
+    filePath: Type.Optional(Type.String()),
+    package: Type.Optional(Type.String()),
+    registry: Type.Optional(Type.String()),
+    force: Type.Optional(Type.Boolean()),
+    skipScan: Type.Optional(Type.Boolean()),
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 5000 })),
+  },
+  { additionalProperties: false },
+);
+
+export const SkillsUninstallParamsSchema = Type.Object(
+  {
+    skillName: NonEmptyString,
+  },
+  { additionalProperties: false },
+);

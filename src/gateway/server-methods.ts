@@ -68,6 +68,7 @@ const READ_METHODS = new Set([
   "voicewake.get",
   "sessions.list",
   "sessions.preview",
+  "sessions.files.list",
   "cron.list",
   "cron.status",
   "cron.runs",
@@ -152,7 +153,9 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
     method === "agents.create" ||
     method === "agents.update" ||
     method === "agents.delete" ||
+    method === "skills.import" ||
     method === "skills.install" ||
+    method === "skills.uninstall" ||
     method === "skills.update" ||
     method === "cron.add" ||
     method === "cron.update" ||

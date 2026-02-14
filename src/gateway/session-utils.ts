@@ -760,6 +760,7 @@ export function listSessionsFromStore(params: {
         key,
         entry,
         kind: classifySessionKey(key, entry),
+        spawnedBy: entry?.spawnedBy,
         label: entry?.label,
         displayName,
         channel,

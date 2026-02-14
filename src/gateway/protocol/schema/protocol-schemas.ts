@@ -31,8 +31,10 @@ import {
   ModelsListResultSchema,
   SkillsBinsParamsSchema,
   SkillsBinsResultSchema,
+  SkillsImportParamsSchema,
   SkillsInstallParamsSchema,
   SkillsStatusParamsSchema,
+  SkillsUninstallParamsSchema,
   SkillsUpdateParamsSchema,
 } from "./agents-models-skills.js";
 import {
@@ -120,6 +122,7 @@ import {
 import {
   SessionsCompactParamsSchema,
   SessionsDeleteParamsSchema,
+  SessionsFilesListParamsSchema,
   SessionsListParamsSchema,
   SessionsPatchParamsSchema,
   SessionsPreviewParamsSchema,
@@ -172,6 +175,7 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   NodeInvokeRequestEvent: NodeInvokeRequestEventSchema,
   SessionsListParams: SessionsListParamsSchema,
   SessionsPreviewParams: SessionsPreviewParamsSchema,
+  SessionsFilesListParams: SessionsFilesListParamsSchema,
   SessionsResolveParams: SessionsResolveParamsSchema,
   SessionsPatchParams: SessionsPatchParamsSchema,
   SessionsResetParams: SessionsResetParamsSchema,
@@ -222,7 +226,9 @@ export const ProtocolSchemas: Record<string, TSchema> = {
   SkillsStatusParams: SkillsStatusParamsSchema,
   SkillsBinsParams: SkillsBinsParamsSchema,
   SkillsBinsResult: SkillsBinsResultSchema,
+  SkillsImportParams: SkillsImportParamsSchema,
   SkillsInstallParams: SkillsInstallParamsSchema,
+  SkillsUninstallParams: SkillsUninstallParamsSchema,
   SkillsUpdateParams: SkillsUpdateParamsSchema,
   CronJob: CronJobSchema,
   CronListParams: CronListParamsSchema,
