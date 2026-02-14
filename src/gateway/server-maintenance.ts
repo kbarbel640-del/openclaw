@@ -147,11 +147,19 @@ export function startGatewayMaintenanceTimers(params: {
               );
             }
 
+            if (action === "notify") {
+              params.broadcast("stuck-run", meta);
+              params.nodeSendToAllSubscribed("stuck-run", meta);
+            }
+
             if (action === "abort") {
               params.logStuck?.warn(
                 `Aborting stuck run: ${entry.clientRunId} (${elapsedMin}m)`,
                 meta,
               );
+              // Use sessionId (the registry key) rather than clientRunId for
+              // removeChatRun so voice-triggered runs are cleaned up correctly.
+              params.removeChatRun(sessionId, entry.clientRunId, entry.sessionKey);
               abortChatRunById(
                 {
                   chatAbortControllers: params.chatAbortControllers,
