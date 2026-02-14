@@ -340,19 +340,9 @@ export async function discoverVeniceModels(): Promise<ModelDefinitionConfig[]> {
   }
 
   try {
-    // Create abort controller with timeout to prevent unhandled rejections
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    if (typeof timeoutId.unref === "function") timeoutId.unref();
-
-    let response: Response;
-    try {
-      response = await fetch(`${VENICE_BASE_URL}/models`, {
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    const response = await fetch(`${VENICE_BASE_URL}/models`, {
+      signal: AbortSignal.timeout(5000),
+    });
 
     if (!response.ok) {
       console.warn(
