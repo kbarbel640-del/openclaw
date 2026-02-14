@@ -37,6 +37,21 @@ describe("config schema regressions", () => {
     expect(res.ok).toBe(true);
   });
 
+  it('accepts gateway.bind="custom" with gateway.customBindHost', () => {
+    const res = validateConfigObject({
+      gateway: {
+        bind: "custom",
+        customBindHost: "192.168.1.100",
+      },
+    });
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.config.gateway?.bind).toBe("custom");
+      expect(res.config.gateway?.customBindHost).toBe("192.168.1.100");
+    }
+  });
+
   it("accepts safe iMessage remoteHost", () => {
     const res = validateConfigObject({
       channels: {
