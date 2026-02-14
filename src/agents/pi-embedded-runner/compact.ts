@@ -57,6 +57,7 @@ import {
   type SkillSnapshot,
 } from "../skills.js";
 import { resolveTranscriptPolicy } from "../transcript-policy.js";
+import { compactWithSafetyTimeout } from "./compaction-safety-timeout.js";
 import { buildEmbeddedExtensionPaths } from "./extensions.js";
 import {
   logToolSchemasForGoogle,
@@ -632,22 +633,9 @@ export async function compactEmbeddedPiSessionDirect(
         }
 
         const compactStartedAt = Date.now();
-        const COMPACT_TIMEOUT_MS = 300_000; // 5 minutes safety timeout
-        let compactTimer: ReturnType<typeof setTimeout> | undefined;
-        const result = await Promise.race([
+        const result = await compactWithSafetyTimeout(() =>
           session.compact(params.customInstructions),
-          new Promise<never>((_, reject) => {
-            compactTimer = setTimeout(
-              () => reject(new Error("Compaction timed out")),
-              COMPACT_TIMEOUT_MS,
-            );
-            compactTimer.unref?.();
-          }),
-        ]).finally(() => {
-          if (compactTimer) {
-            clearTimeout(compactTimer);
-          }
-        });
+        );
         // Estimate tokens after compaction by summing token estimates for remaining messages
         let tokensAfter: number | undefined;
         try {
