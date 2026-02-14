@@ -94,10 +94,11 @@ export async function prepareSlackMessage(params: {
     false;
 
   const isBotMessage = Boolean(message.bot_id);
+  // Only classify as "own bot" when the message's user matches our bot's user ID.
+  // Comparing message.bot_id to ctx.botUserId is incorrect because they are
+  // different ID types (bot_id is like "B123", user IDs are like "U123").
   const isOwnBotMessage =
-    isBotMessage &&
-    ((message.user && ctx.botUserId && message.user === ctx.botUserId) ||
-      (message.bot_id && ctx.botUserId && message.bot_id === ctx.botUserId));
+    isBotMessage && message.user && ctx.botUserId && message.user === ctx.botUserId;
 
   // Check if this is a message from our own bot with a tracked origin
   // (i.e., sent via the message tool by another agent)
