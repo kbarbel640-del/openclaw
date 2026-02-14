@@ -15,6 +15,7 @@ import ai.openclaw.android.gateway.DeviceIdentityStore
 import ai.openclaw.android.gateway.GatewayDiscovery
 import ai.openclaw.android.gateway.GatewayEndpoint
 import ai.openclaw.android.gateway.GatewaySession
+import ai.openclaw.android.gateway.isTrustedForAutoConnect
 import ai.openclaw.android.node.*
 import ai.openclaw.android.protocol.OpenClawCanvasA2UIAction
 import ai.openclaw.android.voice.TalkModeManager
@@ -425,6 +426,9 @@ class NodeRuntime(context: Context) {
         val targetStableId = lastDiscoveredStableId.value.trim()
         if (targetStableId.isEmpty()) return@collect
         val target = list.firstOrNull { it.stableId == targetStableId } ?: return@collect
+        if (!isTrustedForAutoConnect(target, prefs.loadGatewayTlsFingerprint(target.stableId))) {
+          return@collect
+        }
         didAutoConnect = true
         connect(target)
       }
