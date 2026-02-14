@@ -9,6 +9,44 @@ const GUARD_TRUNCATION_SUFFIX =
   "\n\n⚠️ [Content truncated during persistence — original exceeded size limit. " +
   "Use offset/limit parameters or request specific sections for large content.]";
 
+type NormalizedTextBlock = { type: "text"; text: string };
+type ToolResultContentBlock = Record<string, unknown>;
+
+const NO_OUTPUT_BLOCK: NormalizedTextBlock = { type: "text", text: "(no output)" };
+
+function normalizeToolResultContent(content: unknown): ToolResultContentBlock[] {
+  if (Array.isArray(content)) {
+    return content;
+  }
+
+  if (content === null || content === undefined) {
+    return [NO_OUTPUT_BLOCK];
+  }
+
+  if (typeof content === "string") {
+    const text = content.trim() ? content : NO_OUTPUT_BLOCK.text;
+    return [{ ...NO_OUTPUT_BLOCK, text }];
+  }
+
+  if (typeof content === "number" || typeof content === "boolean") {
+    return [{ ...NO_OUTPUT_BLOCK, text: String(content) }];
+  }
+
+  if (typeof content === "object") {
+    const rec = content as ToolResultContentBlock;
+    if (rec.type === "text" && typeof rec.text === "string") {
+      return [rec];
+    }
+    try {
+      return [{ ...NO_OUTPUT_BLOCK, text: JSON.stringify(content) }];
+    } catch {
+      return [NO_OUTPUT_BLOCK];
+    }
+  }
+
+  return [NO_OUTPUT_BLOCK];
+}
+
 /**
  * Truncate oversized text content blocks in a tool result message.
  * Returns the original message if under the limit, or a new message with
@@ -19,14 +57,8 @@ function capToolResultSize(msg: AgentMessage): AgentMessage {
   if (role !== "toolResult") {
     return msg;
   }
-  const content = (msg as { content?: unknown }).content;
-  if (!Array.isArray(content)) {
-    // Ensure tool results always have a content array to prevent downstream .some() errors
-    return {
-      ...msg,
-      content: [{ type: "text", text: "(no output)" }],
-    } as AgentMessage;
-  }
+  const content = normalizeToolResultContent((msg as { content?: unknown }).content);
+  const normalizedMessage = { ...msg, content } as AgentMessage;
 
   // Calculate total text size
   let totalTextChars = 0;
@@ -40,7 +72,7 @@ function capToolResultSize(msg: AgentMessage): AgentMessage {
   }
 
   if (totalTextChars <= HARD_MAX_TOOL_RESULT_CHARS) {
-    return msg;
+    return normalizedMessage;
   }
 
   // Truncate proportionally
@@ -72,7 +104,7 @@ function capToolResultSize(msg: AgentMessage): AgentMessage {
     };
   });
 
-  return { ...msg, content: newContent } as AgentMessage;
+  return { ...normalizedMessage, content: newContent } as AgentMessage;
 }
 
 type ToolCall = { id: string; name?: string };
