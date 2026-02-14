@@ -343,9 +343,20 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
         let accumulatedContent = "";
         const accumulatedToolCalls: OllamaToolCall[] = [];
         let finalResponse: OllamaChatResponse | undefined;
+        let textStarted = false;
 
         for await (const chunk of parseNdjsonStream(reader)) {
           if (chunk.message?.content) {
+            // Emit incremental text events for responsive streaming UX
+            if (!textStarted) {
+              textStarted = true;
+              stream.push({ type: "text_start" as const, contentIndex: 0 });
+            }
+            stream.push({
+              type: "text_delta" as const,
+              contentIndex: 0,
+              delta: chunk.message.content,
+            });
             accumulatedContent += chunk.message.content;
           }
 
@@ -359,6 +370,15 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
             finalResponse = chunk;
             break;
           }
+        }
+
+        // Close text block if we started one
+        if (textStarted) {
+          stream.push({
+            type: "text_end" as const,
+            contentIndex: 0,
+            content: accumulatedContent,
+          });
         }
 
         if (!finalResponse) {

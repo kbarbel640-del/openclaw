@@ -287,4 +287,59 @@ describe("createOllamaStreamFn", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("emits incremental text_start, text_delta, text_end events", async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi.fn(async () => {
+      const payload = [
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":"Hello"},"done":false}',
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":" world"},"done":false}',
+        '{"model":"m","created_at":"t","message":{"role":"assistant","content":""},"done":true,"prompt_eval_count":5,"eval_count":2}',
+      ].join("\n");
+      return new Response(`${payload}\n`, {
+        status: 200,
+        headers: { "Content-Type": "application/x-ndjson" },
+      });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const streamFn = createOllamaStreamFn("http://localhost:11434");
+      const stream = streamFn(
+        {
+          id: "llama3.3",
+          api: "ollama",
+          provider: "ollama",
+          contextWindow: 128000,
+        } as unknown as Parameters<typeof streamFn>[0],
+        {
+          messages: [{ role: "user", content: "hi" }],
+        } as unknown as Parameters<typeof streamFn>[1],
+        {} as unknown as Parameters<typeof streamFn>[2],
+      );
+
+      const events = [];
+      for await (const event of stream) {
+        events.push(event);
+      }
+
+      const types = events.map((e) => e.type);
+      expect(types).toContain("text_start");
+      expect(types).toContain("text_delta");
+      expect(types).toContain("text_end");
+      expect(types).toContain("done");
+
+      // Verify delta content — one per non-empty content chunk
+      const deltas = events.filter((e) => e.type === "text_delta");
+      expect(deltas).toHaveLength(2);
+      expect((deltas[0] as { delta: string }).delta).toBe("Hello");
+      expect((deltas[1] as { delta: string }).delta).toBe(" world");
+
+      // Verify text_end has full content
+      const textEnd = events.find((e) => e.type === "text_end") as { content: string };
+      expect(textEnd.content).toBe("Hello world");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
