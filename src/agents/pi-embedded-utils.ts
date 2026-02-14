@@ -342,15 +342,35 @@ export function promoteThinkingTagsToBlocks(message: AssistantMessage): void {
   if (!Array.isArray(message.content)) {
     return;
   }
-  const hasThinkingBlock = message.content.some((block) => block.type === "thinking");
-  if (hasThinkingBlock) {
-    return;
-  }
 
   const next: AssistantMessage["content"] = [];
   let changed = false;
 
+  const closeRe = /<\s*\/\s*(?:think(?:ing)?|thought|antthinking)\s*>/i;
+
   for (const block of message.content) {
+    // Handle thinking blocks where the provider mixed text after a closing tag
+    // e.g. {type:"thinking", thinking:"reasoning...</thinking>\n\nactual reply"}
+    if (block.type === "thinking") {
+      const rec = block as unknown as Record<string, unknown>;
+      const thinking = typeof rec.thinking === "string" ? rec.thinking : "";
+      const closeMatch = closeRe.exec(thinking);
+      if (closeMatch) {
+        const thinkPart = thinking.slice(0, closeMatch.index).trim();
+        const textPart = thinking.slice(closeMatch.index + closeMatch[0].length).trim();
+        changed = true;
+        if (thinkPart) {
+          next.push({ type: "thinking", thinking: thinkPart });
+        }
+        if (textPart) {
+          next.push({ type: "text", text: textPart });
+        }
+      } else {
+        next.push(block);
+      }
+      continue;
+    }
+
     if (block.type !== "text") {
       next.push(block);
       continue;
