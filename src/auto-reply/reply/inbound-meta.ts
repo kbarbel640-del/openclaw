@@ -65,7 +65,7 @@ export function buildInboundUserContextPrefix(ctx: TemplateContext): string {
   const hasUsefulConversationMeta = Object.entries(conversationInfo).some(
     ([key, value]) => key !== "conversation_label" && value !== undefined,
   );
-  if (Object.values(conversationInfo).some((v) => v !== undefined) && hasUsefulConversationMeta) {
+  if (hasUsefulConversationMeta) {
     blocks.push(
       [
         "Conversation info (untrusted metadata):",
