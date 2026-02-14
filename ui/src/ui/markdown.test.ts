@@ -61,5 +61,4 @@ describe("toSanitizedMarkdownHtml", () => {
     expect(html).not.toContain("javascript:");
     expect(html).not.toContain("src=");
   });
-  });
 });
