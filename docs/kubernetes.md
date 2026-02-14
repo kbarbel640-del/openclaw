@@ -26,10 +26,10 @@ graph TD
 
     OC --> PVC1
     OC --> PVC2
-    SB -. "shared volume" .-> PVC2
+    SB -. shared_volume .-> PVC2
     Deploy --> SVC
     SVC -->|18789| Users
-    SVC -->|18790| "Bridges/Tunnels"
+    SVC -->|18790| Bridges_Tunnels
 ```
 
 Flux or Argo CD reconcile the chart via Kustomize overlays, keeping the cluster in sync
