@@ -159,13 +159,18 @@ export function installSessionToolResultGuard(
     if (allowSyntheticToolResults) {
       for (const [id, name] of pending.entries()) {
         const synthetic = makeMissingToolResult({ toolCallId: id, toolName: name });
-        originalAppend(
-          persistToolResult(persistMessage(synthetic), {
-            toolCallId: id,
-            toolName: name,
-            isSynthetic: true,
-          }) as never,
-        );
+        try {
+          originalAppend(
+            persistToolResult(persistMessage(synthetic), {
+              toolCallId: id,
+              toolName: name,
+              isSynthetic: true,
+            }) as never,
+          );
+        } catch {
+          // Session may have been disposed during concurrent subagent cleanup.
+          break;
+        }
       }
     }
     pending.clear();
