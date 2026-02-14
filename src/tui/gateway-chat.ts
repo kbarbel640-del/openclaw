@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { loadConfig, resolveGatewayPort } from "../config/config.js";
 import { ensureExplicitGatewayAuth, resolveExplicitGatewayAuth } from "../gateway/call.js";
 import { GatewayClient } from "../gateway/client.js";
+import { pickPrimaryLanIPv4 } from "../gateway/net.js";
 import { GATEWAY_CLIENT_CAPS } from "../gateway/protocol/client-info.js";
 import {
   type HelloOk,
@@ -10,6 +11,7 @@ import {
   type SessionsPatchResult,
   type SessionsPatchParams,
 } from "../gateway/protocol/index.js";
+import { pickPrimaryTailnetIPv4 } from "../infra/tailnet.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { VERSION } from "../version.js";
 
@@ -233,12 +235,26 @@ export function resolveGatewayConnection(opts: GatewayConnectionOptions) {
     auth: explicitAuth,
     errorHint: "Fix: pass --token or --password when using --url.",
   });
+
+  // Resolve host based on gateway bind mode
+  const bindMode = config.gateway?.bind ?? "loopback";
+  const customBindHost = config.gateway?.customBindHost;
+  let localHost = "127.0.0.1";
+
+  if (bindMode === "custom" && customBindHost?.trim()) {
+    localHost = customBindHost.trim();
+  } else if (bindMode === "tailnet") {
+    localHost = pickPrimaryTailnetIPv4() ?? "127.0.0.1";
+  } else if (bindMode === "lan") {
+    localHost = pickPrimaryLanIPv4() ?? "127.0.0.1";
+  }
+
   const url =
     urlOverride ||
     (typeof remote?.url === "string" && remote.url.trim().length > 0
       ? remote.url.trim()
       : undefined) ||
-    `ws://127.0.0.1:${localPort}`;
+    `ws://${localHost}:${localPort}`;
 
   const token =
     explicitAuth.token ||
