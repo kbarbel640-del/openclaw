@@ -287,15 +287,27 @@ function getHeartbeatStatePath(workspaceDir: string): string {
 async function loadHeartbeatAgentModelState(
   workspaceDir: string,
 ): Promise<HeartbeatModelState | null> {
+  const statePath = getHeartbeatStatePath(workspaceDir);
+  let content: string;
   try {
-    const statePath = getHeartbeatStatePath(workspaceDir);
-    const content = await fs.readFile(statePath, "utf-8");
+    content = await fs.readFile(statePath, "utf-8");
+  } catch {
+    // File doesn't exist — normal on first run
+    return null;
+  }
+  try {
     const parsed = JSON.parse(content) as HeartbeatModelState;
     if (typeof parsed.currentFallbackIndex !== "number") {
+      log.warn("heartbeat: state file has unexpected format, resetting", { path: statePath });
       return null;
     }
     return parsed;
-  } catch {
+  } catch (err) {
+    // File exists but is corrupt — log so the user can investigate
+    log.warn("heartbeat: failed to parse state file (check permissions/corruption)", {
+      path: statePath,
+      error: formatErrorMessage(err),
+    });
     return null;
   }
 }
@@ -303,10 +315,10 @@ async function loadHeartbeatAgentModelState(
 async function saveHeartbeatAgentModelState(
   workspaceDir: string,
   update: Partial<HeartbeatModelState>,
+  existing: HeartbeatModelState | null,
 ): Promise<void> {
   try {
     const statePath = getHeartbeatStatePath(workspaceDir);
-    const existing = await loadHeartbeatAgentModelState(workspaceDir);
     const next: HeartbeatModelState = {
       currentFallbackIndex: 0,
       lastUpdated: Date.now(),
@@ -647,8 +659,7 @@ export async function runHeartbeatOnce(opts: {
     return true;
   };
 
-  const agentWorkspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
-  const agentModelState = await loadHeartbeatAgentModelState(agentWorkspaceDir);
+  const agentModelState = await loadHeartbeatAgentModelState(workspaceDir);
   const { models: modelChain, fallbackMode } = resolveHeartbeatModelChain(heartbeat, agentModelState);
   const ackMaxChars = resolveHeartbeatAckMaxChars(cfg, heartbeat);
 
@@ -675,14 +686,14 @@ export async function runHeartbeatOnce(opts: {
       try {
         replyResult = await runWithModel(model);
         // Success: reset to primary
-        await saveHeartbeatAgentModelState(agentWorkspaceDir, { currentFallbackIndex: 0, agentId });
+        await saveHeartbeatAgentModelState(workspaceDir, { currentFallbackIndex: 0, agentId }, agentModelState);
       } catch (err) {
         if (isFailoverError(err)) {
           // Advance to next model for next heartbeat
           const currentIdx = agentModelState?.currentFallbackIndex ?? 0;
           const allModels = resolveHeartbeatModelChain(heartbeat, null).models;
           const nextIdx = (currentIdx + 1) % allModels.length;
-          await saveHeartbeatAgentModelState(agentWorkspaceDir, { currentFallbackIndex: nextIdx, agentId });
+          await saveHeartbeatAgentModelState(workspaceDir, { currentFallbackIndex: nextIdx, agentId }, agentModelState);
           log.warn(`heartbeat: model ${model} failed, will try ${allModels[nextIdx]} next heartbeat`);
         }
         throw err;
