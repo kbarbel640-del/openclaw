@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { resolveStateDir } from "../../../config/paths.js";
 import type { SeverancePersona } from "../../severance.js";
+import { resolveStateDir } from "../../../config/paths.js";
 
 export type SeverancePersonaState = {
   persona: SeverancePersona;

@@ -181,4 +181,3 @@ Override the default persona file names:
 ## See Also
 
 - [Hooks](/automation/hooks)
-- [SOUL Evil Hook](/hooks/soul-evil)

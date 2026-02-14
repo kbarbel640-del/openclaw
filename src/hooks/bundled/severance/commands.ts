@@ -1,5 +1,5 @@
-import { registerPluginCommand } from "../../../plugins/commands.js";
 import type { SeverancePersona } from "../../severance.js";
+import { registerPluginCommand } from "../../../plugins/commands.js";
 import { readPersonaState, writePersonaState } from "./persona-state.js";
 
 const PLUGIN_ID = "hook:severance";
