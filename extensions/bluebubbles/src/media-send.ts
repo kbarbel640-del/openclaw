@@ -140,10 +140,6 @@ async function assertLocalMediaPathAllowed(params: {
     let handle: Awaited<ReturnType<typeof fs.open>> | null = null;
     try {
       handle = await fs.open(candidatePath, openFlags);
-      const lstat = await fs.lstat(candidatePath).catch(() => null);
-      if (lstat?.isSymbolicLink()) {
-        continue;
-      }
       const realPath = await fs.realpath(candidatePath);
       if (!isPathInsideRoot(realPath, rootReal)) {
         continue;
