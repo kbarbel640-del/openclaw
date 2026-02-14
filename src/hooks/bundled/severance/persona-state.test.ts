@@ -33,10 +33,7 @@ describe("severance persona-state", () => {
 
   it("clears persona state", async () => {
     const dir = await makeTempWorkspace("openclaw-persona-");
-    await writePersonaState(
-      { persona: "innie", timestamp: "2026-01-01T00:00:00Z" },
-      dir,
-    );
+    await writePersonaState({ persona: "innie", timestamp: "2026-01-01T00:00:00Z" }, dir);
     expect(await readPersonaState(dir)).not.toBeNull();
     await clearPersonaState(dir);
     expect(await readPersonaState(dir)).toBeNull();
