@@ -4,6 +4,7 @@ import { normalizeChannelId } from "../channels/plugins/index.js";
 import type { CliDeps } from "../cli/deps.js";
 import { resolveMainSessionKeyFromConfig } from "../config/sessions.js";
 import { parseSessionThreadInfo } from "../config/sessions/delivery-info.js";
+import { appendAssistantMessageToSessionTranscript } from "../config/sessions/transcript.js";
 import { deliverOutboundPayloads } from "../infra/outbound/deliver.js";
 import { resolveOutboundTarget } from "../infra/outbound/targets.js";
 import {
@@ -75,6 +76,13 @@ export async function scheduleRestartSentinelWake(_params: { deps: CliDeps }) {
     parsedTarget?.threadId ?? // From resolveAnnounceTargetFromKey (extracts :topic:N)
     sessionThreadId ??
     (origin?.threadId != null ? String(origin.threadId) : undefined);
+  // FIX #10018: Write the restart message to the transcript BEFORE delivering.
+  if (entry?.sessionId) {
+    await appendAssistantMessageToSessionTranscript({
+      sessionKey,
+      text: message,
+    });
+  }
 
   try {
     await deliverOutboundPayloads({
