@@ -4,6 +4,7 @@ import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
 import { icons } from "../icons.ts";
+import { statusChip } from "./channels.shared.ts";
 
 export function renderSignalCard(params: {
   props: ChannelsProps;
@@ -11,7 +12,6 @@ export function renderSignalCard(params: {
   accountCountLabel: unknown;
 }) {
   const { props, signal, accountCountLabel } = params;
-  const isRunning = signal?.running ?? false;
 
   return html`
     <div class="card" style="padding: 0;">
@@ -28,13 +28,11 @@ export function renderSignalCard(params: {
         <div class="status-list">
           <div>
             <span class="label">Configured</span>
-            <span>${signal?.configured ? "Yes" : "No"}</span>
+            ${statusChip(signal?.configured)}
           </div>
           <div>
             <span class="label">Running</span>
-            <span class="log-level ${isRunning ? "info" : "warn"}">
-              ${isRunning ? "Yes" : "No"}
-            </span>
+            ${statusChip(signal?.running)}
           </div>
           <div>
             <span class="label">Base URL</span>

@@ -4,6 +4,7 @@ import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp, formatDurationHuman } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
 import { icons } from "../icons.ts";
+import { statusChip } from "./channels.shared.ts";
 
 export function renderWhatsAppCard(params: {
   props: ChannelsProps;
@@ -11,8 +12,6 @@ export function renderWhatsAppCard(params: {
   accountCountLabel: unknown;
 }) {
   const { props, whatsapp, accountCountLabel } = params;
-  const isLinked = whatsapp?.linked ?? false;
-  const isConnected = whatsapp?.connected ?? false;
 
   return html`
     <div class="card" style="padding: 0;">
@@ -29,19 +28,19 @@ export function renderWhatsAppCard(params: {
         <div class="status-list">
           <div>
             <span class="label">Configured</span>
-            <span>${whatsapp?.configured ? "Yes" : "No"}</span>
+            ${statusChip(whatsapp?.configured)}
           </div>
           <div>
             <span class="label">Linked</span>
-            <span class="log-level ${isLinked ? "info" : "warn"}">${isLinked ? "Yes" : "No"}</span>
+            ${statusChip(whatsapp?.linked)}
           </div>
           <div>
             <span class="label">Running</span>
-            <span>${whatsapp?.running ? "Yes" : "No"}</span>
+            ${statusChip(whatsapp?.running)}
           </div>
           <div>
             <span class="label">Connected</span>
-            <span class="log-level ${isConnected ? "info" : "error"}">${isConnected ? "Yes" : "No"}</span>
+            ${statusChip(whatsapp?.connected)}
           </div>
           <div>
             <span class="label">Last connect</span>

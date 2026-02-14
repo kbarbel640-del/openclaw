@@ -4,6 +4,7 @@ import type { ChannelsProps } from "./channels.types.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { renderChannelConfigSection } from "./channels.config.ts";
 import { icons } from "../icons.ts";
+import { statusChip } from "./channels.shared.ts";
 
 export function renderSlackCard(params: {
   props: ChannelsProps;
@@ -11,7 +12,6 @@ export function renderSlackCard(params: {
   accountCountLabel: unknown;
 }) {
   const { props, slack, accountCountLabel } = params;
-  const isRunning = slack?.running ?? false;
 
   return html`
     <div class="card" style="padding: 0;">
@@ -28,13 +28,11 @@ export function renderSlackCard(params: {
         <div class="status-list">
           <div>
             <span class="label">Configured</span>
-            <span>${slack?.configured ? "Yes" : "No"}</span>
+            ${statusChip(slack?.configured)}
           </div>
           <div>
             <span class="label">Running</span>
-            <span class="log-level ${isRunning ? "info" : "warn"}">
-              ${isRunning ? "Yes" : "No"}
-            </span>
+            ${statusChip(slack?.running)}
           </div>
           <div>
             <span class="label">Last start</span>

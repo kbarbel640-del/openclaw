@@ -20,6 +20,9 @@ let showSlashMenu = false;
 let showAtMenu = false;
 let menuFilter = "";
 
+// Module-level state for queue
+let queueExpanded = false;
+
 // Slash commands
 const SLASH_COMMANDS = [
   { cmd: "/status", desc: "Show session status" },
@@ -489,38 +492,6 @@ export function renderChat(props: ChatProps) {
         }
       </div>
 
-      ${
-        props.queue.length
-          ? html`
-            <div class="chat-queue" role="status" aria-live="polite">
-              <div class="chat-queue__title">Queued (${props.queue.length})</div>
-              <div class="chat-queue__list">
-                ${props.queue.map(
-                  (item) => html`
-                    <div class="chat-queue__item">
-                      <div class="chat-queue__text">
-                        ${
-                          item.text ||
-                          (item.attachments?.length ? `Image (${item.attachments.length})` : "")
-                        }
-                      </div>
-                      <button
-                        class="btn chat-queue__remove"
-                        type="button"
-                        aria-label="Remove queued message"
-                        @click=${() => props.onQueueRemove(item.id)}
-                      >
-                        ${icons.x}
-                      </button>
-                    </div>
-                  `,
-                )}
-              </div>
-            </div>
-          `
-          : nothing
-      }
-
       ${renderCompactionIndicator(props.compactionStatus)}
 
       ${
@@ -533,6 +504,40 @@ export function renderChat(props: ChatProps) {
             >
               New messages ${icons.arrowDown}
             </button>
+          `
+          : nothing
+      }
+
+      ${
+        props.queue.length
+          ? html`
+            <div class="chat-queue-tab" @click=${() => { queueExpanded = !queueExpanded; }}>
+              <span>Queued (${props.queue.length})</span>
+              <span class="icon-sm" style="width:10px;height:10px;">${queueExpanded ? icons.arrowDown : icons.arrowDown}</span>
+            </div>
+            ${
+              queueExpanded
+                ? html`
+                  <div class="chat-queue-panel">
+                    ${props.queue.map(
+                      (item) => html`
+                        <div class="chat-queue-item">
+                          <div class="chat-queue-text mono">
+                            ${item.text || (item.attachments?.length ? `Image (${item.attachments.length})` : "")}
+                          </div>
+                          <button
+                            class="btn btn--sm"
+                            @click=${() => props.onQueueRemove(item.id)}
+                          >
+                            <span class="icon-sm" style="width:10px;height:10px;">${icons.x}</span>
+                          </button>
+                        </div>
+                      `,
+                    )}
+                  </div>
+                `
+                : nothing
+            }
           `
           : nothing
       }
