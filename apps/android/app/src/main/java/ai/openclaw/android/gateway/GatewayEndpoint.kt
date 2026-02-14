@@ -11,6 +11,7 @@ data class GatewayEndpoint(
   val canvasPort: Int? = null,
   val tlsEnabled: Boolean = false,
   val tlsFingerprintSha256: String? = null,
+  val requiresVerification: Boolean = true,
 ) {
   companion object {
     fun manual(host: String, port: Int): GatewayEndpoint =
@@ -21,6 +22,7 @@ data class GatewayEndpoint(
         port = port,
         tlsEnabled = false,
         tlsFingerprintSha256 = null,
+        requiresVerification = false,
       )
   }
 }

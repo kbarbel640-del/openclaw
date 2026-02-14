@@ -34,6 +34,7 @@ public final class GatewayDiscoveryModel {
         public var stableID: String
         public var debugID: String
         public var isLocal: Bool
+        public var tlsFingerprintSha256: String?
 
         public init(
             displayName: String,
@@ -46,7 +47,8 @@ public final class GatewayDiscoveryModel {
             cliPath: String? = nil,
             stableID: String,
             debugID: String,
-            isLocal: Bool)
+            isLocal: Bool,
+            tlsFingerprintSha256: String? = nil)
         {
             self.displayName = displayName
             self.serviceHost = serviceHost
@@ -59,6 +61,7 @@ public final class GatewayDiscoveryModel {
             self.stableID = stableID
             self.debugID = debugID
             self.isLocal = isLocal
+            self.tlsFingerprintSha256 = tlsFingerprintSha256
         }
     }
 
@@ -173,7 +176,8 @@ public final class GatewayDiscoveryModel {
                 cliPath: beacon.cliPath,
                 stableID: stableID,
                 debugID: "\(beacon.instanceName)@\(beacon.host):\(beacon.port)",
-                isLocal: isLocal)
+                isLocal: isLocal,
+                tlsFingerprintSha256: beacon.tlsFingerprintSha256)
         }
     }
 
@@ -231,6 +235,11 @@ public final class GatewayDiscoveryModel {
                     domain: resultDomain)
             }
 
+            if parsedTXT.gatewayTlsSha256 == nil {
+                self.logger.warning(
+                    "discovered gateway '\(prettyName, privacy: .public)' has no TLS fingerprint — identity unverified")
+            }
+
             let isLocal = Self.isLocalGateway(
                 lanHost: parsedTXT.lanHost,
                 tailnetDns: parsedTXT.tailnetDns,
@@ -248,7 +257,8 @@ public final class GatewayDiscoveryModel {
                 cliPath: parsedTXT.cliPath,
                 stableID: stableID,
                 debugID: GatewayEndpointID.prettyDescription(result.endpoint),
-                isLocal: isLocal)
+                isLocal: isLocal,
+                tlsFingerprintSha256: parsedTXT.gatewayTlsSha256)
         }
         .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
 
@@ -354,6 +364,7 @@ public final class GatewayDiscoveryModel {
         public var sshPort: Int
         public var gatewayPort: Int?
         public var cliPath: String?
+        public var gatewayTlsSha256: String?
     }
 
     public static func parseGatewayTXT(_ txt: [String: String]) -> GatewayTXT {
@@ -387,13 +398,19 @@ public final class GatewayDiscoveryModel {
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
             cliPath = trimmed.isEmpty ? nil : trimmed
         }
+        var gatewayTlsSha256: String?
+        if let value = txt["gatewayTlsSha256"] {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            gatewayTlsSha256 = trimmed.isEmpty ? nil : trimmed
+        }
 
         return GatewayTXT(
             lanHost: lanHost,
             tailnetDns: tailnetDns,
             sshPort: sshPort,
             gatewayPort: gatewayPort,
-            cliPath: cliPath)
+            cliPath: cliPath,
+            gatewayTlsSha256: gatewayTlsSha256)
     }
 
     public static func buildSSHTarget(user: String, host: String, port: Int) -> String {
