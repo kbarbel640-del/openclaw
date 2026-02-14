@@ -9,6 +9,7 @@ import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
+import { getMemorySearchManager } from "../../../memory/search-manager.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
 import { isSubagentSessionKey } from "../../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../../signal/reaction-level.js";
@@ -734,6 +735,33 @@ export async function runEmbeddedAttempt(
             }
           } catch (hookErr) {
             log.warn(`before_agent_start hook failed: ${String(hookErr)}`);
+          }
+        }
+
+        // Auto-inject 4-tier memory context (T0→T1→T2→T3) so agents always start
+        // with relevant recalled knowledge, without relying on the model to call
+        // memory_search. Uses the first user message as the search query.
+        if (params.config?.memory?.backend === "brain-tiered") {
+          try {
+            const { manager } = await getMemorySearchManager({
+              cfg: params.config,
+              agentId: sessionAgentId,
+            });
+            if (manager) {
+              const memoryResults = await manager.search(effectivePrompt, { maxResults: 5 });
+              if (memoryResults.length > 0) {
+                const memoryContext = memoryResults
+                  .map((r) => `[${r.source ?? "memory"}:${r.path}] ${r.snippet}`)
+                  .join("\n\n");
+                effectivePrompt = `## Recalled Memory\n${memoryContext}\n\n---\n\n${effectivePrompt}`;
+                log.debug(
+                  `memory: auto-injected ${memoryResults.length} results ` +
+                    `(${memoryContext.length} chars) for agent=${sessionAgentId}`,
+                );
+              }
+            }
+          } catch (err) {
+            log.debug(`memory: auto-inject failed, continuing without: ${String(err)}`);
           }
         }
 
