@@ -127,8 +127,8 @@ describe("stripHeartbeatToken", () => {
     });
   });
 
-  it("does not strip trailing punctuation from unrelated text containing the token", () => {
-    // Token is in the middle — trailing dot belongs to surrounding sentence, not the token
+  it("strips a sentence-ending token and keeps trailing punctuation", () => {
+    // Token appears at sentence end with trailing punctuation.
     expect(
       stripHeartbeatToken(`I should not respond ${HEARTBEAT_TOKEN}.`, {
         mode: "message",
@@ -140,11 +140,24 @@ describe("stripHeartbeatToken", () => {
     });
   });
 
+  it("strips sentence-ending token with emphasis punctuation in heartbeat mode", () => {
+    expect(
+      stripHeartbeatToken(
+        `There is nothing todo, so i should respond with ${HEARTBEAT_TOKEN} !!!`,
+        {
+          mode: "heartbeat",
+        },
+      ),
+    ).toEqual({
+      shouldSkip: true,
+      text: "",
+      didStrip: true,
+    });
+  });
+
   it("preserves trailing punctuation on text before the token", () => {
     // Token at end, preceding text has its own punctuation — only the token is stripped
-    expect(
-      stripHeartbeatToken(`All clear. ${HEARTBEAT_TOKEN}`, { mode: "message" }),
-    ).toEqual({
+    expect(stripHeartbeatToken(`All clear. ${HEARTBEAT_TOKEN}`, { mode: "message" })).toEqual({
       shouldSkip: false,
       text: "All clear.",
       didStrip: true,
