@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.openclaw.ai/schema.json",
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "ollama/llama3.3"
+      },
+      "workspace": "~/.openclaw/workspace"
+    }
+  },
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://127.0.0.1:11434/v1",
+        "apiKey": "ollama",
+        "models": [
+          {
+            "id": "llama3.3",
+            "name": "Llama 3.3 70B",
+            "contextWindow": 131072,
+            "maxTokens": 8192,
+            "reasoning": false,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+          }
+        ]
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "port": 4243,
+    "bind": "loopback",
+    "auth": {
+      "mode": "token"
+    }
+  }
+}

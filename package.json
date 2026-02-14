@@ -1,10 +1,24 @@
 {
-  "name": "openclaw",
+  "name": "openclaw-local",
   "version": "2026.2.13",
-  "description": "Multi-channel AI gateway with extensible messaging integrations",
-  "keywords": [],
+  "description": "Local-first AI gateway — defaults to Ollama, no API keys required",
+  "keywords": [
+    "agent",
+    "ai",
+    "local-first",
+    "ollama",
+    "typescript"
+  ],
+  "homepage": "https://github.com/gthumb-ai/openclaw-local",
+  "bugs": {
+    "url": "https://github.com/gthumb-ai/openclaw-local/issues"
+  },
   "license": "MIT",
   "author": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gthumb-ai/openclaw-local.git"
+  },
   "bin": {
     "openclaw": "openclaw.mjs"
   },

@@ -1,34 +1,22 @@
 ---
-name: Bug report
-about: Report a problem or unexpected behavior in Clawdbot.
-title: "[Bug]: "
+name: Bug Report
+about: Something broken? Let us know.
 labels: bug
 ---
 
-## Summary
+**What happened?**
 
-What went wrong?
+**What did you expect?**
 
-## Steps to reproduce
+**Steps to reproduce:**
 
 1.
 2.
 3.
 
-## Expected behavior
+**Environment:**
 
-What did you expect to happen?
-
-## Actual behavior
-
-What actually happened?
-
-## Environment
-
-- Clawdbot version:
 - OS:
-- Install method (pnpm/npx/docker/etc):
-
-## Logs or screenshots
-
-Paste relevant logs or add screenshots (redact secrets).
+- Node version:
+- Ollama version (if relevant):
+- openclaw-local version:

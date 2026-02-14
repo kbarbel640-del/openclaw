@@ -22,6 +22,12 @@ const AUTH_CHOICE_GROUP_DEFS: {
   choices: AuthChoice[];
 }[] = [
   {
+    value: "vllm",
+    label: "Ollama / vLLM (local)",
+    hint: "Local models — no API key needed (recommended)",
+    choices: ["vllm"],
+  },
+  {
     value: "openai",
     label: "OpenAI",
     hint: "Codex OAuth + API key",
@@ -32,12 +38,6 @@ const AUTH_CHOICE_GROUP_DEFS: {
     label: "Anthropic",
     hint: "setup-token + API key",
     choices: ["token", "apiKey"],
-  },
-  {
-    value: "vllm",
-    label: "vLLM",
-    hint: "Local/self-hosted OpenAI-compatible",
-    choices: ["vllm"],
   },
   {
     value: "minimax",
@@ -163,6 +163,12 @@ export function buildAuthChoiceOptions(params: {
   const options: AuthChoiceOption[] = [];
 
   options.push({
+    value: "vllm",
+    label: "Ollama / vLLM (local)",
+    hint: "Local models — no API key needed (recommended)",
+  });
+
+  options.push({
     value: "token",
     label: "Anthropic token (paste setup-token)",
     hint: "run `claude setup-token` elsewhere, then paste the token here",
@@ -173,11 +179,6 @@ export function buildAuthChoiceOptions(params: {
     label: "OpenAI Codex (ChatGPT OAuth)",
   });
   options.push({ value: "chutes", label: "Chutes (OAuth)" });
-  options.push({
-    value: "vllm",
-    label: "vLLM (custom URL + model)",
-    hint: "Local/self-hosted OpenAI-compatible server",
-  });
   options.push({ value: "openai-api-key", label: "OpenAI API key" });
   options.push({ value: "xai-api-key", label: "xAI (Grok) API key" });
   options.push({
