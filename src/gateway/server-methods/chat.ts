@@ -50,9 +50,7 @@ type TranscriptAppendResult = {
 
 type AppendMessageArg = Parameters<SessionManager["appendMessage"]>[0];
 
-function extractChatTextContent(
-  content: unknown,
-): { text: string | null; hasNonText: boolean } {
+function extractChatTextContent(content: unknown): { text: string | null; hasNonText: boolean } {
   if (typeof content === "string") {
     return { text: content.trim() || null, hasNonText: false };
   }

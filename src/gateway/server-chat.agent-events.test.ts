@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import { registerAgentRunContext, resetAgentRunContextForTest } from "../infra/agent-events.js";
 import {
   createAgentEventHandler,
   createChatRunState,
   createToolEventRecipientRegistry,
 } from "./server-chat.js";
-import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 
 describe("agent event handler", () => {
   it("emits chat delta for assistant text-only events", () => {
