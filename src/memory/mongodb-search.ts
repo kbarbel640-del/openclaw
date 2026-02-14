@@ -537,7 +537,9 @@ export async function mongoSearch(
       .toSorted({ score: { $meta: "textScore" } })
       .limit(opts.maxResults)
       .toArray();
-    return docs.map((doc) => toSearchResult(doc, "memory")).filter((r) => r.score >= opts.minScore);
+    return docs
+      .map((doc: Document) => toSearchResult(doc, "memory"))
+      .filter((r: MemorySearchResult) => r.score >= opts.minScore);
   } catch {
     log.warn("$text search fallback also failed; returning empty results");
     return [];
