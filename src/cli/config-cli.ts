@@ -235,9 +235,7 @@ export async function runConfigGet(opts: {
   try {
     const parsedPath = parseRequiredPath(opts.path);
     const snapshot = await loadValidConfig(runtime);
-    const sourceConfig = opts.showSecrets
-      ? snapshot.config
-      : redactConfigObject(snapshot.config);
+    const sourceConfig = opts.showSecrets ? snapshot.config : redactConfigObject(snapshot.config);
     if (opts.showSecrets) {
       runtime.error(
         theme.warn("Warning: --show-secrets prints sensitive values to your terminal history."),
