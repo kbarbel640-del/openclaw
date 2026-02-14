@@ -46,7 +46,10 @@ import { createOpenClawCodingTools } from "../pi-tools.js";
 import { resolveSandboxContext } from "../sandbox.js";
 import { repairSessionFileIfNeeded } from "../session-file-repair.js";
 import { guardSessionManager } from "../session-tool-result-guard-wrapper.js";
-import { sanitizeToolUseResultPairing } from "../session-transcript-repair.js";
+import {
+  repairToolUseResultPairing,
+  sanitizeToolUseResultPairing,
+} from "../session-transcript-repair.js";
 import { acquireSessionWriteLock } from "../session-write-lock.js";
 import { detectRuntimeShell } from "../shell-utils.js";
 import {
@@ -633,6 +636,22 @@ export async function compactEmbeddedPiSessionDirect(
 
         const compactStartedAt = Date.now();
         const result = await session.compact(params.customInstructions);
+        // Re-run tool_use/tool_result pairing repair after compaction.
+        // Compaction can remove assistant messages containing tool_use blocks
+        // while leaving orphaned tool_result blocks behind, which causes
+        // Anthropic API 400 errors: "unexpected tool_use_id found in tool_result blocks".
+        // See: https://github.com/openclaw/openclaw/issues/15691
+        if (transcriptPolicy.repairToolUseResultPairing) {
+          const postCompactRepair = repairToolUseResultPairing(session.messages);
+          if (postCompactRepair.droppedOrphanCount > 0 || postCompactRepair.moved) {
+            session.agent.replaceMessages(postCompactRepair.messages);
+            log.info(
+              `[compaction] post-compact repair: dropped ${postCompactRepair.droppedOrphanCount} orphaned tool_result(s), ` +
+                `${postCompactRepair.droppedDuplicateCount} duplicate(s) ` +
+                `(sessionKey=${params.sessionKey ?? params.sessionId})`,
+            );
+          }
+        }
         // Estimate tokens after compaction by summing token estimates for remaining messages
         let tokensAfter: number | undefined;
         try {

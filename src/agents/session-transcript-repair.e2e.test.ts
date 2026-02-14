@@ -243,3 +243,161 @@ describe("sanitizeToolCallInputs", () => {
     expect(types).toEqual(["text", "toolUse"]);
   });
 });
+
+describe("post-compaction orphaned tool_result removal (#15691)", () => {
+  it("drops orphaned tool_result blocks left after compaction removes tool_use messages", () => {
+    // Simulates the post-compaction state: compaction replaced earlier messages
+    // with a summary, but left tool_result blocks whose matching tool_use was
+    // in the compacted (removed) assistant message.
+    const input = [
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Here is a summary of our earlier conversation..." }],
+      },
+      // These tool_results are orphaned — their tool_use was in a message
+      // that compaction removed
+      {
+        role: "toolResult",
+        toolCallId: "toolu_compacted_1",
+        toolName: "Read",
+        content: [{ type: "text", text: "file contents" }],
+        isError: false,
+      },
+      {
+        role: "toolResult",
+        toolCallId: "toolu_compacted_2",
+        toolName: "exec",
+        content: [{ type: "text", text: "command output" }],
+        isError: false,
+      },
+      { role: "user", content: "now do something else" },
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "I'll read that file" },
+          { type: "toolCall", id: "toolu_active_1", name: "Read", arguments: { path: "foo.ts" } },
+        ],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "toolu_active_1",
+        toolName: "Read",
+        content: [{ type: "text", text: "actual content" }],
+        isError: false,
+      },
+    ] satisfies AgentMessage[];
+
+    const result = repairToolUseResultPairing(input);
+
+    // Orphaned tool_results should be dropped
+    expect(result.droppedOrphanCount).toBe(2);
+    // Active tool_result should be preserved
+    const toolResults = result.messages.filter((m) => m.role === "toolResult");
+    expect(toolResults).toHaveLength(1);
+    expect((toolResults[0] as { toolCallId?: string }).toolCallId).toBe("toolu_active_1");
+    // Overall structure should be valid
+    expect(result.messages.map((m) => m.role)).toEqual([
+      "assistant",
+      "user",
+      "assistant",
+      "toolResult",
+    ]);
+  });
+
+  it("handles synthetic tool_result from interrupted request after compaction", () => {
+    // The exact scenario from issue #15691:
+    // 1. Request interrupted mid-tool-execution
+    // 2. Synthetic tool_result inserted for transcript repair
+    // 3. Compaction runs and removes the assistant message with tool_use
+    // 4. Synthetic tool_result is now orphaned
+    const input = [
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Compaction summary of previous conversation." }],
+      },
+      // Synthetic error tool_result from interrupted request — orphaned after compaction
+      {
+        role: "toolResult",
+        toolCallId: "toolu_interrupted",
+        toolName: "unknown",
+        content: [
+          {
+            type: "text",
+            text: "[openclaw] missing tool result in session history; inserted synthetic error result for transcript repair.",
+          },
+        ],
+        isError: true,
+      },
+      { role: "user", content: "continue please" },
+    ] satisfies AgentMessage[];
+
+    const result = repairToolUseResultPairing(input);
+
+    expect(result.droppedOrphanCount).toBe(1);
+    expect(result.messages.some((m) => m.role === "toolResult")).toBe(false);
+    expect(result.messages.map((m) => m.role)).toEqual(["assistant", "user"]);
+  });
+
+  it("preserves valid tool_use/tool_result pairs while removing orphans", () => {
+    // Mix of valid pairs and orphaned results after compaction
+    const input = [
+      // Valid pair
+      {
+        role: "assistant",
+        content: [
+          { type: "toolCall", id: "toolu_valid", name: "Read", arguments: { path: "a.ts" } },
+        ],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "toolu_valid",
+        toolName: "Read",
+        content: [{ type: "text", text: "content of a.ts" }],
+        isError: false,
+      },
+      { role: "user", content: "thanks, what about b.ts?" },
+      // Orphaned tool_result (its tool_use was compacted away)
+      {
+        role: "toolResult",
+        toolCallId: "toolu_gone",
+        toolName: "Read",
+        content: [{ type: "text", text: "content of old file" }],
+        isError: false,
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Let me check b.ts" }],
+      },
+    ] satisfies AgentMessage[];
+
+    const result = repairToolUseResultPairing(input);
+
+    expect(result.droppedOrphanCount).toBe(1);
+    // Valid pair should be preserved
+    const toolResults = result.messages.filter((m) => m.role === "toolResult");
+    expect(toolResults).toHaveLength(1);
+    expect((toolResults[0] as { toolCallId?: string }).toolCallId).toBe("toolu_valid");
+  });
+
+  it("returns original array when no orphans exist", () => {
+    const input = [
+      {
+        role: "assistant",
+        content: [{ type: "toolCall", id: "toolu_1", name: "Read", arguments: { path: "x.ts" } }],
+      },
+      {
+        role: "toolResult",
+        toolCallId: "toolu_1",
+        toolName: "Read",
+        content: [{ type: "text", text: "ok" }],
+        isError: false,
+      },
+      { role: "user", content: "good" },
+    ] satisfies AgentMessage[];
+
+    const result = repairToolUseResultPairing(input);
+
+    expect(result.droppedOrphanCount).toBe(0);
+    expect(result.messages).toStrictEqual(input);
+  });
+});
