@@ -43,6 +43,7 @@ import {
 } from "./hooks.js";
 import { sendUnauthorized } from "./http-common.js";
 import { getBearerToken, getHeader } from "./http-utils.js";
+import { handleLlmProxyRequest } from "./llm-proxy.js";
 import { resolveGatewayClientIp } from "./net.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
@@ -379,6 +380,15 @@ export function createGatewayHttpServer(opts: {
         ) {
           return;
         }
+      }
+      // Lightweight LLM proxy — bypasses agent for direct provider forwarding
+      if (
+        await handleLlmProxyRequest(req, res, {
+          auth: resolvedAuth,
+          trustedProxies,
+        })
+      ) {
+        return;
       }
       if (openAiChatCompletionsEnabled) {
         if (
