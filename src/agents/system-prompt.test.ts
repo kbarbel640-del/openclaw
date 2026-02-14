@@ -453,4 +453,37 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("## Reactions");
     expect(prompt).toContain("Reactions are enabled for Telegram in MINIMAL mode.");
   });
+
+  it("asserts OpenClaw identity and rejects Claude Code references", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+    });
+
+    expect(prompt).toContain("You are NOT Claude Code");
+    expect(prompt).toContain("~/.claude/");
+    expect(prompt).toContain("You are OpenClaw");
+  });
+
+  it("includes workspace-specific memory paths in memory recall section", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/home/user/.openclaw/workspace",
+      toolNames: ["memory_search", "memory_get"],
+    });
+
+    expect(prompt).toContain("## Memory Recall");
+    expect(prompt).toContain("/home/user/.openclaw/workspace/MEMORY.md");
+    expect(prompt).toContain("/home/user/.openclaw/workspace/memory/*.md");
+    expect(prompt).toContain("ONLY locations where you store and retrieve memories");
+    expect(prompt).toContain("Never reference ~/.claude/");
+  });
+
+  it("includes storage guidance in workspace section", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/home/user/.openclaw/workspace",
+    });
+
+    expect(prompt).toContain("If asked where you store things");
+    expect(prompt).toContain("/home/user/.openclaw/workspace/");
+    expect(prompt).toContain("MEMORY.md, memory/*.md, USER.md");
+  });
 });

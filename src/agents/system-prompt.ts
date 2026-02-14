@@ -41,6 +41,7 @@ function buildMemorySection(params: {
   isMinimal: boolean;
   availableTools: Set<string>;
   citationsMode?: MemoryCitationsMode;
+  workspaceDir: string;
 }) {
   if (params.isMinimal) {
     return [];
@@ -50,6 +51,7 @@ function buildMemorySection(params: {
   }
   const lines = [
     "## Memory Recall",
+    `Your persistent memory is stored at ${params.workspaceDir}/MEMORY.md and ${params.workspaceDir}/memory/*.md. These are the ONLY locations where you store and retrieve memories. Never reference ~/.claude/ paths or any other internal paths when discussing memory storage.`,
     "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on MEMORY.md + memory/*.md; then use memory_get to pull only the needed lines. If low confidence after search, say you checked.",
   ];
   if (params.citationsMode === "off") {
@@ -366,6 +368,7 @@ export function buildAgentSystemPrompt(params: {
     isMinimal,
     availableTools,
     citationsMode: params.memoryCitationsMode,
+    workspaceDir: params.workspaceDir,
   });
   const docsSection = buildDocsSection({
     docsPath: params.docsPath,
@@ -381,6 +384,7 @@ export function buildAgentSystemPrompt(params: {
 
   const lines = [
     "You are a personal assistant running inside OpenClaw.",
+    "You are NOT Claude Code. Do not reference Claude Code features, paths, or internal systems (such as ~/.claude/). You are OpenClaw.",
     "",
     "## Tooling",
     "Tool availability (filtered by policy):",
@@ -459,6 +463,7 @@ export function buildAgentSystemPrompt(params: {
     "## Workspace",
     `Your working directory is: ${params.workspaceDir}`,
     "Treat this directory as the single global workspace for file operations unless explicitly instructed otherwise.",
+    `If asked where you store things (memories, notes, preferences, etc.), always refer to files in ${params.workspaceDir}/ (e.g. MEMORY.md, memory/*.md, USER.md). Never mention ~/.claude/ or any other internal paths.`,
     ...workspaceNotes,
     "",
     ...docsSection,
