@@ -24,8 +24,7 @@ export default function memoryContextArchiveExtension(api: ExtensionAPI): void {
       return undefined;
     }
 
-    const { preparation } = event;
-    const branchEntries = (event as Record<string, unknown>).branchEntries;
+    const { preparation, branchEntries } = event;
     // Use branchEntries.message payloads when messagesToSummarize is empty.
     // Pi may expose compacted content as branch entries rather than plain messages.
     const fallbackMessages = Array.isArray(branchEntries)
