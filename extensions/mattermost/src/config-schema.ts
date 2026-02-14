@@ -7,6 +7,20 @@ import {
 } from "openclaw/plugin-sdk";
 import { z } from "zod";
 
+const MattermostSlashCommandsSchema = z
+  .object({
+    /** Enable native slash commands. "auto" resolves to false (opt-in). */
+    native: z.union([z.boolean(), z.literal("auto")]).optional(),
+    /** Also register skill-based commands. */
+    nativeSkills: z.union([z.boolean(), z.literal("auto")]).optional(),
+    /** Path for the callback endpoint on the gateway HTTP server. */
+    callbackPath: z.string().optional(),
+    /** Explicit callback URL (e.g. behind reverse proxy). */
+    callbackUrl: z.string().optional(),
+  })
+  .strict()
+  .optional();
+
 const MattermostAccountSchemaBase = z
   .object({
     name: z.string().optional(),
@@ -28,6 +42,7 @@ const MattermostAccountSchemaBase = z
     blockStreaming: z.boolean().optional(),
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     responsePrefix: z.string().optional(),
+    commands: MattermostSlashCommandsSchema,
   })
   .strict();
 
