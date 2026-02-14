@@ -421,7 +421,7 @@ describe("sendMessageTelegram", () => {
     expect(sendAudio).not.toHaveBeenCalled();
   });
 
-  it("falls back to audio when asVoice is true but media is not voice compatible", async () => {
+  it("sends voice when asVoice is true for mp3 media", async () => {
     const chatId = "123";
     const sendAudio = vi.fn().mockResolvedValue({
       message_id: 14,
@@ -449,11 +449,11 @@ describe("sendMessageTelegram", () => {
       asVoice: true,
     });
 
-    expect(sendAudio).toHaveBeenCalledWith(chatId, expect.anything(), {
+    expect(sendVoice).toHaveBeenCalledWith(chatId, expect.anything(), {
       caption: "caption",
       parse_mode: "HTML",
     });
-    expect(sendVoice).not.toHaveBeenCalled();
+    expect(sendAudio).not.toHaveBeenCalled();
   });
 
   it("includes message_thread_id for forum topic messages", async () => {
