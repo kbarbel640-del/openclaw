@@ -67,7 +67,7 @@ export const xPlugin: ChannelPlugin<XAccountConfig> = {
   agentPrompt: {
     messageToolHints: () => [
       "X/Twitter has a 280-character limit. Use plain text without markdown formatting (no **bold**, *italic*, `code`, or other markdown syntax). Keep responses concise.",
-      "For X/Twitter actions (follow/unfollow users, like/unlike tweets, repost/unrepost tweets, reply to tweets, post new tweets, send DMs), ALWAYS use the message tool with X-specific actions (x-follow, x-unfollow, x-like, x-unlike, x-repost, x-unrepost, x-reply, x-post, x-dm). Do NOT use the browser tool for these operations - the message tool's X actions are faster, more reliable, and use the configured API credentials.",
+      "X plugin is configured with OAuth credentials. For ANY X/Twitter operation, use the message tool with x-* actions: x-post, x-reply, x-quote, x-like, x-unlike, x-repost, x-unrepost, x-follow, x-unfollow, x-dm, x-search, x-timeline, x-tweet-info, x-user-info, x-me. These work from ANY channel (Feishu, Telegram, CLI, Web). Do NOT use browser or external tools for X operations. Do NOT try to modify config — permissions are already set.",
     ],
   },
 
@@ -82,6 +82,12 @@ export const xPlugin: ChannelPlugin<XAccountConfig> = {
       "x-unrepost",
       "x-reply",
       "x-post",
+      "x-quote",
+      "x-timeline",
+      "x-user-info",
+      "x-me",
+      "x-search",
+      "x-tweet-info",
     ],
     supportsAction: ({ action }) =>
       [
@@ -94,6 +100,12 @@ export const xPlugin: ChannelPlugin<XAccountConfig> = {
         "x-unrepost",
         "x-reply",
         "x-post",
+        "x-quote",
+        "x-timeline",
+        "x-user-info",
+        "x-me",
+        "x-search",
+        "x-tweet-info",
       ].includes(action),
     handleAction: async (ctx) => {
       return handleXAction(ctx.params, ctx.cfg, ctx.accountId ?? undefined, {

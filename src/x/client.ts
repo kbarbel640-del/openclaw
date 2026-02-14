@@ -17,6 +17,9 @@ import type {
   XRetweetResult,
   XUserInfo,
   XTweet,
+  XTweetDetails,
+  XSearchResult,
+  XQuoteResult,
 } from "./types.js";
 
 /**
@@ -795,6 +798,211 @@ export class XClientManager {
         ok: false,
         error: errorMsg,
       };
+    }
+  }
+
+  /**
+   * Search recent tweets by keyword query.
+   * Uses GET /2/tweets/search/recent (requires Basic or Pro API access).
+   */
+  async searchTweets(
+    account: XAccountConfig,
+    accountId: string,
+    query: string,
+    maxResults: number = 10,
+  ): Promise<XSearchResult> {
+    const endpoint = `/2/tweets/search/recent`;
+    const method = "GET";
+
+    try {
+      const client = this.getClient(account, accountId);
+
+      this.logger.info(`[X API] ${method} ${endpoint} - query: "${query}", max: ${maxResults}`);
+
+      const response = await client.v2.search(query, {
+        max_results: Math.min(Math.max(maxResults, 10), 100),
+        "tweet.fields": [
+          "id",
+          "text",
+          "author_id",
+          "created_at",
+          "conversation_id",
+          "public_metrics",
+          "entities",
+        ],
+        "user.fields": ["id", "username", "name"],
+        expansions: ["author_id"],
+      });
+
+      const userMap = new Map<string, { username: string; name: string }>();
+      for (const user of response.includes?.users ?? []) {
+        userMap.set(user.id, { username: user.username, name: user.name });
+      }
+
+      const tweets: XTweetDetails[] = [];
+      for (const tweet of response.data?.data ?? []) {
+        const author = tweet.author_id ? userMap.get(tweet.author_id) : undefined;
+        const urls =
+          tweet.entities?.urls?.map(
+            (u: { expanded_url?: string; url?: string }) => u.expanded_url ?? u.url ?? "",
+          ) ?? [];
+        tweets.push({
+          id: tweet.id,
+          text: tweet.text,
+          authorId: tweet.author_id,
+          authorUsername: author?.username,
+          authorName: author?.name,
+          createdAt: tweet.created_at ? new Date(tweet.created_at) : undefined,
+          conversationId: tweet.conversation_id,
+          metrics: tweet.public_metrics
+            ? {
+                likeCount: tweet.public_metrics.like_count,
+                retweetCount: tweet.public_metrics.retweet_count,
+                replyCount: tweet.public_metrics.reply_count,
+                quoteCount: tweet.public_metrics.quote_count,
+                impressionCount: (tweet.public_metrics as unknown as Record<string, number>)
+                  .impression_count,
+                bookmarkCount: (tweet.public_metrics as unknown as Record<string, number>)
+                  .bookmark_count,
+              }
+            : undefined,
+          urls: urls.length > 0 ? urls : undefined,
+        });
+      }
+
+      this.logger.info(`[X API] ${method} ${endpoint} - Success (${tweets.length} tweets)`);
+      this.logRateLimitFromClient(client, "tweets/search/recent", `${method} ${endpoint}`);
+
+      return { ok: true, tweets };
+    } catch (error: unknown) {
+      const apiError = error as {
+        rateLimit?: { limit?: number; remaining?: number; reset?: number };
+        headers?: Record<string, string | string[] | undefined>;
+      };
+      this.logRateLimitFromResponse(`${method} ${endpoint}`, apiError.rateLimit, apiError.headers);
+      this.logApiCall(endpoint, method, undefined, undefined, error);
+      const errorMsg = this.extractApiError(error);
+      this.logger.error(`[X API] ${method} ${endpoint} - Failed: ${errorMsg}`);
+      return { ok: false, error: errorMsg, tweets: [] };
+    }
+  }
+
+  /**
+   * Get tweet details including engagement metrics.
+   */
+  async getTweetDetails(
+    account: XAccountConfig,
+    accountId: string,
+    tweetId: string,
+  ): Promise<XTweetDetails | null> {
+    const endpoint = `/2/tweets/:id`;
+    const method = "GET";
+
+    try {
+      const client = this.getClient(account, accountId);
+
+      this.logger.info(`[X API] ${method} ${endpoint} (details) - tweet: ${tweetId}`);
+
+      const result = await client.v2.singleTweet(tweetId, {
+        "tweet.fields": [
+          "id",
+          "text",
+          "author_id",
+          "created_at",
+          "conversation_id",
+          "public_metrics",
+          "entities",
+        ],
+        "user.fields": ["id", "username", "name"],
+        expansions: ["author_id"],
+      });
+
+      if (!result.data) {
+        return null;
+      }
+
+      const author = result.includes?.users?.[0];
+      const urls =
+        result.data.entities?.urls?.map(
+          (u: { expanded_url?: string; url?: string }) => u.expanded_url ?? u.url ?? "",
+        ) ?? [];
+
+      this.logger.info(`[X API] ${method} ${endpoint} (details) - Success`);
+      this.logRateLimitFromClient(client, `tweets/${tweetId}`, `${method} ${endpoint}`);
+
+      return {
+        id: result.data.id,
+        text: result.data.text,
+        authorId: result.data.author_id,
+        authorUsername: author?.username,
+        authorName: author?.name,
+        createdAt: result.data.created_at ? new Date(result.data.created_at) : undefined,
+        conversationId: result.data.conversation_id,
+        metrics: result.data.public_metrics
+          ? {
+              likeCount: result.data.public_metrics.like_count,
+              retweetCount: result.data.public_metrics.retweet_count,
+              replyCount: result.data.public_metrics.reply_count,
+              quoteCount: result.data.public_metrics.quote_count,
+              impressionCount: (result.data.public_metrics as unknown as Record<string, number>)
+                .impression_count,
+              bookmarkCount: (result.data.public_metrics as unknown as Record<string, number>)
+                .bookmark_count,
+            }
+          : undefined,
+        urls: urls.length > 0 ? urls : undefined,
+      };
+    } catch (error: unknown) {
+      const apiError = error as {
+        rateLimit?: { limit?: number; remaining?: number; reset?: number };
+        headers?: Record<string, string | string[] | undefined>;
+      };
+      this.logRateLimitFromResponse(`${method} ${endpoint}`, apiError.rateLimit, apiError.headers);
+      this.logApiCall(endpoint, method, undefined, undefined, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[X API] ${method} ${endpoint} (details) - Failed: ${errorMsg}`);
+      return null;
+    }
+  }
+
+  /**
+   * Post a quote tweet (retweet with comment).
+   * Uses POST /2/tweets with quote_tweet_id.
+   */
+  async quoteTweet(
+    account: XAccountConfig,
+    accountId: string,
+    quotedTweetId: string,
+    text: string,
+  ): Promise<XQuoteResult> {
+    const endpoint = `/2/tweets`;
+    const method = "POST";
+
+    try {
+      const client = this.getClient(account, accountId);
+
+      this.logger.info(
+        `[X API] ${method} ${endpoint} (quote) - quoting: ${quotedTweetId}, text length: ${text.length}`,
+      );
+
+      const result = await client.v2.tweet({ text, quote_tweet_id: quotedTweetId });
+
+      this.logger.info(
+        `[X API] ${method} ${endpoint} (quote) - Success (tweet: ${result.data.id})`,
+      );
+      this.logRateLimitFromClient(client, "tweets", `${method} ${endpoint}`);
+
+      return { ok: true, tweetId: result.data.id };
+    } catch (error: unknown) {
+      const apiError = error as {
+        rateLimit?: { limit?: number; remaining?: number; reset?: number };
+        headers?: Record<string, string | string[] | undefined>;
+      };
+      this.logRateLimitFromResponse(`${method} ${endpoint}`, apiError.rateLimit, apiError.headers);
+      this.logApiCall(endpoint, method, undefined, undefined, error);
+      const errorMsg = this.extractApiError(error);
+      this.logger.error(`[X API] ${method} ${endpoint} (quote) - Failed: ${errorMsg}`);
+      return { ok: false, error: errorMsg };
     }
   }
 

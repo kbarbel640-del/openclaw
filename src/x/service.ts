@@ -15,6 +15,10 @@ import type {
   XUserInfo,
   XLogSink,
   XSendResult,
+  XTweet,
+  XTweetDetails,
+  XSearchResult,
+  XQuoteResult,
 } from "./types.js";
 import { resolveXAccount, isXAccountConfigured, DEFAULT_ACCOUNT_ID } from "./accounts.js";
 import { getOrCreateClientManager } from "./client.js";
@@ -121,13 +125,46 @@ export interface XService {
   sendDM(target: string, message: string): Promise<XDmResult>;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // Account info
+  // Read / query actions
   // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Get a user's recent tweets (timeline).
+   * @param target - Username (with or without @) or user ID
+   * @param maxResults - Max tweets to return (default 10)
+   */
+  getUserTimeline(target: string, maxResults?: number): Promise<XTweet[]>;
+
+  /**
+   * Look up a user by username.
+   * @param username - Username (with or without @)
+   */
+  getUserInfo(username: string): Promise<XUserInfo | null>;
 
   /**
    * Get the authenticated user's info.
    */
   getMe(): Promise<XUserInfo>;
+
+  /**
+   * Search recent tweets by keyword query.
+   * @param query - Search query string
+   * @param maxResults - Max tweets to return (default 10)
+   */
+  searchTweets(query: string, maxResults?: number): Promise<XSearchResult>;
+
+  /**
+   * Get detailed tweet info including engagement metrics.
+   * @param tweetIdOrUrl - Tweet ID or URL
+   */
+  getTweetDetails(tweetIdOrUrl: string): Promise<XTweetDetails | null>;
+
+  /**
+   * Post a quote tweet (retweet with comment).
+   * @param tweetIdOrUrl - Tweet ID or URL of the tweet to quote
+   * @param text - Comment text (max 280 chars)
+   */
+  quoteTweet(tweetIdOrUrl: string, text: string): Promise<XQuoteResult>;
 }
 
 /**
@@ -318,11 +355,34 @@ export function createXService(cfg: OpenClawConfig, options?: XServiceOptions): 
     },
 
     // ───────────────────────────────────────────────────────────────────────────
-    // Account info
+    // Read / query actions
     // ───────────────────────────────────────────────────────────────────────────
+
+    async getUserTimeline(target: string, maxResults?: number): Promise<XTweet[]> {
+      const userId = await resolveUserId(target);
+      return clientManager.getUserTweets(account, accountId, userId, maxResults ?? 10);
+    },
+
+    async getUserInfo(username: string): Promise<XUserInfo | null> {
+      return clientManager.getUserByUsername(account, accountId, username);
+    },
 
     async getMe(): Promise<XUserInfo> {
       return clientManager.getMe(account, accountId);
+    },
+
+    async searchTweets(query: string, maxResults?: number): Promise<XSearchResult> {
+      return clientManager.searchTweets(account, accountId, query, maxResults ?? 10);
+    },
+
+    async getTweetDetails(tweetIdOrUrl: string): Promise<XTweetDetails | null> {
+      const tweetId = parseTweetId(tweetIdOrUrl);
+      return clientManager.getTweetDetails(account, accountId, tweetId);
+    },
+
+    async quoteTweet(tweetIdOrUrl: string, text: string): Promise<XQuoteResult> {
+      const tweetId = parseTweetId(tweetIdOrUrl);
+      return clientManager.quoteTweet(account, accountId, tweetId, text);
     },
   };
 }

@@ -22,6 +22,12 @@ const X_ACTIONS = new Set([
   "x-repost",
   "x-unrepost",
   "x-post",
+  "x-timeline",
+  "x-user-info",
+  "x-me",
+  "x-search",
+  "x-quote",
+  "x-tweet-info",
 ]);
 
 /**
@@ -33,7 +39,14 @@ export function isXAction(action: string): boolean {
 
 /**
  * Resolve the X actions allowlist for a cross-channel originator (e.g. Feishu).
- * Reads `channels.<channel>.xActionsAllowFrom` from config.
+ *
+ * Checks two lists in order:
+ * 1. `channels.<channel>.xActionsAllowFrom` — dedicated X-action allowlist (Feishu user IDs)
+ * 2. `channels.<channel>.allowFrom` — general allowlist (fallback: any user allowed to chat
+ *    with the bot is also allowed to trigger X actions)
+ *
+ * This fallback makes cross-channel X operations work out of the box when only `allowFrom`
+ * is configured during onboarding, without requiring explicit `xActionsAllowFrom`.
  */
 function resolveCrossChannelXActionsAllowFrom(
   cfg: OpenClawConfig,
@@ -44,23 +57,32 @@ function resolveCrossChannelXActionsAllowFrom(
   if (!channelCfg || typeof channelCfg !== "object") {
     return undefined;
   }
-  const list = channelCfg.xActionsAllowFrom;
-  if (!Array.isArray(list)) {
-    return undefined;
+
+  // Prefer explicit xActionsAllowFrom
+  const xList = channelCfg.xActionsAllowFrom;
+  if (Array.isArray(xList) && xList.length > 0) {
+    return xList.map((entry) => String(entry).trim());
   }
-  return list.map((entry) => String(entry).trim());
+
+  // Fallback to allowFrom — if a user is trusted enough to talk to the bot,
+  // they should be able to trigger X actions too.
+  const allowFrom = channelCfg.allowFrom;
+  if (Array.isArray(allowFrom) && allowFrom.length > 0) {
+    return allowFrom.map((entry) => String(entry).trim());
+  }
+
+  return undefined;
 }
 
-/** Channels allowed to trigger X actions cross-channel (via xActionsAllowFrom). */
-const CROSS_CHANNEL_X_ACTION_SOURCES = new Set(["feishu"]);
-
 /**
- * Check if the sender is allowed to trigger proactive X actions (follow, like, reply, dm).
+ * Check if the sender is allowed to trigger proactive X actions (follow, like, repost, reply, dm).
  *
- * Permission model (two separate allowlists, do not mix):
+ * Permission model:
  * - From X: uses `channels.x.actionsAllowFrom` (X user IDs).
- * - From Feishu: uses `channels.feishu.xActionsAllowFrom` (Feishu user IDs).
- * - From other channels: denied.
+ * - From other configured channels (Feishu, Telegram, etc.): uses
+ *   `channels.<channel>.xActionsAllowFrom` or falls back to `channels.<channel>.allowFrom`.
+ * - From CLI/unattended: allowed if `channels.x.actionsAllowFrom` is configured
+ *   (the CLI operator is assumed to be the owner).
  */
 function checkXActionsAllowed(params: {
   cfg: OpenClawConfig;
@@ -71,9 +93,16 @@ function checkXActionsAllowed(params: {
   const origChannel = actionCtx?.toolContext?.originatingChannel?.trim().toLowerCase();
   const origSenderId = actionCtx?.toolContext?.originatingSenderId?.trim();
 
+  // --- CLI / unattended context: allow if X actionsAllowFrom is configured ---
   if (!origChannel || !origSenderId) {
+    const account = resolveXAccount(cfg, accountId ?? DEFAULT_ACCOUNT_ID);
+    const list = account?.actionsAllowFrom;
+    if (Array.isArray(list) && list.length > 0) {
+      // X channel has actionsAllowFrom configured — CLI/owner is trusted.
+      return;
+    }
     throw new Error(
-      "Permission denied: X actions (follow, like, repost, reply, dm) require an originating channel and sender; not allowed from CLI or unattended context.",
+      "Permission denied: X actions require channels.x.actionsAllowFrom to be configured.",
     );
   }
 
@@ -94,25 +123,32 @@ function checkXActionsAllowed(params: {
     return;
   }
 
-  // --- From cross-channel sources (e.g. Feishu): check channels.<channel>.xActionsAllowFrom ---
-  if (CROSS_CHANNEL_X_ACTION_SOURCES.has(origChannel)) {
-    const list = resolveCrossChannelXActionsAllowFrom(cfg, origChannel);
-    if (!Array.isArray(list) || list.length === 0) {
-      throw new Error(
-        `Permission denied: X actions allowlist (channels.${origChannel}.xActionsAllowFrom) is not configured; cross-channel X operations from ${origChannel} are disabled.`,
-      );
-    }
+  // --- From any other channel: check xActionsAllowFrom → allowFrom → X actionsAllowFrom ---
+  const list = resolveCrossChannelXActionsAllowFrom(cfg, origChannel);
+  if (Array.isArray(list) && list.length > 0) {
+    // Explicit allowlist exists — check the sender.
     if (!list.includes(origSenderId)) {
       throw new Error(
-        `Permission denied: your ${origChannel} user is not in the actions allowlist (channels.${origChannel}.xActionsAllowFrom); only listed users can trigger follow/like/repost/reply/dm.`,
+        `Permission denied: your ${origChannel} user is not in the allowlist for X actions. ` +
+          `Add your user ID to channels.${origChannel}.xActionsAllowFrom or channels.${origChannel}.allowFrom.`,
       );
     }
     return;
   }
 
-  // --- Other channels: denied ---
+  // No per-channel allowlist. If X itself has actionsAllowFrom configured,
+  // allow cross-channel operations — the user is already authenticated by
+  // the originating channel infrastructure and the owner explicitly enabled
+  // X actions by setting channels.x.actionsAllowFrom.
+  const xAccount = resolveXAccount(cfg, accountId ?? DEFAULT_ACCOUNT_ID);
+  if (Array.isArray(xAccount?.actionsAllowFrom) && xAccount.actionsAllowFrom.length > 0) {
+    return;
+  }
+
   throw new Error(
-    `Permission denied: X actions are not supported from ${origChannel}. Supported origins: x, ${[...CROSS_CHANNEL_X_ACTION_SOURCES].join(", ")}.`,
+    `Permission denied: no allowlist configured for X actions. ` +
+      `Set channels.${origChannel}.xActionsAllowFrom, channels.${origChannel}.allowFrom, ` +
+      `or channels.x.actionsAllowFrom.`,
   );
 }
 
@@ -136,6 +172,187 @@ async function handlePost(
   return jsonResult({
     ok: true,
     action: "x-post",
+    tweetId: result.tweetId,
+  });
+}
+
+/**
+ * Handle x-timeline action (get a user's recent tweets).
+ */
+async function handleTimeline(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const target = readStringParam(params, "target", { required: true });
+  const maxResultsRaw = params.maxResults ?? params.max_results ?? params.count;
+  const maxResults =
+    typeof maxResultsRaw === "number"
+      ? maxResultsRaw
+      : typeof maxResultsRaw === "string"
+        ? Number.parseInt(maxResultsRaw, 10) || 10
+        : 10;
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const tweets = await xService.getUserTimeline(target, maxResults);
+
+  return jsonResult({
+    ok: true,
+    action: "x-timeline",
+    target,
+    count: tweets.length,
+    tweets: tweets.map((t) => ({
+      id: t.id,
+      text: t.text,
+      authorId: t.authorId,
+      createdAt: t.createdAt?.toISOString(),
+    })),
+  });
+}
+
+/**
+ * Handle x-user-info action (look up a user by username).
+ */
+async function handleUserInfo(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const target = readStringParam(params, "target", { required: true });
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const user = await xService.getUserInfo(target);
+  if (!user) {
+    throw new Error(`User not found: ${target}`);
+  }
+
+  return jsonResult({
+    ok: true,
+    action: "x-user-info",
+    user: {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+    },
+  });
+}
+
+/**
+ * Handle x-me action (get authenticated account info).
+ */
+async function handleMe(
+  _params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const me = await xService.getMe();
+
+  return jsonResult({
+    ok: true,
+    action: "x-me",
+    user: {
+      id: me.id,
+      username: me.username,
+      name: me.name,
+    },
+  });
+}
+
+/**
+ * Handle x-search action (search recent tweets by keyword).
+ */
+async function handleSearch(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const query = readStringParam(params, "query", { required: true });
+  const maxResultsRaw = params.maxResults ?? params.max_results ?? params.count;
+  const maxResults =
+    typeof maxResultsRaw === "number"
+      ? maxResultsRaw
+      : typeof maxResultsRaw === "string"
+        ? Number.parseInt(maxResultsRaw, 10) || 10
+        : 10;
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const result = await xService.searchTweets(query, maxResults);
+  if (!result.ok) {
+    throw new Error(result.error ?? "Search failed");
+  }
+
+  return jsonResult({
+    ok: true,
+    action: "x-search",
+    query,
+    count: result.tweets.length,
+    tweets: result.tweets.map((t) => ({
+      id: t.id,
+      text: t.text,
+      authorId: t.authorId,
+      authorUsername: t.authorUsername,
+      authorName: t.authorName,
+      createdAt: t.createdAt?.toISOString(),
+      metrics: t.metrics,
+    })),
+  });
+}
+
+/**
+ * Handle x-tweet-info action (get tweet details with metrics).
+ */
+async function handleTweetInfo(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const target = readStringParam(params, "target", { required: true });
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const details = await xService.getTweetDetails(target);
+  if (!details) {
+    throw new Error(`Tweet not found: ${target}`);
+  }
+
+  return jsonResult({
+    ok: true,
+    action: "x-tweet-info",
+    tweet: {
+      id: details.id,
+      text: details.text,
+      authorId: details.authorId,
+      authorUsername: details.authorUsername,
+      authorName: details.authorName,
+      createdAt: details.createdAt?.toISOString(),
+      metrics: details.metrics,
+      urls: details.urls,
+    },
+  });
+}
+
+/**
+ * Handle x-quote action (quote tweet / retweet with comment).
+ */
+async function handleQuote(
+  params: Record<string, unknown>,
+  cfg: OpenClawConfig,
+  accountId?: string,
+): Promise<AgentToolResult<unknown>> {
+  const target = readStringParam(params, "target", { required: true });
+  const message = readStringParam(params, "message", { required: true });
+  const xService = createXService(cfg, { accountId: accountId ?? DEFAULT_ACCOUNT_ID });
+
+  const result = await xService.quoteTweet(target, message);
+  if (!result.ok) {
+    throw new Error(result.error ?? "Failed to quote tweet");
+  }
+
+  return jsonResult({
+    ok: true,
+    action: "x-quote",
+    quotedTweet: target,
     tweetId: result.tweetId,
   });
 }
@@ -403,6 +620,9 @@ async function handleReply(
  * Pass full ctx so x-reply can enforce "reply only to mentioner" when originating from X.
  * All proactive X actions (follow, like, reply, dm) require the sender to be in actionsAllowFrom (X).
  */
+/** Read-only actions that do not require actionsAllowFrom permission. */
+const X_READ_ACTIONS = new Set(["x-timeline", "x-user-info", "x-me", "x-search", "x-tweet-info"]);
+
 export async function handleXAction(
   params: Record<string, unknown>,
   cfg: OpenClawConfig,
@@ -411,8 +631,10 @@ export async function handleXAction(
 ): Promise<AgentToolResult<unknown>> {
   const action = readStringParam(params, "action", { required: true });
 
-  // Proactive X operations: require sender to be in actions allowlist (separate from mention allowlist)
-  checkXActionsAllowed({ cfg, accountId, actionCtx });
+  // Read-only actions skip the actionsAllowFrom check — they don't mutate state.
+  if (!X_READ_ACTIONS.has(action)) {
+    checkXActionsAllowed({ cfg, accountId, actionCtx });
+  }
 
   switch (action) {
     case "x-follow":
@@ -433,6 +655,18 @@ export async function handleXAction(
       return handleUnrepost(params, cfg, accountId);
     case "x-post":
       return handlePost(params, cfg, accountId);
+    case "x-quote":
+      return handleQuote(params, cfg, accountId);
+    case "x-timeline":
+      return handleTimeline(params, cfg, accountId);
+    case "x-user-info":
+      return handleUserInfo(params, cfg, accountId);
+    case "x-me":
+      return handleMe(params, cfg, accountId);
+    case "x-search":
+      return handleSearch(params, cfg, accountId);
+    case "x-tweet-info":
+      return handleTweetInfo(params, cfg, accountId);
     default:
       throw new Error(`Unknown X action: ${action}`);
   }
