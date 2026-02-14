@@ -2,6 +2,10 @@
   "id": "memory-lancedb",
   "kind": "memory",
   "uiHints": {
+    "embedding.provider": {
+      "label": "Embedding Provider",
+      "help": "Choose 'openai' for cloud-based or 'local' for offline node-llama-cpp embeddings"
+    },
     "embedding.apiKey": {
       "label": "OpenAI API Key",
       "sensitive": true,
@@ -12,6 +16,17 @@
       "label": "Embedding Model",
       "placeholder": "text-embedding-3-small",
       "help": "OpenAI embedding model to use"
+    },
+    "local.modelPath": {
+      "label": "Local Model Path",
+      "placeholder": "hf:nomic-ai/nomic-embed-text-v1.5-GGUF/nomic-embed-text-v1.5.f16.gguf",
+      "help": "Path to a GGUF embedding model file, or hf: URL for auto-download"
+    },
+    "local.modelCacheDir": {
+      "label": "Model Cache Directory",
+      "placeholder": "~/.cache/llama-embeddings",
+      "advanced": true,
+      "help": "Directory to cache downloaded models"
     },
     "dbPath": {
       "label": "Database Path",
@@ -35,15 +50,29 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "provider": {
+            "type": "string",
+            "enum": ["openai", "local"]
+          },
           "apiKey": {
             "type": "string"
           },
           "model": {
-            "type": "string",
-            "enum": ["text-embedding-3-small", "text-embedding-3-large"]
+            "type": "string"
           }
-        },
-        "required": ["apiKey"]
+        }
+      },
+      "local": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "modelPath": {
+            "type": "string"
+          },
+          "modelCacheDir": {
+            "type": "string"
+          }
+        }
       },
       "dbPath": {
         "type": "string"

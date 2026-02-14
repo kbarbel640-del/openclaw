@@ -12,6 +12,9 @@
   "devDependencies": {
     "openclaw": "workspace:*"
   },
+  "optionalDependencies": {
+    "node-llama-cpp": "^3.0.0"
+  },
   "openclaw": {
     "extensions": [
       "./index.ts"

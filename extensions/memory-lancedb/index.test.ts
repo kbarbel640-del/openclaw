@@ -12,6 +12,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { detectProvider, vectorDimsForModel } from "./config.js";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "test-key";
 const HAS_OPENAI_KEY = Boolean(process.env.OPENAI_API_KEY);
@@ -114,6 +115,228 @@ describe("memory plugin e2e", () => {
     expect(detectCategory("My email is test@example.com")).toBe("entity");
     expect(detectCategory("The server is running on port 3000")).toBe("fact");
     expect(detectCategory("Random note")).toBe("other");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unit tests for detectProvider and vectorDimsForModel
+// ---------------------------------------------------------------------------
+
+describe("detectProvider", () => {
+  test("returns explicit provider when set", () => {
+    expect(detectProvider({ provider: "local" })).toBe("local");
+    expect(detectProvider({ provider: "openai" })).toBe("openai");
+  });
+
+  test("detects local from .gguf model", () => {
+    expect(detectProvider({ model: "nomic-embed-text-v1.5.f16.gguf" })).toBe("local");
+    expect(detectProvider({ model: "~/models/my-model.gguf" })).toBe("local");
+  });
+
+  test("detects local from hf: prefix", () => {
+    expect(
+      detectProvider({
+        model: "hf:nomic-ai/nomic-embed-text-v1.5-GGUF/nomic-embed-text-v1.5.f16.gguf",
+      }),
+    ).toBe("local");
+  });
+
+  test("detects openai from text-embedding- prefix", () => {
+    expect(detectProvider({ model: "text-embedding-3-small" })).toBe("openai");
+    expect(detectProvider({ model: "text-embedding-3-large" })).toBe("openai");
+  });
+
+  test("defaults to openai with no hints", () => {
+    expect(detectProvider({})).toBe("openai");
+    expect(detectProvider({ model: "some-unknown-model" })).toBe("openai");
+  });
+});
+
+describe("vectorDimsForModel", () => {
+  test("returns correct dims for OpenAI models", () => {
+    expect(vectorDimsForModel("text-embedding-3-small")).toBe(1536);
+    expect(vectorDimsForModel("text-embedding-3-large")).toBe(3072);
+  });
+
+  test("returns default 768 for local .gguf models", () => {
+    expect(vectorDimsForModel("model.gguf")).toBe(768);
+    expect(vectorDimsForModel("~/models/nomic.gguf")).toBe(768);
+  });
+
+  test("returns default 768 for hf: models", () => {
+    expect(
+      vectorDimsForModel("hf:nomic-ai/nomic-embed-text-v1.5-GGUF/nomic-embed-text-v1.5.f16.gguf"),
+    ).toBe(768);
+  });
+
+  test("accepts custom localDimensions override", () => {
+    expect(vectorDimsForModel("model.gguf", 1024)).toBe(1024);
+    expect(vectorDimsForModel("hf:some/model", 384)).toBe(384);
+  });
+
+  test("throws for unknown non-local model", () => {
+    expect(() => vectorDimsForModel("some-random-model")).toThrow("Unsupported embedding model");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Config schema tests for local provider
+// ---------------------------------------------------------------------------
+
+describe("config schema - local provider", () => {
+  const dbPath = "/tmp/test-lancedb";
+
+  test("config schema accepts local provider without apiKey", async () => {
+    const { default: memoryPlugin } = await import("./index.js");
+    const parsed = memoryPlugin.configSchema?.parse?.({
+      embedding: {
+        provider: "local",
+        model: "nomic-embed-text-v1.5.f16.gguf",
+      },
+      dbPath,
+      local: {
+        modelPath: "~/models/nomic-embed.gguf",
+      },
+    });
+    expect(parsed).toBeDefined();
+    expect(parsed?.embedding?.provider).toBe("local");
+    expect(parsed?.embedding?.apiKey).toBeUndefined();
+    expect(parsed?.local?.modelPath).toBe("~/models/nomic-embed.gguf");
+  });
+
+  test("config schema auto-detects local from .gguf model", async () => {
+    const { default: memoryPlugin } = await import("./index.js");
+    const parsed = memoryPlugin.configSchema?.parse?.({
+      embedding: {
+        model: "my-embedding.gguf",
+      },
+      dbPath,
+    });
+    expect(parsed?.embedding?.provider).toBe("local");
+  });
+
+  test("config schema still requires apiKey for openai", async () => {
+    const { default: memoryPlugin } = await import("./index.js");
+    expect(() => {
+      memoryPlugin.configSchema?.parse?.({
+        embedding: {
+          provider: "openai",
+        },
+        dbPath,
+      });
+    }).toThrow("embedding.apiKey is required");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dimension mismatch detection tests
+// ---------------------------------------------------------------------------
+
+describe("dimension mismatch detection", () => {
+  let tmpDir: string;
+  let testDbPath: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-dim-test-"));
+    testDbPath = path.join(tmpDir, "lancedb");
+  });
+
+  afterEach(async () => {
+    if (tmpDir) {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test("creates table with correct dimensions on fresh DB", async () => {
+    const { MemoryDB } = await import("./index.js");
+    const db = new MemoryDB(testDbPath, 768);
+    // store triggers initialization
+    await db.store({
+      text: "test",
+      vector: Array(768).fill(0.1),
+      importance: 0.5,
+      category: "fact",
+    });
+    expect(await db.count()).toBe(1);
+  });
+
+  test("opens existing table with matching dimensions", async () => {
+    const { MemoryDB } = await import("./index.js");
+    // Create with 768 dims
+    const db1 = new MemoryDB(testDbPath, 768);
+    await db1.store({
+      text: "test",
+      vector: Array(768).fill(0.1),
+      importance: 0.5,
+      category: "fact",
+    });
+
+    // Reopen with same dims — should succeed
+    const db2 = new MemoryDB(testDbPath, 768);
+    expect(await db2.count()).toBe(1);
+  });
+
+  test("throws DimensionMismatchError when dimensions differ", async () => {
+    const { MemoryDB, DimensionMismatchError } = await import("./index.js");
+    // Create table with 1536-dim vectors
+    const db1 = new MemoryDB(testDbPath, 1536);
+    await db1.store({
+      text: "test",
+      vector: Array(1536).fill(0.1),
+      importance: 0.5,
+      category: "fact",
+    });
+
+    // Try to open with 768-dim config
+    const db2 = new MemoryDB(testDbPath, 768);
+    await expect(db2.count()).rejects.toThrow(DimensionMismatchError);
+    await expect(db2.count()).rejects.toThrow(/dimension mismatch/i);
+  });
+
+  test("initializeUnchecked skips dimension validation", async () => {
+    const { MemoryDB } = await import("./index.js");
+    // Create table with 1536-dim vectors
+    const db1 = new MemoryDB(testDbPath, 1536);
+    await db1.store({
+      text: "test",
+      vector: Array(1536).fill(0.1),
+      importance: 0.5,
+      category: "fact",
+    });
+
+    // Open unchecked with different dims — should NOT throw
+    const db2 = new MemoryDB(testDbPath, 768);
+    await db2.initializeUnchecked();
+    const entries = await db2.listAll();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].text).toBe("test");
+  });
+
+  test("recreateTable drops and recreates with new dimensions", async () => {
+    const { MemoryDB } = await import("./index.js");
+    // Create table with 1536-dim vectors and add data
+    const db1 = new MemoryDB(testDbPath, 1536);
+    await db1.store({
+      text: "old memory",
+      vector: Array(1536).fill(0.1),
+      importance: 0.5,
+      category: "fact",
+    });
+
+    // Recreate with 768-dim
+    const db2 = new MemoryDB(testDbPath, 768);
+    await db2.initializeUnchecked();
+    await db2.recreateTable();
+
+    // New table should be empty and accept 768-dim vectors
+    expect(await db2.count()).toBe(0);
+    await db2.store({
+      text: "new memory",
+      vector: Array(768).fill(0.2),
+      importance: 0.6,
+      category: "preference",
+    });
+    expect(await db2.count()).toBe(1);
   });
 });
 
