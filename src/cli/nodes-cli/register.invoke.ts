@@ -3,7 +3,7 @@ import path from "node:path";
 import type { NodesRpcOpts } from "./types.js";
 import { resolveAgentConfig, resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { loadConfig } from "../../config/config.js";
-import { randomIdempotencyKey } from "../../gateway/call.js";
+import { randomIdempotencyKey } from "../../gateway/idempotency.js";
 import {
   type ExecApprovalsFile,
   type ExecAsk,
