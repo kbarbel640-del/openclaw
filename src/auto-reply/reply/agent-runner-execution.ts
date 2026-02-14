@@ -17,6 +17,7 @@ import {
   isTransientHttpError,
   sanitizeUserFacingText,
 } from "../../agents/pi-embedded-helpers.js";
+import { isMissingToolCallInputError } from "../../agents/pi-embedded-helpers/errors.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import {
   resolveAgentIdFromSessionKey,
@@ -51,6 +52,34 @@ export type AgentRunLoopResult =
       directlySentBlockKeys?: Set<string>;
     }
   | { kind: "final"; payload: ReplyPayload };
+
+/**
+ * Check if this session is with an external WhatsApp contact (sales rep, not operator).
+ * External contacts should not receive technical error messages.
+ */
+function isExternalWhatsAppSession(ctx: TemplateContext): boolean {
+  const provider = ctx.Provider?.trim().toLowerCase();
+  const senderId = ctx.SenderId?.trim();
+
+  // Not WhatsApp = not considered "external contact" for error suppression
+  if (provider !== "whatsapp") {
+    return false;
+  }
+
+  // Jacky's number = operator, not external
+  if (senderId === "+6598100534") {
+    return false;
+  }
+
+  // WhatsApp allowlist contacts (sales reps) = external
+  const externalNumbers = [
+    "+628111491111",
+    "+6281312229611", // Muchdor
+    "+6285228000168", // Tommy
+  ];
+
+  return externalNumbers.includes(senderId ?? "");
+}
 
 export async function runAgentTurnWithFallback(params: {
   commandBody: string;
@@ -599,6 +628,49 @@ export async function runAgentTurnWithFallback(params: {
       }
 
       defaultRuntime.error(`Embedded agent failed before reply: ${message}`);
+
+      // Detect session corruption errors (reasoning validation, role ordering, tool call input)
+      const isReasoningError =
+        /type\s+['"]reasoning['"].*(?:required following item|without.*following)/i.test(message);
+      const hasSessionCorruption =
+        isRoleOrderingError || isReasoningError || isMissingToolCallInputError(message);
+
+      // Suppress error messages for external WhatsApp contacts (sales reps).
+      // They shouldn't see technical errors - only the operator should.
+      const isExternal = isExternalWhatsAppSession(params.sessionCtx);
+
+      if (isExternal) {
+        defaultRuntime.error(
+          `Suppressing error message for external contact: ${params.sessionCtx.SenderId}`,
+        );
+
+        // For session corruption, auto-reset so next message works
+        if (hasSessionCorruption && params.activeSessionStore && params.storePath) {
+          defaultRuntime.error(
+            `Session corruption detected for external contact. Auto-resetting session: ${params.sessionKey}`,
+          );
+
+          const resetSuccess = await params.resetSessionAfterRoleOrderingConflict(
+            isReasoningError ? "reasoning-validation-error" : "role-ordering-conflict",
+          );
+
+          if (!resetSuccess) {
+            defaultRuntime.error(
+              `Failed to auto-reset corrupted session for external contact: ${params.sessionKey}`,
+            );
+          }
+        }
+
+        // Return empty payload - no message sent to customer
+        return {
+          kind: "final",
+          payload: {
+            text: "",
+          },
+        };
+      }
+
+      // For Jacky/internal sessions, show the error message
       const safeMessage = isTransientHttp
         ? sanitizeUserFacingText(message, { errorContext: true })
         : message;
