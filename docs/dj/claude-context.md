@@ -243,6 +243,36 @@ if (!changed) {
 await site.recordSyncSuccess(pageId, newHash);
 ```
 
+## Voice Messages (Whisper Transcription)
+
+Telegram voice messages are transcribed locally using OpenAI Whisper. No API key required.
+
+**Prerequisites:**
+- `whisper` binary in PATH (installed at `~/.local/bin/whisper`)
+- Model file: `~/.cache/whisper/large-v3-turbo.pt` (~1.5GB)
+- `ffmpeg` in PATH (for audio conversion)
+
+**Setup:**
+```bash
+# Install whisper CLI (pip)
+pip install openai-whisper
+
+# Pre-download the model (avoids first-use delay)
+python -c "import whisper; whisper.load_model('large-v3-turbo')"
+
+# Verify
+whisper --help
+ls -lh ~/.cache/whisper/large-v3-turbo.pt
+```
+
+**If the model gets corrupted** (SHA256 mismatch error):
+```bash
+rm ~/.cache/whisper/large-v3-turbo.pt
+python -c "import whisper; whisper.load_model('large-v3-turbo')"
+```
+
+**Codex sandbox requirement:** Voice message transcription writes temp files, so the codex-cli backend needs `--sandbox workspace-write` (not `read-only`).
+
 ## DJ Setup: Common Pitfalls and Solutions
 
 This section documents common issues encountered during initial DJ setup and their solutions.
@@ -361,31 +391,28 @@ Use `next[key] = undefined` instead of `delete next[key]` in `src/agents/cli-run
   "agents": {
     "defaults": {
       "model": {
-        "primary": "claude-cli/opus",
-        "fallbacks": ["codex-cli/gpt-5-codex"]
+        "primary": "codex-cli/gpt-5-codex",
+        "fallbacks": ["claude-cli/opus"]
       },
-      "timeoutSeconds": 120,
+      "timeoutSeconds": 180,
+      "maxConcurrent": 4,
       "cliBackends": {
         "claude-cli": {
           "command": "claude",
-          "args": ["-p", "--output-format", "json", "--dangerously-skip-permissions"],
-          "output": "json",
           "input": "arg",
+          "clearEnv": ["ANTHROPIC_API_KEY", "CLAUDECODE"],
           "modelArg": "--model",
-          "sessionMode": "always",
           "sessionArg": "--session-id",
-          "clearEnv": ["ANTHROPIC_API_KEY"],
-          "timeoutMs": 25000
+          "sessionMode": "always"
         },
         "codex-cli": {
           "command": "codex",
-          "args": ["exec", "--json", "--sandbox", "read-only", "--skip-git-repo-check"],
+          "args": ["exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check"],
           "output": "jsonl",
           "input": "arg",
           "modelArg": "--model",
           "sessionMode": "existing",
-          "serialize": true,
-          "timeoutMs": 25000
+          "serialize": true
         }
       }
     }
@@ -398,23 +425,31 @@ Use `next[key] = undefined` instead of `delete next[key]` in `src/agents/cli-run
   "channels": {
     "telegram": {
       "enabled": true,
-      "dmPolicy": "pairing",
-      "tokenFile": "~/.openclaw/credentials/telegram-bot-token.txt",
-      "allowFrom": [8487794139],
+      "dmPolicy": "open",
+      "tokenFile": "/home/aurora/.openclaw/credentials/telegram-bot-token.txt",
+      "allowFrom": ["*"],
       "groupPolicy": "allowlist",
-      "streamMode": "partial"
+      "streamMode": "partial",
+      "network": { "autoSelectFamily": true }
     }
+  },
+  "gateway": {
+    "mode": "local",
+    "auth": { "token": "<generated-hex-token>" }
   }
 }
 ```
 
+**Key config notes:**
+- Codex is primary (no concurrency lock issues), Claude CLI is fallback
+- `CLAUDECODE` in `clearEnv` prevents nested Claude Code session errors
+- Codex sandbox `workspace-write` required for voice message transcription
+- `gateway.auth.token` must be set or gateway won't start
+
 **Gateway startup (WSL2):**
 ```bash
-source ~/.bashrc
-export NOTION_API_KEY="$(cat ~/.openclaw/credentials/notion-api-key.txt)"
-export OPENCLAW_GATEWAY_TOKEN="local-dev-token"
 cd /mnt/d/Dev/Clawdbot/openclaw
-node openclaw.mjs gateway run --port 18789 --verbose
+node openclaw.mjs gateway --force --verbose
 ```
 
 ## Documentation Index

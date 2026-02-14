@@ -60,11 +60,15 @@ curl -s "https://api.telegram.org/bot$(cat ~/.openclaw/credentials/telegram-bot-
 echo "--- Gateway auth check ---"
 grep -q '"auth"' ~/.openclaw/openclaw.json && echo "Gateway auth: OK" || echo "Gateway auth: MISSING (run: openclaw config set gateway.auth.token <token>)"
 
-# 5. Build (first build after reboot is slow on WSL2)
+# 5. Verify whisper model for voice messages
+echo "--- Whisper check ---"
+test -f ~/.cache/whisper/large-v3-turbo.pt && echo "Whisper model: OK ($(du -h ~/.cache/whisper/large-v3-turbo.pt | cut -f1))" || echo "Whisper model: MISSING (run: python -c \"import whisper; whisper.load_model('large-v3-turbo')\")"
+
+# 6. Build (first build after reboot is slow on WSL2)
 cd /mnt/d/Dev/Clawdbot/openclaw
 pnpm build
 
-# 6. Start gateway (expect 3-4 min startup on WSL2 cold boot)
+# 7. Start gateway (expect 3-4 min startup on WSL2 cold boot)
 node openclaw.mjs gateway --force --verbose
 ```
 
@@ -240,6 +244,15 @@ else
   FAIL=1
 fi
 
+# Check whisper model for voice messages
+if [ -f ~/.cache/whisper/large-v3-turbo.pt ]; then
+  SIZE=$(du -h ~/.cache/whisper/large-v3-turbo.pt | cut -f1)
+  echo "  OK: Whisper model ($SIZE)"
+else
+  echo "WARN: Whisper model missing. Voice messages won't work."
+  echo "      Run: python -c \"import whisper; whisper.load_model('large-v3-turbo')\""
+fi
+
 # Check port availability
 if ss -tlnp 2>/dev/null | grep -q 18789; then
   echo "  OK: Gateway already listening on :18789"
@@ -285,6 +298,7 @@ Ensure `~/.openclaw/openclaw.json` is self-contained. Everything needed to start
 | `channels.discord.enabled` | Yes | `false` |
 | `plugins.deny` | Recommended | `["discord"]` |
 | `agents.defaults.cliBackends.claude-cli.clearEnv` | Yes | `["ANTHROPIC_API_KEY", "CLAUDECODE"]` |
+| `~/.cache/whisper/large-v3-turbo.pt` | For voice msgs | ~1.5GB model file |
 
 ### 4. WSL2 performance: move to native filesystem
 
