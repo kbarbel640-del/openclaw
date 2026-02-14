@@ -257,9 +257,6 @@ function collectGatewayConfigFindings(
     (auth.mode === "token" && hasToken) || (auth.mode === "password" && hasPassword);
   const hasTailscaleAuth = auth.allowTailscale && tailscaleMode === "serve";
   const hasGatewayAuth = hasSharedSecret || hasTailscaleAuth;
-  const remotelyExposed =
-    bind !== "loopback" || tailscaleMode === "serve" || tailscaleMode === "funnel";
-
   if (bind !== "loopback" && !hasSharedSecret) {
     findings.push({
       checkId: "gateway.bind_no_auth",

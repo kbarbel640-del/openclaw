@@ -120,10 +120,16 @@ describe("security audit", () => {
       ).toBe(true);
     } finally {
       // Restore env
-      if (prevToken === undefined) delete process.env.CLAWDBOT_GATEWAY_TOKEN;
-      else process.env.CLAWDBOT_GATEWAY_TOKEN = prevToken;
-      if (prevPassword === undefined) delete process.env.CLAWDBOT_GATEWAY_PASSWORD;
-      else process.env.CLAWDBOT_GATEWAY_PASSWORD = prevPassword;
+      if (prevToken === undefined) {
+        delete process.env.CLAWDBOT_GATEWAY_TOKEN;
+      } else {
+        process.env.CLAWDBOT_GATEWAY_TOKEN = prevToken;
+      }
+      if (prevPassword === undefined) {
+        delete process.env.CLAWDBOT_GATEWAY_PASSWORD;
+      } else {
+        process.env.CLAWDBOT_GATEWAY_PASSWORD = prevPassword;
+      }
     }
   });
 
