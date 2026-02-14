@@ -115,7 +115,7 @@ export async function runCli(argv: string[] = process.argv) {
         commandRegistered = await registerSubCliByName(program, helpTarget);
       }
     }
-  } else if (primary && shouldRegisterPrimarySubcommand(parseArgv)) {
+  } else if (primary) {
     const { registerSubCliByName } = await import("./program/register.subclis.js");
     commandRegistered = await registerSubCliByName(program, primary);
 
