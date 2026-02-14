@@ -152,6 +152,29 @@ spec:
 - The Deployment runs as UID 1000 (`node`). Adjust `securityContext` if a sidecar needs
   elevated privileges.
 
+## Self-deploy / progressive rollout
+
+Because every manifest lives in git, OpenClaw can "self-deploy" by committing changes
+(via its own automation or a human) and letting Flux/Argo reconcile. A safe rollout flow:
+
+1. **Generate a new image/config** – e.g., publish `ghcr.io/egkristi/openclaw:<hash>` or
+   tweak Helm values (sidecars, env vars, skills) and push to a feature branch.
+2. **Spin up a parallel release** – duplicate the overlay (e.g., `overlays/prod-canary`) or
+   use Helm values to set `fullnameOverride: openclaw-canary`. Flux/Argo deploys it next
+   to the existing instance, pointing at the same persistent PVCs or at cloned ones.
+3. **Health-check + smoke-test** – leverage the `/healthz` probe, run scripted checks, or
+   forward traffic gradually (service mesh, Ingress weights, or manual channel tests).
+4. **Promote** – once the canary is healthy, update the primary overlay/tag and let the
+   controller roll the Deployment. The old ReplicaSet sticks around until the new pods
+   are ready, giving you zero-downtime blue/green semantics.
+5. **Garbage-collect** – delete the canary overlay/namespace via git once traffic fully
+   shifts. Since the desired state is in git, the reconciler removes the extra instance.
+
+This approach lets OpenClaw evolve autonomously: it can author PRs that add containers,
+update configs, or sideload helper images, and GitOps ensures changes land only after the
+cluster converges. Workspaces, memory, and config remain in git (or in PVC snapshots), so
+state survives across rollouts.
+
 ## Sidecars & extensions
 
 1. Add a browser/GUI container via `extraContainers`. Mount the same workspace PVC to
