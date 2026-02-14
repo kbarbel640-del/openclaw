@@ -11,6 +11,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
+import { createInternalHookEvent, triggerInternalHook } from "../../../hooks/internal-hooks.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
@@ -1010,6 +1011,29 @@ export async function runEmbeddedAttempt(
       // Hook runner was already obtained earlier before tool creation
       const hookAgentId = sessionAgentId;
 
+      // Bridge message:received to internal (workspace) hooks
+      try {
+        await triggerInternalHook(
+          createInternalHookEvent(
+            "message",
+            "received",
+            params.sessionKey || params.sessionId || "",
+            {
+              from: "",
+              content: typeof params.prompt === "string" ? params.prompt : "",
+              channel: (params.messageChannel ?? params.messageProvider ?? "").toLowerCase(),
+              senderId: undefined,
+              senderName: undefined,
+              commandSource: (params.messageChannel ?? params.messageProvider ?? "").toLowerCase(),
+            },
+          ),
+        );
+      } catch (err) {
+        log.warn(
+          `message:received hook failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
       let promptError: unknown = null;
       let promptErrorSource: "prompt" | "compaction" | null = null;
       try {
@@ -1046,6 +1070,34 @@ export async function runEmbeddedAttempt(
             systemPromptText = legacySystemPrompt;
             log.debug(`hooks: applied systemPrompt override (${legacySystemPrompt.length} chars)`);
           }
+        }
+
+        // Bridge message:before to internal (workspace) hooks
+        try {
+          const messageBeforeResult = await triggerInternalHook(
+            createInternalHookEvent(
+              "message",
+              "before",
+              params.sessionKey || params.sessionId || "",
+              {
+                prompt: effectivePrompt,
+                messages: activeSession.messages,
+                agentId: hookAgentId,
+                sessionId: params.sessionId,
+                commandSource: params.messageProvider ?? undefined,
+              },
+            ),
+          );
+          if (messageBeforeResult?.prependContext) {
+            effectivePrompt = `${messageBeforeResult.prependContext}\n\n${effectivePrompt}`;
+            log.debug(
+              `message:before hook prepended context (${messageBeforeResult.prependContext.length} chars)`,
+            );
+          }
+        } catch (err) {
+          log.warn(
+            `message:before hook failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
 
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
@@ -1284,6 +1336,17 @@ export async function runEmbeddedAttempt(
               log.warn(`agent_end hook failed: ${err}`);
             });
         }
+
+        // Bridge message:sent to internal (workspace) hooks
+        void triggerInternalHook(
+          createInternalHookEvent("message", "sent", params.sessionKey || params.sessionId || "", {
+            messages: messagesSnapshot,
+            sessionId: params.sessionId,
+            success: !aborted && !promptError,
+          }),
+        ).catch((err) => {
+          log.warn(`message:sent hook failed: ${err}`);
+        });
       } finally {
         clearTimeout(abortTimer);
         if (abortWarnTimer) {
