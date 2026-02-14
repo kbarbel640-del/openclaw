@@ -15,6 +15,7 @@ const log = createSubsystemLogger("agents/tools");
 const BEFORE_TOOL_CALL_WRAPPED = Symbol("beforeToolCallWrapped");
 const adjustedParamsByToolCallId = new Map<string, unknown>();
 const MAX_TRACKED_ADJUSTED_PARAMS = 1024;
+const afterToolCallHookHandledByToolCallId = new Set<string>();
 
 export async function runBeforeToolCallHook(args: {
   toolName: string;
@@ -32,10 +33,13 @@ export async function runBeforeToolCallHook(args: {
 
   try {
     const normalizedParams = isPlainObject(params) ? params : {};
+    const toolCallId = args.toolCallId ?? `unknown-${Date.now()}`;
     const hookResult = await hookRunner.runBeforeToolCall(
       {
         toolName,
+        toolCallId: String(toolCallId),
         params: normalizedParams,
+        messages: [],
       },
       {
         toolName,
@@ -116,9 +120,34 @@ export function consumeAdjustedParamsForToolCall(toolCallId: string): unknown {
   return params;
 }
 
+/**
+ * Deduplicate after_tool_call hooks when both the tool adapter and the embedded
+ * subscribe handlers are wired to fire after_tool_call (see #15502 follow-up).
+ */
+export function markAfterToolCallHookHandled(toolCallId: string): void {
+  if (!toolCallId) {
+    return;
+  }
+  afterToolCallHookHandledByToolCallId.add(toolCallId);
+  if (afterToolCallHookHandledByToolCallId.size > MAX_TRACKED_ADJUSTED_PARAMS) {
+    const oldest = afterToolCallHookHandledByToolCallId.keys().next().value;
+    if (oldest) {
+      afterToolCallHookHandledByToolCallId.delete(oldest);
+    }
+  }
+}
+
+export function consumeAfterToolCallHookHandled(toolCallId: string): boolean {
+  if (!toolCallId) {
+    return false;
+  }
+  return afterToolCallHookHandledByToolCallId.delete(toolCallId);
+}
+
 export const __testing = {
   BEFORE_TOOL_CALL_WRAPPED,
   adjustedParamsByToolCallId,
   runBeforeToolCallHook,
   isPlainObject,
+  afterToolCallHookHandledByToolCallId,
 };
