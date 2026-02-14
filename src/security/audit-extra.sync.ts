@@ -15,7 +15,10 @@ import { resolveToolProfilePolicy } from "../agents/tool-policy.js";
 import { resolveBrowserConfig } from "../browser/config.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { resolveGatewayAuth } from "../gateway/auth.js";
-import { resolveNodeCommandAllowlist } from "../gateway/node-command-policy.js";
+import {
+  DEFAULT_DANGEROUS_NODE_COMMANDS,
+  resolveNodeCommandAllowlist,
+} from "../gateway/node-command-policy.js";
 
 export type SecurityAuditFinding = {
   checkId: string;
@@ -248,6 +251,12 @@ function listKnownNodeCommands(cfg: OpenClawConfig): Set<string> {
       if (normalized) {
         out.add(normalized);
       }
+    }
+  }
+  for (const cmd of DEFAULT_DANGEROUS_NODE_COMMANDS) {
+    const normalized = normalizeNodeCommand(cmd);
+    if (normalized) {
+      out.add(normalized);
     }
   }
   return out;
