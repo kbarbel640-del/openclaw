@@ -441,3 +441,287 @@ Validation Commands + Results:
 
 Caveats / Risks:
 - Template data is file-backed in this story (JSON) rather than database-backed; STORY-07 can extend to API/object-store integration and runtime mutation controls if required.
+
+## 2026-02-13 20:13 PST
+
+### STORY-07
+Summary:
+Started STORY-07 implementation for evidence API/reference integration and closeout completion enforcement against persisted evidence.
+
+Plan:
+- Define STORY-07 endpoint contract for evidence ingest/list and completion enforcement.
+- Implement `POST /tickets/{ticketId}/evidence` and `GET /tickets/{ticketId}/evidence` over `evidence_items` with deterministic ordering.
+- Implement `POST /tickets/{ticketId}/tech/complete` to evaluate persisted evidence references + checklist gates using incident templates.
+- Add node-native integration coverage for attach/list behavior, fail-closed missing-evidence rejection, and successful completion transition.
+
+Planned File Changes:
+- `dispatch/api/src/server.mjs`
+- `dispatch/tests/story_07_evidence_api.node.test.mjs`
+- `dispatch/tests/story_04_tool_bridge.node.test.mjs`
+- `dispatch/logs/story_07_contract.md`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+
+## 2026-02-13 20:18 PST
+
+### STORY-07
+Summary:
+Implemented evidence API/reference integration and fail-closed completion enforcement against persisted evidence requirements.
+
+Files Modified:
+- `dispatch/api/src/server.mjs`
+- `dispatch/shared/authorization-policy.mjs`
+- `dispatch/tests/story_07_evidence_api.node.test.mjs`
+- `dispatch/tests/story_04_tool_bridge.node.test.mjs`
+- `dispatch/api/README.md`
+- `dispatch/tools-plugin/README.md`
+- `dispatch/logs/story_07_contract.md`
+- `dispatch/logs/progress_log.md`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+
+Endpoint/Behavior Delivered:
+- Added `POST /tickets/{ticketId}/evidence` (idempotent command) to persist evidence references in `evidence_items` and emit audit events.
+- Added `GET /tickets/{ticketId}/evidence` with fail-closed UUID validation + ticket existence checks.
+- Added `POST /tickets/{ticketId}/tech/complete` with fail-closed requirement enforcement:
+  - uses persisted `evidence_items.metadata.evidence_key`
+  - evaluates template requirements via `evaluateCloseoutRequirements`
+  - rejects incomplete completion with deterministic `409 CLOSEOUT_REQUIREMENTS_INCOMPLETE`
+  - transitions `IN_PROGRESS -> COMPLETED_PENDING_VERIFICATION` only when ready
+- Added bridge regression update for unknown-tool rejection test (`unknown.tool`) after expanding allowlisted tool policies.
+
+Tests Added/Updated:
+- Added `dispatch/tests/story_07_evidence_api.node.test.mjs`:
+  - evidence attach/list deterministic ordering and key assertions
+  - audit insertion checks for `closeout.add_evidence`
+  - fail-closed completion rejection for missing required evidence
+  - completion success path with transition + audit assertions
+  - invalid UUID (`400`) and unknown ticket (`404`) for evidence list
+- Updated `dispatch/tests/story_04_tool_bridge.node.test.mjs` unknown tool fixture.
+
+Validation Commands + Results:
+- `node --test dispatch/tests/story_07_evidence_api.node.test.mjs` -> PASS (5/5)
+- `node --test dispatch/tests/story_06_incident_templates.node.test.mjs` -> PASS (7/7)
+- `node --test dispatch/tests/story_05_authorization.node.test.mjs` -> PASS (4/4)
+- `node --test dispatch/tests/story_04_tool_bridge.node.test.mjs` -> PASS (3/3)
+- `node --test dispatch/tests/story_02_timeline.node.test.mjs` -> PASS (3/3)
+- `node --test dispatch/tests/story_01_idempotency.node.test.mjs` -> PASS (4/4)
+- `node --test dispatch/tests/001_init_migration.node.test.mjs` -> PASS (4/4)
+
+Caveats / Risks:
+- Running many docker-backed node tests in one parallel `node --test` invocation can cause transient cross-test container shutdown conflicts; sequential test execution remains stable and is used as the authoritative validation path.
+- `tech.complete` currently relies on persisted `metadata.evidence_key` values; evidence entries missing this key will not satisfy template evidence requirements.
+
+## 2026-02-13 20:24 PST
+
+### STORY-09
+Summary:
+Started STORY-09 implementation for structured request logging and basic dispatch-api metrics export.
+
+Plan:
+- Define observability contract for log fields and metrics snapshot endpoint.
+- Implement structured logging for every request path with deterministic request/correlation fields.
+- Add in-memory metrics counters for requests/errors/transitions and expose them via `GET /metrics`.
+- Add node-native integration test proving log envelope completeness and metric counter increments.
+
+Planned File Changes:
+- `dispatch/api/src/server.mjs`
+- `dispatch/tests/story_09_observability.node.test.mjs`
+- `dispatch/api/README.md`
+- `dispatch/logs/story_09_contract.md`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+
+## 2026-02-13 20:27 PST
+
+### STORY-09
+Summary:
+Completed STORY-09 by adding structured request logging coverage across all dispatch-api outcomes and exporting deterministic basic metrics.
+
+Files Modified:
+- `dispatch/api/src/server.mjs`
+- `dispatch/tests/story_09_observability.node.test.mjs`
+- `dispatch/api/README.md`
+- `dispatch/logs/story_09_contract.md`
+- `dispatch/logs/progress_log.md`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+
+Observability Behavior Delivered:
+- Structured request logs now emit for every handled path (including errors and unmatched routes) with:
+  - `request_id`, `correlation_id`, `trace_id`
+  - `actor_type`, `actor_id`, `actor_role`
+  - `tool_name`, `ticket_id`
+  - `endpoint`, `status`, `duration_ms`, and `replay`
+  - `error_code` + `message` on failures
+- Added in-memory metrics registry and `GET /metrics` snapshot endpoint with deterministic ordering:
+  - `requests_total{method,endpoint,status}`
+  - `errors_total{code}`
+  - `transitions_total{from_state,to_state}`
+  - `idempotency_replay_total`
+  - `idempotency_conflict_total`
+- Transition metrics increment at the same point where `ticket_state_transitions` rows are written.
+
+Tests Added:
+- `dispatch/tests/story_09_observability.node.test.mjs`
+  - asserts structured log envelope fields for success/replay/error/unmatched requests
+  - asserts `/metrics` counters for requests/errors/transitions
+  - asserts idempotency replay/conflict counters
+
+Validation Commands + Results:
+- `node --test dispatch/tests/story_09_observability.node.test.mjs` -> PASS (1/1)
+- `node --test dispatch/tests/story_07_evidence_api.node.test.mjs` -> PASS (5/5)
+- `node --test dispatch/tests/story_06_incident_templates.node.test.mjs` -> PASS (7/7)
+- `node --test dispatch/tests/story_05_authorization.node.test.mjs` -> PASS (4/4)
+- `node --test dispatch/tests/story_04_tool_bridge.node.test.mjs` -> PASS (3/3)
+- `node --test dispatch/tests/story_02_timeline.node.test.mjs` -> PASS (3/3)
+- `node --test dispatch/tests/story_01_idempotency.node.test.mjs` -> PASS (4/4)
+- `node --test dispatch/tests/001_init_migration.node.test.mjs` -> PASS (4/4)
+
+Caveats / Risks:
+- Metrics are process-local in-memory counters and reset on service restart; this is acceptable for v0 baseline observability but not a durable production metrics backend.
+
+## 2026-02-13 20:32 PST
+
+### STORY-08
+Summary:
+Started STORY-08 implementation for canonical deterministic emergency E2E harness with explicit fail-closed evidence rejection branch.
+
+Plan:
+- Define STORY-08 E2E contract with bridge-driven scenario steps and deterministic assertions.
+- Add node-native E2E test that exercises command chain, missing-evidence rejection, idempotency replay, and successful completion.
+- Assert timeline/audit/transition integrity for successful mutations.
+- Run STORY-08 test plus regression suite and update backlog tracking.
+
+Planned File Changes:
+- `dispatch/tests/story_08_e2e_canonical.node.test.mjs`
+- `dispatch/e2e/README.md`
+- `dispatch/logs/story_08_contract.md`
+- `dispatch/logs/progress_log.md`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+
+## 2026-02-13 20:34 PST
+
+### STORY-08
+Summary:
+Completed STORY-08 by implementing a deterministic canonical emergency E2E harness that runs through tool bridge -> dispatch-api -> DB and asserts fail-closed policy behavior.
+
+Files Modified:
+- `dispatch/tests/story_08_e2e_canonical.node.test.mjs`
+- `dispatch/e2e/README.md`
+- `dispatch/logs/story_08_contract.md`
+- `dispatch/logs/progress_log.md`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+
+E2E Behavior Delivered:
+- Canonical emergency scenario chain executed through bridge tool calls:
+  - `ticket.create` -> `ticket.triage` -> `assignment.dispatch`
+  - fail-closed `tech.complete` attempt with missing evidence
+  - evidence uploads with idempotent replay check
+  - successful `tech.complete`
+  - `ticket.timeline` integrity checks
+- Includes deterministic fail-closed assertion:
+  - missing evidence returns bridge-wrapped `409 CLOSEOUT_REQUIREMENTS_INCOMPLETE`
+- Includes idempotency assertion:
+  - replaying same evidence request id does not duplicate evidence row/audit mutation
+- Includes audit and transition integrity assertions:
+  - timeline ordered by `created_at`, tie-breaker `id`
+  - timeline count equals successful unique mutations
+  - completion transition row (`IN_PROGRESS -> COMPLETED_PENDING_VERIFICATION`) exists exactly once
+
+Validation Commands + Results:
+- `node --test dispatch/tests/story_08_e2e_canonical.node.test.mjs` -> PASS (1/1)
+- `node --test dispatch/tests/story_09_observability.node.test.mjs` -> PASS (1/1)
+- `node --test dispatch/tests/story_07_evidence_api.node.test.mjs` -> PASS (5/5)
+- `node --test dispatch/tests/story_06_incident_templates.node.test.mjs` -> PASS (7/7)
+- `node --test dispatch/tests/story_05_authorization.node.test.mjs` -> PASS (4/4)
+- `node --test dispatch/tests/story_04_tool_bridge.node.test.mjs` -> PASS (3/3)
+- `node --test dispatch/tests/story_02_timeline.node.test.mjs` -> PASS (3/3)
+- `node --test dispatch/tests/story_01_idempotency.node.test.mjs` -> PASS (4/4)
+- `node --test dispatch/tests/001_init_migration.node.test.mjs` -> PASS (4/4)
+
+Caveats / Risks:
+- The harness currently applies a deterministic DB shim to move `DISPATCHED -> IN_PROGRESS` because `tech.check_in` is not yet implemented in dispatch-api.
+
+## 2026-02-14 03:12 PST
+
+### STORY-10
+Summary:
+Started STORY-10 implementation for dispatcher cockpit UX spec and technician job packet spec publication.
+
+Plan:
+- Define STORY-10 contract and artifact set for dispatcher queue + tech packet.
+- Publish dispatcher cockpit spec with explicit SLA timers, assignment override flow, and timeline panel behavior.
+- Publish technician job packet spec with required fields, evidence/checklist mapping, and closeout gate requirements.
+- Add node-native doc conformance test to keep required sections from regressing.
+
+Planned File Changes:
+- `dispatch/ux/README.md`
+- `dispatch/ux/dispatcher_cockpit_v0.md`
+- `dispatch/ux/technician_job_packet_v0.md`
+- `dispatch/tests/story_10_ux_spec.node.test.mjs`
+- `dispatch/logs/story_10_contract.md`
+- `dispatch/logs/progress_log.md`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+
+## 2026-02-14 03:14 PST
+
+### STORY-10
+Summary:
+Completed STORY-10 by publishing the v0 dispatcher cockpit + technician job packet UX specification package with deterministic conformance tests.
+
+Files Modified:
+- `dispatch/ux/README.md`
+- `dispatch/ux/dispatcher_cockpit_v0.md`
+- `dispatch/ux/technician_job_packet_v0.md`
+- `dispatch/tests/story_10_ux_spec.node.test.mjs`
+- `dispatch/logs/story_10_contract.md`
+- `dispatch/logs/progress_log.md`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+
+UX Spec Deliverables:
+- Dispatcher cockpit spec includes:
+  - queue field model with `sla_timer_remaining` and `sla_status`
+  - SLA timer behavior and breach highlighting rules
+  - assignment override flow with required reasoning inputs and audit warning
+  - timeline panel behavior and required event fields
+  - ASCII wireframe of cockpit layout
+- Technician job packet spec includes:
+  - required packet fields for onsite execution
+  - incident-template evidence mapping and checklist gates
+  - explicit signature/no-signature requirement path
+  - closeout fail-closed behavior and mobile ASCII wireframe
+
+Tests Added:
+- `dispatch/tests/story_10_ux_spec.node.test.mjs`
+  - verifies UX artifacts exist
+  - verifies dispatcher spec includes SLA timer, assignment override, timeline, wireframe sections
+  - verifies tech packet spec includes required fields, evidence mapping, signature handling, closeout gate sections
+
+Validation Commands + Results:
+- `node --test dispatch/tests/story_10_ux_spec.node.test.mjs` -> PASS (3/3)
+- `node --test dispatch/tests/story_08_e2e_canonical.node.test.mjs` -> PASS (1/1)
+- `node --test dispatch/tests/story_09_observability.node.test.mjs` -> PASS (1/1)
+- `node --test dispatch/tests/story_07_evidence_api.node.test.mjs` -> PASS (5/5)
+- `node --test dispatch/tests/story_06_incident_templates.node.test.mjs` -> PASS (7/7)
+- `node --test dispatch/tests/story_05_authorization.node.test.mjs` -> PASS (4/4)
+- `node --test dispatch/tests/story_04_tool_bridge.node.test.mjs` -> PASS (3/3)
+- `node --test dispatch/tests/story_02_timeline.node.test.mjs` -> PASS (3/3)
+- `node --test dispatch/tests/story_01_idempotency.node.test.mjs` -> PASS (4/4)
+- `node --test dispatch/tests/001_init_migration.node.test.mjs` -> PASS (4/4)
+
+Outcome:
+- STORY-10 marked COMPLETE.
+- Entire v0 backlog (`STORY-01` through `STORY-10`) is now complete.

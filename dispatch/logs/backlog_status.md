@@ -8,7 +8,7 @@
 | STORY-04 | EPIC-03: Closed Toolset + Integration | P0 | COMPLETE | Implemented closed tool bridge with allowlisted tool-to-endpoint mappings, deny-by-default unknown-tool rejection, per-role bridge gating, and request/correlation propagation validation via node-native integration tests. |
 | STORY-05 | EPIC-03: Closed Toolset + Integration | P0 | COMPLETE | Added authoritative server-side role/tool/state authorization hardening, enforced endpoint tool-name checks (`TOOL_NOT_ALLOWED`), centralized state-context policy checks, and synchronized bridge/API policies via shared module with node-native coverage. |
 | STORY-06 | EPIC-04: Evidence + Incident Templates | P0 | COMPLETE | Implemented versioned incident template policy model with deterministic loader/parser and fail-closed closeout readiness evaluation for required evidence/checklist gates. |
-| STORY-07 | EPIC-04: Evidence + Incident Templates | P0 | PENDING | Template model now exists; next step is evidence API/object-store references and enforcement integration in completion flows. |
-| STORY-08 | EPIC-05: E2E Proof | P0 | PENDING | Depends on endpoint/tool/audit/evidence enforcement chain. |
-| STORY-09 | EPIC-06: Observability | P1 | PENDING | Not in P0 spine. |
-| STORY-10 | EPIC-07: UX (v0 minimal) | P1 | PENDING | Not in P0 spine. |
+| STORY-07 | EPIC-04: Evidence + Incident Templates | P0 | COMPLETE | Implemented evidence attach/list endpoints over `evidence_items` plus fail-closed `tech.complete` gating against persisted `metadata.evidence_key` references and checklist status with deterministic integration coverage. |
+| STORY-08 | EPIC-05: E2E Proof | P0 | COMPLETE | Added deterministic canonical emergency E2E harness via tool bridge, including fail-closed missing-evidence rejection, idempotent evidence replay assertions, and timeline/audit/transition integrity checks. |
+| STORY-09 | EPIC-06: Observability | P1 | COMPLETE | Added structured per-request logging envelope with request/correlation/trace context and exported `/metrics` counters for requests/errors/transitions plus idempotency replay/conflict tracking. |
+| STORY-10 | EPIC-07: UX (v0 minimal) | P1 | COMPLETE | Published v0 UX specification package for dispatcher cockpit and technician job packet, including SLA timers, assignment override flow, timeline view, and closeout evidence/checklist requirements. |

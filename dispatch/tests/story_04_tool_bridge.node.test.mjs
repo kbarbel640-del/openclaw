@@ -291,7 +291,7 @@ test("bridge rejects unknown tools fail closed", async () => {
   await assert.rejects(
     invokeDispatchAction({
       baseUrl: dispatchApiBaseUrl,
-      toolName: "tech.complete",
+      toolName: "unknown.tool",
       actorId: "dispatcher-bridge-2",
       actorRole: "dispatcher",
     }),

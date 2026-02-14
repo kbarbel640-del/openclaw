@@ -1,8 +1,8 @@
 # Next Story Recommendation
 
-Recommended next P0 story: `STORY-07`.
+No remaining stories in the v0 backlog.
 
-Rationale:
-- `STORY-06` delivered incident template policy modeling and deterministic requirement evaluation.
-- Remaining EPIC-04 gap is persisted evidence integration (API/object-store references) so template gates operate on real artifacts.
-- Completing `STORY-07` next unlocks canonical missing-evidence policy-violation E2E proof in `STORY-08`.
+Recommended follow-on (post-v0 hardening):
+1. Production authn/authz integration (replace header-based actor context).
+2. Remaining command/read endpoint completion to full OpenAPI parity.
+3. External metrics backend integration and alert policy tuning.

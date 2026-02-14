@@ -15,6 +15,9 @@ This plugin is the control-plane bridge. It should expose only the closed dispat
 - `ticket.triage` -> `POST /tickets/{ticketId}/triage`
 - `schedule.confirm` -> `POST /tickets/{ticketId}/schedule/confirm`
 - `assignment.dispatch` -> `POST /tickets/{ticketId}/assignment/dispatch`
+- `closeout.add_evidence` -> `POST /tickets/{ticketId}/evidence`
+- `tech.complete` -> `POST /tickets/{ticketId}/tech/complete`
+- `closeout.list_evidence` -> `GET /tickets/{ticketId}/evidence`
 - `ticket.timeline` -> `GET /tickets/{ticketId}/timeline`
 
 Unknown tools and role/tool mismatches are rejected fail closed by the bridge before calling dispatch-api.
