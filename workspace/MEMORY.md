@@ -22,14 +22,13 @@
 - 38/38 regression on Sonnet, Haiku, AND free 11B model (StepFun Step 3.5 Flash)
 - Merged to main, pushed to github
 
-### Domain Architecture (IN PROGRESS — key decisions)
-- **Intent → Domain(s) → Specialists**: user message classified into domains, specialist sub-agents spawned per domain
-- **User roles**: owner/employee/customer — determines domain access + action permissions
-- **Security = Supabase RLS** (database enforces, NOT the model) — generic policies, NOT per-table custom views/RPCs
-- **Users = Supabase Auth** + profiles table (NOT a JSON file) — phone auth for WhatsApp
-- **Domain knowledge = skill folders** with extracted protocol knowledge
-- **Classification = LLM reasoning** reading skill descriptions (NOT a rigid registry)
-- **Must scale**: AutifyME serves millions of businesses, solutions must be generic
+### Domain Architecture (UNDER DISCUSSION — NOT finalized)
+- Abhishek wants: user message → classify intent into domain(s) → spawn specialist sub-agents per domain → each specialist uses domain-specific skills
+- User roles (owner/employee/customer) affect domain access + action permissions
+- Discussion so far explored: RLS for security, Supabase Auth for users, skill folders for domain knowledge, LLM for classification
+- **Abhishek's feedback**: I overcomplicated with custom views/RPCs/registries — solutions must be GENERIC and scale to millions of businesses
+- **NOT DECIDED YET** — more discussions needed before finalizing design
+- Key docs to review: `AutifyME/docs/whitepaper.md` (14 domains, platform vision), `AutifyME/docs/REDESIGN_MASTER_DOCUMENT.md`
 
 ### OpenRouter
 - API key configured in OpenClaw (`env.OPENROUTER_API_KEY`)
