@@ -40,4 +40,6 @@ export type WebInboundMessage = {
   mediaFileName?: string;
   mediaUrl?: string;
   wasMentioned?: boolean;
+  /** When true, message should only be stored for group context — not trigger a reply. */
+  contextOnly?: boolean;
 };
