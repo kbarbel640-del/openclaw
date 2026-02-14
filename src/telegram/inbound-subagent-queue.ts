@@ -284,20 +284,7 @@ export class TelegramInboundSubagentQueue {
     const queueWaitMs = Math.max(0, taskStartMs - task.enqueuedAtMs);
     const threadParams = buildTelegramThreadParams(task.threadSpec);
     await this.setReaction(task, "⏳");
-
-    let streamMessageId: number | undefined;
-    const sendStreamSeed = async () => {
-      const sent = await withTelegramApiErrorLogging({
-        operation: "sendMessage",
-        runtime: this.runtime,
-        fn: async () =>
-          await this.bot.api.sendMessage(task.chatId, "⏳ Processing…", {
-            ...threadParams,
-            reply_to_message_id: task.messageId,
-          }),
-      });
-      streamMessageId = sent?.message_id;
-    };
+    let replyMessageId: number | undefined;
 
     try {
       const memory = await loadTelegramQueueMemory({
@@ -335,10 +322,7 @@ export class TelegramInboundSubagentQueue {
           params: agentParams,
           timeoutMs: 10_000,
         }),
-        (async () => {
-          await sendStreamSeed();
-          await this.setReaction(task, "👀");
-        })(),
+        this.setReaction(task, "👀"),
       ]).then(([agent]) => agent);
       const runId =
         typeof response?.runId === "string" && response.runId.trim()
@@ -349,18 +333,6 @@ export class TelegramInboundSubagentQueue {
       let failed = false;
       let finalText = "";
       while (!done) {
-        const latest = await readLatestAssistantReply(childSessionKey).catch(() => undefined);
-        if (latest && latest !== finalText && streamMessageId != null) {
-          finalText = latest;
-          const rendered = sanitizeMessageText(latest);
-          await withTelegramApiErrorLogging({
-            operation: "editMessageText",
-            runtime: this.runtime,
-            fn: async () =>
-              await this.bot.api.editMessageText(task.chatId, streamMessageId!, rendered),
-          }).catch(() => undefined);
-        }
-
         const waited = await callGateway<{ status?: string; error?: string }>({
           method: "agent.wait",
           params: { runId, timeoutMs: WAIT_STEP_TIMEOUT_MS },
@@ -386,35 +358,16 @@ export class TelegramInboundSubagentQueue {
         finalText = failed ? "Subagent failed." : "(no response)";
       }
       const renderedFinal = sanitizeMessageText(finalText);
-
-      if (streamMessageId != null) {
-        await withTelegramApiErrorLogging({
-          operation: "editMessageText",
-          runtime: this.runtime,
-          fn: async () =>
-            await this.bot.api.editMessageText(task.chatId, streamMessageId!, renderedFinal),
-        }).catch(async () => {
-          await withTelegramApiErrorLogging({
-            operation: "sendMessage",
-            runtime: this.runtime,
-            fn: async () =>
-              await this.bot.api.sendMessage(task.chatId, renderedFinal, {
-                ...threadParams,
-                reply_to_message_id: task.messageId,
-              }),
-          }).catch(() => undefined);
-        });
-      } else {
-        await withTelegramApiErrorLogging({
-          operation: "sendMessage",
-          runtime: this.runtime,
-          fn: async () =>
-            await this.bot.api.sendMessage(task.chatId, renderedFinal, {
-              ...threadParams,
-              reply_to_message_id: task.messageId,
-            }),
-        }).catch(() => undefined);
-      }
+      const sent = await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        runtime: this.runtime,
+        fn: async () =>
+          await this.bot.api.sendMessage(task.chatId, renderedFinal, {
+            ...threadParams,
+            reply_to_message_id: task.messageId,
+          }),
+      }).catch(() => undefined);
+      replyMessageId = sent?.message_id;
 
       await appendTelegramQueueTurn({
         storePath: task.storePath,
@@ -423,7 +376,7 @@ export class TelegramInboundSubagentQueue {
         turn: {
           role: "assistant",
           text: renderedFinal,
-          messageId: streamMessageId != null ? String(streamMessageId) : undefined,
+          messageId: replyMessageId != null ? String(replyMessageId) : undefined,
           ts: Date.now(),
         },
       });
@@ -435,24 +388,15 @@ export class TelegramInboundSubagentQueue {
         ),
       );
       const fallbackText = "⚠️ Failed to process queued message. Please try again.";
-      if (streamMessageId != null) {
-        await withTelegramApiErrorLogging({
-          operation: "editMessageText",
-          runtime: this.runtime,
-          fn: async () =>
-            await this.bot.api.editMessageText(task.chatId, streamMessageId!, fallbackText),
-        }).catch(() => undefined);
-      } else {
-        await withTelegramApiErrorLogging({
-          operation: "sendMessage",
-          runtime: this.runtime,
-          fn: async () =>
-            await this.bot.api.sendMessage(task.chatId, fallbackText, {
-              ...threadParams,
-              reply_to_message_id: task.messageId,
-            }),
-        }).catch(() => undefined);
-      }
+      await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        runtime: this.runtime,
+        fn: async () =>
+          await this.bot.api.sendMessage(task.chatId, fallbackText, {
+            ...threadParams,
+            reply_to_message_id: task.messageId,
+          }),
+      }).catch(() => undefined);
       await this.setReaction(task, "⚠️");
     }
   }
