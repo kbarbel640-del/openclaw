@@ -522,7 +522,17 @@ export async function runTui(opts: TuiOptions) {
       reasoningLabel,
       tokens,
     ].filter(Boolean);
-    footer.setText(theme.dim(footerParts.join(" | ")));
+    // Smart footer with Ollama metrics
+    const smartFooter = formatFooter({
+      model: modelLabel,
+      tokPerSec: sessionInfo.tokPerSec ?? undefined,
+      totalTokens: sessionInfo.totalTokens ?? undefined,
+      contextTokens: sessionInfo.contextTokens ?? undefined,
+      connectivityStatus: sessionInfo.connectivityStatus ?? (isConnected ? "online" : "local-only"),
+      ollamaHealthy: sessionInfo.ollamaHealthy !== false,
+    });
+    const legacyFooter = theme.dim(footerParts.join(" | "));
+    footer.setText(`${smartFooter}\n${legacyFooter}`);
   };
 
   const { openOverlay, closeOverlay } = createOverlayHandlers(tui, editor);
