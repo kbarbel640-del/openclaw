@@ -2,6 +2,7 @@ import type { HistoryEntry } from "../../auto-reply/reply/history.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { DmPolicy, GroupPolicy, SignalReactionNotificationMode } from "../../config/types.js";
+import type { SignalApiMode } from "../../config/types.signal.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import type { SignalSender } from "../identity.js";
 
@@ -73,6 +74,7 @@ export type SignalEventHandlerDeps = {
   baseUrl: string;
   account?: string;
   accountId: string;
+  apiMode: SignalApiMode;
   blockStreaming?: boolean;
   historyLimit: number;
   groupHistories: Map<string, HistoryEntry[]>;
@@ -94,6 +96,7 @@ export type SignalEventHandlerDeps = {
     sender?: string;
     groupId?: string;
     maxBytes: number;
+    apiMode: SignalApiMode;
   }) => Promise<{ path: string; contentType?: string } | null>;
   deliverReplies: (params: {
     replies: ReplyPayload[];

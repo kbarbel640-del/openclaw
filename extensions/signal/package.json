@@ -2,8 +2,11 @@
   "name": "@openclaw/signal",
   "version": "2026.2.13",
   "private": true,
-  "description": "OpenClaw Signal channel plugin",
+  "description": "OpenClaw Signal channel plugin with Python bridge support",
   "type": "module",
+  "scripts": {
+    "install-bridge": "pip3 install -r bridge/requirements.txt"
+  },
   "devDependencies": {
     "openclaw": "workspace:*"
   },

@@ -4,7 +4,12 @@ import { mediaKindFromMime } from "../media/constants.js";
 import { saveMediaBuffer } from "../media/store.js";
 import { loadWebMedia } from "../web/media.js";
 import { resolveSignalAccount } from "./accounts.js";
-import { signalRpcRequest } from "./client.js";
+import {
+  type SignalApiMode,
+  sendMessageAdapter,
+  sendTypingAdapter,
+  sendReceiptAdapter,
+} from "./client-adapter.js";
 import { markdownToSignalText, type SignalTextStyleRange } from "./format.js";
 
 export type SignalSendOpts = {
@@ -16,6 +21,7 @@ export type SignalSendOpts = {
   timeoutMs?: number;
   textMode?: "markdown" | "plain";
   textStyles?: SignalTextStyleRange[];
+  apiMode?: SignalApiMode;
 };
 
 export type SignalSendResult = {
@@ -190,19 +196,6 @@ export async function sendMessageSignal(
     throw new Error("Signal send requires text or media");
   }
 
-  const params: Record<string, unknown> = { message };
-  if (textStyles.length > 0) {
-    params["text-style"] = textStyles.map(
-      (style) => `${style.start}:${style.length}:${style.style}`,
-    );
-  }
-  if (account) {
-    params.account = account;
-  }
-  if (attachments && attachments.length > 0) {
-    params.attachments = attachments;
-  }
-
   const targetParams = buildTargetParams(target, {
     recipient: true,
     group: true,
@@ -211,12 +204,24 @@ export async function sendMessageSignal(
   if (!targetParams) {
     throw new Error("Signal recipient is required");
   }
-  Object.assign(params, targetParams);
 
-  const result = await signalRpcRequest<{ timestamp?: number }>("send", params, {
+  const apiMode = opts.apiMode ?? "container";
+
+  const recipients = targetParams.recipient ?? [];
+  const groupId = targetParams.groupId;
+
+  const result = await sendMessageAdapter({
     baseUrl,
+    account: account ?? "",
+    recipients,
+    groupId,
+    message,
+    textStyles,
+    attachments,
+    apiMode,
     timeoutMs: opts.timeoutMs,
   });
+
   const timestamp = result?.timestamp;
   return {
     messageId: timestamp ? String(timestamp) : "unknown",
@@ -226,34 +231,39 @@ export async function sendMessageSignal(
 
 export async function sendTypingSignal(
   to: string,
-  opts: SignalRpcOpts & { stop?: boolean } = {},
+  opts: SignalRpcOpts & { stop?: boolean; apiMode?: SignalApiMode } = {},
 ): Promise<boolean> {
   const { baseUrl, account } = resolveSignalRpcContext(opts);
   const targetParams = buildTargetParams(parseTarget(to), {
     recipient: true,
     group: true,
   });
-  if (!targetParams) {
+  if (!targetParams || !account) {
     return false;
   }
-  const params: Record<string, unknown> = { ...targetParams };
-  if (account) {
-    params.account = account;
+
+  const recipient = targetParams.recipient?.[0] ?? targetParams.groupId;
+  if (!recipient) {
+    return false;
   }
-  if (opts.stop) {
-    params.stop = true;
-  }
-  await signalRpcRequest("sendTyping", params, {
+
+  const apiMode = opts.apiMode ?? "container";
+
+  return sendTypingAdapter({
     baseUrl,
+    account,
+    recipient,
+    groupId: targetParams.groupId,
+    stop: opts.stop,
+    apiMode,
     timeoutMs: opts.timeoutMs,
   });
-  return true;
 }
 
 export async function sendReadReceiptSignal(
   to: string,
   targetTimestamp: number,
-  opts: SignalRpcOpts & { type?: SignalReceiptType } = {},
+  opts: SignalRpcOpts & { type?: SignalReceiptType; apiMode?: SignalApiMode } = {},
 ): Promise<boolean> {
   if (!Number.isFinite(targetTimestamp) || targetTimestamp <= 0) {
     return false;
@@ -262,20 +272,24 @@ export async function sendReadReceiptSignal(
   const targetParams = buildTargetParams(parseTarget(to), {
     recipient: true,
   });
-  if (!targetParams) {
+  if (!targetParams || !account) {
     return false;
   }
-  const params: Record<string, unknown> = {
-    ...targetParams,
-    targetTimestamp,
-    type: opts.type ?? "read",
-  };
-  if (account) {
-    params.account = account;
+
+  const recipient = targetParams.recipient?.[0];
+  if (!recipient) {
+    return false;
   }
-  await signalRpcRequest("sendReceipt", params, {
+
+  const apiMode = opts.apiMode ?? "container";
+
+  return sendReceiptAdapter({
     baseUrl,
+    account,
+    recipient,
+    targetTimestamp,
+    type: opts.type,
+    apiMode,
     timeoutMs: opts.timeoutMs,
   });
-  return true;
 }

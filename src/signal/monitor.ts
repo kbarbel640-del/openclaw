@@ -9,7 +9,12 @@ import { waitForTransportReady } from "../infra/transport-ready.js";
 import { saveMediaBuffer } from "../media/store.js";
 import { normalizeE164 } from "../utils.js";
 import { resolveSignalAccount } from "./accounts.js";
-import { signalCheck, signalRpcRequest } from "./client.js";
+import {
+  detectSignalApiMode,
+  fetchAttachmentAdapter,
+  type SignalApiMode,
+} from "./client-adapter.js";
+import { signalCheck } from "./client.js";
 import { spawnSignalDaemon } from "./daemon.js";
 import { isSignalSenderAllowed, type resolveSignalSender } from "./identity.js";
 import { createSignalEventHandler } from "./monitor/event-handler.js";
@@ -186,6 +191,7 @@ async function fetchAttachment(params: {
   sender?: string;
   groupId?: string;
   maxBytes: number;
+  apiMode: SignalApiMode;
 }): Promise<{ path: string; contentType?: string } | null> {
   const { attachment } = params;
   if (!attachment?.id) {
@@ -196,27 +202,19 @@ async function fetchAttachment(params: {
       `Signal attachment ${attachment.id} exceeds ${(params.maxBytes / (1024 * 1024)).toFixed(0)}MB limit`,
     );
   }
-  const rpcParams: Record<string, unknown> = {
-    id: attachment.id,
-  };
-  if (params.account) {
-    rpcParams.account = params.account;
-  }
-  if (params.groupId) {
-    rpcParams.groupId = params.groupId;
-  } else if (params.sender) {
-    rpcParams.recipient = params.sender;
-  } else {
-    return null;
-  }
 
-  const result = await signalRpcRequest<{ data?: string }>("getAttachment", rpcParams, {
+  const buffer = await fetchAttachmentAdapter({
     baseUrl: params.baseUrl,
+    account: params.account,
+    attachmentId: attachment.id,
+    sender: params.sender,
+    groupId: params.groupId,
+    apiMode: params.apiMode,
   });
-  if (!result?.data) {
+
+  if (!buffer) {
     return null;
   }
-  const buffer = Buffer.from(result.data, "base64");
   const saved = await saveMediaBuffer(
     buffer,
     attachment.contentType ?? undefined,
@@ -236,9 +234,20 @@ async function deliverReplies(params: {
   maxBytes: number;
   textLimit: number;
   chunkMode: "length" | "newline";
+  apiMode: SignalApiMode;
 }) {
-  const { replies, target, baseUrl, account, accountId, runtime, maxBytes, textLimit, chunkMode } =
-    params;
+  const {
+    replies,
+    target,
+    baseUrl,
+    account,
+    accountId,
+    runtime,
+    maxBytes,
+    textLimit,
+    chunkMode,
+    apiMode,
+  } = params;
   for (const payload of replies) {
     const mediaList = payload.mediaUrls ?? (payload.mediaUrl ? [payload.mediaUrl] : []);
     const text = payload.text ?? "";
@@ -252,6 +261,7 @@ async function deliverReplies(params: {
           account,
           maxBytes,
           accountId,
+          apiMode,
         });
       }
     } else {
@@ -265,6 +275,7 @@ async function deliverReplies(params: {
           mediaUrl: url,
           maxBytes,
           accountId,
+          apiMode,
         });
       }
     }
@@ -349,12 +360,27 @@ export async function monitorSignalProvider(opts: MonitorSignalOpts = {}): Promi
       });
     }
 
+    // Detect API mode (auto, jsonrpc, or rest) before creating event handler
+    const configuredMode = accountInfo.config.apiMode ?? "auto";
+    let apiMode: SignalApiMode;
+
+    if (configuredMode === "auto") {
+      // Auto-detect by probing endpoints
+      apiMode = await detectSignalApiMode(baseUrl);
+      runtime.log?.(`[signal] detected API mode: ${apiMode}`);
+    } else {
+      // Use configured mode
+      apiMode = configuredMode as SignalApiMode;
+      runtime.log?.(`[signal] using configured API mode: ${apiMode}`);
+    }
+
     const handleEvent = createSignalEventHandler({
       runtime,
       cfg,
       baseUrl,
       account,
       accountId: accountInfo.accountId,
+      apiMode,
       blockStreaming: accountInfo.config.blockStreaming,
       historyLimit,
       groupHistories,
@@ -370,7 +396,7 @@ export async function monitorSignalProvider(opts: MonitorSignalOpts = {}): Promi
       sendReadReceipts,
       readReceiptsViaDaemon,
       fetchAttachment,
-      deliverReplies: (params) => deliverReplies({ ...params, chunkMode }),
+      deliverReplies: (params) => deliverReplies({ ...params, chunkMode, apiMode }),
       resolveSignalReactionTargets,
       isSignalReactionMessage,
       shouldEmitSignalReactionNotification,
@@ -382,17 +408,13 @@ export async function monitorSignalProvider(opts: MonitorSignalOpts = {}): Promi
       account,
       abortSignal: opts.abortSignal,
       runtime,
+      apiMode,
       onEvent: (event) => {
         void handleEvent(event).catch((err) => {
           runtime.error?.(`event handler failed: ${String(err)}`);
         });
       },
     });
-  } catch (err) {
-    if (opts.abortSignal?.aborted) {
-      return;
-    }
-    throw err;
   } finally {
     opts.abortSignal?.removeEventListener("abort", onAbort);
     daemonHandle?.stop();

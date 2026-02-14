@@ -2,6 +2,8 @@ node_modules
 **/node_modules/
 .env
 docker-compose.extra.yml
+docker-compose.override.yml
+tsconfig.tsbuildinfo
 dist
 pnpm-lock.yaml
 bun.lock

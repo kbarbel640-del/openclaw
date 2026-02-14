@@ -1,8 +1,10 @@
 import { Type } from "@sinclair/typebox";
 import Ajv from "ajv";
-import fs from "node:fs/promises";
+import fs from "node:fs";
+import fsPromises from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 // NOTE: This extension is intended to be bundled with OpenClaw.
 // When running from source (tests/dev), OpenClaw internals live under src/.
 // When running from a built install, internals live under dist/ (no src/ tree).
@@ -10,6 +12,66 @@ import path from "node:path";
 import type { OpenClawPluginApi } from "../../../src/plugins/types.js";
 
 type RunEmbeddedPiAgentFn = (params: Record<string, unknown>) => Promise<unknown>;
+
+let coreRootCache: string | null = null;
+
+function findPackageRoot(startDir: string, name: string): string | null {
+  let dir = startDir;
+  for (;;) {
+    const pkgPath = path.join(dir, "package.json");
+    try {
+      if (fs.existsSync(pkgPath)) {
+        const raw = fs.readFileSync(pkgPath, "utf8");
+        const pkg = JSON.parse(raw) as { name?: string };
+        if (pkg.name === name) {
+          return dir;
+        }
+      }
+    } catch {
+      // ignore parse errors and keep walking
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      return null;
+    }
+    dir = parent;
+  }
+}
+
+function resolveOpenClawRoot(): string {
+  if (coreRootCache) {
+    return coreRootCache;
+  }
+  const override = process.env.OPENCLAW_ROOT?.trim();
+  if (override) {
+    coreRootCache = override;
+    return override;
+  }
+
+  const candidates = new Set<string>();
+  if (process.argv[1]) {
+    candidates.add(path.dirname(process.argv[1]));
+  }
+  candidates.add(process.cwd());
+  try {
+    const urlPath = fileURLToPath(import.meta.url);
+    candidates.add(path.dirname(urlPath));
+  } catch {
+    // ignore
+  }
+
+  for (const start of candidates) {
+    for (const name of ["openclaw"]) {
+      const found = findPackageRoot(start, name);
+      if (found) {
+        coreRootCache = found;
+        return found;
+      }
+    }
+  }
+
+  throw new Error("Unable to resolve core root. Set OPENCLAW_ROOT to the package root.");
+}
 
 async function loadRunEmbeddedPiAgent(): Promise<RunEmbeddedPiAgentFn> {
   // Source checkout (tests/dev)
@@ -24,10 +86,16 @@ async function loadRunEmbeddedPiAgent(): Promise<RunEmbeddedPiAgentFn> {
     // ignore
   }
 
-  // Bundled install (built)
-  const mod = await import("../../../src/agents/pi-embedded-runner.js");
+  // Bundled install (built): use extensionAPI.js
+  const distPath = path.join(resolveOpenClawRoot(), "dist", "extensionAPI.js");
+  if (!fs.existsSync(distPath)) {
+    throw new Error(
+      `Missing core module at ${distPath}. Run \`pnpm build\` or install the official package.`,
+    );
+  }
+  const mod = await import(pathToFileURL(distPath).href);
   if (typeof mod.runEmbeddedPiAgent !== "function") {
-    throw new Error("Internal error: runEmbeddedPiAgent not available");
+    throw new Error("Internal error: runEmbeddedPiAgent not available in extensionAPI");
   }
   return mod.runEmbeddedPiAgent as RunEmbeddedPiAgentFn;
 }
@@ -176,7 +244,7 @@ export function createLlmTaskTool(api: OpenClawPluginApi) {
 
       let tmpDir: string | null = null;
       try {
-        tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-llm-task-"));
+        tmpDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "openclaw-llm-task-"));
         const sessionId = `llm-task-${Date.now()}`;
         const sessionFile = path.join(tmpDir, "session.json");
 
@@ -238,7 +306,7 @@ export function createLlmTaskTool(api: OpenClawPluginApi) {
       } finally {
         if (tmpDir) {
           try {
-            await fs.rm(tmpDir, { recursive: true, force: true });
+            await fsPromises.rm(tmpDir, { recursive: true, force: true });
           } catch {
             // ignore
           }

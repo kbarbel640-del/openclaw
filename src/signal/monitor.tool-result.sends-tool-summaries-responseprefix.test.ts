@@ -44,14 +44,27 @@ vi.mock("../config/sessions.js", () => ({
   recordSessionMetaFromInbound: vi.fn().mockResolvedValue(undefined),
 }));
 
-const streamMock = vi.fn();
 const signalCheckMock = vi.fn();
 const signalRpcRequestMock = vi.fn();
 
 vi.mock("./client.js", () => ({
-  streamSignalEvents: (...args: unknown[]) => streamMock(...args),
+  streamSignalEvents: vi.fn(),
   signalCheck: (...args: unknown[]) => signalCheckMock(...args),
   signalRpcRequest: (...args: unknown[]) => signalRpcRequestMock(...args),
+}));
+
+vi.mock("./client-adapter.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./client-adapter.js")>();
+  return {
+    ...actual,
+    detectSignalApiMode: vi.fn().mockResolvedValue("native"),
+    fetchAttachmentAdapter: vi.fn().mockResolvedValue(null),
+  };
+});
+
+const runSseLoopMock = vi.fn();
+vi.mock("./sse-reconnect.js", () => ({
+  runSignalSseLoop: (...args: unknown[]) => runSseLoopMock(...args),
 }));
 
 vi.mock("./daemon.js", () => ({
@@ -75,7 +88,7 @@ beforeEach(() => {
   sendMock.mockReset().mockResolvedValue(undefined);
   replyMock.mockReset();
   updateLastRouteMock.mockReset();
-  streamMock.mockReset();
+  runSseLoopMock.mockReset();
   signalCheckMock.mockReset().mockResolvedValue({});
   signalRpcRequestMock.mockReset().mockResolvedValue({});
   readAllowFromStoreMock.mockReset().mockResolvedValue([]);
@@ -101,7 +114,7 @@ describe("monitorSignalProvider tool results", () => {
       },
     };
     const abortController = new AbortController();
-    streamMock.mockImplementation(async () => {
+    runSseLoopMock.mockImplementation(async () => {
       abortController.abort();
       return;
     });
@@ -147,7 +160,7 @@ describe("monitorSignalProvider tool results", () => {
       },
     };
     const abortController = new AbortController();
-    streamMock.mockImplementation(async () => {
+    runSseLoopMock.mockImplementation(async () => {
       abortController.abort();
       return;
     });
@@ -189,7 +202,7 @@ describe("monitorSignalProvider tool results", () => {
       },
     };
     const abortController = new AbortController();
-    streamMock.mockImplementation(async () => {
+    runSseLoopMock.mockImplementation(async () => {
       abortController.abort();
       return;
     });
@@ -213,7 +226,7 @@ describe("monitorSignalProvider tool results", () => {
     const abortController = new AbortController();
     replyMock.mockResolvedValue({ text: "final reply" });
 
-    streamMock.mockImplementation(async ({ onEvent }) => {
+    runSseLoopMock.mockImplementation(async ({ onEvent }) => {
       const payload = {
         envelope: {
           sourceNumber: "+15550001111",
@@ -258,7 +271,7 @@ describe("monitorSignalProvider tool results", () => {
     };
     const abortController = new AbortController();
 
-    streamMock.mockImplementation(async ({ onEvent }) => {
+    runSseLoopMock.mockImplementation(async ({ onEvent }) => {
       const payload = {
         envelope: {
           sourceNumber: "+15550001111",
@@ -294,7 +307,7 @@ describe("monitorSignalProvider tool results", () => {
   it("ignores reaction-only messages", async () => {
     const abortController = new AbortController();
 
-    streamMock.mockImplementation(async ({ onEvent }) => {
+    runSseLoopMock.mockImplementation(async ({ onEvent }) => {
       const payload = {
         envelope: {
           sourceNumber: "+15550001111",
@@ -330,7 +343,7 @@ describe("monitorSignalProvider tool results", () => {
   it("ignores reaction-only dataMessage.reaction events (don’t treat as broken attachments)", async () => {
     const abortController = new AbortController();
 
-    streamMock.mockImplementation(async ({ onEvent }) => {
+    runSseLoopMock.mockImplementation(async ({ onEvent }) => {
       const payload = {
         envelope: {
           sourceNumber: "+15550001111",
@@ -382,7 +395,7 @@ describe("monitorSignalProvider tool results", () => {
     };
     const abortController = new AbortController();
 
-    streamMock.mockImplementation(async ({ onEvent }) => {
+    runSseLoopMock.mockImplementation(async ({ onEvent }) => {
       const payload = {
         envelope: {
           sourceNumber: "+15550001111",
@@ -437,7 +450,7 @@ describe("monitorSignalProvider tool results", () => {
     };
     const abortController = new AbortController();
 
-    streamMock.mockImplementation(async ({ onEvent }) => {
+    runSseLoopMock.mockImplementation(async ({ onEvent }) => {
       const payload = {
         envelope: {
           sourceNumber: "+15550001111",
@@ -480,7 +493,7 @@ describe("monitorSignalProvider tool results", () => {
     const abortController = new AbortController();
     replyMock.mockResolvedValue({ text: "pong" });
 
-    streamMock.mockImplementation(async ({ onEvent }) => {
+    runSseLoopMock.mockImplementation(async ({ onEvent }) => {
       const payload = {
         envelope: {
           sourceNumber: "+15550001111",
@@ -533,7 +546,7 @@ describe("monitorSignalProvider tool results", () => {
       .mockResolvedValueOnce({ code: "PAIRCODE", created: true })
       .mockResolvedValueOnce({ code: "PAIRCODE", created: false });
 
-    streamMock.mockImplementation(async ({ onEvent }) => {
+    runSseLoopMock.mockImplementation(async ({ onEvent }) => {
       const payload = {
         envelope: {
           sourceNumber: "+15550001111",

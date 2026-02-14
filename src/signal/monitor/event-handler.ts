@@ -313,18 +313,29 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
     },
   });
 
-  return async (event: { event?: string; data?: string }) => {
-    if (event.event !== "receive" || !event.data) {
+  return async (
+    event:
+      | { event?: string; data?: string }
+      | { envelope?: unknown; exception?: { message?: string } },
+  ) => {
+    let payload: SignalReceivePayload | null = null;
+
+    // Handle WebSocket format (direct envelope)
+    if ("envelope" in event) {
+      payload = event as SignalReceivePayload;
+    }
+    // Handle SSE format (event.data contains JSON)
+    else if ("event" in event && event.event === "receive" && event.data) {
+      try {
+        payload = JSON.parse(event.data) as SignalReceivePayload;
+      } catch (err) {
+        deps.runtime.error?.(`failed to parse event: ${String(err)}`);
+        return;
+      }
+    } else {
       return;
     }
 
-    let payload: SignalReceivePayload | null = null;
-    try {
-      payload = JSON.parse(event.data) as SignalReceivePayload;
-    } catch (err) {
-      deps.runtime.error?.(`failed to parse event: ${String(err)}`);
-      return;
-    }
     if (payload?.exception?.message) {
       deps.runtime.error?.(`receive exception: ${payload.exception.message}`);
     }
@@ -332,21 +343,41 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
     if (!envelope) {
       return;
     }
-    if (envelope.syncMessage) {
-      return;
+
+    // Handle syncMessage (Note to Self / self-messages)
+    // Extract dataMessage from syncMessage.sentMessage if present
+    let dataMessage = envelope.dataMessage ?? envelope.editMessage?.dataMessage;
+    let isFromSync = false;
+
+    if (envelope.syncMessage && !dataMessage) {
+      // oxlint-disable-next-line typescript/no-explicit-any
+      const sentMessage = (envelope.syncMessage as any).sentMessage;
+      if (sentMessage) {
+        dataMessage = sentMessage;
+        isFromSync = true;
+        // Note: syncMessage.sentMessage has the same structure as dataMessage
+      } else {
+        // Sync message without sentMessage (e.g., read receipts)
+        return;
+      }
     }
 
     const sender = resolveSignalSender(envelope);
     if (!sender) {
       return;
     }
+
+    // Self-message filter: block bot echoes, allow Note to Self
     if (deps.account && sender.kind === "phone") {
       if (sender.e164 === normalizeE164(deps.account)) {
-        return;
+        if (!isFromSync) {
+          // dataMessage from self = bot echo, block it
+          return;
+        }
+        // isFromSync = Note to Self (user talking to bot), allow it
       }
     }
 
-    const dataMessage = envelope.dataMessage ?? envelope.editMessage?.dataMessage;
     const reaction = deps.isSignalReactionMessage(envelope.reactionMessage)
       ? envelope.reactionMessage
       : deps.isSignalReactionMessage(dataMessage?.reaction)
@@ -604,6 +635,7 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
           sender: senderRecipient,
           groupId,
           maxBytes: deps.mediaMaxBytes,
+          apiMode: deps.apiMode,
         });
         if (fetched) {
           mediaPath = fetched.path;
