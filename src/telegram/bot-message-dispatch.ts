@@ -4,7 +4,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import type { TelegramMessageContext } from "./bot-message-context.js";
 import type { TelegramBotOptions } from "./bot.js";
 import type { TelegramStreamMode, TelegramContext } from "./bot/types.js";
-import { resolveAgentDir } from "../agents/agent-scope.js";
+import { resolveAgentDir, resolveSessionAgentId } from "../agents/agent-scope.js";
 import {
   findModelInCatalog,
   loadModelCatalog,
@@ -21,6 +21,7 @@ import { createReplyPrefixOptions } from "../channels/reply-prefix.js";
 import { createTypingCallbacks } from "../channels/typing.js";
 import { resolveMarkdownTableMode } from "../config/markdown-tables.js";
 import { danger, logVerbose } from "../globals.js";
+import { triggerMessageSentHook, type MessageSentHookEvent } from "../hooks/internal-hooks.js";
 import { deliverReplies } from "./bot/delivery.js";
 import { resolveTelegramDraftStreamingChunking } from "./draft-chunking.js";
 import { createTelegramDraftStream } from "./draft-stream.js";
@@ -278,6 +279,25 @@ export const dispatchTelegramMessage = async ({
         });
         if (result.delivered) {
           deliveryState.delivered = true;
+          // Trigger message:sent hook for time-tunnel
+          void triggerMessageSentHook({
+            type: "message",
+            action: "sent",
+            sessionKey: ctxPayload.SessionKey ?? "",
+            timestamp: new Date(),
+            messages: [],
+            context: {
+              direction: "outbound",
+              channel: "telegram",
+              chatId: String(chatId),
+              content: payload.text ?? "",
+              mediaUrl: payload.mediaUrl,
+              sessionKey: ctxPayload.SessionKey,
+              agentId: ctxPayload.SessionKey
+                ? resolveSessionAgentId({ sessionKey: ctxPayload.SessionKey })
+                : undefined,
+            },
+          } as MessageSentHookEvent);
         }
       },
       onSkip: (_payload, info) => {

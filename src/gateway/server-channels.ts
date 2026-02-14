@@ -4,6 +4,7 @@ import type { createSubsystemLogger } from "../logging/subsystem.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import { type ChannelId, getChannelPlugin, listChannelPlugins } from "../channels/plugins/index.js";
+import { createInternalHookEvent, triggerInternalHook } from "../hooks/internal-hooks.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import { resetDirectoryCache } from "../infra/outbound/target-resolver.js";
 import { DEFAULT_ACCOUNT_ID } from "../routing/session-key.js";
@@ -163,6 +164,18 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
             const message = formatErrorMessage(err);
             setRuntime(channelId, id, { accountId: id, lastError: message });
             log.error?.(`[${id}] channel exited: ${message}`);
+            const errEvent = createInternalHookEvent(
+              "gateway",
+              "error",
+              `gateway:${channelId}:${id}`,
+              {
+                error: message,
+                phase: "channel-runtime",
+                channelId,
+                accountId: id,
+              },
+            );
+            void triggerInternalHook(errEvent);
           })
           .finally(() => {
             store.aborts.delete(id);
@@ -180,12 +193,8 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
 
   const stopChannel = async (channelId: ChannelId, accountId?: string) => {
     const plugin = getChannelPlugin(channelId);
-    const store = getStore(channelId);
-    // Fast path: nothing running and no explicit plugin shutdown hook to run.
-    if (!plugin?.gateway?.stopAccount && store.aborts.size === 0 && store.tasks.size === 0) {
-      return;
-    }
     const cfg = loadConfig();
+    const store = getStore(channelId);
     const knownIds = new Set<string>([
       ...store.aborts.keys(),
       ...store.tasks.keys(),

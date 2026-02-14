@@ -163,6 +163,21 @@ export function resolveAgentModelFallbacksOverride(
   return Array.isArray(raw.fallbacks) ? raw.fallbacks : undefined;
 }
 
+export function resolveAgentModelStrategy(
+  cfg: OpenClawConfig,
+  agentId?: string,
+): "primary" | "round_robin" | "sticky_session" | undefined {
+  const raw = agentId ? resolveAgentConfig(cfg, agentId)?.model : undefined;
+  if (raw && typeof raw === "object" && "strategy" in raw) {
+    return raw.strategy;
+  }
+  const defaults = cfg.agents?.defaults?.model;
+  if (defaults && typeof defaults === "object" && "strategy" in defaults) {
+    return defaults.strategy;
+  }
+  return undefined;
+}
+
 export function resolveAgentWorkspaceDir(cfg: OpenClawConfig, agentId: string) {
   const id = normalizeAgentId(agentId);
   const configured = resolveAgentConfig(cfg, id)?.workspace?.trim();

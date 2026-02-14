@@ -5,7 +5,6 @@ import { ApprovalsSchema } from "./zod-schema.approvals.js";
 import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
 import { HookMappingSchema, HooksGmailSchema, InternalHooksSchema } from "./zod-schema.hooks.js";
 import { ChannelsSchema } from "./zod-schema.providers.js";
-import { sensitive } from "./zod-schema.sensitive.js";
 import {
   CommandsSchema,
   MessagesSchema,
@@ -93,9 +92,15 @@ const MemorySchema = z
   .strict()
   .optional();
 
+const PathMapSchema = z
+  .object({
+    roots: z.record(z.string(), z.string()).optional(),
+  })
+  .strict()
+  .optional();
+
 export const OpenClawSchema = z
   .object({
-    $schema: z.string().optional(),
     meta: z
       .object({
         lastTouchedVersion: z.string().optional(),
@@ -303,7 +308,7 @@ export const OpenClawSchema = z
       .object({
         enabled: z.boolean().optional(),
         path: z.string().optional(),
-        token: z.string().optional().register(sensitive),
+        token: z.string().optional(),
         defaultSessionKey: z.string().optional(),
         allowRequestSessionKey: z.boolean().optional(),
         allowedSessionKeyPrefixes: z.array(z.string()).optional(),
@@ -367,7 +372,7 @@ export const OpenClawSchema = z
         voiceAliases: z.record(z.string(), z.string()).optional(),
         modelId: z.string().optional(),
         outputFormat: z.string().optional(),
-        apiKey: z.string().optional().register(sensitive),
+        apiKey: z.string().optional(),
         interruptOnSpeech: z.boolean().optional(),
       })
       .strict()
@@ -399,8 +404,8 @@ export const OpenClawSchema = z
         auth: z
           .object({
             mode: z.union([z.literal("token"), z.literal("password")]).optional(),
-            token: z.string().optional().register(sensitive),
-            password: z.string().optional().register(sensitive),
+            token: z.string().optional(),
+            password: z.string().optional(),
             allowTailscale: z.boolean().optional(),
           })
           .strict()
@@ -424,8 +429,8 @@ export const OpenClawSchema = z
           .object({
             url: z.string().optional(),
             transport: z.union([z.literal("ssh"), z.literal("direct")]).optional(),
-            token: z.string().optional().register(sensitive),
-            password: z.string().optional().register(sensitive),
+            token: z.string().optional(),
+            password: z.string().optional(),
             tlsFingerprint: z.string().optional(),
             sshTarget: z.string().optional(),
             sshIdentity: z.string().optional(),
@@ -530,6 +535,7 @@ export const OpenClawSchema = z
       .strict()
       .optional(),
     memory: MemorySchema,
+    pathMap: PathMapSchema,
     skills: z
       .object({
         allowBundled: z.array(z.string()).optional(),
@@ -556,7 +562,7 @@ export const OpenClawSchema = z
             z
               .object({
                 enabled: z.boolean().optional(),
-                apiKey: z.string().optional().register(sensitive),
+                apiKey: z.string().optional(),
                 env: z.record(z.string(), z.string()).optional(),
                 config: z.record(z.string(), z.unknown()).optional(),
               })

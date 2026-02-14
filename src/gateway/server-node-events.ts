@@ -4,15 +4,12 @@ import { normalizeChannelId } from "../channels/plugins/index.js";
 import { agentCommand } from "../commands/agent.js";
 import { loadConfig } from "../config/config.js";
 import { updateSessionStore } from "../config/sessions.js";
+import { createInternalHookEvent, triggerInternalHook } from "../hooks/internal-hooks.js";
 import { requestHeartbeatNow } from "../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
 import { normalizeMainKey } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
-import {
-  loadSessionEntry,
-  pruneLegacyStoreKeys,
-  resolveGatewaySessionStoreTarget,
-} from "./session-utils.js";
+import { loadSessionEntry } from "./session-utils.js";
 import { formatForLog } from "./ws-log.js";
 
 export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt: NodeEvent) => {
@@ -45,12 +42,6 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
       const sessionId = entry?.sessionId ?? randomUUID();
       if (storePath) {
         await updateSessionStore(storePath, (store) => {
-          const target = resolveGatewaySessionStoreTarget({ cfg, key: sessionKey, store });
-          pruneLegacyStoreKeys({
-            store,
-            canonicalKey: target.canonicalKey,
-            candidates: target.storeKeys,
-          });
           store[canonicalKey] = {
             sessionId,
             updatedAt: now,
@@ -68,7 +59,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
       // Ensure chat UI clients refresh when this run completes (even though it wasn't started via chat.send).
       // This maps agent bus events (keyed by sessionId) to chat events (keyed by clientRunId).
       ctx.addChatRun(sessionId, {
-        sessionKey: canonicalKey,
+        sessionKey,
         clientRunId: `voice-${randomUUID()}`,
       });
 
@@ -76,7 +67,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         {
           message: text,
           sessionId,
-          sessionKey: canonicalKey,
+          sessionKey,
           thinking: "low",
           deliver: false,
           messageChannel: "node",
@@ -85,6 +76,12 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         ctx.deps,
       ).catch((err) => {
         ctx.logGateway.warn(`agent failed node=${nodeId}: ${formatForLog(err)}`);
+        const errEvent = createInternalHookEvent("agent", "error", sessionKey, {
+          error: formatForLog(err),
+          phase: "voice-transcript",
+          nodeId,
+        });
+        void triggerInternalHook(errEvent);
       });
       return;
     }
@@ -123,18 +120,11 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
 
       const sessionKeyRaw = (link?.sessionKey ?? "").trim();
       const sessionKey = sessionKeyRaw.length > 0 ? sessionKeyRaw : `node-${nodeId}`;
-      const cfg = loadConfig();
       const { storePath, entry, canonicalKey } = loadSessionEntry(sessionKey);
       const now = Date.now();
       const sessionId = entry?.sessionId ?? randomUUID();
       if (storePath) {
         await updateSessionStore(storePath, (store) => {
-          const target = resolveGatewaySessionStoreTarget({ cfg, key: sessionKey, store });
-          pruneLegacyStoreKeys({
-            store,
-            canonicalKey: target.canonicalKey,
-            candidates: target.storeKeys,
-          });
           store[canonicalKey] = {
             sessionId,
             updatedAt: now,
@@ -153,7 +143,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         {
           message,
           sessionId,
-          sessionKey: canonicalKey,
+          sessionKey,
           thinking: link?.thinking ?? undefined,
           deliver,
           to,
@@ -166,6 +156,12 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         ctx.deps,
       ).catch((err) => {
         ctx.logGateway.warn(`agent failed node=${nodeId}: ${formatForLog(err)}`);
+        const errEvent = createInternalHookEvent("agent", "error", sessionKey, {
+          error: formatForLog(err),
+          phase: "agent-request",
+          nodeId,
+        });
+        void triggerInternalHook(errEvent);
       });
       return;
     }

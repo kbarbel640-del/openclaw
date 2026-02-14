@@ -5,7 +5,12 @@ import type { ReplyDispatcher, ReplyDispatchKind } from "./reply-dispatcher.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { loadSessionStore, resolveStorePath } from "../../config/sessions.js";
 import { logVerbose } from "../../globals.js";
+import {
+  triggerMessageReceivedHook,
+  type MessageReceivedHookEvent,
+} from "../../hooks/internal-hooks.js";
 import { isDiagnosticsEnabled } from "../../infra/diagnostic-events.js";
+import { trackMessageStart, trackMessageEnd } from "../../infra/in-flight-tracker.js";
 import {
   logMessageProcessed,
   logMessageQueued,
@@ -95,6 +100,13 @@ export async function dispatchReplyFromConfig(params: {
   const startTime = diagnosticsEnabled ? Date.now() : 0;
   const canTrackSession = diagnosticsEnabled && Boolean(sessionKey);
 
+  // Level 50: Track in-flight message for graceful shutdown
+  const inFlightId = trackMessageStart({
+    chatId: chatId ?? "unknown",
+    channel,
+    messagePreview: ctx.BodyForCommands ?? ctx.RawBody ?? ctx.Body,
+  });
+
   const recordProcessed = (
     outcome: "completed" | "skipped" | "error",
     opts?: {
@@ -142,6 +154,7 @@ export async function dispatchReplyFromConfig(params: {
 
   if (shouldSkipDuplicateInbound(ctx)) {
     recordProcessed("skipped", { reason: "duplicate" });
+    trackMessageEnd(inFlightId); // Level 50: End tracking on skip
     return { queuedFinal: false, counts: dispatcher.getQueuedCounts() };
   }
 
@@ -196,6 +209,31 @@ export async function dispatchReplyFromConfig(params: {
         logVerbose(`dispatch-from-config: message_received hook failed: ${String(err)}`);
       });
   }
+
+  // Trigger internal hook for time-tunnel and other workspace hooks
+  void triggerMessageReceivedHook({
+    type: "message",
+    action: "received",
+    sessionKey: ctx.SessionKey ?? "",
+    timestamp: new Date(),
+    messages: [],
+    context: {
+      direction: "inbound",
+      channel: (ctx.OriginatingChannel ?? ctx.Surface ?? ctx.Provider ?? "").toLowerCase(),
+      chatId: ctx.OriginatingTo ?? ctx.To ?? ctx.From ?? "",
+      chatType: ctx.ChatType,
+      chatName: ctx.GroupSubject,
+      senderId: ctx.SenderId,
+      senderName: ctx.SenderName ?? ctx.From,
+      messageId: ctx.MessageSidFull ?? ctx.MessageSid,
+      replyToId: undefined,
+      content: ctx.BodyForCommands ?? ctx.RawBody ?? ctx.Body ?? "",
+      mediaType: ctx.MediaType,
+      sessionKey: ctx.SessionKey,
+      agentId: resolveSessionAgentId({ sessionKey: ctx.SessionKey, config: cfg }),
+      workspaceDir: cfg?.agents?.defaults?.workspace,
+    },
+  } as MessageReceivedHookEvent);
 
   // Check if we should route replies to originating channel instead of dispatcher.
   // Only route when the originating channel is DIFFERENT from the current surface.
@@ -278,10 +316,12 @@ export async function dispatchReplyFromConfig(params: {
       } else {
         queuedFinal = dispatcher.sendFinalReply(payload);
       }
+      await dispatcher.waitForIdle();
       const counts = dispatcher.getQueuedCounts();
       counts.final += routedFinalCount;
       recordProcessed("completed", { reason: "fast_abort" });
       markIdle("message_completed");
+      trackMessageEnd(inFlightId); // Level 50: End tracking on fast abort
       return { queuedFinal, counts };
     }
 
@@ -442,12 +482,18 @@ export async function dispatchReplyFromConfig(params: {
       }
     }
 
+    await dispatcher.waitForIdle();
+
     const counts = dispatcher.getQueuedCounts();
     counts.final += routedFinalCount;
     recordProcessed("completed");
     markIdle("message_completed");
+    // Level 50: Mark message processing complete
+    trackMessageEnd(inFlightId);
     return { queuedFinal, counts };
   } catch (err) {
+    // Level 50: Mark message processing complete (even on error)
+    trackMessageEnd(inFlightId);
     recordProcessed("error", { error: String(err) });
     markIdle("message_error");
     throw err;

@@ -46,6 +46,7 @@ import {
 } from "../pi-embedded-helpers.js";
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../usage.js";
 import { redactRunIdentifier, resolveRunWorkspaceDir } from "../workspace-run.js";
+import { maybeScheduleBackgroundOptimization } from "./background-optimization.js";
 import { compactEmbeddedPiSessionDirect } from "./compact.js";
 import { resolveGlobalLane, resolveSessionLane } from "./lanes.js";
 import { log } from "./logger.js";
@@ -96,10 +97,6 @@ const createUsageAccumulator = (): UsageAccumulator => ({
   lastCacheWrite: 0,
   lastInput: 0,
 });
-
-function createCompactionDiagId(): string {
-  return `ovf-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
 
 const hasUsageValues = (
   usage: ReturnType<typeof normalizeUsage>,
@@ -519,15 +516,13 @@ export async function runEmbeddedPiAgent(
             : null;
 
           if (contextOverflowError) {
-            const overflowDiagId = createCompactionDiagId();
             const errorText = contextOverflowError.text;
             const msgCount = attempt.messagesSnapshot?.length ?? 0;
             log.warn(
               `[context-overflow-diag] sessionKey=${params.sessionKey ?? params.sessionId} ` +
                 `provider=${provider}/${modelId} source=${contextOverflowError.source} ` +
                 `messages=${msgCount} sessionFile=${params.sessionFile} ` +
-                `diagId=${overflowDiagId} compactionAttempts=${overflowCompactionAttempts} ` +
-                `error=${errorText.slice(0, 200)}`,
+                `compactionAttempts=${overflowCompactionAttempts} error=${errorText.slice(0, 200)}`,
             );
             const isCompactionFailure = isCompactionFailureError(errorText);
             // Attempt auto-compaction on context overflow (not compaction_failure)
@@ -535,13 +530,6 @@ export async function runEmbeddedPiAgent(
               !isCompactionFailure &&
               overflowCompactionAttempts < MAX_OVERFLOW_COMPACTION_ATTEMPTS
             ) {
-              if (log.isEnabled("debug")) {
-                log.debug(
-                  `[compaction-diag] decision diagId=${overflowDiagId} branch=compact ` +
-                    `isCompactionFailure=${isCompactionFailure} hasOversizedToolResults=unknown ` +
-                    `attempt=${overflowCompactionAttempts + 1} maxAttempts=${MAX_OVERFLOW_COMPACTION_ATTEMPTS}`,
-                );
-              }
               overflowCompactionAttempts++;
               log.warn(
                 `context overflow detected (attempt ${overflowCompactionAttempts}/${MAX_OVERFLOW_COMPACTION_ATTEMPTS}); attempting auto-compaction for ${provider}/${modelId}`,
@@ -561,16 +549,11 @@ export async function runEmbeddedPiAgent(
                 senderIsOwner: params.senderIsOwner,
                 provider,
                 model: modelId,
-                runId: params.runId,
                 thinkLevel,
                 reasoningLevel: params.reasoningLevel,
                 bashElevated: params.bashElevated,
                 extraSystemPrompt: params.extraSystemPrompt,
                 ownerNumbers: params.ownerNumbers,
-                trigger: "overflow",
-                diagId: overflowDiagId,
-                attempt: overflowCompactionAttempts,
-                maxAttempts: MAX_OVERFLOW_COMPACTION_ATTEMPTS,
               });
               if (compactResult.compacted) {
                 autoCompactionCount += 1;
@@ -594,13 +577,6 @@ export async function runEmbeddedPiAgent(
                 : false;
 
               if (hasOversized) {
-                if (log.isEnabled("debug")) {
-                  log.debug(
-                    `[compaction-diag] decision diagId=${overflowDiagId} branch=truncate_tool_results ` +
-                      `isCompactionFailure=${isCompactionFailure} hasOversizedToolResults=${hasOversized} ` +
-                      `attempt=${overflowCompactionAttempts} maxAttempts=${MAX_OVERFLOW_COMPACTION_ATTEMPTS}`,
-                  );
-                }
                 toolResultTruncationAttempted = true;
                 log.warn(
                   `[context-overflow-recovery] Attempting tool result truncation for ${provider}/${modelId} ` +
@@ -623,25 +599,7 @@ export async function runEmbeddedPiAgent(
                 log.warn(
                   `[context-overflow-recovery] Tool result truncation did not help: ${truncResult.reason ?? "unknown"}`,
                 );
-              } else if (log.isEnabled("debug")) {
-                log.debug(
-                  `[compaction-diag] decision diagId=${overflowDiagId} branch=give_up ` +
-                    `isCompactionFailure=${isCompactionFailure} hasOversizedToolResults=${hasOversized} ` +
-                    `attempt=${overflowCompactionAttempts} maxAttempts=${MAX_OVERFLOW_COMPACTION_ATTEMPTS}`,
-                );
               }
-            }
-            if (
-              (isCompactionFailure ||
-                overflowCompactionAttempts >= MAX_OVERFLOW_COMPACTION_ATTEMPTS ||
-                toolResultTruncationAttempted) &&
-              log.isEnabled("debug")
-            ) {
-              log.debug(
-                `[compaction-diag] decision diagId=${overflowDiagId} branch=give_up ` +
-                  `isCompactionFailure=${isCompactionFailure} hasOversizedToolResults=unknown ` +
-                  `attempt=${overflowCompactionAttempts} maxAttempts=${MAX_OVERFLOW_COMPACTION_ATTEMPTS}`,
-              );
             }
             const kind = isCompactionFailure ? "compaction_failure" : "context_overflow";
             return {
@@ -914,6 +872,37 @@ export async function runEmbeddedPiAgent(
               agentDir: params.agentDir,
             });
           }
+
+          // Proactive background optimization — fire-and-forget
+          if (!aborted && !isProbeSession && attempt.messagesSnapshot.length > 0) {
+            maybeScheduleBackgroundOptimization({
+              sessionId: params.sessionId,
+              messages: attempt.messagesSnapshot,
+              cfg: params.config,
+              triggerCompaction: () =>
+                compactEmbeddedPiSessionDirect({
+                  sessionId: params.sessionId,
+                  sessionKey: params.sessionKey,
+                  messageChannel: params.messageChannel,
+                  messageProvider: params.messageProvider,
+                  agentAccountId: params.agentAccountId,
+                  authProfileId: lastProfileId,
+                  sessionFile: params.sessionFile,
+                  workspaceDir: params.workspaceDir,
+                  agentDir,
+                  config: params.config,
+                  skillsSnapshot: params.skillsSnapshot,
+                  provider,
+                  model: modelId,
+                  thinkLevel,
+                  reasoningLevel: params.reasoningLevel,
+                  bashElevated: params.bashElevated,
+                  extraSystemPrompt: params.extraSystemPrompt,
+                  ownerNumbers: params.ownerNumbers,
+                }),
+            });
+          }
+
           return {
             payloads: payloads.length ? payloads : undefined,
             meta: {

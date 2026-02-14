@@ -1,18 +1,13 @@
 import type { startGatewayServer } from "../../gateway/server.js";
 import type { defaultRuntime } from "../../runtime.js";
 import { acquireGatewayLock } from "../../infra/gateway-lock.js";
+import { waitForInFlightCompletion, getInFlightCount } from "../../infra/in-flight-tracker.js";
 import {
   consumeGatewaySigusr1RestartAuthorization,
   isGatewaySigusr1RestartExternallyAllowed,
-  markGatewaySigusr1RestartHandled,
 } from "../../infra/restart.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
-import {
-  getActiveTaskCount,
-  resetAllLanes,
-  waitForActiveTasks,
-} from "../../process/command-queue.js";
-import { createRestartIterationHook } from "../../process/restart-recovery.js";
+import { getActiveTaskCount, waitForActiveTasks } from "../../process/command-queue.js";
 
 const gatewayLog = createSubsystemLogger("gateway");
 
@@ -55,8 +50,19 @@ export async function runGatewayLoop(params: {
 
     void (async () => {
       try {
-        // On restart, wait for in-flight agent turns to finish before
-        // tearing down the server so buffered messages are delivered.
+        // Wait for in-flight requests to complete before shutdown.
+        const pendingCount = getInFlightCount();
+        if (pendingCount > 0) {
+          gatewayLog.info(`waiting for ${pendingCount} in-flight request(s) before shutdown...`);
+          const result = await waitForInFlightCompletion(30000);
+          if (result.timedOut) {
+            gatewayLog.warn(`in-flight wait timed out with ${result.remaining} request(s) pending`);
+          } else {
+            gatewayLog.info("all in-flight requests completed");
+          }
+        }
+
+        // On restart, also drain active task queue so buffered messages are delivered.
         if (isRestart) {
           const activeTasks = getActiveTaskCount();
           if (activeTasks > 0) {
@@ -109,7 +115,6 @@ export async function runGatewayLoop(params: {
       );
       return;
     }
-    markGatewaySigusr1RestartHandled();
     request("restart", "SIGUSR1");
   };
 
@@ -118,21 +123,10 @@ export async function runGatewayLoop(params: {
   process.on("SIGUSR1", onSigusr1);
 
   try {
-    const onIteration = createRestartIterationHook(() => {
-      // After an in-process restart (SIGUSR1), reset command-queue lane state.
-      // Interrupted tasks from the previous lifecycle may have left `active`
-      // counts elevated (their finally blocks never ran), permanently blocking
-      // new work from draining. This must happen here — at the restart
-      // coordinator level — rather than inside individual subsystem init
-      // functions, to avoid surprising cross-cutting side effects.
-      resetAllLanes();
-    });
-
     // Keep process alive; SIGUSR1 triggers an in-process restart (no supervisor required).
     // SIGTERM/SIGINT still exit after a graceful shutdown.
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      onIteration();
       server = await params.start();
       await new Promise<void>((resolve) => {
         restartResolver = resolve;

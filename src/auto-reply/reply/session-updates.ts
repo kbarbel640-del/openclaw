@@ -13,12 +13,15 @@ import {
 import { getRemoteSkillEligibility } from "../../infra/skills-remote.js";
 import { drainSystemEventEntries } from "../../infra/system-events.js";
 
-export async function prependSystemEvents(params: {
+/**
+ * Build the system events block string (drains the event queue).
+ * Returns empty string if no events are queued.
+ */
+export async function buildSystemEventsBlock(params: {
   cfg: OpenClawConfig;
   sessionKey: string;
   isMainSession: boolean;
   isNewSession: boolean;
-  prefixedBodyBase: string;
 }): Promise<string> {
   const compactSystemEvent = (line: string): string | null => {
     const trimmed = line.trim();
@@ -104,10 +107,23 @@ export async function prependSystemEvents(params: {
     }
   }
   if (systemLines.length === 0) {
-    return params.prefixedBodyBase;
+    return "";
   }
 
-  const block = systemLines.map((l) => `System: ${l}`).join("\n");
+  return systemLines.map((l) => `System: ${l}`).join("\n");
+}
+
+export async function prependSystemEvents(params: {
+  cfg: OpenClawConfig;
+  sessionKey: string;
+  isMainSession: boolean;
+  isNewSession: boolean;
+  prefixedBodyBase: string;
+}): Promise<string> {
+  const block = await buildSystemEventsBlock(params);
+  if (!block) {
+    return params.prefixedBodyBase;
+  }
   return `${block}\n\n${params.prefixedBodyBase}`;
 }
 

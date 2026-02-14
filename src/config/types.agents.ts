@@ -16,6 +16,13 @@ export type AgentModelConfig =
       primary?: string;
       /** Per-agent model fallbacks (provider/model). */
       fallbacks?: string[];
+      /**
+       * Model selection strategy for this agent.
+       * - "primary": always start with primary (default behavior)
+       * - "round_robin": rotate across primary+fallbacks per request
+       * - "sticky_session": pick a stable model per sessionKey
+       */
+      strategy?: "primary" | "round_robin" | "sticky_session";
     };
 
 export type AgentConfig = {
@@ -38,7 +45,13 @@ export type AgentConfig = {
     /** Allow spawning sub-agents under other agent ids. Use "*" to allow any. */
     allowAgents?: string[];
     /** Per-agent default model for spawned sub-agents (string or {primary,fallbacks}). */
-    model?: string | { primary?: string; fallbacks?: string[] };
+    model?:
+      | string
+      | {
+          primary?: string;
+          fallbacks?: string[];
+          strategy?: "primary" | "round_robin" | "sticky_session";
+        };
   };
   sandbox?: {
     mode?: "off" | "non-main" | "all";
