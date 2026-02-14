@@ -89,8 +89,14 @@ let hnswlibModule: any = null;
 
 function getHnswlib(): any {
   if (!hnswlibModule) {
-    const require = createRequire(import.meta.url);
-    hnswlibModule = require("hnswlib-node");
+    try {
+      const require = createRequire(import.meta.url);
+      hnswlibModule = require("hnswlib-node");
+    } catch {
+      throw new Error(
+        'hnswlib-node is not installed. Use type "brute" or install hnswlib-node as an optional dependency.',
+      );
+    }
   }
   return hnswlibModule;
 }

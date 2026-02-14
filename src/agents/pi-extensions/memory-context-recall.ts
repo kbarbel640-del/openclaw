@@ -20,17 +20,23 @@ import { getCompactionSafeguardRuntime } from "./compaction-safeguard-runtime.js
 /** Marker to identify injected recalled-context messages. */
 const RECALLED_CONTEXT_MARKER = '<recalled-context source="memory-context">';
 
+function getMessageContent(msg: AgentMessage): string | unknown[] | undefined {
+  return (msg as { content?: string | unknown[] }).content;
+}
+
 function isRecalledContextMessage(msg: AgentMessage): boolean {
-  const content = typeof msg.content === "string" ? msg.content : "";
+  const raw = getMessageContent(msg);
+  const content = typeof raw === "string" ? raw : "";
   return content.includes(RECALLED_CONTEXT_MARKER);
 }
 
 function extractText(msg: AgentMessage): string {
-  if (typeof msg.content === "string") {
-    return msg.content;
+  const raw = getMessageContent(msg);
+  if (typeof raw === "string") {
+    return raw;
   }
-  if (Array.isArray(msg.content)) {
-    return (msg.content as Array<{ type?: string; text?: string }>)
+  if (Array.isArray(raw)) {
+    return (raw as Array<{ type?: string; text?: string }>)
       .filter((b) => b?.type === "text" && typeof b.text === "string")
       .map((b) => b.text!)
       .join(" ");
@@ -96,10 +102,16 @@ export default function memoryContextRecallExtension(api: ExtensionAPI): void {
 
     // ========== Step 3: Smart Trim (if near overflow) ==========
     const hardCap = computeHardCap(runtime);
-    // Read reserveTokens from compaction-safeguard-runtime (dynamic, not hardcoded)
+    // Derive reserveTokens from compaction-safeguard-runtime (dynamic, not hardcoded).
+    // CompactionSafeguardRuntimeValue exposes maxHistoryShare + contextWindowTokens;
+    // reserveTokens = contextWindowTokens * (1 - maxHistoryShare).
     const safeguardRuntime = getCompactionSafeguardRuntime(ctx.sessionManager);
     const reserveTokens =
-      typeof safeguardRuntime?.reserveTokens === "number" ? safeguardRuntime.reserveTokens : 4000;
+      safeguardRuntime?.contextWindowTokens && safeguardRuntime?.maxHistoryShare
+        ? Math.round(
+            safeguardRuntime.contextWindowTokens * (1 - safeguardRuntime.maxHistoryShare),
+          )
+        : 4000;
     const safeLimit = runtime.contextWindowTokens - reserveTokens - hardCap;
 
     // Only do smart trim if we have a meaningful query.
