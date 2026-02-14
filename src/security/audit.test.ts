@@ -96,13 +96,13 @@ describe("security audit", () => {
 
   it("flags non-loopback bind without auth as critical", async () => {
     // Clear env tokens so resolveGatewayAuth defaults to mode=none
-    const prevToken = process.env.CLAWDBOT_GATEWAY_TOKEN;
-    const prevPassword = process.env.CLAWDBOT_GATEWAY_PASSWORD;
-    delete process.env.CLAWDBOT_GATEWAY_TOKEN;
-    delete process.env.CLAWDBOT_GATEWAY_PASSWORD;
+    const prevToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+    const prevPassword = process.env.OPENCLAW_GATEWAY_PASSWORD;
+    delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    delete process.env.OPENCLAW_GATEWAY_PASSWORD;
 
     try {
-      const cfg: ClawdbotConfig = {
+      const cfg: OpenClawConfig = {
         gateway: {
           bind: "lan",
           auth: {},
@@ -121,14 +121,14 @@ describe("security audit", () => {
     } finally {
       // Restore env
       if (prevToken === undefined) {
-        delete process.env.CLAWDBOT_GATEWAY_TOKEN;
+        delete process.env.OPENCLAW_GATEWAY_TOKEN;
       } else {
-        process.env.CLAWDBOT_GATEWAY_TOKEN = prevToken;
+        process.env.OPENCLAW_GATEWAY_TOKEN = prevToken;
       }
       if (prevPassword === undefined) {
-        delete process.env.CLAWDBOT_GATEWAY_PASSWORD;
+        delete process.env.OPENCLAW_GATEWAY_PASSWORD;
       } else {
-        process.env.CLAWDBOT_GATEWAY_PASSWORD = prevPassword;
+        process.env.OPENCLAW_GATEWAY_PASSWORD = prevPassword;
       }
     }
   });
@@ -612,8 +612,8 @@ describe("security audit", () => {
     );
   });
 
-  it("flags trusted-proxy auth mode as critical warning", async () => {
-    const cfg: ClawdbotConfig = {
+  it("flags trusted-proxy auth mode without generic shared-secret findings", async () => {
+    const cfg: OpenClawConfig = {
       gateway: {
         bind: "lan",
         trustedProxies: ["10.0.0.1"],
@@ -640,10 +640,12 @@ describe("security audit", () => {
         }),
       ]),
     );
+    expect(res.findings.some((f) => f.checkId === "gateway.bind_no_auth")).toBe(false);
+    expect(res.findings.some((f) => f.checkId === "gateway.auth_no_rate_limit")).toBe(false);
   });
 
   it("flags trusted-proxy auth without trustedProxies configured", async () => {
-    const cfg: ClawdbotConfig = {
+    const cfg: OpenClawConfig = {
       gateway: {
         bind: "lan",
         trustedProxies: [],
@@ -673,7 +675,7 @@ describe("security audit", () => {
   });
 
   it("flags trusted-proxy auth without userHeader configured", async () => {
-    const cfg: ClawdbotConfig = {
+    const cfg: OpenClawConfig = {
       gateway: {
         bind: "lan",
         trustedProxies: ["10.0.0.1"],
@@ -701,7 +703,7 @@ describe("security audit", () => {
   });
 
   it("warns when trusted-proxy auth allows all users", async () => {
-    const cfg: ClawdbotConfig = {
+    const cfg: OpenClawConfig = {
       gateway: {
         bind: "lan",
         trustedProxies: ["10.0.0.1"],

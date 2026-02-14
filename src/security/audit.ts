@@ -258,7 +258,7 @@ function collectGatewayConfigFindings(
     (auth.mode === "token" && hasToken) || (auth.mode === "password" && hasPassword);
   const hasTailscaleAuth = auth.allowTailscale && tailscaleMode === "serve";
   const hasGatewayAuth = hasSharedSecret || hasTailscaleAuth;
-  if (bind !== "loopback" && !hasSharedSecret) {
+  if (bind !== "loopback" && !hasSharedSecret && auth.mode !== "trusted-proxy") {
     findings.push({
       checkId: "gateway.bind_no_auth",
       severity: "critical",
@@ -403,7 +403,7 @@ function collectGatewayConfigFindings(
     }
   }
 
-  if (bind !== "loopback" && !cfg.gateway?.auth?.rateLimit) {
+  if (bind !== "loopback" && auth.mode !== "trusted-proxy" && !cfg.gateway?.auth?.rateLimit) {
     findings.push({
       checkId: "gateway.auth_no_rate_limit",
       severity: "warn",

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
-import { authorizeGatewayConnect } from "./auth.js";
+import { authorizeGatewayConnect, resolveGatewayAuth } from "./auth.js";
 
 function createLimiterSpy(): AuthRateLimiter & {
   check: ReturnType<typeof vi.fn>;
@@ -18,6 +18,38 @@ function createLimiterSpy(): AuthRateLimiter & {
 }
 
 describe("gateway auth", () => {
+  it("resolves token/password from OPENCLAW gateway env vars", () => {
+    expect(
+      resolveGatewayAuth({
+        authConfig: {},
+        env: {
+          OPENCLAW_GATEWAY_TOKEN: "env-token",
+          OPENCLAW_GATEWAY_PASSWORD: "env-password",
+        } as NodeJS.ProcessEnv,
+      }),
+    ).toMatchObject({
+      mode: "password",
+      token: "env-token",
+      password: "env-password",
+    });
+  });
+
+  it("does not resolve legacy CLAWDBOT gateway env vars", () => {
+    expect(
+      resolveGatewayAuth({
+        authConfig: {},
+        env: {
+          CLAWDBOT_GATEWAY_TOKEN: "legacy-token",
+          CLAWDBOT_GATEWAY_PASSWORD: "legacy-password",
+        } as NodeJS.ProcessEnv,
+      }),
+    ).toMatchObject({
+      mode: "none",
+      token: undefined,
+      password: undefined,
+    });
+  });
+
   it("does not throw when req is missing socket", async () => {
     const res = await authorizeGatewayConnect({
       auth: { mode: "token", token: "secret", allowTailscale: false },

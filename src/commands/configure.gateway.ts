@@ -114,7 +114,7 @@ export async function promptGatewayConfig(
     runtime,
   ) as GatewayAuthChoice;
 
-  const tailscaleMode = guardCancel(
+  let tailscaleMode = guardCancel(
     await select({
       message: "Tailscale exposure",
       options: [
@@ -180,6 +180,19 @@ export async function promptGatewayConfig(
     authMode = "password";
   }
 
+  if (authMode === "trusted-proxy" && bind === "loopback") {
+    note("Trusted proxy auth requires network bind. Adjusting bind to lan.", "Note");
+    bind = "lan";
+  }
+  if (authMode === "trusted-proxy" && tailscaleMode !== "off") {
+    note(
+      "Trusted proxy auth is incompatible with Tailscale serve/funnel. Disabling Tailscale.",
+      "Note",
+    );
+    tailscaleMode = "off";
+    tailscaleResetOnExit = false;
+  }
+
   let gatewayToken: string | undefined;
   let gatewayPassword: string | undefined;
   let trustedProxyConfig:
@@ -218,7 +231,7 @@ export async function promptGatewayConfig(
         "Only requests from specified proxy IPs will be trusted.",
         "",
         "Common use cases: Pomerium, Caddy + OAuth, Traefik + forward auth",
-        "Docs: https://docs.openclaw.ai/gateway/trusted-proxy",
+        "Docs: https://docs.openclaw.ai/gateway/trusted-proxy-auth",
       ].join("\n"),
       "Trusted Proxy Auth",
     );
