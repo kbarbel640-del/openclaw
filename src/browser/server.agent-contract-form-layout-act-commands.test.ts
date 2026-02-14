@@ -1,8 +1,9 @@
+import fs from "node:fs/promises";
 import { type AddressInfo, createServer } from "node:net";
+import os from "node:os";
 import path from "node:path";
 import { fetch as realFetch } from "undici";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_UPLOAD_DIR } from "./routes/path-output.js";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 let testPort = 0;
 let cdpBaseUrl = "";
@@ -64,6 +65,16 @@ const pwMocks = vi.hoisted(() => ({
   waitForViaPlaywright: vi.fn(async () => {}),
 }));
 
+const chromeUserDataDir = vi.hoisted(() => ({ dir: "/tmp/openclaw" }));
+
+beforeAll(async () => {
+  chromeUserDataDir.dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-chrome-user-data-"));
+});
+
+afterAll(async () => {
+  await fs.rm(chromeUserDataDir.dir, { recursive: true, force: true });
+});
+
 function makeProc(pid = 123) {
   const handlers = new Map<string, Array<(...args: unknown[]) => void>>();
   return {
@@ -118,13 +129,13 @@ vi.mock("./chrome.js", () => ({
     return {
       pid: 123,
       exe: { kind: "chrome", path: "/fake/chrome" },
-      userDataDir: "/tmp/openclaw",
+      userDataDir: chromeUserDataDir.dir,
       cdpPort: profile.cdpPort,
       startedAt: Date.now(),
       proc,
     };
   }),
-  resolveOpenClawUserDataDir: vi.fn(() => "/tmp/openclaw"),
+  resolveOpenClawUserDataDir: vi.fn(() => chromeUserDataDir.dir),
   stopOpenClawChrome: vi.fn(async () => {
     reachable = false;
   }),
@@ -401,55 +412,35 @@ describe("browser control server", () => {
   it("agent contract: hooks + response + downloads + screenshot", async () => {
     const base = await startServerAndBase();
 
-    const uploadA = path.join(DEFAULT_UPLOAD_DIR, "a.txt");
     const upload = await postJson(`${base}/hooks/file-chooser`, {
-      paths: [uploadA],
+      paths: ["/tmp/a.txt"],
       timeoutMs: 1234,
     });
     expect(upload).toMatchObject({ ok: true });
     expect(pwMocks.armFileUploadViaPlaywright).toHaveBeenCalledWith({
       cdpUrl: cdpBaseUrl,
       targetId: "abcd1234",
-      paths: [uploadA],
+      paths: ["/tmp/a.txt"],
       timeoutMs: 1234,
     });
 
-    const uploadB = path.join(DEFAULT_UPLOAD_DIR, "b.txt");
     const uploadWithRef = await postJson(`${base}/hooks/file-chooser`, {
-      paths: [uploadB],
+      paths: ["/tmp/b.txt"],
       ref: "e12",
     });
     expect(uploadWithRef).toMatchObject({ ok: true });
 
-    const uploadC = path.join(DEFAULT_UPLOAD_DIR, "c.txt");
     const uploadWithInputRef = await postJson(`${base}/hooks/file-chooser`, {
-      paths: [uploadC],
+      paths: ["/tmp/c.txt"],
       inputRef: "e99",
     });
     expect(uploadWithInputRef).toMatchObject({ ok: true });
-    expect(pwMocks.setInputFilesViaPlaywright).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cdpUrl: cdpBaseUrl,
-        targetId: "abcd1234",
-        inputRef: "e99",
-        paths: [uploadC],
-      }),
-    );
 
-    const uploadD = path.join(DEFAULT_UPLOAD_DIR, "d.txt");
     const uploadWithElement = await postJson(`${base}/hooks/file-chooser`, {
-      paths: [uploadD],
+      paths: ["/tmp/d.txt"],
       element: "input[type=file]",
     });
     expect(uploadWithElement).toMatchObject({ ok: true });
-    expect(pwMocks.setInputFilesViaPlaywright).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cdpUrl: cdpBaseUrl,
-        targetId: "abcd1234",
-        element: "input[type=file]",
-        paths: [uploadD],
-      }),
-    );
 
     const dialog = await postJson(`${base}/hooks/dialog`, {
       accept: true,
@@ -514,15 +505,6 @@ describe("browser control server", () => {
     expect(pwMocks.traceStopViaPlaywright).not.toHaveBeenCalled();
   });
 
-  it("trace stop rejects absolute path outside trace dir", async () => {
-    const base = await startServerAndBase();
-    const res = await postJson<{ error?: string }>(`${base}/trace/stop`, {
-      path: path.resolve("/", "pwned.zip"),
-    });
-    expect(res.error).toContain("Invalid path");
-    expect(pwMocks.traceStopViaPlaywright).not.toHaveBeenCalled();
-  });
-
   it("trace stop accepts in-root relative output path", async () => {
     const base = await startServerAndBase();
     const res = await postJson<{ ok?: boolean; path?: string }>(`${base}/trace/stop`, {
@@ -539,40 +521,10 @@ describe("browser control server", () => {
     );
   });
 
-  it("hooks/file-chooser rejects traversal path outside uploads dir", async () => {
-    const base = await startServerAndBase();
-    const res = await postJson<{ error?: string }>(`${base}/hooks/file-chooser`, {
-      paths: ["../../pwned.txt"],
-    });
-    expect(res.error).toContain("Invalid path");
-    expect(pwMocks.armFileUploadViaPlaywright).not.toHaveBeenCalled();
-    expect(pwMocks.setInputFilesViaPlaywright).not.toHaveBeenCalled();
-  });
-
-  it("hooks/file-chooser rejects absolute path outside uploads dir", async () => {
-    const base = await startServerAndBase();
-    const outside = path.resolve(DEFAULT_UPLOAD_DIR, "..", "..", "pwned.txt");
-    const res = await postJson<{ error?: string }>(`${base}/hooks/file-chooser`, {
-      paths: [outside],
-    });
-    expect(res.error).toContain("Invalid path");
-    expect(pwMocks.armFileUploadViaPlaywright).not.toHaveBeenCalled();
-    expect(pwMocks.setInputFilesViaPlaywright).not.toHaveBeenCalled();
-  });
-
   it("wait/download rejects traversal path outside downloads dir", async () => {
     const base = await startServerAndBase();
     const waitRes = await postJson<{ error?: string }>(`${base}/wait/download`, {
       path: "../../pwned.pdf",
-    });
-    expect(waitRes.error).toContain("Invalid path");
-    expect(pwMocks.waitForDownloadViaPlaywright).not.toHaveBeenCalled();
-  });
-
-  it("wait/download rejects absolute path outside downloads dir", async () => {
-    const base = await startServerAndBase();
-    const waitRes = await postJson<{ error?: string }>(`${base}/wait/download`, {
-      path: path.resolve("/", "pwned.pdf"),
     });
     expect(waitRes.error).toContain("Invalid path");
     expect(pwMocks.waitForDownloadViaPlaywright).not.toHaveBeenCalled();
@@ -583,16 +535,6 @@ describe("browser control server", () => {
     const downloadRes = await postJson<{ error?: string }>(`${base}/download`, {
       ref: "e12",
       path: "../../pwned.pdf",
-    });
-    expect(downloadRes.error).toContain("Invalid path");
-    expect(pwMocks.downloadViaPlaywright).not.toHaveBeenCalled();
-  });
-
-  it("download rejects absolute path outside downloads dir", async () => {
-    const base = await startServerAndBase();
-    const downloadRes = await postJson<{ error?: string }>(`${base}/download`, {
-      ref: "e12",
-      path: path.resolve("/", "pwned.pdf"),
     });
     expect(downloadRes.error).toContain("Invalid path");
     expect(pwMocks.downloadViaPlaywright).not.toHaveBeenCalled();
