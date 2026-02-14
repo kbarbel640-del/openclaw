@@ -332,11 +332,12 @@ export function createExecTool(
       }
 
       const mergedEnv = { ...baseEnv, ...defaultsEnv, ...params.env };
+      const mergedSandboxEnv = { ...defaultsEnv, ...params.env };
 
       const env = sandbox
         ? buildSandboxEnv({
             defaultPath: DEFAULT_PATH,
-            paramsEnv: params.env,
+            paramsEnv: mergedSandboxEnv,
             sandboxEnv: sandbox.env,
             containerWorkdir: containerWorkdir ?? sandbox.containerWorkdir,
           })
@@ -365,7 +366,7 @@ export function createExecTool(
           command: params.command,
           workdir,
           env,
-          requestedEnv: params.env,
+          requestedEnv: { ...defaultsEnv, ...params.env },
           requestedNode: params.node?.trim(),
           boundNode: defaults?.node?.trim(),
           sessionKey: defaults?.sessionKey,
