@@ -3,6 +3,78 @@
 - Repo: https://github.com/openclaw/openclaw
 - GitHub issues/comments/PR comments: use literal multiline strings or `-F - <<'EOF'` (or $'...') for real newlines; never embed "\\n".
 
+## Critical Rules
+
+| Rule | Requirement |
+|------|-------------|
+| **CI test failures are BLOCKERS** | **ALL failing tests in PRs must be fixed - NEVER merge with failing CI checks** |
+| **No unrelated deletions** | **NEVER delete content from origin/main unrelated to current task** |
+| No false checkmarks | Only mark items complete when 100% verified |
+| Test failures | Fix ALL failures, no excuses, no "pre-existing" excuses |
+| Integration verification | Verify config + trigger + logs with evidence |
+| No fake code | Audit existing code before writing new implementations |
+| Code centralization | Search for existing code/utilities before writing new ones |
+| PR merges | Never merge without explicit user approval |
+| No bash arguments | NEVER pass bash arguments in commands without explicit user approval |
+
+## LLM Architecture Principles
+
+### Core Rule: LLM Decides, Server Executes
+
+For AI-driven features (content generation, analysis, decisions):
+- **LLM gets full context** - Don't strip information "to optimize"
+- **LLM makes decisions** - Don't pre-compute what the LLM should decide
+- **Server executes actions** - Tools and state changes happen server-side
+- **LLM incorporates results** - Final output uses real data from tool execution
+
+### Anti-Patterns (BANNED)
+
+- Keyword-based intent detection to bypass LLM judgment
+- Stripping tool definitions based on predicted need
+- Pre-computing results the LLM should request
+- "Optimizations" that reduce information available to the LLM
+- Disabled-by-default env-var feature flags for user-requested functionality
+- Creating new env vars without clear justification (use constants; env vars only for credentials/URLs)
+
+### Error Handling Philosophy
+
+Warnings only - no silent fixes with fallback generation. When LLM output is missing expected fields or violates requirements, log warnings and let validation/invariant checks surface the issue. Never silently fix with default content.
+
+## File Protocols
+
+### New File Creation — Extreme Anti-Creation Bias
+
+**Default: NO NEW FILES.** Prove why integration is impossible.
+
+**Integration hierarchy:** existing similar file → utility file → existing module → existing class method → config file → last resort: new file
+
+Before creating a new file:
+1. Search for existing similar functionality
+2. Try integrating into existing files
+3. Only create new file if integration is truly impossible
+4. Document justification for the new file
+
+### File Deletion Protocol
+
+**CRITICAL:** Never delete unrelated content from origin/main
+
+Before deleting any file:
+1. Search all imports/references to it across the repo
+2. Fix/update all references
+3. Verify no broken dependencies (run tests, type checks)
+4. Delete only after the above is complete
+5. NEVER delete: LLM prompts/schemas, user docs, test infrastructure without approval
+
+**When in doubt: ASK first**
+
+### File Placement
+
+- TypeScript/Source → `src/`
+- Scripts → `scripts/`
+- Tests → colocated `*.test.ts`
+- Docs → `docs/`
+- No `_v2`, `_new`, `_backup` files - edit existing files instead
+
 ## Project Structure & Module Organization
 
 - Source code: `src/` (CLI wiring in `src/cli`, commands in `src/commands`, web provider in `src/provider-web.ts`, infra in `src/infra`, media pipeline in `src/media`).
@@ -96,6 +168,28 @@
 ## Commit & Pull Request Guidelines
 
 **Full maintainer PR workflow (optional):** If you want the repo's end-to-end maintainer workflow (triage order, quality bar, rebase rules, commit/changelog conventions, co-contributor policy, and the `review-pr` > `prepare-pr` > `merge-pr` pipeline), see `.agents/skills/PR_WORKFLOW.md`. Maintainers may use other workflows; when a maintainer specifies a workflow, follow that. If no workflow is specified, default to PR_WORKFLOW.
+
+### PR & Merge Protocols
+
+- **NEVER merge PRs without explicit user approval**
+- **MANDATORY: ALL CI tests must pass before merge** - Any failing test is a blocker, no exceptions
+  - `mergeable: "MERGEABLE"` only means no conflicts - does NOT mean tests pass
+  - Always check `statusCheckRollup` for failing checks before declaring PR ready
+  - If ANY required check shows `conclusion: "FAILURE"`, the PR is NOT ready to merge
+- Verify agent work: file existence check, `git diff --stat`, `git status`
+- `/pr` commands must create actual PR with working URL - never give manual steps
+
+### PR Description Requirements
+
+**Required sections:**
+- Summary (1-4 bullets highlighting key changes)
+- Changes (what changed, before → after → why for significant modifications)
+- Testing (verification approach, evidence if applicable)
+- Known Limitations (pre-existing issues, out of scope items)
+
+**Format:** Clear, concise, with specific function/variable names where relevant
+
+### Commit Guidelines
 
 - Create commits with `scripts/committer "<msg>" <file...>`; avoid manual `git add`/`git commit` so staging stays scoped.
 - Follow concise, action-oriented commit messages (e.g., `CLI: add verbose flag to send`).

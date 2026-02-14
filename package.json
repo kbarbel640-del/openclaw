@@ -110,7 +110,15 @@
     "tui:dev": "OPENCLAW_PROFILE=dev CLAWDBOT_PROFILE=dev node scripts/run-node.mjs --dev tui",
     "ui:build": "node scripts/ui.js build",
     "ui:dev": "node scripts/ui.js dev",
-    "ui:install": "node scripts/ui.js install"
+    "ui:install": "node scripts/ui.js install",
+    "scaffold:lint": "./scripts/run_lint.sh",
+    "scaffold:lint:fix": "./scripts/run_lint.sh fix",
+    "scaffold:test": "./scripts/run_tests_with_coverage.sh",
+    "scaffold:test:unit": "./scripts/run_tests_with_coverage.sh unit",
+    "scaffold:test:e2e": "./scripts/run_tests_with_coverage.sh e2e",
+    "scaffold:test:coverage": "./scripts/run_tests_with_coverage.sh coverage",
+    "scaffold:loc": "./scripts/loc.sh",
+    "scaffold:coverage": "./scripts/coverage.sh"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "0.14.1",
