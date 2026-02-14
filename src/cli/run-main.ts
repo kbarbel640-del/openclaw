@@ -104,6 +104,12 @@ export async function runCli(argv: string[] = process.argv) {
     commandRegistered = await registerSubCliByName(program, primary);
 
     if (!commandRegistered) {
+      // Commands that use channel options in their help text need the provider
+      // set before registration, otherwise --channel shows incomplete choices.
+      if (primary === "agent" || primary === "agents" || primary === "message") {
+        const { resolveCliChannelOptions } = await import("./channel-options.js");
+        provideChannelOptions(resolveCliChannelOptions);
+      }
       const { registerCoreCommandByName } = await import("./program/register.core-lazy.js");
       commandRegistered = await registerCoreCommandByName(program, ctx, primary, parseArgv);
     }
