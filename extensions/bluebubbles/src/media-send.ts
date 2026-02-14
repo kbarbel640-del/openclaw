@@ -17,7 +17,7 @@ async function assertSafeMediaPath(localPath: string): Promise<string> {
   const resolved = path.resolve(localPath);
   const root = process.cwd();
   const relative = path.relative(root, resolved);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+  if (relative.startsWith("..")) {
     throw new Error(`Media path outside working directory: ${path.basename(localPath)}`);
   }
   // Resolve symlinks and re-check to prevent symlink escapes.
