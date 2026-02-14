@@ -797,6 +797,9 @@ export async function runEmbeddedAttempt(
       const onAbort = () => {
         const reason = params.abortSignal ? getAbortReason(params.abortSignal) : undefined;
         const timeout = reason ? isTimeoutError(reason) : false;
+        if (timeout && (subscription.isCompacting() || activeSession.isCompacting)) {
+          timedOutDuringCompaction = true;
+        }
         abortRun(timeout, reason);
       };
       if (params.abortSignal) {
