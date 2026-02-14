@@ -1,5 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as sessionKeyUtils from "../sessions/session-key-utils.js";
 import { classifySessionKeyShape, getParentSubagentKey, getSubagentDepth } from "./session-key.js";
+
+const maybeSetRegistryAccessor = (
+  sessionKeyUtils as typeof sessionKeyUtils & {
+    setRegistryAccessor?: (
+      fn: ((key: string) => { depth?: number } | undefined) | undefined,
+    ) => void;
+  }
+).setRegistryAccessor;
+
+afterEach(() => {
+  maybeSetRegistryAccessor?.(undefined);
+});
 
 describe("classifySessionKeyShape", () => {
   it("classifies empty keys as missing", () => {
@@ -68,6 +81,33 @@ describe("getSubagentDepth", () => {
 
   it("stops counting at unexpected segments", () => {
     expect(getSubagentDepth("agent:main:subagent:abc:thread:xyz")).toBe(1);
+  });
+});
+
+describe("getSubagentDepth registry metadata", () => {
+  it("prefers registry depth metadata when available", () => {
+    const accessor = vi.fn(() => ({ depth: 3 }));
+    maybeSetRegistryAccessor?.(accessor);
+
+    const result = getSubagentDepth("agent:main:subagent:a:sub:b");
+    expect(result).toBe(3);
+    expect(accessor).toHaveBeenCalledWith("agent:main:subagent:a:sub:b");
+  });
+
+  it("falls back to key parsing when registry has no entry", () => {
+    const accessor = vi.fn(() => undefined);
+    maybeSetRegistryAccessor?.(accessor);
+
+    expect(getSubagentDepth("agent:main:subagent:a:sub:b")).toBe(2);
+    expect(accessor).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores registry accessor for non-subagent keys", () => {
+    const accessor = vi.fn(() => ({ depth: 9 }));
+    maybeSetRegistryAccessor?.(accessor);
+
+    expect(getSubagentDepth("agent:main:main")).toBe(0);
+    expect(accessor).not.toHaveBeenCalled();
   });
 });
 

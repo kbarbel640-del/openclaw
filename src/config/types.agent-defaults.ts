@@ -210,6 +210,8 @@ export type AgentDefaultsConfig = {
     allowRecursiveSpawn?: boolean;
     /** Maximum nesting depth for recursive subagent spawning. Default: 3, range: 1-10. */
     maxDepth?: number;
+    /** Max children a single parent agent can have active simultaneously. Default: 4. */
+    maxChildrenPerAgent?: number;
     /** Default model selection for spawned sub-agents (string or {primary,fallbacks}). */
     model?: string | { primary?: string; fallbacks?: string[] };
     /** Default thinking level for spawned sub-agents (e.g. "off", "low", "medium", "high"). */

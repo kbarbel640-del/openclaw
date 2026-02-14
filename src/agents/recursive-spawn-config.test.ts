@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
-import { resolveAllowRecursiveSpawn, resolveMaxSpawnDepth } from "./recursive-spawn-config.js";
+import {
+  resolveAllowRecursiveSpawn,
+  resolveMaxChildrenPerAgent,
+  resolveMaxSpawnDepth,
+} from "./recursive-spawn-config.js";
 
 describe("resolveAllowRecursiveSpawn", () => {
   it("returns false by default", () => {
@@ -29,6 +33,41 @@ describe("resolveAllowRecursiveSpawn", () => {
       agents: { list: [{ id: "other", subagents: { allowRecursiveSpawn: true } }] },
     };
     expect(resolveAllowRecursiveSpawn(cfg, "main")).toBe(false);
+  });
+});
+
+describe("resolveMaxChildrenPerAgent", () => {
+  it("returns 4 by default", () => {
+    expect(resolveMaxChildrenPerAgent({}, "main")).toBe(4);
+  });
+
+  it("returns global default when set", () => {
+    const cfg: OpenClawConfig = {
+      agents: { defaults: { subagents: { maxChildrenPerAgent: 6 } } },
+    };
+    expect(resolveMaxChildrenPerAgent(cfg, "main")).toBe(6);
+  });
+
+  it("per-agent overrides global", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: { subagents: { maxChildrenPerAgent: 6 } },
+        list: [{ id: "main", subagents: { maxChildrenPerAgent: 2 } }],
+      },
+    };
+    expect(resolveMaxChildrenPerAgent(cfg, "main")).toBe(2);
+  });
+
+  it("clamps to 1-20 range", () => {
+    const cfg1: OpenClawConfig = {
+      agents: { defaults: { subagents: { maxChildrenPerAgent: 0 } } },
+    };
+    expect(resolveMaxChildrenPerAgent(cfg1, "main")).toBe(1);
+
+    const cfg2: OpenClawConfig = {
+      agents: { defaults: { subagents: { maxChildrenPerAgent: 50 } } },
+    };
+    expect(resolveMaxChildrenPerAgent(cfg2, "main")).toBe(20);
   });
 });
 

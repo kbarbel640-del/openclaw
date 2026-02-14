@@ -444,6 +444,7 @@ export const AgentEntrySchema = z
     id: z.string(),
     default: z.boolean().optional(),
     name: z.string().optional(),
+    description: z.string().optional(),
     workspace: z.string().optional(),
     agentDir: z.string().optional(),
     model: AgentModelSchema.optional(),
@@ -458,6 +459,7 @@ export const AgentEntrySchema = z
         allowAgents: z.array(z.string()).optional(),
         allowRecursiveSpawn: z.boolean().optional(),
         maxDepth: z.number().int().min(1).max(10).optional(),
+        maxChildrenPerAgent: z.number().int().min(1).max(20).optional(),
         model: z
           .union([
             z.string(),

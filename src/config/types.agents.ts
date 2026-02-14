@@ -22,6 +22,8 @@ export type AgentConfig = {
   id: string;
   default?: boolean;
   name?: string;
+  /** Human-readable description of this agent's capabilities (used in fleet tables). */
+  description?: string;
   workspace?: string;
   agentDir?: string;
   model?: AgentModelConfig;
@@ -43,6 +45,8 @@ export type AgentConfig = {
     allowRecursiveSpawn?: boolean;
     /** Maximum nesting depth for recursive subagent spawning. Default: 3, range: 1-10. */
     maxDepth?: number;
+    /** Max children this agent can have active simultaneously (overrides default). */
+    maxChildrenPerAgent?: number;
   };
   sandbox?: {
     mode?: "off" | "non-main" | "all";

@@ -190,6 +190,8 @@ export function createSessionsSpawnTool(opts?: {
         typeof requesterSessionKey === "string" && isSubagentSessionKey(requesterSessionKey)
           ? `${requesterSessionKey}:sub:${crypto.randomUUID()}`
           : `agent:${targetAgentId}:subagent:${crypto.randomUUID()}`;
+      const parentDepth = getSubagentDepth(requesterInternalKey);
+      const childDepth = parentDepth > 0 ? parentDepth + 1 : 1;
       const spawnedByKey = requesterInternalKey;
       const targetAgentConfig = resolveAgentConfig(cfg, targetAgentId);
       const resolvedModel =
@@ -317,6 +319,7 @@ export function createSessionsSpawnTool(opts?: {
         cleanup,
         label: label || undefined,
         runTimeoutSeconds,
+        depth: childDepth,
       });
 
       return jsonResult({

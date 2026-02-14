@@ -25,6 +25,8 @@ export type SubagentRunRecord = {
   archiveAtMs?: number;
   cleanupCompletedAt?: number;
   cleanupHandled?: boolean;
+  depth?: number;
+  childKeys?: Set<string>;
 };
 
 const subagentRuns = new Map<string, SubagentRunRecord>();
@@ -40,6 +42,54 @@ function persistSubagentRuns() {
     saveSubagentRegistryToDisk(subagentRuns);
   } catch {
     // ignore persistence failures
+  }
+}
+
+export function getRunByChildKey(childKey: string): SubagentRunRecord | undefined {
+  for (const entry of subagentRuns.values()) {
+    if (entry.childSessionKey === childKey) {
+      return entry;
+    }
+  }
+  return undefined;
+}
+
+export function getActiveChildCount(parentKey: string): number {
+  let count = 0;
+  for (const entry of subagentRuns.values()) {
+    if (entry.requesterSessionKey === parentKey && !entry.endedAt) {
+      count++;
+    }
+  }
+  return count;
+}
+
+export function listAllSubagentRuns(): SubagentRunRecord[] {
+  restoreSubagentRunsOnce();
+  return [...subagentRuns.values()];
+}
+
+const pendingSpawns = new Map<string, number>();
+
+export function reserveChildSlot(parentKey: string, max: number): boolean {
+  const active = getActiveChildCount(parentKey);
+  const pending = pendingSpawns.get(parentKey) ?? 0;
+  if (active + pending >= max) {
+    return false;
+  }
+  pendingSpawns.set(parentKey, pending + 1);
+  return true;
+}
+
+export function releaseChildSlot(parentKey: string): void {
+  const pending = pendingSpawns.get(parentKey) ?? 0;
+  if (pending > 0) {
+    const next = pending - 1;
+    if (next > 0) {
+      pendingSpawns.set(parentKey, next);
+    } else {
+      pendingSpawns.delete(parentKey);
+    }
   }
 }
 
@@ -291,6 +341,7 @@ export function registerSubagentRun(params: {
   cleanup: "delete" | "keep";
   label?: string;
   runTimeoutSeconds?: number;
+  depth?: number;
 }) {
   const now = Date.now();
   const cfg = loadConfig();
@@ -311,7 +362,17 @@ export function registerSubagentRun(params: {
     startedAt: now,
     archiveAtMs,
     cleanupHandled: false,
+    depth: params.depth ?? 1,
+    childKeys: new Set(),
   });
+  const parentRun = getRunByChildKey(params.requesterSessionKey);
+  if (parentRun) {
+    if (!parentRun.childKeys) {
+      parentRun.childKeys = new Set();
+    }
+    parentRun.childKeys.add(params.childSessionKey);
+  }
+  releaseChildSlot(params.requesterSessionKey);
   ensureListener();
   persistSubagentRuns();
   if (archiveAfterMs) {
@@ -398,6 +459,7 @@ async function waitForSubagentCompletion(runId: string, waitTimeoutMs: number) {
 export function resetSubagentRegistryForTests(opts?: { persist?: boolean }) {
   subagentRuns.clear();
   resumedRuns.clear();
+  pendingSpawns.clear();
   stopSweeper();
   restoreAttempted = false;
   if (listenerStop) {
@@ -405,6 +467,16 @@ export function resetSubagentRegistryForTests(opts?: { persist?: boolean }) {
     listenerStop = null;
   }
   listenerStarted = false;
+  try {
+    const { setRegistryAccessor } = require("../sessions/session-key-utils.js") as {
+      setRegistryAccessor?: (
+        fn: ((key: string) => SubagentRunRecord | undefined) | undefined,
+      ) => void;
+    };
+    setRegistryAccessor?.(undefined);
+  } catch {
+    // ignore when session-key-utils hasn't been loaded yet
+  }
   if (opts?.persist !== false) {
     persistSubagentRuns();
   }
@@ -435,4 +507,11 @@ export function listSubagentRunsForRequester(requesterSessionKey: string): Subag
 
 export function initSubagentRegistry() {
   restoreSubagentRunsOnce();
+  import("../sessions/session-key-utils.js")
+    .then((mod) => {
+      mod.setRegistryAccessor?.(getRunByChildKey);
+    })
+    .catch(() => {
+      // ignore dynamic import failures
+    });
 }

@@ -3,6 +3,14 @@ export type ParsedAgentSessionKey = {
   rest: string;
 };
 
+let getRunByChildKeyGlobal: ((key: string) => { depth?: number } | undefined) | undefined;
+
+export function setRegistryAccessor(
+  fn: ((key: string) => { depth?: number } | undefined) | undefined,
+): void {
+  getRunByChildKeyGlobal = fn;
+}
+
 export function parseAgentSessionKey(
   sessionKey: string | undefined | null,
 ): ParsedAgentSessionKey | null {
@@ -71,6 +79,10 @@ export function getSubagentDepth(sessionKey: string | undefined | null): number 
   if (!rest.startsWith("subagent:")) {
     return 0;
   }
+  const registryRecord = getRunByChildKeyGlobal?.(raw);
+  if (registryRecord?.depth != null && registryRecord.depth > 0) {
+    return registryRecord.depth;
+  }
   const parts = rest.split(":");
   let depth = 1;
   let i = 2;
@@ -85,6 +97,11 @@ export function getSubagentDepth(sessionKey: string | undefined | null): number 
   return depth;
 }
 
+/**
+ * @deprecated Unreliable for cross-agent recursive spawns. Use SubagentRegistry
+ * (getRunByChildKey + requesterSessionKey) for lineage lookups instead.
+ * Retained only for backward compatibility with non-recursive code paths.
+ */
 export function getParentSubagentKey(sessionKey: string | undefined | null): string | null {
   const raw = (sessionKey ?? "").trim();
   if (!raw) {

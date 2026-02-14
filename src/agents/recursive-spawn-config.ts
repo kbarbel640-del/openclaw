@@ -2,6 +2,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import { resolveAgentConfig } from "./agent-scope.js";
 
 const DEFAULT_MAX_DEPTH = 3;
+const DEFAULT_MAX_CHILDREN_PER_AGENT = 4;
 
 export function resolveAllowRecursiveSpawn(cfg: OpenClawConfig, agentId: string): boolean {
   const agentConfig = resolveAgentConfig(cfg, agentId);
@@ -27,4 +28,17 @@ export function resolveMaxSpawnDepth(cfg: OpenClawConfig, agentId: string): numb
     return Math.max(1, Math.min(10, Math.floor(global)));
   }
   return DEFAULT_MAX_DEPTH;
+}
+
+export function resolveMaxChildrenPerAgent(cfg: OpenClawConfig, agentId: string): number {
+  const agentConfig = resolveAgentConfig(cfg, agentId);
+  const perAgent = agentConfig?.subagents?.maxChildrenPerAgent;
+  if (typeof perAgent === "number" && Number.isFinite(perAgent)) {
+    return Math.max(1, Math.min(20, Math.floor(perAgent)));
+  }
+  const global = cfg.agents?.defaults?.subagents?.maxChildrenPerAgent;
+  if (typeof global === "number" && Number.isFinite(global)) {
+    return Math.max(1, Math.min(20, Math.floor(global)));
+  }
+  return DEFAULT_MAX_CHILDREN_PER_AGENT;
 }

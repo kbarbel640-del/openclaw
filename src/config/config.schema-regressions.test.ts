@@ -36,4 +36,44 @@ describe("config schema regressions", () => {
 
     expect(res.ok).toBe(true);
   });
+
+  it("accepts agent descriptions and maxChildrenPerAgent fields", () => {
+    const res = validateConfigObject({
+      agents: {
+        defaults: {
+          subagents: {
+            maxChildrenPerAgent: 6,
+          },
+        },
+        list: [
+          {
+            id: "main",
+            description: "Code reviewer",
+            subagents: { maxChildrenPerAgent: 2 },
+          },
+        ],
+      },
+    });
+
+    expect(res.ok).toBe(true);
+  });
+
+  it("rejects unknown subagent keys", () => {
+    const res = validateConfigObject({
+      agents: {
+        defaults: {
+          subagents: {
+            maxChildrenPerAgent: 4,
+            nope: true,
+          },
+        },
+      },
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.issues[0]?.path).toBe("agents.defaults.subagents");
+      expect(res.issues[0]?.message).toContain("Unrecognized key");
+    }
+  });
 });

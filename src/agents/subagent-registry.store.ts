@@ -4,7 +4,7 @@ import { resolveStateDir } from "../config/paths.js";
 import { loadJsonFile, saveJsonFile } from "../infra/json-file.js";
 import { normalizeDeliveryContext } from "../utils/delivery-context.js";
 
-export type PersistedSubagentRegistryVersion = 1 | 2;
+export type PersistedSubagentRegistryVersion = 1 | 2 | 3;
 
 type PersistedSubagentRegistryV1 = {
   version: 1;
@@ -16,11 +16,22 @@ type PersistedSubagentRegistryV2 = {
   runs: Record<string, PersistedSubagentRunRecord>;
 };
 
-type PersistedSubagentRegistry = PersistedSubagentRegistryV1 | PersistedSubagentRegistryV2;
+type PersistedSubagentRegistryV3 = {
+  version: 3;
+  runs: Record<string, PersistedSubagentRunRecord>;
+};
 
-const REGISTRY_VERSION = 2 as const;
+type PersistedSubagentRegistry =
+  | PersistedSubagentRegistryV1
+  | PersistedSubagentRegistryV2
+  | PersistedSubagentRegistryV3;
 
-type PersistedSubagentRunRecord = SubagentRunRecord;
+const REGISTRY_VERSION = 3 as const;
+
+type PersistedSubagentRunRecord = Omit<SubagentRunRecord, "childKeys"> & {
+  childKeys?: string[];
+  depth?: number;
+};
 
 type LegacySubagentRunRecord = PersistedSubagentRunRecord & {
   announceCompletedAt?: unknown;
@@ -40,7 +51,7 @@ export function loadSubagentRegistryFromDisk(): Map<string, SubagentRunRecord> {
     return new Map();
   }
   const record = raw as Partial<PersistedSubagentRegistry>;
-  if (record.version !== 1 && record.version !== 2) {
+  if (record.version !== 1 && record.version !== 2 && record.version !== 3) {
     return new Map();
   }
   const runsRaw = record.runs;
@@ -82,13 +93,26 @@ export function loadSubagentRegistryFromDisk(): Map<string, SubagentRunRecord> {
       announceHandled: _announceHandled,
       requesterChannel: _channel,
       requesterAccountId: _accountId,
+      childKeys: childKeysRaw,
+      depth: persistedDepth,
       ...rest
-    } = typed;
+    } = typed as LegacySubagentRunRecord & { childKeys?: unknown; depth?: unknown };
+    const depth =
+      typeof persistedDepth === "number" && Number.isFinite(persistedDepth)
+        ? persistedDepth
+        : undefined;
+    const childKeys = new Set<string>(
+      Array.isArray(childKeysRaw)
+        ? childKeysRaw.filter((value): value is string => typeof value === "string")
+        : [],
+    );
     out.set(runId, {
       ...rest,
       requesterOrigin,
       cleanupCompletedAt,
       cleanupHandled,
+      depth,
+      childKeys,
     });
     if (isLegacy) {
       migrated = true;
@@ -108,7 +132,11 @@ export function saveSubagentRegistryToDisk(runs: Map<string, SubagentRunRecord>)
   const pathname = resolveSubagentRegistryPath();
   const serialized: Record<string, PersistedSubagentRunRecord> = {};
   for (const [runId, entry] of runs.entries()) {
-    serialized[runId] = entry;
+    const { childKeys, ...rest } = entry;
+    serialized[runId] = {
+      ...rest,
+      childKeys: childKeys ? Array.from(childKeys) : [],
+    };
   }
   const out: PersistedSubagentRegistry = {
     version: REGISTRY_VERSION,

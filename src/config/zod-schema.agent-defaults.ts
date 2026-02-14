@@ -143,6 +143,7 @@ export const AgentDefaultsSchema = z
         archiveAfterMinutes: z.number().int().positive().optional(),
         allowRecursiveSpawn: z.boolean().optional(),
         maxDepth: z.number().int().min(1).max(10).optional(),
+        maxChildrenPerAgent: z.number().int().min(1).max(20).optional(),
         model: z
           .union([
             z.string(),
