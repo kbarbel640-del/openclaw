@@ -55,4 +55,18 @@ describe("matchesMentionWithExplicit", () => {
     });
     expect(result).toBe(true);
   });
+
+  it("can treat any mention as explicit for channel-specific behavior", () => {
+    const result = matchesMentionWithExplicit({
+      text: "@everyone wake up",
+      mentionRegexes: [],
+      explicit: {
+        hasAnyMention: true,
+        isExplicitlyMentioned: false,
+        canResolveExplicit: true,
+        acceptAnyMentionAsExplicit: true,
+      },
+    });
+    expect(result).toBe(true);
+  });
 });

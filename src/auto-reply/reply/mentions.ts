@@ -84,6 +84,11 @@ export type ExplicitMentionSignal = {
   hasAnyMention: boolean;
   isExplicitlyMentioned: boolean;
   canResolveExplicit: boolean;
+  /**
+   * Some channels (e.g., Discord) treat @everyone / @role as valid mention triggers
+   * even when they are not direct user mentions.
+   */
+  acceptAnyMentionAsExplicit?: boolean;
 };
 
 export function matchesMentionWithExplicit(params: {
@@ -96,12 +101,16 @@ export function matchesMentionWithExplicit(params: {
   const explicit = params.explicit?.isExplicitlyMentioned === true;
   const explicitAvailable = params.explicit?.canResolveExplicit === true;
   const hasAnyMention = params.explicit?.hasAnyMention === true;
+  const acceptAnyMentionAsExplicit = params.explicit?.acceptAnyMentionAsExplicit === true;
 
   // Check transcript if text is empty and transcript is provided
   const transcriptCleaned = params.transcript ? normalizeMentionText(params.transcript) : "";
   const textToCheck = cleaned || transcriptCleaned;
 
   if (hasAnyMention && explicitAvailable) {
+    if (acceptAnyMentionAsExplicit) {
+      return true;
+    }
     return explicit || params.mentionRegexes.some((re) => re.test(textToCheck));
   }
   if (!textToCheck) {
