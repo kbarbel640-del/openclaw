@@ -1004,19 +1004,46 @@ export async function sendPollTelegram(
     );
   };
 
-  // Telegram currently supports poll duration between 5 and 600 seconds.
-  // Convert generic durationHours into seconds and clamp to Telegram limits.
-  const openPeriodSeconds =
-    normalizedPoll.durationHours !== undefined
-      ? Math.max(5, Math.min(normalizedPoll.durationHours * 3600, 600))
-      : undefined;
+  const sendWithThreadFallback = async <T>(
+    params: Record<string, unknown> | undefined,
+    label: string,
+    attempt: (
+      effectiveParams: Record<string, unknown> | undefined,
+      effectiveLabel: string,
+    ) => Promise<T>,
+  ): Promise<T> => {
+    try {
+      return await attempt(params, label);
+    } catch (err) {
+      if (!hasMessageThreadIdParam(params) || !isTelegramThreadNotFoundError(err)) {
+        throw err;
+      }
+      if (opts.verbose) {
+        console.warn(
+          `telegram ${label} failed with message_thread_id, retrying without thread: ${formatErrorMessage(err)}`,
+        );
+      }
+      const retriedParams = removeMessageThreadIdParam(params);
+      return await attempt(retriedParams, `${label}-threadless`);
+    }
+  };
+
+  const durationSeconds = normalizedPoll.durationSeconds;
+  if (durationSeconds === undefined && normalizedPoll.durationHours !== undefined) {
+    throw new Error(
+      "Telegram poll durationHours is not supported. Use durationSeconds (5-600) instead.",
+    );
+  }
+  if (durationSeconds !== undefined && (durationSeconds < 5 || durationSeconds > 600)) {
+    throw new Error("Telegram poll durationSeconds must be between 5 and 600");
+  }
 
   // Build poll parameters following Grammy's api.sendPoll signature
   // sendPoll(chat_id, question, options, other?, signal?)
   const pollParams = {
     allows_multiple_answers: normalizedPoll.maxSelections > 1,
     is_anonymous: opts.isAnonymous ?? true,
-    ...(openPeriodSeconds !== undefined ? { open_period: openPeriodSeconds } : {}),
+    ...(durationSeconds !== undefined ? { open_period: durationSeconds } : {}),
     ...(threadIdParams ? threadIdParams : {}),
     ...(opts.replyToMessageId != null
       ? { reply_to_message_id: Math.trunc(opts.replyToMessageId) }
@@ -1024,16 +1051,21 @@ export async function sendPollTelegram(
     ...(opts.silent === true ? { disable_notification: true } : {}),
   };
 
-  const result = await requestWithDiag(
-    () => api.sendPoll(chatId, normalizedPoll.question, pollOptions, pollParams),
-    "poll",
-  ).catch((err) => {
-    throw wrapChatNotFound(err);
-  });
+  const result = await sendWithThreadFallback(pollParams, "poll", async (effectiveParams, label) =>
+    requestWithDiag(
+      () => api.sendPoll(chatId, normalizedPoll.question, pollOptions, effectiveParams),
+      label,
+    ).catch((err) => {
+      throw wrapChatNotFound(err);
+    }),
+  );
 
   const messageId = String(result?.message_id ?? "unknown");
   const resolvedChatId = String(result?.chat?.id ?? chatId);
   const pollId = result?.poll?.id;
+  if (result?.message_id) {
+    recordSentMessage(chatId, result.message_id);
+  }
 
   recordChannelActivity({
     channel: "telegram",
