@@ -9,4 +9,4 @@ Backlog hygiene rules:
 - Completed story history remains in `dispatch/logs/progress_log.md`.
 
 Current active item:
-- `MVP-06` (Operability)
+- `MVP-07` (UX MVP Build)

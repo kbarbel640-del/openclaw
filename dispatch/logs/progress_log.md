@@ -1093,3 +1093,64 @@ Environment note:
 Outcome:
 - `MVP-05` is complete and validated.
 - Active item advanced to `MVP-06` (durable observability and runbook readiness).
+
+## 2026-02-14 06:33 PST
+
+### MVP-06
+Summary:
+Completed `MVP-06` by adding durable observability sinks, threshold-driven operational alerts, and published on-call runbooks with a drill validation test covering stuck scheduling, completion rejection, idempotency conflict, and auth policy failures.
+
+Files Modified:
+- `dispatch/api/src/server.mjs`
+- `dispatch/api/README.md`
+- `dispatch/ops/README.md`
+- `dispatch/ops/runbooks/README.md`
+- `dispatch/ops/runbooks/stuck_scheduling.md`
+- `dispatch/ops/runbooks/completion_rejection.md`
+- `dispatch/ops/runbooks/idempotency_conflict.md`
+- `dispatch/ops/runbooks/auth_policy_failure.md`
+- `dispatch/ops/runbooks/mvp_06_on_call_drill.md`
+- `dispatch/tests/mvp_06_operability.node.test.mjs`
+- `ai_dispatch_agile_project_package/backlog/backlog.csv`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+- `dispatch/logs/progress_log.md`
+
+Operability/Alerting Delivery:
+- Added durable sink support:
+  - `DISPATCH_LOG_SINK_PATH` (append-only structured request logs)
+  - `DISPATCH_METRICS_SINK_PATH` (latest metrics snapshot JSON)
+  - `DISPATCH_ALERTS_SINK_PATH` (append-only alerts snapshots)
+- Added `GET /ops/alerts` endpoint with threshold-driven alert generation and runbook mapping for:
+  - `STUCK_SCHEDULING`
+  - `COMPLETION_REJECTION_SPIKE`
+  - `IDEMPOTENCY_CONFLICT_SPIKE`
+  - `AUTH_POLICY_FAILURE_SPIKE`
+- Added alert threshold configuration:
+  - `DISPATCH_ALERT_STUCK_SCHEDULING_COUNT_THRESHOLD`
+  - `DISPATCH_ALERT_STUCK_SCHEDULING_MINUTES`
+  - `DISPATCH_ALERT_COMPLETION_REJECTION_THRESHOLD`
+  - `DISPATCH_ALERT_IDEMPOTENCY_CONFLICT_THRESHOLD`
+  - `DISPATCH_ALERT_AUTH_POLICY_REJECTION_THRESHOLD`
+
+Runbook/Drill Delivery:
+- Published runbooks for all four critical failure modes under `dispatch/ops/runbooks/`.
+- Added `mvp_06_on_call_drill.md` with deterministic procedure and pass criteria.
+
+Tests Added:
+- `dispatch/tests/mvp_06_operability.node.test.mjs`
+  - triggers all four failure-mode signals
+  - validates `/ops/alerts` output and runbook mapping
+  - validates durable sink artifact creation and content
+  - validates runbook/drill artifacts exist and are non-empty
+
+Validation Commands + Results:
+- `node --test --test-concurrency=1 dispatch/tests/mvp_06_operability.node.test.mjs` -> PASS (2/2)
+- `node --test --test-concurrency=1 dispatch/tests/story_09_observability.node.test.mjs` -> PASS (1/1)
+- `node --test --test-concurrency=1 dispatch/tests/story_05_authorization.node.test.mjs` -> PASS (4/4)
+- `node --test --test-concurrency=1 dispatch/tests/*.mjs` -> PASS (46/46)
+
+Outcome:
+- `MVP-06` is complete and validated.
+- Active item advanced to `MVP-07` (dispatcher cockpit and technician packet implementation).

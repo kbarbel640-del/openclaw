@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { canonicalJsonHash } from "./canonical-json.mjs";
 import { closePool, getPool } from "./db.mjs";
 import { createAuthRuntime } from "./auth.mjs";
@@ -26,13 +28,117 @@ import {
 } from "../../workflow-engine/rules/closeout-required-evidence.mjs";
 
 const ticketRouteRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SCHEDULING_STATES = Object.freeze(["READY_TO_SCHEDULE", "SCHEDULE_PROPOSED", "SCHEDULED"]);
+const AUTH_POLICY_ALERT_ERROR_CODES = new Set([
+  "FORBIDDEN",
+  "FORBIDDEN_SCOPE",
+  "TOOL_NOT_ALLOWED",
+  "AUTH_REQUIRED",
+  "INVALID_AUTH_TOKEN",
+  "INVALID_AUTH_CLAIMS",
+  "AUTH_CONFIG_ERROR",
+]);
+const RUNBOOK_PATHS = Object.freeze({
+  STUCK_SCHEDULING: "dispatch/ops/runbooks/stuck_scheduling.md",
+  COMPLETION_REJECTION_SPIKE: "dispatch/ops/runbooks/completion_rejection.md",
+  IDEMPOTENCY_CONFLICT_SPIKE: "dispatch/ops/runbooks/idempotency_conflict.md",
+  AUTH_POLICY_FAILURE_SPIKE: "dispatch/ops/runbooks/auth_policy_failure.md",
+});
 
-function emitStructuredLog(logger, level, payload) {
-  const line = JSON.stringify({
+function normalizeOptionalFilePath(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  return path.resolve(trimmed);
+}
+
+function ensureParentDirectory(filePath) {
+  const directory = path.dirname(filePath);
+  fs.mkdirSync(directory, { recursive: true });
+}
+
+function appendJsonLine(filePath, payload) {
+  if (!filePath) {
+    return;
+  }
+  ensureParentDirectory(filePath);
+  fs.appendFileSync(filePath, `${JSON.stringify(payload)}\n`, "utf8");
+}
+
+function writeJsonSnapshot(filePath, payload) {
+  if (!filePath) {
+    return;
+  }
+  ensureParentDirectory(filePath);
+  const tempPath = `${filePath}.tmp`;
+  fs.writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  fs.renameSync(tempPath, filePath);
+}
+
+function parseNonNegativeInteger(value, fallbackValue) {
+  if (value == null || value === "") {
+    return fallbackValue;
+  }
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallbackValue;
+  }
+  return parsed;
+}
+
+function resolveAlertThresholds(config = {}) {
+  return Object.freeze({
+    stuck_scheduling_count: parseNonNegativeInteger(
+      config.stuckSchedulingCount ?? process.env.DISPATCH_ALERT_STUCK_SCHEDULING_COUNT_THRESHOLD,
+      5,
+    ),
+    stuck_scheduling_minutes: parseNonNegativeInteger(
+      config.stuckSchedulingMinutes ?? process.env.DISPATCH_ALERT_STUCK_SCHEDULING_MINUTES,
+      60,
+    ),
+    completion_rejection_count: parseNonNegativeInteger(
+      config.completionRejectionCount ?? process.env.DISPATCH_ALERT_COMPLETION_REJECTION_THRESHOLD,
+      3,
+    ),
+    idempotency_conflict_count: parseNonNegativeInteger(
+      config.idempotencyConflictCount ?? process.env.DISPATCH_ALERT_IDEMPOTENCY_CONFLICT_THRESHOLD,
+      2,
+    ),
+    auth_policy_rejection_count: parseNonNegativeInteger(
+      config.authPolicyRejectionCount ?? process.env.DISPATCH_ALERT_AUTH_POLICY_REJECTION_THRESHOLD,
+      5,
+    ),
+  });
+}
+
+function emitStructuredLog(logger, level, payload, options = {}) {
+  const record = {
     level,
     service: "dispatch-api",
     ...payload,
-  });
+  };
+
+  if (options.logSinkPath) {
+    try {
+      appendJsonLine(options.logSinkPath, record);
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          service: "dispatch-api",
+          message: "failed to append structured log to sink",
+          sink_path: options.logSinkPath,
+          error: error?.message ?? String(error),
+        }),
+      );
+    }
+  }
+
+  const line = JSON.stringify(record);
 
   if (level === "error") {
     if (logger && typeof logger.error === "function") {
@@ -54,94 +160,230 @@ function emitStructuredLog(logger, level, payload) {
   console.log(line);
 }
 
-function createMetricsRegistry() {
+function createMetricsRegistry(options = {}) {
   const requestsTotal = new Map();
   const errorsTotal = new Map();
   const transitionsTotal = new Map();
   let idempotencyReplayTotal = 0;
   let idempotencyConflictTotal = 0;
+  const onChange = typeof options.onChange === "function" ? options.onChange : null;
 
   function incrementCounter(map, key) {
     map.set(key, (map.get(key) ?? 0) + 1);
   }
 
-  return {
+  function buildSnapshot() {
+    const requests = Array.from(requestsTotal.entries())
+      .map(([key, count]) => {
+        const [method, endpoint, status] = JSON.parse(key);
+        return {
+          method,
+          endpoint,
+          status: Number(status),
+          count,
+        };
+      })
+      .sort(
+        (left, right) =>
+          left.method.localeCompare(right.method) ||
+          left.endpoint.localeCompare(right.endpoint) ||
+          left.status - right.status,
+      );
+
+    const errors = Array.from(errorsTotal.entries())
+      .map(([code, count]) => ({
+        code,
+        count,
+      }))
+      .sort((left, right) => left.code.localeCompare(right.code));
+
+    const transitions = Array.from(transitionsTotal.entries())
+      .map(([key, count]) => {
+        const [fromState, toState] = JSON.parse(key);
+        return {
+          from_state: fromState,
+          to_state: toState,
+          count,
+        };
+      })
+      .sort((left, right) => {
+        const leftFrom = left.from_state ?? "";
+        const rightFrom = right.from_state ?? "";
+        const fromOrder = leftFrom.localeCompare(rightFrom);
+        if (fromOrder !== 0) {
+          return fromOrder;
+        }
+
+        const leftTo = left.to_state ?? "";
+        const rightTo = right.to_state ?? "";
+        return leftTo.localeCompare(rightTo);
+      });
+
+    return {
+      service: "dispatch-api",
+      generated_at: nowIso(),
+      counters: {
+        requests_total: requests,
+        errors_total: errors,
+        transitions_total: transitions,
+        idempotency_replay_total: idempotencyReplayTotal,
+        idempotency_conflict_total: idempotencyConflictTotal,
+      },
+    };
+  }
+
+  function publishSnapshot() {
+    if (!onChange) {
+      return;
+    }
+    try {
+      onChange(buildSnapshot());
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          service: "dispatch-api",
+          message: "metrics onChange callback failed",
+          error: error?.message ?? String(error),
+        }),
+      );
+    }
+  }
+
+  const registry = {
     incrementRequest(method, endpoint, status) {
       const key = JSON.stringify([String(method), String(endpoint), Number(status)]);
       incrementCounter(requestsTotal, key);
+      publishSnapshot();
     },
     incrementError(code) {
       const normalized = typeof code === "string" && code.trim() !== "" ? code.trim() : "UNKNOWN_ERROR";
       incrementCounter(errorsTotal, normalized);
+      publishSnapshot();
     },
     incrementTransition(fromState, toState) {
       const key = JSON.stringify([fromState ?? null, toState ?? null]);
       incrementCounter(transitionsTotal, key);
+      publishSnapshot();
     },
     incrementIdempotencyReplay() {
       idempotencyReplayTotal += 1;
+      publishSnapshot();
     },
     incrementIdempotencyConflict() {
       idempotencyConflictTotal += 1;
+      publishSnapshot();
     },
     snapshot() {
-      const requests = Array.from(requestsTotal.entries())
-        .map(([key, count]) => {
-          const [method, endpoint, status] = JSON.parse(key);
-          return {
-            method,
-            endpoint,
-            status: Number(status),
-            count,
-          };
-        })
-        .sort(
-          (left, right) =>
-            left.method.localeCompare(right.method) ||
-            left.endpoint.localeCompare(right.endpoint) ||
-            left.status - right.status,
-        );
+      return buildSnapshot();
+    },
+  };
 
-      const errors = Array.from(errorsTotal.entries())
-        .map(([code, count]) => ({
-          code,
-          count,
-        }))
-        .sort((left, right) => left.code.localeCompare(right.code));
+  publishSnapshot();
+  return registry;
+}
 
-      const transitions = Array.from(transitionsTotal.entries())
-        .map(([key, count]) => {
-          const [fromState, toState] = JSON.parse(key);
-          return {
-            from_state: fromState,
-            to_state: toState,
-            count,
-          };
-        })
-        .sort((left, right) => {
-          const leftFrom = left.from_state ?? "";
-          const rightFrom = right.from_state ?? "";
-          const fromOrder = leftFrom.localeCompare(rightFrom);
-          if (fromOrder !== 0) {
-            return fromOrder;
-          }
+function findErrorCounterCount(snapshot, code) {
+  const counter = snapshot.counters.errors_total.find((entry) => entry.code === code);
+  return Number(counter?.count ?? 0);
+}
 
-          const leftTo = left.to_state ?? "";
-          const rightTo = right.to_state ?? "";
-          return leftTo.localeCompare(rightTo);
-        });
+function sumAuthPolicyFailureCount(snapshot) {
+  return snapshot.counters.errors_total.reduce((total, entry) => {
+    if (!AUTH_POLICY_ALERT_ERROR_CODES.has(entry.code)) {
+      return total;
+    }
+    return total + Number(entry.count ?? 0);
+  }, 0);
+}
 
-      return {
-        service: "dispatch-api",
-        generated_at: nowIso(),
-        counters: {
-          requests_total: requests,
-          errors_total: errors,
-          transitions_total: transitions,
-          idempotency_replay_total: idempotencyReplayTotal,
-          idempotency_conflict_total: idempotencyConflictTotal,
-        },
-      };
+async function queryStuckSchedulingCount(pool, staleMinutes) {
+  const result = await pool.query(
+    `
+      SELECT count(*)::int AS count
+      FROM tickets t
+      INNER JOIN LATERAL (
+        SELECT max(created_at) AS entered_at
+        FROM ticket_state_transitions tr
+        WHERE tr.ticket_id = t.id
+          AND tr.to_state = t.state
+      ) latest ON true
+      WHERE t.state = ANY($1::ticket_state[])
+        AND latest.entered_at IS NOT NULL
+        AND latest.entered_at <= now() - ($2::int * interval '1 minute')
+    `,
+    [SCHEDULING_STATES, staleMinutes],
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
+async function buildOperationalAlertsSnapshot(params) {
+  const {
+    pool,
+    metrics,
+    alertThresholds,
+  } = params;
+
+  const metricsSnapshot = metrics.snapshot();
+  const stuckSchedulingCount = await queryStuckSchedulingCount(pool, alertThresholds.stuck_scheduling_minutes);
+  const completionRejectionCount = findErrorCounterCount(metricsSnapshot, "CLOSEOUT_REQUIREMENTS_INCOMPLETE");
+  const idempotencyConflictCount = Number(metricsSnapshot.counters.idempotency_conflict_total ?? 0);
+  const authPolicyFailureCount = sumAuthPolicyFailureCount(metricsSnapshot);
+
+  const alerts = [];
+  if (stuckSchedulingCount >= alertThresholds.stuck_scheduling_count) {
+    alerts.push({
+      code: "STUCK_SCHEDULING",
+      severity: "warning",
+      count: stuckSchedulingCount,
+      threshold: alertThresholds.stuck_scheduling_count,
+      stale_minutes: alertThresholds.stuck_scheduling_minutes,
+      runbook: RUNBOOK_PATHS.STUCK_SCHEDULING,
+    });
+  }
+  if (completionRejectionCount >= alertThresholds.completion_rejection_count) {
+    alerts.push({
+      code: "COMPLETION_REJECTION_SPIKE",
+      severity: "warning",
+      count: completionRejectionCount,
+      threshold: alertThresholds.completion_rejection_count,
+      runbook: RUNBOOK_PATHS.COMPLETION_REJECTION_SPIKE,
+    });
+  }
+  if (idempotencyConflictCount >= alertThresholds.idempotency_conflict_count) {
+    alerts.push({
+      code: "IDEMPOTENCY_CONFLICT_SPIKE",
+      severity: "warning",
+      count: idempotencyConflictCount,
+      threshold: alertThresholds.idempotency_conflict_count,
+      runbook: RUNBOOK_PATHS.IDEMPOTENCY_CONFLICT_SPIKE,
+    });
+  }
+  if (authPolicyFailureCount >= alertThresholds.auth_policy_rejection_count) {
+    alerts.push({
+      code: "AUTH_POLICY_FAILURE_SPIKE",
+      severity: "warning",
+      count: authPolicyFailureCount,
+      threshold: alertThresholds.auth_policy_rejection_count,
+      runbook: RUNBOOK_PATHS.AUTH_POLICY_FAILURE_SPIKE,
+    });
+  }
+
+  return {
+    service: "dispatch-api",
+    generated_at: nowIso(),
+    thresholds: alertThresholds,
+    signals: {
+      stuck_scheduling_count: stuckSchedulingCount,
+      completion_rejection_count: completionRejectionCount,
+      idempotency_conflict_count: idempotencyConflictCount,
+      auth_policy_rejection_count: authPolicyFailureCount,
+    },
+    alerts,
+    runbooks: RUNBOOK_PATHS,
+    metrics: {
+      generated_at: metricsSnapshot.generated_at,
+      counters: metricsSnapshot.counters,
     },
   };
 }
@@ -1948,6 +2190,13 @@ function resolveRoute(method, pathname) {
     };
   }
 
+  if (method === "GET" && pathname === "/ops/alerts") {
+    return {
+      kind: "alerts",
+      endpoint: "/ops/alerts",
+    };
+  }
+
   const ticketMatch = pathname.match(/^\/tickets\/([^/]+)$/);
   if (method === "GET" && ticketMatch) {
     return {
@@ -2107,11 +2356,34 @@ export function createDispatchApiServer(options = {}) {
   const host = options.host ?? process.env.DISPATCH_API_HOST ?? "127.0.0.1";
   const port = Number(options.port ?? process.env.DISPATCH_API_PORT ?? "8080");
   const logger = options.logger ?? console;
-  const metrics = options.metrics ?? createMetricsRegistry();
+  const logSinkPath = normalizeOptionalFilePath(
+    options.logSinkPath ?? process.env.DISPATCH_LOG_SINK_PATH,
+  );
+  const metricsSinkPath = normalizeOptionalFilePath(
+    options.metricsSinkPath ?? process.env.DISPATCH_METRICS_SINK_PATH,
+  );
+  const alertsSinkPath = normalizeOptionalFilePath(
+    options.alertsSinkPath ?? process.env.DISPATCH_ALERTS_SINK_PATH,
+  );
+  const alertThresholds = resolveAlertThresholds(options.alertThresholds ?? {});
+  const metrics =
+    options.metrics ??
+    createMetricsRegistry({
+      onChange: metricsSinkPath
+        ? (snapshot) => {
+            writeJsonSnapshot(metricsSinkPath, snapshot);
+          }
+        : null,
+    });
   const authRuntime = createAuthRuntime(options.auth ?? {});
   const objectStoreSchemes = parseObjectStoreSchemes(
     options.objectStoreSchemes ?? process.env.DISPATCH_OBJECT_STORE_SCHEMES,
   );
+  const emitLog = (level, payload) => emitStructuredLog(logger, level, payload, { logSinkPath });
+
+  if (metricsSinkPath && options.metrics) {
+    writeJsonSnapshot(metricsSinkPath, metrics.snapshot());
+  }
 
   const server = createServer(async (request, response) => {
     const requestStart = Date.now();
@@ -2131,7 +2403,7 @@ export function createDispatchApiServer(options = {}) {
       });
       metrics.incrementRequest(requestMethod, "UNMATCHED", 404);
       metrics.incrementError("NOT_FOUND");
-      emitStructuredLog(logger, "error", {
+      emitLog("error", {
         method: requestMethod,
         path: url.pathname,
         endpoint: "UNMATCHED",
@@ -2159,7 +2431,7 @@ export function createDispatchApiServer(options = {}) {
         now: nowIso(),
       });
       metrics.incrementRequest(requestMethod, route.endpoint, 200);
-      emitStructuredLog(logger, "info", {
+      emitLog("info", {
         method: requestMethod,
         path: url.pathname,
         endpoint: route.endpoint,
@@ -2182,7 +2454,37 @@ export function createDispatchApiServer(options = {}) {
       metrics.incrementRequest(requestMethod, route.endpoint, 200);
       const snapshot = metrics.snapshot();
       sendJson(response, 200, snapshot);
-      emitStructuredLog(logger, "info", {
+      emitLog("info", {
+        method: requestMethod,
+        path: url.pathname,
+        endpoint: route.endpoint,
+        request_id: null,
+        correlation_id: correlationId,
+        trace_id: traceId,
+        actor_type: null,
+        actor_id: null,
+        actor_role: null,
+        tool_name: null,
+        ticket_id: null,
+        replay: false,
+        status: 200,
+        duration_ms: Date.now() - requestStart,
+      });
+      return;
+    }
+
+    if (route.kind === "alerts") {
+      metrics.incrementRequest(requestMethod, route.endpoint, 200);
+      const snapshot = await buildOperationalAlertsSnapshot({
+        pool,
+        metrics,
+        alertThresholds,
+      });
+      sendJson(response, 200, snapshot);
+      if (alertsSinkPath) {
+        appendJsonLine(alertsSinkPath, snapshot);
+      }
+      emitLog("info", {
         method: requestMethod,
         path: url.pathname,
         endpoint: route.endpoint,
@@ -2213,7 +2515,7 @@ export function createDispatchApiServer(options = {}) {
         });
         sendJson(response, 200, ticket);
         metrics.incrementRequest(requestMethod, route.endpoint, 200);
-        emitStructuredLog(logger, "info", {
+        emitLog("info", {
           method: requestMethod,
           path: url.pathname,
           endpoint: route.endpoint,
@@ -2242,7 +2544,7 @@ export function createDispatchApiServer(options = {}) {
         const timeline = await getTicketTimeline(pool, route.ticketId);
         sendJson(response, 200, timeline);
         metrics.incrementRequest(requestMethod, route.endpoint, 200);
-        emitStructuredLog(logger, "info", {
+        emitLog("info", {
           method: requestMethod,
           path: url.pathname,
           endpoint: route.endpoint,
@@ -2271,7 +2573,7 @@ export function createDispatchApiServer(options = {}) {
         const evidence = await getTicketEvidence(pool, route.ticketId);
         sendJson(response, 200, evidence);
         metrics.incrementRequest(requestMethod, route.endpoint, 200);
-        emitStructuredLog(logger, "info", {
+        emitLog("info", {
           method: requestMethod,
           path: url.pathname,
           endpoint: route.endpoint,
@@ -2323,7 +2625,7 @@ export function createDispatchApiServer(options = {}) {
       if (result.replay) {
         metrics.incrementIdempotencyReplay();
       }
-      emitStructuredLog(logger, "info", {
+      emitLog("info", {
         method: requestMethod,
         path: url.pathname,
         endpoint: route.endpoint,
@@ -2358,7 +2660,7 @@ export function createDispatchApiServer(options = {}) {
         metrics.incrementIdempotencyConflict();
       }
 
-      emitStructuredLog(logger, "error", {
+      emitLog("error", {
         method: requestMethod,
         path: url.pathname,
         endpoint,
@@ -2385,6 +2687,13 @@ export function createDispatchApiServer(options = {}) {
     server,
     getMetricsSnapshot() {
       return metrics.snapshot();
+    },
+    async getAlertsSnapshot() {
+      return buildOperationalAlertsSnapshot({
+        pool,
+        metrics,
+        alertThresholds,
+      });
     },
     start() {
       return new Promise((resolve) => {

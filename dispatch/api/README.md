@@ -33,6 +33,7 @@ node dispatch/api/src/server.mjs
 - `GET /tickets/{ticketId}/timeline`
 - `GET /tickets/{ticketId}/evidence`
 - `GET /metrics`
+- `GET /ops/alerts`
 
 Each command endpoint requires:
 
@@ -55,6 +56,21 @@ Ticket read endpoints (`GET /tickets/{ticketId}`, `GET /tickets/{ticketId}/timel
 - ticket mutation + audit event + state transition row on success
 - structured request logs for success/error paths with `request_id`, `correlation_id`, and `trace_id`
 - in-memory metrics snapshot export for requests/errors/transitions (`GET /metrics`)
+- optional durable observability sinks:
+  - `DISPATCH_LOG_SINK_PATH` (append-only NDJSON request logs)
+  - `DISPATCH_METRICS_SINK_PATH` (latest metrics snapshot JSON)
+  - `DISPATCH_ALERTS_SINK_PATH` (append-only NDJSON alert snapshots)
+- configurable alert thresholds:
+  - `DISPATCH_ALERT_STUCK_SCHEDULING_COUNT_THRESHOLD`
+  - `DISPATCH_ALERT_STUCK_SCHEDULING_MINUTES`
+  - `DISPATCH_ALERT_COMPLETION_REJECTION_THRESHOLD`
+  - `DISPATCH_ALERT_IDEMPOTENCY_CONFLICT_THRESHOLD`
+  - `DISPATCH_ALERT_AUTH_POLICY_REJECTION_THRESHOLD`
+- threshold-driven operational alert snapshot (`GET /ops/alerts`) with runbook mapping for:
+  - stuck scheduling backlog
+  - completion rejection spikes
+  - idempotency conflict spikes
+  - auth policy rejection spikes
 - closeout hardening:
   - `tech.complete` requires signature evidence or explicit `no_signature_reason`
   - completion/verification reject non-object-store or unresolvable evidence references
