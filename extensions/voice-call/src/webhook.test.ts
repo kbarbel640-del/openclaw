@@ -9,7 +9,7 @@ const provider: VoiceCallProvider = {
   name: "mock",
   verifyWebhook: () => ({ ok: true }),
   parseWebhookEvent: () => ({ events: [] }),
-  initiateCall: async () => ({ providerCallId: "provider-call", status: "initiated" }),
+  initiateCall: async () => ({ providerCallId: "provider-call", status: "initiated" as const }),
   hangupCall: async () => {},
   playTts: async () => {},
   startListening: async () => {},
