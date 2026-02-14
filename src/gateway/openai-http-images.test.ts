@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-// Since extractImages and buildAgentPrompt are not exported, we test the logic
-// by importing the module and testing via the HTTP handler indirectly.
-// Instead, we replicate the pure functions here for unit testing.
+// These functions are module-private in openai-http.ts and not exported.
+// We replicate the pure logic here to unit-test the parsing behavior.
+// The e2e tests in openai-http.e2e.test.ts verify the full integration
+// through the actual HTTP handler, ensuring no drift matters at runtime.
 
 type ImageContent = { type: "image"; data: string; mimeType: string };
 

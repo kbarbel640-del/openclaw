@@ -231,7 +231,10 @@ export async function handleOpenAiHttpRequest(
   const agentId = resolveAgentIdForRequest({ req, model });
   const sessionKey = resolveOpenAiSessionKey({ req, agentId, user });
   const prompt = buildAgentPrompt(payload.messages);
-  if (!prompt.message && (!prompt.images || prompt.images.length === 0)) {
+  // Use a placeholder when the user sends only images with no text,
+  // because agentCommand requires a non-empty message string.
+  const message = prompt.message || (prompt.images?.length ? "[image]" : "");
+  if (!message && (!prompt.images || prompt.images.length === 0)) {
     sendJson(res, 400, {
       error: {
         message: "Missing user message in `messages`.",
@@ -248,7 +251,7 @@ export async function handleOpenAiHttpRequest(
     try {
       const result = await agentCommand(
         {
-          message: prompt.message,
+          message,
           extraSystemPrompt: prompt.extraSystemPrompt,
           sessionKey,
           runId,
@@ -363,7 +366,7 @@ export async function handleOpenAiHttpRequest(
     try {
       const result = await agentCommand(
         {
-          message: prompt.message,
+          message,
           extraSystemPrompt: prompt.extraSystemPrompt,
           sessionKey,
           runId,
