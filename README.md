@@ -1,20 +1,23 @@
-# 🦞 Clawdbot — Personal AI Assistant
+# Money Maker Bot
+
+> My personal fork of [Clawdbot](https://github.com/clawdbot/clawdbot) - a powerful AI assistant configured for automated trading insights and financial analysis.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/clawdbot/clawdbot/main/docs/whatsapp-clawd.jpg" alt="Clawdbot" width="400">
+  <a href="https://github.com/clawdbot/clawdbot"><img src="https://img.shields.io/badge/Fork%20of-Clawdbot-blue?style=for-the-badge" alt="Fork of Clawdbot"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License"></a>
 </p>
 
-<p align="center">
-  <strong>EXFOLIATE! EXFOLIATE!</strong>
-</p>
+## About This Fork
 
-<p align="center">
-  <a href="https://github.com/clawdbot/clawdbot/actions/workflows/ci.yml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/clawdbot/clawdbot/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
-  <a href="https://github.com/clawdbot/clawdbot/releases"><img src="https://img.shields.io/github/v/release/clawdbot/clawdbot?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
-  <a href="https://deepwiki.com/clawdbot/clawdbot"><img src="https://img.shields.io/badge/DeepWiki-clawdbot-111111?style=for-the-badge" alt="DeepWiki"></a>
-  <a href="https://discord.gg/clawd"><img src="https://img.shields.io/discord/1456350064065904867?label=Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge" alt="Discord"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
-</p>
+This is my customized version of Clawdbot, configured for financial market analysis and trading insights. I use it to monitor market conditions, analyze sports betting odds for value opportunities, track NFT floor prices, and generate data visualizations for portfolio analysis.
+
+### My Custom Configuration
+
+This fork includes personal workspace settings optimized for financial data integration with market data APIs, multi-channel alerts via Telegram for market movements, and custom skills for sports odds analysis and NFT tracking.
+
+---
+
+## Original Clawdbot Documentation
 
 **Clawdbot** is a *personal AI assistant* you run on your own devices.
 It answers you on the channels you already use (WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, Microsoft Teams, WebChat), plus extension channels like BlueBubbles, Matrix, Zalo, and Zalo Personal. It can speak and listen on macOS/iOS/Android, and can render a live Canvas you control. The Gateway is just the control plane — the product is the assistant.
