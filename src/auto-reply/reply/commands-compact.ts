@@ -84,7 +84,7 @@ export const handleCompactCommand: CommandHandler = async (params) => {
     }
   } catch (hookErr) {
     // Non-fatal — don't block compaction if a hook fails
-    logVerbose(`command:compact hook error (non-fatal): ${hookErr}`);
+    logVerbose(`command:compact hook error (non-fatal): ${String(hookErr)}`);
   }
 
   if (isEmbeddedPiRunActive(sessionId)) {
