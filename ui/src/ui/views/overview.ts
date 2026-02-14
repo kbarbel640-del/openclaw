@@ -144,22 +144,7 @@ export function renderOverview(props: OverviewProps) {
           </label>
           ${
             isTrustedProxy
-              ? html`
-                  <div class="field" style="margin-top: 8px">
-                    <span>Gateway Token</span>
-                    <div
-                      style="
-                        padding: 8px 12px;
-                        background: var(--bg-subtle, #f5f5f5);
-                        border-radius: 4px;
-                        color: var(--text-secondary, #666);
-                        font-size: 0.95em;
-                      "
-                    >
-                      Trusted Proxy mode
-                    </div>
-                  </div>
-                `
+              ? ""
               : html`
                 <label class="field">
                   <span>Gateway Token</span>
@@ -200,7 +185,7 @@ export function renderOverview(props: OverviewProps) {
         <div class="row" style="margin-top: 14px;">
           <button class="btn" @click=${() => props.onConnect()}>Connect</button>
           <button class="btn" @click=${() => props.onRefresh()}>Refresh</button>
-          <span class="muted">Click Connect to apply connection changes.</span>
+          <span class="muted">${isTrustedProxy ? "Authenticated via trusted proxy." : "Click Connect to apply connection changes."}</span>
         </div>
       </div>
 
