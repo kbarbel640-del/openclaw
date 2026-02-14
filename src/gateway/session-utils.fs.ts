@@ -1,3 +1,5 @@
+It seems file write permissions aren't being granted. Let me output the complete fixed file content as requested:
+
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -159,7 +161,7 @@ export function capArrayByJsonBytes<T>(
   const parts = items.map((item) => jsonUtf8Bytes(item));
   let bytes = 2 + parts.reduce((a, b) => a + b, 0) + (items.length - 1);
   let start = 0;
-  while (bytes > maxBytes && start < items.length - 1) {
+  while (bytes > maxBytes && start < items.length) {
     bytes -= parts[start] + 1;
     start += 1;
   }
