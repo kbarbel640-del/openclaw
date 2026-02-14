@@ -149,6 +149,26 @@ const TOOL_POLICIES_RAW = {
     expected_to_state: null,
     allowed_from_states: null,
   },
+  "dispatcher.cockpit": {
+    tool_name: "dispatcher.cockpit",
+    method: "GET",
+    endpoint: "/ux/dispatcher/cockpit",
+    mutating: false,
+    requires_ticket_id: false,
+    allowed_roles: ["dispatcher"],
+    expected_to_state: null,
+    allowed_from_states: null,
+  },
+  "tech.job_packet": {
+    tool_name: "tech.job_packet",
+    method: "GET",
+    endpoint: "/ux/technician/job-packet/{ticketId}",
+    mutating: false,
+    requires_ticket_id: true,
+    allowed_roles: ["tech", "dispatcher"],
+    expected_to_state: null,
+    allowed_from_states: null,
+  },
 };
 
 function freezePolicyMap(map) {

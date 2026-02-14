@@ -19,6 +19,7 @@ import {
   sendJson,
 } from "./http-utils.mjs";
 import {
+  getDispatchToolPolicy,
   getCommandEndpointPolicy,
 } from "../../shared/authorization-policy.mjs";
 import {
@@ -44,6 +45,60 @@ const RUNBOOK_PATHS = Object.freeze({
   IDEMPOTENCY_CONFLICT_SPIKE: "dispatch/ops/runbooks/idempotency_conflict.md",
   AUTH_POLICY_FAILURE_SPIKE: "dispatch/ops/runbooks/auth_policy_failure.md",
 });
+const VALID_TICKET_STATES = Object.freeze([
+  "NEW",
+  "NEEDS_INFO",
+  "TRIAGED",
+  "APPROVAL_REQUIRED",
+  "READY_TO_SCHEDULE",
+  "SCHEDULE_PROPOSED",
+  "SCHEDULED",
+  "DISPATCHED",
+  "ON_SITE",
+  "IN_PROGRESS",
+  "ON_HOLD",
+  "COMPLETED_PENDING_VERIFICATION",
+  "VERIFIED",
+  "INVOICED",
+  "CLOSED",
+]);
+const VALID_PRIORITIES = Object.freeze(["EMERGENCY", "URGENT", "ROUTINE"]);
+const VALID_SLA_STATUSES = Object.freeze(["healthy", "warning", "breach"]);
+const SLA_TARGET_MINUTES_BY_PRIORITY = Object.freeze({
+  EMERGENCY: 60,
+  URGENT: 240,
+  ROUTINE: 1440,
+});
+const SLA_WARNING_THRESHOLD_MINUTES = 30;
+const PRIORITY_SORT_ORDER = Object.freeze({
+  EMERGENCY: 0,
+  URGENT: 1,
+  ROUTINE: 2,
+});
+const POLICY_ERROR_DIMENSION_BY_CODE = Object.freeze({
+  FORBIDDEN: "role",
+  TOOL_NOT_ALLOWED: "tool",
+  INVALID_STATE_TRANSITION: "state",
+  FORBIDDEN_SCOPE: "scope",
+  CLOSEOUT_REQUIREMENTS_INCOMPLETE: "evidence",
+  INVALID_EVIDENCE_REFERENCE: "evidence",
+  MISSING_SIGNATURE_CONFIRMATION: "evidence",
+});
+const DISPATCHER_QUEUE_ACTION_BLUEPRINTS = Object.freeze([
+  Object.freeze({ action_id: "schedule_propose", tool_name: "schedule.propose" }),
+  Object.freeze({ action_id: "schedule_confirm", tool_name: "schedule.confirm" }),
+  Object.freeze({ action_id: "dispatch_assignment", tool_name: "assignment.dispatch" }),
+  Object.freeze({ action_id: "open_timeline", tool_name: "ticket.timeline" }),
+  Object.freeze({ action_id: "open_technician_packet", tool_name: "tech.job_packet" }),
+]);
+const TECH_PACKET_ACTION_BLUEPRINTS = Object.freeze([
+  Object.freeze({ action_id: "check_in", tool_name: "tech.check_in" }),
+  Object.freeze({ action_id: "add_evidence", tool_name: "closeout.add_evidence" }),
+  Object.freeze({ action_id: "request_change", tool_name: "tech.request_change" }),
+  Object.freeze({ action_id: "complete_work", tool_name: "tech.complete" }),
+  Object.freeze({ action_id: "open_timeline", tool_name: "ticket.timeline" }),
+  Object.freeze({ action_id: "open_evidence", tool_name: "closeout.list_evidence" }),
+]);
 
 function normalizeOptionalFilePath(value) {
   if (typeof value !== "string") {
@@ -388,6 +443,37 @@ async function buildOperationalAlertsSnapshot(params) {
   };
 }
 
+function classifyPolicyError(errorCode, details = {}) {
+  if (errorCode === "CLOSEOUT_REQUIREMENTS_INCOMPLETE") {
+    return {
+      dimension: "evidence",
+      requirement_code: details.requirement_code ?? "UNKNOWN_REQUIREMENT",
+    };
+  }
+
+  const dimension = POLICY_ERROR_DIMENSION_BY_CODE[errorCode];
+  if (!dimension) {
+    return null;
+  }
+
+  return {
+    dimension,
+  };
+}
+
+function attachPolicyErrorContext(errorPayload) {
+  if (!errorPayload || typeof errorPayload !== "object") {
+    return;
+  }
+
+  const policyError = classifyPolicyError(errorPayload.code, errorPayload);
+  if (!policyError) {
+    return;
+  }
+
+  errorPayload.policy_error = policyError;
+}
+
 function serializeTicket(row) {
   return {
     id: row.id,
@@ -680,6 +766,761 @@ async function getTicketEvidence(pool, ticketId) {
   return {
     ticket_id: ticketId,
     evidence: result.rows.map(serializeEvidenceItem),
+  };
+}
+
+function parseSearchValues(searchParams, key, options = {}) {
+  const { uppercase = false } = options;
+  const values = [];
+
+  for (const rawValue of searchParams.getAll(key)) {
+    const normalizedRaw = typeof rawValue === "string" ? rawValue : String(rawValue ?? "");
+    for (const entry of normalizedRaw.split(",")) {
+      const trimmed = entry.trim();
+      if (trimmed === "") {
+        continue;
+      }
+      values.push(uppercase ? trimmed.toUpperCase() : trimmed);
+    }
+  }
+
+  return uniqueSorted(values);
+}
+
+function parseEnumSearchFilter(searchParams, key, allowedValues, options = {}) {
+  const values = parseSearchValues(searchParams, key, options);
+  if (values.length === 0) {
+    return [];
+  }
+
+  for (const value of values) {
+    if (!allowedValues.includes(value)) {
+      throw new HttpError(400, "INVALID_QUERY", `Query '${key}' has unsupported value '${value}'`);
+    }
+  }
+
+  return values;
+}
+
+function parseUuidSearchFilter(searchParams, key) {
+  const values = parseSearchValues(searchParams, key, { uppercase: false });
+  if (values.length === 0) {
+    return [];
+  }
+  for (const value of values) {
+    if (!isUuid(value)) {
+      throw new HttpError(400, "INVALID_QUERY", `Query '${key}' must contain UUID values`);
+    }
+  }
+  return values.map((value) => value.toLowerCase());
+}
+
+function resolveActorScopeFilter(actor) {
+  const accountScope = actor?.scope?.account_ids ?? [];
+  const siteScope = actor?.scope?.site_ids ?? [];
+  const accountWildcard = accountScope.includes("*");
+  const siteWildcard = siteScope.includes("*");
+
+  const accountIds = [];
+  for (const entry of accountScope) {
+    if (entry === "*") {
+      continue;
+    }
+    if (!isUuid(entry)) {
+      throw new HttpError(403, "FORBIDDEN_SCOPE", "Actor scope does not include account_id", {
+        scope_field: "account_id",
+      });
+    }
+    accountIds.push(entry.toLowerCase());
+  }
+
+  const siteIds = [];
+  for (const entry of siteScope) {
+    if (entry === "*") {
+      continue;
+    }
+    if (!isUuid(entry)) {
+      throw new HttpError(403, "FORBIDDEN_SCOPE", "Actor scope does not include site_id", {
+        scope_field: "site_id",
+      });
+    }
+    siteIds.push(entry.toLowerCase());
+  }
+
+  if (!accountWildcard && accountIds.length === 0) {
+    throw new HttpError(403, "FORBIDDEN_SCOPE", "Actor is missing 'account_id' scope", {
+      scope_field: "account_id",
+    });
+  }
+  if (!siteWildcard && siteIds.length === 0) {
+    throw new HttpError(403, "FORBIDDEN_SCOPE", "Actor is missing 'site_id' scope", {
+      scope_field: "site_id",
+    });
+  }
+
+  return {
+    account_wildcard: accountWildcard,
+    site_wildcard: siteWildcard,
+    account_ids: uniqueSorted(accountIds),
+    site_ids: uniqueSorted(siteIds),
+  };
+}
+
+function formatSignedDurationMinutes(totalMinutes) {
+  const normalized = Number.isFinite(totalMinutes) ? Math.trunc(totalMinutes) : 0;
+  const sign = normalized < 0 ? "-" : "";
+  const absolute = Math.abs(normalized);
+  const hours = Math.floor(absolute / 60);
+  const minutes = absolute % 60;
+  return `${sign}${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function resolveSlaDelayAttribution(state) {
+  if (state === "APPROVAL_REQUIRED") {
+    return "customer";
+  }
+  if (
+    state === "SCHEDULED" ||
+    state === "DISPATCHED" ||
+    state === "ON_SITE" ||
+    state === "IN_PROGRESS" ||
+    state === "ON_HOLD" ||
+    state === "COMPLETED_PENDING_VERIFICATION"
+  ) {
+    return "provider";
+  }
+  return "unknown";
+}
+
+function computeSlaSnapshot(ticketRow, nowAt = new Date()) {
+  const priority =
+    typeof ticketRow.priority === "string" && VALID_PRIORITIES.includes(ticketRow.priority)
+      ? ticketRow.priority
+      : "ROUTINE";
+  const targetMinutes = SLA_TARGET_MINUTES_BY_PRIORITY[priority] ?? SLA_TARGET_MINUTES_BY_PRIORITY.ROUTINE;
+  const baseDate = ticketRow.scheduled_start ? new Date(ticketRow.scheduled_start) : new Date(ticketRow.created_at);
+  const deadlineMs = baseDate.getTime() + targetMinutes * 60_000;
+  const remainingMinutes = Math.floor((deadlineMs - nowAt.getTime()) / 60_000);
+  const slaStatus =
+    remainingMinutes < 0
+      ? "breach"
+      : remainingMinutes <= SLA_WARNING_THRESHOLD_MINUTES
+        ? "warning"
+        : "healthy";
+
+  return {
+    sla_target_minutes: targetMinutes,
+    sla_deadline_at: new Date(deadlineMs).toISOString(),
+    sla_timer_remaining_minutes: remainingMinutes,
+    sla_timer_remaining: formatSignedDurationMinutes(remainingMinutes),
+    sla_status: slaStatus,
+    sla_delay_attribution: resolveSlaDelayAttribution(ticketRow.state),
+  };
+}
+
+function createActionPolicyError(code, message, details = {}) {
+  const classification = classifyPolicyError(code, details);
+  return {
+    code,
+    message,
+    dimension: classification?.dimension ?? "unknown",
+    ...details,
+  };
+}
+
+function buildActionDescriptor(params) {
+  const {
+    actionId,
+    toolName,
+    actorRole,
+    ticketId,
+    ticketState = null,
+    extraPolicyError = null,
+  } = params;
+  const policy = getDispatchToolPolicy(toolName);
+  if (!policy) {
+    throw new HttpError(500, "INTERNAL_ERROR", `Missing action tool policy '${toolName}'`);
+  }
+
+  const endpoint = policy.requires_ticket_id ? policy.endpoint.replace("{ticketId}", String(ticketId ?? "")) : policy.endpoint;
+  let policyError = null;
+
+  if (!policy.allowed_roles.includes(actorRole)) {
+    policyError = createActionPolicyError(
+      "FORBIDDEN",
+      `Actor role '${actorRole}' is not allowed for action`,
+      {
+        actor_role: actorRole,
+        allowed_roles: policy.allowed_roles,
+      },
+    );
+  } else if (Array.isArray(policy.allowed_from_states) && ticketState && !policy.allowed_from_states.includes(ticketState)) {
+    policyError = createActionPolicyError(
+      "INVALID_STATE_TRANSITION",
+      "Ticket state does not allow this action",
+      {
+        from_state: ticketState,
+        allowed_from_states: policy.allowed_from_states,
+        to_state: policy.expected_to_state ?? null,
+      },
+    );
+  } else if (extraPolicyError) {
+    policyError = extraPolicyError;
+  }
+
+  return {
+    action_id: actionId,
+    tool_name: policy.tool_name,
+    endpoint,
+    method: policy.method,
+    mutating: policy.mutating,
+    enabled: policyError == null,
+    policy_error: policyError,
+  };
+}
+
+function parseCompletionChecklistStatus(payload) {
+  const checklist = payload?.request?.checklist_status;
+  if (!checklist || typeof checklist !== "object" || Array.isArray(checklist)) {
+    return {};
+  }
+  return checklist;
+}
+
+function normalizeChecklistStatus(requiredChecklistKeys, sourceStatus) {
+  const normalized = {};
+  for (const key of requiredChecklistKeys) {
+    normalized[key] = sourceStatus[key] === true;
+  }
+  return normalized;
+}
+
+async function getLatestCompletionPayload(pool, ticketId) {
+  const result = await pool.query(
+    `
+      SELECT payload
+      FROM audit_events
+      WHERE ticket_id = $1
+        AND tool_name = 'tech.complete'
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    `,
+    [ticketId],
+  );
+  if (result.rowCount === 0) {
+    return null;
+  }
+  return result.rows[0].payload ?? null;
+}
+
+function evaluatePacketCloseoutGate(params) {
+  const {
+    incidentType,
+    evidenceRows,
+    checklistStatus,
+    noSignatureReason,
+    objectStoreSchemes,
+  } = params;
+
+  if (typeof incidentType !== "string" || incidentType.trim() === "") {
+    return {
+      ready: false,
+      code: "TEMPLATE_NOT_FOUND",
+      incident_type: null,
+      template_version: null,
+      missing_evidence_keys: [],
+      missing_checklist_keys: [],
+      invalid_evidence_refs: [],
+      signature_satisfied: false,
+      no_signature_reason: noSignatureReason,
+    };
+  }
+
+  const normalizedIncidentType = incidentType.trim().toUpperCase();
+  let evidenceValidation;
+  try {
+    evidenceValidation = resolveCloseoutValidationContext({
+      incidentType: normalizedIncidentType,
+      noSignatureReason,
+      explicitEvidenceRefs: [],
+      evidenceRows,
+      objectStoreSchemes,
+    });
+  } catch (error) {
+    if (error instanceof HttpError && error.code === "CLOSEOUT_REQUIREMENTS_INCOMPLETE") {
+      return {
+        ready: false,
+        code: error.details.requirement_code ?? "MISSING_REQUIREMENTS",
+        incident_type: error.details.incident_type ?? normalizedIncidentType,
+        template_version: error.details.template_version ?? null,
+        missing_evidence_keys: error.details.missing_evidence_keys ?? [],
+        missing_checklist_keys: error.details.missing_checklist_keys ?? [],
+        invalid_evidence_refs: error.details.invalid_evidence_refs ?? [],
+        signature_satisfied: false,
+        no_signature_reason: noSignatureReason,
+      };
+    }
+    throw error;
+  }
+
+  if (evidenceValidation.invalid_evidence_refs.length > 0) {
+    return {
+      ready: false,
+      code: "INVALID_EVIDENCE_REFERENCE",
+      incident_type: normalizedIncidentType,
+      template_version: null,
+      missing_evidence_keys: [],
+      missing_checklist_keys: [],
+      invalid_evidence_refs: evidenceValidation.invalid_evidence_refs,
+      signature_satisfied: evidenceValidation.signature_satisfied,
+      no_signature_reason: noSignatureReason,
+    };
+  }
+
+  const evidenceKeys = [];
+  for (const row of evidenceRows) {
+    const evidenceKey = readEvidenceKeyFromMetadata(row.metadata);
+    if (evidenceKey) {
+      evidenceKeys.push(evidenceKey);
+    }
+  }
+  if (evidenceValidation.signature_satisfied && !evidenceKeys.includes("signature_or_no_signature_reason")) {
+    evidenceKeys.push("signature_or_no_signature_reason");
+  }
+
+  let closeoutEvaluation;
+  try {
+    closeoutEvaluation = evaluateCloseoutRequirements({
+      incident_type: normalizedIncidentType,
+      evidence_items: evidenceKeys,
+      checklist_status: checklistStatus,
+    });
+  } catch (error) {
+    if (error instanceof IncidentTemplatePolicyError) {
+      return {
+        ready: false,
+        code: "TEMPLATE_NOT_FOUND",
+        incident_type: normalizedIncidentType,
+        template_version: null,
+        missing_evidence_keys: [],
+        missing_checklist_keys: [],
+        invalid_evidence_refs: [],
+        signature_satisfied: evidenceValidation.signature_satisfied,
+        no_signature_reason: noSignatureReason,
+      };
+    }
+    throw error;
+  }
+
+  return {
+    ready: closeoutEvaluation.ready,
+    code: closeoutEvaluation.code,
+    incident_type: closeoutEvaluation.incident_type,
+    template_version: closeoutEvaluation.template_version,
+    missing_evidence_keys: closeoutEvaluation.missing_evidence_keys,
+    missing_checklist_keys: closeoutEvaluation.missing_checklist_keys,
+    invalid_evidence_refs: [],
+    signature_satisfied: evidenceValidation.signature_satisfied,
+    no_signature_reason: noSignatureReason,
+  };
+}
+
+async function buildDispatcherCockpitView(params) {
+  const {
+    pool,
+    actor,
+    searchParams,
+  } = params;
+  const scopeFilter = resolveActorScopeFilter(actor);
+  const stateFilter = parseEnumSearchFilter(searchParams, "state", VALID_TICKET_STATES, {
+    uppercase: true,
+  });
+  const priorityFilter = parseEnumSearchFilter(searchParams, "priority", VALID_PRIORITIES, {
+    uppercase: true,
+  });
+  const slaStatusFilter = parseEnumSearchFilter(searchParams, "sla_status", VALID_SLA_STATUSES);
+  const accountIdFilter = parseUuidSearchFilter(searchParams, "account_id");
+  const siteIdFilter = parseUuidSearchFilter(searchParams, "site_id");
+  const assignedTechFilter = parseUuidSearchFilter(searchParams, "assigned_tech_id");
+  const incidentTypeFilter = parseSearchValues(searchParams, "incident_type", { uppercase: true });
+  const selectedTicketIdRaw = searchParams.get("ticket_id");
+  const selectedTicketId = selectedTicketIdRaw == null || selectedTicketIdRaw.trim() === "" ? null : selectedTicketIdRaw.trim();
+  if (selectedTicketId && !isUuid(selectedTicketId)) {
+    throw new HttpError(400, "INVALID_QUERY", "Query 'ticket_id' must be a valid UUID");
+  }
+
+  const values = [];
+  const where = [];
+
+  if (stateFilter.length > 0) {
+    values.push(stateFilter);
+    where.push(`t.state = ANY($${values.length}::ticket_state[])`);
+  } else {
+    where.push("t.state <> 'CLOSED'");
+  }
+
+  if (priorityFilter.length > 0) {
+    values.push(priorityFilter);
+    where.push(`t.priority = ANY($${values.length}::priority_level[])`);
+  }
+  if (incidentTypeFilter.length > 0) {
+    values.push(incidentTypeFilter);
+    where.push(`upper(coalesce(t.incident_type, '')) = ANY($${values.length}::text[])`);
+  }
+  if (accountIdFilter.length > 0) {
+    values.push(accountIdFilter);
+    where.push(`t.account_id = ANY($${values.length}::uuid[])`);
+  }
+  if (siteIdFilter.length > 0) {
+    values.push(siteIdFilter);
+    where.push(`t.site_id = ANY($${values.length}::uuid[])`);
+  }
+  if (assignedTechFilter.length > 0) {
+    values.push(assignedTechFilter);
+    where.push(`t.assigned_tech_id = ANY($${values.length}::uuid[])`);
+  }
+  if (!scopeFilter.account_wildcard) {
+    values.push(scopeFilter.account_ids);
+    where.push(`t.account_id = ANY($${values.length}::uuid[])`);
+  }
+  if (!scopeFilter.site_wildcard) {
+    values.push(scopeFilter.site_ids);
+    where.push(`t.site_id = ANY($${values.length}::uuid[])`);
+  }
+
+  const result = await pool.query(
+    `
+      SELECT
+        t.*,
+        s.name AS site_name,
+        s.city AS site_city,
+        s.region AS site_region,
+        last_transition.last_transition_at,
+        last_audit.last_update_at
+      FROM tickets t
+      INNER JOIN sites s ON s.id = t.site_id
+      LEFT JOIN LATERAL (
+        SELECT max(created_at) AS last_transition_at
+        FROM ticket_state_transitions tr
+        WHERE tr.ticket_id = t.id
+      ) last_transition ON true
+      LEFT JOIN LATERAL (
+        SELECT max(created_at) AS last_update_at
+        FROM audit_events ae
+        WHERE ae.ticket_id = t.id
+      ) last_audit ON true
+      WHERE ${where.join(" AND ")}
+      ORDER BY t.updated_at DESC, t.id ASC
+      LIMIT 200
+    `,
+    values,
+  );
+
+  const nowAt = new Date();
+  const queueRows = result.rows
+    .map((row) => {
+      const sla = computeSlaSnapshot(row, nowAt);
+      const actions = DISPATCHER_QUEUE_ACTION_BLUEPRINTS.map((blueprint) =>
+        buildActionDescriptor({
+          actionId: blueprint.action_id,
+          toolName: blueprint.tool_name,
+          actorRole: actor.actorRole,
+          ticketState: row.state,
+          ticketId: row.id,
+        }),
+      );
+      const lastUpdateAt = row.last_update_at ?? row.updated_at;
+      const lastTransitionAt = row.last_transition_at ?? row.updated_at;
+      return {
+        ticket_id: row.id,
+        state: row.state,
+        priority: row.priority,
+        incident_type: row.incident_type,
+        site: {
+          id: row.site_id,
+          name: row.site_name,
+          city: row.site_city,
+          region: row.site_region,
+        },
+        assigned_tech: row.assigned_tech_id,
+        scheduled_start: row.scheduled_start ? new Date(row.scheduled_start).toISOString() : null,
+        last_update_at: lastUpdateAt ? new Date(lastUpdateAt).toISOString() : null,
+        last_transition_at: lastTransitionAt ? new Date(lastTransitionAt).toISOString() : null,
+        ...sla,
+        actions,
+      };
+    })
+    .filter((row) => (slaStatusFilter.length > 0 ? slaStatusFilter.includes(row.sla_status) : true));
+
+  queueRows.sort((left, right) => {
+    const leftBreach = left.sla_status === "breach" ? 0 : left.sla_status === "warning" ? 1 : 2;
+    const rightBreach = right.sla_status === "breach" ? 0 : right.sla_status === "warning" ? 1 : 2;
+    if (leftBreach !== rightBreach) {
+      return leftBreach - rightBreach;
+    }
+
+    if (left.sla_timer_remaining_minutes !== right.sla_timer_remaining_minutes) {
+      return left.sla_timer_remaining_minutes - right.sla_timer_remaining_minutes;
+    }
+
+    const leftPriority = PRIORITY_SORT_ORDER[left.priority] ?? 9;
+    const rightPriority = PRIORITY_SORT_ORDER[right.priority] ?? 9;
+    if (leftPriority !== rightPriority) {
+      return leftPriority - rightPriority;
+    }
+
+    const leftUpdate = Date.parse(left.last_update_at ?? "");
+    const rightUpdate = Date.parse(right.last_update_at ?? "");
+    if (Number.isFinite(leftUpdate) && Number.isFinite(rightUpdate) && leftUpdate !== rightUpdate) {
+      return rightUpdate - leftUpdate;
+    }
+
+    return left.ticket_id.localeCompare(right.ticket_id);
+  });
+
+  let selectedTicket = null;
+  if (selectedTicketId) {
+    const ticket = await getTicket(pool, selectedTicketId);
+    const withinScope =
+      (scopeFilter.account_wildcard || scopeFilter.account_ids.includes(ticket.account_id.toLowerCase())) &&
+      (scopeFilter.site_wildcard || scopeFilter.site_ids.includes(ticket.site_id.toLowerCase()));
+    if (!withinScope) {
+      throw new HttpError(403, "FORBIDDEN_SCOPE", "Actor scope does not include selected ticket", {
+        scope_field: "ticket_id",
+        target_id: selectedTicketId,
+      });
+    }
+    const timeline = await getTicketTimeline(pool, selectedTicketId);
+    const evidence = await getTicketEvidence(pool, selectedTicketId);
+    selectedTicket = {
+      ticket,
+      timeline,
+      evidence_summary: {
+        total_items: evidence.evidence.length,
+      },
+    };
+  }
+
+  return {
+    generated_at: nowIso(),
+    actor: {
+      actor_id: actor.actorId,
+      actor_role: actor.actorRole,
+      actor_type: actor.actorType,
+      tool_name: actor.toolName,
+    },
+    filters_applied: {
+      state: stateFilter,
+      priority: priorityFilter,
+      sla_status: slaStatusFilter,
+      account_id: accountIdFilter,
+      site_id: siteIdFilter,
+      assigned_tech_id: assignedTechFilter,
+      incident_type: incidentTypeFilter,
+      ticket_id: selectedTicketId,
+    },
+    queue: queueRows,
+    selected_ticket: selectedTicket,
+  };
+}
+
+async function buildTechnicianJobPacketView(params) {
+  const {
+    pool,
+    actor,
+    authRuntime,
+    ticketId,
+    objectStoreSchemes,
+  } = params;
+  validateTicketId(ticketId);
+
+  const ticketResult = await pool.query(
+    `
+      SELECT
+        t.*,
+        s.name AS site_name,
+        s.address1 AS site_address1,
+        s.address2 AS site_address2,
+        s.city AS site_city,
+        s.region AS site_region,
+        s.postal_code AS site_postal_code,
+        s.country AS site_country,
+        s.access_instructions,
+        s.timezone AS site_timezone
+      FROM tickets t
+      INNER JOIN sites s ON s.id = t.site_id
+      WHERE t.id = $1
+    `,
+    [ticketId],
+  );
+  if (ticketResult.rowCount === 0) {
+    throw new HttpError(404, "TICKET_NOT_FOUND", "Ticket not found");
+  }
+  const ticketRow = ticketResult.rows[0];
+  assertTicketScope(authRuntime, actor, ticketRow);
+
+  const contactResult = await pool.query(
+    `
+      SELECT name, phone, role
+      FROM contacts
+      WHERE site_id = $1
+      ORDER BY is_authorized_requester DESC, escalation_level ASC NULLS LAST, created_at ASC
+      LIMIT 1
+    `,
+    [ticketRow.site_id],
+  );
+  const primaryContact = contactResult.rowCount > 0 ? contactResult.rows[0] : null;
+
+  const evidenceRowsResult = await pool.query(
+    `
+      SELECT
+        id,
+        ticket_id,
+        kind,
+        uri,
+        checksum,
+        metadata,
+        created_by,
+        created_at
+      FROM evidence_items
+      WHERE ticket_id = $1
+      ORDER BY created_at ASC, id ASC
+    `,
+    [ticketId],
+  );
+  const evidenceRows = evidenceRowsResult.rows;
+  const evidence = evidenceRows.map(serializeEvidenceItem);
+
+  const timeline = await getTicketTimeline(pool, ticketId);
+  const latestCompletionPayload = await getLatestCompletionPayload(pool, ticketId);
+  const noSignatureReasonRaw = latestCompletionPayload?.no_signature_reason;
+  const noSignatureReason =
+    typeof noSignatureReasonRaw === "string" && noSignatureReasonRaw.trim() !== ""
+      ? noSignatureReasonRaw.trim()
+      : null;
+  const template = ticketRow.incident_type ? getIncidentTemplate(ticketRow.incident_type.trim()) : null;
+  const requiredEvidenceKeys = template?.required_evidence_keys ?? [];
+  const requiredChecklistKeys = template?.required_checklist_keys ?? [];
+  const checklistStatusRaw = parseCompletionChecklistStatus(latestCompletionPayload);
+  const checklistStatus = normalizeChecklistStatus(requiredChecklistKeys, checklistStatusRaw);
+  const closeoutGate = evaluatePacketCloseoutGate({
+    incidentType: ticketRow.incident_type,
+    evidenceRows,
+    checklistStatus,
+    noSignatureReason,
+    objectStoreSchemes,
+  });
+
+  const evidenceKeySet = new Set();
+  for (const row of evidenceRows) {
+    const evidenceKey = readEvidenceKeyFromMetadata(row.metadata);
+    if (evidenceKey) {
+      evidenceKeySet.add(evidenceKey);
+    }
+  }
+  if (closeoutGate.signature_satisfied) {
+    evidenceKeySet.add("signature_or_no_signature_reason");
+  }
+
+  const requiredEvidence = requiredEvidenceKeys.map((key) => ({
+    key,
+    present: evidenceKeySet.has(key),
+  }));
+  const checklistItems = requiredChecklistKeys.map((key) => ({
+    key,
+    checked: checklistStatus[key] === true,
+  }));
+
+  const completeWorkPolicyError = closeoutGate.ready
+    ? null
+    : createActionPolicyError(
+        "CLOSEOUT_REQUIREMENTS_INCOMPLETE",
+        "Closeout requirements are incomplete",
+        {
+          requirement_code: closeoutGate.code,
+          incident_type: closeoutGate.incident_type,
+          template_version: closeoutGate.template_version,
+          missing_evidence_keys: closeoutGate.missing_evidence_keys,
+          missing_checklist_keys: closeoutGate.missing_checklist_keys,
+          invalid_evidence_refs: closeoutGate.invalid_evidence_refs,
+        },
+      );
+
+  const actions = TECH_PACKET_ACTION_BLUEPRINTS.map((blueprint) =>
+    buildActionDescriptor({
+      actionId: blueprint.action_id,
+      toolName: blueprint.tool_name,
+      actorRole: actor.actorRole,
+      ticketState: ticketRow.state,
+      ticketId: ticketRow.id,
+      extraPolicyError: blueprint.action_id === "complete_work" ? completeWorkPolicyError : null,
+    }),
+  );
+
+  return {
+    generated_at: nowIso(),
+    actor: {
+      actor_id: actor.actorId,
+      actor_role: actor.actorRole,
+      actor_type: actor.actorType,
+      tool_name: actor.toolName,
+    },
+    packet: {
+      header: {
+        ticket_id: ticketRow.id,
+        priority: ticketRow.priority,
+        incident_type: ticketRow.incident_type,
+        current_state: ticketRow.state,
+        scheduled_window: {
+          start: ticketRow.scheduled_start ? new Date(ticketRow.scheduled_start).toISOString() : null,
+          end: ticketRow.scheduled_end ? new Date(ticketRow.scheduled_end).toISOString() : null,
+        },
+        assigned_provider_id: ticketRow.assigned_provider_id,
+        assigned_tech_id: ticketRow.assigned_tech_id,
+      },
+      site_and_access: {
+        site_id: ticketRow.site_id,
+        site_name: ticketRow.site_name,
+        address: {
+          address1: ticketRow.site_address1,
+          address2: ticketRow.site_address2,
+          city: ticketRow.site_city,
+          region: ticketRow.site_region,
+          postal_code: ticketRow.site_postal_code,
+          country: ticketRow.site_country,
+        },
+        timezone: ticketRow.site_timezone,
+        access_instructions: ticketRow.access_instructions,
+        onsite_contact: primaryContact
+          ? {
+              name: primaryContact.name,
+              phone: primaryContact.phone,
+              role: primaryContact.role,
+            }
+          : null,
+      },
+      work_scope: {
+        summary: ticketRow.summary,
+        customer_description: ticketRow.description,
+        nte_cents: Number(ticketRow.nte_cents),
+        authorized_scope_constraints: null,
+      },
+      evidence_requirements: {
+        template_version: template?.version ?? null,
+        required_evidence: requiredEvidence,
+        evidence_items: evidence,
+      },
+      checklist: {
+        required_items: checklistItems,
+        source: latestCompletionPayload ? "latest_completion_attempt" : "none_recorded",
+      },
+      closeout_gate: closeoutGate,
+      timeline: {
+        events: timeline.events,
+        latest_events: timeline.events.slice(-10),
+      },
+      actions,
+    },
   };
 }
 
@@ -2197,6 +3038,23 @@ function resolveRoute(method, pathname) {
     };
   }
 
+  if (method === "GET" && pathname === "/ux/dispatcher/cockpit") {
+    return {
+      kind: "dispatcher_cockpit",
+      endpoint: "/ux/dispatcher/cockpit",
+      ticketId: null,
+    };
+  }
+
+  const techPacketMatch = pathname.match(/^\/ux\/technician\/job-packet\/([^/]+)$/);
+  if (method === "GET" && techPacketMatch && ticketRouteRegex.test(techPacketMatch[1])) {
+    return {
+      kind: "tech_job_packet",
+      endpoint: "/ux/technician/job-packet/{ticketId}",
+      ticketId: techPacketMatch[1],
+    };
+  }
+
   const ticketMatch = pathname.match(/^\/tickets\/([^/]+)$/);
   if (method === "GET" && ticketMatch) {
     return {
@@ -2506,6 +3364,64 @@ export function createDispatchApiServer(options = {}) {
     let requestId = null;
     let actor = null;
     try {
+      if (route.kind === "dispatcher_cockpit") {
+        actor = authRuntime.resolveActor(request.headers, route);
+        const cockpit = await buildDispatcherCockpitView({
+          pool,
+          actor,
+          searchParams: url.searchParams,
+        });
+        sendJson(response, 200, cockpit);
+        metrics.incrementRequest(requestMethod, route.endpoint, 200);
+        emitLog("info", {
+          method: requestMethod,
+          path: url.pathname,
+          endpoint: route.endpoint,
+          request_id: null,
+          correlation_id: correlationId,
+          trace_id: traceId,
+          actor_type: actor.actorType,
+          actor_id: actor.actorId,
+          actor_role: actor.actorRole,
+          tool_name: actor.toolName,
+          ticket_id: null,
+          replay: false,
+          status: 200,
+          duration_ms: Date.now() - requestStart,
+        });
+        return;
+      }
+
+      if (route.kind === "tech_job_packet") {
+        actor = authRuntime.resolveActor(request.headers, route);
+        const packet = await buildTechnicianJobPacketView({
+          pool,
+          actor,
+          authRuntime,
+          ticketId: route.ticketId,
+          objectStoreSchemes,
+        });
+        sendJson(response, 200, packet);
+        metrics.incrementRequest(requestMethod, route.endpoint, 200);
+        emitLog("info", {
+          method: requestMethod,
+          path: url.pathname,
+          endpoint: route.endpoint,
+          request_id: null,
+          correlation_id: correlationId,
+          trace_id: traceId,
+          actor_type: actor.actorType,
+          actor_id: actor.actorId,
+          actor_role: actor.actorRole,
+          tool_name: actor.toolName,
+          ticket_id: route.ticketId,
+          replay: false,
+          status: 200,
+          duration_ms: Date.now() - requestStart,
+        });
+        return;
+      }
+
       if (route.kind === "ticket") {
         actor = authRuntime.resolveActor(request.headers, route);
         const ticket = await getTicket(pool, route.ticketId);
@@ -2652,6 +3568,7 @@ export function createDispatchApiServer(options = {}) {
             }),
         requestId,
       );
+      attachPolicyErrorContext(body.error);
       sendJson(response, status, body);
       const endpoint = route?.endpoint ?? "UNMATCHED";
       metrics.incrementRequest(requestMethod, endpoint, status);
@@ -2676,6 +3593,7 @@ export function createDispatchApiServer(options = {}) {
         status,
         error_code: body.error.code,
         message: body.error.message,
+        reason: known ? null : error instanceof Error ? error.message : String(error),
         duration_ms: Date.now() - requestStart,
       });
     }

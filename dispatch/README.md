@@ -31,6 +31,8 @@ Detailed dispatch-api enforcement state mapping is defined in:
 - `ticket.get`
 - `closeout.list_evidence`
 - `ticket.timeline`
+- `dispatcher.cockpit`
+- `tech.job_packet`
 
 ## Directory map
 

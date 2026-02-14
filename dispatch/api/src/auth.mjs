@@ -16,6 +16,8 @@ const READ_ENDPOINT_TOOL_NAMES = Object.freeze({
   "/tickets/{ticketId}": "ticket.get",
   "/tickets/{ticketId}/timeline": "ticket.timeline",
   "/tickets/{ticketId}/evidence": "closeout.list_evidence",
+  "/ux/dispatcher/cockpit": "dispatcher.cockpit",
+  "/ux/technician/job-packet/{ticketId}": "tech.job_packet",
 });
 
 function buildReadEndpointPolicies() {
@@ -285,7 +287,13 @@ function resolveEndpointPolicy(route) {
     };
   }
 
-  if (route.kind === "ticket" || route.kind === "timeline" || route.kind === "evidence") {
+  if (
+    route.kind === "ticket" ||
+    route.kind === "timeline" ||
+    route.kind === "evidence" ||
+    route.kind === "dispatcher_cockpit" ||
+    route.kind === "tech_job_packet"
+  ) {
     const readPolicy = READ_ENDPOINT_POLICIES[route.endpoint];
     if (!readPolicy) {
       throw new HttpError(500, "INTERNAL_ERROR", "Missing read authorization policy");

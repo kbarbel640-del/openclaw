@@ -50,11 +50,14 @@ export default function register(api: {
     "tech.check_in": "Record technician check-in via dispatch-api.",
     "tech.request_change": "Submit technician change request via dispatch-api.",
     "approval.decide": "Approve or deny a change request via dispatch-api.",
+    "closeout.add_evidence": "Attach closeout evidence via dispatch-api.",
     "qa.verify": "Verify closeout package via dispatch-api.",
     "billing.generate_invoice": "Generate invoice state transition via dispatch-api.",
     "ticket.get": "Read ticket snapshot via dispatch-api.",
     "closeout.list_evidence": "Read evidence items via dispatch-api.",
     "ticket.timeline": "Read ordered audit timeline via dispatch-api.",
+    "dispatcher.cockpit": "Read dispatcher cockpit queue and mapped action surface via dispatch-api.",
+    "tech.job_packet": "Read technician packet, timeline, evidence, and closeout gate status via dispatch-api.",
   } as const;
 
   const buildToolParameters = (policy: {

@@ -1154,3 +1154,86 @@ Validation Commands + Results:
 Outcome:
 - `MVP-06` is complete and validated.
 - Active item advanced to `MVP-07` (dispatcher cockpit and technician packet implementation).
+
+## 2026-02-14 06:50 PST
+
+### MVP-07
+Summary:
+Completed `MVP-07` by implementing API-backed dispatcher cockpit and technician job packet execution surfaces with strict closed-endpoint action mapping, role-restricted UX flows, and explicit fail-closed policy/error visibility for role/tool/state/scope/evidence outcomes.
+
+Files Modified:
+- `dispatch/shared/authorization-policy.mjs`
+- `dispatch/api/src/auth.mjs`
+- `dispatch/api/src/server.mjs`
+- `dispatch/tools-plugin/src/index.ts`
+- `dispatch/tests/story_10_ux_spec.node.test.mjs`
+- `dispatch/api/README.md`
+- `dispatch/tools-plugin/README.md`
+- `dispatch/README.md`
+- `ai_dispatch_agile_project_package/backlog/backlog.csv`
+- `dispatch/logs/backlog_status.md`
+- `dispatch/logs/current_work_item.md`
+- `dispatch/logs/next_story_recommendation.md`
+- `dispatch/logs/progress_log.md`
+
+MVP-07 Delivery:
+- Added closed allowlisted UX read tools/endpoints:
+  - `dispatcher.cockpit` -> `GET /ux/dispatcher/cockpit`
+  - `tech.job_packet` -> `GET /ux/technician/job-packet/{ticketId}`
+- Implemented dispatcher cockpit surface:
+  - queue rows with SLA timer/status, site, assignment, and update timestamps from API truth
+  - selected ticket detail with timeline/evidence summary from API reads only
+  - per-row action map derived strictly from closed tool policies and endpoint contracts
+- Implemented technician packet surface:
+  - packet header/site/scope/evidence/timeline assembled from DB/API truth
+  - closeout gate evaluation from incident template + persisted evidence + checklist context
+  - action gating with explicit disabled reasons for policy/state/evidence failures
+- Added structured policy classification:
+  - server fail-closed errors now include `error.policy_error.dimension`
+  - action-level disabled paths expose deterministic policy error payloads (`role`, `tool`, `state`, `scope`, `evidence`)
+- Preserved MVP-06 observability/alerts behavior while extending endpoint catalog.
+
+Tests Added/Updated:
+- Expanded `dispatch/tests/story_10_ux_spec.node.test.mjs` from artifact-only checks to integration validation for:
+  - cockpit action-to-allowlist mapping
+  - role/tool fail-closed enforcement
+  - technician packet timeline/evidence/closeout truth rendering
+  - scope and evidence policy error surfacing
+
+Validation Commands + Results:
+- `node --test --test-concurrency=1 dispatch/tests/mvp_06_operability.node.test.mjs` -> PASS (2/2)
+- `node --test --test-concurrency=1 dispatch/tests/story_10_ux_spec.node.test.mjs` -> PASS (7/7)
+- `node --test --test-concurrency=1 dispatch/tests/*.mjs` -> PASS (50/50)
+
+Outcome:
+- `MVP-07` is complete and validated.
+- Backlog advanced to `MVP-08` (pilot UAT and cutover readiness).
+
+## 2026-02-14 06:57 PST
+
+### MVP-08
+Summary:
+Completed `MVP-08` by adding pilot UAT execution coverage and cutover readiness runbook visibility checks for dispatcher/technician lifecycle stability across top incident templates.
+
+Files Modified:
+- `dispatch/ops/runbooks/mvp_08_pilot_cutover_readiness.md`
+- `dispatch/ops/runbooks/README.md`
+- `dispatch/ops/README.md`
+- `dispatch/tests/mvp_08_pilot_readiness.node.test.mjs`
+
+MVP-08 Delivery:
+- Published a pilot readiness runbook with explicit go/no-go criteria, rollback rehearsal procedure, and release-candidate freeze controls.
+- Added end-to-end UAT coverage for:
+  - dispatcher cockpit access and ticket visibility on UAT lifecycle cases
+  - technician job packet evidence and closeout gate progression
+  - fail-closed closeout requirements and evidence key assertions across mixed incident templates
+- Added runbook visibility and discovery updates in ops indexes.
+
+Validation Commands + Results:
+- `node --test --test-concurrency=1 dispatch/tests/mvp_06_operability.node.test.mjs` -> PASS (2/2)
+- `node --test --test-concurrency=1 dispatch/tests/story_10_ux_spec.node.test.mjs` -> PASS (7/7)
+- `node --test --test-concurrency=1 dispatch/tests/mvp_08_pilot_readiness.node.test.mjs` -> PASS (2/2)
+- `node --test --test-concurrency=1 dispatch/tests/*.mjs` -> PASS (52/52)
+
+Outcome:
+- `MVP-08` readiness evidence and rollout gates are production-cutover ready.

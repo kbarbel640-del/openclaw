@@ -26,6 +26,8 @@ This plugin is the control-plane bridge. It should expose only the closed dispat
 - `ticket.get` -> `GET /tickets/{ticketId}`
 - `closeout.list_evidence` -> `GET /tickets/{ticketId}/evidence`
 - `ticket.timeline` -> `GET /tickets/{ticketId}/timeline`
+- `dispatcher.cockpit` -> `GET /ux/dispatcher/cockpit`
+- `tech.job_packet` -> `GET /ux/technician/job-packet/{ticketId}`
 
 Unknown tools and role/tool mismatches are rejected fail closed by the bridge before calling dispatch-api.
 

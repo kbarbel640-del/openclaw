@@ -32,6 +32,8 @@ node dispatch/api/src/server.mjs
 - `GET /tickets/{ticketId}`
 - `GET /tickets/{ticketId}/timeline`
 - `GET /tickets/{ticketId}/evidence`
+- `GET /ux/dispatcher/cockpit`
+- `GET /ux/technician/job-packet/{ticketId}`
 - `GET /metrics`
 - `GET /ops/alerts`
 
@@ -47,6 +49,7 @@ Authentication/authorization:
 - Development fallback (disabled by default in production): `X-Actor-Id`, `X-Actor-Role`, optional `X-Actor-Type`, optional `X-Tool-Name`.
 
 Ticket read endpoints (`GET /tickets/{ticketId}`, `GET /tickets/{ticketId}/timeline`, `GET /tickets/{ticketId}/evidence`) also enforce role/tool auth and account/site scope.
+UX read endpoints (`GET /ux/dispatcher/cockpit`, `GET /ux/technician/job-packet/{ticketId}`) enforce the same role/tool/scope checks and expose action maps only for closed dispatch tool endpoints.
 
 ## Guarantees
 
@@ -74,6 +77,9 @@ Ticket read endpoints (`GET /tickets/{ticketId}`, `GET /tickets/{ticketId}/timel
 - closeout hardening:
   - `tech.complete` requires signature evidence or explicit `no_signature_reason`
   - completion/verification reject non-object-store or unresolvable evidence references
+- UX policy visibility:
+  - fail-closed responses include structured `error.policy_error.dimension` classification
+  - dispatcher cockpit and technician packet responses include action-level `policy_error` details for disabled flows
 
 ## Current gaps
 

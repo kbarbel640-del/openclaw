@@ -1,6 +1,6 @@
 # Dispatch Operability Runbooks
 
-These runbooks are the operational response set for MVP-06 alerting in `dispatch-api`.
+These runbooks include MVP-06 operational alert response and MVP-08 pilot cutover readiness for the v0 dispatch release.
 
 Alert sources:
 - `GET /metrics`
@@ -16,3 +16,4 @@ Runbook index:
 - `idempotency_conflict.md`
 - `auth_policy_failure.md`
 - `mvp_06_on_call_drill.md`
+- `mvp_08_pilot_cutover_readiness.md`

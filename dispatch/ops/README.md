@@ -22,3 +22,4 @@ Runbooks and drill assets:
 - `dispatch/ops/runbooks/idempotency_conflict.md`
 - `dispatch/ops/runbooks/auth_policy_failure.md`
 - `dispatch/ops/runbooks/mvp_06_on_call_drill.md`
+- `dispatch/ops/runbooks/mvp_08_pilot_cutover_readiness.md`
