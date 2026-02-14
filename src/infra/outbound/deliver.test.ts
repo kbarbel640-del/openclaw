@@ -484,9 +484,12 @@ describe("deliverOutboundPayloads", () => {
     );
   });
 
-  it("calls runMessageSent with combined text after successful delivery", async () => {
+  it("calls runMessageSent per payload after successful delivery", async () => {
     const mockRunMessageSent = vi.fn().mockResolvedValue(undefined);
-    mocks.getGlobalHookRunner.mockReturnValue({ runMessageSent: mockRunMessageSent });
+    mocks.getGlobalHookRunner.mockReturnValue({
+      hasHooks: vi.fn().mockReturnValue(true),
+      runMessageSent: mockRunMessageSent,
+    });
     const sendWhatsApp = vi.fn().mockResolvedValue({ messageId: "w1", toJid: "jid" });
     const cfg: OpenClawConfig = {};
 
@@ -499,24 +502,39 @@ describe("deliverOutboundPayloads", () => {
       deps: { sendWhatsApp },
     });
 
-    expect(mockRunMessageSent).toHaveBeenCalledTimes(1);
+    expect(mockRunMessageSent).toHaveBeenCalledTimes(2);
     expect(mockRunMessageSent).toHaveBeenCalledWith(
       expect.objectContaining({
-        to: "whatsapp:user:+1555",
-        content: "Hello\nWorld",
+        to: "+1555",
+        content: "Hello",
         success: true,
       }),
       expect.objectContaining({
         channelId: "whatsapp",
         accountId: "acct-1",
-        conversationId: "whatsapp:user:+1555",
+        conversationId: "+1555",
+      }),
+    );
+    expect(mockRunMessageSent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "+1555",
+        content: "World",
+        success: true,
+      }),
+      expect.objectContaining({
+        channelId: "whatsapp",
+        accountId: "acct-1",
+        conversationId: "+1555",
       }),
     );
   });
 
   it("runMessageSent errors don't propagate to caller", async () => {
     const mockRunMessageSent = vi.fn().mockRejectedValue(new Error("hook boom"));
-    mocks.getGlobalHookRunner.mockReturnValue({ runMessageSent: mockRunMessageSent });
+    mocks.getGlobalHookRunner.mockReturnValue({
+      hasHooks: vi.fn().mockReturnValue(true),
+      runMessageSent: mockRunMessageSent,
+    });
     const sendWhatsApp = vi.fn().mockResolvedValue({ messageId: "w1", toJid: "jid" });
     const cfg: OpenClawConfig = {};
 
