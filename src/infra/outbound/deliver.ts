@@ -285,6 +285,8 @@ async function deliverOutboundPayloadsCore(params: {
   channel: Exclude<OutboundChannel, "none">;
   to: string;
   accountId?: string;
+  sessionKey?: string;
+  sessionId?: string;
   payloads: ReplyPayload[];
   replyToId?: string | null;
   threadId?: string | number | null;
@@ -568,7 +570,6 @@ async function deliverOutboundPayloadsCore(params: {
     const normalized = normalizeWhatsAppPayload(payload);
     return normalized ? [normalized] : [];
   });
-  const hookRunner = getGlobalHookRunner();
   for (const payload of normalizedPayloads) {
     const payloadSummary: NormalizedOutboundPayload = {
       text: payload.text ?? "",
