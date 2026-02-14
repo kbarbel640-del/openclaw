@@ -68,9 +68,9 @@ const testProgramContext: ProgramContext = {
 };
 
 describe("command-registry", () => {
-  it("registerProgramCommands registers all core commands", () => {
+  it("registerProgramCommands registers all core commands", async () => {
     const program = new Command();
-    registerProgramCommands(program, testProgramContext);
+    await registerProgramCommands(program, testProgramContext);
 
     const names = program.commands.map((c) => c.name());
     expect(names).toContain("agent");
@@ -83,9 +83,9 @@ describe("command-registry", () => {
     expect(names).toContain("memory");
   });
 
-  it("does not register duplicate commands", () => {
+  it("does not register duplicate commands", async () => {
     const program = new Command();
-    registerProgramCommands(program, testProgramContext);
+    await registerProgramCommands(program, testProgramContext);
 
     const names = program.commands.map((c) => c.name());
     const unique = new Set(names);
