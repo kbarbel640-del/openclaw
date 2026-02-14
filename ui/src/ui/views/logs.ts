@@ -1,9 +1,11 @@
 import { html, nothing } from "lit";
 import type { LogEntry, LogLevel } from "../types.ts";
+import type { AppMode } from "../app.ts";
 
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal"];
 
 export type LogsProps = {
+  mode: AppMode;
   loading: boolean;
   error: string | null;
   file: string | null;
@@ -43,6 +45,7 @@ function matchesFilter(entry: LogEntry, needle: string) {
 }
 
 export function renderLogs(props: LogsProps) {
+  const isBasic = props.mode === "basic";
   const needle = props.filterText.trim().toLowerCase();
   const levelFiltered = LEVELS.some((level) => !props.levelFilters[level]);
   const filtered = props.entries.filter((entry) => {
@@ -143,7 +146,13 @@ export function renderLogs(props: LogsProps) {
                 <div class="log-row">
                   <div class="log-time mono">${formatTime(entry.time)}</div>
                   <div class="log-level ${entry.level ?? ""}">${entry.level ?? ""}</div>
-                  <div class="log-subsystem mono">${entry.subsystem ?? ""}</div>
+                  ${
+                    // Basic mode shows simplified logs (hide subsystem)
+                    // Advanced mode shows verbose logs (show subsystem)
+                    isBasic
+                      ? nothing
+                      : html`<div class="log-subsystem mono">${entry.subsystem ?? ""}</div>`
+                  }
                   <div class="log-message mono">${entry.message ?? entry.raw}</div>
                 </div>
               `,

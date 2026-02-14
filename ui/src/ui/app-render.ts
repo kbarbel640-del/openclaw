@@ -930,6 +930,7 @@ export function renderApp(state: AppViewState) {
         ${
           state.tab === "logs"
             ? renderLogs({
+                mode: state.mode,
                 loading: state.logsLoading,
                 error: state.logsError,
                 file: state.logsFile,
