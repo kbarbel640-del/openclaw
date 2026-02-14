@@ -444,13 +444,17 @@ export async function agentCommand(
               : undefined,
             thinkLevel: resolvedThinkLevel,
             verboseLevel: resolvedVerboseLevel,
+            reasoningLevel: opts.reasoningLevel,
             timeoutMs,
             runId,
             lane: opts.lane,
             abortSignal: opts.abortSignal,
+            providerMetadata: opts.providerMetadata,
             extraSystemPrompt: opts.extraSystemPrompt,
             inputProvenance: opts.inputProvenance,
             streamParams: opts.streamParams,
+            toolResultMaxDataBytes: opts.toolResultMaxDataBytes,
+            onReasoningStream: opts.onReasoningStream,
             agentDir,
             onAgentEvent: (evt) => {
               // Track lifecycle end for fallback emission below.

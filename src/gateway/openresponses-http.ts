@@ -346,6 +346,21 @@ function createAssistantOutputItem(params: {
   };
 }
 
+function safeJsonStringify(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    try {
+      return String(value);
+    } catch {
+      return "";
+    }
+  }
+}
+
 export async function handleOpenResponsesHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -400,6 +415,16 @@ export async function handleOpenResponsesHttpRequest(
   const stream = Boolean(payload.stream);
   const model = payload.model;
   const user = payload.user;
+  const providerMetadata =
+    payload.provider_metadata ??
+    (payload.metadata?.["vida.ignoreOnProviderRelay"] === "true"
+      ? { vida: { ignoreOnProviderRelay: true } }
+      : undefined);
+  const toolResultMaxDataBytes = opts.config?.toolResultMaxDataBytes;
+  const reasoning = payload.reasoning;
+  // `reasoning.effort` is accepted for parity but currently ignored.
+  const reasoningLevel = reasoning ? "stream" : undefined;
+  const reasoningSummary = Boolean(reasoning?.summary);
 
   // Extract images + files from input (Phase 2)
   let images: ImageContent[] = [];
@@ -494,6 +519,7 @@ export async function handleOpenResponsesHttpRequest(
   }
 
   const clientTools = extractClientTools(payload);
+
   let toolChoicePrompt: string | undefined;
   let resolvedClientTools = clientTools;
   try {
@@ -541,6 +567,107 @@ export async function handleOpenResponsesHttpRequest(
 
   const responseId = `resp_${randomUUID()}`;
   const outputItemId = `msg_${randomUUID()}`;
+  const outputItems: OutputItem[] = [
+    createAssistantOutputItem({
+      id: outputItemId,
+      text: "",
+      status: stream ? "in_progress" : "completed",
+    }),
+  ];
+  const toolCallItemsById = new Map<
+    string,
+    { index: number; item: Extract<OutputItem, { type: "function_call" }> }
+  >();
+  const appendOutputItem = (item: OutputItem) => {
+    const index = outputItems.length;
+    outputItems.push(item);
+    return index;
+  };
+  const ensureToolCallItem = (params: { toolCallId: string; name: string; args?: unknown }) => {
+    const { toolCallId, name, args } = params;
+    const existing = toolCallItemsById.get(toolCallId);
+    if (existing) {
+      return existing;
+    }
+    const item: Extract<OutputItem, { type: "function_call" }> = {
+      type: "function_call",
+      id: toolCallId,
+      call_id: toolCallId,
+      name,
+      arguments: safeJsonStringify(args),
+      status: "in_progress",
+    };
+    const index = appendOutputItem(item);
+    toolCallItemsById.set(toolCallId, { index, item });
+    if (stream) {
+      writeSseEvent(res, {
+        type: "response.output_item.added",
+        output_index: index,
+        item,
+      });
+    }
+    return { index, item };
+  };
+  const finalizeToolCallItem = (toolCallId: string) => {
+    const existing = toolCallItemsById.get(toolCallId);
+    if (!existing) {
+      return;
+    }
+    const completedItem = { ...existing.item, status: "completed" as const };
+    outputItems[existing.index] = completedItem;
+    if (stream) {
+      writeSseEvent(res, {
+        type: "response.output_item.done",
+        output_index: existing.index,
+        item: completedItem,
+      });
+    }
+  };
+  const emitToolOutputItem = (toolCallId: string, output: unknown) => {
+    const outputItem: Extract<OutputItem, { type: "function_call_output" }> = {
+      type: "function_call_output",
+      id: `tool_output_${randomUUID()}`,
+      call_id: toolCallId,
+      output: safeJsonStringify(output),
+      status: "completed",
+    };
+    const index = appendOutputItem(outputItem);
+    if (stream) {
+      writeSseEvent(res, {
+        type: "response.output_item.added",
+        output_index: index,
+        item: outputItem,
+      });
+      writeSseEvent(res, {
+        type: "response.output_item.done",
+        output_index: index,
+        item: outputItem,
+      });
+    }
+  };
+  const emitReasoningItem = (text: string) => {
+    if (!text.trim()) {
+      return;
+    }
+    const item: Extract<OutputItem, { type: "reasoning" }> = {
+      type: "reasoning",
+      id: `reason_${randomUUID()}`,
+      ...(reasoningSummary ? { summary: text } : { content: text }),
+    };
+    const index = appendOutputItem(item);
+    if (stream) {
+      writeSseEvent(res, {
+        type: "response.output_item.added",
+        output_index: index,
+        item,
+      });
+      writeSseEvent(res, {
+        type: "response.output_item.done",
+        output_index: index,
+        item,
+      });
+    }
+  };
   const deps = createDefaultDeps();
   const streamParams =
     typeof payload.max_output_tokens === "number"
@@ -548,6 +675,37 @@ export async function handleOpenResponsesHttpRequest(
       : undefined;
 
   if (!stream) {
+    const unsubscribe = onAgentEvent((evt) => {
+      if (evt.runId !== responseId) {
+        return;
+      }
+      if (evt.stream !== "tool") {
+        return;
+      }
+      const phase = evt.data?.phase;
+      const name = typeof evt.data?.name === "string" ? evt.data.name : "tool";
+      const toolCallId = typeof evt.data?.toolCallId === "string" ? evt.data.toolCallId : "";
+      if (!toolCallId) {
+        return;
+      }
+      if (phase === "start") {
+        ensureToolCallItem({
+          toolCallId,
+          name,
+          args: evt.data?.args,
+        });
+        return;
+      }
+      if (phase === "result") {
+        ensureToolCallItem({
+          toolCallId,
+          name,
+          args: evt.data?.args,
+        });
+        finalizeToolCallItem(toolCallId);
+        emitToolOutputItem(toolCallId, evt.data?.result);
+      }
+    });
     try {
       const result = await agentCommand(
         {
@@ -561,6 +719,16 @@ export async function handleOpenResponsesHttpRequest(
           deliver: false,
           messageChannel: "webchat",
           bestEffortDeliver: false,
+          reasoningLevel,
+          providerMetadata,
+          toolResultMaxDataBytes,
+          onReasoningStream: (payload) => {
+            const text = typeof payload?.text === "string" ? payload.text : "";
+            if (!text) {
+              return;
+            }
+            emitReasoningItem(text);
+          },
         },
         defaultRuntime,
         deps,
@@ -608,13 +776,18 @@ export async function handleOpenResponsesHttpRequest(
               .join("\n\n")
           : "No response from OpenClaw.";
 
+      const completedItem = createAssistantOutputItem({
+        id: outputItemId,
+        text: content,
+        status: "completed",
+      });
+      outputItems[0] = completedItem;
+
       const response = createResponseResource({
         id: responseId,
         model,
         status: "completed",
-        output: [
-          createAssistantOutputItem({ id: outputItemId, text: content, status: "completed" }),
-        ],
+        output: outputItems,
         usage,
       });
 
@@ -629,6 +802,8 @@ export async function handleOpenResponsesHttpRequest(
         error: { code: "api_error", message: "internal error" },
       });
       sendJson(res, 500, response);
+    } finally {
+      unsubscribe();
     }
     return true;
   }
@@ -682,6 +857,7 @@ export async function handleOpenResponsesHttpRequest(
       text: finalizeRequested.text,
       status: "completed",
     });
+    outputItems[0] = completedItem;
 
     writeSseEvent(res, {
       type: "response.output_item.done",
@@ -693,7 +869,7 @@ export async function handleOpenResponsesHttpRequest(
       id: responseId,
       model,
       status: finalizeRequested.status,
-      output: [completedItem],
+      output: outputItems,
       usage,
     });
 
@@ -722,11 +898,7 @@ export async function handleOpenResponsesHttpRequest(
   writeSseEvent(res, { type: "response.in_progress", response: initialResponse });
 
   // Add output item
-  const outputItem = createAssistantOutputItem({
-    id: outputItemId,
-    text: "",
-    status: "in_progress",
-  });
+  const outputItem = outputItems[0] as Extract<OutputItem, { type: "message" }>;
 
   writeSseEvent(res, {
     type: "response.output_item.added",
@@ -772,6 +944,25 @@ export async function handleOpenResponsesHttpRequest(
       return;
     }
 
+    if (evt.stream === "tool") {
+      const phase = evt.data?.phase;
+      const name = typeof evt.data?.name === "string" ? evt.data.name : "tool";
+      const toolCallId = typeof evt.data?.toolCallId === "string" ? evt.data.toolCallId : "";
+      if (!toolCallId) {
+        return;
+      }
+      if (phase === "start") {
+        ensureToolCallItem({ toolCallId, name, args: evt.data?.args });
+        return;
+      }
+      if (phase === "result") {
+        ensureToolCallItem({ toolCallId, name, args: evt.data?.args });
+        finalizeToolCallItem(toolCallId);
+        emitToolOutputItem(toolCallId, evt.data?.result);
+      }
+      return;
+    }
+
     if (evt.stream === "lifecycle") {
       const phase = evt.data?.phase;
       if (phase === "end" || phase === "error") {
@@ -801,6 +992,16 @@ export async function handleOpenResponsesHttpRequest(
           deliver: false,
           messageChannel: "webchat",
           bestEffortDeliver: false,
+          reasoningLevel,
+          providerMetadata,
+          toolResultMaxDataBytes,
+          onReasoningStream: (payload) => {
+            const text = typeof payload?.text === "string" ? payload.text : "";
+            if (!text) {
+              return;
+            }
+            emitReasoningItem(text);
+          },
         },
         defaultRuntime,
         deps,
@@ -856,6 +1057,7 @@ export async function handleOpenResponsesHttpRequest(
             text: "",
             status: "completed",
           });
+          outputItems[0] = completedItem;
           writeSseEvent(res, {
             type: "response.output_item.done",
             output_index: 0,
@@ -863,29 +1065,35 @@ export async function handleOpenResponsesHttpRequest(
           });
 
           const functionCallItemId = `call_${randomUUID()}`;
-          const functionCallItem = {
+          const functionCallItem: Extract<OutputItem, { type: "function_call" }> = {
             type: "function_call" as const,
             id: functionCallItemId,
             call_id: functionCall.id,
             name: functionCall.name,
             arguments: functionCall.arguments,
           };
+          const functionCallIndex = appendOutputItem(functionCallItem);
           writeSseEvent(res, {
             type: "response.output_item.added",
-            output_index: 1,
+            output_index: functionCallIndex,
             item: functionCallItem,
           });
+          const completedFunctionCallItem = {
+            ...functionCallItem,
+            status: "completed" as const,
+          };
+          outputItems[functionCallIndex] = completedFunctionCallItem;
           writeSseEvent(res, {
             type: "response.output_item.done",
-            output_index: 1,
-            item: { ...functionCallItem, status: "completed" as const },
+            output_index: functionCallIndex,
+            item: completedFunctionCallItem,
           });
 
           const incompleteResponse = createResponseResource({
             id: responseId,
             model,
             status: "incomplete",
-            output: [completedItem, functionCallItem],
+            output: outputItems,
             usage,
           });
           closed = true;

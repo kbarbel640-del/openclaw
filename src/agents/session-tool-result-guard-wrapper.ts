@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { SessionManager } from "@mariozechner/pi-coding-agent";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import {
@@ -22,10 +23,32 @@ export function guardSessionManager(
     sessionKey?: string;
     inputProvenance?: InputProvenance;
     allowSyntheticToolResults?: boolean;
+    providerMetadata?: Record<string, unknown>;
   },
 ): GuardedSessionManager {
   if (typeof (sessionManager as GuardedSessionManager).flushPendingToolResults === "function") {
     return sessionManager as GuardedSessionManager;
+  }
+
+  if (opts?.providerMetadata && Object.keys(opts.providerMetadata).length > 0) {
+    const originalAppend = sessionManager.appendMessage.bind(sessionManager);
+    const providerMetadata = opts.providerMetadata;
+    sessionManager.appendMessage = ((message: AgentMessage) => {
+      if (!message || typeof message !== "object") {
+        return originalAppend(message as never);
+      }
+      const existing = (message as { providerMetadata?: unknown }).providerMetadata;
+      const existingObj =
+        existing && typeof existing === "object" && !Array.isArray(existing) ? existing : {};
+      const merged = {
+        ...(message as Record<string, unknown>),
+        providerMetadata: {
+          ...(existingObj as Record<string, unknown>),
+          ...providerMetadata,
+        },
+      };
+      return originalAppend(merged as AgentMessage);
+    }) as SessionManager["appendMessage"];
   }
 
   const hookRunner = getGlobalHookRunner();
@@ -49,7 +72,6 @@ export function guardSessionManager(
         return out?.message ?? message;
       }
     : undefined;
-
   const guard = installSessionToolResultGuard(sessionManager, {
     transformMessageForPersistence: (message) =>
       applyInputProvenanceToUserMessage(message, opts?.inputProvenance),
