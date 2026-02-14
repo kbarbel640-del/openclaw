@@ -1,9 +1,8 @@
-import { Readable } from "stream";
 import type * as Lark from "@larksuiteoapi/node-sdk";
-import { Type } from "@sinclair/typebox";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { listEnabledFeishuAccounts } from "./accounts.js";
-import { createFeishuClient } from "./client.js";
+import { Type } from "@sinclair/typebox";
+import { Readable } from "stream";
+import { listEnabledFeishuAccounts, resolveToolClient } from "./accounts.js";
 import { FeishuDocSchema, type FeishuDocParams } from "./doc-schema.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { resolveToolsConfig } from "./tools-config.js";
@@ -459,8 +458,6 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
   const toolsCfg = resolveToolsConfig(firstAccount.config.tools);
   const mediaMaxBytes = (firstAccount.config?.mediaMaxMb ?? 30) * 1024 * 1024;
 
-  // Helper to get client for the default account
-  const getClient = () => createFeishuClient(firstAccount);
   const registered: string[] = [];
 
   // Main document tool with action-based dispatch
@@ -475,7 +472,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         async execute(_toolCallId, params) {
           const p = params as FeishuDocParams;
           try {
-            const client = getClient();
+            const { client } = resolveToolClient(api.config!, p.account);
             switch (p.action) {
               case "read":
                 return json(await readDoc(client, p.doc_token));
@@ -515,10 +512,16 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
         label: "Feishu App Scopes",
         description:
           "List current app permissions (scopes). Use to debug permission issues or check available capabilities.",
-        parameters: Type.Object({}),
-        async execute() {
+        parameters: Type.Object({
+          account: Type.Optional(
+            Type.String({ description: "Feishu account ID. Omit to use the default account." }),
+          ),
+        }),
+        async execute(_toolCallId, params) {
           try {
-            const result = await listAppScopes(getClient());
+            const { account } = params as { account?: string };
+            const { client } = resolveToolClient(api.config!, account);
+            const result = await listAppScopes(client);
             return json(result);
           } catch (err) {
             return json({ error: err instanceof Error ? err.message : String(err) });

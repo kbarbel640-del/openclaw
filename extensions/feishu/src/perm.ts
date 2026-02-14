@@ -1,7 +1,6 @@
 import type * as Lark from "@larksuiteoapi/node-sdk";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { listEnabledFeishuAccounts } from "./accounts.js";
-import { createFeishuClient } from "./client.js";
+import { listEnabledFeishuAccounts, resolveToolClient } from "./accounts.js";
 import { FeishuPermSchema, type FeishuPermParams } from "./perm-schema.js";
 import { resolveToolsConfig } from "./tools-config.js";
 
@@ -136,8 +135,6 @@ export function registerFeishuPermTools(api: OpenClawPluginApi) {
     return;
   }
 
-  const getClient = () => createFeishuClient(firstAccount);
-
   api.registerTool(
     {
       name: "feishu_perm",
@@ -147,7 +144,7 @@ export function registerFeishuPermTools(api: OpenClawPluginApi) {
       async execute(_toolCallId, params) {
         const p = params as FeishuPermParams;
         try {
-          const client = getClient();
+          const { client } = resolveToolClient(api.config!, p.account);
           switch (p.action) {
             case "list":
               return json(await listMembers(client, p.token, p.type));
