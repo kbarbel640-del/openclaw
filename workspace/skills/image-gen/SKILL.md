@@ -122,6 +122,19 @@ Specs provide structured creative direction. They're composed into a natural lan
 
 **For product photography, always include fidelity spec** when a source image is provided — it tells the model what to preserve.
 
+## ⚠️ MANDATORY: Read Domain Knowledge Before Generating
+
+**Before writing ANY generation request**, read the relevant reference doc:
+
+| Task | Read First |
+|------|-----------|
+| Product catalog / hero shots | `references/catalog_patterns.md` |
+| Lifestyle / in-use scenes | `references/lifestyle_patterns.md` |
+| Social media content | `references/social_patterns.md` |
+| Unfamiliar spec fields | `references/spec_guide.md` |
+
+These docs contain domain knowledge (material-specific rendering notes, quality checklists, platform requirements, batch consistency patterns) that produces measurably better output. Do NOT rely on memory — read the doc, follow the template, apply the checklist.
+
 ## Common Patterns
 
 ### 1. White Background Hero Shot
