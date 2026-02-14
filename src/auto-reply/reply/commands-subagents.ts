@@ -57,6 +57,26 @@ function resolveRequesterSessionKey(params: Parameters<CommandHandler>[0]): stri
   return resolveInternalSessionKey({ key: raw, alias, mainKey });
 }
 
+function buildTreeIndexMap(): Map<string, string> {
+  const allRuns = listAllSubagentRuns();
+  const runByChild = new Map(allRuns.map((r) => [r.childSessionKey, r]));
+  const childrenOf = new Map<string, SubagentRunRecord[]>();
+  for (const r of allRuns) {
+    const list = childrenOf.get(r.requesterSessionKey) ?? [];
+    list.push(r);
+    childrenOf.set(r.requesterSessionKey, list);
+  }
+  const roots = sortSubagentRuns(allRuns.filter((r) => !runByChild.has(r.requesterSessionKey)));
+  const indexMap = new Map<string, string>();
+  const walk = (r: SubagentRunRecord, index: string) => {
+    indexMap.set(index, r.childSessionKey);
+    const children = sortSubagentRuns(childrenOf.get(r.childSessionKey) ?? []);
+    children.forEach((child, i) => walk(child, `${index}.${i + 1}`));
+  };
+  roots.forEach((root, i) => walk(root, `${i + 1}`));
+  return indexMap;
+}
+
 function resolveSubagentTarget(
   runs: SubagentRunRecord[],
   token: string | undefined,
@@ -68,6 +88,24 @@ function resolveSubagentTarget(
   if (trimmed === "last") {
     const sorted = sortSubagentRuns(runs);
     return { entry: sorted[0] };
+  }
+  // Check for tree index (e.g. "1.2.1")
+  if (/^\d+(\.\d+)+$/.test(trimmed)) {
+    const indexMap = buildTreeIndexMap();
+    const childKey = indexMap.get(trimmed);
+    if (!childKey) {
+      return { error: `Invalid tree index: ${trimmed}` };
+    }
+    const match = runs.find((entry) => entry.childSessionKey === childKey);
+    if (!match) {
+      // Might be a run from a different requester — search all runs
+      const allRuns = listAllSubagentRuns();
+      const globalMatch = allRuns.find((entry) => entry.childSessionKey === childKey);
+      return globalMatch
+        ? { entry: globalMatch }
+        : { error: `Tree index ${trimmed} not found in current session.` };
+    }
+    return { entry: match };
   }
   const sorted = sortSubagentRuns(runs);
   if (/^\d+$/.test(trimmed)) {
