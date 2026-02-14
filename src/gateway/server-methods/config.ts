@@ -273,9 +273,10 @@ export const configHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const merged = applyMergePatch(snapshot.config, parsedRes.parsed);
+    // Use snapshot.resolved (no env var substitution, no defaults) as base to preserve ${VAR} references (#15932)
+    const merged = applyMergePatch(snapshot.resolved, parsedRes.parsed);
     const schemaPatch = loadSchemaWithPlugins();
-    const restoredMerge = restoreRedactedValues(merged, snapshot.config, schemaPatch.uiHints);
+    const restoredMerge = restoreRedactedValues(merged, snapshot.resolved, schemaPatch.uiHints);
     if (!restoredMerge.ok) {
       respond(
         false,
@@ -300,7 +301,7 @@ export const configHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    await writeConfigFile(validated.config);
+    await writeConfigFile(validated.config)
 
     const sessionKey =
       typeof (params as { sessionKey?: unknown }).sessionKey === "string"
