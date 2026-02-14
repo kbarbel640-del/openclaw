@@ -1,16 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ollamaFetch } from "./ollama-retry.js";
 
-// Mock global fetch
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
-
 function okResponse(body = "ok") {
   return new Response(body, { status: 200 });
-}
-
-function errorResponse(status: number, body = "error") {
-  return new Response(body, { status });
 }
 
 function connRefusedError(): TypeError {
@@ -26,100 +18,115 @@ function timeoutError(): DOMException {
 }
 
 describe("ollamaFetch", () => {
+  let originalFetch: typeof globalThis.fetch;
+
   beforeEach(() => {
-    mockFetch.mockReset();
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    originalFetch = globalThis.fetch;
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    globalThis.fetch = originalFetch;
   });
 
   it("succeeds on first try with no retries", async () => {
-    mockFetch.mockResolvedValueOnce(okResponse());
+    const mock = vi.fn().mockResolvedValueOnce(okResponse());
+    globalThis.fetch = mock as any;
+
     const res = await ollamaFetch("http://localhost:11434/api/chat", undefined, {
       retries: 3,
-      retryDelayMs: 10,
+      retryDelayMs: 1,
     });
     expect(res.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mock).toHaveBeenCalledTimes(1);
   });
 
   it("retries on ECONNREFUSED then succeeds", async () => {
-    mockFetch.mockRejectedValueOnce(connRefusedError()).mockResolvedValueOnce(okResponse());
+    const mock = vi
+      .fn()
+      .mockRejectedValueOnce(connRefusedError())
+      .mockResolvedValueOnce(okResponse());
+    globalThis.fetch = mock as any;
 
     const res = await ollamaFetch("http://localhost:11434/api/chat", undefined, {
       retries: 3,
-      retryDelayMs: 10,
+      retryDelayMs: 1,
     });
     expect(res.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mock).toHaveBeenCalledTimes(2);
   });
 
   it("retries on 503 then succeeds", async () => {
-    mockFetch
-      .mockResolvedValueOnce(errorResponse(503, "model loading"))
+    const mock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("model loading", { status: 503 }))
       .mockResolvedValueOnce(okResponse());
+    globalThis.fetch = mock as any;
 
     const res = await ollamaFetch("http://localhost:11434/api/chat", undefined, {
       retries: 3,
-      retryDelayMs: 10,
+      retryDelayMs: 1,
     });
     expect(res.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mock).toHaveBeenCalledTimes(2);
   });
 
   it("throws after all retries exhausted", async () => {
-    mockFetch
+    const mock = vi
+      .fn()
       .mockRejectedValueOnce(connRefusedError())
       .mockRejectedValueOnce(connRefusedError())
       .mockRejectedValueOnce(connRefusedError())
       .mockRejectedValueOnce(connRefusedError());
+    globalThis.fetch = mock as any;
 
     await expect(
       ollamaFetch("http://localhost:11434/api/chat", undefined, {
         retries: 3,
-        retryDelayMs: 10,
+        retryDelayMs: 1,
       }),
     ).rejects.toThrow("ECONNREFUSED");
-    expect(mockFetch).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
+    expect(mock).toHaveBeenCalledTimes(4);
   });
 
   it("does not retry on 400 error", async () => {
-    mockFetch.mockResolvedValueOnce(errorResponse(400, "bad request"));
+    const mock = vi.fn().mockResolvedValueOnce(new Response("bad request", { status: 400 }));
+    globalThis.fetch = mock as any;
 
     await expect(
       ollamaFetch("http://localhost:11434/api/chat", undefined, {
         retries: 3,
-        retryDelayMs: 10,
+        retryDelayMs: 1,
       }),
     ).rejects.toThrow("Ollama API error 400");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mock).toHaveBeenCalledTimes(1);
   });
 
   it("does not retry on timeout", async () => {
-    mockFetch.mockRejectedValueOnce(timeoutError());
+    const mock = vi.fn().mockRejectedValueOnce(timeoutError());
+    globalThis.fetch = mock as any;
 
     await expect(
       ollamaFetch("http://localhost:11434/api/chat", undefined, {
         retries: 3,
-        retryDelayMs: 10,
+        retryDelayMs: 1,
         timeoutMs: 100,
       }),
     ).rejects.toThrow("timeout");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mock).toHaveBeenCalledTimes(1);
   });
 
   it("calls onRetry with correct attempt number", async () => {
     const onRetry = vi.fn();
-    mockFetch
+    const mock = vi
+      .fn()
       .mockRejectedValueOnce(connRefusedError())
       .mockRejectedValueOnce(connRefusedError())
       .mockResolvedValueOnce(okResponse());
+    globalThis.fetch = mock as any;
 
     await ollamaFetch("http://localhost:11434/api/chat", undefined, {
       retries: 3,
-      retryDelayMs: 10,
+      retryDelayMs: 1,
       onRetry,
     });
 
@@ -129,14 +136,18 @@ describe("ollamaFetch", () => {
   });
 
   it("respects max retries config", async () => {
-    mockFetch.mockRejectedValueOnce(connRefusedError()).mockRejectedValueOnce(connRefusedError());
+    const mock = vi
+      .fn()
+      .mockRejectedValueOnce(connRefusedError())
+      .mockRejectedValueOnce(connRefusedError());
+    globalThis.fetch = mock as any;
 
     await expect(
       ollamaFetch("http://localhost:11434/api/chat", undefined, {
         retries: 1,
-        retryDelayMs: 10,
+        retryDelayMs: 1,
       }),
     ).rejects.toThrow("ECONNREFUSED");
-    expect(mockFetch).toHaveBeenCalledTimes(2); // 1 initial + 1 retry
+    expect(mock).toHaveBeenCalledTimes(2);
   });
 });

@@ -10,6 +10,7 @@ import type {
 } from "@mariozechner/pi-ai";
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
 import { randomUUID } from "node:crypto";
+import { extractMetrics, formatMetrics } from "./ollama-metrics.js";
 import { ollamaFetch } from "./ollama-retry.js";
 
 export const OLLAMA_NATIVE_BASE_URL = "http://127.0.0.1:11434";
@@ -535,6 +536,14 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
           provider: model.provider,
           id: model.id,
         });
+
+        // Extract and log Ollama performance metrics
+        const metrics = extractMetrics(finalResponse);
+        if (metrics) {
+          console.log(`[ollama] ${formatMetrics(metrics)}`);
+          // Attach metrics to the assistant message for downstream consumers
+          (assistantMessage as Record<string, unknown>).ollamaMetrics = metrics;
+        }
 
         const reason: Extract<StopReason, "stop" | "length" | "toolUse"> =
           assistantMessage.stopReason === "toolUse" ? "toolUse" : "stop";
