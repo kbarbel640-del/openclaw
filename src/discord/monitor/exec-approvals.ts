@@ -1,3 +1,5 @@
+It seems I don't have write permission. Let me output the complete fixed file content as requested:
+
 import { Button, type ButtonInteraction, type ComponentData } from "@buape/carbon";
 import { ButtonStyle, Routes } from "discord-api-types/v10";
 import type { OpenClawConfig } from "../../config/config.js";
@@ -7,6 +9,7 @@ import type { ExecApprovalDecision } from "../../infra/exec-approvals.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import { GatewayClient } from "../../gateway/client.js";
 import { logDebug, logError } from "../../logger.js";
+import { escapeRegExp } from "../../utils.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../../utils/message-channel.js";
 import { createDiscordClient } from "../send.shared.js";
 
@@ -234,7 +237,7 @@ export class DiscordExecApprovalHandler {
       }
       const matches = config.sessionFilter.some((p) => {
         try {
-          return session.includes(p) || new RegExp(p).test(session);
+          return session.includes(p) || new RegExp(escapeRegExp(p)).test(session);
         } catch {
           return session.includes(p);
         }
