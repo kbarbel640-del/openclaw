@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import type { OpenClawConfig } from "../../config/config.js";
-import { listAgentIds } from "../../agents/agent-scope.js";
+import { listAgentIds, resolveSessionAgentId } from "../../agents/agent-scope.js";
+import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import {
   normalizeThinkLevel,
   normalizeVerboseLevel,
@@ -143,6 +144,25 @@ export function resolveSession(opts: {
   const sessionId =
     opts.sessionId?.trim() || (fresh ? sessionEntry?.sessionId : undefined) || crypto.randomUUID();
   const isNewSession = !fresh && !opts.sessionId;
+
+  // Fire session_end hook when idle timeout or daily reset triggers a new session (#15806)
+  if (isNewSession && sessionEntry?.sessionId) {
+    const hookRunner = getGlobalHookRunner();
+    if (hookRunner?.hasHooks("session_end")) {
+      void hookRunner
+        .runSessionEnd(
+          {
+            sessionId: sessionEntry.sessionId,
+            messageCount: sessionEntry.messageCount ?? 0,
+          },
+          {
+            sessionId: sessionEntry.sessionId,
+            agentId: resolveSessionAgentId({ sessionKey: sessionKey ?? "", config: opts.cfg }),
+          },
+        )
+        .catch(() => {});
+    }
+  }
 
   const persistedThinking =
     fresh && sessionEntry?.thinkingLevel
