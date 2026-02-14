@@ -102,6 +102,7 @@ export async function sendChatMessage(
 
   state.chatSending = true;
   state.lastError = null;
+  state.chatRoutedModel = null;
   const runId = generateUUID();
   state.chatRunId = runId;
   state.chatStream = "";
@@ -202,17 +203,14 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
-    state.chatRoutedModel = null;
   } else if (payload.state === "aborted") {
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
-    state.chatRoutedModel = null;
   } else if (payload.state === "error") {
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
-    state.chatRoutedModel = null;
     state.lastError = payload.errorMessage ?? "chat error";
   }
   return payload.state;
