@@ -166,6 +166,13 @@
 - **Multi-agent safety:** do **not** switch branches / check out a different branch unless explicitly requested.
 - **Multi-agent safety:** running multiple agents is OK as long as each agent has its own session.
 - **Multi-agent safety:** when you see unrecognized files, keep going; focus on your changes and commit only those.
+- **Spec-driven development:** For complex initiatives, create a tracking document in `specs/<name>.md` to maintain context across sessions.
+- **Spec-driven development:** **Specs must track status**. Include a 'Current Status' or 'Next Steps' section. Do not just list findings; update the doc as work progresses.
+- **Interactive Design Validation:** Before implementing a new design/feature, plan first and confirm with Telegram buttons.
+  - Ask in batches of up to 3 questions (each with options).
+  - You may run multiple batches (not limited to 3 total questions) until design is confirmed.
+  - Start implementation only after confirmation.
+- **Edit tool hygiene:** When using `edit`, always copy exact text from `read`/`grep` first (including punctuation/whitespace) and include unique nearby context to avoid repeated match failures.
 - Lint/format churn:
   - If staged+unstaged diffs are formatting-only, auto-resolve without asking.
   - If commit/push already requested, auto-stage and include formatting-only follow-ups in the same commit (or a tiny follow-up commit if needed), no extra confirmation.

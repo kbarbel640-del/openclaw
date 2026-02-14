@@ -49,8 +49,7 @@ This script:
 Optional env vars:
 
 - `OPENCLAW_DOCKER_APT_PACKAGES` — install extra apt packages during build
-- `OPENCLAW_EXTRA_MOUNTS` — add extra host bind mounts
-- `OPENCLAW_HOME_VOLUME` — persist `/home/node` in a named volume
+- `OPENCLAW_CONFIG_DIR` — host path mounted to `/home/node/.openclaw` (default `~/.openclaw`)
 
 After it finishes:
 
@@ -91,13 +90,8 @@ docker compose run --rm openclaw-cli onboard
 docker compose up -d openclaw-gateway
 ```
 
-Note: run `docker compose ...` from the repo root. If you enabled
-`OPENCLAW_EXTRA_MOUNTS` or `OPENCLAW_HOME_VOLUME`, the setup script writes
-`docker-compose.extra.yml`; include it when running Compose elsewhere:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.extra.yml <command>
-```
+Note: run `docker compose ...` from the repo root. Docker setup now uses a
+single Compose file (`docker-compose.yml`) only.
 
 ### Control UI token + pairing (Docker)
 
@@ -128,55 +122,10 @@ After `openclaw status` or `openclaw security audit` you may see:
 2. **Credentials dir is readable by others** — The gateway entrypoint ensures `/home/node/.openclaw/credentials` is created with mode `700`. If the directory was created earlier by another process with looser permissions, run once: `chmod 700 "$OPENCLAW_CONFIG_DIR/credentials"` on the host (or recreate the config volume).
 3. **Certificate warning on https://&lt;host&gt;.ts.net** — When using Tailscale Serve from Docker, the browser may show "Your connection is not private" until **HTTPS Certificates** are enabled for your tailnet. In [Tailscale Admin](https://login.tailscale.com/admin/dns) → DNS → **HTTPS Certificates** → Enable HTTPS. See [Tailscale (certificate warning)](/gateway/tailscale#certificate-warning-on-httphosttsnet).
 
-### Extra mounts (optional)
+### Custom mounts (optional)
 
-If you want to mount additional host directories into the containers, set
-`OPENCLAW_EXTRA_MOUNTS` before running `docker/setup.sh`. This accepts a
-comma-separated list of Docker bind mounts and applies them to both
-`openclaw-gateway` and `openclaw-cli` by generating `docker-compose.extra.yml`.
-
-Example:
-
-```bash
-export OPENCLAW_EXTRA_MOUNTS="$HOME/.codex:/home/node/.codex:ro,$HOME/github:/home/node/github:rw"
-./docker/setup.sh
-```
-
-Notes:
-
-- Paths must be shared with Docker Desktop on macOS/Windows.
-- If you edit `OPENCLAW_EXTRA_MOUNTS`, rerun `docker/setup.sh` to regenerate the
-  extra compose file.
-- `docker-compose.extra.yml` is generated. Don’t hand-edit it.
-
-### Persist the entire container home (optional)
-
-If you want `/home/node` to persist across container recreation, set a named
-volume via `OPENCLAW_HOME_VOLUME`. This creates a Docker volume and mounts it at
-`/home/node`, while keeping the standard config/workspace bind mounts. Use a
-named volume here (not a bind path); for bind mounts, use
-`OPENCLAW_EXTRA_MOUNTS`.
-
-Example:
-
-```bash
-export OPENCLAW_HOME_VOLUME="openclaw_home"
-./docker/setup.sh
-```
-
-You can combine this with extra mounts:
-
-```bash
-export OPENCLAW_HOME_VOLUME="openclaw_home"
-export OPENCLAW_EXTRA_MOUNTS="$HOME/.codex:/home/node/.codex:ro,$HOME/github:/home/node/github:rw"
-./docker/setup.sh
-```
-
-Notes:
-
-- If you change `OPENCLAW_HOME_VOLUME`, rerun `docker/setup.sh` to regenerate the
-  extra compose file.
-- The named volume persists until removed with `docker volume rm <name>`.
+If you need extra binds/volumes, edit `docker-compose.yml` directly. OpenClaw no
+longer generates secondary Compose files.
 
 ### Install extra apt packages (optional)
 
@@ -209,21 +158,14 @@ user. This keeps the attack surface small, but it means:
 
 If you want a more full-featured container, use these opt-in knobs:
 
-1. **Persist `/home/node`** so browser downloads and tool caches survive:
-
-```bash
-export OPENCLAW_HOME_VOLUME="openclaw_home"
-./docker/setup.sh
-```
-
-2. **Bake system deps into the image** (repeatable + persistent):
+1. **Bake system deps into the image** (repeatable + persistent):
 
 ```bash
 export OPENCLAW_DOCKER_APT_PACKAGES="git curl jq"
 ./docker/setup.sh
 ```
 
-3. **Install Playwright browsers without `npx`** (avoids npm override conflicts):
+2. **Install Playwright browsers without `npx`** (avoids npm override conflicts):
 
 ```bash
 docker compose run --rm openclaw-cli \
@@ -233,12 +175,12 @@ docker compose run --rm openclaw-cli \
 If you need Playwright to install system deps, rebuild the image with
 `OPENCLAW_DOCKER_APT_PACKAGES` instead of using `--with-deps` at runtime.
 
-4. **Persist Playwright browser downloads**:
+3. **Persist Playwright browser downloads**:
 
 - Set `PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright` in
   `docker-compose.yml`.
-- Ensure `/home/node` persists via `OPENCLAW_HOME_VOLUME`, or mount
-  `/home/node/.cache/ms-playwright` via `OPENCLAW_EXTRA_MOUNTS`.
+- Mount `/home/node/.cache/ms-playwright` in `docker-compose.yml` if you need
+  browser downloads to persist across container recreation.
 
 ### Permissions + EACCES
 

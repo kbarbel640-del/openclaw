@@ -56,8 +56,7 @@ Docker 是**可选的**。仅当你想要容器化的 Gateway 网关或验证 Do
 可选环境变量：
 
 - `OPENCLAW_DOCKER_APT_PACKAGES` — 在构建期间安装额外的 apt 包
-- `OPENCLAW_EXTRA_MOUNTS` — 添加额外的主机绑定挂载
-- `OPENCLAW_HOME_VOLUME` — 在命名卷中持久化 `/home/node`
+- `OPENCLAW_CONFIG_DIR` — 挂载到 `/home/node/.openclaw` 的主机路径（默认 `~/.openclaw`）
 
 完成后：
 
@@ -80,11 +79,7 @@ docker compose run --rm openclaw-cli onboard
 docker compose up -d openclaw-gateway
 ```
 
-注意：从仓库根目录运行 `docker compose ...`。如果你启用了 `OPENCLAW_EXTRA_MOUNTS` 或 `OPENCLAW_HOME_VOLUME`，设置脚本会写入 `docker-compose.extra.yml`；在其他地方运行 Compose 时包含它：
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.extra.yml <command>
-```
+注意：从仓库根目录运行 `docker compose ...`。Docker 设置现在仅使用单一 Compose 文件（`docker-compose.yml`）。
 
 ### 控制 UI 令牌 + 配对（Docker）
 
@@ -98,46 +93,9 @@ docker compose run --rm openclaw-cli devices approve <requestId>
 
 更多详情：[仪表板](/web/dashboard)，[设备](/cli/devices)。
 
-### 额外挂载（可选）
+### 自定义挂载（可选）
 
-如果你想将额外的主机目录挂载到容器中，在运行 `docker-setup.sh` 之前设置 `OPENCLAW_EXTRA_MOUNTS`。这接受逗号分隔的 Docker 绑定挂载列表，并通过生成 `docker-compose.extra.yml` 将它们应用到 `openclaw-gateway` 和 `openclaw-cli`。
-
-示例：
-
-```bash
-export OPENCLAW_EXTRA_MOUNTS="$HOME/.codex:/home/node/.codex:ro,$HOME/github:/home/node/github:rw"
-./docker-setup.sh
-```
-
-注意：
-
-- 路径必须在 macOS/Windows 上与 Docker Desktop 共享。
-- 如果你编辑 `OPENCLAW_EXTRA_MOUNTS`，重新运行 `docker-setup.sh` 以重新生成额外的 compose 文件。
-- `docker-compose.extra.yml` 是生成的。不要手动编辑它。
-
-### 持久化整个容器 home（可选）
-
-如果你想让 `/home/node` 在容器重建后持久化，通过 `OPENCLAW_HOME_VOLUME` 设置一个命名卷。这会创建一个 Docker 卷并将其挂载到 `/home/node`，同时保持标准的配置/工作区绑定挂载。这里使用命名卷（不是绑定路径）；对于绑定挂载，使用 `OPENCLAW_EXTRA_MOUNTS`。
-
-示例：
-
-```bash
-export OPENCLAW_HOME_VOLUME="openclaw_home"
-./docker-setup.sh
-```
-
-你可以将其与额外挂载结合使用：
-
-```bash
-export OPENCLAW_HOME_VOLUME="openclaw_home"
-export OPENCLAW_EXTRA_MOUNTS="$HOME/.codex:/home/node/.codex:ro,$HOME/github:/home/node/github:rw"
-./docker-setup.sh
-```
-
-注意：
-
-- 如果你更改 `OPENCLAW_HOME_VOLUME`，重新运行 `docker-setup.sh` 以重新生成额外的 compose 文件。
-- 命名卷会持久化直到使用 `docker volume rm <name>` 删除。
+如果你需要额外的绑定挂载或卷，请直接编辑 `docker-compose.yml`。OpenClaw 不再生成辅助 Compose 文件。
 
 ### 安装额外的 apt 包（可选）
 
@@ -165,21 +123,14 @@ export OPENCLAW_DOCKER_APT_PACKAGES="ffmpeg build-essential"
 
 如果你想要功能更完整的容器，使用这些选择加入选项：
 
-1. **持久化 `/home/node`** 以便浏览器下载和工具缓存能够保留：
-
-```bash
-export OPENCLAW_HOME_VOLUME="openclaw_home"
-./docker-setup.sh
-```
-
-2. **将系统依赖烘焙到镜像中**（可重复 + 持久化）：
+1. **将系统依赖烘焙到镜像中**（可重复 + 持久化）：
 
 ```bash
 export OPENCLAW_DOCKER_APT_PACKAGES="git curl jq"
-./docker-setup.sh
+./docker/setup.sh
 ```
 
-3. **不使用 `npx` 安装 Playwright 浏览器**（避免 npm 覆盖冲突）：
+2. **不使用 `npx` 安装 Playwright 浏览器**（避免 npm 覆盖冲突）：
 
 ```bash
 docker compose run --rm openclaw-cli \
@@ -188,10 +139,10 @@ docker compose run --rm openclaw-cli \
 
 如果你需要 Playwright 安装系统依赖，使用 `OPENCLAW_DOCKER_APT_PACKAGES` 重建镜像，而不是在运行时使用 `--with-deps`。
 
-4. **持久化 Playwright 浏览器下载**：
+3. **持久化 Playwright 浏览器下载**：
 
 - 在 `docker-compose.yml` 中设置 `PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright`。
-- 确保 `/home/node` 通过 `OPENCLAW_HOME_VOLUME` 持久化，或通过 `OPENCLAW_EXTRA_MOUNTS` 挂载 `/home/node/.cache/ms-playwright`。
+- 在 `docker-compose.yml` 中挂载 `/home/node/.cache/ms-playwright` 以便浏览器下载在容器重建后持久化。
 
 ### 权限 + EACCES
 
