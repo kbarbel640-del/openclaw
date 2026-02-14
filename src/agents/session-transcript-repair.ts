@@ -29,14 +29,16 @@ function extractToolCallsFromAssistant(
       continue;
     }
     const rec = block as { type?: unknown; id?: unknown; name?: unknown };
-    if (typeof rec.id !== "string" || !rec.id) {
+    const id = typeof rec.id === "string" ? rec.id.trim() : "";
+    if (!id) {
       continue;
     }
 
     if (rec.type === "toolCall" || rec.type === "toolUse" || rec.type === "functionCall") {
+      const name = typeof rec.name === "string" ? rec.name.trim() : "";
       toolCalls.push({
-        id: rec.id,
-        name: typeof rec.name === "string" ? rec.name : undefined,
+        id: id,
+        name: name || "unknown",
       });
     }
   }
@@ -61,11 +63,11 @@ function hasToolCallInput(block: ToolCallBlock): boolean {
 function extractToolResultId(msg: Extract<AgentMessage, { role: "toolResult" }>): string | null {
   const toolCallId = (msg as { toolCallId?: unknown }).toolCallId;
   if (typeof toolCallId === "string" && toolCallId) {
-    return toolCallId;
+    return toolCallId.trim();
   }
   const toolUseId = (msg as { toolUseId?: unknown }).toolUseId;
   if (typeof toolUseId === "string" && toolUseId) {
-    return toolUseId;
+    return toolUseId.trim();
   }
   return null;
 }
@@ -77,7 +79,7 @@ function makeMissingToolResult(params: {
   return {
     role: "toolResult",
     toolCallId: params.toolCallId,
-    toolName: params.toolName ?? "unknown",
+    toolName: (params.toolName && params.toolName.trim()) || "unknown",
     content: [
       {
         type: "text",
@@ -114,26 +116,46 @@ export function repairToolCallInputs(messages: AgentMessage[]): ToolCallInputRep
       continue;
     }
 
-    const nextContent = [];
-    let droppedInMessage = 0;
+    const nextContent: unknown[] = [];
+    let messageChanged = false;
 
     for (const block of msg.content) {
-      if (isToolCallBlock(block) && !hasToolCallInput(block)) {
-        droppedToolCalls += 1;
-        droppedInMessage += 1;
-        changed = true;
-        continue;
+      if (isToolCallBlock(block)) {
+        const b = block as ToolCallBlock;
+        const id = typeof b.id === "string" ? b.id.trim() : "";
+        const name = typeof b.name === "string" ? b.name.trim() : "";
+
+        if (!id || !hasToolCallInput(b)) {
+          droppedToolCalls += 1;
+          messageChanged = true;
+          continue;
+        }
+
+        if (!name) {
+          nextContent.push({ ...b, id, name: "unknown" });
+          messageChanged = true;
+          continue;
+        }
+
+        if (id !== b.id) {
+          nextContent.push({ ...b, id });
+          messageChanged = true;
+          continue;
+        }
       }
       nextContent.push(block);
     }
 
-    if (droppedInMessage > 0) {
+    if (messageChanged) {
+      changed = true;
       if (nextContent.length === 0) {
         droppedAssistantMessages += 1;
-        changed = true;
         continue;
       }
-      out.push({ ...msg, content: nextContent });
+      out.push({
+        ...msg,
+        content: nextContent as unknown as Extract<AgentMessage, { role: "assistant" }>["content"],
+      });
       continue;
     }
 
@@ -164,12 +186,6 @@ export type ToolUseRepairReport = {
 };
 
 export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRepairReport {
-  // Anthropic (and Cloud Code Assist) reject transcripts where assistant tool calls are not
-  // immediately followed by matching tool results. Session files can end up with results
-  // displaced (e.g. after user turns) or duplicated. Repair by:
-  // - moving matching toolResult messages directly after their assistant toolCall turn
-  // - inserting synthetic error toolResults for missing ids
-  // - dropping duplicate toolResults for the same id (anywhere in the transcript)
   const out: AgentMessage[] = [];
   const added: Array<Extract<AgentMessage, { role: "toolResult" }>> = [];
   const seenToolResultIds = new Set<string>();
@@ -188,6 +204,10 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
     if (id) {
       seenToolResultIds.add(id);
     }
+    if (!msg.toolName || !msg.toolName.trim()) {
+      msg = { ...msg, toolName: "unknown" };
+      changed = true;
+    }
     out.push(msg);
   };
 
@@ -200,9 +220,6 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
 
     const role = (msg as { role?: unknown }).role;
     if (role !== "assistant") {
-      // Tool results must only appear directly after the matching assistant tool call turn.
-      // Any "free-floating" toolResult entries in session history can make strict providers
-      // (Anthropic-compatible APIs, MiniMax, Cloud Code Assist) reject the entire request.
       if (role !== "toolResult") {
         out.push(msg);
       } else {
@@ -213,13 +230,6 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
     }
 
     const assistant = msg as Extract<AgentMessage, { role: "assistant" }>;
-
-    // Skip tool call extraction for aborted or errored assistant messages.
-    // When stopReason is "error" or "aborted", the tool_use blocks may be incomplete
-    // (e.g., partialJson: true) and should not have synthetic tool_results created.
-    // Creating synthetic results for incomplete tool calls causes API 400 errors:
-    // "unexpected tool_use_id found in tool_result blocks"
-    // See: https://github.com/openclaw/openclaw/issues/4597
     const stopReason = (assistant as { stopReason?: string }).stopReason;
     if (stopReason === "error" || stopReason === "aborted") {
       out.push(msg);
@@ -233,7 +243,6 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
     }
 
     const toolCallIds = new Set(toolCalls.map((t) => t.id));
-
     const spanResultsById = new Map<string, Extract<AgentMessage, { role: "toolResult" }>>();
     const remainder: AgentMessage[] = [];
 
@@ -266,7 +275,6 @@ export function repairToolUseResultPairing(messages: AgentMessage[]): ToolUseRep
         }
       }
 
-      // Drop tool results that don't match the current assistant tool calls.
       if (nextRole !== "toolResult") {
         remainder.push(next);
       } else {
