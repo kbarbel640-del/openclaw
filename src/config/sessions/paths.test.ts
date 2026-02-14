@@ -108,18 +108,58 @@ describe("session path safety", () => {
     ).toThrow(/within sessions directory/);
   });
 
+  it("uses explicit agentId fallback for absolute sessionFile outside sessionsDir", () => {
+    const mainSessionsDir = path.dirname(resolveStorePath(undefined, { agentId: "main" }));
+    const opsSessionsDir = path.dirname(resolveStorePath(undefined, { agentId: "ops" }));
+    const opsSessionFile = path.join(opsSessionsDir, "abc-123.jsonl");
+
+    const resolved = resolveSessionFilePath(
+      "sess-1",
+      { sessionFile: opsSessionFile },
+      { sessionsDir: mainSessionsDir, agentId: "ops" },
+    );
+
+    expect(resolved).toBe(path.resolve(opsSessionFile));
+  });
+
+  it("uses absolute path fallback when sessionFile includes a different agent dir", () => {
+    const mainSessionsDir = path.dirname(resolveStorePath(undefined, { agentId: "main" }));
+    const opsSessionsDir = path.dirname(resolveStorePath(undefined, { agentId: "ops" }));
+    const opsSessionFile = path.join(opsSessionsDir, "abc-123.jsonl");
+
+    const resolved = resolveSessionFilePath(
+      "sess-1",
+      { sessionFile: opsSessionFile },
+      { sessionsDir: mainSessionsDir },
+    );
+
+    expect(resolved).toBe(path.resolve(opsSessionFile));
+  });
+
   it("uses agent sessions dir fallback for transcript path", () => {
     const resolved = resolveSessionTranscriptPath("sess-1", "main");
     expect(resolved.endsWith(path.join("agents", "main", "sessions", "sess-1.jsonl"))).toBe(true);
   });
 
-  it("prefers storePath when resolving session file options", () => {
+  it("keeps storePath and agentId when resolving session file options", () => {
     const opts = resolveSessionFilePathOptions({
       storePath: "/tmp/custom/agent-store/sessions.json",
       agentId: "ops",
     });
     expect(opts).toEqual({
       sessionsDir: path.resolve("/tmp/custom/agent-store"),
+      agentId: "ops",
+    });
+  });
+
+  it("keeps custom per-agent store roots when agentId is provided", () => {
+    const opts = resolveSessionFilePathOptions({
+      storePath: "/srv/custom/agents/ops/sessions/sessions.json",
+      agentId: "ops",
+    });
+    expect(opts).toEqual({
+      sessionsDir: path.resolve("/srv/custom/agents/ops/sessions"),
+      agentId: "ops",
     });
   });
 

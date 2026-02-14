@@ -38,16 +38,6 @@ export type SessionFilePathOptions = {
   sessionsDir?: string;
 };
 
-function isDefaultAgentSessionsDir(dir: string): boolean {
-  const normalized = path.normalize(path.resolve(dir));
-  const parts = normalized.split(path.sep).filter(Boolean);
-  if (parts.length < 3) {
-    return false;
-  }
-  const tail = parts.slice(-3);
-  return tail[0] === "agents" && Boolean(tail[1]) && tail[2] === "sessions";
-}
-
 export function resolveSessionFilePathOptions(params: {
   agentId?: string;
   storePath?: string;
@@ -56,16 +46,7 @@ export function resolveSessionFilePathOptions(params: {
   const storePath = params.storePath?.trim();
   if (storePath) {
     const sessionsDir = path.dirname(path.resolve(storePath));
-    if (agentId) {
-      const expectedForAgent = path.dirname(resolveDefaultSessionStorePath(agentId));
-      // If a default per-agent store path from a different agent leaked into this
-      // code path, prefer the explicit agentId to avoid cross-agent containment
-      // failures ("path must be within sessions directory").
-      if (isDefaultAgentSessionsDir(sessionsDir) && sessionsDir !== expectedForAgent) {
-        return { agentId };
-      }
-    }
-    return { sessionsDir };
+    return agentId ? { sessionsDir, agentId } : { sessionsDir };
   }
   if (agentId) {
     return { agentId };
@@ -91,7 +72,34 @@ function resolveSessionsDir(opts?: SessionFilePathOptions): string {
   return resolveAgentSessionsDir(opts?.agentId);
 }
 
-function resolvePathWithinSessionsDir(sessionsDir: string, candidate: string): string {
+function resolvePathFromAgentSessionsDir(
+  agentId: string,
+  candidateAbsPath: string,
+): string | undefined {
+  const agentBase = path.resolve(resolveAgentSessionsDir(agentId));
+  const relative = path.relative(agentBase, candidateAbsPath);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    return undefined;
+  }
+  return path.resolve(agentBase, relative);
+}
+
+function extractAgentIdFromAbsoluteSessionPath(candidateAbsPath: string): string | undefined {
+  const normalized = path.normalize(path.resolve(candidateAbsPath));
+  const parts = normalized.split(path.sep).filter(Boolean);
+  const sessionsIndex = parts.lastIndexOf("sessions");
+  if (sessionsIndex < 2 || parts[sessionsIndex - 2] !== "agents") {
+    return undefined;
+  }
+  const agentId = parts[sessionsIndex - 1];
+  return agentId || undefined;
+}
+
+function resolvePathWithinSessionsDir(
+  sessionsDir: string,
+  candidate: string,
+  opts?: { agentId?: string },
+): string {
   const trimmed = candidate.trim();
   if (!trimmed) {
     throw new Error("Session file path must not be empty");
@@ -101,6 +109,22 @@ function resolvePathWithinSessionsDir(sessionsDir: string, candidate: string): s
   // Older versions stored absolute sessionFile paths in sessions.json;
   // convert them to relative so the containment check passes.
   const normalized = path.isAbsolute(trimmed) ? path.relative(resolvedBase, trimmed) : trimmed;
+  if (normalized.startsWith("..") && path.isAbsolute(trimmed)) {
+    const explicitAgentId = opts?.agentId?.trim();
+    if (explicitAgentId) {
+      const resolvedFromAgent = resolvePathFromAgentSessionsDir(explicitAgentId, trimmed);
+      if (resolvedFromAgent) {
+        return resolvedFromAgent;
+      }
+    }
+    const extractedAgentId = extractAgentIdFromAbsoluteSessionPath(trimmed);
+    if (extractedAgentId && extractedAgentId !== explicitAgentId) {
+      const resolvedFromPath = resolvePathFromAgentSessionsDir(extractedAgentId, trimmed);
+      if (resolvedFromPath) {
+        return resolvedFromPath;
+      }
+    }
+  }
   if (!normalized || normalized.startsWith("..") || path.isAbsolute(normalized)) {
     throw new Error("Session file path must be within sessions directory");
   }
@@ -142,7 +166,7 @@ export function resolveSessionFilePath(
   const sessionsDir = resolveSessionsDir(opts);
   const candidate = entry?.sessionFile?.trim();
   if (candidate) {
-    return resolvePathWithinSessionsDir(sessionsDir, candidate);
+    return resolvePathWithinSessionsDir(sessionsDir, candidate, { agentId: opts?.agentId });
   }
   return resolveSessionTranscriptPathInDir(sessionId, sessionsDir);
 }
