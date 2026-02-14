@@ -16,10 +16,7 @@ import {
   validateUpdateRunParams,
 } from "../protocol/index.js";
 
-function scheduleGatewayServiceRestart(opts?: {
-  delayMs?: number;
-  reason?: string;
-}): {
+function scheduleGatewayServiceRestart(opts?: { delayMs?: number; reason?: string }): {
   ok: true;
   mode: "service";
   method: "launchctl" | "systemd" | "supervisor";
