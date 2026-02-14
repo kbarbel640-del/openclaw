@@ -100,6 +100,27 @@ function toggleSort(field: SortField, requestUpdate: () => void) {
   requestUpdate();
 }
 
+function extractSummary(entry: LogEntry): string {
+  // Use the parsed message field if it's clean (not JSON-looking)
+  const msg = entry.message ?? "";
+  if (msg && !msg.startsWith("{") && !msg.startsWith("[")) {
+    // Return first line only
+    const firstLine = msg.split("\n")[0].trim();
+    return firstLine.length > 120 ? `${firstLine.slice(0, 120)}…` : firstLine;
+  }
+  // Fall back to raw, grab the human-readable tail after the JSON blob
+  const raw = entry.raw ?? "";
+  // Common pattern: JSON blob followed by human text like "closed before connect conn=..."
+  const match = raw.match(/\}\s*(.+)$/s);
+  if (match?.[1]) {
+    const tail = match[1].trim().split("\n")[0];
+    return tail.length > 120 ? `${tail.slice(0, 120)}…` : tail;
+  }
+  // Just take first line of whatever we have
+  const first = (msg || raw).split("\n")[0].trim();
+  return first.length > 120 ? `${first.slice(0, 120)}…` : first;
+}
+
 function renderDetailPanel(entry: LogEntry, requestUpdate: () => void) {
   const parsed = tryParseJson(entry.raw);
   const hasJson = parsed !== null;
@@ -129,11 +150,11 @@ function renderDetailPanel(entry: LogEntry, requestUpdate: () => void) {
         </div>
         <div class="log-detail-field">
           <div class="log-detail-label">Message</div>
-          <div class="log-detail-value mono" style="white-space: pre-wrap; word-break: break-word;">${entry.message ?? ""}</div>
+          <div class="log-detail-value mono">${extractSummary(entry)}</div>
         </div>
         <div class="log-detail-field">
           <div class="log-detail-label" style="display: flex; align-items: center; justify-content: space-between;">
-            <span>Data</span>
+            <span>${hasJson ? "Data" : "Raw"}</span>
             ${hasJson ? html`
               <div class="log-detail-view-toggle">
                 <button class="log-chip ${detailViewMode === "structured" ? "active info" : ""}"
