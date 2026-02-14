@@ -84,7 +84,10 @@ function splitToolExecuteArgs(args: ToolExecuteArgsAny): {
 }
 
 export function toToolDefinitions(tools: AnyAgentTool[]): ToolDefinition[] {
-  return tools.map((tool) => {
+  // Deduplicate by tool name (last wins) to avoid 400 errors from
+  // OpenAI-compatible providers that reject duplicate tool names.
+  const deduped = [...new Map(tools.map((t) => [normalizeToolName(t.name || "tool"), t])).values()];
+  return deduped.map((tool) => {
     const name = tool.name || "tool";
     const normalizedName = normalizeToolName(name);
     const beforeHookWrapped = isToolWrappedWithBeforeToolCallHook(tool);
