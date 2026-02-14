@@ -30,6 +30,7 @@ import {
   listChannelSupportedActions,
   resolveChannelMessageToolHints,
 } from "../../channel-tools.js";
+import { swapAgedToolResults } from "../../context-decay/file-swapper.js";
 import { summarizeAgedTurnWindows } from "../../context-decay/group-summarizer.js";
 import { summarizeAgedToolResults } from "../../context-decay/summarizer.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
@@ -1185,6 +1186,18 @@ export async function runEmbeddedAttempt(
             .catch((err) => {
               log.warn(`agent_end hook failed: ${err}`);
             });
+        }
+
+        // Fire-and-forget: swap aged tool results to files (no LLM cost)
+        if (contextDecayConfig?.swapToolResultsAfterTurns) {
+          void swapAgedToolResults({
+            sessionFilePath: params.sessionFile,
+            messages: messagesSnapshot,
+            config: contextDecayConfig,
+            abortSignal: params.abortSignal,
+          }).catch((err) => {
+            log.warn(`context-decay file swap failed: ${String(err)}`);
+          });
         }
 
         // Fire-and-forget: summarize aged tool results for context decay
