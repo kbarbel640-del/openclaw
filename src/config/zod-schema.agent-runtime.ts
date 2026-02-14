@@ -249,7 +249,7 @@ export const AgentSandboxSchema = z
   .strict()
   .optional();
 
-export const AgentToolsSchema = z
+const AgentToolsObjectSchema = z
   .object({
     profile: ToolProfileSchema,
     allow: z.array(z.string()).optional(),
@@ -302,7 +302,11 @@ export const AgentToolsSchema = z
           "agent tools cannot set both allow and alsoAllow in the same scope (merge alsoAllow into allow, or remove allow and use profile + alsoAllow)",
       });
     }
-  })
+  });
+
+// Accept both string shorthand ("full") and full object form
+export const AgentToolsSchema = z
+  .preprocess((val) => (typeof val === "string" ? { profile: val } : val), AgentToolsObjectSchema)
   .optional();
 
 export const MemorySearchSchema = z
