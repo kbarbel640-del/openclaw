@@ -1,0 +1,23 @@
+#!/bin/bash
+# Pre-commit hook: prevent accidental stm.json writes in new code
+# stm.json is deprecated — all STM operations should use brain.db
+
+STAGED=$(git diff --cached --name-only)
+
+for file in $STAGED; do
+    if [[ "$file" == *.ts || "$file" == *.py ]]; then
+        # Skip migration file and comments
+        if [[ "$file" == *migrate* ]]; then
+            continue
+        fi
+        
+        # Check for new stm.json writes (not just reads/comments)
+        if git diff --cached "$file" | grep -E '^\+.*stm\.json.*write|^\+.*writeFile.*stm\.json|^\+.*stm_path.*stm\.json' | grep -v '^+++' | grep -v '^\+.*#' | grep -v '^\+.*\/\/' | grep -v '^\+.*deprecated' > /dev/null 2>&1; then
+            echo "⚠️  WARNING: $file appears to write to stm.json (deprecated)"
+            echo "   Use brain.db via cortex-bridge methods instead."
+            echo "   To bypass: git commit --no-verify"
+        fi
+    fi
+done
+
+exit 0  # Warning only, don't block commits
