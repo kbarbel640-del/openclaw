@@ -1,321 +1,233 @@
 /**
  * Task Accountability Plugin
  *
- * Enforces that all substantive work is tied to a GitHub issue.
+ * Enforces that substantive tool calls require an "unlock" action first.
+ * Configurable gate system — not hardcoded to any specific workflow.
  *
- * Two-layer approach (ADR-001):
- * 1. `before_agent_start` — Injects mandatory instructions
- * 2. `before_response` — Verifies GitHub issue referenced before completion
+ * Example: Require a GitHub issue before file modifications
+ * Example: Require Linear ticket before deployments
+ * Example: Require approval command before sensitive operations
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 
-type TaskAccountabilityConfig = {
-  strictMode?: boolean;
-  issuePatterns?: string[];
-  exemptPatterns?: string[];
-  minTaskDurationSeconds?: number;
-  // Instruction configuration
-  instructions?: string | false; // Custom instructions, or false to disable
-  instructionsFile?: string; // Path to custom instructions file
+type GateConfig = {
+  /** Tools that require the gate to be unlocked before execution */
+  gatedTools: string[];
+  /** Regex patterns - if matched in prior tool call output, unlocks the gate */
+  unlockPatterns: string[];
+  /** Regex patterns for tool calls that are always allowed (bypass gate) */
+  exemptPatterns: string[];
+  /** How long the unlock lasts (ms). Default: until session ends */
+  unlockDurationMs?: number;
 };
 
-// Patterns that indicate a GitHub issue reference
-const DEFAULT_ISSUE_PATTERNS = [
-  // GitHub issue references: GH-123, #123, issue #123
-  /\bGH-\d+\b/i,
-  /\b#\d{1,6}\b/,
-  /\bissue\s*#?\d+\b/i,
-  // GitHub URLs
-  /github\.com\/[\w-]+\/[\w-]+\/issues\/\d+/i,
-  // Linear-style: GET-123, ABC-123
-  /\b[A-Z]{2,5}-\d+\b/,
-];
+type TaskAccountabilityConfig = {
+  /** Enable strict mode - actually block tool calls vs just warn */
+  strictMode?: boolean;
+  /** Gate configuration */
+  gate?: GateConfig;
+  /** Custom instructions to inject (false to disable) */
+  instructions?: string | false;
+  /** Path to custom instructions file */
+  instructionsFile?: string;
+};
 
-// Patterns that indicate this is a simple response not requiring an issue
-const DEFAULT_EXEMPT_PATTERNS = [
-  // Questions and clarifications
-  /^(what|how|why|when|where|who|can you|could you|would you|do you|is there|are there)\b/i,
-  // Heartbeat responses
-  /^HEARTBEAT_OK$/,
-  /^NO_REPLY$/,
-  // Simple acknowledgments
-  /^(ok|okay|sure|yes|no|got it|understood|thanks|thank you)\.?$/i,
-];
+// Default gate config for GitHub workflow
+const DEFAULT_GATE: GateConfig = {
+  gatedTools: ["exec", "write", "edit", "Write", "Edit"],
+  unlockPatterns: [
+    // GitHub issue creation output
+    "github\\.com/[\\w-]+/[\\w-]+/issues/\\d+",
+    // Issue references in commands
+    "gh issue create",
+    "gh issue view",
+    // Issue number patterns
+    "#\\d{1,6}",
+    "GH-\\d+",
+    // Linear-style
+    "[A-Z]{2,5}-\\d+",
+  ],
+  exemptPatterns: [
+    // Read-only commands
+    "^cat\\s",
+    "^ls\\s",
+    "^head\\s",
+    "^tail\\s",
+    "^grep\\s",
+    "^find\\s",
+    "^wc\\s",
+    "^pwd$",
+    "^echo\\s",
+    "^which\\s",
+    "^type\\s",
+    // Git read-only
+    "^git\\s+(status|log|diff|show|branch|remote|config)",
+    // Issue management itself
+    "^gh\\s+issue",
+    "^gh\\s+pr\\s+(list|view|status)",
+    // Session/status checks
+    "^openclaw\\s+(status|session|cron\\s+list)",
+    // Memory search (read-only)
+    "^qmd\\s+(search|query|get|ls|status)",
+  ],
+};
 
-// Patterns indicating completion/work done
-const COMPLETION_PATTERNS = [
-  /\b(done|completed|finished|created|built|implemented|fixed|resolved|shipped|deployed|pushed|committed)\b/i,
-  /\b(i('ve| have)|that('s| is)|it('s| is))\s+(done|complete|finished|ready)\b/i,
-  /✅|✓|complete/i,
-];
-
-const INSTRUCTIONS = `
+const DEFAULT_INSTRUCTIONS = `
 ## Task Accountability Protocol
 
-**MANDATORY:** All substantive work must be tied to a GitHub issue.
+**MANDATORY:** Substantive work requires creating a tracking issue first.
 
-Before starting work that involves:
-- Creating or modifying files
-- Running commands that change state
-- Sending messages on behalf of the user
-- Any task expected to take more than 30 seconds
+Before using tools that modify state (write files, run commands that change things):
+1. Create an issue: \`gh issue create --repo <repo> --title "..." --body "..." --project "..."\`
+2. Reference the issue number in your work
+3. Then proceed with the actual work
 
-You MUST:
-1. Reference an existing issue (e.g., "Working on GH-123" or "This addresses #45")
-2. OR create a new issue first (e.g., \`gh issue create --title "..." --body "..."\`)
+**Exempt:** Read-only commands, status checks, and issue management itself.
 
-When claiming completion:
-- Reference the issue in your response
-- The system will verify this before delivering your response
-
-**Exempt:** Simple questions, clarifications, status checks, and heartbeats do not require issues.
+The system will block gated tool calls until an issue is created.
 `.trim();
 
-function resolveAuditLogPath(): string {
-  const stateDir = process.env.OPENCLAW_STATE_DIR ?? path.join(os.homedir(), ".openclaw");
-  return path.join(stateDir, "logs", "audit.jsonl");
+// Session state for tracking unlocks
+const sessionUnlocks = new Map<string, { unlockedAt: number; issueRef?: string }>();
+
+function isExempt(command: string, exemptPatterns: string[]): boolean {
+  const normalized = command.trim();
+  return exemptPatterns.some((pattern) => {
+    try {
+      return new RegExp(pattern, "i").test(normalized);
+    } catch {
+      return false;
+    }
+  });
 }
 
-interface AuditEntry {
-  ts: string;
-  type: string;
-  tool?: string;
-  params?: Record<string, unknown>;
-  success?: boolean;
-  durationMs?: number;
-  [key: string]: unknown;
-}
-
-async function readRecentAuditEntries(
-  logPath: string,
-  maxAge: number = 10 * 60 * 1000, // 10 minutes
-): Promise<AuditEntry[]> {
-  try {
-    const content = await fs.readFile(logPath, "utf-8");
-    const lines = content.trim().split("\n").filter(Boolean);
-    const cutoff = new Date(Date.now() - maxAge).toISOString();
-
-    const entries: AuditEntry[] = [];
-    // Read from end for efficiency
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try {
-        const entry = JSON.parse(lines[i]) as AuditEntry;
-        if (entry.ts < cutoff) break; // Stop when we hit old entries
-        entries.unshift(entry);
-      } catch {
-        // Skip malformed lines
+function checkForUnlock(output: string, unlockPatterns: string[]): string | undefined {
+  for (const pattern of unlockPatterns) {
+    try {
+      const match = new RegExp(pattern, "i").exec(output);
+      if (match) {
+        return match[0];
       }
-    }
-    return entries;
-  } catch {
-    return [];
-  }
-}
-
-function hasIssueReference(text: string, extraPatterns: string[] = []): boolean {
-  const patterns = [...DEFAULT_ISSUE_PATTERNS, ...extraPatterns.map((p) => new RegExp(p, "i"))];
-
-  for (const pattern of patterns) {
-    if (pattern.test(text)) {
-      return true;
+    } catch {
+      // Invalid regex, skip
     }
   }
-  return false;
+  return undefined;
 }
 
-function isExemptResponse(text: string, extraPatterns: string[] = []): boolean {
-  const patterns = [...DEFAULT_EXEMPT_PATTERNS, ...extraPatterns.map((p) => new RegExp(p, "i"))];
-
-  const trimmed = text.trim();
-  for (const pattern of patterns) {
-    if (pattern.test(trimmed)) {
-      return true;
-    }
-  }
-  return false;
+function isGatedTool(toolName: string, gatedTools: string[]): boolean {
+  const normalized = toolName.toLowerCase();
+  return gatedTools.some((t) => t.toLowerCase() === normalized);
 }
 
-function isCompletionClaim(text: string): boolean {
-  for (const pattern of COMPLETION_PATTERNS) {
-    if (pattern.test(text)) {
-      return true;
-    }
+function isUnlocked(sessionKey: string, durationMs?: number): boolean {
+  const state = sessionUnlocks.get(sessionKey);
+  if (!state) return false;
+  if (durationMs && Date.now() - state.unlockedAt > durationMs) {
+    sessionUnlocks.delete(sessionKey);
+    return false;
   }
-  return false;
+  return true;
 }
 
-function hasSubstantiveWork(entries: AuditEntry[], minDurationMs: number): boolean {
-  // Check if there were tool calls that indicate real work
-  const workTools = ["exec", "write", "Edit", "message"];
-  let totalDuration = 0;
+export default function taskAccountabilityPlugin(api: OpenClawPluginApi) {
+  const config = (api.pluginConfig ?? {}) as TaskAccountabilityConfig;
+  const strictMode = config.strictMode ?? false;
+  const gate = config.gate ?? DEFAULT_GATE;
+  const instructions =
+    config.instructions !== false ? (config.instructions ?? DEFAULT_INSTRUCTIONS) : undefined;
 
-  for (const entry of entries) {
-    if (entry.type === "tool_call" && entry.success) {
-      if (workTools.includes(entry.tool ?? "")) {
-        totalDuration += entry.durationMs ?? 0;
-      }
-    }
-  }
+  api.logger.info(`Task accountability enabled (strictMode: ${strictMode})`);
 
-  return totalDuration >= minDurationMs;
-}
+  // Track sessions we've injected instructions into
+  const injectedSessions = new Set<string>();
 
-function checkAuditForIssueCommands(entries: AuditEntry[]): boolean {
-  // Check if `gh issue` commands were run
-  for (const entry of entries) {
-    if (entry.type === "tool_call" && entry.tool === "exec" && entry.success) {
-      const command = String(entry.params?.command ?? "");
-      if (/\bgh\s+issue\b/i.test(command)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-function expandPath(filePath: string): string {
-  if (filePath.startsWith("~/")) {
-    return path.join(os.homedir(), filePath.slice(2));
-  }
-  return filePath;
-}
-
-// Well-known path for custom instructions (avoids config schema issues)
-const CUSTOM_INSTRUCTIONS_PATH = "~/.openclaw/protocols/github-workflow.md";
-
-async function loadCustomInstructions(config: TaskAccountabilityConfig): Promise<string | null> {
-  // Explicitly disabled via config
-  if (config.instructions === false) {
-    return null;
-  }
-
-  // Check well-known custom instructions file first
-  try {
-    const customPath = expandPath(CUSTOM_INSTRUCTIONS_PATH);
-    const content = await fs.readFile(customPath, "utf-8");
-    console.log(`[task-accountability] Using custom instructions from ${CUSTOM_INSTRUCTIONS_PATH}`);
-    return content.trim();
-  } catch {
-    // File doesn't exist, continue
-  }
-
-  // Inline custom instructions from config
-  if (typeof config.instructions === "string") {
-    return config.instructions.trim();
-  }
-
-  // Default instructions
-  return INSTRUCTIONS;
-}
-
-const plugin = {
-  id: "task-accountability",
-  name: "Task Accountability",
-  description: "Enforces GitHub issue accountability for all work",
-
-  register(api: OpenClawPluginApi) {
-    const config = api.pluginConfig as TaskAccountabilityConfig | undefined;
-    const strictMode = config?.strictMode ?? false;
-    const extraIssuePatterns = config?.issuePatterns ?? [];
-    const extraExemptPatterns = config?.exemptPatterns ?? [];
-    const minTaskDurationMs = (config?.minTaskDurationSeconds ?? 30) * 1000;
-    const auditLogPath = resolveAuditLogPath();
-
-    api.logger.info(`Task accountability enabled (strictMode: ${strictMode})`);
-
-    // Cache instructions and track injection per session
-    let cachedInstructions: string | null = null;
-    let instructionsLoaded = false;
-    const injectedSessions = new Set<string>();
-
-    // Layer 1: Inject instructions at agent start (ONCE per session)
-    api.on("before_agent_start", async (event) => {
-      const sessionKey = event.sessionKey ?? "default";
+  // Inject instructions at session start
+  if (instructions) {
+    api.on("before_agent_start", async (_event, ctx) => {
+      const sessionKey = ctx.sessionKey ?? "default";
 
       // Only inject once per session
       if (injectedSessions.has(sessionKey)) {
-        return undefined;
+        return;
       }
-
-      if (!instructionsLoaded) {
-        cachedInstructions = await loadCustomInstructions(config ?? {});
-        instructionsLoaded = true;
-      }
-
-      if (!cachedInstructions) {
-        return undefined; // Instructions disabled
-      }
-
-      // Mark this session as injected
       injectedSessions.add(sessionKey);
-      api.logger.debug?.(`[task-accountability] Injected instructions for session: ${sessionKey}`);
 
-      return {
-        prependContext: cachedInstructions,
-      };
+      return { prependContext: instructions };
     });
+  }
 
-    // Layer 2: Verify issue reference before completion
-    api.on(
-      "before_response",
-      async (event) => {
-        const { text } = event;
+  // Monitor tool calls for unlock patterns (after_tool_call)
+  api.on("after_tool_call", async (event, ctx) => {
+    const sessionKey = ctx.sessionKey ?? "default";
 
-        // Skip exempt responses (questions, heartbeats, etc.)
-        if (isExemptResponse(text, extraExemptPatterns)) {
-          return undefined;
-        }
+    // Check if the tool output contains an unlock pattern
+    const output =
+      typeof event.result === "string" ? event.result : JSON.stringify(event.result ?? "");
 
-        // Skip if not claiming completion
-        if (!isCompletionClaim(text)) {
-          return undefined;
-        }
+    // Also check the command itself for exempt patterns that might unlock
+    const command = event.params?.command as string | undefined;
+    const commandStr = command ?? "";
 
-        // Check if response already has issue reference
-        if (hasIssueReference(text, extraIssuePatterns)) {
-          api.logger.debug?.("[task-accountability] Issue reference found in response");
-          return undefined;
-        }
+    const issueRef =
+      checkForUnlock(output, gate.unlockPatterns) ??
+      checkForUnlock(commandStr, gate.unlockPatterns);
 
-        // Read audit log to check for substantive work
-        const auditEntries = await readRecentAuditEntries(auditLogPath);
+    if (issueRef) {
+      sessionUnlocks.set(sessionKey, {
+        unlockedAt: Date.now(),
+        issueRef,
+      });
+      api.logger.info(`Session ${sessionKey} unlocked via: ${issueRef}`);
+    }
+  });
 
-        // If no substantive work was done, don't require issue
-        if (!hasSubstantiveWork(auditEntries, minTaskDurationMs)) {
-          return undefined;
-        }
+  // Gate tool calls (before_tool_call)
+  api.on("before_tool_call", async (event, ctx) => {
+    const sessionKey = ctx.sessionKey ?? "default";
+    const toolName = event.toolName;
 
-        // Check if gh issue commands were run (indicates issue was created/updated)
-        if (checkAuditForIssueCommands(auditEntries)) {
-          api.logger.debug?.("[task-accountability] GitHub issue command found in audit log");
-          return undefined;
-        }
+    // Check if this tool is gated
+    if (!isGatedTool(toolName, gate.gatedTools)) {
+      return; // Not a gated tool, allow
+    }
 
-        // Verification failed — work was done but no issue referenced
-        const warningMsg =
-          "Completion claimed without GitHub issue reference. " +
-          "Please reference an issue (e.g., GH-123, #45) or create one with `gh issue create`.";
+    // For exec, check if the command itself is exempt
+    if (toolName.toLowerCase() === "exec") {
+      const command = event.params?.command as string | undefined;
+      if (command && isExempt(command, gate.exemptPatterns)) {
+        return; // Exempt command, allow
+      }
+    }
 
-        api.logger.warn(`[task-accountability] ${warningMsg}`);
+    // Check if session is unlocked
+    if (isUnlocked(sessionKey, gate.unlockDurationMs)) {
+      return; // Unlocked, allow
+    }
 
-        if (strictMode) {
-          return {
-            block: true,
-            blockReason: warningMsg,
-          };
-        } else {
-          return {
-            prependWarning: `ACCOUNTABILITY WARNING: ${warningMsg}`,
-          };
-        }
-      },
-      { priority: 40 }, // Run after audit-logger but before response-verifier
-    );
-  },
-};
+    // Not unlocked - block or warn
+    const reason = `Tool "${toolName}" requires an issue reference first. Create an issue with \`gh issue create\` before proceeding.`;
 
-export default plugin;
+    if (strictMode) {
+      api.logger.warn(`Blocking ${toolName} - no issue reference (session: ${sessionKey})`);
+      return {
+        block: true,
+        blockReason: reason,
+      };
+    } else {
+      // Warn mode - log but don't block
+      api.logger.warn(
+        `Warning: ${toolName} called without issue reference (session: ${sessionKey})`,
+      );
+      return;
+    }
+  });
+
+  // Clean up on session end
+  api.on("session_end", async (_event, ctx) => {
+    const sessionKey = ctx.sessionId ?? "default";
+    sessionUnlocks.delete(sessionKey);
+    injectedSessions.delete(sessionKey);
+  });
+}
