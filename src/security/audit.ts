@@ -10,19 +10,27 @@ import { buildGatewayConnectionDetails } from "../gateway/call.js";
 import { probeGateway } from "../gateway/probe.js";
 import { collectChannelSecurityFindings } from "./audit-channel.js";
 import {
+  collectAgentToAgentFindings,
   collectAttackSurfaceSummaryFindings,
+  collectDangerousToolsFindings,
+  collectDenyCommandsDefaultsFindings,
+  collectElevatedModeFindings,
   collectExposureMatrixFindings,
+  collectGatewayTlsFindings,
   collectHooksHardeningFindings,
   collectIncludeFilePermFindings,
   collectInstalledSkillsCodeSafetyFindings,
   collectMinimalProfileOverrideFindings,
   collectModelHygieneFindings,
   collectNodeDenyCommandPatternFindings,
-  collectSmallModelRiskFindings,
-  collectSandboxDockerNoopFindings,
-  collectPluginsTrustFindings,
-  collectSecretsInConfigFindings,
   collectPluginsCodeSafetyFindings,
+  collectPluginsTrustFindings,
+  collectSandboxDockerNoopFindings,
+  collectSandboxFilesystemFindings,
+  collectSandboxModeFindings,
+  collectSandboxNetworkFindings,
+  collectSecretsInConfigFindings,
+  collectSmallModelRiskFindings,
   collectStateDeepFilesystemFindings,
   collectSyncedFolderFindings,
   readConfigSnapshotForAudit,
@@ -578,6 +586,16 @@ export async function runSecurityAudit(opts: SecurityAuditOptions): Promise<Secu
   findings.push(...collectModelHygieneFindings(cfg));
   findings.push(...collectSmallModelRiskFindings({ cfg, env }));
   findings.push(...collectExposureMatrixFindings(cfg));
+
+  // Hardening gap checks (EarlyCore findings)
+  findings.push(...collectSandboxModeFindings({ cfg, env }));
+  findings.push(...collectSandboxNetworkFindings(cfg));
+  findings.push(...collectSandboxFilesystemFindings(cfg));
+  findings.push(...collectDangerousToolsFindings(cfg));
+  findings.push(...collectElevatedModeFindings(cfg));
+  findings.push(...collectGatewayTlsFindings(cfg));
+  findings.push(...collectAgentToAgentFindings(cfg));
+  findings.push(...collectDenyCommandsDefaultsFindings(cfg));
 
   const configSnapshot =
     opts.includeFilesystem !== false

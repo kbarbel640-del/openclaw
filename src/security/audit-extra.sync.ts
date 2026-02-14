@@ -15,7 +15,10 @@ import { resolveToolProfilePolicy } from "../agents/tool-policy.js";
 import { resolveBrowserConfig } from "../browser/config.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { resolveGatewayAuth } from "../gateway/auth.js";
-import { resolveNodeCommandAllowlist } from "../gateway/node-command-policy.js";
+import {
+  DEFAULT_DANGEROUS_NODE_COMMANDS,
+  resolveNodeCommandAllowlist,
+} from "../gateway/node-command-policy.js";
 
 export type SecurityAuditFinding = {
   checkId: string;
@@ -879,6 +882,300 @@ export function collectExposureMatrixFindings(cfg: OpenClawConfig): SecurityAudi
       remediation: `Set groupPolicy="allowlist" and keep elevated allowlists extremely tight.`,
     });
   }
+
+  return findings;
+}
+
+// --------------------------------------------------------------------------
+// Hardening gap audit checks (EarlyCore findings)
+// --------------------------------------------------------------------------
+
+/**
+ * Check if a tool is available using the proper tool-policy resolution.
+ * Uses the same pickToolPolicy/resolveToolPolicies logic as runtime.
+ * Accepts optional pre-resolved policies to avoid redundant resolution.
+ */
+function isToolAvailable(
+  cfg: OpenClawConfig,
+  toolName: string,
+  policies?: SandboxToolPolicy[],
+): boolean {
+  const resolved = policies ?? resolveToolPolicies({ cfg });
+  return isToolAllowedByPolicies(toolName, resolved);
+}
+
+/**
+ * Check if sandbox mode is not set to "all".
+ * EarlyCore tests ran with sandbox OFF - this was a major factor in attack success.
+ */
+export function collectSandboxModeFindings(params: {
+  cfg: OpenClawConfig;
+  env: NodeJS.ProcessEnv;
+}): SecurityAuditFinding[] {
+  const findings: SecurityAuditFinding[] = [];
+  const sandboxMode = params.cfg.agents?.defaults?.sandbox?.mode ?? "off";
+
+  if (sandboxMode === "all") {
+    return findings; // OK
+  }
+
+  // Check if dangerous tools are available using proper tool policy resolution
+  const policies = resolveToolPolicies({ cfg: params.cfg, sandboxMode });
+  const hasWebTools =
+    (isWebSearchEnabled(params.cfg, params.env) &&
+      isToolAllowedByPolicies("web_search", policies)) ||
+    (isWebFetchEnabled(params.cfg) && isToolAllowedByPolicies("web_fetch", policies)) ||
+    (isBrowserEnabled(params.cfg) && isToolAllowedByPolicies("browser", policies));
+  const hasExecTools = isToolAllowedByPolicies("exec", policies);
+
+  findings.push({
+    checkId: "sandbox.mode_not_all",
+    severity: hasWebTools || hasExecTools ? "critical" : "warn",
+    title: `Sandbox mode is "${sandboxMode}"`,
+    detail:
+      sandboxMode === "off"
+        ? "Sandbox is disabled. All tool execution runs on the host without isolation."
+        : `Sandbox mode "${sandboxMode}" only isolates some sessions. Consider "all" for defense in depth.`,
+    remediation: 'Set agents.defaults.sandbox.mode="all" to isolate all tool execution.',
+  });
+
+  return findings;
+}
+
+/**
+ * Check if sandbox network is not isolated.
+ * SSRF attacks had 70% success rate in EarlyCore tests. Network isolation blocks SSRF from sandbox.
+ */
+export function collectSandboxNetworkFindings(cfg: OpenClawConfig): SecurityAuditFinding[] {
+  const findings: SecurityAuditFinding[] = [];
+  const sandboxMode = cfg.agents?.defaults?.sandbox?.mode;
+
+  if (sandboxMode !== "all" && sandboxMode !== "non-main") {
+    return findings; // Sandbox not enabled, covered by mode check
+  }
+
+  const network = cfg.agents?.defaults?.sandbox?.docker?.network;
+
+  if (network === "none") {
+    return findings; // OK - fully isolated
+  }
+
+  findings.push({
+    checkId: "sandbox.docker.network_not_isolated",
+    severity: "critical",
+    title: "Sandbox has network access",
+    detail: network
+      ? `Sandbox network is "${network}". Sandboxed code can make network requests, enabling SSRF attacks.`
+      : "Sandbox network not configured (defaults to bridge). Sandboxed code can access internal services.",
+    remediation:
+      'Set agents.defaults.sandbox.docker.network="none" to block all network access from sandbox.',
+  });
+
+  return findings;
+}
+
+/**
+ * Check if dangerous tools are available (not restricted by profile/allow/deny).
+ * harden-config.ts explicitly denies exec, process, write, edit, apply_patch, gateway, cron, nodes, browser, canvas.
+ */
+const DANGEROUS_TOOLS = [
+  "exec",
+  "process",
+  "write",
+  "edit",
+  "apply_patch",
+  "gateway",
+  "cron",
+  "nodes",
+  "browser",
+  "canvas",
+];
+
+export function collectDangerousToolsFindings(cfg: OpenClawConfig): SecurityAuditFinding[] {
+  const findings: SecurityAuditFinding[] = [];
+
+  // Check which dangerous tools are actually available based on profile + allow/deny
+  const policies = resolveToolPolicies({ cfg });
+  const availableDangerous = DANGEROUS_TOOLS.filter((tool) => isToolAvailable(cfg, tool, policies));
+
+  if (availableDangerous.length === 0) {
+    return findings; // All dangerous tools restricted by profile or deny list
+  }
+
+  findings.push({
+    checkId: "tools.dangerous_not_denied",
+    severity: "warn",
+    title: "Dangerous tools available",
+    detail:
+      `The following dangerous tools are available: ${availableDangerous.join(", ")}. ` +
+      "These tools enable code execution, file modification, or system access.",
+    remediation: `Add to tools.deny: ${JSON.stringify(availableDangerous)} or use a restrictive profile.`,
+  });
+
+  return findings;
+}
+
+/**
+ * Check if elevated mode is enabled.
+ * Complements the existing collectElevatedFindings which only checks for wildcards.
+ */
+export function collectElevatedModeFindings(cfg: OpenClawConfig): SecurityAuditFinding[] {
+  const findings: SecurityAuditFinding[] = [];
+
+  if (cfg.tools?.elevated?.enabled === false) {
+    return findings;
+  }
+
+  const allowFrom = cfg.tools?.elevated?.allowFrom ?? {};
+  const hasAllowFrom = Object.keys(allowFrom).length > 0;
+
+  if (!hasAllowFrom) {
+    // Enabled but no allowFrom configured
+    findings.push({
+      checkId: "tools.elevated_enabled_no_allowlist",
+      severity: "warn",
+      title: "Elevated mode enabled without allowlist",
+      detail:
+        "tools.elevated.enabled is not false, but no allowFrom list is configured. " +
+        "Elevated mode allows bypassing sandbox isolation.",
+      remediation:
+        "Set tools.elevated.enabled=false or configure tools.elevated.allowFrom explicitly.",
+    });
+  } else {
+    // Just inform that elevated is enabled
+    findings.push({
+      checkId: "tools.elevated_enabled",
+      severity: "info",
+      title: "Elevated mode is enabled",
+      detail:
+        `Elevated mode allows ${Object.keys(allowFrom).length} channel(s) to bypass sandbox. ` +
+        "Ensure allowFrom lists are tightly controlled.",
+    });
+  }
+
+  return findings;
+}
+
+/**
+ * Check if Gateway TLS is not enabled.
+ * harden-config.ts forces TLS enabled. Credentials can be intercepted without TLS.
+ */
+export function collectGatewayTlsFindings(cfg: OpenClawConfig): SecurityAuditFinding[] {
+  const findings: SecurityAuditFinding[] = [];
+  const tlsEnabled = cfg.gateway?.tls?.enabled;
+
+  if (tlsEnabled === true) {
+    return findings; // OK
+  }
+
+  const remotelyExposed = isGatewayRemotelyExposed(cfg);
+
+  findings.push({
+    checkId: "gateway.tls_disabled",
+    severity: remotelyExposed ? "critical" : "warn",
+    title: "Gateway TLS is not enabled",
+    detail: remotelyExposed
+      ? "TLS is disabled on a remotely-exposed gateway. Traffic including auth tokens is unencrypted."
+      : "TLS is disabled on loopback gateway. Local traffic is unencrypted but contained to this machine.",
+    remediation: "Set gateway.tls.enabled=true and gateway.tls.autoGenerate=true.",
+  });
+
+  return findings;
+}
+
+/**
+ * Check if agent-to-agent messaging is enabled.
+ * harden-config.ts disables agent-to-agent messaging to prevent lateral movement.
+ */
+export function collectAgentToAgentFindings(cfg: OpenClawConfig): SecurityAuditFinding[] {
+  const findings: SecurityAuditFinding[] = [];
+  const enabled = cfg.tools?.agentToAgent?.enabled;
+
+  if (enabled === false) {
+    return findings; // OK
+  }
+
+  findings.push({
+    checkId: "tools.agent_to_agent_enabled",
+    severity: "info",
+    title: "Agent-to-agent messaging is enabled",
+    detail:
+      "Agents can send messages to other agents. A compromised agent could attempt lateral movement.",
+    remediation:
+      "Set tools.agentToAgent.enabled=false unless inter-agent communication is required.",
+  });
+
+  return findings;
+}
+
+/**
+ * Check sandbox filesystem protection settings.
+ * Defense in depth - harden-config.ts sets readOnlyRoot and capDrop.
+ */
+export function collectSandboxFilesystemFindings(cfg: OpenClawConfig): SecurityAuditFinding[] {
+  const findings: SecurityAuditFinding[] = [];
+  const sandboxMode = cfg.agents?.defaults?.sandbox?.mode;
+
+  if (sandboxMode !== "all" && sandboxMode !== "non-main") {
+    return findings; // Sandbox not enabled
+  }
+
+  const docker = cfg.agents?.defaults?.sandbox?.docker;
+
+  if (docker?.readOnlyRoot !== true) {
+    findings.push({
+      checkId: "sandbox.docker.writable_root",
+      severity: "info",
+      title: "Sandbox root filesystem is writable",
+      detail: "readOnlyRoot is not enabled. Sandboxed code can modify the container filesystem.",
+      remediation: "Set agents.defaults.sandbox.docker.readOnlyRoot=true for defense in depth.",
+    });
+  }
+
+  const capDrop = docker?.capDrop ?? [];
+  if (!capDrop.includes("ALL")) {
+    findings.push({
+      checkId: "sandbox.docker.capabilities_not_dropped",
+      severity: "info",
+      title: "Sandbox Linux capabilities not fully dropped",
+      detail: `capDrop is ${JSON.stringify(capDrop)}. Consider dropping ALL capabilities.`,
+      remediation: 'Set agents.defaults.sandbox.docker.capDrop=["ALL"] for defense in depth.',
+    });
+  }
+
+  return findings;
+}
+
+/**
+ * Check if dangerous node commands are explicitly allowed.
+ * DEFAULT_DANGEROUS_NODE_COMMANDS are not in the default allowlist, but can be
+ * enabled via gateway.nodes.allowCommands. Warn if any are explicitly enabled.
+ */
+export function collectDenyCommandsDefaultsFindings(cfg: OpenClawConfig): SecurityAuditFinding[] {
+  const findings: SecurityAuditFinding[] = [];
+  const allowCommands = cfg.gateway?.nodes?.allowCommands ?? [];
+  const denyCommands = new Set(cfg.gateway?.nodes?.denyCommands ?? []);
+
+  // Check if any dangerous commands are explicitly allowed without being denied
+  const explicitlyAllowed = DEFAULT_DANGEROUS_NODE_COMMANDS.filter(
+    (cmd) => allowCommands.includes(cmd) && !denyCommands.has(cmd),
+  );
+
+  if (explicitlyAllowed.length === 0) {
+    return findings; // OK - no dangerous commands explicitly enabled
+  }
+
+  findings.push({
+    checkId: "gateway.nodes.dangerous_commands_allowed",
+    severity: "warn",
+    title: "Dangerous node commands explicitly allowed",
+    detail:
+      `${explicitlyAllowed.length} dangerous node command(s) are in gateway.nodes.allowCommands: ` +
+      explicitlyAllowed.join(", ") +
+      ". These commands have privacy/security implications.",
+    remediation:
+      "Remove dangerous commands from gateway.nodes.allowCommands, or add them to gateway.nodes.denyCommands if needed elsewhere.",
+  });
 
   return findings;
 }

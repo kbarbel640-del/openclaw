@@ -1586,6 +1586,494 @@ description: test skill
     );
   });
 
+  // --------------------------------------------------------------------------
+  // Hardening gap checks (EarlyCore findings)
+  // --------------------------------------------------------------------------
+
+  it("flags sandbox mode not all as critical when web tools enabled", async () => {
+    const cfg: OpenClawConfig = {
+      agents: { defaults: { sandbox: { mode: "off" } } },
+      tools: { web: { search: { enabled: true } } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "sandbox.mode_not_all",
+          severity: "critical",
+        }),
+      ]),
+    );
+  });
+
+  it("flags sandbox mode not all as warning when no dangerous tools", async () => {
+    const cfg: OpenClawConfig = {
+      agents: { defaults: { sandbox: { mode: "off" } } },
+      tools: {
+        deny: ["exec"],
+        web: { search: { enabled: false }, fetch: { enabled: false } },
+      },
+      browser: { enabled: false },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      env: {},
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    const finding = res.findings.find((f) => f.checkId === "sandbox.mode_not_all");
+    expect(finding?.severity).toBe("warn");
+  });
+
+  it("flags sandbox mode not all as warning when profile is minimal (exec not available)", async () => {
+    const cfg: OpenClawConfig = {
+      agents: { defaults: { sandbox: { mode: "off" } } },
+      tools: {
+        profile: "minimal", // minimal profile only allows session_status, not exec
+        web: { search: { enabled: false }, fetch: { enabled: false } },
+      },
+      browser: { enabled: false },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      env: {},
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    const finding = res.findings.find((f) => f.checkId === "sandbox.mode_not_all");
+    expect(finding?.severity).toBe("warn");
+  });
+
+  it("flags sandbox mode not all as critical when profile is coding (exec available)", async () => {
+    const cfg: OpenClawConfig = {
+      agents: { defaults: { sandbox: { mode: "off" } } },
+      tools: {
+        profile: "coding", // coding profile includes group:runtime which has exec
+        web: { search: { enabled: false }, fetch: { enabled: false } },
+      },
+      browser: { enabled: false },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      env: {},
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    const finding = res.findings.find((f) => f.checkId === "sandbox.mode_not_all");
+    expect(finding?.severity).toBe("critical");
+  });
+
+  it("does not flag sandbox mode when set to all", async () => {
+    const cfg: OpenClawConfig = {
+      agents: { defaults: { sandbox: { mode: "all" } } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "sandbox.mode_not_all")).toBe(false);
+  });
+
+  it("flags sandbox network not isolated when sandbox enabled", async () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          sandbox: { mode: "all", docker: { network: "bridge" } },
+        },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "sandbox.docker.network_not_isolated",
+          severity: "critical",
+        }),
+      ]),
+    );
+  });
+
+  it("does not flag sandbox network when set to none", async () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          sandbox: { mode: "all", docker: { network: "none" } },
+        },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "sandbox.docker.network_not_isolated")).toBe(
+      false,
+    );
+  });
+
+  it("does not flag sandbox network when sandbox mode is off", async () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          sandbox: { mode: "off", docker: { network: "bridge" } },
+        },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "sandbox.docker.network_not_isolated")).toBe(
+      false,
+    );
+  });
+
+  it("flags dangerous tools when available (no profile, no deny)", async () => {
+    const cfg: OpenClawConfig = {
+      tools: { deny: [] },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "tools.dangerous_not_denied",
+          severity: "warn",
+        }),
+      ]),
+    );
+  });
+
+  it("does not flag dangerous tools when all are denied", async () => {
+    const cfg: OpenClawConfig = {
+      tools: {
+        deny: [
+          "exec",
+          "process",
+          "write",
+          "edit",
+          "apply_patch",
+          "gateway",
+          "cron",
+          "nodes",
+          "browser",
+          "canvas",
+        ],
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "tools.dangerous_not_denied")).toBe(false);
+  });
+
+  it("does not flag dangerous tools when profile is minimal (restricts all dangerous)", async () => {
+    const cfg: OpenClawConfig = {
+      tools: { profile: "minimal" }, // minimal only allows session_status
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "tools.dangerous_not_denied")).toBe(false);
+  });
+
+  it("flags dangerous tools when profile is coding (allows exec, write, etc.)", async () => {
+    const cfg: OpenClawConfig = {
+      tools: { profile: "coding" }, // coding allows group:fs and group:runtime
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    const finding = res.findings.find((f) => f.checkId === "tools.dangerous_not_denied");
+    expect(finding).toBeDefined();
+    // Should list the tools allowed by coding profile
+    expect(finding?.detail).toContain("exec");
+    expect(finding?.detail).toContain("write");
+  });
+
+  it("flags elevated mode enabled without allowlist", async () => {
+    const cfg: OpenClawConfig = {
+      tools: { elevated: { enabled: true } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "tools.elevated_enabled_no_allowlist",
+          severity: "warn",
+        }),
+      ]),
+    );
+  });
+
+  it("reports info when elevated mode is enabled with allowlist", async () => {
+    const cfg: OpenClawConfig = {
+      tools: { elevated: { enabled: true, allowFrom: { whatsapp: ["+1"] } } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "tools.elevated_enabled",
+          severity: "info",
+        }),
+      ]),
+    );
+  });
+
+  it("flags gateway TLS disabled on non-loopback as critical", async () => {
+    const cfg: OpenClawConfig = {
+      gateway: { bind: "lan", tls: { enabled: false }, auth: { token: "test" } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "gateway.tls_disabled",
+          severity: "critical",
+        }),
+      ]),
+    );
+  });
+
+  it("flags gateway TLS disabled on loopback as warning", async () => {
+    const cfg: OpenClawConfig = {
+      gateway: { bind: "loopback", tls: { enabled: false } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    const finding = res.findings.find((f) => f.checkId === "gateway.tls_disabled");
+    expect(finding?.severity).toBe("warn");
+  });
+
+  it("does not flag gateway TLS when enabled", async () => {
+    const cfg: OpenClawConfig = {
+      gateway: { tls: { enabled: true } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "gateway.tls_disabled")).toBe(false);
+  });
+
+  it("reports info when agent-to-agent messaging is enabled", async () => {
+    const cfg: OpenClawConfig = {
+      tools: { agentToAgent: { enabled: true } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "tools.agent_to_agent_enabled",
+          severity: "info",
+        }),
+      ]),
+    );
+  });
+
+  it("does not flag agent-to-agent when disabled", async () => {
+    const cfg: OpenClawConfig = {
+      tools: { agentToAgent: { enabled: false } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "tools.agent_to_agent_enabled")).toBe(false);
+  });
+
+  it("flags sandbox writable root when sandbox enabled", async () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          sandbox: { mode: "all", docker: { readOnlyRoot: false } },
+        },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "sandbox.docker.writable_root",
+          severity: "info",
+        }),
+      ]),
+    );
+  });
+
+  it("flags sandbox capabilities not dropped when sandbox enabled", async () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          sandbox: { mode: "all", docker: { capDrop: [] } },
+        },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "sandbox.docker.capabilities_not_dropped",
+          severity: "info",
+        }),
+      ]),
+    );
+  });
+
+  it("does not flag sandbox filesystem when properly configured", async () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          sandbox: { mode: "all", docker: { readOnlyRoot: true, capDrop: ["ALL"] } },
+        },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "sandbox.docker.writable_root")).toBe(false);
+    expect(res.findings.some((f) => f.checkId === "sandbox.docker.capabilities_not_dropped")).toBe(
+      false,
+    );
+  });
+
+  it("flags explicitly allowed dangerous node commands", async () => {
+    const cfg: OpenClawConfig = {
+      gateway: { nodes: { allowCommands: ["camera.snap", "sms.send"] } },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          checkId: "gateway.nodes.dangerous_commands_allowed",
+          severity: "warn",
+        }),
+      ]),
+    );
+  });
+
+  it("does not flag dangerous commands when they are denied", async () => {
+    const cfg: OpenClawConfig = {
+      gateway: {
+        nodes: {
+          allowCommands: ["camera.snap"],
+          denyCommands: ["camera.snap"],
+        },
+      },
+    };
+
+    const res = await runSecurityAudit({
+      config: cfg,
+      includeFilesystem: false,
+      includeChannelSecurity: false,
+    });
+
+    expect(res.findings.some((f) => f.checkId === "gateway.nodes.dangerous_commands_allowed")).toBe(
+      false,
+    );
+  });
+
   describe("maybeProbeGateway auth selection", () => {
     const originalEnvToken = process.env.OPENCLAW_GATEWAY_TOKEN;
     const originalEnvPassword = process.env.OPENCLAW_GATEWAY_PASSWORD;

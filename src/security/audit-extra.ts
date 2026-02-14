@@ -9,13 +9,21 @@
 
 // Sync collectors
 export {
+  collectAgentToAgentFindings,
   collectAttackSurfaceSummaryFindings,
+  collectDangerousToolsFindings,
+  collectDenyCommandsDefaultsFindings,
+  collectElevatedModeFindings,
   collectExposureMatrixFindings,
+  collectGatewayTlsFindings,
   collectHooksHardeningFindings,
   collectMinimalProfileOverrideFindings,
   collectModelHygieneFindings,
   collectNodeDenyCommandPatternFindings,
   collectSandboxDockerNoopFindings,
+  collectSandboxFilesystemFindings,
+  collectSandboxModeFindings,
+  collectSandboxNetworkFindings,
   collectSecretsInConfigFindings,
   collectSmallModelRiskFindings,
   collectSyncedFolderFindings,
