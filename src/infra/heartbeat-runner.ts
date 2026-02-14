@@ -7,6 +7,7 @@ import type { AgentDefaultsConfig } from "../config/types.agent-defaults.js";
 import type { OutboundSendDeps } from "./outbound/deliver.js";
 import {
   resolveAgentConfig,
+  resolveAgentDir,
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
 } from "../agents/agent-scope.js";
@@ -533,6 +534,7 @@ export async function runHeartbeatOnce(opts: {
   const isCronEventReason = Boolean(opts.reason?.startsWith("cron:"));
   const isWakeReason = opts.reason === "wake" || Boolean(opts.reason?.startsWith("hook:"));
   const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+  const agentDir = resolveAgentDir(cfg, agentId);
   const heartbeatFilePath = path.join(workspaceDir, DEFAULT_HEARTBEAT_FILENAME);
   try {
     const heartbeatFileContent = await fs.readFile(heartbeatFilePath, "utf-8");
@@ -659,7 +661,7 @@ export async function runHeartbeatOnce(opts: {
     return true;
   };
 
-  const agentModelState = await loadHeartbeatAgentModelState(workspaceDir);
+  const agentModelState = await loadHeartbeatAgentModelState(agentDir);
   const { models: modelChain, fallbackMode } = resolveHeartbeatModelChain(heartbeat, agentModelState);
   const ackMaxChars = resolveHeartbeatAckMaxChars(cfg, heartbeat);
 
@@ -686,14 +688,14 @@ export async function runHeartbeatOnce(opts: {
       try {
         replyResult = await runWithModel(model);
         // Success: reset to primary
-        await saveHeartbeatAgentModelState(workspaceDir, { currentFallbackIndex: 0, agentId }, agentModelState);
+        await saveHeartbeatAgentModelState(agentDir, { currentFallbackIndex: 0, agentId }, agentModelState);
       } catch (err) {
         if (isFailoverError(err)) {
           // Advance to next model for next heartbeat
           const currentIdx = agentModelState?.currentFallbackIndex ?? 0;
           const allModels = resolveHeartbeatModelChain(heartbeat, null).models;
           const nextIdx = (currentIdx + 1) % allModels.length;
-          await saveHeartbeatAgentModelState(workspaceDir, { currentFallbackIndex: nextIdx, agentId }, agentModelState);
+          await saveHeartbeatAgentModelState(agentDir, { currentFallbackIndex: nextIdx, agentId }, agentModelState);
           log.warn(`heartbeat: model ${model} failed, will try ${allModels[nextIdx]} next heartbeat`);
         }
         throw err;
