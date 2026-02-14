@@ -80,6 +80,14 @@ USER.md
 
 # Agent credentials and memory (NEVER COMMIT)
 /memory/
+/output/
+SOUL.md
+MEMORY.md
+HEARTBEAT.md
+BOOTSTRAP.md
+AGENTS.md
+IMPLEMENTATION_PLAN.md
+IMPLEMENTATION_PLAN_FINAL.md
 .agent/*.json
 !.agent/workflows/
 /local/
