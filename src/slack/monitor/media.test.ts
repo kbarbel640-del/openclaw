@@ -238,6 +238,83 @@ describe("resolveSlackMedia", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("overrides video/* MIME to audio/* for slack_audio voice messages", async () => {
+    // saveMediaBuffer re-detects MIME from buffer bytes, so it may return
+    // video/mp4 for MP4 containers.  Verify resolveSlackMedia preserves
+    // the overridden audio/* type in its return value despite this.
+    const saveMediaBufferMock = vi.spyOn(mediaStore, "saveMediaBuffer").mockResolvedValue({
+      path: "/tmp/voice.mp4",
+      contentType: "video/mp4",
+    });
+
+    const mockResponse = new Response(Buffer.from("audio data"), {
+      status: 200,
+      headers: { "content-type": "video/mp4" },
+    });
+    mockFetch.mockResolvedValueOnce(mockResponse);
+
+    const result = await resolveSlackMedia({
+      files: [
+        {
+          url_private: "https://files.slack.com/voice.mp4",
+          name: "audio_message.mp4",
+          mimetype: "video/mp4",
+          subtype: "slack_audio",
+        },
+      ],
+      token: "xoxb-test-token",
+      maxBytes: 16 * 1024 * 1024,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
+    // saveMediaBuffer should receive the overridden audio/mp4
+    expect(saveMediaBufferMock).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      "audio/mp4",
+      "inbound",
+      16 * 1024 * 1024,
+    );
+    // Returned contentType must be the overridden value, not the
+    // re-detected video/mp4 from saveMediaBuffer
+    expect(result![0]?.contentType).toBe("audio/mp4");
+  });
+
+  it("preserves original MIME for non-voice Slack files", async () => {
+    const saveMediaBufferMock = vi.spyOn(mediaStore, "saveMediaBuffer").mockResolvedValue({
+      path: "/tmp/video.mp4",
+      contentType: "video/mp4",
+    });
+
+    const mockResponse = new Response(Buffer.from("video data"), {
+      status: 200,
+      headers: { "content-type": "video/mp4" },
+    });
+    mockFetch.mockResolvedValueOnce(mockResponse);
+
+    const result = await resolveSlackMedia({
+      files: [
+        {
+          url_private: "https://files.slack.com/clip.mp4",
+          name: "recording.mp4",
+          mimetype: "video/mp4",
+        },
+      ],
+      token: "xoxb-test-token",
+      maxBytes: 16 * 1024 * 1024,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
+    expect(saveMediaBufferMock).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      "video/mp4",
+      "inbound",
+      16 * 1024 * 1024,
+    );
+    expect(result![0]?.contentType).toBe("video/mp4");
+  });
+
   it("falls through to next file when first file returns error", async () => {
     vi.spyOn(mediaStore, "saveMediaBuffer").mockResolvedValue({
       path: "/tmp/test.jpg",
@@ -264,7 +341,40 @@ describe("resolveSlackMedia", () => {
     });
 
     expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
     expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns all successfully downloaded files as an array", async () => {
+    vi.spyOn(mediaStore, "saveMediaBuffer")
+      .mockResolvedValueOnce({ path: "/tmp/a.jpg", contentType: "image/jpeg" })
+      .mockResolvedValueOnce({ path: "/tmp/b.png", contentType: "image/png" });
+
+    const responseA = new Response(Buffer.from("image a"), {
+      status: 200,
+      headers: { "content-type": "image/jpeg" },
+    });
+    const responseB = new Response(Buffer.from("image b"), {
+      status: 200,
+      headers: { "content-type": "image/png" },
+    });
+
+    mockFetch.mockResolvedValueOnce(responseA).mockResolvedValueOnce(responseB);
+
+    const result = await resolveSlackMedia({
+      files: [
+        { url_private: "https://files.slack.com/a.jpg", name: "a.jpg" },
+        { url_private: "https://files.slack.com/b.png", name: "b.png" },
+      ],
+      token: "xoxb-test-token",
+      maxBytes: 1024 * 1024,
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result![0].path).toBe("/tmp/a.jpg");
+    expect(result![0].placeholder).toBe("[Slack file: a.jpg]");
+    expect(result![1].path).toBe("/tmp/b.png");
+    expect(result![1].placeholder).toBe("[Slack file: b.png]");
   });
 });
 
