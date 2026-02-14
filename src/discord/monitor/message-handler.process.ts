@@ -791,7 +791,10 @@ export async function processDiscordMessage(ctx: DiscordMessagePreflightContext)
         ? (event: import("../../auto-reply/types.js").AgentStreamEvent) => {
             smartStatusFilter?.push(event);
             // When a tool finishes with output, send a rich result block.
+            // Remove any buffered tool-start message for this call first
+            // so the user doesn't see both "Reading..." and the result.
             if (event.type === "tool_result" && event.outputPreview && toolStartInputs) {
+              unifiedToolFeedback?.removeToolCall(event.toolCallId);
               const display = resolveToolDisplay({
                 name: event.toolName,
                 args: toolStartInputs.get(event.toolCallId),

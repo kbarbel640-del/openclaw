@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createSmartStatus } from "./smart-status.js";
 
 describe("createSmartStatus", () => {
-  it("emits tool status on tool_start with Bash command", () => {
+  it("does not emit status on tool_start (result blocks handle it)", () => {
     const updates: string[] = [];
     const status = createSmartStatus({
       userMessage: "What's on my calendar?",
@@ -16,20 +16,6 @@ describe("createSmartStatus", () => {
       toolCallId: "c1",
       input: { command: "gog calendar events --today" },
     });
-    status.dispose();
-
-    expect(updates.length).toBe(1);
-    expect(updates[0]).toMatch(/gog calendar/i);
-  });
-
-  it("emits tool status on tool_start with Read command", () => {
-    const updates: string[] = [];
-    const status = createSmartStatus({
-      userMessage: "Read the file",
-      onUpdate: (text) => updates.push(text),
-      config: { minIntervalMs: 0 },
-    });
-
     status.push({
       type: "tool_start",
       toolName: "Read",
@@ -38,8 +24,7 @@ describe("createSmartStatus", () => {
     });
     status.dispose();
 
-    expect(updates.length).toBe(1);
-    expect(updates[0]).toMatch(/readme\.md/i);
+    expect(updates.length).toBe(0);
   });
 
   it("emits thinking excerpts with prefix", () => {
@@ -93,7 +78,7 @@ describe("createSmartStatus", () => {
     expect(updates.length).toBe(0);
   });
 
-  it("debounces rapid updates", async () => {
+  it("debounces rapid thinking updates", async () => {
     vi.useFakeTimers();
     const updates: string[] = [];
     const status = createSmartStatus({
@@ -102,22 +87,12 @@ describe("createSmartStatus", () => {
       config: { minIntervalMs: 3000 },
     });
 
-    // First event fires immediately.
-    status.push({
-      type: "tool_start",
-      toolName: "Bash",
-      toolCallId: "c1",
-      input: { command: "ls /tmp" },
-    });
+    // First thinking event fires immediately.
+    status.push({ type: "thinking", text: "Let me check the calendar" });
     expect(updates.length).toBe(1);
 
-    // Second event within window is debounced.
-    status.push({
-      type: "tool_start",
-      toolName: "Read",
-      toolCallId: "c2",
-      input: { file_path: "/tmp/foo.txt" },
-    });
+    // Second thinking event within window is debounced.
+    status.push({ type: "thinking", text: "Now looking at the events" });
     expect(updates.length).toBe(1);
 
     // After interval elapses, debounced event fires.
@@ -137,12 +112,7 @@ describe("createSmartStatus", () => {
     });
 
     status.suppress(5000);
-    status.push({
-      type: "tool_start",
-      toolName: "Bash",
-      toolCallId: "c1",
-      input: { command: "ls" },
-    });
+    status.push({ type: "thinking", text: "Processing the request" });
 
     expect(updates.length).toBe(0);
     status.dispose();
@@ -156,25 +126,15 @@ describe("createSmartStatus", () => {
       config: { minIntervalMs: 0 },
     });
 
-    // Same tool twice should only emit once.
-    status.push({
-      type: "tool_start",
-      toolName: "Bash",
-      toolCallId: "c1",
-      input: { command: "ls" },
-    });
-    status.push({
-      type: "tool_start",
-      toolName: "Bash",
-      toolCallId: "c2",
-      input: { command: "ls" },
-    });
+    // Same thinking text twice should only emit once.
+    status.push({ type: "thinking", text: "Processing" });
+    status.push({ type: "thinking", text: "Processing" });
     status.dispose();
 
     expect(updates.length).toBe(1);
   });
 
-  it("handles multiple different tool types in sequence", () => {
+  it("handles multiple thinking excerpts in sequence", () => {
     const updates: string[] = [];
     const status = createSmartStatus({
       userMessage: "test",
@@ -182,22 +142,12 @@ describe("createSmartStatus", () => {
       config: { minIntervalMs: 0 },
     });
 
-    status.push({
-      type: "tool_start",
-      toolName: "Bash",
-      toolCallId: "c1",
-      input: { command: "gog calendar events" },
-    });
-    status.push({
-      type: "tool_start",
-      toolName: "Read",
-      toolCallId: "c2",
-      input: { file_path: "/tmp/results.json" },
-    });
+    status.push({ type: "thinking", text: "Checking the calendar" });
+    status.push({ type: "thinking", text: "Found the events" });
     status.dispose();
 
     expect(updates.length).toBe(2);
-    expect(updates[0]).toMatch(/gog calendar/i);
-    expect(updates[1]).toMatch(/results\.json/i);
+    expect(updates[0]).toContain("Checking the calendar");
+    expect(updates[1]).toContain("Found the events");
   });
 });

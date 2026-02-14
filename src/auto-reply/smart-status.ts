@@ -1,5 +1,4 @@
 import type { AgentStreamEvent } from "./types.js";
-import { formatToolFeedbackDiscord, resolveToolDisplay } from "../agents/tool-display.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 
 const log = createSubsystemLogger("auto-reply/smart-status");
@@ -83,17 +82,11 @@ export function createSmartStatus(params: {
     }
 
     switch (event.type) {
-      case "tool_start": {
-        // Generate instant status from tool name + input args using the
-        // existing tool-display system for rich, human-readable descriptions.
-        const display = resolveToolDisplay({
-          name: event.toolName,
-          args: event.input,
-        });
-        const summary = formatToolFeedbackDiscord(display);
-        scheduleOrEmit(summary);
+      case "tool_start":
+        // No status for tool starts. Rich result blocks
+        // (formatToolResultBlockDiscord) fire when the tool
+        // completes with output, making start messages redundant.
         break;
-      }
       case "thinking": {
         // Show a truncated thinking excerpt as the status.
         const trimmed = event.text.trim();

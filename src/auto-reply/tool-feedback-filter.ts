@@ -11,6 +11,7 @@ const MAX_FEEDBACK_LINES = 5;
 
 type BufferedTool = {
   toolName: string;
+  toolCallId: string;
   input?: Record<string, unknown>;
   timestamp: number;
 };
@@ -179,6 +180,8 @@ export function createUnifiedToolFeedback(params: {
   config?: UnifiedToolFeedbackConfig;
 }): {
   push: (tool: { toolName: string; toolCallId: string; input?: Record<string, unknown> }) => void;
+  /** Remove a buffered tool call so it won't be flushed. */
+  removeToolCall: (toolCallId: string) => void;
   dispose: () => void;
   /** Suppress updates for the given duration (e.g. after smart-ack). */
   suppress: (durationMs: number) => void;
@@ -251,6 +254,7 @@ export function createUnifiedToolFeedback(params: {
     }
     buffer.push({
       toolName: tool.toolName,
+      toolCallId: tool.toolCallId,
       input: tool.input,
       timestamp: Date.now(),
     });
@@ -267,6 +271,18 @@ export function createUnifiedToolFeedback(params: {
     }
   }
 
+  function removeToolCall(toolCallId: string) {
+    const idx = buffer.findIndex((b) => b.toolCallId === toolCallId);
+    if (idx !== -1) {
+      buffer.splice(idx, 1);
+    }
+    // If the buffer is now empty, cancel pending timers so we
+    // don't flush an empty batch.
+    if (buffer.length === 0) {
+      clearTimers();
+    }
+  }
+
   function suppress(durationMs: number) {
     suppressedUntil = Date.now() + durationMs;
   }
@@ -276,7 +292,7 @@ export function createUnifiedToolFeedback(params: {
     clearTimers();
   }
 
-  return { push, dispose, suppress };
+  return { push, removeToolCall, dispose, suppress };
 }
 
 // Keep old exports for backward compatibility with other channels
