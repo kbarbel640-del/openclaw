@@ -103,7 +103,13 @@ export async function runAgentTurnWithFallback(params: {
   let didRetryTransientHttpError = false;
 
   // ─── Pre-route: classify message and select model tier ───
-  const routerConfig = resolveRouterConfig(params.followupRun.run.config);
+  // Skip routing for heartbeats and system-generated prompts (e.g. /new session resets)
+  // which contain no real user text to classify.
+  const isSystemPrompt = params.commandBody.startsWith("A new session was started via");
+  const routerConfig =
+    params.isHeartbeat || isSystemPrompt
+      ? null
+      : resolveRouterConfig(params.followupRun.run.config);
   if (routerConfig) {
     const route = await routeMessage(params.commandBody, routerConfig);
     console.log(
