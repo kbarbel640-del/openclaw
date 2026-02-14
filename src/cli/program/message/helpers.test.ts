@@ -16,12 +16,24 @@ vi.mock("../../plugin-registry.js", () => ({
 
 const hasHooksMock = vi.fn(() => false);
 const runGatewayStopMock = vi.fn(async () => {});
-const getGlobalHookRunnerMock = vi.fn(() => ({
-  hasHooks: hasHooksMock,
-  runGatewayStop: runGatewayStopMock,
-}));
+const runGlobalGatewayStopSafelyMock = vi.fn(
+  async (params: {
+    event: { reason?: string };
+    ctx: Record<string, unknown>;
+    onError?: (err: unknown) => void;
+  }) => {
+    if (!hasHooksMock("gateway_stop")) {
+      return;
+    }
+    try {
+      await runGatewayStopMock(params.event, params.ctx);
+    } catch (err) {
+      params.onError?.(err);
+    }
+  },
+);
 vi.mock("../../../plugins/hook-runner-global.js", () => ({
-  getGlobalHookRunner: () => getGlobalHookRunnerMock(),
+  runGlobalGatewayStopSafely: (...args: unknown[]) => runGlobalGatewayStopSafelyMock(...args),
 }));
 
 const exitMock = vi.fn((): never => {
@@ -45,10 +57,7 @@ describe("runMessageAction", () => {
     messageCommandMock.mockReset().mockResolvedValue(undefined);
     hasHooksMock.mockReset().mockReturnValue(false);
     runGatewayStopMock.mockReset().mockResolvedValue(undefined);
-    getGlobalHookRunnerMock.mockReset().mockReturnValue({
-      hasHooks: hasHooksMock,
-      runGatewayStop: runGatewayStopMock,
-    });
+    runGlobalGatewayStopSafelyMock.mockClear();
     exitMock.mockReset().mockImplementation((): never => {
       throw new Error("exit");
     });

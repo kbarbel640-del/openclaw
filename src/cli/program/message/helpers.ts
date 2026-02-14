@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { messageCommand } from "../../../commands/message.js";
 import { danger, setVerbose } from "../../../globals.js";
 import { CHANNEL_TARGET_DESCRIPTION } from "../../../infra/outbound/channel-target.js";
-import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
+import { runGlobalGatewayStopSafely } from "../../../plugins/hook-runner-global.js";
 import { defaultRuntime } from "../../../runtime.js";
 import { runCommandWithRuntime } from "../../cli-utils.js";
 import { createDefaultDeps } from "../../deps.js";
@@ -24,15 +24,11 @@ function normalizeMessageOptions(opts: Record<string, unknown>): Record<string, 
 }
 
 async function runPluginStopHooks(): Promise<void> {
-  const hookRunner = getGlobalHookRunner();
-  if (!hookRunner?.hasHooks("gateway_stop")) {
-    return;
-  }
-  try {
-    await hookRunner.runGatewayStop({ reason: "cli message action complete" }, {});
-  } catch (err) {
-    defaultRuntime.error(danger(`gateway_stop hook failed: ${String(err)}`));
-  }
+  await runGlobalGatewayStopSafely({
+    event: { reason: "cli message action complete" },
+    ctx: {},
+    onError: (err) => defaultRuntime.error(danger(`gateway_stop hook failed: ${String(err)}`)),
+  });
 }
 
 export function createMessageCliHelpers(
