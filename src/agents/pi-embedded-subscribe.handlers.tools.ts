@@ -161,6 +161,11 @@ export async function handleToolExecutionEnd(
     result?: unknown;
   },
 ) {
+  // Capture a best-effort "occurred at" timestamp as early as possible at the
+  // tool-result event boundary. Note: pi-agent-core events don't currently
+  // include timestamps, so this reflects handler receipt time.
+  const occurredAtMs = Date.now();
+
   const toolName = normalizeToolName(String(evt.toolName));
   const toolCallId = String(evt.toolCallId);
   const isError = Boolean(evt.isError);
@@ -177,6 +182,7 @@ export async function handleToolExecutionEnd(
       toolName,
       meta,
       error: errorMessage,
+      occurredAtMs,
     };
   }
 
