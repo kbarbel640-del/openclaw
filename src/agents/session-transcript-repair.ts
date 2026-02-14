@@ -51,6 +51,14 @@ function isToolCallBlock(block: unknown): block is ToolCallBlock {
   return typeof type === "string" && TOOL_CALL_TYPES.has(type);
 }
 
+function hasValidToolCallName(block: ToolCallBlock): boolean {
+  if (!("name" in block)) {
+    return true; // name not present is acceptable (legacy blocks)
+  }
+  // If name exists, it must be a non-empty string
+  return typeof block.name === "string" && block.name.length > 0;
+}
+
 function hasToolCallInput(block: ToolCallBlock): boolean {
   const hasInput = "input" in block ? block.input !== undefined && block.input !== null : false;
   const hasArguments =
@@ -77,7 +85,7 @@ function makeMissingToolResult(params: {
   return {
     role: "toolResult",
     toolCallId: params.toolCallId,
-    toolName: params.toolName ?? "unknown",
+    toolName: params.toolName || "unknown",
     content: [
       {
         type: "text",
@@ -118,7 +126,7 @@ export function repairToolCallInputs(messages: AgentMessage[]): ToolCallInputRep
     let droppedInMessage = 0;
 
     for (const block of msg.content) {
-      if (isToolCallBlock(block) && !hasToolCallInput(block)) {
+      if (isToolCallBlock(block) && (!hasToolCallInput(block) || !hasValidToolCallName(block))) {
         droppedToolCalls += 1;
         droppedInMessage += 1;
         changed = true;
