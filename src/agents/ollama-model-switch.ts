@@ -35,11 +35,13 @@ export async function switchOllamaModel(
       };
     }
     return { success: true, model: modelName };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const e = err as Error | undefined;
     const msg =
-      err?.cause?.code === "ECONNREFUSED" || err?.message?.includes("ECONNREFUSED")
+      (e as { cause?: { code?: string } })?.cause?.code === "ECONNREFUSED" ||
+      e?.message?.includes("ECONNREFUSED")
         ? "Cannot connect to Ollama. Is it running?"
-        : String(err?.message ?? err);
+        : String(e?.message ?? err);
     return { success: false, model: modelName, error: msg };
   }
 }
