@@ -483,6 +483,7 @@ export async function runPreparedReply(
     resolvedBlockStreamingBreak,
     sessionCtx,
     shouldInjectGroupIntro,
+    suppressToolErrorFallback: !opts?.onToolResult,
     typingMode,
   });
 }

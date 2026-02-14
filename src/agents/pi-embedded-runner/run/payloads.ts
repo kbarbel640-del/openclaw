@@ -33,6 +33,7 @@ export function buildEmbeddedRunPayloads(params: {
   reasoningLevel?: ReasoningLevel;
   toolResultFormat?: ToolResultFormat;
   inlineToolResultsAllowed: boolean;
+  suppressToolErrorFallback?: boolean;
 }): Array<{
   text?: string;
   mediaUrl?: string;
@@ -201,7 +202,7 @@ export function buildEmbeddedRunPayloads(params: {
     });
   }
 
-  if (params.lastToolError) {
+  if (params.lastToolError && !params.suppressToolErrorFallback) {
     const lastAssistantContent = Array.isArray(params.lastAssistant?.content)
       ? params.lastAssistant?.content
       : [];

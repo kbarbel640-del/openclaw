@@ -190,4 +190,27 @@ describe("runPreparedReply media-only handling", () => {
     });
     expect(vi.mocked(runReplyAgent)).not.toHaveBeenCalled();
   });
+
+  it("suppresses tool error fallback when no tool-result callback is provided", async () => {
+    const result = await runPreparedReply(baseParams());
+    expect(result).toEqual({ text: "ok" });
+
+    const call = vi.mocked(runReplyAgent).mock.calls[0]?.[0];
+    expect(call?.suppressToolErrorFallback).toBe(true);
+  });
+
+  it("does not suppress tool error fallback when a tool-result callback is provided", async () => {
+    const onToolResult = vi.fn();
+    const result = await runPreparedReply(
+      baseParams({
+        opts: {
+          onToolResult,
+        } as never,
+      }),
+    );
+    expect(result).toEqual({ text: "ok" });
+
+    const call = vi.mocked(runReplyAgent).mock.calls[0]?.[0];
+    expect(call?.suppressToolErrorFallback).toBe(false);
+  });
 });

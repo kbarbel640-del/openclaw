@@ -229,6 +229,23 @@ describe("buildEmbeddedRunPayloads", () => {
     expect(payloads[0]?.text).toContain("code 1");
   });
 
+  it("omits tool error fallback when suppression is enabled", () => {
+    const payloads = buildEmbeddedRunPayloads({
+      assistantTexts: [],
+      toolMetas: [],
+      lastAssistant: undefined,
+      lastToolError: { toolName: "exec", error: "Command exited with code 1" },
+      sessionKey: "session:telegram",
+      inlineToolResultsAllowed: false,
+      verboseLevel: "off",
+      reasoningLevel: "off",
+      toolResultFormat: "plain",
+      suppressToolErrorFallback: true,
+    });
+
+    expect(payloads).toHaveLength(0);
+  });
+
   it("adds tool error fallback when assistant content is missing", () => {
     const lastAssistant = {
       ...makeAssistant({
