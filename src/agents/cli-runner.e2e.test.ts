@@ -3,10 +3,20 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/config.js";
+import type { CliBackendConfig } from "../config/types.js";
 import { runCliAgent } from "./cli-runner.js";
-import { resolveCliNoOutputTimeoutMs } from "./cli-runner/helpers.js";
+import {
+  cleanupResumeProcesses,
+  cleanupSuspendedCliProcesses,
+  resolveCliNoOutputTimeoutMs,
+} from "./cli-runner/helpers.js";
 
 const supervisorSpawnMock = vi.fn();
+const runExecMock = vi.fn();
+
+vi.mock("../process/exec.js", () => ({
+  runExec: (...args: unknown[]) => runExecMock(...args),
+}));
 
 vi.mock("../process/supervisor/index.js", () => ({
   getProcessSupervisor: () => ({
@@ -217,5 +227,183 @@ describe("resolveCliNoOutputTimeoutMs", () => {
       useResume: true,
     });
     expect(timeoutMs).toBe(42_000);
+  });
+});
+
+describe("cleanupSuspendedCliProcesses", () => {
+  beforeEach(() => {
+    runExecMock.mockReset();
+  });
+
+  it("skips when no session tokens are configured", async () => {
+    await cleanupSuspendedCliProcesses(
+      {
+        command: "tool",
+      } as CliBackendConfig,
+      0,
+    );
+
+    if (process.platform === "win32") {
+      expect(runExecMock).not.toHaveBeenCalled();
+      return;
+    }
+
+    expect(runExecMock).not.toHaveBeenCalled();
+  });
+
+  it("matches sessionArg-based commands", async () => {
+    const selfPid = process.pid;
+    runExecMock
+      .mockResolvedValueOnce({
+        stdout: [
+          `  40 ${selfPid} T+ claude --session-id thread-1 -p`,
+          `  41 ${selfPid} S  claude --session-id thread-2 -p`,
+        ].join("\n"),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+    await cleanupSuspendedCliProcesses(
+      {
+        command: "claude",
+        sessionArg: "--session-id",
+      } as CliBackendConfig,
+      0,
+    );
+
+    if (process.platform === "win32") {
+      expect(runExecMock).not.toHaveBeenCalled();
+      return;
+    }
+
+    expect(runExecMock).toHaveBeenCalledTimes(2);
+    const killCall = runExecMock.mock.calls[1] ?? [];
+    expect(killCall[0]).toBe("kill");
+    expect(killCall[1]).toEqual(["-9", "40"]);
+  });
+
+  it("only kills child processes of current process (ppid validation)", async () => {
+    const selfPid = process.pid;
+    const childPid = selfPid + 1;
+    const unrelatedPid = 9999;
+
+    runExecMock
+      .mockResolvedValueOnce({
+        stdout: [
+          `  ${childPid} ${selfPid} T  claude --session-id thread-1 -p`,
+          `  ${unrelatedPid} 100 T  claude --session-id thread-2 -p`,
+        ].join("\n"),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+    await cleanupSuspendedCliProcesses(
+      {
+        command: "claude",
+        sessionArg: "--session-id",
+      } as CliBackendConfig,
+      0,
+    );
+
+    if (process.platform === "win32") {
+      expect(runExecMock).not.toHaveBeenCalled();
+      return;
+    }
+
+    expect(runExecMock).toHaveBeenCalledTimes(2);
+    const killCall = runExecMock.mock.calls[1] ?? [];
+    expect(killCall[0]).toBe("kill");
+    // Only childPid killed; unrelatedPid (ppid=100) excluded
+    expect(killCall[1]).toEqual(["-9", String(childPid)]);
+  });
+
+  it("skips all processes when none are children of current process", async () => {
+    runExecMock.mockResolvedValueOnce({
+      stdout: [
+        "  200 100 T  claude --session-id thread-1 -p",
+        "  201 100 T  claude --session-id thread-2 -p",
+      ].join("\n"),
+      stderr: "",
+    });
+
+    await cleanupSuspendedCliProcesses(
+      {
+        command: "claude",
+        sessionArg: "--session-id",
+      } as CliBackendConfig,
+      0,
+    );
+
+    if (process.platform === "win32") {
+      expect(runExecMock).not.toHaveBeenCalled();
+      return;
+    }
+
+    // Only ps called — no kill because no matching ppid
+    expect(runExecMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("cleanupResumeProcesses", () => {
+  beforeEach(() => {
+    runExecMock.mockReset();
+  });
+
+  it("only kills resume processes owned by current process", async () => {
+    const selfPid = process.pid;
+
+    runExecMock
+      .mockResolvedValueOnce({
+        stdout: [
+          `  ${selfPid + 1} ${selfPid} codex exec resume abc-123`,
+          `  ${selfPid + 2} 999 codex exec resume abc-123`,
+        ].join("\n"),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+    await cleanupResumeProcesses(
+      {
+        command: "codex",
+        resumeArgs: ["exec", "resume", "{sessionId}"],
+      } as CliBackendConfig,
+      "abc-123",
+    );
+
+    if (process.platform === "win32") {
+      expect(runExecMock).not.toHaveBeenCalled();
+      return;
+    }
+
+    expect(runExecMock).toHaveBeenCalledTimes(2);
+    const killCall = runExecMock.mock.calls[1] ?? [];
+    expect(killCall[0]).toBe("kill");
+    expect(killCall[1]).toEqual(["-9", String(selfPid + 1)]);
+  });
+
+  it("skips kill when no resume processes match ppid", async () => {
+    runExecMock.mockResolvedValueOnce({
+      stdout: [
+        "  300 100 codex exec resume abc-123",
+        "  301 200 codex exec resume abc-123",
+      ].join("\n"),
+      stderr: "",
+    });
+
+    await cleanupResumeProcesses(
+      {
+        command: "codex",
+        resumeArgs: ["exec", "resume", "{sessionId}"],
+      } as CliBackendConfig,
+      "abc-123",
+    );
+
+    if (process.platform === "win32") {
+      expect(runExecMock).not.toHaveBeenCalled();
+      return;
+    }
+
+    // Only ps called — no kill because no matching ppid
+    expect(runExecMock).toHaveBeenCalledTimes(1);
   });
 });
