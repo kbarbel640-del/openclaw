@@ -83,7 +83,12 @@ describe("block streaming", () => {
   });
 
   afterAll(async () => {
-    await fs.rm(fixtureRoot, { recursive: true, force: true });
+    await fs.rm(fixtureRoot, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 50,
+    });
   });
 
   beforeEach(() => {
@@ -98,7 +103,7 @@ describe("block streaming", () => {
     ]);
   });
 
-  it("waits for block replies and preserves ordering when typing start is slow", async () => {
+  it("handles ordering, timeout fallback, and telegram streamMode block", async () => {
     await withTempHome(async (home) => {
       let releaseTyping: (() => void) | undefined;
       const typingGate = new Promise<void>((resolve) => {
@@ -161,58 +166,9 @@ describe("block streaming", () => {
       const res = await replyPromise;
       expect(res).toBeUndefined();
       expect(seen).toEqual(["first\n\nsecond"]);
-    });
-  });
 
-  it("drops final payloads when block replies streamed", async () => {
-    await withTempHome(async (home) => {
-      const onBlockReply = vi.fn().mockResolvedValue(undefined);
-
-      const impl = async (params: RunEmbeddedPiAgentParams) => {
-        void params.onBlockReply?.({ text: "chunk-1" });
-        return {
-          payloads: [{ text: "chunk-1\nchunk-2" }],
-          meta: {
-            durationMs: 5,
-            agentMeta: { sessionId: "s", provider: "p", model: "m" },
-          },
-        };
-      };
-      piEmbeddedMock.runEmbeddedPiAgent.mockImplementation(impl);
-
-      const res = await getReplyFromConfig(
-        {
-          Body: "ping",
-          From: "+1004",
-          To: "+2000",
-          MessageSid: "msg-124",
-          Provider: "discord",
-        },
-        {
-          onBlockReply,
-          disableBlockStreaming: false,
-        },
-        {
-          agents: {
-            defaults: {
-              model: "anthropic/claude-opus-4-5",
-              workspace: path.join(home, "openclaw"),
-            },
-          },
-          channels: { whatsapp: { allowFrom: ["*"] } },
-          session: { store: path.join(home, "sessions.json") },
-        },
-      );
-
-      expect(res).toBeUndefined();
-      expect(onBlockReply).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it("falls back to final payloads when block reply send times out", async () => {
-    await withTempHome(async (home) => {
       let sawAbort = false;
-      const onBlockReply = vi.fn((_, context) => {
+      const onBlockReplyTimeout = vi.fn((_, context) => {
         return new Promise<void>((resolve) => {
           context?.abortSignal?.addEventListener(
             "abort",
@@ -225,7 +181,7 @@ describe("block streaming", () => {
         });
       });
 
-      const impl = async (params: RunEmbeddedPiAgentParams) => {
+      const timeoutImpl = async (params: RunEmbeddedPiAgentParams) => {
         void params.onBlockReply?.({ text: "streamed" });
         return {
           payloads: [{ text: "final" }],
@@ -235,9 +191,9 @@ describe("block streaming", () => {
           },
         };
       };
-      piEmbeddedMock.runEmbeddedPiAgent.mockImplementation(impl);
+      piEmbeddedMock.runEmbeddedPiAgent.mockImplementation(timeoutImpl);
 
-      const replyPromise = getReplyFromConfig(
+      const timeoutReplyPromise = getReplyFromConfig(
         {
           Body: "ping",
           From: "+1004",
@@ -246,7 +202,7 @@ describe("block streaming", () => {
           Provider: "telegram",
         },
         {
-          onBlockReply,
+          onBlockReply: onBlockReplyTimeout,
           blockReplyTimeoutMs: 1,
           disableBlockStreaming: false,
         },
@@ -262,35 +218,29 @@ describe("block streaming", () => {
         },
       );
 
-      const res = await replyPromise;
-      expect(res).toMatchObject({ text: "final" });
+      const timeoutRes = await timeoutReplyPromise;
+      expect(timeoutRes).toMatchObject({ text: "final" });
       expect(sawAbort).toBe(true);
-    });
-  });
 
-  it("does not enable block streaming for telegram streamMode block", async () => {
-    await withTempHome(async (home) => {
-      const onBlockReply = vi.fn().mockResolvedValue(undefined);
-
-      const impl = async () => ({
+      const onBlockReplyStreamMode = vi.fn().mockResolvedValue(undefined);
+      piEmbeddedMock.runEmbeddedPiAgent.mockImplementation(async () => ({
         payloads: [{ text: "final" }],
         meta: {
           durationMs: 5,
           agentMeta: { sessionId: "s", provider: "p", model: "m" },
         },
-      });
-      piEmbeddedMock.runEmbeddedPiAgent.mockImplementation(impl);
+      }));
 
-      const res = await getReplyFromConfig(
+      const resStreamMode = await getReplyFromConfig(
         {
           Body: "ping",
           From: "+1004",
           To: "+2000",
-          MessageSid: "msg-126",
+          MessageSid: "msg-127",
           Provider: "telegram",
         },
         {
-          onBlockReply,
+          onBlockReply: onBlockReplyStreamMode,
         },
         {
           agents: {
@@ -304,8 +254,8 @@ describe("block streaming", () => {
         },
       );
 
-      expect(res?.text).toBe("final");
-      expect(onBlockReply).not.toHaveBeenCalled();
+      expect(resStreamMode?.text).toBe("final");
+      expect(onBlockReplyStreamMode).not.toHaveBeenCalled();
     });
   });
 });

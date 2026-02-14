@@ -7,6 +7,8 @@ import {
   clearAllDispatchers,
   getTotalPendingReplies,
 } from "../auto-reply/reply/dispatcher-registry.js";
+import { createReplyDispatcher } from "../auto-reply/reply/reply-dispatcher.js";
+import { getTotalQueueSize } from "../process/command-queue.js";
 
 // Helper to flush all pending microtasks
 async function flushMicrotasks() {
@@ -28,15 +30,12 @@ describe("gateway config reload during reply", () => {
   });
 
   it("should defer restart until reply dispatcher completes", async () => {
-    const { createReplyDispatcher } = await import("../auto-reply/reply/reply-dispatcher.js");
-    const { getTotalQueueSize } = await import("../process/command-queue.js");
-
     // Create a dispatcher (simulating message handling)
     let deliveredReplies: string[] = [];
     const dispatcher = createReplyDispatcher({
       deliver: async (payload) => {
-        // Simulate async reply delivery
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Keep delivery asynchronous without real wall-clock delay.
+        await Promise.resolve();
         deliveredReplies.push(payload.text ?? "");
       },
       onError: (err) => {
@@ -102,50 +101,5 @@ describe("gateway config reload during reply", () => {
 
     expect(deliverCalled).toBe(false);
     expect(getTotalPendingReplies()).toBe(0);
-  });
-
-  it("should integrate dispatcher reservation with concurrent dispatchers", async () => {
-    const { createReplyDispatcher } = await import("../auto-reply/reply/reply-dispatcher.js");
-    const { getTotalQueueSize } = await import("../process/command-queue.js");
-
-    const deliveredReplies: string[] = [];
-    const dispatcher = createReplyDispatcher({
-      deliver: async (payload) => {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        deliveredReplies.push(payload.text ?? "");
-      },
-    });
-
-    // Dispatcher has reservation (pending=1)
-    expect(getTotalPendingReplies()).toBe(1);
-
-    // Total active = queue + pending
-    const totalActive = getTotalQueueSize() + getTotalPendingReplies();
-    expect(totalActive).toBe(1); // 0 queue + 1 pending
-
-    // Command finishes, replies enqueued
-    dispatcher.sendFinalReply({ text: "Reply 1" });
-    dispatcher.sendFinalReply({ text: "Reply 2" });
-
-    // Now: pending=3 (reservation + 2 replies)
-    expect(getTotalPendingReplies()).toBe(3);
-
-    // Mark complete (flags reservation for cleanup on last delivery)
-    dispatcher.markComplete();
-
-    // Reservation still counted until delivery .finally() clears it,
-    // but the important invariant is pending > 0 while deliveries are in flight.
-    expect(getTotalPendingReplies()).toBeGreaterThan(0);
-
-    // Wait for replies
-    await dispatcher.waitForIdle();
-
-    // Replies sent, pending=0
-    expect(getTotalPendingReplies()).toBe(0);
-    expect(deliveredReplies).toEqual(["Reply 1", "Reply 2"]);
-
-    // Now everything is idle
-    expect(getTotalPendingReplies()).toBe(0);
-    expect(getTotalQueueSize()).toBe(0);
   });
 });

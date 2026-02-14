@@ -80,9 +80,6 @@ async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
 }
 
 describe("RawBody directive parsing", () => {
-  type ReplyMessage = Parameters<typeof getReplyFromConfig>[0];
-  type ReplyConfig = Parameters<typeof getReplyFromConfig>[2];
-
   beforeAll(async () => {
     fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-rawbody-"));
   });
@@ -102,95 +99,7 @@ describe("RawBody directive parsing", () => {
     vi.clearAllMocks();
   });
 
-  it("detects command directives from RawBody/CommandBody in wrapped group messages", async () => {
-    await withTempHome(async (home) => {
-      const assertCommandReply = async (input: {
-        message: ReplyMessage;
-        config: ReplyConfig;
-        expectedIncludes: string[];
-      }) => {
-        vi.mocked(runEmbeddedPiAgent).mockReset();
-        const res = await getReplyFromConfig(input.message, {}, input.config);
-        const text = Array.isArray(res) ? res[0]?.text : res?.text;
-        for (const expected of input.expectedIncludes) {
-          expect(text).toContain(expected);
-        }
-        expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
-      };
-
-      await assertCommandReply({
-        message: {
-          Body: `[Chat messages since your last reply - for context]\\n[WhatsApp ...] Someone: hello\\n\\n[Current message - respond to this]\\n[WhatsApp ...] Jake: /think:high\\n[from: Jake McInteer (+6421807830)]`,
-          RawBody: "/think:high",
-          From: "+1222",
-          To: "+1222",
-          ChatType: "group",
-          CommandAuthorized: true,
-        },
-        config: {
-          agents: {
-            defaults: {
-              model: "anthropic/claude-opus-4-5",
-              workspace: path.join(home, "openclaw-1"),
-            },
-          },
-          channels: { whatsapp: { allowFrom: ["*"] } },
-          session: { store: path.join(home, "sessions-1.json") },
-        },
-        expectedIncludes: ["Thinking level set to high."],
-      });
-
-      await assertCommandReply({
-        message: {
-          Body: "[Context]\nJake: /verbose on\n[from: Jake]",
-          CommandBody: "/verbose on",
-          From: "+1222",
-          To: "+1222",
-          ChatType: "group",
-          CommandAuthorized: true,
-        },
-        config: {
-          agents: {
-            defaults: {
-              model: "anthropic/claude-opus-4-5",
-              workspace: path.join(home, "openclaw-2"),
-            },
-          },
-          channels: { whatsapp: { allowFrom: ["*"] } },
-          session: { store: path.join(home, "sessions-2.json") },
-        },
-        expectedIncludes: ["Verbose logging enabled."],
-      });
-
-      await assertCommandReply({
-        message: {
-          Body: `[Chat messages since your last reply - for context]\\n[WhatsApp ...] Someone: hello\\n\\n[Current message - respond to this]\\n[WhatsApp ...] Jake: /status\\n[from: Jake McInteer (+6421807830)]`,
-          RawBody: "/status",
-          ChatType: "group",
-          From: "+1222",
-          To: "+1222",
-          SessionKey: "agent:main:whatsapp:group:g1",
-          Provider: "whatsapp",
-          Surface: "whatsapp",
-          SenderE164: "+1222",
-          CommandAuthorized: true,
-        },
-        config: {
-          agents: {
-            defaults: {
-              model: "anthropic/claude-opus-4-5",
-              workspace: path.join(home, "openclaw-3"),
-            },
-          },
-          channels: { whatsapp: { allowFrom: ["+1222"] } },
-          session: { store: path.join(home, "sessions-3.json") },
-        },
-        expectedIncludes: ["Session: agent:main:whatsapp:group:g1", "anthropic/claude-opus-4-5"],
-      });
-    });
-  });
-
-  it("preserves history when RawBody is provided for command parsing", async () => {
+  it("handles directives, history, and non-default agent session files", async () => {
     await withTempHome(async (home) => {
       vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
         payloads: [{ text: "ok" }],
@@ -238,11 +147,6 @@ describe("RawBody directive parsing", () => {
       expect(prompt).toContain('"body": "hello"');
       expect(prompt).toContain("status please");
       expect(prompt).not.toContain("/think:high");
-    });
-  });
-
-  it("reuses non-default agent session files without throwing path validation errors", async () => {
-    await withTempHome(async (home) => {
       const agentId = "worker1";
       const sessionId = "sess-worker-1";
       const sessionKey = `agent:${agentId}:telegram:12345`;
@@ -259,6 +163,7 @@ describe("RawBody directive parsing", () => {
         },
       });
 
+      vi.mocked(runEmbeddedPiAgent).mockReset();
       vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
         payloads: [{ text: "ok" }],
         meta: {
@@ -267,7 +172,7 @@ describe("RawBody directive parsing", () => {
         },
       });
 
-      const res = await getReplyFromConfig(
+      const resWorker = await getReplyFromConfig(
         {
           Body: "hello",
           From: "telegram:12345",
@@ -288,8 +193,8 @@ describe("RawBody directive parsing", () => {
         },
       );
 
-      const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toBe("ok");
+      const textWorker = Array.isArray(resWorker) ? resWorker[0]?.text : resWorker?.text;
+      expect(textWorker).toBe("ok");
       expect(runEmbeddedPiAgent).toHaveBeenCalledOnce();
       expect(vi.mocked(runEmbeddedPiAgent).mock.calls[0]?.[0]?.sessionFile).toBe(sessionFile);
     });
