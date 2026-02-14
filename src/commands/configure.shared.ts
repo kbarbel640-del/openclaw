@@ -8,6 +8,8 @@ import {
 import { stylePromptHint, stylePromptMessage, stylePromptTitle } from "../terminal/prompt-style.js";
 import { CONFIGURE_WIZARD_SECTIONS, type WizardSection } from "./configure-sections.js";
 
+import type { WizardSection } from "./configure-sections.js";
+
 export { CONFIGURE_WIZARD_SECTIONS } from "./configure-sections.js";
 export type { WizardSection } from "./configure-sections.js";
 
