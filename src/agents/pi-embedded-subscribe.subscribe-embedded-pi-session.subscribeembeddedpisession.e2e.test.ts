@@ -328,13 +328,11 @@ describe("subscribeEmbeddedPiSession", () => {
     };
 
     const onAgentEvent = vi.fn();
-    const config = { some: "config" };
 
     subscribeEmbeddedPiSession({
       session: session as unknown as Parameters<typeof subscribeEmbeddedPiSession>[0]["session"],
       runId: "run-error",
       onAgentEvent,
-      config,
       sessionKey: "test-session",
     });
 
