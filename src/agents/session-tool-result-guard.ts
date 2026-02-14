@@ -21,7 +21,11 @@ function capToolResultSize(msg: AgentMessage): AgentMessage {
   }
   const content = (msg as { content?: unknown }).content;
   if (!Array.isArray(content)) {
-    return msg;
+    // Ensure tool results always have a content array to prevent downstream .some() errors
+    return {
+      ...msg,
+      content: [{ type: "text", text: "(no output)" }],
+    } as AgentMessage;
   }
 
   // Calculate total text size
