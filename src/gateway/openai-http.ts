@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import type { ImageContent } from "../commands/agent/types.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import { buildHistoryContextFromEntries, type HistoryEntry } from "../auto-reply/reply/history.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
-import type { ImageContent } from "../commands/agent/types.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { logWarn } from "../logger.js";
 import {
@@ -226,10 +226,7 @@ async function extractImagesFromOpenAiMessages(
       images.push({ type: "image", data: dataUriMatch[2]!, mimeType: dataUriMatch[1]! });
     } else if (url.startsWith("http://") || url.startsWith("https://")) {
       try {
-        const image = await extractImageContentFromSource(
-          { type: "url", url },
-          IMAGE_LIMITS,
-        );
+        const image = await extractImageContentFromSource({ type: "url", url }, IMAGE_LIMITS);
         images.push(image);
       } catch {
         // Skip images that fail to fetch — don't block the request.
