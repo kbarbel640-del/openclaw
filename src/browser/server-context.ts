@@ -421,7 +421,11 @@ function createProfileContext(
     };
 
     let chosen = targetId ? resolveById(targetId) : pickDefault();
-    if (!chosen && profile.driver === "extension" && candidates.length === 1) {
+    if (
+      !chosen &&
+      (profile.driver === "extension" || !profile.cdpIsLoopback) &&
+      candidates.length === 1
+    ) {
       // If an agent passes a stale/foreign targetId but we only have a single attached tab,
       // recover by using that tab instead of failing hard.
       chosen = candidates[0] ?? null;

@@ -205,6 +205,85 @@ describe("browser server-context remote profile tab operations", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("recovers with single-tab fallback when stale targetId is passed to remote CDP (#15989)", async () => {
+    const listPagesViaPlaywright = vi.fn(async () => [
+      { targetId: "NEW-TAB", title: "New Tab", url: "about:blank", type: "page" },
+    ]);
+
+    vi.spyOn(pwAiModule, "getPwAiModule").mockResolvedValue({
+      listPagesViaPlaywright,
+      createPageViaPlaywright: vi.fn(async () => ({
+        targetId: "NEW-TAB",
+        title: "New Tab",
+        url: "about:blank",
+        type: "page",
+      })),
+      closePageByTargetIdViaPlaywright: vi.fn(async () => {}),
+    } as Awaited<ReturnType<typeof pwAiModule.getPwAiModule>>);
+
+    global.fetch = vi.fn(async () => {
+      throw new Error("unexpected fetch");
+    });
+
+    const state = makeState("remote");
+    const ctx = createBrowserRouteContext({ getState: () => state });
+    const remote = ctx.forProfile("remote");
+
+    const tab = await remote.ensureTabAvailable("OLD-STALE-TARGET-ID");
+    expect(tab.targetId).toBe("NEW-TAB");
+    expect(state.profiles.get("remote")?.lastTargetId).toBe("NEW-TAB");
+  });
+
+  it("still throws 'tab not found' for remote CDP when no tabs are available", async () => {
+    const listPagesViaPlaywright = vi.fn(async () => []);
+
+    vi.spyOn(pwAiModule, "getPwAiModule").mockResolvedValue({
+      listPagesViaPlaywright,
+      createPageViaPlaywright: vi.fn(async () => ({
+        targetId: "CREATED",
+        title: "Created",
+        url: "about:blank",
+        type: "page",
+      })),
+      closePageByTargetIdViaPlaywright: vi.fn(async () => {}),
+    } as Awaited<ReturnType<typeof pwAiModule.getPwAiModule>>);
+
+    global.fetch = vi.fn(async () => {
+      throw new Error("unexpected fetch");
+    });
+
+    const state = makeState("remote");
+    const ctx = createBrowserRouteContext({ getState: () => state });
+    const remote = ctx.forProfile("remote");
+
+    await expect(remote.ensureTabAvailable("STALE")).rejects.toThrow(/tab not found/);
+  });
+
+  it("does not fallback when multiple tabs exist and targetId is stale on remote CDP", async () => {
+    const listPagesViaPlaywright = vi.fn(async () => [
+      { targetId: "TAB-A", title: "A", url: "https://a.example", type: "page" },
+      { targetId: "TAB-B", title: "B", url: "https://b.example", type: "page" },
+    ]);
+
+    vi.spyOn(pwAiModule, "getPwAiModule").mockResolvedValue({
+      listPagesViaPlaywright,
+      createPageViaPlaywright: vi.fn(async () => {
+        throw new Error("unexpected create");
+      }),
+      closePageByTargetIdViaPlaywright: vi.fn(async () => {}),
+    } as Awaited<ReturnType<typeof pwAiModule.getPwAiModule>>);
+
+    global.fetch = vi.fn(async () => {
+      throw new Error("unexpected fetch");
+    });
+
+    const state = makeState("remote");
+    const ctx = createBrowserRouteContext({ getState: () => state });
+    const remote = ctx.forProfile("remote");
+
+    await expect(remote.ensureTabAvailable("NONEXISTENT")).rejects.toThrow(/tab not found/);
+  });
+
   it("falls back to /json/list when Playwright is not available", async () => {
     vi.spyOn(pwAiModule, "getPwAiModule").mockResolvedValue(null);
 
