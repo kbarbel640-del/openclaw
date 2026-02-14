@@ -86,3 +86,4 @@ local/
 
 start-gateway.ps1
 update.ps1
+package-lock.json
