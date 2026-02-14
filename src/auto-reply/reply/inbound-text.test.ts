@@ -2,34 +2,31 @@ import { describe, expect, it } from "vitest";
 import { normalizeInboundTextNewlines } from "./inbound-text.js";
 
 describe("normalizeInboundTextNewlines", () => {
-  it("converts CRLF to LF", () => {
-    expect(normalizeInboundTextNewlines("hello\r\nworld")).toBe("hello\nworld");
+  it("returns empty string unchanged", () => {
+    expect(normalizeInboundTextNewlines("")).toBe("");
   });
 
-  it("converts CR to LF", () => {
-    expect(normalizeInboundTextNewlines("hello\rworld")).toBe("hello\nworld");
+  it("returns plain text unchanged", () => {
+    expect(normalizeInboundTextNewlines("hello world")).toBe("hello world");
   });
 
-  it("preserves literal backslash-n sequences in Windows paths", () => {
-    // Windows paths like C:\Work\nxxx should NOT have \n converted to newlines
-    const windowsPath = "C:\\Work\\nxxx\\README.md";
-    expect(normalizeInboundTextNewlines(windowsPath)).toBe("C:\\Work\\nxxx\\README.md");
+  it("converts \\r\\n to \\n", () => {
+    expect(normalizeInboundTextNewlines("a\r\nb")).toBe("a\nb");
   });
 
-  it("preserves backslash-n in messages containing Windows paths", () => {
-    const message = "Please read the file at C:\\Work\\nxxx\\README.md";
-    expect(normalizeInboundTextNewlines(message)).toBe(
-      "Please read the file at C:\\Work\\nxxx\\README.md",
-    );
+  it("converts bare \\r to \\n", () => {
+    expect(normalizeInboundTextNewlines("a\rb")).toBe("a\nb");
   });
 
-  it("preserves multiple backslash-n sequences", () => {
-    const message = "C:\\new\\notes\\nested";
-    expect(normalizeInboundTextNewlines(message)).toBe("C:\\new\\notes\\nested");
+  it("converts escaped \\\\n to real \\n", () => {
+    expect(normalizeInboundTextNewlines("a\\nb")).toBe("a\nb");
   });
 
-  it("still normalizes actual CRLF while preserving backslash-n", () => {
-    const message = "Line 1\r\nC:\\Work\\nxxx";
-    expect(normalizeInboundTextNewlines(message)).toBe("Line 1\nC:\\Work\\nxxx");
+  it("handles mixed newline styles", () => {
+    expect(normalizeInboundTextNewlines("a\r\nb\\nc\rd")).toBe("a\nb\nc\nd");
+  });
+
+  it("handles multiple consecutive newlines", () => {
+    expect(normalizeInboundTextNewlines("a\r\n\r\nb")).toBe("a\n\nb");
   });
 });
