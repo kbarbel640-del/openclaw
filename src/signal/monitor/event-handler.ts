@@ -343,22 +343,8 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       return;
     }
 
-    // Handle syncMessage (Note to Self / self-messages)
-    // Extract dataMessage from syncMessage.sentMessage if present
-    let dataMessage = envelope.dataMessage ?? envelope.editMessage?.dataMessage;
-    let isFromSync = false;
-
-    if (envelope.syncMessage && !dataMessage) {
-      // oxlint-disable-next-line typescript/no-explicit-any
-      const sentMessage = (envelope.syncMessage as any).sentMessage;
-      if (sentMessage) {
-        dataMessage = sentMessage;
-        isFromSync = true;
-        // Note: syncMessage.sentMessage has the same structure as dataMessage
-      } else {
-        // Sync message without sentMessage (e.g., read receipts)
-        return;
-      }
+    if (envelope.syncMessage) {
+      return;
     }
 
     const sender = resolveSignalSender(envelope);
@@ -366,17 +352,13 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       return;
     }
 
-    // Self-message filter: block bot echoes, allow Note to Self
     if (deps.account && sender.kind === "phone") {
       if (sender.e164 === normalizeE164(deps.account)) {
-        if (!isFromSync) {
-          // dataMessage from self = bot echo, block it
-          return;
-        }
-        // isFromSync = Note to Self (user talking to bot), allow it
+        return;
       }
     }
 
+    const dataMessage = envelope.dataMessage ?? envelope.editMessage?.dataMessage;
     const reaction = deps.isSignalReactionMessage(envelope.reactionMessage)
       ? envelope.reactionMessage
       : deps.isSignalReactionMessage(dataMessage?.reaction)
