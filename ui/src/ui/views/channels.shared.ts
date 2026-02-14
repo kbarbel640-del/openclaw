@@ -42,6 +42,6 @@ export function statusChip(value: boolean | null | undefined, yesLabel = "YES", 
     return html`<span class="log-level" style="width: 54px; text-align: center;">${naLabel}</span>`;
   }
   return value
-    ? html`<span class="log-level info" style="width: 54px; text-align: center;">${yesLabel}</span>`
+    ? html`<span class="log-level ok" style="width: 54px; text-align: center;">${yesLabel}</span>`
     : html`<span class="log-level warn" style="width: 54px; text-align: center;">${noLabel}</span>`;
 }

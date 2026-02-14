@@ -202,7 +202,7 @@ export function renderOverview(props: OverviewProps) {
         </div>
       `;
 
-  const connectionStatus = props.connected ? "info" : "warn";
+  const connectionStatus = props.connected ? "ok" : "warn";
   const connectionText = props.connected ? "Connected" : "Disconnected";
 
   // Simplified snapshot stats for Basic mode
