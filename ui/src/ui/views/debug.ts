@@ -2,6 +2,7 @@ import { html, nothing } from "lit";
 import type { EventLogEntry } from "../app-events.ts";
 import { formatEventPayload } from "../presenter.ts";
 import { renderJsonBlock } from "./json-renderer.ts";
+import { icons } from "../icons.ts";
 
 export type DebugProps = {
   loading: boolean;
@@ -22,7 +23,7 @@ export type DebugProps = {
 
 type SnapshotEntry = {
   name: string;
-  icon: string;
+  icon: unknown;
   keyCount: number;
   data: unknown;
 };
@@ -37,10 +38,10 @@ function countKeys(data: unknown): number {
 
 function buildSnapshots(props: DebugProps): SnapshotEntry[] {
   return [
-    { name: "Status", icon: "📊", keyCount: countKeys(props.status), data: props.status ?? {} },
-    { name: "Health", icon: "💚", keyCount: countKeys(props.health), data: props.health ?? {} },
-    { name: "Heartbeat", icon: "💓", keyCount: countKeys(props.heartbeat), data: props.heartbeat ?? {} },
-    { name: "Models", icon: "🤖", keyCount: Array.isArray(props.models) ? props.models.length : 0, data: props.models ?? [] },
+    { name: "Status", icon: icons.barChart, keyCount: countKeys(props.status), data: props.status ?? {} },
+    { name: "Health", icon: icons.zap, keyCount: countKeys(props.health), data: props.health ?? {} },
+    { name: "Heartbeat", icon: icons.radio, keyCount: countKeys(props.heartbeat), data: props.heartbeat ?? {} },
+    { name: "Models", icon: icons.brain, keyCount: Array.isArray(props.models) ? props.models.length : 0, data: props.models ?? [] },
   ];
 }
 
@@ -126,7 +127,7 @@ export function renderDebug(props: DebugProps) {
               (snap) => html`
                 <div class="debug-snapshot-row ${selectedSnapshot === snap.name ? "selected" : ""}"
                   @click=${() => { selectedSnapshot = selectedSnapshot === snap.name ? null : snap.name; requestUpdate(); }}>
-                  <div style="flex: 0 0 36px; text-align: center;">${snap.icon}</div>
+                  <div class="icon" style="flex: 0 0 36px; text-align: center; width: 16px; height: 16px;">${snap.icon}</div>
                   <div style="flex: 1; font-weight: 500;">${snap.name}</div>
                   <div class="mono" style="flex: 0 0 80px; text-align: right; color: var(--muted);">${snap.keyCount}</div>
                 </div>
@@ -136,7 +137,7 @@ export function renderDebug(props: DebugProps) {
           ${activeSnapshot ? html`
             <div class="log-detail" style="max-height: none;">
               <div class="log-detail-header">
-                <div class="card-title" style="font-size: 13px;">${activeSnapshot.icon} ${activeSnapshot.name}</div>
+                <div class="card-title" style="font-size: 13px; display: flex; align-items: center; gap: 6px;"><span class="icon" style="width: 14px; height: 14px;">${activeSnapshot.icon}</span>${activeSnapshot.name}</div>
                 <button class="btn btn--sm" @click=${() => { selectedSnapshot = null; requestUpdate(); }}>✕</button>
               </div>
               <div style="padding: 10px 14px;">
