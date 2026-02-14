@@ -1,0 +1,99 @@
+{
+  "id": "evening-planner",
+  "name": "Evening Planner",
+  "description": "Backend workflow for evening planning, Telegram coordination, and conditional Swiggy booking.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      },
+      "deterministicDemo": {
+        "type": "boolean"
+      },
+      "telegramAccountId": {
+        "type": "string"
+      },
+      "timeoutSec": {
+        "type": "integer",
+        "minimum": 15
+      },
+      "maxTurns": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "pollingIntervalSec": {
+        "type": "integer",
+        "minimum": 2
+      },
+      "fixtureMode": {
+        "type": "boolean"
+      },
+      "swiggyCommand": {
+        "type": "string"
+      },
+      "swiggyTimeoutMs": {
+        "type": "integer",
+        "minimum": 1000
+      },
+      "shubham": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "senderId": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "uiHints": {
+    "enabled": {
+      "label": "Enabled"
+    },
+    "deterministicDemo": {
+      "label": "Deterministic Demo Mode"
+    },
+    "telegramAccountId": {
+      "label": "Telegram Account ID"
+    },
+    "timeoutSec": {
+      "label": "Reply Timeout (sec)"
+    },
+    "maxTurns": {
+      "label": "Max Follow-up Turns"
+    },
+    "pollingIntervalSec": {
+      "label": "Timeout Poll Interval (sec)",
+      "advanced": true
+    },
+    "fixtureMode": {
+      "label": "Swiggy Fixture Fallback"
+    },
+    "swiggyCommand": {
+      "label": "Swiggy CLI Command",
+      "advanced": true
+    },
+    "swiggyTimeoutMs": {
+      "label": "Swiggy Timeout (ms)",
+      "advanced": true
+    },
+    "shubham.senderId": {
+      "label": "Shubham Sender ID"
+    },
+    "shubham.username": {
+      "label": "Shubham Username"
+    },
+    "shubham.displayName": {
+      "label": "Shubham Display Name"
+    }
+  }
+}
+
