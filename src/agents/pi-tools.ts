@@ -53,6 +53,7 @@ import {
   resolveToolProfilePolicy,
   stripPluginOnlyAllowlist,
 } from "./tool-policy.js";
+import { jsonResult } from "./tools/common.js";
 
 function isOpenAIProvider(provider?: string) {
   const normalized = provider?.trim().toLowerCase();
@@ -338,12 +339,29 @@ export function createOpenClawCodingTools(options?: {
   const wrappedExecTool: AnyAgentTool = {
     ...execTool,
     execute: async (toolCallId, params, signal, onUpdate) => {
-      const command = (params as { command?: string })?.command;
-      if (command && !isToolAllowedByPolicies("exec", scopedExecPolicies, command)) {
-        return {
-          status: "error" as const,
-          output: `exec command blocked by policy: ${command.slice(0, 50)}${command.length > 50 ? "..." : ""}`,
-        };
+      const rawCommand = (params as { command?: unknown })?.command;
+      if (typeof rawCommand !== "string" || !rawCommand.trim()) {
+        return jsonResult({
+          status: "error",
+          tool: "exec",
+          error: "exec command missing or invalid. Provide a non-empty command.",
+        });
+      }
+      const command = rawCommand.trim();
+      if (!isToolAllowedByPolicies("exec", scopedExecPolicies, command)) {
+        return jsonResult({
+          status: "error",
+          tool: "exec",
+          error: `exec command blocked by policy: ${command.slice(0, 50)}${command.length > 50 ? "..." : ""}`,
+        });
+      }
+      if (command !== rawCommand) {
+        return execTool.execute(
+          toolCallId,
+          { ...(params as Record<string, unknown>), command },
+          signal,
+          onUpdate,
+        );
       }
       return execTool.execute(toolCallId, params, signal, onUpdate);
     },

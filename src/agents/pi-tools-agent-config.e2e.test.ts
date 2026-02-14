@@ -650,4 +650,62 @@ describe("Agent-specific tool filtering", () => {
     });
     expect(helperResult?.details.status).toBe("completed");
   });
+
+  it("should block empty exec commands before running a process", async () => {
+    const cfg: OpenClawConfig = {
+      tools: {
+        allow: ["exec"],
+      },
+    };
+
+    const tools = createOpenClawCodingTools({
+      config: cfg,
+      sessionKey: "agent:main:main",
+      workspaceDir: "/tmp/test-empty-exec",
+      agentDir: "/tmp/agent-empty-exec",
+    });
+    const execTool = tools.find((tool) => tool.name === "exec");
+    expect(execTool).toBeDefined();
+
+    const result = await execTool?.execute("call-empty", {
+      command: "   ",
+    });
+
+    expect(result?.details.status).toBe("error");
+    expect(result?.content).toHaveLength(1);
+    const details = JSON.parse(result?.content[0]!.text ?? "{}") as {
+      status?: string;
+      error?: string;
+    };
+    expect(details.error).toContain("non-empty");
+  });
+
+  it("should return a structured error when scoped exec command is denied", async () => {
+    const cfg: OpenClawConfig = {
+      tools: {
+        allow: ["exec:qmd *"],
+      },
+    };
+
+    const tools = createOpenClawCodingTools({
+      config: cfg,
+      sessionKey: "agent:main:main",
+      workspaceDir: "/tmp/test-blocked-exec",
+      agentDir: "/tmp/agent-blocked-exec",
+    });
+    const execTool = tools.find((tool) => tool.name === "exec");
+    expect(execTool).toBeDefined();
+
+    const result = await execTool?.execute("call-blocked", {
+      command: "python -c 'print(1)'",
+    });
+
+    expect(result?.details.status).toBe("error");
+    const details = JSON.parse(result?.content[0]!.text ?? "{}") as {
+      status?: string;
+      error?: string;
+    };
+    expect(details.status).toBe("error");
+    expect(details.error).toContain("exec command blocked by policy");
+  });
 });
