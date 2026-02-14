@@ -73,20 +73,24 @@ async function extractZip(params: { archivePath: string; destDir: string }): Pro
   const buffer = await fs.readFile(params.archivePath);
   const zip = await JSZip.loadAsync(buffer);
   const entries = Object.values(zip.files);
+  // Resolve once and append separator to prevent directory prefix bypass
+  // (e.g. destDir="/tmp/extract" matching "/tmp/extract-evil/file")
+  const destDir = path.resolve(params.destDir);
+  const destPrefix = destDir + path.sep;
 
   for (const entry of entries) {
     const entryPath = entry.name.replaceAll("\\", "/");
     if (!entryPath || entryPath.endsWith("/")) {
-      const dirPath = path.resolve(params.destDir, entryPath);
-      if (!dirPath.startsWith(params.destDir)) {
+      const dirPath = path.resolve(destDir, entryPath);
+      if (!dirPath.startsWith(destPrefix) && dirPath !== destDir) {
         throw new Error(`zip entry escapes destination: ${entry.name}`);
       }
       await fs.mkdir(dirPath, { recursive: true });
       continue;
     }
 
-    const outPath = path.resolve(params.destDir, entryPath);
-    if (!outPath.startsWith(params.destDir)) {
+    const outPath = path.resolve(destDir, entryPath);
+    if (!outPath.startsWith(destPrefix)) {
       throw new Error(`zip entry escapes destination: ${entry.name}`);
     }
     await fs.mkdir(path.dirname(outPath), { recursive: true });

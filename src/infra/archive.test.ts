@@ -49,6 +49,21 @@ describe("archive utils", () => {
     expect(content).toBe("hi");
   });
 
+  it("rejects zip entries with path traversal", async () => {
+    const workDir = await makeTempDir();
+    const archivePath = path.join(workDir, "malicious.zip");
+    const extractDir = path.join(workDir, "extract");
+
+    const zip = new JSZip();
+    zip.file("../../etc/passwd", "pwned");
+    await fs.writeFile(archivePath, await zip.generateAsync({ type: "nodebuffer" }));
+
+    await fs.mkdir(extractDir, { recursive: true });
+    await expect(
+      extractArchive({ archivePath, destDir: extractDir, timeoutMs: 5_000 }),
+    ).rejects.toThrow("zip entry escapes destination");
+  });
+
   it("extracts tar archives", async () => {
     const workDir = await makeTempDir();
     const archivePath = path.join(workDir, "bundle.tar");
