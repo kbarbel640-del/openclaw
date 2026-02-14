@@ -528,7 +528,7 @@ export function renderChat(props: ChatProps) {
           ? html`
             <div class="chat-queue-tab" @click=${() => { queueExpanded = !queueExpanded; }}>
               <span>Queued (${props.queue.length})</span>
-              <span class="icon-sm" style="width:10px;height:10px;">${queueExpanded ? icons.arrowDown : icons.arrowDown}</span>
+              <span class="icon-sm" style="width:10px;height:10px;${queueExpanded ? '' : 'transform:rotate(180deg)'}">${icons.arrowDown}</span>
             </div>
             ${
               queueExpanded
