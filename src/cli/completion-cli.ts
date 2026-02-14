@@ -247,7 +247,7 @@ export function registerCompletionCli(program: Command) {
       // Our CLI defaults to lazy registration for perf; force-register core commands here.
       const ctx = getProgramContext(program);
       if (ctx) {
-        registerProgramCommands(program, ctx, process.argv);
+        await registerProgramCommands(program, ctx, process.argv);
       }
 
       // Eagerly register all subcommands to build the full tree
