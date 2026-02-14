@@ -65,6 +65,10 @@ export function registerOnboardCommand(program: Command) {
     .option("--mode <mode>", "Wizard mode: local|remote")
     .option("--auth-choice <choice>", `Auth: ${AUTH_CHOICE_HELP}`)
     .option(
+      "--model <model>",
+      "Default model (non-interactive; e.g., anthropic/claude-3-5-sonnet-20241022)",
+    )
+    .option(
       "--token-provider <id>",
       "Token provider id (non-interactive; used with --auth-choice token)",
     )
@@ -124,6 +128,7 @@ export function registerOnboardCommand(program: Command) {
           acceptRisk: Boolean(opts.acceptRisk),
           flow: opts.flow as "quickstart" | "advanced" | "manual" | undefined,
           mode: opts.mode as "local" | "remote" | undefined,
+          model: opts.model as string | undefined,
           authChoice: opts.authChoice as AuthChoice | undefined,
           tokenProvider: opts.tokenProvider as string | undefined,
           token: opts.token as string | undefined,

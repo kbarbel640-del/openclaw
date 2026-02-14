@@ -7,6 +7,7 @@ export function logNonInteractiveOnboardingJson(params: {
   mode: "local" | "remote";
   workspaceDir?: string;
   authChoice?: string;
+  model?: string;
   gateway?: {
     port: number;
     bind: string;
@@ -27,6 +28,7 @@ export function logNonInteractiveOnboardingJson(params: {
         mode: params.mode,
         workspace: params.workspaceDir,
         authChoice: params.authChoice,
+        model: params.model,
         gateway: params.gateway,
         installDaemon: Boolean(params.installDaemon),
         daemonRuntime: params.daemonRuntime,

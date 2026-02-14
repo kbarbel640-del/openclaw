@@ -89,6 +89,8 @@ export type OnboardOptions = {
   /** Required for non-interactive onboarding; skips the interactive risk prompt when true. */
   acceptRisk?: boolean;
   reset?: boolean;
+  /** Default model for non-interactive onboarding (e.g., "anthropic/claude-3-5-sonnet-20241022"). */
+  model?: string;
   authChoice?: AuthChoice;
   /** Used when `authChoice=token` in non-interactive mode. */
   tokenProvider?: string;

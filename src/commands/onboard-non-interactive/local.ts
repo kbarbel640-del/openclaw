@@ -6,6 +6,7 @@ import { resolveGatewayPort, writeConfigFile } from "../../config/config.js";
 import { logConfigUpdated } from "../../config/logging.js";
 import { DEFAULT_GATEWAY_DAEMON_RUNTIME } from "../daemon-runtime.js";
 import { healthCommand } from "../health.js";
+import { applyPrimaryModel } from "../model-picker.js";
 import {
   applyWizardMetadata,
   DEFAULT_WORKSPACE,
@@ -75,6 +76,12 @@ export async function runNonInteractiveOnboardingLocal(params: {
   }
   nextConfig = nextConfigAfterAuth;
 
+  // Apply model configuration if provided
+  const modelRaw = opts.model?.trim();
+  if (modelRaw) {
+    nextConfig = applyPrimaryModel(nextConfig, modelRaw);
+  }
+
   const gatewayBasePort = resolveGatewayPort(baseConfig);
   const gatewayResult = applyNonInteractiveGatewayConfig({
     nextConfig,
@@ -127,6 +134,7 @@ export async function runNonInteractiveOnboardingLocal(params: {
     mode,
     workspaceDir,
     authChoice,
+    model: modelRaw,
     gateway: {
       port: gatewayResult.port,
       bind: gatewayResult.bind,
