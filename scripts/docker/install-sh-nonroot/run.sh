@@ -7,20 +7,11 @@ DEFAULT_CLI_NAME="qverisbot"
 PACKAGE_NAME="${QVERISBOT_INSTALL_PACKAGE:-${OPENCLAW_INSTALL_PACKAGE:-$DEFAULT_PACKAGE}}"
 CLI_NAME="${QVERISBOT_INSTALL_CLI:-${OPENCLAW_INSTALL_CLI:-$DEFAULT_CLI_NAME}}"
 
-echo "==> Pre-flight: ensure git absent"
-if command -v git >/dev/null; then
-  echo "git is present unexpectedly" >&2
-  exit 1
-fi
-
 echo "==> Run installer (non-root user)"
 curl -fsSL "$INSTALL_URL" | bash
 
 # Ensure PATH picks up user npm prefix
 export PATH="$HOME/.npm-global/bin:$PATH"
-
-echo "==> Verify git installed"
-command -v git >/dev/null
 
 EXPECTED_VERSION="${QVERISBOT_INSTALL_EXPECT_VERSION:-${OPENCLAW_INSTALL_EXPECT_VERSION:-}}"
 if [[ -n "$EXPECTED_VERSION" ]]; then

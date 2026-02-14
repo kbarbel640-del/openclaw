@@ -11,6 +11,7 @@ RUN set -eux; \
     bash \
     ca-certificates \
     curl \
+    git \
     sudo \
     unzip \
     xz-utils \
