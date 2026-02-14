@@ -102,7 +102,7 @@ function isNonThinkingProgressSnippet(text: string): boolean {
 
 function buildProcessingStatusMessage(params: { timestampMs: number; snippet?: string }): string {
   const snippet = sanitizeProgressSnippet(params.snippet);
-  const body = snippet || "思考中，正在處理你的問題...";
+  const body = snippet || "Thinking... processing your request.";
   return `💬 ${formatClock(params.timestampMs)}\n${body}`;
 }
 
@@ -396,7 +396,7 @@ export class TelegramInboundSubagentQueue {
     };
 
     try {
-      await sendStatus("訊息列隊中");
+      await sendStatus("Queued. Preparing your request...");
       const memory = await loadTelegramQueueMemory({
         storePath: task.storePath,
         sessionKey: task.sessionKey,

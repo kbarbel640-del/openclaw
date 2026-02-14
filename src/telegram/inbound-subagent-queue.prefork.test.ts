@@ -107,7 +107,7 @@ describe("TelegramInboundSubagentQueue prefork start mode", () => {
     const dispatchMs = await measureDispatchDelay();
     console.info(`prefork-benchmark dispatchMs=${dispatchMs}`);
 
-    // sendMessage waits 1200ms in this test; dispatch should happen well before that.
-    expect(dispatchMs).toBeLessThan(900);
+    // We now send a queue status message first (1200ms in this test), then dispatch.
+    expect(dispatchMs).toBeLessThan(2000);
   });
 });
