@@ -1,8 +1,12 @@
+import fs from "node:fs";
 import { normalizeVerboseLevel } from "../auto-reply/thinking.js";
 import { loadConfig } from "../config/config.js";
 import { type AgentEventPayload, getAgentRunContext } from "../infra/agent-events.js";
 import { resolveHeartbeatVisibility } from "../infra/heartbeat-visibility.js";
-import { inlineAudioInText } from "./chat-audio-inline.js";
+import { logVerbose } from "../globals.js";
+import { resolveSessionFilePath } from "../config/sessions.js";
+import { maybeApplyTtsToPayload } from "../tts/tts.js";
+import { inlineAudioInMessage, inlineAudioInText } from "./chat-audio-inline.js";
 import { loadSessionEntry } from "./session-utils.js";
 import { formatForLog } from "./ws-log.js";
 
@@ -254,7 +258,7 @@ export function createAgentEventHandler({
     nodeSendToSession(sessionKey, "chat", payload);
   };
 
-  const emitChatFinal = (
+  const emitChatFinal = async (
     sessionKey: string,
     clientRunId: string,
     seq: number,
@@ -265,8 +269,77 @@ export function createAgentEventHandler({
     chatRunState.buffers.delete(clientRunId);
     chatRunState.deltaSentAt.delete(clientRunId);
     if (jobState === "done") {
-      // Inline audio files for webchat playback
-      const text = rawText ? inlineAudioInText(rawText) : rawText;
+      let finalText = rawText;
+
+      // Check for [[tts]] tags in the agent's streamed text and generate
+      // TTS audio before broadcasting. Agent runs bypass the dispatcher
+      // where TTS is normally applied, so we handle it here.
+      const hasTtsTag = rawText && /\[\[\s*tts[\s:\]]/i.test(rawText);
+      if (hasTtsTag) {
+        try {
+          const cfg = loadConfig();
+          const ttsResult = await maybeApplyTtsToPayload({
+            payload: { text: rawText },
+            cfg,
+            channel: "webchat",
+            kind: "final",
+          });
+          if (ttsResult.text) {
+            finalText = ttsResult.text;
+            // Patch the transcript's last assistant message to include the
+            // MEDIA: line so that chat.history also serves the audio.
+            try {
+              const { entry } = loadSessionEntry(sessionKey);
+              if (entry?.sessionId) {
+                const sessionsDir = entry.storePath
+                  ? (await import("node:path")).dirname(entry.storePath)
+                  : undefined;
+                const transcriptPath = resolveSessionFilePath(
+                  entry.sessionId,
+                  entry.sessionFile ? { sessionFile: entry.sessionFile } : undefined,
+                  sessionsDir ? { sessionsDir } : undefined,
+                );
+                if (transcriptPath && fs.existsSync(transcriptPath)) {
+                  const content = fs.readFileSync(transcriptPath, "utf-8");
+                  const lines = content.trimEnd().split("\n");
+                  // Find last assistant message line and patch its text
+                  for (let i = lines.length - 1; i >= 0; i--) {
+                    try {
+                      const parsed = JSON.parse(lines[i]);
+                      // Transcript uses {type:"message", message:{role,content,...}}
+                      const msg = parsed.type === "message" ? parsed.message : parsed;
+                      if (msg?.role === "assistant" && Array.isArray(msg.content)) {
+                        const textBlock = msg.content.find(
+                          (b: Record<string, unknown>) => b.type === "text",
+                        );
+                        if (textBlock && typeof textBlock.text === "string") {
+                          textBlock.text = finalText;
+                          lines[i] = JSON.stringify(parsed);
+                          fs.writeFileSync(transcriptPath, lines.join("\n") + "\n", "utf-8");
+                        }
+                        break;
+                      }
+                    } catch {
+                      continue;
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              logVerbose(
+                `server-chat: transcript TTS patch failed: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          }
+        } catch (err) {
+          logVerbose(
+            `server-chat: agent-run TTS failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
+      // Inline audio files (MEDIA: paths → base64) for webchat playback
+      const text = finalText ? inlineAudioInText(finalText) : finalText;
       const payload = {
         runId: clientRunId,
         sessionKey,

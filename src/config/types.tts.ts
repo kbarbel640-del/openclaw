@@ -1,4 +1,4 @@
-export type TtsProvider = "elevenlabs" | "openai" | "edge";
+export type TtsProvider = "elevenlabs" | "openai" | "edge" | "fishspeech" | "kokoro";
 
 export type TtsMode = "final" | "all";
 
@@ -72,6 +72,20 @@ export type TtsConfig = {
     saveSubtitles?: boolean;
     proxy?: string;
     timeoutMs?: number;
+  };
+  /** Fish Speech configuration. */
+  fishspeech?: {
+    baseUrl?: string;
+    seed?: number;
+    temperature?: number;
+    topP?: number;
+    referenceId?: string;
+  };
+  /** Kokoro TTS configuration. */
+  kokoro?: {
+    baseUrl?: string;
+    voice?: string;
+    speed?: number;
   };
   /** Optional path for local TTS user preferences JSON. */
   prefsPath?: string;

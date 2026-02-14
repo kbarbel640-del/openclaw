@@ -51,6 +51,12 @@ const DEFAULT_EDGE_VOICE = "en-US-MichelleNeural";
 const DEFAULT_EDGE_LANG = "en-US";
 const DEFAULT_EDGE_OUTPUT_FORMAT = "audio-24khz-48kbitrate-mono-mp3";
 
+const DEFAULT_FISHSPEECH_BASE_URL = "http://127.0.0.1:8080";
+const DEFAULT_FISHSPEECH_SEED = 45;
+
+const DEFAULT_KOKORO_BASE_URL = "http://127.0.0.1:8090";
+const DEFAULT_KOKORO_VOICE = "af_heart";
+
 const DEFAULT_ELEVENLABS_VOICE_SETTINGS = {
   stability: 0.5,
   similarityBoost: 0.75,
@@ -123,6 +129,18 @@ export type ResolvedTtsConfig = {
     proxy?: string;
     timeoutMs?: number;
   };
+  fishspeech: {
+    baseUrl: string;
+    seed: number;
+    temperature?: number;
+    topP?: number;
+    referenceId?: string;
+  };
+  kokoro: {
+    baseUrl: string;
+    voice: string;
+    speed: number;
+  };
   prefsPath?: string;
   maxTextLength: number;
   timeoutMs: number;
@@ -163,6 +181,12 @@ type TtsDirectiveOverrides = {
     applyTextNormalization?: "auto" | "on" | "off";
     languageCode?: string;
     voiceSettings?: Partial<ResolvedTtsConfig["elevenlabs"]["voiceSettings"]>;
+  };
+  fishspeech?: {
+    seed?: number;
+  };
+  kokoro?: {
+    voice?: string;
   };
 };
 
@@ -296,6 +320,18 @@ export function resolveTtsConfig(cfg: OpenClawConfig): ResolvedTtsConfig {
       saveSubtitles: raw.edge?.saveSubtitles ?? false,
       proxy: raw.edge?.proxy?.trim() || undefined,
       timeoutMs: raw.edge?.timeoutMs,
+    },
+    fishspeech: {
+      baseUrl: raw.fishspeech?.baseUrl?.trim() || DEFAULT_FISHSPEECH_BASE_URL,
+      seed: raw.fishspeech?.seed ?? DEFAULT_FISHSPEECH_SEED,
+      temperature: raw.fishspeech?.temperature,
+      topP: raw.fishspeech?.topP,
+      referenceId: raw.fishspeech?.referenceId?.trim() || undefined,
+    },
+    kokoro: {
+      baseUrl: raw.kokoro?.baseUrl?.trim() || DEFAULT_KOKORO_BASE_URL,
+      voice: raw.kokoro?.voice?.trim() || DEFAULT_KOKORO_VOICE,
+      speed: raw.kokoro?.speed ?? 1.0,
     },
     prefsPath: raw.prefsPath,
     maxTextLength: raw.maxTextLength ?? DEFAULT_MAX_TEXT_LENGTH,
@@ -499,10 +535,16 @@ export function resolveTtsApiKey(
   if (provider === "openai") {
     return config.openai.apiKey || process.env.OPENAI_API_KEY;
   }
+  if (provider === "fishspeech") {
+    return undefined;
+  }
+  if (provider === "kokoro") {
+    return undefined;
+  }
   return undefined;
 }
 
-export const TTS_PROVIDERS = ["openai", "elevenlabs", "edge"] as const;
+export const TTS_PROVIDERS = ["openai", "elevenlabs", "edge", "fishspeech", "kokoro"] as const;
 
 export function resolveTtsProviderOrder(primary: TtsProvider): TtsProvider[] {
   return [primary, ...TTS_PROVIDERS.filter((provider) => provider !== primary)];
@@ -511,6 +553,12 @@ export function resolveTtsProviderOrder(primary: TtsProvider): TtsProvider[] {
 export function isTtsProviderConfigured(config: ResolvedTtsConfig, provider: TtsProvider): boolean {
   if (provider === "edge") {
     return config.edge.enabled;
+  }
+  if (provider === "fishspeech") {
+    return true;
+  }
+  if (provider === "kokoro") {
+    return true;
   }
   return Boolean(resolveTtsApiKey(config, provider));
 }
@@ -613,6 +661,13 @@ function parseTtsDirectives(
     return "";
   });
 
+  // Match bare [[tts]] tag (no colon/body) — just a trigger for tagged mode
+  const bareTtsRegex = /\[\[\s*tts\s*\]\]/gi;
+  cleanedText = cleanedText.replace(bareTtsRegex, () => {
+    hasDirective = true;
+    return "";
+  });
+
   const directiveRegex = /\[\[tts:([^\]]+)\]\]/gi;
   cleanedText = cleanedText.replace(directiveRegex, (_match, body: string) => {
     hasDirective = true;
@@ -634,7 +689,7 @@ function parseTtsDirectives(
             if (!policy.allowProvider) {
               break;
             }
-            if (rawValue === "openai" || rawValue === "elevenlabs" || rawValue === "edge") {
+            if (rawValue === "openai" || rawValue === "elevenlabs" || rawValue === "edge" || rawValue === "fishspeech") {
               overrides.provider = rawValue;
             } else {
               warnings.push(`unsupported provider "${rawValue}"`);
@@ -796,10 +851,17 @@ function parseTtsDirectives(
             if (!policy.allowSeed) {
               break;
             }
-            overrides.elevenlabs = {
-              ...overrides.elevenlabs,
-              seed: normalizeSeed(Number.parseInt(rawValue, 10)),
-            };
+            {
+              const seedVal = normalizeSeed(Number.parseInt(rawValue, 10));
+              overrides.elevenlabs = {
+                ...overrides.elevenlabs,
+                seed: seedVal,
+              };
+              overrides.fishspeech = {
+                ...overrides.fishspeech,
+                seed: seedVal,
+              };
+            }
             break;
           default:
             break;
@@ -1164,6 +1226,84 @@ async function edgeTTS(params: {
   await tts.ttsPromise(text, outputPath);
 }
 
+async function fishspeechTTS(params: {
+  text: string;
+  baseUrl: string;
+  seed: number;
+  temperature?: number;
+  topP?: number;
+  referenceId?: string;
+  timeoutMs: number;
+}): Promise<Buffer> {
+  const { text, baseUrl, seed, temperature, topP, referenceId, timeoutMs } = params;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(controller.abort.bind(controller), timeoutMs);
+
+  try {
+    const body: Record<string, unknown> = {
+      text,
+      format: "mp3",
+      seed,
+    };
+    if (temperature != null) body.temperature = temperature;
+    if (topP != null) body.top_p = topP;
+    if (referenceId) body.reference_id = referenceId;
+
+    const response = await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/tts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Fish Speech API error (${response.status})`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function kokoroTTS(params: {
+  text: string;
+  baseUrl: string;
+  voice: string;
+  speed: number;
+  timeoutMs: number;
+}): Promise<Buffer> {
+  const { text, baseUrl, voice, speed, timeoutMs } = params;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(controller.abort.bind(controller), timeoutMs);
+
+  try {
+    const body: Record<string, unknown> = {
+      text,
+      voice,
+      format: "wav",
+      speed,
+    };
+
+    const response = await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/tts`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Kokoro API error (${response.status})`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function textToSpeech(params: {
   text: string;
   cfg: OpenClawConfig;
@@ -1258,6 +1398,60 @@ export async function textToSpeech(params: {
           provider,
           outputFormat: edgeResult.outputFormat,
           voiceCompatible,
+        };
+      }
+
+      if (provider === "fishspeech") {
+        const seedOverride = params.overrides?.fishspeech?.seed;
+        const audioBuffer = await fishspeechTTS({
+          text: params.text,
+          baseUrl: config.fishspeech.baseUrl,
+          seed: seedOverride ?? config.fishspeech.seed,
+          temperature: config.fishspeech.temperature,
+          topP: config.fishspeech.topP,
+          referenceId: config.fishspeech.referenceId,
+          timeoutMs: config.timeoutMs,
+        });
+
+        const latencyMs = Date.now() - providerStart;
+        const tempDir = mkdtempSync(path.join(tmpdir(), "tts-"));
+        const audioPath = path.join(tempDir, `voice-${Date.now()}.mp3`);
+        writeFileSync(audioPath, audioBuffer);
+        scheduleCleanup(tempDir);
+
+        return {
+          success: true,
+          audioPath,
+          latencyMs,
+          provider,
+          outputFormat: "mp3",
+          voiceCompatible: false,
+        };
+      }
+
+      if (provider === "kokoro") {
+        const voiceOverride = params.overrides?.kokoro?.voice;
+        const audioBuffer = await kokoroTTS({
+          text: params.text,
+          baseUrl: config.kokoro.baseUrl,
+          voice: voiceOverride ?? config.kokoro.voice,
+          speed: config.kokoro.speed,
+          timeoutMs: config.timeoutMs,
+        });
+
+        const latencyMs = Date.now() - providerStart;
+        const tempDir = mkdtempSync(path.join(tmpdir(), "tts-"));
+        const audioPath = path.join(tempDir, `voice-${Date.now()}.wav`);
+        writeFileSync(audioPath, audioBuffer);
+        scheduleCleanup(tempDir);
+
+        return {
+          success: true,
+          audioPath,
+          latencyMs,
+          provider,
+          outputFormat: "wav",
+          voiceCompatible: false,
         };
       }
 
@@ -1360,6 +1554,11 @@ export async function textToSpeechTelephony(params: {
     try {
       if (provider === "edge") {
         lastError = "edge: unsupported for telephony";
+        continue;
+      }
+
+      if (provider === "fishspeech") {
+        lastError = "fishspeech: unsupported for telephony";
         continue;
       }
 
@@ -1540,7 +1739,6 @@ export async function maybeApplyTtsToPayload(params: {
     channel: params.channel,
     overrides: directives.overrides,
   });
-
   if (result.success && result.audioPath) {
     lastTtsAttempt = {
       timestamp: Date.now(),
@@ -1553,9 +1751,16 @@ export async function maybeApplyTtsToPayload(params: {
 
     const channelId = resolveChannelId(params.channel);
     const shouldVoice = channelId === "telegram" && result.voiceCompatible === true;
+    // For webchat, inject MEDIA: line into text so chat-audio-inline can convert it
+    const isWebchat = channelId === "webchat" || !channelId;
+    const textWithMedia =
+      isWebchat && nextPayload.text
+        ? `${nextPayload.text}\n\nMEDIA:${result.audioPath}`
+        : nextPayload.text;
     const finalPayload = {
       ...nextPayload,
-      mediaUrl: result.audioPath,
+      text: isWebchat ? textWithMedia : nextPayload.text,
+      mediaUrl: isWebchat ? undefined : result.audioPath,
       audioAsVoice: shouldVoice || params.payload.audioAsVoice,
     };
     return finalPayload;
