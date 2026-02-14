@@ -51,7 +51,7 @@ It answers you on the channels you already use (WhatsApp, Telegram, Slack, Disco
 ### One-liner (recommended)
 
 ```bash
-curl -fsSL https://qveris.ai/install.sh | bash
+curl -fsSL https://qveris.ai/qverisbot/install.sh | bash
 ```
 
 ### npm (global package)
@@ -81,7 +81,7 @@ pnpm openclaw onboard --install-daemon
 ### Windows PowerShell
 
 ```powershell
-irm https://qveris.ai/install.ps1 | iex
+irm https://qveris.ai/qverisbot/install.ps1 | iex
 ```
 
 The onboarding wizard guides you through: model/auth, **QVeris API key**, `web_search` (defaults to QVeris Smart Search), **X (Twitter) credentials**, channels, and skills. For Feishu/飞书, see [QVerisBot Source Guide](docs/qverisbot-from-source.md).

@@ -7,7 +7,7 @@ Use this page to choose the fastest installation path for QVerisBot.
 ### One-liner (macOS / Linux)
 
 ```bash
-curl -fsSL https://qveris.ai/install.sh | bash
+curl -fsSL https://qveris.ai/qverisbot/install.sh | bash
 ```
 
 ### npm (global package)
@@ -26,13 +26,13 @@ openclaw onboard
 ### Windows PowerShell
 
 ```powershell
-irm https://qveris.ai/install.ps1 | iex
+irm https://qveris.ai/qverisbot/install.ps1 | iex
 ```
 
 ### Hackable install (source mode)
 
 ```bash
-curl -fsSL https://qveris.ai/install.sh | bash -s -- --install-method git
+curl -fsSL https://qveris.ai/qverisbot/install.sh | bash -s -- --install-method git
 ```
 
 Or follow the full source guide: [QVerisBot from source](/qverisbot-from-source).

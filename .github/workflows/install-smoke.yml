@@ -57,8 +57,8 @@ jobs:
 
       - name: Run installer docker tests
         env:
-          QVERISBOT_INSTALL_URL: https://qveris.ai/install.sh
-          QVERISBOT_INSTALL_CLI_URL: https://qveris.ai/install-cli.sh
+          QVERISBOT_INSTALL_URL: https://qveris.ai/qverisbot/install.sh
+          QVERISBOT_INSTALL_CLI_URL: https://qveris.ai/qverisbot/install-cli.sh
           CLAWDBOT_NO_ONBOARD: "1"
           QVERISBOT_INSTALL_SMOKE_SKIP_CLI: "1"
           QVERISBOT_INSTALL_SMOKE_SKIP_NONROOT: ${{ github.event_name == 'pull_request' && '1' || '0' }}
