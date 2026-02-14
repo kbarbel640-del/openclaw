@@ -39,16 +39,13 @@ except ImportError:
 # Constants
 # ---------------------------------------------------------------------------
 SKILL_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_MODEL = "gemini-2.0-flash-exp"  # Fast, free-tier friendly
-QUALITY_MODEL = "gemini-2.0-flash-exp"  # Same for now; swap when pro-image is GA
-# When available:
-# DEFAULT_MODEL = "gemini-2.5-flash-preview-04-17"  # or latest flash-image
-# QUALITY_MODEL = "gemini-2.0-flash-exp"  # or gemini-3-pro-image-preview
+DEFAULT_MODEL = "gemini-2.5-flash-image"  # Nano Banana — fast, 1K output, up to 3 input images
+QUALITY_MODEL = "gemini-3-pro-image-preview"  # Nano Banana Pro — thinking, search, 4K, up to 14 inputs
 
 MAX_INPUT_DIM = 2048  # Max dimension for input images (resize if larger)
 CHAT_DIR = SKILL_DIR / "sessions"  # Chat session storage
 
-VALID_ASPECT_RATIOS = ["1:1", "3:4", "4:3", "9:16", "16:9"]
+VALID_ASPECT_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 VALID_OUTPUT_FORMATS = ["PNG", "JPEG", "WEBP"]
 
 # System prompt for Gemini — photography expert execution context
@@ -385,6 +382,7 @@ def do_generate(client: genai.Client, req: dict) -> dict:
     specs = req.get("specs", {})
     output_config = get_output_config(specs)
     model = req.get("model", DEFAULT_MODEL)
+    use_search = req.get("use_search", False)
 
     config = types.GenerateContentConfig(
         response_modalities=["TEXT", "IMAGE"],
@@ -394,6 +392,10 @@ def do_generate(client: genai.Client, req: dict) -> dict:
     # Add image config if we have output specs
     if output_config:
         config.image_config = types.ImageConfig(**output_config)
+
+    # Google Search grounding (pro model only)
+    if use_search and model == QUALITY_MODEL:
+        config.tools = [{"google_search": {}}]
 
     # Call Gemini
     try:

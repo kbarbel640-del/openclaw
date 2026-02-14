@@ -84,7 +84,7 @@ Specs provide structured creative direction. They're composed into a natural lan
 | `enhancement` | sharpness, contrast, color_treatment, detail_enhancement, cleanup | Post-processing |
 | `focus` | focus_point, depth_of_field, falloff | Depth of field |
 | `custom_spec` | instruction, style_reference, color_palette, texture_overlay, special_effect, artistic_intent, extra{} | Open-ended creative |
-| `output` | format (PNG/JPEG/WEBP), size (1K/2K/4K), aspect_ratio (1:1/3:4/4:3/9:16/16:9), filename | Output configuration |
+| `output` | format (PNG/JPEG/WEBP), size (1K/2K/4K), aspect_ratio (1:1/2:3/3:2/3:4/4:3/4:5/5:4/9:16/16:9/21:9), filename | Output configuration |
 
 **All spec fields are free-form strings.** Be descriptive. Examples:
 - `"preserve_colors": "exact match — the red label must be #CC0000"`
@@ -229,10 +229,58 @@ For domain-specific patterns, see `references/`:
 - `lifestyle_patterns.md` — Lifestyle scene generation patterns
 - `social_patterns.md` — Social media content patterns
 
+## Model Selection
+
+| Model | ID | Best For | Input Images | Output Res | Extras |
+|-------|------|----------|-------------|------------|--------|
+| **Nano Banana** (default) | `gemini-2.5-flash-image` | Fast, high-volume, simple edits | Up to 3 | 1K only | Speed + efficiency |
+| **Nano Banana Pro** | `gemini-3-pro-image-preview` | Complex scenes, pro assets, text rendering | Up to 14 (6 high-fidelity) | 1K, 2K, 4K | Thinking, Google Search grounding |
+
+Set model in request: `"model": "gemini-3-pro-image-preview"`
+
+### Google Search Grounding (Pro only)
+
+Generate images informed by real-time data (weather, news, events):
+
+```json
+{
+  "command": "generate",
+  "model": "gemini-3-pro-image-preview",
+  "use_search": true,
+  "prompt": "Create an infographic showing today's weather forecast for Patna, Bihar with icons and temperatures",
+  "specs": {"output": {"aspect_ratio": "16:9", "filename": "weather_patna"}}
+}
+```
+
+## Google's Official Prompt Templates
+
+These templates from Google's docs produce excellent results:
+
+**Photorealistic scenes:**
+> A photorealistic [shot type] of [subject], [action or expression], set in [environment]. The scene is illuminated by [lighting description], creating a [mood] atmosphere. Captured with a [camera/lens details], emphasizing [key textures and details]. The image should be in a [aspect ratio] format.
+
+**Product mockups:**
+> A high-resolution, studio-lit product photograph of a [product description] on a [background surface]. The lighting is a [lighting setup] to [purpose]. The camera angle is a [angle type] to showcase [feature]. Ultra-realistic, with sharp focus on [key detail]. [Aspect ratio].
+
+**Stickers/icons:**
+> A [style] sticker of a [subject], featuring [key characteristics] and a [color palette]. The design should have [line style] and [shading style]. The background must be transparent.
+
+**Text in images (use Pro model):**
+> Create a [image type] for [brand/concept] with the text "[text to render]" in a [font style]. The design should be [style description], with a [color scheme].
+
+**Style transfer:**
+> Transform the provided photograph of [subject] into the artistic style of [artist/art style]. Preserve the original composition but render it with [description of stylistic elements].
+
+**Combining multiple images:**
+> Create a new image by combining the elements from the provided images. Take the [element from image 1] and place it with/on the [element from image 2]. The final image should be a [description of the final scene].
+
 ## Limitations
 
 - Image generation is non-deterministic — same prompt may yield different results
 - Gemini may refuse certain content (violence, real people, etc.)
-- Text rendering in images is approximate — don't rely on exact text placement
+- Text rendering: use Pro model (`gemini-3-pro-image-preview`) for accurate text
 - Transparent backgrounds (PNG alpha) depend on model capability
+- Max input: Flash supports 3 images, Pro supports 14 (6 high-fidelity)
 - Maximum ~2048px input dimension (auto-resized if larger)
+- Best language support: EN, de-DE, es-MX, fr-FR, hi-IN, ja-JP, ko-KR, pt-BR, zh-CN
+- All generated images include a SynthID watermark
