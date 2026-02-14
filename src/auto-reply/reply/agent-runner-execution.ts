@@ -147,6 +147,10 @@ export async function runAgentTurnWithFallback(params: {
     fallbackProvider = routed.provider;
     fallbackModel = routed.model;
 
+    // Store routed model on the run context so webchat can prepend the tag
+    // (webchat disables block streaming, so the pipeline path below is skipped).
+    registerAgentRunContext(runId, { routedModelRef: route.modelRef });
+
     // Send model tag via streaming pipeline so it arrives before streamed content.
     // For non-streaming, the tag is prepended to finalPayloads in runReplyAgent.
     if (params.blockReplyPipeline) {

@@ -383,6 +383,22 @@ export function createAgentEventHandler({
       if (!isAborted && evt.stream === "assistant" && typeof evt.data?.text === "string") {
         emitChatDelta(sessionKey, clientRunId, evt.seq, evt.data.text);
       } else if (!isAborted && (lifecyclePhase === "end" || lifecyclePhase === "error")) {
+        // Prepend routed model tag to the buffer so webchat shows which model handled
+        // the request. Block-streaming channels handle this via the pipeline; webchat
+        // disables block streaming so the tag must be injected here before the final
+        // broadcast.
+        if (lifecyclePhase === "end") {
+          const runContext = getAgentRunContext(evt.runId);
+          if (runContext?.routedModelRef) {
+            const existing = chatRunState.buffers.get(clientRunId) ?? "";
+            if (existing) {
+              chatRunState.buffers.set(
+                clientRunId,
+                `🔀 ${runContext.routedModelRef}\n\n${existing}`,
+              );
+            }
+          }
+        }
         if (chatLink) {
           const finished = chatRunState.registry.shift(evt.runId);
           if (!finished) {
