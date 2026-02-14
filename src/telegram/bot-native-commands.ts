@@ -464,6 +464,7 @@ export const registerTelegramNativeCommands = ({
               id: isGroup ? buildTelegramGroupPeerId(chatId, resolvedThreadId) : String(chatId),
             },
             parentPeer,
+            topicId: resolvedThreadId != null ? String(resolvedThreadId) : undefined,
           });
           const baseSessionKey = route.sessionKey;
           // DMs: use raw messageThreadId for thread sessions (not resolvedThreadId which is for forums)
