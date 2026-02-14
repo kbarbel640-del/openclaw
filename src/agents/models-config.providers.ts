@@ -575,7 +575,6 @@ async function buildVeniceProvider(): Promise<ProviderConfig> {
 
 async function buildOllamaProvider(configuredBaseUrl?: string): Promise<ProviderConfig> {
   const models = await discoverOllamaModels(configuredBaseUrl);
-  const { providerBase } = resolveOllamaBaseUrls();
   return {
     baseUrl: resolveOllamaApiBase(configuredBaseUrl),
     api: "ollama",
