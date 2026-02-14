@@ -1,4 +1,7 @@
-import type { ChannelOutboundAdapter, ClawdbotConfig } from "openclaw/plugin-sdk";
+import type {
+  ChannelOutboundAdapter,
+  ClawdbotConfig,
+} from "openclaw/plugin-sdk";
 import { sendMediaFeishu } from "./media.js";
 import { getFeishuRuntime } from "./runtime.js";
 import { sendMessageFeishu, sendMarkdownCardFeishu } from "./send.js";
@@ -9,7 +12,8 @@ type FeishuConfig = {
 
 export const feishuOutbound: ChannelOutboundAdapter = {
   deliveryMode: "direct",
-  chunker: (text, limit) => getFeishuRuntime().channel.text.chunkMarkdownText(text, limit),
+  chunker: (text, limit) =>
+    getFeishuRuntime().channel.text.chunkMarkdownText(text, limit),
   chunkerMode: "markdown",
   textChunkLimit: 4000,
   sendText: async ({ cfg, to, text, accountId }) => {
@@ -20,18 +24,33 @@ export const feishuOutbound: ChannelOutboundAdapter = {
     const useRaw = renderMode === "raw";
 
     if (useRaw) {
-      const result = await sendMessageFeishu({ cfg, to, text, accountId: accountId ?? undefined });
+      const result = await sendMessageFeishu({
+        cfg,
+        to,
+        text,
+        accountId: accountId ?? undefined,
+      });
       return { channel: "feishu", ...result };
     } else {
       // Default: use Card 2.0 for full markdown support
-      const result = await sendMarkdownCardFeishu({ cfg, to, text, accountId: accountId ?? undefined });
+      const result = await sendMarkdownCardFeishu({
+        cfg,
+        to,
+        text,
+        accountId: accountId ?? undefined,
+      });
       return { channel: "feishu", ...result };
     }
   },
   sendMedia: async ({ cfg, to, text, mediaUrl, accountId }) => {
     // Send text first if provided
     if (text?.trim()) {
-      await sendMessageFeishu({ cfg, to, text, accountId: accountId ?? undefined });
+      await sendMessageFeishu({
+        cfg,
+        to,
+        text,
+        accountId: accountId ?? undefined,
+      });
     }
 
     // Upload and send media if URL provided

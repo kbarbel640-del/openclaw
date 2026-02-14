@@ -7,7 +7,8 @@ This PR changes the default `renderMode` for Feishu outbound messages from `"aut
 ## Problem
 
 Currently, Feishu uses `post` message type by default (when `renderMode="auto"`), which has limited markdown support:
-- ✅ Basic formatting: **bold**, *italic*, [links](url)
+
+- ✅ Basic formatting: **bold**, _italic_, [links](url)
 - ❌ Code blocks with syntax highlighting
 - ❌ Tables
 - ❌ Complex nested lists
@@ -18,6 +19,7 @@ This results in poor user experience when agents send technical content (code sn
 ## Solution
 
 Default to Card 2.0 (`interactive` message type) which supports full markdown:
+
 - ✅ Code blocks with syntax highlighting
 - ✅ Tables with alignment
 - ✅ Nested lists
@@ -29,21 +31,23 @@ Default to Card 2.0 (`interactive` message type) which supports full markdown:
 **File**: `extensions/feishu/src/outbound.ts`
 
 **Before**:
+
 ```typescript
 sendText: async ({ cfg, to, text, accountId }) => {
   const result = await sendMessageFeishu({ cfg, to, text, accountId });
   return { channel: "feishu", ...result };
-}
+};
 ```
 
 **After**:
+
 ```typescript
 sendText: async ({ cfg, to, text, accountId }) => {
   const feishuCfg = cfg.channels?.feishu as FeishuConfig | undefined;
   const renderMode = feishuCfg?.renderMode ?? "card"; // Changed from "auto"
-  
+
   const useRaw = renderMode === "raw";
-  
+
   if (useRaw) {
     const result = await sendMessageFeishu({ cfg, to, text, accountId });
     return { channel: "feishu", ...result };
@@ -51,7 +55,7 @@ sendText: async ({ cfg, to, text, accountId }) => {
     const result = await sendMarkdownCardFeishu({ cfg, to, text, accountId });
     return { channel: "feishu", ...result };
   }
-}
+};
 ```
 
 ## Benefits
@@ -65,18 +69,19 @@ sendText: async ({ cfg, to, text, accountId }) => {
 
 Tested on 2026-02-14 with comprehensive markdown examples:
 
-| Feature | Result | Notes |
-|---------|--------|-------|
-| Code blocks | ✅ | Python/JS/Rust with syntax highlighting |
-| Tables | ✅ | Multi-column with alignment |
-| Lists | ✅ | Ordered/unordered/nested/task lists |
-| Text formatting | ✅ | Bold/italic/strikethrough/inline code |
-| Links | ✅ | Markdown links render correctly |
-| Headers | ✅ | H1-H4 |
-| Blockquotes | ✅ | With attribution |
-| Mixed content | ✅ | Complex reports with all elements |
+| Feature         | Result | Notes                                   |
+| --------------- | ------ | --------------------------------------- |
+| Code blocks     | ✅     | Python/JS/Rust with syntax highlighting |
+| Tables          | ✅     | Multi-column with alignment             |
+| Lists           | ✅     | Ordered/unordered/nested/task lists     |
+| Text formatting | ✅     | Bold/italic/strikethrough/inline code   |
+| Links           | ✅     | Markdown links render correctly         |
+| Headers         | ✅     | H1-H4                                   |
+| Blockquotes     | ✅     | With attribution                        |
+| Mixed content   | ✅     | Complex reports with all elements       |
 
 **Test Example**:
+
 ```python
 def calculate(x, y):
     """Example function"""
@@ -84,13 +89,14 @@ def calculate(x, y):
 ```
 
 | Language | Year | Creator |
-|----------|------|---------|
-| Python | 1991 | Guido |
-| Rust | 2010 | Mozilla |
+| -------- | ---- | ------- |
+| Python   | 1991 | Guido   |
+| Rust     | 2010 | Mozilla |
 
 ## Backward Compatibility
 
 Users who prefer the old behavior can explicitly set:
+
 ```json
 {
   "channels": {
