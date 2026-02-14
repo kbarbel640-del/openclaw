@@ -1,6 +1,10 @@
 import type { IncomingMessage } from "node:http";
 import { randomUUID } from "node:crypto";
-import { buildAgentMainSessionKey, normalizeAgentId } from "../routing/session-key.js";
+import {
+  buildAgentMainSessionKey,
+  normalizeAgentId,
+  parseAgentSessionKey,
+} from "../routing/session-key.js";
 
 export function getHeader(req: IncomingMessage, name: string): string | undefined {
   const raw = req.headers[name.toLowerCase()];
@@ -60,6 +64,47 @@ export function resolveAgentIdForRequest(params: {
 
   const fromModel = resolveAgentIdFromModel(params.model);
   return fromModel ?? "main";
+}
+
+/**
+ * Validates that an explicit session key from the x-openclaw-session-key header
+ * belongs to the authenticated user. Prevents CWE-639 (IDOR) by blocking
+ * cross-user session access.
+ *
+ * Returns null if access is allowed, or an error message if denied.
+ */
+export function validateSessionKeyOwnership(
+  req: IncomingMessage,
+  authUser: string | undefined,
+): string | null {
+  // Only enforce when auth identifies a specific user (e.g. tailscale).
+  // Token/password auth has no user identity and implies service-level access.
+  if (!authUser) {
+    return null;
+  }
+
+  const explicit = getHeader(req, "x-openclaw-session-key")?.trim();
+  if (!explicit) {
+    return null;
+  }
+
+  const parsed = parseAgentSessionKey(explicit);
+  if (!parsed) {
+    return null;
+  }
+
+  // User-scoped keys: {prefix}-user:{userId} or user:{userId}
+  const match = parsed.rest.match(/(?:^|.*-)user:(.+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const sessionUser = match[1];
+  if (sessionUser.toLowerCase() === authUser.toLowerCase()) {
+    return null;
+  }
+
+  return "Access denied: session belongs to another user";
 }
 
 export function resolveSessionKey(params: {

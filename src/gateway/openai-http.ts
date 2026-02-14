@@ -14,7 +14,12 @@ import {
   setSseHeaders,
   writeDone,
 } from "./http-common.js";
-import { getBearerToken, resolveAgentIdForRequest, resolveSessionKey } from "./http-utils.js";
+import {
+  getBearerToken,
+  resolveAgentIdForRequest,
+  resolveSessionKey,
+  validateSessionKeyOwnership,
+} from "./http-utils.js";
 
 type OpenAiHttpOptions = {
   auth: ResolvedGatewayAuth;
@@ -206,6 +211,16 @@ export async function handleOpenAiHttpRequest(
   const user = typeof payload.user === "string" ? payload.user : undefined;
 
   const agentId = resolveAgentIdForRequest({ req, model });
+
+  // CWE-639: validate session ownership before resolving
+  const ownershipError = validateSessionKeyOwnership(req, authResult.user);
+  if (ownershipError) {
+    sendJson(res, 403, {
+      error: { message: ownershipError, type: "authorization_error" },
+    });
+    return true;
+  }
+
   const sessionKey = resolveOpenAiSessionKey({ req, agentId, user });
   const prompt = buildAgentPrompt(payload.messages);
   if (!prompt.message) {
