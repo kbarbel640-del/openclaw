@@ -1,21 +1,22 @@
 import { vi } from "vitest";
+import type { MockFn } from "../test-utils/vitest-mock-fn.js";
 
-export const messageCommand = vi.fn();
-export const statusCommand = vi.fn();
-export const configureCommand = vi.fn();
-export const configureCommandWithSections = vi.fn();
-export const setupCommand = vi.fn();
-export const onboardCommand = vi.fn();
-export const callGateway = vi.fn();
-export const runChannelLogin = vi.fn();
-export const runChannelLogout = vi.fn();
-export const runTui = vi.fn();
+export const messageCommand: MockFn = vi.fn();
+export const statusCommand: MockFn = vi.fn();
+export const configureCommand: MockFn = vi.fn();
+export const configureCommandWithSections: MockFn = vi.fn();
+export const setupCommand: MockFn = vi.fn();
+export const onboardCommand: MockFn = vi.fn();
+export const callGateway: MockFn = vi.fn();
+export const runChannelLogin: MockFn = vi.fn();
+export const runChannelLogout: MockFn = vi.fn();
+export const runTui: MockFn = vi.fn();
 
-export const loadAndMaybeMigrateDoctorConfig = vi.fn();
-export const ensureConfigReady = vi.fn();
-export const ensurePluginRegistryLoaded = vi.fn();
+export const loadAndMaybeMigrateDoctorConfig: MockFn = vi.fn();
+export const ensureConfigReady: MockFn = vi.fn();
+export const ensurePluginRegistryLoaded: MockFn = vi.fn();
 
-export const runtime = {
+export const runtime: { log: MockFn; error: MockFn; exit: MockFn } = {
   log: vi.fn(),
   error: vi.fn(),
   exit: vi.fn(() => {
