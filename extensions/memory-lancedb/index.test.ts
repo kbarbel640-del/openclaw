@@ -97,6 +97,8 @@ describe("memory plugin e2e", () => {
 
     // oxlint-disable-next-line typescript/no-explicit-any
     const registeredTools: Array<{ tool: any; opts: any }> = [];
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const registeredClis: Array<{ registrar: any; opts: any }> = [];
     const mockSearchTool = { name: "memory_search" };
     const mockGetTool = { name: "memory_get" };
 
@@ -132,7 +134,9 @@ describe("memory plugin e2e", () => {
         registeredTools.push({ tool, opts });
       },
       // oxlint-disable-next-line typescript/no-explicit-any
-      registerCli: () => {},
+      registerCli: (registrar: any, opts: any) => {
+        registeredClis.push({ registrar, opts });
+      },
       // oxlint-disable-next-line typescript/no-explicit-any
       registerService: () => {},
       // oxlint-disable-next-line typescript/no-explicit-any
@@ -157,6 +161,11 @@ describe("memory plugin e2e", () => {
       sessionKey: "session-test",
     });
     expect(created).toEqual([mockSearchTool, mockGetTool]);
+    expect(
+      registeredClis.some(
+        (entry) => Array.isArray(entry.opts?.commands) && entry.opts.commands.includes("memory"),
+      ),
+    ).toBe(true);
   });
 
   test("shouldCapture applies real capture rules", async () => {
@@ -267,7 +276,12 @@ describeLive("memory plugin live tests", () => {
     expect(registeredTools.map((t) => t.opts?.name)).toContain("memory_recall");
     expect(registeredTools.map((t) => t.opts?.name)).toContain("memory_store");
     expect(registeredTools.map((t) => t.opts?.name)).toContain("memory_forget");
-    expect(registeredClis.length).toBe(1);
+    expect(registeredClis.length).toBe(2);
+    expect(
+      registeredClis.some(
+        (entry) => Array.isArray(entry.opts?.commands) && entry.opts.commands.includes("memory"),
+      ),
+    ).toBe(true);
     expect(registeredServices.length).toBe(1);
 
     // Get tool functions
