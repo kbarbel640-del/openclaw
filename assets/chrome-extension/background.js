@@ -693,6 +693,8 @@ function onDebuggerDetach(source, reason) {
     
     setTimeout(async () => {
       try {
+        // If tab was manually detached during the grace period, don't re-attach
+        if (!tabs.has(tabId)) return
         const tab = await chrome.tabs.get(tabId)
         if (tab && relayWs?.readyState === WebSocket.OPEN) {
           console.log(`Re-attaching tab ${tabId} after navigation`)
