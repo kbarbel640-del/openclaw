@@ -158,7 +158,7 @@ describe("transformer embedding provider", () => {
 
   it("transformer embedQuery returns 384-dim normalized vector", async () => {
     const rawData = new Float32Array(384);
-    for (let i = 0; i < 384; i++) rawData[i] = Math.random() * 2 - 1;
+    for (let i = 0; i < 384; i++) {rawData[i] = Math.random() * 2 - 1;}
     const mockPipe = vi.fn().mockResolvedValue({ data: rawData });
     mockPipeline.mockResolvedValue(mockPipe);
 
@@ -642,7 +642,7 @@ describe("stress tests", () => {
   it("transformer: concurrent embeds via unified provider", async () => {
     const mockPipe = vi.fn().mockImplementation(() => {
       const data = new Float32Array(384);
-      for (let i = 0; i < 384; i++) data[i] = Math.random();
+      for (let i = 0; i < 384; i++) {data[i] = Math.random();}
       return Promise.resolve({ data });
     });
     mockPipeline.mockResolvedValue(mockPipe);

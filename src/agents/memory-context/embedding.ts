@@ -181,10 +181,10 @@ function createHashEmbedding(dim: number): EmbeddingProvider {
 
       // Normalize to unit length
       let norm = 0;
-      for (const v of vec) norm += v * v;
+      for (const v of vec) {norm += v * v;}
       norm = Math.sqrt(norm);
       if (norm > 0) {
-        for (let i = 0; i < vec.length; i++) vec[i] /= norm;
+        for (let i = 0; i < vec.length; i++) {vec[i] /= norm;}
       }
       return vec;
     },
