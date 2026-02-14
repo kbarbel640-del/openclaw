@@ -1,6 +1,6 @@
+import type { SessionEntry } from "../config/sessions.js";
 import { lookupContextTokens } from "../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../agents/defaults.js";
-import type { SessionEntry } from "../config/sessions.js";
 
 export type ModelOverrideSelection = {
   provider: string;
