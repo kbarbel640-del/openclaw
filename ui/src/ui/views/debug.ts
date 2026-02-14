@@ -1,6 +1,7 @@
 import { html, nothing } from "lit";
 import type { EventLogEntry } from "../app-events.ts";
 import { formatEventPayload } from "../presenter.ts";
+import { renderJsonBlock } from "./json-renderer.ts";
 
 export type DebugProps = {
   loading: boolean;
@@ -55,15 +56,15 @@ export function renderDebug(props: DebugProps) {
                 </div>`
                 : nothing
             }
-            <pre class="code-block">${JSON.stringify(props.status ?? {}, null, 2)}</pre>
+            ${renderJsonBlock(props.status ?? {})}
           </div>
           <div>
             <div class="muted">Health</div>
-            <pre class="code-block">${JSON.stringify(props.health ?? {}, null, 2)}</pre>
+            ${renderJsonBlock(props.health ?? {})}
           </div>
           <div>
             <div class="muted">Last heartbeat</div>
-            <pre class="code-block">${JSON.stringify(props.heartbeat ?? {}, null, 2)}</pre>
+            ${renderJsonBlock(props.heartbeat ?? {})}
           </div>
         </div>
       </div>
@@ -102,7 +103,7 @@ export function renderDebug(props: DebugProps) {
         }
         ${
           props.callResult
-            ? html`<pre class="code-block" style="margin-top: 12px;">${props.callResult}</pre>`
+            ? html`<div style="margin-top: 12px;">${renderJsonBlock(props.callResult)}</div>`
             : nothing
         }
       </div>
@@ -111,11 +112,7 @@ export function renderDebug(props: DebugProps) {
     <section class="card" style="margin-top: 18px;">
       <div class="card-title">Models</div>
       <div class="card-sub">Catalog from models.list.</div>
-      <pre class="code-block" style="margin-top: 12px;">${JSON.stringify(
-        props.models ?? [],
-        null,
-        2,
-      )}</pre>
+      <div style="margin-top: 12px;">${renderJsonBlock(props.models ?? [])}</div>
     </section>
 
     <section class="card" style="margin-top: 18px;">
@@ -136,7 +133,7 @@ export function renderDebug(props: DebugProps) {
                       <div class="list-sub">${new Date(evt.ts).toLocaleTimeString()}</div>
                     </div>
                     <div class="list-meta">
-                      <pre class="code-block">${formatEventPayload(evt.payload)}</pre>
+                      ${renderJsonBlock(evt.payload)}
                     </div>
                   </div>
                 `,

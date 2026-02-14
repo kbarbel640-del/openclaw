@@ -1,6 +1,7 @@
 import { html, nothing } from "lit";
 import type { AppMode } from "../app.ts";
 import type { LogEntry, LogLevel } from "../types.ts";
+import { tryParseJson, renderJsonTree } from "./json-renderer.ts";
 
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal"];
 const LEVEL_ORDER: Record<string, number> = { trace: 0, debug: 1, info: 2, warn: 3, error: 4, fatal: 5 };
@@ -12,32 +13,6 @@ let currentSortField: SortField = "time";
 let currentSortDir: SortDir = "desc";
 let selectedEntryIndex: number | null = null;
 let detailViewMode: "structured" | "raw" = "structured";
-
-function tryParseJson(raw: string): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function renderJsonTree(obj: unknown, depth = 0): unknown {
-  if (obj === null || obj === undefined) return html`<span class="json-null">null</span>`;
-  if (typeof obj === "boolean") return html`<span class="json-bool">${String(obj)}</span>`;
-  if (typeof obj === "number") return html`<span class="json-num">${obj}</span>`;
-  if (typeof obj === "string") return html`<span class="json-str">"${obj}"</span>`;
-  if (Array.isArray(obj)) {
-    if (obj.length === 0) return html`<span class="json-bracket">[]</span>`;
-    return html`<div class="json-array" style="padding-left:${depth > 0 ? 14 : 0}px">${obj.map((item, i) => html`<div class="json-row"><span class="json-idx">${i}</span>${renderJsonTree(item, depth + 1)}</div>`)}</div>`;
-  }
-  if (typeof obj === "object") {
-    const entries = Object.entries(obj as Record<string, unknown>);
-    if (entries.length === 0) return html`<span class="json-bracket">{}</span>`;
-    return html`<div class="json-obj" style="padding-left:${depth > 0 ? 14 : 0}px">${entries.map(([k, v]) => html`<div class="json-row"><span class="json-key">${k}:</span> ${renderJsonTree(v, depth + 1)}</div>`)}</div>`;
-  }
-  return html`${String(obj)}`;
-}
 
 export type LogsProps = {
   mode: AppMode;
