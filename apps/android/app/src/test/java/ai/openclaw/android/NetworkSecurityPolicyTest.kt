@@ -3,6 +3,7 @@ package ai.openclaw.android
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,12 +13,14 @@ class NetworkSecurityPolicyTest {
     val manifest = readAppFile("src/main/AndroidManifest.xml")
     assertTrue(manifest.contains("android:networkSecurityConfig=\"@xml/network_security_config\""))
     assertTrue(manifest.contains("android:usesCleartextTraffic=\"false\""))
+    assertFalse(manifest.contains("android:usesCleartextTraffic=\"true\""))
   }
 
   @Test
   fun mainNetworkSecurityConfigDeniesCleartextByDefault() {
     val config = readAppFile("src/main/res/xml/network_security_config.xml")
     assertTrue(config.contains("<base-config cleartextTrafficPermitted=\"false\""))
+    assertFalse(config.contains("cleartextTrafficPermitted=\"true\""))
   }
 
   @Test
