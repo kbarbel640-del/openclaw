@@ -1,1 +1,1 @@
-AGENTS.md
+../Prompts-SecClaw/CLAUDE.md

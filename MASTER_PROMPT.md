@@ -1,0 +1,1 @@
+../Prompts-SecClaw/MASTER_PROMPT.md
