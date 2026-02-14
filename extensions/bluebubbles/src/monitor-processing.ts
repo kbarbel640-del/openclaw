@@ -506,7 +506,8 @@ export async function processMessage(
       ? `${rawBody} ${replyTag}`
       : `${replyTag} ${rawBody}`
     : rawBody;
-  const fromLabel = isGroup ? undefined : message.senderName || `user:${message.senderId}`;
+  const fromLabel = message.senderName || `user:${message.senderId}`;
+  const conversationLabel = isGroup ? message.chatName?.trim() || `group:${peerId}` : fromLabel;
   const groupSubject = isGroup ? message.chatName?.trim() || undefined : undefined;
   const groupMembers = isGroup
     ? formatGroupMembers({
@@ -669,7 +670,7 @@ export async function processMessage(
     SessionKey: route.sessionKey,
     AccountId: route.accountId,
     ChatType: isGroup ? "group" : "direct",
-    ConversationLabel: fromLabel,
+    ConversationLabel: conversationLabel,
     // Use short ID for token savings (agent can use this to reference the message)
     ReplyToId: replyToShortId || replyToId,
     ReplyToIdFull: replyToId,
