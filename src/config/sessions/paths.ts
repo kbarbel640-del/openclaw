@@ -2,6 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { expandHomePrefix, resolveRequiredHomeDir } from "../../infra/home-dir.js";
 import { DEFAULT_AGENT_ID, normalizeAgentId } from "../../routing/session-key.js";
+import { logVerbose } from "../../globals.js";
 import { resolveStateDir } from "../paths.js";
 
 function resolveAgentSessionsDir(
@@ -199,9 +200,22 @@ export function resolveSessionFilePath(
 ): string {
   const sessionsDir = resolveSessionsDir(opts);
   const candidate = entry?.sessionFile?.trim();
+
+  // `sessionFile` is optional metadata persisted in sessions.json. In practice it can become
+  // stale/corrupted (e.g. absolute paths, moved state dir, etc.).
+  //
+  // Security note: even if a candidate is provided, we always enforce containment checks;
+  // and if the candidate fails validation, we fall back to the derived safe path instead
+  // of throwing and breaking message handling.
   if (candidate) {
-    return resolvePathWithinSessionsDir(sessionsDir, candidate, { agentId: opts?.agentId });
+    try {
+      return resolvePathWithinSessionsDir(sessionsDir, candidate, { agentId: opts?.agentId });
+    } catch {
+      logVerbose(`ignoring invalid sessionFile candidate: ${candidate}`);
+      // ignore invalid `sessionFile` candidates
+    }
   }
+
   return resolveSessionTranscriptPathInDir(sessionId, sessionsDir);
 }
 
