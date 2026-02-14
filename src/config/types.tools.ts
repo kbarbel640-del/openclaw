@@ -346,6 +346,8 @@ export type ToolsConfig = {
       timeoutSeconds?: number;
       /** Cache TTL in minutes for search results. */
       cacheTtlMinutes?: number;
+      /** Proxy URL for search requests (supports http://, https://, socks5://). */
+      proxy?: string;
       /** Perplexity-specific configuration (used when provider="perplexity"). */
       perplexity?: {
         /** API key for Perplexity or OpenRouter (defaults to PERPLEXITY_API_KEY or OPENROUTER_API_KEY env var). */

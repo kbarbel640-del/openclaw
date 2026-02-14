@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { ProxyAgent } from "undici";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { formatCliCommand } from "../../cli/command-format.js";
@@ -429,18 +430,30 @@ function resolveSiteName(url: string | undefined): string | undefined {
   }
 }
 
+function makeProxyFetch(proxyUrl: string): typeof fetch {
+  const agent = new ProxyAgent(proxyUrl);
+  const fetcher = ((input: RequestInfo | URL, init?: RequestInit) =>
+    fetch(input, {
+      ...(init as Record<string, unknown>),
+      dispatcher: agent as unknown as RequestInit["dispatcher"],
+    }) as unknown as Promise<Response>) as typeof fetch;
+  return fetcher;
+}
+
 async function runPerplexitySearch(params: {
   query: string;
   apiKey: string;
   baseUrl: string;
   model: string;
   timeoutSeconds: number;
+  proxyUrl?: string;
 }): Promise<{ content: string; citations: string[] }> {
   const baseUrl = params.baseUrl.trim().replace(/\/$/, "");
   const endpoint = `${baseUrl}/chat/completions`;
   const model = resolvePerplexityRequestModel(baseUrl, params.model);
 
-  const res = await fetch(endpoint, {
+  const fetchWithProxy = params.proxyUrl ? makeProxyFetch(params.proxyUrl) : fetch;
+  const res = await fetchWithProxy(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -478,6 +491,7 @@ async function runGrokSearch(params: {
   model: string;
   timeoutSeconds: number;
   inlineCitations: boolean;
+  proxyUrl?: string;
 }): Promise<{
   content: string;
   citations: string[];
@@ -499,7 +513,8 @@ async function runGrokSearch(params: {
   // citations are returned automatically when available — we just parse
   // them from the response without requesting them explicitly (#12910).
 
-  const res = await fetch(XAI_API_ENDPOINT, {
+  const fetchWithProxy = params.proxyUrl ? makeProxyFetch(params.proxyUrl) : fetch;
+  const res = await fetchWithProxy(XAI_API_ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -539,6 +554,7 @@ async function runWebSearch(params: {
   perplexityModel?: string;
   grokModel?: string;
   grokInlineCitations?: boolean;
+  proxyUrl?: string;
 }): Promise<Record<string, unknown>> {
   const cacheKey = normalizeCacheKey(
     params.provider === "brave"
@@ -561,6 +577,7 @@ async function runWebSearch(params: {
       baseUrl: params.perplexityBaseUrl ?? DEFAULT_PERPLEXITY_BASE_URL,
       model: params.perplexityModel ?? DEFAULT_PERPLEXITY_MODEL,
       timeoutSeconds: params.timeoutSeconds,
+      proxyUrl: params.proxyUrl,
     });
 
     const payload = {
@@ -588,6 +605,7 @@ async function runWebSearch(params: {
       model: params.grokModel ?? DEFAULT_GROK_MODEL,
       timeoutSeconds: params.timeoutSeconds,
       inlineCitations: params.grokInlineCitations ?? false,
+      proxyUrl: params.proxyUrl,
     });
 
     const payload = {
@@ -629,7 +647,8 @@ async function runWebSearch(params: {
     url.searchParams.set("freshness", params.freshness);
   }
 
-  const res = await fetch(url.toString(), {
+  const fetchWithProxy = params.proxyUrl ? makeProxyFetch(params.proxyUrl) : fetch;
+  const res = await fetchWithProxy(url.toString(), {
     method: "GET",
     headers: {
       Accept: "application/json",
@@ -757,6 +776,7 @@ export function createWebSearchTool(options?: {
         perplexityModel: resolvePerplexityModel(perplexityConfig),
         grokModel: resolveGrokModel(grokConfig),
         grokInlineCitations: resolveGrokInlineCitations(grokConfig),
+        proxyUrl: search?.proxy,
       });
       return jsonResult(result);
     },
