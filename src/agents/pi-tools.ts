@@ -238,6 +238,9 @@ export function createOpenClawCodingTools(options?: {
   const execConfig = resolveExecConfig({ cfg: options?.config, agentId });
   const sandboxRoot = sandbox?.workspaceDir;
   const sandboxFsBridge = sandbox?.fsBridge;
+  const sandboxAllowedPaths = sandbox?.docker.binds
+    ?.map((b) => b.split(":")[0])
+    .filter(Boolean);
   const allowWorkspaceWrites = sandbox?.workspaceAccess !== "ro";
   const workspaceRoot = options?.workspaceDir ?? process.cwd();
   const applyPatchConfig = options?.config?.tools?.exec?.applyPatch;
@@ -261,6 +264,7 @@ export function createOpenClawCodingTools(options?: {
           createSandboxedReadTool({
             root: sandboxRoot,
             bridge: sandboxFsBridge!,
+            allowedPaths: sandboxAllowedPaths,
           }),
         ];
       }
@@ -336,8 +340,8 @@ export function createOpenClawCodingTools(options?: {
     ...(sandboxRoot
       ? allowWorkspaceWrites
         ? [
-            createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
-            createSandboxedWriteTool({ root: sandboxRoot, bridge: sandboxFsBridge! }),
+            createSandboxedEditTool({ root: sandboxRoot, bridge: sandboxFsBridge!, allowedPaths: sandboxAllowedPaths }),
+            createSandboxedWriteTool({ root: sandboxRoot, bridge: sandboxFsBridge!, allowedPaths: sandboxAllowedPaths }),
           ]
         : []
       : []),

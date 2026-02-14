@@ -30,7 +30,12 @@ function resolveToCwd(filePath: string, cwd: string): string {
   return path.resolve(cwd, expanded);
 }
 
-export function resolveSandboxPath(params: { filePath: string; cwd: string; root: string }): {
+export function resolveSandboxPath(params: {
+  filePath: string;
+  cwd: string;
+  root: string;
+  allowedPaths?: string[];
+}): {
   resolved: string;
   relative: string;
 } {
@@ -40,13 +45,33 @@ export function resolveSandboxPath(params: { filePath: string; cwd: string; root
   if (!relative || relative === "") {
     return { resolved, relative: "" };
   }
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`Path escapes sandbox root (${shortPath(rootResolved)}): ${params.filePath}`);
+  if (!relative.startsWith("..") && !path.isAbsolute(relative)) {
+    return { resolved, relative };
   }
-  return { resolved, relative };
+
+  // Check if the path falls within any additionally allowed paths (e.g. Docker bind mounts)
+  if (params.allowedPaths) {
+    for (const allowed of params.allowedPaths) {
+      const allowedResolved = path.resolve(allowed);
+      const relToAllowed = path.relative(allowedResolved, resolved);
+      if (
+        relToAllowed === "" ||
+        (!relToAllowed.startsWith("..") && !path.isAbsolute(relToAllowed))
+      ) {
+        return { resolved, relative: relToAllowed };
+      }
+    }
+  }
+
+  throw new Error(`Path escapes sandbox root (${shortPath(rootResolved)}): ${params.filePath}`);
 }
 
-export async function assertSandboxPath(params: { filePath: string; cwd: string; root: string }) {
+export async function assertSandboxPath(params: {
+  filePath: string;
+  cwd: string;
+  root: string;
+  allowedPaths?: string[];
+}) {
   const resolved = resolveSandboxPath(params);
   await assertNoSymlink(resolved.relative, path.resolve(params.root));
   return resolved;

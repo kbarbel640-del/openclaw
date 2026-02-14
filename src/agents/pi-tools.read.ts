@@ -252,7 +252,11 @@ export function wrapToolParamNormalization(
   };
 }
 
-function wrapSandboxPathGuard(tool: AnyAgentTool, root: string): AnyAgentTool {
+function wrapSandboxPathGuard(
+  tool: AnyAgentTool,
+  root: string,
+  allowedPaths?: string[],
+): AnyAgentTool {
   return {
     ...tool,
     execute: async (toolCallId, args, signal, onUpdate) => {
@@ -262,7 +266,7 @@ function wrapSandboxPathGuard(tool: AnyAgentTool, root: string): AnyAgentTool {
         (args && typeof args === "object" ? (args as Record<string, unknown>) : undefined);
       const filePath = record?.path;
       if (typeof filePath === "string" && filePath.trim()) {
-        await assertSandboxPath({ filePath, cwd: root, root });
+        await assertSandboxPath({ filePath, cwd: root, root, allowedPaths });
       }
       return tool.execute(toolCallId, normalized ?? args, signal, onUpdate);
     },
@@ -272,13 +276,14 @@ function wrapSandboxPathGuard(tool: AnyAgentTool, root: string): AnyAgentTool {
 type SandboxToolParams = {
   root: string;
   bridge: SandboxFsBridge;
+  allowedPaths?: string[];
 };
 
 export function createSandboxedReadTool(params: SandboxToolParams) {
   const base = createReadTool(params.root, {
     operations: createSandboxReadOperations(params),
   }) as unknown as AnyAgentTool;
-  return wrapSandboxPathGuard(createOpenClawReadTool(base), params.root);
+  return wrapSandboxPathGuard(createOpenClawReadTool(base), params.root, params.allowedPaths);
 }
 
 export function createSandboxedWriteTool(params: SandboxToolParams) {
@@ -288,6 +293,7 @@ export function createSandboxedWriteTool(params: SandboxToolParams) {
   return wrapSandboxPathGuard(
     wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.write),
     params.root,
+    params.allowedPaths,
   );
 }
 
@@ -298,6 +304,7 @@ export function createSandboxedEditTool(params: SandboxToolParams) {
   return wrapSandboxPathGuard(
     wrapToolParamNormalization(base, CLAUDE_PARAM_GROUPS.edit),
     params.root,
+    params.allowedPaths,
   );
 }
 

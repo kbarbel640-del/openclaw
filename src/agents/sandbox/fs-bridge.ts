@@ -217,6 +217,22 @@ function allowsWrites(access: SandboxWorkspaceAccess): boolean {
   return access === "rw";
 }
 
+/**
+ * Extract host paths from Docker bind mount specs (e.g. "/host/path:/container/path:ro").
+ */
+function parseBindMountHostPaths(binds?: string[]): string[] {
+  if (!binds) {
+    return [];
+  }
+  return binds
+    .map((bind) => {
+      const parts = bind.split(":");
+      // Format: hostPath:containerPath[:options]
+      return parts.length >= 2 ? parts[0] : "";
+    })
+    .filter(Boolean);
+}
+
 function resolveSandboxFsPath(params: {
   sandbox: SandboxContext;
   filePath: string;
@@ -224,10 +240,12 @@ function resolveSandboxFsPath(params: {
 }): SandboxResolvedPath {
   const root = params.sandbox.workspaceDir;
   const cwd = params.cwd ?? root;
+  const allowedPaths = parseBindMountHostPaths(params.sandbox.docker.binds);
   const { resolved, relative } = resolveSandboxPath({
     filePath: params.filePath,
     cwd,
     root,
+    allowedPaths,
   });
   const normalizedRelative = relative
     ? relative.split(path.sep).filter(Boolean).join(path.posix.sep)
