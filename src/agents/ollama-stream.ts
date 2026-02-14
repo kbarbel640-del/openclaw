@@ -10,6 +10,7 @@ import type {
 } from "@mariozechner/pi-ai";
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
 import { randomUUID } from "node:crypto";
+import { ollamaFetch } from "./ollama-retry.js";
 
 export const OLLAMA_NATIVE_BASE_URL = "http://127.0.0.1:11434";
 
@@ -336,17 +337,21 @@ export function createOllamaStreamFn(baseUrl: string): StreamFn {
           headers.Authorization = `Bearer ${options.apiKey}`;
         }
 
-        const response = await fetch(chatUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-          signal: options?.signal,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text().catch(() => "unknown error");
-          throw new Error(`Ollama API error ${response.status}: ${errorText}`);
-        }
+        const response = await ollamaFetch(
+          chatUrl,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+            signal: options?.signal ?? undefined,
+          },
+          {
+            timeoutMs: 120_000,
+            onRetry: (attempt, err) => {
+              console.warn(`[ollama] Retry ${attempt}: ${err.message}`);
+            },
+          },
+        );
 
         if (!response.body) {
           throw new Error("Ollama API returned empty response body");
