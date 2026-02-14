@@ -21,6 +21,35 @@ import {
 
 type ToolMetaEntry = { toolName: string; meta?: string };
 
+const MUTATING_TOOL_NAMES = new Set([
+  "write",
+  "edit",
+  "apply_patch",
+  "exec",
+  "bash",
+  "process",
+  "message",
+  "sessions_send",
+  "cron",
+  "gateway",
+  "canvas",
+  "nodes",
+  "session_status",
+]);
+
+function isLikelyMutatingTool(toolName: string): boolean {
+  const normalized = toolName.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return (
+    MUTATING_TOOL_NAMES.has(normalized) ||
+    normalized.endsWith("_actions") ||
+    normalized.startsWith("message_") ||
+    normalized.includes("send")
+  );
+}
+
 export function buildEmbeddedRunPayloads(params: {
   assistantTexts: string[];
   toolMetas: ToolMetaEntry[];
@@ -223,12 +252,12 @@ export function buildEmbeddedRunPayloads(params: {
       errorLower.includes("must have") ||
       errorLower.includes("needs") ||
       errorLower.includes("requires");
+    const isMutatingToolError = isLikelyMutatingTool(params.lastToolError.toolName);
+    const shouldShowToolError = isMutatingToolError || (!hasUserFacingReply && !isRecoverableError);
 
-    // Show tool errors only when:
-    // 1. There's no user-facing reply AND the error is not recoverable
-    // Recoverable errors (validation, missing params) are already in the model's context
-    // and shouldn't be surfaced to users since the model should retry.
-    if (!hasUserFacingReply && !isRecoverableError) {
+    // Always surface mutating tool failures so we do not silently confirm actions that did not happen.
+    // Otherwise, keep the previous behavior and only surface non-recoverable failures when no reply exists.
+    if (shouldShowToolError) {
       const toolSummary = formatToolAggregate(
         params.lastToolError.toolName,
         params.lastToolError.meta ? [params.lastToolError.meta] : undefined,

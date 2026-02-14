@@ -229,7 +229,56 @@ describe("buildEmbeddedRunPayloads", () => {
     expect(payloads[0]?.text).toContain("code 1");
   });
 
-  it("suppresses recoverable tool errors containing 'required'", () => {
+  it("suppresses recoverable tool errors containing 'required' for non-mutating tools", () => {
+    const payloads = buildEmbeddedRunPayloads({
+      assistantTexts: [],
+      toolMetas: [],
+      lastAssistant: undefined,
+      lastToolError: { toolName: "browser", error: "url required" },
+      sessionKey: "session:telegram",
+      inlineToolResultsAllowed: false,
+      verboseLevel: "off",
+      reasoningLevel: "off",
+      toolResultFormat: "plain",
+    });
+
+    // Recoverable errors should not be sent to the user
+    expect(payloads).toHaveLength(0);
+  });
+
+  it("suppresses recoverable tool errors containing 'missing' for non-mutating tools", () => {
+    const payloads = buildEmbeddedRunPayloads({
+      assistantTexts: [],
+      toolMetas: [],
+      lastAssistant: undefined,
+      lastToolError: { toolName: "browser", error: "url missing" },
+      sessionKey: "session:telegram",
+      inlineToolResultsAllowed: false,
+      verboseLevel: "off",
+      reasoningLevel: "off",
+      toolResultFormat: "plain",
+    });
+
+    expect(payloads).toHaveLength(0);
+  });
+
+  it("suppresses recoverable tool errors containing 'invalid' for non-mutating tools", () => {
+    const payloads = buildEmbeddedRunPayloads({
+      assistantTexts: [],
+      toolMetas: [],
+      lastAssistant: undefined,
+      lastToolError: { toolName: "browser", error: "invalid parameter: url" },
+      sessionKey: "session:telegram",
+      inlineToolResultsAllowed: false,
+      verboseLevel: "off",
+      reasoningLevel: "off",
+      toolResultFormat: "plain",
+    });
+
+    expect(payloads).toHaveLength(0);
+  });
+
+  it("shows recoverable tool errors for mutating tools", () => {
     const payloads = buildEmbeddedRunPayloads({
       assistantTexts: [],
       toolMetas: [],
@@ -242,16 +291,17 @@ describe("buildEmbeddedRunPayloads", () => {
       toolResultFormat: "plain",
     });
 
-    // Recoverable errors should not be sent to the user
-    expect(payloads).toHaveLength(0);
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]?.isError).toBe(true);
+    expect(payloads[0]?.text).toContain("required");
   });
 
-  it("suppresses recoverable tool errors containing 'missing'", () => {
+  it("shows mutating tool errors even when assistant output exists", () => {
     const payloads = buildEmbeddedRunPayloads({
-      assistantTexts: [],
+      assistantTexts: ["Done."],
       toolMetas: [],
-      lastAssistant: undefined,
-      lastToolError: { toolName: "message", error: "messageId missing" },
+      lastAssistant: { stopReason: "end_turn" } as AssistantMessage,
+      lastToolError: { toolName: "write", error: "file missing" },
       sessionKey: "session:telegram",
       inlineToolResultsAllowed: false,
       verboseLevel: "off",
@@ -259,23 +309,10 @@ describe("buildEmbeddedRunPayloads", () => {
       toolResultFormat: "plain",
     });
 
-    expect(payloads).toHaveLength(0);
-  });
-
-  it("suppresses recoverable tool errors containing 'invalid'", () => {
-    const payloads = buildEmbeddedRunPayloads({
-      assistantTexts: [],
-      toolMetas: [],
-      lastAssistant: undefined,
-      lastToolError: { toolName: "message", error: "invalid parameter: to" },
-      sessionKey: "session:telegram",
-      inlineToolResultsAllowed: false,
-      verboseLevel: "off",
-      reasoningLevel: "off",
-      toolResultFormat: "plain",
-    });
-
-    expect(payloads).toHaveLength(0);
+    expect(payloads).toHaveLength(2);
+    expect(payloads[0]?.text).toBe("Done.");
+    expect(payloads[1]?.isError).toBe(true);
+    expect(payloads[1]?.text).toContain("missing");
   });
 
   it("shows non-recoverable tool errors to the user", () => {

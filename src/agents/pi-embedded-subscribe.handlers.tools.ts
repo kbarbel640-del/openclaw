@@ -178,6 +178,9 @@ export async function handleToolExecutionEnd(
       meta,
       error: errorMessage,
     };
+  } else {
+    // Keep the latest tool outcome authoritative; successful retries should clear prior failures.
+    ctx.state.lastToolError = undefined;
   }
 
   // Commit messaging tool text on success, discard on error.
