@@ -1,0 +1,388 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "430ba470-8c19-4068-b128-bc942b12c59c",
+      "agentId": "main",
+      "name": "daily-git-commit",
+      "enabled": true,
+      "createdAtMs": 1770716875664,
+      "updatedAtMs": 1770991222705,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 23 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "ワークスペース (~/.openclaw/workspace) の変更をgit commitしてください。`bash ~/.openclaw/workspace/scripts/daily-git-commit.sh` を実行してください。"
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "state": {
+        "nextRunAtMs": 1771077600000,
+        "lastRunAtMs": 1770991200007,
+        "lastStatus": "ok",
+        "lastDurationMs": 22698,
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "f50c775c-4bc4-4d4e-b6ce-54c7dd82e26e",
+      "agentId": "main",
+      "name": "paper-feed-monitor",
+      "enabled": true,
+      "createdAtMs": 1770751866112,
+      "updatedAtMs": 1770940860008,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * 1",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "論文フィード監視: AI/ML関連の新着論文をチェックし、重要なものがあればサマリーを作成してください。arXiv cs.AI, cs.CL, cs.LG カテゴリを確認。"
+      },
+      "delivery": {
+        "mode": "announce"
+      },
+      "state": {
+        "nextRunAtMs": 1771200000000,
+        "lastRunAtMs": 1770940800012,
+        "lastStatus": "ok",
+        "lastDurationMs": 59996,
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "9d06de19-d895-4534-bee8-5bd61d81b4fc",
+      "agentId": "main",
+      "name": "weekly-git-push",
+      "description": "週次ワークスペースgit push（毎週日曜 0:00 JST）",
+      "enabled": true,
+      "createdAtMs": 1770763444362,
+      "updatedAtMs": 1771061455733,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 15 * * 0",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "~/clawd/ ディレクトリでgit add -A && git commit -m 'weekly: auto-commit' && git push を実行してください。変更がない場合はスキップ。",
+        "timeoutSeconds": 120
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last"
+      },
+      "state": {
+        "nextRunAtMs": 1771135200000
+      }
+    },
+    {
+      "id": "f1d3f518-fab2-4017-8d7a-c8398a6b48fc",
+      "agentId": "main",
+      "name": "daily-session-log",
+      "description": "日次セッションログアーカイブ（毎日 23:30 JST）",
+      "enabled": true,
+      "createdAtMs": 1770763448908,
+      "updatedAtMs": 1771061455723,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 23 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "本日のセッションの重要な決定・作業内容を memory/YYYY-MM-DD.md に保存してください。",
+        "timeoutSeconds": 120
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram"
+      },
+      "state": {
+        "nextRunAtMs": 1771079400000,
+        "lastRunAtMs": 1770993000008,
+        "lastStatus": "ok",
+        "lastDurationMs": 47563,
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "fec25ed3-46e2-489f-a841-69f337cf3c1d",
+      "agentId": "main",
+      "name": "self-improvement-weekly",
+      "enabled": true,
+      "createdAtMs": 1770768664204,
+      "updatedAtMs": 1770768664204,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 1 * * 0",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "週次自己改善レビューを実行してください。\n\n1. 過去1週間のarXiv論文フィードから、自システムに適用可能な改善候補を抽出\n2. memory/self-improvement-log.md の過去実装の効果を測定\n3. memory/task-planner-metrics.md の推移を分析\n4. memory/failure-patterns.md に新パターンがあれば追加\n5. 改善提案があればTelegramに送信（skills/self-improvement/SKILL.md参照）"
+      },
+      "delivery": {
+        "mode": "announce"
+      },
+      "state": {
+        "nextRunAtMs": 1771084800000
+      }
+    },
+    {
+      "id": "e715b4d7-c686-4c02-8840-4aa71687ba6a",
+      "agentId": "main",
+      "name": "miyabi-codebase-study",
+      "enabled": false,
+      "createdAtMs": 1770769372274,
+      "updatedAtMs": 1770832866135,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 3 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "ローカルMiyabiプロジェクトの熟読・学習セッションを実行してください。\n\n対象ディレクトリ（ローテーション）:\n- 月: ~/dev/clawdbot-miyabi/skills/ (60スキル)\n- 火: ~/dev/01-miyabi/miyabi-agent-society/ (エージェント設計)\n- 水: ~/dev/miyabi-openclaw-rust/ (Rust実装・25エージェント)\n- 木: ~/dev/01-miyabi/_mcp/miyabi-mcp-bundle/ (MCP統合)\n- 金: ~/dev/01-miyabi/_workflows/ (n8nワークフロー)\n- 土: ~/dev/clawdbot-miyabi/docs/ (アーキテクチャ)\n- 日: 週次まとめ + 改善提案\n\n実行内容:\n1. 今日の対象ディレクトリを熟読（README, 主要ファイル, 設計パターン）\n2. 現行の~/clawd/skills/と比較して改善できるポイントを抽出\n3. 具体的な改善提案を1-3件生成\n4. memory/miyabi-study-log.md に学習記録を追記\n5. 高価値な改善提案があればTelegramに送信（skills/self-improvement/SKILL.md参照）\n\n注意: 読むだけ。変更はユーザー承認後に実施。"
+      },
+      "delivery": {
+        "mode": "announce"
+      },
+      "state": {
+        "lastRunAtMs": 1770832800007,
+        "lastStatus": "ok",
+        "lastDurationMs": 66128,
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "61d330bc-c2d1-4ee6-8c91-0fad29a24b92",
+      "agentId": "main",
+      "name": "morning-briefing",
+      "description": "朝のブリーフィング - 前日成果+今日の優先タスクをTelegram送信",
+      "enabled": true,
+      "createdAtMs": 1770802216721,
+      "updatedAtMs": 1771021844122,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 7 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "朝ブリーフィングを生成してください。以下を含めること: 1) 深夜の自律タスク実行結果(memory/今日と昨日を確認) 2) outputs/approval-queue.mdの承認キュー 3) BACKLOG.mdから今日の推奨タスクTOP3 4) web_searchで最新AI動向を1件。結果をTelegramに送信し、outputs/briefings/2026-02-11.mdにも保存。",
+        "timeoutSeconds": 120
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram"
+      },
+      "state": {
+        "nextRunAtMs": 1771108200000,
+        "lastRunAtMs": 1771021800006,
+        "lastStatus": "ok",
+        "lastDurationMs": 44116,
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "983dc057-804c-49bf-af39-f790f8b45c0a",
+      "agentId": "main",
+      "name": "evening-summary",
+      "description": "夕方の進捗サマリー - 日中の進捗まとめをTelegram送信",
+      "enabled": true,
+      "createdAtMs": 1770802218357,
+      "updatedAtMs": 1771059711768,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 18 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "夕方の進捗サマリーを生成してください。以下を含めること: 1) 今日の完了タスク(memory/今日を確認) 2) 進行中タスク 3) ブロッカー 4) 明日への引き継ぎ事項。結果をTelegramに送信し、outputs/daily-summary-2026-02-11.mdにも保存。",
+        "timeoutSeconds": 240
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram"
+      },
+      "state": {
+        "nextRunAtMs": 1771146000000,
+        "lastRunAtMs": 1771059600006,
+        "lastStatus": "ok",
+        "lastDurationMs": 111762,
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "8e9da169-38a9-4b9b-8495-25068886f418",
+      "agentId": "main",
+      "name": "backlog-decompose",
+      "description": "バックログ自動分解 - BACKLOG/TASKS-CURRENTの自動更新",
+      "enabled": false,
+      "createdAtMs": 1770802225604,
+      "updatedAtMs": 1770829258625,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 2 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "バックログ自動分解タスク: BACKLOG.mdを読み、P1以上の未分解タスク(サブタスクがないもの)を特定し、各タスクを具体的なサブタスク(2-5個)に分解してBACKLOG.mdを更新してください。TASKS-CURRENT.mdも最新状態に更新。変更内容をmemory/2026-02-11.mdに記録。",
+        "timeoutSeconds": 120
+      },
+      "delivery": {
+        "mode": "none",
+        "channel": "last"
+      },
+      "state": {
+        "lastRunAtMs": 1770829200004,
+        "lastStatus": "ok",
+        "lastDurationMs": 58621,
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "552a3701-4515-4416-b99a-4b63088a3d58",
+      "agentId": "main",
+      "name": "social-monitor",
+      "description": "ソーシャルモニタリング - X/note.comの動向チェック(3時間毎)",
+      "enabled": false,
+      "createdAtMs": 1770802227149,
+      "updatedAtMs": 1770865220110,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */3 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "ソーシャルモニタリング: 1) web_searchで '@The_AGI_WAY' のX(Twitter)最新メンション確認 2) web_searchで 'note.com AI コース 最新' を検索 3) 重要な発見があればoutputs/notification-queue.mdにP1として追加 4) outputs/social-monitor-log.mdに結果を追記。読み取りのみ、投稿・返信は絶対にしないこと。",
+        "timeoutSeconds": 120
+      },
+      "delivery": {
+        "mode": "none",
+        "channel": "last"
+      },
+      "state": {
+        "lastRunAtMs": 1770865200009,
+        "lastStatus": "ok",
+        "lastDurationMs": 20101,
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "3bd4f28f-2339-4559-9b57-1591b59cd368",
+      "agentId": "main",
+      "name": "daily-oura-check",
+      "description": "Oura Ring毎日レポート - 睡眠・HRV・歩数・回復スコアを08:00にレポート",
+      "enabled": true,
+      "createdAtMs": 1771022643641,
+      "updatedAtMs": 1771061478829,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Oura Ring毎日レポートを作成してください。以下を含めること: 1) 昨日の睡眠スコア（総合・深い睡眠・レム睡眠・睡眠効率） 2) HRV・RHR・回復スコア 3) 歩数・活動カロリー 4) 頑張ったねのフィードバック（具体的に認める）。\\n\\nTelegramに送信し、docs/outputs/daily-oura-YYYY-MM-DD.mdにも保存。"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "telegram"
+      },
+      "state": {
+        "nextRunAtMs": 1771110000000
+      }
+    },
+    {
+      "id": "954d7b7a-7821-4554-b03c-aa6aa0fa75a0",
+      "agentId": "main",
+      "name": "openclaw-consistency-check",
+      "description": "OpenClaw自己診断",
+      "enabled": true,
+      "createdAtMs": 1771051861599,
+      "updatedAtMs": 1771061455729,
+      "schedule": {
+        "kind": "cron",
+        "expr": "45 7 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "OpenClaw自己診断を実行してください。openclaw status --deep、openclaw security audit --deep、openclaw cron status --json、openclaw cron list --json を順に実行し、critical/warn/failed・連続エラー・lastStatus=errorのジョブがあればTelegramへ通報。成功時は outputs/briefings/openclaw-consistency-$(date +%Y-%m-%d).md に要約を保存してください。",
+        "timeoutSeconds": 300
+      },
+      "delivery": {
+        "mode": "none",
+        "channel": "last"
+      },
+      "state": {
+        "nextRunAtMs": 1771109100000,
+        "lastRunAtMs": 1771051873361,
+        "lastStatus": "ok",
+        "lastDurationMs": 39852,
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "32bc0980-149a-4cf7-95f8-e7b315d4cecf",
+      "agentId": "main",
+      "name": "main-feedback-loop",
+      "description": "mainチャット改善サイクル",
+      "enabled": true,
+      "createdAtMs": 1771051864544,
+      "updatedAtMs": 1771061455778,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 20 * * *",
+        "tz": "Asia/Tokyo"
+      },
+      "sessionTarget": "main",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "systemEvent",
+        "text": "毎日20:00にmainセッションでチャット改善サイクルを実行してください。memory/今日とmemory/昨日を確認し、(1)今日のユーザー意図の変遷、(2)AI側の改善ポイント、(3)次回に残す運用ルールを3点以内で要約してください。結果を outputs/briefings/main-feedback-$(date +%Y-%m-%d).md に保存し、重要な不整合があればTelegramに通知してください。"
+      },
+      "state": {
+        "nextRunAtMs": 1771066800000,
+        "lastRunAtMs": 1771051918221,
+        "lastStatus": "ok",
+        "lastDurationMs": 17491,
+        "consecutiveErrors": 0
+      }
+    }
+  ]
+}
