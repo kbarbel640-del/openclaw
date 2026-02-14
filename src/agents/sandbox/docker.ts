@@ -35,6 +35,7 @@ export function execDockerRaw(
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
     let aborted = false;
+    let settled = false;
 
     const signal = opts?.signal;
     const handleAbort = () => {
@@ -60,13 +61,25 @@ export function execDockerRaw(
     });
 
     child.on("error", (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       if (signal) {
         signal.removeEventListener("abort", handleAbort);
       }
-      reject(error);
+      const message =
+        (error as NodeJS.ErrnoException).code === "ENOENT"
+          ? "Docker is not installed or not in PATH. Install Docker to use sandbox mode."
+          : `Failed to execute docker: ${error.message}`;
+      reject(new Error(message));
     });
 
     child.on("close", (code) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       if (signal) {
         signal.removeEventListener("abort", handleAbort);
       }
