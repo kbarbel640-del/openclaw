@@ -1,3 +1,4 @@
+import type { Bot } from "grammy";
 import { describe, expect, it, vi } from "vitest";
 import { sendPollTelegram } from "./send.js";
 
@@ -10,7 +11,7 @@ describe("sendPollTelegram", () => {
     const res = await sendPollTelegram(
       "123",
       { question: " Q ", options: [" A ", "B "], durationSeconds: 60 },
-      { token: "t", api: api as any },
+      { token: "t", api: api as unknown as Bot["api"] },
     );
 
     expect(res).toEqual({ messageId: "123", chatId: "555", pollId: "p1" });
@@ -24,8 +25,9 @@ describe("sendPollTelegram", () => {
   it("retries without message_thread_id on thread-not-found", async () => {
     const api = {
       sendPoll: vi.fn(
-        async (_chatId: string, _question: string, _options: string[], params: any) => {
-          if (params?.message_thread_id) {
+        async (_chatId: string, _question: string, _options: string[], params: unknown) => {
+          const p = params as { message_thread_id?: unknown } | undefined;
+          if (p?.message_thread_id) {
             throw new Error("400: Bad Request: message thread not found");
           }
           return { message_id: 1, chat: { id: 2 }, poll: { id: "p2" } };
@@ -36,7 +38,7 @@ describe("sendPollTelegram", () => {
     const res = await sendPollTelegram(
       "123",
       { question: "Q", options: ["A", "B"] },
-      { token: "t", api: api as any, messageThreadId: 99 },
+      { token: "t", api: api as unknown as Bot["api"], messageThreadId: 99 },
     );
 
     expect(res).toEqual({ messageId: "1", chatId: "2", pollId: "p2" });
@@ -52,7 +54,7 @@ describe("sendPollTelegram", () => {
       sendPollTelegram(
         "123",
         { question: "Q", options: ["A", "B"], durationHours: 1 },
-        { token: "t", api: api as any },
+        { token: "t", api: api as unknown as Bot["api"] },
       ),
     ).rejects.toThrow(/durationHours is not supported/i);
 
