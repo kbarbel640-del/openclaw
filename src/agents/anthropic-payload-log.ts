@@ -7,6 +7,7 @@ import { resolveStateDir } from "../config/paths.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveUserPath } from "../utils.js";
 import { parseBooleanValue } from "../utils/boolean.js";
+import { sanitize } from "./payload-sanitizer.js";
 
 type PayloadLogStage = "request" | "usage";
 
@@ -63,7 +64,7 @@ function getWriter(filePath: string): PayloadLogWriter {
     write: (line: string) => {
       queue = queue
         .then(() => ready)
-        .then(() => fs.appendFile(filePath, line, "utf8"))
+        .then(() => fs.appendFile(filePath, line, { encoding: "utf8", mode: 0o600 }))
         .catch(() => undefined);
     },
   };
@@ -179,12 +180,13 @@ export function createAnthropicPayloadLogger(params: {
         return streamFn(model, context, options);
       }
       const nextOnPayload = (payload: unknown) => {
+        const { sanitized } = sanitize(payload);
         record({
           ...base,
           ts: new Date().toISOString(),
           stage: "request",
-          payload,
-          payloadDigest: digest(payload),
+          payload: sanitized,
+          payloadDigest: digest(sanitized),
         });
         options?.onPayload?.(payload);
       };
@@ -199,13 +201,14 @@ export function createAnthropicPayloadLogger(params: {
   const recordUsage: AnthropicPayloadLogger["recordUsage"] = (messages, error) => {
     const usage = findLastAssistantUsage(messages);
     const errorMessage = formatError(error);
+    const sanitizedError = errorMessage ? (sanitize(errorMessage).sanitized as string) : undefined;
     if (!usage) {
-      if (errorMessage) {
+      if (sanitizedError) {
         record({
           ...base,
           ts: new Date().toISOString(),
           stage: "usage",
-          error: errorMessage,
+          error: sanitizedError,
         });
       }
       return;
@@ -215,7 +218,7 @@ export function createAnthropicPayloadLogger(params: {
       ts: new Date().toISOString(),
       stage: "usage",
       usage,
-      error: errorMessage,
+      error: sanitizedError,
     });
     log.info("anthropic usage", {
       runId: params.runId,
@@ -224,6 +227,6 @@ export function createAnthropicPayloadLogger(params: {
     });
   };
 
-  log.info("anthropic payload logger enabled", { filePath: writer.filePath });
+  log.warn("anthropic payload logging enabled", { filePath: writer.filePath });
   return { enabled: true, wrapStreamFn, recordUsage };
 }
