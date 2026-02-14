@@ -57,7 +57,7 @@ import {
 } from "./controllers/skills.ts";
 import "./components/dashboard-header.ts";
 import { icons } from "./icons.ts";
-import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
+import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab, getVisibleTabsWithOverrides } from "./navigation.ts";
 import { renderAgents } from "./views/agents.ts";
 import { renderBottomTabs } from "./views/bottom-tabs.ts";
 import { renderChannels } from "./views/channels.ts";
@@ -216,10 +216,9 @@ export function renderApp(state: AppViewState) {
           ${state.settings.navCollapsed ? icons.panelLeftOpen : icons.panelLeftClose}
         </button>
       </div>
- 
-          
+
           <nav class="sidebar-nav">
-          ${TAB_GROUPS.map((group) => {
+          ${getVisibleTabsWithOverrides(state.settings.mode ?? "advanced", state.settings.tabVisibility ?? {}).map((group) => {
             const isGroupCollapsed = state.settings.navGroupsCollapsed[group.label] ?? false;
             const hasActiveTab = group.tabs.some((tab) => tab === state.tab);
             const showItems = hasActiveTab || !isGroupCollapsed;
