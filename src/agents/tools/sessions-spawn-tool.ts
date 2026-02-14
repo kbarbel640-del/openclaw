@@ -6,6 +6,7 @@ import { formatThinkingLevels, normalizeThinkLevel } from "../../auto-reply/thin
 import { loadConfig } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
 import {
+  getSubagentDepth,
   isSubagentSessionKey,
   normalizeAgentId,
   parseAgentSessionKey,
@@ -13,6 +14,7 @@ import {
 import { normalizeDeliveryContext } from "../../utils/delivery-context.js";
 import { resolveAgentConfig } from "../agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "../lanes.js";
+import { resolveAllowRecursiveSpawn, resolveMaxSpawnDepth } from "../recursive-spawn-config.js";
 import { optionalStringEnum } from "../schema/typebox.js";
 import { buildSubagentSystemPrompt } from "../subagent-announce.js";
 import { registerSubagentRun } from "../subagent-registry.js";
@@ -120,10 +122,29 @@ export function createSessionsSpawnTool(opts?: {
       const { mainKey, alias } = resolveMainSessionAlias(cfg);
       const requesterSessionKey = opts?.agentSessionKey;
       if (typeof requesterSessionKey === "string" && isSubagentSessionKey(requesterSessionKey)) {
-        return jsonResult({
-          status: "forbidden",
-          error: "sessions_spawn is not allowed from sub-agent sessions",
-        });
+        const currentDepth = getSubagentDepth(requesterSessionKey);
+        // Compute agent ID early from session key for recursive spawn checks.
+        // requesterAgentId is defined later in the flow, so we parse it here.
+        const earlyAgentId = normalizeAgentId(
+          opts?.requesterAgentIdOverride ?? parseAgentSessionKey(requesterSessionKey)?.agentId,
+        );
+        const allowRecursive = resolveAllowRecursiveSpawn(cfg, earlyAgentId);
+        const maxDepth = resolveMaxSpawnDepth(cfg, earlyAgentId);
+
+        if (!allowRecursive) {
+          return jsonResult({
+            status: "forbidden",
+            error:
+              "Recursive spawning is not enabled. Set subagents.allowRecursiveSpawn: true in config.",
+          });
+        }
+
+        if (currentDepth >= maxDepth) {
+          return jsonResult({
+            status: "forbidden",
+            error: `Maximum subagent depth (${maxDepth}) reached. Cannot spawn deeper.`,
+          });
+        }
       }
       const requesterInternalKey = requesterSessionKey
         ? resolveInternalSessionKey({
@@ -165,7 +186,10 @@ export function createSessionsSpawnTool(opts?: {
           });
         }
       }
-      const childSessionKey = `agent:${targetAgentId}:subagent:${crypto.randomUUID()}`;
+      const childSessionKey =
+        typeof requesterSessionKey === "string" && isSubagentSessionKey(requesterSessionKey)
+          ? `${requesterSessionKey}:sub:${crypto.randomUUID()}`
+          : `agent:${targetAgentId}:subagent:${crypto.randomUUID()}`;
       const spawnedByKey = requesterInternalKey;
       const targetAgentConfig = resolveAgentConfig(cfg, targetAgentId);
       const resolvedModel =

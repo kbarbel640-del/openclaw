@@ -206,6 +206,10 @@ export type AgentDefaultsConfig = {
     maxConcurrent?: number;
     /** Auto-archive sub-agent sessions after N minutes (default: 60). */
     archiveAfterMinutes?: number;
+    /** Allow subagents to recursively spawn their own subagents. Default: false. */
+    allowRecursiveSpawn?: boolean;
+    /** Maximum nesting depth for recursive subagent spawning. Default: 3, range: 1-10. */
+    maxDepth?: number;
     /** Default model selection for spawned sub-agents (string or {primary,fallbacks}). */
     model?: string | { primary?: string; fallbacks?: string[] };
     /** Default thinking level for spawned sub-agents (e.g. "off", "low", "medium", "high"). */

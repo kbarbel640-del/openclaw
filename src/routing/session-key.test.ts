@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifySessionKeyShape } from "./session-key.js";
+import { classifySessionKeyShape, getParentSubagentKey, getSubagentDepth } from "./session-key.js";
 
 describe("classifySessionKeyShape", () => {
   it("classifies empty keys as missing", () => {
@@ -37,5 +37,59 @@ describe("session key backward compatibility", () => {
     expect(classifySessionKeyShape("agent:main:telegram:direct:123456")).toBe("agent");
     expect(classifySessionKeyShape("agent:main:whatsapp:direct:+15551234567")).toBe("agent");
     expect(classifySessionKeyShape("agent:main:discord:direct:user123")).toBe("agent");
+  });
+});
+
+describe("getSubagentDepth", () => {
+  it("returns 0 for non-subagent keys", () => {
+    expect(getSubagentDepth("agent:main:main")).toBe(0);
+    expect(getSubagentDepth("agent:main:telegram:direct:123")).toBe(0);
+  });
+
+  it("returns 0 for null/undefined/empty", () => {
+    expect(getSubagentDepth(null)).toBe(0);
+    expect(getSubagentDepth(undefined)).toBe(0);
+    expect(getSubagentDepth("")).toBe(0);
+    expect(getSubagentDepth("   ")).toBe(0);
+  });
+
+  it("returns 1 for depth-1 subagent keys", () => {
+    expect(getSubagentDepth("agent:main:subagent:abc-123")).toBe(1);
+    expect(getSubagentDepth("agent:research:subagent:def-456")).toBe(1);
+  });
+
+  it("returns 2 for depth-2 subagent keys", () => {
+    expect(getSubagentDepth("agent:main:subagent:abc:sub:def")).toBe(2);
+  });
+
+  it("returns 3 for depth-3 subagent keys", () => {
+    expect(getSubagentDepth("agent:main:subagent:abc:sub:def:sub:ghi")).toBe(3);
+  });
+
+  it("stops counting at unexpected segments", () => {
+    expect(getSubagentDepth("agent:main:subagent:abc:thread:xyz")).toBe(1);
+  });
+});
+
+describe("getParentSubagentKey", () => {
+  it("returns null for non-subagent keys", () => {
+    expect(getParentSubagentKey("agent:main:main")).toBeNull();
+    expect(getParentSubagentKey(null)).toBeNull();
+    expect(getParentSubagentKey("")).toBeNull();
+  });
+
+  it("returns main key for depth-1 subagent", () => {
+    expect(getParentSubagentKey("agent:main:subagent:abc-123")).toBe("agent:main:main");
+    expect(getParentSubagentKey("agent:research:subagent:def")).toBe("agent:research:main");
+  });
+
+  it("returns depth-1 key for depth-2 subagent", () => {
+    expect(getParentSubagentKey("agent:main:subagent:abc:sub:def")).toBe("agent:main:subagent:abc");
+  });
+
+  it("returns depth-2 key for depth-3 subagent", () => {
+    expect(getParentSubagentKey("agent:main:subagent:abc:sub:def:sub:ghi")).toBe(
+      "agent:main:subagent:abc:sub:def",
+    );
   });
 });

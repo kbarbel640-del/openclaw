@@ -456,6 +456,8 @@ export const AgentEntrySchema = z
     subagents: z
       .object({
         allowAgents: z.array(z.string()).optional(),
+        allowRecursiveSpawn: z.boolean().optional(),
+        maxDepth: z.number().int().min(1).max(10).optional(),
         model: z
           .union([
             z.string(),
@@ -551,6 +553,8 @@ export const ToolsSchema = z
       .optional(),
     subagents: z
       .object({
+        allowRecursiveSpawn: z.boolean().optional(),
+        maxDepth: z.number().int().min(1).max(10).optional(),
         tools: ToolPolicySchema,
       })
       .strict()

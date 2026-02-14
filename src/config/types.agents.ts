@@ -39,6 +39,10 @@ export type AgentConfig = {
     allowAgents?: string[];
     /** Per-agent default model for spawned sub-agents (string or {primary,fallbacks}). */
     model?: string | { primary?: string; fallbacks?: string[] };
+    /** Allow subagents to recursively spawn their own subagents. Default: false. */
+    allowRecursiveSpawn?: boolean;
+    /** Maximum nesting depth for recursive subagent spawning. Default: 3, range: 1-10. */
+    maxDepth?: number;
   };
   sandbox?: {
     mode?: "off" | "non-main" | "all";

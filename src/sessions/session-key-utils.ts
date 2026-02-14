@@ -58,6 +58,56 @@ export function isAcpSessionKey(sessionKey: string | undefined | null): boolean 
   return Boolean((parsed?.rest ?? "").toLowerCase().startsWith("acp:"));
 }
 
+export function getSubagentDepth(sessionKey: string | undefined | null): number {
+  const raw = (sessionKey ?? "").trim();
+  if (!raw) {
+    return 0;
+  }
+  const parsed = parseAgentSessionKey(raw);
+  if (!parsed) {
+    return 0;
+  }
+  const rest = parsed.rest.toLowerCase();
+  if (!rest.startsWith("subagent:")) {
+    return 0;
+  }
+  const parts = rest.split(":");
+  let depth = 1;
+  let i = 2;
+  while (i + 1 < parts.length) {
+    if (parts[i] === "sub") {
+      depth++;
+      i += 2;
+    } else {
+      break;
+    }
+  }
+  return depth;
+}
+
+export function getParentSubagentKey(sessionKey: string | undefined | null): string | null {
+  const raw = (sessionKey ?? "").trim();
+  if (!raw) {
+    return null;
+  }
+  const depth = getSubagentDepth(raw);
+  if (depth === 0) {
+    return null;
+  }
+  if (depth === 1) {
+    const parsed = parseAgentSessionKey(raw);
+    if (!parsed) {
+      return null;
+    }
+    return `agent:${parsed.agentId}:main`;
+  }
+  const lastSubIdx = raw.lastIndexOf(":sub:");
+  if (lastSubIdx <= 0) {
+    return null;
+  }
+  return raw.substring(0, lastSubIdx);
+}
+
 const THREAD_SESSION_MARKERS = [":thread:", ":topic:"];
 
 export function resolveThreadParentSessionKey(

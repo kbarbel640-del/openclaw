@@ -13,6 +13,7 @@ import { callGateway } from "../gateway/call.js";
 import { formatDurationCompact } from "../infra/format-time/format-duration.ts";
 import { normalizeMainKey } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
+import { getSubagentDepth } from "../sessions/session-key-utils.js";
 import {
   type DeliveryContext,
   deliveryContextFromSession,
@@ -362,6 +363,13 @@ export function buildSubagentSystemPrompt(params: {
       ? `- Requester channel: ${params.requesterOrigin.channel}.`
       : undefined,
     `- Your session: ${params.childSessionKey}.`,
+    (() => {
+      const depth = getSubagentDepth(params.childSessionKey);
+      if (depth > 1) {
+        return `- Depth: ${depth} (your results go to your parent subagent, not the end user). You CAN spawn sub-subagents if needed.`;
+      }
+      return undefined;
+    })(),
     "",
   ].filter((line): line is string => line !== undefined);
   return lines.join("\n");

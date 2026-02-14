@@ -141,6 +141,8 @@ export const AgentDefaultsSchema = z
       .object({
         maxConcurrent: z.number().int().positive().optional(),
         archiveAfterMinutes: z.number().int().positive().optional(),
+        allowRecursiveSpawn: z.boolean().optional(),
+        maxDepth: z.number().int().min(1).max(10).optional(),
         model: z
           .union([
             z.string(),
