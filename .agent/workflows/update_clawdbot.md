@@ -8,7 +8,7 @@ Use this workflow when your fork has diverged from upstream (e.g., "18 commits a
 
 **Push policy:** Push only to your own fork (e.g. `origin`). Never push to the ClawdBot-Next repo or to the formal OpenClaw repo; only pull from ClawdBot-Next and fetch from OpenClaw.
 
-For an explicit list of fork-specific changes (prompt-engine, maintainer edits, workflow), see [FORK-CHANGES.md](../../FORK-CHANGES.md) in the repo root.
+For an explicit list of fork-specific changes (prompt-engine, maintainer edits, workflow), see [FORK-CHANGES.md](../../FORK-CHANGES.md) in the repo root. A daily CI workflow (`.github/workflows/upstream-sync-test.yml`) runs a merge + build + test against upstream; if it fails, it opens an issue in this repo—see FORK-CHANGES.md “Phase 5”.
 
 ## Quick Reference
 
@@ -16,12 +16,27 @@ For an explicit list of fork-specific changes (prompt-engine, maintainer edits, 
 # Check divergence status
 git fetch upstream && git rev-list --left-right --count main...upstream/main
 
+# See incoming changes: open the latest "Upstream sync test" workflow run and check the Job summary (commit list + CHANGELOG diff).
+
 # Full sync (rebase preferred)
 git fetch upstream && git rebase upstream/main && pnpm install && pnpm build && ./scripts/restart-mac.sh
 
 # Check for Swift 6.2 issues after sync
 grep -r "FileManager\.default\|Thread\.isMainThread" src/ apps/ --include="*.swift"
 ```
+
+### Clean merges: see a summary before you commit
+
+The **daily upstream-sync workflow** includes an **Upstream preview** step: every run (success or failure) writes the incoming commit list and CHANGELOG diff to the **Job summary** on the workflow run page. Open the latest “Upstream sync test” run in the Actions tab to see what would land or what landed. You can copy that summary into Cursor if you want to analyze it.
+
+### When CI reports conflicts: get them into Cursor
+
+If the daily upstream-sync workflow opens an issue (merge or build failed), the issue body includes **conflicted files** (when the failure was a merge conflict) and a **clean vs conflicted commit split**: how many upstream commits merge cleanly vs how many at the tip introduce the conflict(s), with commit lists so you can merge the clean ones first and then resolve the rest. Easiest way to resolve in Cursor:
+
+1. Open the issue (or bring the issue URL into Cursor for context). The issue lists **conflicted files** and a **clean vs conflicted** commit split (when available).
+2. **Optional:** If the issue shows “X commits merge cleanly,” you can merge up to that point first: `git fetch upstream && git merge <hash-from-issue>` (the issue lists the boundary), then merge the rest and resolve. Or do a single full merge.
+3. Locally run: **`git fetch upstream && git merge upstream/main`** (or `git rebase upstream/main` if you prefer). The conflicts will appear in your working tree—the same repo Cursor already has open.
+4. Resolve the conflicted files in Cursor; use the issue text and the workflow run link for context. Then `git add` resolved files and `git rebase --continue` or `git commit`.
 
 ---
 
