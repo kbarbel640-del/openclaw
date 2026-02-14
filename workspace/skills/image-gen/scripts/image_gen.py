@@ -9,10 +9,11 @@ Supports:
   - generate: Create/transform images from text prompts + reference images
   - edit:     Iterative editing via chat sessions (multi-turn)
 
-Requires: GEMINI_API_KEY env var or .env file in skill directory.
+Requires: GOOGLE_API_KEY env var or workspace root .env file.
 """
 
 import argparse
+import io
 import json
 import os
 import sys
@@ -263,8 +264,8 @@ def build_prompt(req: dict) -> str:
     return "\n\n".join(parts)
 
 
-def get_output_config(specs: dict) -> dict:
-    """Extract GenerateContentConfig params from output spec."""
+def get_output_config(specs: dict, model: str = "") -> dict:
+    """Extract ImageConfig params from output spec."""
     output = specs.get("output", {})
     config = {}
 
@@ -272,9 +273,9 @@ def get_output_config(specs: dict) -> dict:
     if aspect_ratio in VALID_ASPECT_RATIOS:
         config["aspect_ratio"] = aspect_ratio
 
-    # Image size (resolution) — only for pro model
+    # Image size (resolution) — only meaningful for pro model
     size = output.get("size", "")
-    if size in ("1K", "2K", "4K"):
+    if size in ("1K", "2K", "4K") and model == QUALITY_MODEL:
         config["image_size"] = size
 
     return config
@@ -391,8 +392,8 @@ def do_generate(client: genai.Client, req: dict) -> dict:
 
     # Config
     specs = req.get("specs", {})
-    output_config = get_output_config(specs)
     model = req.get("model", DEFAULT_MODEL)
+    output_config = get_output_config(specs, model)
     use_search = req.get("use_search", False)
 
     config = types.GenerateContentConfig(
@@ -441,7 +442,6 @@ def do_generate(client: genai.Client, req: dict) -> dict:
         return {"success": False, "error": f"No image generated. Model said: {model_text or '(empty)'}"}
 
     # Convert to PIL Image for format control
-    import io
     pil_image = Image.open(io.BytesIO(result_image.data))
 
     # Save
@@ -475,7 +475,7 @@ def do_edit(client: genai.Client, req: dict) -> dict:
 
     model = req.get("model", DEFAULT_MODEL)
     specs = req.get("specs", {})
-    output_config = get_output_config(specs)
+    output_config = get_output_config(specs, model)
 
     config = types.GenerateContentConfig(
         response_modalities=["TEXT", "IMAGE"],
@@ -550,7 +550,6 @@ def do_edit(client: genai.Client, req: dict) -> dict:
         return {"success": False, "error": f"No image generated. Model said: {model_text or '(empty)'}"}
 
     # Convert to PIL Image for format control
-    import io
     pil_image = Image.open(io.BytesIO(result_image.data))
 
     metadata = save_image(pil_image, output_path, fmt)
@@ -589,6 +588,18 @@ def do_list_sessions(req: dict) -> dict:
     return {"success": True, "sessions": sessions}
 
 
+def do_delete_session(req: dict) -> dict:
+    """Delete a chat session."""
+    session_id = req.get("session_id", "")
+    if not session_id:
+        return {"success": False, "error": "session_id required for delete_session command."}
+    p = get_session_path(session_id)
+    if p.exists():
+        p.unlink()
+        return {"success": True, "deleted": session_id}
+    return {"success": False, "error": f"Session '{session_id}' not found."}
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -611,9 +622,12 @@ def main():
 
     command = req.get("command", "generate")
 
-    # List sessions doesn't need API key
+    # Commands that don't need API key
     if command == "list_sessions":
         print(json.dumps(do_list_sessions(req), indent=2))
+        return
+    if command == "delete_session":
+        print(json.dumps(do_delete_session(req), indent=2))
         return
 
     # Load API key
@@ -634,10 +648,14 @@ def main():
     elif command == "edit":
         result = do_edit(client, req)
     else:
-        result = {"success": False, "error": f"Unknown command: {command}. Use: generate, edit, list_sessions"}
+        result = {"success": False, "error": f"Unknown command: {command}. Use: generate, edit, delete_session, list_sessions"}
 
     print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(json.dumps({"success": False, "error": f"Unexpected error: {e}"}))
+        sys.exit(1)

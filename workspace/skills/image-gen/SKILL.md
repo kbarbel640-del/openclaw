@@ -34,7 +34,14 @@ Output: JSON to stdout with `success`, image `path`, and `metadata`.
 }
 ```
 
-### `edit` — Iterative Editing (Multi-Turn)
+### `edit` — Iterative Editing (Multi-Turn Chat Mode)
+
+Edit builds on previous output automatically. Each edit loads the last generated image from the session as `[previous_output]` context, so the model can see what it's modifying.
+
+**How it works:**
+1. First `edit` call: you MUST provide the source image via `images` (no previous output exists yet)
+2. Subsequent `edit` calls: previous output is auto-loaded from session — just provide the edit instruction
+3. You can add new reference images at any turn via `images`
 
 ```json
 {
@@ -46,11 +53,22 @@ Output: JSON to stdout with `success`, image `path`, and `metadata`.
 }
 ```
 
+Response includes `session_id` and `turn` number for tracking.
+
 ### `list_sessions` — List Active Edit Sessions
 
 ```json
 {
   "command": "list_sessions"
+}
+```
+
+### `delete_session` — Clean Up a Chat Session
+
+```json
+{
+  "command": "delete_session",
+  "session_id": "jar-hero-v1"
 }
 ```
 
@@ -172,24 +190,49 @@ Specs provide structured creative direction. They're composed into a natural lan
 }
 ```
 
-### 5. Iterative Editing
+### 5. Iterative Editing (Chat Mode)
+
+Use `edit` for multi-turn refinement. The first call needs the source image; subsequent calls auto-load the previous output.
+
+**Turn 1 — initial generation with source image:**
 ```json
-// First: generate
 {
-  "command": "generate",
-  "prompt": "Studio hero shot of this jar",
+  "command": "edit",
+  "session_id": "jar-hero",
+  "prompt": "Studio hero shot of this jar on white background, soft lighting",
   "images": [{"path": "jar.jpg", "label": "source"}],
   "specs": {"output": {"filename": "jar_v1"}},
   "output_dir": "D:/openclaw/workspace/output"
 }
+```
 
-// Then: edit (references previous output automatically)
+**Turn 2 — refine (previous output auto-loaded):**
+```json
 {
   "command": "edit",
   "session_id": "jar-hero",
   "prompt": "The lighting is too harsh. Make it softer and warmer. Also add a subtle reflection on the surface below.",
   "specs": {"output": {"filename": "jar_v2"}},
   "output_dir": "D:/openclaw/workspace/output"
+}
+```
+
+**Turn 3 — further tweaks:**
+```json
+{
+  "command": "edit",
+  "session_id": "jar-hero",
+  "prompt": "Perfect. Now change the background to a light grey gradient instead of pure white.",
+  "specs": {"output": {"filename": "jar_v3"}},
+  "output_dir": "D:/openclaw/workspace/output"
+}
+```
+
+**Cleanup when done:**
+```json
+{
+  "command": "delete_session",
+  "session_id": "jar-hero"
 }
 ```
 
