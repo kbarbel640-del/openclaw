@@ -20,15 +20,16 @@ export async function dashboardCommand(
   const snapshot = await readConfigFileSnapshot();
   const cfg = snapshot.valid ? snapshot.config : {};
   const port = resolveGatewayPort(cfg);
+  const bind = cfg.gateway?.bind ?? "loopback";
   const basePath = cfg.gateway?.controlUi?.basePath;
   const customBindHost = cfg.gateway?.customBindHost;
   const token = cfg.gateway?.auth?.token ?? process.env.OPENCLAW_GATEWAY_TOKEN ?? "";
 
-  // Dashboard always uses localhost regardless of bind mode to avoid
-  // secure context errors in browsers (which require HTTPS or localhost)
+  // LAN URLs fail secure-context checks in browsers.
+  // Coerce only lan->loopback and preserve other bind modes.
   const links = resolveControlUiLinks({
     port,
-    bind: "loopback",
+    bind: bind === "lan" ? "loopback" : bind,
     customBindHost,
     basePath,
   });
