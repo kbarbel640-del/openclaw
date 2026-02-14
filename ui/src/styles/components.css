@@ -1214,8 +1214,8 @@
   gap: 0;
   cursor: pointer;
   border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  padding: 4px 12px;
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
