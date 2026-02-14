@@ -250,12 +250,7 @@ export async function sendBlueBubblesAttachment(params: {
   }
 
   const trimmedReplyTo = replyToMessageGuid?.trim();
-  if (trimmedReplyTo) {
-    if (privateApiStatus === false) {
-      throw new Error(
-        "BlueBubbles attachment replies require Private API, but it is disabled on the BlueBubbles server.",
-      );
-    }
+  if (trimmedReplyTo && privateApiStatus !== false) {
     addField("selectedMessageGuid", trimmedReplyTo);
     addField("partIndex", typeof replyToPartIndex === "number" ? String(replyToPartIndex) : "0");
   }
