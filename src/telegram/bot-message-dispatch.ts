@@ -24,6 +24,10 @@ import { danger, logVerbose } from "../globals.js";
 import { deliverReplies } from "./bot/delivery.js";
 import { resolveTelegramDraftStreamingChunking } from "./draft-chunking.js";
 import { createTelegramDraftStream } from "./draft-stream.js";
+import {
+  logTelegramQueueEnqueued,
+  type TelegramInboundSubagentQueue,
+} from "./inbound-subagent-queue.js";
 import { cacheSticker, describeStickerImage } from "./sticker-cache.js";
 
 const EMPTY_RESPONSE_FALLBACK = "No response generated. Please try again.";
@@ -55,6 +59,7 @@ type DispatchTelegramMessageParams = {
   telegramCfg: TelegramAccountConfig;
   opts: Pick<TelegramBotOptions, "token">;
   resolveBotTopicsEnabled: ResolveBotTopicsEnabled;
+  inboundQueue?: TelegramInboundSubagentQueue;
 };
 
 export const dispatchTelegramMessage = async ({
@@ -68,6 +73,7 @@ export const dispatchTelegramMessage = async ({
   telegramCfg,
   opts,
   resolveBotTopicsEnabled,
+  inboundQueue,
 }: DispatchTelegramMessageParams) => {
   const {
     ctxPayload,
@@ -87,6 +93,26 @@ export const dispatchTelegramMessage = async ({
     reactionApi,
     removeAckAfterReply,
   } = context;
+
+  const replyMessageId = Number.parseInt(String(ctxPayload.MessageSid || msg.message_id || ""), 10);
+  if (inboundQueue && Number.isFinite(replyMessageId) && replyMessageId > 0) {
+    const queued = await inboundQueue.enqueue({
+      storePath: context.storePath,
+      sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
+      chatId,
+      accountId: route.accountId,
+      agentId: route.agentId,
+      messageId: replyMessageId,
+      messageSid: String(ctxPayload.MessageSidFull || ctxPayload.MessageSid || replyMessageId),
+      bodyForAgent: (ctxPayload.BodyForAgent ?? msg.text ?? msg.caption ?? "").trim(),
+      senderLabel: ctxPayload.SenderName,
+      threadSpec,
+    });
+    if (queued) {
+      logTelegramQueueEnqueued(chatId, replyMessageId);
+      return;
+    }
+  }
 
   const isPrivateChat = msg.chat.type === "private";
   const draftThreadId = threadSpec.id;
