@@ -16,6 +16,19 @@
   box-shadow: none !important;
 }
 
+/* Chat body - horizontal flex for split-container + audio panel */
+.chat-body {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chat-body > .chat-split-container {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 /* Chat header - fixed at top, transparent */
 .chat-header {
   display: flex;

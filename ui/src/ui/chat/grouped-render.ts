@@ -278,7 +278,7 @@ function renderGroupedMessage(
         audioBlocks.length > 0
           ? audioBlocks.map(
               (block) => {
-                trackAudio(block.dataUri);
+                trackAudio(block.dataUri, markdown?.slice(0, 80) || undefined);
                 return html`<audio class="chat-audio-player" controls preload="auto">
                     <source src="${block.dataUri}" type="${block.mimeType}"></audio>`;
               },

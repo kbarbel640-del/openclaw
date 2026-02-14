@@ -13,6 +13,7 @@ import { normalizeMessage, normalizeRoleForGrouping } from "../chat/message-norm
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
+import { renderAudioPanel } from "../chat/audio-panel.ts";
 import "../components/resizable-divider.ts";
 
 export type CompactionIndicatorStatus = {
@@ -285,6 +286,7 @@ export function renderChat(props: ChatProps) {
           : nothing
       }
 
+      <div class="chat-body">
       <div
         class="chat-split-container ${sidebarOpen ? "chat-split-container--open" : ""}"
       >
@@ -318,6 +320,9 @@ export function renderChat(props: ChatProps) {
             `
             : nothing
         }
+      </div>
+
+      ${renderAudioPanel()}
       </div>
 
       ${
