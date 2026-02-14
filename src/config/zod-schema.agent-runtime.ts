@@ -429,6 +429,7 @@ export const AgentEntrySchema = z
     default: z.boolean().optional(),
     name: z.string().optional(),
     icon: z.string().optional(),
+    emoji: z.string().optional(),
     role: z
       .union([
         z.literal("orchestrator"),

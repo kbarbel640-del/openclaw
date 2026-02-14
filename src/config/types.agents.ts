@@ -25,6 +25,8 @@ export type AgentConfig = {
   name?: string;
   /** Emoji icon for the agent (displayed in UI and CLI). */
   icon?: string;
+  /** Emoji shorthand at agent level (alias for identity.emoji). */
+  emoji?: string;
   /** Hierarchy role: orchestrator > lead > specialist > worker. Default: "specialist". */
   role?: AgentRole;
   /**
