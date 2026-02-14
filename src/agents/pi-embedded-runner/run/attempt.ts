@@ -94,7 +94,11 @@ import {
 } from "../system-prompt.js";
 import { splitSdkTools } from "../tool-split.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
-import { flushPendingToolResultsAfterIdle } from "../wait-for-idle-before-flush.js";
+import {
+  flushPendingToolResultsAfterIdle,
+  waitForAgentIdleBestEffort,
+  DEFAULT_WAIT_FOR_IDLE_TIMEOUT_MS,
+} from "../wait-for-idle-before-flush.js";
 import {
   selectCompactionTimeoutSnapshot,
   shouldFlagCompactionTimeout,
@@ -1040,6 +1044,11 @@ export async function runEmbeddedAttempt(
             });
           }
         }
+
+        // Wait for the agent to be truly idle before capturing the messages snapshot.
+        // Auto-retry resolves waitForRetry() on assistant message receipt, *before*
+        // tool execution completes in the retried agent loop.
+        await waitForAgentIdleBestEffort(activeSession.agent, DEFAULT_WAIT_FOR_IDLE_TIMEOUT_MS);
 
         // If timeout occurred during compaction, use pre-compaction snapshot when available
         // (compaction restructures messages but does not add user/assistant turns).
