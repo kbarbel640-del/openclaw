@@ -13,6 +13,7 @@ import type {
   AgentsListResult,
   AgentsFilesListResult,
   AgentIdentityResult,
+  ProviderUsageSummary,
   ConfigSnapshot,
   ConfigUiHints,
   CronJob,
@@ -219,6 +220,9 @@ export class OpenClawApp extends LitElement {
   @state() agentSkillsError: string | null = null;
   @state() agentSkillsReport: SkillStatusReport | null = null;
   @state() agentSkillsAgentId: string | null = null;
+  @state() providerUsageLoading = false;
+  @state() providerUsageError: string | null = null;
+  @state() providerUsageSummary: ProviderUsageSummary | null = null;
 
   @state() sessionsLoading = false;
   @state() sessionsResult: SessionsListResult | null = null;

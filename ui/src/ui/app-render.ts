@@ -42,6 +42,7 @@ import {
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
+import { loadProviderUsage } from "./controllers/provider-usage.ts";
 import { deleteSession, loadSessions, patchSession } from "./controllers/sessions.ts";
 import {
   installSkill,
@@ -640,9 +641,13 @@ export function renderApp(state: AppViewState) {
                 agentSkillsReport: state.agentSkillsReport,
                 agentSkillsError: state.agentSkillsError,
                 agentSkillsAgentId: state.agentSkillsAgentId,
+                providerUsageLoading: state.providerUsageLoading,
+                providerUsageError: state.providerUsageError,
+                providerUsageSummary: state.providerUsageSummary,
                 skillsFilter: state.skillsFilter,
                 onRefresh: async () => {
                   await loadAgents(state);
+                  await loadProviderUsage(state);
                   const agentIds = state.agentsList?.agents?.map((entry) => entry.id) ?? [];
                   if (agentIds.length > 0) {
                     void loadAgentIdentities(state, agentIds);

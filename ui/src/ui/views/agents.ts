@@ -8,6 +8,7 @@ import type {
   ChannelsStatusSnapshot,
   CronJob,
   CronStatus,
+  ProviderUsageSummary,
   SkillStatusEntry,
   SkillStatusReport,
 } from "../types.ts";
@@ -58,6 +59,9 @@ export type AgentsProps = {
   agentSkillsReport: SkillStatusReport | null;
   agentSkillsError: string | null;
   agentSkillsAgentId: string | null;
+  providerUsageLoading: boolean;
+  providerUsageError: string | null;
+  providerUsageSummary: ProviderUsageSummary | null;
   skillsFilter: string;
   onRefresh: () => void;
   onSelectAgent: (agentId: string) => void;
@@ -399,6 +403,131 @@ function resolveModelFallbacks(model?: unknown): string[] | null {
   return null;
 }
 
+function normalizeUsageProviderFromModel(modelId: string): string | null {
+  const trimmed = modelId.trim();
+  if (!trimmed || !trimmed.includes("/")) {
+    return null;
+  }
+  const provider = trimmed.split("/")[0]?.trim().toLowerCase();
+  if (!provider) {
+    return null;
+  }
+  if (provider === "github" || provider === "copilot") {
+    return "github-copilot";
+  }
+  if (provider === "gemini" || provider === "google") {
+    return "google-gemini-cli";
+  }
+  if (provider === "openai" || provider === "codex" || provider === "openai-codex") {
+    return "openai-codex";
+  }
+  return provider;
+}
+
+type ModelUsageSelection = {
+  profileId: string;
+  usageText: string;
+};
+
+function formatUsageWindowText(
+  window: ProviderUsageSummary["providers"][number]["windows"][number],
+): string {
+  const leftPercent = Math.max(0, Math.min(100, 100 - window.usedPercent));
+  const absolute =
+    typeof window.remaining === "number" && typeof window.limit === "number"
+      ? `${Math.max(0, Math.round(window.remaining))}/${Math.max(0, Math.round(window.limit))}`
+      : "N/A";
+  return `${absolute} (~${leftPercent.toFixed(0)}%) [${window.label}]`;
+}
+
+function resolveModelUsageSelection(
+  usageSummary: ProviderUsageSummary | null,
+  modelId: string,
+): ModelUsageSelection | null {
+  if (!usageSummary) {
+    return null;
+  }
+  const usageProvider = normalizeUsageProviderFromModel(modelId);
+  if (!usageProvider) {
+    return null;
+  }
+  const providerEntries = usageSummary.providers.filter(
+    (entry) => entry.provider === usageProvider,
+  );
+  const candidates = providerEntries
+    .filter((entry) => !entry.error)
+    .map((entry) => ({
+      entry,
+      score: Math.max(...entry.windows.map((w) => 100 - w.usedPercent), -1),
+    }))
+    .toSorted((a, b) => b.score - a.score);
+  const selected = candidates[0]?.entry;
+  if (selected) {
+    const best = [...selected.windows]
+      .toSorted((a, b) => 100 - b.usedPercent - (100 - a.usedPercent))
+      .at(0);
+    const profileId =
+      selected.profileId?.trim() || selected.accountLabel?.trim() || "unknown-profile";
+    return {
+      profileId,
+      usageText: best ? formatUsageWindowText(best) : "N/A (~0%) [unknown]",
+    };
+  }
+  const fallback = providerEntries[0];
+  if (!fallback) {
+    return null;
+  }
+  return {
+    profileId: fallback.profileId?.trim() || fallback.accountLabel?.trim() || "unknown-profile",
+    usageText: "N/A (~0%) [unknown]",
+  };
+}
+
+function resolveUsageLabelForModel(
+  usageSummary: ProviderUsageSummary | null,
+  modelId: string,
+): string | null {
+  const selected = resolveModelUsageSelection(usageSummary, modelId);
+  if (!selected) {
+    return null;
+  }
+  return `${selected.profileId} · ${selected.usageText}`;
+}
+
+type ActiveModelUsageRow = {
+  kind: "Primary" | `Fallback ${number}`;
+  modelId: string;
+  profileId: string;
+  usage: string;
+};
+
+function resolveActiveModelUsageRows(params: {
+  usageSummary: ProviderUsageSummary | null;
+  primaryModelId: string | null;
+  fallbackModelIds: string[];
+}): ActiveModelUsageRow[] {
+  const rows: ActiveModelUsageRow[] = [];
+  if (params.primaryModelId) {
+    const selected = resolveModelUsageSelection(params.usageSummary, params.primaryModelId);
+    rows.push({
+      kind: "Primary",
+      modelId: params.primaryModelId,
+      profileId: selected?.profileId ?? "N/A",
+      usage: selected?.usageText ?? "N/A (~0%) [unknown]",
+    });
+  }
+  params.fallbackModelIds.forEach((modelId, index) => {
+    const selected = resolveModelUsageSelection(params.usageSummary, modelId);
+    rows.push({
+      kind: `Fallback ${index + 1}`,
+      modelId,
+      profileId: selected?.profileId ?? "N/A",
+      usage: selected?.usageText ?? "N/A (~0%) [unknown]",
+    });
+  });
+  return rows;
+}
+
 type ConfiguredModelOption = {
   value: string;
   label: string;
@@ -430,7 +559,11 @@ function resolveConfiguredModels(
   return options;
 }
 
-function buildModelOptions(configForm: Record<string, unknown> | null, current?: string | null) {
+function buildModelOptions(
+  configForm: Record<string, unknown> | null,
+  usageSummary: ProviderUsageSummary | null,
+  current?: string | null,
+) {
   const options = resolveConfiguredModels(configForm);
   const hasCurrent = current ? options.some((option) => option.value === current) : false;
   if (current && !hasCurrent) {
@@ -441,17 +574,28 @@ function buildModelOptions(configForm: Record<string, unknown> | null, current?:
       <option value="" disabled>No configured models</option>
     `;
   }
-  return options.map((option) => html`<option value=${option.value}>${option.label}</option>`);
+  return options.map((option) => {
+    const usage = resolveUsageLabelForModel(usageSummary, option.value);
+    const label = usage ? `${option.label} — ${usage}` : option.label;
+    return html`<option value=${option.value}>${label}</option>`;
+  });
 }
 
-function getModelLabel(configForm: Record<string, unknown> | null, modelId: string): string {
+function getModelLabel(
+  configForm: Record<string, unknown> | null,
+  usageSummary: ProviderUsageSummary | null,
+  modelId: string,
+): string {
   const options = resolveConfiguredModels(configForm);
   const found = options.find((o) => o.value === modelId);
-  return found?.label ?? modelId;
+  const base = found?.label ?? modelId;
+  const usage = resolveUsageLabelForModel(usageSummary, modelId);
+  return usage ? `${base} — ${usage}` : base;
 }
 
 function buildFallbackAddOptions(
   configForm: Record<string, unknown> | null,
+  usageSummary: ProviderUsageSummary | null,
   modelFallbacks: string[] | null,
 ) {
   const options = [...resolveConfiguredModels(configForm)];
@@ -465,7 +609,11 @@ function buildFallbackAddOptions(
   const available = options.filter((o) => !existingSet.has(o.value));
   return html`
     <option value="">-- Add model --</option>
-    ${available.map((opt) => html`<option value=${opt.value}>${opt.label}</option>`)}
+    ${available.map((opt) => {
+      const usage = resolveUsageLabelForModel(usageSummary, opt.value);
+      const label = usage ? `${opt.label} — ${usage}` : opt.label;
+      return html`<option value=${opt.value}>${label}</option>`;
+    })}
   `;
 }
 
@@ -628,6 +776,9 @@ export function renderAgents(props: AgentsProps) {
                       agent: selectedAgent,
                       defaultId,
                       configForm: props.configForm,
+                      usageSummary: props.providerUsageSummary,
+                      usageLoading: props.providerUsageLoading,
+                      usageError: props.providerUsageError,
                       agentFilesList: props.agentFilesList,
                       agentIdentity: props.agentIdentityById[selectedAgent.id] ?? null,
                       agentIdentityError: props.agentIdentityError,
@@ -796,6 +947,9 @@ function renderAgentOverview(params: {
   agent: AgentsListResult["agents"][number];
   defaultId: string | null;
   configForm: Record<string, unknown> | null;
+  usageSummary: ProviderUsageSummary | null;
+  usageLoading: boolean;
+  usageError: string | null;
   agentFilesList: AgentsFilesListResult | null;
   agentIdentity: AgentIdentityResult | null;
   agentIdentityLoading: boolean;
@@ -811,6 +965,9 @@ function renderAgentOverview(params: {
   const {
     agent,
     configForm,
+    usageSummary,
+    usageLoading,
+    usageError,
     agentFilesList,
     agentIdentity,
     agentIdentityLoading,
@@ -839,6 +996,11 @@ function renderAgentOverview(params: {
     (defaultModel !== "-" ? normalizeModelValue(defaultModel) : null);
   const effectivePrimary = modelPrimary ?? defaultPrimary ?? null;
   const modelFallbacks = resolveModelFallbacks(config.entry?.model);
+  const activeUsageRows = resolveActiveModelUsageRows({
+    usageSummary,
+    primaryModelId: effectivePrimary,
+    fallbackModelIds: modelFallbacks ?? [],
+  });
   const identityName =
     agentIdentity?.name?.trim() ||
     agent.identity?.name?.trim() ||
@@ -890,6 +1052,21 @@ function renderAgentOverview(params: {
 
       <div class="agent-model-select" style="margin-top: 20px;">
         <div class="label">Model Selection</div>
+        ${
+          usageLoading
+            ? html`
+                <div class="muted" style="margin: 6px 0 10px">Loading usage snapshot…</div>
+              `
+            : nothing
+        }
+        ${usageError ? html`<div class="muted" style="margin: 6px 0 10px">Usage unavailable: ${usageError}</div>` : nothing}
+        ${
+          usageSummary
+            ? html`
+                <div class="muted" style="margin: 6px 0 10px">Usage snapshot active.</div>
+              `
+            : nothing
+        }
         <div class="agent-model-select-row">
           <label class="field" style="min-width: 260px; flex: 1;">
             <span>Primary model${isDefault ? " (default)" : ""}</span>
@@ -910,7 +1087,7 @@ function renderAgentOverview(params: {
                       </option>
                     `
               }
-              ${buildModelOptions(configForm, effectivePrimary ?? undefined)}
+              ${buildModelOptions(configForm, usageSummary, effectivePrimary ?? undefined)}
             </select>
           </label>
           <div class="field agent-fallbacks-field agent-fallbacks-field--full">
@@ -963,7 +1140,7 @@ function renderAgentOverview(params: {
                   >
                     <span class="agent-fallback-drag-handle">≡</span>
                     <span class="agent-fallback-label"
-                      >${getModelLabel(configForm, modelId)}</span
+                      >${getModelLabel(configForm, usageSummary, modelId)}</span
                     >
                     <button
                       type="button"
@@ -1000,11 +1177,29 @@ function renderAgentOverview(params: {
                   sel.value = "";
                 }}
               >
-                ${buildFallbackAddOptions(configForm, modelFallbacks)}
+                ${buildFallbackAddOptions(configForm, usageSummary, modelFallbacks)}
               </select>
             </div>
           </div>
         </div>
+        ${
+          activeUsageRows.length > 0
+            ? html`
+                <div class="agents-overview-grid" style="margin: 10px 0 14px;">
+                  <div class="agent-kv" style="grid-column: 1 / -1;">
+                    <div class="label">Active Profile Usage</div>
+                    ${activeUsageRows.map(
+                      (row) => html`
+                        <div class="mono" style="margin-top: 4px;">
+                          ${row.kind}: ${row.modelId} | profileId=${row.profileId} | ${row.usage}
+                        </div>
+                      `,
+                    )}
+                  </div>
+                </div>
+              `
+            : nothing
+        }
         <div class="row" style="justify-content: flex-end; gap: 8px;">
           <button
             class="btn btn--sm"

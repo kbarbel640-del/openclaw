@@ -301,6 +301,33 @@ export type ConfigSchemaResponse = {
   generatedAt: string;
 };
 
+export type ProviderUsageWindow = {
+  label: string;
+  usedPercent: number;
+  resetAt?: number;
+  remaining?: number;
+  limit?: number;
+};
+
+export type ProviderUsageSnapshot = {
+  provider: string;
+  displayName: string;
+  windows: ProviderUsageWindow[];
+  plan?: string;
+  error?: string;
+  accountId?: string;
+  accountLabel?: string;
+  profileId?: string;
+  fetchedAt?: number;
+  cacheExpiresAt?: number;
+  stale?: boolean;
+};
+
+export type ProviderUsageSummary = {
+  updatedAt: number;
+  providers: ProviderUsageSnapshot[];
+};
+
 export type PresenceEntry = {
   instanceId?: string | null;
   host?: string | null;
