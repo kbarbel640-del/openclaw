@@ -5,6 +5,7 @@ import type { SessionEntry } from "./types.js";
 import { emitSessionTranscriptUpdate } from "../../sessions/transcript-events.js";
 import { resolveDefaultSessionStorePath, resolveSessionFilePath } from "./paths.js";
 import { loadSessionStore, updateSessionStore } from "./store.js";
+import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 
 function stripQuery(value: string): string {
   const noHash = value.split("#")[0] ?? value;
@@ -88,6 +89,9 @@ export async function appendAssistantMessageToSessionTranscript(params: {
     return { ok: false, reason: "missing sessionKey" };
   }
 
+  // Resolve agentId from sessionKey if not provided
+  const agentId = params.agentId ?? resolveAgentIdFromSessionKey(sessionKey);
+
   const mirrorText = resolveMirroredTranscriptText({
     text: params.text,
     mediaUrls: params.mediaUrls,
@@ -96,7 +100,7 @@ export async function appendAssistantMessageToSessionTranscript(params: {
     return { ok: false, reason: "empty text" };
   }
 
-  const storePath = params.storePath ?? resolveDefaultSessionStorePath(params.agentId);
+  const storePath = params.storePath ?? resolveDefaultSessionStorePath(agentId);
   const store = loadSessionStore(storePath, { skipCache: true });
   const entry = store[sessionKey] as SessionEntry | undefined;
   if (!entry?.sessionId) {

@@ -229,6 +229,9 @@ async function buildSubagentStatsLine(params: {
     sessionKey: params.sessionKey,
   });
 
+  // Resolve agentId from sessionKey
+  const agentId = resolveAgentIdFromSessionKey(params.sessionKey);
+
   const sessionId = entry?.sessionId;
   let transcriptPath: string | undefined;
   if (sessionId && storePath) {
