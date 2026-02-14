@@ -22,8 +22,7 @@ import {
   type ChannelPlugin,
   type ResolvedSignalAccount,
 } from "openclaw/plugin-sdk";
-import { spawnSignalBridge } from "./bridge-spawn.js";
-import { getSignalRuntime, setSignalBridgeHandle, stopSignalBridge } from "./runtime.js";
+import { getSignalRuntime } from "./runtime.js";
 
 const signalMessageActions: ChannelMessageActionAdapter = {
   listActions: (ctx) => getSignalRuntime().channel.signal.messageActions?.listActions?.(ctx) ?? [],
@@ -81,17 +80,7 @@ export const signalPlugin: ChannelPlugin<ResolvedSignalAccount> = {
         cfg,
         sectionKey: "signal",
         accountId,
-        clearBaseFields: [
-          "account",
-          "httpUrl",
-          "httpHost",
-          "httpPort",
-          "cliPath",
-          "name",
-          "useBridge",
-          "bridgePythonPath",
-          "bridgeLogFile",
-        ],
+        clearBaseFields: ["account", "httpUrl", "httpHost", "httpPort", "cliPath", "name"],
       }),
     isConfigured: (account) => account.configured,
     describeAccount: (account) => ({
@@ -100,7 +89,6 @@ export const signalPlugin: ChannelPlugin<ResolvedSignalAccount> = {
       enabled: account.enabled,
       configured: account.configured,
       baseUrl: account.baseUrl,
-      useBridge: account.config.useBridge ?? false,
     }),
     resolveAllowFrom: ({ cfg, accountId }) =>
       (resolveSignalAccount({ cfg, accountId }).config.allowFrom ?? []).map((entry) =>
@@ -195,9 +183,6 @@ export const signalPlugin: ChannelPlugin<ResolvedSignalAccount> = {
               ...(input.httpUrl ? { httpUrl: input.httpUrl } : {}),
               ...(input.httpHost ? { httpHost: input.httpHost } : {}),
               ...(input.httpPort ? { httpPort: Number(input.httpPort) } : {}),
-              ...(input.useBridge !== undefined ? { useBridge: input.useBridge } : {}),
-              ...(input.bridgePythonPath ? { bridgePythonPath: input.bridgePythonPath } : {}),
-              ...(input.bridgeLogFile ? { bridgeLogFile: input.bridgeLogFile } : {}),
             },
           },
         };
@@ -219,9 +204,6 @@ export const signalPlugin: ChannelPlugin<ResolvedSignalAccount> = {
                 ...(input.httpUrl ? { httpUrl: input.httpUrl } : {}),
                 ...(input.httpHost ? { httpHost: input.httpHost } : {}),
                 ...(input.httpPort ? { httpPort: Number(input.httpPort) } : {}),
-                ...(input.useBridge !== undefined ? { useBridge: input.useBridge } : {}),
-                ...(input.bridgePythonPath ? { bridgePythonPath: input.bridgePythonPath } : {}),
-                ...(input.bridgeLogFile ? { bridgeLogFile: input.bridgeLogFile } : {}),
               },
             },
           },
@@ -298,7 +280,6 @@ export const signalPlugin: ChannelPlugin<ResolvedSignalAccount> = {
       lastError: snapshot.lastError ?? null,
       probe: snapshot.probe,
       lastProbeAt: snapshot.lastProbeAt ?? null,
-      useBridge: snapshot.useBridge ?? false,
     }),
     probeAccount: async ({ account, timeoutMs }) => {
       const baseUrl = account.baseUrl;
@@ -317,100 +298,29 @@ export const signalPlugin: ChannelPlugin<ResolvedSignalAccount> = {
       probe,
       lastInboundAt: runtime?.lastInboundAt ?? null,
       lastOutboundAt: runtime?.lastOutboundAt ?? null,
-      useBridge: account.config.useBridge ?? false,
     }),
   },
   gateway: {
     startAccount: async (ctx) => {
       const account = ctx.account;
-      const useBridge = account.config.useBridge ?? false;
 
       ctx.setStatus({
         accountId: account.accountId,
         baseUrl: account.baseUrl,
-        useBridge,
       });
 
       ctx.log?.info(`[${account.accountId}] starting provider (${account.baseUrl})`);
 
-      if (useBridge) {
-        // Use Python bridge mode
-        ctx.log?.info(`[${account.accountId}] using Python bridge mode`);
-
-        const signalAccount = account.config.account;
-        if (!signalAccount) {
-          throw new Error("Signal account number is required for bridge mode");
-        }
-
-        // Stop any existing bridge
-        stopSignalBridge();
-
-        // Get gateway token from config or runtime
-        const gatewayToken = ctx.cfg.gateway?.token ?? "";
-        const sessionId = `agent:main:dm:${signalAccount}`;
-
-        // Start the Python bridge
-        const handle = spawnSignalBridge({
-          signalPhone: signalAccount,
-          signalWsUrl: `${account.baseUrl}/v1/receive/${encodeURIComponent(signalAccount)}`,
-          signalApiUrl: account.baseUrl,
-          gatewayWsUrl: `ws://localhost:${ctx.cfg.gateway?.port ?? 18789}`,
-          gatewayToken,
-          sessionId,
-          logFile: account.config.bridgeLogFile || "/tmp/openclaw-signal-bridge.log",
-          pythonPath: account.config.bridgePythonPath,
-          runtime: ctx.runtime,
-        });
-
-        setSignalBridgeHandle(handle);
-
-        // Wait a bit for bridge to start
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        if (!handle.isRunning()) {
-          throw new Error("Signal bridge failed to start");
-        }
-
-        ctx.log?.info(`[${account.accountId}] Python bridge started (PID: ${handle.pid})`);
-
-        // Keep running until aborted
-        return new Promise<void>((resolve, reject) => {
-          const checkInterval = setInterval(() => {
-            if (!handle.isRunning()) {
-              clearInterval(checkInterval);
-              reject(new Error("Signal bridge stopped unexpectedly"));
-            }
-          }, 5000);
-
-          ctx.abortSignal?.addEventListener(
-            "abort",
-            () => {
-              clearInterval(checkInterval);
-              stopSignalBridge();
-              resolve();
-            },
-            { once: true },
-          );
-        });
-      } else {
-        // Use native signal-cli mode
-        return getSignalRuntime().channel.signal.monitorSignalProvider({
-          accountId: account.accountId,
-          config: ctx.cfg,
-          runtime: ctx.runtime,
-          abortSignal: ctx.abortSignal,
-          mediaMaxMb: account.config.mediaMaxMb,
-        });
-      }
+      return getSignalRuntime().channel.signal.monitorSignalProvider({
+        accountId: account.accountId,
+        config: ctx.cfg,
+        runtime: ctx.runtime,
+        abortSignal: ctx.abortSignal,
+        mediaMaxMb: account.config.mediaMaxMb,
+      });
     },
-    stopAccount: async (ctx) => {
-      const account = ctx.account;
-      const useBridge = account.config.useBridge ?? false;
-
-      if (useBridge) {
-        ctx.log?.info(`[${account.accountId}] stopping Python bridge`);
-        stopSignalBridge();
-      }
+    stopAccount: async (_ctx) => {
+      // No special cleanup needed for native mode
     },
   },
 };

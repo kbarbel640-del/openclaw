@@ -1,25 +1,4 @@
 {
   "id": "signal",
-  "channels": ["signal"],
-  "configSchema": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-      "useBridge": {
-        "type": "boolean",
-        "description": "Use Python bridge instead of native signal-cli integration",
-        "default": false
-      },
-      "bridgePythonPath": {
-        "type": "string",
-        "description": "Path to Python executable for bridge",
-        "default": "python3"
-      },
-      "bridgeLogFile": {
-        "type": "string",
-        "description": "Path to bridge log file",
-        "default": "/tmp/openclaw-signal-bridge.log"
-      }
-    }
-  }
+  "channels": ["signal"]
 }

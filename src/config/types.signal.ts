@@ -94,12 +94,6 @@ export type SignalAccountConfig = {
   heartbeat?: ChannelHeartbeatVisibilityConfig;
   /** Outbound response prefix override for this channel/account. */
   responsePrefix?: string;
-  /** Use Python bridge instead of native signal-cli integration. */
-  useBridge?: boolean;
-  /** Path to Python executable for bridge. */
-  bridgePythonPath?: string;
-  /** Path to bridge log file. */
-  bridgeLogFile?: string;
 };
 
 export type SignalConfig = {
