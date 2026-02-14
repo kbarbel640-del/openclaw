@@ -283,7 +283,6 @@ export async function dispatchReplyFromConfig(params: {
       } else {
         queuedFinal = dispatcher.sendFinalReply(payload);
       }
-      await dispatcher.waitForIdle();
       const counts = dispatcher.getQueuedCounts();
       counts.final += routedFinalCount;
       recordProcessed("completed", { reason: "fast_abort" });
@@ -447,8 +446,6 @@ export async function dispatchReplyFromConfig(params: {
         );
       }
     }
-
-    await dispatcher.waitForIdle();
 
     const counts = dispatcher.getQueuedCounts();
     counts.final += routedFinalCount;

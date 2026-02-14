@@ -22,6 +22,7 @@ Prepare a PR branch for merge with review fixes, green gates, and an updated hea
 - Do not run gateway stop commands. Do not kill processes. Do not touch port 18792.
 - Do not run `git clean -fdx`.
 - Do not run `git add -A` or `git add .`. Stage only specific files changed.
+- Do not push to GitHub until the maintainer explicitly approves the push step.
 
 ## Execution Rule
 
@@ -38,7 +39,7 @@ Prepare a PR branch for merge with review fixes, green gates, and an updated hea
 
 - Rebase PR commits onto `origin/main`.
 - Fix all BLOCKER and IMPORTANT items from `.local/review.md`.
-- Run required gates and pass (docs-only PRs may skip `pnpm test` when high-confidence docs-only criteria are met and documented).
+- Run gates and pass.
 - Commit prep changes.
 - Push the updated HEAD back to the PR head branch.
 - Write `.local/prep.md` with a prep summary.
@@ -163,46 +164,17 @@ If `committer` is not found:
 git commit -m "fix: <summary> (#<PR>) (thanks @$contrib)"
 ```
 
-8. Decide verification mode and run required gates before pushing
-
-If you are highly confident the change is docs-only, you may skip `pnpm test`.
-
-High-confidence docs-only criteria (all must be true):
-
-- Every changed file is documentation-only (`docs/**`, `README*.md`, `CHANGELOG.md`, `*.md`, `*.mdx`, `mintlify.json`, `docs.json`).
-- No code, runtime, test, dependency, or build config files changed (`src/**`, `extensions/**`, `apps/**`, `package.json`, lockfiles, TS/JS config, test files, scripts).
-- `.local/review.md` does not call for non-doc behavior fixes.
-
-Suggested check:
-
-```sh
-changed_files=$(git diff --name-only origin/main...HEAD)
-non_docs=$(printf "%s\n" "$changed_files" | grep -Ev '^(docs/|README.*\.md$|CHANGELOG\.md$|.*\.md$|.*\.mdx$|mintlify\.json$|docs\.json$)' || true)
-
-docs_only=false
-if [ -n "$changed_files" ] && [ -z "$non_docs" ]; then
-  docs_only=true
-fi
-
-echo "docs_only=$docs_only"
-```
-
-Run required gates:
+8. Run full gates before pushing
 
 ```sh
 pnpm install
 pnpm build
 pnpm ui:build
 pnpm check
-
-if [ "$docs_only" = "true" ]; then
-  echo "Docs-only change detected with high confidence; skipping pnpm test." | tee -a .local/prep.md
-else
-  pnpm test
-fi
+pnpm test
 ```
 
-Require all required gates to pass. If something fails, fix, commit, and rerun. Allow at most 3 fix and rerun cycles. If gates still fail after 3 attempts, stop and report the failures. Do not loop indefinitely.
+Require all to pass. If something fails, fix, commit, and rerun. Allow at most 3 fix and rerun cycles. If gates still fail after 3 attempts, stop and report the failures. Do not loop indefinitely.
 
 9. Push updates back to the PR head branch
 
@@ -219,6 +191,8 @@ if [ "$head" = "main" ] || [ "$head" = "master" ]; then
 fi
 git push --force-with-lease prhead HEAD:$head
 ```
+
+Before running the command above, pause and ask for explicit maintainer go-ahead to perform the push.
 
 10. Verify PR is not behind main (Mandatory)
 
@@ -274,4 +248,4 @@ Otherwise, list remaining failures and stop.
 - Do not delete the worktree on success. `/mergepr` may reuse it.
 - Do not run `gh pr merge`.
 - Never push to main. Only push to the PR head branch.
-- Run and pass all required gates before pushing. `pnpm test` may be skipped only for high-confidence docs-only changes, and the skip must be explicitly recorded in `.local/prep.md`.
+- Run and pass all gates before pushing.
