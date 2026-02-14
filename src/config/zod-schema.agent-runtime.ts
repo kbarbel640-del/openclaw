@@ -21,7 +21,18 @@ export const HeartbeatSchema = z
       })
       .strict()
       .optional(),
+    /** Legacy single model string — kept for backward compatibility. */
     model: z.string().optional(),
+    /** Primary model for heartbeat (takes precedence over legacy `model`). */
+    primary: z.string().optional(),
+    /** Fallback models to try if primary fails, in order. */
+    fallbacks: z.array(z.string()).optional(),
+    /**
+     * Fallback behavior when primary fails:
+     * - "immediate": try next fallback right away (default)
+     * - "next_heartbeat": wait until next poll, try next model
+     */
+    fallbackMode: z.union([z.literal("immediate"), z.literal("next_heartbeat")]).optional(),
     session: z.string().optional(),
     includeReasoning: z.boolean().optional(),
     target: z.string().optional(),
