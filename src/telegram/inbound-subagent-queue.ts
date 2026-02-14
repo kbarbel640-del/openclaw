@@ -34,6 +34,7 @@ type TelegramInboundTask = {
   senderLabel?: string;
   messageSid?: string;
   chatKey: string;
+  enqueuedAtMs: number;
 };
 
 type TelegramInboundQueueDeps = {
@@ -185,6 +186,7 @@ export class TelegramInboundSubagentQueue {
       senderLabel: params.senderLabel,
       messageSid: params.messageSid,
       chatKey,
+      enqueuedAtMs: Date.now(),
     };
     const queue = this.queueByChat.get(chatKey) ?? [];
     queue.push(task);
@@ -278,6 +280,8 @@ export class TelegramInboundSubagentQueue {
   }
 
   private async runTask(task: TelegramInboundTask): Promise<void> {
+    const taskStartMs = Date.now();
+    const queueWaitMs = Math.max(0, taskStartMs - task.enqueuedAtMs);
     const threadParams = buildTelegramThreadParams(task.threadSpec);
     await this.setReaction(task, "⏳");
 
@@ -296,8 +300,6 @@ export class TelegramInboundSubagentQueue {
     };
 
     try {
-      await sendStreamSeed();
-      await this.setReaction(task, "👀");
       const memory = await loadTelegramQueueMemory({
         storePath: task.storePath,
         sessionKey: task.sessionKey,
@@ -311,22 +313,33 @@ export class TelegramInboundSubagentQueue {
         userMessage: task.bodyForAgent,
         senderLabel: task.senderLabel,
       });
-      const response = await callGateway<{ runId?: string }>({
-        method: "agent",
-        params: {
-          message: prompt,
-          sessionKey: childSessionKey,
-          idempotencyKey,
-          deliver: false,
-          lane: AGENT_LANE_SUBAGENT,
-          channel: "telegram",
-          to: `telegram:${task.chatId}`,
-          accountId: task.accountId,
-          threadId: task.threadSpec?.id != null ? String(task.threadSpec.id) : undefined,
-          spawnedBy: task.sessionKey,
-        },
-        timeoutMs: 10_000,
-      });
+      const agentParams = {
+        message: prompt,
+        sessionKey: childSessionKey,
+        idempotencyKey,
+        deliver: false,
+        lane: AGENT_LANE_SUBAGENT,
+        channel: "telegram",
+        to: `telegram:${task.chatId}`,
+        accountId: task.accountId,
+        threadId: task.threadSpec?.id != null ? String(task.threadSpec.id) : undefined,
+        spawnedBy: task.sessionKey,
+      };
+      const toAgentDispatchMs = Math.max(0, Date.now() - taskStartMs);
+      logVerbose(
+        `telegram queue timing: chatId=${String(task.chatId)} messageId=${String(task.messageId)} queueWaitMs=${String(queueWaitMs)} toAgentDispatchMs=${String(toAgentDispatchMs)} mode=prefork`,
+      );
+      const response = await Promise.all([
+        callGateway<{ runId?: string }>({
+          method: "agent",
+          params: agentParams,
+          timeoutMs: 10_000,
+        }),
+        (async () => {
+          await sendStreamSeed();
+          await this.setReaction(task, "👀");
+        })(),
+      ]).then(([agent]) => agent);
       const runId =
         typeof response?.runId === "string" && response.runId.trim()
           ? response.runId

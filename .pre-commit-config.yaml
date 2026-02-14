@@ -46,7 +46,7 @@ repos:
           - --exclude-lines
           - 'typeof remote\?\.password === "string"'
           - --exclude-lines
-          - '-----BEGIN PRIVATE KEY-----'
+          - "-----BEGIN PRIVATE KEY-----"
 
   # Shell script linting
   - repo: https://github.com/koalaman/shellcheck-precommit
