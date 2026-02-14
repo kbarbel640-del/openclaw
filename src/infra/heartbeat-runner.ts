@@ -62,7 +62,8 @@ import {
 } from "./outbound/targets.js";
 import { peekSystemEventEntries } from "./system-events.js";
 import { isFailoverError } from "../agents/failover-error.js";
-import os from "node:os";
+import { ensureOpenClawDir } from "../config/paths.js";
+
 
 type HeartbeatDeps = OutboundSendDeps &
   ChannelHeartbeatDeps & {
@@ -270,13 +271,25 @@ function resolveHeartbeatAckMaxChars(cfg: OpenClawConfig, heartbeat?: HeartbeatC
 // Heartbeat Model Fallback State Management
 // ============================================================================
 
-function getHeartbeatStatePath(): string {
-  return path.join(os.homedir(), ".openclaw", HEARTBEAT_STATE_FILENAME);
+type HeartbeatModelState = {
+  agentId: string;
+  currentFallbackIndex: number;
+  lastUpdated: number;
+};
+
+type HeartbeatState = {
+  version: number;
+  agents: Record<string, HeartbeatModelState>;
+};
+
+async function getHeartbeatStatePath(): Promise<string> {
+  const dir = await ensureOpenClawDir();
+  return path.join(dir, HEARTBEAT_STATE_FILENAME);
 }
 
 async function loadHeartbeatState(): Promise<HeartbeatState> {
   try {
-    const statePath = getHeartbeatStatePath();
+    const statePath = await getHeartbeatStatePath();
     const content = await fs.readFile(statePath, "utf-8");
     const parsed = JSON.parse(content) as HeartbeatState;
     // Validate basic structure
@@ -292,7 +305,7 @@ async function loadHeartbeatState(): Promise<HeartbeatState> {
 
 async function saveHeartbeatState(state: HeartbeatState): Promise<void> {
   try {
-    const statePath = getHeartbeatStatePath();
+    const statePath = await getHeartbeatStatePath();
     await fs.writeFile(statePath, JSON.stringify(state, null, 2));
   } catch (err) {
     log.warn("Failed to save heartbeat state", { error: formatErrorMessage(err) });
