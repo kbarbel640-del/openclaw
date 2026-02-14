@@ -15,6 +15,7 @@ import ai.openclaw.android.gateway.DeviceIdentityStore
 import ai.openclaw.android.gateway.GatewayDiscovery
 import ai.openclaw.android.gateway.GatewayEndpoint
 import ai.openclaw.android.gateway.GatewaySession
+import ai.openclaw.android.gateway.isTrustedForAutoConnect
 import ai.openclaw.android.gateway.probeGatewayTlsFingerprint
 import ai.openclaw.android.node.*
 import ai.openclaw.android.protocol.OpenClawCanvasA2UIAction
@@ -443,11 +444,9 @@ class NodeRuntime(context: Context) {
         val targetStableId = lastDiscoveredStableId.value.trim()
         if (targetStableId.isEmpty()) return@collect
         val target = list.firstOrNull { it.stableId == targetStableId } ?: return@collect
-
-        // Security: autoconnect only to previously trusted gateways (stored TLS pin).
-        val storedFingerprint = prefs.loadGatewayTlsFingerprint(target.stableId)?.trim().orEmpty()
-        if (storedFingerprint.isEmpty()) return@collect
-
+        if (!isTrustedForAutoConnect(target, prefs.loadGatewayTlsFingerprint(target.stableId))) {
+          return@collect
+        }
         didAutoConnect = true
         connect(target)
       }
