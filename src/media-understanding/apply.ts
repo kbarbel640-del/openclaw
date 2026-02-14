@@ -317,11 +317,26 @@ function resolveTextMimeFromName(name?: string): string | undefined {
   return TEXT_EXT_MIME.get(ext);
 }
 
-function isBinaryMediaMime(mime?: string): boolean {
+/** Known binary MIME prefixes and exact types that should never be inlined as text. */
+const BINARY_MIME_PREFIXES = ["image/", "audio/", "video/", "application/vnd.", "application/x-"];
+const BINARY_MIME_EXACT = new Set([
+  "application/zip",
+  "application/gzip",
+  "application/octet-stream",
+  "application/pdf",
+  "application/wasm",
+  "application/protobuf",
+  "application/x-tar",
+]);
+
+export function isBinaryMediaMime(mime?: string): boolean {
   if (!mime) {
     return false;
   }
-  return mime.startsWith("image/") || mime.startsWith("audio/") || mime.startsWith("video/");
+  if (BINARY_MIME_PREFIXES.some((prefix) => mime.startsWith(prefix))) {
+    return true;
+  }
+  return BINARY_MIME_EXACT.has(mime);
 }
 
 async function extractFileBlocks(params: {
