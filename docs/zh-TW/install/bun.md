@@ -26,7 +26,7 @@ title: "Bun (實驗性)"
 bun install
 ```
 
-註：`bun.lock`/`bun.lockb` 已被加入 gitignore，因此無論如何都不會造成專案庫異動。如果你希望 *不要寫入 lockfile*：
+註：`bun.lock`/`bun.lockb` 已被加入 gitignore，因此無論如何都不會造成專案庫異動。如果你希望 _不要寫入 lockfile_：
 
 ```sh
 bun install --no-save

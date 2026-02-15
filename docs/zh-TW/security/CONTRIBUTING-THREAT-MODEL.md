@@ -41,12 +41,12 @@
 
 每個威脅都會獲得一個如 `T-EXEC-003` 的 ID。類別如下：
 
-| 代碼    | 類別                                       |
-| ------- | ------------------------------------------ |
-| RECON   | Reconnaissance（偵察）- 資訊收集           |
-| ACCESS  | Initial access（初始存取）- 取得進入權限   |
-| EXEC    | Execution（執行）- 執行惡意行為            |
-| PERSIST | Persistence（持續性）- 維持存取權限        |
-| EVADE   | Defense evasion（防禦規避）- 避免被發現    |
-| DISC    | Discovery（探索）- 了解環境資訊            |
-| EXFIL   | Exfiltration（外洩）- 竊取資料             
+| 代碼    | 類別                                     |
+| ------- | ---------------------------------------- |
+| RECON   | Reconnaissance（偵察）- 資訊收集         |
+| ACCESS  | Initial access（初始存取）- 取得進入權限 |
+| EXEC    | Execution（執行）- 執行惡意行為          |
+| PERSIST | Persistence（持續性）- 維持存取權限      |
+| EVADE   | Defense evasion（防禦規避）- 避免被發現  |
+| DISC    | Discovery（探索）- 了解環境資訊          |
+| EXFIL   | Exfiltration（外洩）- 竊取資料           |

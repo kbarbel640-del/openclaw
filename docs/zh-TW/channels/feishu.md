@@ -527,34 +527,34 @@ Feishu 支援透過互動式卡片進行串流回覆。啟用後，機器人在�
 
 關鍵選項：
 
-| 設定                                              | 描述                        | 預設值    |
-| ------------------------------------------------- | --------------------------- | --------- |
-| `channels.feishu.enabled`                         | 啟用/停用頻道               | `true`    |
+| 設定                                              | 描述                          | 預設值    |
+| ------------------------------------------------- | ----------------------------- | --------- |
+| `channels.feishu.enabled`                         | 啟用/停用頻道                 | `true`    |
 | `channels.feishu.domain`                          | API 網域 (`feishu` 或 `lark`) | `feishu`  |
-| `channels.feishu.accounts.<id>.appId`             | App ID                      | -         |
-| `channels.feishu.accounts.<id>.appSecret`         | App Secret                  | -         |
-| `channels.feishu.accounts.<id>.domain`            | 覆蓋每個帳戶的 API 網域     | `feishu`  |
-| `channels.feishu.dmPolicy`                        | 私訊策略                    | `pairing` |
-| `channels.feishu.allowFrom`                       | 私訊允許清單 (open_id 清單) | -         |
-| `channels.feishu.groupPolicy`                     | 群組策略                    | `open`    |
-| `channels.feishu.groupAllowFrom`                  | 群組允許清單                | -         |
-| `channels.feishu.groups.<chat_id>.requireMention` | 需要 @提及                  | `true`    |
-| `channels.feishu.groups.<chat_id>.enabled`        | 啟用群組                    | `true`    |
-| `channels.feishu.textChunkLimit`                  | 訊息分塊大小                | `2000`    |
-| `channels.feishu.mediaMaxMb`                      | 媒體大小限制                | `30`      |
-| `channels.feishu.streaming`                       | 啟用串流卡片輸出            | `true`    |
-| `channels.feishu.blockStreaming`                  | 啟用區塊串流傳輸            | `true`    |
+| `channels.feishu.accounts.<id>.appId`             | App ID                        | -         |
+| `channels.feishu.accounts.<id>.appSecret`         | App Secret                    | -         |
+| `channels.feishu.accounts.<id>.domain`            | 覆蓋每個帳戶的 API 網域       | `feishu`  |
+| `channels.feishu.dmPolicy`                        | 私訊策略                      | `pairing` |
+| `channels.feishu.allowFrom`                       | 私訊允許清單 (open_id 清單)   | -         |
+| `channels.feishu.groupPolicy`                     | 群組策略                      | `open`    |
+| `channels.feishu.groupAllowFrom`                  | 群組允許清單                  | -         |
+| `channels.feishu.groups.<chat_id>.requireMention` | 需要 @提及                    | `true`    |
+| `channels.feishu.groups.<chat_id>.enabled`        | 啟用群組                      | `true`    |
+| `channels.feishu.textChunkLimit`                  | 訊息分塊大小                  | `2000`    |
+| `channels.feishu.mediaMaxMb`                      | 媒體大小限制                  | `30`      |
+| `channels.feishu.streaming`                       | 啟用串流卡片輸出              | `true`    |
+| `channels.feishu.blockStreaming`                  | 啟用區塊串流傳輸              | `true`    |
 
 ---
 
 ## dmPolicy 參考
 
-| 值            | 行為                                           |
-| ------------- | ---------------------------------------------- |
-| `"pairing"`   | **預設。** 未知使用者會收到配對碼；必須被核准 |
-| `"allowlist"` | 僅 `allowFrom` 中的使用者可以聊天              |
+| 值            | 行為                                            |
+| ------------- | ----------------------------------------------- |
+| `"pairing"`   | **預設。** 未知使用者會收到配對碼；必須被核准   |
+| `"allowlist"` | 僅 `allowFrom` 中的使用者可以聊天               |
 | `"open"`      | 允許所有使用者（需要在 allowFrom 中加入 `"*"`） |
-| `"disabled"`  | 停用私訊                                       |
+| `"disabled"`  | 停用私訊                                        |
 
 ---
 

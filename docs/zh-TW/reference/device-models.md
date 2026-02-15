@@ -1,10 +1,12 @@
-I will read the `glossary.zh-TW.json` file to ensure the translation adheres to any established terminology in the project.
----
+## I will read the `glossary.zh-TW.json` file to ensure the translation adheres to any established terminology in the project.
+
 summary: "OpenClaw 如何在 macOS 應用程式中為 Apple 裝置型號識別碼提供易讀名稱。"
 read_when:
-  - 更新裝置型號識別碼對照表或 NOTICE/授權檔案時
-  - 更改 Instances 使用者介面顯示裝置名稱的方式時
-title: "裝置型號資料庫"
+
+- 更新裝置型號識別碼對照表或 NOTICE/授權檔案時
+- 更改 Instances 使用者介面顯示裝置名稱的方式時
+  title: "裝置型號資料庫"
+
 ---
 
 # 裝置型號資料庫 (易讀名稱)

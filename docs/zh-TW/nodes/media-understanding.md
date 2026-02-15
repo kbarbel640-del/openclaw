@@ -169,11 +169,11 @@ CLI 範本還可以使用：
 
 ## 供應商支援矩陣 (OpenClaw 整合)
 
-| 功能 | 供應商整合 | 備註 |
-| ---------- | ------------------------------------------------ | ------------------------------------------------- |
-| 圖片 (Image) | OpenAI / Anthropic / Google / 其他透過 `pi-ai` 整合的供應商 | 註冊表中任何具備圖片功能的模型皆可運作。 |
-| 音訊 (Audio) | OpenAI, Groq, Deepgram, Google | 供應商逐字稿功能 (Whisper/Deepgram/Gemini)。 |
-| 影片 (Video) | Google (Gemini API) | 供應商影片理解功能。 |
+| 功能         | 供應商整合                                                  | 備註                                         |
+| ------------ | ----------------------------------------------------------- | -------------------------------------------- |
+| 圖片 (Image) | OpenAI / Anthropic / Google / 其他透過 `pi-ai` 整合的供應商 | 註冊表中任何具備圖片功能的模型皆可運作。     |
+| 音訊 (Audio) | OpenAI, Groq, Deepgram, Google                              | 供應商逐字稿功能 (Whisper/Deepgram/Gemini)。 |
+| 影片 (Video) | Google (Gemini API)                                         | 供應商影片理解功能。                         |
 
 ## 推薦供應商
 

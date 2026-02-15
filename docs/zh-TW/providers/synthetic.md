@@ -66,27 +66,27 @@ synthetic/hf:MiniMaxAI/MiniMax-M2.1
 
 以下所有模型的費用均為 `0`（輸入/輸出/快取）。
 
-| 模型 ID                                                | 內容視窗 | 最大 Token | 推理 | 輸入         |
-| ------------------------------------------------------ | -------- | ---------- | ---- | ------------ |
-| `hf:MiniMaxAI/MiniMax-M2.1`                            | 192000   | 65536      | false| 文字         |
-| `hf:moonshotai/Kimi-K2-Thinking`                       | 256000   | 8192       | true | 文字         |
-| `hf:zai-org/GLM-4.7`                                   | 198000   | 128000     | false| 文字         |
-| `hf:deepseek-ai/DeepSeek-R1-0528`                      | 128000   | 8192       | false| 文字         |
-| `hf:deepseek-ai/DeepSeek-V3-0324`                      | 128000   | 8192       | false| 文字         |
-| `hf:deepseek-ai/DeepSeek-V3.1`                         | 128000   | 8192       | false| 文字         |
-| `hf:deepseek-ai/DeepSeek-V3.1-Terminus`                | 128000   | 8192       | false| 文字         |
-| `hf:deepseek-ai/DeepSeek-V3.2`                         | 159000   | 8192       | false| 文字         |
-| `hf:meta-llama/Llama-3.3-70B-Instruct`                 | 128000   | 8192       | false| 文字         |
-| `hf:meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8` | 524000   | 8192       | false| 文字         |
-| `hf:moonshotai/Kimi-K2-Instruct-0905`                  | 256000   | 8192       | false| 文字         |
-| `hf:openai/gpt-oss-120b`                               | 128000   | 8192       | false| 文字         |
-| `hf:Qwen/Qwen3-235B-A22B-Instruct-2507`                | 256000   | 8192       | false| 文字         |
-| `hf:Qwen/Qwen3-Coder-480B-A35B-Instruct`               | 256000   | 8192       | false| 文字         |
-| `hf:Qwen/Qwen3-VL-235B-A22B-Instruct`                  | 250000   | 8192       | false| 文字 + 圖片  |
-| `hf:zai-org/GLM-4.5`                                   | 128000   | 128000     | false| 文字         |
-| `hf:zai-org/GLM-4.6`                                   | 198000   | 128000     | false| 文字         |
-| `hf:deepseek-ai/DeepSeek-V3`                           | 128000   | 8192       | false| 文字         |
-| `hf:Qwen/Qwen3-235B-A22B-Thinking-2507`                | 256000   | 8192       | true | 文字         |
+| 模型 ID                                                | 內容視窗 | 最大 Token | 推理  | 輸入        |
+| ------------------------------------------------------ | -------- | ---------- | ----- | ----------- |
+| `hf:MiniMaxAI/MiniMax-M2.1`                            | 192000   | 65536      | false | 文字        |
+| `hf:moonshotai/Kimi-K2-Thinking`                       | 256000   | 8192       | true  | 文字        |
+| `hf:zai-org/GLM-4.7`                                   | 198000   | 128000     | false | 文字        |
+| `hf:deepseek-ai/DeepSeek-R1-0528`                      | 128000   | 8192       | false | 文字        |
+| `hf:deepseek-ai/DeepSeek-V3-0324`                      | 128000   | 8192       | false | 文字        |
+| `hf:deepseek-ai/DeepSeek-V3.1`                         | 128000   | 8192       | false | 文字        |
+| `hf:deepseek-ai/DeepSeek-V3.1-Terminus`                | 128000   | 8192       | false | 文字        |
+| `hf:deepseek-ai/DeepSeek-V3.2`                         | 159000   | 8192       | false | 文字        |
+| `hf:meta-llama/Llama-3.3-70B-Instruct`                 | 128000   | 8192       | false | 文字        |
+| `hf:meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8` | 524000   | 8192       | false | 文字        |
+| `hf:moonshotai/Kimi-K2-Instruct-0905`                  | 256000   | 8192       | false | 文字        |
+| `hf:openai/gpt-oss-120b`                               | 128000   | 8192       | false | 文字        |
+| `hf:Qwen/Qwen3-235B-A22B-Instruct-2507`                | 256000   | 8192       | false | 文字        |
+| `hf:Qwen/Qwen3-Coder-480B-A35B-Instruct`               | 256000   | 8192       | false | 文字        |
+| `hf:Qwen/Qwen3-VL-235B-A22B-Instruct`                  | 250000   | 8192       | false | 文字 + 圖片 |
+| `hf:zai-org/GLM-4.5`                                   | 128000   | 128000     | false | 文字        |
+| `hf:zai-org/GLM-4.6`                                   | 198000   | 128000     | false | 文字        |
+| `hf:deepseek-ai/DeepSeek-V3`                           | 128000   | 8192       | false | 文字        |
+| `hf:Qwen/Qwen3-235B-A22B-Thinking-2507`                | 256000   | 8192       | true  | 文字        |
 
 ## 注意事項
 

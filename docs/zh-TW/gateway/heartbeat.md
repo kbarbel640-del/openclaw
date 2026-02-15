@@ -264,12 +264,12 @@ channels:
 
 ### 常見模式
 
-| 目標 | 設定 |
-| --- | --- |
-| 預設行為 (OK 靜音, 警示開啟) | _(無需設定)_ |
-| 完全靜音 (無訊息, 無指示器) | `channels.defaults.heartbeat: { showOk: false, showAlerts: false, useIndicator: false }` |
-| 僅顯示指示器 (無訊息) | `channels.defaults.heartbeat: { showOk: false, showAlerts: false, useIndicator: true }` |
-| 僅在一個頻道顯示 OK | `channels.telegram.heartbeat: { showOk: true }` |
+| 目標                         | 設定                                                                                     |
+| ---------------------------- | ---------------------------------------------------------------------------------------- |
+| 預設行為 (OK 靜音, 警示開啟) | _(無需設定)_                                                                             |
+| 完全靜音 (無訊息, 無指示器)  | `channels.defaults.heartbeat: { showOk: false, showAlerts: false, useIndicator: false }` |
+| 僅顯示指示器 (無訊息)        | `channels.defaults.heartbeat: { showOk: false, showAlerts: false, useIndicator: true }`  |
+| 僅在一個頻道顯示 OK          | `channels.telegram.heartbeat: { showOk: true }`                                          |
 
 ## HEARTBEAT.md (選填)
 

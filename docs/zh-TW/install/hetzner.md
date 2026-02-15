@@ -316,18 +316,18 @@ ssh -N -L 18789:127.0.0.1:18789 root @YOUR_VPS_IP
 
 OpenClaw 雖然在 Docker 中執行，但 Docker 並非資料真實來源 (Source of Truth)。所有長期存在的狀態都必須在重啟、重新建置和開機後保留。
 
-| 元件 | 位置 | 持久化機制 | 備註 |
-| ------------------- | --------------------------------- | ---------------------- | -------------------------------- |
-| Gateway 設定 | `/home/node/.openclaw/` | 宿主機磁碟卷掛載 | 包含 `openclaw.json`、權杖 |
-| 模型認證設定檔 | `/home/node/.openclaw/` | 宿主機磁碟卷掛載 | OAuth 權杖、API 金鑰 |
-| Skill 設定 | `/home/node/.openclaw/skills/` | 宿主機磁碟卷掛載 | Skill 等級的狀態 |
-| 智慧代理工作區 | `/home/node/.openclaw/workspace/` | 宿主機磁碟卷掛載 | 程式碼與智慧代理產物 |
-| WhatsApp 工作階段 | `/home/node/.openclaw/` | 宿主機磁碟卷掛載 | 保留 QR 碼登入狀態 |
-| Gmail 鑰匙圈 | `/home/node/.openclaw/` | 宿主機磁碟卷 + 密碼 | 需要 `GOG_KEYRING_PASSWORD` |
-| 外部二進位檔案 | `/usr/local/bin/` | Docker 映像檔 | 必須在建置時內建 |
-| Node 執行環境 | 容器檔案系統 | Docker 映像檔 | 每次映像檔建置時重新建置 |
-| 作業系統套件 | 容器檔案系統 | Docker 映像檔 | 請勿在執行時安裝 |
-| Docker 容器 | 暫時性 | 可重啟 | 可以安全地銷毀 |
+| 元件              | 位置                              | 持久化機制          | 備註                        |
+| ----------------- | --------------------------------- | ------------------- | --------------------------- |
+| Gateway 設定      | `/home/node/.openclaw/`           | 宿主機磁碟卷掛載    | 包含 `openclaw.json`、權杖  |
+| 模型認證設定檔    | `/home/node/.openclaw/`           | 宿主機磁碟卷掛載    | OAuth 權杖、API 金鑰        |
+| Skill 設定        | `/home/node/.openclaw/skills/`    | 宿主機磁碟卷掛載    | Skill 等級的狀態            |
+| 智慧代理工作區    | `/home/node/.openclaw/workspace/` | 宿主機磁碟卷掛載    | 程式碼與智慧代理產物        |
+| WhatsApp 工作階段 | `/home/node/.openclaw/`           | 宿主機磁碟卷掛載    | 保留 QR 碼登入狀態          |
+| Gmail 鑰匙圈      | `/home/node/.openclaw/`           | 宿主機磁碟卷 + 密碼 | 需要 `GOG_KEYRING_PASSWORD` |
+| 外部二進位檔案    | `/usr/local/bin/`                 | Docker 映像檔       | 必須在建置時內建            |
+| Node 執行環境     | 容器檔案系統                      | Docker 映像檔       | 每次映像檔建置時重新建置    |
+| 作業系統套件      | 容器檔案系統                      | Docker 映像檔       | 請勿在執行時安裝            |
+| Docker 容器       | 暫時性                            | 可重啟              | 可以安全地銷毀              |
 
 ---
 

@@ -20,13 +20,13 @@ Oracle 的免費層級非常適合 OpenClaw（特別是如果您已經有 OCI �
 
 ## 費用比較 (2026)
 
-| 供應商       | 方案            | 規格                   | 每月價格 | 備註                  |
-| ------------ | --------------- | ---------------------- | -------- | --------------------- |
-| Oracle Cloud | Always Free ARM | 高達 4 OCPU, 24GB RAM  | $0       | ARM, 容量有限         |
-| Hetzner      | CX22            | 2 vCPU, 4GB RAM        | ~ $4     | 最便宜的付費選項      |
-| DigitalOcean | Basic           | 1 vCPU, 1GB RAM        | $6       | 介面友善，文件完善    |
-| Vultr        | Cloud Compute   | 1 vCPU, 1GB RAM        | $6       | 節點位置眾多          |
-| Linode       | Nanode          | 1 vCPU, 1GB RAM        | $5       | 現為 Akamai 的一部分  |
+| 供應商       | 方案            | 規格                  | 每月價格 | 備註                 |
+| ------------ | --------------- | --------------------- | -------- | -------------------- |
+| Oracle Cloud | Always Free ARM | 高達 4 OCPU, 24GB RAM | $0       | ARM, 容量有限        |
+| Hetzner      | CX22            | 2 vCPU, 4GB RAM       | ~ $4     | 最便宜的付費選項     |
+| DigitalOcean | Basic           | 1 vCPU, 1GB RAM       | $6       | 介面友善，文件完善   |
+| Vultr        | Cloud Compute   | 1 vCPU, 1GB RAM       | $6       | 節點位置眾多         |
+| Linode       | Nanode          | 1 vCPU, 1GB RAM       | $5       | 現為 Akamai 的一部分 |
 
 ---
 

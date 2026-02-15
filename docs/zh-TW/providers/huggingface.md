@@ -97,7 +97,7 @@ GET https://router.huggingface.co/v1/models
 
 **範例 ID（來自推論端點）：**
 
-| 模型 | 引用 (加上 `huggingface/` 前綴) |
+| 模型                   | 引用 (加上 `huggingface/` 前綴)     |
 | ---------------------- | ----------------------------------- |
 | DeepSeek R1            | `deepseek-ai/DeepSeek-R1`           |
 | DeepSeek V3.2          | `deepseek-ai/DeepSeek-V3.2`         |

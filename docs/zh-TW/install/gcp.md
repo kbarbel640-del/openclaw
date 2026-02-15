@@ -114,10 +114,10 @@ gcloud services enable compute.googleapis.com
 
 **機器類型：**
 
-| 類型     | 規格                     | 費用               | 備註               |
-| -------- | ------------------------ | ------------------ | ------------------ |
-| e2-small | 2 vCPU, 2GB RAM          | 每月約 $12         | 建議選項           |
-| e2-micro | 2 vCPU (共享), 1GB RAM   | 適用免費層級       | 負載下可能發生 OOM |
+| 類型     | 規格                   | 費用         | 備註               |
+| -------- | ---------------------- | ------------ | ------------------ |
+| e2-small | 2 vCPU, 2GB RAM        | 每月約 $12   | 建議選項           |
+| e2-micro | 2 vCPU (共享), 1GB RAM | 適用免費層級 | 負載下可能發生 OOM |
 
 **CLI：**
 
@@ -407,18 +407,18 @@ gcloud compute ssh openclaw-gateway --zone=us-central1-a -- -L 18789:127.0.0.1:1
 OpenClaw 運行在 Docker 中，但 Docker 並非單一事實來源。
 所有長久保存的狀態都必須在重啟、重新建置和開機後留存。
 
-| 組件                | 位置                              | 持久化機制             | 備註                               |
-| ------------------- | --------------------------------- | ---------------------- | ---------------------------------- |
-| Gateway 設定        | `/home/node/.openclaw/`           | 主機磁碟卷掛載         | 包含 `openclaw.json` 和 tokens     |
-| 模型驗證設定檔      | `/home/node/.openclaw/`           | 主機磁碟卷掛載         | OAuth 權杖、API 金鑰               |
-| Skills 設定         | `/home/node/.openclaw/skills/`    | 主機磁碟卷掛載         | Skills 等級的狀態                  |
-| 智慧代理工作空間    | `/home/node/.openclaw/workspace/` | 主機磁碟卷掛載         | 程式碼和智慧代理成品               |
-| WhatsApp 工作階段   | `/home/node/.openclaw/`           | 主機磁碟卷掛載         | 保留 QR Code 登入狀態              |
-| Gmail keyring       | `/home/node/.openclaw/`           | 主機磁碟卷 + 密碼      | 需要 `GOG_KEYRING_PASSWORD`        |
-| 外部二進位檔案      | `/usr/local/bin/`                 | Docker 映像檔          | 必須在建置時內建                   |
-| Node 執行環境       | 容器檔案系統                      | Docker 映像檔          | 每次建置映像檔時重新建置           |
-| OS 軟體包           | 容器檔案系統                      | Docker 映像檔          | 請勿在執行階段安裝                 |
-| Docker 容器         | 暫時性的                          | 可重啟                 | 銷毀是安全的                       |
+| 組件              | 位置                              | 持久化機制        | 備註                           |
+| ----------------- | --------------------------------- | ----------------- | ------------------------------ |
+| Gateway 設定      | `/home/node/.openclaw/`           | 主機磁碟卷掛載    | 包含 `openclaw.json` 和 tokens |
+| 模型驗證設定檔    | `/home/node/.openclaw/`           | 主機磁碟卷掛載    | OAuth 權杖、API 金鑰           |
+| Skills 設定       | `/home/node/.openclaw/skills/`    | 主機磁碟卷掛載    | Skills 等級的狀態              |
+| 智慧代理工作空間  | `/home/node/.openclaw/workspace/` | 主機磁碟卷掛載    | 程式碼和智慧代理成品           |
+| WhatsApp 工作階段 | `/home/node/.openclaw/`           | 主機磁碟卷掛載    | 保留 QR Code 登入狀態          |
+| Gmail keyring     | `/home/node/.openclaw/`           | 主機磁碟卷 + 密碼 | 需要 `GOG_KEYRING_PASSWORD`    |
+| 外部二進位檔案    | `/usr/local/bin/`                 | Docker 映像檔     | 必須在建置時內建               |
+| Node 執行環境     | 容器檔案系統                      | Docker 映像檔     | 每次建置映像檔時重新建置       |
+| OS 軟體包         | 容器檔案系統                      | Docker 映像檔     | 請勿在執行階段安裝             |
+| Docker 容器       | 暫時性的                          | 可重啟            | 銷毀是安全的                   |
 
 ---
 

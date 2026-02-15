@@ -67,7 +67,7 @@ OpenClaw 透過 `src/config/sessions.ts` 解析這些路徑。
 
 ## 工作階段金鑰 (`sessionKey`)
 
-`sessionKey` 識別你所在的 *對話分桶*（路由 + 隔離）。
+`sessionKey` 識別你所在的 _對話分桶_（路由 + 隔離）。
 
 常見模式：
 
@@ -133,8 +133,8 @@ OpenClaw 透過 `src/config/sessions.ts` 解析這些路徑。
 顯著的條目類型：
 
 - `message`: 使用者/助理/工具結果訊息
-- `custom_message`: 擴充功能注入的訊息，*會* 進入模型上下文（可對 UI 隱藏）
-- `custom`: 擴充功能狀態，*不會* 進入模型上下文
+- `custom_message`: 擴充功能注入的訊息，_會_ 進入模型上下文（可對 UI 隱藏）
+- `custom`: 擴充功能狀態，_不會_ 進入模型上下文
 - `compaction`: 持久化的壓縮摘要，包含 `firstKeptEntryId` 和 `tokensBefore`
 - `branch_summary`: 導覽樹狀分支時持久化的摘要
 

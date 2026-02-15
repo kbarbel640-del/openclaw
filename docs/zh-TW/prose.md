@@ -119,11 +119,11 @@ OpenProse 支援多種狀態後端：
 
 OpenProse 程式對應到 OpenClaw 基本元件：
 
-| OpenProse 概念 | OpenClaw 工具 |
-| ------------------------- | ---------------- |
+| OpenProse 概念           | OpenClaw 工具    |
+| ------------------------ | ---------------- |
 | 產生工作階段 / Task 工具 | `sessions_spawn` |
-| 檔案 讀取/寫入 | `read` / `write` |
-| Web 擷取 | `web_fetch` |
+| 檔案 讀取/寫入           | `read` / `write` |
+| Web 擷取                 | `web_fetch`      |
 
 如果您的工具允許清單封鎖了這些工具，OpenProse 程式將會失敗。請參閱 [Skills 設定](/tools/skills-config)。
 

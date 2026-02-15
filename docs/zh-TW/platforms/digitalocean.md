@@ -16,13 +16,13 @@ title: "DigitalOcean"
 
 ## 費用比較 (2026)
 
-| 供應商       | 方案            | 規格                   | 每月價格    | 備註                                  |
-| ------------ | --------------- | ---------------------- | ----------- | ------------------------------------- |
-| Oracle Cloud | Always Free ARM | 高達 4 OCPU, 24GB RAM  | $0          | ARM，容量有限 / 註冊流程較特殊        |
-| Hetzner      | CX22            | 2 vCPU, 4GB RAM        | €3.79 (~$4) | 最便宜的付費選項                      |
-| DigitalOcean | Basic           | 1 vCPU, 1GB RAM        | $6          | 介面簡單，文件豐富                    |
-| Vultr        | Cloud Compute   | 1 vCPU, 1GB RAM        | $6          | 節點位置眾多                          |
-| Linode       | Nanode          | 1 vCPU, 1GB RAM        | $5          | 現為 Akamai 的一部分                  |
+| 供應商       | 方案            | 規格                  | 每月價格    | 備註                           |
+| ------------ | --------------- | --------------------- | ----------- | ------------------------------ |
+| Oracle Cloud | Always Free ARM | 高達 4 OCPU, 24GB RAM | $0          | ARM，容量有限 / 註冊流程較特殊 |
+| Hetzner      | CX22            | 2 vCPU, 4GB RAM       | €3.79 (~$4) | 最便宜的付費選項               |
+| DigitalOcean | Basic           | 1 vCPU, 1GB RAM       | $6          | 介面簡單，文件豐富             |
+| Vultr        | Cloud Compute   | 1 vCPU, 1GB RAM       | $6          | 節點位置眾多                   |
+| Linode       | Nanode          | 1 vCPU, 1GB RAM       | $5          | 現為 Akamai 的一部分           |
 
 **選擇供應商：**
 
@@ -209,12 +209,12 @@ tar -czvf openclaw-backup.tar.gz ~/.openclaw ~/.openclaw/workspace
 
 Oracle Cloud 提供 **Always Free** ARM 執行個體，效能比這裡列出的任何付費選項都強大得多 — 每月只需 $0。
 
-| 您將獲得          | 規格                   |
-| ----------------- | ---------------------- |
-| **4 OCPUs**       | ARM Ampere A1          |
-| **24GB 記憶體**   | 綽綽有餘               |
-| **200GB 儲存空間** | 區塊磁碟區             |
-| **永久免費**      | 不會產生信用卡費用     |
+| 您將獲得           | 規格               |
+| ------------------ | ------------------ |
+| **4 OCPUs**        | ARM Ampere A1      |
+| **24GB 記憶體**    | 綽綽有餘           |
+| **200GB 儲存空間** | 區塊磁碟區         |
+| **永久免費**       | 不會產生信用卡費用 |
 
 **注意事項：**
 

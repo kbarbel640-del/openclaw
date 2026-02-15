@@ -71,15 +71,15 @@ export NOSTR_PRIVATE_KEY="nsec1..."
 
 ## 設定參考
 
-| 鍵名          | 類型     | 預設值                                      | 描述                                |
-| ------------ | -------- | ------------------------------------------- | ----------------------------------- |
-| `privateKey` | string   | 必填                                        | `nsec` 或十六進制格式的私鑰         |
-| `relays`     | string[] | `['wss://relay.damus.io', 'wss://nos.lol']` | 中繼站 URL (WebSocket)              |
-| `dmPolicy`   | string   | `pairing`                                   | 私訊存取策略                        |
-| `allowFrom`  | string[] | `[]`                                        | 允許的傳送者公鑰                    |
-| `enabled`    | boolean  | `true`                                      | 啟用/禁用通道                       |
-| `name`       | string   | -                                           | 顯示名稱                            |
-| `profile`    | object   | -                                           | NIP-01 個人資料詮釋資料 (metadata)  |
+| 鍵名         | 類型     | 預設值                                      | 描述                               |
+| ------------ | -------- | ------------------------------------------- | ---------------------------------- |
+| `privateKey` | string   | 必填                                        | `nsec` 或十六進制格式的私鑰        |
+| `relays`     | string[] | `['wss://relay.damus.io', 'wss://nos.lol']` | 中繼站 URL (WebSocket)             |
+| `dmPolicy`   | string   | `pairing`                                   | 私訊存取策略                       |
+| `allowFrom`  | string[] | `[]`                                        | 允許的傳送者公鑰                   |
+| `enabled`    | boolean  | `true`                                      | 啟用/禁用通道                      |
+| `name`       | string   | -                                           | 顯示名稱                           |
+| `profile`    | object   | -                                           | NIP-01 個人資料詮釋資料 (metadata) |
 
 ## 個人資料詮釋資料
 
@@ -166,12 +166,12 @@ export NOSTR_PRIVATE_KEY="nsec1..."
 
 ## 協定支援
 
-| NIP    | 狀態     | 描述                                  |
-| ------ | -------- | ------------------------------------- |
-| NIP-01 | 已支援   | 基本事件格式 + 個人資料詮釋資料       |
-| NIP-04 | 已支援   | 加密私訊 (`kind:4`)                   |
-| NIP-17 | 計畫中   | 禮物包裝式私訊 (Gift-wrapped DMs)     |
-| NIP-44 | 計畫中   | 版本化加密                            |
+| NIP    | 狀態   | 描述                              |
+| ------ | ------ | --------------------------------- |
+| NIP-01 | 已支援 | 基本事件格式 + 個人資料詮釋資料   |
+| NIP-04 | 已支援 | 加密私訊 (`kind:4`)               |
+| NIP-17 | 計畫中 | 禮物包裝式私訊 (Gift-wrapped DMs) |
+| NIP-44 | 計畫中 | 版本化加密                        |
 
 ## 測試
 

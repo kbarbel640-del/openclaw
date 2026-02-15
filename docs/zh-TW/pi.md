@@ -28,12 +28,12 @@ OpenClaw 使用 Pi SDK 將 AI 程式碼編寫智慧代理嵌入其訊息 Gateway
 }
 ```
 
-| 套件 | 用途 |
-| ----------------- | ------------------------------------------------------------------------------------------------------ |
-| `pi-ai` | 核心 LLM 抽象：`Model`、`streamSimple`、訊息類型、供應商 API |
-| `pi-agent-core` | 智慧代理迴圈、工具執行、`AgentMessage` 類型 |
+| 套件              | 用途                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `pi-ai`           | 核心 LLM 抽象：`Model`、`streamSimple`、訊息類型、供應商 API                               |
+| `pi-agent-core`   | 智慧代理迴圈、工具執行、`AgentMessage` 類型                                                |
 | `pi-coding-agent` | 高階 SDK：`createAgentSession`、`SessionManager`、`AuthStorage`、`ModelRegistry`、內建工具 |
-| `pi-tui` | 終端機 UI 元件（用於 OpenClaw 的本地 TUI 模式） |
+| `pi-tui`          | 終端機 UI 元件（用於 OpenClaw 的本地 TUI 模式）                                            |
 
 ## 檔案結構
 
@@ -511,15 +511,15 @@ import { ... } from " @mariozechner/pi-tui";
 
 ## 與 Pi CLI 的主要差異
 
-| 面向 | Pi CLI | OpenClaw 嵌入式 |
-| --------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
-| 調用方式 | `pi` 指令 / RPC | 透過 `createAgentSession()` 調用 SDK |
-| 工具 | 預設程式碼編寫工具 | 自定義 OpenClaw 工具套件 |
-| 系統提示詞 | AGENTS.md + 提示詞 | 按頻道/上下文動態產生 |
+| 面向         | Pi CLI                  | OpenClaw 嵌入式                                                                                |
+| ------------ | ----------------------- | ---------------------------------------------------------------------------------------------- |
+| 調用方式     | `pi` 指令 / RPC         | 透過 `createAgentSession()` 調用 SDK                                                           |
+| 工具         | 預設程式碼編寫工具      | 自定義 OpenClaw 工具套件                                                                       |
+| 系統提示詞   | AGENTS.md + 提示詞      | 按頻道/上下文動態產生                                                                          |
 | 工作階段儲存 | `~/.pi/agent/sessions/` | `~/.openclaw/agents/<agentId>/sessions/` (或 `$OPENCLAW_STATE_DIR/agents/<agentId>/sessions/`) |
-| 驗證 | 單一憑證 | 具備輪替功能的多設定檔 |
-| 擴充功能 | 從磁碟載入 | 程式化 + 磁碟路徑 |
-| 事件處理 | TUI 渲染 | 基於回呼 (Callback)（onBlockReply 等） |
+| 驗證         | 單一憑證                | 具備輪替功能的多設定檔                                                                         |
+| 擴充功能     | 從磁碟載入              | 程式化 + 磁碟路徑                                                                              |
+| 事件處理     | TUI 渲染                | 基於回呼 (Callback)（onBlockReply 等）                                                         |
 
 ## 未來考量
 

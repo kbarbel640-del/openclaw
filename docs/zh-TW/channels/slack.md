@@ -267,13 +267,13 @@ Slack 操作由 `channels.slack.actions.*` 控制。
 
 目前 Slack 工具中可用的操作群組：
 
-| 群組        | 預設    |
-| ---------- | ------- |
-| messages   | 啟用    |
-| reactions  | 啟用    |
-| pins       | 啟用    |
-| memberInfo | 啟用    |
-| emojiList  | 啟用    |
+| 群組       | 預設 |
+| ---------- | ---- |
+| messages   | 啟用 |
+| reactions  | 啟用 |
+| pins       | 啟用 |
+| memberInfo | 啟用 |
+| emojiList  | 啟用 |
 
 ## 事件與維運行為
 

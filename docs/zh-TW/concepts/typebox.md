@@ -36,14 +36,14 @@ Client                    Gateway
 
 常見方法 + 事件：
 
-| 類別 | 範例 | 備註 |
-| --------- | --------------------------------------------------------- | ---------------------------------- |
-| 核心 | `connect`, `health`, `status` | `connect` 必須為首則訊息 |
-| 訊息傳遞 | `send`, `poll`, `agent`, `agent.wait` | 具副作用的操作需要 `idempotencyKey` |
-| 聊天 | `chat.history`, `chat.send`, `chat.abort`, `chat.inject` | WebChat 使用這些方法 |
-| 工作階段 | `sessions.list`, `sessions.patch`, `sessions.delete` | 工作階段管理 |
-| 節點 | `node.list`, `node.invoke`, `node.pair.*` | Gateway WS + 節點操作 |
-| 事件 | `tick`, `presence`, `agent`, `chat`, `health`, `shutdown` | 伺服器推送 |
+| 類別     | 範例                                                      | 備註                                |
+| -------- | --------------------------------------------------------- | ----------------------------------- |
+| 核心     | `connect`, `health`, `status`                             | `connect` 必須為首則訊息            |
+| 訊息傳遞 | `send`, `poll`, `agent`, `agent.wait`                     | 具副作用的操作需要 `idempotencyKey` |
+| 聊天     | `chat.history`, `chat.send`, `chat.abort`, `chat.inject`  | WebChat 使用這些方法                |
+| 工作階段 | `sessions.list`, `sessions.patch`, `sessions.delete`      | 工作階段管理                        |
+| 節點     | `node.list`, `node.invoke`, `node.pair.*`                 | Gateway WS + 節點操作               |
+| 事件     | `tick`, `presence`, `agent`, `chat`, `health`, `shutdown` | 伺服器推送                          |
 
 權威列表位於 `src/gateway/server.ts`（`METHODS`, `EVENTS`）。
 

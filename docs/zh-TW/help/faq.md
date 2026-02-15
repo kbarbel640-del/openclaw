@@ -556,7 +556,7 @@ Set-PSDebug -Trace 0
 
 ### 文件沒有解決我的問題 - 如何獲得更好的答案？
 
-使用 **可開發 (git) 安裝**，以便您在本地擁有完整的原始碼與文件，然後 *在該資料夾中* 詢問您的機器人（或 Claude/Codex），這樣它就能讀取 repo 並精確回答。
+使用 **可開發 (git) 安裝**，以便您在本地擁有完整的原始碼與文件，然後 _在該資料夾中_ 詢問您的機器人（或 Claude/Codex），這樣它就能讀取 repo 並精確回答。
 
 ```bash
 curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method git
