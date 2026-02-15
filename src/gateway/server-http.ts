@@ -495,15 +495,16 @@ export function createGatewayHttpServer(opts: {
         const decoded = decodeURIComponent(rawPath);
         const absPath = path.resolve(path.normalize(decoded));
         const tmp = tmpdir();
-        if (!absPath.startsWith(tmp)) {
-          res.statusCode = 403;
-          res.end("Forbidden");
-          return;
-        }
         try {
           const stats = statSync(absPath);
           if (!stats.isFile()) {
             throw new Error("Not a file");
+          }
+          const rel = path.relative(tmp, absPath);
+          if (rel.startsWith("..") || path.isAbsolute(rel)) {
+            res.statusCode = 403;
+            res.end("Forbidden");
+            return;
           }
           const mime = absPath.endsWith(".mp3") ? "audio/mpeg" : absPath.endsWith(".wav") ? "audio/wav" : absPath.endsWith(".opus") ? "audio/opus" : "application/octet-stream";
           res.statusCode = 200;
