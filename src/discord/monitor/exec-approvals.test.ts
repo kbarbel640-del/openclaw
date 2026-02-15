@@ -38,6 +38,8 @@ vi.mock("../send.shared.js", () => ({
     },
     request: (_fn: () => Promise<unknown>, _label: string) => _fn(),
   }),
+  stripUndefinedFields: <T extends object>(value: T): T =>
+    Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T,
 }));
 
 vi.mock("../../gateway/client.js", () => ({
