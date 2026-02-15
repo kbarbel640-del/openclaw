@@ -15,6 +15,7 @@ import { ensureLoaded, persist, warnIfDisabled } from "./store.js";
 import { armTimer, emit, executeJob, runMissedJobs, stopTimer, wake } from "./timer.js";
 
 export async function start(state: CronServiceState) {
+  let startupInterruptedJobIds = new Set<string>();
   await locked(state, async () => {
     if (!state.deps.cronEnabled) {
       state.deps.log.info({ enabled: false }, "cron: disabled");
@@ -22,7 +23,7 @@ export async function start(state: CronServiceState) {
     }
     await ensureLoaded(state, { skipRecompute: true });
     const jobs = state.store?.jobs ?? [];
-    const startupInterruptedJobIds = new Set<string>();
+    startupInterruptedJobIds = new Set<string>();
     for (const job of jobs) {
       if (typeof job.state.runningAtMs === "number") {
         state.deps.log.warn(
@@ -33,7 +34,6 @@ export async function start(state: CronServiceState) {
         startupInterruptedJobIds.add(job.id);
       }
     }
-    await runMissedJobs(state, { skipJobIds: startupInterruptedJobIds });
     recomputeNextRuns(state);
     await persist(state);
     armTimer(state);
@@ -46,6 +46,7 @@ export async function start(state: CronServiceState) {
       "cron: started",
     );
   });
+  await runMissedJobs(state, { skipJobIds: startupInterruptedJobIds });
 }
 
 export function stop(state: CronServiceState) {
@@ -197,7 +198,7 @@ export async function remove(state: CronServiceState, id: string) {
 }
 
 export async function run(state: CronServiceState, id: string, mode?: "due" | "force") {
-  return await locked(state, async () => {
+  const prepared = await locked(state, async () => {
     warnIfDisabled(state, "run");
     await ensureLoaded(state, { skipRecompute: true });
     const job = findJobOrThrow(state, id);
@@ -209,12 +210,34 @@ export async function run(state: CronServiceState, id: string, mode?: "due" | "f
     if (!due) {
       return { ok: true, ran: false, reason: "not-due" as const };
     }
-    await executeJob(state, job, now, { forced: mode === "force" });
+    // Reserve the run while holding the lock so concurrent control RPCs
+    // observe this job as in-flight immediately.
+    job.state.runningAtMs = now;
+    job.state.lastError = undefined;
+    await persist(state);
+    return { ok: true, ran: true, jobId: id, now } as const;
+  });
+
+  if (!prepared.ran) {
+    return prepared;
+  }
+
+  // Execute outside the cron store lock so cron.status/list/control RPCs are
+  // not blocked by long-running job payloads.
+  const job = state.store?.jobs.find((j) => j.id === prepared.jobId);
+  if (!job) {
+    return { ok: true, ran: false, reason: "not-found-after-prepare" as const };
+  }
+  await executeJob(state, job, prepared.now, { forced: mode === "force" });
+
+  await locked(state, async () => {
+    await ensureLoaded(state, { forceReload: true, skipRecompute: true });
     recomputeNextRuns(state);
     await persist(state);
     armTimer(state);
-    return { ok: true, ran: true } as const;
   });
+
+  return { ok: true, ran: true } as const;
 }
 
 export function wakeNow(
