@@ -638,13 +638,25 @@ export const registerTelegramNativeCommands = ({
           if (!auth) {
             return;
           }
-          const { senderId, commandAuthorized, isGroup, isForum } = auth;
+          const { senderId, commandAuthorized, isGroup, isForum, resolvedThreadId } = auth;
           const messageThreadId = (msg as { message_thread_id?: number }).message_thread_id;
           const threadSpec = resolveTelegramThreadSpec({
             isGroup,
             isForum,
             messageThreadId,
           });
+          const parentPeer = buildTelegramParentPeer({ isGroup, resolvedThreadId, chatId });
+          const route = resolveAgentRoute({
+            cfg,
+            channel: "telegram",
+            accountId,
+            peer: {
+              kind: isGroup ? "group" : "direct",
+              id: isGroup ? buildTelegramGroupPeerId(chatId, resolvedThreadId) : String(chatId),
+            },
+            parentPeer,
+          });
+          const mediaLocalRoots = getAgentScopedMediaLocalRoots(cfg, route.agentId);
           const from = isGroup
             ? buildTelegramGroupFrom(chatId, threadSpec.id)
             : `telegram:${chatId}`;
@@ -666,9 +678,9 @@ export const registerTelegramNativeCommands = ({
           const tableMode = resolveMarkdownTableMode({
             cfg,
             channel: "telegram",
-            accountId,
+            accountId: route.accountId,
           });
-          const chunkMode = resolveChunkMode(cfg, "telegram", accountId);
+          const chunkMode = resolveChunkMode(cfg, "telegram", route.accountId);
 
           await deliverReplies({
             replies: [result],
@@ -676,6 +688,7 @@ export const registerTelegramNativeCommands = ({
             token: opts.token,
             runtime,
             bot,
+            mediaLocalRoots,
             replyToMode,
             textLimit,
             thread: threadSpec,
