@@ -4,6 +4,7 @@ import type { CostUsageSummary } from "../../infra/session-cost-usage.js";
 import type { GatewayDiscoverOpts } from "./discover.js";
 import { formatDocsLink } from "../../terminal/links.js";
 import { colorize, isRich, theme } from "../../terminal/theme.js";
+import { addGatewayServiceCommands } from "../daemon-cli.js";
 import { gatewayCallOpts } from "./call-opts.js";
 import { addGatewayRunCommand } from "./run-opts.js";
 
@@ -118,7 +119,6 @@ export function registerGatewayCli(program: Command) {
     gateway.command("run").description("Run the WebSocket Gateway (foreground)"),
   );
 
-  const { addGatewayServiceCommands } = await import("../daemon-cli.js");
   addGatewayServiceCommands(gateway, {
     statusDescription: "Show gateway service status + probe the Gateway",
   });
